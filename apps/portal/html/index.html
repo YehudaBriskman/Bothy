@@ -58,8 +58,11 @@
 
   /* ================= LAYOUT ================= */
   .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
-  .reveal{opacity:0;transform:translateY(28px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}
+  .reveal{opacity:0;transform:translateY(32px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.rl{transform:translateX(-36px)}
+  .reveal.rr{transform:translateX(36px)}
   .reveal.in{opacity:1;transform:none}
+  .progress{position:fixed;top:0;left:0;height:2px;width:100%;z-index:60;transform-origin:0 50%;transform:scaleX(0);background:linear-gradient(90deg,var(--v),var(--c),var(--em));box-shadow:0 0 12px rgba(139,92,246,.6)}
 
   nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);background:linear-gradient(180deg,rgba(5,6,7,.7),rgba(5,6,7,0));border-bottom:1px solid transparent;transition:.3s}
   nav.scrolled{border-color:var(--line);background:rgba(5,6,7,.85)}
@@ -72,7 +75,7 @@
   @media(max-width:720px){.nav-links{display:none}}
 
   /* ================= HERO ================= */
-  .hero{padding:110px 0 40px;text-align:center;position:relative}
+  .hero{padding:150px 0 90px;text-align:center;position:relative;will-change:transform,opacity}
   .pill{display:inline-flex;align-items:center;gap:9px;font-size:13px;color:var(--mut);border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:8px 15px;margin-bottom:30px}
   .pulse{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 10px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
@@ -86,20 +89,20 @@
   .btn.ghost{color:var(--ink);background:var(--glass)}
   .btn.ghost:hover{border-color:var(--line2);background:rgba(255,255,255,.06)}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:78px 0 0;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--line)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:100px 0 0;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--line)}
   .stat{background:rgba(8,9,12,.6);backdrop-filter:blur(6px);padding:28px 22px;text-align:center}
   .stat .n{font-family:var(--disp);font-weight:600;font-size:clamp(1.9rem,3.6vw,2.7rem);letter-spacing:-.02em;background:linear-gradient(120deg,#fff,#9aa4b6);-webkit-background-clip:text;background-clip:text;color:transparent}
   .stat .l{color:var(--dim);font-size:12px;margin-top:6px;text-transform:uppercase;letter-spacing:.14em}
   @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
 
   /* ================= DIVIDER ================= */
-  .divider{display:flex;align-items:center;gap:18px;margin:34px 0;opacity:.9}
+  .divider{display:flex;align-items:center;gap:18px;margin:20px 0;opacity:.9}
   .divider .l{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--line2),transparent)}
   .divider .d{width:8px;height:8px;transform:rotate(45deg);border:1px solid var(--line2);animation:pulse2 3s ease-in-out infinite}
   @keyframes pulse2{50%{background:var(--line2)}}
 
   /* ================= SECTIONS ================= */
-  section{padding:80px 0}
+  section{padding:150px 0}
   .sec-head{max-width:640px}
   .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--v);margin-bottom:14px;display:flex;align-items:center;gap:10px}
   .eyebrow::before{content:"";width:24px;height:1px;background:var(--v)}
@@ -107,7 +110,7 @@
   .lead{color:var(--mut);margin-top:14px;max-width:56ch;font-size:15.5px}
 
   /* ================= CATEGORY PANELS ================= */
-  .cat{position:relative;border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.004));padding:30px;margin-top:26px;overflow:hidden}
+  .cat{position:relative;border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.004));padding:32px;margin-top:44px;overflow:hidden}
   .cat::before{content:"";position:absolute;top:0;left:30px;right:30px;height:2px;background:linear-gradient(90deg,var(--acc),transparent);opacity:.8}
   .cat-head{display:flex;align-items:center;gap:18px;margin-bottom:22px}
   .cat-idx{font-family:var(--disp);font-weight:600;font-size:15px;color:var(--acc);border:1px solid var(--line2);border-radius:11px;width:44px;height:44px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--acc) 12%,transparent)}
@@ -135,6 +138,13 @@
   .card .go svg{transition:transform .2s}
   .card:hover .go svg{transform:translateX(3px)}
   .card .go.cli{color:var(--dim);font-weight:500}
+  /* staggered card entrance, keyed off each panel's reveal (keeps hover intact) */
+  .cat.reveal{transform:none}
+  .cat:not(.in) .card{opacity:0}
+  .cat.in .card{animation:cardIn .7s cubic-bezier(.2,.7,.2,1) backwards}
+  .cat.in .card:nth-child(2){animation-delay:.11s}
+  .cat.in .card:nth-child(3){animation-delay:.22s}
+  @keyframes cardIn{from{opacity:0;transform:translateY(34px)}to{opacity:1;transform:none}}
 
   /* ================= WHY / ROADMAP ================= */
   .split{display:grid;grid-template-columns:1fr 1.2fr;gap:44px;align-items:start}
@@ -155,6 +165,7 @@
 </style>
 </head>
 <body>
+  <div class="progress" id="prog"></div>
   <div class="bg">
     <div class="layer" data-depth="18"><div class="orb a"></div><div class="orb b"></div><div class="orb c"></div></div>
   </div>
@@ -275,8 +286,8 @@
 
   <section id="why" class="wrap">
     <div class="split">
-      <div class="reveal"><div class="eyebrow">Why</div><div class="h2">Built to be<br>trusted with<br>real work.</div></div>
-      <div class="reveal">
+      <div class="reveal rl"><div class="eyebrow">Why</div><div class="h2">Built to be<br>trusted with<br>real work.</div></div>
+      <div class="reveal rr">
         <p>A laptop is a bad place to run Postgres, Kafka and a monitoring stack — it sleeps, runs out of RAM, and nothing survives a reboot. This box moves all of that to an <b>always-on machine</b> with 10 cores and 23&nbsp;GB, reachable anywhere over <b>Tailscale</b>, so the laptop stays light and the infrastructure stays put.</p>
         <p>It isn't just "some containers." It's an environment that <b>watches its own health</b>, <b>emails you when something breaks</b>, and <b>can't quietly lose your data</b> — memory-capped, auto-restarting, backed up nightly, version-controlled in <span class="mono" style="color:var(--mut)">~/stacks</span>, and documented in the wiki.</p>
       </div>
@@ -333,12 +344,27 @@
     dots.appendChild(s);
   }
 
-  // Mouse parallax on background layers
+  // Combined parallax + scroll engine (rAF-throttled)
   const layers=[...document.querySelectorAll('.layer')];
-  addEventListener('mousemove',e=>{
-    const dx=(e.clientX/innerWidth-.5), dy=(e.clientY/innerHeight-.5);
-    layers.forEach(l=>{const d=+l.dataset.depth||14; l.style.transform=`translate(${dx*d}px,${dy*d}px)`;});
-  });
+  const linesEl=document.querySelector('.lines');
+  const heroEl=document.querySelector('.hero');
+  const navEl=document.getElementById('nav');
+  const barEl=document.getElementById('prog');
+  let mx=0,my=0,sy=window.scrollY,raf=null;
+  function render(){
+    const doc=document.documentElement;
+    for(const l of layers){const d=+l.dataset.depth||14; l.style.transform=`translate(${(mx*d).toFixed(1)}px,${(my*d+sy*0.10).toFixed(1)}px)`;}
+    if(linesEl) linesEl.style.transform=`translate(${(mx*-10).toFixed(1)}px,${(sy*-0.05).toFixed(1)}px)`;
+    if(heroEl){const k=Math.min(1,sy/640); heroEl.style.opacity=(1-k*0.9).toFixed(3); heroEl.style.transform=`translateY(${(sy*0.16).toFixed(1)}px)`;}
+    if(navEl) navEl.classList.toggle('scrolled',sy>10);
+    if(barEl){const p=sy/((doc.scrollHeight-doc.clientHeight)||1); barEl.style.transform=`scaleX(${Math.min(1,p).toFixed(4)})`;}
+    raf=null;
+  }
+  function schedule(){ if(!raf) raf=requestAnimationFrame(render); }
+  addEventListener('mousemove',e=>{ mx=e.clientX/innerWidth-.5; my=e.clientY/innerHeight-.5; schedule(); });
+  addEventListener('scroll',()=>{ sy=window.scrollY; schedule(); },{passive:true});
+  addEventListener('resize',schedule);
+  render();
 
   // Links (host-relative)
   document.querySelectorAll('[data-port]').forEach(el=>{
@@ -356,10 +382,6 @@
   // Scroll reveal
   const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
   document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-
-  // Nav border
-  const nav=document.getElementById('nav');
-  addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>10));
 
   // Count-up
   function count(el){const t=+el.dataset.count;let n=0;const step=Math.max(1,Math.round(t/28));
