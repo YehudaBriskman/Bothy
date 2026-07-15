@@ -46,6 +46,14 @@ nuke:
 ps:
     docker ps
 
+# One-glance health check of the whole environment
+doctor:
+    @bash scripts/doctor.sh
+
+# Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
+backup:
+    @bash scripts/backup.sh
+
 # Follow a container's logs, e.g. `just logs grafana`
 logs service:
     docker logs -f --tail 100 {{service}}
