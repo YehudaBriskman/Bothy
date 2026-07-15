@@ -4,245 +4,306 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Dev Box · Yehuda-HS</title>
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0c12; --bg2:#0e1119; --card:#151a24; --card2:#1a2130;
-    --line:#232c3d; --txt:#e7ecf3; --mut:#8b97ac; --dim:#5c6779;
-    --a1:#7c5cff; --a2:#25d0c0; --ok:#33d17a; --down:#ff5c6c; --wait:#f5b642;
-    --r:16px;
+    --bg:#060708; --ink:#f4f6fb; --mut:#9aa4b6; --dim:#616b7d;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.14);
+    --glass:rgba(255,255,255,.028);
+    --v:#8b5cf6; --c:#22d3ee; --p:#fb7185; --ok:#34d399; --down:#fb7185; --wait:#fbbf24;
+    --disp:"Clash Display",ui-sans-serif,system-ui,sans-serif;
+    --sans:"Satoshi",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,monospace;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{
-    font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
-    color:var(--txt);
-    background:
-      radial-gradient(1100px 600px at 12% -8%,rgba(124,92,255,.18),transparent 60%),
-      radial-gradient(1000px 620px at 100% 0%,rgba(37,208,192,.14),transparent 55%),
-      var(--bg);
-    min-height:100vh;-webkit-font-smoothing:antialiased;
-  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden;line-height:1.5}
   a{color:inherit;text-decoration:none}
-  .wrap{max-width:1080px;margin:0 auto;padding:40px 22px 72px}
-  code,.mono{font-family:ui-monospace,"JetBrains Mono","SF Mono",Menlo,monospace}
 
-  header{display:flex;flex-wrap:wrap;align-items:flex-end;gap:18px;justify-content:space-between;margin-bottom:10px}
-  .brand{display:flex;align-items:center;gap:14px}
-  .logo{
-    width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:26px;
-    background:linear-gradient(135deg,var(--a1),var(--a2));box-shadow:0 8px 30px rgba(124,92,255,.35)
-  }
-  h1{font-size:26px;letter-spacing:-.3px}
-  .sub{color:var(--mut);font-size:13.5px;margin-top:2px}
-  .host{
-    font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:999px;
-    padding:7px 13px;background:rgba(255,255,255,.02)
-  }
-  .host b{color:var(--txt)}
+  /* ---------- background ---------- */
+  .bg{position:fixed;inset:0;z-index:-2;overflow:hidden;background:var(--bg)}
+  .orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;mix-blend-mode:screen;will-change:transform}
+  .orb.a{width:640px;height:640px;left:-160px;top:-220px;background:radial-gradient(circle,#6d28d9,transparent 62%);animation:float1 22s ease-in-out infinite}
+  .orb.b{width:560px;height:560px;right:-160px;top:-120px;background:radial-gradient(circle,#0e7490,transparent 62%);animation:float2 26s ease-in-out infinite}
+  .orb.c{width:520px;height:520px;left:38%;top:44%;background:radial-gradient(circle,#9d174d,transparent 64%);opacity:.32;animation:float3 30s ease-in-out infinite}
+  @keyframes float1{50%{transform:translate(120px,90px) scale(1.12)}}
+  @keyframes float2{50%{transform:translate(-110px,120px) scale(1.08)}}
+  @keyframes float3{50%{transform:translate(60px,-90px) scale(1.15)}}
+  .grid-bg{position:fixed;inset:0;z-index:-2;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 20%,transparent 75%);opacity:.5}
+  .grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.04;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 
-  .tagline{
-    color:var(--mut);max-width:70ch;margin:16px 0 30px;font-size:15px
-  }
-  .tagline b{color:var(--txt);font-weight:600}
+  /* ---------- layout ---------- */
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+  .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
 
-  .facts{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 34px}
-  .fact{
-    border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--mut)
-  }
-  .fact b{color:var(--txt)}
+  /* ---------- nav ---------- */
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);background:linear-gradient(180deg,rgba(6,7,8,.72),rgba(6,7,8,0));border-bottom:1px solid transparent}
+  nav.scrolled{border-color:var(--line);background:rgba(6,7,8,.82)}
+  .nav-in{max-width:1120px;margin:0 auto;padding:15px 24px;display:flex;align-items:center;justify-content:space-between}
+  .logo{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:600;letter-spacing:-.02em}
+  .logo .mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:18px;background:linear-gradient(135deg,var(--v),var(--c));box-shadow:0 6px 22px rgba(139,92,246,.4)}
+  .nav-links{display:flex;gap:26px;font-size:14px;color:var(--mut)}
+  .nav-links a:hover{color:var(--ink)}
+  .nav-links a{transition:color .2s}
+  @media(max-width:720px){.nav-links{display:none}}
 
-  h2.section{font-size:13px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin:34px 0 14px;font-weight:700}
+  /* ---------- hero ---------- */
+  .hero{padding:96px 0 48px;text-align:center}
+  .pill{display:inline-flex;align-items:center;gap:9px;font-size:13px;color:var(--mut);border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:8px 15px;margin-bottom:30px}
+  .pulse{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(52,211,153,.55);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 10px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  h1{font-family:var(--disp);font-weight:600;letter-spacing:-.035em;line-height:1.02;font-size:clamp(2.7rem,7.2vw,5.4rem)}
+  h1 .g{background:linear-gradient(105deg,var(--v) 0%,var(--c) 55%,var(--p) 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{max-width:60ch;margin:26px auto 0;color:var(--mut);font-size:clamp(1rem,1.6vw,1.18rem)}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:36px}
+  .btn{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:14.5px;padding:13px 22px;border-radius:12px;transition:.2s;border:1px solid var(--line2)}
+  .btn.primary{background:linear-gradient(135deg,var(--v),var(--c));color:#0a0a0a;border:none;box-shadow:0 10px 30px rgba(139,92,246,.35)}
+  .btn.primary:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(139,92,246,.45)}
+  .btn.ghost{color:var(--ink);background:var(--glass)}
+  .btn.ghost:hover{border-color:var(--line2);background:rgba(255,255,255,.06)}
 
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-  .card{
-    position:relative;border:1px solid var(--line);border-radius:var(--r);
-    background:linear-gradient(180deg,var(--card),var(--card2));
-    padding:18px 18px 16px;transition:.18s transform,.18s border-color,.18s box-shadow;overflow:hidden
-  }
-  .card:hover{transform:translateY(-3px);border-color:#31405c;box-shadow:0 14px 34px rgba(0,0,0,.4)}
-  .card .top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-  .ico{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:21px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
-  .name{font-size:16px;font-weight:650;display:flex;align-items:center;gap:8px}
-  .port{font-size:11.5px;color:var(--dim)}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--wait);box-shadow:0 0 0 3px rgba(245,182,66,.16);flex:none}
-  .dot.up{background:var(--ok);box-shadow:0 0 0 3px rgba(51,209,122,.16)}
-  .dot.down{background:var(--down);box-shadow:0 0 0 3px rgba(255,92,108,.16)}
-  .what{color:var(--txt);font-size:13.5px;margin:2px 0 6px}
-  .why{color:var(--mut);font-size:12.5px;min-height:34px}
-  .open{
-    display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:12.5px;font-weight:600;
-    color:#cdd6e6;border:1px solid var(--line);border-radius:9px;padding:7px 11px;background:rgba(255,255,255,.02)
-  }
-  .card:hover .open{border-color:#3a4a68;color:#fff}
-  .open.cli{color:var(--mut);border-style:dashed;cursor:default}
-  .accent{position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(var(--a1),var(--a2));opacity:.0;transition:.18s}
-  .card:hover .accent{opacity:.9}
+  /* ---------- stats ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:70px 0 10px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--line)}
+  .stat{background:var(--bg);padding:26px 22px;text-align:center}
+  .stat .n{font-family:var(--disp);font-weight:600;font-size:clamp(1.8rem,3.5vw,2.6rem);letter-spacing:-.02em;background:linear-gradient(120deg,#fff,#9aa4b6);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat .l{color:var(--dim);font-size:12.5px;margin-top:5px;text-transform:uppercase;letter-spacing:.12em}
+  @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
 
-  .prose{border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:22px 22px;margin-top:14px}
-  .prose p{color:var(--mut);margin:9px 0}
-  .prose b{color:var(--txt)}
-  .road{list-style:none;display:grid;gap:9px;margin-top:6px}
-  .road li{color:var(--mut);font-size:13.5px;padding-left:26px;position:relative}
-  .road li::before{content:"→";position:absolute;left:4px;color:var(--a2);font-weight:700}
+  /* ---------- sections ---------- */
+  section{padding:64px 0}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--v);margin-bottom:14px}
+  .h2{font-family:var(--disp);font-weight:600;letter-spacing:-.03em;font-size:clamp(1.7rem,3.6vw,2.5rem);line-height:1.08}
+  .lead{color:var(--mut);margin-top:12px;max-width:56ch;font-size:15.5px}
 
-  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:20px;color:var(--dim);font-size:12.5px;display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between}
-  footer code{color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  /* ---------- cards ---------- */
+  .cat{margin-top:40px}
+  .cat h3{font-family:var(--mono);font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+  .cat h3::after{content:"";flex:1;height:1px;background:var(--line)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
+  .card{position:relative;border:1px solid var(--line);border-radius:18px;background:var(--glass);padding:22px;overflow:hidden;transition:transform .25s cubic-bezier(.2,.7,.2,1),border-color .25s;isolation:isolate}
+  .card::before{content:"";position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .3s;background:radial-gradient(460px circle at var(--mx,50%) var(--my,50%),rgba(139,92,246,.16),transparent 42%)}
+  .card:hover{transform:translateY(-4px);border-color:var(--line2)}
+  .card:hover::before{opacity:1}
+  a.card{cursor:pointer}
+  .card .row{display:flex;align-items:center;gap:13px;margin-bottom:14px}
+  .card .ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:rgba(255,255,255,.05);border:1px solid var(--line);flex:none}
+  .card .nm{font-family:var(--disp);font-weight:600;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  .card .pt{font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-top:1px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--wait);flex:none;transition:.3s}
+  .dot.up{background:var(--ok);box-shadow:0 0 10px rgba(52,211,153,.7)}
+  .dot.down{background:var(--down)}
+  .card .desc{color:var(--mut);font-size:13.5px;min-height:40px}
+  .card .go{display:inline-flex;align-items:center;gap:7px;margin-top:15px;font-size:13px;font-weight:600;color:#cdd6e6}
+  .card:hover .go{color:#fff}
+  .card .go svg{transition:transform .2s}
+  .card:hover .go svg{transform:translateX(3px)}
+  .card .go.cli{color:var(--dim);font-weight:500}
+
+  /* ---------- prose ---------- */
+  .split{display:grid;grid-template-columns:1fr 1.2fr;gap:40px;align-items:start}
+  @media(max-width:800px){.split{grid-template-columns:1fr;gap:20px}}
+  .split p{color:var(--mut);font-size:15.5px;margin-top:14px}
+  .split p b{color:var(--ink);font-weight:600}
+  .road{display:grid;gap:12px;counter-reset:r}
+  .road li{list-style:none;display:flex;gap:16px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:16px 18px;background:var(--glass);transition:.2s}
+  .road li:hover{border-color:var(--line2);transform:translateX(4px)}
+  .road li::before{counter-increment:r;content:counter(r,decimal-leading-zero);font-family:var(--mono);font-size:12px;color:var(--v);border:1px solid var(--line2);border-radius:8px;padding:5px 8px;flex:none}
+  .road li span{color:var(--mut);font-size:14.5px}
+  .road li b{color:var(--ink)}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line);margin-top:40px;padding:34px 0 60px}
+  .foot{display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:center;color:var(--dim);font-size:13px}
   .cmds{display:flex;flex-wrap:wrap;gap:8px}
+  .cmds code{font-family:var(--mono);font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:7px;padding:5px 9px;background:var(--glass)}
 </style>
 </head>
 <body>
-<div class="wrap">
+  <div class="bg"><div class="orb a"></div><div class="orb b"></div><div class="orb c"></div></div>
+  <div class="grid-bg"></div><div class="grain"></div>
 
-  <header>
-    <div class="brand">
-      <div class="logo">🖥️</div>
-      <div>
-        <h1>Dev Box</h1>
-        <div class="sub">Self-hosted development environment · WSL2 Ubuntu 24.04</div>
+  <nav id="nav">
+    <div class="nav-in">
+      <div class="logo"><span class="mark">◆</span> Dev&nbsp;Box</div>
+      <div class="nav-links">
+        <a href="#services">Services</a>
+        <a href="#why">Why</a>
+        <a href="#roadmap">Roadmap</a>
+        <a data-port="3001">Wiki</a>
       </div>
     </div>
-    <div class="host">host <b>Yehuda-HS</b> · <span id="via">tailscale</span></div>
+  </nav>
+
+  <header class="hero wrap">
+    <div class="pill reveal"><span class="pulse"></span> <span id="status-txt">All systems operational</span> · <span id="via" class="mono" style="color:var(--dim)">Yehuda-HS</span></div>
+    <h1 class="reveal">One box.<br><span class="g">Everything running.</span></h1>
+    <p class="lede reveal">A self-hosted development environment — databases, streaming, full observability and a wiki — that <b style="color:var(--ink)">monitors itself, alerts on failure, and backs itself up</b>, reachable from any laptop over Tailscale.</p>
+    <div class="cta reveal">
+      <a class="btn primary" data-port="3000">Open Grafana</a>
+      <a class="btn ghost" data-port="3001">Open Wiki</a>
+      <a class="btn ghost" href="#services">Browse services ↓</a>
+    </div>
+
+    <div class="stats reveal">
+      <div class="stat"><div class="n" data-count="18">18</div><div class="l">Services</div></div>
+      <div class="stat"><div class="n" data-count="10">10</div><div class="l">vCPU</div></div>
+      <div class="stat"><div class="n" data-count="23">23</div><div class="l">GB RAM</div></div>
+      <div class="stat"><div class="n" data-count="6">6</div><div class="l">Stacks</div></div>
+    </div>
   </header>
 
-  <p class="tagline">
-    One machine that runs everything a project needs — <b>databases, a message bus,
-    full observability, and a wiki</b> — reachable from any laptop over Tailscale, and
-    <b>trustworthy</b> because it monitors itself, alerts on failure, and backs itself up nightly.
-  </p>
+  <section id="services" class="wrap">
+    <div class="reveal"><div class="eyebrow">// services</div><div class="h2">Everything, one click away</div>
+      <p class="lead">Live status is probed from whatever address you opened this page — Tailscale or LAN both work.</p></div>
 
-  <div class="facts">
-    <div class="fact"><b>17</b> containers</div>
-    <div class="fact"><b>minikube</b> k8s cluster</div>
-    <div class="fact">Grafana + Prometheus + Loki</div>
-    <div class="fact">nightly backups · <b>03:00</b></div>
-    <div class="fact">email alerts</div>
-    <div class="fact">LAN + Tailscale only</div>
-  </div>
-
-  <h2 class="section">Observability</h2>
-  <div class="grid">
-    <a class="card" data-port="3000">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">📊</div><div><div class="name">Grafana <span class="dot"></span></div><div class="port">:3000</div></div></div>
-      <div class="what">Dashboards for the whole box.</div>
-      <div class="why">Host, every container, the DBs, Kafka and the Docker daemon — one pane of glass, plus searchable logs via Loki.</div>
-      <span class="open">Open →</span>
-    </a>
-    <a class="card" data-port="9090" data-path="/targets">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">🎯</div><div><div class="name">Prometheus <span class="dot"></span></div><div class="port">:9090</div></div></div>
-      <div class="what">Metrics store &amp; alert engine.</div>
-      <div class="why">Scrapes every exporter and powers the alert rules. Go here to inspect raw metrics and scrape targets.</div>
-      <span class="open">Open →</span>
-    </a>
-  </div>
-
-  <h2 class="section">Logs &amp; Management</h2>
-  <div class="grid">
-    <a class="card" data-port="8080">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">📜</div><div><div class="name">Dozzle <span class="dot"></span></div><div class="port">:8080</div></div></div>
-      <div class="what">Live container logs in the browser.</div>
-      <div class="why">Zero-config tail of any container — the fastest way to watch what a service is doing right now.</div>
-      <span class="open">Open →</span>
-    </a>
-    <a class="card" data-port="9000">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">🐳</div><div><div class="name">Portainer <span class="dot"></span></div><div class="port">:9000</div></div></div>
-      <div class="what">Full Docker management UI.</div>
-      <div class="why">Start/stop, exec, inspect volumes and networks without touching the CLI. Login-protected.</div>
-      <span class="open">Open →</span>
-    </a>
-  </div>
-
-  <h2 class="section">Data &amp; Streaming</h2>
-  <div class="grid">
-    <a class="card" data-port="8081">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">🌊</div><div><div class="name">Kafka-UI <span class="dot"></span></div><div class="port">:8081</div></div></div>
-      <div class="what">Browse Kafka topics &amp; messages.</div>
-      <div class="why">Inspect the single-node KRaft broker — topics, partitions, consumer groups, live messages.</div>
-      <span class="open">Open →</span>
-    </a>
-    <div class="card">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">🗄️</div><div><div class="name">Postgres · Redis · Kafka</div><div class="port">5432 · 6379 · 9092</div></div></div>
-      <div class="what">Shared dev data services.</div>
-      <div class="why">Kept off the network for safety — reach them over an SSH tunnel. Every project on <code>devnet</code> can use them.</div>
-      <span class="open cli">TCP · via ssh tunnel</span>
+    <div class="cat reveal">
+      <h3>Observability</h3>
+      <div class="grid">
+        <a class="card" data-port="3000">
+          <div class="row"><div class="ico">📊</div><div><div class="nm">Grafana <span class="dot"></span></div><div class="pt">:3000</div></div></div>
+          <div class="desc">Dashboards for the whole box — host, every container, the DBs, Kafka and the Docker daemon. Plus searchable logs via Loki.</div>
+          <span class="go">Open <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a class="card" data-port="9090" data-path="/targets">
+          <div class="row"><div class="ico">🎯</div><div><div class="nm">Prometheus <span class="dot"></span></div><div class="pt">:9090</div></div></div>
+          <div class="desc">Metrics store and the engine behind the alerts. Inspect raw metrics and every scrape target.</div>
+          <span class="go">Open <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+      </div>
     </div>
-  </div>
 
-  <h2 class="section">Apps &amp; Docs</h2>
-  <div class="grid">
-    <a class="card" data-port="3001">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">📚</div><div><div class="name">Wiki.js <span class="dot"></span></div><div class="port">:3001</div></div></div>
-      <div class="what">The system wiki (Markdown).</div>
-      <div class="why">Living docs for tooling, the stacks, SSH, WSL and Kubernetes. Login-protected, backed by Postgres.</div>
-      <span class="open">Open →</span>
-    </a>
-    <div class="card">
-      <span class="accent"></span>
-      <div class="top"><div class="ico">☸️</div><div><div class="name">Kubernetes</div><div class="port">minikube</div></div></div>
-      <div class="what">Local cluster for k8s work.</div>
-      <div class="why">Drive it with <code>k9s</code>, <code>kubectl</code>, <code>helm</code> and <code>tilt</code>. Auto-starts on boot.</div>
-      <span class="open cli">CLI · k9s</span>
+    <div class="cat reveal">
+      <h3>Logs &amp; Management</h3>
+      <div class="grid">
+        <a class="card" data-port="8080">
+          <div class="row"><div class="ico">📜</div><div><div class="nm">Dozzle <span class="dot"></span></div><div class="pt">:8080</div></div></div>
+          <div class="desc">Live container logs in the browser — zero config, the fastest way to see what a service is doing right now.</div>
+          <span class="go">Open <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <a class="card" data-port="9000">
+          <div class="row"><div class="ico">🐳</div><div><div class="nm">Portainer <span class="dot"></span></div><div class="pt">:9000</div></div></div>
+          <div class="desc">Full Docker management UI — start/stop, exec, inspect volumes and networks. Login-protected.</div>
+          <span class="go">Open <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+      </div>
     </div>
-  </div>
 
-  <h2 class="section">Why this box exists</h2>
-  <div class="prose">
-    <p>A laptop is a bad place to run Postgres, Kafka and a monitoring stack — it sleeps,
-       it runs out of RAM, and nothing survives a reboot. This box moves all of that to a
-       <b>always-on machine</b> with 10 cores and 23&nbsp;GB, reachable from anywhere over
-       <b>Tailscale</b>, so the laptop stays light and the infrastructure stays put.</p>
-    <p>The goal isn't just "run some containers" — it's an environment you can <b>trust with real
-       work</b>: it watches its own health (Grafana + Prometheus), <b>tells you when something
-       breaks</b> (email alerts), and <b>can't lose your data</b> (nightly backups, memory limits,
-       auto-restart). Everything is version-controlled in <code>~/stacks</code> and documented in the wiki.</p>
-  </div>
+    <div class="cat reveal">
+      <h3>Data &amp; Streaming</h3>
+      <div class="grid">
+        <a class="card" data-port="8081">
+          <div class="row"><div class="ico">🌊</div><div><div class="nm">Kafka-UI <span class="dot"></span></div><div class="pt">:8081</div></div></div>
+          <div class="desc">Browse the single-node KRaft broker — topics, partitions, consumer groups and live messages.</div>
+          <span class="go">Open <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <div class="card">
+          <div class="row"><div class="ico">🗄️</div><div><div class="nm">Postgres · Redis · Kafka</div><div class="pt">5432 · 6379 · 9092</div></div></div>
+          <div class="desc">Shared dev data on <span class="mono" style="color:var(--mut)">devnet</span>. Kept off the network for safety — reach them over an SSH tunnel.</div>
+          <span class="go cli">TCP · via ssh tunnel</span>
+        </div>
+      </div>
+    </div>
 
-  <h2 class="section">Roadmap</h2>
-  <div class="prose">
-    <ul class="road">
-      <li>Single-domain reverse proxy + local TLS, so services live at <code>name.dev</code> instead of ports</li>
-      <li>Two-way Git sync for the wiki — every page versioned as Markdown</li>
-      <li>A project workspace on <code>devnet</code> with hot-reload against the shared DBs</li>
-      <li>More Grafana dashboards &amp; alert rules (per-service SLOs, restart storms)</li>
-      <li>Secrets hardening — rotate the dev credentials into a managed secret store</li>
-      <li>CI → deploy to minikube via <code>tilt</code> for a real inner-loop</li>
+    <div class="cat reveal">
+      <h3>Apps &amp; Platform</h3>
+      <div class="grid">
+        <a class="card" data-port="3001">
+          <div class="row"><div class="ico">📚</div><div><div class="nm">Wiki.js <span class="dot"></span></div><div class="pt">:3001</div></div></div>
+          <div class="desc">The system wiki in Markdown — tooling, stacks, SSH, WSL and Kubernetes. Login-protected, backed by Postgres.</div>
+          <span class="go">Open <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </a>
+        <div class="card">
+          <div class="row"><div class="ico">☸️</div><div><div class="nm">Kubernetes</div><div class="pt">minikube</div></div></div>
+          <div class="desc">Local cluster for k8s work — drive it with <span class="mono" style="color:var(--mut)">k9s</span>, kubectl, helm and tilt. Auto-starts on boot.</div>
+          <span class="go cli">CLI · k9s</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="why" class="wrap">
+    <div class="split">
+      <div class="reveal"><div class="eyebrow">// why</div><div class="h2">Built to be<br>trusted with<br>real work.</div></div>
+      <div class="reveal">
+        <p>A laptop is a bad place to run Postgres, Kafka and a monitoring stack — it sleeps, runs out of RAM, and nothing survives a reboot. This box moves all of that to an <b>always-on machine</b> with 10 cores and 23&nbsp;GB, reachable anywhere over <b>Tailscale</b>, so the laptop stays light and the infrastructure stays put.</p>
+        <p>It isn't just "some containers." It's an environment that <b>watches its own health</b>, <b>emails you when something breaks</b>, and <b>can't quietly lose your data</b> — memory-capped, auto-restarting, backed up nightly, version-controlled in <span class="mono" style="color:var(--mut)">~/stacks</span>, and documented in the wiki.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="roadmap" class="wrap">
+    <div class="reveal"><div class="eyebrow">// roadmap</div><div class="h2">What's next</div></div>
+    <ul class="road reveal" style="margin-top:26px">
+      <li><span><b>Single-domain reverse proxy + local TLS</b> — services at <span class="mono">name.dev</span> instead of ports.</span></li>
+      <li><span><b>Two-way Git sync for the wiki</b> — every page versioned as Markdown on disk.</span></li>
+      <li><span><b>A project workspace on devnet</b> with hot-reload against the shared databases.</span></li>
+      <li><span><b>More dashboards &amp; alert rules</b> — per-service SLOs and restart-storm detection.</span></li>
+      <li><span><b>Secrets hardening</b> — rotate the dev credentials into a managed store.</span></li>
+      <li><span><b>CI → deploy to minikube via tilt</b> for a real inner-loop.</span></li>
     </ul>
-  </div>
+  </section>
 
   <footer>
-    <div class="cmds">
-      <code>just up</code><code>just doctor</code><code>just backup</code><code>just urls</code>
+    <div class="wrap foot">
+      <div class="cmds"><code>just up</code><code>just doctor</code><code>just backup</code><code>just urls</code></div>
+      <div>Yehuda-HS · versioned in <span class="mono">~/stacks</span> · <a data-port="3001" style="color:var(--c)">docs →</a></div>
     </div>
-    <div>versioned in <code>~/stacks</code> · docs in the <a href="#" data-port="3001" style="color:var(--a2)">wiki</a></div>
   </footer>
 
-</div>
-
 <script>
-  // Build links + probe liveness against whatever host you opened this page from
-  // (works over Tailscale or LAN transparently).
   const host = location.hostname;
-  document.getElementById('via').textContent = host.startsWith('100.') ? 'tailscale' : host;
+  document.getElementById('via').textContent = host.startsWith('100.') ? 'tailscale · '+host : host;
 
-  function url(el){ return `http://${host}:${el.dataset.port}${el.dataset.path||''}`; }
-
+  // Links (host-relative so tailscale/LAN both work)
   document.querySelectorAll('[data-port]').forEach(el=>{
-    if (el.tagName === 'A') el.href = url(el);
+    const u = `http://${host}:${el.dataset.port}${el.dataset.path||''}`;
+    if (el.tagName === 'A') el.href = u;
   });
 
-  // Liveness dots: no-cors fetch resolves (opaque) if the port answers.
-  document.querySelectorAll('.card[data-port]').forEach(card=>{
-    const dot = card.querySelector('.dot'); if(!dot) return;
-    const u = `http://${host}:${card.dataset.port}/`;
-    const timeout = new Promise((_,rej)=>setTimeout(rej,4000));
-    Promise.race([fetch(u,{mode:'no-cors',cache:'no-store'}), timeout])
-      .then(()=>{dot.className='dot up';})
-      .catch(()=>{dot.className='dot down';});
+  // Cursor-follow spotlight on cards
+  document.querySelectorAll('.card').forEach(c=>{
+    c.addEventListener('mousemove',e=>{
+      const r=c.getBoundingClientRect();
+      c.style.setProperty('--mx',(e.clientX-r.left)+'px');
+      c.style.setProperty('--my',(e.clientY-r.top)+'px');
+    });
+  });
+
+  // Scroll reveal
+  const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // Nav border on scroll
+  const nav=document.getElementById('nav');
+  addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>10));
+
+  // Count-up stats
+  function count(el){
+    const t=+el.dataset.count; let n=0; const step=Math.max(1,Math.round(t/28));
+    const id=setInterval(()=>{n+=step; if(n>=t){n=t;clearInterval(id)} el.textContent=n},28);
+  }
+  const so=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){count(e.target);so.unobserve(e.target)}}),{threshold:.5});
+  document.querySelectorAll('.n[data-count]').forEach(el=>so.observe(el));
+
+  // Live status dots + overall status
+  const cards=[...document.querySelectorAll('.card[data-port]')];
+  let up=0, done=0;
+  cards.forEach(card=>{
+    const dot=card.querySelector('.dot'); if(!dot) return;
+    const u=`http://${host}:${card.dataset.port}/`;
+    const to=new Promise((_,r)=>setTimeout(r,4500));
+    Promise.race([fetch(u,{mode:'no-cors',cache:'no-store'}),to])
+      .then(()=>{dot.className='dot up';up++})
+      .catch(()=>{dot.className='dot down'})
+      .finally(()=>{ if(++done===cards.filter(c=>c.querySelector('.dot')).length){
+        const t=document.getElementById('status-txt');
+        t.textContent = up===done? 'All systems operational' : `${up}/${done} services up`;
+      }});
   });
 </script>
 </body>
