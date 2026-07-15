@@ -1,0 +1,11 @@
+# Secrets — never commit real credentials
+.env
+
+# Backups & local data
+backups/
+*.rdb
+*.sql
+*.sql.gz
+
+# Logs / scratch
+*.log
