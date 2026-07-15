@@ -5,7 +5,7 @@ green() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 red()   { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 
 echo "== containers =="
-expected="prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter redis redis-exporter kafka kafka-ui kafka-exporter portainer dozzle wiki"
+expected="prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter redis redis-exporter kafka kafka-ui kafka-exporter portainer dozzle wiki portal"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"

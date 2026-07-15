@@ -26,12 +26,14 @@ up-data: network
 up-mgmt: network
     docker compose -f mgmt/compose.yml up -d
 
-# Apps: wiki (Wiki.js, backed by the shared Postgres)
+# Apps: portal homepage (nginx) + wiki (Wiki.js)
 up-apps: network
+    docker compose -f apps/portal/compose.yml up -d
     docker compose -f apps/wiki/compose.yml up -d
 
 # Stop everything (keeps volumes/data)
 down:
+    -docker compose -f apps/portal/compose.yml down
     -docker compose -f apps/wiki/compose.yml down
     -docker compose -f mgmt/compose.yml down
     -docker compose -f data/kafka/compose.yml down
@@ -41,6 +43,7 @@ down:
 
 # Stop everything AND delete all data volumes (DESTRUCTIVE)
 nuke:
+    -docker compose -f apps/portal/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
     -docker compose -f data/kafka/compose.yml down -v
@@ -77,6 +80,7 @@ urls:
     @echo "Direct access from your laptop — no tunnel. Use whichever host reaches you:"
     @echo "  Tailscale (anywhere): <legacy-portproxy-ip>   |   LAN: 192.168.68.57"
     @echo ""
+    @echo "  ⭐ Portal    http://<legacy-portproxy-ip>          (start here — the dashboard)"
     @echo "  Grafana      http://<legacy-portproxy-ip>:3000   (admin / admin)"
     @echo "  Prometheus   http://<legacy-portproxy-ip>:9090"
     @echo "  Portainer    http://<legacy-portproxy-ip>:9000   (set password on first visit)"
