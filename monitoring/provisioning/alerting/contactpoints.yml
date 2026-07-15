@@ -1,0 +1,11 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: email
+    receivers:
+      - uid: email_default
+        type: email
+        settings:
+          addresses: yehudabriskman@gmail.com
+          singleEmail: false
