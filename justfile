@@ -9,7 +9,7 @@ network:
     -docker network create devnet 2>/dev/null || true
 
 # Bring up EVERYTHING
-up: network up-monitoring up-data up-mgmt
+up: network up-monitoring up-data up-mgmt up-apps
     @echo "All stacks up. Run 'just urls' for access."
 
 # Observability: grafana, prometheus, loki, cadvisor, node-exporter
@@ -26,8 +26,13 @@ up-data: network
 up-mgmt: network
     docker compose -f mgmt/compose.yml up -d
 
+# Apps: wiki (Wiki.js, backed by the shared Postgres)
+up-apps: network
+    docker compose -f apps/wiki/compose.yml up -d
+
 # Stop everything (keeps volumes/data)
 down:
+    -docker compose -f apps/wiki/compose.yml down
     -docker compose -f mgmt/compose.yml down
     -docker compose -f data/kafka/compose.yml down
     -docker compose -f data/redis/compose.yml down
@@ -36,6 +41,7 @@ down:
 
 # Stop everything AND delete all data volumes (DESTRUCTIVE)
 nuke:
+    -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
     -docker compose -f data/kafka/compose.yml down -v
     -docker compose -f data/redis/compose.yml down -v
@@ -76,6 +82,7 @@ urls:
     @echo "  Portainer    http://<legacy-portproxy-ip>:9000   (set password on first visit)"
     @echo "  Dozzle       http://<legacy-portproxy-ip>:8080   (live container logs)"
     @echo "  Kafka-UI     http://<legacy-portproxy-ip>:8081"
+    @echo "  Wiki.js      http://<legacy-portproxy-ip>:3001   (login required)"
     @echo ""
     @echo "Databases are NOT port-proxied (kept off the network). Reach via ssh tunnel:"
     @echo "  ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 devssh@<legacy-portproxy-ip>"
