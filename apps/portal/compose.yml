@@ -5,16 +5,107 @@ services:
     image: nginx:alpine
     container_name: portal
     restart: unless-stopped
-    ports:
-      - "80:80"
+    # No published port on purpose — Traefik (edge/compose.yml) owns :80 and
+    # routes here by Host. This container is now unreachable except through the
+    # edge, which is the point: it can never collide with another project again.
     volumes:
       - ./html:/usr/share/nginx/html:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.portal.loadbalancer.server.port=80
+
+      # The base name. Everything else on this box nests under it:
+      # <service>.dev.test for stack services, <project>.dev.test for projects,
+      # <sub>.<project>.dev.test for a project's own pieces.
+      - traefik.http.routers.portal.rule=Host(`dev.test`)
+      - traefik.http.routers.portal.entrypoints=web
+      - traefik.http.routers.portal.service=portal
+
+      # Catch-all so the bare IP (http://100.117.176.85, and the legacy
+      # http://100.93.197.10 via portproxy) still lands on the homepage — those
+      # requests carry an IP as Host, which matches no Host() rule and would
+      # otherwise 404. priority=1 keeps this below every real Host route, so it
+      # only catches what nothing else claimed. Also means a typo'd *.test name
+      # shows the portal (an index of what exists) instead of a bare 404.
+      - traefik.http.routers.portal-fallback.rule=PathPrefix(`/`)
+      - traefik.http.routers.portal-fallback.priority=1
+      - traefik.http.routers.portal-fallback.entrypoints=web
+      - traefik.http.routers.portal-fallback.service=portal
     deploy:
       resources:
         limits:
           memory: 64m
     networks: [devnet]
 
+  # ── The portal's read-only view of Docker ────────────────────────────────
+  # The portal page discovers what's running (ports, health, projects) instead
+  # of being a hand-written list. Traefik's API knows routes but not ports or
+  # health — only Docker does. nginx must NEVER touch the socket (it's
+  # root-equivalent), so this proxy stands in front of it.
+  #
+  # SECURITY — read this before changing anything here:
+  #
+  #  • CONTAINERS=1 does NOT mean "only /containers/json". docker-socket-proxy
+  #    gates by endpoint FAMILY, so it also permits /containers/{id}/json —
+  #    whose response includes Env, i.e. POSTGRES_PASSWORD and the Grafana admin
+  #    password. The actual boundary is the exact Path() rule in
+  #    ../../edge/dynamic/portal-api.yml. Never widen that to PathPrefix.
+  #
+  #  • POST=0 is load-bearing. Without it, CONTAINERS=1 also grants
+  #    /containers/{id}/kill|stop|restart to anyone who can reach this.
+  #
+  #  • This is on socketnet, NOT devnet, and publishes no port. It has no auth
+  #    of any kind, so reachability IS authorisation.
+  #
+  # What this exposes to the tailnet via /containers/json: container names,
+  # images, ports, health, labels, Mounts (host paths) and Command (argv).
+  # NOT Env. That's a home-dir-layout disclosure — acceptable on a personal
+  # tailnet, NOT acceptable if dev.test ever reaches beyond it.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
+    container_name: portal-socket-proxy
+    restart: unless-stopped
+    environment:
+      # The ONLY grant.
+      CONTAINERS: 1
+      # Deny-by-default is the image's behaviour, but a socket proxy is the last
+      # place to trust a default surviving an image bump. Say it out loud.
+      POST:         0   # no mutation, ever
+      EXEC:         0   # container exec == root on this box
+      EVENTS:       0   # we poll; shrink the surface
+      PING:         0
+      VERSION:      0
+      AUTH:         0
+      SECRETS:      0
+      CONFIGS:      0
+      IMAGES:       0
+      INFO:         0
+      NETWORKS:     0
+      NODES:        0
+      PLUGINS:      0
+      SERVICES:     0
+      SESSION:      0
+      SWARM:        0
+      SYSTEM:       0
+      TASKS:        0
+      VOLUMES:      0
+      DISTRIBUTION: 0
+      BUILD:        0
+      COMMIT:       0
+    volumes:
+      # :ro is the second lock. The proxy is the real boundary, but a writable
+      # socket would leave POST=0 as the ONLY thing between the tailnet and root.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # NO ports: — must never be reachable from the host network.
+    # NOT on devnet — see the security note above.
+    networks: [socketnet]
+    deploy:
+      resources:
+        limits:
+          memory: 32m
+
 networks:
   devnet:
+    external: true
+  socketnet:
     external: true
