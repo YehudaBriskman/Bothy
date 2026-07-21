@@ -2,7 +2,7 @@ name: mgmt
 
 services:
   portainer:
-    image: portainer/portainer-ce:latest
+    image: portainer/portainer-ce@sha256:f6bc23d1695530a609563fd65c180aaafec0fc02e019d5fc63d16b6fbe83addd
     container_name: portainer
     labels:
       - traefik.enable=true
@@ -31,7 +31,7 @@ services:
     networks: [devnet]
 
   dozzle:
-    image: amir20/dozzle:latest
+    image: amir20/dozzle:v10.6.10
     container_name: dozzle
     labels:
       - traefik.enable=true
