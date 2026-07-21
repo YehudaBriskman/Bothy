@@ -59,7 +59,10 @@ down:
     -docker compose -f monitoring/compose.yml down
 
 # Stop everything AND delete all data volumes (DESTRUCTIVE)
+# Sits one keystroke from `down` in the recipe list and deletes all seven data
+# volumes: postgres, redis, kafka, prometheus, grafana, loki, portainer.
 nuke:
+    @printf "This deletes ALL data volumes. Type yes to continue: " && read ans && [ "$ans" = yes ] || (echo aborted; exit 1)
     -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
     -docker compose -f apps/portal/compose.yml down -v
