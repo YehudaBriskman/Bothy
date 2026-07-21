@@ -22,7 +22,7 @@ services:
     networks: [devnet]
 
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.86.0
     container_name: redis-exporter
     restart: unless-stopped
     environment:
