@@ -1,0 +1,72 @@
+name: edge
+
+# The single front door for everything on this box.
+#
+# Why this exists: host ports are a flat global namespace with no allocator, so
+# every project reaches for 3000/8080/5432 and collides with whatever got there
+# first. Traefik routes by Host header instead, so services stop competing for
+# port numbers entirely — a new project publishes NO host port, it just declares
+# a name. Names are infinite; ports are 65535 and everyone picks the same dozen.
+#
+# Consequence: this is the ONLY container that should ever publish :80, and the
+# Tailscale/portproxy layer needs exactly one rule, forever.
+
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      # Discover routes from container labels. exposedbydefault=false means a
+      # container is invisible until it opts in with traefik.enable=true, so
+      # nothing gets published by accident just by joining devnet.
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      # Containers sit on several networks (devnet, project-local, minikube).
+      # Pin discovery to devnet or Traefik may pick the wrong container IP.
+      - --providers.docker.network=devnet
+      # File provider for things that AREN'T containers — host processes like
+      # Tilt's UI have no labels to discover, so they're declared in ./dynamic.
+      # watch=true picks up edits live; no Traefik restart needed to add a route.
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --api.dashboard=true
+      - --log.level=INFO
+      - --accesslog=true
+    environment:
+      # Traefik's bundled Docker SDK falls back to API v1.24 when it doesn't
+      # negotiate, and this daemon (29.6.1, API 1.55) rejects anything below
+      # 1.40 — the provider then silently loads no routes and every request
+      # 404s. Pin a version inside the daemon's supported range.
+      DOCKER_API_VERSION: "1.44"
+    ports:
+      - "80:80"
+    volumes:
+      # Read-only: Traefik only needs to watch the container list. The socket is
+      # root-equivalent, so never mount it writable here.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+    extra_hosts:
+      # Lets the file-provider routes above reach processes on the host
+      # (Tilt UI, and any future host-side dev server).
+      - "host.docker.internal:host-gateway"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dashboard.rule=Host(`traefik.dev.test`)
+      - traefik.http.routers.dashboard.entrypoints=web
+      - traefik.http.routers.dashboard.service=api@internal
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    # socketnet: reaches portal-socket-proxy for the portal's read-only Docker
+    # API (see edge/dynamic/portal-api.yml). Traefik and the proxy are the only
+    # two members — the proxy has no auth, so reachability is authorisation.
+    networks: [devnet, socketnet]
+
+networks:
+  devnet:
+    external: true
+  socketnet:
+    external: true
