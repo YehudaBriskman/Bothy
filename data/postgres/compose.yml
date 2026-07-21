@@ -25,7 +25,7 @@ services:
     networks: [devnet]
 
   postgres-exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    image: quay.io/prometheuscommunity/postgres-exporter@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     container_name: postgres-exporter
     restart: unless-stopped
     environment:

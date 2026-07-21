@@ -2,7 +2,7 @@ name: monitoring
 
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.13.1
     container_name: prometheus
     labels:
       - traefik.enable=true
@@ -33,7 +33,7 @@ services:
     networks: [devnet]
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.1.0
     container_name: grafana
     labels:
       - traefik.enable=true
@@ -67,7 +67,7 @@ services:
     networks: [devnet]
 
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.7.3
     container_name: loki
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
@@ -85,7 +85,7 @@ services:
     networks: [devnet]
 
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:3.6.8
     container_name: promtail
     restart: unless-stopped
     command: -config.file=/etc/promtail/config.yml
@@ -104,7 +104,7 @@ services:
     networks: [devnet]
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
     container_name: cadvisor
     restart: unless-stopped
     privileged: true
@@ -123,7 +123,7 @@ services:
     networks: [devnet]
 
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.12.1
     container_name: node-exporter
     restart: unless-stopped
     command:
