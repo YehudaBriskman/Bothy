@@ -10,6 +10,9 @@ services:
       - traefik.http.routers.prometheus.entrypoints=web
       - traefik.http.routers.prometheus.service=prometheus
       - traefik.http.services.prometheus.loadbalancer.server.port=9090
+      # Prometheus runs with --web.enable-lifecycle, so an unauthenticated caller
+      # can POST /-/quit and stop it. No auth of its own exists to prevent that.
+      - traefik.http.routers.prometheus.middlewares=sso-errors@file,sso@file
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
