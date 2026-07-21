@@ -37,7 +37,10 @@ http:
       rule: "Path(`/-/api/docker/containers/json`)"
       entryPoints: [web]
       priority: 100
-      middlewares: [portal-api-docker-rewrite]
+      # sso also closes the DNS-rebinding hole: a rebound request carries the
+      # attacker's Host, so the .dev.test-scoped session cookie is never sent
+      # and this returns 401 instead of the container list.
+      middlewares: [sso-errors@file, sso@file, portal-api-docker-rewrite]
       service: portal-socket-proxy
 
     # The Traefik API is read-only by nature (no mutating endpoints), and
@@ -51,7 +54,7 @@ http:
         || Path(`/-/api/traefik/version`)
       entryPoints: [web]
       priority: 100
-      middlewares: [portal-api-traefik-rewrite]
+      middlewares: [sso-errors@file, sso@file, portal-api-traefik-rewrite]
       service: api@internal
 
   middlewares:

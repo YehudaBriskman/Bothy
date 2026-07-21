@@ -20,6 +20,7 @@ services:
       - traefik.http.routers.portal.rule=Host(`dev.test`)
       - traefik.http.routers.portal.entrypoints=web
       - traefik.http.routers.portal.service=portal
+      - traefik.http.routers.portal.middlewares=sso-errors@file,sso@file
 
       # Catch-all so the bare IP (http://100.117.176.85, and the legacy
       # http://100.93.197.10 via portproxy) still lands on the homepage — those
@@ -30,6 +31,8 @@ services:
       - traefik.http.routers.portal-fallback.rule=PathPrefix(`/`)
       - traefik.http.routers.portal-fallback.priority=1
       - traefik.http.routers.portal-fallback.entrypoints=web
+      # The fallback catches every unrouted host, so it gates the bare IP too.
+      - traefik.http.routers.portal-fallback.middlewares=sso-errors@file,sso@file
       - traefik.http.routers.portal-fallback.service=portal
     deploy:
       resources:
