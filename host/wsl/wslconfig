@@ -1,0 +1,9 @@
+[wsl2]
+memory=24GB
+processors=10
+nestedVirtualization=true
+
+[experimental]
+autoMemoryReclaim=gradual
+sparseVhd=true
+hostAddressLoopback=true
