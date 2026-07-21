@@ -1,0 +1,43 @@
+# The SSO middleware chain, and the /oauth2/ routes that make it usable.
+#
+# Attach `sso-errors,sso` (in that order) to any router that should require a
+# login. Order matters: the request passes through sso-errors on the way in and
+# the 401 from sso passes back out through it, which is what turns a bare 401
+# into the sign-in page.
+
+http:
+  routers:
+    # Host-less on purpose, exactly like the portal API routes: the sign-in
+    # flow has to work on whichever hostname the user landed on, otherwise the
+    # redirect after login arrives at a host with no /oauth2/ handler and 404s.
+    oauth2-endpoints:
+      rule: "PathPrefix(`/oauth2/`)"
+      entryPoints: [web]
+      priority: 100
+      service: oauth2-proxy
+
+  services:
+    oauth2-proxy:
+      loadBalancer:
+        servers:
+          - url: "http://oauth2-proxy:4180"
+
+  middlewares:
+    # Asks oauth2-proxy for a verdict on every request. 202 lets it through,
+    # 401 means no valid session.
+    sso:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+
+    # Without this a signed-out user gets a blank 401 with no way forward.
+    # Traefik fetches the sign-in page from oauth2-proxy and serves it in place
+    # of the 401, so the login appears at the URL that was actually requested.
+    sso-errors:
+      errors:
+        status: ["401"]
+        service: oauth2-proxy
+        query: "/oauth2/sign_in?rd={url}"

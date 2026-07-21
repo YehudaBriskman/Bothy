@@ -14,13 +14,18 @@ network:
     -docker network create socketnet 2>/dev/null || true
 
 # Bring up EVERYTHING
-up: network up-edge up-monitoring up-data up-mgmt up-apps
+up: network up-edge up-auth up-monitoring up-data up-mgmt up-apps
     @echo "All stacks up. Run 'just urls' for access."
 
 # Edge: Traefik — the single front door on :80, routes *.test by Host header.
 # Must come up before anything that expects to be routed.
 up-edge: network
     docker compose -f edge/compose.yml up -d
+
+# SSO: oauth2-proxy, guards the dashboards that have no login of their own.
+# Must be up before the routers that reference its middleware.
+up-auth: network
+    docker compose -f auth/compose.yml up -d
 
 # Observability: grafana, prometheus, loki, cadvisor, node-exporter
 up-monitoring: network
@@ -43,6 +48,7 @@ up-apps: network
 
 # Stop everything (keeps volumes/data)
 down:
+    -docker compose -f auth/compose.yml down
     -docker compose -f edge/compose.yml down
     -docker compose -f apps/portal/compose.yml down
     -docker compose -f apps/wiki/compose.yml down
@@ -54,6 +60,7 @@ down:
 
 # Stop everything AND delete all data volumes (DESTRUCTIVE)
 nuke:
+    -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
     -docker compose -f apps/portal/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
