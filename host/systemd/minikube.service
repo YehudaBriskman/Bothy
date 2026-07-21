@@ -1,0 +1,19 @@
+[Unit]
+Description=minikube (local k8s) for devssh
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=devssh
+Group=devssh
+Environment=HOME=/home/devssh
+Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/devssh/.local/share/mise/shims/minikube start
+ExecStop=/home/devssh/.local/share/mise/shims/minikube stop
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target
