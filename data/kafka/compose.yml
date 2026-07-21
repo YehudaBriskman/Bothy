@@ -2,7 +2,7 @@ name: kafka
 
 services:
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:4.3.1
     container_name: kafka
     restart: unless-stopped
     ports:
@@ -39,7 +39,7 @@ services:
     networks: [devnet]
 
   kafka-ui:
-    image: kafbat/kafka-ui:latest
+    image: kafbat/kafka-ui@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
     container_name: kafka-ui
     labels:
       - traefik.enable=true
@@ -67,7 +67,7 @@ services:
     networks: [devnet]
 
   kafka-exporter:
-    image: danielqsj/kafka-exporter:latest
+    image: danielqsj/kafka-exporter@sha256:a51b280b55a763deaa1bc5024310bc2954995d9160014d7445055dac6a090868
     container_name: kafka-exporter
     restart: unless-stopped
     command: ["--kafka.server=kafka:19092"]
