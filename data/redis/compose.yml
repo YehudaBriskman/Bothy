@@ -29,7 +29,12 @@ services:
     restart: unless-stopped
     environment:
       REDIS_ADDR: "redis://redis:6379"
-    depends_on: [redis]
+    # Short form waits only for the container to exist, not for the service
+    # to accept connections, so on a cold boot this started against a DB
+    # still initialising and crash-looped until the restart policy caught it.
+    depends_on:
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:

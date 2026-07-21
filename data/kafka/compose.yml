@@ -61,7 +61,11 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
       DYNAMIC_CONFIG_ENABLED: "true"
-    depends_on: [kafka]
+    # KRaft startup takes the better part of a minute, so the short form lost
+    # this race on every reboot and produced a burst of false alerts.
+    depends_on:
+      kafka:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -73,7 +77,11 @@ services:
     container_name: kafka-exporter
     restart: unless-stopped
     command: ["--kafka.server=kafka:19092"]
-    depends_on: [kafka]
+    # KRaft startup takes the better part of a minute, so the short form lost
+    # this race on every reboot and produced a burst of false alerts.
+    depends_on:
+      kafka:
+        condition: service_healthy
     deploy:
       resources:
         limits:
