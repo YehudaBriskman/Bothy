@@ -10,6 +10,14 @@ services:
       - traefik.http.routers.portainer.entrypoints=web
       - traefik.http.routers.portainer.service=portainer
       - traefik.http.services.portainer.loadbalancer.server.port=9000
+      # Portainer holds a READ-WRITE docker socket, so its UI serves container
+      # Env — POSTGRES_PASSWORD and the Grafana admin password — and container
+      # exec, which is root on this box. Its own login is the only thing between
+      # the tailnet and that, and it is set interactively on first visit, so an
+      # unclaimed instance is a total takeover for whoever claims it first.
+      # SSO in front means a GitHub session is required before Portainer's own
+      # login is even reachable.
+      - traefik.http.routers.portainer.middlewares=sso-errors@file,sso@file
     restart: unless-stopped
     ports:
       - "9000:9000"
