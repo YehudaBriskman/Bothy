@@ -4,13 +4,23 @@ set dotenv-load := true
 default:
     @just --list
 
-# Create the shared docker network (idempotent)
+# Create the shared docker networks (idempotent)
 network:
     -docker network create devnet 2>/dev/null || true
+    # socketnet holds exactly two containers: traefik + portal-socket-proxy.
+    # docker-socket-proxy has NO auth, so network reachability IS authorisation —
+    # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
+    # read the docker socket through it. Keep the blast radius at two.
+    -docker network create socketnet 2>/dev/null || true
 
 # Bring up EVERYTHING
-up: network up-monitoring up-data up-mgmt up-apps
+up: network up-edge up-monitoring up-data up-mgmt up-apps
     @echo "All stacks up. Run 'just urls' for access."
+
+# Edge: Traefik — the single front door on :80, routes *.test by Host header.
+# Must come up before anything that expects to be routed.
+up-edge: network
+    docker compose -f edge/compose.yml up -d
 
 # Observability: grafana, prometheus, loki, cadvisor, node-exporter
 up-monitoring: network
@@ -33,6 +43,7 @@ up-apps: network
 
 # Stop everything (keeps volumes/data)
 down:
+    -docker compose -f edge/compose.yml down
     -docker compose -f apps/portal/compose.yml down
     -docker compose -f apps/wiki/compose.yml down
     -docker compose -f mgmt/compose.yml down
@@ -43,6 +54,7 @@ down:
 
 # Stop everything AND delete all data volumes (DESTRUCTIVE)
 nuke:
+    -docker compose -f edge/compose.yml down -v
     -docker compose -f apps/portal/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
@@ -75,18 +87,36 @@ psql:
 redis:
     docker exec -it redis redis-cli
 
-# Print the direct dashboard URLs (no tunnel — Windows port-proxy forwards to WSL)
+# Print access URLs. Named services route through Traefik; *.test resolves via
+# the local dnsmasq, published to the tailnet by Tailscale split DNS.
 urls:
-    @echo "Direct access from your laptop — no tunnel. Use whichever host reaches you:"
-    @echo "  Tailscale (anywhere): 100.93.197.10   |   LAN: 192.168.68.57"
+    @echo "This box is a tailnet node: yehuda-wsl / 100.117.176.85 — reachable directly,"
+    @echo "no portproxy. Any *.test name resolves to it from any device on the tailnet."
     @echo ""
-    @echo "  ⭐ Portal    http://100.93.197.10          (start here — the dashboard)"
-    @echo "  Grafana      http://100.93.197.10:3000   (admin / admin)"
-    @echo "  Prometheus   http://100.93.197.10:9090"
-    @echo "  Portainer    http://100.93.197.10:9000   (set password on first visit)"
-    @echo "  Dozzle       http://100.93.197.10:8080   (live container logs)"
-    @echo "  Kafka-UI     http://100.93.197.10:8081"
-    @echo "  Wiki.js      http://100.93.197.10:3001   (login required)"
+    @echo "  ⭐ START HERE   http://dev.test          (the portal — index of everything)"
     @echo ""
-    @echo "Databases are NOT port-proxied (kept off the network). Reach via ssh tunnel:"
-    @echo "  ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 devssh@100.93.197.10"
+    @echo "  Stack services  <name>.dev.test:"
+    @echo "    Grafana       http://grafana.dev.test      (admin / admin)"
+    @echo "    Prometheus    http://prometheus.dev.test"
+    @echo "    Dozzle        http://dozzle.dev.test       (live container logs)"
+    @echo "    Portainer     http://portainer.dev.test    (set password on first visit)"
+    @echo "    Kafka-UI      http://kafka.dev.test"
+    @echo "    Wiki.js       http://wiki.dev.test         (login required)"
+    @echo "    Traefik       http://traefik.dev.test      (which routes are registered)"
+    @echo ""
+    @echo "  Projects        <project>.dev.test — their pieces nest underneath:"
+    @echo "    CVOps         http://cvops.dev.test        (run 'tilt up' in the repo first)"
+    @echo "    CVOps · Tilt  http://tilt.cvops.dev.test   (needs 'tilt up --host=0.0.0.0')"
+    @echo "    CVOps · S3    http://s3.cvops.dev.test     (garage; presigned URLs only)"
+    @echo ""
+    @echo "  Adding a service = 2 Traefik labels + a name, never a port."
+    @echo "  See ~/claude-notes/dev-networking.md."
+    @echo ""
+    @echo "  The bare IP http://100.117.176.85 (and the legacy http://100.93.197.10 via"
+    @echo "  the Windows portproxy) still lands on the portal — Traefik catch-all route."
+    @echo ""
+    @echo "Databases stay off the network (loopback-bound). Reach via ssh tunnel:"
+    @echo "  ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 devssh@100.117.176.85"
+    @echo ""
+    @echo "If *.test stops resolving: check 'systemctl status dnsmasq' and that Tailscale"
+    @echo "split DNS (admin console → DNS → Nameservers) still points 'test' at 100.117.176.85."

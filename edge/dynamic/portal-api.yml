@@ -1,0 +1,81 @@
+# The portal's read-only data plane.
+#
+# The portal page (dev.test) discovers what's running instead of being a
+# hand-written list. It needs two read-only APIs, and it gets them under its OWN
+# origin at /-/api/* — same-origin means zero CORS, no preflight, no headers to
+# tune. `/-/` is a RESERVED prefix on every vhost on this box.
+#
+# ── SECURITY: THE RULES BELOW ARE THE BOUNDARY ─────────────────────────────
+#
+# Every rule here is Path() — an EXACT match. Never PathPrefix. This is not
+# style, it is the entire security control:
+#
+#   docker-socket-proxy's CONTAINERS=1 gates by endpoint FAMILY, so it happily
+#   serves /containers/{id}/json — whose response body includes Env. On this box
+#   that means POSTGRES_PASSWORD and the Grafana admin password. A PathPrefix
+#   here would publish every container's environment to the tailnet.
+#
+#   The socket-proxy env vars do NOT prevent this. Only these Path() rules do.
+#
+# To add an endpoint: add a Path() line. Never widen to PathPrefix.
+# Verify after any change:
+#   curl -s -o /dev/null -w '%{http_code}\n' \
+#     http://dev.test/-/api/docker/containers/$(docker ps -q | head -1)/json
+#   # MUST print 404.
+#
+# ── Why no Host() rule ─────────────────────────────────────────────────────
+# The bare IP (http://100.117.176.85) lands on portal-fallback, which serves the
+# portal. If these routers were scoped to Host(`dev.test`), the page would load
+# there but every fetch would fall through to nginx and 404. Host-less Path() at
+# priority 100 works from every name AND the bare IP. Priority 100 sits above
+# portal-fallback (1) and every Host route (~16-27).
+
+http:
+  routers:
+    # Exactly one Docker endpoint. Nothing else is reachable.
+    portal-api-docker:
+      rule: "Path(`/-/api/docker/containers/json`)"
+      entryPoints: [web]
+      priority: 100
+      middlewares: [portal-api-docker-rewrite]
+      service: portal-socket-proxy
+
+    # The Traefik API is read-only by nature (no mutating endpoints), and
+    # traefik.dev.test already serves it unauthenticated, so these four paths
+    # grant no authority that isn't already there.
+    portal-api-traefik:
+      rule: >-
+        Path(`/-/api/traefik/http/routers`)
+        || Path(`/-/api/traefik/http/services`)
+        || Path(`/-/api/traefik/overview`)
+        || Path(`/-/api/traefik/version`)
+      entryPoints: [web]
+      priority: 100
+      middlewares: [portal-api-traefik-rewrite]
+      service: api@internal
+
+  middlewares:
+    # /-/api/docker/containers/json -> /containers/json
+    portal-api-docker-rewrite:
+      replacePathRegex:
+        regex: "^/-/api/docker/(.*)"
+        replacement: "/$1"
+
+    # /-/api/traefik/http/routers -> /api/http/routers
+    #
+    # replacePathRegex, not stripPrefix: stripPrefix would leave /http/routers,
+    # so the client would have to request /-/api/traefik/api/http/routers with
+    # `api` twice. This keeps the client URL clean.
+    portal-api-traefik-rewrite:
+      replacePathRegex:
+        regex: "^/-/api/traefik/(.*)"
+        replacement: "/api/$1"
+
+  services:
+    # Reached by Docker DNS over socketnet. The docker provider can't see this
+    # container (it's not on devnet, by design), which is exactly why it's
+    # declared here in the file provider rather than via labels.
+    portal-socket-proxy:
+      loadBalancer:
+        servers:
+          - url: "http://portal-socket-proxy:2375"

@@ -4,6 +4,12 @@ services:
   wiki:
     image: ghcr.io/requarks/wiki:2
     container_name: wiki
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wiki.rule=Host(`wiki.dev.test`)
+      - traefik.http.routers.wiki.entrypoints=web
+      - traefik.http.routers.wiki.service=wiki
+      - traefik.http.services.wiki.loadbalancer.server.port=3000
     restart: unless-stopped
     environment:
       DB_TYPE: postgres
