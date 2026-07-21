@@ -144,7 +144,12 @@ export function isBrowsable(host, container) {
 // success. The probe is kept ONLY for @file routes with no container.
 export function statusOf(container, kind) {
   if (!container) return 'unknown';           // resolved by probe if routed
-  const h = container.Health || container.State?.Health?.Status;
+  // Health is an OBJECT here - {Status, FailingStreak} - not a string, so
+  // comparing it directly to 'healthy' was always false and every container
+  // fell through to the State check below. That made 'starting' and
+  // 'unhealthy' unreachable: a container failing its healthcheck showed up.
+  // State is a plain string, so the second branch is only a shape guard.
+  const h = container.Health?.Status ?? container.State?.Health?.Status;
   if (h === 'healthy') return 'up';
   if (h === 'unhealthy') return 'down';
   if (h === 'starting') return 'starting';
@@ -361,7 +366,10 @@ async function loadAll() {
     ]);
     const errors = [];
     const R = routers.status === 'fulfilled' ? routers.value : (errors.push({ src: 'traefik', e: routers.reason }), []);
-    const S = services.status === 'fulfilled' ? services.value : [];
+    // Recorded like the other two. A failure here is not fatal - merge()
+    // falls back to the label join - but it silently turns the Routes tab's
+    // targets into guesses, and it used to leave no trace at all.
+    const S = services.status === 'fulfilled' ? services.value : (errors.push({ src: 'traefik services', e: services.reason }), []);
     const C = containers.status === 'fulfilled' ? containers.value : (errors.push({ src: 'docker', e: containers.reason }), []);
     if (!R.length && !C.length) throw new Error('both APIs unreachable');
     return { routers: R, nodes: merge(R, S, C), ports: allPorts(C), errors };
@@ -657,8 +665,12 @@ function renderHero() {
   const stacks = new Set(state.nodes.filter((n) => n.groupKind === 'stack').map((n) => n.group)).size;
   const pulse = $('.pulse'), txt = $('#status-txt');
   if (state.fails === 0) {
-    txt.textContent = `${up}/${state.nodes.length} up · ${projects} project${projects === 1 ? '' : 's'} · ${stacks} stacks`;
-    if (pulse) pulse.style.background = 'var(--ok)';
+    // state.errors was written on every poll and read by nothing, so a page
+    // running on half its data looked identical to a healthy one. A partial
+    // failure is not a full one, so it stays here but says which source died.
+    const degraded = state.errors.length ? ` · ${state.errors.map((x) => x.src).join(', ')} unreachable` : '';
+    txt.textContent = `${up}/${state.nodes.length} up · ${projects} project${projects === 1 ? '' : 's'} · ${stacks} stacks${degraded}`;
+    if (pulse) pulse.style.background = state.errors.length ? 'var(--wait)' : 'var(--ok)';
   } else {
     const age = Math.round((Date.now() - state.at) / 1000);
     txt.textContent = state.at ? `Stale · last seen ${age}s ago · retrying` : 'Cannot reach APIs · retrying';
