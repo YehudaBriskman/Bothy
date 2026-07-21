@@ -11,6 +11,9 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       # INTERNAL (kafka:19092) for containers, EXTERNAL (localhost:9092) for host.
+      # Without this the broker writes to its built-in default and the volume
+      # mounted below stays empty, so every topic dies with the container.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
