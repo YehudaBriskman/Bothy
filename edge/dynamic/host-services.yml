@@ -1,0 +1,35 @@
+# Traefik routes for processes running on the HOST, not in containers.
+#
+# Containers declare themselves with labels (see any compose.yml). A host
+# process has nothing to label, so it goes here instead. Traefik watches this
+# directory — edits apply live, no restart.
+#
+# host.docker.internal resolves to the host gateway via extra_hosts in
+# ../compose.yml. The host process must bind an address the container can
+# actually reach: 127.0.0.1 is NOT reachable from inside a container, so the
+# process needs --host=0.0.0.0 (or the bridge IP). That's the usual reason a
+# route here 502s.
+#
+# Naming: these nest under the PROJECT they belong to
+# (<sub>.<project>.dev.test), not at the top level. Tilt is per-project — a
+# flat `tilt.dev.test` could only ever mean one project's Tilt.
+
+http:
+  routers:
+    cvops-tilt:
+      rule: "Host(`tilt.cvops.dev.test`)"
+      entryPoints: [web]
+      service: cvops-tilt
+
+  services:
+    cvops-tilt:
+      loadBalancer:
+        servers:
+          # CVOps' Tilt dev UI: build logs, resource status, manual triggers.
+          # Started by `tilt up --host=0.0.0.0 --port=10350` in the CVOps repo —
+          # without --host it binds 127.0.0.1 and this route 502s.
+          # 502 when no Tilt is running is expected, not a bug.
+          #
+          # A second project running Tilt needs its own --port (10350 is a host
+          # port and only one process can hold it) plus its own entry here.
+          - url: "http://host.docker.internal:10350"
