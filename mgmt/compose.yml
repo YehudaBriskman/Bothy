@@ -4,6 +4,12 @@ services:
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.portainer.rule=Host(`portainer.dev.test`)
+      - traefik.http.routers.portainer.entrypoints=web
+      - traefik.http.routers.portainer.service=portainer
+      - traefik.http.services.portainer.loadbalancer.server.port=9000
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -19,6 +25,12 @@ services:
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dozzle.rule=Host(`dozzle.dev.test`)
+      - traefik.http.routers.dozzle.entrypoints=web
+      - traefik.http.routers.dozzle.service=dozzle
+      - traefik.http.services.dozzle.loadbalancer.server.port=8080
     restart: unless-stopped
     ports:
       - "8080:8080"
