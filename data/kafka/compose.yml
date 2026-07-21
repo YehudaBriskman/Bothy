@@ -38,6 +38,14 @@ services:
   kafka-ui:
     image: kafbat/kafka-ui:latest
     container_name: kafka-ui
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kafka.rule=Host(`kafka.dev.test`)
+      - traefik.http.routers.kafka.entrypoints=web
+      - traefik.http.routers.kafka.service=kafka
+      - traefik.http.services.kafka.loadbalancer.server.port=8080
+      - dev.portal.name=Kafka UI
+      - dev.portal.desc=Browse the single-node KRaft broker — topics, partitions, consumer groups and live messages.
     restart: unless-stopped
     ports:
       - "8081:8080"
