@@ -6,7 +6,9 @@ services:
     container_name: kafka
     restart: unless-stopped
     ports:
-      - "9092:9092"
+      # Loopback only. EXTERNAL advertises localhost:9092, so this listener was
+      # only ever usable from the box or through the ssh tunnel anyway.
+      - "127.0.0.1:9092:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
