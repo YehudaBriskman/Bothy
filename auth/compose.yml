@@ -1,0 +1,78 @@
+name: auth
+
+# Single sign-on for the dashboards that have no authentication of their own.
+#
+# Dozzle serves every container's logs, Kafka-UI runs with DYNAMIC_CONFIG_ENABLED,
+# Prometheus accepts POST /-/quit, and the Traefik dashboard exposes /api/rawdata.
+# All of them were reachable by anything that could reach the tailnet. This puts
+# a GitHub login in front of them without touching the apps themselves.
+#
+# GitHub rather than Google as the provider for one concrete reason: Google
+# rejects http:// redirect URIs, which would force TLS, and TLS on *.dev.test
+# means a private CA installed on every device. Traffic here is already inside
+# WireGuard, so plaintext on the wire is not the exposure it would be on a LAN.
+
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1   # pinned: it is the auth boundary
+    container_name: oauth2-proxy
+    restart: unless-stopped
+    command:
+      - --provider=github
+      - --http-address=0.0.0.0:4180
+      # Only this GitHub account may sign in. Without it any GitHub user on
+      # earth who reaches the login page would be allowed straight through.
+      - --github-user=YehudaBriskman
+      - --email-domain=*
+      # Sessions are shared across every *.dev.test host, so one sign-in covers
+      # all of them and the redirect back from GitHub is allowed to land there.
+      - --cookie-domain=.dev.test
+      - --whitelist-domain=.dev.test
+      # No TLS on .dev.test, so a Secure cookie would never be sent back and the
+      # login loop would never terminate. Safe only because the tailnet is the
+      # transport; revisit the moment anything here is exposed beyond it.
+      - --cookie-secure=false
+      - --reverse-proxy=true
+      # Without this oauth2-proxy derives the callback from whichever host the
+      # user landed on (dozzle.dev.test/oauth2/callback, kafka.dev.test/...),
+      # and a GitHub OAuth App accepts exactly ONE registered callback URL, so
+      # every login but the first host would fail with redirect_uri mismatch.
+      # Pinning it sends every login through the one URL GitHub knows; the user
+      # is then returned to the host they came from via the whitelisted rd param.
+      - --redirect-url=http://auth.dev.test/oauth2/callback
+      # Traefik calls /oauth2/auth for a verdict; nothing proxies through here,
+      # so a static upstream is all that is needed.
+      - --upstream=static://202
+      - --set-xauthrequest=true
+      # NOT skip-provider-button. With it enabled /oauth2/sign_in returns a 302
+      # straight to GitHub, and Traefik's errors middleware serves CONTENT rather
+      # than following redirects — so it fetched that 302 server-to-server, threw
+      # away the Set-Cookie carrying the CSRF token, and rendered its body: a bare
+      # "Found" link pointing directly at github.com. Clicking it skipped
+      # /oauth2/start, so the browser never received a CSRF cookie and the callback
+      # died with "CSRF cookie not found". Rendering the real sign-in page means the
+      # button is a relative /oauth2/start link that the browser visits itself.
+      - --cookie-samesite=lax
+    environment:
+      OAUTH2_PROXY_CLIENT_ID:     ${OAUTH2_CLIENT_ID:?set OAUTH2_CLIENT_ID in .env}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET:?set OAUTH2_CLIENT_SECRET in .env}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_COOKIE_SECRET:?set OAUTH2_COOKIE_SECRET in .env}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.oauth.rule=Host(`auth.dev.test`)
+      - traefik.http.routers.oauth.entrypoints=web
+      - traefik.http.routers.oauth.service=oauth
+      - traefik.http.services.oauth.loadbalancer.server.port=4180
+    # No healthcheck: the image is distroless, with no shell and no wget, so
+    # every form of docker healthcheck fails and the container sits in
+    # "health: starting" forever. Liveness is observable instead through
+    # Traefik's forwardAuth, which fails loudly the moment this is down.
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks: [devnet]
+
+networks:
+  devnet:
+    external: true

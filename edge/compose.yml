@@ -30,6 +30,13 @@ services:
       # watch=true picks up edits live; no Traefik restart needed to add a route.
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
+      # CAVEAT: watch=true only works while the bind mount below still resolves.
+      # A bind mount pins the host inode at container-creation time, and git
+      # checkout deletes and recreates ./dynamic — after any branch switch this
+      # container keeps reading an orphaned, empty directory and silently serves a
+      # stale in-memory config. It ran that way from 16 to 21 Jul with every edit
+      # to ./dynamic having no effect. After any checkout:
+      #   docker compose -f edge/compose.yml up -d --force-recreate
       - --entrypoints.web.address=:80
       - --api.dashboard=true
       - --log.level=INFO
@@ -56,6 +63,9 @@ services:
       - traefik.http.routers.dashboard.rule=Host(`traefik.dev.test`)
       - traefik.http.routers.dashboard.entrypoints=web
       - traefik.http.routers.dashboard.service=api@internal
+      # The dashboard serves api@internal unauthenticated, including /api/rawdata,
+      # which dumps the entire dynamic config - every router, service and middleware.
+      - traefik.http.routers.dashboard.middlewares=sso-errors@file,sso@file
     deploy:
       resources:
         limits:
