@@ -72,6 +72,9 @@ services:
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
+      # Overrides the image config solely to add retention; see that file's
+      # header for why it is derived from the default instead of hand-written.
+      - ./loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     ports:
       - "3100:3100"
@@ -88,6 +91,10 @@ services:
     command: -config.file=/etc/promtail/config.yml
     volumes:
       - ./promtail.yml:/etc/promtail/config.yml:ro
+      # Positions default to /tmp, which is empty again on every restart, so
+      # promtail re-read every container log from the start and duplicated the
+      # entire history into Loki each time it came back.
+      - promtail_positions:/tmp
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     deploy:
@@ -132,6 +139,7 @@ services:
     networks: [devnet]
 
 volumes:
+  promtail_positions:
   prometheus_data:
   grafana_data:
   loki_data:

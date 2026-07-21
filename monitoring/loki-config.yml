@@ -1,0 +1,69 @@
+# Derived from the image's own /etc/loki/local-config.yaml (loki 3.7.3), with
+# retention appended and nothing else changed.
+#
+# Loki shipped with no retention whatsoever — the stock config defines neither
+# limits_config nor compactor — so /loki grew without bound. On this box Traefik
+# runs with --accesslog=true and promtail scrapes every container with no drop
+# rules, so every HTTP request became a log line. The WSL2 vhdx never shrinks,
+# so that space is not returned to Windows even after the data is deleted.
+#
+# Everything above the retention block is the image default verbatim. In
+# particular schema_config is left exactly as-is: the chunks already on disk
+# were written against tsdb/v13, and editing schema_config against existing
+# data is the usual way to break Loki on restart.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+# By default, Loki will send anonymous, but uniquely-identifiable usage and configuration
+# analytics to Grafana Labs. These statistics are sent to https://stats.grafana.org/
+#
+# Statistics help us better understand how Loki is used, and they show us performance
+# levels for most users. This helps us prioritize features and documentation.
+# For more information on what's sent, look at
+# https://github.com/grafana/loki/blob/main/pkg/usagestats/stats.go
+# Refer to the buildReport method to see what goes into a report.
+#
+# If you would like to disable reporting, uncomment the following lines:
+#analytics:
+#  reporting_enabled: false
+
+# ── retention (the only addition) ──────────────────────────────────────────
+# limits_config alone only marks data as expired; nothing is reclaimed until a
+# compactor runs with retention_enabled, which is why both stanzas are needed.
+limits_config:
+  retention_period: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+  retention_delete_delay: 2h
+  compaction_interval: 10m
