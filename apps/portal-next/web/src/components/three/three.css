@@ -71,6 +71,16 @@
   min-height: 440px;
   max-height: 760px;
 }
+
+/* full-bleed variant — the Topology hero fills the remaining content height */
+.sv-frame-fill { flex: 1; min-height: 0; }
+.sv-viewport-fill {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+.sv-viewport-static.sv-viewport-fill { flex: none; min-height: 0; }
 .sv-viewport canvas {
   display: block;
   width: 100% !important;

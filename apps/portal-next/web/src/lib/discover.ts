@@ -53,6 +53,17 @@ export interface DockerNetwork {
   IPAddress?: string;
 }
 
+// /containers/json includes a Mounts array (the socket-proxy exposes it). Named
+// volumes carry a Name; bind mounts carry a host Source. We surface volumes as
+// a service's persistent "data", and pair them with /system/df for sizes.
+export interface DockerMount {
+  Type?: string; // 'volume' | 'bind' | 'tmpfs'
+  Name?: string; // volume name (volumes only)
+  Source?: string; // host path
+  Destination?: string;
+  RW?: boolean;
+}
+
 export interface Container {
   Id: string;
   Names?: string[];
@@ -62,6 +73,7 @@ export interface Container {
   Health?: DockerHealth;
   Ports?: DockerPort[];
   Labels?: Record<string, string>;
+  Mounts?: DockerMount[];
   NetworkSettings?: { Networks?: Record<string, DockerNetwork> };
 }
 
@@ -69,6 +81,101 @@ export interface Container {
 
 export type Status = 'up' | 'down' | 'starting' | 'unknown';
 export type Kind = 'routed' | 'orphan-route' | 'unrouted' | 'host';
+
+// What a service *is*, so the domain page can split services into meaningful
+// sections ("Web UIs", "Databases", …) and filter by them. Derived from the
+// image first, then name/host for @file host processes. Order-sensitive, exactly
+// like the icon table: a specific product must precede a generic substring.
+export type ServiceType =
+  | 'web'
+  | 'database'
+  | 'cache'
+  | 'queue'
+  | 'storage'
+  | 'observability'
+  | 'edge'
+  | 'runtime'
+  | 'other';
+
+const TYPE_RULES: [string, ServiceType][] = [
+  ['traefik', 'edge'],
+  ['loki', 'observability'], ['promtail', 'observability'], ['dozzle', 'observability'],
+  ['grafana', 'observability'], ['prometheus', 'observability'],
+  ['cadvisor', 'observability'], ['node-exporter', 'observability'], ['exporter', 'observability'],
+  ['postgres', 'database'], ['mysql', 'database'], ['mariadb', 'database'], ['mongo', 'database'],
+  ['redis', 'cache'], ['memcached', 'cache'],
+  ['kafka', 'queue'], ['rabbitmq', 'queue'], ['nats', 'queue'], ['zookeeper', 'queue'],
+  ['garage', 'storage'], ['minio', 'storage'], ['s3', 'storage'],
+  ['portainer', 'runtime'], ['socket-proxy', 'runtime'], ['tilt', 'runtime'],
+  ['minikube', 'runtime'], ['kube', 'runtime'], ['k8s', 'runtime'],
+  ['nginx', 'web'], ['wiki', 'web'], ['node', 'web'], ['vite', 'web'], ['caddy', 'web'],
+];
+
+// Display order + label for each type — the domain page renders sections in this
+// order, and the chip filter reads its labels from here. Kept next to the rules
+// so a new type can't be added in one place and forgotten in the other.
+export const TYPE_META: Record<ServiceType, { label: string; order: number }> = {
+  web: { label: 'Web UIs', order: 1 },
+  database: { label: 'Databases', order: 2 },
+  cache: { label: 'Caches', order: 3 },
+  queue: { label: 'Messaging', order: 4 },
+  storage: { label: 'Storage', order: 5 },
+  observability: { label: 'Observability', order: 6 },
+  runtime: { label: 'Runtimes & tooling', order: 7 },
+  edge: { label: 'Edge', order: 8 },
+  other: { label: 'Other', order: 9 },
+};
+
+export function serviceTypeOf(node: {
+  name?: string;
+  host?: string | null;
+  browsable?: boolean;
+  container?: { image?: string } | null;
+}): ServiceType {
+  const img = String(node.container?.image || '').toLowerCase();
+  if (img) for (const [k, v] of TYPE_RULES) if (img.includes(k)) return v;
+  const hay = `${node.name || ''} ${node.host || ''}`.toLowerCase();
+  for (const [k, v] of TYPE_RULES) if (hay.includes(k)) return v;
+  return node.browsable ? 'web' : 'other';
+}
+
+// A named volume a container persists data to (bind mounts are host config, not
+// the service's own data, so they're not counted here).
+export interface VolumeRef {
+  name: string;
+  destination?: string;
+}
+
+export function volumesOf(container?: Container | null): VolumeRef[] {
+  if (!container?.Mounts) return [];
+  const out: VolumeRef[] = [];
+  const seen = new Set<string>();
+  for (const m of container.Mounts) {
+    if (m.Type !== 'volume' || !m.Name || seen.has(m.Name)) continue;
+    seen.add(m.Name);
+    out.push({ name: m.Name, destination: m.Destination });
+  }
+  return out;
+}
+
+// Parse docker's Status string ("Up 48 minutes", "Up 2 hours", "Up 3 days",
+// "Up About an hour", "Up 5 seconds") into seconds of uptime. Anything that
+// isn't an "Up …" line (Exited, Created, Restarting) returns null — the node is
+// not currently running, so it has no uptime to show.
+const UNIT_SECS: Record<string, number> = {
+  second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000,
+};
+export function parseUptime(status?: string): number | null {
+  if (!status) return null;
+  const m = /^Up\s+(.*)$/.exec(status.trim());
+  if (!m) return null;
+  const rest = m[1].toLowerCase();
+  if (/less than a second|about a second/.test(rest)) return 1;
+  const num = /about (an?|one)\s/.test(rest) ? 1 : parseInt(rest, 10);
+  const n = Number.isFinite(num) ? num : 1;
+  const unit = Object.keys(UNIT_SECS).find((u) => rest.includes(u));
+  return unit ? n * UNIT_SECS[unit] : 0;
+}
 
 export interface Nesting {
   depth: number | null;
@@ -134,6 +241,9 @@ export interface PortalNode {
   container: NodeContainer | null;
   ports: Port[];
   status: Status;
+  serviceType: ServiceType;
+  volumes: VolumeRef[];
+  uptimeSecs: number | null;
   icon: string;
   desc: string;
 }
@@ -438,9 +548,13 @@ function makeNode({
       : null,
     ports: portsOf(container),
     status: statusOf(container, kind),
+    serviceType: 'other',
+    volumes: volumesOf(container),
+    uptimeSecs: parseUptime(container?.Status),
     icon: '',
     desc: '',
   };
+  node.serviceType = serviceTypeOf(node);
   node.icon = pick('icon', iconFor(node));
   node.desc = pick('desc', defaultDesc(node));
   return node;

@@ -70,13 +70,24 @@ services:
   # images, ports, health, labels, Mounts (host paths) and Command (argv).
   # NOT Env. That's a home-dir-layout disclosure — acceptable on a personal
   # tailnet, NOT acceptable if dev.test ever reaches beyond it.
+  #
+  #  • SYSTEM=1 grants the /system family so the portal can read /system/df
+  #    (per-image / per-container / per-volume disk usage — the "Data & disk"
+  #    card). WHY THIS IS SAFE: /system/df returns the SAME categories already
+  #    exposed by /containers/json (names, images, labels, command, mounts) plus
+  #    SIZE numbers — it carries NO Env and no new secret-bearing field. It is
+  #    also read-only (POST=0 still blocks every mutating /system endpoint). As
+  #    with CONTAINERS, the real boundary is the exact Path() rule in
+  #    ../../edge/dynamic/portal-api.yml — only /-/api/docker/system/df is
+  #    routed; nothing else under /system is reachable from the tailnet.
   socket-proxy:
     image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
     container_name: portal-socket-proxy
     restart: unless-stopped
     environment:
-      # The ONLY grant.
+      # The grants: container list (enrichment) + disk usage (Data & disk card).
       CONTAINERS: 1
+      SYSTEM:    1   # /system/df only (POST=0 blocks every mutating /system call)
       # Deny-by-default is the image's behaviour, but a socket proxy is the last
       # place to trust a default surviving an image bump. Say it out loud.
       POST:         0   # no mutation, ever
@@ -95,7 +106,6 @@ services:
       SERVICES:     0
       SESSION:      0
       SWARM:        0
-      SYSTEM:       0
       TASKS:        0
       VOLUMES:      0
       DISTRIBUTION: 0
