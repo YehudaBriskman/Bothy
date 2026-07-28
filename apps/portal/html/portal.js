@@ -411,7 +411,7 @@ function cardFor(node, i) {
   const c = el(clickable ? 'a' : 'div', 'card');
   c.dataset.id = node.id;                    // stable key for reconciliation
   c.style.setProperty('--i', String(i));
-  if (clickable) { c.href = node.url; c.title = node.url; }
+  if (clickable) { c.href = node.url; c.title = node.url; c.target = '_blank'; c.rel = 'noopener noreferrer'; }
 
   const row = el('div', 'row');
   row.append(el('div', 'ico', ov.icon || node.icon));
@@ -519,7 +519,7 @@ function patchCard(card, n) {
   setText(card.querySelector('.pt'), n.host || n.ports.map((p) => `:${p.hostPort}`).join(' ') || n.container?.name || '');
   setText(card.querySelector('.desc'), ov.desc || n.desc);
   const url = n.browsable && n.url ? n.url : null;
-  if (url && card.tagName === 'A' && card.getAttribute('href') !== url) { card.href = url; card.title = url; }
+  if (url && card.tagName === 'A' && card.getAttribute('href') !== url) { card.href = url; card.title = url; card.target = '_blank'; card.rel = 'noopener noreferrer'; }
 }
 
 // ── ports tab ──────────────────────────────────────────────────────────────
@@ -576,7 +576,7 @@ function renderPorts() {
     // Show the address that works from where you're reading, not 0.0.0.0.
     const shown = r.hostIp === '0.0.0.0' ? location.hostname : r.hostIp;
     const c1 = el('td'); const a = el(r.scope === 'public' ? 'a' : 'span', 'mono', `${shown}:${r.hostPort}`);
-    if (r.scope === 'public') { a.href = `http://${shown}:${r.hostPort}`; }
+    if (r.scope === 'public') { a.href = `http://${shown}:${r.hostPort}`; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
     a.title = `bound on ${r.hostIp}`; c1.append(a);
     tr.append(c1, el('td', 'mono', String(r.containerPort)), el('td', null, r.container), el('td', 'mono', r.group), el('td', 'mono', r.proto));
     const c6 = el('td'); c6.append(el('span', `tag ${r.scope}`, r.scope === 'public' ? 'exposed' : 'loopback')); tr.append(c6);

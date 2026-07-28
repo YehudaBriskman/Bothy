@@ -1,0 +1,37 @@
+name: portal-next
+
+# Vite+React rewrite of the dev.test portal, served as a static build behind the
+# same Traefik + SSO. Runs at portal-next.dev.test as a PREVIEW alongside the live
+# portal; swap the Host rule to dev.test once it's approved.
+
+services:
+  portal-next:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: portal-next
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.portal-next.loadbalancer.server.port=80
+      # THE portal — the pure-HTML apps/portal was retired; this is dev.test now.
+      - traefik.http.routers.portal-next.rule=Host(`dev.test`)
+      - traefik.http.routers.portal-next.entrypoints=web
+      - traefik.http.routers.portal-next.service=portal-next
+      - traefik.http.routers.portal-next.middlewares=sso-errors@file,sso@file
+      # Catch-all so the bare IP + typo'd *.test names land on the portal (below
+      # every real Host rule). Mirrors the old portal-fallback.
+      - traefik.http.routers.portal-next-fallback.rule=PathPrefix(`/`)
+      - traefik.http.routers.portal-next-fallback.priority=1
+      - traefik.http.routers.portal-next-fallback.entrypoints=web
+      - traefik.http.routers.portal-next-fallback.service=portal-next
+      - traefik.http.routers.portal-next-fallback.middlewares=sso-errors@file,sso@file
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    networks: [devnet]
+
+networks:
+  devnet:
+    external: true
