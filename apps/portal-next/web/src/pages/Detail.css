@@ -112,5 +112,59 @@
   border-bottom: 1px solid var(--line); }
 .detail .panel-tbl .tbl th { background: var(--surface-2); }
 
+/* ── kind badge (header) ────────────────────────────────────────────────────
+   A neutral, form-first label of what KIND of system this is (project / stack /
+   infra). Tinted with the panel accent, never a status hue. */
+.detail .kind-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 999px; line-height: 1;
+  border: 1px solid color-mix(in srgb, var(--acc, var(--primary)) 38%, var(--line-2));
+  color: color-mix(in srgb, var(--acc, var(--primary)) 78%, var(--ink));
+  background: color-mix(in srgb, var(--acc, var(--primary)) 12%, var(--surface-2));
+  align-self: center; white-space: nowrap; }
+
+/* ── services: type + status filter bar (mirrors Services.tsx feel) ──────────
+   The base .filter-bar/.chip live in index.css; these are the same facet-count
+   deltas the Services page carries, rescoped under .detail. */
+.detail .svc-filter { margin-bottom: 16px; }
+.detail .svc-filter .filters-ico { color: var(--dim); flex: none; }
+.detail .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.detail .filter-chips .chip { text-transform: none; padding-right: 7px; }
+.detail .filter-chips .chip .chip-l { text-transform: capitalize; }
+.detail .filter-chips .chip .n {
+  font-variant-numeric: tabular-nums; color: var(--dim); background: var(--surface);
+  border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center; }
+.detail .filter-chips .chip.on .n {
+  color: var(--ink); background: color-mix(in srgb, var(--primary) 22%, transparent); }
+.detail .filter-chips .chip.is-zero { opacity: 0.45; }
+.detail .filter-div { width: 1px; align-self: stretch; min-height: 20px;
+  background: var(--line-2); margin: 0 2px; }
+
+/* ── services split by type ──────────────────────────────────────────────────
+   One block per ServiceType: an icon + label + count header, then the service
+   table. Tables scroll internally via the shared .panel-tbl rules above. */
+.detail .type-sections { display: flex; flex-direction: column; gap: 18px; }
+.detail .type-section { display: flex; flex-direction: column; gap: 8px; }
+.detail .type-head { display: flex; align-items: center; gap: 9px; }
+.detail .type-head .ico.sm { color: var(--acc, var(--primary)); }
+.detail .type-label { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.detail .type-cnt { font-size: 12px; font-weight: 600; color: var(--dim);
+  font-variant-numeric: tabular-nums; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
+.detail .type-section .tbl-wrap { border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); overflow: auto; max-height: 360px; }
+.detail .type-section .tbl th { background: var(--surface-2); }
+
+.detail .svc-empty { text-align: center; padding: 30px 20px; color: var(--ink-2);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.detail .svc-empty p { margin: 0; }
+
+/* ── data / volumes table ────────────────────────────────────────────────── */
+.detail .vol-tbl td, .detail .vol-tbl th { vertical-align: middle; }
+.detail .vol-tbl th.num, .detail .vol-tbl td.num { text-align: right;
+  font-variant-numeric: tabular-nums; }
+.detail .vol-name { display: flex; align-items: center; gap: 9px; }
+.detail .vol-name .ico.sm { color: var(--acc, var(--primary)); }
+.detail .vol-tbl .dim { color: var(--dim); }
+
 /* ── not-found / empty ─────────────────────────────────────────────────────── */
 .detail .state { margin-top: 8px; }
