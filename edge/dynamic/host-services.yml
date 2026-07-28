@@ -16,20 +16,40 @@
 
 http:
   routers:
+    # Global Tilt name. Tilt binds one fixed host port (10350) and only one
+    # project's Tilt can hold it at a time, so a single flat name always points
+    # at whichever project is currently running `tilt up`. Under .dev.test on
+    # purpose: the oauth2-proxy session cookie is scoped to `.dev.test`, so a
+    # name outside that branch (e.g. tilt.test) would never receive it and the
+    # sign-in loop would never terminate.
+    tilt:
+      rule: "Host(`tilt.dev.test`)"
+      entryPoints: [web]
+      service: tilt
+      # Tilt has no auth of its own and exposes manual triggers/build controls,
+      # so it sits behind the GitHub SSO like the other dashboards. Order
+      # matters: sso-errors on the way in turns sso's 401 into the sign-in page.
+      middlewares: [sso-errors, sso]
+
+    # Kept as an alias so existing bookmarks/links still resolve. Same upstream.
     cvops-tilt:
       rule: "Host(`tilt.cvops.dev.test`)"
       entryPoints: [web]
-      service: cvops-tilt
+      service: tilt
+      middlewares: [sso-errors, sso]
 
   services:
-    cvops-tilt:
+    tilt:
       loadBalancer:
         servers:
-          # CVOps' Tilt dev UI: build logs, resource status, manual triggers.
-          # Started by `tilt up --host=0.0.0.0 --port=10350` in the CVOps repo —
-          # without --host it binds 127.0.0.1 and this route 502s.
+          # Whichever project's Tilt dev UI is running: build logs, resource
+          # status, manual triggers. Started by
+          # `tilt up --host=0.0.0.0 --port=10350` in the project repo — without
+          # --host it binds 127.0.0.1 and this route 502s.
           # 502 when no Tilt is running is expected, not a bug.
           #
-          # A second project running Tilt needs its own --port (10350 is a host
-          # port and only one process can hold it) plus its own entry here.
+          # This is a deliberate trade-off against per-project isolation: two
+          # projects cannot expose Tilt at once (10350 is a single host port).
+          # If that day comes, give the second project its own --port and its
+          # own router/service here.
           - url: "http://host.docker.internal:10350"

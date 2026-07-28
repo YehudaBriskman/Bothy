@@ -10,8 +10,14 @@ services:
     # edge, which is the point: it can never collide with another project again.
     volumes:
       - ./html:/usr/share/nginx/html:ro
+      # no-cache for the static assets so live edits show without a hard-refresh
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     labels:
-      - traefik.enable=true
+      # Superseded by apps/portal-next (the Vite+React rewrite), which now owns
+      # Host(dev.test) + the catch-all. This nginx no longer routes; the
+      # socket-proxy below still runs (the new portal needs it for /-/api/docker).
+      # To roll back: set this to true and stop portal-next.
+      - traefik.enable=false
       - traefik.http.services.portal.loadbalancer.server.port=80
 
       # The base name. Everything else on this box nests under it:
