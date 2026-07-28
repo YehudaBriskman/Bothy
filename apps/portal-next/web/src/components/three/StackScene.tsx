@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, type ThreeElements } from '@react-three/fiber';
-import { Html, Instance, Instances, OrbitControls, RoundedBox } from '@react-three/drei';
+import { Html, OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { useNavigate } from 'react-router-dom';
 import { usePortal } from '../../lib/data';
 import { panelize, type Panel } from '../../lib/panels';
-import type { PortalNode, Status } from '../../lib/discover';
+import type { PortalNode, Status, ServiceType } from '../../lib/discover';
 import { serviceLink } from '../../lib/links';
 import { ServiceIcon, StatusIcon } from '../../lib/icons';
 import { hasWebGL, prefersReducedMotion, statusHexes, cssVar, STATUS_HEX, STATUS_LABEL } from './webgl';
@@ -21,15 +21,44 @@ const RW = SLAB_W + 0.5; // rack outer width
 const RD = SLAB_D + 0.4; // rack outer depth
 const RACK_PITCH = RW + 1.0; // centre-to-centre spacing of racks
 const MAX_UNITS = 14; // cap detail per rack
-const FLOOR_Y = -0.7;
-const FLOOR_Z = RD / 2 + 2.2;
+const MAX_FLOOR = 40; // cap labelled floor machines
+const FLOOR_Y = -0.9;
+const FLOOR_Z = RD / 2 + 3.0;
 
 type Hexes = Record<Status, string>;
 type Focus = 'edge' | 'projects' | 'containers';
 type Hover = { id: string; node: PortalNode } | null;
 
 const rackPostH = (count: number) => Math.max(1, count) * SLAB_PITCH + 0.7;
-const emissiveFor = (s: Status) => (s === 'up' ? 0.7 : s === 'unknown' ? 0.22 : 1.1);
+const emissiveFor = (s: Status) => (s === 'up' ? 0.9 : s === 'unknown' ? 0.3 : 1.35);
+
+// Decorative per-type accent (3D only — not a text/surface token, so a literal
+// palette is fine here; it just tints a slab's spine + a machine's band).
+const TYPE_TINT: Record<ServiceType, string> = {
+  web: '#4d9bff',
+  database: '#a78bfa',
+  cache: '#f472b6',
+  queue: '#22d3ee',
+  storage: '#f59e0b',
+  observability: '#34d399',
+  edge: '#818cf8',
+  runtime: '#94a3b8',
+  other: '#7c8aa3',
+};
+
+// The short, human half of a display name ("CVOps · Postgres" → "Postgres").
+const shortName = (n: PortalNode) => {
+  const parts = n.name.split('·');
+  return (parts[parts.length - 1] || n.name).trim();
+};
+
+// Aggregate a set of nodes to a single worst-first status (drives cable colour).
+function aggStatus(nodes: PortalNode[]): Status {
+  if (nodes.some((n) => n.status === 'down')) return 'down';
+  if (nodes.some((n) => n.status === 'starting')) return 'starting';
+  if (nodes.some((n) => n.status === 'up')) return 'up';
+  return 'unknown';
+}
 
 // ── shared soft-glow sprite texture (one canvas, reused, tinted per LED) ──────
 let _glow: THREE.Texture | null = null;
@@ -49,9 +78,69 @@ function glowTexture(): THREE.Texture {
   return _glow;
 }
 
+// ── offline billboard text labels ────────────────────────────────────────────
+// drei <Text>/troika would fetch a Roboto font from a CDN — forbidden here (the
+// app runs offline behind SSO). So every machine label is a cheap GPU sprite of a
+// canvas-rendered pill: no DOM cost, no network, billboards to the camera for
+// free. Textures are cached by string so repeated names cost one canvas each.
+interface LabelTex { tex: THREE.Texture; aspect: number; }
+const _labelCache = new Map<string, LabelTex>();
+function labelTexture(text: string): LabelTex {
+  const hit = _labelCache.get(text);
+  if (hit) return hit;
+  const fontPx = 40;
+  const padX = 20;
+  const padY = 12;
+  const font = `600 ${fontPx}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+  const meas = document.createElement('canvas').getContext('2d')!;
+  meas.font = font;
+  const tw = Math.ceil(meas.measureText(text).width);
+  const w = tw + padX * 2;
+  const h = fontPx + padY * 2;
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = h;
+  const ctx = cv.getContext('2d')!;
+  ctx.font = font;
+  // rounded pill background — dark + subtle stroke so it reads on light or dark
+  const r = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.arcTo(w, 0, w, h, r);
+  ctx.arcTo(w, h, 0, h, r);
+  ctx.arcTo(0, h, 0, 0, r);
+  ctx.arcTo(0, 0, w, 0, r);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(10,14,23,0.82)';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(150,170,205,0.28)';
+  ctx.stroke();
+  ctx.fillStyle = '#e8eef8';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, w / 2, h / 2 + 1);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 4;
+  const res: LabelTex = { tex, aspect: w / h };
+  _labelCache.set(text, res);
+  return res;
+}
+
 type GroupProps = ThreeElements['group'];
 
-// ── one 1U server slab: metal chassis, front bezel, vents, ports, status LED ──
+function TagSprite({ text, position, height = 0.16 }: { text: string; position: [number, number, number]; height?: number }) {
+  const { tex, aspect } = useMemo(() => labelTexture(text), [text]);
+  return (
+    <sprite position={position} scale={[height * aspect, height, 1]} renderOrder={12}>
+      <spriteMaterial map={tex} transparent depthWrite={false} toneMapped={false} />
+    </sprite>
+  );
+}
+
+// ── one 1U server slab: metal chassis, bezel, vents, screen, LED array, tag ────
 function Slab({
   node, colorHex, hovered, onHover, onOut, onSelect, ...props
 }: {
@@ -66,10 +155,12 @@ function Slab({
   useFrame(() => {
     // hovered slab eases forward like a pulled drawer
     if (grp.current) {
-      grp.current.position.z = THREE.MathUtils.lerp(grp.current.position.z, hovered ? 0.18 : 0, 0.2);
+      grp.current.position.z = THREE.MathUtils.lerp(grp.current.position.z, hovered ? 0.2 : 0, 0.2);
     }
   });
   const emis = emissiveFor(node.status);
+  const tint = TYPE_TINT[node.serviceType];
+  const front = SLAB_D / 2 + 0.012;
 
   return (
     <group
@@ -82,40 +173,53 @@ function Slab({
       <group ref={grp}>
         {/* chassis */}
         <RoundedBox args={[SLAB_W, SLAB_H, SLAB_D]} radius={0.03} smoothness={2}>
-          <meshStandardMaterial color={hovered ? '#232d40' : '#182031'} metalness={0.85} roughness={0.36} />
+          <meshStandardMaterial color={hovered ? '#26324a' : '#182031'} metalness={0.85} roughness={0.34} />
         </RoundedBox>
         {/* brushed front bezel, slightly proud */}
         <mesh position={[0, 0, SLAB_D / 2 + 0.001]}>
           <planeGeometry args={[SLAB_W - 0.05, SLAB_H - 0.06]} />
-          <meshStandardMaterial color="#10151f" metalness={0.55} roughness={0.5} />
+          <meshStandardMaterial color="#0f141f" metalness={0.6} roughness={0.48} />
         </mesh>
-        {/* vent slits, left third */}
-        {[0, 1, 2, 3].map((i) => (
-          <mesh key={i} position={[-SLAB_W / 2 + 0.36, SLAB_H / 2 - 0.11 - i * 0.085, SLAB_D / 2 + 0.012]}>
-            <boxGeometry args={[0.62, 0.028, 0.012]} />
+        {/* type-accent spine down the left edge */}
+        <mesh position={[-SLAB_W / 2 + 0.05, 0, front]}>
+          <boxGeometry args={[0.05, SLAB_H - 0.08, 0.02]} />
+          <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={0.65} toneMapped={false} />
+        </mesh>
+        {/* vent slits, left third — two banks */}
+        {[0, 1, 2, 3, 4].map((i) => (
+          <mesh key={i} position={[-SLAB_W / 2 + 0.42, SLAB_H / 2 - 0.1 - i * 0.07, front]}>
+            <boxGeometry args={[0.6, 0.024, 0.012]} />
             <meshStandardMaterial color="#05070c" roughness={0.95} />
           </mesh>
         ))}
-        {/* drive handle */}
-        <mesh position={[SLAB_W / 2 - 0.62, 0, SLAB_D / 2 + 0.02]}>
-          <boxGeometry args={[0.5, 0.13, 0.03]} />
-          <meshStandardMaterial color="#39465e" metalness={0.7} roughness={0.42} />
+        {/* little service screen (glows faintly) */}
+        <mesh position={[-0.12, 0, front]}>
+          <planeGeometry args={[0.5, 0.24]} />
+          <meshStandardMaterial color="#0a1622" emissive={'#123449'} emissiveIntensity={0.5} metalness={0.2} roughness={0.35} toneMapped={false} />
         </mesh>
-        {/* two port dots */}
-        {[0, 1].map((i) => (
-          <mesh key={i} position={[SLAB_W / 2 - 0.14 - i * 0.16, -SLAB_H / 2 + 0.12, SLAB_D / 2 + 0.02]}>
-            <boxGeometry args={[0.07, 0.07, 0.02]} />
-            <meshStandardMaterial color="#22d3ee" emissive="#22d3ee" emissiveIntensity={0.5} toneMapped={false} />
+        {/* drive handle, right */}
+        <mesh position={[SLAB_W / 2 - 0.55, 0, SLAB_D / 2 + 0.03]}>
+          <boxGeometry args={[0.5, 0.14, 0.05]} />
+          <meshStandardMaterial color="#3c4a63" metalness={0.75} roughness={0.4} />
+        </mesh>
+        {/* indicator array — three faint activity LEDs */}
+        {[0, 1, 2].map((i) => (
+          <mesh key={i} position={[SLAB_W / 2 - 0.16 - i * 0.14, -SLAB_H / 2 + 0.12, front + 0.008]}>
+            <boxGeometry args={[0.06, 0.06, 0.02]} />
+            <meshStandardMaterial color="#22d3ee" emissive="#22d3ee" emissiveIntensity={0.55} toneMapped={false} />
           </mesh>
         ))}
-        {/* status LED + additive glow */}
-        <mesh position={[SLAB_W / 2 - 0.14, SLAB_H / 2 - 0.12, SLAB_D / 2 + 0.02]}>
-          <boxGeometry args={[0.09, 0.09, 0.03]} />
+        {/* status LED + additive glow, top-right */}
+        <mesh position={[SLAB_W / 2 - 0.16, SLAB_H / 2 - 0.12, front + 0.008]}>
+          <boxGeometry args={[0.1, 0.1, 0.03]} />
           <meshStandardMaterial color={colorHex} emissive={colorHex} emissiveIntensity={emis} toneMapped={false} />
         </mesh>
-        <sprite position={[SLAB_W / 2 - 0.14, SLAB_H / 2 - 0.12, SLAB_D / 2 + 0.08]} scale={hovered ? 0.52 : 0.34}>
+        <sprite position={[SLAB_W / 2 - 0.16, SLAB_H / 2 - 0.12, front + 0.08]} scale={hovered ? 0.58 : 0.38}>
           <spriteMaterial map={glowTexture()} color={colorHex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.9} />
         </sprite>
+
+        {/* always-on name tag, floating just in front of the slab */}
+        <TagSprite text={shortName(node)} position={[0, 0, SLAB_D / 2 + 0.34]} height={0.17} />
 
         {hovered && <Tooltip node={node} />}
       </group>
@@ -126,7 +230,7 @@ function Slab({
 // drei <Html> tooltip anchored to the slab (tracks orbit); crisp, screen-sized.
 function Tooltip({ node }: { node: PortalNode }) {
   return (
-    <Html position={[0, SLAB_H / 2 + 0.08, SLAB_D / 2 + 0.05]} center zIndexRange={[120, 0]} className="sv-tip" occlude={false}>
+    <Html position={[0, SLAB_H / 2 + 0.16, SLAB_D / 2 + 0.05]} center zIndexRange={[120, 0]} className="sv-tip" occlude={false}>
       <div className="sv-tip-card">
         <div className="sv-tip-head">
           <ServiceIcon node={node} size={15} className="sv-tip-ico" />
@@ -155,7 +259,7 @@ function Rack({
 }) {
   const units = panel.nodes.slice(0, MAX_UNITS);
   const postH = rackPostH(units.length);
-  const frameMat = <meshStandardMaterial color="#0d1119" metalness={0.9} roughness={0.3} />;
+  const frameMat = <meshStandardMaterial color="#0d1119" metalness={0.9} roughness={0.28} />;
   const posts: [number, number][] = [
     [RW / 2, RD / 2], [-RW / 2, RD / 2], [RW / 2, -RD / 2], [-RW / 2, -RD / 2],
   ];
@@ -213,7 +317,7 @@ function Rack({
   );
 }
 
-// ── the edge/Traefik unit — a wide accent bar sitting above the racks ─────────
+// ── the edge/Traefik unit — a wide, high-presence bar above the racks ─────────
 function EdgeBar({
   panel, width, y, hexes, hover, setHover, onSelect, primary,
 }: {
@@ -226,63 +330,235 @@ function EdgeBar({
   onSelect: (n: PortalNode) => void;
   primary: string;
 }) {
-  const nodes = panel.nodes.slice(0, 8);
+  const nodes = panel.nodes.slice(0, 10);
   const span = width - 1.4;
   const step = nodes.length > 1 ? span / (nodes.length - 1) : 0;
   const start = -span / 2;
+  const front = (RD + 0.6) / 2 + 0.01;
+  const H = 1.0;
   return (
     <group position={[0, y, 0]}>
-      <RoundedBox args={[width, 0.72, RD + 0.2]} radius={0.05} smoothness={2}>
-        <meshStandardMaterial color="#141b2c" metalness={0.85} roughness={0.32} emissive={primary} emissiveIntensity={0.12} />
+      {/* main chassis — taller + deeper than a slab, reads as the trunk */}
+      <RoundedBox args={[width, H, RD + 0.6]} radius={0.06} smoothness={3}>
+        <meshStandardMaterial color="#16203a" metalness={0.88} roughness={0.3} emissive={primary} emissiveIntensity={0.16} />
       </RoundedBox>
-      {/* accent stripe */}
-      <mesh position={[0, 0.2, (RD + 0.2) / 2 + 0.01]}>
-        <planeGeometry args={[width - 0.3, 0.05]} />
-        <meshStandardMaterial color={primary} emissive={primary} emissiveIntensity={1.3} toneMapped={false} />
+      {/* front bezel */}
+      <mesh position={[0, 0, front]}>
+        <planeGeometry args={[width - 0.12, H - 0.12]} />
+        <meshStandardMaterial color="#0c1324" metalness={0.55} roughness={0.5} />
       </mesh>
-      {/* one clickable module per edge node */}
+      {/* top vent grille */}
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <mesh key={i} position={[0, H / 2 + 0.001, -RD / 2 + 0.2 + i * 0.14]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[width - 0.6, 0.05]} />
+          <meshStandardMaterial color="#05070c" roughness={0.95} />
+        </mesh>
+      ))}
+      {/* glowing accent stripe across the face */}
+      <mesh position={[0, 0.28, front + 0.001]}>
+        <planeGeometry args={[width - 0.3, 0.06]} />
+        <meshStandardMaterial color={primary} emissive={primary} emissiveIntensity={1.6} toneMapped={false} />
+      </mesh>
+      {/* under-glow plane — gives the edge a lit halo beneath it */}
+      <sprite position={[0, -H / 2 - 0.1, front - 0.2]} scale={[width * 0.9, 1.1, 1]}>
+        <spriteMaterial map={glowTexture()} color={primary} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.4} />
+      </sprite>
+      {/* rack-style feet */}
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * (width / 2 - 0.5), -H / 2 - 0.08, 0]}>
+          <boxGeometry args={[0.5, 0.16, RD]} />
+          <meshStandardMaterial color="#0d1119" metalness={0.9} roughness={0.3} />
+        </mesh>
+      ))}
+
+      {/* one clickable module per edge node — mini bezel + screen + LED */}
       {nodes.map((n, i) => (
         <group
           key={n.id}
-          position={[start + i * step, -0.05, (RD + 0.2) / 2 + 0.02]}
+          position={[start + i * step, -0.08, front + 0.02]}
           onPointerOver={(e) => { e.stopPropagation(); setHover({ id: n.id, node: n }); }}
           onPointerOut={(e) => { e.stopPropagation(); setHover(null); }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onSelect(n); }}
         >
           <mesh>
-            <boxGeometry args={[0.5, 0.42, 0.06]} />
-            <meshStandardMaterial color={hover?.id === n.id ? '#1e2740' : '#0f1526'} metalness={0.7} roughness={0.4} />
+            <boxGeometry args={[0.54, 0.5, 0.07]} />
+            <meshStandardMaterial color={hover?.id === n.id ? '#243056' : '#0f1526'} metalness={0.7} roughness={0.4} />
           </mesh>
-          <mesh position={[0, 0.1, 0.04]}>
-            <boxGeometry args={[0.09, 0.09, 0.03]} />
+          <mesh position={[0, -0.1, 0.045]}>
+            <planeGeometry args={[0.4, 0.14]} />
+            <meshStandardMaterial color="#0a1622" emissive="#12405a" emissiveIntensity={0.5} toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 0.13, 0.045]}>
+            <boxGeometry args={[0.1, 0.1, 0.03]} />
             <meshStandardMaterial color={hexes[n.status]} emissive={hexes[n.status]} emissiveIntensity={emissiveFor(n.status)} toneMapped={false} />
           </mesh>
-          <sprite position={[0, 0.1, 0.1]} scale={hover?.id === n.id ? 0.5 : 0.32}>
+          <sprite position={[0, 0.13, 0.11]} scale={hover?.id === n.id ? 0.54 : 0.36}>
             <spriteMaterial map={glowTexture()} color={hexes[n.status]} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.9} />
           </sprite>
           {hover?.id === n.id && <Tooltip node={n} />}
         </group>
       ))}
-      <Html position={[0, 0.66, 0]} center distanceFactor={12} className="sv-plate sv-plate-edge" occlude={false}>
+      <Html position={[0, H / 2 + 0.34, 0]} center distanceFactor={12} className="sv-plate sv-plate-edge" occlude={false}>
         <span className="sv-plate-txt">Edge · Traefik</span>
       </Html>
     </group>
   );
 }
 
-// ── the container floor: every node instanced as a status-lit micro-cube ──────
-function ContainerFloor({ nodes, hexes }: { nodes: PortalNode[]; hexes: Hexes }) {
+// ── one energy cable: a status-tinted tube with a pulse gliding along it ───────
+const _pulsePt = new THREE.Vector3();
+function Cable({
+  curve, hex, animate, offset,
+}: {
+  curve: THREE.Curve<THREE.Vector3>;
+  hex: string;
+  animate: boolean;
+  offset: number;
+}) {
+  const geom = useMemo(() => new THREE.TubeGeometry(curve, 44, 0.035, 8, false), [curve]);
+  useEffect(() => () => geom.dispose(), [geom]);
+  const pulse = useRef<THREE.Sprite>(null);
+  const staticPt = useMemo(() => curve.getPoint(0.5), [curve]);
+
+  useFrame((state) => {
+    if (!animate || !pulse.current) return;
+    const t = (state.clock.elapsedTime * 0.26 + offset) % 1;
+    curve.getPoint(t, _pulsePt);
+    pulse.current.position.copy(_pulsePt);
+  });
+
+  return (
+    <group>
+      <mesh geometry={geom}>
+        <meshStandardMaterial
+          color={hex}
+          emissive={hex}
+          emissiveIntensity={0.5}
+          metalness={0.2}
+          roughness={0.6}
+          transparent
+          opacity={0.62}
+          toneMapped={false}
+        />
+      </mesh>
+      <sprite
+        ref={pulse}
+        position={animate ? [0, 0, 0] : [staticPt.x, staticPt.y, staticPt.z]}
+        scale={0.55}
+      >
+        <spriteMaterial map={glowTexture()} color={hex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.95} />
+      </sprite>
+    </group>
+  );
+}
+
+// ── the cable harness: edge → each rack, and each rack → the container floor ───
+function Cables({
+  edgeY, racks, hexes, floorZ, animate,
+}: {
+  edgeY: number;
+  racks: { x: number; topY: number; status: Status }[];
+  hexes: Hexes;
+  floorZ: number;
+  animate: boolean;
+}) {
+  const cables = useMemo(() => {
+    const out: { key: string; curve: THREE.Curve<THREE.Vector3>; hex: string; offset: number }[] = [];
+    racks.forEach((r, i) => {
+      // edge → rack top: drop out of the edge, arc across, settle onto the rack
+      const a = new THREE.Vector3(r.x * 0.28, edgeY - 0.55, 0.2);
+      const b = new THREE.Vector3(r.x * 0.6, edgeY - 1.1, RD / 2 + 0.4);
+      const c = new THREE.Vector3(r.x, r.topY + 0.8, RD / 2 + 0.3);
+      const d = new THREE.Vector3(r.x, r.topY + 0.16, RD / 2 - 0.05);
+      out.push({ key: `e-${i}`, curve: new THREE.CubicBezierCurve3(a, b, c, d), hex: hexes[r.status], offset: i * 0.17 });
+
+      // rack base → container floor: fall to the floor and fan toward the grid
+      const p = new THREE.Vector3(r.x, 0.12, RD / 2);
+      const q = new THREE.Vector3(r.x, FLOOR_Y + 0.9, RD / 2 + 1.0);
+      const s = new THREE.Vector3(r.x * 0.5, FLOOR_Y + 0.35, floorZ - 1.6);
+      const t = new THREE.Vector3(r.x * 0.28, FLOOR_Y + 0.24, floorZ - 1.0);
+      out.push({ key: `f-${i}`, curve: new THREE.CubicBezierCurve3(p, q, s, t), hex: hexes[r.status], offset: 0.5 + i * 0.17 });
+    });
+    return out;
+  }, [racks, edgeY, hexes, floorZ]);
+
+  return (
+    <group>
+      {cables.map((c) => (
+        <Cable key={c.key} curve={c.curve} hex={c.hex} animate={animate} offset={c.offset} />
+      ))}
+    </group>
+  );
+}
+
+// ── one labelled floor machine — a little box that reads as a real node ────────
+function FloorMachine({
+  node, hex, pos, onHover, onOut, onSelect,
+}: {
+  node: PortalNode;
+  hex: string;
+  pos: [number, number, number];
+  onHover: () => void;
+  onOut: () => void;
+  onSelect: () => void;
+}) {
+  const tint = TYPE_TINT[node.serviceType];
+  return (
+    <group
+      position={pos}
+      onPointerOver={(e) => { e.stopPropagation(); onHover(); }}
+      onPointerOut={(e) => { e.stopPropagation(); onOut(); }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    >
+      <RoundedBox args={[0.52, 0.36, 0.52]} radius={0.04} smoothness={2}>
+        <meshStandardMaterial color="#161d2c" metalness={0.65} roughness={0.4} />
+      </RoundedBox>
+      {/* type-accent band across the front */}
+      <mesh position={[0, -0.02, 0.261]}>
+        <boxGeometry args={[0.52, 0.07, 0.01]} />
+        <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={0.7} toneMapped={false} />
+      </mesh>
+      {/* top vents */}
+      {[0, 1, 2].map((i) => (
+        <mesh key={i} position={[0, 0.181, -0.14 + i * 0.14]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.34, 0.03]} />
+          <meshStandardMaterial color="#05070c" roughness={0.95} />
+        </mesh>
+      ))}
+      {/* status LED + glow */}
+      <mesh position={[0.17, 0.19, 0.17]}>
+        <boxGeometry args={[0.08, 0.03, 0.08]} />
+        <meshStandardMaterial color={hex} emissive={hex} emissiveIntensity={emissiveFor(node.status)} toneMapped={false} />
+      </mesh>
+      <sprite position={[0.17, 0.22, 0.17]} scale={0.34}>
+        <spriteMaterial map={glowTexture()} color={hex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.85} />
+      </sprite>
+      <TagSprite text={shortName(node)} position={[0, 0.44, 0]} height={0.15} />
+    </group>
+  );
+}
+
+// ── the container floor: every node as a labelled micro-machine on a grid ──────
+function ContainerFloor({
+  nodes, hexes, setHover, onSelect,
+}: {
+  nodes: PortalNode[];
+  hexes: Hexes;
+  setHover: (h: Hover) => void;
+  onSelect: (n: PortalNode) => void;
+}) {
   const cells = useMemo(() => {
-    const list = nodes.filter((n) => !n.hidden);
+    const list = nodes.filter((n) => !n.hidden).slice(0, MAX_FLOOR);
     const cols = Math.max(1, Math.ceil(Math.sqrt(list.length)));
     const rows = Math.max(1, Math.ceil(list.length / cols));
-    const sp = 0.82;
+    const sp = 0.95;
     return list.map((n, i) => {
       const c = i % cols;
       const r = Math.floor(i / cols);
       return {
-        id: n.id,
+        node: n,
         hex: hexes[n.status],
         pos: [
           (c - (cols - 1) / 2) * sp,
@@ -298,16 +574,20 @@ function ContainerFloor({ nodes, hexes }: { nodes: PortalNode[]; hexes: Hexes })
     <group>
       {/* soft grounding pad (round via alpha map, so it fades into the page) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y - 0.24, FLOOR_Z]}>
-        <planeGeometry args={[14, 14]} />
-        <meshBasicMaterial color="#0a0f18" transparent opacity={0.5} alphaMap={glowTexture()} depthWrite={false} />
+        <planeGeometry args={[16, 16]} />
+        <meshBasicMaterial color="#0a0f18" transparent opacity={0.55} alphaMap={glowTexture()} depthWrite={false} />
       </mesh>
-      <Instances limit={512} range={cells.length}>
-        <boxGeometry args={[0.42, 0.42, 0.42]} />
-        <meshStandardMaterial metalness={0.3} roughness={0.55} emissiveIntensity={0.6} toneMapped={false} />
-        {cells.map((c) => (
-          <Instance key={c.id} position={c.pos} color={c.hex} />
-        ))}
-      </Instances>
+      {cells.map((c) => (
+        <FloorMachine
+          key={c.node.id}
+          node={c.node}
+          hex={c.hex}
+          pos={c.pos}
+          onHover={() => setHover({ id: c.node.id, node: c.node })}
+          onOut={() => setHover(null)}
+          onSelect={() => onSelect(c.node)}
+        />
+      ))}
     </group>
   );
 }
@@ -413,7 +693,7 @@ function Rig({
       enableDamping
       dampingFactor={0.08}
       minDistance={4}
-      maxDistance={44}
+      maxDistance={48}
       minPolarAngle={0.2}
       maxPolarAngle={1.52}
       onStart={() => { anim.current.active = false; paused.current = true; }}
@@ -450,33 +730,46 @@ function Scene({
   const spanX = Math.max(RACK_PITCH, rackPanels.length * RACK_PITCH);
   const maxUnits = Math.max(1, ...rackPanels.map((p) => Math.min(p.nodes.length, MAX_UNITS)));
   const topY = rackPostH(maxUnits);
-  const edgeWidth = Math.max(6, spanX * 0.82);
-  const edgeY = topY + 1.3;
+  const edgeWidth = Math.max(6.5, spanX * 0.86);
+  const edgeY = topY + 1.7;
 
   const onSelect = (n: PortalNode) => navigate(serviceLink(n));
 
+  // rack anchor points + aggregate status, for the cable harness
+  const rackAnchors = useMemo(
+    () => rackPanels.map((p, i) => ({
+      x: startX + i * RACK_PITCH,
+      topY: rackPostH(Math.min(p.nodes.length, MAX_UNITS)),
+      status: aggStatus(p.nodes),
+    })),
+    [rackPanels, startX],
+  );
+
   const presets = useMemo<Record<Focus, { pos: THREE.Vector3; target: THREE.Vector3 }>>(() => ({
     projects: {
-      pos: new THREE.Vector3(spanX * 0.16, topY * 0.55 + 1.4, spanX * 0.82 + 7.5),
-      target: new THREE.Vector3(0, topY * 0.46, 0),
+      pos: new THREE.Vector3(spanX * 0.16, topY * 0.55 + 1.6, spanX * 0.86 + 8.5),
+      target: new THREE.Vector3(0, topY * 0.46, 0.6),
     },
     edge: {
-      pos: new THREE.Vector3(0, edgeY + 1.4, edgeWidth * 0.62 + 4),
+      pos: new THREE.Vector3(0, edgeY + 1.6, edgeWidth * 0.62 + 4.5),
       target: new THREE.Vector3(0, edgeY, 0),
     },
     containers: {
-      pos: new THREE.Vector3(spanX * 0.2, 5.2, spanX * 0.5 + 9.5),
+      pos: new THREE.Vector3(spanX * 0.2, 5.6, spanX * 0.5 + 10.5),
       target: new THREE.Vector3(0, FLOOR_Y + 0.3, FLOOR_Z),
     },
   }), [spanX, topY, edgeY, edgeWidth]);
 
   return (
     <>
-      <ambientLight intensity={0.55} />
-      <hemisphereLight intensity={0.35} color="#cfe0ff" groundColor="#0a0e16" />
-      <directionalLight position={[6, 14, 9]} intensity={1.5} color="#dbe7ff" />
-      <pointLight position={[-7, 7, -5]} intensity={45} distance={45} color={primary} />
-      <pointLight position={[0, 3, 12]} intensity={16} distance={40} color="#22d3ee" />
+      {/* lighting — raised a notch: brighter key + fill + ambient, plus a rim */}
+      <ambientLight intensity={0.72} />
+      <hemisphereLight intensity={0.5} color="#d7e6ff" groundColor="#0a0e16" />
+      <directionalLight position={[6, 15, 10]} intensity={1.95} color="#e4edff" />
+      <directionalLight position={[-9, 8, -6]} intensity={0.7} color="#9db4ff" />
+      <pointLight position={[-7, 8, -5]} intensity={55} distance={50} color={primary} />
+      <pointLight position={[0, 3, 13]} intensity={22} distance={44} color="#22d3ee" />
+      <pointLight position={[0, edgeY, 5]} intensity={16} distance={30} color={primary} />
 
       <Rig focus={focus} presets={presets} animate={animate} />
 
@@ -493,6 +786,15 @@ function Scene({
             primary={primary}
           />
         )}
+        {edgePanel && rackAnchors.length > 0 && (
+          <Cables
+            edgeY={edgeY}
+            racks={rackAnchors}
+            hexes={hexes}
+            floorZ={FLOOR_Z}
+            animate={animate}
+          />
+        )}
         {rackPanels.map((p, i) => (
           <Rack
             key={p.key}
@@ -504,20 +806,20 @@ function Scene({
             onSelect={onSelect}
           />
         ))}
-        <ContainerFloor nodes={nodes} hexes={hexes} />
+        <ContainerFloor nodes={nodes} hexes={hexes} setHover={setHover} onSelect={onSelect} />
       </group>
     </>
   );
 }
 
-// ── the framed, self-contained viewport ──────────────────────────────────────
+// ── the framed / full-bleed viewport ─────────────────────────────────────────
 const FOCI: { key: Focus; label: string }[] = [
   { key: 'edge', label: 'Edge' },
   { key: 'projects', label: 'Projects' },
   { key: 'containers', label: 'Containers' },
 ];
 
-function Viewport({ nodes }: { nodes: PortalNode[] }) {
+function Viewport({ nodes, fill = false }: { nodes: PortalNode[]; fill?: boolean }) {
   const [ok] = useState(() => hasWebGL());
   const [reduced] = useState(() => prefersReducedMotion());
   const [focus, setFocus] = useState<Focus>('projects');
@@ -526,12 +828,12 @@ function Viewport({ nodes }: { nodes: PortalNode[] }) {
 
   if (!ok || reduced) {
     return (
-      <div className="sv-frame">
+      <div className={`sv-frame${fill ? ' sv-frame-fill' : ''}`}>
         <div className="sv-frame-h">
           <span className="sv-frame-title">Live stack</span>
           <span className="sv-frame-note">{ok ? 'reduced motion' : 'static view'}</span>
         </div>
-        <div className="sv-viewport sv-viewport-static">
+        <div className={`sv-viewport sv-viewport-static${fill ? ' sv-viewport-fill' : ''}`}>
           <StaticStack nodes={nodes} />
         </div>
       </div>
@@ -539,7 +841,7 @@ function Viewport({ nodes }: { nodes: PortalNode[] }) {
   }
 
   return (
-    <div className="sv-frame">
+    <div className={`sv-frame${fill ? ' sv-frame-fill' : ''}`}>
       <div className="sv-frame-h">
         <span className="sv-frame-title">Live stack</span>
         <div className="sv-focus" role="group" aria-label="Camera focus">
@@ -557,7 +859,7 @@ function Viewport({ nodes }: { nodes: PortalNode[] }) {
         </div>
       </div>
 
-      <div className="sv-viewport">
+      <div className={`sv-viewport${fill ? ' sv-viewport-fill' : ''}`}>
         <Canvas
           dpr={[1, 1.75]}
           gl={{ alpha: true, antialias: true, powerPreference: 'high-performance' }}
@@ -584,7 +886,7 @@ function Viewport({ nodes }: { nodes: PortalNode[] }) {
 }
 
 // Public, self-contained: reads the shared poll itself, needs no props. This is
-// the interface the Overview places (`<StackViewport />`).
+// the framed interface the Overview places (`<StackViewport />`).
 export function StackViewport() {
   const { data } = usePortal();
   return <Viewport nodes={data.nodes} />;
@@ -594,4 +896,11 @@ export function StackViewport() {
 // Kept so the app compiles whichever call-site the integrator wires up.
 export function StackScene({ nodes }: { nodes: PortalNode[] }) {
   return <Viewport nodes={nodes} />;
+}
+
+// The Topology page hero — same scene, full-bleed (fills the content height).
+// Reads the shared poll itself, so the page just mounts <TopologyScene />.
+export function TopologyScene() {
+  const { data } = usePortal();
+  return <Viewport nodes={data.nodes} fill />;
 }
