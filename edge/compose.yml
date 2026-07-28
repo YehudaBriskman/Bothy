@@ -41,6 +41,15 @@ services:
       - --api.dashboard=true
       - --log.level=INFO
       - --accesslog=true
+      # Prometheus metrics for the edge — request rates, latencies and error
+      # rates per router + service + entrypoint. Served on an INTERNAL entrypoint
+      # with NO host port, so only Prometheus (on devnet) scrapes traefik:8899.
+      - --entrypoints.metrics.address=:8899
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entryPoint=metrics
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addServicesLabels=true
+      - --metrics.prometheus.addRoutersLabels=true
     environment:
       # Traefik's bundled Docker SDK falls back to API v1.24 when it doesn't
       # negotiate, and this daemon (29.6.1, API 1.55) rejects anything below
