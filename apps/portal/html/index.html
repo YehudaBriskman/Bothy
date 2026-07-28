@@ -139,8 +139,10 @@
     render();
 
     // Static links in nav/hero (the module owns everything inside the tabs).
+    // Open in a new tab like every other outbound link (the #tab links have no
+    // data-host, so they keep switching tabs in place).
     document.querySelectorAll('[data-host]').forEach(el=>{
-      if(el.tagName==='A') el.href = `http://${el.dataset.host}${el.dataset.path||''}`;
+      if(el.tagName==='A'){ el.href = `http://${el.dataset.host}${el.dataset.path||''}`; el.target = '_blank'; el.rel = 'noopener noreferrer'; }
     });
   })();
 </script>

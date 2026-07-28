@@ -1,0 +1,33 @@
+/* Shared filter-bar + table chrome for the Ports and Routes pages. Co-located
+   with the tab components that import it. Builds on the .tbl / .tbl-wrap / .chips
+   utilities in index.css — this only adds the filter bar, sort carets and the
+   empty row, so both tables read as one instrument. */
+
+.tbl-filter {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.tbl-search {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px;
+}
+.tbl-search:focus-within { border-color: var(--primary); }
+.tbl-search svg { color: var(--dim); flex: none; }
+.tbl-search input {
+  appearance: none; border: 0; background: transparent; color: var(--ink);
+  font: inherit; padding: 9px 0; width: 100%; outline: none;
+}
+.tbl-filter .chips .n { font-variant-numeric: tabular-nums; color: var(--dim); margin-left: 2px; }
+.tbl-filter .chips button.on .n { color: inherit; }
+.tbl-filter .cnt { margin-left: auto; }
+
+/* sortable header affordance + a fixed-width caret slot so headers don't jump */
+.tbl th.sortable { cursor: pointer; }
+.tbl th.sortable:hover { color: var(--ink); }
+.tbl th .sort-caret { display: inline-block; width: 12px; margin-left: 2px; color: var(--primary);
+  font-variant-numeric: tabular-nums; }
+
+.tbl-empty { text-align: center; color: var(--dim); padding: 34px 16px !important; }
+
+@media (max-width: 560px) {
+  .tbl-filter .cnt { margin-left: 0; }
+}
