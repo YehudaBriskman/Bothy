@@ -1,0 +1,25 @@
+/* Topology — SVG graph polish. The base topo-* rules live in index.css; this
+   file adds interaction: hover/focus emphasis, node halos, column captions. */
+
+.topo-col { fill: var(--dim); font-size: 11px; font-family: var(--mono); font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; text-anchor: middle; }
+
+.topo-edge { transition: opacity .16s ease, stroke-width .16s ease; }
+.topo-edge.on { stroke-width: 2.4; }
+
+/* service node — a filled dot with a soft status halo; lifts on hover/focus */
+.topo-node { cursor: pointer; outline: none; }
+.topo-node-halo { opacity: 0.14; transition: opacity .16s ease, r .16s ease; }
+.topo-node-dot { transition: r .16s ease; }
+.topo-node .topo-label { transition: fill .16s ease; }
+.topo-node.on .topo-node-halo { opacity: 0.3; }
+.topo-node.on .topo-label { fill: var(--ink); font-weight: 600; }
+.topo-node:focus-visible .topo-node-halo { opacity: 0.4; }
+.topo-node:focus-visible .topo-node-dot { stroke: var(--primary); stroke-width: 2; }
+
+.topo-ctr .topo-label { transition: fill .16s ease; }
+.topo-ctr.on .topo-label { fill: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .topo-edge, .topo-node-halo, .topo-node-dot, .topo-label { transition: none; }
+}
