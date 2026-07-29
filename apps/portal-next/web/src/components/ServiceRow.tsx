@@ -1,21 +1,20 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
-import type { PortalNode, Status } from '../lib/discover';
+import type { PortalNode } from '../lib/discover';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
-import { serviceLink, nodeSub } from '../lib/links';
+import { serviceLink, nodeSub, kindLabelOf, unknownReason } from '../lib/links';
 
 // The dense table row — the manager's default when there are ~40 services and
 // cards would overwhelm. The WHOLE row navigates to detail (the name is still a
 // real <Link> for keyboard/right-click); the external-link cell and the name
 // link stop propagation so they keep their own behaviour.
-export function ServiceRow({ node, probed }: { node: PortalNode; probed?: Status }) {
+//
+// Status comes from node.status and NOTHING else. It used to be
+// `probed ?? node.status`, while the page's rollups and chips read node.status —
+// so a page could report "0/3 up · Unknown 3" above three rows all showing "Up".
+export function ServiceRow({ node, showGroup = true }: { node: PortalNode; showGroup?: boolean }) {
   const navigate = useNavigate();
-  const status = probed ?? node.status;
-  const kindLabel =
-    node.route?.provider === 'file' ? 'host'
-    : node.kind === 'orphan-route' ? 'orphan'
-    : node.kind === 'unrouted' ? 'unrouted'
-    : 'routed';
+  const kind = kindLabelOf(node);
 
   return (
     <tr className="svc-tr" onClick={() => navigate(serviceLink(node))}>
@@ -28,9 +27,15 @@ export function ServiceRow({ node, probed }: { node: PortalNode; probed?: Status
           </span>
         </Link>
       </td>
-      <td><StatusIcon status={status} showLabel title={node.container?.statusText || status} /></td>
-      <td className="mono">{node.group}</td>
-      <td><span className={`tag ${kindLabel === 'orphan' ? 'bad' : ''}`}>{kindLabel}</span></td>
+      <td>
+        <StatusIcon
+          status={node.status}
+          showLabel
+          title={node.container?.statusText || unknownReason(node) || node.status}
+        />
+      </td>
+      {showGroup && <td className="mono">{node.group}</td>}
+      <td><span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span></td>
       <td className="mono">{node.ports.map((p) => p.hostPort).join(', ') || '—'}</td>
       <td className="mono svc-td-img">{node.container?.image || '—'}</td>
       <td className="svc-td-open">

@@ -59,19 +59,32 @@ function niceTitle(group: string, nodes: PortalNode[]): string {
   );
 }
 
-// The system's kind = the kind of the majority of its nodes (they agree in
-// practice; a project's nodes are all 'project'). Infra (edge/portal) is kept
-// distinct so it can sort last and read as plumbing.
+// The system's kind = the kind of the MAJORITY of its nodes. They agree in
+// practice, but reading nodes[0] made a whole system's kind depend on router
+// insertion order — one nested hostname could flip a stack service to
+// "Project". Infra (edge/portal) is kept distinct so it sorts last and reads as
+// plumbing.
 function kindOf(nodes: PortalNode[]): SystemKind {
-  const k = nodes[0]?.groupKind;
-  if (k === 'project') return 'project';
-  if (k === 'infra') return 'infra';
-  return 'stack';
+  const tally: Record<SystemKind, number> = { project: 0, stack: 0, infra: 0 };
+  for (const n of nodes) {
+    if (n.groupKind === 'project') tally.project++;
+    else if (n.groupKind === 'infra') tally.infra++;
+    else tally.stack++;
+  }
+  // Ties resolve toward the more specific kind, in KIND_RANK order.
+  return (['project', 'stack', 'infra'] as SystemKind[]).reduce((best, k) =>
+    tally[k] > tally[best] ? k : best,
+  );
 }
 
 export function uiLinkOf(n: PortalNode): UiLink | null {
   if (!n.browsable || !n.url) return null;
-  const port = n.ports.find((p) => p.scope === 'public')?.hostPort ?? n.ports[0]?.hostPort ?? null;
+  // Only report a port for links that ARE a port. A routed service is reached by
+  // hostname, and surfacing its container's published port made the Traefik row
+  // read ":80" — the edge's own listener, not the dashboard.
+  const port = n.host
+    ? null
+    : n.ports.find((p) => p.scope === 'public')?.hostPort ?? n.ports[0]?.hostPort ?? null;
   return {
     id: n.id,
     name: n.name,
@@ -137,10 +150,14 @@ export function systemsOf(nodes: PortalNode[]): System[] {
   return systems;
 }
 
-// The Overview grid: only systems actively running something.
-export const runningSystems = (systems: System[]) => systems.filter((s) => s.hasRunning);
-// The Data & disk card also wants systems that are NOT running but still hold
-// data (stopped project whose volumes persist).
+// A system is "clean" only when nothing is down AND nothing is unconfirmed.
+// `unknown` is not a pass — it means we could not tell, which is why the old
+// down-only rule could report "Has issues 0" beside "Needs attention 7".
+export const systemHasIssues = (s: System) => s.down > 0 || s.unknown > 0;
+
+// Systems that are NOT running but still hold data (a stopped project whose
+// volumes persist). Note these can only appear if such a system has nodes at
+// all — see diskRows() in the Overview for volumes owned by no live service.
 export const dataOnlySystems = (systems: System[]) =>
   systems.filter((s) => !s.hasRunning && s.volumes.length > 0);
 
@@ -183,17 +200,65 @@ export function groupByType(nodes: PortalNode[]): TypeSection[] {
 // ── Recent activity — most recently (re)started containers ───────────────────
 // Uptime is coarse (docker's "Up 3 minutes"), so this is "what came up lately",
 // good enough to notice a restart. thresholdSecs default 30 min.
+// A whole-box boot is NOT activity. Docker's uptime is coarse ("Up 21 minutes"),
+// so after `just up` every node ties on the same value — the old threshold-only
+// rule then listed all 20 containers as one undifferentiated "21m ago" feed, and
+// showed nothing at all once the box passed 30 minutes. Report only services
+// that started clearly LATER than the box's median, i.e. a genuine restart.
 export function recentlyStarted(nodes: PortalNode[], thresholdSecs = 1800): PortalNode[] {
-  return nodes
-    .filter((n) => !n.hidden && n.uptimeSecs != null && n.uptimeSecs <= thresholdSecs)
-    .sort((a, b) => (a.uptimeSecs ?? 0) - (b.uptimeSecs ?? 0));
+  const running = nodes.filter(
+    (n): n is PortalNode & { uptimeSecs: number } => !n.hidden && n.uptimeSecs != null,
+  );
+  if (!running.length) return [];
+  const sorted = running.map((n) => n.uptimeSecs).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const cutoff = Math.min(thresholdSecs, median * 0.6);
+  return running
+    .filter((n) => n.uptimeSecs <= cutoff)
+    .sort((a, b) => a.uptimeSecs - b.uptimeSecs);
 }
 
 // ── Disk sizes from /system/df ───────────────────────────────────────────────
 export function volumeSize(df: SystemDf | null, name: string): number | null {
   if (!df?.Volumes) return null;
   const v = df.Volumes.find((x) => x.Name === name);
-  return v?.UsageData?.Size ?? null;
+  const size = v?.UsageData?.Size;
+  return size == null || size < 0 ? null : size;
+}
+
+// Every volume docker knows about, joined to the system that mounts it. Volumes
+// with no live mount (RefCount 0 — a renamed or deleted project's leftovers,
+// e.g. liba-postgres-data-dev after Liba became Tals) belong to no PortalNode,
+// so a nodes-derived disk panel can never show them. That is precisely the case
+// a disk panel exists for, hence the join runs this way round: df is the
+// authority, systems are matched onto it.
+export interface DiskVolume {
+  name: string;
+  bytes: number | null;
+  refCount: number;
+  system: System | null;
+  destination?: string;
+}
+export function diskVolumes(df: SystemDf | null, systems: System[]): DiskVolume[] {
+  if (!df?.Volumes) return [];
+  const owner = new Map<string, { system: System; destination?: string }>();
+  for (const s of systems) {
+    for (const v of s.volumes) if (!owner.has(v.name)) owner.set(v.name, { system: s, destination: v.destination });
+  }
+  const out: DiskVolume[] = [];
+  for (const v of df.Volumes) {
+    if (!v.Name) continue;
+    const own = owner.get(v.Name);
+    const size = v.UsageData?.Size;
+    out.push({
+      name: v.Name,
+      bytes: size == null || size < 0 ? null : size,
+      refCount: v.UsageData?.RefCount ?? 0,
+      system: own?.system ?? null,
+      destination: own?.destination,
+    });
+  }
+  return out.sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0));
 }
 export function systemDiskBytes(df: SystemDf | null, system: System): number | null {
   if (!df?.Volumes) return null;
@@ -209,6 +274,9 @@ export function systemDiskBytes(df: SystemDf | null, system: System): number | n
 // Human byte formatting, shared by every disk surface.
 export function fmtBytes(n: number | null | undefined): string {
   if (n == null) return '—';
+  // Docker reports Size: -1 when it did not compute a volume's size. Math.log of
+  // a negative is NaN, which rendered literally as "NaN undefined".
+  if (n < 0) return '—';
   if (n === 0) return '0 B';
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));

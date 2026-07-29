@@ -1,0 +1,65 @@
+/* Visualisation primitives. Status colours are reserved for status; --acc is
+   chrome and never encodes state. */
+
+/* ── segmented status bar ─────────────────────────────────────────────────── */
+.vz-bar {
+  display: flex; gap: 2px; width: 100%;
+  border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.vz-bar-seg { display: block; min-width: 3px; }
+.vz-bar-seg.seg-up { background: var(--ok); }
+.vz-bar-seg.seg-starting { background: var(--warn); }
+.vz-bar-seg.seg-down { background: var(--down); }
+.vz-bar-seg.seg-unknown { background: var(--unk); }
+.vz-bar-seg.is-empty { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+
+/* ── horizontal bar gauge ─────────────────────────────────────────────────── */
+.vz-gauge { display: flex; flex-direction: column; }
+/* label · track · sub · value — four columns, always four children */
+.vz-gauge-row {
+  --acc: var(--primary);
+  display: grid;
+  grid-template-columns: minmax(0, 8.5rem) minmax(48px, 1fr) auto minmax(4.2rem, auto);
+  align-items: center; gap: 10px;
+  padding: 5px 10px; border-radius: 7px; color: inherit;
+}
+a.vz-gauge-row:hover, .vz-gauge-row:hover { background: var(--surface-2); }
+.vz-gauge-label {
+  font-size: 12.5px; font-weight: 600; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vz-gauge-track {
+  position: relative; display: block; height: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden;
+}
+.vz-gauge-fill {
+  position: absolute; inset: 0 auto 0 0; border-radius: 999px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--acc) 55%, transparent),
+    var(--acc));
+}
+.vz-gauge-sub { font-size: 11px; color: var(--dim); font-family: var(--mono); }
+.vz-gauge-val {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 12.5px; font-weight: 700; color: var(--ink);
+  text-align: right; white-space: nowrap;
+}
+.vz-gauge-sub:empty { display: none; }
+.vz-gauge-row.is-muted .vz-gauge-label { font-weight: 500; color: var(--ink-2); }
+.vz-gauge-row.is-muted .vz-gauge-fill { background: var(--line-2); }
+.vz-gauge-row.is-muted .vz-gauge-val { color: var(--ink-2); font-weight: 600; }
+
+/* ── sparkline ───────────────────────────────────────────────────────────── */
+.vz-spark { display: block; overflow: visible; }
+.vz-spark-line { fill: none; stroke: var(--ok); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.vz-spark-area { fill: color-mix(in srgb, var(--ok) 15%, transparent); stroke: none; }
+.vz-spark-dot { fill: var(--ok); }
+.vz-spark.is-steady .vz-spark-line { stroke: var(--ok); }
+.vz-spark-empty { font-size: 11px; color: var(--dim); font-family: var(--mono); }
+
+@media (max-width: 640px) {
+  /* drop the secondary "3 vols" column first — the bar and the size carry it */
+  .vz-gauge-row { grid-template-columns: minmax(0, 6rem) minmax(36px, 1fr) minmax(3.6rem, auto); gap: 8px; }
+  .vz-gauge-sub { display: none; }
+}

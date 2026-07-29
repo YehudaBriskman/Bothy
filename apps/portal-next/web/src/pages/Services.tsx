@@ -1,29 +1,33 @@
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion';
-import { ChevronDown, LayoutGrid, Rows3, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, LayoutGrid, Rows3, SlidersHorizontal, X } from 'lucide-react';
 import { usePortal } from '../lib/data';
 import { panelize } from '../lib/panels';
 import { accentVar } from '../lib/accents';
-import { useProbe } from '../lib/useProbe';
 import type { PortalNode, Status } from '../lib/discover';
+import { systemLink } from '../lib/links';
 import { ServiceCard } from '../components/ServiceCard';
-import { ServiceRow } from '../components/ServiceRow';
+import { ServiceTable } from '../components/ServiceTable';
 import { StatusIcon } from '../lib/icons';
 import { EmptyState } from '../components/states';
 import './Services.css';
 
 type View = 'cards' | 'table';
 type Density = 'comfortable' | 'compact';
-type KindFilter = 'all' | 'routed' | 'orphan-route' | 'unrouted' | 'host';
+type KindFilter = 'all' | 'routed' | 'no-container' | 'unrouted' | 'host';
 
 const STATUSES: Status[] = ['up', 'starting', 'down', 'unknown'];
 const STATUS_LABEL: Record<Status, string> = { up: 'Up', starting: 'Starting', down: 'Down', unknown: 'Unknown' };
+// These MUST partition the node set. 'Orphan' and 'Host process' used to select
+// the same 7 nodes under two names, so the four counts summed to 34 of 27 and
+// "Orphan (7)" implied 7 broken routes when they were ordinary host processes.
+// A docker route with no container is the broken case; an @file route is not.
 const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: 'routed', label: 'Routed' },
-  { value: 'orphan-route', label: 'Orphan' },
-  { value: 'unrouted', label: 'Unrouted' },
   { value: 'host', label: 'Host process' },
+  { value: 'no-container', label: 'No container' },
+  { value: 'unrouted', label: 'Unrouted' },
 ];
 
 function useLocalState<T extends string>(key: string, initial: T): [T, (v: T) => void] {
@@ -63,15 +67,19 @@ export function Services() {
   // Every dimension COMBINES; each control also reports how many services it
   // would match. A facet count is computed against the OTHER active filters
   // (not its own), so the numbers stay honest as you narrow down.
-  const { filtered, statusCounts, projectCounts, kindCounts, totalVisible } = useMemo(() => {
+  const { filtered, statusCounts, projectCounts, kindCounts, projectAll, kindAll, totalVisible } = useMemo(() => {
     const vis = data.nodes.filter((n) => !n.hidden);
     const needle = q.trim().toLowerCase();
     const mText = (n: PortalNode) =>
       !needle || `${n.name} ${n.host ?? ''} ${n.group} ${n.container?.image ?? ''}`.toLowerCase().includes(needle);
     const mProject = (n: PortalNode) => project === 'all' || n.group === project;
     const mStatus = (n: PortalNode) => statusFilter.size === 0 || statusFilter.has(n.status);
+    const isHost = (n: PortalNode) => n.route?.provider === 'file';
     const mKind = (n: PortalNode, k: KindFilter) =>
-      k === 'all' ? true : k === 'host' ? n.route?.provider === 'file' : n.kind === k;
+      k === 'all' ? true
+      : k === 'host' ? isHost(n)
+      : k === 'no-container' ? n.kind === 'orphan-route' && !isHost(n)
+      : n.kind === k;
 
     const filtered = vis.filter((n) => mStatus(n) && mProject(n) && mKind(n, kind) && mText(n));
 
@@ -86,16 +94,17 @@ export function Services() {
     for (const { value } of KIND_OPTIONS)
       kindCounts[value] = vis.filter((n) => mStatus(n) && mProject(n) && mText(n) && mKind(n, value)).length;
 
-    return { filtered, statusCounts, projectCounts, kindCounts, totalVisible: vis.length };
+    // "All" must obey the OTHER filters like every sibling option does. It used
+    // to print the unfiltered total, so with Kind=Host active the select read
+    // "All (27)" above options summing to 7.
+    const projectAll = vis.filter((n) => mStatus(n) && mKind(n, kind) && mText(n)).length;
+    const kindAll = vis.filter((n) => mStatus(n) && mProject(n) && mText(n)).length;
+
+    return { filtered, statusCounts, projectCounts, kindCounts, projectAll, kindAll, totalVisible: vis.length };
   }, [data.nodes, q, statusFilter, project, kind]);
 
-  const panels = useMemo(() => panelize(filtered), [filtered]);
-
-  const orphanUrls = useMemo(
-    () => filtered.filter((n) => n.kind === 'orphan-route' && n.url).map((n) => n.url as string),
-    [filtered],
-  );
-  const probed = useProbe(orphanUrls);
+  // membership from the filtered set, display names from the full set
+  const panels = useMemo(() => panelize(filtered, data.nodes), [filtered, data.nodes]);
 
   const toggleStatus = (s: Status) => {
     setStatusFilter((prev) => {
@@ -168,14 +177,14 @@ export function Services() {
         <label className="filter-select">
           <span>Project</span>
           <select value={project} onChange={(e) => setProject(e.target.value)}>
-            <option value="all">All ({totalVisible})</option>
+            <option value="all">All ({projectAll})</option>
             {projectOptions.map((p) => <option key={p} value={p}>{p} ({projectCounts.get(p) ?? 0})</option>)}
           </select>
         </label>
         <label className="filter-select">
           <span>Kind</span>
           <select value={kind} onChange={(e) => setKind(e.target.value as KindFilter)}>
-            <option value="all">All</option>
+            <option value="all">All ({kindAll})</option>
             {KIND_OPTIONS.map((k) => <option key={k.value} value={k.value}>{k.label} ({kindCounts[k.value] ?? 0})</option>)}
           </select>
         </label>
@@ -193,9 +202,11 @@ export function Services() {
       </div>
 
       {!panels.length ? (
+        // Only offer "Clear filter" when there IS one — otherwise the empty
+        // state invites you to clear nothing.
         <EmptyState
           message={activeFilters ? 'No services match these filters' : 'No services discovered'}
-          onClear={clearAll}
+          onClear={activeFilters ? clearAll : undefined}
         />
       ) : (
         <LayoutGroup>
@@ -208,14 +219,27 @@ export function Services() {
                   key={p.key}
                   style={{ ['--acc' as string]: `var(${accentVar(p.key)})` } as React.CSSProperties}
                 >
-                  <button className="svc-group-head" onClick={() => toggleCollapse(p.key)} aria-expanded={!isCollapsed}>
-                    <ChevronDown size={16} className={`chev ${isCollapsed ? 'closed' : ''}`} />
-                    <span className="svc-group-idx">{String(gi + 1).padStart(2, '0')}</span>
-                    <span className="svc-group-title">{p.title}</span>
-                    <span className="svc-group-sub">{p.sub}</span>
-                    <span className="tail" />
-                    <span className="cnt">{p.nodes.length}</span>
-                  </button>
+                  <div className="svc-group-head-row">
+                    <button className="svc-group-head" onClick={() => toggleCollapse(p.key)} aria-expanded={!isCollapsed}>
+                      <ChevronDown size={16} className={`chev ${isCollapsed ? 'closed' : ''}`} />
+                      <span className="svc-group-idx">{String(gi + 1).padStart(2, '0')}</span>
+                      <span className="svc-group-title">{p.title}</span>
+                      <span className="svc-group-sub">{p.sub}</span>
+                      <span className="tail" />
+                      <span className="cnt">{p.nodes.length}</span>
+                    </button>
+                    {/* the only path from Services to a system page — the head
+                        itself is a collapse toggle, so the link sits beside it */}
+                    {p.group && (
+                      <Link
+                        className="svc-group-open"
+                        to={systemLink(p.group)}
+                        title={`Open the ${p.title} system page`}
+                      >
+                        <ArrowRight size={15} />
+                      </Link>
+                    )}
+                  </div>
 
                   <AnimatePresence initial={false}>
                     {!isCollapsed && (
@@ -237,26 +261,12 @@ export function Services() {
                                   node={n}
                                   compact={compact}
                                   reduced={reduced}
-                                  probed={n.url ? probed[n.url] : undefined}
                                 />
                               ))}
                             </AnimatePresence>
                           </motion.div>
                         ) : (
-                          <div className="tbl-wrap">
-                            <table className={`tbl svc-tbl ${compact ? 'compact' : ''}`}>
-                              <thead>
-                                <tr>
-                                  <th>Service</th><th>Status</th><th>Group</th><th>Kind</th><th>Ports</th><th>Image</th><th aria-label="Open" />
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {p.nodes.map((n) => (
-                                  <ServiceRow key={n.id} node={n} probed={n.url ? probed[n.url] : undefined} />
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                          <ServiceTable nodes={p.nodes} compact={compact} label={`${p.title} services`} />
                         )}
                       </motion.div>
                     )}
