@@ -96,7 +96,7 @@ export function AppShell() {
           <span className="brand-mark"><Server size={18} /></span>
           <span className="brand-text">
             <b>dev.test</b>
-            <small><this-node></small>
+            <small>dev box</small>
           </span>
         </NavLink>
 

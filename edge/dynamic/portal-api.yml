@@ -24,7 +24,7 @@
 #   # MUST print 404.
 #
 # ── Why no Host() rule ─────────────────────────────────────────────────────
-# The bare IP (http://<this-node-ip>) lands on portal-fallback, which serves the
+# The bare tailnet IP lands on portal-fallback, which serves the
 # portal. If these routers were scoped to Host(`dev.test`), the page would load
 # there but every fetch would fall through to nginx and 404. Host-less Path() at
 # priority 100 works from every name AND the bare IP. Priority 100 sits above
