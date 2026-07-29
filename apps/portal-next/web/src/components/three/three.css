@@ -99,29 +99,20 @@
     color-mix(in srgb, var(--bg) 58%, #000 42%) 100%);
 }
 
-/* HUD */
-.sv-legend {
-  position: absolute;
-  left: 14px;
-  bottom: 12px;
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  pointer-events: none;
-}
-.sv-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); }
-.sv-leg-dot {
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--led);
-  box-shadow: 0 0 8px var(--led);
-}
+/* HUD — the legend used to live here TOO, duplicating the one in the Topology
+   page header. Removed; the header legend serves both 3D and Flat map. */
 .sv-hint {
   position: absolute;
   right: 14px;
   bottom: 12px;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--dim);
+  /* sat on the raw canvas at ~2:1 in light mode — it needs its own plate */
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--surface-2) 84%, transparent);
+  border: 1px solid var(--line);
+  padding: 3px 9px;
+  border-radius: 7px;
   pointer-events: none;
 }
 

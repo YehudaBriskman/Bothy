@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, type ThreeElements } from '@react-three/fiber';
 import { Html, OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,9 +8,34 @@ import { panelize, type Panel } from '../../lib/panels';
 import type { PortalNode, Status, ServiceType } from '../../lib/discover';
 import { serviceLink } from '../../lib/links';
 import { ServiceIcon, StatusIcon } from '../../lib/icons';
-import { hasWebGL, prefersReducedMotion, statusHexes, cssVar, STATUS_HEX, STATUS_LABEL } from './webgl';
+import {
+  hasWebGL, prefersReducedMotion, statusHexes, cssVar, scenePalette,
+  type ScenePalette,
+} from './webgl';
+
 import { StaticStack } from './StaticStack';
 import './three.css';
+
+// The scene's structural materials, theme-aware. React context (not props)
+// because the palette is needed several levels down in half a dozen meshes, and
+// the provider lives INSIDE the Canvas so react-three-fiber's separate
+// reconciler can see it.
+const PaletteCtx = createContext<ScenePalette>(scenePalette());
+const usePal = () => useContext(PaletteCtx);
+
+// Re-reads on a theme pin (data-theme) or an OS theme change.
+function useScenePalette(): ScenePalette {
+  const [pal, setPal] = useState<ScenePalette>(scenePalette);
+  useEffect(() => {
+    const update = () => setPal(scenePalette());
+    const mo = new MutationObserver(update);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    mq.addEventListener('change', update);
+    return () => { mo.disconnect(); mq.removeEventListener('change', update); };
+  }, []);
+  return pal;
+}
 
 // ── layout constants (world units; 1U slab ≈ 0.5 tall) ───────────────────────
 const SLAB_W = 2.2;
@@ -161,6 +186,7 @@ function Slab({
   const emis = emissiveFor(node.status);
   const tint = TYPE_TINT[node.serviceType];
   const front = SLAB_D / 2 + 0.012;
+  const pal = usePal();
 
   return (
     <group
@@ -178,7 +204,7 @@ function Slab({
         {/* brushed front bezel, slightly proud */}
         <mesh position={[0, 0, SLAB_D / 2 + 0.001]}>
           <planeGeometry args={[SLAB_W - 0.05, SLAB_H - 0.06]} />
-          <meshStandardMaterial color="#0f141f" metalness={0.6} roughness={0.48} />
+          <meshStandardMaterial color={pal.slab} metalness={0.6} roughness={0.48} />
         </mesh>
         {/* type-accent spine down the left edge */}
         <mesh position={[-SLAB_W / 2 + 0.05, 0, front]}>
@@ -189,18 +215,18 @@ function Slab({
         {[0, 1, 2, 3, 4].map((i) => (
           <mesh key={i} position={[-SLAB_W / 2 + 0.42, SLAB_H / 2 - 0.1 - i * 0.07, front]}>
             <boxGeometry args={[0.6, 0.024, 0.012]} />
-            <meshStandardMaterial color="#05070c" roughness={0.95} />
+            <meshStandardMaterial color={pal.vent} roughness={0.95} />
           </mesh>
         ))}
         {/* little service screen (glows faintly) */}
         <mesh position={[-0.12, 0, front]}>
           <planeGeometry args={[0.5, 0.24]} />
-          <meshStandardMaterial color="#0a1622" emissive={'#123449'} emissiveIntensity={0.5} metalness={0.2} roughness={0.35} toneMapped={false} />
+          <meshStandardMaterial color={pal.slabScreen} emissive={pal.slabGlow} emissiveIntensity={0.5} metalness={0.2} roughness={0.35} toneMapped={false} />
         </mesh>
         {/* drive handle, right */}
         <mesh position={[SLAB_W / 2 - 0.55, 0, SLAB_D / 2 + 0.03]}>
           <boxGeometry args={[0.5, 0.14, 0.05]} />
-          <meshStandardMaterial color="#3c4a63" metalness={0.75} roughness={0.4} />
+          <meshStandardMaterial color={pal.handle} metalness={0.75} roughness={0.4} />
         </mesh>
         {/* indicator array — three faint activity LEDs */}
         {[0, 1, 2].map((i) => (
@@ -257,9 +283,10 @@ function Rack({
   setHover: (h: Hover) => void;
   onSelect: (n: PortalNode) => void;
 }) {
+  const pal = usePal();
   const units = panel.nodes.slice(0, MAX_UNITS);
   const postH = rackPostH(units.length);
-  const frameMat = <meshStandardMaterial color="#0d1119" metalness={0.9} roughness={0.28} />;
+  const frameMat = <meshStandardMaterial color={pal.frame} metalness={0.9} roughness={0.28} />;
   const posts: [number, number][] = [
     [RW / 2, RD / 2], [-RW / 2, RD / 2], [RW / 2, -RD / 2], [-RW / 2, -RD / 2],
   ];
@@ -285,13 +312,13 @@ function Rack({
       {/* back panel */}
       <mesh position={[0, postH / 2, -RD / 2]}>
         <planeGeometry args={[RW, postH]} />
-        <meshStandardMaterial color="#0a0d14" metalness={0.6} roughness={0.6} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={pal.backPanel} metalness={0.6} roughness={0.6} side={THREE.DoubleSide} />
       </mesh>
       {/* front mounting rails */}
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (SLAB_W / 2 + 0.06), postH / 2, RD / 2 - 0.02]}>
           <boxGeometry args={[0.05, postH - 0.2, 0.05]} />
-          <meshStandardMaterial color="#2b3446" metalness={0.8} roughness={0.4} />
+          <meshStandardMaterial color={pal.rail} metalness={0.8} roughness={0.4} />
         </mesh>
       ))}
 
@@ -336,22 +363,23 @@ function EdgeBar({
   const start = -span / 2;
   const front = (RD + 0.6) / 2 + 0.01;
   const H = 1.0;
+  const pal = usePal();
   return (
     <group position={[0, y, 0]}>
       {/* main chassis — taller + deeper than a slab, reads as the trunk */}
       <RoundedBox args={[width, H, RD + 0.6]} radius={0.06} smoothness={3}>
-        <meshStandardMaterial color="#16203a" metalness={0.88} roughness={0.3} emissive={primary} emissiveIntensity={0.16} />
+        <meshStandardMaterial color={pal.chassis} metalness={0.88} roughness={0.3} emissive={primary} emissiveIntensity={0.16} />
       </RoundedBox>
       {/* front bezel */}
       <mesh position={[0, 0, front]}>
         <planeGeometry args={[width - 0.12, H - 0.12]} />
-        <meshStandardMaterial color="#0c1324" metalness={0.55} roughness={0.5} />
+        <meshStandardMaterial color={pal.bezel} metalness={0.55} roughness={0.5} />
       </mesh>
       {/* top vent grille */}
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <mesh key={i} position={[0, H / 2 + 0.001, -RD / 2 + 0.2 + i * 0.14]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[width - 0.6, 0.05]} />
-          <meshStandardMaterial color="#05070c" roughness={0.95} />
+          <meshStandardMaterial color={pal.vent} roughness={0.95} />
         </mesh>
       ))}
       {/* glowing accent stripe across the face */}
@@ -367,7 +395,7 @@ function EdgeBar({
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (width / 2 - 0.5), -H / 2 - 0.08, 0]}>
           <boxGeometry args={[0.5, 0.16, RD]} />
-          <meshStandardMaterial color="#0d1119" metalness={0.9} roughness={0.3} />
+          <meshStandardMaterial color={pal.frame} metalness={0.9} roughness={0.3} />
         </mesh>
       ))}
 
@@ -383,11 +411,11 @@ function EdgeBar({
         >
           <mesh>
             <boxGeometry args={[0.54, 0.5, 0.07]} />
-            <meshStandardMaterial color={hover?.id === n.id ? '#243056' : '#0f1526'} metalness={0.7} roughness={0.4} />
+            <meshStandardMaterial color={hover?.id === n.id ? pal.unitHover : pal.unit} metalness={0.7} roughness={0.4} />
           </mesh>
           <mesh position={[0, -0.1, 0.045]}>
             <planeGeometry args={[0.4, 0.14]} />
-            <meshStandardMaterial color="#0a1622" emissive="#12405a" emissiveIntensity={0.5} toneMapped={false} />
+            <meshStandardMaterial color={pal.screen} emissive={pal.screenGlow} emissiveIntensity={0.5} toneMapped={false} />
           </mesh>
           <mesh position={[0, 0.13, 0.045]}>
             <boxGeometry args={[0.1, 0.1, 0.03]} />
@@ -504,6 +532,7 @@ function FloorMachine({
   onSelect: () => void;
 }) {
   const tint = TYPE_TINT[node.serviceType];
+  const pal = usePal();
   return (
     <group
       position={pos}
@@ -513,7 +542,7 @@ function FloorMachine({
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
       <RoundedBox args={[0.52, 0.36, 0.52]} radius={0.04} smoothness={2}>
-        <meshStandardMaterial color="#161d2c" metalness={0.65} roughness={0.4} />
+        <meshStandardMaterial color={pal.machine} metalness={0.65} roughness={0.4} />
       </RoundedBox>
       {/* type-accent band across the front */}
       <mesh position={[0, -0.02, 0.261]}>
@@ -524,7 +553,7 @@ function FloorMachine({
       {[0, 1, 2].map((i) => (
         <mesh key={i} position={[0, 0.181, -0.14 + i * 0.14]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.34, 0.03]} />
-          <meshStandardMaterial color="#05070c" roughness={0.95} />
+          <meshStandardMaterial color={pal.vent} roughness={0.95} />
         </mesh>
       ))}
       {/* status LED + glow */}
@@ -568,6 +597,7 @@ function ContainerFloor({
       };
     });
   }, [nodes, hexes]);
+  const pal = usePal();
 
   if (!cells.length) return null;
   return (
@@ -575,7 +605,7 @@ function ContainerFloor({
       {/* soft grounding pad (round via alpha map, so it fades into the page) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y - 0.24, FLOOR_Z]}>
         <planeGeometry args={[16, 16]} />
-        <meshBasicMaterial color="#0a0f18" transparent opacity={0.55} alphaMap={glowTexture()} depthWrite={false} />
+        <meshBasicMaterial color={pal.pad} transparent opacity={pal.padOpacity} alphaMap={glowTexture()} depthWrite={false} />
       </mesh>
       {cells.map((c) => (
         <FloorMachine
@@ -721,6 +751,7 @@ function Scene({
   }, [hover]);
 
   const hexes = useMemo<Hexes>(() => statusHexes(), []);
+  const pal = useScenePalette();
   const primary = useMemo(() => cssVar('--primary') || '#4d9bff', []);
 
   const edgePanel = panels.find((p) => p.key === 'infra');
@@ -761,12 +792,12 @@ function Scene({
   }), [spanX, topY, edgeY, edgeWidth]);
 
   return (
-    <>
+    <PaletteCtx.Provider value={pal}>
       {/* lighting — raised a notch: brighter key + fill + ambient, plus a rim */}
-      <ambientLight intensity={0.72} />
-      <hemisphereLight intensity={0.5} color="#d7e6ff" groundColor="#0a0e16" />
-      <directionalLight position={[6, 15, 10]} intensity={1.95} color="#e4edff" />
-      <directionalLight position={[-9, 8, -6]} intensity={0.7} color="#9db4ff" />
+      <ambientLight intensity={pal.ambient} />
+      <hemisphereLight intensity={0.5} color={pal.sky} groundColor={pal.ground} />
+      <directionalLight position={[6, 15, 10]} intensity={1.95} color={pal.key} />
+      <directionalLight position={[-9, 8, -6]} intensity={0.7} color={pal.fill} />
       <pointLight position={[-7, 8, -5]} intensity={55} distance={50} color={primary} />
       <pointLight position={[0, 3, 13]} intensity={22} distance={44} color="#22d3ee" />
       <pointLight position={[0, edgeY, 5]} intensity={16} distance={30} color={primary} />
@@ -808,7 +839,7 @@ function Scene({
         ))}
         <ContainerFloor nodes={nodes} hexes={hexes} setHover={setHover} onSelect={onSelect} />
       </group>
-    </>
+    </PaletteCtx.Provider>
   );
 }
 
@@ -871,15 +902,9 @@ function Viewport({ nodes, fill = false }: { nodes: PortalNode[]; fill?: boolean
         </Canvas>
 
         <div className="sv-vignette" aria-hidden="true" />
-        <div className="sv-legend" aria-hidden="true">
-          {(['up', 'starting', 'down', 'unknown'] as Status[]).map((s) => (
-            <span key={s} className="sv-leg">
-              <span className="sv-leg-dot" style={{ ['--led' as string]: STATUS_HEX[s] }} />
-              {STATUS_LABEL[s]}
-            </span>
-          ))}
-        </div>
-        <div className="sv-hint" aria-hidden="true">drag to orbit · scroll to zoom · shift / ctrl-scroll to pan · click a unit</div>
+        {/* No legend here — the Topology page header already renders one, and it
+            serves the Flat map too. Two legends on one screen is just noise. */}
+        <div className="sv-hint">drag to orbit · scroll to zoom · shift / ctrl-scroll to pan · click a unit</div>
       </div>
     </div>
   );

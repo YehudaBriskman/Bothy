@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   LayoutDashboard, Boxes, Waypoints, Plug, Share2,
-  Search, RefreshCw, Moon, Sun, Monitor, Server,
+  Search, RefreshCw, Moon, Sun, Monitor, Server, Menu,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
 import { useTheme } from '../lib/theme';
@@ -54,6 +54,8 @@ export function AppShell() {
       }
       if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); }
       else if (e.key === 'r') doRefresh();
+      // Escape closes the mobile nav — it was a one-way door before.
+      else if (e.key === 'Escape') setNavOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -81,7 +83,15 @@ export function AppShell() {
         <span className="grid-lines" />
       </div>
 
-      <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
+      {/* Skip link — every page cost 6 Tab presses to reach content. */}
+      <a href="#content" className="skip-link">Skip to content</a>
+
+      {/* At mobile widths a closed sidebar is only translated off-screen, so its
+          6 links stayed focusable and Tab order began with six invisible stops.
+          `visibility: hidden` in the <=860px block removes them from the tab
+          order there WITHOUT touching desktop, where the sidebar is visible and
+          navOpen is always false. */}
+      <aside className={`sidebar ${navOpen ? 'open' : ''}`} id="primary-nav">
         <NavLink to="/" className="brand" end onClick={() => setNavOpen(false)}>
           <span className="brand-mark"><Server size={18} /></span>
           <span className="brand-text">
@@ -123,8 +133,11 @@ export function AppShell() {
             className="icon-btn hamburger"
             onClick={() => setNavOpen((o) => !o)}
             aria-label="Toggle navigation"
+            aria-expanded={navOpen}
+            aria-controls="primary-nav"
           >
-            <Boxes size={18} />
+            {/* Menu, not Boxes — Boxes already means "Services" in the nav */}
+            <Menu size={18} />
           </button>
 
           <div className={`pill ${fresh.kind} topbar-pill`} title={fresh.text}>
@@ -163,6 +176,7 @@ export function AppShell() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.main
             key={loc.pathname}
+            id="content"
             className="content"
             initial={{ opacity: 0, y: reduce ? 0 : 10 }}
             animate={{ opacity: 1, y: 0 }}

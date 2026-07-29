@@ -3,10 +3,10 @@ import { ChevronRight, ExternalLink } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { usePortal } from '../lib/data';
 import { HOST_OVERRIDES } from '../lib/discover';
+import { systemsOf } from '../lib/systems';
 import { accentVar } from '../lib/accents';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
-import { projectLink } from '../lib/links';
-import { useProbe } from '../lib/useProbe';
+import { systemLink, kindLabelOf, unknownReason } from '../lib/links';
 import './Detail.css';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -23,9 +23,6 @@ export function ServiceDetail() {
   const { data } = usePortal();
   const reduce = useReducedMotion();
   const node = data.nodes.find((n) => n.id === id);
-
-  // Orphan routes have no Docker Health — probe the URL so the detail dot is live.
-  const probed = useProbe(node && node.kind === 'orphan-route' && node.url ? [node.url] : []);
 
   // Reveal panels on MOUNT (once). Disabled entirely under reduced motion.
   const rise = (i: number) =>
@@ -46,8 +43,16 @@ export function ServiceDetail() {
     );
   }
 
-  const status = (node.url ? probed[node.url] : undefined) ?? node.status;
+  // node.status only — one source, so this page can never disagree with the
+  // system page that linked here.
+  const status = node.status;
+  const kind = kindLabelOf(node);
+  const why = unknownReason(node);
   const desc = HOST_OVERRIDES[node.host ?? '']?.desc || node.desc;
+  // The system's display title, not the raw group key — the breadcrumb used to
+  // read "monitoring" while the page it links to is titled "Monitoring".
+  const systemTitle =
+    systemsOf(data.nodes).find((s) => s.key === node.group)?.title || node.group;
   const c = node.container;
   // Labels are compose/traefik/dev.portal config — safe to show. Env/Mounts/
   // Command are NOT surfaced here (per portal.md); they never reach this node.
@@ -62,7 +67,7 @@ export function ServiceDetail() {
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link to="/services">Services</Link>
         <ChevronRight size={13} className="sep" aria-hidden="true" />
-        <Link to={projectLink(node.group)}>{node.group}</Link>
+        <Link to={systemLink(node.group)}>{systemTitle}</Link>
         <ChevronRight size={13} className="sep" aria-hidden="true" />
         <span className="here">{node.name}</span>
       </nav>
@@ -72,11 +77,14 @@ export function ServiceDetail() {
         <div className="detail-head-meta">
           <h1>{node.name}</h1>
           <div className="detail-head-row">
-            <span className="status-pill" data-state={status}><StatusIcon status={status} size={15} showLabel /></span>
-            {node.route?.provider === 'file' && <span className="tag">host process</span>}
-            {node.kind === 'orphan-route' && node.route?.provider === 'docker' && <span className="tag bad">no container</span>}
-            {node.kind === 'unrouted' && <span className="tag">unrouted</span>}
+            <span className="status-pill" data-state={status} title={why || undefined}>
+              <StatusIcon status={status} size={15} showLabel />
+            </span>
+            {node.kind !== 'routed' && (
+              <span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span>
+            )}
           </div>
+          {why && <p className="detail-why">{why}</p>}
         </div>
         {node.browsable && node.url && (
           <a className="btn primary" href={node.url} target="_blank" rel="noopener noreferrer">
@@ -98,8 +106,14 @@ export function ServiceDetail() {
                   <a className="mono link" href={node.url} target="_blank" rel="noopener noreferrer">{node.url}</a>
                 ) : <span className="dim">not a web UI</span>}
               </Field>
+              {node.aliases.length > 0 && (
+                <Field label="Also reachable at">
+                  <span className="mono wrap-any">{node.aliases.join(', ')}</span>
+                </Field>
+              )}
               {node.path && <Field label="Path"><span className="mono">{node.path}</span></Field>}
-              <Field label="Kind"><span className="mono">{node.kind}</span></Field>
+              {/* the shared label, not the raw enum ("orphan-route") */}
+              <Field label="Kind">{kind.label}</Field>
             </div>
           </div>
         </motion.section>

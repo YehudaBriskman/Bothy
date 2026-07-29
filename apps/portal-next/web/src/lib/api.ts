@@ -54,9 +54,18 @@ export interface PortalData {
   errors: LoadError[];
   at: number;
   fails: number;
+  // Rolling "services up" samples, one per successful poll, newest last. This is
+  // the ONLY time series the portal has — nothing here is persisted or fetched
+  // from a TSDB, so it starts empty and fills as the page stays open. Capped so
+  // a tab left open for days can't grow without bound.
+  history: number[];
 }
 
-const EMPTY: PortalData = { routers: [], nodes: [], ports: [], df: null, errors: [], at: 0, fails: 0 };
+export const HISTORY_MAX = 60;
+
+const EMPTY: PortalData = {
+  routers: [], nodes: [], ports: [], df: null, errors: [], at: 0, fails: 0, history: [],
+};
 
 class HttpError extends Error {
   status: number;
@@ -135,7 +144,13 @@ export function usePortalData(): { data: PortalData; refresh: () => void } {
         const d = await loadAll();
         if (cancelled) return;
         failsRef.current = 0;
-        setData({ ...d, at: Date.now(), fails: 0 });
+        const up = d.nodes.filter((n) => n.status === 'up').length;
+        setData((prev) => ({
+          ...d,
+          at: Date.now(),
+          fails: 0,
+          history: [...prev.history, up].slice(-HISTORY_MAX),
+        }));
       } catch {
         if (cancelled) return;
         failsRef.current += 1;

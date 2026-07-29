@@ -14,7 +14,9 @@
   --line-2: rgba(140, 165, 205, 0.20);
   --ink: #e9eef6;
   --ink-2: #9fabbe;
-  --dim: #5c6879;
+  /* --dim was #5c6879 → 3.2:1 on --surface, below WCAG AA (4.5:1) at the
+     11–12px sizes it is actually used at (hostnames, volume counts, reasons). */
+  --dim: #8892a4;
   --primary: #4d9bff;
   --primary-2: #2f6fe0;
 
@@ -22,6 +24,14 @@
   --warn: #fbbf24;
   --down: #fb7185;
   --unk: #6b7688;
+  /* Status colours are tuned for the dark surface. --*-ink is the same signal at
+     a contrast that survives a WHITE background, for status used as TEXT.
+     In dark they are simply the base colour. */
+  --ok-ink: var(--ok);
+  --warn-ink: var(--warn);
+  --down-ink: var(--down);
+  /* the glow behind the page. NOT a raw hex — it has to move with the theme. */
+  --bg-glow: #10192e;
 
   --a1: #8b5cf6; --a2: #22d3ee; --a3: #f472b6;
   --a4: #34d399; --a5: #60a5fa; --a6: #f59e0b;
@@ -46,10 +56,15 @@
   --line-2: rgba(15, 23, 42, 0.16);
   --ink: #0f172a;
   --ink-2: #3b4557;
-  --dim: #7a8598;
+  --dim: #5d6878;
   --primary: #5b6cff;
   --primary-2: #7c3aed;
-  --surface-glass: rgba(255, 255, 255, 0.7);
+  /* amber-on-white was 1.67:1 — the "Needs attention" count was the least
+     readable text on the page while being the most important number on it. */
+  --ok-ink: #047857;
+  --warn-ink: #82480a;
+  --down-ink: #be123c;
+  --bg-glow: #dfe5f5;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
@@ -62,10 +77,13 @@
     --line-2: rgba(15, 23, 42, 0.16);
     --ink: #0f172a;
     --ink-2: #3b4557;
-    --dim: #7a8598;
+    --dim: #5d6878;
     --primary: #5b6cff;
     --primary-2: #7c3aed;
-    --surface-glass: rgba(255, 255, 255, 0.7);
+    --ok-ink: #047857;
+    --warn-ink: #82480a;
+    --down-ink: #be123c;
+    --bg-glow: #dfe5f5;
   }
 }
 
@@ -84,11 +102,21 @@ a { color: inherit; text-decoration: none; }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
+/* visible only when focused — first tab stop on every page */
+.skip-link {
+  position: absolute; left: 8px; top: -60px; z-index: 100;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-2);
+  border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 600;
+  transition: top .15s ease;
+}
+.skip-link:focus-visible { top: 8px; }
 .wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
 
 /* ── ambient background ──────────────────────────────────────────────────── */
 .bg { position: fixed; inset: 0; z-index: -1; overflow: hidden;
-  background: radial-gradient(1200px 700px at 70% -10%, #10192e 0%, var(--bg) 55%); }
+  /* was a hardcoded #10192e — the only token-independent colour in the whole
+     background system, which washed the top of every page grey in light mode */
+  background: radial-gradient(1200px 700px at 70% -10%, var(--bg-glow) 0%, var(--bg) 55%); }
 .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.5; }
 .orb.a { width: 520px; height: 520px; top: -160px; right: -80px;
   background: radial-gradient(circle, var(--primary) 0%, transparent 70%); opacity: 0.28; }
@@ -201,8 +229,14 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-2);
   border-radius: 8px; padding: 5px 12px; }
 .chips button.on { color: var(--ink); background: var(--surface-2); border-color: var(--line-2); }
 .tbar .cnt { margin-left: auto; }
-.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r);
+/* max-height is what makes `position: sticky` on <th> work at all. overflow-x
+   forces overflow-y to compute to `auto`, so .tbl-wrap becomes the sticky
+   containing block — but with no height cap it never scrolls vertically, the
+   PAGE does, and the header simply scrolled away and never came back. */
+.tbl-wrap { overflow: auto; max-height: min(72vh, 720px);
+  border: 1px solid var(--line); border-radius: var(--r);
   background: var(--surface); backdrop-filter: blur(12px); }
+.tbl-wrap:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .tbl th { text-align: left; padding: 12px 16px; color: var(--dim); font-weight: 600;
   border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface-2);
@@ -327,7 +361,11 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-2);
 .topbar-search:focus-within { border-color: var(--primary); }
 .topbar-search .search-ico { color: var(--dim); flex: none; }
 .topbar-search input { appearance: none; border: 0; background: transparent; color: var(--ink);
-  font: inherit; padding: 9px 0; width: 100%; outline: none; }
+  font: inherit; padding: 9px 0; width: 100%; }
+/* the ring moves to the wrapper rather than being suppressed — this was the one
+   control on the page with no visible focus state at all */
+.topbar-search:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.topbar-search input:focus-visible { outline: none; }
 .nav-scrim { display: none; }
 .content { flex: 1; padding: 26px 30px 70px; width: 100%; max-width: 1320px; margin: 0 auto; }
 
@@ -372,8 +410,15 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-2);
 /* ── services groups ─────────────────────────────────────────────────────── */
 .svc-groups { display: flex; flex-direction: column; gap: 26px; }
 .svc-group { --acc: var(--primary); }
-.svc-group-head { width: 100%; appearance: none; cursor: pointer; background: transparent; border: 0;
+.svc-group-head-row { display: flex; align-items: flex-start; gap: 8px; }
+.svc-group-head { flex: 1; min-width: 0; appearance: none; cursor: pointer; background: transparent; border: 0;
   display: flex; align-items: center; gap: 12px; padding: 0 0 14px; color: var(--ink); text-align: left; }
+/* the head itself is a collapse toggle, so the system link lives beside it —
+   before this there was NO path from Services to a system page at all */
+.svc-group-open { flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px; color: var(--dim);
+  border: 1px solid var(--line); background: var(--surface); }
+.svc-group-open:hover { color: var(--primary); border-color: var(--primary); }
 .svc-group-head .chev { color: var(--dim); transition: transform 0.18s ease; }
 .svc-group-head .chev.closed { transform: rotate(-90deg); }
 .svc-group-idx { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--acc);
@@ -562,9 +607,15 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-2);
   .ov-stats { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 860px) {
+  /* visibility:hidden takes the off-screen links OUT of the tab order — with
+     only transform they stayed focusable, so Tab began with six invisible
+     stops before the hamburger. Delayed on the way out so the slide still
+     animates; instant on the way in. */
   .sidebar { position: fixed; left: 0; top: 0; transform: translateX(-100%);
-    transition: transform 0.22s ease; box-shadow: 0 0 60px rgba(0,0,0,.5); }
-  .sidebar.open { transform: none; }
+    visibility: hidden;
+    transition: transform 0.22s ease, visibility 0s linear 0.22s;
+    box-shadow: 0 0 60px rgba(0,0,0,.5); }
+  .sidebar.open { transform: none; visibility: visible; transition: transform 0.22s ease, visibility 0s; }
   .hamburger { display: grid; }
   .topbar-pill { display: none; }
   .nav-scrim { display: block; position: fixed; inset: 0; z-index: 25; background: rgba(0,0,0,.5); }
@@ -596,8 +647,15 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-2);
 .panel-b.scroll::-webkit-scrollbar-thumb, .tbl-wrap::-webkit-scrollbar-thumb {
   background: var(--line-2); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
 
-.reveal { opacity: 0; transform: translateY(10px); }
-.reveal.in { opacity: 1; transform: none; transition: opacity .4s ease, transform .45s cubic-bezier(.2,.7,.2,1); }
+/* The `.reveal` / `.reveal.in` pair is GONE, along with components/Reveal.tsx.
+   It defaulted content to opacity:0 and depended on an IntersectionObserver to
+   turn it back on — so any element the observer missed stayed invisible
+   forever. That shipped a near-blank portal twice (see portal.md, "Traps paid
+   for in blood"): most recently the entire Overview dashboard vanished on any
+   warm return to the page, because it renders below the fold and nothing
+   re-checks. Entrance animation now belongs to the components themselves
+   (.syscard, framer-motion), which animate FROM a visible resting state and
+   cannot leave content hidden if they never run. */
 
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
 .dot[data-state="up"] { background: var(--ok); box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 65%, transparent); }
@@ -629,16 +687,16 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-2);
 .kbd { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
 
-.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .tbl th { text-align: left; padding: 12px 16px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--surface-2); white-space: nowrap; user-select: none; }
+  position: sticky; top: 0; z-index: 1; background: var(--surface-2); white-space: nowrap; user-select: none; }
 .tbl td { padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .tbl tr:last-child td { border-bottom: 0; }
 .tbl tbody tr:hover { background: var(--surface-2); }
 
 *:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
 @media (prefers-reduced-motion: reduce) {
-  .reveal { opacity: 1 !important; transform: none !important; }
+  /* Nothing here may HIDE content. Killing transitions must never be able to
+     leave an element at opacity:0 — that was the old .reveal failure mode. */
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
