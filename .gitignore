@@ -1,6 +1,16 @@
 # Secrets — never commit real credentials
 .env
 
+# Defence in depth. apps/docs/content/ is a GENERATED mirror of the notes trees
+# and is already ignored by apps/docs/.gitignore; these repeat the guard at the
+# root so a single edited ignore file cannot publish live credentials from what
+# is now a public repository. sync.sh also refuses to copy them in the first
+# place — three independent layers, because the failure mode is unrecoverable.
+apps/docs/content/
+**/credentials.md
+*.env
+!.env.example
+
 # Backups & local data
 backups/
 *.rdb
