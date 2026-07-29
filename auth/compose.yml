@@ -14,7 +14,7 @@ name: auth
 
 services:
   oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1   # pinned: it is the auth boundary
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3   # pinned: it is the auth boundary
     container_name: oauth2-proxy
     restart: unless-stopped
     command:
