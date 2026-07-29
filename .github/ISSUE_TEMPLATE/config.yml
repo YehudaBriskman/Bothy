@@ -1,0 +1,16 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/YehudaBriskman/dev-box/security/advisories/new
+    about: >
+      Never open a public issue for a vulnerability. Use a private security
+      advisory — the process and what to include are in SECURITY.md.
+  - name: Security policy and threat model
+    url: https://github.com/YehudaBriskman/dev-box/blob/main/SECURITY.md
+    about: What is in scope, and which "stylistic" choices in this repo are actually the security boundary.
+  - name: Questions, ideas and show-and-tell
+    url: https://github.com/YehudaBriskman/dev-box/discussions
+    about: Not sure it is a bug? Ask here before filing an issue.
+  - name: Contributing guide
+    url: https://github.com/YehudaBriskman/dev-box/blob/main/CONTRIBUTING.md
+    about: How to run the stack locally and what a good pull request looks like.

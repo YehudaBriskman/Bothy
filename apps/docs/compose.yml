@@ -37,7 +37,10 @@ services:
   # One-way mirror: real dirs -> content/ (read-only for the viewer). Run as devssh
   # (1000) so content/ files are user-owned; sources mounted :ro (never written).
   sync:
-    image: eeacms/rsync:latest
+    # pinned by digest — the repo's own rule is never :latest, and this was the
+    # last holdout. This digest is the image already running here, so pinning it
+    # changes nothing at runtime. Dependabot proposes bumps.
+    image: eeacms/rsync@sha256:733f33d3b58c196e11daa03d884765e9b39cd69d1c07ef0b9d2519eb6d5512e2
     container_name: docs-sync
     restart: unless-stopped
     user: "1000:1000"
