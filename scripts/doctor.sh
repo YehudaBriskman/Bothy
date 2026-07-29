@@ -7,7 +7,14 @@ red()   { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 echo "== containers =="
 # traefik, oauth2-proxy and portal-socket-proxy are the front door and the login
 # for everything else, and were missing from this list entirely.
-expected="traefik oauth2-proxy portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter redis redis-exporter kafka kafka-ui kafka-exporter portainer dozzle wiki portal"
+#
+# `wiki` was retired and replaced by the mkdocs stack in apps/docs (`docs` serves
+# the site, `docs-sync` rsyncs ~/claude-notes into it) - it sat here reporting a
+# permanent red ✗ that had to be explained away every single sweep, which is how
+# a health check teaches you to ignore it. `portal-next` is the LIVE portal;
+# `portal` is the retired nginx one, kept only because its compose file also owns
+# portal-socket-proxy. Both run, so both are expected.
+expected="traefik oauth2-proxy portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter redis redis-exporter kafka kafka-ui kafka-exporter portainer dozzle docs docs-sync portal portal-next"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"
