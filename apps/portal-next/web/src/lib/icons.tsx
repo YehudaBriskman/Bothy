@@ -10,11 +10,11 @@
 import {
   Database, BarChart3, Target, ScrollText, Waypoints, Container as ContainerIcon,
   Waves, BookOpen, Boxes, MemoryStick, HardDrive, Globe, Wrench, Plug, Gauge,
-  Server, Box, Activity,
+  Server, Box, Activity, Layers,
   CircleCheck, CircleDot, LoaderCircle, CircleX, CircleHelp,
   type LucideIcon,
 } from 'lucide-react';
-import type { PortalNode, Status } from './discover';
+import type { PortalNode, Status, ServiceType } from './discover';
 
 const IMAGE_ICONS: [string, LucideIcon][] = [
   ['loki', ScrollText], ['promtail', ScrollText], ['dozzle', ScrollText],
@@ -57,6 +57,24 @@ export function ServiceIcon({
 }) {
   const Icon = iconForNode(node);
   return <Icon size={size} className={className} strokeWidth={1.9} aria-hidden="true" />;
+}
+
+// ── ServiceType → lucide (the domain page's section headers + type chips) ────
+export const TYPE_ICON: Record<ServiceType, LucideIcon> = {
+  web: Globe,
+  database: Database,
+  cache: MemoryStick,
+  queue: Waves,
+  storage: HardDrive,
+  observability: BarChart3,
+  edge: Waypoints,
+  runtime: Layers,
+  other: Box,
+};
+
+export function TypeIcon({ type, size = 16, className }: { type: ServiceType; size?: number; className?: string }) {
+  const Icon = TYPE_ICON[type];
+  return <Icon size={size} strokeWidth={1.9} className={className} aria-hidden="true" />;
 }
 
 // ── Status → lucide (keep the coloured treatment via CSS var) ────────────────

@@ -32,9 +32,15 @@
 
 http:
   routers:
-    # Exactly one Docker endpoint. Nothing else is reachable.
+    # Exactly TWO Docker endpoints, each an EXACT Path(). Nothing else is
+    # reachable — see the boundary note above. /system/df is safe to add here:
+    # its body carries the same categories as /containers/json (names, images,
+    # labels, command, mounts) plus size numbers, and NO Env. The socket-proxy
+    # grants SYSTEM=1 for it; POST=0 keeps every /system call read-only.
     portal-api-docker:
-      rule: "Path(`/-/api/docker/containers/json`)"
+      rule: >-
+        Path(`/-/api/docker/containers/json`)
+        || Path(`/-/api/docker/system/df`)
       entryPoints: [web]
       priority: 100
       # sso also closes the DNS-rebinding hole: a rebound request carries the

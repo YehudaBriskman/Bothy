@@ -1,6 +1,66 @@
-/* Topology — SVG graph polish. The base topo-* rules live in index.css; this
-   file adds interaction: hover/focus emphasis, node halos, column captions. */
+/* Topology — the 3D scene is the hero; the SVG graph is the optional "Flat map".
+   The base topo-* rules live in index.css; this file adds the 3D hero framing,
+   the view switch, and the interaction polish for the flat map (hover/focus
+   emphasis, node halos, column captions). */
 
+/* ── page head: view switch + legend on the right ─────────────────────────── */
+.topo-head-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topo-view {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.topo-view-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease;
+}
+.topo-view-btn:hover { color: var(--ink); }
+.topo-view-btn.is-on {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+}
+
+/* ── the 3D hero: fill the remaining content height ───────────────────────── */
+.topo-3d {
+  display: flex;
+  height: calc(100vh - 150px);
+  min-height: 460px;
+  margin-top: 4px;
+}
+.topo-3d-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+/* ── flat map (SVG) interaction polish ────────────────────────────────────── */
 .topo-col { fill: var(--dim); font-size: 11px; font-family: var(--mono); font-weight: 600;
   letter-spacing: 0.08em; text-transform: uppercase; text-anchor: middle; }
 
@@ -19,6 +79,10 @@
 
 .topo-ctr .topo-label { transition: fill .16s ease; }
 .topo-ctr.on .topo-label { fill: var(--ink-2); }
+
+@media (max-width: 640px) {
+  .topo-3d { height: calc(100vh - 200px); min-height: 380px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .topo-edge, .topo-node-halo, .topo-node-dot, .topo-label { transition: none; }
