@@ -1,160 +1,280 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, ExternalLink, Activity, Boxes, Layers, Plug } from 'lucide-react';
-import { usePortal, healthOf, needsAttention } from '../lib/data';
-import { panelize } from '../lib/panels';
-import { accentVar } from '../lib/accents';
-import { KNOWN_HOSTS } from '../lib/discover';
-import { serviceLink, projectLink } from '../lib/links';
+import {
+  ExternalLink, AlertTriangle, ArrowRight, Search, X, HardDrive, Clock, Boxes,
+  BookOpen, BarChart3, Waypoints, type LucideIcon,
+} from 'lucide-react';
+import { usePortal, needsAttention } from '../lib/data';
+import {
+  systemsOf, runningSystems, dataOnlySystems, uiPorts, recentlyStarted,
+  systemDiskBytes, volumeSize, fmtBytes, fmtAgo,
+  type System, type UiLink,
+} from '../lib/systems';
+import { useFavorites, favFirst } from '../lib/favorites';
+import { SystemCard } from '../components/SystemCard';
+import { KNOWN_HOSTS, type PortalNode } from '../lib/discover';
+import { serviceLink } from '../lib/links';
 import { Reveal } from '../components/Reveal';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
-import type { PortalNode } from '../lib/discover';
 import './Overview.css';
 
-// three/r3f/drei are heavy — split them into their own chunk so the shell and the
-// functional pages load fast. The Overview shows a light placeholder while the
-// scene chunk streams in. Per the 3D contract the scene component sizes itself to
-// its parent (~70vh, contained) and reads nodes from context, so we just place it
-// inside a framed viewport. It exports `StackViewport`; older builds export
-// `StackScene` (which takes `nodes`) — we accept either and always pass `nodes`,
-// which the self-contained viewport simply ignores. The lead only ever needs to
-// adjust this one import if the module path changes.
-const StackViewport = lazy(() =>
-  import('../components/three/StackScene').then((m) => {
-    const mod = m as unknown as { StackViewport?: typeof m.StackScene; StackScene: typeof m.StackScene };
-    return { default: mod.StackViewport ?? mod.StackScene };
-  }),
-);
-
-// ── count-up: animate a number 0 → value once on mount (reduced-motion jumps) ──
-function useCountUp(value: number, ms = 800): number {
-  const [n, setN] = useState(() =>
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      ? value
-      : 0,
-  );
-  const from = useRef(0);
-  useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      setN(value);
-      return;
-    }
-    const start = performance.now();
-    const a = from.current;
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / ms);
-      const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
-      setN(Math.round(a + (value - a) * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else from.current = value;
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [value, ms]);
-  return n;
-}
-
-function CountUp({ value }: { value: number }) {
-  return <>{useCountUp(value)}</>;
-}
-
-function StatTile({
-  value, label, tone, Icon,
+// A Grafana-style panel: compact header (icon + title + right-aligned meta) over
+// a fixed-height body that scrolls internally, so the page never grows unbounded.
+function Panel({
+  title, meta, Icon, className, children,
 }: {
-  value: number; label: string; tone?: string; Icon: React.ComponentType<{ size?: number }>;
+  title: string;
+  meta?: ReactNode;
+  Icon?: LucideIcon;
+  className?: string;
+  children: ReactNode;
 }) {
   return (
-    <div className="ov-stat" style={tone ? ({ ['--tone' as string]: `var(${tone})` } as React.CSSProperties) : undefined}>
-      <div className="ov-stat-top">
-        <Icon size={15} />
-        <span className="ov-stat-l">{label}</span>
-      </div>
-      <div className="ov-stat-n"><CountUp value={value} /></div>
-    </div>
+    <section className={`ov-panel ${className ?? ''}`}>
+      <header className="ov-panel-head">
+        {Icon && <Icon size={14} className="ov-panel-ico" aria-hidden="true" />}
+        <h2 className="ov-panel-title">{title}</h2>
+        {meta != null && <span className="ov-panel-meta">{meta}</span>}
+      </header>
+      <div className="ov-panel-body">{children}</div>
+    </section>
   );
 }
 
-function HealthStrip({ nodes, ports }: { nodes: PortalNode[]; ports: number }) {
-  const h = healthOf(nodes);
-  const projects = new Set(nodes.filter((n) => n.groupKind === 'project').map((n) => n.group)).size;
-  const stacks = new Set(nodes.filter((n) => n.groupKind === 'stack').map((n) => n.group)).size;
-  const pct = h.total ? Math.round((h.up / h.total) * 100) : 0;
-  const allWell = h.down === 0 && h.starting === 0 && h.total > 0;
-  const upN = useCountUp(h.up);
+// ── 1. Quick links — exactly three primary anchors ───────────────────────────
+interface QuickItem { key: string; label: string; Icon: LucideIcon; host: string; }
+const QUICK_ITEMS: QuickItem[] = [
+  { key: 'docs', label: 'Docs', Icon: BookOpen, host: 'docs.dev.test' },
+  { key: 'grafana', label: 'Grafana', Icon: BarChart3, host: 'grafana.dev.test' },
+  { key: 'traefik', label: 'Traefik', Icon: Waypoints, host: 'traefik.dev.test' },
+];
 
-  return (
-    <div className="ov-strip">
-      <div className={`ov-health ${allWell ? 'well' : h.down ? 'bad' : ''}`}>
-        <div className="ov-health-top">
-          <StatusIcon status={h.down ? 'down' : h.starting ? 'starting' : 'up'} size={16} />
-          <span className="ov-health-label">System health</span>
-          <span className="ov-health-pct">{pct}%</span>
-        </div>
-        <div className="ov-health-n">
-          <span className="up">{upN}</span>
-          <span className="tot">/ {h.total || '–'}</span>
-          <span className="ov-health-word">services up</span>
-        </div>
-        <div className="ov-bar" role="img" aria-label={`${h.up} up, ${h.starting} starting, ${h.down} down of ${h.total}`}>
-          {h.up > 0 && <span className="seg up" style={{ flex: h.up }} />}
-          {h.starting > 0 && <span className="seg starting" style={{ flex: h.starting }} />}
-          {h.down > 0 && <span className="seg down" style={{ flex: h.down }} />}
-          {h.unknown > 0 && <span className="seg unknown" style={{ flex: h.unknown }} />}
-        </div>
-      </div>
-      <div className="ov-stats">
-        <StatTile value={h.down} label="Down" tone="--down" Icon={AlertTriangle} />
-        <StatTile value={h.starting} label="Starting" tone="--warn" Icon={Activity} />
-        <StatTile value={projects} label="Projects" tone="--primary" Icon={Boxes} />
-        <StatTile value={stacks} label="Stack svcs" tone="--primary" Icon={Layers} />
-        <StatTile value={ports} label="Open ports" tone="--primary" Icon={Plug} />
-      </div>
-    </div>
-  );
-}
-
-function ProjectHealth({ nodes }: { nodes: PortalNode[] }) {
-  const panels = panelize(nodes);
-  if (!panels.length) return null;
-  return (
-    <div className="ov-projects">
-      {panels.map((p) => {
-        const h = healthOf(p.nodes);
-        const pct = h.total ? Math.round((h.up / h.total) * 100) : 0;
-        return (
-          <Link
-            to={p.key.startsWith('project:') ? projectLink(p.key.slice('project:'.length)) : '/services'}
-            className="ov-proj"
-            key={p.key}
-            style={{ ['--acc' as string]: `var(${accentVar(p.key)})` } as React.CSSProperties}
-          >
-            <div className="ov-proj-head">
-              <span className="ov-proj-name">{p.title}</span>
-              <span className="ov-proj-count">{h.up}/{h.total}</span>
-            </div>
-            <div className="ov-bar" role="img" aria-label={`${pct}% up`}>
-              {h.up > 0 && <span className="seg up" style={{ flex: h.up }} />}
-              {h.starting > 0 && <span className="seg starting" style={{ flex: h.starting }} />}
-              {h.down > 0 && <span className="seg down" style={{ flex: h.down }} />}
-              {h.unknown > 0 && <span className="seg unknown" style={{ flex: h.unknown }} />}
-            </div>
-          </Link>
+function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
+  const links = useMemo(
+    () =>
+      QUICK_ITEMS.map((item) => {
+        const node = nodes.find(
+          (n) =>
+            n.browsable && n.url &&
+            ((n.host && n.host.includes(item.key)) || n.name.toLowerCase().includes(item.key)),
         );
-      })}
+        return { ...item, url: node?.url ?? `http://${item.host}`, status: node?.status ?? null };
+      }),
+    [nodes],
+  );
+  return (
+    <div className="ov-ql">
+      {links.map(({ key, label, Icon, url, status }) => (
+        <a key={key} className="ov-ql-item" href={url} target="_blank" rel="noopener noreferrer">
+          <span className="ov-ql-ico"><Icon size={19} strokeWidth={1.9} aria-hidden="true" /></span>
+          <span className="ov-ql-label">{label}</span>
+          {status && <span className="dot ov-ql-dot" data-state={status} />}
+          <ExternalLink size={14} className="ov-ql-ext" aria-hidden="true" />
+        </a>
+      ))}
     </div>
   );
 }
 
+// ── 2. Systems grid — the centrepiece ────────────────────────────────────────
+type Seg = 'all' | 'clean' | 'issues';
+
+function SystemsGrid({ systems }: { systems: System[] }) {
+  const { favs, isFav, toggle } = useFavorites();
+  const [q, setQ] = useState('');
+  const [seg, setSeg] = useState<Seg>('all');
+
+  const running = useMemo(() => runningSystems(systems), [systems]);
+  const needle = q.trim().toLowerCase();
+  const matchText = (s: System) => !needle || `${s.title} ${s.key}`.toLowerCase().includes(needle);
+
+  const textMatched = running.filter(matchText);
+  const cleanN = textMatched.filter((s) => s.down === 0).length;
+  const issuesN = textMatched.filter((s) => s.down > 0).length;
+
+  const matchSeg = (s: System) => (seg === 'all' ? true : seg === 'clean' ? s.down === 0 : s.down > 0);
+  const shown = favFirst(textMatched.filter(matchSeg), (s) => s.key, favs);
+  const pinned = running.filter((s) => favs.has(s.key)).length;
+
+  const SEGS: { value: Seg; label: string; n: number }[] = [
+    { value: 'all', label: 'All', n: textMatched.length },
+    { value: 'clean', label: 'Running clean', n: cleanN },
+    { value: 'issues', label: 'Has issues', n: issuesN },
+  ];
+
+  return (
+    <section className="ov-systems">
+      <div className="ov-systems-head">
+        <Boxes size={16} className="ov-panel-ico" aria-hidden="true" />
+        <h2>Systems</h2>
+        <span className="ov-systems-count">
+          {running.length} system{running.length === 1 ? '' : 's'}
+          {pinned > 0 ? ` · ${pinned} pinned` : ''}
+        </span>
+      </div>
+
+      <div className="ov-toolbar">
+        <label className="ov-search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Filter systems…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Filter systems by name"
+          />
+          {q && (
+            <button type="button" className="ov-search-clear" onClick={() => setQ('')} aria-label="Clear filter">
+              <X size={14} />
+            </button>
+          )}
+        </label>
+        <div className="seg-toggle" role="group" aria-label="Filter systems by health">
+          {SEGS.map((s) => (
+            <button
+              key={s.value}
+              className={seg === s.value ? 'on' : ''}
+              aria-pressed={seg === s.value}
+              onClick={() => setSeg(s.value)}
+            >
+              {s.label} <span className="ov-seg-n">{s.n}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {shown.length ? (
+        <div className="ov-sys-grid">
+          {shown.map((s) => (
+            <SystemCard key={s.key} system={s} isFav={isFav(s.key)} onToggleFav={toggle} />
+          ))}
+        </div>
+      ) : (
+        <div className="ov-empty">
+          <span>No systems match{needle ? ` “${q.trim()}”` : ' this filter'}.</span>
+          <button type="button" className="chip clear" onClick={() => { setQ(''); setSeg('all'); }}>
+            <X size={13} /> Clear
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Panel bodies ─────────────────────────────────────────────────────────────
+function AttentionBody({ nodes }: { nodes: PortalNode[] }) {
+  const attention = useMemo(() => needsAttention(nodes), [nodes]);
+  if (!attention.length) {
+    return (
+      <div className="ov-clear">
+        <StatusIcon status="up" size={16} /> Everything discovered is up.
+      </div>
+    );
+  }
+  return (
+    <div className="ov-attention">
+      {attention.map((n) => (
+        <Link to={serviceLink(n)} className="ov-alert" key={n.id}>
+          <span className="ico sm"><ServiceIcon node={n} size={15} /></span>
+          <span className="ov-alert-name">{n.name}</span>
+          <StatusIcon status={n.status} />
+          <span className="ov-alert-why">
+            {n.kind === 'orphan-route' && n.route?.provider === 'file'
+              ? 'host process'
+              : n.kind === 'orphan-route'
+              ? 'no container'
+              : 'down'}
+          </span>
+          <ArrowRight size={14} className="ov-alert-arrow" />
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function UiList({ links }: { links: UiLink[] }) {
+  if (!links.length) return <p className="ov-uicol-empty">Nothing browsable here.</p>;
+  return (
+    <ul className="ov-uilist">
+      {links.map((l) => (
+        <li key={l.id} className="ov-uirow">
+          <span className="dot" data-state={l.status} />
+          <span className="ov-uirow-name">{l.name}</span>
+          <span className="ov-uirow-host">{l.host ?? (l.port != null ? `:${l.port}` : '—')}</span>
+          <a className="ov-uirow-open" href={l.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${l.name}`}>
+            <ExternalLink size={14} />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof usePortal>['data']['df'] }) {
+  const rows = useMemo(() => {
+    const withData = systems.filter((s) => s.volumes.length > 0);
+    const dataOnly = new Set(dataOnlySystems(systems).map((s) => s.key));
+    return withData
+      .map((s) => ({ system: s, bytes: systemDiskBytes(df, s), stopped: dataOnly.has(s.key) }))
+      .sort((a, b) => (b.bytes ?? -1) - (a.bytes ?? -1) || a.system.title.localeCompare(b.system.title));
+  }, [systems, df]);
+
+  if (!rows.length) return <p className="ov-uicol-empty">No persistent volumes.</p>;
+
+  return (
+    <div className="ov-disk">
+      {rows.map(({ system, bytes, stopped }) => (
+        <Link
+          key={system.key}
+          to={`/systems/${encodeURIComponent(system.key)}`}
+          className="ov-disk-row"
+          style={{ ['--acc' as string]: `var(${system.accent})` } as React.CSSProperties}
+        >
+          <span className="ov-disk-name">{system.title}</span>
+          {stopped && <span className="tag ov-disk-tag">stopped</span>}
+          <span className="ov-disk-vols">{system.volumes.length} vol{system.volumes.length === 1 ? '' : 's'}</span>
+          <span className="ov-disk-size">{df ? fmtBytes(bytes) : '—'}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function RecentBody({ nodes }: { nodes: PortalNode[] }) {
+  const recent = useMemo(() => recentlyStarted(nodes), [nodes]);
+  if (!recent.length) return <p className="ov-uicol-empty">Nothing started recently.</p>;
+  return (
+    <div className="ov-feed">
+      {recent.map((n) => (
+        <Link to={serviceLink(n)} className="ov-feed-item" key={n.id}>
+          <span className="ico sm"><ServiceIcon node={n} size={15} /></span>
+          <span className="ov-feed-name">{n.name}</span>
+          <span className="ov-feed-ago">{fmtAgo(n.uptimeSecs)}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 export function Overview() {
   const { data } = usePortal();
-  const attention = useMemo(() => needsAttention(data.nodes), [data.nodes]);
+  const systems = useMemo(() => systemsOf(data.nodes), [data.nodes]);
+  const { stack, project } = useMemo(() => uiPorts(data.nodes), [data.nodes]);
+  const attentionN = useMemo(() => needsAttention(data.nodes).length, [data.nodes]);
   const bothDown = data.nodes.length === 0 && data.fails > 0;
-  const quick = useMemo(
-    () => data.nodes.filter((n) => n.browsable && n.url).slice(0, 10),
-    [data.nodes],
-  );
+
+  const diskTotal = useMemo(() => {
+    let sum = 0; let any = false;
+    for (const s of systems) for (const v of s.volumes) {
+      const b = volumeSize(data.df, v.name);
+      if (b != null) { sum += b; any = true; }
+    }
+    return any ? sum : null;
+  }, [systems, data.df]);
+
+  const recentN = useMemo(() => recentlyStarted(data.nodes).length, [data.nodes]);
+
   // Never blank: if both APIs are unreachable, fall back to the static known
   // hosts so the links still work when the services do (portal.md).
   const floorLinks = KNOWN_HOSTS.map(([host, name]) => ({ id: host, name, url: `http://${host}` }));
@@ -177,84 +297,48 @@ export function Overview() {
       )}
 
       <div className="ov-body">
-        {/* SUMMARY FIRST — the health strip is the answer to "is the box OK?" */}
-        <Reveal className="ov-section" as="div">
-          <div className="ov-head">
-            <Activity size={18} />
-            <h2>Health</h2>
-            <span className="ov-head-sub">live from Traefik + Docker</span>
-          </div>
-          <HealthStrip nodes={data.nodes} ports={data.ports.length} />
+        {/* Quick links — three readable anchors, one tidy row */}
+        <QuickLinks nodes={data.nodes} />
+
+        {/* Systems grid — the centrepiece */}
+        <Reveal as="div">
+          <SystemsGrid systems={systems} />
         </Reveal>
 
-        {/* Needs attention — anything down or orphaned, before anything else */}
-        <Reveal className="ov-section" as="div" delay={0.04}>
-          <div className="ov-head">
-            <AlertTriangle size={18} className={attention.length ? 'warn-ico' : ''} />
-            <h2>Needs attention</h2>
-            <span className="ov-head-sub">{attention.length ? `${attention.length} to look at` : 'all clear'}</span>
-          </div>
-          {attention.length ? (
-            <div className="ov-attention">
-              {attention.map((n) => (
-                <Link to={serviceLink(n)} className="ov-alert" key={n.id}>
-                  <span className="ico sm"><ServiceIcon node={n} size={16} /></span>
-                  <span className="ov-alert-name">{n.name}</span>
-                  <StatusIcon status={n.status} showLabel />
-                  <span className="ov-alert-why">
-                    {n.kind === 'orphan-route' && n.route?.provider === 'file' ? 'host process — may be down'
-                      : n.kind === 'orphan-route' ? 'route with no container'
-                      : 'service down'}
-                  </span>
-                  <ArrowRight size={15} className="ov-alert-arrow" />
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="ov-clear">
-              <StatusIcon status="up" size={18} /> Everything discovered is up. Nothing orphaned.
-            </div>
-          )}
-        </Reveal>
+        {/* Grafana-style dashboard: fixed-height panels that scroll internally */}
+        <Reveal as="div">
+          <div className="ov-dash">
+            <Panel
+              title="Needs attention"
+              Icon={AlertTriangle}
+              className={attentionN ? 'is-warn' : ''}
+              meta={attentionN ? `${attentionN}` : 'clear'}
+            >
+              <AttentionBody nodes={data.nodes} />
+            </Panel>
 
-        {/* Per-project rollup — drill-in shortcuts */}
-        <Reveal className="ov-section" as="div" delay={0.04}>
-          <div className="ov-head">
-            <h2>Per-project health</h2>
-            <span className="ov-head-sub">click a project to drill in</span>
-          </div>
-          <ProjectHealth nodes={data.nodes} />
-        </Reveal>
+            <Panel title="Stack UIs" Icon={Waypoints} meta={stack.length}>
+              <UiList links={stack} />
+            </Panel>
 
-        {/* The running infrastructure — the visual hero, contained (not a scroll track) */}
-        <Reveal className="ov-section" as="div">
-          <div className="ov-head">
-            <h2>The stack</h2>
-            <span className="ov-head-sub">edge · racks per project · container floor — drag · shift/ctrl-scroll to pan</span>
-          </div>
-          <div className="ov-viewport">
-            <Suspense fallback={<div className="ov-viewport-loading" aria-hidden="true" />}>
-              <StackViewport nodes={data.nodes} />
-            </Suspense>
-          </div>
-        </Reveal>
+            <Panel title="Project UIs" Icon={ExternalLink} meta={project.length}>
+              <UiList links={project} />
+            </Panel>
 
-        {/* Quick links last — the web UIs you open most */}
-        <Reveal className="ov-section" as="div" delay={0.04}>
-          <div className="ov-head">
-            <h2>Quick links</h2>
-            <span className="ov-head-sub">the web UIs you open most</span>
+            <Panel
+              title="Data & disk"
+              Icon={HardDrive}
+              meta={data.df ? fmtBytes(diskTotal) : 'no sizes'}
+            >
+              <DiskBody systems={systems} df={data.df} />
+            </Panel>
+
+            {recentN > 0 && (
+              <Panel title="Recent activity" Icon={Clock} meta={recentN}>
+                <RecentBody nodes={data.nodes} />
+              </Panel>
+            )}
           </div>
-          <div className="ov-quick">
-            {quick.map((n) => (
-              <a key={n.id} className="ov-quick-item" href={n.url!} target="_blank" rel="noopener noreferrer">
-                <span className="ico sm"><ServiceIcon node={n} size={16} /></span>
-                <span className="ov-quick-name">{n.name}</span>
-                <ExternalLink size={14} className="ov-quick-ext" />
-              </a>
-            ))}
-          </div>
-          <Link to="/services" className="ov-all">Browse all services <ArrowRight size={15} /></Link>
         </Reveal>
       </div>
     </div>

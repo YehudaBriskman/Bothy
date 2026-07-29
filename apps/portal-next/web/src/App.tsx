@@ -18,6 +18,8 @@ export function App() {
         <Route index element={<Overview />} />
         <Route path="services" element={<Services />} />
         <Route path="services/:id" element={<ServiceDetail />} />
+        <Route path="systems/:name" element={<ProjectDetail />} />
+        {/* legacy alias — projectLink used to point here */}
         <Route path="projects/:name" element={<ProjectDetail />} />
         <Route path="ports" element={<PortsPage />} />
         <Route path="routes" element={<RoutesPage />} />
