@@ -54,6 +54,11 @@ services:
       GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-}
       GF_SMTP_FROM_NAME: ${GF_SMTP_FROM_NAME:-Grafana}
       GF_SMTP_STARTTLS_POLICY: ${GF_SMTP_STARTTLS_POLICY:-OpportunisticStartTLS}
+      # Consumed by provisioning/alerting/contactpoints.yml as `$ALERT_EMAIL_TO`.
+      # Alerting provisioning interpolates with the plain `$VAR` form — NOT the
+      # `$__env{VAR}` form used by datasource provisioning. The address used to be
+      # hardcoded in that file, which put a personal address in every commit.
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-${GRAFANA_ADMIN_EMAIL:-admin@localhost}}
     volumes:
       - ./provisioning:/etc/grafana/provisioning:ro
       - ./dashboards:/var/lib/grafana/dashboards:ro
