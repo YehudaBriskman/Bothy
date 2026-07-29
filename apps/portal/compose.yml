@@ -28,8 +28,8 @@ services:
       - traefik.http.routers.portal.service=portal
       - traefik.http.routers.portal.middlewares=sso-errors@file,sso@file
 
-      # Catch-all so the bare IP (http://<this-node-ip>, and the legacy
-      # http://<legacy-portproxy-ip> via portproxy) still lands on the homepage — those
+      # Catch-all so the bare tailnet IP (and the legacy Windows portproxy
+      # address) still lands on the homepage — those
       # requests carry an IP as Host, which matches no Host() rule and would
       # otherwise 404. priority=1 keeps this below every real Host route, so it
       # only catches what nothing else claimed. Also means a typo'd *.test name

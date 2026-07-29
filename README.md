@@ -49,7 +49,7 @@ Databases are not routed by name. Reach them over SSH:
 
 ```sh
 ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 \
-    devssh@<this-node>.<your-tailnet>.ts.net
+    <user>@<this-node>.<your-tailnet>.ts.net
 ```
 
 ## Authentication
