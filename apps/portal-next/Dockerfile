@@ -1,5 +1,5 @@
 # Multi-stage: node builds the Vite app, nginx serves the static dist/.
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY web/package.json web/package-lock.json* ./
 RUN npm install
