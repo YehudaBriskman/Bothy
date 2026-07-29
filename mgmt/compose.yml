@@ -31,7 +31,7 @@ services:
     networks: [devnet]
 
   dozzle:
-    image: amir20/dozzle:v10.6.10
+    image: amir20/dozzle:v10.6.13
     container_name: dozzle
     labels:
       - traefik.enable=true
