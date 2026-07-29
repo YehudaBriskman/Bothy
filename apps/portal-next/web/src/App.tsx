@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { Overview } from './pages/Overview';
 import { Services } from './pages/Services';
@@ -19,13 +19,27 @@ export function App() {
         <Route path="services" element={<Services />} />
         <Route path="services/:id" element={<ServiceDetail />} />
         <Route path="systems/:name" element={<ProjectDetail />} />
-        {/* legacy alias — projectLink used to point here */}
-        <Route path="projects/:name" element={<ProjectDetail />} />
         <Route path="ports" element={<PortsPage />} />
         <Route path="routes" element={<RoutesPage />} />
         <Route path="topology" element={<Topology />} />
-        <Route path="*" element={<Overview />} />
+        {/* A typo'd deep link used to render the Overview with the bad URL still
+            in the bar, so a broken link looked like it had worked. */}
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="page">
+      <div className="state">
+        <h4>Page not found</h4>
+        <p>
+          <span className="mono">{location.hash || '/'}</span> isn’t a page here.
+        </p>
+        <Link className="btn ghost" to="/">Back to the Overview</Link>
+      </div>
+    </div>
   );
 }

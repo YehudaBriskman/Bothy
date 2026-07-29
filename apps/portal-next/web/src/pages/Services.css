@@ -13,7 +13,9 @@
 /* ── filter bar: facet counts on every control ──────────────────────────── */
 .services-page .filter-bar .filters-ico { color: var(--dim); flex: none; }
 .services-page .filter-chips .chip { text-transform: none; padding-right: 7px; }
-.services-page .filter-chips .chip .chip-l { text-transform: capitalize; }
+/* labels are already written the way they should read; capitalize mangled
+   "Runtimes & tooling" into "Runtimes & Tooling", disagreeing with the section
+   heading right beside it */
 .services-page .filter-chips .chip .n {
   font-variant-numeric: tabular-nums; color: var(--dim); background: var(--surface);
   border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center;

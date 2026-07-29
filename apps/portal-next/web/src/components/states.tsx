@@ -1,24 +1,39 @@
 // Shared empty / error states.
 
-export function EmptyState({ message, onClear }: { message: string; onClear: () => void }) {
+// `onClear` is optional: "no services discovered" is not a filter problem, and
+// offering to clear a filter that isn't set is a dead control.
+export function EmptyState({
+  message,
+  hint,
+  onClear,
+}: {
+  message: string;
+  hint?: string;
+  onClear?: () => void;
+}) {
   return (
     <div className="state">
       <h4>{message}</h4>
-      <button type="button" className="btn ghost" onClick={onClear}>
-        Clear filter
-      </button>
+      {hint && <p>{hint}</p>}
+      {onClear && (
+        <button type="button" className="btn ghost" onClick={onClear}>
+          Clear filter
+        </button>
+      )}
     </div>
   );
 }
 
-export function ErrState({ title, body, onRetry }: { title: string; body: string; onRetry: () => void }) {
+export function ErrState({ title, body, onRetry }: { title: string; body: string; onRetry?: () => void }) {
   return (
     <div className="state err">
       <h4>{title}</h4>
       <p>{body}</p>
-      <button type="button" className="btn ghost" onClick={onRetry}>
-        Retry
-      </button>
+      {onRetry && (
+        <button type="button" className="btn ghost" onClick={onRetry}>
+          Retry
+        </button>
+      )}
     </div>
   );
 }

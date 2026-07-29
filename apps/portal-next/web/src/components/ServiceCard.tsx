@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ExternalLink } from 'lucide-react';
-import { HOST_OVERRIDES, type PortalNode, type Status } from '../lib/discover';
+import { HOST_OVERRIDES, type PortalNode } from '../lib/discover';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
-import { serviceLink, nodeSub } from '../lib/links';
+import { serviceLink, nodeSub, kindLabelOf, unknownReason } from '../lib/links';
 
 // framer-motion-wrapped Link: the whole card is the navigation target AND the
 // animating unit (layout re-order on filter, hover lift). Defined at module
@@ -16,20 +16,18 @@ const MotionLink = motion(Link);
 // Status is shown as FORM (a distinct glyph per state) + a label, never colour
 // alone. Cards are equal-height (see Services.css) so ~40 of them stay scannable.
 export function ServiceCard({
-  node, probed, compact = false, reduced = false,
+  node, compact = false, reduced = false,
 }: {
-  node: PortalNode; probed?: Status; compact?: boolean; reduced?: boolean;
+  node: PortalNode; compact?: boolean; reduced?: boolean;
 }) {
-  const status = probed ?? node.status;
+  // node.status only — see the note in ServiceRow about the two-sources bug.
+  const status = node.status;
   const desc = HOST_OVERRIDES[node.host ?? '']?.desc || node.desc;
   const openable = node.browsable && !!node.url;
-
-  const badge =
-    node.route?.provider === 'file' ? <span className="tag">host process</span>
-    : node.kind === 'orphan-route' && node.route?.provider === 'docker' ? <span className="tag bad">no container</span>
-    : node.kind === 'orphan-route' ? <span className="tag bad">orphan route</span>
-    : node.kind === 'unrouted' ? <span className="tag">unrouted</span>
-    : null;
+  const kind = kindLabelOf(node);
+  const badge = node.kind === 'routed'
+    ? null
+    : <span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span>;
 
   return (
     <MotionLink
@@ -51,13 +49,19 @@ export function ServiceCard({
           </div>
           <div className="pt">{nodeSub(node)}</div>
         </div>
-        <StatusIcon status={status} size={compact ? 15 : 16} showLabel={!compact} title={node.container?.statusText || status} />
+        <StatusIcon
+          status={status}
+          size={compact ? 15 : 16}
+          showLabel={!compact}
+          title={node.container?.statusText || unknownReason(node) || status}
+        />
       </div>
 
       {!compact && <div className="svc-desc">{desc}</div>}
 
       <div className="svc-foot">
-        <span className="svc-card-group">{node.group}</span>
+        {/* the group is already the panel heading this card sits under */}
+        <span className="svc-card-group">{node.aliases.length ? `also ${node.aliases.join(', ')}` : ''}</span>
         <span className="svc-foot-right">
           {badge}
           {openable ? (

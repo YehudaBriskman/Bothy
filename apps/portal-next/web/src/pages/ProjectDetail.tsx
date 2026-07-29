@@ -5,10 +5,9 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { usePortal, healthOf } from '../lib/data';
 import { groupByType, systemsOf, volumeSize, systemDiskBytes, fmtBytes } from '../lib/systems';
 import { TypeIcon, StatusIcon } from '../lib/icons';
-import { ServiceRow } from '../components/ServiceRow';
+import { ServiceTable } from '../components/ServiceTable';
 import { PortsTab } from '../components/PortsTab';
 import { RoutesTab } from '../components/RoutesTab';
-import { useProbe } from '../lib/useProbe';
 import { TYPE_META } from '../lib/discover';
 import type { Status, ServiceType } from '../lib/discover';
 import './Detail.css';
@@ -72,12 +71,6 @@ export function ProjectDetail() {
 
     return { sections, typeCounts, statusCounts };
   }, [nodes, statusFilter, typeFilter]);
-
-  const orphanUrls = useMemo(
-    () => sections.flatMap((s) => s.nodes).filter((n) => n.kind === 'orphan-route' && n.url).map((n) => n.url as string),
-    [sections],
-  );
-  const probed = useProbe(orphanUrls);
 
   const toggleStatus = (s: Status) =>
     setStatusFilter((prev) => {
@@ -230,26 +223,9 @@ export function ProjectDetail() {
                       <span className="type-label">{sec.label}</span>
                       <span className="type-cnt">{sec.nodes.length}</span>
                     </div>
-                    <div className="tbl-wrap">
-                      <table className="tbl svc-tbl">
-                        <thead>
-                          <tr>
-                            <th>Service</th>
-                            <th>Status</th>
-                            <th>Group</th>
-                            <th>Kind</th>
-                            <th>Ports</th>
-                            <th>Image</th>
-                            <th aria-label="open" />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sec.nodes.map((n) => (
-                            <ServiceRow key={n.id} node={n} probed={n.url ? probed[n.url] : undefined} />
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    {/* showGroup=false: every row on a system page would repeat
+                        the same group the page is already titled with */}
+                    <ServiceTable nodes={sec.nodes} showGroup={false} label={`${sec.label} services`} />
                   </section>
                 ))}
               </div>
@@ -295,8 +271,10 @@ export function ProjectDetail() {
         {routers.length > 0 && (
           <motion.section className="panel span-12" {...rise(panel++)}>
             <div className="panel-h">Routes <span className="sub">{routers.length}</span></div>
+            {/* compact: this panel is already scoped and counted by its header,
+                so the embedded copy drops its own search box and chips */}
             <div className="panel-b panel-tbl">
-              <RoutesTab routers={routers} nodes={nodes} />
+              <RoutesTab routers={routers} nodes={nodes} compact />
             </div>
           </motion.section>
         )}
@@ -306,7 +284,7 @@ export function ProjectDetail() {
           <motion.section className="panel span-12" {...rise(panel++)}>
             <div className="panel-h">Ports <span className="sub">{ports.length}</span></div>
             <div className="panel-b panel-tbl">
-              <PortsTab ports={ports} query="" />
+              <PortsTab ports={ports} query="" compact />
             </div>
           </motion.section>
         )}

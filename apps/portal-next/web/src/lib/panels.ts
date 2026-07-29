@@ -4,19 +4,27 @@ export interface Panel {
   key: string;
   title: string;
   sub: string;
+  // The compose group this panel represents, when it represents exactly one
+  // (project panels do; the aggregated Stack/Infrastructure panels do not).
+  group: string | null;
   nodes: PortalNode[];
 }
 
 // Projects get one panel each. The stack collapses into ONE panel: each stack
 // service is its own compose project (monitoring, mgmt, kafka, wiki, postgres,
 // redis), which would otherwise render six near-empty panels for no gain.
-export function panelize(nodes: PortalNode[]): Panel[] {
+//
+// `allNodes` supplies the DISPLAY NAMES and defaults to `nodes`. Names must come
+// from the unfiltered set: the label that spells "CVOps" lives on one container,
+// so deriving names from the filtered list renamed the panel to "Cvops" the
+// moment a filter excluded that one node.
+export function panelize(nodes: PortalNode[], allNodes: PortalNode[] = nodes): Panel[] {
   const vis = nodes.filter((n) => !n.hidden);
 
   // A project's display name comes from its own depth-1 node if labelled, so
   // "cvops" can present as "CVOps" in breadcrumbs without a second label.
   const nice = new Map<string, string>();
-  for (const n of vis) {
+  for (const n of allNodes) {
     const L = n.container?.labels || {};
     if (L['dev.portal.project']) nice.set(n.group, L['dev.portal.project']);
   }
@@ -32,6 +40,7 @@ export function panelize(nodes: PortalNode[]): Panel[] {
       key: `project:${g}`,
       title: title(g),
       sub: 'project · ' + g,
+      group: g,
       nodes: vis.filter((n) => n.group === g).sort(byOrder),
     });
   }
@@ -44,6 +53,7 @@ export function panelize(nodes: PortalNode[]): Panel[] {
       key: 'stack',
       title: 'Stack',
       sub: 'shared dev services · ' + [...new Set(stack.map((n) => n.group))].join(' · '),
+      group: null,
       nodes: stack,
     });
   }
@@ -54,6 +64,7 @@ export function panelize(nodes: PortalNode[]): Panel[] {
       key: 'infra',
       title: 'Infrastructure',
       sub: 'the edge itself · usually you can ignore this',
+      group: null,
       nodes: infra,
     });
   }

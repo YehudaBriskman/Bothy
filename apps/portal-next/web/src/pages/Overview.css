@@ -1,9 +1,12 @@
-/* Overview — a manager's Grafana-style dashboard: one screen, compact, panels
-   that scroll internally so the page never grows unbounded. Co-located: builds
-   on tokens + shared utilities in index.css (.ov-bar .seg .chip .seg-toggle
-   .dot .ico .tag .state). Theme-aware via tokens — no hardcoded text/surface. */
+/* Overview — a manager's Grafana-style dashboard.
+   Structure, top to bottom: a borderless link strip, ONE hero that answers "is
+   everything ok", three grouped system cards (progressive disclosure), then a
+   small set of panels that visualise rather than list. Co-located: builds on
+   tokens + shared utilities in index.css (.seg-toggle .dot .ico .tag .state)
+   and the chart primitives in components/viz.css.
+   Theme-aware via tokens — no hardcoded text/surface colours. */
 
-.overview .ov-body { padding: 8px 0 24px; display: flex; flex-direction: column; gap: 18px; }
+.overview .ov-body { padding: 6px 0 26px; display: flex; flex-direction: column; gap: 20px; }
 
 /* compact glyph reused by alert / feed rows */
 .overview .ico.sm { width: 26px; height: 26px; border-radius: 7px; font-size: 0; }
@@ -16,62 +19,85 @@
 }
 .overview .ov-panel-body::-webkit-scrollbar-track { background: transparent; }
 
-/* ── 1. quick-links strip — three readable anchors, one row ────────────────── */
-.ov-ql { display: flex; flex-wrap: wrap; gap: 10px; }
+/* ── quick links — a navigation strip, not seven buttons ───────────────────
+   Borderless on purpose: bordered tiles read as primary actions and competed
+   with the hero for attention. These recede until hovered. */
+.ov-topline { display: flex; align-items: center; }
+.ov-ql { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-left: -8px; }
 .ov-ql-item {
-  display: flex; align-items: center; gap: 10px; flex: 1 1 190px; min-width: 170px;
-  padding: 11px 15px; color: inherit;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 11px;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 10px; border-radius: 8px; color: var(--ink-2);
+  font-size: 13px; font-weight: 550; white-space: nowrap;
+  border: 1px solid transparent; background: transparent;
+  transition: color .13s ease, background-color .13s ease;
+}
+.ov-ql-item:hover { color: var(--ink); background: var(--surface-2); }
+.ov-ql-ico { display: inline-flex; color: var(--dim); }
+.ov-ql-item:hover .ov-ql-ico { color: var(--primary); }
+.ov-ql-item.is-primary { color: var(--ink); font-weight: 650; }
+.ov-ql-item.is-primary .ov-ql-ico { color: var(--primary); }
+.ov-ql-label { overflow: hidden; text-overflow: ellipsis; }
+/* a dot only appears when a link is NOT healthy — green dots on every item are
+   just noise on a strip whose job is navigation */
+.ov-ql .dot { width: 7px; height: 7px; }
+
+/* ── hero — the one big answer ─────────────────────────────────────────────
+   Big number top-left (F-pattern), part-to-whole beneath it, supporting stats
+   to the right. Everything else on the page is detail behind this. */
+.ov-hero {
+  display: grid; grid-template-columns: minmax(280px, 1.15fr) minmax(0, 2fr);
+  gap: 26px; align-items: center;
+  padding: 20px 22px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
   backdrop-filter: blur(12px);
-  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
 }
-.ov-ql-item:hover { transform: translateY(-2px); border-color: var(--primary);
-  box-shadow: 0 10px 28px -18px rgba(0,0,0,.7); }
-.ov-ql-ico {
-  display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 9px;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 12%, var(--surface-2));
-  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--line));
+.ov-hero.is-warn { border-color: color-mix(in srgb, var(--warn) 30%, var(--line)); }
+.ov-hero-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ov-hero-num { display: flex; align-items: baseline; gap: 9px; }
+.ov-hero-num b { font-size: 46px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
+.ov-hero-of { font-size: 14px; color: var(--ink-2); font-weight: 500; }
+.ov-hero-legend { display: flex; flex-wrap: wrap; gap: 14px; }
+.ov-hero-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.ov-hero-leg-dot { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+
+.ov-hero-stats {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px; margin: 0;
 }
-.ov-ql-label { font-weight: 700; font-size: 15px; white-space: nowrap; }
-.ov-ql-dot { margin-left: auto; }
-.ov-ql-ext { color: var(--dim); flex: none; margin-left: auto; }
-.ov-ql-dot + .ov-ql-ext { margin-left: 4px; }
-
-/* ── 2. systems — the centrepiece ─────────────────────────────────────────── */
-.ov-systems-head { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
-.ov-systems-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
-.ov-systems-head .ov-panel-ico { color: var(--primary); }
-.ov-systems-count { margin-left: auto; color: var(--dim); font-size: 12.5px;
-  font-variant-numeric: tabular-nums; }
-
-.ov-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.ov-search {
-  display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;
-  padding: 7px 11px; color: var(--dim);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+.ov-stat {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 6px 12px; border-left: 1px solid var(--line); min-width: 0;
 }
-.ov-search:focus-within { border-color: var(--primary); }
-.ov-search input { flex: 1; min-width: 0; appearance: none; border: 0; background: transparent;
-  font: inherit; font-size: 13.5px; color: var(--ink); }
-.ov-search input:focus { outline: none; }
-.ov-search input::placeholder { color: var(--dim); }
-.ov-search-clear { appearance: none; cursor: pointer; display: inline-flex; padding: 2px;
-  border: 0; background: transparent; color: var(--dim); }
-.ov-search-clear:hover { color: var(--ink); }
-.ov-seg-n { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--dim); font-family: var(--mono); }
-.seg-toggle button.on .ov-seg-n { color: var(--ink-2); }
+.ov-stat:first-child { border-left: 0; }
+.ov-stat dt {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ov-stat dd {
+  margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.ov-stat dd.ov-stat-sm { font-size: 17px; font-family: var(--mono); font-weight: 700; }
+.ov-stat-unit { font-size: 13px; color: var(--dim); font-weight: 600; margin-left: 1px; }
+.ov-stat-ok { font-size: 15px; color: var(--dim); font-weight: 600; }
+.ov-stat.is-warn dd a { color: var(--warn-ink); border-bottom: 2px solid currentColor; }
+.ov-stat.is-warn dd a:hover { color: var(--down-ink); }
+.ov-stat-spark dd { display: flex; align-items: center; min-height: 26px; }
 
-.ov-sys-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 11px; }
-
-.ov-empty {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 18px; color: var(--ink-2);
-  background: var(--surface); border: 1px dashed var(--line-2); border-radius: var(--r);
+.ov-hero-degraded {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 7px;
+  margin: 0; font-size: 12.5px; font-weight: 600; color: var(--warn-ink);
 }
 
-/* ── grafana-style dashboard grid of fixed-height, inner-scroll panels ─────── */
-.ov-dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+/* ── grouped systems ──────────────────────────────────────────────────────
+   Three cards, not fourteen. Members live inside on request. */
+.ov-groups { display: flex; flex-direction: column; gap: 9px; }
+
+/* ── panel grid ───────────────────────────────────────────────────────────── */
+.ov-dash {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 12px; align-items: start;
+}
 .ov-panel {
   display: flex; flex-direction: column; min-width: 0;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
@@ -82,7 +108,7 @@
   padding: 10px 13px; border-bottom: 1px solid var(--line);
 }
 .ov-panel-ico { color: var(--dim); flex: none; }
-.ov-panel.is-warn .ov-panel-ico { color: var(--warn); }
+.ov-panel.is-warn .ov-panel-ico { color: var(--warn-ink); }
 .ov-panel-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; margin: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-panel-meta {
@@ -90,8 +116,15 @@
   font-variant-numeric: tabular-nums;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 1px 8px;
 }
-.ov-panel.is-warn .ov-panel-meta { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 34%, var(--line)); }
-.ov-panel-body { max-height: 280px; overflow-y: auto; padding: 7px; }
+/* --warn-ink, not --warn: raw amber on white measured 1.67:1 */
+.ov-panel.is-warn .ov-panel-meta {
+  color: var(--warn-ink); font-weight: 700;
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--line));
+}
+/* flex + min-height so a short panel doesn't leave dead space inside itself */
+.ov-panel-body { flex: 1 1 auto; min-height: 92px; max-height: min(46vh, 340px);
+  overflow-y: auto; padding: 7px; }
 
 /* ── needs-attention rows ─────────────────────────────────────────────────── */
 .ov-panel .ov-attention { display: flex; flex-direction: column; gap: 5px; }
@@ -100,56 +133,67 @@
   background: transparent; border: 0; border-left: 3px solid var(--down); border-radius: 7px;
 }
 .ov-panel .ov-alert:hover { background: var(--surface-2); }
-.ov-panel .ov-alert-name { font-weight: 600; font-size: 13px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-panel .ov-alert-why { color: var(--dim); font-size: 11.5px; margin-left: auto; white-space: nowrap; }
-.ov-panel .ov-alert-arrow { color: var(--dim); flex: none; }
-.ov-panel .ov-clear { display: flex; align-items: center; gap: 9px; padding: 12px 10px;
-  color: var(--ink-2); font-size: 13px; background: transparent; border: 0; }
+.ov-alert-name { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-alert-why { margin-left: auto; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; }
+.ov-alert-arrow { color: var(--dim); flex: none; }
+.ov-clear { display: flex; align-items: center; gap: 9px; padding: 12px 10px; color: var(--ink-2); font-size: 13px; }
 
-/* ── ui-port lists ────────────────────────────────────────────────────────── */
+/* ── UI list (one panel, two tabs) ────────────────────────────────────────── */
+.ov-ui { display: flex; flex-direction: column; gap: 6px; }
+.ov-ui-seg { align-self: flex-start; margin: 1px 3px 0; }
 .ov-uilist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ov-uirow { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; }
 .ov-uirow:hover { background: var(--surface-2); }
-.ov-uirow-name { font-weight: 600; font-size: 13px; flex: none; max-width: 46%;
+.ov-uirow-name { font-weight: 600; font-size: 13px; flex: none; max-width: 46%; color: inherit;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-uirow-name:hover { color: var(--primary); }
 .ov-uirow-host { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-uirow-open { color: var(--dim); flex: none; display: inline-flex; }
 .ov-uirow-open:hover { color: var(--primary); }
-.ov-uicol-empty { padding: 12px 10px; color: var(--dim); font-size: 12.5px; margin: 0; }
+.ov-uicol-empty { padding: 12px 10px; color: var(--ink-2); font-size: 12.5px; margin: 0; }
 
-/* ── data & disk rows ─────────────────────────────────────────────────────── */
-.ov-disk { display: flex; flex-direction: column; gap: 4px; }
-.ov-disk-row {
-  --acc: var(--primary);
-  display: flex; align-items: center; gap: 9px; padding: 8px 10px; color: inherit;
-  border-radius: 7px; border-left: 3px solid color-mix(in srgb, var(--acc) 70%, var(--line));
+/* ── data & disk ──────────────────────────────────────────────────────────── */
+.ov-disk { display: flex; flex-direction: column; }
+.vz-gauge-inner { display: contents; color: inherit; }
+.ov-disk-sep {
+  display: flex; align-items: center; gap: 8px; margin: 10px 10px 3px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--dim);
 }
-.ov-disk-row:hover { background: var(--surface-2); }
-.ov-disk-name { font-weight: 600; font-size: 13px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-disk-tag { flex: none; font-size: 10px; padding: 1px 7px; }
-.ov-disk-vols { margin-left: auto; color: var(--dim); font-size: 11.5px; flex: none; }
-.ov-disk-size { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px;
-  font-weight: 700; color: var(--ink); min-width: 58px; text-align: right; flex: none; }
+.ov-disk-sep-n { font-family: var(--mono); font-weight: 700; letter-spacing: 0; }
+.ov-disk-sep-hint { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 11px; }
 
 /* ── recent activity feed ─────────────────────────────────────────────────── */
-.ov-feed { display: flex; flex-direction: column; gap: 4px; }
-.ov-feed-item { display: flex; align-items: center; gap: 9px; padding: 7px 10px; color: inherit; border-radius: 7px; }
+.ov-feed { display: flex; flex-direction: column; gap: 3px; }
+.ov-feed-item { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 7px; color: inherit; }
 .ov-feed-item:hover { background: var(--surface-2); }
-.ov-feed-name { font-weight: 600; font-size: 13px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-feed-ago { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
-  font-variant-numeric: tabular-nums; flex: none; }
+.ov-feed-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-feed-ago { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+
+/* ── offline floor ────────────────────────────────────────────────────────── */
+.ov-offline { margin-bottom: 4px; }
+.ov-quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ov-quick-item {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+  font-size: 13px; font-weight: 600; color: inherit;
+}
+.ov-quick-item:hover { border-color: var(--primary); }
+.ov-quick-ext { color: var(--dim); }
 
 /* ── responsive ───────────────────────────────────────────────────────────── */
-@media (max-width: 600px) {
+@media (max-width: 1100px) {
+  .ov-hero { grid-template-columns: 1fr; gap: 18px; }
+  .ov-hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 4px; }
+}
+@media (max-width: 760px) {
   .ov-dash { grid-template-columns: 1fr; }
-  .ov-toolbar .seg-toggle { width: 100%; justify-content: space-between; }
+  .ov-hero-num b { font-size: 38px; }
+  .ov-hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ov-stat { border-left: 0; padding: 6px 0; }
   .ov-uirow-name { max-width: 55%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ov-ql-item { transition: none; }
-  .ov-ql-item:hover { transform: none; }
 }
