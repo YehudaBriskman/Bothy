@@ -26,7 +26,8 @@
 .tbl th .sort-caret { display: inline-block; width: 12px; margin-left: 2px; color: var(--primary);
   font-variant-numeric: tabular-nums; }
 
-.tbl-empty { text-align: center; color: var(--dim); padding: 34px 16px !important; }
+.tbl-empty { text-align: center; color: var(--ink-2); padding: 34px 16px !important; }
+.tbl-empty-clear { display: inline-flex; margin-left: 10px; vertical-align: middle; }
 
 @media (max-width: 560px) {
   .tbl-filter .cnt { margin-left: 0; }

@@ -10,7 +10,10 @@
 
 export const BASE = 'dev.test';
 const STACK_ROOT = '/home/devssh/stacks/';
-const INFRA_PROJECTS = new Set(['edge', 'portal']);
+// 'portal' is the retired pure-HTML portal (still runs the socket-proxy);
+// 'portal-next' is the compose project serving dev.test today. Both are infra —
+// leaving portal-next out filed the portal itself under "Stack".
+const INFRA_PROJECTS = new Set(['edge', 'portal', 'portal-next']);
 
 // ── Wire types (the raw API shapes) ─────────────────────────────────────────
 
@@ -104,6 +107,8 @@ const TYPE_RULES: [string, ServiceType][] = [
   ['cadvisor', 'observability'], ['node-exporter', 'observability'], ['exporter', 'observability'],
   ['postgres', 'database'], ['mysql', 'database'], ['mariadb', 'database'], ['mongo', 'database'],
   ['redis', 'cache'], ['memcached', 'cache'],
+  // a broker's WEB UI is a web UI — must precede the broker rule it contains
+  ['kafka-ui', 'web'], ['kafdrop', 'web'],
   ['kafka', 'queue'], ['rabbitmq', 'queue'], ['nats', 'queue'], ['zookeeper', 'queue'],
   ['garage', 'storage'], ['minio', 'storage'], ['s3', 'storage'],
   ['portainer', 'runtime'], ['socket-proxy', 'runtime'], ['tilt', 'runtime'],
@@ -170,11 +175,15 @@ export function parseUptime(status?: string): number | null {
   const m = /^Up\s+(.*)$/.exec(status.trim());
   if (!m) return null;
   const rest = m[1].toLowerCase();
+  // "Up 21 minutes (Paused)" is not running, whatever the elapsed time says.
+  if (/\(paused\)/.test(rest)) return null;
   if (/less than a second|about a second/.test(rest)) return 1;
   const num = /about (an?|one)\s/.test(rest) ? 1 : parseInt(rest, 10);
   const n = Number.isFinite(num) ? num : 1;
   const unit = Object.keys(UNIT_SECS).find((u) => rest.includes(u));
-  return unit ? n * UNIT_SECS[unit] : 0;
+  // No recognised unit means we did not understand the string — null, not 0.
+  // Returning 0 put the node at the top of "recently started" as "0s ago".
+  return unit ? n * UNIT_SECS[unit] : null;
 }
 
 export interface Nesting {
@@ -228,6 +237,9 @@ export interface PortalNode {
   kind: Kind;
   name: string;
   host: string | null;
+  // Extra hostnames that resolve to this same backend. tilt.dev.test and
+  // tilt.cvops.dev.test are one `tilt up` on one port, not two services.
+  aliases: string[];
   path: string;
   url: string | null;
   browsable: boolean;
@@ -288,6 +300,10 @@ export function nest(host: string | null): Nesting {
 // No hand-maintained list: a project is simply a compose file that doesn't
 // live under ~/stacks.
 export function classify(container?: Container | null): Classification {
+  // No container = an @file host process. It has no compose labels to classify,
+  // so the caller substitutes the hostname's own leaf as the group (see
+  // makeNode). 'host' survives only as the last resort for a route whose
+  // hostname told us nothing — it must never become a bucket of real services.
   if (!container) return { group: 'host', groupKind: 'project' };
   const labels = container.Labels || {};
   const cfg = labels['com.docker.compose.project.config_files'];
@@ -395,7 +411,12 @@ export function statusOf(container?: Container | null, _kind?: string): Status {
   if (h === 'healthy') return 'up';
   if (h === 'unhealthy') return 'down';
   if (h === 'starting') return 'starting';
-  return container.State === 'running' ? 'up' : 'down';
+  // State is the plain string on /containers/json. Comparing `container.State`
+  // to 'running' directly was dead whenever the object shape the type permits
+  // arrived — every container would have reported 'down'. Narrow first, and say
+  // 'unknown' rather than 'down' when there is genuinely nothing to read.
+  if (typeof s === 'string') return s === 'running' ? 'up' : 'down';
+  return 'unknown';
 }
 
 // ── Pure: the join ──────────────────────────────────────────────────────────
@@ -431,6 +452,23 @@ export function merge(
   const claimed = new Set<string>();
 
   // Pass 1 — everything Traefik routes.
+  //
+  // Resolve every routable router first, THEN collapse: two routers can name the
+  // same backend service (tilt.dev.test and tilt.cvops.dev.test are one `tilt up`
+  // holding one fixed port), and that is one service with two names. Emitting it
+  // twice double-counts it in the header total, in Needs attention and in the UI
+  // lists, and forces a guess about which project owns it — the portal must not
+  // guess (see extractHost). Containers are already de-duped by Id; this is the
+  // same rule for @file backends, keyed on the resolved service.
+  interface Candidate {
+    route: Router;
+    host: string;
+    svcKey: string;
+    serverUrls: string[];
+    container: Container | null;
+  }
+  const bySvc = new Map<string, Candidate[]>();
+
   for (const r of routers) {
     const host = extractHost(r.rule);
     if (!host) continue; // Routes tab only (portal-fallback)
@@ -458,14 +496,33 @@ export function merge(
     if (!container) container = ctrByRouter.get(String(r.name).split('@')[0]) || null;
     if (container) claimed.add(container.Id);
 
+    // A router with no service name can't be compared to anything — key it by
+    // its own name so it never collapses into an unrelated route.
+    const key = r.service ? svcKey : `router:${r.name}`;
+    const list = bySvc.get(key);
+    if (list) list.push({ route: r, host, svcKey, serverUrls, container });
+    else bySvc.set(key, [{ route: r, host, svcKey, serverUrls, container }]);
+  }
+
+  for (const group of bySvc.values()) {
+    // Canonical = the shallowest hostname, so the flat `tilt.dev.test` wins over
+    // the project-scoped alias rather than the other way round. Alphabetical
+    // tie-break keeps the choice stable across polls.
+    const sorted = group.slice().sort((a, b) => {
+      const da = nest(a.host).depth ?? Infinity;
+      const db = nest(b.host).depth ?? Infinity;
+      return da - db || a.host.localeCompare(b.host);
+    });
+    const [canonical, ...rest] = sorted;
     nodes.push(
       makeNode({
-        route: r,
-        host,
-        serverUrls,
-        container,
+        route: canonical.route,
+        host: canonical.host,
+        serverUrls: canonical.serverUrls,
+        container: canonical.container,
         names,
-        kind: container ? 'routed' : 'orphan-route',
+        kind: canonical.container ? 'routed' : 'orphan-route',
+        aliases: rest.map((c) => c.host),
       }),
     );
   }
@@ -489,6 +546,7 @@ interface MakeNodeArgs {
   container: Container | null;
   kind: Kind;
   names?: Map<string, string>;
+  aliases?: string[];
 }
 
 function makeNode({
@@ -498,6 +556,7 @@ function makeNode({
   container,
   kind,
   names = new Map(),
+  aliases = [],
 }: MakeNodeArgs): PortalNode {
   const n = nest(host);
   const cls = classify(container);
@@ -513,12 +572,18 @@ function makeNode({
     kind,
     name,
     host: host || null,
+    aliases,
     path,
     url: host && browsable ? `http://${host}${path}` : null,
     browsable,
     // hostname nesting BEATS config_files: it's what puts cvops-tilt@file (no
     // container at all) in the CVOps panel. Makes the DNS convention load-bearing.
-    group: pick('group', n.parent || cls.group),
+    //
+    // A depth-1 host process (tals.dev.test) has no parent, so it used to fall
+    // through to classify()'s 'host' sentinel — which filed Tals' own front-end
+    // under a fabricated system, separate from api/auth/algo.tals.dev.test. Its
+    // leaf IS its system name, so use that.
+    group: pick('group', n.parent || (container ? cls.group : n.leaf || cls.group)),
     groupKind: pick('groupKind', n.parent ? 'project' : cls.groupKind),
     parent: n.parent,
     depth: n.depth,
