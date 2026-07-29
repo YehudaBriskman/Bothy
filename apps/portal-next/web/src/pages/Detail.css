@@ -108,8 +108,8 @@
   overflow: auto; max-height: 440px; }
 .detail .panel-tbl .ports,
 .detail .panel-tbl .routes { display: block; }
-.detail .panel-tbl .ports .tbar { padding: 12px 16px; margin: 0;
-  border-bottom: 1px solid var(--line); }
+/* (the old `.ports .tbar` rule was dead — these components render .tbl-filter,
+   and in a panel they now render in `compact` mode with no filter bar at all) */
 .detail .panel-tbl .tbl th { background: var(--surface-2); }
 
 /* ── kind badge (header) ────────────────────────────────────────────────────
@@ -129,7 +129,7 @@
 .detail .svc-filter .filters-ico { color: var(--dim); flex: none; }
 .detail .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .detail .filter-chips .chip { text-transform: none; padding-right: 7px; }
-.detail .filter-chips .chip .chip-l { text-transform: capitalize; }
+/* no capitalize — see the note in Services.css */
 .detail .filter-chips .chip .n {
   font-variant-numeric: tabular-nums; color: var(--dim); background: var(--surface);
   border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center; }
