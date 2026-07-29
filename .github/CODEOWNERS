@@ -1,0 +1,8 @@
+# Every file in this repository is owned by the maintainer.
+#
+# The security boundary lives in a handful of these files — the exact Path()
+# rules in edge/dynamic/portal-api.yml, the socket-proxy settings in
+# apps/portal/compose.yml, the SSO chain in auth/ and edge/dynamic/auth.yml.
+# See SECURITY.md before approving a change to any of them.
+
+* @YehudaBriskman

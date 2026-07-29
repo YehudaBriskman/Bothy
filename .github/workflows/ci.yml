@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portal:
+    name: Portal typecheck and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/portal-next/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/portal-next/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b --noEmit
+
+      - name: Build
+        run: npm run build
+
+  compose:
+    name: Compose files parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create a throwaway .env
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          # .env.example deliberately ships these three blank; the compose files
+          # use ${VAR:?...} so interpolation aborts without them. These values are
+          # never used to talk to anything — `config -q` only parses.
+          {
+            echo "OAUTH2_CLIENT_ID=ci-placeholder"
+            echo "OAUTH2_CLIENT_SECRET=ci-placeholder"
+            echo "OAUTH2_COOKIE_SECRET=ci-placeholder-cookie-secret"
+          } >> .env
+
+      - name: Validate every compose file
+        shell: bash
+        run: |
+          # Deliberately not -e: the loop checks every file and reports all the
+          # failures at once, rather than stopping at the first one.
+          set +e
+          set -uo pipefail
+          docker compose version
+          rc=0
+          found=0
+          while IFS= read -r f; do
+            found=$((found + 1))
+            # `config -q` resolves and validates only. It does not contact the
+            # daemon for the external `devnet`/`socketnet` networks, so it passes
+            # on a runner where those do not exist.
+            if docker compose -f "$f" --env-file .env config -q; then
+              echo "ok    $f"
+            else
+              echo "FAIL  $f"
+              rc=1
+            fi
+          done < <(find . -name 'compose*.yml' -not -path '*/node_modules/*' | sort)
+          if [ "$found" -eq 0 ]; then
+            echo "FAIL  no compose files found — did the layout change?"
+            rc=1
+          fi
+          echo "$found compose file(s) checked"
+          exit $rc

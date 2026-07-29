@@ -1,0 +1,82 @@
+# Dependency updates.
+#
+# Images here are pinned — an exact tag, or a digest for third-party images
+# (see CONTRIBUTING.md, "Pin images"). Pinning is what keeps a surprise
+# `:latest` out of a socket-holding container; Dependabot is what stops pinning
+# from turning into rot. Two of these containers ARE the security boundary:
+#   • tecnativa/docker-socket-proxy  (apps/portal/compose.yml)
+#   • quay.io/oauth2-proxy           (auth/compose.yml)
+# Review their PRs by hand and re-run the boundary check in SECURITY.md before
+# merging. Do not let them be batched into a group.
+
+version: 2
+
+updates:
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: scope
+    labels: [dependencies, ci]
+
+  # ── The portal front-end (Vite + React) ───────────────────────────────────
+  - package-ecosystem: npm
+    directory: "/apps/portal-next/web"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "chore(portal)"
+      include: scope
+    labels: [dependencies, portal]
+    groups:
+      # One PR for the routine bumps; majors still arrive on their own, because
+      # a React or three.js major needs `npx tsc -b --noEmit` and a real browser.
+      portal-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+
+  # ── The one Dockerfile: the portal's multi-stage build image ──────────────
+  - package-ecosystem: docker
+    directory: "/apps/portal-next"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(portal)"
+      include: scope
+    labels: [dependencies, docker]
+
+  # ── Images referenced from the compose files ──────────────────────────────
+  # Every stack in this repo uses `compose.yml`, which the docker-compose
+  # ecosystem picks up. If this ecosystem is ever unavailable to the repo,
+  # delete this block — the pins above and the `docker` block still stand.
+  - package-ecosystem: docker-compose
+    directories:
+      - "/edge"
+      - "/auth"
+      - "/monitoring"
+      - "/mgmt"
+      - "/data/postgres"
+      - "/data/redis"
+      - "/data/kafka"
+      - "/apps/portal"
+      - "/apps/portal-next"
+      - "/apps/wiki"
+      - "/apps/docs"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore"
+      include: scope
+    labels: [dependencies, docker]

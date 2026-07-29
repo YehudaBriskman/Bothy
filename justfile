@@ -41,16 +41,27 @@ up-data: network
 up-mgmt: network
     docker compose -f mgmt/compose.yml up -d
 
-# Apps: portal homepage (nginx) + wiki (Wiki.js)
+# Apps: the portal homepage + the docs site.
+#
+# apps/portal is the RETIRED pure-HTML portal — its nginx carries
+# traefik.enable=false, but its compose file also owns portal-socket-proxy, which
+# the live portal's Docker API depends on. So it stays up; do not remove it.
+# apps/portal-next is what actually serves dev.test.
+# apps/wiki (Wiki.js) was superseded by apps/docs and is no longer started; its
+# compose file is kept so `just down` can still clean up an old deployment.
 up-apps: network
     docker compose -f apps/portal/compose.yml up -d
-    docker compose -f apps/wiki/compose.yml up -d
+    docker compose -f apps/portal-next/compose.yml up -d
+    docker compose -f apps/docs/compose.yml up -d
 
 # Stop everything (keeps volumes/data)
 down:
     -docker compose -f auth/compose.yml down
     -docker compose -f edge/compose.yml down
+    -docker compose -f apps/portal-next/compose.yml down
+    -docker compose -f apps/docs/compose.yml down
     -docker compose -f apps/portal/compose.yml down
+    # superseded by apps/docs — kept so an older deployment still gets cleaned up
     -docker compose -f apps/wiki/compose.yml down
     -docker compose -f mgmt/compose.yml down
     -docker compose -f data/kafka/compose.yml down
@@ -65,6 +76,8 @@ nuke:
     @printf "This deletes ALL data volumes. Type yes to continue: " && read ans && [ "$ans" = yes ] || (echo aborted; exit 1)
     -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
+    -docker compose -f apps/portal-next/compose.yml down -v
+    -docker compose -f apps/docs/compose.yml down -v
     -docker compose -f apps/portal/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v

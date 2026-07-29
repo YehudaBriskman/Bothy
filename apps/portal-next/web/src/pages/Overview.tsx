@@ -154,8 +154,9 @@ function Hero({
           <dt>Data</dt>
           <dd className="ov-stat-sm">{diskTotal != null ? fmtBytes(diskTotal) : '—'}</dd>
         </div>
+        {/* short label on purpose — "Up, this session" clipped to "UP, THIS SESSI…" */}
         <div className="ov-stat ov-stat-spark">
-          <dt>Up, this session</dt>
+          <dt title="Services up, sampled once per refresh for this session">Trend</dt>
           <dd><Sparkline points={history} label={`services up over the last ${history.length} refreshes`} /></dd>
         </div>
       </dl>

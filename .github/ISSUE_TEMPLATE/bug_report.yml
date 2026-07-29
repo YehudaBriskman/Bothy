@@ -1,0 +1,122 @@
+name: Bug report
+description: Something in the stack does not behave the way the docs or comments say it should.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this.
+
+        Two things before you start:
+
+        - **Do not report a security vulnerability here.** Use a private
+          advisory instead — see [SECURITY.md](https://github.com/YehudaBriskman/dev-box/blob/main/SECURITY.md).
+        - **Redact before you paste.** `just doctor` and `docker logs` output can
+          contain hostnames, IP addresses, tailnet names, e-mail addresses and
+          environment variables. Replace anything that identifies you or your
+          machine with a placeholder.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected stack
+      description: Which part of the box is misbehaving? Pick the closest match.
+      options:
+        - edge / Traefik
+        - auth / SSO
+        - monitoring
+        - data
+        - mgmt
+        - apps / portal
+        - docs
+        - host / DNS
+        - k8s
+        - not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you observe? Include the exact URL, command or container involved.
+      placeholder: |
+        `http://grafana.dev.test` returns 404 from Traefik instead of the Grafana login page.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Start from a known state — a clean `just up` if you can.
+      placeholder: |
+        1. cp .env.example .env, fill in OAUTH2_* and WIKI_DB_PASSWORD
+        2. just up
+        3. open http://grafana.dev.test
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `just doctor`
+      description: >
+        Paste the whole thing — the health check covers containers, routes,
+        Prometheus targets, DNS and disk, and the failing line is often not the
+        one you expect. Redact hostnames and addresses first.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant `docker logs`
+      description: >
+        e.g. `docker logs --tail 100 traefik`, or whichever container the
+        `just doctor` output points at. Redact any environment variables.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Host OS, Docker Engine version, Compose plugin version, `just --version`. Node version too if this is a portal issue.
+      placeholder: |
+        OS:      Ubuntu 24.04 (WSL2)
+        Docker:  28.x
+        Compose: v2.x
+        just:    1.x
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Local modifications, a fork with different names, things you already ruled out.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have read [SECURITY.md](https://github.com/YehudaBriskman/dev-box/blob/main/SECURITY.md) and this is a bug, not a vulnerability.
+          required: true
+        - label: I removed secrets, personal identifiers, real hostnames and IP addresses from everything I pasted.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true
