@@ -20,12 +20,12 @@ Report lands in `C:\Users\yr055\dev-box-postboot-report.txt`. Healthy looks like
 vmmemWSL = 2 · `localhost`/`dev.test` → 401 · grafana → 302 · `yehuda-wsl` active ·
 ForceDaemon true.
 
-### Known checker defects (as of 2026-08-02)
+### Checker history
 
-1. **Hard-coded LAN IP `192.168.68.57` is stale** (now `.52`, DHCP — may change again).
-   Its `000` probe and the FAIL verdict logic keyed on it are wrong. Judge by the other
-   signals until the script is fixed to use the hostname/current IP.
-2. **`TASK MISSING` when run non-elevated** — access-denied misread as absence.
+Two defects were fixed 2026-08-02: it used to probe a hard-coded DHCP LAN IP
+(`192.168.68.57`, went stale → false FAIL) and reported `TASK MISSING` when run
+non-elevated. It now probes the stable tailnet IP `100.117.176.85` and warns
+about elevation instead. If it ever false-FAILs again, check those two first.
 
 ## If it genuinely failed
 
