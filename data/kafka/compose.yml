@@ -49,8 +49,8 @@ services:
       - traefik.http.routers.kafka.entrypoints=web
       - traefik.http.routers.kafka.service=kafka
       - traefik.http.services.kafka.loadbalancer.server.port=8080
-      # Kafka-UI runs with DYNAMIC_CONFIG_ENABLED and has no auth of its own, so
-      # anyone reaching it could add clusters and mutate topic config.
+      # Kafka-UI runs with DYNAMIC_CONFIG_ENABLED; its own LOGIN_FORM auth
+      # (below) is the boundary since the SSO layer was parked.
       - dev.portal.name=Kafka UI
       - dev.portal.desc=Browse the single-node KRaft broker — topics, partitions, consumer groups and live messages.
     restart: unless-stopped
@@ -60,6 +60,12 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
       DYNAMIC_CONFIG_ENABLED: "true"
+      # Native login (2026-08-08): replaces the parked SSO. Values live in the
+      # gitignored root .env; compose must be run via `just` or with the .env
+      # sourced, exactly like the auth stack before it.
+      AUTH_TYPE: "LOGIN_FORM"
+      SPRING_SECURITY_USER_NAME: ${DEV_LOGIN_USER:?set DEV_LOGIN_USER in .env}
+      SPRING_SECURITY_USER_PASSWORD: ${DEV_LOGIN_PASSWORD:?set DEV_LOGIN_PASSWORD in .env}
     # KRaft startup takes the better part of a minute, so the short form lost
     # this race on every reboot and produced a burst of false alerts.
     depends_on:
