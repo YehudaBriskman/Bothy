@@ -72,18 +72,23 @@ Canonical base: `http://100.117.176.85:<port>` (MagicDNS alias
 `http://100.93.197.10:<port>` from the tailnet, `localhost:<port>` on the host —
 **LAN is deliberately not served.**
 
+**Logins (since 2026-08-08): one unified dev login everywhere a login exists** —
+username is the owner's gmail address; the password is `DEV_LOGIN_PASSWORD` in the
+box's gitignored `~/stacks/.env` (never in this KB or the public repo). Applies to
+Grafana, Portainer, Dozzle, Kafka-UI, Prometheus (basic auth).
+
 | Port | Service | Note |
 |---|---|---|
 | 80 | Portal (portal-next) | Traefik catch-all; **200 expected — a 401 now means regression** |
-| 3000 | Grafana | admin/admin |
+| 3000 | Grafana | unified dev login |
 | 3001 | Wiki.js | stack currently down |
-| 8080 | Dozzle | no auth — tailnet-only by design |
-| 8081 | Kafka-UI | no auth |
+| 8080 | Dozzle | unified dev login (simple-auth users file) |
+| 8081 | Kafka-UI | unified dev login (LOGIN_FORM) |
 | 8082 | cAdvisor | 307 at / is normal |
 | 8084/8086/8091/8092 | keycloak / monorepo services | not portproxied |
 | 8085 | Docs (MkDocs) | replaced Wiki.js |
-| 9000 | Portainer | own password |
-| 9090 | Prometheus | 302 → /query is normal |
+| 9000 | Portainer | unified dev login (username = the email) |
+| 9090 | Prometheus | unified dev login (basic auth; unauth = 401); 302 → /query is normal |
 | 9100 / 3100 | node-exporter / Loki | Loki 404 at / is normal |
 | 10350 | Tilt | only while `tilt up --host=0.0.0.0` runs |
 
