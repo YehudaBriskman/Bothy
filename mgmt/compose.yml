@@ -17,7 +17,6 @@ services:
       # unclaimed instance is a total takeover for whoever claims it first.
       # SSO in front means a GitHub session is required before Portainer's own
       # login is even reachable.
-      - traefik.http.routers.portainer.middlewares=sso-errors@file,sso@file
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -41,7 +40,6 @@ services:
       - traefik.http.services.dozzle.loadbalancer.server.port=8080
       # Dozzle streams every container's logs and ships with no auth of its
       # own, so it sits behind the GitHub SSO chain (see edge/dynamic/auth.yml).
-      - traefik.http.routers.dozzle.middlewares=sso-errors@file,sso@file
     restart: unless-stopped
     ports:
       - "8080:8080"

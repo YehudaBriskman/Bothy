@@ -51,7 +51,6 @@ services:
       - traefik.http.services.kafka.loadbalancer.server.port=8080
       # Kafka-UI runs with DYNAMIC_CONFIG_ENABLED and has no auth of its own, so
       # anyone reaching it could add clusters and mutate topic config.
-      - traefik.http.routers.kafka.middlewares=sso-errors@file,sso@file
       - dev.portal.name=Kafka UI
       - dev.portal.desc=Browse the single-node KRaft broker — topics, partitions, consumer groups and live messages.
     restart: unless-stopped

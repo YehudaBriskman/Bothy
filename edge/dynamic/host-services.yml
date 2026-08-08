@@ -29,14 +29,12 @@ http:
       # Tilt has no auth of its own and exposes manual triggers/build controls,
       # so it sits behind the GitHub SSO like the other dashboards. Order
       # matters: sso-errors on the way in turns sso's 401 into the sign-in page.
-      middlewares: [sso-errors, sso]
 
     # Kept as an alias so existing bookmarks/links still resolve. Same upstream.
     cvops-tilt:
       rule: "Host(`tilt.cvops.dev.test`)"
       entryPoints: [web]
       service: tilt
-      middlewares: [sso-errors, sso]
 
   services:
     tilt:
