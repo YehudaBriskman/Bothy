@@ -14,6 +14,10 @@ services:
     restart: unless-stopped
     working_dir: /docs
     command: serve --dev-addr=0.0.0.0:8000 --dirtyreload
+    ports:
+      # Direct host port for pure-IP access (Host routing is dormant while the
+      # custom DNS is retired; 8000 itself is held by a Tals host process).
+      - "8085:8000"
     volumes:
       - ./mkdocs.yml:/docs/mkdocs.yml:ro
       - ./content:/docs/content:ro
@@ -23,7 +27,6 @@ services:
       - traefik.http.routers.docs.rule=Host(`docs.dev.test`)
       - traefik.http.routers.docs.entrypoints=web
       - traefik.http.routers.docs.service=docs
-      - traefik.http.routers.docs.middlewares=sso-errors@file,sso@file
       - dev.portal.project=Docs
       - dev.portal.name=Docs
       - dev.portal.icon=📚
