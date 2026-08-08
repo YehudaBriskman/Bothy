@@ -24,5 +24,5 @@ Security vulnerabilities do not belong in a pull request either — see SECURITY
 - [ ] `just doctor` still passes
 - [ ] Portal typechecks and builds if touched — `cd apps/portal-next/web && npx tsc -b --noEmit && npm run build`
 - [ ] Every compose file I changed still parses — `docker compose -f <file> config -q`
-- [ ] Nothing a browser reaches gained a published host port; it got a `*.dev.test` hostname through Traefik instead
+- [ ] New browser-reachable services follow the access model: a published port listed in `just urls` (current pure-IP model) **and** the dormant `*.dev.test` router labels for when names return
 - [ ] New or changed behaviour is reflected in the README, SECURITY.md or the relevant comment

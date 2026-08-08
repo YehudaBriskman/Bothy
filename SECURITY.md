@@ -16,20 +16,24 @@ touching `edge/dynamic/portal-api.yml`, `apps/portal/compose.yml` or `auth/`.
 
 ## Threat model
 
-**What this is.** One developer's workstation. Every service listens inside
-Docker networks; exactly one container (Traefik) publishes port 80 on the host.
-Names under `*.dev.test` resolve through a local dnsmasq that is authoritative
-for `.test`, published to a **private Tailscale tailnet** by split DNS.
+**What this is.** One developer's workstation on a **private Tailscale
+tailnet**. Since 2026-08-08 services are reached at `tailnet-IP:port` (published
+host ports); Traefik on `:80` serves the portal and its data plane. The name
+layer (`*.dev.test` via dnsmasq + split DNS) and the SSO in front of it are
+**dormant** — the sections below that describe them document that dormant design.
 
 **Who can reach it.** Only devices on that tailnet. The tailnet is WireGuard, so
 the transport is encrypted even though every URL is plain `http://`. A device not
-joined to the tailnet gets `NXDOMAIN` and cannot route to the box at all.
-Nothing here is exposed to the LAN or to the internet.
+joined to the tailnet cannot route to the box at all; the Windows-host port
+mirrors bind `127.0.0.1` + the host's tailnet IP only, so nothing is exposed to
+the LAN or to the internet.
 
 **What is therefore in scope.**
 
 - Anything reachable from the tailnet without authenticating (a dashboard that
-  lost its SSO middleware, a router rule that matches more than it should).
+  lost its login — the shared `DEV_LOGIN_*` credential guards Grafana,
+  Portainer, Dozzle, Kafka-UI and Prometheus — or a router rule that matches
+  more than it should).
 - Anything that discloses a secret to a party who *has* authenticated — the
   container-`Env` leak described below is the canonical example.
 - Anything that converts read access into write access on the Docker socket,
@@ -88,6 +92,11 @@ Every rule here has a reason written next to it in the source. Changing one is a
 security change, and should be reviewed as one.
 
 ### 1. Every dashboard sits behind oauth2-proxy SSO
+
+> **Parked since 2026-08-08** — the OAuth callback is pinned to a dormant name.
+> Interim control: each dashboard's native login with the shared `DEV_LOGIN_*`
+> credential. Everything below documents the dormant design and its re-enable
+> constraints.
 
 `auth/compose.yml` runs [oauth2-proxy](https://github.com/oauth2-proxy/oauth2-proxy)
 pinned to an exact version, because it is the authentication boundary.

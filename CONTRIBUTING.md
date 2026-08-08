@@ -16,9 +16,10 @@ Two things to read before you change anything:
 ## Running it locally
 
 **You need:** Linux (or WSL2), Docker Engine with the Compose plugin,
-[`just`](https://github.com/casey/just), and — for the `*.dev.test` names to
-resolve — a local resolver that is authoritative for `.test`. `host/dnsmasq/`
-holds the configuration used here. Node 24 is only needed if you are working on
+[`just`](https://github.com/casey/just). (*Only for the dormant name layer:*
+a local resolver authoritative for `.test` — `host/dnsmasq/` holds the
+configuration used here. Since 2026-08-08 access is by `IP:port` and no
+resolver is required; `just urls` prints the port table.) Node 24 is only needed if you are working on
 the portal front-end. `jq` and `tailscale` are optional; `just urls` degrades
 gracefully without them.
 
@@ -83,6 +84,11 @@ them will be sent back.
 
 ### Add a service with two Traefik labels and a name — never a published port
 
+> **Status 2026-08-08: the name layer is dormant** (no client resolves
+> `.test`), so today a browser-facing service **does** publish a host port and
+> gets listed in `just urls`. Still add the router labels below — they cost
+> nothing and light up again the moment the split-DNS route returns.
+
 Host ports are a flat namespace of 65,535 that every project collides in;
 everyone reaches for 3000, 8080, 5432. Names are infinite. Traefik owns `:80`
 and routes by `Host` header, so a new service publishes **no** host port:
@@ -100,9 +106,10 @@ networks: [devnet]
 ```
 
 `edge/compose.yml` is the only container that should ever publish `:80`.
-Legitimate exceptions to the no-ports rule are databases bound to `127.0.0.1`
-(see below) and a handful of pre-Traefik services that still carry a published
-port for backwards compatibility — do not add to that list.
+Databases stay bound to `127.0.0.1` (see below). While the name layer is
+dormant, published service ports are the access path rather than a legacy
+exception — pick a free port, document it in `just urls`, and keep the labels
+for the future.
 
 Naming nests: `<service>.dev.test` for a stack service, `<project>.dev.test` for
 a project, `<sub>.<project>.dev.test` for a project's own pieces. This is not
@@ -116,7 +123,10 @@ loads at all.
 
 ### If it has no login of its own, it gets the SSO middleware pair
 
-`sso-errors@file,sso@file`, in that order. See
+**(Parked while SSO is dormant — do not attach the pair today; give the service
+its own login using the `DEV_LOGIN_*` credential from `.env` instead, like
+kafka-ui/dozzle/prometheus do.)** When SSO returns: `sso-errors@file,sso@file`,
+in that order. See
 [SECURITY.md](SECURITY.md#1-every-dashboard-sits-behind-oauth2-proxy-sso) for why
 the order matters.
 
@@ -188,8 +198,8 @@ Useful checks:
 
 ```sh
 # data plane
-curl -s http://dev.test/-/api/traefik/http/routers | jq length
-curl -s http://dev.test/-/api/docker/containers/json | jq length
+curl -s http://<node-ip>/-/api/traefik/http/routers | jq length
+curl -s http://<node-ip>/-/api/docker/containers/json | jq length
 
 # the security gate — MUST NOT return a container body (404, or 401 from SSO)
 curl -s -o /dev/null -w '%{http_code}\n' \

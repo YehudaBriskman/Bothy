@@ -1,13 +1,19 @@
 # dev-box
 
-**A self-hosted developer environment that you reach by name, not by port.** Docker
-Compose stacks for routing, SSO, observability, dev data services and management
+**A self-hosted developer environment on a private WireGuard tailnet.** Docker
+Compose stacks for routing, observability, dev data services and management
 UIs — fronted by a homepage that discovers what is running instead of listing it.
+
+> **Access model (since 2026-08-08): plain `http://<node-ip>:<port>`.** The
+> name-based layer this repo was built around (`*.dev.test` wildcard DNS + SSO)
+> is **dormant, not deleted**: `just urls` prints the live port table, and
+> [`docs/kb/dns.md`](docs/kb/dns.md) is the re-enable manual. Sections below that
+> describe names or SSO document that dormant design.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![docker compose](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 ![just](https://img.shields.io/badge/just-task%20runner-EF5A29)
-![Traefik](https://img.shields.io/badge/Traefik-v3.6-24A1C1?logo=traefikproxy&logoColor=white)
+![Traefik](https://img.shields.io/badge/Traefik-v3.7-24A1C1?logo=traefikproxy&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-observability-F46800?logo=grafana&logoColor=white)
 ![React 19](https://img.shields.io/badge/React%2019-%2B%20Vite-61DAFB?logo=react&logoColor=000)
 ![WSL2](https://img.shields.io/badge/WSL2-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)
@@ -40,8 +46,9 @@ Not a production platform, and not a template to deploy anywhere public:
   WireGuard tailnet. On a LAN or the internet, it is not.
 - **Dev credentials.** `.env.example` ships `devpass` / `admin`. Redis has no
   password at all; that is why it binds loopback only.
-- **Single node, single user.** One GitHub account is allowed through SSO. There
-  is no HA, no TLS, no multi-tenancy, and backups sit on the disk they protect.
+- **Single node, single user.** Access control is tailnet membership plus one
+  shared dev login on the dashboards (the GitHub SSO is parked). There is no HA,
+  no TLS, no multi-tenancy, and backups sit on the disk they protect.
 - **A helper, not a dependency.** A project keeps its own Postgres so it stays
   self-contained. If Traefik is down, your project still runs — you just lose the
   pretty hostname.
@@ -51,6 +58,12 @@ Not a production platform, and not a template to deploy anywhere public:
 ## The two ideas worth stealing
 
 ### 1. Nothing publishes a port. Everything gets a name.
+
+> **Status: dormant since 2026-08-08.** The wildcard DNS that made these names
+> resolve was retired in favour of direct tailnet-IP access, so today services
+> *do* publish ports and the labels below route nothing until the split-DNS
+> route returns. The design stays documented because the collision problem it
+> solves is real, and re-enabling it is a single admin-console change.
 
 Host ports are a flat global namespace with no allocator, so every project reaches
 for 3000/8080/5432 and collides with whatever squatted there first — and the
@@ -100,7 +113,10 @@ unreachable from inside a container and the route 502s.)
 
 ### 2. The portal discovers what is running. It is never a hand-written list.
 
-`dev.test` is a React 19 + Vite app served as a static build. It renders by joining
+The portal — Traefik's catch-all on `:80`; `dev.test` when names are enabled —
+is a React 19 + Vite app served as a static build. Its service links navigate by
+published port on whichever host you opened it from, so they work identically
+via tailnet IP, MagicDNS name or localhost. It renders by joining
 **two read-only APIs**, both proxied under its own origin so there is zero CORS:
 
 | Path | Backend | Gives |
@@ -146,17 +162,18 @@ container and its dot goes red just as fast.
   with the Compose plugin. Traefik must be **≥ v3.6** — older builds hardcode
   Docker API v1.24 and silently load zero routes against a modern daemon.
 - [`just`](https://github.com/casey/just), plus `jq` and `curl` for `just doctor`.
-- A resolver that answers `*.test` — see [DNS](#dns-how-test-names-resolve).
-- A GitHub OAuth App for SSO, callback `http://auth.dev.test/oauth2/callback`.
+- *(only for the dormant name layer)* a resolver that answers `*.test` — see
+  [DNS](#dns-how-test-names-resolve) — and a GitHub OAuth App for the parked
+  SSO (callback `http://auth.dev.test/oauth2/callback`).
 
 ```sh
-cp .env.example .env      # then fill in OAUTH2_* and WIKI_DB_PASSWORD
+cp .env.example .env      # fill in DEV_LOGIN_* and WIKI_DB_PASSWORD (OAUTH2_* only for the parked SSO)
 just up                   # bring everything up, in dependency order
 just urls                 # print every address
 just doctor               # health-check the whole box
 ```
 
-Then open **http://dev.test**.
+Then open **`http://<this-node's-tailnet-IP>/`** — `just urls` prints every address.
 
 > **Always use `just`, never `docker compose` directly.** `just` loads the root
 > `.env` via `set dotenv-load`. `docker compose` looks for a `.env` beside the
@@ -169,16 +186,16 @@ Then open **http://dev.test**.
 
 | Path | What lives there |
 |---|---|
-| `edge/` | **Traefik** — the single front door on `:80`, the only container publishing a browser-facing port. Also exports Prometheus metrics on an internal entrypoint with no host port. |
+| `edge/` | **Traefik** — the front door on `:80`: serves the portal catch-all and the `/-/api/*` data plane; Host-name routing is dormant. Also exports Prometheus metrics on an internal entrypoint with no host port. |
 | `edge/dynamic/` | Watched file-provider routes for things the Docker provider cannot see: `auth.yml` (the SSO middleware chain), `portal-api.yml` (the portal's read-only data plane), `host-services.yml` and per-project files for host processes. |
-| `auth/` | **oauth2-proxy** — GitHub SSO, used by Traefik as a `forwardAuth` target. |
+| `auth/` | **oauth2-proxy** — GitHub SSO, **parked**; `edge/dynamic/auth.yml` carries the re-enable recipe. |
 | `monitoring/` | Prometheus, Grafana, Loki + Promtail, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds six provisioned dashboards; `rules/` is for Prometheus rules. |
 | `data/postgres/`, `data/redis/`, `data/kafka/` | Each datastore plus its Prometheus exporter. Kafka is single-node KRaft. All three bind **loopback only** and are never routed by name. |
 | `mgmt/` | Portainer and Dozzle. |
 | `apps/portal-next/` | The live portal at `dev.test` — React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
 | `apps/portal/` | The retired pure-HTML portal, kept as a one-line rollback — **and the owner of `portal-socket-proxy`**, which the live portal still depends on. Do not `compose down` this directory. |
 | `apps/docs/` | MkDocs Material rendering every markdown file on the box, kept in sync by an rsync sidecar. Read-only; edits to the source files show up within ~15s. |
-| `apps/wiki/` | Wiki.js — superseded by `apps/docs/`, kept until its content is migrated. |
+| `apps/wiki/` | Wiki.js — superseded by `apps/docs/`; currently stopped, kept until its content is migrated. |
 | `host/` | Copies of the host configuration git cannot see: dnsmasq, `daemon.json`, `wsl.conf`, the systemd units, and the Windows keepalive task. Required to rebuild the box. See [`host/README.md`](host/README.md). |
 | `scripts/` | `backup.sh` and `doctor.sh`. |
 | `justfile` | Every operation. Start here. |
@@ -186,6 +203,10 @@ Then open **http://dev.test**.
 ---
 
 ## Architecture
+
+_The diagram shows the **full design, including the dormant layer** (wildcard
+DNS names, SSO). Live traffic today goes browser → `http://<node-ip>:<port>`
+straight to each service, or `:80` for the portal._
 
 ```mermaid
 flowchart TB
@@ -230,6 +251,12 @@ Two Docker networks, deliberately:
 
 ### Single sign-on
 
+> **Parked since 2026-08-08** — the OAuth callback is pinned to a name that no
+> longer resolves. In its place every dashboard runs its own login with one
+> shared dev credential (`DEV_LOGIN_*` in `.env`): Grafana, Portainer, Dozzle,
+> Kafka-UI and Prometheus (basic auth, carried by its self-scrape and the
+> Grafana datasource too). What follows documents the dormant design.
+
 Services with no login of their own — Dozzle, Kafka-UI, Prometheus, the docs, the
 Traefik dashboard and the portal — sit behind GitHub SSO via oauth2-proxy as a
 Traefik `forwardAuth` target. The session cookie is scoped to `.dev.test`, so one
@@ -273,6 +300,11 @@ but nothing else has an ordering requirement.
 ---
 
 ## DNS: how `*.test` names resolve
+
+> **Dormant since 2026-08-08:** the tailnet split-DNS route was removed, so no
+> client resolves `.test` any more. dnsmasq itself still runs — it is the box's
+> own resolver — and everything below becomes true again the moment the route
+> is re-added (admin console → DNS → Nameservers → `test` → this node).
 
 A local dnsmasq is authoritative for `.test` and answers a wildcard at **any
 depth**, so a brand-new name at any level needs no DNS work at all — only a
@@ -358,15 +390,21 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
   Windows' DNS configuration changes. `sudo chattr -i` to edit, `+i` when done.
 - **`systemctl reload dnsmasq` does not re-read the config.** SIGHUP re-reads
   `/etc/hosts` and clears the cache, nothing more. A config edit needs a restart.
-- **A name that 404s** → check `http://traefik.dev.test` first; it shows exactly
-  which routers are registered.
+- **A name that 404s** → the router table is served at
+  `http://<node-ip>/-/api/traefik/http/routers`; it shows exactly which routers
+  are registered. (`traefik.dev.test` works when names are enabled.)
+- **Tunnel pings pong but pages stall, or SSH hangs at key exchange** — the
+  large-packet blackhole. Restart tailscaled on the box; recipe in
+  [`docs/kb/incidents/2026-08-08-wsl-node-large-packet-blackhole.md`](docs/kb/incidents/2026-08-08-wsl-node-large-packet-blackhole.md).
 
 ---
 
 ## Deeper docs
 
-- **`http://docs.dev.test`** — MkDocs Material, rendering every markdown file on
-  the box, auto-synced from the source files.
+- **Docs on `:8085`** (`docs.dev.test` when names are enabled) — MkDocs
+  Material, rendering every markdown file on the box, auto-synced.
+- [`docs/kb/`](docs/kb/README.md) — the operational knowledge base: topology,
+  access paths, runbooks, incident files and the lessons they paid for.
 - **The compose files themselves.** Every non-obvious setting has a comment
   explaining what broke without it — `edge/compose.yml`, `auth/compose.yml` and
   `edge/dynamic/portal-api.yml` are the three worth reading in full.
