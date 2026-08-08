@@ -5,7 +5,9 @@ the 2026-08-01 cold boot ([always-on.md](always-on.md)). This runbook verifies i
 
 ## Fastest check
 
-From the phone (on tailnet): open **http://dev.test** → sign-in page or portal = PASS.
+From the phone (on tailnet): open **http://100.117.176.85/** → the portal renders = PASS.
+(dev.test is retired since 2026-08-08; a full page matters — a blank/hanging page with
+the tab spinner is the blackhole signature, see [runbook-cant-reach.md](runbook-cant-reach.md).)
 
 ## Proper check (from yr055 on the PC)
 
@@ -16,9 +18,11 @@ false-reports `TASK MISSING`):
 powershell -ExecutionPolicy Bypass -File C:\Users\yr055\dev-box-postboot-check.ps1
 ```
 
-Report lands in `C:\Users\yr055\dev-box-postboot-report.txt`. Healthy looks like:
-vmmemWSL = 2 · `localhost`/`dev.test` → 401 · grafana → 302 · `yehuda-wsl` active ·
-ForceDaemon true.
+Report lands in `C:\Users\yr055\dev-box-postboot-report.txt`. Healthy looks like
+(2026-08-08 pure-IP model): vmmemWSL = 2 · tailnet IP + `localhost` + `100.93.197.10`
+→ **200 with bytes > 0** · grafana :3000 → 302 · docs :8085 → 200 · `yehuda-wsl`
+active · ForceDaemon true · both tasks (`DevBox-WSL-Keepalive`,
+`DevBox-Portproxy-Refresh`) present and recently run.
 
 ### Checker history
 
