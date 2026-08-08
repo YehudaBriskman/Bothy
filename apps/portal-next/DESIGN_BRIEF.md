@@ -61,8 +61,8 @@ Rebuild the Overview as a manager's mission-control, top to bottom:
 1. **Quick links strip (top-upper).** A prominent horizontal strip of the most-used
    web UIs, Docs + Grafana FIRST and visually primary, then Prometheus, Dozzle,
    Portainer, Traefik, Kafka UI (pull from `data.nodes` browsable UIs by
-   host/name; hardcode Docs=`http://docs.dev.test`, Grafana=`http://grafana.dev.test`
-   as guaranteed anchors). Each opens in a new tab. This is the first thing on the page.
+   host/name; Docs and Grafana are guaranteed anchors built with `hostUrl()` —
+   port-based links on the current hostname, since names are dormant). Each opens in a new tab. This is the first thing on the page.
 2. **Needs attention** — keep the existing behaviour (down/orphan via `needsAttention`);
    collapse to a slim "all clear" when empty.
 3. **Systems grid** — the centrepiece. `runningSystems(systemsOf(data.nodes))`,

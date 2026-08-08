@@ -12,7 +12,7 @@ instead of vanishing. After editing a real file, copy it back here.
 
 | Copy | Real location | Why it exists |
 |---|---|---|
-| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Wildcard `*.test` → this box's tailnet IP. Tailscale split DNS routes `test` here, which is what makes every `<name>.dev.test` resolve across the tailnet. |
+| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Wildcard `*.test` → this box's tailnet IP. **Dormant since 2026-08-08** (the tailnet split-DNS route was removed); dnsmasq itself still runs as the box's own resolver. Re-add the route and every `<name>.dev.test` resolves again. |
 | `docker/daemon.json` | `/etc/docker/daemon.json` | Log rotation (10m × 3) and `metrics-addr` on :9323, which `monitoring/prometheus.yml` scrapes as its `docker-daemon` job. Without it that target is permanently down. |
 | `wsl/wsl.conf` | `/etc/wsl.conf` (in the distro) | `systemd=true` — the reason `docker.service` can be enabled and every stack comes up with the distro. Also `generateResolvConf=false`. |
 | `wsl/wslconfig` | `C:\Users\devssh\.wslconfig` | Memory, CPU and nested virtualisation for the WSL VM. |
