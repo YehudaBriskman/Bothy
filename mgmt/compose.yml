@@ -17,7 +17,6 @@ services:
       # unclaimed instance is a total takeover for whoever claims it first.
       # SSO in front means a GitHub session is required before Portainer's own
       # login is even reachable.
-      - traefik.http.routers.portainer.middlewares=sso-errors@file,sso@file
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -39,14 +38,18 @@ services:
       - traefik.http.routers.dozzle.entrypoints=web
       - traefik.http.routers.dozzle.service=dozzle
       - traefik.http.services.dozzle.loadbalancer.server.port=8080
-      # Dozzle streams every container's logs and ships with no auth of its
-      # own, so it sits behind the GitHub SSO chain (see edge/dynamic/auth.yml).
-      - traefik.http.routers.dozzle.middlewares=sso-errors@file,sso@file
+      # Dozzle streams every container's logs. Since the SSO chain was parked
+      # (2026-08-08) it runs its own simple-auth: users in dozzle-users.yml
+      # (generated with `dozzle generate`, gitignored - hash only, no secrets
+      # in the public repo).
     restart: unless-stopped
+    environment:
+      DOZZLE_AUTH_PROVIDER: simple
     ports:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./dozzle-users.yml:/data/users.yml:ro
     deploy:
       resources:
         limits:

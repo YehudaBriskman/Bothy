@@ -1,3 +1,26 @@
+# DNS — RETIRED 2026-08-08 (kept as the re-enable manual)
+
+> **The custom-DNS layer is dormant.** Access is now **pure IP over tailscale**:
+> `http://100.117.176.85:<port>` (port table in [access.md](access.md)), SSH
+> unchanged at `devssh@100.117.176.85`. MagicDNS (`yehuda-wsl.tail7e7e3b.ts.net`)
+> still works — it never depended on any of this.
+>
+> What was dropped and where each piece went:
+> - **Tailnet split-DNS route `test → 100.117.176.85`** — deleted in the admin
+>   console (the ONLY off-box change; re-adding it is step 1 of re-enable).
+> - **dnsmasq on the box — STILL RUNNING.** It is the box's own resolver
+>   (`/etc/resolv.conf` → 127.0.0.1, `generateResolvConf=false`, `accept-dns=false`
+>   all unchanged). Only its `.test` audience is gone. Do NOT disable it.
+> - **Traefik Host routers** — in place, dormant (no client can send those Host
+>   headers). SSO/oauth2-proxy — parked, see `edge/dynamic/auth.yml` in the repo.
+>
+> **Re-enable recipe:** re-add the split-DNS route (admin console → DNS →
+> Nameservers → Add: 100.117.176.85, restrict to domain `test`) — names work
+> again instantly; then optionally un-park SSO per the auth.yml header.
+>
+> Everything below is how it worked while live, kept because it is the manual
+> for bringing it back.
+
 # DNS — how `dev.test` works, and every way it fools you
 
 ## The chain (verified end-to-end 2026-07-21 from the phone)

@@ -8,6 +8,12 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: true
+    # Prometheus requires basic auth since 2026-08-08 (SSO parked). $VARS are
+    # expanded by Grafana from the container env (set in compose from .env).
+    basicAuth: true
+    basicAuthUser: $DEV_LOGIN_USER
+    secureJsonData:
+      basicAuthPassword: $DEV_LOGIN_PASSWORD
 
   - name: Loki
     uid: loki
