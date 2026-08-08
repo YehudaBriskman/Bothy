@@ -10,16 +10,21 @@ services:
       - traefik.http.routers.prometheus.entrypoints=web
       - traefik.http.routers.prometheus.service=prometheus
       - traefik.http.services.prometheus.loadbalancer.server.port=9090
-      # Prometheus runs with --web.enable-lifecycle, so an unauthenticated caller
-      # can POST /-/quit and stop it. No auth of its own exists to prevent that.
-      - traefik.http.routers.prometheus.middlewares=sso-errors@file,sso@file
+      # Prometheus runs with --web.enable-lifecycle; its own basic auth
+      # (--web.config.file below) is the boundary since the SSO was parked.
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
       - --web.enable-lifecycle
+      # Basic auth on all endpoints (2026-08-08, replaces parked SSO). The web
+      # config + password file are gitignored; see their headers to regenerate.
+      # The self-scrape job and the Grafana datasource carry these creds too.
+      - --web.config.file=/etc/prometheus/web.yml
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-web.yml:/etc/prometheus/web.yml:ro
+      - ./prom-password.txt:/etc/prometheus/prom-password.txt:ro
       - ./rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
@@ -54,6 +59,10 @@ services:
       GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-}
       GF_SMTP_FROM_NAME: ${GF_SMTP_FROM_NAME:-Grafana}
       GF_SMTP_STARTTLS_POLICY: ${GF_SMTP_STARTTLS_POLICY:-OpportunisticStartTLS}
+      # Expanded by provisioning/datasources/datasources.yml for the Prometheus
+      # basic auth added 2026-08-08. Values live in the gitignored root .env.
+      DEV_LOGIN_USER: ${DEV_LOGIN_USER:?set DEV_LOGIN_USER in .env}
+      DEV_LOGIN_PASSWORD: ${DEV_LOGIN_PASSWORD:?set DEV_LOGIN_PASSWORD in .env}
       # Consumed by provisioning/alerting/contactpoints.yml as `$ALERT_EMAIL_TO`.
       # Alerting provisioning interpolates with the plain `$VAR` form — NOT the
       # `$__env{VAR}` form used by datasource provisioning. The address used to be
@@ -103,6 +112,10 @@ services:
       - promtail_positions:/tmp
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Host-process logs (see the host-processes job in promtail.yml). Projects
+      # that run from a terminal rather than a container write here, and the
+      # filename becomes the Loki stream name.
+      - ${HOME}/.local/state/devbox-logs:/host-logs:ro
     deploy:
       resources:
         limits:

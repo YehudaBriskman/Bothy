@@ -74,7 +74,6 @@ services:
       - traefik.http.routers.dashboard.service=api@internal
       # The dashboard serves api@internal unauthenticated, including /api/rawdata,
       # which dumps the entire dynamic config - every router, service and middleware.
-      - traefik.http.routers.dashboard.middlewares=sso-errors@file,sso@file
     deploy:
       resources:
         limits:

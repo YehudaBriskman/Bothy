@@ -46,8 +46,30 @@ http:
       # sso also closes the DNS-rebinding hole: a rebound request carries the
       # attacker's Host, so the .dev.test-scoped session cookie is never sent
       # and this returns 401 instead of the container list.
-      middlewares: [sso-errors@file, sso@file, portal-api-docker-rewrite]
+      middlewares: [portal-api-docker-rewrite]
       service: portal-socket-proxy
+
+    # Loki reads, for the portal's per-service log view.
+    #
+    # WHY LOKI AND NOT /containers/{id}/logs: the docker route above is exact
+    # Path() precisely because the socket-proxy gates by endpoint FAMILY, so any
+    # pattern loose enough to match a container id would also match
+    # /containers/{id}/json and publish every container's Env. Loki needs no
+    # pattern at all — the container name is a query PARAMETER, not part of the
+    # path — so this stays an exact Path() and the boundary above is untouched.
+    #
+    # Loki holds only log lines, is read-only on these two endpoints, and
+    # already has every container (promtail docker_sd) plus host processes
+    # (promtail host-processes job). It also keeps logs for containers that have
+    # since stopped, which `docker logs` on a removed container cannot.
+    portal-api-loki:
+      rule: >-
+        Path(`/-/api/loki/query_range`)
+        || Path(`/-/api/loki/labels`)
+      entryPoints: [web]
+      priority: 100
+      middlewares: [portal-api-loki-rewrite]
+      service: portal-loki
 
     # The Traefik API is read-only by nature (no mutating endpoints), and
     # traefik.dev.test already serves it unauthenticated, so these four paths
@@ -60,7 +82,7 @@ http:
         || Path(`/-/api/traefik/version`)
       entryPoints: [web]
       priority: 100
-      middlewares: [sso-errors@file, sso@file, portal-api-traefik-rewrite]
+      middlewares: [portal-api-traefik-rewrite]
       service: api@internal
 
   middlewares:
@@ -69,6 +91,12 @@ http:
       replacePathRegex:
         regex: "^/-/api/docker/(.*)"
         replacement: "/$1"
+
+    # /-/api/loki/query_range -> /loki/api/v1/query_range
+    portal-api-loki-rewrite:
+      replacePathRegex:
+        regex: "^/-/api/loki/(.*)"
+        replacement: "/loki/api/v1/$1"
 
     # /-/api/traefik/http/routers -> /api/http/routers
     #
@@ -88,3 +116,12 @@ http:
       loadBalancer:
         servers:
           - url: "http://portal-socket-proxy:2375"
+
+    # Loki is on devnet, so this could have been a label on the loki container —
+    # but it is declared here to keep the whole /-/api/* surface readable in one
+    # file. That surface IS the security boundary; splitting it across compose
+    # files is how a rule gets widened without anyone noticing.
+    portal-loki:
+      loadBalancer:
+        servers:
+          - url: "http://loki:3100"

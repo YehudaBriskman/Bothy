@@ -4,19 +4,19 @@ _Condensed from the 2026-07 audit (full detail: `C:\Users\yr055\dev-box-audit.md
 Live tree: `~/stacks` in devssh's WSL distro, on `main`. Audit rule: **read the live box,
 never trust `origin/main` to describe it** — see [lessons.md](lessons.md)._
 
-## The front door
+## The front door — since 2026-08-08: direct ports, Traefik for the portal only
 
-**Traefik v3.6** (`edge/`) is the single entrypoint on :80, routing by Host header:
-`dev.test` → portal, `grafana|prometheus|portainer|dozzle|kafka|wiki|traefik|cvops.dev.test`
-→ their services, plus prio-100 `Path()` routers for the portal's own API
-(`/-/api/traefik/*`, `/-/api/docker/containers/json`), and a prio-1 `portal-fallback`
-catching everything else. Names resolve via [dns.md](dns.md).
+Primary access is **published ports on the tailnet IP** (table in [access.md](access.md)).
+**Traefik v3.7** (`edge/`) still owns :80 and serves the portal (now **portal-next** —
+the old `portal` container is `traefik.enable=false`) via its prio-1 fallback router,
+plus the prio-100 Host-less `Path()` routers for `/-/api/{traefik,docker,loki}/*`.
+Its Host-header routers (`*.dev.test`) are **dormant** — nothing resolves those names;
+they wait for the future DNS phase. [dns.md](dns.md) is the re-enable manual.
 
-**GitHub SSO (oauth2-proxy, forwardAuth)** protects: dozzle, kafka-ui, prometheus,
-traefik dashboard, portal + fallback, and both `/-/api/*` routers → unauthenticated
-requests get **401 + sign-in page (this means UP, not broken)**. Grafana, wiki, portainer
-keep their own auth. Single GitHub account allowed; `--redirect-url` is pinned (one OAuth
-callback URL only).
+**GitHub SSO (oauth2-proxy) is PARKED** — container down, `edge/dynamic/auth.yml`
+fully commented with the re-enable recipe, GitHub OAuth app untouched. A 401 anywhere
+now indicates regression, not health. Grafana, portainer keep their own auth; dozzle,
+kafka-ui, prometheus and the portal API are tailnet-open (known-issues).
 
 ## The portal
 

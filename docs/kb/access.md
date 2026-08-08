@@ -19,8 +19,15 @@ Lands in `~/stacks`. Rules that are not obvious:
   at 17:55: it looks like a server problem, it's a typo.
 - The client must be **on the tailnet with a working tunnel** — if `dev.test` doesn't
   resolve either, suspect the client, not the box ([runbook-cant-reach.md](runbook-cant-reach.md)).
-- No check-mode in the SSH policy (verified from logs 2026-08-02) — a browser re-auth
-  prompt is not expected; access is granted directly.
+- **Check-mode appeared in the SSH policy by 2026-08-08** (contradicting the 08-02
+  check): a session may print `# To authenticate, visit: https://login.tailscale.com/a/…`
+  and wait. Interactive use: click it once, it caches. Unattended use stalls on it —
+  either flip the ACL SSH rule to `action: accept` in the admin console, or expect it.
+- **If SSH hangs at `expecting SSH2_MSG_KEX_ECDH_REPLY`:** that's the large-packet
+  blackhole, not auth. Emergency door: force a small handshake with
+  `ssh -o KexAlgorithms=curve25519-sha256 -o HostKeyAlgorithms=ssh-ed25519 devssh@100.117.176.85`
+  then restart tailscaled on the box —
+  [incidents/2026-08-08](incidents/2026-08-08-wsl-node-large-packet-blackhole.md).
 
 ## The other port 22 — the Windows host
 
@@ -58,9 +65,33 @@ Write the `.sh` with **LF endings** (`sed -i 's/\r$//'`) — CRLF breaks bash.
 **Rule:** "Access is denied" ≠ "does not exist". The postboot checker reported
 `TASK MISSING` for exactly this reason when run non-elevated.
 
-## Web access
+## Web access — pure IP:port (since 2026-08-08; SSO dormant, dev.test retired)
 
-All `*.dev.test` services go through Traefik on :80 with GitHub SSO in front of most of
-them ([architecture.md](architecture.md)). Expected codes: `dev.test` → **401** when not
-signed in (that means UP), grafana → 302. Test with `curl.exe`, never `Invoke-WebRequest`
-([lessons.md](lessons.md)).
+Canonical base: `http://100.117.176.85:<port>` (MagicDNS alias
+`yehuda-wsl.tail7e7e3b.ts.net:<port>` works too). Mirrors via Windows portproxy:
+`http://100.93.197.10:<port>` from the tailnet, `localhost:<port>` on the host —
+**LAN is deliberately not served.**
+
+**Logins (since 2026-08-08): one unified dev login everywhere a login exists** —
+username is the owner's gmail address; the password is `DEV_LOGIN_PASSWORD` in the
+box's gitignored `~/stacks/.env` (never in this KB or the public repo). Applies to
+Grafana, Portainer, Dozzle, Kafka-UI, Prometheus (basic auth).
+
+| Port | Service | Note |
+|---|---|---|
+| 80 | Portal (portal-next) | Traefik catch-all; **200 expected — a 401 now means regression** |
+| 3000 | Grafana | unified dev login |
+| 3001 | Wiki.js | stack currently down |
+| 8080 | Dozzle | unified dev login (simple-auth users file) |
+| 8081 | Kafka-UI | unified dev login (LOGIN_FORM) |
+| 8082 | cAdvisor | 307 at / is normal |
+| 8084/8086/8091/8092 | keycloak / monorepo services | not portproxied |
+| 8085 | Docs (MkDocs) | replaced Wiki.js |
+| 9000 | Portainer | unified dev login (username = the email) |
+| 9090 | Prometheus | unified dev login (basic auth; unauth = 401); 302 → /query is normal |
+| 9100 / 3100 | node-exporter / Loki | Loki 404 at / is normal |
+| 10350 | Tilt | only while `tilt up --host=0.0.0.0` runs |
+
+Test with `curl.exe`, never `Invoke-WebRequest` ([lessons.md](lessons.md)), and check
+**bytes, not just codes** — "200 with 0 bytes" is the large-packet blackhole
+([incidents/2026-08-08](incidents/2026-08-08-wsl-node-large-packet-blackhole.md)).

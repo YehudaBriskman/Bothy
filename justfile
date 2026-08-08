@@ -110,40 +110,45 @@ psql:
 redis:
     docker exec -it redis redis-cli
 
-# Print access URLs. Named services route through Traefik; *.test resolves via
-# the local dnsmasq, published to the tailnet by Tailscale split DNS.
+# Print access URLs. Pure-IP-over-tailscale model (2026-08-08): every service
+# has a published host port on this node's tailnet IP. Traefik Host-name routing
+# (*.dev.test) is DORMANT until a DNS layer returns — see edge/dynamic/auth.yml.
 urls:
     #!/usr/bin/env bash
     # Identity is read from tailscale at run time and never stored in this repo:
     # the node name/IP identify the owner's tailnet, and this repo is public.
     IP=$(tailscale ip -4 2>/dev/null | head -1); IP=${IP:-<this-node-ip>}
     HOST=$(tailscale status --json 2>/dev/null | jq -r '.Self.DNSName // ""' | sed 's/\.$//'); HOST=${HOST:-<this-node>}
-    echo "This box is a tailnet node: $HOST / $IP — reachable directly,"
-    echo "no portproxy. Any *.test name resolves to it from any device on the tailnet."
+    echo "This box is a tailnet node: $HOST / $IP — reachable directly."
+    echo "Access is by IP:port ($HOST:<port> also works — MagicDNS is free)."
     echo ""
-    echo "  ⭐ START HERE   http://dev.test          (the portal — index of everything)"
+    echo "  ⭐ START HERE   http://$IP/             (the portal — index of everything)"
     echo ""
-    echo "  Stack services  <name>.dev.test:"
-    echo "    Grafana       http://grafana.dev.test      (admin / admin)"
-    echo "    Prometheus    http://prometheus.dev.test"
-    echo "    Dozzle        http://dozzle.dev.test       (live container logs)"
-    echo "    Portainer     http://portainer.dev.test    (set password on first visit)"
-    echo "    Kafka-UI      http://kafka.dev.test"
-    echo "    Docs          http://docs.dev.test         (MkDocs, auto-rebuilt)"
-    echo "    Traefik       http://traefik.dev.test      (which routes are registered)"
+    echo "  Stack services:"
+    echo "    Grafana       http://$IP:3000         (unified dev login)"
+    echo "    Prometheus    http://$IP:9090"
+    echo "    Dozzle        http://$IP:8080         (live container logs)"
+    echo "    Kafka-UI      http://$IP:8081"
+    echo "    cAdvisor      http://$IP:8082"
+    echo "    Docs          http://$IP:8085         (MkDocs, auto-rebuilt)"
+    echo "    Portainer     http://$IP:9000         (unified dev login)"
+    echo "    node-exporter http://$IP:9100"
+    echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
+    echo "    Wiki.js       http://$IP:3001         (stack currently down)"
+    echo "    Tilt          http://$IP:10350        (when tilt up --host=0.0.0.0 runs)"
     echo ""
-    echo "  Projects        <project>.dev.test — their pieces nest underneath:"
-    echo "    CVOps         http://cvops.dev.test        (run 'tilt up' in the repo first)"
-    echo "    CVOps · Tilt  http://tilt.cvops.dev.test   (needs 'tilt up --host=0.0.0.0')"
-    echo "    CVOps · S3    http://s3.cvops.dev.test     (garage; presigned URLs only)"
+    echo "  Windows-host mirrors via portproxy: http://100.93.197.10:<port> from the"
+    echo "  tailnet, or localhost:<port> on the host. Same ports; LAN is NOT served."
     echo ""
-    echo "  Adding a service = 2 Traefik labels + a name, never a port."
-    echo "  See ~/claude-notes/network/naming.md."
+    echo "  Logins: one unified dev login everywhere a login exists — username is"
+    echo "  the owner gmail, password = DEV_LOGIN_PASSWORD in the gitignored .env."
     echo ""
-    echo "  The bare IP http://$IP still lands on the portal — Traefik catch-all route."
+    echo "  <name>.dev.test routing + the Traefik dashboard are DORMANT (no DNS)."
+    echo "  Route data is still live at http://$IP/-/api/traefik/http/routers"
     echo ""
     echo "Databases stay off the network (loopback-bound). Reach via ssh tunnel:"
     echo "  ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 $USER@$IP"
     echo ""
-    echo "If *.test stops resolving: check 'systemctl status dnsmasq' and that Tailscale"
-    echo "split DNS (admin console → DNS → Nameservers) still points 'test' at this node."
+    echo "If the tailnet IP serves headers but bodies stall, or SSH hangs at KEX:"
+    echo "  that is the large-packet blackhole — restart tailscaled ON THIS BOX."
+    echo "  See docs/kb/incidents/2026-08-08-wsl-node-large-packet-blackhole.md."
