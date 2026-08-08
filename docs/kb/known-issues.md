@@ -6,7 +6,7 @@ _Status as of 2026-08-08 (pure-IP switch). Things that look broken but aren't â†
 
 | Item | Detail | Impact |
 |---|---|---|
-| **SSO is dormant, more surface on the tailnet** | Since 2026-08-08: dozzle, kafka-ui, prometheus, the portal `/-/api/*` are auth-free for any tailnet member; Portainer's RW docker socket is now the sharpest edge | Accepted while tailnet = own devices; revisit with the future DNS/WireGuard phase |
+| **SSO dormant; portal API auth-free** | Dashboards got native logins later on 2026-08-08 (unified dev login, see access.md), but the portal `/-/api/*` (container list, loki queries, traefik routes) remains auth-free for any tailnet member | Accepted while tailnet = own devices; revisit with the future DNS/WireGuard phase |
 | **Tailscale SSH check-mode stalls automation** | ACL SSH rule gained `action: check` sometime after 08-02; unattended sessions can hang on a browser prompt | Flip to `accept` in the admin console, or live with it |
 | **Wiki.js stack is down** | Replaced by Docs (:8085); compose still has port 3001 | Decide: retire wiki fully or bring back |
 | **Large-packet blackhole can recur** | Root cause (WinNAT hairpin wedge) not fixed, only reset by tailscaled restart; checker + runbooks now detect it | Watch for "code ok, bytes 0" |
@@ -17,11 +17,12 @@ _Status as of 2026-08-08 (pure-IP switch). Things that look broken but aren't â†
 | Traefik exports no metrics / no scrape job | The front door is the one unmonitored component | Blind spot |
 | Backups stay on the same disk they protect | Nothing copies them off the box | A disk loss takes data + backups |
 | Portainer has RW docker socket + own auth only | Undoes the socket-proxy design from inside the tailnet (audit finding #7; Phase 2.1 decision still pending) | Anyone on the tailnet + Portainer password = root on the box |
-| Grafana still `admin/admin`; some services rely on SSO only | Audit Phase 2.4 | Weak on-tailnet posture |
 | Host config partially outside git | dnsmasq/daemon.json/wsl.conf copies are in `host/`, keepalive + portproxy task XMLs in `host/windows/`, but nothing replays them automatically | Rebuild requires this KB |
 
 ## Fixed (kept for history)
 
+- **Grafana `admin/admin` + auth-free dashboards** â€” fixed 2026-08-08: the unified
+  dev login (access.md) now guards Grafana, Portainer, Dozzle, Kafka-UI, Prometheus.
 - **Portproxy rules stranded by WSL IP rotation** â€” fixed 2026-08-08: the
   `DevBox-Portproxy-Refresh` SYSTEM task converges them at boot + every 15 min,
   and re-bound listeners to `127.0.0.1` + `100.93.197.10` (LAN exposure ended).
