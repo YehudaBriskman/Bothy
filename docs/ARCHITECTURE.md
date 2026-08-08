@@ -9,10 +9,17 @@ The whole design follows from one decision:
 > **Host ports are a flat global namespace with no allocator. Names are
 > unlimited. So nothing here gets a port — it gets a name.**
 
-Every service is reached at `<something>.dev.test`. Traefik owns `:80` and routes
-by `Host` header; a local dnsmasq answers `*.test` at any depth; Tailscale split
-DNS points `test` queries at this node. Adding a service is two Traefik labels
-and a hostname — no DNS entry, no port allocation, no restart of anything else.
+> **Status 2026-08-08: the name layer below is dormant.** The tailnet
+> split-DNS route was removed; live access is `http://<node-ip>:<port>` per the
+> table in `just urls`, with Traefik `:80` serving the portal catch-all. This
+> document keeps describing the full design — it all lights up again when the
+> route is re-added.
+
+Every service is reached at `<something>.dev.test` (when names are enabled).
+Traefik owns `:80` and routes by `Host` header; a local dnsmasq answers `*.test`
+at any depth; Tailscale split DNS points `test` queries at this node. Adding a
+service is two Traefik labels and a hostname — no DNS entry, no port allocation,
+no restart of anything else.
 
 **The stack is a helper, not a platform.** It provides what projects *don't*
 ship — routing, DNS, dashboards, log aggregation. It never provides what projects
@@ -92,7 +99,7 @@ The rule is that nothing browser-facing publishes a port. What exists today:
 | Container | Host bind | Status |
 |---|---|---|
 | `traefik` | `0.0.0.0:80` | **The front door.** The one intentional publish. |
-| `grafana` `prometheus` `dozzle` `kafka-ui` `portainer` `loki` `cadvisor` `node-exporter` | `0.0.0.0:3000` `9090` `8080` `8081` `9000` `3100` `8082` `9100` | Legacy — these predate the edge and kept their old ports. Fully redundant with their `.dev.test` names; removing them is a safe incremental cleanup. |
+| `grafana` `prometheus` `dozzle` `kafka-ui` `portainer` `loki` `cadvisor` `node-exporter` `docs` | `0.0.0.0:3000` `9090` `8080` `8081` `9000` `3100` `8082` `9100` `8085` | **The live access path while names are dormant** (2026-08-08) — no longer a legacy remnant. If the name layer returns as the primary path, retiring these becomes cleanup again. |
 | `postgres` `redis` `kafka` | `127.0.0.1:5432` `6379` `9092` | **Loopback only, and legitimate.** These speak no `Host` header, so they cannot be routed. Reached over an SSH tunnel, or by name over devnet from another container. |
 | `portal-next` `docs` `docs-sync` `oauth2-proxy` `portal-socket-proxy` `promtail` and every exporter | none | The correct pattern. |
 
