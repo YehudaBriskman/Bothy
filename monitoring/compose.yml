@@ -12,7 +12,6 @@ services:
       - traefik.http.services.prometheus.loadbalancer.server.port=9090
       # Prometheus runs with --web.enable-lifecycle, so an unauthenticated caller
       # can POST /-/quit and stop it. No auth of its own exists to prevent that.
-      - traefik.http.routers.prometheus.middlewares=sso-errors@file,sso@file
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -103,6 +102,10 @@ services:
       - promtail_positions:/tmp
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Host-process logs (see the host-processes job in promtail.yml). Projects
+      # that run from a terminal rather than a container write here, and the
+      # filename becomes the Loki stream name.
+      - ${HOME}/.local/state/devbox-logs:/host-logs:ro
     deploy:
       resources:
         limits:
