@@ -21,28 +21,33 @@ _Each of these was learned by getting it wrong first._
 7. **Beware verification commands that cannot fail** — the portal-API "MUST print 404"
    check printed 404 whether the boundary held or not; the fallback answers 200 to
    anything. Verify with a probe that *can* distinguish the failure.
+8. **Check bytes, not just status codes.** The Aug-8 blackhole passed every code-only
+   probe (401 header arrived) while every body stalled at 0 bytes; pings pong because
+   they're small. Size the hole with `ping -l <n>`, and when SSH hangs at KEX, force a
+   small handshake (`-o KexAlgorithms=curve25519-sha256 -o HostKeyAlgorithms=ssh-ed25519`)
+   to get in and fix it ([incidents/2026-08-08](incidents/2026-08-08-wsl-node-large-packet-blackhole.md)).
 
 ## Auditing / changing this system
 
-8. **Audit the live box, never the repo.** `origin/main` ran ~a week behind and produced
+9. **Audit the live box, never the repo.** `origin/main` ran ~a week behind and produced
    several confidently-wrong findings (no reverse proxy, crash-looping traefik, no
    auto-start — all false). Full corrections table: `dev-box-audit.md` §7.
-9. **Verify audit claims before acting on them.** Three findings were disproven only by
+10. **Verify audit claims before acting on them.** Three findings were disproven only by
    running the command live (Health field exists; cvops routed; docker-daemon target up).
-10. **Hard-coded addresses rot.** The checker's `192.168.68.57` false-FAILed the moment
+11. **Hard-coded addresses rot.** The checker's `192.168.68.57` false-FAILed the moment
     DHCP moved the host. Prefer names; date-stamp any literal IP you must write.
-11. **After `git checkout`, force-recreate containers with bind mounts** — stale-inode
+12. **After `git checkout`, force-recreate containers with bind mounts** — stale-inode
     mounts made Traefik serve a 5-day-old config while claiming live-reload.
-12. **`docker compose` doesn't read the root `.env`** — only `just` does.
-13. **A silent success is worse than a loud failure.** Backups "succeeded" as 20-byte
+13. **`docker compose` doesn't read the root `.env`** — only `just` does.
+14. **A silent success is worse than a loud failure.** Backups "succeeded" as 20-byte
     gzips for six days; the timer was green. The fix that matters was making `doctor.sh`
     check artifact **age and size**, not exit codes.
-14. **Write things down where the next debugging session will look.** The Aug-2 diagnosis
+15. **Write things down where the next debugging session will look.** The Aug-2 diagnosis
     was fast *because* July's audit had recorded the topology (per-user WSL, Tailscale
     SSH, split DNS). This KB exists to keep that compounding.
 
 ## Client-side quirks (Windows)
 
-15. `Invoke-WebRequest` times out on `.test` names — use `curl.exe`.
-16. Chrome Secure DNS (DoH) can't resolve `.test` — looks like NXDOMAIN, isn't the box.
-17. WSL distros are **per-user**; `wsl -l` never shows another user's distro.
+16. `Invoke-WebRequest` times out on `.test` names — use `curl.exe`.
+17. Chrome Secure DNS (DoH) can't resolve `.test` — looks like NXDOMAIN, isn't the box.
+18. WSL distros are **per-user**; `wsl -l` never shows another user's distro.

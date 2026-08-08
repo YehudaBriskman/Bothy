@@ -31,7 +31,8 @@ ping 100.117.176.85                      # normal traffic
 
 | Result | Broken layer | Do |
 |---|---|---|
-| All pong | Nothing network-side | Check application: username `devssh@`? sshd vs Tailscale-SSH confusion? ([access.md](access.md)) |
+| All pong **but pages stall / SSH hangs at KEX** | **Large-packet blackhole** — small packets pass, full-size die | Confirm: `curl` shows a code but `%{size_download}`=0; `ping -l 1150` pongs, `-l 1200` dies. Fix: restart tailscaled ON THE BOX (small-KEX SSH door in [access.md](access.md)) — [incidents/2026-08-08](incidents/2026-08-08-wsl-node-large-packet-blackhole.md) |
+| All pong | Nothing network-side | Check application: username `devssh@`? sshd vs Tailscale-SSH confusion? Check-mode prompt waiting for a browser click? ([access.md](access.md)) |
 | disco+TSMP pong, ICMP dead | **Peer's kernel/interface/firewall** — tunnel is fine but the OS drops packets | On the peer: `ip -4 addr show tailscale0` (must show its 100.x/32 — **empty = the 2026-08-02 bug**, restart tailscaled); then ufw/nftables `ts-input` rules; `ip rule show` (5210/5230/5250/5270 + `lookup 52`) |
 | disco pongs, TSMP dead | WireGuard session broken | Restart tailscaled on the peer |
 | Nothing pongs | Node truly offline | Its machine/network/daemon is down — see below |
@@ -39,13 +40,14 @@ ping 100.117.176.85                      # normal traffic
 
 ## Step 2 — Is the box itself up? (rarely the answer, verify anyway)
 
-From yr055 on the PC:
+From yr055 on the PC (2026-08-08: dev.test retired — probe the IP, and read
+**bytes as well as code**; "200 with 0 bytes" = blackhole, see step 1):
 
 ```powershell
 (Get-Process vmmemWSL -ErrorAction SilentlyContinue).Count    # want 2
-curl.exe -s -o NUL -w "%{http_code}" http://dev.test/         # want 401 (= up + SSO)
+curl.exe -s -o NUL -w "%{http_code} %{size_download}" http://100.117.176.85/   # want 200 + >0 bytes (401 = SSO regressed?)
 tailscale status | findstr yehuda-wsl                         # want active/idle
-ssh -o ConnectTimeout=10 devssh@100.117.176.85 "docker ps --format '{{.Names}}' | wc -l"   # want ~24
+ssh -o ConnectTimeout=10 devssh@100.117.176.85 "docker ps --format '{{.Names}}' | wc -l"   # want ~29
 ```
 
 If vmmemWSL count < 2 or the node is offline → [always-on.md](always-on.md) recovery:
@@ -53,8 +55,11 @@ elevated `schtasks /run /TN "DevBox-WSL-Keepalive"`, or log in as devssh once.
 
 ## Step 3 — Known lookalikes (do not chase these)
 
-- **401 or a sign-in page is SUCCESS** — SSO is in front of most services ([architecture.md](architecture.md)).
+- ~~401 or a sign-in page is SUCCESS~~ **Obsolete since 2026-08-08: SSO is dormant.
+  Portal :80 should be 200; a 401 anywhere now means something regressed.**
 - `ssh yr055@…` → "unknown user"; only `devssh@` exists on the dev box.
+- SSH prints `# To authenticate, visit: https://login.tailscale.com/a/…` and waits —
+  that's Tailscale SSH **check-mode** (new since 08-08), not a fault. Click the link.
 - `Invoke-WebRequest` timing out on `*.dev.test` — .NET quirk; use `curl.exe`.
 - Browser NXDOMAIN with curl fine — Chrome DoH; it can't see `.test`.
 - A 200 from a weird hostname — `portal-fallback` answers everything; proves nothing.

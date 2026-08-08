@@ -12,7 +12,7 @@ and the machines around it. Built 2026-08-02 from the July audit + the August in
 |---|---|
 | [topology.md](topology.md) | Every machine, user, IP, tailnet node, WSL instance, and how they connect |
 | [access.md](access.md) | Every way into the box: SSH paths, usernames, elevation tricks, visibility gotchas |
-| [dns.md](dns.md) | How `dev.test` / `*.dev.test` resolve: split DNS, dnsmasq, MagicDNS, client gotchas |
+| [dns.md](dns.md) | **RETIRED 2026-08-08** — access is pure IP:port now; this file is the DNS re-enable manual |
 | [always-on.md](always-on.md) | Why the box stays up unattended: keepalive task, ForceDaemon, cold-boot proof |
 | [architecture.md](architecture.md) | What runs inside: Traefik, SSO, portal, backups, monitoring — and the built-in traps |
 | [runbook-cant-reach.md](runbook-cant-reach.md) | **The** diagnosis decision tree for "can't reach the dev stack" |
@@ -22,6 +22,7 @@ and the machines around it. Built 2026-08-02 from the July audit + the August in
 | [incidents/2026-07-21-wsl-idle-timeout.md](incidents/2026-07-21-wsl-idle-timeout.md) | "Only works while SSH'd in" — WSL VM 60s idle kill |
 | [incidents/2026-08-01-ethernet-ndis.md](incidents/2026-08-01-ethernet-ndis.md) | Host NIC/NDIS pause-wedge, DHCP death, LAN IP change |
 | [incidents/2026-08-02-thinkpad-tailscale.md](incidents/2026-08-02-thinkpad-tailscale.md) | Laptop's half-upgraded tailscaled: tunnel green, all traffic dead |
+| [incidents/2026-08-08-wsl-node-large-packet-blackhole.md](incidents/2026-08-08-wsl-node-large-packet-blackhole.md) | Pings pong but bodies stall / SSH hangs at KEX; small-KEX door; restart tailscaled on the box |
 
 ## Source documents (kept, not superseded for detail)
 
