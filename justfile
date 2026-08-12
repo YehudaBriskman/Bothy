@@ -17,8 +17,10 @@ network:
 up: network up-edge up-auth up-monitoring up-data up-mgmt up-apps
     @echo "All stacks up. Run 'just urls' for access."
 
-# Edge: Traefik — the single front door on :80, routes *.test by Host header.
-# Must come up before anything that expects to be routed.
+# Edge: Traefik — the single front door on :80. It no longer routes anything by
+# Host header (the name layer was deleted 2026-08-12); what it still owns is the
+# portal's host-less /-/api/* data plane and the catch-all that serves the portal
+# on the bare IP. Must come up before anything that expects to be routed.
 up-edge: network
     docker compose -f edge/compose.yml up -d
 
@@ -38,13 +40,13 @@ up-auth: network
     docker compose -f auth/compose.yml up -d
     IP=$(tailscale ip -4 2>/dev/null | head -1); IP=${IP:-$BOX_IP}
     echo ""
-    echo "  Keycloak admin   http://$IP:8083/admin  (admin / KEYCLOAK_ADMIN_PASSWORD in .env)"
-    echo "  OIDC discovery   http://$IP:8083/realms/devbox/.well-known/openid-configuration"
+    echo "  Keycloak admin   http://$IP:8090/admin  (admin / DEV_LOGIN_PASSWORD in .env — the shared dev login)"
+    echo "  OIDC discovery   http://$IP:8090/realms/devbox/.well-known/openid-configuration"
     echo ""
     echo "  The 'issuer' in that document must equal oauth2-proxy's"
     echo "  --oidc-issuer-url exactly. If they ever differ, the symptom is a"
     echo "  redirect loop, not an error. Check it after changing BOX_IP:"
-    echo "    curl -s http://$IP:8083/realms/devbox/.well-known/openid-configuration | jq -r .issuer"
+    echo "    curl -s http://$IP:8090/realms/devbox/.well-known/openid-configuration | jq -r .issuer"
 
 # Observability: grafana, prometheus, loki, cadvisor, node-exporter
 up-monitoring: network
@@ -65,7 +67,7 @@ up-mgmt: network
 # apps/portal is the RETIRED pure-HTML portal — its nginx carries
 # traefik.enable=false, but its compose file also owns portal-socket-proxy, which
 # the live portal's Docker API depends on. So it stays up; do not remove it.
-# apps/portal-next is what actually serves dev.test.
+# apps/portal-next is what actually serves the portal, on the bare IP.
 # apps/wiki (Wiki.js) was superseded by apps/docs and is no longer started; its
 # compose file is kept so `just down` can still clean up an old deployment.
 up-apps: network
@@ -165,6 +167,7 @@ urls:
     echo "    Portainer     http://$IP:9000         (unified dev login)"
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
+    echo "    Keycloak      http://$IP:8090/admin   (identity — admin / shared dev login)"
     echo "    Wiki.js       http://$IP:3001         (stack currently down)"
     echo "    Tilt          http://$IP:10350        (when tilt up --host=0.0.0.0 runs)"
     echo ""
