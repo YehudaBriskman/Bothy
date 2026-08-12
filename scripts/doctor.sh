@@ -37,8 +37,18 @@ else
   # Without credentials this curl gets 401, jq yields nothing, and the check
   # reported "is it up?" about a server that was up the whole time - a probe
   # that could only ever fail one way.
-  targets=$(curl -s --max-time 5 -u "${DEV_LOGIN_USER:-}:${DEV_LOGIN_PASSWORD:-}" \
-    'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  # Credentials go in on STDIN, not on the command line.
+  #
+  # `curl -u "$user:$pass"` puts the password in argv, where any other user on
+  # the box can read it out of `ps` or /proc/<pid>/cmdline for as long as the
+  # process lives. This box is single-user so the practical exposure is nil, but
+  # the habit is the point - and gitleaks flags the pattern, correctly, without
+  # being able to tell that these are shell variables rather than a literal.
+  # Suppressing the finding would have taught the scanner to stay quiet about the
+  # real thing; --config - fixes the actual property it is complaining about.
+  targets=$(printf 'user = "%s:%s"\n' "${DEV_LOGIN_USER:-}" "${DEV_LOGIN_PASSWORD:-}" \
+    | curl -s --max-time 5 --config - \
+      'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
     | jq -r '.data.activeTargets[] | "\(.labels.job) \(.health)"' 2>/dev/null | sort -u)
   if [ -z "$targets" ]; then
     red "prometheus returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
