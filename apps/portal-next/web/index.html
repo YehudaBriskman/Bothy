@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bothy — dev box</title>
+    <title>Bothy - dev box</title>
     <meta name="description" content="The dev box, and everything running on it." />
 
     <!-- Icons. The SVG is the real one and every current desktop browser
          prefers it; the PNGs exist because iOS home-screen icons and the PWA
          manifest still cannot take an SVG. All of them are generated from ONE
-         set of coordinates — see scripts/gen-icons.py, which is also the only
+         set of coordinates - see scripts/gen-icons.py, which is also the only
          way to regenerate the PNGs on a box with no ImageMagick. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -23,7 +23,7 @@
          palette keyed on [data-theme='light'] (no prefers-color-scheme copy to
          drift out of sync), so without this a 'system' user on a light desktop
          would see a dark frame until React mounted. Kept deliberately tiny and
-         duplicated from lib/theme.tsx — an import would defeat the purpose. -->
+         duplicated from lib/theme.tsx - an import would defeat the purpose. -->
     <script>
       (function () {
         try {

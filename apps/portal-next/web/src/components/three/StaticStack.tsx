@@ -6,8 +6,8 @@ import { STATUS_HEX, STATUS_LABEL } from './webgl';
 import './three.css';
 
 // The no-WebGL / reduced-motion fallback. Not a placeholder: it renders the same
-// idea — an edge bar on top, one rack cabinet per project/stack, each holding a
-// column of 1U server slabs with a live status LED — as flat, dependency-free
+// idea - an edge bar on top, one rack cabinet per project/stack, each holding a
+// column of 1U server slabs with a live status LED - as flat, dependency-free
 // DOM. The page must never be blank (portal.md) and this must still read as a
 // server rack and stay navigable (each slab links to its service).
 export function StaticStack({ nodes }: { nodes: PortalNode[] }) {
@@ -25,7 +25,7 @@ export function StaticStack({ nodes }: { nodes: PortalNode[] }) {
               <span
                 key={n.id}
                 className="sv-led"
-                title={`${n.name} — ${STATUS_LABEL[n.status]}`}
+                title={`${n.name} - ${STATUS_LABEL[n.status]}`}
                 style={{ ['--led' as string]: STATUS_HEX[n.status] }}
               />
             ))}
@@ -43,7 +43,7 @@ export function StaticStack({ nodes }: { nodes: PortalNode[] }) {
                   className="sv-slab"
                   key={n.id}
                   href={serviceLink(n)}
-                  title={`${n.name} — ${STATUS_LABEL[n.status]}`}
+                  title={`${n.name} - ${STATUS_LABEL[n.status]}`}
                 >
                   <span className="sv-slab-vents" aria-hidden="true" />
                   <ServiceIcon node={n} size={13} className="sv-slab-ico" />

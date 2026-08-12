@@ -17,7 +17,7 @@ echo "== containers =="
 # a health check teaches you to ignore it. `portal-next` is the LIVE portal;
 # `portal` is the retired nginx one, kept only because its compose file also owns
 # portal-socket-proxy. Both run, so both are expected.
-# redis/redis-exporter/kafka/kafka-ui/kafka-exporter removed 2026-08-12 — retired
+# redis/redis-exporter/kafka/kafka-ui/kafka-exporter removed 2026-08-12 - retired
 # as idle. Leaving them here made `just doctor` report five phantom absences,
 # which is the fastest way to teach someone to ignore the health check.
 # keycloak/oauth2-proxy are the identity layer added the same day.
@@ -35,7 +35,7 @@ if ! command -v jq >/dev/null 2>&1; then
 else
   # Prometheus has required basic auth since 2026-08-08 (monitoring/prometheus-web.yml).
   # Without credentials this curl gets 401, jq yields nothing, and the check
-  # reported "is it up?" about a server that was up the whole time — a probe
+  # reported "is it up?" about a server that was up the whole time - a probe
   # that could only ever fail one way.
   targets=$(curl -s --max-time 5 -u "${DEV_LOGIN_USER:-}:${DEV_LOGIN_PASSWORD:-}" \
     'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
@@ -55,7 +55,7 @@ echo "== kubernetes =="
 if ! command -v kubectl >/dev/null 2>&1; then
   red "kubectl is not installed"
 else
-  # minikube was retired on 2026-08-12 — 1,046 MB for zero non-system pods over
+  # minikube was retired on 2026-08-12 - 1,046 MB for zero non-system pods over
   # 27 days. Stopped AND deleted: `minikube profile list` reports no profile, so
   # `minikube start` builds a NEW empty cluster rather than resuming the old one.
   # This comment said "not deleted; `minikube start` brings it back" for a few
@@ -97,7 +97,7 @@ else
 
   # COVERAGE, not just freshness.
   #
-  # On 2026-08-12 the keycloak database — the box's entire identity layer — was
+  # On 2026-08-12 the keycloak database - the box's entire identity layer - was
   # absent from every dump on disk, while this section reported a fresh,
   # correctly-sized backup in green. Both facts were true: the dump was healthy,
   # and it did not contain keycloak, because the database was created hours after
@@ -105,7 +105,7 @@ else
   #
   # Age and size cannot catch that, and neither can anything else that looks only
   # at the file. A dump that silently stopped including a database would keep
-  # passing forever — the same "check that cannot fail" this repo has now been
+  # passing forever - the same "check that cannot fail" this repo has now been
   # bitten by four times. So compare what the server HAS against what the dump
   # CONTAINS, which is the only question that can actually come back false.
   #
@@ -116,8 +116,8 @@ else
   if [ -n "$live" ]; then
     # Read the dump's database list ONCE, then compare in-shell.
     #
-    # The obvious spelling — `zcat "$latest" | grep -q "^CREATE DATABASE $db"`
-    # per database — is WRONG under this script's `set -o pipefail`, and wrong in
+    # The obvious spelling - `zcat "$latest" | grep -q "^CREATE DATABASE $db"`
+    # per database - is WRONG under this script's `set -o pipefail`, and wrong in
     # the most misleading direction. grep -q exits the instant it matches, zcat
     # dies of SIGPIPE, and the pipeline's status is therefore non-zero *because
     # the database was found*. Every database present reported as missing.

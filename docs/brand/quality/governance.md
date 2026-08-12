@@ -42,7 +42,7 @@ See [CHECKLIST.md § 31](../CHECKLIST.md#31-governance).
 ## What Bothy decided, and why
 
 - **The token file is the source of truth**, and these documents are downstream
-  of it. Where they disagree, the CSS is right and the document is stale — which
+  of it. Where they disagree, the CSS is right and the document is stale - which
   is why every document carries a date.
 - **Page styles are co-located** and never edit the shared layer.
 - **Date stamps, not versions**, matching the convention in
@@ -52,7 +52,7 @@ See [CHECKLIST.md § 31](../CHECKLIST.md#31-governance).
   for re-enabling what it described, rather than being removed.
 - **The predecessor to this tree**, `apps/portal-next/DESIGN_BRIEF.md`, was a
   one-off orchestration contract for a parallel rebuild. Its token list went stale
-  — it names tokens and components that were renamed or deleted — which is
+  - it names tokens and components that were renamed or deleted - which is
   precisely the failure this governance section exists to prevent. It is marked
   superseded with a pointer here.
 

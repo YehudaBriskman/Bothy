@@ -21,7 +21,7 @@ manifest background is what is painted before the app renders; a near-miss
 produces a visible flash of the wrong colour on launch.
 
 **Icons: 192, 512, and a maskable variant.** Android crops to a platform shape.
-Without a maskable icon with real padding, yours gets clipped — usually right
+Without a maskable icon with real padding, yours gets clipped - usually right
 through the mark.
 
 **The start URL must actually load** under the app's routing strategy. This is
@@ -39,12 +39,12 @@ See [CHECKLIST.md § 23](../CHECKLIST.md#23-pwa-and-manifest).
 ## What Bothy decided, and why
 
 - **A manifest ships**, with name, short name, description, start URL, scope,
-  display, background and theme colours — the colours equal the token values.
+  display, background and theme colours - the colours equal the token values.
 - **Icons at 192 and 512**, plus the SVG and the 180px touch icon.
 - **No service worker.** The product is a live view of a machine on a local
   network. Serving it from a cache is the opposite of what it is for, and an
   offline shell showing yesterday's container states would be actively
-  misleading. The one thing a service worker would buy — an offline page — is
+  misleading. The one thing a service worker would buy - an offline page - is
   less useful than the existing floor page, which still renders known service
   links when the APIs are unreachable.
 

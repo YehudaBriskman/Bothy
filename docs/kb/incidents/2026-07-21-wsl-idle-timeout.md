@@ -1,4 +1,4 @@
-# Incident 2026-07-21 — "the box only works while I'm SSH'd in"
+# Incident 2026-07-21 - "the box only works while I'm SSH'd in"
 
 **Status: RESOLVED** (fix proven across a cold boot on 2026-08-01).
 
@@ -9,7 +9,7 @@ crashing services / flaky Traefik; weeks of intermittent "the site is down".
 ## Root cause
 WSL2 destroys its utility VM **60 seconds after the last Windows-side client disconnects**
 (no `vmIdleTimeout` in devssh's `.wslconfig`). An SSH session was the only client holding
-it open — disconnect → 60s → VM gone, taking docker, ~25 containers and the in-WSL
+it open - disconnect → 60s → VM gone, taking docker, ~25 containers and the in-WSL
 Tailscale node. Confirmed by kernel boot lines repeating every ~80s, once per probe.
 
 Contributing: the Windows host's Tailscale lacked unattended mode (`ForceDaemon`), so the

@@ -2,7 +2,7 @@
 //
 // WHY LOKI AND NOT `docker logs`: the /-/api/docker surface is exact-Path() on
 // purpose (see edge/dynamic/portal-api.yml) because the socket-proxy gates by
-// endpoint FAMILY — any pattern loose enough to match /containers/{id}/logs also
+// endpoint FAMILY - any pattern loose enough to match /containers/{id}/logs also
 // matches /containers/{id}/json, which carries every container's Env. Loki takes
 // the container name as a query PARAMETER, so it needs no path pattern and the
 // boundary stays intact. It also keeps logs after a container has stopped, which
@@ -39,7 +39,7 @@ export const LOG_RANGES = [
 
 export type LogRangeKey = (typeof LOG_RANGES)[number]['key'];
 
-// Loki's own ceiling is high, but the browser has to render every line — and a
+// Loki's own ceiling is high, but the browser has to render every line - and a
 // service that logs per-request will happily return 100k of them.
 export const LOG_LIMIT = 2000;
 
@@ -88,7 +88,7 @@ export async function fetchLogs(
     }
   }
   // Loki returns one array per stream (stdout and stderr are separate streams),
-  // so they have to be merged back into one chronological view — otherwise an
+  // so they have to be merged back into one chronological view - otherwise an
   // error and the line that caused it appear in different places.
   lines.sort((a, b) => a.ts - b.ts);
 

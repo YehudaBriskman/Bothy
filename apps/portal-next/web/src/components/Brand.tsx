@@ -1,13 +1,13 @@
 // The Bothy mark.
 //
 // A bothy is a small hut in the Scottish hills left unlocked for whoever needs
-// shelter — which is what this box is: one machine quietly holding everything,
+// shelter - which is what this box is: one machine quietly holding everything,
 // open to anyone on the tailnet. The mark is that hut with the door open and the
 // light on, and the lit doorway is the only coloured part, so the logo says the
 // same thing the page does: something is running in there.
 //
 // The geometry is duplicated in exactly two other places, both generated from
-// the same numbers — public/favicon.svg and scripts/gen-icons.py. If you move a
+// the same numbers - public/favicon.svg and scripts/gen-icons.py. If you move a
 // coordinate here, move it there; there is no build step that would catch a
 // drift, because a favicon is never rendered by this app.
 
@@ -43,9 +43,9 @@ export function BothyMark({ size = 20 }: { size?: number }) {
  *
  * The subtitle is read from `location.hostname` at RUN TIME and is never
  * written down. Two reasons, and the second is the important one: it is
- * honest — it shows `dev.test` when you came in by name and the bare IP when
+ * honest - it shows `dev.test` when you came in by name and the bare IP when
  * you came in by IP, which is exactly the distinction that matters on this box
- * while the name layer is dormant — and this repo is public, so the tailnet
+ * while the name layer is dormant - and this repo is public, so the tailnet
  * address does not belong in it. (The old lockup hardcoded "dev.test / dev box",
  * which was wrong for every visitor arriving on the IP.)
  */

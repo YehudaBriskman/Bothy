@@ -2,7 +2,7 @@
 #
 # LIVE again as of 2026-08-12, after being dormant since 2026-08-08. What
 # changed: identity moved from GitHub to a local Keycloak (auth/compose.yml),
-# so the flow no longer depends on the retired *.dev.test name layer — the
+# so the flow no longer depends on the retired *.dev.test name layer - the
 # oauth2-proxy callback is now an IP:port URL and Keycloak issues tokens for
 # that same address.
 #
@@ -30,7 +30,7 @@
 # NOTE ON THE LINE ABOVE, learned the hard way on 2026-08-12: Traefik renders
 # every file in this directory as a GO TEMPLATE before it parses the YAML, and
 # it does not skip comments. The natural way to write that check is
-# `docker inspect -f` with a doubled-brace format string — and a doubled brace
+# `docker inspect -f` with a doubled-brace format string - and a doubled brace
 # anywhere in this file, comment or not, is evaluated as a template action.
 # It fails with `can't evaluate field State in type bool`, and the failure takes
 # out the WHOLE FILE: no routers, no middlewares, silently, while the file on

@@ -1,9 +1,9 @@
-// Dialog — Radix primitive, portal tokens.
+// Dialog - Radix primitive, portal tokens.
 //
 // This is the shadcn arrangement: Radix owns the behaviour (focus trap, focus
 // return, Escape, scroll lock, `aria-modal` + labelling, inert background,
 // portalling out of any `overflow: hidden` ancestor), and the styling is ours.
-// Only the styling layer differs from upstream shadcn — they write Tailwind
+// Only the styling layer differs from upstream shadcn - they write Tailwind
 // classes, we write one CSS file against the same tokens, because this app has
 // no Tailwind and adding it to get a dialog would be a tail-wags-dog migration.
 //
@@ -23,7 +23,7 @@ export interface DialogProps {
   title: ReactNode;
   /** Rendered under the title. Also the dialog's accessible description. */
   description?: ReactNode;
-  /** Right-aligned in the header — a status chip, a count, an open-in-new link. */
+  /** Right-aligned in the header - a status chip, a count, an open-in-new link. */
   headerAside?: ReactNode;
   footer?: ReactNode;
   /** Wider variant for tables and log output. */

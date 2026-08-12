@@ -1,8 +1,8 @@
 /* ============================================================================
-   Dev Box portal — design system. Dark-first "observability / control-room".
+   Dev Box portal - design system. Dark-first "observability / control-room".
 
    Token model: shadcn's CSS-variable convention (a naming contract, no
-   toolchain — deliberately NOT HeroUI's, whose theming is a Tailwind plugin and
+   toolchain - deliberately NOT HeroUI's, whose theming is a Tailwind plugin and
    whose HSL channel-splitting exists only to serve Tailwind's alpha modifier).
    Borrowed from HeroUI anyway: the 4-step elevation ladder, per-status tint
    tokens, layout tokens, and theme-specific shadow recipes.
@@ -29,8 +29,8 @@
      blue than red) and every one of them was semi-transparent over a blue-glow
      background, so a "grey" panel was never actually grey and the accent had to
      fight its own backdrop to read as a different colour at all. These are flat
-     and opaque — the backdrop-filter blurs are gone with them. */
-  --bg: #09090b;                         /* zinc-950 — the page */
+     and opaque - the backdrop-filter blurs are gone with them. */
+  --bg: #09090b;                         /* zinc-950 - the page */
   --bg-2: #0b0b0d;                       /* insets darker than a card */
   --surface-1: #101013;                  /* cards, panels */
   --surface-2: #17171a;                  /* headers, insets */
@@ -39,7 +39,7 @@
 
   /* ── foreground pairs ─────────────────────────────────────────────────── */
   --fg:        #fafafa;   /* 18.35 on surface-1 · 16.45 on surface-2 */
-  --fg-muted:  #a1a1aa;   /*  7.61 ·  6.82 — zinc-400 */
+  --fg-muted:  #a1a1aa;   /*  7.61 ·  6.82 - zinc-400 */
   /* zinc-500 (#71717a) measures 3.85 here, below AA at the 11–12px sizes this
      is used at (hostnames, volume counts, reasons), so it is lifted. */
   --fg-subtle: #8f8f99;   /*  5.62 ·  5.04 */
@@ -48,12 +48,12 @@
   --line:        rgb(255 255 255 / 10%);
   --line-strong: rgb(255 255 255 / 17%);
 
-  /* ── accent (chrome only — never encodes state) ──────────────────────────
+  /* ── accent (chrome only - never encodes state) ──────────────────────────
      On a neutral ground the accent no longer has to shout to be distinguishable
      from the background, so it drops from the old #4d9bff to blue-400. */
   --accent:      #60a5fa;
   --accent-2:    #3b82f6;
-  --accent-fg:   #93c5fd;   /* 9.94 on surface-1 — accent used as TEXT */
+  --accent-fg:   #93c5fd;   /* 9.94 on surface-1 - accent used as TEXT */
   --accent-bg:   color-mix(in oklab, var(--accent) 14%, transparent);
   --accent-line: color-mix(in oklab, var(--accent) 32%, transparent);
   --ring:        var(--accent);
@@ -69,7 +69,7 @@
      blue→teal→amber→purple→rose ramp FAILS on dark because every hue sits above
      the dark band's L≤0.67 ceiling and glares, and reordering to separate teal
      from amber puts amber next to rose, which collapses to ΔE 9 for normal
-     vision. Slot ORDER is part of what was validated — assign series to slots
+     vision. Slot ORDER is part of what was validated - assign series to slots
      1,2,3… in order and never reorder or cycle them.
 
      One caveat that the marks have to honour: chart-2↔chart-3 (teal↔amber) sit
@@ -83,13 +83,13 @@
      A status palette is a set of VOLUMES, not a set of labels. The page has a
      finite amount of attention to spend, so anything that shouts spends budget
      another signal then cannot have. Loudness is reserved for --st-down; the
-     quiet states must be genuinely quiet — --st-unknown especially, since it is
+     quiet states must be genuinely quiet - --st-unknown especially, since it is
      a statement about the PORTAL's knowledge, not about a service's health.
      Contract per status: {base} fill · {-fg} text · {-bg} tint · {-line} border.
 
      Dark-mode honesty: luminance contrast here runs warn 10.95 > up 9.51 >
      down 6.79 > unknown 3.84 > stopped 2.43, so on dark `up` is BRIGHTER than
-     `down` and the weight ladder cannot be fixed the way §light fixes it — a
+     `down` and the weight ladder cannot be fixed the way §light fixes it - a
      saturated red is intrinsically darker than a saturated green. On dark,
      urgency is therefore carried by hue, the icon and the exception-first sort.
      Do not "fix" this by brightening the red into the amber's territory; that
@@ -98,7 +98,7 @@
   --st-warn:    #fbbf24;  --st-warn-fg:    #fbbf24;
   --st-down:    #fb7185;  --st-down-fg:    #fb7185;
   --st-unknown: #64748b;  --st-unknown-fg: #94a3b8;
-  /* Switched off on purpose — the quietest token in the palette, because
+  /* Switched off on purpose - the quietest token in the palette, because
      "stopped" is the one status that must recede rather than ask for
      attention. Never used for anything broken. */
   --st-off:     #4a5568;  --st-off-fg:     #7b8598;
@@ -146,7 +146,7 @@
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
 }
 
-/* Derived tints. TWO percentages, not thirteen — every chip, bar and tag comes
+/* Derived tints. TWO percentages, not thirteen - every chip, bar and tag comes
    from here, so a status can be re-toned in one place. Replaces the 53 ad-hoc
    color-mix() calls that had drifted to five different fill strengths.
    `in oklab` because srgb interpolation of a saturated hue toward transparent
@@ -165,7 +165,7 @@
   --track:           color-mix(in oklab, var(--fg) 8%, transparent);
 }
 
-/* Light palette. ONE copy — lib/theme.tsx resolves 'system' against
+/* Light palette. ONE copy - lib/theme.tsx resolves 'system' against
    matchMedia and always stamps a concrete data-theme, so the duplicate
    @media (prefers-color-scheme: light) block this file used to carry is gone.
    It had already drifted: --ok-ink existed in both copies, --unk in neither.
@@ -174,18 +174,18 @@
   color-scheme: light;
 
   /* Neutral zinc, to match the repainted dark scheme. The old light palette was
-     also blue-tinted (#f4f6fb) — harmless alone, but it meant the two themes
+     also blue-tinted (#f4f6fb) - harmless alone, but it meant the two themes
      disagreed about what "no colour" is, so a token that read as grey in one
      read as blue in the other. */
   --bg:        #ffffff;
-  --bg-2:      #f4f4f5;   /* zinc-100 — insets */
+  --bg-2:      #f4f4f5;   /* zinc-100 - insets */
   --surface-1: #ffffff;   /* cards */
   --surface-2: #fafafa;   /* headers, insets */
   --surface-3: #f4f4f5;   /* hover, active row */
   --surface-4: #ffffff;   /* popovers, dialogs */
 
   --fg:        #09090b;   /* 19.94 on surface-1 */
-  --fg-muted:  #52525b;   /*  7.70 — zinc-600 */
+  --fg-muted:  #52525b;   /*  7.70 - zinc-600 */
   --fg-subtle: #6b6b76;   /*  5.44 */
   --on-accent: #ffffff;
 
@@ -194,10 +194,10 @@
 
   --accent:    #2563eb;
   --accent-2:  #1d4ed8;
-  --accent-fg: #1d4ed8;   /* 7.06 — #2563eb as text was 5.17, kept darker */
+  --accent-fg: #1d4ed8;   /* 7.06 - #2563eb as text was 5.17, kept darker */
 
-  /* The same five entities in the same slot order — a series must not change
-     hue with the theme — re-stepped for a white ground and re-validated there
+  /* The same five entities in the same slot order - a series must not change
+     hue with the theme - re-stepped for a white ground and re-validated there
      (the light band is L 0.43–0.77, a different band from dark's 0.48–0.67, so
      this is a genuine second selection rather than a tint of the first). */
   --chart-1: #4f5fd9; --chart-2: #0d9488; --chart-3: #d97706;
@@ -210,8 +210,8 @@
 
   /* Every status is remapped here. --unk was the ONLY status token that never
      was: it lived in :root and in neither light block, which made `unknown`
-     the visually HEAVIEST colour on the light page (L 0.179) — nearly twice as
-     heavy as `down` — while `up` sat at 1.89:1, nearly invisible. On this box
+     the visually HEAVIEST colour on the light page (L 0.179) - nearly twice as
+     heavy as `down` - while `up` sat at 1.89:1, nearly invisible. On this box
      7 of 27 services are `unknown` (the @file host routes, which are honestly
      unknown, not broken), so light mode shouted loudest about the least urgent
      thing on the page.
@@ -223,7 +223,7 @@
      which sat at near-identical weight to `up`.
 
      Fill ratios: down (4.62) and warn (3.13) clear the 3:1 non-text threshold;
-     up (2.50), unknown (1.94) and stopped (1.46) do NOT, by design — they are
+     up (2.50), unknown (1.94) and stopped (1.46) do NOT, by design - they are
      large solid areas beside a track, not controls whose boundary must be
      discernible. Safe only because status is never encoded by colour alone.
      Re-verify if any of these is ever used for a small glyph or a 1px border.
@@ -257,7 +257,7 @@ a { color: inherit; text-decoration: none; }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-/* visible only when focused — first tab stop on every page */
+/* visible only when focused - first tab stop on every page */
 .skip-link {
   position: absolute; left: 8px; top: -60px; z-index: 100;
   background: var(--surface-2); color: var(--fg); border: 1px solid var(--line-strong);
@@ -318,7 +318,7 @@ h1 { font-size: clamp(38px, 6vw, 68px); line-height: 1.02; letter-spacing: -0.03
 
 /* ── tabs / toolbar ──────────────────────────────────────────────────────── */
 main.wrap { padding-top: 12px; padding-bottom: 60px; }
-/* This block sat unused for the app's whole life — nothing rendered
+/* This block sat unused for the app's whole life - nothing rendered
    role="tab" until components/Tabs.tsx. Underline rather than filled pill, for
    the same reason as the nav: a tab states where you are, it is not a button
    asking to be pressed. */
@@ -411,7 +411,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .tbar .cnt { margin-left: auto; }
 /* max-height is what makes `position: sticky` on <th> work at all. overflow-x
    forces overflow-y to compute to `auto`, so .tbl-wrap becomes the sticky
-   containing block — but with no height cap it never scrolls vertically, the
+   containing block - but with no height cap it never scrolls vertically, the
    PAGE does, and the header simply scrolled away and never came back. */
 .tbl-wrap { overflow: auto; max-height: min(72vh, 720px);
   border: 1px solid var(--line); border-radius: var(--r-lg);
@@ -438,7 +438,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .tag.bad { color: var(--st-down); border-color: color-mix(in oklab, var(--st-down) 30%, transparent); }
 
 /* ── states / skeleton ───────────────────────────────────────────────────── */
-/* 56px of padding made "no results" as prominent as the content it replaced —
+/* 56px of padding made "no results" as prominent as the content it replaced -
    an empty state is a note, not an announcement. `.state.err` keeps the larger
    padding: the APIs being unreachable IS an announcement. */
 .state { text-align: center; padding: 22px 20px; background: var(--surface-1);
@@ -450,7 +450,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .btn.ghost { appearance: none; cursor: pointer; font: inherit; font-weight: 600; color: var(--fg);
   background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 16px; }
 .skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-/* Stacked variant — for a page whose incoming shape is rows, not a card grid. */
+/* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
 .skel-col { display: flex; flex-direction: column; gap: 14px; }
 .skel { height: 132px; border-radius: var(--r-lg); border: 1px solid var(--line);
   background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
@@ -475,7 +475,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 }
 
 /* ============================================================================
-   V2 — multi-page control-room shell. Everything below is additive; it uses the
+   V2 - multi-page control-room shell. Everything below is additive; it uses the
    same tokens/status palette/accents so light + dark both work automatically.
    ========================================================================== */
 
@@ -483,7 +483,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .spin { animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* status glyph (lucide) — coloured by the reserved palette, never colour-alone */
+/* status glyph (lucide) - coloured by the reserved palette, never colour-alone */
 .si { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
 .si svg { display: block; }
 .si-label { font-size: 12px; color: var(--fg-muted); font-weight: 600; }
@@ -512,7 +512,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    hamburger and the visibility/tab-order workaround they required.
 
    Why: it carried 5 nav items and two `code` hints, and measured ~793px of
-   empty column below them — ~13% of the viewport width spent on nothing, on
+   empty column below them - ~13% of the viewport width spent on nothing, on
    every page, at every width. Five destinations is a topbar's job. Deleting it
    also deletes the whole responsive branch: one layout now, no drawer state,
    no focus trap to get wrong.
@@ -528,8 +528,8 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 
 /* ── brand ───────────────────────────────────────────────────────────────────
    "dev.test / dev box" is gone. It named the box after a DNS name that has been
-   dormant since 2026-08-08, so for anyone arriving on the tailnet IP — which is
-   everyone, currently — the topbar stated an address that does not resolve.
+   dormant since 2026-08-08, so for anyone arriving on the tailnet IP - which is
+   everyone, currently - the topbar stated an address that does not resolve.
    The wordmark is now the box's own name and the line under it is read from
    location.hostname at run time, so it is always the address you actually used.
    See components/Brand.tsx. */
@@ -538,7 +538,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); flex: none;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 .brand:hover .brand-mark { border-color: var(--line-strong); background: var(--surface-3); }
-/* The lit doorway — the only coloured part of the mark, and the reason it is
+/* The lit doorway - the only coloured part of the mark, and the reason it is
    not just another house glyph. */
 .brand-door { fill: var(--accent); }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
@@ -556,7 +556,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
      · ≤1080px         icons only; the label expands on hover/focus (below).
      · overflowing     the row scrolls horizontally with fades at the live edge,
                        rather than squeezing items until they are unreadable.
-   The x-scroll is not a breakpoint — it is driven by whether the row actually
+   The x-scroll is not a breakpoint - it is driven by whether the row actually
    overflows (data-shade-l/r, set by lib/scroll.ts), so a box with three systems
    and a box with thirty both get the right treatment at the same width. */
 .nav {
@@ -586,7 +586,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   border-radius: 2px 2px 0 0; background: var(--accent); }
 
 /* The label. `display: none` cannot be animated, so the collapsed state is a
-   zero max-width with hidden overflow — which can. */
+   zero max-width with hidden overflow - which can. */
 .nav-label {
   display: inline-block; white-space: nowrap;
   transition: max-width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease),
@@ -597,12 +597,12 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 /* No max-width. The old `max-width: 30%` was sized against .topbar as a flex
    child; the pill now sits inside a Tooltip wrapper, so a percentage resolves
    against a shrink-to-fit span and collapsed it to a 30px blob. It also is not
-   needed any more — the pill shows the one-word fresh.short ("live"), and the
+   needed any more - the pill shows the one-word fresh.short ("live"), and the
    full sentence moved into the tooltip. */
 .topbar-pill { flex: none; white-space: nowrap; }
 .pill-short { text-transform: capitalize; }
 
-/* The search TRIGGER — a button, not an input. It looks like a field because
+/* The search TRIGGER - a button, not an input. It looks like a field because
    that is what it opens; making it a real input meant every keystroke pushed a
    route and the browser history filled with one entry per character. */
 .topbar-search { flex: none; width: 232px; display: flex; align-items: center; gap: 8px;
@@ -617,7 +617,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .content { flex: 1; padding: 26px 30px 70px; width: 100%; max-width: 1320px; margin: 0 auto; }
 
 /* Icons only, labels on demand. The label collapses to zero width and reopens
-   on hover OR keyboard focus — focus matters as much as hover here, because
+   on hover OR keyboard focus - focus matters as much as hover here, because
    without it a keyboard user tabbing the nav gets four unlabelled squares.
    `title` on the link is the third fallback, for touch, where neither fires. */
 @media (max-width: 1080px) {
@@ -688,7 +688,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .svc-group-head-row { display: flex; align-items: flex-start; gap: 8px; }
 .svc-group-head { flex: 1; min-width: 0; appearance: none; cursor: pointer; background: transparent; border: 0;
   display: flex; align-items: center; gap: 12px; padding: 0 0 14px; color: var(--fg); text-align: left; }
-/* the head itself is a collapse toggle, so the system link lives beside it —
+/* the head itself is a collapse toggle, so the system link lives beside it -
    before this there was NO path from Services to a system page at all */
 .svc-group-open { flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 8px; color: var(--fg-subtle);
@@ -815,7 +815,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .leg { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-muted); text-transform: capitalize; }
 .leg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 /* Legend swatch for a DASHED line, so "waits for" is distinguishable from the
-   status dots beside it by shape as well as colour — the statuses already carry
+   status dots beside it by shape as well as colour - the statuses already carry
    the only meaningful colour on that legend, and a fifth coloured dot would read
    as a fifth status. */
 .leg-dash {
@@ -860,7 +860,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .detail-card h3 { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: var(--fg); }
 /* A hard 96px label column wrapped "Also reachable at" onto three lines while
    leaving a gap beside "Host". minmax lets the column take what the longest
-   label needs and no more — and because every .kv in a .kv-list is a separate
+   label needs and no more - and because every .kv in a .kv-list is a separate
    grid, `subgrid` is what keeps them aligned with each other rather than each
    sizing independently. */
 .kv-list { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 9px 12px; }
@@ -868,7 +868,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .kv-k { color: var(--fg-subtle); }
 .kv-v { min-width: 0; overflow-wrap: anywhere; }
 
-/* Section heading INSIDE a panel — for the merged Reachability panel, where
+/* Section heading INSIDE a panel - for the merged Reachability panel, where
    Route and Published ports are sections rather than panels of their own. */
 .kv-sub { grid-column: 1 / -1; margin: 16px 0 2px; font-size: 11px; font-weight: 700;
   letter-spacing: .05em; text-transform: uppercase; color: var(--fg-subtle);
@@ -930,14 +930,14 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px; }
 .panel-h .sub { color: var(--fg-subtle); font-weight: 500; font-size: 12px; margin-left: auto; }
 .panel-b { padding: 16px; min-height: 0; }
-/* The per-element ::-webkit-scrollbar rules that used to live here are gone —
+/* The per-element ::-webkit-scrollbar rules that used to live here are gone -
    the scrollbar is styled once, globally, in the SCROLLING block near the end of
    this file, and two definitions of the same thing is how they drift. */
 .panel-b.scroll { overflow-y: auto; max-height: 320px; }
 
 /* The `.reveal` / `.reveal.in` pair is GONE, along with components/Reveal.tsx.
    It defaulted content to opacity:0 and depended on an IntersectionObserver to
-   turn it back on — so any element the observer missed stayed invisible
+   turn it back on - so any element the observer missed stayed invisible
    forever. That shipped a near-blank portal twice (see portal.md, "Traps paid
    for in blood"): most recently the entire Overview dashboard vanished on any
    warm return to the page, because it renders below the fold and nothing
@@ -977,7 +977,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
 
 /* ── tooltip ─────────────────────────────────────────────────────────────────
-   The inverted-surface pair (foreground colour as background) — the one shadcn
+   The inverted-surface pair (foreground colour as background) - the one shadcn
    idea that carries the most weight per line, because it makes a tooltip read
    as an overlay rather than as another card. Shows on hover AND focus: the
    `title=` attributes this replaces were invisible to keyboard users. */
@@ -992,7 +992,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .tip[data-align='end']::before { left: auto; right: 12px; translate: none; }
 
 /* ── command palette ─────────────────────────────────────────────────────────
-   Hand-written against the tokens — cmdk is ~14 KB for a 27-item list. The
+   Hand-written against the tokens - cmdk is ~14 KB for a 27-item list. The
    input keeps focus throughout and the list is driven by aria-activedescendant,
    which is what lets Up/Down move the selection without ever moving focus. */
 .cmdk-scrim { position: fixed; inset: 0; z-index: 80; background: color-mix(in oklab, var(--bg) 62%, transparent);
@@ -1030,14 +1030,14 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .tbl tbody tr:hover { background: var(--surface-2); }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SCROLLING — the affordances, in one place.
+   SCROLLING - the affordances, in one place.
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── 1. the scrollbars themselves ──────────────────────────────────────────
    The default bar is a light-grey slab that belongs to the OS, not to a
    near-black control room, and at 15px wide it was the widest chrome on the
    page. These are thin, neutral at rest, and pick up the accent under the
-   pointer — which also makes them visible in the only moment they matter.
+   pointer - which also makes them visible in the only moment they matter.
 
    Firefox gets `scrollbar-width`/`scrollbar-color` (no pseudo-elements); every
    Chromium/WebKit browser gets the ::-webkit rules. Both are declared: they are
@@ -1060,13 +1060,13 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    way"), not a decoration that is always on.
 
    These MUST be inset shadows. An absolutely-positioned ::before inside a
-   scroll container scrolls away with the content — it would slide out of view
+   scroll container scrolls away with the content - it would slide out of view
    exactly when it became true. An inset shadow paints on the border box, which
    does not move.
 
    Composed through custom properties so top and bottom (or left and right) can
    be on at once without a combinatorial explosion of selectors. The neutral
-   value must be a fully transparent shadow, not `none` and not `0 0` — `0 0`
+   value must be a fully transparent shadow, not `none` and not `0 0` - `0 0`
    resolves its colour to currentColor and paints a hard ring. */
 .scroll-shade {
   --shade-t: 0 0 0 0 transparent; --shade-b: 0 0 0 0 transparent;
@@ -1113,7 +1113,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    So: give every status mark a BORDER in forced-colours mode. Borders are
    drawn with the system's own colours and survive, which restores the
    filled-vs-hollow distinction the palette was carrying. `forced-color-adjust:
-   none` is deliberately NOT used — overriding the user's palette is the thing
+   none` is deliberately NOT used - overriding the user's palette is the thing
    this mode exists to prevent. */
 @media (forced-colors: active) {
   .dot, .sm-cell, .tc-swatch, .vz-bar-seg {
@@ -1128,11 +1128,11 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   .ov-panel, .vit-panel, .dlg, .card, .svc-card, .sm-chip, .tbl-wrap {
     border: 1px solid CanvasText;
   }
-  /* Decorative only — it is noise once the palette is the user's. */
+  /* Decorative only - it is noise once the palette is the user's. */
   .bg, .scroll-rail { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   /* Nothing here may HIDE content. Killing transitions must never be able to
-     leave an element at opacity:0 — that was the old .reveal failure mode. */
+     leave an element at opacity:0 - that was the old .reveal failure mode. */
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

@@ -11,7 +11,7 @@ information is a cost paid on every row.
 is the one that surprises people: `position: sticky` on a `th` only works if the
 wrapper is itself the scroll container. With no height cap the wrapper never
 scrolls, the *page* scrolls, and the header simply scrolls away and never comes
-back — looking exactly like sticky is unsupported.
+back - looking exactly like sticky is unsupported.
 
 **Sortable headers are controls.** Keyboard-activatable, `aria-sort`, and a
 visible direction indicator.
@@ -36,7 +36,7 @@ See [CHECKLIST.md § 15](../CHECKLIST.md#15-data-display-and-tables).
 
 ## What Bothy decided, and why
 
-- **32px rows** — 6px padding plus a 20px line box. The previous 47px rows meant
+- **32px rows** - 6px padding plus a 20px line box. The previous 47px rows meant
   the routes table needed two viewports to show 21 routes, and the extra 15px per
   row carried nothing.
 - **The scroll wrapper has a max-height**, which is what makes the sticky header

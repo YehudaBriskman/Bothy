@@ -8,7 +8,7 @@ downstream of this file.
 ## The rule
 
 **Pick a name nobody else in your space has taken, and check.** Not "it sounds
-unused" — actually search for it as a software project, on the package
+unused" - actually search for it as a software project, on the package
 registries you would publish to, and as a product. Record where you looked and
 when, because "it was free in 2026" is the useful form of that claim.
 
@@ -19,7 +19,7 @@ up describing itself three slightly different ways, and it is invisible until
 someone sees two of them side by side.
 
 **Decide the voice as three adjectives and three anti-adjectives.** The
-anti-adjectives do more work than the adjectives — "not chatty" is actionable
+anti-adjectives do more work than the adjectives - "not chatty" is actionable
 in a way that "clear" is not.
 
 **Own your vocabulary.** One word per concept, and a written boundary between
@@ -53,10 +53,10 @@ clean on 2026-08-10; Bothy won on length.
 dormant since 2026-08-08, when access moved to pure IP:port. So for every
 current visitor the brand line stated an address that did not resolve. The
 wordmark is now the product's own name, and the line under it is read from
-`location.hostname` at run time — the bare address, whatever the visitor
+`location.hostname` at run time - the bare address, whatever the visitor
 actually typed. It is also never written into the repository, which is public.
 
-> **Update 2026-08-12.** The name layer was not merely dormant — its
+> **Update 2026-08-12.** The name layer was not merely dormant - its
 > configuration was **deleted** on 2026-08-12, and Traefik now holds zero
 > `Host()` rules. The rename was written on 2026-08-10 while the name was still
 > theoretically revivable, which is why the sentence above originally read "it
@@ -78,17 +78,17 @@ and the boundaries are load-bearing:
 
 | Word | Means | Does not mean |
 |---|---|---|
-| `up` | Running, and confirmed so | — |
-| `down` | Meant to be up and is not — a non-zero exit, a restart loop, an unhealthy check | Switched off |
-| `stopped` | Switched off on purpose — a clean exit, created, paused | Broken |
+| `up` | Running, and confirmed so | - |
+| `down` | Meant to be up and is not - a non-zero exit, a restart loop, an unhealthy check | Switched off |
+| `stopped` | Switched off on purpose - a clean exit, created, paused | Broken |
 | `unknown` | **We have not checked.** A statement about the portal's knowledge | Broken |
-| `starting` | Confirmed to be coming up | — |
+| `starting` | Confirmed to be coming up | - |
 
 **Never say:** "down" for a service somebody deliberately stopped. That single
 misuse put five containers and six routes into a "needs attention" list, none of
 which was a problem, and it is the reason the boundary above is written down.
 
-**The distinction between "the box" and "Bothy".** Bothy is the portal — the
+**The distinction between "the box" and "Bothy".** Bothy is the portal - the
 interface. The dev box is the machine. The knowledge base and the repository
 README correctly say "dev box" throughout and were deliberately not renamed.
 

@@ -1,7 +1,7 @@
 # Token reference
 
 _Status as of 2026-08-10. Transcribed from `apps/portal-next/web/src/index.css`,
-which is the source of truth — where this table and that file disagree, the file
+which is the source of truth - where this table and that file disagree, the file
 is right and this page is stale._
 
 Contrast ratios are measured against the composited surface named in each row.
@@ -30,7 +30,7 @@ Surfaces are opaque. See
 | `--fg` | `#fafafa` | 18.35 / 16.45 | `#09090b` | 19.94 | Primary text |
 | `--fg-muted` | `#a1a1aa` | 7.61 / 6.82 | `#52525b` | 7.70 | Secondary text |
 | `--fg-subtle` | `#8f8f99` | 5.62 / 5.04 | `#6b6b76` | 5.44 | Small text: hostnames, counts |
-| `--on-accent` | `#09090b` | — | `#ffffff` | — | Text on a filled accent |
+| `--on-accent` | `#09090b` | - | `#ffffff` | - | Text on a filled accent |
 
 `--fg-subtle` is deliberately lighter than the obvious choice: the next step
 down measures 3.85 on the card surface, below AA at the 11px sizes it is used
@@ -43,7 +43,7 @@ at.
 | `--line` | `rgb(255 255 255 / 10%)` | `rgb(9 9 11 / 10%)` |
 | `--line-strong` | `rgb(255 255 255 / 17%)` | `rgb(9 9 11 / 17%)` |
 
-## Accent — chrome only, never state
+## Accent - chrome only, never state
 
 | Token | Dark | Light | Role |
 |---|---|---|---|
@@ -54,7 +54,7 @@ at.
 | `--accent-line` | 32% mix | 32% mix | Border |
 | `--ring` | `--accent` | `--accent` | Focus ring |
 
-## Status — reserved, never chrome
+## Status - reserved, never chrome
 
 | Token | Dark | Light | Means |
 |---|---|---|---|
@@ -69,7 +69,7 @@ warn uses amber-600 rather than amber-500 because amber-500 is lighter than the
 green and inverts the warn-versus-up weight; light-mode unknown is a custom grey
 because slate-400 sat at nearly the same weight as up.
 
-## Chart series — validated, order is load-bearing
+## Chart series - validated, order is load-bearing
 
 | Token | Dark | Light |
 |---|---|---|
@@ -80,11 +80,11 @@ because slate-400 sat at nearly the same weight as up.
 | `--chart-5` | `#f43f5e` | `#e11d48` |
 
 Both sets pass the five categorical checks for their mode. Slots 2 and 3 sit at
-ΔE 6.3 under tritanopia — inside the floor band — so every multi-series chart
+ΔE 6.3 under tritanopia - inside the floor band - so every multi-series chart
 ships a legend and direct labels. See
 [foundations/colour.md](../foundations/colour.md).
 
-## Chrome accents — decoration, never state
+## Chrome accents - decoration, never state
 
 `--a1` through `--a6`: `#8b5cf6`, `#22d3ee`, `#f472b6`, `#34d399`, `#60a5fa`,
 `#f59e0b`. Assigned to panels by a stable hash of the panel key, never by index.

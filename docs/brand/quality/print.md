@@ -6,7 +6,7 @@ _Status as of 2026-08-10._
 
 **Decide whether print is in scope, and write the answer down.** "Out of scope"
 is valid and common. What is not valid is having no answer, because the default
-behaviour is to print the screen — including fixed chrome overlapping content,
+behaviour is to print the screen - including fixed chrome overlapping content,
 a dark background that empties a toner cartridge, and every inner scroller
 clipped to its first visible rows.
 
@@ -14,7 +14,7 @@ If it is in scope:
 
 - Remove fixed chrome, navigation, scroll rails and scrollbars.
 - Force the light palette on white.
-- Expand truncated text and inner scrollers to their full content — this is the
+- Expand truncated text and inner scrollers to their full content - this is the
   one people forget, and it means a printed table silently loses most of its
   rows.
 - Avoid page breaks inside cards and rows; repeat table headers across pages.
@@ -43,5 +43,5 @@ None recorded.
 
 ## How this is verified
 
-Not verified — out of scope. If it comes into scope, print to PDF and look at
+Not verified - out of scope. If it comes into scope, print to PDF and look at
 it, which is the only check that works here.

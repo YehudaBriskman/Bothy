@@ -1,4 +1,4 @@
-/* Per-service log view. Monospace, fixed height with INNER scroll — the owner's
+/* Per-service log view. Monospace, fixed height with INNER scroll - the owner's
    rule for list-like sections: they scroll inside a panel, they never grow the
    page. A log is the most unbounded list on the box, so this matters most here. */
 
@@ -53,14 +53,14 @@
 .logp-line { display: flex; gap: 10px; align-items: baseline; }
 .logp-line time {
   color: var(--fg-subtle); flex: none; font-variant-numeric: tabular-nums;
-  /* the timestamp is scaffolding — it must never out-read the message */
+  /* the timestamp is scaffolding - it must never out-read the message */
   opacity: 0.75;
 }
 .logp-text {
   min-width: 0; white-space: pre-wrap; word-break: break-word; color: var(--fg-muted);
 }
 /* stderr, not "error": docker calls a stream stderr regardless of severity, so
-   this is a tint, not an alarm — plenty of well-behaved services log to it. */
+   this is a tint, not an alarm - plenty of well-behaved services log to it. */
 .logp-line.is-err .logp-text { color: var(--fg); }
 .logp-line.is-err time { color: var(--st-warn-fg); opacity: 1; }
 

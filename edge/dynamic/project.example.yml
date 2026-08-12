@@ -1,4 +1,4 @@
-# EXAMPLE — how a project exposes a host process on this box.
+# EXAMPLE - how a project exposes a host process on this box.
 #
 # Rewritten 2026-08-12. Everything below is COMMENTED OUT on purpose; see "why
 # this file declares nothing" at the bottom. Copy the shape, not the file.
@@ -17,7 +17,7 @@
 # container either. A dev server that defaults to localhost needs telling:
 # `vite --host 0.0.0.0`, `tilt up --host=0.0.0.0`, `uvicorn --host 0.0.0.0`.
 #
-# Pick a port nothing else holds — `just urls` prints what is already taken, and
+# Pick a port nothing else holds - `just urls` prints what is already taken, and
 # `ss -ltnp | grep :<port>` settles it. A collision is the single most common
 # reason a new project "does not come up".
 #
@@ -27,7 +27,7 @@
 # The only shape that still works is a HOST-LESS exact `Path()` rule, which is
 # what the portal's own data plane uses (see portal-api.yml). Be aware of what
 # that means: with no Host to scope it, the route answers on EVERY address this
-# box has, at once, and it is a shared global path namespace — so a generic path
+# box has, at once, and it is a shared global path namespace - so a generic path
 # like `/api` will collide with the next project that wants `/api`.
 #
 # Prefix it with something that is unmistakably yours, and match exactly:
@@ -54,7 +54,7 @@
 #
 # ── WHY THIS FILE DECLARES NOTHING ───────────────────────────────────────────
 # Traefik's file provider MERGES every *.yml in this directory. An example with
-# live YAML is not an example — it is configuration.
+# live YAML is not an example - it is configuration.
 #
 # Two things this file did while it was live, both real:
 #

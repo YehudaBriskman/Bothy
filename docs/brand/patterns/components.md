@@ -6,7 +6,7 @@ _Status as of 2026-08-10._
 
 **Keep an inventory, and treat it as the definition of what exists.** Name,
 file, tokens consumed, states supported, accessibility contract, and where it is
-used. A component that is not in the inventory does not exist — which in
+used. A component that is not in the inventory does not exist - which in
 practice means someone is about to build a second one.
 
 **One file owns the shared utility layer.** Page and component CSS is
@@ -60,12 +60,12 @@ styles are co-located files that build on it and never edit it.
 
 **The command palette is hand-written.** A dependency was rejected at roughly
 14KB for a 27-item list. The palette needs an input that keeps focus, a list
-driven by `aria-activedescendant`, and arrow-key navigation — about 180 lines.
+driven by `aria-activedescendant`, and arrow-key navigation - about 180 lines.
 
 **The dialog is not hand-written.** This is the opposite call, and the reason is
-instructive: the parts a dialog needs — a focus trap, focus return, Escape,
+instructive: the parts a dialog needs - a focus trap, focus return, Escape,
 scroll lock, inert background, portalling out of an `overflow: hidden`
-ancestor — are exactly the parts that are always subtly wrong when hand-rolled.
+ancestor - are exactly the parts that are always subtly wrong when hand-rolled.
 Shift-Tab off the first element, focus escaping to the browser chrome and back
 into the inert page, focus returning to an element that a re-render has replaced.
 Radix owns the behaviour; the styling is ours, against the same tokens.
@@ -79,7 +79,7 @@ appearance, take a dependency for focus management and accessibility semantics.*
   was considered and rejected: the product already had a large hand-written token
   system in the same CSS-variable convention, and adopting the toolchain would
   have meant two styling systems coexisting through a long migration for no
-  behaviour gain. The parts genuinely worth taking — the accessible primitives —
+  behaviour gain. The parts genuinely worth taking - the accessible primitives -
   were taken individually.
 - **`ServiceCard` and `SystemCard`.** Deleted. One card per system meant fourteen
   cards, eight of which said "1 / 1 running". See the footprint rule in

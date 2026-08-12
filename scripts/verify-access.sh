@@ -7,7 +7,7 @@
 # the portal and its data plane up, no Host() rules, no config leak, the
 # socket-proxy boundary intact, no dynamic file silently voided.
 #
-# Every check below can FAIL — that is the point. A check that passes whether or
+# Every check below can FAIL - that is the point. A check that passes whether or
 # not the change worked is not a check (docs/brand/quality/qa-and-verification.md).
 # Where a probe's ability to fail is not obvious, it is demonstrated: check 6
 # proves it can tell an allowed endpoint from a blocked one, and check 5b has a
@@ -22,10 +22,10 @@ bad()  { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 code() { curl -s -o /dev/null -m 4 -w '%{http_code}' "$@" 2>/dev/null || echo 000; }
 
 echo "== 1. Services must still be reachable at IP:port (unchanged from baseline) =="
-# name:port:expected — expected taken from the pre-change baseline, not invented.
+# name:port:expected - expected taken from the pre-change baseline, not invented.
 # kafka-ui:8081 was removed from this list on 2026-08-12 when kafka was retired
 # as idle (0 topics). Leaving it here would fail forever and turn a green harness
-# into a red one nobody reads — the same failure this repo just fixed in doctor.sh.
+# into a red one nobody reads - the same failure this repo just fixed in doctor.sh.
 for e in grafana:3000:302 prometheus:9090:401 dozzle:8080:307 \
          cadvisor:8082:307 docs:8085:200 portainer:9000:200 loki:3100:404 node-exporter:9100:200; do
   n=${e%%:*}; rest=${e#*:}; p=${rest%%:*}; want=${rest##*:}
@@ -76,13 +76,13 @@ echo "== 5b. No dynamic file may have failed to parse =="
 # Check 5 above CANNOT catch this, and that is the whole reason 5b exists.
 #
 # Files in edge/dynamic/ are rendered as Go templates, so a doubled brace `{{`
-# anywhere — INCLUDING INSIDE A COMMENT — voids the entire file. Traefik then
+# anywhere - INCLUDING INSIDE A COMMENT - voids the entire file. Traefik then
 # keeps serving its last-good configuration, so the router table is unchanged and
 # every router still reports `enabled`. Verified on 2026-08-12 by voiding a file
 # on purpose: 7 routers before, 7 routers after, zero difference in the API.
 #
 # The damage is deferred, not avoided. The next time Traefik restarts it has no
-# last-good config to fall back on, and every @file router disappears at once —
+# last-good config to fall back on, and every @file router disappears at once -
 # which on this box is the portal's entire /-/api/* data plane.
 #
 # The log is the only place the failure is visible, so that is what this reads.
@@ -92,7 +92,7 @@ else
   # Force a re-parse first, then read a SHORT window.
   #
   # Scanning the last N minutes of log answers "was a file ever broken", which is
-  # not the question — it goes red for an error that has since been fixed, and it
+  # not the question - it goes red for an error that has since been fixed, and it
   # stays green for a file broken N+1 minutes ago and still broken now. Touching
   # every dynamic file makes the provider re-read them, so what lands in the next
   # few seconds is the CURRENT state and nothing else. touch changes only mtime.
@@ -127,7 +127,7 @@ fi
 echo
 echo "== 6. The socket-proxy boundary must still hold =="
 # Test the CONTENT TYPE, not the status. The portal owns a catch-all
-# PathPrefix(`/`) router, so an UNROUTED path returns 200 with the SPA's HTML —
+# PathPrefix(`/`) router, so an UNROUTED path returns 200 with the SPA's HTML -
 # a status-code check reports "reachable" for something that is in fact blocked,
 # which is exactly what this check did on its first run.
 cid=$(docker ps -q | head -1)
@@ -135,7 +135,7 @@ ctype() { curl -s -m 4 -o /dev/null -w '%{content_type}' "$1" 2>/dev/null; }
 
 blocked=$(ctype "http://$IP/-/api/docker/containers/$cid/json")
 case "$blocked" in
-  *json*) bad "per-container endpoint served JSON — boundary broken, container Env is exposed" ;;
+  *json*) bad "per-container endpoint served JSON - boundary broken, container Env is exposed" ;;
   *)      ok  "per-container endpoint blocked (falls through to the SPA: $blocked)" ;;
 esac
 
@@ -143,8 +143,8 @@ esac
 # endpoint is NOT json, the check above would pass for the wrong reason.
 allowed=$(ctype "http://$IP/-/api/docker/containers/json")
 case "$allowed" in
-  *json*) ok  "allowed endpoint still serves JSON — the probe can distinguish" ;;
-  *)      bad "allowed endpoint returned $allowed — probe is broken, check 6 proves nothing" ;;
+  *json*) ok  "allowed endpoint still serves JSON - the probe can distinguish" ;;
+  *)      bad "allowed endpoint returned $allowed - probe is broken, check 6 proves nothing" ;;
 esac
 
 echo

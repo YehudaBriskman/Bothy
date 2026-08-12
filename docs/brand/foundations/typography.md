@@ -18,17 +18,17 @@ product ends up with seventeen font sizes that nobody chose.
 
 **Tabular numerals on every number that updates, is compared, or sits in a
 column.** Proportional digits make a counter jitter as it changes and make a
-column of numbers fail to align — both are distracting in exactly the places
+column of numbers fail to align - both are distracting in exactly the places
 numbers matter.
 
-**Mono is for identifiers only** — hostnames, ports, paths, container names,
+**Mono is for identifiers only** - hostnames, ports, paths, container names,
 keys, hashes. Mono for prose is a costume; mono for an identifier is a signal
 that the string is exact and copyable.
 
 **Cap the measure.** Prose beyond about 90 characters per line is measurably
 harder to read.
 
-**Every truncation needs an escape** — a title, a tooltip, or a detail view
+**Every truncation needs an escape** - a title, a tooltip, or a detail view
 that shows the full value. A truncated string with no way to see the rest is
 lost data.
 

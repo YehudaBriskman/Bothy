@@ -1,9 +1,9 @@
-// Lucide icon mapping — replaces the emoji `iconFor` from the original portal.
+// Lucide icon mapping - replaces the emoji `iconFor` from the original portal.
 // The user explicitly hates the emoji, so NOTHING in the UI renders node.icon
 // (the emoji string still exists on PortalNode, it is simply never surfaced).
 //
 // A service maps to an icon by its container image first, then its display name
-// (so @file host processes with no container — e.g. Tilt — still resolve). Order
+// (so @file host processes with no container - e.g. Tilt - still resolve). Order
 // matters: the specific product must precede the vendor, exactly like the
 // original table, or grafana/loki matches 'grafana' and shows the wrong glyph.
 
@@ -106,7 +106,7 @@ const STATUS_LABEL: Record<Status, string> = {
   up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown',
 };
 
-// Status glyph — coloured by the reserved status palette, never colour-alone
+// Status glyph - coloured by the reserved status palette, never colour-alone
 // (always carries an accessible label). `spin` animates the starting spinner.
 export function StatusIcon({
   status, size = 15, showLabel = false, title,

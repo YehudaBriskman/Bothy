@@ -1,4 +1,4 @@
-// Truth table for statusOf() — run with ./checks/run.sh
+// Truth table for statusOf() - run with ./checks/run.sh
 //
 // This exists because the status classifier is the one piece of portal logic
 // where being subtly wrong is invisible: every case still renders a coloured
@@ -8,7 +8,7 @@
 //   1. every non-running container collapsed to 'down', so five deliberately
 //      stopped containers rendered as five alerts, and
 //   2. health was read BEFORE state, and a stopped container keeps a stale
-//      `Health.Status: "unhealthy"` — so stopped containers WITH a healthcheck
+//      `Health.Status: "unhealthy"` - so stopped containers WITH a healthcheck
 //      (postgres, redis, garage) stayed "down" while a stopped nginx correctly
 //      went "stopped". Half-fixed looks exactly like fixed on a screenshot.
 //
@@ -28,7 +28,7 @@ const cases = [
   ['dead',                    { State: 'dead',    Status: 'Dead' },                                                     'down'],
   ['stopped cleanly',         { State: 'exited',  Status: 'Exited (0) 34 minutes ago' },                                'stopped'],
   // 143 = 128+SIGTERM: `docker stop` on anything that dies from the signal
-  // rather than handling it (any JVM — Keycloak is the live example). A clean
+  // rather than handling it (any JVM - Keycloak is the live example). A clean
   // stop, and the reason a stopped project used to read as broken.
   ['stopped by SIGTERM (143)', { State: 'exited', Status: 'Exited (143) 4 minutes ago' },                               'stopped'],
   // 137 stays `down` here on purpose: it is also the OOM-kill code, and

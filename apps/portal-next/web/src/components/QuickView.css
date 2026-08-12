@@ -1,4 +1,4 @@
-/* The global quick view — five tiles, one row on a wide screen.
+/* The global quick view - five tiles, one row on a wide screen.
    Tiles are a fixed internal grid so every one has the same baseline for its
    label, value and trajectory row, whether or not it has a sub-line. */
 
@@ -22,8 +22,8 @@
 
 /* Proportional figures, NOT tabular: tabular gives every digit the width of a
    zero, which at this size makes a value like "15/22" look loose and gappy.
-   Tabular is for columns of numbers that must align vertically — the tables and
-   the axis ticks — not for a standalone display value. */
+   Tabular is for columns of numbers that must align vertically - the tables and
+   the axis ticks - not for a standalone display value. */
 .qv-value {
   font-size: 23px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.05;
   color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -51,7 +51,7 @@
 
 /* ── sparkline ─────────────────────────────────────────────────────────────
    Stretched to the tile width with a non-uniform scale, so the stroke is
-   normalised back with `vector-effect` — otherwise a wide tile draws a fat line
+   normalised back with `vector-effect` - otherwise a wide tile draws a fat line
    and a narrow one a hairline. */
 .qv-spark { display: block; width: 100%; height: 18px; overflow: visible; }
 .qv-spark polyline {

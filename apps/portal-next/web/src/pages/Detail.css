@@ -1,9 +1,9 @@
-/* Detail pages (Agent C) — Service + Project detail.
+/* Detail pages (Agent C) - Service + Project detail.
    Fixes the "sections of random size" bug: one 12-col panel GRID whose rows are
    EQUAL height (grid stretch + panel height:100%), and any panel whose content
    can overflow scrolls INSIDE itself (.panel-b.scroll / capped .tbl-wrap) instead
    of sprawling. Everything visual comes from the shared tokens/utilities in
-   index.css — this file only lays out and sizes. */
+   index.css - this file only lays out and sizes. */
 
 .detail { max-width: 1160px; }
 
@@ -25,7 +25,7 @@
   overflow-wrap: anywhere; }
 .detail-head-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 
-/* status pill — reuses StatusIcon's coloured glyph+label, framed by the reserved
+/* status pill - reuses StatusIcon's coloured glyph+label, framed by the reserved
    status hue (form + label, never colour alone). */
 .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px;
   border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-strong); }
@@ -37,7 +37,7 @@
 .detail-lede { color: var(--fg-muted); font-size: 14px; max-width: 760px; margin: 12px 0 22px;
   line-height: 1.55; }
 
-/* ── the panel grid — this is the fix ───────────────────────────────────────
+/* ── the panel grid - this is the fix ───────────────────────────────────────
    12 columns, rows stretch so panels sharing a row are the SAME height; a panel
    fills its cell (height:100%). Overflowing bodies scroll internally, so a busy
    panel never makes its row taller than the grid rhythm. */
@@ -108,7 +108,7 @@
   overflow: auto; max-height: 440px; }
 .detail .panel-tbl .ports,
 .detail .panel-tbl .routes { display: block; }
-/* (the old `.ports .tbar` rule was dead — these components render .tbl-filter,
+/* (the old `.ports .tbar` rule was dead - these components render .tbl-filter,
    and in a panel they now render in `compact` mode with no filter bar at all) */
 .detail .panel-tbl .tbl th { background: var(--surface-2); }
 
@@ -129,7 +129,7 @@
 .detail .svc-filter .filters-ico { color: var(--fg-subtle); flex: none; }
 .detail .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .detail .filter-chips .chip { text-transform: none; padding-right: 7px; }
-/* no capitalize — see the note in Services.css */
+/* no capitalize - see the note in Services.css */
 .detail .filter-chips .chip .n {
   font-variant-numeric: tabular-nums; color: var(--fg-subtle); background: var(--surface-1);
   border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center; }

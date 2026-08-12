@@ -1,10 +1,10 @@
-# DISABLED 2026-08-12 — this unit is still installed at
+# DISABLED 2026-08-12 - this unit is still installed at
 # /etc/systemd/system/minikube.service but is no longer enabled, so minikube
 # does NOT start with the distro any more.
 #
 # Why: measured idle. `kubectl get pods -A` showed only kube-system; the only
 # Service in the cluster was the default `kubernetes` ClusterIP. Nothing had
-# ever been deployed to it, yet it had been up 27 days holding 1,046 MB — the
+# ever been deployed to it, yet it had been up 27 days holding 1,046 MB - the
 # single largest consumer of the box's 4,678 MB total container memory (~22%).
 #
 # The cluster was stopped at 13:36 and then DELETED at 13:56 the same day
@@ -12,7 +12,7 @@
 # reports MK_USAGE_NO_PROFILE, and `~/.minikube/profiles/` and `machines/` are
 # empty. There is no cluster state left to return to.
 #
-# To bring a cluster back for one session — a NEW, EMPTY one:
+# To bring a cluster back for one session - a NEW, EMPTY one:
 #   minikube start
 # To restore start-with-the-distro behaviour permanently:
 #   sudo systemctl enable --now minikube.service
@@ -20,8 +20,8 @@
 # This header said "Do NOT run `minikube delete`" for several hours after the
 # delete had already happened, which is worse than saying nothing: it described a
 # recoverable cluster that no longer existed, so anyone reading it would have
-# expected `minikube start` to hand back their workloads. Nothing was lost —
-# there was nothing in it — but the instruction was false, and a warning against
+# expected `minikube start` to hand back their workloads. Nothing was lost -
+# there was nothing in it - but the instruction was false, and a warning against
 # an already-taken action reads as reassurance that it was not taken.
 
 [Unit]

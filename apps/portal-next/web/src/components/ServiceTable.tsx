@@ -4,7 +4,7 @@ import { ServiceRow } from './ServiceRow';
 // The dense services table, in ONE place.
 //
 // The 7-column <thead> used to be hand-written verbatim in both Services.tsx and
-// ProjectDetail.tsx, and rendered once per group panel — so the columns of two
+// ProjectDetail.tsx, and rendered once per group panel - so the columns of two
 // sections on the same page could not be relied on to line up, and adding a
 // column meant editing two files. A fixed column template keeps every instance
 // aligned regardless of its contents.

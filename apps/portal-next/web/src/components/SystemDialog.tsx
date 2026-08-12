@@ -1,6 +1,6 @@
 // The system quick-lookup.
 //
-// Clicking a chip in the matrix used to navigate to /systems/:key — a full page
+// Clicking a chip in the matrix used to navigate to /systems/:key - a full page
 // load's worth of context switch to answer "what's actually in this thing, and
 // is it busy". That is a LOOKUP, not a destination: you want it, you read it,
 // you carry on scanning. So the chip now opens this dialog, and the dialog links
@@ -8,7 +8,7 @@
 //
 // It adds the one thing neither the chip nor the system page could show: live
 // per-container CPU and memory, in one Prometheus query scoped to this system's
-// containers. Not one query per container — a system with eight services would
+// containers. Not one query per container - a system with eight services would
 // be eight round trips on every open.
 
 import { useMemo } from 'react';
@@ -33,7 +33,7 @@ export function SystemDialog({
 }) {
   // Every container this system owns, as one alternation for a `=~` matcher.
   // Names are regex-quoted as well as string-quoted: a container called `a.b`
-  // would otherwise match `axb` — harmless here, but it is one character of
+  // would otherwise match `axb` - harmless here, but it is one character of
   // care against a whole class of wrong-row bugs.
   const names = useMemo(
     () =>
@@ -47,14 +47,14 @@ export function SystemDialog({
   // Prefer the namespace label over an alternation of container names.
   //
   // cAdvisor exports container_label_com_docker_compose_project on every series
-  // — it has been there the whole time and nothing queried it. It is the same
+  // - it has been there the whole time and nothing queried it. It is the same
   // key semconv calls service.namespace, and it beats the name list on every
   // axis: one label instead of an N-term regex that grows with the system and
   // needs escaping; correct when a container is renamed or replaced; and it
   // still finds containers this page has not discovered, which is exactly the
   // blind spot a control plane must not have.
   //
-  // Falls back to names when the group has no single compose project — the
+  // Falls back to names when the group has no single compose project - the
   // `unmanaged` bag of `docker run` orphans, and any group holding declared host
   // processes. A namespace query there would silently return a DIFFERENT set
   // than the rows above it, which is worse than the clumsier query.
@@ -98,7 +98,7 @@ export function SystemDialog({
 
   // The wiring, declared by whoever wrote the compose file. Resolved against
   // this system's own nodes, so a dependency on something outside it renders as
-  // broken — which is the honest answer: from in here, it IS missing.
+  // broken - which is the honest answer: from in here, it IS missing.
   const edges = useMemo(() => resolveEdges(system?.nodes ?? []), [system]);
 
   if (!system) return null;
@@ -145,20 +145,20 @@ export function SystemDialog({
               {n.name}
             </Link>
             {/* A one-shot that exited 0 did its job. `stopped` is technically
-                true and operationally misleading — it reads as "somebody
+                true and operationally misleading - it reads as "somebody
                 switched this off", which invites someone to start it. The
                 status icon still carries the real state for colour and
                 counting; only the WORD changes, and only where the compose
                 file declared the intent. */}
             {n.completesOnPurpose && n.status === 'stopped' ? (
-              <span className="sd-done" title="Ran to completion — a dependent waits on service_completed_successfully">
+              <span className="sd-done" title="Ran to completion - a dependent waits on service_completed_successfully">
                 <CheckCircle2 size={13} aria-hidden="true" /> completed
               </span>
             ) : (
               <StatusIcon status={n.status} />
             )}
             <span className="sd-row-meta">
-              {n.host ?? (n.ports[0] ? `:${n.ports[0].hostPort}` : '—')}
+              {n.host ?? (n.ports[0] ? `:${n.ports[0].hostPort}` : '-')}
             </span>
             {n.uptimeSecs != null && <span className="sd-row-up">{fmtUptime(n.uptimeSecs)}</span>}
             {n.url && (
@@ -176,7 +176,7 @@ export function SystemDialog({
         ))}
       </ul>
 
-      {/* The startup order, as declared — not inferred from traffic or naming.
+      {/* The startup order, as declared - not inferred from traffic or naming.
           Docker has written this onto every container it created since the
           stack existed and nothing has ever read it back. */}
       {edges.length > 0 && (
@@ -206,7 +206,7 @@ export function SystemDialog({
         </>
       )}
 
-      {/* Resource use is a magnitude question — "which of these is the big one" —
+      {/* Resource use is a magnitude question - "which of these is the big one" -
           so it is bars against the largest, not numbers in a list. Absent
           entirely when there are no metrics, rather than an empty chart. */}
       {cpuRows.length > 0 && (
@@ -222,7 +222,7 @@ export function SystemDialog({
         </>
       )}
       {state === 'off' && names.length > 0 && (
-        <p className="sd-note">Live CPU and memory need the metrics route — <code>just portal-prom-route</code>.</p>
+        <p className="sd-note">Live CPU and memory need the metrics route - <code>just portal-prom-route</code>.</p>
       )}
 
       {system.volumes.length > 0 && (

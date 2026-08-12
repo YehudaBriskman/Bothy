@@ -9,7 +9,7 @@ guideline and one of these disagree, these win.
 
 ### 1. Status colours are reserved
 
-There is a small set of colours that means *state* — up, warning, down,
+There is a small set of colours that means *state* - up, warning, down,
 unknown, switched off. Those colours are never used as decoration, never as a
 brand accent, never as a chart series, and never because they looked right.
 
@@ -21,7 +21,7 @@ afterwards.
 ### 2. Chrome accents never encode state
 
 The mirror of rule 1. There is a second set of colours used to tell panels
-apart — to give a card a spine, a group a hue. Those are decoration. They never
+apart - to give a card a spine, a group a hue. Those are decoration. They never
 mean anything. A reader must never be able to learn that "the purple one is
 the broken one", because the purple one is purple for a reason that has nothing
 to do with health.
@@ -77,7 +77,7 @@ this system has a why attached to it, and most of them cost something to learn.
 
 **Record dead ends.** A ruled-out approach is worth as much as the chosen one,
 because without it the next person re-tries it. Every document here has a "dead
-ends" section, and an empty one is a signal that the decision was easy — which
+ends" section, and an empty one is a signal that the decision was easy - which
 is itself useful information.
 
 ## What Bothy decided, and why
@@ -88,7 +88,7 @@ token block.
 
 Rules 1 and 2 came first and have held unchanged. Rule 3 was added later, after
 a redesign found the Overview showing fourteen cards, eight of which said "1 / 1
-running, 100 percent healthy" — a full card, roughly 35,000 square pixels, for
+running, 100 percent healthy" - a full card, roughly 35,000 square pixels, for
 one bit of information that was not even interesting. Replacing them with one
 cell per service fit thirteen systems and twenty-seven services into roughly the
 height the old projects group alone had used.
@@ -96,7 +96,7 @@ height the old projects group alone had used.
 The precedence order was written down after a specific conflict: on dark
 backgrounds a saturated red is intrinsically darker than a saturated green, so
 `down` cannot be made visually heavier than `up` by brightness. The aesthetic
-fix — brightening the red — would have destroyed the warning-versus-down
+fix - brightening the red - would have destroyed the warning-versus-down
 distinction, which is more valuable. Honesty and the reserved palette won;
 urgency is carried by hue, glyph and sort order instead, and the compromise is
 documented rather than silently absorbed.

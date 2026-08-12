@@ -1,4 +1,4 @@
-/* Dialog — Radix behaviour, portal tokens. shadcn's proportions: a dim scrim, a
+/* Dialog - Radix behaviour, portal tokens. shadcn's proportions: a dim scrim, a
    raised surface one step above the page, a hairline border, generous header. */
 
 .dlg-overlay {
@@ -54,7 +54,7 @@
 
 @keyframes dlg-fade { from { opacity: 0; } to { opacity: 1; } }
 /* Rises 6px and settles. Never animates FROM opacity 0 without also animating
-   to 1 in the same declaration — see the .reveal note in index.css for why that
+   to 1 in the same declaration - see the .reveal note in index.css for why that
    distinction has cost this app a blank page twice. */
 @keyframes dlg-in {
   from { opacity: 0; translate: -50% calc(-50% + 6px); scale: .985; }

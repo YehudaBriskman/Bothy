@@ -2,8 +2,8 @@ name: portal-next
 
 # Vite+React rewrite of the portal, served as a static build behind Traefik. It
 # is THE portal now (the pure-HTML apps/portal was retired). The *.dev.test name
-# layer is gone, so it is served on the bare tailnet IP — http://100.117.176.85/
-# — by the catch-all router below, which is the only route it has left.
+# layer is gone, so it is served on the bare tailnet IP - http://100.117.176.85/
+# - by the catch-all router below, which is the only route it has left.
 
 services:
   portal-next:
@@ -30,7 +30,7 @@ services:
       # This is now the ONLY route the portal has, which makes it load-bearing:
       # it is what serves http://<tailnet-ip>/ . Priority 1 keeps it below every
       # real rule, so the host-less exact-Path() /-/api/* routes at priority 100
-      # (edge/dynamic/portal-api.yml, portal-prom.yml) still win over it — that
+      # (edge/dynamic/portal-api.yml, portal-prom.yml) still win over it - that
       # ordering is why the SPA and its data plane can share one origin.
       #
       # Do not delete it, and do not give it a Host rule.

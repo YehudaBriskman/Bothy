@@ -11,7 +11,7 @@ import { useLocation, useNavigationType } from 'react-router-dom';
 // THE BUG THIS FIXES: nothing reset the scroll offset on a route change, so
 // arriving at a page put you wherever the PREVIOUS page had been scrolled to.
 // Scroll the Services table to the bottom, click a service, and its detail page
-// opened 800px down — on a page you had never scrolled. Worse, it is
+// opened 800px down - on a page you had never scrolled. Worse, it is
 // proportional-ish rather than absolute: if the new page is shorter, the browser
 // clamps, so the same click landed somewhere different depending on what you
 // were looking at before.
@@ -24,13 +24,13 @@ export function useScrollRestoration() {
   const { key, pathname, search } = useLocation();
   const navType = useNavigationType();
   // Two indexes of the same offsets, because `location.key` is not as stable as
-  // it looks. It IS the right primary key — it distinguishes two history entries
+  // it looks. It IS the right primary key - it distinguishes two history entries
   // for the SAME url, so going back to the second visit of /services restores
   // that visit's position rather than the first one's. But HashRouter synthesises
   // `key: "default"` for any entry it did not create itself (a hand-edited
   // fragment, a pasted deep link, anything that arrives as a bare hashchange),
   // and those keys do not round-trip: measured, a POP back to such an entry
-  // looked up a key that had never been written and restored 0 — the exact bug
+  // looked up a key that had never been written and restored 0 - the exact bug
   // this hook exists to fix, just moved.
   // So: write both, read key first and fall back to the path.
   const byKey = useRef(new Map<string, number>());
@@ -50,7 +50,7 @@ export function useScrollRestoration() {
   // trick, and without it the feature silently destroys its own data:
   //
   // On a push we scroll the window to 0 from a LAYOUT effect. Scroll events are
-  // dispatched asynchronously, and React runs passive effects after paint — so
+  // dispatched asynchronously, and React runs passive effects after paint - so
   // the event caused by that reset arrives while the save listener is STILL
   // bound to the location we just left, and writes 0 over the offset we were
   // supposed to remember. Measured exactly that: at push time the map held
@@ -87,14 +87,14 @@ export function useScrollRestoration() {
     //   · the transition is <AnimatePresence mode="wait">, so right now the
     //     OUTGOING page is still what is mounted, and
     //   · the incoming page's height depends on polled data and on charts that
-    //     size themselves from a ResizeObserver — both land after paint.
+    //     size themselves from a ResizeObserver - both land after paint.
     // Scrolling to 509 in a document that is momentarily 445 tall gets clamped
     // to 445, and the restore silently half-works. (Measured: exactly that, 445
     // instead of 509.) So re-apply each frame until it sticks, with a deadline
     // so this can never become an infinite loop on a genuinely short page.
     let done = false;
     const deadline = performance.now() + 400;
-    // If the reader starts scrolling, they have overruled us — a restore that
+    // If the reader starts scrolling, they have overruled us - a restore that
     // keeps yanking the page back is far worse than one that gives up.
     const surrender = () => { done = true; };
     const opts = { passive: true, once: true } as const;
@@ -124,7 +124,7 @@ export function useScrollRestoration() {
 // ── 2. edge shading ──────────────────────────────────────────────────────────
 //
 // An inner shadow on the edge a scroller can still travel towards. Without it a
-// clipped list is indistinguishable from a complete one — the single most common
+// clipped list is indistinguishable from a complete one - the single most common
 // reason people miss content in a fixed-height panel.
 //
 // Implemented as data attributes + `box-shadow: inset` rather than a positioned
@@ -143,7 +143,7 @@ function applyShade(el: HTMLElement) {
   // overflow actually permits scrolling. Both halves are load-bearing: the nav
   // is a horizontal scroller with `overflow-y: hidden` and 2px of vertical
   // padding, so `scrollHeight - clientHeight` is > 1 there even though it can
-  // never scroll vertically — measured, and it put a permanent inset shadow
+  // never scroll vertically - measured, and it put a permanent inset shadow
   // across the bottom of the topbar.
   const cs = getComputedStyle(el);
   // 1px of slack: fractional scroll offsets from a trackpad or a zoomed page

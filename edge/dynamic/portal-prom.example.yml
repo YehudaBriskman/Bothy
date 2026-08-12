@@ -1,15 +1,15 @@
-# EXAMPLE ONLY — every line below is commented out ON PURPOSE.
+# EXAMPLE ONLY - every line below is commented out ON PURPOSE.
 #
 # Traefik watches this whole directory and merges every .yml in it. An example
 # that declares the same router/middleware names as the real file therefore
-# OVERWRITES it — which is exactly what happened the first time this file was
+# OVERWRITES it - which is exactly what happened the first time this file was
 # written with live YAML: the real Authorization header was replaced by the
 # placeholder string and every portal graph got a 401 from Prometheus, while
 # `/api/http/routers` still reported the router "enabled". If you copy this
 # file, comment it back out or rename the entries.
 #
 # ── What the real file is ───────────────────────────────────────────────────
-# edge/dynamic/portal-prom.yml — GENERATED and GITIGNORED, because it carries a
+# edge/dynamic/portal-prom.yml - GENERATED and GITIGNORED, because it carries a
 # basic-auth credential:
 #
 #     just portal-prom-route      # writes it from ~/stacks/.env
@@ -22,7 +22,7 @@
 # behalf. See scripts/gen-portal-prom-route.sh.
 #
 # ── SECURITY: the same rule as portal-api.yml ───────────────────────────────
-# Every rule is Path() — EXACT. Never PathPrefix. This instance runs with
+# Every rule is Path() - EXACT. Never PathPrefix. This instance runs with
 # --web.enable-lifecycle, so /-/reload and /-/quit exist, and
 # /api/v1/admin/tsdb/delete_series exists unconditionally. Only the two READ
 # endpoints below are routed; a prefix rule would publish the rest to the

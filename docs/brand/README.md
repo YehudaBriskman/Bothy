@@ -8,10 +8,10 @@ written down once so the next project does not rediscover it.
 
 Two things live here, and they are deliberately separate:
 
-- **[CHECKLIST.md](CHECKLIST.md)** — the list. Around 180 items across 25
+- **[CHECKLIST.md](CHECKLIST.md)** - the list. Around 180 items across 25
   groups. Every item says whether it is a **must** or **optional**, and how it
   is **verified**. This is the file to run against a project.
-- **The topic documents** — one per group. Each states the rule
+- **The topic documents** - one per group. Each states the rule
   product-agnostically, then ends with **"What Bothy decided, and why"**. That
   last section is the only part a new project rewrites.
 
@@ -29,7 +29,7 @@ decision you have not made yet, not a section to delete.
 
 **On an existing project.** Run [CHECKLIST.md](CHECKLIST.md) top to bottom and
 record a verdict for every line: pass, fail, or not applicable with a reason.
-"Not applicable" is a legitimate and common answer — write down why, because
+"Not applicable" is a legitimate and common answer - write down why, because
 next year nobody will remember.
 
 **When you change the system itself.** See
@@ -49,7 +49,7 @@ Every checklist line begins with two tags.
 | `S` | Semi-automatic. A machine finds the candidates, a human rules on them. |
 | `H` | Human judgement only. The value of the item is that it forces the decision to exist in writing. |
 
-Roughly 60 of the items are `H`. That is not a weakness in the list — voice,
+Roughly 60 of the items are `H`. That is not a weakness in the list - voice,
 hierarchy and "is this distinction meaningful" are not machine questions. What
 the list guarantees is that they were asked.
 
@@ -75,7 +75,7 @@ Reading order, not alphabetical order. The navigation on the left is
 alphabetical because MkDocs builds it automatically; this table is the one that
 knows what depends on what.
 
-### Foundations — decide these first, everything else references them
+### Foundations - decide these first, everything else references them
 
 | File | What it answers |
 |---|---|
@@ -90,7 +90,7 @@ knows what depends on what.
 | [foundations/motion.md](foundations/motion.md) | How long, what easing, and what happens when motion is refused |
 | [foundations/iconography.md](foundations/iconography.md) | Which icons, at what size, meaning what |
 
-### Patterns — how the pieces behave
+### Patterns - how the pieces behave
 
 | File | What it answers |
 |---|---|
@@ -103,7 +103,7 @@ knows what depends on what.
 | [patterns/feedback.md](patterns/feedback.md) | How the system talks back |
 | [patterns/scrolling.md](patterns/scrolling.md) | What happens when there is more than fits |
 
-### Quality — how it is proved
+### Quality - how it is proved
 
 | File | What it answers |
 |---|---|

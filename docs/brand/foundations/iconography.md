@@ -4,8 +4,8 @@ _Status as of 2026-08-10._
 
 ## The rule
 
-**One icon library, pinned.** Mixing two sets is immediately visible — stroke
-weights and optical sizes do not match — and it doubles the bundle.
+**One icon library, pinned.** Mixing two sets is immediately visible - stroke
+weights and optical sizes do not match - and it doubles the bundle.
 
 **No emoji as interface iconography.** Emoji render differently per platform,
 cannot inherit colour, cannot be sized reliably, and are read aloud by screen
@@ -16,7 +16,7 @@ breaks in forced-colours mode.
 
 **Decorative versus meaningful is a real distinction.** A decorative icon beside
 a text label is hidden from assistive technology. An icon that *is* the control
-needs an accessible name, and an icon-only control needs a tooltip as well —
+needs an accessible name, and an icon-only control needs a tooltip as well -
 sighted users need the name too.
 
 **Every status needs a distinct glyph, not just a distinct colour.** This is
@@ -24,7 +24,7 @@ where the colour-is-never-alone rule becomes concrete. Unit-test the mapping for
 uniqueness, because two statuses quietly sharing a glyph is invisible in review.
 
 **The icon mapping is a data table, not a conditional chain**, and specific
-product names are matched before vendor names — otherwise a rule for "google"
+product names are matched before vendor names - otherwise a rule for "google"
 swallows "google-cloud-storage".
 
 **Always have a fallback glyph**, so an unmapped entity renders as something
@@ -42,9 +42,9 @@ See [CHECKLIST.md § 10](../CHECKLIST.md#10-iconography).
   replaced. Container labels can still supply one, and that is a legacy affordance
   rather than a recommendation.
 - **Status glyphs are distinct** per state and paired with the reserved status
-  colours — never colour alone.
+  colours - never colour alone.
 - **The service-icon mapping is a table** matched most-specific-first.
-- **Three container sizes** — small, default and large — with the glyph size
+- **Three container sizes** - small, default and large - with the glyph size
   chosen per call site.
 
 ## Dead ends

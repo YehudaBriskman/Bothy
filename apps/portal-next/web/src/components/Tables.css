@@ -1,6 +1,6 @@
 /* Shared filter-bar + table chrome for the Ports and Routes pages. Co-located
    with the tab components that import it. Builds on the .tbl / .tbl-wrap / .chips
-   utilities in index.css — this only adds the filter bar, sort carets and the
+   utilities in index.css - this only adds the filter bar, sort carets and the
    empty row, so both tables read as one instrument. */
 
 .tbl-filter {
@@ -12,7 +12,7 @@
 }
 .tbl-search:focus-within { border-color: var(--accent); }
 /* The inner input sets `outline: none` because it has no border of its own, so
-   the keyboard indicator has to go on this wrapper — a border-colour change
+   the keyboard indicator has to go on this wrapper - a border-colour change
    alone is both invisible to a keyboard user looking for a ring and
    colour-alone. `:has(:focus-visible)` keeps it off mouse clicks. */
 .tbl-search:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }

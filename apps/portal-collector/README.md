@@ -8,14 +8,14 @@ The portal discovers two things: **Traefik routers** and **Docker containers**.
 Everything it knows comes from one of those, which leaves two blind spots:
 
 - **A project that is switched off has nothing to discover.** It doesn't show as
-  "off" — it disappears from the box entirely.
+  "off" - it disappears from the box entirely.
 - **A project made of host processes is invisible even while running.** A
   `just dev` / `tilt up` harness on ordinary ports is neither a container nor,
   unless somebody hand-wrote a file-route, a Traefik service.
 
 And a third problem underneath both: the portal only ever recorded **observed
 facts, never intent**. It saw "not running" and could not tell *somebody stopped
-this* from *this crashed* — which is why five deliberately-stopped containers
+this* from *this crashed* - which is why five deliberately-stopped containers
 rendered as five alerts, and why "needs a look" could never reach zero on a box
 with anything idle.
 
@@ -30,12 +30,12 @@ neither of which a static SPA in a container can do.
       (intent)                    (host truth)              (rendered)
 ```
 
-1. Scans `~/projects` (3 levels deep — repos are grouped, not flat) for
+1. Scans `~/projects` (3 levels deep - repos are grouped, not flat) for
    `project.dev.yml`.
 2. Resolves `${VAR}` in the declaration against the project's own `ports_file`,
    so a harness that picks free ports at runtime is followed rather than probed
    at a stale address.
-3. Determines each service's state — `docker inspect` for `container`, and for
+3. Determines each service's state - `docker inspect` for `container`, and for
    `host_port` the ownership ladder below (**not** a bare TCP connect).
 4. Writes `projects.json` atomically (the portal polls it and must never read a
    half-written file).
@@ -49,7 +49,7 @@ still looking at the page.
 
 ## The declaration
 
-`project.dev.yml` lives at a repo root — the project owns it, it travels with a
+`project.dev.yml` lives at a repo root - the project owns it, it travels with a
 re-clone, and deleting it only removes the project from the portal. Nothing at
 runtime reads it.
 
@@ -96,13 +96,13 @@ runs on the host as `devssh` in the `docker` group, so it can see far more than 
 | # | Question | Evidence | Verdict |
 |---|---|---|---|
 | 1 | Is the port published by a **container**? | the container is named by this declaration; or its `com.docker.compose.project.working_dir` is inside the project root; or its `com.docker.compose.project` matches the project's key / dir name / name | match → `up`, otherwise → **`collision`** |
-| 2 | Is a **host process** holding it? | `ss -ltnp` gives the PID (for processes `devssh` owns — which is what a `just dev` harness is), then `/proc/<pid>/{cmdline,exe,cwd}`: the cmdline names the project root or the service, or the process was launched inside the repo | match → `up`; positively located elsewhere → **`collision`** |
-| 3 | Neither could name it | — | **`unverified`** |
+| 2 | Is a **host process** holding it? | `ss -ltnp` gives the PID (for processes `devssh` owns - which is what a `just dev` harness is), then `/proc/<pid>/{cmdline,exe,cwd}`: the cmdline names the project root or the service, or the process was launched inside the repo | match → `up`; positively located elsewhere → **`collision`** |
+| 3 | Neither could name it | - | **`unverified`** |
 
 Rung 3 is the honest floor. `unverified` is a statement about *the collector's
 knowledge*, not about the service, and **it is never a pass**. A listener whose
 PID belongs to another user (root) is invisible to an unprivileged `ss`, and a
-`collision` is only ever claimed when the holder was positively identified —
+`collision` is only ever claimed when the holder was positively identified -
 guessing "collision" would be the same class of error as the `up` it replaced.
 
 `port_open()` still runs first and still probes IPv4 **and** IPv6; it is now the
@@ -110,7 +110,7 @@ guessing "collision" would be the same class of error as the `up` it replaced.
 listening is still plain `stopped`.
 
 The same reasoning was applied one layer over: if `docker` itself is unreachable,
-a declared container reports `unverified` rather than "container does not exist" —
+a declared container reports `unverified` rather than "container does not exist" -
 an empty container list because Docker never answered is not evidence of absence.
 
 ## States
@@ -127,23 +127,23 @@ Per service:
 | `unverified` | something is listening (or docker is unreachable) and the collector **could not identify it**. Not up, not down: unmeasured. |
 | `unknown` | declared, nothing observable either way |
 
-Per project: `live` / `degraded` / `stopped` / `stuck` / `unknown` — **deliberately
+Per project: `live` / `degraded` / `stopped` / `stuck` / `unknown` - **deliberately
 unchanged**, so the portal never meets a project state it has no word for. In the
 rollup, `collision` folds in with `stopped` (a port held by somebody else is
-positive evidence this service is *not* running, so the project really is off —
+positive evidence this service is *not* running, so the project really is off -
 which is exactly the false promotion to `degraded` that this rework removes), and
 `unverified` folds in with unknown.
 
 **`stopped` is a state, not an alert.** Only `stuck` and `degraded` are alerts,
 and **a squatted port never manufactures one**. The portal maps `stuck` onto its
-own `down` and mirrors the same rule — see
+own `down` and mirrors the same rule - see
 `portal-next/web/src/lib/projects.ts` and the truth table in
 `portal-next/checks/`.
 
 ### The `collision` field
 
 Alongside the `collision` **state**, a colliding service carries a `collision`
-**object** naming the culprit — the state alone is not actionable:
+**object** naming the culprit - the state alone is not actionable:
 
 ```json
 {
@@ -168,7 +168,7 @@ never varies.
 **Both additions are safe for a portal that does not know about them yet**, which
 is why they take this shape:
 
-- the `collision` object is an *extra key* — a consumer that does not read it
+- the `collision` object is an *extra key* - a consumer that does not read it
   ignores it, as JSON consumers do;
 - the two new `state` values fall through the portal's existing
   `STATE_TO_STATUS[svc.state] ?? 'unknown'` guard, so they render as `unknown`
@@ -184,15 +184,15 @@ both copies would double-count them in every total.
 
 ## Notes
 
-- A missing `projects.json` is a supported state, not an error — the portal
+- A missing `projects.json` is a supported state, not an error - the portal
   silently renders nothing extra, and the absence is never surfaced as a warning.
-- **Two host processes cannot be told apart by port alone** — which is why the
+- **Two host processes cannot be told apart by port alone** - which is why the
   collector no longer tries. This used to read "a port that is listening is up
   even if the wrong thing is listening on it; that is the accepted limit of a
   connect probe". It was not an acceptable limit: it is the 2026-08-12 incident
   above, and the standing rule here is that **every probe must be able to fail,
   and must distinguish the thing it claims to distinguish**. The limit that
-  remains is narrower and is reported rather than assumed away — a listener owned
+  remains is narrower and is reported rather than assumed away - a listener owned
   by another user is invisible to an unprivileged `ss`, and that case is
   `unverified`, not `up`.
 - "Not listening" is reported as `stopped`, never `stuck`. From outside there is

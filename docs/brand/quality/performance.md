@@ -51,7 +51,7 @@ See [CHECKLIST.md § 29](../CHECKLIST.md#29-performance).
   bundle. It is roughly twice the size of the entire rest of the app, which is
   exactly why it is not in the entry chunk.
 - **One shared poll** for the whole application, lifted into context. Every page
-  reads the same loop rather than mounting its own — which would multiply load on
+  reads the same loop rather than mounting its own - which would multiply load on
   the container socket proxy and desync the freshness indicator between pages.
 - **Polling pauses when hidden**, refreshes on focus, and backs off after
   repeated failures.
@@ -69,13 +69,13 @@ threshold. No measurement has been taken on a slow device.
 
 - **A framework, to fix a flicker.** The page once jumped on every fetch because
   the render path emptied a container and rebuilt every card, re-running the
-  entrance animation. The fix was to stop destroying the DOM — key each card and
-  patch in place — not to adopt a library. Measured afterwards: zero cards added
+  entrance animation. The fix was to stop destroying the DOM - key each card and
+  patch in place - not to adopt a library. Measured afterwards: zero cards added
   or removed across three polls, twenty of twenty nodes reused. A framework would
   have added a toolchain and fixed none of it, because a framework that rebuilds
   its list every poll jumps identically.
 
-  (The product later adopted a framework anyway, for unrelated reasons — a richer
+  (The product later adopted a framework anyway, for unrelated reasons - a richer
   multi-page interface. The reasoning above is still the right reasoning about
   flicker.)
 

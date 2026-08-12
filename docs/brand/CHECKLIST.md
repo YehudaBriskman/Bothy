@@ -6,13 +6,13 @@ Everything that must be handled in a design or a website. 184 items in 25
 groups. Run it top to bottom and record a verdict for every line: pass, fail,
 or not applicable with a written reason.
 
-Each line starts with two tags — `[M]` must or `[O]` optional, then `[A]`
+Each line starts with two tags - `[M]` must or `[O]` optional, then `[A]`
 automatic, `[S]` semi-automatic or `[H]` human judgement. The legend is in
 [README.md](README.md#verification-legend).
 
 Order is roughly dependency order: colour before components, components before
 accessibility, everything before QA. If you are starting a project today, use
-[reference/new-project.md](reference/new-project.md) instead — same items,
+[reference/new-project.md](reference/new-project.md) instead - same items,
 ordered by when they block you.
 
 ---
@@ -51,7 +51,7 @@ See [foundations/brand-core.md](foundations/brand-core.md).
 See [foundations/logo-and-app-icons.md](foundations/logo-and-app-icons.md).
 
 - `[M][A]` Keep one source of truth for the mark geometry; every raster is generated from it by a checked-in script.
-- `[M][A]` Re-running the generator produces byte-identical output — no timestamps, no randomness.
+- `[M][A]` Re-running the generator produces byte-identical output - no timestamps, no randomness.
 - `[M][A]` Ship an SVG favicon, referenced with `type="image/svg+xml"`.
 - `[M][A]` Ship `apple-touch-icon.png` at exactly 180x180 with an opaque background.
 - `[M][A]` Ship 192x192 and 512x512 PNGs and list them in the manifest.
@@ -73,7 +73,7 @@ See [foundations/logo-and-app-icons.md](foundations/logo-and-app-icons.md).
 See [foundations/colour.md](foundations/colour.md).
 
 - `[M][A]` Declare the elevation ladder as a fixed number of named steps. No component invents an intermediate mix.
-- `[M][A]` Both themes declare exactly the same set of token names. A token present in one only is a defect — diff the key sets.
+- `[M][A]` Both themes declare exactly the same set of token names. A token present in one only is a defect - diff the key sets.
 - `[M][A]` Record a measured contrast ratio beside every foreground token, per surface it is used on.
 - `[M][A]` Body text meets 4.5:1. Large text meets 3:1. Component boundaries and meaningful graphics meet 3:1.
 - `[M][S]` Re-measure every muted or subtle token at the smallest size it is actually used at, not at 16px.
@@ -116,7 +116,7 @@ See [foundations/typography.md](foundations/typography.md).
 - `[M][A]` No text below the stated minimum size, and text at the minimum is re-checked for contrast at that size.
 - `[M][A]` Base line-height at least 1.5 for prose; heading line-heights declared per size.
 - `[M][A]` Use tabular numerals for every number that updates, is compared, or sits in a column.
-- `[M][H]` Use the mono stack for identifiers only — hostnames, ports, paths, keys, hashes.
+- `[M][H]` Use the mono stack for identifiers only - hostnames, ports, paths, keys, hashes.
 - `[M][A]` Cap prose blocks at a stated measure in `ch`.
 - `[M][S]` Every truncation has an escape: a title, a tooltip, or a detail view with the full value.
 - `[M][H]` Break-anywhere wrapping is for opaque identifiers, never for prose.
@@ -249,7 +249,7 @@ See [patterns/forms.md](patterns/forms.md).
 - `[M][A]` Error text sits beside its field, is linked by `aria-describedby`, and a submit-time failure raises a live region.
 - `[M][H]` Error text says what happened and what to do. It never says only "invalid", and never blames the user.
 - `[M][S]` Forms longer than three fields show an error summary linking to each failing field.
-- `[M][H]` Decide one submit policy — disabled-until-valid, or always-enabled with explanation — and never mix them.
+- `[M][H]` Decide one submit policy - disabled-until-valid, or always-enabled with explanation - and never mix them.
 - `[M][A]` Submit prevents double submission and shows a loading state.
 - `[M][H]` Destructive actions require typed confirmation or an undo window, never a bare "are you sure".
 - `[M][A]` Secret fields use a password input, offer a reveal toggle, and never appear in logs or URLs.
@@ -426,12 +426,12 @@ See [quality/security-and-privacy.md](quality/security-and-privacy.md).
 
 - `[M][A]` Secret scanning runs on every push and periodically over full history, and findings fail the job.
 - `[M][A]` No credential is ever committed. Where a config file must carry one, generate it and gitignore it, and commit a redacted example instead.
-- `[M][S]` A committed example config must not declare the same names as the real one if a loader merges the whole directory — it will silently overwrite the real values.
+- `[M][S]` A committed example config must not declare the same names as the real one if a loader merges the whole directory - it will silently overwrite the real values.
 - `[M][A]` A content security policy is served, and inline scripts are hashed rather than blanket-allowed.
 - `[M][A]` Serve referrer policy, content-type options, frame-ancestors and permissions policy. Verify with a header probe.
 - `[M][A]` No CDN-hosted assets. If one is unavoidable it carries integrity metadata.
 - `[M][A]` Every new-tab link carries `rel="noopener"`.
-- `[M][H]` Decide the analytics position — none, or self-hosted and consent-gated — and record it.
+- `[M][H]` Decide the analytics position - none, or self-hosted and consent-gated - and record it.
 - `[M][S]` No personal data in URLs, logs or local storage.
 - `[M][A]` Enumerate every storage key with its purpose and lifetime.
 - `[M][A]` Prove an auth boundary with a probe that **can fail**. A check that returns the same result whether or not the boundary holds is not a check.
@@ -484,7 +484,7 @@ See [quality/browser-support.md](quality/browser-support.md).
 
 - `[M][H]` Publish a support matrix: browser, minimum version, and why that floor.
 - `[M][A]` List the CSS and JS features that set the floor, and check them against the matrix.
-- `[M][H]` State the degradation for each gating feature — what a browser below the floor actually sees.
+- `[M][H]` State the degradation for each gating feature - what a browser below the floor actually sees.
 - `[M][A]` Feature detection only. Grep for user-agent sniffing.
 - `[M][H]` Name the manual device matrix, and re-run it at least once per release with a date stamp.
 
@@ -515,7 +515,7 @@ See [quality/qa-and-verification.md](quality/qa-and-verification.md).
 - `[M][A]` CI runs the secret scan.
 - `[M][A]` CI runs the token lint, the contrast check and the palette validator.
 - `[M][A]` CI runs the accessibility audit over every route in both themes.
-- `[M][A]` The screenshot matrix — routes by themes by widths — is captured.
+- `[M][A]` The screenshot matrix - routes by themes by widths - is captured.
 - `[M][A]` Every route loads with zero console errors and no failing network responses.
 - `[M][H]` **Every verification command must be able to fail.** Prove the probe distinguishes the failure it claims to detect.
 - `[M][S]` A front-end change is not done until a real screenshot of it exists. A DOM-only test cannot see layout: blank and perfect are identical to it.

@@ -25,7 +25,7 @@
 
 /* ── horizontal bar gauge ─────────────────────────────────────────────────── */
 .vz-gauge { display: flex; flex-direction: column; }
-/* label · track · sub · value — four columns, always four children */
+/* label · track · sub · value - four columns, always four children */
 .vz-gauge-row {
   --acc: var(--accent);
   display: grid;
@@ -59,10 +59,10 @@ a.vz-gauge-row:hover, .vz-gauge-row:hover { background: var(--surface-2); }
 .vz-gauge-row.is-muted .vz-gauge-fill { background: var(--line-strong); }
 .vz-gauge-row.is-muted .vz-gauge-val { color: var(--fg-muted); font-weight: 600; }
 
-/* Sparkline rules removed with the component — see components/viz.tsx. */
+/* Sparkline rules removed with the component - see components/viz.tsx. */
 
 @media (max-width: 640px) {
-  /* drop the secondary "3 vols" column first — the bar and the size carry it */
+  /* drop the secondary "3 vols" column first - the bar and the size carry it */
   .vz-gauge-row { grid-template-columns: minmax(0, 6rem) minmax(36px, 1fr) minmax(3.6rem, auto); gap: 8px; }
   .vz-gauge-sub { display: none; }
 }

@@ -4,7 +4,7 @@
 // Deliberately not a live tail. The portal already runs one 10s poll for the
 // whole app; a second, per-page streaming connection would be the first thing on
 // this box to hold an open socket, and "logs from the last N minutes, refresh
-// when I ask" answers the actual question — what did this service just do —
+// when I ask" answers the actual question - what did this service just do -
 // without that. Refresh is one click, and the range selector goes back a week.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -41,7 +41,7 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
       .catch((e) => {
         if (ac.signal.aborted) return;
         // A 404 here means the Loki route isn't deployed, which is a different
-        // problem from "this service has no logs" — say which.
+        // problem from "this service has no logs" - say which.
         setError(String(e).includes('404') ? 'log API not reachable' : 'could not read logs');
       })
       .finally(() => {
@@ -50,7 +50,7 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
     return () => ac.abort();
   }, [source.selector, source.filter, rangeSeconds, applied, nonce]);
 
-  // Newest lines are at the bottom, so land the viewport there — scrolled to the
+  // Newest lines are at the bottom, so land the viewport there - scrolled to the
   // top, a log view shows the oldest thing that happened, which is never what
   // you opened it for.
   useEffect(() => {
@@ -100,7 +100,7 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
       {truncated && (
         <div className="logp-note">
           <AlertTriangle size={13} aria-hidden="true" />
-          Showing the newest {LOG_LIMIT} lines — narrow the range or filter to see the rest.
+          Showing the newest {LOG_LIMIT} lines - narrow the range or filter to see the rest.
         </div>
       )}
 

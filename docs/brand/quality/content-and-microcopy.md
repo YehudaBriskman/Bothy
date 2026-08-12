@@ -11,7 +11,7 @@ _Status as of 2026-08-10._
 
 **One error formula:** what happened, why if you know, what to do next. Never
 just "invalid". Never blame the user. Never surface a raw exception, stack trace
-or bare status code — those are for the console, not the interface.
+or bare status code - those are for the console, not the interface.
 
 **Never say "unknown" when the truth is "we have not checked".** Name whose
 knowledge is missing. This distinction sounds pedantic and is not: a user
@@ -25,7 +25,7 @@ banned-synonym list. The state words are the ones that always drift.
 
 **Numbers.** Never show more precision than the source has. Choose binary or
 decimal byte units, say which, and unit-test the formatter. One duration format.
-State the rounding rule for percentages, and never round up to 100 percent —
+State the rounding rule for percentages, and never round up to 100 percent -
 "100%" when one thing is broken destroys trust in every other number on the page.
 
 **Relative times for recency, absolute available.** "3 minutes ago" is what you
@@ -47,10 +47,10 @@ down after they were got wrong.
 
 **"Unknown" is honest here.** Several routes point at host processes with no
 container to inspect. They are reported as `unknown`, with the reason stated in
-the interface — not as `up`. An earlier version guessed `up`, which was wrong for
+the interface - not as `up`. An earlier version guessed `up`, which was wrong for
 every dead one.
 
-**Denominators are explained in place.** "15 / 22 services up · 5 stopped" —
+**Denominators are explained in place.** "15 / 22 services up · 5 stopped" -
 the stopped count sits beside the fraction it is excluded from, because a number
 whose denominator is surprising needs its denominator stated.
 
@@ -66,7 +66,7 @@ undefined" on the page.
 ## Dead ends
 
 - **Reporting an unverified service as `up`.** See above and
-  [dataviz](../patterns/dataviz.md) — the probe could not express failure.
+  [dataviz](../patterns/dataviz.md) - the probe could not express failure.
 - **Collapsing "exited cleanly" into "down".** Five containers and six routes
   became alerts, none of which was a problem.
 
