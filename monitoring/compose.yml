@@ -38,7 +38,7 @@ services:
     networks: [devnet]
 
   grafana:
-    image: grafana/grafana:13.1.1
+    image: grafana/grafana:13.1.3
     container_name: grafana
     labels:
       - traefik.enable=true
