@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dev}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-dev}
     ports:
       # Loopback only. The ssh tunnel in `just urls` connects to localhost on
@@ -32,7 +32,7 @@ services:
     container_name: postgres-exporter
     restart: unless-stopped
     environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-dev}:${POSTGRES_PASSWORD:-devpass}@postgres:5432/${POSTGRES_DB:-dev}?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-dev}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-dev}?sslmode=disable"
     # Short form waits only for the container to exist, not for the service
     # to accept connections, so on a cold boot this started against a DB
     # still initialising and crash-looped until the restart policy caught it.

@@ -63,7 +63,7 @@ services:
       # reach it; the script waits on pg_isready instead.
       PGHOST: postgres
       PGUSER: ${POSTGRES_USER:-dev}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       PGDATABASE: ${POSTGRES_DB:-dev}
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set KEYCLOAK_DB_PASSWORD in .env}
     entrypoint: ["/bin/bash", "-c"]
