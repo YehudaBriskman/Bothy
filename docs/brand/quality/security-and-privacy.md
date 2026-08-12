@@ -74,17 +74,41 @@ address, because this repository is public.
 security policy is served, and the pre-paint theme script would need hashing
 before a strict one could be. No other headers are set either.
 
+### Update 2026-08-12 — the exact paths are now the only control
+
+Three things changed under this page on 2026-08-12, and all three make the
+statements above stronger rather than weaker.
+
+| Change | Effect on this page |
+|---|---|
+| The `*.dev.test` name layer was deleted, not merely parked | The routes were already host-less exact paths, so nothing in the data plane changed. There is no name-scoped cookie any more, which retires a secondary argument that used to be made for the SSO here |
+| No router carries an auth middleware while identity is rebuilt on a local IdP | "The data plane is the security boundary" stopped being an emphasis and became literal. The exact paths are the whole control, with nothing behind them |
+| The reverse proxy's dashboard router was deleted | It served the proxy's own API unauthenticated, and the raw-config endpoint rendered the injected `Authorization` header **verbatim**. The generated-not-committed rule above protected the repository; it did not protect the runtime, and this closed that half |
+
+**The generalisable lesson.** A header the browser must never hold can still
+leak through the proxy's own introspection API. When you inject a credential at
+the edge, audit what the edge will *show you about itself* — the config-dump
+endpoint is part of the attack surface of the credential.
+
 ## Dead ends
 
 - **A live example config in a watched directory.** Overwrote the real one. See
   above.
 - **Relying on the socket proxy's own allowlist** to keep environment variables
   private. It gates by family; the exact-path rules are the actual control.
+- **Asserting a status code in the boundary test.** Retired 2026-08-12. The
+  app's catch-all route answers every unmatched path with the SPA at **200**, so
+  a blocked endpoint and a leaked one are indistinguishable by status and the
+  test could never fail. Assert the **content type**: `text/html` means the
+  catch-all answered, `application/json` means the upstream did.
 
 ## How this is verified
 
 - The regression test for the boundary asserts that a container's detail
-  endpoint is *not* reachable through the proxy.
+  endpoint returns the app's own `text/html`, not the upstream's
+  `application/json`. Checking the status code is not sufficient — see the dead
+  end above.
 - After regenerating the metrics route, confirm a query returns JSON and that
   unrouted paths fall through to the app rather than to the upstream.
 - Probe the headers rather than reading the config.
+- Confirm no proxy route exposes the proxy's own raw configuration.
