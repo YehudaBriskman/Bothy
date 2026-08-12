@@ -1,3 +1,24 @@
+# DISABLED 2026-08-12 — this unit is still installed at
+# /etc/systemd/system/minikube.service but is no longer enabled, so minikube
+# does NOT start with the distro any more.
+#
+# Why: measured idle. `kubectl get pods -A` showed only kube-system; the only
+# Service in the cluster was the default `kubernetes` ClusterIP. Nothing had
+# ever been deployed to it, yet it had been up 27 days holding 1,046 MB — the
+# single largest consumer of the box's 4,678 MB total container memory (~22%).
+#
+# The cluster was STOPPED, never deleted. `minikube profile list` still shows
+# the `minikube` profile (docker driver, v1.35.1) in state Stopped, so all of
+# its state is intact and starting it returns the same cluster.
+#
+# To bring it back for one session:
+#   minikube start
+# To restore start-with-the-distro behaviour permanently:
+#   sudo systemctl enable --now minikube.service
+#
+# Do NOT run `minikube delete` — that destroys the cluster irreversibly, which
+# stopping does not.
+
 [Unit]
 Description=minikube (local k8s) for devssh
 After=docker.service network-online.target

@@ -3,6 +3,9 @@
 set -uo pipefail
 green() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 red()   { printf '  \033[31m✗\033[0m %s\n' "$*"; }
+# Neither a pass nor a fault: something deliberately switched off. Without this
+# third state, every retired service reads as breakage and the report cries wolf.
+dim()   { printf '  \033[2m·\033[0m %s\n' "$*"; }
 
 echo "== containers =="
 # traefik, oauth2-proxy and portal-socket-proxy are the front door and the login
@@ -14,7 +17,11 @@ echo "== containers =="
 # a health check teaches you to ignore it. `portal-next` is the LIVE portal;
 # `portal` is the retired nginx one, kept only because its compose file also owns
 # portal-socket-proxy. Both run, so both are expected.
-expected="traefik oauth2-proxy portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter redis redis-exporter kafka kafka-ui kafka-exporter portainer dozzle docs docs-sync portal portal-next"
+# redis/redis-exporter/kafka/kafka-ui/kafka-exporter removed 2026-08-12 — retired
+# as idle. Leaving them here made `just doctor` report five phantom absences,
+# which is the fastest way to teach someone to ignore the health check.
+# keycloak/oauth2-proxy are the identity layer added the same day.
+expected="traefik oauth2-proxy keycloak portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portainer dozzle docs docs-sync portal portal-next"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"
@@ -26,10 +33,15 @@ echo "== prometheus targets =="
 if ! command -v jq >/dev/null 2>&1; then
   red "jq is not installed - cannot read prometheus targets"
 else
-  targets=$(curl -s --max-time 5 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  # Prometheus has required basic auth since 2026-08-08 (monitoring/prometheus-web.yml).
+  # Without credentials this curl gets 401, jq yields nothing, and the check
+  # reported "is it up?" about a server that was up the whole time — a probe
+  # that could only ever fail one way.
+  targets=$(curl -s --max-time 5 -u "${DEV_LOGIN_USER:-}:${DEV_LOGIN_PASSWORD:-}" \
+    'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
     | jq -r '.data.activeTargets[] | "\(.labels.job) \(.health)"' 2>/dev/null | sort -u)
   if [ -z "$targets" ]; then
-    red "prometheus returned no targets - is it up?"
+    red "prometheus returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
   else
     echo "$targets" | while read -r j h; do
       [ "$h" = up ] && green "$j" || red "$j ($h)"
@@ -43,9 +55,13 @@ echo "== kubernetes =="
 if ! command -v kubectl >/dev/null 2>&1; then
   red "kubectl is not installed"
 else
+  # minikube was STOPPED on 2026-08-12 — 1,097 MB for zero non-system pods over
+  # 27 days. Not deleted; `minikube start` brings it back. Absence is therefore
+  # the expected state and must not read as a fault, or `just doctor` cries wolf
+  # every run and stops being read at all.
   nodes=$(kubectl get nodes --no-headers 2>/dev/null || true)
   if [ -z "$nodes" ]; then
-    red "minikube unreachable"
+    dim "minikube stopped (retired 2026-08-12 - 'minikube start' to restore)"
   else
     echo "$nodes" | awk '{print $1, $2}' | while read -r n st; do
       [ "$st" = Ready ] && green "node $n" || red "node $n ($st)"

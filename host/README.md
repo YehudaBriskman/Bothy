@@ -12,14 +12,34 @@ instead of vanishing. After editing a real file, copy it back here.
 
 | Copy | Real location | Why it exists |
 |---|---|---|
-| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Wildcard `*.test` → this box's tailnet IP. **Dormant since 2026-08-08** (the tailnet split-DNS route was removed); dnsmasq itself still runs as the box's own resolver. Re-add the route and every `<name>.dev.test` resolves again. |
+| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Wildcard `*.test` → this box's tailnet IP. **Superseded 2026-08-12**: the name layer was DELETED, not parked — zero `Host()` rules remain in Traefik's router table, and access is pure IP:port. Restoring names is a rebuild (re-add the split-DNS route *and* re-declare a router per service), not a switch. dnsmasq itself still runs as the box's own resolver, which is why this file stays. |
 | `docker/daemon.json` | `/etc/docker/daemon.json` | Log rotation (10m × 3) and `metrics-addr` on :9323, which `monitoring/prometheus.yml` scrapes as its `docker-daemon` job. Without it that target is permanently down. |
 | `wsl/wsl.conf` | `/etc/wsl.conf` (in the distro) | `systemd=true` — the reason `docker.service` can be enabled and every stack comes up with the distro. Also `generateResolvConf=false`. |
 | `wsl/wslconfig` | `C:\Users\devssh\.wslconfig` | Memory, CPU and nested virtualisation for the WSL VM. |
 | `wsl/resolv.conf` | `/etc/resolv.conf` | Points the box at its own dnsmasq. Held with `chattr +i` — see below. |
 | `systemd/stacks-backup.*` | `/etc/systemd/system/` | The nightly backup timer at 03:00. |
-| `systemd/minikube.service` | `/etc/systemd/system/` | Starts minikube with the distro. |
+| `systemd/minikube.service` | `/etc/systemd/system/` | Started minikube with the distro. **Disabled 2026-08-12** — installed but no longer enabled, so minikube is stopped by default. See below. |
 | `windows/DevBox-WSL-Keepalive.xml` | Windows Task Scheduler | **The most important file here.** See below. |
+
+## minikube is stopped by default (since 2026-08-12)
+
+`minikube.service` is still installed, but it is **disabled** — minikube no
+longer starts with the distro, and `just up` never touched it either way.
+
+It was retired because it was measured doing nothing: `kubectl get pods -A`
+showed only `kube-system`, the only Service in the cluster was the default
+`kubernetes` ClusterIP, and nothing had ever been deployed to it — yet it had
+been up 27 days holding **1,046 MB**, the largest single consumer of the box's
+4,678 MB of container memory.
+
+The cluster was **stopped, not deleted**. `minikube profile list` still shows
+the `minikube` profile (docker driver, v1.35.1) in state `Stopped`, so its state
+is intact and starting it returns the same cluster.
+
+    minikube start                          # bring it back for one session
+    sudo systemctl enable --now minikube    # start-with-the-distro again
+
+Never `minikube delete` to "clean up" — stopping is reversible, deleting is not.
 
 ## The keepalive task
 

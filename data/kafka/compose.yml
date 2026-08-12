@@ -1,5 +1,22 @@
 name: kafka
 
+# RETIRED 2026-08-12 — kept on disk, no longer started by `just up`.
+#
+# Why: measured idle. `kafka-topics.sh --list` returned nothing — not one topic
+# had ever been created, only the internal `__` ones. Meanwhile the three
+# containers held ~1,110 MB of the box's 4,678 MB total container memory:
+#   kafka 776.7 MB · kafka-ui 309.2 MB · kafka-exporter 24.5 MB
+# That is ~24% of all container memory to broker zero messages.
+#
+# The `kafka_data` volume was deliberately PRESERVED (`down` without `-v`).
+# It is cheap and deleting it is irreversible.
+#
+# To bring it back — one command, nothing else to undo:
+#   docker compose -f data/kafka/compose.yml up -d
+# (run it via `just` or with the root .env sourced; kafka-ui needs DEV_LOGIN_*).
+# Still referenced by `just down` and `just nuke` so an older deployment on
+# this box still gets cleaned up.
+
 services:
   kafka:
     image: apache/kafka:4.3.1

@@ -52,11 +52,22 @@ up-auth: network
 up-monitoring: network
     docker compose -f monitoring/compose.yml up -d
 
-# Data services: postgres, redis, kafka (+ their exporters)
+# Data services: postgres (+ its exporter).
+#
+# redis and kafka were RETIRED 2026-08-12 and are no longer started here. Both
+# were measured completely idle — redis `DBSIZE` = 0, kafka `--list` = zero
+# topics — while together holding ~1,140 MB of the box's 4,678 MB of container
+# memory. Their compose files are kept on disk (same precedent as apps/wiki)
+# and are still referenced by `down` and `nuke` below, so an older deployment
+# still gets cleaned up. Their data volumes were PRESERVED, not deleted.
+#
+# To bring either back, one command each — nothing else to undo:
+#   docker compose -f data/redis/compose.yml up -d
+#   docker compose -f data/kafka/compose.yml up -d
+#
+# postgres stays: it is in active use — Keycloak's database lives there.
 up-data: network
     docker compose -f data/postgres/compose.yml up -d
-    docker compose -f data/redis/compose.yml up -d
-    docker compose -f data/kafka/compose.yml up -d
 
 # Management UIs: portainer, dozzle
 up-mgmt: network
@@ -85,6 +96,8 @@ down:
     # superseded by apps/docs — kept so an older deployment still gets cleaned up
     -docker compose -f apps/wiki/compose.yml down
     -docker compose -f mgmt/compose.yml down
+    # retired 2026-08-12 (idle: zero topics / zero keys) — no longer in `up-data`,
+    # kept here so an older deployment still gets cleaned up
     -docker compose -f data/kafka/compose.yml down
     -docker compose -f data/redis/compose.yml down
     -docker compose -f data/postgres/compose.yml down
@@ -102,6 +115,8 @@ nuke:
     -docker compose -f apps/portal/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
+    # retired 2026-08-12 — not started by `up-data` any more, but their volumes
+    # (kafka_data, redis_data) still exist and this is what deletes them
     -docker compose -f data/kafka/compose.yml down -v
     -docker compose -f data/redis/compose.yml down -v
     -docker compose -f data/postgres/compose.yml down -v
@@ -127,9 +142,9 @@ logs service:
 psql:
     docker exec -it postgres psql -U ${POSTGRES_USER:-dev} -d ${POSTGRES_DB:-dev}
 
-# Open a redis-cli shell
-redis:
-    docker exec -it redis redis-cli
+# `just redis` is GONE (2026-08-12) — redis was retired as idle (0 keys). A
+# recipe that always fails is worse than a missing one: it looks like breakage.
+# To bring redis back: docker compose -f data/redis/compose.yml up -d
 
 # Regenerate the portal's read-only Prometheus route (edge/dynamic/portal-prom.yml).
 #
@@ -161,7 +176,6 @@ urls:
     echo "    Grafana       http://$IP:3000         (unified dev login)"
     echo "    Prometheus    http://$IP:9090"
     echo "    Dozzle        http://$IP:8080         (live container logs)"
-    echo "    Kafka-UI      http://$IP:8081"
     echo "    cAdvisor      http://$IP:8082"
     echo "    Docs          http://$IP:8085         (MkDocs, auto-rebuilt)"
     echo "    Portainer     http://$IP:9000         (unified dev login)"
@@ -170,6 +184,14 @@ urls:
     echo "    Keycloak      http://$IP:8090/admin   (identity — admin / shared dev login)"
     echo "    Wiki.js       http://$IP:3001         (stack currently down)"
     echo "    Tilt          http://$IP:10350        (when tilt up --host=0.0.0.0 runs)"
+    echo ""
+    echo "  Retired 2026-08-12 — measured idle, stopped, NOT deleted:"
+    echo "    Kafka + Kafka-UI (was :8081)  zero topics      ~1,110 MB"
+    echo "    Redis            (was :6379)  zero keys           ~30 MB"
+    echo "    minikube         (local k8s)  zero user pods   ~1,046 MB"
+    echo "    Restore:  docker compose -f data/kafka/compose.yml up -d"
+    echo "              docker compose -f data/redis/compose.yml up -d"
+    echo "              minikube start   (cluster is Stopped, not deleted)"
     echo ""
     echo "  Windows-host mirrors via portproxy: http://100.93.197.10:<port> from the"
     echo "  tailnet, or localhost:<port> on the host. Same ports; LAN is NOT served."
@@ -182,7 +204,9 @@ urls:
     echo "  Route data is still live at http://$IP/-/api/traefik/http/routers"
     echo ""
     echo "Databases stay off the network (loopback-bound). Reach via ssh tunnel:"
-    echo "  ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 $USER@$IP"
+    echo "  ssh -L 5432:localhost:5432 $USER@$IP"
+    echo "  (6379/redis and 9092/kafka were retired 2026-08-12 — nothing listens"
+    echo "   on them now; add those -L flags back if you restart either stack.)"
     echo ""
     echo "If the tailnet IP serves headers but bodies stall, or SSH hangs at KEX:"
     echo "  that is the large-packet blackhole — restart tailscaled ON THIS BOX."
