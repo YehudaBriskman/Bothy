@@ -100,6 +100,14 @@ function nodeOf(project: CollectorProject, svc: CollectorService): PortalNode {
     status,
     serviceType: serviceTypeOf(svc.type),
     volumes: [],
+    // A declared host process has no compose labels, so there is nothing to read
+    // an edge from — and nothing to declare it a one-shot either. Empty here is
+    // "nobody wrote it down", not "it has no dependencies". `project.dev.yml`
+    // could grow a `dependsOn:` key and feed this the same way compose does; it
+    // does not have one today, and inventing edges from the service list would
+    // be exactly the inference this work exists to remove.
+    dependsOn: [],
+    completesOnPurpose: false,
     uptimeSecs: null,
     icon: 'server',
     desc: svc.detail || svc.description || 'Declared in project.dev.yml',

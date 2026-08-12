@@ -180,6 +180,55 @@ export interface VolumeRef {
   destination?: string;
 }
 
+/** One edge of the wiring diagram, as the compose author declared it. */
+export interface Dependency {
+  /** The compose SERVICE name depended on — scoped to the same project. */
+  service: string;
+  /** `service_started` | `service_healthy` | `service_completed_successfully`. */
+  condition: string;
+}
+
+/**
+ * Parse `com.docker.compose.depends_on`.
+ *
+ * Format is comma-separated `name:condition:restart`, e.g.
+ *   `loki:service_started:false,prometheus:service_started:false`
+ *
+ * The third field is compose's `restart:` flag, not a state — deliberately
+ * dropped. Anything that does not have at least name:condition is skipped
+ * rather than half-parsed into a dependency on a service called `""`.
+ */
+export function dependsOnOf(container?: Container | null): Dependency[] {
+  const raw = container?.Labels?.['com.docker.compose.depends_on'];
+  if (!raw) return [];
+  const out: Dependency[] = [];
+  for (const part of raw.split(',')) {
+    const [service, condition] = part.split(':');
+    if (service && condition) out.push({ service, condition });
+  }
+  return out;
+}
+
+/**
+ * Which services are DECLARED to run to completion, keyed `project/service`.
+ *
+ * Read from the far end of every dependency edge: a container that another
+ * container waits on with `service_completed_successfully` has finishing as its
+ * job. Scoped by project because service names are only unique within one —
+ * two projects may each have an `init`, and they are not the same thing.
+ */
+export function declaredOneShots(containers: Container[]): Set<string> {
+  const out = new Set<string>();
+  for (const c of containers) {
+    const project = c.Labels?.['com.docker.compose.project'];
+    if (!project) continue;
+    for (const d of dependsOnOf(c)) {
+      if (d.condition === 'service_completed_successfully') out.add(`${project}/${d.service}`);
+    }
+  }
+  return out;
+}
+
 export function volumesOf(container?: Container | null): VolumeRef[] {
   if (!container?.Mounts) return [];
   const out: VolumeRef[] = [];
@@ -251,6 +300,63 @@ export interface NodeRoute {
   serverUrls: string[];
 }
 
+/**
+ * A dependency edge with both ends resolved against the discovered nodes.
+ *
+ * `to` is null when the declared target is not among them. That is not an error
+ * to swallow — it is the single most useful thing this data can tell you. A
+ * broken edge means something the author said was required is not there, which
+ * is exactly the shape of "grafana is up but its datasource never started".
+ */
+export interface ResolvedEdge {
+  from: PortalNode;
+  to: PortalNode | null;
+  /** The declared compose service name, kept so a broken edge can still name it. */
+  toService: string;
+  condition: string;
+}
+
+/**
+ * Resolve `depends_on` declarations into edges between discovered nodes.
+ *
+ * Matching is `project` + `service`, never name similarity: compose service
+ * names are unique only WITHIN a project, and this box has proved twice over
+ * that matching across that boundary invents relationships. Pass the whole node
+ * list, not one system's — an edge that leaves the system is worth seeing, and
+ * scoping the input would silently hide it.
+ */
+export function resolveEdges(nodes: PortalNode[]): ResolvedEdge[] {
+  const byKey = new Map<string, PortalNode>();
+  for (const n of nodes) {
+    const L = n.container?.labels;
+    const project = L?.['com.docker.compose.project'];
+    const service = L?.['com.docker.compose.service'];
+    if (project && service) byKey.set(`${project}/${service}`, n);
+  }
+  const out: ResolvedEdge[] = [];
+  for (const from of nodes) {
+    const project = from.container?.labels?.['com.docker.compose.project'];
+    if (!project) continue;
+    for (const d of from.dependsOn) {
+      out.push({
+        from,
+        to: byKey.get(`${project}/${d.service}`) ?? null,
+        toService: d.service,
+        condition: d.condition,
+      });
+    }
+  }
+  return out;
+}
+
+/** Human wording for a compose `depends_on` condition. */
+export function conditionLabel(condition: string): string {
+  if (condition === 'service_healthy') return 'to be healthy';
+  if (condition === 'service_completed_successfully') return 'to finish';
+  if (condition === 'service_started') return 'to start';
+  return condition;
+}
+
 export interface NodeContainer {
   id: string;
   name: string;
@@ -285,6 +391,33 @@ export interface PortalNode {
   serviceType: ServiceType;
   volumes: VolumeRef[];
   uptimeSecs: number | null;
+  /**
+   * What this service waits for, straight from `com.docker.compose.depends_on`.
+   *
+   * Compose has recorded this on every container it created since the stack was
+   * written, and nothing has ever read it. Nine edges exist on this box —
+   * `oauth2-proxy` waits for `keycloak` to be healthy, `keycloak` waits for
+   * `keycloak-db-init` to COMPLETE, `grafana` waits for loki and prometheus.
+   * That is the real wiring diagram, declared by the author rather than guessed
+   * from network traffic or naming.
+   */
+  dependsOn: Dependency[];
+  /**
+   * Declared to run once and exit, rather than to keep running.
+   *
+   * There is no direct signal for this. `/containers/json` returns only
+   * `HostConfig.NetworkMode`, so the restart policy is not visible, and
+   * `com.docker.compose.oneoff` is `False` even for genuine init containers —
+   * it means "started by `compose run`", not "runs once".
+   *
+   * What IS available is the author's intent, stated from the other side: if any
+   * sibling declares `depends_on: <this>: service_completed_successfully`, then
+   * finishing is this container's job. Coverage is therefore partial BY DESIGN —
+   * if nothing depends on it completing, nobody has declared that it should, and
+   * guessing from "exited 0" would be inventing intent the compose file never
+   * expressed.
+   */
+  completesOnPurpose: boolean;
   icon: string;
   desc: string;
   // Where this service's logs live in Loki. Set for DECLARED services (the
@@ -592,6 +725,8 @@ export function merge(
 ): PortalNode[] {
   const svcByKey = new Map(services.map((s) => [s.name, s] as const));
   const names = projectNames(containers);
+  // Whole-list fact, so it is resolved once here rather than re-derived per node.
+  const oneShots = declaredOneShots(containers);
 
   // devnet ONLY. Traefik runs --providers.docker.network=devnet so every
   // docker-provider server URL is a devnet IP. Indexing all networks would
@@ -684,6 +819,7 @@ export function merge(
         serverUrls: canonical.serverUrls,
         container: canonical.container,
         names,
+        oneShots,
         kind: canonical.container ? 'routed' : 'orphan-route',
         aliases: rest.map((c) => c.host),
       }),
@@ -715,7 +851,7 @@ export function merge(
   // visually, so honesty costs less than the blind spot did.
   for (const c of containers) {
     if (claimed.has(c.Id)) continue;
-    nodes.push(makeNode({ route: null, host: null, container: c, names, kind: 'unrouted' }));
+    nodes.push(makeNode({ route: null, host: null, container: c, names, oneShots, kind: 'unrouted' }));
   }
 
   return nodes;
@@ -729,6 +865,13 @@ interface MakeNodeArgs {
   kind: Kind;
   names?: Map<string, string>;
   aliases?: string[];
+  /**
+   * `project/service` keys declared to run to completion. Computed once per
+   * merge() and passed down, because it is a fact about the WHOLE container
+   * list — a container cannot tell you it is a one-shot, only its dependents
+   * can. Defaulted so the existing tests and any other caller stay valid.
+   */
+  oneShots?: Set<string>;
 }
 
 function makeNode({
@@ -739,6 +882,7 @@ function makeNode({
   kind,
   names = new Map(),
   aliases = [],
+  oneShots = new Set(),
 }: MakeNodeArgs): PortalNode {
   const n = nest(host);
   const cls = classify(container);
@@ -800,6 +944,10 @@ function makeNode({
     status: statusOf(container, kind),
     serviceType: 'other',
     volumes: volumesOf(container),
+    dependsOn: dependsOnOf(container),
+    completesOnPurpose: oneShots.has(
+      `${L['com.docker.compose.project']}/${L['com.docker.compose.service']}`,
+    ),
     uptimeSecs: parseUptime(container?.Status),
     icon: '',
     desc: '',

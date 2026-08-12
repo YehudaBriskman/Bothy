@@ -13,7 +13,8 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Cpu, ExternalLink, HardDrive, MemoryStick } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Cpu, ExternalLink, HardDrive, MemoryStick, Workflow } from 'lucide-react';
+import { conditionLabel, resolveEdges } from '../lib/discover';
 import type { System } from '../lib/systems';
 import { fmtBytes, fmtUptime } from '../lib/systems';
 import { serviceLink, systemLink } from '../lib/links';
@@ -77,6 +78,11 @@ export function SystemDialog({
     return { cpu: lastOf('cpu'), mem: lastOf('mem') };
   }, [series]);
 
+  // The wiring, declared by whoever wrote the compose file. Resolved against
+  // this system's own nodes, so a dependency on something outside it renders as
+  // broken — which is the honest answer: from in here, it IS missing.
+  const edges = useMemo(() => resolveEdges(system?.nodes ?? []), [system]);
+
   if (!system) return null;
 
   const cpuRows: GaugeRow[] = [...rows.cpu.entries()]
@@ -120,7 +126,19 @@ export function SystemDialog({
             <Link className="sd-row-name" to={serviceLink(n)} onClick={() => onOpenChange(false)}>
               {n.name}
             </Link>
-            <StatusIcon status={n.status} />
+            {/* A one-shot that exited 0 did its job. `stopped` is technically
+                true and operationally misleading — it reads as "somebody
+                switched this off", which invites someone to start it. The
+                status icon still carries the real state for colour and
+                counting; only the WORD changes, and only where the compose
+                file declared the intent. */}
+            {n.completesOnPurpose && n.status === 'stopped' ? (
+              <span className="sd-done" title="Ran to completion — a dependent waits on service_completed_successfully">
+                <CheckCircle2 size={13} aria-hidden="true" /> completed
+              </span>
+            ) : (
+              <StatusIcon status={n.status} />
+            )}
             <span className="sd-row-meta">
               {n.host ?? (n.ports[0] ? `:${n.ports[0].hostPort}` : '—')}
             </span>
@@ -139,6 +157,36 @@ export function SystemDialog({
           </li>
         ))}
       </ul>
+
+      {/* The startup order, as declared — not inferred from traffic or naming.
+          Docker has written this onto every container it created since the
+          stack existed and nothing has ever read it back. */}
+      {edges.length > 0 && (
+        <>
+          <h4 className="sd-h">
+            <Workflow size={12} aria-hidden="true" /> Wiring <span className="sd-n">{edges.length}</span>
+          </h4>
+          <ul className="sd-edges">
+            {edges.map((e, i) => (
+              <li key={`${e.from.id}-${e.toService}-${i}`} className={e.to ? '' : 'broken'}>
+                <span className="sd-edge-from">{e.from.name}</span>
+                <span className="sd-edge-arrow" aria-hidden="true">waits for</span>
+                {e.to ? (
+                  <Link to={serviceLink(e.to)} onClick={() => onOpenChange(false)}>{e.to.name}</Link>
+                ) : (
+                  // Named, not hidden: "the thing it needs isn't here" is the
+                  // useful half of the signal, and dropping the edge would
+                  // present a system that looks correctly wired.
+                  <span className="sd-edge-missing" title="Declared in the compose file, but no such container was discovered">
+                    {e.toService} <em>missing</em>
+                  </span>
+                )}
+                <span className="sd-edge-cond">{conditionLabel(e.condition)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       {/* Resource use is a magnitude question — "which of these is the big one" —
           so it is bars against the largest, not numbers in a list. Absent
