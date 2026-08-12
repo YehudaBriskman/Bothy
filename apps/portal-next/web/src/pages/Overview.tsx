@@ -84,7 +84,9 @@ const QUICK_ITEMS: QuickItem[] = [
   { key: 'prometheus', label: 'Prometheus', port: 9090 },
   { key: 'dozzle', label: 'Logs', port: 8080 },
   { key: 'portainer', label: 'Portainer', port: 9000 },
-  { key: 'kafka-ui', label: 'Kafka UI', port: 8081 },
+  // kafka-ui:8081 REMOVED 2026-08-12 with kafka itself (retired as idle, zero
+  // topics). It was still rendering a link to a port nothing listens on - see
+  // the fallback rule below, which is the reason it survived the retirement.
   { key: 'cadvisor', label: 'cAdvisor', port: 8082 },
 ];
 
@@ -100,7 +102,19 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
         // Same construction as lib/discover's containerUrl: the port on whatever
         // address the portal itself was opened at, so these work from the tailnet
         // IP, MagicDNS or localhost without knowing which one is in use.
-        const fallback = item.port ? `http://${location.hostname}:${item.port}` : null;
+        // The fallback exists for "discovery is DOWN", not for "the service is
+        // gone" - and until now it could not tell those apart, so it invented a
+        // link for anything with a hardcoded port. kafka-ui kept a confident
+        // entry in this bar for hours after kafka was deleted, pointing at 8081
+        // where nothing listens.
+        //
+        // If we have nodes at all, discovery is working, so a service missing
+        // from them is genuinely absent and gets no link. Only when the node list
+        // is empty - the APIs failed, and we know nothing - is guessing better
+        // than showing an empty bar.
+        const fallback = item.port && nodes.length === 0
+          ? `http://${location.hostname}:${item.port}`
+          : null;
         return { ...item, node, url: node?.url ?? fallback, status: node?.status ?? null };
       }).filter((l) => l.url),
     [nodes],
