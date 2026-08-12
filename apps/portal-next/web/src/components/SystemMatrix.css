@@ -1,0 +1,108 @@
+/* System matrix — every system visible, one cell per service.
+   Replaces SystemGroup.css (189 lines of 46px heads and 31px full-width rows). */
+
+/* ONE grid for the whole matrix, with the groups dissolved into it via
+   `display: contents`. The label column is therefore `max-content` — sized to
+   the longest label across ALL groups and identical on every row — rather than
+   a guessed pixel width. A fixed 92px was tried first and clipped
+   "INFRASTRUCTURE" to "INFRASTRUC…" while pushing its count badge onto a second
+   line, which made that row taller than the other two: the exact raggedness
+   this restructure was meant to remove. */
+.sm {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 12px; row-gap: 8px; align-items: start;
+}
+.sm-group { display: contents; }
+
+.sm-group-h {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0;
+  /* Aligns the label's cap-height with the first row of chips. */
+  padding-top: 8px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.sm-group-t { white-space: nowrap; }
+.sm-group-n {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0;
+  color: var(--fg-subtle); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r-full); padding: 0 6px;
+}
+/* Wraps under the label rather than floating to the far right of the row,
+   where it sat 1000px from the chip it was talking about. */
+.sm-group-bad {
+  flex-basis: 100%; letter-spacing: 0; text-transform: none; font-size: 11.5px;
+  color: var(--st-down-fg);
+}
+
+/* Chips wrap. They are sized by their content — a 2-service system is visibly
+   narrower than an 8-service one, which is information rather than raggedness. */
+.sm-row { display: flex; flex-wrap: wrap; gap: 7px; }
+
+/* A button now, not a link — it opens the quick-lookup dialog. `appearance:
+   none` + `font: inherit` are what stop it rendering as a UA button; without
+   them the chips pick up the platform's own font and 13px control padding. */
+.sm-chip {
+  appearance: none; cursor: pointer; font: inherit; text-align: left;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 9px 6px 8px;
+  background: var(--surface-1); border: 1px solid var(--line);
+  border-radius: var(--r-md); min-width: 0;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.sm-chip:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.sm-chip::before {
+  content: ''; width: 3px; align-self: stretch; border-radius: 3px;
+  background: var(--acc); opacity: .75; flex: none;
+}
+.sm-chip-name {
+  font-size: 13px; font-weight: 600; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px;
+}
+
+/* A system with something wrong gets a tint and a border, not a full-width
+   alarm. It is already sorted first; the colour only has to confirm. */
+.sm-chip.is-bad { background: var(--st-down-bg); border-color: var(--st-down-line); }
+/* Off on purpose recedes — quieter than the default chip, never an alert. */
+.sm-chip.is-off { background: transparent; }
+.sm-chip.is-off .sm-chip-name { color: var(--fg-muted); font-weight: 500; }
+.sm-chip.is-off::before { opacity: .3; }
+
+/* ── the cells ───────────────────────────────────────────────────────────────
+   One service, one cell, 7×14. Small enough that a dozen fit beside a name,
+   large enough to hold a hue at a glance. Colour is never the only encoding —
+   the chip's aria-label spells out the counts, every cell has a title, and the
+   system page behind the link states it in words. */
+.sm-cells { display: flex; gap: 3px; align-items: center; flex: none; }
+.sm-cell { width: 6px; height: 13px; border-radius: 2px; background: var(--st-unknown); }
+
+/* The service count. Mono + tabular so a column of chips has comparable digits. */
+.sm-chip-n {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--fg-subtle);
+  flex: none; min-width: 1.1em; text-align: right;
+}
+.sm-chip.is-bad .sm-chip-n { color: var(--st-down-fg); }
+.sm-cell[data-state='up'] { background: var(--st-up); }
+.sm-cell[data-state='starting'] { background: var(--st-warn); }
+.sm-cell[data-state='down'] { background: var(--st-down); }
+.sm-cell[data-state='unknown'] { background: var(--st-unknown); }
+/* Hollow, not filled: "switched off" is the absence of a signal, so it reads as
+   an empty slot rather than as a fifth colour competing for attention. */
+.sm-cell[data-state='stopped'] { background: transparent; box-shadow: inset 0 0 0 1px var(--st-off); }
+
+/* The label column is a WIDE-SCREEN optimisation and has to hand back the
+   width when there isn't any. Measured at 390px: a 141px label column left
+   201px for chips — 36% of the viewport spent on three words — and the matrix
+   grew from 117px to 522px because every chip wrapped onto its own line. Below
+   this breakpoint the label goes back above its row, where it costs one line
+   and the chips get the full width. */
+@media (max-width: 760px) {
+  .sm { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+  .sm-group-h { padding-top: 6px; }
+  /* Each group is still label-then-row; only the axis changed. */
+  .sm-group + .sm-group .sm-group-h { padding-top: 10px; }
+}
+
+@media (max-width: 640px) {
+  .sm-chip-name { max-width: 120px; }
+}

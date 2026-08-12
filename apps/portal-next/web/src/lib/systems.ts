@@ -39,8 +39,10 @@ export interface System {
   up: number;
   down: number;
   starting: number;
+  stopped: number; // switched off on purpose — never an alert
   unknown: number;
   hasRunning: boolean;
+  isOff: boolean; // entirely stopped, nothing broken
   uiLinks: UiLink[];
   volumes: VolumeRef[];
   newestUptime: number | null; // smallest uptime = most recently (re)started
@@ -109,11 +111,12 @@ export function systemsOf(nodes: PortalNode[]): System[] {
 
   const systems: System[] = [];
   for (const [key, ns] of byGroup) {
-    let up = 0, down = 0, starting = 0, unknown = 0;
+    let up = 0, down = 0, starting = 0, stopped = 0, unknown = 0;
     for (const n of ns) {
       if (n.status === 'up') up++;
       else if (n.status === 'down') down++;
       else if (n.status === 'starting') starting++;
+      else if (n.status === 'stopped') stopped++;
       else unknown++;
     }
     const uptimes = ns.map((n) => n.uptimeSecs).filter((s): s is number => s != null);
@@ -132,8 +135,11 @@ export function systemsOf(nodes: PortalNode[]): System[] {
       nodes: ns,
       total: ns.length,
       running: up + starting,
-      up, down, starting, unknown,
+      up, down, starting, stopped, unknown,
       hasRunning: up + starting > 0,
+      // Off in full, and nothing wrong with it — the state a project sits in
+      // between sessions. Rendered muted and kept out of every alert count.
+      isOff: up + starting === 0 && down === 0 && stopped > 0,
       uiLinks,
       volumes,
       newestUptime: uptimes.length ? Math.min(...uptimes) : null,
@@ -153,7 +159,11 @@ export function systemsOf(nodes: PortalNode[]): System[] {
 // A system is "clean" only when nothing is down AND nothing is unconfirmed.
 // `unknown` is not a pass — it means we could not tell, which is why the old
 // down-only rule could report "Has issues 0" beside "Needs attention 7".
-export const systemHasIssues = (s: System) => s.down > 0 || s.unknown > 0;
+//
+// `stopped` IS a pass: we know exactly what happened to it (somebody stopped
+// it), which is the whole point of separating it from `down`. A system that is
+// entirely off is likewise not "unconfirmed" — it is confirmed off.
+export const systemHasIssues = (s: System) => !s.isOff && (s.down > 0 || s.unknown > 0);
 
 // Systems that are NOT running but still hold data (a stopped project whose
 // volumes persist). Note these can only appear if such a system has nodes at

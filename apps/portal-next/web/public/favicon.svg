@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+  <!-- Bothy. The same geometry as scripts/gen-icons.py — if you change one,
+       change both. A gabled shelter with the door open and the light on.
+       The tile is drawn dark in BOTH themes on purpose: a favicon sits on the
+       browser's tab strip, not on the page, so it cannot know the page theme,
+       and a mark that inverts is a mark nobody recognises at a glance. -->
+  <rect width="24" height="24" rx="5.4" fill="#09090b"/>
+  <g fill="none" stroke="#fafafa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.4 11.6 L12 4.2 L21.6 11.6"/>
+    <path d="M5.6 10.6 V20.4 H18.4 V10.6"/>
+  </g>
+  <!-- the lit doorway -->
+  <path d="M10.15 20.4 V15.3 a1.85 1.85 0 0 1 3.7 0 V20.4 Z" fill="#60a5fa"/>
+</svg>

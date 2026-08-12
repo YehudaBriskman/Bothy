@@ -1,0 +1,60 @@
+# EXAMPLE ONLY — every line below is commented out ON PURPOSE.
+#
+# Traefik watches this whole directory and merges every .yml in it. An example
+# that declares the same router/middleware names as the real file therefore
+# OVERWRITES it — which is exactly what happened the first time this file was
+# written with live YAML: the real Authorization header was replaced by the
+# placeholder string and every portal graph got a 401 from Prometheus, while
+# `/api/http/routers` still reported the router "enabled". If you copy this
+# file, comment it back out or rename the entries.
+#
+# ── What the real file is ───────────────────────────────────────────────────
+# edge/dynamic/portal-prom.yml — GENERATED and GITIGNORED, because it carries a
+# basic-auth credential:
+#
+#     just portal-prom-route      # writes it from ~/stacks/.env
+#
+# It is the portal's time-series data plane: the Overview's CPU / memory /
+# network graphs query Prometheus through it, same-origin under /-/api/*, so
+# there is no CORS and the browser never holds a credential. Prometheus gained
+# basic auth on 2026-08-08 when the SSO was parked
+# (monitoring/prometheus-web.yml); the edge injects the header on the page's
+# behalf. See scripts/gen-portal-prom-route.sh.
+#
+# ── SECURITY: the same rule as portal-api.yml ───────────────────────────────
+# Every rule is Path() — EXACT. Never PathPrefix. This instance runs with
+# --web.enable-lifecycle, so /-/reload and /-/quit exist, and
+# /api/v1/admin/tsdb/delete_series exists unconditionally. Only the two READ
+# endpoints below are routed; a prefix rule would publish the rest to the
+# tailnet.
+#
+# http:
+#   routers:
+#     portal-api-prom:
+#       rule: >-
+#         Path(`/-/api/prom/query`)
+#         || Path(`/-/api/prom/query_range`)
+#       entryPoints: [web]
+#       priority: 100
+#       middlewares: [portal-api-prom-rewrite, portal-api-prom-auth]
+#       service: portal-prometheus
+#
+#   middlewares:
+#     # /-/api/prom/query_range -> /api/v1/query_range
+#     portal-api-prom-rewrite:
+#       replacePathRegex:
+#         regex: "^/-/api/prom/(.*)"
+#         replacement: "/api/v1/$1"
+#
+#     portal-api-prom-auth:
+#       headers:
+#         customRequestHeaders:
+#           # base64("$DEV_LOGIN_USER:$DEV_LOGIN_PASSWORD"), filled in by the
+#           # generator. Never commit the real value.
+#           Authorization: "Basic <generated>"
+#
+#   services:
+#     portal-prometheus:
+#       loadBalancer:
+#         servers:
+#           - url: "http://prometheus:9090"

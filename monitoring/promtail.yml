@@ -22,3 +22,26 @@ scrape_configs:
         target_label: stream
       - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
         target_label: stack
+
+  # Host processes — the half of the box docker_sd cannot see.
+  #
+  # A project run from a terminal (`just dev`, `tilt up`) has no container, so
+  # its output lived only in whatever terminal happened to be open and was gone
+  # once that scrolled. Anything writing to ~/.local/state/devbox-logs now lands
+  # in Loki beside the container logs: one query path for the portal, and
+  # Grafana / `/f-observe` get host logs for free.
+  #
+  # Convention over config: the FILENAME is the stream name, so a new project
+  # needs no change here — it just writes a file into the directory.
+  - job_name: host-processes
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: host-processes
+          __path__: /host-logs/*.log
+    pipeline_stages:
+      - regex:
+          source: filename
+          expression: '/host-logs/(?P<host_service>[^/]+)\.log$'
+      - labels:
+          host_service:

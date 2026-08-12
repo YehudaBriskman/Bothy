@@ -167,7 +167,7 @@ export function RoutesTab({
         </div>
       )}
 
-      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Traefik routers">
+      <div className="tbl-wrap scroll-shade" tabIndex={0} role="region" aria-label="Traefik routers">
         <table className="tbl">
           <thead>
             <tr>

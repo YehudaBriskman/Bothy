@@ -1,24 +1,28 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ExternalLink, AlertTriangle, ArrowRight, HardDrive, Clock, Boxes,
+  ExternalLink, AlertTriangle, ArrowRight, HardDrive,
   BookOpen, BarChart3, Waypoints, type LucideIcon,
 } from 'lucide-react';
-import { usePortal, needsAttention } from '../lib/data';
+import { usePortal, needsAttention, healthOf, expectedUp } from '../lib/data';
 import {
-  systemsOf, uiPorts, recentlyStarted, diskVolumes, fmtBytes, fmtAgo,
+  systemsOf, uiPorts, diskVolumes, fmtBytes,
   type System, type UiLink,
 } from '../lib/systems';
-import { SystemGroup, type GroupSpec } from '../components/SystemGroup';
-import { StatusBar, BarGauge, Sparkline, type Seg, type GaugeRow } from '../components/viz';
-import { KNOWN_HOSTS, TYPE_META, type PortalNode, type Status, type ServiceType } from '../lib/discover';
+import { SystemMatrix, type MatrixGroup } from '../components/SystemMatrix';
+import { SystemDialog } from '../components/SystemDialog';
+import { QuickView } from '../components/QuickView';
+import { Vitals } from '../components/Vitals';
+import { TopContainers } from '../components/TopContainers';
+import { StatusBar, BarGauge, type Seg, type GaugeRow } from '../components/viz';
+import { KNOWN_HOSTS, hostUrl, type PortalNode, type Status } from '../lib/discover';
 import { serviceLink, systemLink, kindLabelOf } from '../lib/links';
 import { Skeleton } from '../components/states';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
 import './Overview.css';
 
 const STATUS_LABEL: Record<Status, string> = {
-  up: 'Up', starting: 'Starting', down: 'Down', unknown: 'Unknown',
+  up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown',
 };
 
 // A bare colour dot is not a status. StatusIcon does this correctly elsewhere;
@@ -35,13 +39,15 @@ function Dot({ status }: { status: Status }) {
 // A Grafana-style panel: compact header (icon + title + right-aligned meta) over
 // a fixed-height body that scrolls internally, so the page never grows unbounded.
 function Panel({
-  title, meta, Icon, className, children, id,
+  title, meta, Icon, className, children, footer, id,
 }: {
   title: string;
   meta?: ReactNode;
   Icon?: LucideIcon;
   className?: string;
   children: ReactNode;
+  /** Summary strip along the bottom — the same idea as a chart's legend row. */
+  footer?: ReactNode;
   id?: string;
 }) {
   return (
@@ -51,7 +57,8 @@ function Panel({
         <h2 className="ov-panel-title">{title}</h2>
         {meta != null && <span className="ov-panel-meta">{meta}</span>}
       </header>
-      <div className="ov-panel-body">{children}</div>
+      <div className="ov-panel-body scroll-shade">{children}</div>
+      {footer != null && <footer className="ov-panel-foot">{footer}</footer>}
     </section>
   );
 }
@@ -81,7 +88,7 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
             n.browsable && n.url &&
             ((n.host && n.host.includes(item.key)) || n.name.toLowerCase().includes(item.key)),
         );
-        return { ...item, node, url: node?.url ?? (item.host ? `http://${item.host}` : null), status: node?.status ?? null };
+        return { ...item, node, url: node?.url ?? (item.host ? hostUrl(item.host) : null), status: node?.status ?? null };
       }).filter((l) => l.url && (l.primary || l.node)),
     [nodes],
   );
@@ -107,62 +114,87 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
   );
 }
 
-// ── the hero: one big answer ─────────────────────────────────────────────────
-// "Big bold numbers" for the global metric, a part-to-whole bar beneath it, and
-// three supporting stats. Everything else on the page is detail behind this.
-function Hero({
-  up, total, attentionN, systemsN, diskTotal, segs, history, degraded,
+// ── the status line ──────────────────────────────────────────────────────────
+// One line, not a 160px card.
+//
+// WHAT THIS REPLACED, AND WHY. The hero used to state the same ratio four
+// times — a 46px number, a part-to-whole bar, a written legend, and a "Healthy
+// %" stat cell — and then surround it with four more cells. Two of those cells
+// were duplicates of things on the same screen (`Systems` is countable in the
+// matrix immediately below; `Data` repeated the Data & disk panel header), and
+// `Trend` was a session-only ring buffer that read "collecting…" on every fresh
+// load and has been obsolete since real metrics arrived. That is the footprint
+// rule inverted: the loudest element on the page carried the least information,
+// and it pushed the graphs that carry the most below the fold.
+//
+// WORSE, IT CONTRADICTED ITSELF. With 7 services `unknown`, the page showed
+// "Healthy 68%" beside "Needs a look: none" and "Everything meant to be running
+// is up". All three at once, six pixels apart. `unknown` means WE HAVE NOT
+// CHECKED — those are the @file host routes with no container to inspect — so
+// it is neither a pass nor a fault, and the old copy silently treated it as
+// both. Unverified services now get their own count and their own sentence.
+function StatusLine({
+  up, unknown, stopped, expected, attentionN, segs, aside, degraded,
 }: {
-  up: number; total: number; attentionN: number; systemsN: number;
-  diskTotal: number | null; segs: Seg[]; history: number[]; degraded: string[];
+  up: number; unknown: number; stopped: number; expected: number; attentionN: number;
+  segs: Seg[]; aside: Seg[]; degraded: string[];
 }) {
-  const pct = total ? Math.round((up / total) * 100) : 0;
+  // The claim is scoped to what actually reported in. Saying "everything is up"
+  // while a third of the box is unverified is the bug this wording fixes.
+  const verified = expected - unknown;
+  const allVerifiedUp = up >= verified && attentionN === 0;
+
   return (
-    <section className={`ov-hero ${attentionN ? 'is-warn' : ''}`}>
-      <div className="ov-hero-main">
-        <div className="ov-hero-num">
+    <section className={`ov-status ${attentionN ? 'is-warn' : ''}`}>
+      <div className="ov-status-head">
+        <span className="ov-status-counts">
           <b className="tnum">{up}</b>
-          <span className="ov-hero-of">/ {total} services up</span>
-        </div>
-        <StatusBar segs={segs} height={10} />
-        <div className="ov-hero-legend">
-          {segs.filter((s) => s.n > 0).map((s) => (
-            <span key={s.key} className="ov-hero-leg">
-              <span className={`vz-bar-seg seg-${s.key} ov-hero-leg-dot`} aria-hidden="true" />
-              {s.n} {s.label}
-            </span>
-          ))}
-        </div>
+          <span className="ov-status-lbl">up</span>
+          {unknown > 0 && (
+            <>
+              <span className="ov-status-sep">·</span>
+              <b className="tnum is-unknown">{unknown}</b>
+              <span className="ov-status-lbl">unverified</span>
+            </>
+          )}
+          {stopped > 0 && (
+            <>
+              <span className="ov-status-sep">·</span>
+              <b className="tnum is-off">{stopped}</b>
+              <span className="ov-status-lbl">off</span>
+            </>
+          )}
+        </span>
+        {/* `aside` keeps switched-off services OUT of the bar's whole, so the
+            bar and the counts beside it describe the same population. */}
+        <StatusBar segs={segs} aside={aside} height={8} />
       </div>
 
-      <dl className="ov-hero-stats">
-        <div className={`ov-stat ${attentionN ? 'is-warn' : ''}`}>
-          <dt>Needs a look</dt>
-          <dd>
-            {attentionN ? <a href="#needs-attention">{attentionN}</a> : <span className="ov-stat-ok">none</span>}
-          </dd>
-        </div>
-        <div className="ov-stat">
-          <dt>Healthy</dt>
-          <dd>{pct}<span className="ov-stat-unit">%</span></dd>
-        </div>
-        <div className="ov-stat">
-          <dt>Systems</dt>
-          <dd>{systemsN}</dd>
-        </div>
-        <div className="ov-stat">
-          <dt>Data</dt>
-          <dd className="ov-stat-sm">{diskTotal != null ? fmtBytes(diskTotal) : '—'}</dd>
-        </div>
-        {/* short label on purpose — "Up, this session" clipped to "UP, THIS SESSI…" */}
-        <div className="ov-stat ov-stat-spark">
-          <dt title="Services up, sampled once per refresh for this session">Trend</dt>
-          <dd><Sparkline points={history} label={`services up over the last ${history.length} refreshes`} /></dd>
-        </div>
-      </dl>
+      <p className="ov-status-note">
+        {attentionN > 0 ? (
+          <>
+            <StatusIcon status="down" size={13} />
+            <a href="#needs-attention">
+              {attentionN} service{attentionN === 1 ? '' : 's'} need{attentionN === 1 ? 's' : ''} a look
+            </a>
+          </>
+        ) : (
+          <>
+            <StatusIcon status={allVerifiedUp ? 'up' : 'unknown'} size={13} />
+            {allVerifiedUp
+              ? `All ${verified} services that report in are up.`
+              : `${up} of ${verified} confirmed up.`}
+          </>
+        )}
+        {unknown > 0 && (
+          <span className="ov-status-sub">
+            {unknown} can’t be verified — host routes with no container to ask.
+          </span>
+        )}
+      </p>
 
       {degraded.length > 0 && (
-        <p className="ov-hero-degraded">
+        <p className="ov-status-degraded">
           <AlertTriangle size={13} aria-hidden="true" />
           {degraded.join(' and ')} unreachable — these numbers cover only what is still visible.
         </p>
@@ -171,28 +203,33 @@ function Hero({
   );
 }
 
-// ── panel bodies ─────────────────────────────────────────────────────────────
-function AttentionBody({ nodes }: { nodes: PortalNode[] }) {
-  const attention = useMemo(() => needsAttention(nodes), [nodes]);
-  if (!attention.length) {
-    return (
-      <div className="ov-clear">
-        <StatusIcon status="up" size={16} /> Everything discovered is up.
-      </div>
-    );
-  }
+// ── exceptions ───────────────────────────────────────────────────────────────
+// Not a panel any more. "Needs attention" spent a fixed grid cell whether or not
+// it had anything to say, which is backwards for the one section on the page
+// that should be invisible on a healthy box and impossible to miss on a sick
+// one. It is now a strip directly under the hero, rendered only when non-empty;
+// the clear case is one line inside the hero.
+function AttentionStrip({ attention }: { attention: PortalNode[] }) {
+  if (!attention.length) return null;
   return (
-    <div className="ov-attention">
-      {attention.map((n) => (
-        <Link to={serviceLink(n)} className="ov-alert" key={n.id}>
-          <span className="ico sm"><ServiceIcon node={n} size={15} /></span>
-          <span className="ov-alert-name">{n.name}</span>
-          <StatusIcon status={n.status} />
-          <span className="ov-alert-why">{n.status === 'down' ? 'down' : kindLabelOf(n).label}</span>
-          <ArrowRight size={14} className="ov-alert-arrow" />
-        </Link>
-      ))}
-    </div>
+    <section className="ov-attn" id="needs-attention" aria-label="Needs attention">
+      <h2 className="ov-attn-h">
+        <AlertTriangle size={14} aria-hidden="true" />
+        Needs attention
+        <span className="ov-attn-n">{attention.length}</span>
+      </h2>
+      <div className="ov-attn-list">
+        {attention.map((n) => (
+          <Link to={serviceLink(n)} className="ov-alert" key={n.id}>
+            <span className="ico sm"><ServiceIcon node={n} size={15} /></span>
+            <span className="ov-alert-name">{n.name}</span>
+            <StatusIcon status={n.status} />
+            <span className="ov-alert-why">{n.status === 'down' ? 'down' : n.status === 'stopped' ? 'stopped' : kindLabelOf(n).label}</span>
+            <ArrowRight size={14} className="ov-alert-arrow" />
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -289,107 +326,81 @@ function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof us
   );
 }
 
-// What KIND of thing is running here — a distribution the portal could always
-// have computed and never showed.
-function MixBody({ nodes }: { nodes: PortalNode[] }) {
-  const rows = useMemo<GaugeRow[]>(() => {
-    const by = new Map<ServiceType, number>();
-    for (const n of nodes) if (!n.hidden) by.set(n.serviceType, (by.get(n.serviceType) ?? 0) + 1);
-    return [...by.entries()]
-      .sort((a, b) => b[1] - a[1] || TYPE_META[a[0]].order - TYPE_META[b[0]].order)
-      .map(([t, n]) => ({
-        key: t,
-        label: TYPE_META[t].label,
-        value: n,
-        display: String(n),
-      }));
-  }, [nodes]);
-  if (!rows.length) return <p className="ov-uicol-empty">Nothing discovered.</p>;
-  return <BarGauge rows={rows} />;
-}
-
-function RecentBody({ nodes }: { nodes: PortalNode[] }) {
-  const recent = useMemo(() => recentlyStarted(nodes), [nodes]);
-  if (!recent.length) return <p className="ov-uicol-empty">No restarts since the box came up.</p>;
-  return (
-    <div className="ov-feed">
-      {recent.map((n) => (
-        <Link to={serviceLink(n)} className="ov-feed-item" key={n.id}>
-          <span className="ico sm"><ServiceIcon node={n} size={15} /></span>
-          <span className="ov-feed-name">{n.name}</span>
-          <span className="ov-feed-ago">{fmtAgo(n.uptimeSecs)}</span>
-        </Link>
-      ))}
-    </div>
-  );
-}
+// `Service mix` and `Recent activity` are DELETED, not moved.
+//
+// Service mix was a histogram of how many web / db / cache services exist. It is
+// a fact about the box's composition that changes maybe twice a month, given a
+// permanent panel on the page you look at to answer "is anything broken right
+// now". Recent activity listed containers started in the last 30 minutes, which
+// on a box that stays up for days is empty almost always — a panel whose usual
+// state is "No restarts since the box came up" is spending a grid cell to say
+// nothing. Both remain derivable (groupByType / recentlyStarted are still
+// exported and still tested); neither earns standing room on the Overview.
 
 // ── page ─────────────────────────────────────────────────────────────────────
-const OPEN_KEY = 'portal-open-groups';
-const readOpen = (): Record<string, boolean> => {
-  try { return JSON.parse(localStorage.getItem(OPEN_KEY) || '') || {}; } catch { return {}; }
-};
-
 export function Overview() {
   const { data } = usePortal();
   const systems = useMemo(() => systemsOf(data.nodes), [data.nodes]);
+  // The system whose quick-lookup dialog is open. Held by key rather than by
+  // object so the dialog follows the LIVE system across a poll — holding the
+  // object froze it at the instant it was clicked, and this page repolls every
+  // ten seconds, so an open dialog showed stale statuses.
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const openSystem = useMemo(
+    () => systems.find((s) => s.key === openKey) ?? null,
+    [systems, openKey],
+  );
   const { stack, project } = useMemo(() => uiPorts(data.nodes), [data.nodes]);
-  const attentionN = useMemo(() => needsAttention(data.nodes).length, [data.nodes]);
+  // Computed once and shared: the hero's count, the strip's list and the
+  // matrix's per-system flag all read from this one result.
+  const attention = useMemo(() => needsAttention(data.nodes), [data.nodes]);
+  const attentionN = attention.length;
+  const attentionIds = useMemo(() => new Set(attention.map((n) => n.id)), [attention]);
   const bothDown = data.nodes.length === 0 && data.fails > 0;
   const loading = data.at === 0 && data.fails === 0;
 
-  const diskTotal = useMemo(() => {
+  const { diskTotal, volumeCount } = useMemo(() => {
     const vols = diskVolumes(data.df, systems);
     let sum = 0; let any = false;
     for (const v of vols) if (v.bytes != null) { sum += v.bytes; any = true; }
-    return any ? sum : null;
+    return { diskTotal: any ? sum : null, volumeCount: vols.length };
   }, [systems, data.df]);
 
-  const counts = useMemo(() => {
-    let up = 0, down = 0, starting = 0, unknown = 0;
-    for (const n of data.nodes) {
-      if (n.status === 'up') up++;
-      else if (n.status === 'down') down++;
-      else if (n.status === 'starting') starting++;
-      else unknown++;
-    }
-    return { up, down, starting, unknown };
-  }, [data.nodes]);
+  const counts = useMemo(() => healthOf(data.nodes), [data.nodes]);
 
+  // Services that are meant to be up right now. Stopped ones are excluded from
+  // the hero's denominator and from the healthy %: with them in, switching a
+  // project off pushed the headline number down and the box read as broken when
+  // it was merely idle.
+  const expected = expectedUp(counts);
+
+  // The bar's whole == the number's denominator. Stopped is shown, but detached.
   const segs: Seg[] = [
     { key: 'up', n: counts.up, label: 'up' },
     { key: 'starting', n: counts.starting, label: 'starting' },
     { key: 'down', n: counts.down, label: 'down' },
     { key: 'unknown', n: counts.unknown, label: 'unknown' },
   ];
+  const aside: Seg[] = [{ key: 'stopped', n: counts.stopped, label: 'stopped' }];
 
   const degraded = useMemo(
     () => [...new Set(data.errors.map((e) => e.src.split(' ')[0]))],
     [data.errors],
   );
 
-  // Projects individually (few, and they are what the box is for); the shared
-  // stack and the plumbing roll up to one card each.
-  const groups = useMemo<GroupSpec[]>(() => {
+  // Grouping survives — projects, the shared stack and the plumbing really are
+  // three different kinds of thing — but as headings over one flow of chips,
+  // not as three cards with independent open/closed state.
+  const groups = useMemo<MatrixGroup[]>(() => {
     const of = (k: System['kind']) => systems.filter((s) => s.kind === k);
     return [
-      { key: 'project', title: 'Projects', hint: 'what this box is for', systems: of('project') },
-      { key: 'stack', title: 'Stack', hint: 'shared dev services', systems: of('stack') },
-      { key: 'infra', title: 'Infrastructure', hint: 'the edge and plumbing', systems: of('infra') },
+      { key: 'project', title: 'Projects', systems: of('project') },
+      { key: 'stack', title: 'Stack', systems: of('stack') },
+      { key: 'infra', title: 'Infrastructure', systems: of('infra') },
     ].filter((g) => g.systems.length > 0);
   }, [systems]);
 
-  // Projects open by default; the rest stay folded until asked for. Persisted so
-  // the page opens the way you left it.
-  const [open, setOpen] = useState<Record<string, boolean>>(() => ({ project: true, ...readOpen() }));
-  const toggle = (k: string) =>
-    setOpen((prev) => {
-      const next = { ...prev, [k]: !prev[k] };
-      try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
-      return next;
-    });
-
-  const floorLinks = KNOWN_HOSTS.map(([host, name]) => ({ id: host, name, url: `http://${host}` }));
+  const floorLinks = KNOWN_HOSTS.map(([host, name]) => ({ id: host, name, url: hostUrl(host) ?? `http://${host}` }));
 
   return (
     <div className="overview">
@@ -415,56 +426,84 @@ export function Overview() {
         </div>
 
         {loading ? (
-          <Skeleton />
+          <Skeleton variant="overview" />
         ) : (
           <>
-            <Hero
+            {/* Order is the page's hierarchy. "Is anything broken" is the
+                question this page exists for, so it is first and it is the
+                largest type on the screen. "How is the machine doing" is second.
+                Everything below is detail behind those two. */}
+            <StatusLine
               up={counts.up}
-              total={data.nodes.length}
+              unknown={counts.unknown}
+              stopped={counts.stopped}
+              expected={expected}
               attentionN={attentionN}
-              systemsN={systems.length}
-              diskTotal={diskTotal}
               segs={segs}
-              history={data.history}
+              aside={aside}
               degraded={degraded}
             />
 
-            <section className="ov-groups" aria-label="Systems">
-              {groups.map((g) => (
-                <SystemGroup key={g.key} group={g} open={!!open[g.key]} onToggle={() => toggle(g.key)} />
-              ))}
-            </section>
+            <QuickView />
+
+            <AttentionStrip attention={attention} />
+
+            <SystemMatrix
+              groups={groups}
+              attentionIds={attentionIds}
+              onOpen={(s) => setOpenKey(s.key)}
+            />
+
+            {/* The graphs. Deliberately BELOW the health answer: "is anything
+                broken" is the question this page exists for, and a row of charts
+                above it would be three pretty things standing in front of the
+                one sentence you came to read. */}
+            <Vitals />
 
             <div className="ov-dash">
               <Panel
-                id="needs-attention"
-                title="Needs attention"
-                Icon={AlertTriangle}
-                className={attentionN ? 'is-warn' : ''}
-                meta={attentionN ? `${attentionN}` : 'clear'}
+                title="Open a UI"
+                Icon={ExternalLink}
+                meta={stack.length + project.length}
+                footer={
+                  <>
+                    <span><b>{project.length}</b> project</span>
+                    <span className="sep">·</span>
+                    <span><b>{stack.length}</b> stack</span>
+                    <span className="right">opens in a new tab</span>
+                  </>
+                }
               >
-                <AttentionBody nodes={data.nodes} />
-              </Panel>
-
-              <Panel title="Open a UI" Icon={ExternalLink} meta={stack.length + project.length}>
                 <UiBody stack={stack} project={project} />
               </Panel>
 
-              <Panel title="Data & disk" Icon={HardDrive} meta={data.df ? fmtBytes(diskTotal) : 'no sizes'}>
+              <Panel
+                title="Data & disk"
+                Icon={HardDrive}
+                meta={data.df ? fmtBytes(diskTotal) : 'no sizes'}
+                footer={
+                  <>
+                    <span><b>{volumeCount}</b> volumes</span>
+                    <span className="sep">·</span>
+                    <span>total <b>{diskTotal != null ? fmtBytes(diskTotal) : '—'}</b></span>
+                    {!data.df && <span className="right">sizes unavailable</span>}
+                  </>
+                }
+              >
                 <DiskBody systems={systems} df={data.df} />
               </Panel>
 
-              <Panel title="Service mix" Icon={Boxes} meta={data.nodes.length}>
-                <MixBody nodes={data.nodes} />
-              </Panel>
-
-              <Panel title="Recent activity" Icon={Clock}>
-                <RecentBody nodes={data.nodes} />
-              </Panel>
+              <TopContainers />
             </div>
           </>
         )}
       </div>
+
+      <SystemDialog
+        system={openSystem}
+        open={openSystem != null}
+        onOpenChange={(o) => !o && setOpenKey(null)}
+      />
     </div>
   );
 }

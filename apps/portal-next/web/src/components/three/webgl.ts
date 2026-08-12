@@ -29,6 +29,9 @@ export const STATUS_HEX: Record<Status, string> = {
   up: '#34d399',
   starting: '#fbbf24',
   down: '#fb7185',
+  // Dimmer than 'unknown': a stopped unit should read as an unlit slab in the
+  // rack, not as another thing demanding attention.
+  stopped: '#4a5263',
   unknown: '#6b7688',
 };
 
@@ -36,12 +39,14 @@ export const STATUS_LABEL: Record<Status, string> = {
   up: 'Up',
   starting: 'Starting',
   down: 'Down',
+  stopped: 'Stopped',
   unknown: 'Unknown',
 };
 
-// index.css maps state → status var (up=ok, starting=warn, down=down, unknown=unk).
+// index.css maps state → status var (up=ok, starting=warn, down=down,
+// stopped=off, unknown=unk).
 const STATUS_VAR: Record<Status, string> = {
-  up: '--ok', starting: '--warn', down: '--down', unknown: '--unk',
+  up: '--ok', starting: '--warn', down: '--down', stopped: '--off', unknown: '--unk',
 };
 
 // Read a CSS custom property off :root, trimmed. Returns '' if unavailable.
@@ -128,6 +133,7 @@ export function statusHexes(): Record<Status, string> {
     up: cssVar(STATUS_VAR.up) || STATUS_HEX.up,
     starting: cssVar(STATUS_VAR.starting) || STATUS_HEX.starting,
     down: cssVar(STATUS_VAR.down) || STATUS_HEX.down,
+    stopped: cssVar(STATUS_VAR.stopped) || STATUS_HEX.stopped,
     unknown: cssVar(STATUS_VAR.unknown) || STATUS_HEX.unknown,
   };
 }

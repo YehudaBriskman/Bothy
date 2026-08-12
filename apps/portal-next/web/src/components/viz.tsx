@@ -18,27 +18,45 @@ export interface Seg {
   n: number;
   label: string;
 }
-export function StatusBar({ segs, height = 8 }: { segs: Seg[]; height?: number }) {
+
+// `segs` are THE WHOLE — the denominator the bar is a part of. `aside` is for
+// counts that exist but are outside that whole, drawn detached after a gap.
+//
+// This split fixes a real disagreement: the hero prints "15 / 22 services up",
+// whose denominator excludes stopped services (expectedUp), while the bar
+// underneath it was fed all five statuses including stopped. The two graphics
+// sat 6px apart and claimed different totals — so a box with two idle projects
+// showed a bar that looked two-thirds full beside a number that said 100%.
+// Stopped services are still shown, but as what they are: not part of the
+// measurement.
+export function StatusBar({
+  segs, aside = [], height = 8,
+}: { segs: Seg[]; aside?: Seg[]; height?: number }) {
   const total = segs.reduce((a, s) => a + s.n, 0);
   const parts = segs.filter((s) => s.n > 0);
+  const off = aside.filter((s) => s.n > 0);
+  const label = [
+    total ? parts.map((s) => `${s.n} ${s.label}`).join(', ') : 'no services',
+    ...off.map((s) => `${s.n} ${s.label} (not counted)`),
+  ].join(', ');
+
   return (
-    <div
-      className="vz-bar"
-      style={{ height }}
-      role="img"
-      aria-label={
-        total
-          ? parts.map((s) => `${s.n} ${s.label}`).join(', ')
-          : 'no services'
-      }
-    >
-      {total === 0 ? (
+    <div className="vz-bar" style={{ height }} role="img" aria-label={label}>
+      {total === 0 && off.length === 0 ? (
         <span className="vz-bar-seg is-empty" style={{ flex: 1 }} />
       ) : (
         parts.map((s) => (
           <span key={s.key} className={`vz-bar-seg seg-${s.key}`} style={{ flex: s.n }} title={`${s.n} ${s.label}`} />
         ))
       )}
+      {off.map((s) => (
+        <span
+          key={s.key}
+          className={`vz-bar-seg seg-${s.key} is-aside`}
+          style={{ flex: s.n }}
+          title={`${s.n} ${s.label} — switched off, not counted`}
+        />
+      ))}
     </div>
   );
 }
@@ -98,46 +116,9 @@ export function BarGauge({
   );
 }
 
-// ── sparkline ────────────────────────────────────────────────────────────────
-// The ONLY real time series this app has: a rolling window of "services up",
-// sampled once per poll and held for the session. It is deliberately small and
-// unlabelled — it answers "has this been steady?" and nothing more.
-export function Sparkline({
-  points,
-  width = 108,
-  height = 26,
-  label,
-}: {
-  points: number[];
-  width?: number;
-  height?: number;
-  label?: string;
-}) {
-  if (points.length < 2) {
-    return <span className="vz-spark-empty" title="Collecting — one sample per refresh">collecting…</span>;
-  }
-  const lo = Math.min(...points);
-  const hi = Math.max(...points);
-  // a flat line should sit in the middle, not on the floor
-  const span = hi - lo || 1;
-  const pad = 2;
-  const stepX = (width - pad * 2) / (points.length - 1);
-  const y = (v: number) => pad + (1 - (v - lo) / span) * (height - pad * 2);
-  const d = points.map((v, i) => `${pad + i * stepX},${y(v)}`).join(' ');
-  const area = `${pad},${height - pad} ${d} ${pad + (points.length - 1) * stepX},${height - pad}`;
-  const steady = hi === lo;
-  return (
-    <svg
-      className={`vz-spark ${steady ? 'is-steady' : ''}`}
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label={label ?? `${points[points.length - 1]} of a rolling window, ${points.length} samples`}
-    >
-      <polygon className="vz-spark-area" points={area} />
-      <polyline className="vz-spark-line" points={d} />
-      <circle className="vz-spark-dot" cx={pad + (points.length - 1) * stepX} cy={y(points[points.length - 1])} r={2.2} />
-    </svg>
-  );
-}
+// The sparkline is GONE (2026-08-10). It plotted `data.history`, a ring buffer
+// of "services up" appended once per poll and held only for the session — so it
+// read "collecting…" on every fresh load and could never answer "was the box
+// busy an hour ago", because an hour ago the tab was not open. Real history
+// arrived with the Prometheus route, and components/TimeChart.tsx supersedes it.
+// The buffer that fed it was removed from lib/api.ts at the same time.

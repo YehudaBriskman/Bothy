@@ -9,16 +9,16 @@
 
 /* ── breadcrumb ──────────────────────────────────────────────────────────── */
 .crumbs { display: flex; align-items: center; gap: 7px; margin-bottom: 14px;
-  font-size: 13px; font-weight: 600; color: var(--dim); flex-wrap: wrap; }
-.crumbs a { color: var(--ink-2); }
-.crumbs a:hover { color: var(--ink); }
-.crumbs .sep { color: var(--dim); opacity: 0.6; display: inline-flex; }
-.crumbs .here { color: var(--ink); overflow: hidden; text-overflow: ellipsis;
+  font-size: 13px; font-weight: 600; color: var(--fg-subtle); flex-wrap: wrap; }
+.crumbs a { color: var(--fg-muted); }
+.crumbs a:hover { color: var(--fg); }
+.crumbs .sep { color: var(--fg-subtle); opacity: 0.6; display: inline-flex; }
+.crumbs .here { color: var(--fg); overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; max-width: 46ch; }
 
 /* ── header ──────────────────────────────────────────────────────────────── */
 .detail-head { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
-.detail-head .ico.lg { color: var(--acc, var(--primary)); }
+.detail-head .ico.lg { color: var(--acc, var(--accent)); }
 .detail-head-meta { flex: 1; min-width: 0; }
 .detail .detail-head-meta h1 { font-size: 25px; font-weight: 800; letter-spacing: -0.02em;
   line-height: 1.1; margin: 0 0 9px; display: flex; align-items: center; gap: 12px;
@@ -28,13 +28,13 @@
 /* status pill — reuses StatusIcon's coloured glyph+label, framed by the reserved
    status hue (form + label, never colour alone). */
 .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px;
-  border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-2); }
-.status-pill[data-state="up"]       { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
-.status-pill[data-state="starting"] { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
-.status-pill[data-state="down"]     { border-color: color-mix(in srgb, var(--down) 45%, transparent); }
-.status-pill[data-state="unknown"]  { border-color: var(--line-2); }
+  border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-strong); }
+.status-pill[data-state="up"]       { border-color: color-mix(in oklab, var(--st-up) 40%, transparent); }
+.status-pill[data-state="starting"] { border-color: color-mix(in oklab, var(--st-warn) 40%, transparent); }
+.status-pill[data-state="down"]     { border-color: color-mix(in oklab, var(--st-down) 45%, transparent); }
+.status-pill[data-state="unknown"]  { border-color: var(--line-strong); }
 
-.detail-lede { color: var(--ink-2); font-size: 14px; max-width: 760px; margin: 12px 0 22px;
+.detail-lede { color: var(--fg-muted); font-size: 14px; max-width: 760px; margin: 12px 0 22px;
   line-height: 1.55; }
 
 /* ── the panel grid — this is the fix ───────────────────────────────────────
@@ -69,32 +69,32 @@
   border-bottom: 1px solid var(--line); font-size: 13px; }
 .port-row:last-child { border-bottom: 0; }
 .port-map { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums;
-  color: var(--ink); }
-.port-map .arrow { color: var(--dim); margin: 0 5px; }
-.port-proto { font-family: var(--mono); font-size: 11px; color: var(--dim);
+  color: var(--fg); }
+.port-map .arrow { color: var(--fg-subtle); margin: 0 5px; }
+.port-proto { font-family: var(--mono); font-size: 11px; color: var(--fg-subtle);
   text-transform: uppercase; }
 .port-row .tag { margin-left: auto; }
 
 /* ── container labels (scrolls inside its own region) ──────────────────────── */
 .labels-block { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
-.labels-block .labels-head { font-size: 12px; font-weight: 700; color: var(--dim);
+.labels-block .labels-head { font-size: 12px; font-weight: 700; color: var(--fg-subtle);
   margin-bottom: 9px; }
 .labels-scroll { max-height: 208px; overflow-y: auto; display: flex; flex-direction: column;
   gap: 7px; padding-right: 4px; }
 .labels-scroll::-webkit-scrollbar { width: 9px; }
-.labels-scroll::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 6px;
+.labels-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 6px;
   border: 2px solid transparent; background-clip: padding-box; }
 .label-row { display: grid; grid-template-columns: minmax(140px, 42%) 1fr; gap: 12px;
   font-size: 12px; align-items: baseline; }
-.label-k { color: var(--ink-2); font-family: var(--mono); overflow-wrap: anywhere; }
-.label-v { color: var(--dim); font-family: var(--mono); overflow-wrap: anywhere; }
+.label-k { color: var(--fg-muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.label-v { color: var(--fg-subtle); font-family: var(--mono); overflow-wrap: anywhere; }
 
 /* ── project: health rollup ────────────────────────────────────────────────── */
 .health-roll { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
 .health-big { display: flex; align-items: baseline; gap: 8px; }
 .health-big .n { font-size: 34px; font-weight: 800; letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums; line-height: 1; }
-.health-big .d { color: var(--dim); font-size: 14px; }
+.health-big .d { color: var(--fg-subtle); font-size: 14px; }
 .health-roll .ov-bar { flex: 1; min-width: 160px; height: 10px; }
 .health-tags { display: flex; gap: 7px; flex-wrap: wrap; }
 .health-tags .tag { text-transform: capitalize; }
@@ -117,27 +117,27 @@
    infra). Tinted with the panel accent, never a status hue. */
 .detail .kind-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
   text-transform: uppercase; padding: 3px 9px; border-radius: 999px; line-height: 1;
-  border: 1px solid color-mix(in srgb, var(--acc, var(--primary)) 38%, var(--line-2));
-  color: color-mix(in srgb, var(--acc, var(--primary)) 78%, var(--ink));
-  background: color-mix(in srgb, var(--acc, var(--primary)) 12%, var(--surface-2));
+  border: 1px solid color-mix(in oklab, var(--acc, var(--accent)) 38%, var(--line-strong));
+  color: color-mix(in oklab, var(--acc, var(--accent)) 78%, var(--fg));
+  background: color-mix(in oklab, var(--acc, var(--accent)) 12%, var(--surface-2));
   align-self: center; white-space: nowrap; }
 
 /* ── services: type + status filter bar (mirrors Services.tsx feel) ──────────
    The base .filter-bar/.chip live in index.css; these are the same facet-count
    deltas the Services page carries, rescoped under .detail. */
 .detail .svc-filter { margin-bottom: 16px; }
-.detail .svc-filter .filters-ico { color: var(--dim); flex: none; }
+.detail .svc-filter .filters-ico { color: var(--fg-subtle); flex: none; }
 .detail .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .detail .filter-chips .chip { text-transform: none; padding-right: 7px; }
 /* no capitalize — see the note in Services.css */
 .detail .filter-chips .chip .n {
-  font-variant-numeric: tabular-nums; color: var(--dim); background: var(--surface);
+  font-variant-numeric: tabular-nums; color: var(--fg-subtle); background: var(--surface-1);
   border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center; }
 .detail .filter-chips .chip.on .n {
-  color: var(--ink); background: color-mix(in srgb, var(--primary) 22%, transparent); }
+  color: var(--fg); background: color-mix(in oklab, var(--accent) 22%, transparent); }
 .detail .filter-chips .chip.is-zero { opacity: 0.45; }
 .detail .filter-div { width: 1px; align-self: stretch; min-height: 20px;
-  background: var(--line-2); margin: 0 2px; }
+  background: var(--line-strong); margin: 0 2px; }
 
 /* ── services split by type ──────────────────────────────────────────────────
    One block per ServiceType: an icon + label + count header, then the service
@@ -145,16 +145,16 @@
 .detail .type-sections { display: flex; flex-direction: column; gap: 18px; }
 .detail .type-section { display: flex; flex-direction: column; gap: 8px; }
 .detail .type-head { display: flex; align-items: center; gap: 9px; }
-.detail .type-head .ico.sm { color: var(--acc, var(--primary)); }
-.detail .type-label { font-size: 13.5px; font-weight: 700; color: var(--ink); }
-.detail .type-cnt { font-size: 12px; font-weight: 600; color: var(--dim);
+.detail .type-head .ico.sm { color: var(--acc, var(--accent)); }
+.detail .type-label { font-size: 13.5px; font-weight: 700; color: var(--fg); }
+.detail .type-cnt { font-size: 12px; font-weight: 600; color: var(--fg-subtle);
   font-variant-numeric: tabular-nums; background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
-.detail .type-section .tbl-wrap { border: 1px solid var(--line); border-radius: var(--r);
-  background: var(--surface); overflow: auto; max-height: 360px; }
+.detail .type-section .tbl-wrap { border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface-1); overflow: auto; max-height: 360px; }
 .detail .type-section .tbl th { background: var(--surface-2); }
 
-.detail .svc-empty { text-align: center; padding: 30px 20px; color: var(--ink-2);
+.detail .svc-empty { text-align: center; padding: 30px 20px; color: var(--fg-muted);
   display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .detail .svc-empty p { margin: 0; }
 
@@ -163,8 +163,8 @@
 .detail .vol-tbl th.num, .detail .vol-tbl td.num { text-align: right;
   font-variant-numeric: tabular-nums; }
 .detail .vol-name { display: flex; align-items: center; gap: 9px; }
-.detail .vol-name .ico.sm { color: var(--acc, var(--primary)); }
-.detail .vol-tbl .dim { color: var(--dim); }
+.detail .vol-name .ico.sm { color: var(--acc, var(--accent)); }
+.detail .vol-tbl .dim { color: var(--fg-subtle); }
 
 /* ── not-found / empty ─────────────────────────────────────────────────────── */
 .detail .state { margin-top: 8px; }
