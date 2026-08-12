@@ -41,6 +41,7 @@ services, SSO and Tailscale node were all still up with only yr055 on console. V
 
 ```powershell
 (Get-Process vmmemWSL -ErrorAction SilentlyContinue).Count   # want: 2
-curl.exe -s -o NUL -w "%{http_code}" http://dev.test/        # want: 401 (or 200/302)
+curl.exe -s -o NUL -w "%{http_code} %{size_download}" http://100.117.176.85/   # want: 200 + >0 bytes
+
 tailscale status | findstr yehuda-wsl                        # want: active or idle, not offline
 ```

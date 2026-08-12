@@ -377,6 +377,16 @@ services:
       - --cookie-samesite=lax
       - --reverse-proxy=true
 
+      # --reverse-proxy=true makes oauth2-proxy BELIEVE X-Forwarded-* headers,
+      # and on its own it believes them from any source address (it warns about
+      # exactly this at startup). Those headers decide the host the redirect is
+      # built against and the client IP that gets logged and rate-limited, so on
+      # a forwardAuth boundary an unrestricted trust list is a bypass primitive.
+      # Only Traefik ever calls this container, from its devnet address, so
+      # restrict the trust to that subnet. Widen it only if something else on
+      # devnet legitimately fronts this.
+      - --trusted-proxy-ip=172.18.0.0/16
+
       # Traefik calls /oauth2/auth for a verdict; nothing proxies through here,
       # so a static upstream is all that is needed.
       - --upstream=static://202
