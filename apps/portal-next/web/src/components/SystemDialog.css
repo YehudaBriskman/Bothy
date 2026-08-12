@@ -39,6 +39,34 @@
 .sd-row-open { color: var(--fg-subtle); flex: none; display: inline-flex; }
 .sd-row-open:hover { color: var(--accent-fg); }
 
+/* A one-shot that finished. Reads as a quiet fact, not a status: it is the one
+   row in the list that needs no action, so it must not compete with the ones
+   that do. --ok at reduced weight, never the alarm colours. */
+.sd-done {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  font-size: 11px; color: var(--st-up-fg); opacity: 0.75;
+}
+
+/* The wiring. Deliberately a list and not a graph: with 2–4 edges per system a
+   drawing costs layout and reads slower than a sentence. The Topology page is
+   where a picture earns its space. */
+.sd-edges { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.sd-edges li {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-size: 12px; padding: 3px 8px; border-radius: var(--r-xs);
+}
+.sd-edges li:hover { background: var(--surface-2); }
+.sd-edge-from { color: var(--fg-muted); }
+.sd-edge-arrow { color: var(--fg-subtle); font-size: 11px; }
+.sd-edges a { color: var(--fg); text-decoration: none; }
+.sd-edges a:hover { color: var(--accent-fg); text-decoration: underline; }
+/* Marked, not hidden. A declared dependency with nothing behind it is the most
+   actionable thing on this panel. */
+.sd-edges li.broken { background: var(--st-down-bg); }
+.sd-edge-missing { color: var(--st-down-fg); font-family: var(--mono); font-size: 11px; }
+.sd-edge-missing em { font-style: normal; opacity: 0.8; }
+.sd-edge-cond { margin-left: auto; color: var(--fg-subtle); font-size: 11px; }
+
 .sd-vols { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
 .sd-vols li { display: flex; align-items: baseline; gap: 10px; font-size: 12px; padding: 2px 8px; }
 .sd-vol-dest { margin-left: auto; color: var(--fg-subtle); font-family: var(--mono); font-size: 11px; }

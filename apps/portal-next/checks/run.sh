@@ -16,10 +16,14 @@ trap 'rm -rf "$OUT"' EXIT
 (cd "$WEB" && npx tsc src/lib/discover.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/discover.js" "$OUT/discover.mjs"
-cp "$HERE/status-classifier.mjs" "$OUT/"
+cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
+
+echo
+echo "── relations ───────────────────────────────────────────"
+node "$OUT/relations.mjs"
 
 echo
 echo "── this box, right now ─────────────────────────────────"
