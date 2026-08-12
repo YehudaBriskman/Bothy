@@ -140,6 +140,12 @@ ps:
 doctor:
     @bash scripts/doctor.sh
 
+# Verify the access model still holds — run after ANY edge/routing change.
+# `just verify selftest` additionally proves the template-error probe can fail,
+# by voiding a dynamic file on purpose and cleaning it up again.
+verify mode="":
+    @VERIFY_SELFTEST={{ if mode == "selftest" { "1" } else { "" } }} bash scripts/verify-access.sh
+
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
     @bash scripts/backup.sh
@@ -207,6 +213,13 @@ urls:
     echo "      (CVOps, Tals) that you start by hand. Nothing is wrong when this"
     echo "      port is dead; that is its normal state between sessions:"
     echo "        tilt up --host=0.0.0.0"
+    echo ""
+    echo "  Reserved by projects (listed so the stack never picks them):"
+    echo "    CVOps nginx   http://$IP:8086         (project edge, compose mode)"
+    echo "    CVOps garage  http://$IP:3900         (S3 blobs — the BROWSER fetches"
+    echo "                                           these directly, so it must stay"
+    echo "                                           0.0.0.0-bound, not loopback)"
+    echo "    Tals frontend http://$IP:5173         (ports in Tals' .ports.lock)"
     echo ""
     echo "  Retired 2026-08-12 — measured idle, then DELETED. Data NOT recoverable:"
     echo "    Kafka + Kafka-UI (was :8081)  zero topics      ~1,110 MB"
