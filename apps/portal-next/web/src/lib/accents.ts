@@ -1,5 +1,5 @@
 // A fixed categorical order of panel accent hues. These are DELIBERATELY distinct
-// from the status palette (green/amber/red are reserved for up/starting/down) —
+// from the status palette (green/amber/red are reserved for up/starting/down) -
 // they only tint a panel's chrome, never encode meaning. Assigned by a stable
 // hash of the panel key so a panel keeps its colour no matter how the list is
 // filtered or reordered. Never cycled by array index.

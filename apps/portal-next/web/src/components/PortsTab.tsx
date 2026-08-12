@@ -86,7 +86,7 @@ export function PortsTab({
     return r;
   }, [ports, query, external, filter, sort]);
 
-  // Zero ports is the DESIRED state on this box — the house rule is "give it a
+  // Zero ports is the DESIRED state on this box - the house rule is "give it a
   // name, not a port". Only Docker actually being unreachable is an error, and
   // the loader already records that.
   const dockerDown = data.errors.some((e) => e.src.startsWith('docker'));
@@ -94,13 +94,13 @@ export function PortsTab({
     return dockerDown ? (
       <ErrState
         title="Container data unavailable"
-        body="Ports come from Docker — Traefik doesn't know about them. The socket-proxy looks unreachable. Everything else on this page still works."
+        body="Ports come from Docker - Traefik doesn't know about them. The socket-proxy looks unreachable. Everything else on this page still works."
         onRetry={refresh}
       />
     ) : (
       <EmptyState
         message="No published ports"
-        hint="Nothing here binds a host port — services are reached by name through the edge."
+        hint="Nothing here binds a host port - services are reached by name through the edge."
       />
     );
   }
@@ -135,7 +135,7 @@ export function PortsTab({
         </div>
       )}
 
-      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Published ports">
+      <div className="tbl-wrap scroll-shade" tabIndex={0} role="region" aria-label="Published ports">
         <table className="tbl">
           <thead>
             <tr>

@@ -1,4 +1,4 @@
-# Incident 2026-08-02 — laptop can't reach the dev stack (tunnel green, traffic dead)
+# Incident 2026-08-02 - laptop can't reach the dev stack (tunnel green, traffic dead)
 
 **Status: RESOLVED** ~19:00 same day. Full report with complete timeline and evidence:
 `C:\Users\yr055\thinkpad-tailscale-incident-2026-08-02.md` · host tailscaled log copies:
@@ -6,12 +6,12 @@
 
 ## Symptom
 From the ThinkPad: `dev.test` stopped working, then SSH to the dev stack died and never
-came back — while `tailscale status` on the laptop looked fine and everything worked from
+came back - while `tailscale status` on the laptop looked fine and everything worked from
 the PC. Looked exactly like a dev-box failure. It wasn't; the box was healthy throughout.
 
 ## Root cause
 **Half-upgraded Tailscale on the laptop**: the package on disk was upgraded (CLI 1.98.9)
-but the old daemon (1.98.2) kept running — visible as a version-skew warning at the top of
+but the old daemon (1.98.2) kept running - visible as a version-skew warning at the top of
 every `tailscale` command. The stale daemon left `tailscale0` **without its IPv4 address**:
 
 - Tunnel-internal checks all passed (disco pong, TSMP pong) → status green.
@@ -25,7 +25,7 @@ every `tailscale` command. The stale daemon left `tailscale0` **without its IPv4
 sudo systemctl restart tailscaled     # loads the upgraded binary, reprograms the interface
 ```
 Note: the first pings after the restart still timed out for a few seconds (NAT-hairpin
-path rediscovery to the WSL node) — retry before concluding failure.
+path rediscovery to the WSL node) - retry before concluding failure.
 
 ## Ruled out along the way (all clean)
 Dev stack (up 28h, all services answering) · Windows host (event logs spotless) ·

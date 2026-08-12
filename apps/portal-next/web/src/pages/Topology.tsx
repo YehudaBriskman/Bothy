@@ -4,7 +4,7 @@ import { usePortal } from '../lib/data';
 import { panelize } from '../lib/panels';
 import { STATUS_HEX } from '../components/three/webgl';
 import { serviceLink } from '../lib/links';
-import type { PortalNode } from '../lib/discover';
+import { conditionLabel, resolveEdges, type PortalNode } from '../lib/discover';
 import './Topology.css';
 
 // The heavy three.js scene stays in its own lazy chunk (never in the main
@@ -23,7 +23,11 @@ export function Topology() {
       <div className="page-head">
         <div>
           <h1>Topology</h1>
-          <p className="page-sub">edge → rack → container floor · nodes lit by live status · click to inspect</p>
+          <p className="page-sub">
+            {view === '3d'
+              ? 'edge → rack → container floor · nodes lit by live status · click to inspect'
+              : 'declared dependencies from compose · hover a service to isolate what it needs and what needs it'}
+          </p>
         </div>
         <div className="topo-head-right">
           <div className="topo-view" role="group" aria-label="Topology view">
@@ -48,6 +52,12 @@ export function Topology() {
             {(['up', 'starting', 'down', 'unknown'] as const).map((s) => (
               <span key={s} className="leg"><span className="leg-dot" style={{ background: STATUS_HEX[s] }} /> {s}</span>
             ))}
+            {/* Only meaningful on the flat map - the 3D scene has no dependency
+                lines to explain, and a legend for something not on screen is
+                worse than no legend. */}
+            {view === 'flat' && (
+              <span className="leg"><span className="leg-dash" aria-hidden="true" /> waits for</span>
+            )}
           </div>
         </div>
       </div>
@@ -102,8 +112,38 @@ function FlatMap() {
     return { placed, height: Math.max(360, y), groups };
   }, [data.nodes]);
 
+  // The declared dependency edges, placed against the rows above.
+  //
+  // Every other line on this map is a LAYOUT artifact: hub → service is the
+  // routing (real, but only 7 routers survive), and service → container is a
+  // horizontal stub from a row to itself, which carries no information at all.
+  // These are the only lines here that describe a relationship between two
+  // different things, and they come from com.docker.compose.depends_on rather
+  // than from anything this page inferred.
+  const deps = useMemo(() => {
+    const yOf = new Map(placed.map((p) => [p.node.id, p.y] as const));
+    return resolveEdges(placed.map((p) => p.node))
+      .filter((e) => e.to && yOf.has(e.from.id) && yOf.has(e.to.id))
+      .map((e) => ({
+        id: `${e.from.id}->${e.to!.id}:${e.condition}`,
+        fromId: e.from.id,
+        toId: e.to!.id,
+        y1: yOf.get(e.from.id)!,
+        y2: yOf.get(e.to!.id)!,
+        label: conditionLabel(e.condition),
+        from: e.from,
+        to: e.to!,
+      }));
+  }, [placed]);
+
   const hubY = height / 2;
   const isLit = (id: string) => hover === null || hover === id || hover === 'hub';
+  // A dependency is lit when EITHER end is hovered - the question is
+  // symmetrical. "What does this need" and "what breaks if I stop this" are the
+  // same edge read in opposite directions, and the second one is the question
+  // you actually have before running `docker stop`.
+  const depLit = (d: { fromId: string; toId: string }) =>
+    hover === null || hover === d.fromId || hover === d.toId;
   const go = (n: PortalNode) => nav(serviceLink(n));
 
   return (
@@ -151,6 +191,44 @@ function FlatMap() {
           );
         })}
 
+        {/* Declared dependencies, bulging left into the gutter between the band
+            edge and the service dots - the one strip of this map that was empty.
+            Drawn AFTER the routing curves so they sit on top, and dashed so the
+            two kinds of line are never confused: solid = a request path, dashed
+            = a startup requirement. They are different claims about the system
+            and must not read as the same thing.
+
+            Arrow points at the DEPENDENCY (the thing waited for), matching how
+            the dialog words it: "grafana waits for loki". */}
+        {deps.map((d) => {
+          const lit = depLit(d);
+          const active = hover === d.fromId || hover === d.toId;
+          // Bulge scales with the row distance so neighbouring pairs stay
+          // distinguishable instead of collapsing into one thick smear.
+          const span = Math.abs(d.y2 - d.y1);
+          const bulge = Math.min(118, 34 + span * 0.28);
+          const x0 = SVC_X - 16;
+          return (
+            <path
+              key={`d-${d.id}`}
+              d={`M ${x0} ${d.y1} C ${x0 - bulge} ${d.y1}, ${x0 - bulge} ${d.y2}, ${x0} ${d.y2}`}
+              className={`topo-dep${active ? ' on' : ''}`}
+              style={{ opacity: active ? 0.95 : lit ? 0.42 : 0.05 }}
+              markerEnd="url(#dep-arrow)"
+              fill="none"
+            >
+              <title>{d.from.name} waits for {d.to.name} {d.label}</title>
+            </path>
+          );
+        })}
+
+        <defs>
+          <marker id="dep-arrow" viewBox="0 0 8 8" refX="7" refY="4"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 7 4 L 0 7 z" className="topo-dep-head" />
+          </marker>
+        </defs>
+
         {/* hub */}
         <g
           className="topo-hub"
@@ -175,7 +253,7 @@ function FlatMap() {
               style={{ opacity: lit ? 1 : 0.22 }}
               tabIndex={0}
               role="link"
-              aria-label={`${node.name} — ${node.status}. Open details.`}
+              aria-label={`${node.name} - ${node.status}. Open details.`}
               onMouseEnter={() => setHover(node.id)}
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(node.id)}

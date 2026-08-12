@@ -1,6 +1,6 @@
 /* Shared filter-bar + table chrome for the Ports and Routes pages. Co-located
    with the tab components that import it. Builds on the .tbl / .tbl-wrap / .chips
-   utilities in index.css — this only adds the filter bar, sort carets and the
+   utilities in index.css - this only adds the filter bar, sort carets and the
    empty row, so both tables read as one instrument. */
 
 .tbl-filter {
@@ -8,25 +8,30 @@
 }
 .tbl-search {
   display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px;
 }
-.tbl-search:focus-within { border-color: var(--primary); }
-.tbl-search svg { color: var(--dim); flex: none; }
+.tbl-search:focus-within { border-color: var(--accent); }
+/* The inner input sets `outline: none` because it has no border of its own, so
+   the keyboard indicator has to go on this wrapper - a border-colour change
+   alone is both invisible to a keyboard user looking for a ring and
+   colour-alone. `:has(:focus-visible)` keeps it off mouse clicks. */
+.tbl-search:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.tbl-search svg { color: var(--fg-subtle); flex: none; }
 .tbl-search input {
-  appearance: none; border: 0; background: transparent; color: var(--ink);
+  appearance: none; border: 0; background: transparent; color: var(--fg);
   font: inherit; padding: 9px 0; width: 100%; outline: none;
 }
-.tbl-filter .chips .n { font-variant-numeric: tabular-nums; color: var(--dim); margin-left: 2px; }
+.tbl-filter .chips .n { font-variant-numeric: tabular-nums; color: var(--fg-subtle); margin-left: 2px; }
 .tbl-filter .chips button.on .n { color: inherit; }
 .tbl-filter .cnt { margin-left: auto; }
 
 /* sortable header affordance + a fixed-width caret slot so headers don't jump */
 .tbl th.sortable { cursor: pointer; }
-.tbl th.sortable:hover { color: var(--ink); }
-.tbl th .sort-caret { display: inline-block; width: 12px; margin-left: 2px; color: var(--primary);
+.tbl th.sortable:hover { color: var(--fg); }
+.tbl th .sort-caret { display: inline-block; width: 12px; margin-left: 2px; color: var(--accent);
   font-variant-numeric: tabular-nums; }
 
-.tbl-empty { text-align: center; color: var(--ink-2); padding: 34px 16px !important; }
+.tbl-empty { text-align: center; color: var(--fg-muted); padding: 34px 16px !important; }
 .tbl-empty-clear { display: inline-flex; margin-left: 10px; vertical-align: middle; }
 
 @media (max-width: 560px) {

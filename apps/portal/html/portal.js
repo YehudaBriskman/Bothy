@@ -1,4 +1,4 @@
-// Dev-box portal — discovers what's running instead of being a hand-written list.
+// Dev-box portal - discovers what's running instead of being a hand-written list.
 //
 // Data comes from two read-only APIs, both same-origin under /-/api/* (see
 // ~/stacks/edge/dynamic/portal-api.yml), so there's no CORS anywhere:
@@ -8,7 +8,7 @@
 //
 // Either can die and the page still renders. See loadAll() / the failure notes.
 //
-// Everything above the "RENDER" banner is PURE — no DOM, no fetch, no globals —
+// Everything above the "RENDER" banner is PURE - no DOM, no fetch, no globals -
 // so the join can be tested in node against the live APIs. That's deliberate:
 // the join is the part with real bugs in it.
 
@@ -20,7 +20,7 @@ const INFRA_PROJECTS = new Set(['edge', 'portal']);
 
 // Extract the Host() value from a Traefik rule.
 //
-// Returns null for ANYTHING it doesn't fully understand — `PathPrefix(`/`)`
+// Returns null for ANYTHING it doesn't fully understand - `PathPrefix(`/`)`
 // (portal-fallback has no Host at all), HostRegexp, multi-host Host(`a`,`b`).
 // Guessing here silently files cards under the wrong project, which is worse
 // than not showing them: a null falls through to the Routes tab, visibly.
@@ -29,7 +29,7 @@ export function extractHost(rule) {
   if (/HostRegexp/i.test(rule)) return null;
   const m = rule.match(/Host\(`([^`]+)`\)/);
   if (!m) return null;
-  // Host(`a`,`b`) — more than one host in a single call. Don't pick one.
+  // Host(`a`,`b`) - more than one host in a single call. Don't pick one.
   if (/Host\(`[^`]+`\s*,/.test(rule)) return null;
   return m[1];
 }
@@ -72,7 +72,7 @@ export function classify(container) {
 const titleCase = (s) =>
   String(s).replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 
-// ORDER MATTERS — first substring match wins. Vendor-prefixed images mean the
+// ORDER MATTERS - first substring match wins. Vendor-prefixed images mean the
 // specific product must precede the vendor: grafana/loki would otherwise match
 // 'grafana' and show a dashboard icon.
 const IMAGE_ICONS = [
@@ -84,7 +84,7 @@ const IMAGE_ICONS = [
   ['cadvisor', '📈'], ['node-exporter', '🖥️'], ['exporter', '📈'],
 ];
 // Accepts either a normalized node (container.image) or a raw docker container
-// (container.Image) — the two differ in case and mixing them silently drops
+// (container.Image) - the two differ in case and mixing them silently drops
 // every icon to a letter fallback.
 export function iconFor(node) {
   const img = String(node.container?.image || node.container?.Image || '').toLowerCase();
@@ -94,7 +94,7 @@ export function iconFor(node) {
 
 // Display name for a compose project: `dev.portal.project` on ANY of its
 // containers names the whole project. One label fixes every breadcrumb, panel
-// title and unrouted card — titleCase can't know that "cvops" is "CVOps".
+// title and unrouted card - titleCase can't know that "cvops" is "CVOps".
 export function projectNames(containers = []) {
   const m = new Map();
   for (const c of containers) {
@@ -105,7 +105,7 @@ export function projectNames(containers = []) {
   return m;
 }
 
-// Name with zero labels required. Labels only add polish — if this needs labels
+// Name with zero labels required. Labels only add polish - if this needs labels
 // to be *correct*, the defaults are wrong.
 export function defaultName(host, container, names = new Map()) {
   const n = nest(host);
@@ -128,7 +128,7 @@ export function defaultName(host, container, names = new Map()) {
   return title;
 }
 
-// Non-HTTP things are listed but not linked — clicking an S3 or postgres
+// Non-HTTP things are listed but not linked - clicking an S3 or postgres
 // endpoint in a browser is never what you wanted.
 const NON_HTTP = ['garage', 'postgres', 'redis', 'kafka:', 'apache/kafka', 'socket-proxy'];
 export function isBrowsable(host, container) {
@@ -184,7 +184,7 @@ export function merge(routers = [], services = [], containers = []) {
   const nodes = [];
   const claimed = new Set();
 
-  // Pass 1 — everything Traefik routes.
+  // Pass 1 - everything Traefik routes.
   for (const r of routers) {
     const host = extractHost(r.rule);
     if (!host) continue;                       // Routes tab only (portal-fallback)
@@ -210,9 +210,9 @@ export function merge(routers = [], services = [], containers = []) {
     }));
   }
 
-  // Pass 2 — containers with no route that still publish a port. "Route OR
+  // Pass 2 - containers with no route that still publish a port. "Route OR
   // published port" is the correct definition of "a thing a human can reach".
-  // Drops promtail/exporters (no route, no port) — they're plumbing.
+  // Drops promtail/exporters (no route, no port) - they're plumbing.
   for (const c of containers) {
     if (claimed.has(c.Id)) continue;
     if (!(c.Ports || []).some((p) => p.PublicPort)) continue;
@@ -275,15 +275,15 @@ function defaultDesc(node) {
     return 'Host process reached through the edge. Expect 502 when it is not running.';
   }
   if (node.kind === 'orphan-route') {
-    return 'Route registered, but no container found on devnet — it may have stopped.';
+    return 'Route registered, but no container found on devnet - it may have stopped.';
   }
   if (node.kind === 'unrouted') {
-    return `${node.container?.image || 'Container'} — published port, no edge route.`;
+    return `${node.container?.image || 'Container'} - published port, no edge route.`;
   }
   return `${node.container?.image || ''}`.trim() || 'Routed service.';
 }
 
-// Docker lists 0.0.0.0 and :: as separate rows for the same bind — collapse
+// Docker lists 0.0.0.0 and :: as separate rows for the same bind - collapse
 // them, prefer IPv4, or every port shows twice.
 export function portsOf(container) {
   if (!container?.Ports) return [];
@@ -304,7 +304,7 @@ export function portsOf(container) {
   return [...seen.values()].sort((a, b) => a.hostPort - b.hostPort);
 }
 
-// Every published port on the box, flattened — the collision map.
+// Every published port on the box, flattened - the collision map.
 export function allPorts(containers = []) {
   const rows = [];
   for (const c of containers) {
@@ -323,7 +323,7 @@ export function allPorts(containers = []) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RENDER — everything below touches the DOM. Everything above is pure.
+// RENDER - everything below touches the DOM. Everything above is pure.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // @file routers have no container to label, so overrides live here. Two entries
@@ -358,7 +358,7 @@ async function loadAll() {
   const t = setTimeout(() => ac.abort(), 5000);
   try {
     // allSettled, not all: partial results are first-class. Traefik is the
-    // skeleton, docker is enrichment — either can die alone.
+    // skeleton, docker is enrichment - either can die alone.
     const [routers, services, containers] = await Promise.allSettled([
       getJSON('/-/api/traefik/http/routers', ac.signal),
       getJSON('/-/api/traefik/http/services', ac.signal),
@@ -540,7 +540,7 @@ function renderPorts() {
   root.textContent = '';
   if (!state.ports.length) {
     return root.append(errState('Container data unavailable',
-      'Ports come from Docker — Traefik does not know about them. The socket-proxy looks unreachable. Everything else on this page still works.'));
+      'Ports come from Docker - Traefik does not know about them. The socket-proxy looks unreachable. Everything else on this page still works.'));
   }
   const bar = el('div', 'tbar');
   const inp = Object.assign(el('input'), { type: 'search', id: 'q', placeholder: 'Filter ports…   /', value: state.q });
@@ -601,8 +601,8 @@ function renderRoutes() {
   const tb = el('tbody');
   for (const r of state.routers.slice().sort((a, b) => a.name.localeCompare(b.name))) {
     const n = byRouter.get(r.name), tr = el('tr');
-    tr.append(el('td', 'mono', r.name.split('@')[0]), el('td', 'mono', r.rule), el('td', 'mono', r.provider || '—'), el('td', 'mono', r.service || '—'),
-      el('td', 'mono', n?.route?.serverUrls?.join(', ') || n?.container?.name || '—'));
+    tr.append(el('td', 'mono', r.name.split('@')[0]), el('td', 'mono', r.rule), el('td', 'mono', r.provider || '-'), el('td', 'mono', r.service || '-'),
+      el('td', 'mono', n?.route?.serverUrls?.join(', ') || n?.container?.name || '-'));
     const st = el('td');
     if (n?.kind === 'orphan-route' && r.provider === 'file') st.append(el('span', 'tag warn', 'host process'));
     else if (n?.kind === 'orphan-route') st.append(el('span', 'tag bad', 'no container'));
@@ -629,10 +629,10 @@ function staticFloor() {
   const root = $('#tab-services');
   if (root.querySelector('.state.err')) return;   // already showing; don't rebuild (it would flicker)
   root.textContent = '';
-  root.append(errState('Cannot reach the APIs', 'Showing known service names only — live status, ports and projects are unavailable. Traefik or the portal API routes may be down. The links below still work if the services do.'));
+  root.append(errState('Cannot reach the APIs', 'Showing known service names only - live status, ports and projects are unavailable. Traefik or the portal API routes may be down. The links below still work if the services do.'));
   const cat = el('div', 'cat reveal in'); cat.style.setProperty('--acc', 'var(--v)');
   const grid = el('div', 'grid');
-  KNOWN_HOSTS.forEach(([h, name], i) => grid.append(cardFor({ name, host: h, url: `http://${h}`, browsable: true, icon: '•', desc: 'Known service — status unavailable.', status: 'unknown', ports: [], order: 100 }, i)));
+  KNOWN_HOSTS.forEach(([h, name], i) => grid.append(cardFor({ name, host: h, url: `http://${h}`, browsable: true, icon: '•', desc: 'Known service - status unavailable.', status: 'unknown', ports: [], order: 100 }, i)));
   cat.append(grid); root.append(cat);
   probeAll(KNOWN_HOSTS.map(([h]) => h));
 }
@@ -768,7 +768,7 @@ export function init() {
   delegateSpotlight();
   // Observe EVERY .reveal in the document, not just the ones inside the tabs.
   // .reveal starts at opacity:0 and only becomes visible when .in is added, so
-  // anything unobserved stays permanently invisible — the hero, the headline
+  // anything unobserved stays permanently invisible - the hero, the headline
   // and the section head all live outside #tab-services and would vanish.
   observeReveals(document);
   route();
