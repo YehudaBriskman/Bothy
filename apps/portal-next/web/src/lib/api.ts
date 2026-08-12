@@ -110,7 +110,20 @@ export async function loadAll(): Promise<LoadResult> {
     const [routers, services, containers, df, projects] = await Promise.allSettled([
       getJSON<Router[]>('/-/api/traefik/http/routers', ac.signal),
       getJSON<Service[]>('/-/api/traefik/http/services', ac.signal),
-      getJSON<Container[]>('/-/api/docker/containers/json', ac.signal),
+      // `?all=1` — stopped containers too, not just running ones.
+      //
+      // Without it the Docker API returns running containers only, so the page
+      // could not distinguish "this project is switched off" from "this project
+      // does not exist". 34 containers on this box, 21 running: without the flag
+      // a third of what is here is unrepresentable.
+      //
+      // Safe against the boundary in edge/dynamic/portal-api.yml: that rule is
+      // Path(`/-/api/docker/containers/json`), and Path() matches the PATH, so a
+      // query string neither widens nor bypasses it — verified by requesting it
+      // and getting 34 back through the same route that returns 21 without it.
+      // The socket proxy's CONTAINERS=1 already covers this endpoint, and POST=0
+      // still blocks every mutating call.
+      getJSON<Container[]>('/-/api/docker/containers/json?all=1', ac.signal),
       getJSON<SystemDf>('/-/api/docker/system/df', ac.signal),
       // Static file written by the host-side collector and bind-mounted into
       // this container — NOT an /-/api/* route, so it needs no edge config and
