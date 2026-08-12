@@ -67,6 +67,22 @@
 .topo-edge { transition: opacity .16s ease, stroke-width .16s ease; }
 .topo-edge.on { stroke-width: 2.4; }
 
+/* Declared dependency (com.docker.compose.depends_on).
+   DASHED on purpose: the solid curves on this map are request paths, these are
+   startup requirements. Two different claims about the system, so they must be
+   told apart without reading a tooltip. Neutral, not status-coloured — the edge
+   describes the RELATIONSHIP, and colouring it by either end's health would
+   invite reading a red line as "this dependency is broken" when the declaration
+   is fine and only the service is down. */
+.topo-dep {
+  stroke: var(--fg-subtle); stroke-width: 1.2; stroke-dasharray: 4 3;
+  transition: opacity .16s ease, stroke-width .16s ease, stroke .16s ease;
+  pointer-events: none;
+}
+.topo-dep.on { stroke: var(--accent); stroke-width: 2; }
+.topo-dep-head { fill: var(--fg-subtle); }
+.topo-dep.on .topo-dep-head { fill: var(--accent); }
+
 /* service node — a filled dot with a soft status halo; lifts on hover/focus */
 .topo-node { cursor: pointer; outline: none; }
 .topo-node-halo { opacity: 0.14; transition: opacity .16s ease, r .16s ease; }
@@ -85,5 +101,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .topo-edge, .topo-node-halo, .topo-node-dot, .topo-label { transition: none; }
+  .topo-edge, .topo-dep, .topo-node-halo, .topo-node-dot, .topo-label { transition: none; }
 }
