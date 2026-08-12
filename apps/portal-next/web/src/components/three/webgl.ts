@@ -1,5 +1,5 @@
 // Cheap one-shot WebGL capability check. If this returns false we render the
-// static CSS layered diagram instead — the Overview must never be blank.
+// static CSS layered diagram instead - the Overview must never be blank.
 export function hasWebGL(): boolean {
   if (typeof window === 'undefined') return false;
   try {

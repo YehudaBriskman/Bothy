@@ -46,7 +46,7 @@ function Panel({
   Icon?: LucideIcon;
   className?: string;
   children: ReactNode;
-  /** Summary strip along the bottom — the same idea as a chart's legend row. */
+  /** Summary strip along the bottom - the same idea as a chart's legend row. */
   footer?: ReactNode;
   id?: string;
 }) {
@@ -71,7 +71,7 @@ function Panel({
 //
 // Both changed on 2026-08-12, when the *.dev.test name layer was retired. This
 // list used to match services by hostname and fall back to `hostUrl('docs.dev.test')`
-// — so when the routers went away, `n.host` became null for everything, the
+// - so when the routers went away, `n.host` became null for everything, the
 // match failed, and the whole strip collapsed to the two hard-coded anchors.
 // The port is the durable identifier: it is what you actually type.
 //
@@ -131,8 +131,8 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
 // One line, not a 160px card.
 //
 // WHAT THIS REPLACED, AND WHY. The hero used to state the same ratio four
-// times — a 46px number, a part-to-whole bar, a written legend, and a "Healthy
-// %" stat cell — and then surround it with four more cells. Two of those cells
+// times - a 46px number, a part-to-whole bar, a written legend, and a "Healthy
+// %" stat cell - and then surround it with four more cells. Two of those cells
 // were duplicates of things on the same screen (`Systems` is countable in the
 // matrix immediately below; `Data` repeated the Data & disk panel header), and
 // `Trend` was a session-only ring buffer that read "collecting…" on every fresh
@@ -143,7 +143,7 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
 // WORSE, IT CONTRADICTED ITSELF. With 7 services `unknown`, the page showed
 // "Healthy 68%" beside "Needs a look: none" and "Everything meant to be running
 // is up". All three at once, six pixels apart. `unknown` means WE HAVE NOT
-// CHECKED — those are the @file host routes with no container to inspect — so
+// CHECKED - those are the @file host routes with no container to inspect - so
 // it is neither a pass nor a fault, and the old copy silently treated it as
 // both. Unverified services now get their own count and their own sentence.
 function StatusLine({
@@ -201,7 +201,7 @@ function StatusLine({
         )}
         {unknown > 0 && (
           <span className="ov-status-sub">
-            {unknown} can’t be verified — host routes with no container to ask.
+            {unknown} can’t be verified - host routes with no container to ask.
           </span>
         )}
       </p>
@@ -209,7 +209,7 @@ function StatusLine({
       {degraded.length > 0 && (
         <p className="ov-status-degraded">
           <AlertTriangle size={13} aria-hidden="true" />
-          {degraded.join(' and ')} unreachable — these numbers cover only what is still visible.
+          {degraded.join(' and ')} unreachable - these numbers cover only what is still visible.
         </p>
       )}
     </section>
@@ -246,11 +246,11 @@ function AttentionStrip({ attention }: { attention: PortalNode[] }) {
   );
 }
 
-// Stack and project UIs in ONE panel — two panels of the same shape competing
+// Stack and project UIs in ONE panel - two panels of the same shape competing
 // for the same row was the duplication, not the content.
 function UiBody({ stack, project }: { stack: UiLink[]; project: UiLink[] }) {
   // Open on a tab that HAS something. It used to always open on "Projects",
-  // which was fine while the @file host routes made that list non-empty — and
+  // which was fine while the @file host routes made that list non-empty - and
   // the moment those went away (2026-08-12) the panel greeted you with
   // "Nothing browsable here" while ten stack UIs sat one click away, unseen.
   // A default that is empty is a default that is wrong.
@@ -274,7 +274,7 @@ function UiBody({ stack, project }: { stack: UiLink[]; project: UiLink[] }) {
             <li key={l.id} className="ov-uirow">
               <Dot status={l.status} />
               <Link className="ov-uirow-name" to={serviceLink({ id: l.id })}>{l.name}</Link>
-              <span className="ov-uirow-host">{l.host ?? (l.port != null ? `:${l.port}` : '—')}</span>
+              <span className="ov-uirow-host">{l.host ?? (l.port != null ? `:${l.port}` : '-')}</span>
               <a className="ov-uirow-open" href={l.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${l.name} in a new tab`}>
                 <ExternalLink size={14} />
               </a>
@@ -350,7 +350,7 @@ function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof us
 // a fact about the box's composition that changes maybe twice a month, given a
 // permanent panel on the page you look at to answer "is anything broken right
 // now". Recent activity listed containers started in the last 30 minutes, which
-// on a box that stays up for days is empty almost always — a panel whose usual
+// on a box that stays up for days is empty almost always - a panel whose usual
 // state is "No restarts since the box came up" is spending a grid cell to say
 // nothing. Both remain derivable (groupByType / recentlyStarted are still
 // exported and still tested); neither earns standing room on the Overview.
@@ -360,7 +360,7 @@ export function Overview() {
   const { data } = usePortal();
   const systems = useMemo(() => systemsOf(data.nodes), [data.nodes]);
   // The system whose quick-lookup dialog is open. Held by key rather than by
-  // object so the dialog follows the LIVE system across a poll — holding the
+  // object so the dialog follows the LIVE system across a poll - holding the
   // object froze it at the instant it was clicked, and this page repolls every
   // ten seconds, so an open dialog showed stale statuses.
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -406,8 +406,8 @@ export function Overview() {
     [data.errors],
   );
 
-  // Grouping survives — projects, the shared stack and the plumbing really are
-  // three different kinds of thing — but as headings over one flow of chips,
+  // Grouping survives - projects, the shared stack and the plumbing really are
+  // three different kinds of thing - but as headings over one flow of chips,
   // not as three cards with independent open/closed state.
   const groups = useMemo<MatrixGroup[]>(() => {
     const of = (k: System['kind']) => systems.filter((s) => s.kind === k);
@@ -425,7 +425,7 @@ export function Overview() {
       {bothDown && (
         <div className="state err ov-offline">
           <h4>Can't reach the APIs</h4>
-          <p>Showing known service names only — live status, ports and projects are unavailable. The links below still work if the services do.</p>
+          <p>Showing known service names only - live status, ports and projects are unavailable. The links below still work if the services do.</p>
           <div className="ov-quick">
             {floorLinks.map((n) => (
               <a key={n.id} className="ov-quick-item" href={n.url} target="_blank" rel="noopener noreferrer">
@@ -503,7 +503,7 @@ export function Overview() {
                   <>
                     <span><b>{volumeCount}</b> volumes</span>
                     <span className="sep">·</span>
-                    <span>total <b>{diskTotal != null ? fmtBytes(diskTotal) : '—'}</b></span>
+                    <span>total <b>{diskTotal != null ? fmtBytes(diskTotal) : '-'}</b></span>
                     {!data.df && <span className="right">sizes unavailable</span>}
                   </>
                 }

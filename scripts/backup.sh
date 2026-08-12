@@ -28,7 +28,7 @@ keep_if_real() {  # <file> <min-bytes> <label>
   if [ "$size" -ge "$min" ]; then
     log "$label -> $(basename "$f") ($(du -h "$f" | cut -f1))"
   else
-    fail "$label produced ${size} bytes — discarding"
+    fail "$label produced ${size} bytes - discarding"
     rm -f "$f"
   fi
 }
@@ -36,7 +36,7 @@ keep_if_real() {  # <file> <min-bytes> <label>
 mkdir -p "$BK"/{postgres,grafana,portainer,env}
 
 # The timer is Persistent=true, so a schedule missed while the box was off
-# fires at the next boot — exactly when postgres is still initialising. Without
+# fires at the next boot - exactly when postgres is still initialising. Without
 # this wait the dump comes back empty and the backup silently reports success.
 if running postgres; then
   ready=0
@@ -45,7 +45,7 @@ if running postgres; then
     sleep 2
   done
   if [ "$ready" = 1 ]; then
-    # pg_dumpall, NOT `pg_dump <named list>` — deliberately, and load-bearing
+    # pg_dumpall, NOT `pg_dump <named list>` - deliberately, and load-bearing
     # since 2026-08-12: Keycloak's data (users, realms, clients) now lives in a
     # `keycloak` database inside this same server, created by auth/compose.yml's
     # keycloak-db-init against the running instance. A named-database list would
@@ -57,21 +57,21 @@ if running postgres; then
     docker exec postgres pg_dumpall -U "${POSTGRES_USER:-dev}" 2>/dev/null | gzip > "$BK/postgres/pg-$ts.sql.gz"
     keep_if_real "$BK/postgres/pg-$ts.sql.gz" 1000 postgres
   else
-    fail "postgres not ready after 60s — skipped"
+    fail "postgres not ready after 60s - skipped"
   fi
 else
-  fail "postgres not running — skipped"
+  fail "postgres not running - skipped"
 fi
 
 # A redis step lived here until 2026-08-12: `redis-cli SAVE` then
 # `docker cp redis:/data/dump.rdb`. Redis was retired that day (zero keys) and
 # its volume deleted, so the step could only ever take the else branch and print
-# "redis not running — skipped" — a FAIL, every night, for ever. That is the
+# "redis not running - skipped" - a FAIL, every night, for ever. That is the
 # expensive kind of wrong: a warning that fires unconditionally is one nobody
 # reads, and the next line of the report is the postgres dump that actually
 # matters. It also made the script exit 1 nightly, so the timer's own success
 # signal was useless too.
-# (Its old artifacts under $BK/redis are left on disk untouched — all 88 bytes
+# (Its old artifacts under $BK/redis are left on disk untouched - all 88 bytes
 # each, an empty RDB, which is what "zero keys" looks like. Nothing writes there
 # now, so they are no longer rotated; delete them by hand whenever.)
 
@@ -79,14 +79,14 @@ if running grafana; then
   docker cp grafana:/var/lib/grafana/grafana.db "$BK/grafana/grafana-$ts.db" 2>/dev/null
   keep_if_real "$BK/grafana/grafana-$ts.db" 1000 grafana
 else
-  fail "grafana not running — skipped"
+  fail "grafana not running - skipped"
 fi
 
 if running portainer; then
   docker cp portainer:/data/portainer.db "$BK/portainer/portainer-$ts.db" 2>/dev/null
   keep_if_real "$BK/portainer/portainer-$ts.db" 1000 portainer
 else
-  fail "portainer not running — skipped"
+  fail "portainer not running - skipped"
 fi
 
 # .env is gitignored and exists nowhere else on earth. Losing it loses every

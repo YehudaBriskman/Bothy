@@ -12,7 +12,7 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # The edge itself — request/latency/error metrics per router + service. Metrics
+  # The edge itself - request/latency/error metrics per router + service. Metrics
   # ride an internal traefik entrypoint (:8899, no host port); we reach it by name
   # over devnet. See edge/compose.yml.
   - job_name: traefik
@@ -31,7 +31,7 @@ scrape_configs:
     static_configs:
       - targets: ["node-exporter:9100"]
 
-  # Data-stack exporters (down until those stacks are up — that's fine).
+  # Data-stack exporters (down until those stacks are up - that's fine).
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter:9187"]

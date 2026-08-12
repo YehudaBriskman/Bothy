@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
-  <!-- Bothy. The same geometry as scripts/gen-icons.py — if you change one,
+  <!-- Bothy. The same geometry as scripts/gen-icons.py - if you change one,
        change both. A gabled shelter with the door open and the light on.
        The tile is drawn dark in BOTH themes on purpose: a favicon sits on the
        browser's tab strip, not on the page, so it cannot know the page theme,

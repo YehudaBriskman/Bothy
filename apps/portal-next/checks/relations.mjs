@@ -1,4 +1,4 @@
-// Truth table for the dependency graph — run with ./checks/run.sh
+// Truth table for the dependency graph - run with ./checks/run.sh
 //
 // The portal spent its whole life INFERRING relationships (hostname nesting,
 // name similarity, "same port must be the same service"). Every one of those
@@ -7,7 +7,7 @@
 // must be tested for is the opposite failure: inventing an edge that no compose
 // file declared.
 //
-// Two properties matter, and neither is visible on screen — a fabricated edge
+// Two properties matter, and neither is visible on screen - a fabricated edge
 // renders identically to a real one:
 //
 //   1. Every edge produced must trace back to a `com.docker.compose.depends_on`
@@ -51,7 +51,7 @@ check('no label at all -> no edges', dependsOnOf(ctr('x', 'y')), []);
 check('no container at all -> no edges', dependsOnOf(null), []);
 check('empty label -> no edges', dependsOnOf(ctr('x', 'y', '')), []);
 // A half-parsed entry would become a dependency on a service called "", which
-// renders as a broken edge pointing at nothing — a fabricated alarm.
+// renders as a broken edge pointing at nothing - a fabricated alarm.
 check('malformed entry is skipped, not half-parsed',
   dependsOnOf(ctr('x', 'y', 'justaname')), []);
 check('malformed entry does not poison its neighbours',
@@ -102,7 +102,7 @@ check('no edge is invented',
 
 // The cross-project bleed. Both projects have a service called `db`; only p1
 // declares a dependency on it. If matching ignored the project, p1's edge would
-// land on p2's db — a wiring diagram that is confidently, invisibly wrong.
+// land on p2's db - a wiring diagram that is confidently, invisibly wrong.
 const twoProjects = [
   ctr('p1', 'app', 'db:service_healthy:false'),
   ctr('p2', 'db'),
@@ -140,7 +140,7 @@ check('a compose container has a namespace and a name',
   resourceAttrs(node('monitoring', 'grafana', 'deadbeef1234')),
   { 'service.namespace': 'monitoring', 'service.name': 'grafana', 'service.instance.id': 'deadbeef1234' });
 // An unmanaged container has no compose identity. Returning a partial object
-// here would let a caller build a query for namespace "" — which on this box
+// here would let a caller build a query for namespace "" - which on this box
 // matches a bag of unrelated containers AND misses two of the five it claims to
 // cover. null forces the caller to fall back instead.
 check('unmanaged container has no semconv identity',

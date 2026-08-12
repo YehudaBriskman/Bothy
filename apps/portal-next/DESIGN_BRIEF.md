@@ -1,6 +1,6 @@
-# Design brief — RETIRED 2026-08-10
+# Design brief - RETIRED 2026-08-10
 
-**Superseded by [`docs/brand/`](../../docs/brand/README.md)** — the design and
+**Superseded by [`docs/brand/`](../../docs/brand/README.md)** - the design and
 brand system, with a checklist, per-topic documents and a token reference.
 
 ## Why this file is retired rather than deleted
@@ -13,7 +13,7 @@ which files not to touch, and what the shared library exported at that moment.
 That is a document with a short useful life, and treating it as durable is
 exactly the failure the new tree's
 [governance](../../docs/brand/quality/governance.md) section exists to prevent.
-Its token names went stale within weeks — it referenced `--ink`, `--dim`,
+Its token names went stale within weeks - it referenced `--ink`, `--dim`,
 `--primary` and `--surface`, none of which exist any more, plus a `Reveal`
 component and a `SystemCard` that were both deleted for reasons now recorded in
 the [decision log](../../docs/brand/reference/decisions.md).
@@ -26,7 +26,7 @@ the [decision log](../../docs/brand/reference/decisions.md).
   stack service (`monitoring`, `kafka`, `postgres`, `redis`), or infrastructure
   (`edge`, `portal`). One system maps to one row on the Overview and one domain
   page at `/systems/:group`.
-- A **service** is one `PortalNode` — a routed container, an unrouted container,
+- A **service** is one `PortalNode` - a routed container, an unrouted container,
   or an `@file` host process. Clicking one opens `/services/:id`.
 
 The rollup logic for that model lives in `web/src/lib/systems.ts` and is pure.

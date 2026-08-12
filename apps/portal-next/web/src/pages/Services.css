@@ -1,5 +1,5 @@
 /* ============================================================================
-   Services page — component-specific rules (Agent B). Builds ON the shared
+   Services page - component-specific rules (Agent B). Builds ON the shared
    tokens and utilities in index.css (.panel .chip .tag .dot .btn .tbl .seg-toggle
    .filter-bar .svc-*). Only DELTAS live here, all scoped under .services-page so
    nothing leaks and the overrides win over index.css regardless of import order.

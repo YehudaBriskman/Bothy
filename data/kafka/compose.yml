@@ -1,8 +1,8 @@
 name: kafka
 
-# RETIRED 2026-08-12 — kept on disk, no longer started by `just up`.
+# RETIRED 2026-08-12 - kept on disk, no longer started by `just up`.
 #
-# Why: measured idle. `kafka-topics.sh --list` returned nothing — not one topic
+# Why: measured idle. `kafka-topics.sh --list` returned nothing - not one topic
 # had ever been created, only the internal `__` ones. Meanwhile the three
 # containers held ~1,110 MB of the box's 4,678 MB total container memory:
 #   kafka 776.7 MB · kafka-ui 309.2 MB · kafka-exporter 24.5 MB
@@ -14,7 +14,7 @@ name: kafka
 #
 # So this file no longer restores anything: bringing it back gives you an EMPTY
 # broker that re-pulls its images. That is a fine outcome for something that had
-# never held a single topic — but "preserved, deleting it is irreversible" said
+# never held a single topic - but "preserved, deleting it is irreversible" said
 # the opposite, and a reader checking this file after the justfile would have
 # found the same false promise twice and believed it.
 #
@@ -74,9 +74,9 @@ services:
     # Kafka-UI runs with DYNAMIC_CONFIG_ENABLED; its own LOGIN_FORM auth
     # (below) is the boundary since the SSO layer was parked.
     labels:
-      # Portal discovery metadata only — not routing.
+      # Portal discovery metadata only - not routing.
       - dev.portal.name=Kafka UI
-      - dev.portal.desc=Browse the single-node KRaft broker — topics, partitions, consumer groups and live messages.
+      - dev.portal.desc=Browse the single-node KRaft broker - topics, partitions, consumer groups and live messages.
     restart: unless-stopped
     ports:
       - "8081:8080"

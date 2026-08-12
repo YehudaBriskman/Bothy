@@ -23,7 +23,7 @@ the SVG and the PNG are two different logos and nothing will tell you.
 | Social image | Link previews. 1200x630 |
 
 **Design it at 16px.** Render it at 16 pixels and look. Do not zoom out of a
-512px version — that is a different rendering path and it flatters the mark.
+512px version - that is a different rendering path and it flatters the mark.
 
 **Do not bake a background into a mark meant to sit on your own page**, but do
 give the app icons an opaque tile, because the OS puts them on unknown
@@ -31,7 +31,7 @@ wallpaper.
 
 **A favicon cannot know the page theme.** It sits in the browser's tab strip.
 Pick one treatment that works on both light and dark chrome rather than trying
-to invert it — a mark that changes is a mark nobody recognises at a glance.
+to invert it - a mark that changes is a mark nobody recognises at a glance.
 
 ## Checklist
 
@@ -44,7 +44,7 @@ doorway is the only coloured element, which makes the logo say the same thing
 the page says: something is running in there.
 
 **Geometry lives in exactly three places**, all generated from the same
-numbers — the React component, the SVG favicon, and the icon generator script.
+numbers - the React component, the SVG favicon, and the icon generator script.
 There is no build step that would catch a drift between them, because a favicon
 is never rendered by the app, so each file carries a comment naming the other
 two.
@@ -55,7 +55,7 @@ alternative was committing binary blobs that nobody could regenerate. The script
 supersamples 4x for antialiasing and writes PNGs with the standard library.
 
 **The first attempt was rejected**, and it is worth recording why: a house
-outline with a centred dot read as a generic "home" glyph with a dot on it — it
+outline with a centred dot read as a generic "home" glyph with a dot on it - it
 was indistinguishable from the icon library's own `house`. Making the opening a
 doorway rather than a window, and squatting the proportions with a deeper roof
 overhang, is what separates it from the stock glyph. The lesson generalises: a

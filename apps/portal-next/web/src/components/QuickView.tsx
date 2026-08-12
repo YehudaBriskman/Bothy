@@ -1,7 +1,7 @@
-// The global quick view — the BOX, in five numbers.
+// The global quick view - the BOX, in five numbers.
 //
 // Scope is deliberately hardware only. A "services" tile lived here briefly and
-// restated, one row above it, exactly what the status line says in words — so
+// restated, one row above it, exactly what the status line says in words - so
 // the split is now: this strip is the machine, the status line beneath it is
 // what is running on the machine. Neither repeats the other.
 //
@@ -18,13 +18,13 @@
 //   · every tile is backed by a real metric with real history, not by a number
 //     already printed elsewhere on the page;
 //   · CAPACITY metrics get a meter and RATE metrics get a sparkline. Memory and
-//     disk are capacities — the question is "how close to full", which a meter
-//     answers and a line does not. CPU, network and load are rates — nothing is
+//     disk are capacities - the question is "how close to full", which a meter
+//     answers and a line does not. CPU, network and load are rates - nothing is
 //     filling up, and the question is "what has it been doing", which a line
 //     answers and a meter does not. (CPU is bounded 0–100 and still gets a line,
 //     so "bounded" is the wrong test; a bar under a tile that already prints
 //     "25%" would re-encode the number it sits beneath and add nothing.)
-//   · disk means the HOST FILESYSTEM — "is the box about to run out" — which is
+//   · disk means the HOST FILESYSTEM - "is the box about to run out" - which is
 //     a question 2.9 GB of docker volumes cannot answer.
 //
 // It owns "now". The charts below own history, and their headers no longer
@@ -84,18 +84,18 @@ export function QuickView() {
 
   return (
     <section className="qv" aria-label="At a glance">
-      <Tile Icon={Cpu} label="CPU" value={cpu == null ? '—' : fmtPercent(cpu)} off={off}>
+      <Tile Icon={Cpu} label="CPU" value={cpu == null ? '-' : fmtPercent(cpu)} off={off}>
         <Spark series={by('cpu')} tone={toneOf(cpu)} />
       </Tile>
 
-      <Tile Icon={MemoryStick} label="Memory" value={mem == null ? '—' : fmtPercent(mem)} off={off}>
+      <Tile Icon={MemoryStick} label="Memory" value={mem == null ? '-' : fmtPercent(mem)} off={off}>
         <Meter pct={mem ?? 0} tone={toneOf(mem)} />
       </Tile>
 
       <Tile
         Icon={HardDrive}
         label="Disk"
-        value={disk == null ? '—' : fmtPercent(disk)}
+        value={disk == null ? '-' : fmtPercent(disk)}
         sub={free == null ? undefined : `${fmtSize(free)} free`}
         off={off}
       >
@@ -105,7 +105,7 @@ export function QuickView() {
       <Tile
         Icon={Network}
         label="Ethernet"
-        value={tx == null ? '—' : fmtRate(tx)}
+        value={tx == null ? '-' : fmtRate(tx)}
         sub={rx == null ? undefined : `${fmtRate(rx)} in`}
         off={off}
       >
@@ -115,7 +115,7 @@ export function QuickView() {
       <Tile
         Icon={Timer}
         label="Uptime"
-        value={uptime == null ? '—' : fmtUptimeShort(uptime)}
+        value={uptime == null ? '-' : fmtUptimeShort(uptime)}
         sub={load == null ? undefined : `load ${load.toFixed(2)}`}
         off={off}
       >

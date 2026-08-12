@@ -1,4 +1,4 @@
-// Tooltip — replaces bare `title=` attributes.
+// Tooltip - replaces bare `title=` attributes.
 //
 // `title` was doing real work in this app (the freshness pill's full text, the
 // theme toggle's current mode) but it is invisible to keyboard users, cannot be
@@ -8,7 +8,7 @@
 // logic. Everything it is used for sits in the topbar, so `align="end"` for the
 // right-hand controls is the entire edge-case budget. If a tooltip is ever
 // needed inside a scroll container or near a viewport edge, that is the moment
-// to reach for a real positioner — not before.
+// to reach for a real positioner - not before.
 
 import { useId, useState, type ReactNode } from 'react';
 
@@ -31,7 +31,7 @@ export function Tooltip({
       onPointerLeave={() => setOpen(false)}
       onFocusCapture={() => setOpen(true)}
       onBlurCapture={() => setOpen(false)}
-      // Escape closes it without moving focus — a tooltip pinned open by focus
+      // Escape closes it without moving focus - a tooltip pinned open by focus
       // otherwise covers whatever is below it until the user tabs away.
       onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
     >

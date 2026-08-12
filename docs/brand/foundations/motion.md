@@ -10,7 +10,7 @@ How long, what easing, and what happens when a user asks for less of it.
 standard for transform and elevation, slow for a page transition. A literal time
 value in a component is a defect.
 
-**Animate only compositable properties** — transform, opacity, filter.
+**Animate only compositable properties** - transform, opacity, filter.
 Animating height, width, top or margin forces layout on every frame.
 
 **The invariant that matters more than all of the above:**
@@ -18,8 +18,8 @@ Animating height, width, top or margin forces layout on every frame.
 > **Every entrance animation must start from a visible resting state.**
 
 If an element's default style is `opacity: 0` and something else is responsible
-for turning it on, then any failure of that something — a handler that does not
-run, an observer that does not fire, a browser that skipped the animation —
+for turning it on, then any failure of that something - a handler that does not
+run, an observer that does not fire, a browser that skipped the animation -
 leaves the content permanently invisible. And invisible content looks exactly
 like content that was never rendered.
 
@@ -48,7 +48,7 @@ See [CHECKLIST.md § 9](../CHECKLIST.md#9-motion).
   resting state, so a handler that never runs cannot hide anything.
 - **Stagger is clamped** so a long list does not tail off into a wait.
 - **The global reduced-motion block carries a comment** stating that nothing in
-  it may hide content — because the obvious "fix" when killing transitions is to
+  it may hide content - because the obvious "fix" when killing transitions is to
   reach for a property that does.
 
 ## Dead ends
@@ -57,7 +57,7 @@ See [CHECKLIST.md § 9](../CHECKLIST.md#9-motion).
 
 It defaulted content to `opacity: 0` and relied on an intersection observer to
 switch it on. Anything the observer missed stayed invisible forever. It shipped
-a near-blank page twice — most recently the entire Overview dashboard, roughly
+a near-blank page twice - most recently the entire Overview dashboard, roughly
 700 pixels of panels, vanished on every *warm* return to the page, because it
 renders below the fold and nothing re-checked. Cold loads escaped only by luck:
 the first paint has no data, so the page was short enough for the panels to
@@ -66,7 +66,7 @@ start on screen.
 Two things make this the most instructive failure in the system:
 
 1. **The failure mode is silent and total.** Blank is not a state anyone tests
-   for, and a DOM-only test cannot see it — jsdom has no layout, so "blank" and
+   for, and a DOM-only test cannot see it - jsdom has no layout, so "blank" and
    "perfect" are identical to it.
 2. **The fix was structural, not a patch.** The rule "animate from a visible
    resting state" removes the entire class of bug, whereas fixing the observer

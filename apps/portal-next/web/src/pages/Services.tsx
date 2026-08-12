@@ -14,7 +14,7 @@ import './Services.css';
 
 // The card view and the density toggle are GONE. A ServiceCard measured the
 // same area as ~3 table rows while carrying strictly FEWER dimensions than the
-// row did — no image, no uptime, no ports column — so the table dominated it
+// row did - no image, no uptime, no ports column - so the table dominated it
 // outright: same cost, less information. Two controls that only ever chose
 // between "worse" and "better" are two controls nobody should have to operate.
 // Rows are now one height, chosen to be the dense one.
@@ -136,7 +136,7 @@ export function Services() {
         </div>
       </div>
 
-      {/* Persistent filter bar — every control combines and reports its count. */}
+      {/* Persistent filter bar - every control combines and reports its count. */}
       <div className="filter-bar">
         <SlidersHorizontal size={15} className="filters-ico" aria-hidden="true" />
         <div className="filter-chips">
@@ -185,7 +185,7 @@ export function Services() {
       </div>
 
       {!panels.length ? (
-        // Only offer "Clear filter" when there IS one — otherwise the empty
+        // Only offer "Clear filter" when there IS one - otherwise the empty
         // state invites you to clear nothing.
         <EmptyState
           message={activeFilters ? 'No services match these filters' : 'No services discovered'}
@@ -210,7 +210,7 @@ export function Services() {
                       <span className="tail" />
                       <span className="cnt">{p.nodes.length}</span>
                     </button>
-                    {/* the only path from Services to a system page — the head
+                    {/* the only path from Services to a system page - the head
                         itself is a collapse toggle, so the link sits beside it */}
                     {p.group && (
                       <Link

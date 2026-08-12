@@ -8,7 +8,7 @@ blobs nobody can regenerate, the mark is defined once as geometry below and
 rasterised here with the standard library only (zlib + struct).
 
 The mark: a gabled shelter with the light on. A bothy is a small hut kept
-unlocked for whoever needs it — which is what this box is — and the lit window
+unlocked for whoever needs it - which is what this box is - and the lit window
 is the accent-coloured dot, i.e. "something is running in there".
 
 Run:  python3 scripts/gen-icons.py
@@ -27,7 +27,7 @@ LIT = (0x60, 0xA5, 0xFA)     # --accent      blue-400
 # Geometry in the same 24-unit space as the SVG favicon, so the two cannot drift.
 #
 # Squat and wide with a deep overhanging roof, so it reads as a shelter rather
-# than as lucide's `House` — which is what the first attempt looked like, a
+# than as lucide's `House` - which is what the first attempt looked like, a
 # generic home glyph with a dot on it.
 ROOF = [(2.4, 11.6), (12.0, 4.2), (21.6, 11.6)]
 BODY = [(5.6, 10.6), (5.6, 20.4), (18.4, 20.4), (18.4, 10.6)]
@@ -39,7 +39,7 @@ DOOR_TOP = 15.3      # centre of the arch
 DOOR_BOTTOM = 20.4
 DOOR_R = (DOOR_X[1] - DOOR_X[0]) / 2.0
 
-SS = 4  # supersampling factor — the only antialiasing this needs
+SS = 4  # supersampling factor - the only antialiasing this needs
 
 
 def dist_to_segment(px, py, ax, ay, bx, by):
@@ -75,7 +75,7 @@ def render(size, *, rounded=True, pad=0.0):
                     dy = y + (sy + 0.5) / SS
                     ux = dx / px_per_unit
                     uy = dy / px_per_unit
-                    # 1 — the tile
+                    # 1 - the tile
                     if rounded:
                         d = rounded_rect_sdf(dx - half, dy - half, half, radius)
                         inside_tile = d <= 0
@@ -84,7 +84,7 @@ def render(size, *, rounded=True, pad=0.0):
                     if not inside_tile:
                         continue  # transparent-ish → leave as background below
                     col = BG
-                    # 2 — the strokes, inset by `pad` units for the maskable icon
+                    # 2 - the strokes, inset by `pad` units for the maskable icon
                     sw = STROKE / 2.0
                     hit = False
                     for a, b in zip(ROOF, ROOF[1:]):
@@ -98,7 +98,7 @@ def render(size, *, rounded=True, pad=0.0):
                                 break
                     if hit:
                         col = INK
-                    # 3 — the lit doorway, drawn last so it wins over the wall
+                    # 3 - the lit doorway, drawn last so it wins over the wall
                     in_jamb = DOOR_X[0] <= ux <= DOOR_X[1]
                     if (in_jamb and DOOR_TOP <= uy <= DOOR_BOTTOM) or (
                         math.hypot(ux - 12.0, uy - DOOR_TOP) <= DOOR_R

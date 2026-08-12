@@ -58,7 +58,7 @@ services:
       DEV_LOGIN_USER: ${DEV_LOGIN_USER:?set DEV_LOGIN_USER in .env}
       DEV_LOGIN_PASSWORD: ${DEV_LOGIN_PASSWORD:?set DEV_LOGIN_PASSWORD in .env}
       # Consumed by provisioning/alerting/contactpoints.yml as `$ALERT_EMAIL_TO`.
-      # Alerting provisioning interpolates with the plain `$VAR` form — NOT the
+      # Alerting provisioning interpolates with the plain `$VAR` form - NOT the
       # `$__env{VAR}` form used by datasource provisioning. The address used to be
       # hardcoded in that file, which put a personal address in every commit.
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-${GRAFANA_ADMIN_EMAIL:-admin@localhost}}

@@ -12,7 +12,7 @@ wish. That is why every line in [CHECKLIST.md](../CHECKLIST.md) carries `A`,
 
 **Every verification command must be able to fail.** This is the most important
 sentence in this document. Before trusting a check, prove it distinguishes the
-failure it claims to detect — break the thing deliberately and watch the check
+failure it claims to detect - break the thing deliberately and watch the check
 go red. A probe that returns the same result whether or not the condition holds
 is not a check, and it is worse than no check because it produces confidence.
 
@@ -20,10 +20,10 @@ Two real examples from this project:
 
 - A reachability probe used `fetch` with no-cors. An opaque response resolves for
   *any* HTTP status, so 502 and 401 both reported "up". It could not physically
-  return "down" while the proxy was answering — and it rendered a green "Up" chip
+  return "down" while the proxy was answering - and it rendered a green "Up" chip
   on five dead services.
 - A proxy's health was "confirmed" by a 200 response. But the app owns a
-  catch-all route, so a *missing* proxy also returns 200 — with the HTML shell.
+  catch-all route, so a *missing* proxy also returns 200 - with the HTML shell.
   The check had to test the content type, not the status.
 
 **A front-end change is not done until a real screenshot of it exists.** A
@@ -34,7 +34,7 @@ passed.
 **Verify against a genuinely fresh load.** A cached bundle will faithfully
 reproduce a bug you have already fixed, and you will debug the fix instead of
 the bug. In a hash-routed app this is especially easy to get wrong: navigating to
-the same URL with a different fragment is a *same-document* navigation — nothing
+the same URL with a different fragment is a *same-document* navigation - nothing
 is re-requested and the old code keeps running. Change the path or force a
 reload.
 

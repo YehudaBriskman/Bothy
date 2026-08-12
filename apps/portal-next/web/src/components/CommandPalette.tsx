@@ -1,4 +1,4 @@
-// Command palette — ⌘K / Ctrl-K, or the topbar search button.
+// Command palette - ⌘K / Ctrl-K, or the topbar search button.
 //
 // Replaces a topbar <input> that called navigate() on every keystroke: typing
 // "postgres" pushed eight history entries and re-rendered the Services page
@@ -34,7 +34,7 @@ const GROUPS: Cmd['group'][] = ['Go to', 'Services', 'Systems'];
 const DESTINATIONS: Cmd[] = [
   { id: 'go-/', group: 'Go to', label: 'Overview', to: '/' },
   { id: 'go-/services', group: 'Go to', label: 'Services', to: '/services' },
-  // Both spellings stay reachable by name even though they are one page now —
+  // Both spellings stay reachable by name even though they are one page now -
   // someone who thinks "ports" should not have to know it was merged.
   { id: 'go-/access', group: 'Go to', label: 'Access', sub: 'routes + ports', to: '/access?tab=routes' },
   { id: 'go-/ports', group: 'Go to', label: 'Ports', sub: 'in Access', to: '/access?tab=ports' },
@@ -81,7 +81,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return [...hit].sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
   }, [items, q]);
 
-  // Reset per opening, not per keystroke — reopening should not remember a
+  // Reset per opening, not per keystroke - reopening should not remember a
   // half-typed query from three pages ago.
   useEffect(() => {
     if (open) { setQ(''); setActive(0); inputRef.current?.focus(); }

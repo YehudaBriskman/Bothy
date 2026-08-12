@@ -27,8 +27,8 @@ get a summary that links to each failing field.
 **Error text says what happened and what to do.** Never just "invalid", never
 blame the user.
 
-**Pick one submit policy** — disabled-until-valid, or always-enabled with an
-explanation — and never mix them in one product. Disabled-until-valid hides
+**Pick one submit policy** - disabled-until-valid, or always-enabled with an
+explanation - and never mix them in one product. Disabled-until-valid hides
 *why*, which is why the second is usually better.
 
 **Prevent double submission** and show a loading state.
@@ -57,13 +57,13 @@ What the existing inputs do follow:
 - Search inputs submit on Enter and blur on Escape.
 - The log search applies on submit rather than per keystroke, because each query
   is a real request.
-- Every input's focus ring was fixed on 2026-08-10 — several had removed it and
+- Every input's focus ring was fixed on 2026-08-10 - several had removed it and
   replaced it with a border tint. See
   [component-states](component-states.md).
 
 **If this product ever grows a real form, the contract above is written before
 the form is**, not after. That is the point of keeping this document even though
-it is currently mostly aspirational — it is a decision waiting to be applied,
+it is currently mostly aspirational - it is a decision waiting to be applied,
 not a description.
 
 ## Dead ends

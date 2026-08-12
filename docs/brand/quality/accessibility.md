@@ -84,7 +84,7 @@ See [CHECKLIST.md § 20](../CHECKLIST.md#20-accessibility).
 
 ## How this is verified
 
-- Automated audit per route per theme — not yet wired up.
+- Automated audit per route per theme - not yet wired up.
 - Keyboard-only pass of the core flows.
 - Emulated reduced motion, asserting content still renders.
 - Text-spacing override injected, then screenshot.

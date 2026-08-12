@@ -8,15 +8,15 @@ over time.
 ## The rule
 
 **The choice and the resolved theme are different things, and only the resolved
-one reaches the DOM.** A user's preference has three values — light, dark,
-system — but a stylesheet can only respond to two. Resolve `system` against the
+one reaches the DOM.** A user's preference has three values - light, dark,
+system - but a stylesheet can only respond to two. Resolve `system` against the
 OS in code and stamp a concrete value on the root element. Then the CSS carries
 exactly one light palette and one dark palette.
 
 **Stamp it before first paint.** A tiny inline script in the document head,
 before any stylesheet is applied. Without it, a light-preferring user sees a
-dark frame until the app mounts. This script is duplicated logic by design —
-importing it would defeat the purpose — so keep it small and note the
+dark frame until the app mounts. This script is duplicated logic by design -
+importing it would defeat the purpose - so keep it small and note the
 duplication where both copies live.
 
 **Keep exactly one copy of each palette.** The tempting alternative is a
@@ -32,7 +32,7 @@ around the page. A single dark value puts white-on-white in a light-mode
 address bar.
 
 **Track a live OS change.** If a user picks "system", sampling the OS once at
-mount is not enough — switching the desktop to light must switch the page. That
+mount is not enough - switching the desktop to light must switch the page. That
 is the entire reason the option exists.
 
 ## Checklist
@@ -49,13 +49,13 @@ See [CHECKLIST.md § 5](../CHECKLIST.md#5-theming-and-modes).
 - **Pre-paint stamp** lives inline in `index.html` and is deliberately a
   duplicate of the logic in the theme provider.
 - **One light palette.** The duplicate `prefers-color-scheme` block was deleted
-  after it had already drifted — one token existed in both copies and another in
+  after it had already drifted - one token existed in both copies and another in
   neither, which is exactly the failure mode a single source of truth prevents.
 - **Both `theme-color` tags** are emitted, one per scheme.
 - **No high-contrast mode.** Instead, a `forced-colors` block was added on
   2026-08-10 so Windows High Contrast works properly. That mode replaces
   declared colours with the user's own, which would otherwise make all five
-  status marks identical — they are backgrounds, and forced backgrounds collapse
+  status marks identical - they are backgrounds, and forced backgrounds collapse
   together. The block gives every status mark a border, which is drawn in the
   system's colours and survives.
 

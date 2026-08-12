@@ -1,4 +1,4 @@
-/* Topology — the 3D scene is the hero; the SVG graph is the optional "Flat map".
+/* Topology - the 3D scene is the hero; the SVG graph is the optional "Flat map".
    The base topo-* rules live in index.css; this file adds the 3D hero framing,
    the view switch, and the interaction polish for the flat map (hover/focus
    emphasis, node halos, column captions). */
@@ -70,7 +70,7 @@
 /* Declared dependency (com.docker.compose.depends_on).
    DASHED on purpose: the solid curves on this map are request paths, these are
    startup requirements. Two different claims about the system, so they must be
-   told apart without reading a tooltip. Neutral, not status-coloured — the edge
+   told apart without reading a tooltip. Neutral, not status-coloured - the edge
    describes the RELATIONSHIP, and colouring it by either end's health would
    invite reading a red line as "this dependency is broken" when the declaration
    is fine and only the service is down. */
@@ -83,7 +83,7 @@
 .topo-dep-head { fill: var(--fg-subtle); }
 .topo-dep.on .topo-dep-head { fill: var(--accent); }
 
-/* service node — a filled dot with a soft status halo; lifts on hover/focus */
+/* service node - a filled dot with a soft status halo; lifts on hover/focus */
 .topo-node { cursor: pointer; outline: none; }
 .topo-node-halo { opacity: 0.14; transition: opacity .16s ease, r .16s ease; }
 .topo-node-dot { transition: r .16s ease; }

@@ -1,4 +1,4 @@
-/* Box vitals — three single-measure charts on one shared time range. */
+/* Box vitals - three single-measure charts on one shared time range. */
 
 .vit { display: flex; flex-direction: column; gap: 10px; }
 

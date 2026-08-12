@@ -15,7 +15,7 @@ name: auth
 #
 # NOTHING IS ENFORCED YET. The middlewares in edge/dynamic/auth.yml are defined
 # and live again, but they are attached to NO router. Attaching them is a
-# separate, deliberate step — get it wrong and the portal and every dashboard
+# separate, deliberate step - get it wrong and the portal and every dashboard
 # become unreachable, on the box that is also how you would fix it.
 #
 # ── The one thing to understand before editing anything here ────────────────
@@ -28,12 +28,12 @@ name: auth
 # says becomes the `issuer` in the discovery document and inside every token.
 # oauth2-proxy independently checks that the issuer it gets back equals the
 # --oidc-issuer-url it was configured with. If those two disagree by so much as
-# a port, the symptom is not an error message — it is an infinite redirect loop
+# a port, the symptom is not an error message - it is an infinite redirect loop
 # between the proxy and the login page. So there is exactly ONE spelling of
 # Keycloak's address in this file, http://${BOX_IP}:8090, and it is used by the
 # browser AND by oauth2-proxy. A container on devnet can reach the host's
 # tailnet IP on a published port (verified), so the internal shortcut
-# http://keycloak:8080 is deliberately NOT used anywhere in the OIDC config —
+# http://keycloak:8080 is deliberately NOT used anywhere in the OIDC config -
 # it would be a second spelling, and a second spelling is the bug.
 
 services:
@@ -41,7 +41,7 @@ services:
   # ── 1. Database bootstrap ──────────────────────────────────────────────────
   # Keycloak needs its own database. Per the standing rule that the dev stack
   # provides what projects don't ship, this uses the EXISTING shared postgres
-  # rather than shipping a second one — but that postgres has a populated data
+  # rather than shipping a second one - but that postgres has a populated data
   # volume, so its docker-entrypoint-initdb.d hook will never run again. The
   # database therefore has to be created against a running server, and this
   # one-shot is where that happens, so a fresh clone needs no manual psql.
@@ -90,7 +90,7 @@ services:
           memory: 128m
     networks: [devnet]
 
-  # ── 2. Keycloak — the identity provider ────────────────────────────────────
+  # ── 2. Keycloak - the identity provider ────────────────────────────────────
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.1   # pinned: never `latest` on the auth boundary
     container_name: keycloak
@@ -123,14 +123,14 @@ services:
       # an attacker put in a header.
       #
       # The port MUST be here. Omit it and Keycloak advertises
-      # http://<ip>/realms/devbox — port 80, which is Traefik, not Keycloak —
+      # http://<ip>/realms/devbox - port 80, which is Traefik, not Keycloak -
       # and oauth2-proxy's issuer check fails against a URL that resolves to the
       # wrong server entirely.
-      KC_HOSTNAME: http://${BOX_IP:?set BOX_IP in .env — this node tailnet IP, e.g. from `tailscale ip -4`}:8090
+      KC_HOSTNAME: http://${BOX_IP:?set BOX_IP in .env - this node tailnet IP, e.g. from `tailscale ip -4`}:8090
       #
       # KC_HOSTNAME_STRICT is left at its default of TRUE, deliberately. True
       # means "do not resolve the hostname from request headers, use the one I
-      # configured" — precisely the guarantee that keeps the issuer stable no
+      # configured" - precisely the guarantee that keeps the issuer stable no
       # matter which address the request arrived on. It is not the more
       # permissive setting despite the name reading that way.
       #
@@ -151,7 +151,7 @@ services:
       KC_HTTP_ENABLED: "true"
 
       # /health/* and /metrics on the management port 9000, which is NOT
-      # published — only the healthcheck below and (later) Prometheus on devnet.
+      # published - only the healthcheck below and (later) Prometheus on devnet.
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
 
@@ -163,7 +163,7 @@ services:
       # realm-devbox.json is committed to a PUBLIC repo, so the client secret
       # and the tailnet-IP-bearing redirect URI are placeholders in that file
       # and arrive here from the gitignored .env. Names deliberately do NOT
-      # start with KC_ — Keycloak treats KC_* environment variables as its own
+      # start with KC_ - Keycloak treats KC_* environment variables as its own
       # configuration options and an unrecognised one is a startup failure.
       DEVBOX_OAUTH2_CLIENT_SECRET: ${KEYCLOAK_OAUTH2_CLIENT_SECRET:?set KEYCLOAK_OAUTH2_CLIENT_SECRET in .env}
       DEVBOX_OAUTH2_REDIRECT_URI: http://${BOX_IP:?set BOX_IP in .env}/oauth2/callback
@@ -178,11 +178,11 @@ services:
       # route it by Host header no longer exists.
       #
       # 8090 AND NOT 8083, moved 2026-08-12 within hours of first choosing it.
-      # 8083 is claimed by a DECLARED project — Shvil TV's `tv-player-web`, in
-      # its project.dev.yml — and that project was stopped. The portal's
+      # 8083 is claimed by a DECLARED project - Shvil TV's `tv-player-web`, in
+      # its project.dev.yml - and that project was stopped. The portal's
       # collector probes a declared port with a TCP connect, so the moment
       # Keycloak bound 8083 the collector saw something listening, reported
-      # `tv-player-web: up — "listening on :8083"`, and moved the whole project
+      # `tv-player-web: up - "listening on :8083"`, and moved the whole project
       # from `stopped` to `degraded`. The portal was stating, in good faith,
       # that a service nobody had started was running.
       #
@@ -203,7 +203,7 @@ services:
       # (destructive, dev only) drop the keycloak database and let
       # keycloak-db-init recreate it.
       #
-      # JSON has no comments and Keycloak REJECTS unknown fields — a "_comment"
+      # JSON has no comments and Keycloak REJECTS unknown fields - a "_comment"
       # key anywhere in it fails the import with `Unrecognized field ... not
       # marked as ignorable` and the container then crashloops. (Confirmed the
       # hard way, 2026-08-12.) So the reasoning that would have been inline
@@ -211,7 +211,7 @@ services:
       #
       # * sslRequired=NONE is load-bearing, not laziness. The default,
       #   'external', permits plain HTTP only for addresses Java calls
-      #   site-local — 10/8, 172.16/12, 192.168/16. This box is reached on its
+      #   site-local - 10/8, 172.16/12, 192.168/16. This box is reached on its
       #   tailnet IP in 100.64.0.0/10 (RFC 6598 shared address space), which is
       #   NOT site-local, so under 'external' Keycloak answers every request
       #   with "HTTPS required" and the login flow dies before it starts. The
@@ -220,18 +220,18 @@ services:
       #
       # * The four roles are flat and deliberately NON-composite. 'shell' grants
       #   an arbitrary terminal, so it must never be reachable by holding one of
-      #   the other three — composites are how that happens by accident.
+      #   the other three - composites are how that happens by accident.
       #
       # * There is deliberately no defaultRole block, so Keycloak builds
       #   default-roles-devbox from its own built-ins and none of the four is in
       #   it: a new user lands with zero capability and is granted roles
-      #   explicitly. Do not hand-write that block — Keycloak's built-in role
+      #   explicitly. Do not hand-write that block - Keycloak's built-in role
       #   descriptions contain dollar-brace i18n placeholders, and every
       #   dollar-brace expression in this file is expanded against the
       #   ENVIRONMENT at import time, so a copied-in block fails the import.
       #
       # * That same expansion is what fills in the client secret and the
-      #   redirect URI from DEVBOX_OAUTH2_* above — the literal values must
+      #   redirect URI from DEVBOX_OAUTH2_* above - the literal values must
       #   never appear in the file, which is committed to a public repo (the
       #   secret for the obvious reason, the redirect URI because it embeds the
       #   tailnet IP).
@@ -241,7 +241,7 @@ services:
       #   oauth2-proxy's --oidc-groups-claim reads a FLAT claim. Without the
       #   mapper, `--allowed-group=operator` silently matches nothing.
       #
-      # * STEP-UP / RE-AUTH FOR 'shell' — the acr.loa.map realm attribute
+      # * STEP-UP / RE-AUTH FOR 'shell' - the acr.loa.map realm attribute
       #   ({"standard":1,"stepup":2}) is the half that is pure configuration and
       #   is already in the file; it is inert on its own. Enforcement is a
       #   separate deliberate step because it needs an authentication flow:
@@ -253,7 +253,7 @@ services:
       #     4. set the same acr.loa.map as a client attribute so the client may
       #        request it;
       #     5. have whatever guards the shell send acr_values=stepup on the
-      #        authorize request — which in practice means a SECOND oauth2-proxy
+      #        authorize request - which in practice means a SECOND oauth2-proxy
       #        instance dedicated to that route, since --acr-values is per
       #        instance and this one is shared by everything.
       #   Keycloak then forces a fresh second factor whenever the session's acr
@@ -269,7 +269,7 @@ services:
       #
       # Checking for DOWN *first* is the point. /health/ready returns an
       # aggregate status plus a `checks` array, and the sub-checks report their
-      # own status — so a naive `grep '"status": "UP"'` matches a healthy
+      # own status - so a naive `grep '"status": "UP"'` matches a healthy
       # SUB-check inside an overall-DOWN response and reports the container
       # healthy while Keycloak is crashlooping. That is not hypothetical; it
       # masked a failing realm import for several minutes on 2026-08-12.
@@ -296,7 +296,7 @@ services:
   #
   # It exists for the `master` realm. A realm import file can only configure the
   # realm it defines, and master is created by Keycloak itself before any import
-  # happens — so master keeps the default sslRequired=EXTERNAL. Java considers
+  # happens - so master keeps the default sslRequired=EXTERNAL. Java considers
   # only 10/8, 172.16/12 and 192.168/16 to be site-local, and this box's tailnet
   # IP is in 100.64.0.0/10, so under EXTERNAL the admin console at
   # http://${BOX_IP}:8090/admin answers "HTTPS required" and there is no way in.
@@ -331,7 +331,7 @@ services:
           memory: 256m
     networks: [devnet]
 
-  # ── 4. oauth2-proxy — the thing Traefik actually talks to ──────────────────
+  # ── 4. oauth2-proxy - the thing Traefik actually talks to ──────────────────
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3   # pinned: it is the auth boundary
     container_name: oauth2-proxy
@@ -345,7 +345,7 @@ services:
       - --provider-display-name=Keycloak
       # The single spelling. Must equal, byte for byte, the `issuer` field that
       # http://${BOX_IP}:8090/realms/devbox/.well-known/openid-configuration
-      # returns — oauth2-proxy fetches that document and refuses to start the
+      # returns - oauth2-proxy fetches that document and refuses to start the
       # flow if the two differ. That document's issuer comes from KC_HOSTNAME
       # above, which is why both are built from the same ${BOX_IP}.
       - --oidc-issuer-url=http://${BOX_IP:?set BOX_IP in .env}:8090/realms/devbox
@@ -354,7 +354,7 @@ services:
       - --email-domain=*
       # PKCE is enforced on the Keycloak client side too
       # (pkce.code.challenge.method=S256 in realm-devbox.json). Both ends or
-      # neither — enforcing it on only one produces a 400 at the token step.
+      # neither - enforcing it on only one produces a 400 at the token step.
       - --code-challenge-method=S256
       - --scope=openid email profile
 
@@ -378,7 +378,7 @@ services:
       # cookie-domain and none is wanted: every service is now a different PORT
       # on the SAME host, and cookies ignore the port. So the default host-only
       # cookie on ${BOX_IP} is already sent to :3000, :9090, :8080 and the rest
-      # — single sign-on across the whole box falls out for free. Setting a
+      # - single sign-on across the whole box falls out for free. Setting a
       # cookie-domain with a port in it, by contrast, emits an invalid
       # Set-Cookie that browsers drop silently.
       #
@@ -411,7 +411,7 @@ services:
 
       # NOT skip-provider-button. With it enabled /oauth2/sign_in returns a 302
       # straight to the IdP, and Traefik's errors middleware serves CONTENT
-      # rather than following redirects — so it fetched that 302
+      # rather than following redirects - so it fetched that 302
       # server-to-server, threw away the Set-Cookie carrying the CSRF token, and
       # rendered its body: a bare "Found" link. Clicking it skipped
       # /oauth2/start, so the browser never received a CSRF cookie and the
@@ -425,7 +425,7 @@ services:
       # protocol mapper in realm-devbox.json), so gating a route on a role is:
       #   - --allowed-group=operator
       # Left off: with no --allowed-group, any user in the devbox realm passes.
-      # That is the correct setting while NOTHING is attached — turning it on
+      # That is the correct setting while NOTHING is attached - turning it on
       # before the roles are assigned to a real user would lock out the only
       # account that exists. Per-role gating in general wants one oauth2-proxy
       # per role rather than this single shared instance, because the verdict
@@ -434,7 +434,7 @@ services:
       OAUTH2_PROXY_CLIENT_SECRET: ${KEYCLOAK_OAUTH2_CLIENT_SECRET:?set KEYCLOAK_OAUTH2_CLIENT_SECRET in .env}
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_COOKIE_SECRET:?set OAUTH2_COOKIE_SECRET in .env}
     # No traefik labels, and no host port. Routing to this container is declared
-    # in edge/dynamic/auth.yml instead — a host-less PathPrefix(`/oauth2/`)
+    # in edge/dynamic/auth.yml instead - a host-less PathPrefix(`/oauth2/`)
     # router, which is what the sign-in flow needs (it has to work on whichever
     # address the user landed on). The old labels here pinned it to
     # Host(`auth.dev.test`), a name retired on 2026-08-12.

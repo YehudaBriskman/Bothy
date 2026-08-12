@@ -1,4 +1,4 @@
-// Tabs — a real tablist, replacing the `.seg-toggle` pattern.
+// Tabs - a real tablist, replacing the `.seg-toggle` pattern.
 //
 // `.seg-toggle` is a row of buttons with aria-pressed and no roles, so a screen
 // reader announces N unrelated toggle buttons rather than "tab 1 of 2", and the
@@ -7,7 +7,7 @@
 // the whole group in one press), Left/Right to move, Home/End to jump.
 //
 // index.css also carries a `.tabs button[role="tab"]` block that nothing has
-// ever rendered — this is the component that finally uses it.
+// ever rendered - this is the component that finally uses it.
 
 import { useRef, type ReactNode } from 'react';
 
@@ -35,7 +35,7 @@ export function Tabs({
       : dir === 'end' ? tabs.length - 1
       : (i + dir + tabs.length) % tabs.length;
     onChange(tabs[next].key);
-    // Focus follows selection — the automatic-activation variant of the
+    // Focus follows selection - the automatic-activation variant of the
     // pattern, which is correct when switching costs nothing (both panels are
     // already in memory; there is no fetch behind either).
     ref.current?.querySelector<HTMLElement>(`[data-tab="${tabs[next].key}"]`)?.focus();

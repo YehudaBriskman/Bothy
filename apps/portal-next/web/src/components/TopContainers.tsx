@@ -1,4 +1,4 @@
-// "What is actually using this box" — the busiest containers, right now.
+// "What is actually using this box" - the busiest containers, right now.
 //
 // A bar gauge, not a line chart: the question is a MAGNITUDE comparison across
 // a handful of named things at one instant ("which of these is the big one"),
@@ -20,7 +20,7 @@ const TOP_N = 6;
 
 export function TopContainers() {
   const [tab, setTab] = useState<'cpu' | 'mem'>('cpu');
-  // "top 6 of 23" needs the denominator, and the poll already knows it — no
+  // "top 6 of 23" needs the denominator, and the poll already knows it - no
   // second query for a number we are holding.
   const { data } = usePortal();
   const running = useMemo(
@@ -42,7 +42,7 @@ export function TopContainers() {
 
   // The LAST value of every series, per metric, keyed by container name. Built
   // for both metrics regardless of the active tab, because each row shows the
-  // metric it is ranked by AND the other one beside it — a bar with a single
+  // metric it is ranked by AND the other one beside it - a bar with a single
   // number tells you the order but nothing about what the thing actually is.
   const latest = useMemo(() => {
     const pick = (prefix: string) => {
@@ -72,7 +72,7 @@ export function TopContainers() {
         };
       })
       .sort((a, b) => b.value - a.value)
-      // Ranked here rather than by `topk` in the query — see lib/metrics.ts for
+      // Ranked here rather than by `topk` in the query - see lib/metrics.ts for
       // why. Slicing after sorting on the latest value is what makes the
       // "top N" in the footer literally true.
       .slice(0, TOP_N);
@@ -99,7 +99,7 @@ export function TopContainers() {
           label="Rank containers by"
         />
         {state === 'off' ? (
-          <p className="ov-uicol-empty">Needs the metrics route — <code>just portal-prom-route</code>.</p>
+          <p className="ov-uicol-empty">Needs the metrics route - <code>just portal-prom-route</code>.</p>
         ) : rows.length ? (
           <BarGauge rows={rows} />
         ) : (

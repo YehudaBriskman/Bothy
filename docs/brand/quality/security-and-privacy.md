@@ -26,7 +26,7 @@ secrets.
 **Enumerate every storage key** with its purpose and lifetime.
 
 **Third-party embeds are a decision, not a default.** Each one gets a reason and
-a note on what it can see. Analytics is a position to take explicitly — none, or
+a note on what it can see. Analytics is a position to take explicitly - none, or
 self-hosted and consent-gated.
 
 **Serve the headers**: content security policy, referrer policy, content-type
@@ -44,7 +44,7 @@ See [CHECKLIST.md § 24](../CHECKLIST.md#24-security-and-privacy).
 
 **The data plane is the security boundary, and it is a set of exact paths.**
 The portal reads three upstreams through same-origin routes. Every rule is an
-exact path match. This is not style — it is the entire control: the container
+exact path match. This is not style - it is the entire control: the container
 socket proxy gates by endpoint *family*, so a prefix loose enough to match one
 container endpoint also matches the one whose response body contains every
 container's environment, including database and dashboard passwords.
@@ -53,7 +53,7 @@ container's environment, including database and dashboard passwords.
 when the SSO was parked, and a browser cannot hold a credential, so the edge
 injects the header on the page's behalf. The file that carries it is written
 from the environment by a script, gitignored, and mode 600. A redacted example
-sits beside it, **comments-only** — because the first version of that example
+sits beside it, **comments-only** - because the first version of that example
 declared the same router and middleware names as the real file, and the file
 provider merged it on top, replacing the real credential with the placeholder.
 Every metrics query returned 401 while the router still reported "enabled".
@@ -74,7 +74,7 @@ address, because this repository is public.
 security policy is served, and the pre-paint theme script would need hashing
 before a strict one could be. No other headers are set either.
 
-### Update 2026-08-12 — the exact paths are now the only control
+### Update 2026-08-12 - the exact paths are now the only control
 
 Three things changed under this page on 2026-08-12, and all three make the
 statements above stronger rather than weaker.
@@ -87,7 +87,7 @@ statements above stronger rather than weaker.
 
 **The generalisable lesson.** A header the browser must never hold can still
 leak through the proxy's own introspection API. When you inject a credential at
-the edge, audit what the edge will *show you about itself* — the config-dump
+the edge, audit what the edge will *show you about itself* - the config-dump
 endpoint is part of the attack surface of the credential.
 
 ## Dead ends
@@ -106,7 +106,7 @@ endpoint is part of the attack surface of the credential.
 
 - The regression test for the boundary asserts that a container's detail
   endpoint returns the app's own `text/html`, not the upstream's
-  `application/json`. Checking the status code is not sufficient — see the dead
+  `application/json`. Checking the status code is not sufficient - see the dead
   end above.
 - After regenerating the metrics route, confirm a query returns JSON and that
   unrouted paths fall through to the app rather than to the upstream.

@@ -1,8 +1,8 @@
 # Derived from the image's own /etc/loki/local-config.yaml (loki 3.7.3), with
 # retention appended and nothing else changed.
 #
-# Loki shipped with no retention whatsoever — the stock config defines neither
-# limits_config nor compactor — so /loki grew without bound. On this box Traefik
+# Loki shipped with no retention whatsoever - the stock config defines neither
+# limits_config nor compactor - so /loki grew without bound. On this box Traefik
 # runs with --accesslog=true and promtail scrapes every container with no drop
 # rules, so every HTTP request became a log line. The WSL2 vhdx never shrinks,
 # so that space is not returned to Windows even after the data is deleted.

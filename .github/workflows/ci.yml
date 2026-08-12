@@ -50,7 +50,7 @@ jobs:
           cp .env.example .env
           # .env.example deliberately ships these three blank; the compose files
           # use ${VAR:?...} so interpolation aborts without them. These values are
-          # never used to talk to anything — `config -q` only parses.
+          # never used to talk to anything - `config -q` only parses.
           {
             echo "OAUTH2_CLIENT_ID=ci-placeholder"
             echo "OAUTH2_CLIENT_SECRET=ci-placeholder"
@@ -80,7 +80,7 @@ jobs:
             fi
           done < <(find . -name 'compose*.yml' -not -path '*/node_modules/*' | sort)
           if [ "$found" -eq 0 ]; then
-            echo "FAIL  no compose files found — did the layout change?"
+            echo "FAIL  no compose files found - did the layout change?"
             rc=1
           fi
           echo "$found compose file(s) checked"

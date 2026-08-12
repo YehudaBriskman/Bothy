@@ -52,7 +52,7 @@ export function Topology() {
             {(['up', 'starting', 'down', 'unknown'] as const).map((s) => (
               <span key={s} className="leg"><span className="leg-dot" style={{ background: STATUS_HEX[s] }} /> {s}</span>
             ))}
-            {/* Only meaningful on the flat map — the 3D scene has no dependency
+            {/* Only meaningful on the flat map - the 3D scene has no dependency
                 lines to explain, and a legend for something not on screen is
                 worse than no legend. */}
             {view === 'flat' && (
@@ -138,7 +138,7 @@ function FlatMap() {
 
   const hubY = height / 2;
   const isLit = (id: string) => hover === null || hover === id || hover === 'hub';
-  // A dependency is lit when EITHER end is hovered — the question is
+  // A dependency is lit when EITHER end is hovered - the question is
   // symmetrical. "What does this need" and "what breaks if I stop this" are the
   // same edge read in opposite directions, and the second one is the question
   // you actually have before running `docker stop`.
@@ -192,7 +192,7 @@ function FlatMap() {
         })}
 
         {/* Declared dependencies, bulging left into the gutter between the band
-            edge and the service dots — the one strip of this map that was empty.
+            edge and the service dots - the one strip of this map that was empty.
             Drawn AFTER the routing curves so they sit on top, and dashed so the
             two kinds of line are never confused: solid = a request path, dashed
             = a startup requirement. They are different claims about the system
@@ -253,7 +253,7 @@ function FlatMap() {
               style={{ opacity: lit ? 1 : 0.22 }}
               tabIndex={0}
               role="link"
-              aria-label={`${node.name} — ${node.status}. Open details.`}
+              aria-label={`${node.name} - ${node.status}. Open details.`}
               onMouseEnter={() => setHover(node.id)}
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(node.id)}

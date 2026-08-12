@@ -3,7 +3,7 @@
 // The existing viz.tsx primitives were built on the same principle and it still
 // holds: a line chart is a polyline and some text, and a charting library is
 // ~40 KB of abstraction over that. What this adds over Sparkline is the parts
-// that make a graph READABLE rather than decorative — a y-scale with labels, a
+// that make a graph READABLE rather than decorative - a y-scale with labels, a
 // time axis, a hover crosshair with a value readout, and direct end-labels.
 //
 // Rules it follows (see the design notes in index.css and the --chart-N block):
@@ -32,7 +32,7 @@ interface Props {
   /** Formats a y value everywhere it is printed: axis, readout, end-label. */
   format: (v: number) => string;
   height?: number;
-  /** Pin the top of the scale — e.g. 100 for a percentage. */
+  /** Pin the top of the scale - e.g. 100 for a percentage. */
   yMax?: number;
   /** Filled area under the line. Only honest for a single series. */
   area?: boolean;
@@ -93,7 +93,7 @@ export function TimeChart({ series, format, height = 132, yMax, area, label }: P
   const { t0, t1, top, x, y, ih } = geom;
   const ticks = [0, top / 2, top];
 
-  // The sample nearest the pointer, per series — one crosshair, N readouts.
+  // The sample nearest the pointer, per series - one crosshair, N readouts.
   const hovered =
     hoverX == null
       ? null
@@ -130,7 +130,7 @@ export function TimeChart({ series, format, height = 132, yMax, area, label }: P
           ))}
         </defs>
 
-        {/* grid + y labels — recessive on purpose */}
+        {/* grid + y labels - recessive on purpose */}
         {ticks.map((v) => (
           <g key={v}>
             <line className="tc-grid" x1={PAD.left} x2={w - PAD.right} y1={y(v)} y2={y(v)} />

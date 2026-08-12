@@ -26,7 +26,7 @@ export function ProjectDetail() {
   // view of one page, not a fact about the box.
   const [reach, setReach] = useState<'routes' | 'ports'>('routes');
 
-  // The system rollup owns title, kind, accent and volumes — derive it once so
+  // The system rollup owns title, kind, accent and volumes - derive it once so
   // the header, chips and data card all agree.
   const system = useMemo(
     () => systemsOf(data.nodes).find((s) => s.key === name) ?? null,
@@ -90,24 +90,24 @@ export function ProjectDetail() {
       <div className="dgrid" style={{ marginTop: 18 }}>
         {/* The Health panel is DELETED. It restated, in a 156px panel, the
             "N/M up · N ports · N routes · N volumes" line already printed 60px
-            above it in the header — the same numbers, one bar and a row of
+            above it in the header - the same numbers, one bar and a row of
             tags. A rollup that duplicates its own page subtitle is not a
             rollup, it is an echo. The header line IS the rollup. */}
 
-        {/* Services — split into sections by type. */}
+        {/* Services - split into sections by type. */}
         <motion.section className="panel span-12" {...rise(panel++)}>
           <div className="panel-h">Services <span className="sub">{h.total}</span></div>
           <div className="panel-b">
             {/* The type + status filter bar is DELETED. It offered up to ten
                 chips to filter a table whose median length on this box is 2
-                rows and whose longest is 6 — the controls were bigger than the
+                rows and whose longest is 6 - the controls were bigger than the
                 data they controlled, and every chip carried a count that was
                 already visible as a row. Type is a SECTION heading below and
                 status is a column; both are readable without filtering. The
                 Services page keeps its filter bar, where 27 rows justify it. */}
             {sections.length === 0 ? (
               // With no filters left, empty means the system really has nothing
-              // in it — so there is no "clear filters" escape hatch to offer.
+              // in it - so there is no "clear filters" escape hatch to offer.
               <div className="svc-empty">
                 <p>No services discovered in this system.</p>
               </div>
@@ -130,7 +130,7 @@ export function ProjectDetail() {
           </div>
         </motion.section>
 
-        {/* Data — this system's volumes and their sizes */}
+        {/* Data - this system's volumes and their sizes */}
         {system.volumes.length > 0 && (
           <motion.section className="panel span-12" {...rise(panel++)}>
             <div className="panel-h">
@@ -152,8 +152,8 @@ export function ProjectDetail() {
                       return (
                         <tr key={v.name}>
                           <td className="vol-name"><span className="ico sm"><HardDrive size={15} /></span><span className="mono">{v.name}</span></td>
-                          <td className="mono dim">{v.destination || '—'}</td>
-                          <td className="mono num">{df ? fmtBytes(size) : '—'}</td>
+                          <td className="mono dim">{v.destination || '-'}</td>
+                          <td className="mono num">{df ? fmtBytes(size) : '-'}</td>
                         </tr>
                       );
                     })}
@@ -164,7 +164,7 @@ export function ProjectDetail() {
           </motion.section>
         )}
 
-        {/* Reachability — routes and ports in ONE panel.
+        {/* Reachability - routes and ports in ONE panel.
             They answer the same question ("how is this reached?") and were two
             stacked panels of identical shape, so the page asked you to scroll
             past one to discover whether the other existed. Same merge as the

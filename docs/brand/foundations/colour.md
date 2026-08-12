@@ -11,7 +11,7 @@ most common way a design system rots.
 
 | Job | What it is | Rule |
 |---|---|---|
-| **Surface** | The elevation ladder — page, card, header, popover | A fixed number of named steps. No component invents an in-between. |
+| **Surface** | The elevation ladder - page, card, header, popover | A fixed number of named steps. No component invents an in-between. |
 | **Status** | State: up, warn, down, unknown, off | Reserved. Never decoration. See [principles](principles.md). |
 | **Chrome accent** | Telling panels apart | Decoration. Never encodes state. |
 | **Chart series** | Identity in a graph | A validated categorical palette, assigned by fixed slot order. |
@@ -20,7 +20,7 @@ most common way a design system rots.
 
 Declare four steps, not two. Systems that declare two invent the third and
 fourth ad hoc, wherever a hover row or a popover needed something "slightly
-lighter" — and then the same intended colour exists at five different values.
+lighter" - and then the same intended colour exists at five different values.
 
 Two constraints that are easy to get wrong:
 
@@ -33,7 +33,7 @@ Two constraints that are easy to get wrong:
 ### Contrast, measured not assumed
 
 Record the measured ratio beside every foreground token, against each surface it
-is used on. Not "this looks fine" — the number.
+is used on. Not "this looks fine" - the number.
 
 Then re-check every muted or subtle token **at the size it is actually used
 at**. A grey that passes at 16px is often being used at 11px for hostnames and
@@ -50,7 +50,7 @@ palette has to pass five checks, per theme:
 1. Every hue inside the lightness band for that mode.
 2. A chroma floor, so no hue is nearly grey.
 3. Adjacent-pair separation under simulated colour-vision deficiency.
-4. Adjacent-pair separation under **normal** vision — the check people forget.
+4. Adjacent-pair separation under **normal** vision - the check people forget.
 5. At least 3:1 against the surface the chart sits on.
 
 Two consequences that surprise people:
@@ -59,7 +59,7 @@ Two consequences that surprise people:
   other.** The bands differ, so the same hue cannot serve both.
 - **Slot order is part of what was validated.** The checks are on *adjacent*
   pairs, so reordering the palette invalidates the result. Assign series to slots
-  1, 2, 3 in a fixed order, and never cycle by array index — a filter that
+  1, 2, 3 in a fixed order, and never cycle by array index - a filter that
   changes the series count must not repaint the survivors.
 
 ## Checklist
@@ -72,8 +72,8 @@ The full token table is in [reference/tokens.md](../reference/tokens.md). The
 decisions behind it:
 
 **The scheme is neutral, not navy.** It was repainted on 2026-08-10 to match
-shadcn's dark scheme. The old surfaces were blue-tinted — the darkest card was
-about 12 percent more blue than red — and every one of them was semi-transparent
+shadcn's dark scheme. The old surfaces were blue-tinted - the darkest card was
+about 12 percent more blue than red - and every one of them was semi-transparent
 over a blue radial glow. So a "grey" panel was never actually grey, the accent
 had to fight its own backdrop to read as a different colour, and the same
 `surface-1` card rendered differently at the top of the page than at the bottom.
@@ -102,7 +102,7 @@ so warn uses amber-600. And `unknown` uses a custom grey rather than slate-400,
 which sat at nearly identical weight to `up`. Before this, `unknown` was the
 only status token that had never been remapped for light: it lived in the dark
 block and in neither light block, which made it the visually heaviest colour on
-the light page — so light mode shouted loudest about the seven `@file` routes
+the light page - so light mode shouted loudest about the seven `@file` routes
 that are honestly unknown rather than broken.
 
 **Three status fills deliberately fail 3:1** in light mode (up, unknown,
@@ -119,13 +119,13 @@ transparent dips through a muddier, darker midpoint.
 **The chart palette was validated, and the obvious answer failed.** The natural
 blue → teal → amber → purple → rose ramp fails on dark: every hue sits above the
 dark band's ceiling and glares. The passing dark set is indigo, teal, orange,
-purple, rose. Reordering to separate teal from amber was tried and is worse — it
+purple, rose. Reordering to separate teal from amber was tried and is worse - it
 puts orange next to rose, which collapses to ΔE 9 for *normal* vision.
 
 The shipped palette has one caveat, recorded in the CSS: slots 2 and 3 sit at
 ΔE 6.3 under tritanopia, inside the floor band that is only legal with secondary
 encoding. So every multi-series chart ships a legend and direct end-labels. The
-network chart, which only needs two series, uses slots 1 and 3 instead — measured
+network chart, which only needs two series, uses slots 1 and 3 instead - measured
 ΔE 31.5, rather than relying on the mitigation.
 
 ## Dead ends
@@ -142,7 +142,7 @@ network chart, which only needs two series, uses slots 1 and 3 instead — measu
 ## How this is verified
 
 - The contrast ratios recorded in the CSS comments can be recomputed from the
-  token values and compared — drift is machine-detectable.
+  token values and compared - drift is machine-detectable.
 - The categorical palette is re-run through the five checks whenever it or its
   order changes, for both themes.
 - A grep for raw hex outside the token declaration blocks catches the most

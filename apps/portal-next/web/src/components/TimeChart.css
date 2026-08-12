@@ -3,7 +3,7 @@
 .tc { position: relative; width: 100%; min-width: 0; }
 .tc-svg { display: block; width: 100%; overflow: visible; touch-action: pan-y; }
 
-/* 1px hairlines at low alpha — a grid you can see is a grid competing with the
+/* 1px hairlines at low alpha - a grid you can see is a grid competing with the
    line it exists to support. */
 .tc-grid { stroke: var(--line); stroke-width: 1; }
 .tc-ytick, .tc-xtick {
@@ -51,7 +51,7 @@
 }
 
 /* ── legend ────────────────────────────────────────────────────────────────
-   Present whenever there are ≥2 series — not decoration. The validated palette
+   Present whenever there are ≥2 series - not decoration. The validated palette
    has one adjacent pair inside the CVD floor band, and a legend plus the
    end-dot is the non-colour encoding that makes that pair legal. */
 .tc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 4px 2px 0; }

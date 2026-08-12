@@ -1,9 +1,9 @@
-/* System matrix — every system visible, one cell per service.
+/* System matrix - every system visible, one cell per service.
    Replaces SystemGroup.css (189 lines of 46px heads and 31px full-width rows). */
 
 /* ONE grid for the whole matrix, with the groups dissolved into it via
-   `display: contents`. The label column is therefore `max-content` — sized to
-   the longest label across ALL groups and identical on every row — rather than
+   `display: contents`. The label column is therefore `max-content` - sized to
+   the longest label across ALL groups and identical on every row - rather than
    a guessed pixel width. A fixed 92px was tried first and clipped
    "INFRASTRUCTURE" to "INFRASTRUC…" while pushing its count badge onto a second
    line, which made that row taller than the other two: the exact raggedness
@@ -34,11 +34,11 @@
   color: var(--st-down-fg);
 }
 
-/* Chips wrap. They are sized by their content — a 2-service system is visibly
+/* Chips wrap. They are sized by their content - a 2-service system is visibly
    narrower than an 8-service one, which is information rather than raggedness. */
 .sm-row { display: flex; flex-wrap: wrap; gap: 7px; }
 
-/* A button now, not a link — it opens the quick-lookup dialog. `appearance:
+/* A button now, not a link - it opens the quick-lookup dialog. `appearance:
    none` + `font: inherit` are what stop it rendering as a UA button; without
    them the chips pick up the platform's own font and 13px control padding. */
 .sm-chip {
@@ -62,14 +62,14 @@
 /* A system with something wrong gets a tint and a border, not a full-width
    alarm. It is already sorted first; the colour only has to confirm. */
 .sm-chip.is-bad { background: var(--st-down-bg); border-color: var(--st-down-line); }
-/* Off on purpose recedes — quieter than the default chip, never an alert. */
+/* Off on purpose recedes - quieter than the default chip, never an alert. */
 .sm-chip.is-off { background: transparent; }
 .sm-chip.is-off .sm-chip-name { color: var(--fg-muted); font-weight: 500; }
 .sm-chip.is-off::before { opacity: .3; }
 
 /* ── the cells ───────────────────────────────────────────────────────────────
    One service, one cell, 7×14. Small enough that a dozen fit beside a name,
-   large enough to hold a hue at a glance. Colour is never the only encoding —
+   large enough to hold a hue at a glance. Colour is never the only encoding -
    the chip's aria-label spells out the counts, every cell has a title, and the
    system page behind the link states it in words. */
 .sm-cells { display: flex; gap: 3px; align-items: center; flex: none; }
@@ -92,7 +92,7 @@
 
 /* The label column is a WIDE-SCREEN optimisation and has to hand back the
    width when there isn't any. Measured at 390px: a 141px label column left
-   201px for chips — 36% of the viewport spent on three words — and the matrix
+   201px for chips - 36% of the viewport spent on three words - and the matrix
    grew from 117px to 522px because every chip wrapped onto its own line. Below
    this breakpoint the label goes back above its row, where it costs one line
    and the chips get the full width. */

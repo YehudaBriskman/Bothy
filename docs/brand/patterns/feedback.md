@@ -9,7 +9,7 @@ How the system talks back: dialogs, tooltips, toasts, confirmation.
 **One dialog implementation.** It must set `aria-modal`, carry an accessible
 name, trap focus, restore focus on close, close on Escape, lock background
 scroll, and portal out of any clipping ancestor. These are the parts that are
-always subtly wrong when hand-rolled — see
+always subtly wrong when hand-rolled - see
 [components](components.md#two-deliberate-exceptions-to-use-the-library).
 
 **One dialog at a time.** Nested modals are almost always a flow that should
@@ -24,7 +24,7 @@ on hover is invisible to a keyboard user and to touch.
 **A tooltip is never the only carrier of information.** It is an enhancement.
 
 **The `title` attribute is a third fallback.** It is invisible to keyboard
-users, slow, and unstyleable — useful only for touch, where neither hover nor
+users, slow, and unstyleable - useful only for touch, where neither hover nor
 focus fires.
 
 **Decide whether toasts exist.** If they do: capped stack, at least five
@@ -52,11 +52,11 @@ See [CHECKLIST.md § 17](../CHECKLIST.md#17-feedback-and-overlays).
   behaviour rather than convenience.
 - **The dialog is a column** so the body scrolls rather than the whole box, and
   the body carries the standard edge shades so a clipped dialog looks clipped.
-- **Radix warns when a dialog has no description**, so one is always supplied —
+- **Radix warns when a dialog has no description**, so one is always supplied -
   visually or hidden. A console warning that is always present trains everyone to
   ignore console warnings.
-- **Tooltips open on hover and focus**, using the inverted-surface pair — the
-  foreground colour as the background — which is what makes a tooltip read as an
+- **Tooltips open on hover and focus**, using the inverted-surface pair - the
+  foreground colour as the background - which is what makes a tooltip read as an
   overlay rather than as another card. They replaced bare `title` attributes,
   which were invisible to keyboard users.
 - **No toasts.** The product's actions all have visible local results: a refresh
@@ -64,7 +64,7 @@ See [CHECKLIST.md § 17](../CHECKLIST.md#17-feedback-and-overlays).
   by the pill and the degraded line. Nothing needed a transient overlay, and one
   would have been a second, competing error channel.
 - **The system quick-lookup is a dialog rather than a page** because it answers a
-  *lookup* — you want it, you read it, you carry on scanning. Making it a
+  *lookup* - you want it, you read it, you carry on scanning. Making it a
   navigation meant losing your place on a page you were scanning. The dialog links
   on to the full page for when you did want to leave.
 

@@ -26,7 +26,7 @@ function ThemeToggle() {
   const { theme, cycle } = useTheme();
   const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
   return (
-    <Tooltip label={`Theme: ${theme} — click to change`} align="end">
+    <Tooltip label={`Theme: ${theme} - click to change`} align="end">
       <button className="icon-btn" onClick={cycle} aria-label={`Theme: ${theme}. Click to change.`}>
         <Icon size={18} />
       </button>
@@ -103,13 +103,13 @@ export function AppShell() {
         <span className="scroll-rail-fill" style={{ transform: `scaleY(${progress})` }} />
       </div>
 
-      {/* Skip link — one Tab press to content. It mattered more with the
+      {/* Skip link - one Tab press to content. It mattered more with the
           sidebar (6 stops); kept because it costs nothing and the nav is still
           the first thing in the DOM. */}
       <a href="#content" className="skip-link">Skip to content</a>
 
       <header className="topbar">
-        <NavLink to="/" className="brand" end aria-label="Bothy — overview">
+        <NavLink to="/" className="brand" end aria-label="Bothy - overview">
           <Brand />
         </NavLink>
 
@@ -154,7 +154,7 @@ export function AppShell() {
         <ThemeToggle />
       </header>
 
-      {/* Route/page transition — a short fade+rise keyed on the path. `mode:wait`
+      {/* Route/page transition - a short fade+rise keyed on the path. `mode:wait`
           lets the outgoing page finish before the next mounts, so pages never
           overlap. Reduced-motion collapses the offset to a plain fade. */}
       <AnimatePresence mode="wait" initial={false}>

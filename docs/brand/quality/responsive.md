@@ -13,7 +13,7 @@ the container it actually got; a breakpoint guesses at a viewport. Add a
 breakpoint only where content genuinely cannot decide.
 
 **Drive behaviour by measurement where you can.** Whether a row of items
-overflows is a fact you can measure, and it depends on how many items there are —
+overflows is a fact you can measure, and it depends on how many items there are -
 not only on the viewport.
 
 **Test at real widths:** 320, 360, 390, 768, 1024, 1280, 1440, 1920. And assert
@@ -38,7 +38,7 @@ See [CHECKLIST.md § 19](../CHECKLIST.md#19-responsive-and-touch).
 ## What Bothy decided, and why
 
 **The navigation uses both approaches, because they solve different problems.**
-Below roughly 1080px the labels collapse and expand on hover or focus — that is a
+Below roughly 1080px the labels collapse and expand on hover or focus - that is a
 density decision and a breakpoint is the right tool. Independently, the row
 scrolls horizontally with an edge fade *whenever it actually overflows*, which is
 measured. A box with four destinations and a box with twelve behave correctly at
@@ -48,7 +48,7 @@ the same width without a second breakpoint.
 
 - Below roughly 900px the brand text and the freshness pill are dropped and the
   search trigger collapses to its icon.
-- Below 560px the topbar tightens and the scroll rail is hidden — 3px of
+- Below 560px the topbar tightens and the scroll rail is hidden - 3px of
   decoration on a 360px screen is not worth the width.
 - Chart grids use a 280px minimum column, because below roughly 900px three
   charts sharing a row put their axis labels on top of each other.

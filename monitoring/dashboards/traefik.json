@@ -4,7 +4,7 @@
   "graphTooltip": 1,
   "schemaVersion": 39,
   "tags": ["edge", "traefik"],
-  "title": "Traefik — edge",
+  "title": "Traefik - edge",
   "uid": "traefik-edge",
   "time": { "from": "now-6h", "to": "now" },
   "refresh": "30s",

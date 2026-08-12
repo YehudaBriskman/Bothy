@@ -1,4 +1,4 @@
-// Box vitals — the first real graphs this portal has had.
+// Box vitals - the first real graphs this portal has had.
 //
 // Three charts, one measure each. NOT one chart with three lines: CPU is a
 // percentage, memory is a percentage and network is bytes/second, and putting
@@ -22,7 +22,7 @@ import './Vitals.css';
 /**
  * peak / average over the visible window.
  *
- * NOT `now` — the quick-view tiles above own the current value, and printing it
+ * NOT `now` - the quick-view tiles above own the current value, and printing it
  * again here was the same fact in two places at two altitudes, which is the
  * duplication that got the old stat row deleted in the first place. What a chart
  * uniquely knows is the shape of the window: a line tells you the trajectory but
@@ -47,7 +47,7 @@ export function Vitals() {
   const [range, setRange] = useState<RangeKey>('1h');
 
   // One poll for all four queries, so the three charts always describe the same
-  // instant — separate hooks would drift by up to a refresh interval and the
+  // instant - separate hooks would drift by up to a refresh interval and the
   // charts would disagree about "now".
   const specs = useMemo(
     () => [
@@ -85,7 +85,7 @@ export function Vitals() {
         </header>
         <p className="vit-off">
           No metrics route on this box. Run <code>just portal-prom-route</code> in{' '}
-          <code>~/stacks</code> to point the portal at Prometheus — nothing else on this
+          <code>~/stacks</code> to point the portal at Prometheus - nothing else on this
           page depends on it.
         </p>
       </section>
@@ -104,7 +104,7 @@ export function Vitals() {
           </span>
         )}
 
-        {/* The time range. One control for all three charts — a per-chart range
+        {/* The time range. One control for all three charts - a per-chart range
             would let two charts on the same row cover different windows, which
             is the fastest way to make a dashboard lie. */}
         <div className="vit-ranges" role="group" aria-label="Time range">
@@ -173,7 +173,7 @@ function Panel({
         {loading ? <div className="vit-skel" aria-hidden="true" /> : children}
       </div>
       {/* Rendered even while loading, so the panel does not change height when
-          the data lands — the shape-matched-skeleton rule applied to a footer. */}
+          the data lands - the shape-matched-skeleton rule applied to a footer. */}
       <footer className="vit-foot">{footer}</footer>
     </article>
   );

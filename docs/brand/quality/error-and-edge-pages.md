@@ -6,7 +6,7 @@ _Status as of 2026-08-10._
 
 **Blank is not a state.** Every failure path renders something. This is the
 governing rule of the whole document, and it is violated by accident far more
-often than by decision — a component that throws, an animation that never runs,
+often than by decision - a component that throws, an animation that never runs,
 a fetch that clears state before it fails.
 
 **A not-found page keeps the shell** and offers a way out, with the bad URL
@@ -50,7 +50,7 @@ See [CHECKLIST.md § 25](../CHECKLIST.md#25-error-and-edge-pages).
   good data; the freshness pill goes amber and states the age. A stale page with
   working links beats a blank one.
 - **Metrics degrade to a sentence.** With no metrics route the vitals section is
-  replaced by one line naming the command that would enable it — never an empty
+  replaced by one line naming the command that would enable it - never an empty
   chart frame.
 - **A dangling route is shouted about**, not hidden. A route with no backend is
   exactly what this page exists to surface.
@@ -64,7 +64,7 @@ down. Tracked in
 ## Dead ends
 
 - **Clearing data on a failed poll.** Produced a blank page during a transient
-  failure — the exact moment the page is most needed.
+  failure - the exact moment the page is most needed.
 - **Rendering the home page for an unknown route.** Made broken links invisible.
 - **An animation system that defaulted content to invisible.** The canonical
   blank-page failure; see [motion](../foundations/motion.md).

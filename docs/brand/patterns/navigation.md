@@ -43,7 +43,7 @@ See [CHECKLIST.md § 13](../CHECKLIST.md#13-navigation-and-information-architect
 - **The current item is underlined**, not filled.
 - **Responsive behaviour is a hybrid**, because the two problems are different.
   Below roughly 1080px the labels collapse to zero width and expand on hover
-  *and* keyboard focus — focus matters as much as hover, or a keyboard user tabs
+  *and* keyboard focus - focus matters as much as hover, or a keyboard user tabs
   through four unlabelled squares. Independently, whenever the row actually
   overflows it scrolls horizontally with a fade on whichever edge has more
   content. The fade is driven by measurement, not by a breakpoint. A `title`

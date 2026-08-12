@@ -4,7 +4,7 @@ contact_links:
     url: https://github.com/YehudaBriskman/dev-box/security/advisories/new
     about: >
       Never open a public issue for a vulnerability. Use a private security
-      advisory — the process and what to include are in SECURITY.md.
+      advisory - the process and what to include are in SECURITY.md.
   - name: Security policy and threat model
     url: https://github.com/YehudaBriskman/dev-box/blob/main/SECURITY.md
     about: What is in scope, and which "stylistic" choices in this repo are actually the security boundary.

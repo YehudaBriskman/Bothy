@@ -4,9 +4,9 @@
    that gives the render depth, the HUD (focus selector, legend, hint), the drei
    <Html> overlays (rack plates + hover tooltip) and the no-WebGL static fallback.
    Status colours arrive as the inline --led custom property (the exact index.css
-   hexes) — never hardcoded here. */
+   hexes) - never hardcoded here. */
 
-/* frame — mirrors the shared .panel surface without depending on its internals */
+/* frame - mirrors the shared .panel surface without depending on its internals */
 .sv-frame {
   background: var(--surface-1);
   border: 1px solid var(--line);
@@ -34,7 +34,7 @@
   color: var(--fg-subtle);
 }
 
-/* focus selector — quiet segmented control, accent only on the active segment */
+/* focus selector - quiet segmented control, accent only on the active segment */
 .sv-focus {
   margin-left: auto;
   display: inline-flex;
@@ -72,7 +72,7 @@
   max-height: 760px;
 }
 
-/* full-bleed variant — the Topology hero fills the remaining content height */
+/* full-bleed variant - the Topology hero fills the remaining content height */
 .sv-frame-fill { flex: 1; min-height: 0; }
 .sv-viewport-fill {
   flex: 1;
@@ -99,7 +99,7 @@
     color-mix(in oklab, var(--bg) 58%, #000 42%) 100%);
 }
 
-/* HUD — the legend used to live here TOO, duplicating the one in the Topology
+/* HUD - the legend used to live here TOO, duplicating the one in the Topology
    page header. Removed; the header legend serves both 3D and Flat map. */
 .sv-hint {
   position: absolute;
@@ -107,7 +107,7 @@
   bottom: 12px;
   font-family: var(--mono);
   font-size: 11px;
-  /* sat on the raw canvas at ~2:1 in light mode — it needs its own plate */
+  /* sat on the raw canvas at ~2:1 in light mode - it needs its own plate */
   color: var(--fg-muted);
   background: color-mix(in oklab, var(--surface-2) 84%, transparent);
   border: 1px solid var(--line);
@@ -137,7 +137,7 @@
   border-color: color-mix(in oklab, var(--accent) 45%, var(--line-strong));
 }
 
-/* drei <Html> hover tooltip — screen-crisp, never steals the pointer */
+/* drei <Html> hover tooltip - screen-crisp, never steals the pointer */
 .sv-tip { pointer-events: none; user-select: none; }
 .sv-tip-card {
   min-width: 168px;

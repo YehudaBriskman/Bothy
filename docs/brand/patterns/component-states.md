@@ -35,14 +35,14 @@ removes the focus ring it must draw its own in the same rule. A border-colour
 change is *not* a replacement: it is invisible to someone looking for a ring,
 and it is colour-alone.
 
-Where an input has no border of its own — a search field inside a bordered
-wrapper — the ring belongs on the wrapper, keyed to `:focus-visible` on the
+Where an input has no border of its own - a search field inside a bordered
+wrapper - the ring belongs on the wrapper, keyed to `:focus-visible` on the
 input so it does not fire on every mouse click.
 
 **Skeletons must be shape-matched.** A skeleton's only job is to reserve the
 shape that is coming, so the page does not jump when data lands. Two identical
 grey boxes standing in for a headline block and a wrapping row of chips move the layout
-twice — once when the skeleton appears and again when it is replaced by
+twice - once when the skeleton appears and again when it is replaced by
 something a different height. That is worse than no skeleton.
 
 **An empty state is a note, not an announcement.** It should be *smaller* than
@@ -77,12 +77,12 @@ See [CHECKLIST.md § 12](../CHECKLIST.md#12-component-states).
 
 - **A global focus ring** on `:focus-visible`, at a declared width and offset,
   including on scroll containers.
-- **Four unpaired `outline: none` rules were found and fixed** on 2026-08-10 —
+- **Four unpaired `outline: none` rules were found and fixed** on 2026-08-10 -
   two search inputs that replaced the ring with a border tint, and two inputs
   inside bordered wrappers that had no replacement at all. The wrappers now carry
   the ring. Three other occurrences were left: they already had `:focus-visible`
   replacements.
-- **Skeletons are shape-matched by variant** — the overview, table and panel
+- **Skeletons are shape-matched by variant** - the overview, table and panel
   skeletons have different geometry, because a single generic one moved the
   layout on every load.
 - **Empty states take an optional clear handler**, so the dead-control case is
@@ -92,7 +92,7 @@ See [CHECKLIST.md § 12](../CHECKLIST.md#12-component-states).
   enrichment, and disk sizes are a pure overlay. Any of them can fail alone, and
   the page says which is missing rather than hiding the rest.
 - **Stale shows its age** in the freshness pill, and the page keeps the last good
-  data rather than clearing — a stale page with working links beats a blank one.
+  data rather than clearing - a stale page with working links beats a blank one.
 - **Current nav items are underlined**, not filled, for the reason above.
 
 ## Dead ends

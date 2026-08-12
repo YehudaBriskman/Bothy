@@ -9,7 +9,7 @@ services:
     # directly on published port 9000.
     #
     # Portainer holds a READ-WRITE docker socket, so its UI serves container
-    # Env — POSTGRES_PASSWORD and the Grafana admin password — and container
+    # Env - POSTGRES_PASSWORD and the Grafana admin password - and container
     # exec, which is root on this box. Its own login is now the ONLY thing
     # between the tailnet and that (the SSO chain was parked, and the route it
     # sat behind is gone), and it is set interactively on first visit, so an

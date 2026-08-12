@@ -11,7 +11,7 @@ it grows quietly.
 **Some of it is free now and expensive later.** Do these regardless of the
 decision:
 
-- **Logical CSS properties** — inline and block rather than left and right.
+- **Logical CSS properties** - inline and block rather than left and right.
   Identical effort today, and it is most of what a right-to-left conversion needs.
 - **Format numbers, dates and lists with the platform internationalisation
   API**, never by hand. It is not more code, and hand-rolled formatting is where
@@ -38,7 +38,7 @@ read by one person on one machine. Nothing about it argues for translation.
 
 **What is not, and should be anyway:** the stylesheets use physical properties
 throughout. That is the "free now, expensive later" item, and it was not taken.
-Number and byte formatting is hand-rolled rather than using the platform API —
+Number and byte formatting is hand-rolled rather than using the platform API -
 defensible for byte sizes, which have a house rule, less so elsewhere. Tracked in
 [reference/open-questions.md](../reference/open-questions.md).
 

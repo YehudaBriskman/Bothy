@@ -8,7 +8,7 @@ import { Tabs, TabPanel } from '../components/Tabs';
 // thing?" They shared a filter bar, a table, a sort model and a stylesheet, and
 // differed only in which column held the address. Two top-level destinations for
 // two views of the same subject is navigation spent on an implementation detail
-// — whether a service is reached through Traefik or through a published port is
+// - whether a service is reached through Traefik or through a published port is
 // exactly what the user came here to find out, not something they should have to
 // know before choosing a menu item.
 //

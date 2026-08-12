@@ -10,7 +10,7 @@ body:
         development box, so the bar for "should this exist here" is a bit
         specific. Two rules worth knowing before you write:
 
-        - The stack provides what projects **do not** ship — routing,
+        - The stack provides what projects **do not** ship - routing,
           dashboards, logs. It does not provide what a project ships for itself;
           a project keeps its own database.
         - **Access is `IP:port`.** The `*.dev.test` name layer was deleted on
@@ -60,7 +60,7 @@ body:
     id: alternatives
     attributes:
       label: Alternatives you considered
-      description: Including "do nothing" — a ruled-out option is useful information.
+      description: Including "do nothing" - a ruled-out option is useful information.
     validations:
       required: false
 

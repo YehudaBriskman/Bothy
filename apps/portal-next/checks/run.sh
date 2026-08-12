@@ -2,7 +2,7 @@
 # Compile the (dependency-free) discover module and run the status truth table
 # against it, plus a pass over the box's real container list.
 #
-# There is no test runner in this app on purpose — one 13-case truth table did
+# There is no test runner in this app on purpose - one 13-case truth table did
 # not justify pulling vitest into a static SPA's toolchain. discover.ts imports
 # nothing, which is what makes this one-liner possible; if that ever stops being
 # true, that is the moment to add a real runner.

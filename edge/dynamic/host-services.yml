@@ -1,6 +1,6 @@
 # Traefik routes for processes running on the HOST, not in containers.
 #
-# RETIRED 2026-08-12 — this file declares no routes any more, and is kept as the
+# RETIRED 2026-08-12 - this file declares no routes any more, and is kept as the
 # record of why.
 #
 # It existed because a container declares itself with labels and a host process
@@ -15,7 +15,7 @@
 #   tilt.cvops.dev.test  ->  the same process (it was only an alias)
 #
 # Tilt binds one fixed host port and only one project's Tilt can hold it at a
-# time, so the name never distinguished projects anyway — it always pointed at
+# time, so the name never distinguished projects anyway - it always pointed at
 # whichever project last ran `tilt up`. Reaching it by port loses nothing and
 # removes the illusion of per-project addressing.
 #
@@ -25,7 +25,7 @@
 # reaching it directly by IP too, from any device other than this box.
 #
 # If a host process ever genuinely needs a Traefik route again, note that it
-# cannot be a Host() rule — there is no name layer to match on. It would have to
+# cannot be a Host() rule - there is no name layer to match on. It would have to
 # be a host-less exact `Path()` rule, the same shape the portal's data plane uses
 # (see portal-api.yml), and it would answer on every address at once. Think about
 # whether a published port is not simply the better answer.

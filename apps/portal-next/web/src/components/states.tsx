@@ -43,14 +43,14 @@ export function ErrState({ title, body, onRetry }: { title: string; body: string
 // A skeleton's only job is to reserve the shape that is coming, so the page
 // does not jump when data lands. Two identical 132px grey boxes did the
 // opposite everywhere they were used: on the Overview they stood in for a hero
-// and a wrapping row of chips, so the layout moved twice — once when the
+// and a wrapping row of chips, so the layout moved twice - once when the
 // skeleton appeared and again when it was replaced by something a different
 // height. `variant` costs a few lines and makes the placeholder honest.
 export function Skeleton({ variant = 'panels' }: { variant?: 'panels' | 'overview' | 'table' }) {
   if (variant === 'overview') {
     // Reserves the CURRENT shape of the page, which is the only thing a
     // skeleton is for: a 55px status line, three wrapping chip rows, then the
-    // vitals charts. It used to reserve a 152px hero that no longer exists —
+    // vitals charts. It used to reserve a 152px hero that no longer exists -
     // an out-of-date skeleton is worse than none, because it moves the layout
     // in the exact moment it was added to keep it still.
     return (

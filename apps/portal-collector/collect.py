@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Portal collector — turns project declarations + host truth into projects.json.
+"""Portal collector - turns project declarations + host truth into projects.json.
 
 WHY THIS EXISTS
 ---------------
 The portal (dev.test) is a static SPA. It can only render what is served to it,
 and what is served to it is the live Docker container list and the Traefik router
 table. That means it can only see a project once the project is already running
-as a container or already routed through the edge — so:
+as a container or already routed through the edge - so:
 
   * a project that is switched OFF is invisible (nothing to discover), and
   * a project made of plain host processes (a `just dev` / `tilt up` harness) is
@@ -16,7 +16,7 @@ It also means the portal has no notion of INTENT. It observes "not running" and
 has no way to tell "somebody stopped this on purpose" from "this crashed", which
 is why five deliberately-stopped containers used to render as five alerts.
 
-This collector fixes both by running where the truth is — on the host. It reads
+This collector fixes both by running where the truth is - on the host. It reads
 each project's own `project.dev.yml` (identity + what the project expects to be
 running), probes host ports directly, reads container exit codes and restart
 counts, and writes a single projects.json the portal fetches.
@@ -30,7 +30,7 @@ SERVICE listening".
 
 On 2026-08-12 the stack published Keycloak on 8083. The stopped project `Shvil
 TV` declares `tv-player-web` on 8083, so the collector connected, found
-somebody home, and wrote `tv-player-web: up, "listening on :8083"` — promoting a
+somebody home, and wrote `tv-player-web: up, "listening on :8083"` - promoting a
 project nobody had started from `stopped` to `degraded`. Keycloak has since moved
 to 8090, which removes the symptom and not the bug.
 
@@ -39,7 +39,7 @@ on the host as devssh, in the docker group, so it can see far more than a
 connect() result. Strongest evidence first:
 
   1. Is the port published by a container? Then compare that container against
-     the declaration — is it a container this project names, does its compose
+     the declaration - is it a container this project names, does its compose
      `working_dir` sit inside the project root, does its compose project match
      the project's own identity? Same project -> up. Different project ->
      COLLISION.
@@ -54,25 +54,25 @@ connect() result. Strongest evidence first:
 STATES
 ------
 Per service:
-  up         — running, and healthy if it declares a healthcheck
-  starting   — health reported as starting
-  stopped    — off cleanly: exited(0), created, paused, or a declared host port
+  up         - running, and healthy if it declares a healthcheck
+  starting   - health reported as starting
+  stopped    - off cleanly: exited(0), created, paused, or a declared host port
                with nothing listening. NOT an alert.
-  stuck      — exited non-zero, restart-looping, unhealthy, or OOM-killed.
-  collision  — the declared port is held, and held by something that is
+  stuck      - exited non-zero, restart-looping, unhealthy, or OOM-killed.
+  collision  - the declared port is held, and held by something that is
                provably NOT this service. This service is therefore not
                running, and the port is not free either.
-  unverified — the declared port is held by something this collector could not
+  unverified - the declared port is held by something this collector could not
                identify. Not up, not down: unmeasured.
-  unknown    — declared, but nothing could be observed either way.
+  unknown    - declared, but nothing could be observed either way.
 
-Per project (rollup): live / degraded / stopped / stuck / unknown — deliberately
+Per project (rollup): live / degraded / stopped / stuck / unknown - deliberately
 unchanged, so the portal never meets a project state it has no word for.
 `collision` counts as off (we have positive evidence the service is not running),
 `unverified` counts as unmeasured.
 
 The rule that matters: `stopped` is a state, not a failure. Only `stuck` and
-`degraded` are alerts — and a squatted port never manufactures one.
+`degraded` are alerts - and a squatted port never manufactures one.
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ class HostTruth:
 
     `containers` answers "what is this container doing"; `port_containers` and
     `listeners` answer the question the old probe could not: "who is holding this
-    port". They are separate maps because they come from different authorities —
+    port". They are separate maps because they come from different authorities -
     Docker knows its own published ports, the kernel knows every listening socket.
     """
 
@@ -159,7 +159,7 @@ def docker_state() -> tuple[dict[str, dict[str, Any]], dict[int, list[dict[str, 
 
     A missing compose label renders as an empty string, not an error, so a
     `docker run` container (mpeg-redis, mpeg-keycloak) simply has no compose
-    identity — which is itself a fact the matcher uses.
+    identity - which is itself a fact the matcher uses.
     """
     try:
         names = subprocess.run(
@@ -219,7 +219,7 @@ def docker_state() -> tuple[dict[str, dict[str, Any]], dict[int, list[dict[str, 
 
 
 # `ss -ltnp` prints the owning process only for sockets devssh is allowed to see
-# — its own. That asymmetry is a feature here: a declared host service IS a
+# - its own. That asymmetry is a feature here: a declared host service IS a
 # devssh process, so "listening but no PID visible" is itself evidence that the
 # listener is not this project's harness (though not enough to name it).
 SS_PROC_RE = re.compile(r'\("([^"]+)",pid=(\d+),')
@@ -278,7 +278,7 @@ def proc_details(pid: int) -> dict[str, Any]:
 
 def port_open(port: int) -> bool:
     """TCP-connect probe. A listening socket is the only proof a host process is
-    actually serving — a live PID that has not bound yet is not up.
+    actually serving - a live PID that has not bound yet is not up.
 
     This says something is REACHABLE, never that it is the right something; the
     identification is done by `port_verdict` below. Both address families are
@@ -356,8 +356,8 @@ class Identity:
     """Everything that can vouch for a container or process belonging to a project.
 
     Built once per declaration. The point of collecting several independent
-    signals is that any single one is defeatable — a compose project name can be
-    overridden, a harness can be launched from anywhere — but a listener that
+    signals is that any single one is defeatable - a compose project name can be
+    overridden, a harness can be launched from anywhere - but a listener that
     matches NONE of them is genuinely someone else's.
     """
 
@@ -439,7 +439,7 @@ def process_verdict(proc: dict[str, Any], ident: Identity, svc_name: str) -> tup
         return True, f"pid {proc['pid']} executes a binary inside {root}"
 
     # Not ours by any signal. Only call it a collision if we actually located the
-    # process somewhere else — otherwise we are guessing, and a wrong `collision`
+    # process somewhere else - otherwise we are guessing, and a wrong `collision`
     # is the same category of error as the wrong `up` this replaced.
     located = (cwd and not under(cwd, ident.root)) or (exe and not under(exe, ident.root))
     if located and cmdline:
@@ -456,7 +456,7 @@ def port_verdict(
     kernel knows what else is bound, and if neither can name the listener the
     answer is `unverified` rather than a pass.
     """
-    # A port can have more than one listener — a v4 and a v6 process, or
+    # A port can have more than one listener - a v4 and a v6 process, or
     # SO_REUSEPORT siblings. Scan them ALL for a positive identification before
     # concluding anything negative: finding our own service is proof it is up,
     # whereas a stranger next to it only proves the port is shared.
@@ -464,7 +464,7 @@ def port_verdict(
     verdicts = [(o, *container_verdict(o, ident, svc_name)) for o in owners]
     for owner, ours, why in verdicts:
         if ours:
-            return "up", f"listening on :{port} — {why}", None
+            return "up", f"listening on :{port} - {why}", None
     if verdicts:
         owner, _, why = verdicts[0]
         return "collision", f":{port} {why}", {
@@ -479,7 +479,7 @@ def port_verdict(
     procs = [(p, *process_verdict(p, ident, svc_name)) for p in truth.listeners.get(port, [])]
     for proc, ours, why in procs:
         if ours:
-            return "up", f"listening on :{port} — {why}", None
+            return "up", f"listening on :{port} - {why}", None
     # No process here is ours. Prefer a positively-located stranger (a real
     # collision) over one we merely failed to characterise (`unverified`).
     for proc, ours, why in procs:
@@ -497,7 +497,7 @@ def port_verdict(
         return "unverified", f":{port} {why}", None
 
     # Something accepted a connection, yet neither Docker nor the kernel would
-    # name it — the socket belongs to another user, or docker is unreachable.
+    # name it - the socket belongs to another user, or docker is unreachable.
     reason = (
         "no container publishes it and its process is not visible to this collector"
         if truth.docker_ok else
@@ -517,7 +517,7 @@ STUCK_STATES = {"restarting", "dead", "removing"}
 # 143 = 128+SIGTERM (what `docker stop` sends), 137 = 128+SIGKILL (what it sends
 # when the stop timeout expires). Whether a clean stop lands on 0 or on 143 is a
 # property of the *application's* shutdown code, not of whether anything went
-# wrong — redis installs a SIGTERM handler and exits 0, the Keycloak JVM does not
+# wrong - redis installs a SIGTERM handler and exits 0, the Keycloak JVM does not
 # and exits 143. Judging them differently made a stopped project read as broken.
 # An OOM kill is also 137 but is classified above via `oomKilled`, so a 137
 # reaching this set is a stop-timeout, not a memory kill.
@@ -538,7 +538,7 @@ def service_state(svc: dict[str, Any], truth: HostTruth, ident: Identity) -> dic
         if c is None and not truth.docker_ok:
             # Same bug class as the port probe: an empty container list because
             # docker never answered is not evidence the container is absent.
-            state, detail = "unverified", "docker is unreachable — container state unknown"
+            state, detail = "unverified", "docker is unreachable - container state unknown"
         elif c is None:
             state, detail = "stopped", "container does not exist"
         else:
@@ -556,7 +556,7 @@ def service_state(svc: dict[str, Any], truth: HostTruth, ident: Identity) -> dic
                 state, detail = "stuck", f"container {status}"
             elif status == "exited" and c["exitCode"] and c["exitCode"] not in SIGNAL_EXITS:
                 state, detail = "stuck", f"exited with code {c['exitCode']}"
-            # Stopped by signal. Not a failure, but say which — a 137 means the
+            # Stopped by signal. Not a failure, but say which - a 137 means the
             # container ignored SIGTERM until Docker's stop timeout ran out, which
             # is worth knowing without being worth an alert.
             elif status == "exited" and c["exitCode"] in SIGNAL_EXITS:
@@ -574,7 +574,7 @@ def service_state(svc: dict[str, Any], truth: HostTruth, ident: Identity) -> dic
     elif port is not None:
         if port_open(port):
             # Reachable is not the same as ours. Ask who is actually holding it
-            # before calling this service up — the whole point of this file.
+            # before calling this service up - the whole point of this file.
             state, detail, collision = port_verdict(port, name, ident, truth)
         else:
             # A declared host process that is not listening is simply off. We
@@ -603,9 +603,9 @@ def log_source(svc: dict[str, Any], project_stream: str | None) -> dict[str, Any
     """Where to find this service's logs in Loki.
 
     Two shapes, because the box has two kinds of service:
-      * container — promtail's docker_sd already ships it under {container="…"},
+      * container - promtail's docker_sd already ships it under {container="…"},
         and Loki keeps it after the container stops, which `docker logs` cannot.
-      * host process — no container to scrape, so the project tees its output to
+      * host process - no container to scrape, so the project tees its output to
         ~/.local/state/devbox-logs/<stream>.log and promtail's host-processes job
         labels it {host_service="<stream>"}. One file usually carries several
         services (turbo prefixes each line), so `log_filter` narrows it.
@@ -629,7 +629,7 @@ def rollup(services: list[dict[str, Any]]) -> str:
     The vocabulary is deliberately unchanged, so the portal never meets a project
     state it has no word for. `collision` folds in with `stopped`: a port held by
     somebody else is positive evidence that this service is NOT running, so the
-    project really is off — which is exactly the promotion to `degraded` that the
+    project really is off - which is exactly the promotion to `degraded` that the
     old connect-probe caused and this rework removes. `unverified` folds in with
     unknown, because that is what it is."""
     if not services:
@@ -730,7 +730,7 @@ def main() -> int:
             counts = ", ".join(f"{s['name']}={s['state']}" for s in p["services"])
             print(f"{p['state']:9} {p['name']:20} {counts}")
             # A collision is somebody else's mistake landing on this project, so
-            # say who — the state alone is not actionable.
+            # say who - the state alone is not actionable.
             for s in p["services"]:
                 if s.get("collision"):
                     print(f"{'':9} └─ {s['name']}: {s['detail']}")

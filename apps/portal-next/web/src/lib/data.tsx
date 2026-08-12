@@ -54,12 +54,12 @@ export function healthOf(nodes: { status: string }[]): HealthCounts {
 // healthy % down and made an idle box look broken.
 export const expectedUp = (c: HealthCounts) => c.total - c.stopped;
 
-// "Needs attention" — anything a human should actually look at.
+// "Needs attention" - anything a human should actually look at.
 //
 // Two things used to land here that are not problems:
 //   1. every stopped container, because statusOf() collapsed exited(0) into
 //      'down' (fixed at the source in discover.ts), and
-//   2. orphan routes belonging to a system that is entirely switched off — the
+//   2. orphan routes belonging to a system that is entirely switched off - the
 //      four tals.dev.test file-routes point at host processes, so stopping Tals
 //      "orphaned" all four at once and each one shouted.
 // An orphan route still matters when the rest of its system is up (that IS the
@@ -75,7 +75,7 @@ export const expectedUp = (c: HealthCounts) => c.total - c.stopped;
 //      is not a fault report, it is a fault report's ghost.
 //
 //      A non-zero exit inside a LIVE system is still a real fault and still
-//      shouts — that distinction is the whole rule, and it is why this is scoped
+//      shouts - that distinction is the whole rule, and it is why this is scoped
 //      by system rather than by "is it old".
 export function needsAttention(nodes: import('./discover').PortalNode[]): import('./discover').PortalNode[] {
   const liveGroups = new Set(

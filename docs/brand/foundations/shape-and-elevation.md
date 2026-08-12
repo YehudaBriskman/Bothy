@@ -10,7 +10,7 @@ pills. A numeric literal in a component means the ladder was ignored.
 
 **One border-width token.** Mixed hairline widths read as a rendering bug.
 
-**Shadow recipes are theme-specific.** A shadow is not "black at low alpha" — on
+**Shadow recipes are theme-specific.** A shadow is not "black at low alpha" - on
 a dark surface that is nearly invisible, and on a light surface a dark-theme
 shadow reads as dirt. Declare a recipe per theme.
 
@@ -39,7 +39,7 @@ See [CHECKLIST.md § 8](../CHECKLIST.md#8-shape-and-elevation).
   hairline for the reason above; the light recipes use a dark-blue-grey rather
   than black, because pure black on white reads as grime.
 - **Surfaces are opaque.** The backdrop blurs that used to sit on every card were
-  removed along with the surface transparency on 2026-08-10 — with an opaque
+  removed along with the surface transparency on 2026-08-10 - with an opaque
   surface a blur is a no-op that still costs compositing. The only remaining
   blurs are the sticky topbar and the command-palette scrim, where translucency
   is the actual effect.

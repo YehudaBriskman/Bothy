@@ -25,7 +25,7 @@ must not be. If each card sizes to its own content, a four-row list beside a
 nine-row list puts the row's bottom edge wherever the taller one happens to end,
 and a grid of cards stops reading as a grid. Declare one tile height, make every
 card exactly one unit or an exact multiple, and let a card that needs more room
-span two — so it still lands on the same baseline.
+span two - so it still lands on the same baseline.
 
 The corollary is that **a card's footer is structural, not decoration.** A card
 with a summary strip is taller than one without, so either every card in a row
@@ -50,7 +50,7 @@ See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).
 ## What Bothy decided, and why
 
 - **Grids are content-driven** throughout, with the minimum column width chosen
-  per density — for example the vitals charts use a 280px minimum, because below
+  per density - for example the vitals charts use a 280px minimum, because below
   roughly 900px three charts sharing the width put their axis labels on top of
   each other.
 - **One tile unit, `--tile: 316px`**, on the Overview's card grid, with
@@ -62,7 +62,7 @@ See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).
 - **The footprint rule is applied literally** on the Overview: one service is
   one cell, one system is a name plus a row of cells. See
   [principles](principles.md) for the measurement that produced the rule.
-- **Safe-area insets** are a known gap — fixed chrome does not yet apply them.
+- **Safe-area insets** are a known gap - fixed chrome does not yet apply them.
 
 **Known gaps**, tracked in
 [reference/open-questions.md](../reference/open-questions.md):
@@ -70,14 +70,14 @@ See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).
 - **No spacing scale exists.** Padding literals in use span roughly two dozen
   distinct values. This is the largest outstanding foundations item alongside
   the type scale.
-- **Two content widths disagree** — a 1180px wrap token and a 1320px content
+- **Two content widths disagree** - a 1180px wrap token and a 1320px content
   maximum. One of them should win, or each should be given a named role.
-- **The z-index ladder is literals only** — seven distinct values, none named.
+- **The z-index ladder is literals only** - seven distinct values, none named.
 
 ## Dead ends
 
 - **A 236px sidebar.** Deleted. It carried five navigation items and measured
-  roughly 793 pixels of empty column beneath them — about 13 percent of the
+  roughly 793 pixels of empty column beneath them - about 13 percent of the
   viewport width spent on nothing, at every width, on every page. Five
   destinations is a topbar's job. Deleting it also deleted the mobile drawer, the
   scrim, the hamburger and a focus-order workaround, which is the more general

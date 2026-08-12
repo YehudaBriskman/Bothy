@@ -1,15 +1,15 @@
-/* Overview — a manager's Grafana-style dashboard.
+/* Overview - a manager's Grafana-style dashboard.
    Structure, top to bottom: a borderless link strip, ONE hero that answers "is
    everything ok", three grouped system cards (progressive disclosure), then a
    small set of panels that visualise rather than list. Co-located: builds on
    tokens + shared utilities in index.css (.seg-toggle .dot .ico .tag .state)
    and the chart primitives in components/viz.css.
-   Theme-aware via tokens — no hardcoded text/surface colours. */
+   Theme-aware via tokens - no hardcoded text/surface colours. */
 
 .overview {
   /* THE TILE UNIT. Every dashboard card is either one of these tall or an exact
      multiple, so a row of cards has one baseline instead of three ragged ones.
-     Cards used to size to their own content — a 4-row list and a 9-row list sat
+     Cards used to size to their own content - a 4-row list and a 9-row list sat
      side by side and the row bottom was wherever the taller one happened to
      end. Snapping to a unit is what makes a grid read as a grid. */
   --tile: 316px;
@@ -23,7 +23,7 @@
    used to live here predated that and set a different width and thumb colour,
    so a panel body and the table beside it had visibly different scrollbars. */
 
-/* ── quick links — a navigation strip, not seven buttons ───────────────────
+/* ── quick links - a navigation strip, not seven buttons ───────────────────
    Borderless on purpose: bordered tiles read as primary actions and competed
    with the hero for attention. These recede until hovered. */
 .ov-topline { display: flex; align-items: center; }
@@ -41,13 +41,13 @@
 .ov-ql-item.is-primary { color: var(--fg); font-weight: 650; }
 .ov-ql-item.is-primary .ov-ql-ico { color: var(--accent); }
 .ov-ql-label { overflow: hidden; text-overflow: ellipsis; }
-/* a dot only appears when a link is NOT healthy — green dots on every item are
+/* a dot only appears when a link is NOT healthy - green dots on every item are
    just noise on a strip whose job is navigation */
 .ov-ql .dot { width: 7px; height: 7px; }
 
 /* ── status line ───────────────────────────────────────────────────────────
    One line where a 160px card used to be. See the comment above StatusLine in
-   Overview.tsx for the full reasoning — the short version is that the old hero
+   Overview.tsx for the full reasoning - the short version is that the old hero
    stated one ratio four times, duplicated two panels that were on the same
    screen, carried a sparkline that had been dead since real metrics arrived,
    and contradicted itself about `unknown`.
@@ -62,7 +62,7 @@
 }
 
 /* Reads as one sentence: "15 up · 7 unverified · 5 off". Scannable, but nothing
-   here is 46px any more — the whole line now costs about what a single stat
+   here is 46px any more - the whole line now costs about what a single stat
    cell used to. */
 .ov-status-counts {
   display: inline-flex; align-items: baseline; gap: 7px; flex-wrap: wrap; min-width: 0;
@@ -93,7 +93,7 @@
 }
 
 /* ── grouped systems ──────────────────────────────────────────────────────
-   The .ov-groups stack is gone — see components/SystemMatrix.css. */
+   The .ov-groups stack is gone - see components/SystemMatrix.css. */
 
 /* ── needs-attention strip ────────────────────────────────────────────────────
    Rendered only when non-empty, directly under the hero it qualifies. As a
@@ -161,7 +161,7 @@
   border-color: color-mix(in oklab, var(--st-warn) 40%, var(--line));
 }
 /* The body takes whatever the tile leaves after the header and footer, and
-   scrolls inside it. No max-height any more — the tile sets the height, so a
+   scrolls inside it. No max-height any more - the tile sets the height, so a
    cap here would fight it and reintroduce the ragged bottoms. */
 .ov-panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 7px; }
 

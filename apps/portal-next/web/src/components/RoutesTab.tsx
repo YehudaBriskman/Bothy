@@ -55,7 +55,7 @@ export function RoutesTab({
     () =>
       routers.map((r) => {
         const node = byRouter.get(r.name);
-        const target = node?.route?.serverUrls?.join(', ') || node?.container?.name || '—';
+        const target = node?.route?.serverUrls?.join(', ') || node?.container?.name || '-';
         // State is a STATE. "host process" is a kind, and putting it in this
         // column meant a dead Tals route could never read as anything but a
         // neutral badge. An @file route has no container to ask, so the honest
@@ -68,8 +68,8 @@ export function RoutesTab({
           router: r,
           node,
           name: String(r.name).split('@')[0],
-          provider: r.provider || '—',
-          service: r.service || '—',
+          provider: r.provider || '-',
+          service: r.service || '-',
           target,
           state,
         };
@@ -126,7 +126,7 @@ export function RoutesTab({
 
   const stateTag = (s: Row['state'], raw?: string) => {
     if (s === 'unknown')
-      return <span className="tag" title="Host process — no container to ask. Open it to see whether it is running.">unknown</span>;
+      return <span className="tag" title="Host process - no container to ask. Open it to see whether it is running.">unknown</span>;
     if (s === 'no-container') return <span className="tag bad">no container</span>;
     if (s === 'disabled') return <span className="tag bad">{raw || '?'}</span>;
     return <span className="tag ok">ok</span>;

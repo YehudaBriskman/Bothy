@@ -1,18 +1,18 @@
 // Data layer. Two same-origin, read-only APIs under /-/api/* (Traefik serves
 // them, not this SPA), so there is no CORS and no keys.
 //
-//   GET /-/api/traefik/http/routers    — the SKELETON
-//   GET /-/api/traefik/http/services   — server targets for the join
-//   GET /-/api/docker/containers/json  — ENRICHMENT (ports, health, labels)
+//   GET /-/api/traefik/http/routers    - the SKELETON
+//   GET /-/api/traefik/http/services   - server targets for the join
+//   GET /-/api/docker/containers/json  - ENRICHMENT (ports, health, labels)
 //
 // Either API can fail and the page must still render: Traefik is the skeleton,
-// Docker is enrichment. allSettled, never all — partial results are first-class.
+// Docker is enrichment. allSettled, never all - partial results are first-class.
 
 import { useEffect, useRef, useState } from 'react';
 import { allPorts, merge, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
 import { withDeclared, type CollectorPayload, type CollectorProject } from './projects';
 
-// /system/df — per-image / per-container / per-volume disk usage. Read-only,
+// /system/df - per-image / per-container / per-volume disk usage. Read-only,
 // carries no Env (see edge/dynamic/portal-api.yml). Purely additive enrichment:
 // if it fails, the "Data & disk" card falls back to volume names without sizes.
 export interface DfVolume {
@@ -61,7 +61,7 @@ export interface PortalData {
   at: number;
   fails: number;
   // `history` is GONE (2026-08-10). It was a 60-sample ring buffer of "services
-  // up", appended once per successful poll and held only in the tab — the
+  // up", appended once per successful poll and held only in the tab - the
   // portal's only time series before there was a real one. It fed a sparkline
   // that therefore read "collecting…" on every fresh load and could not answer
   // any question about a moment when the tab was closed. lib/metrics.ts now
@@ -105,12 +105,12 @@ export async function loadAll(): Promise<LoadResult> {
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT);
   try {
     // allSettled, not all: partial results are first-class. Traefik is the
-    // skeleton, docker is enrichment — either can die alone. df is the LEAST
+    // skeleton, docker is enrichment - either can die alone. df is the LEAST
     // critical: a pure size overlay, its failure never removes a service.
     const [routers, services, containers, df, projects] = await Promise.allSettled([
       getJSON<Router[]>('/-/api/traefik/http/routers', ac.signal),
       getJSON<Service[]>('/-/api/traefik/http/services', ac.signal),
-      // `?all=1` — stopped containers too, not just running ones.
+      // `?all=1` - stopped containers too, not just running ones.
       //
       // Without it the Docker API returns running containers only, so the page
       // could not distinguish "this project is switched off" from "this project
@@ -119,20 +119,20 @@ export async function loadAll(): Promise<LoadResult> {
       //
       // Safe against the boundary in edge/dynamic/portal-api.yml: that rule is
       // Path(`/-/api/docker/containers/json`), and Path() matches the PATH, so a
-      // query string neither widens nor bypasses it — verified by requesting it
+      // query string neither widens nor bypasses it - verified by requesting it
       // and getting 34 back through the same route that returns 21 without it.
       // The socket proxy's CONTAINERS=1 already covers this endpoint, and POST=0
       // still blocks every mutating call.
       getJSON<Container[]>('/-/api/docker/containers/json?all=1', ac.signal),
       getJSON<SystemDf>('/-/api/docker/system/df', ac.signal),
       // Static file written by the host-side collector and bind-mounted into
-      // this container — NOT an /-/api/* route, so it needs no edge config and
+      // this container - NOT an /-/api/* route, so it needs no edge config and
       // its absence (collector not installed yet) is a normal, silent no-op.
       getJSON<CollectorPayload>('/data/projects.json', ac.signal),
     ]);
     const errors: LoadError[] = [];
     const R = routers.status === 'fulfilled' ? routers.value : (errors.push({ src: 'traefik', e: routers.reason }), []);
-    // A services failure is not fatal — merge() falls back to the label join —
+    // A services failure is not fatal - merge() falls back to the label join -
     // but it silently turns the Routes tab's targets into guesses, so record it.
     const S = services.status === 'fulfilled' ? services.value : (errors.push({ src: 'traefik services', e: services.reason }), []);
     const C = containers.status === 'fulfilled' ? containers.value : (errors.push({ src: 'docker', e: containers.reason }), []);
@@ -161,7 +161,7 @@ export async function loadAll(): Promise<LoadResult> {
 // ── polling hook ────────────────────────────────────────────────────────────
 // Poll every 10s; pause when document.hidden; refresh immediately on focus/
 // visibility; back off to 60s after 3 consecutive failures. Never clears data
-// on failure — a stale page with working links beats a blank one.
+// on failure - a stale page with working links beats a blank one.
 export function usePortalData(): { data: PortalData; refresh: () => void } {
   const [data, setData] = useState<PortalData>(EMPTY);
   const failsRef = useRef(0);
@@ -190,7 +190,7 @@ export function usePortalData(): { data: PortalData; refresh: () => void } {
       } catch {
         if (cancelled) return;
         failsRef.current += 1;
-        // Keep the last good data — only bump the failure counter.
+        // Keep the last good data - only bump the failure counter.
         setData((prev) => ({ ...prev, fails: failsRef.current }));
       } finally {
         if (!cancelled) schedule();

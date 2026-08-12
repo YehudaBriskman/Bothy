@@ -1,4 +1,4 @@
-// Declared projects — the third discovery source, alongside Traefik and Docker.
+// Declared projects - the third discovery source, alongside Traefik and Docker.
 //
 // Traefik and Docker can only report what is CURRENTLY RUNNING and routed. That
 // leaves two blind spots the portal could never see out of:
@@ -6,12 +6,12 @@
 //   * a project that is switched off has nothing to discover, so it vanished
 //     from the box entirely rather than showing as "off", and
 //   * a project made of plain host processes (a `just dev` / `tilt up` harness
-//     on ordinary ports) is invisible even while it runs — it is neither a
+//     on ordinary ports) is invisible even while it runs - it is neither a
 //     container nor, unless someone hand-wrote a file-route, a Traefik service.
 //
 // So each project declares itself in a `project.dev.yml` at its repo root, and
 // the host-side collector (~/stacks/apps/portal-collector) resolves that against
-// real host state — TCP-probing declared ports, reading container exit codes —
+// real host state - TCP-probing declared ports, reading container exit codes -
 // into the projects.json this module consumes.
 //
 // Declared services are converted into ordinary PortalNodes so the rest of the
@@ -72,7 +72,7 @@ const serviceTypeOf = (t?: string | null): ServiceType =>
 
 function nodeOf(project: CollectorProject, svc: CollectorService): PortalNode {
   const status = STATE_TO_STATUS[svc.state] ?? 'unknown';
-  // Only offer a link to something actually listening — a link to a stopped
+  // Only offer a link to something actually listening - a link to a stopped
   // port is a browser error page dressed up as a feature.
   const url = svc.ui && svc.port && status === 'up' ? `http://${location.hostname}:${svc.port}` : null;
   return {
@@ -101,7 +101,7 @@ function nodeOf(project: CollectorProject, svc: CollectorService): PortalNode {
     serviceType: serviceTypeOf(svc.type),
     volumes: [],
     // A declared host process has no compose labels, so there is nothing to read
-    // an edge from — and nothing to declare it a one-shot either. Empty here is
+    // an edge from - and nothing to declare it a one-shot either. Empty here is
     // "nobody wrote it down", not "it has no dependencies". `project.dev.yml`
     // could grow a `dependsOn:` key and feed this the same way compose does; it
     // does not have one today, and inventing edges from the service list would

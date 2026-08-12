@@ -11,13 +11,13 @@ browsers" is not a support statement.
 features you rely on, find the one with the latest support date, and that is
 your floor. Writing it down turns an accident into a decision.
 
-**State the degradation per feature** — what a browser below the floor actually
+**State the degradation per feature** - what a browser below the floor actually
 sees. "It breaks" is a valid answer if it is written down.
 
 **Feature detection, never user-agent sniffing.**
 
-**Name a manual device matrix** — one phone, one tablet, one desktop, one narrow
-window — and re-run it per release with a date.
+**Name a manual device matrix** - one phone, one tablet, one desktop, one narrow
+window - and re-run it per release with a date.
 
 ## Checklist
 
@@ -38,7 +38,7 @@ Features already relied on, each of which sets a floor:
 | `:has()` | Focus rings on wrapper elements | The wrapper focus ring does not appear |
 | `mask-image` | Nav overflow fades | The fade does not render; the nav still scrolls |
 | `backdrop-filter` | Sticky topbar, palette scrim | Falls back to a flat translucent surface |
-| Dynamic viewport units | Not yet used | — |
+| Dynamic viewport units | Not yet used | - |
 | WebGL | The 3D topology | Detected, and falls back to a static diagram |
 
 Only the last one is detected and handled. The others would fail silently, which

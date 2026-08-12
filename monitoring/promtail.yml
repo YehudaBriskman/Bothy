@@ -23,7 +23,7 @@ scrape_configs:
       - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
         target_label: stack
 
-  # Host processes — the half of the box docker_sd cannot see.
+  # Host processes - the half of the box docker_sd cannot see.
   #
   # A project run from a terminal (`just dev`, `tilt up`) has no container, so
   # its output lived only in whatever terminal happened to be open and was gone
@@ -32,7 +32,7 @@ scrape_configs:
   # Grafana / `/f-observe` get host logs for free.
   #
   # Convention over config: the FILENAME is the stream name, so a new project
-  # needs no change here — it just writes a file into the directory.
+  # needs no change here - it just writes a file into the directory.
   - job_name: host-processes
     static_configs:
       - targets: [localhost]

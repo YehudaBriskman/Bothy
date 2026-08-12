@@ -6,13 +6,13 @@ The same items as [CHECKLIST.md](../CHECKLIST.md), ordered by when they block
 you rather than by category. Work down it. Anything you skip, write down that
 you skipped it and why.
 
-## Day 0 — before the first component
+## Day 0 - before the first component
 
 These are the ones that are cheap now and expensive to retrofit.
 
 **Identity**
 
-- Pick a name and **check it is not taken** — as a software project, on the
+- Pick a name and **check it is not taken** - as a software project, on the
   package registries you would publish to, and as a product. Record where you
   looked and the date.
 - Write the one-line description. Use the identical string in the page
@@ -55,7 +55,7 @@ These are the ones that are cheap now and expensive to retrofit.
 Bothy has none of these three, and adding them later is the largest outstanding
 item in its own system. This is the single most valuable thing on this page.
 
-## Day 1 — before the second screen
+## Day 1 - before the second screen
 
 **Icons and platform**
 
@@ -86,7 +86,7 @@ item in its own system. This is the single most valuable thing on this page.
 - A `robots.txt` stating the policy, including "do not index" if that is the
   policy.
 - Security headers, and a secret scan in CI.
-- No credential committed — generate and gitignore anything that must carry one,
+- No credential committed - generate and gitignore anything that must carry one,
   and make the committed example **comments-only** if a loader merges the
   directory.
 - An accessibility audit with zero serious findings.
