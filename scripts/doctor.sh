@@ -55,13 +55,16 @@ echo "== kubernetes =="
 if ! command -v kubectl >/dev/null 2>&1; then
   red "kubectl is not installed"
 else
-  # minikube was STOPPED on 2026-08-12 — 1,097 MB for zero non-system pods over
-  # 27 days. Not deleted; `minikube start` brings it back. Absence is therefore
-  # the expected state and must not read as a fault, or `just doctor` cries wolf
-  # every run and stops being read at all.
+  # minikube was retired on 2026-08-12 — 1,046 MB for zero non-system pods over
+  # 27 days. Stopped AND deleted: `minikube profile list` reports no profile, so
+  # `minikube start` builds a NEW empty cluster rather than resuming the old one.
+  # This comment said "not deleted; `minikube start` brings it back" for a few
+  # hours after the delete, which would have promised somebody their workloads
+  # back. Absence is the expected state and must not read as a fault, or
+  # `just doctor` cries wolf every run and stops being read at all.
   nodes=$(kubectl get nodes --no-headers 2>/dev/null || true)
   if [ -z "$nodes" ]; then
-    dim "minikube stopped (retired 2026-08-12 - 'minikube start' to restore)"
+    dim "minikube retired 2026-08-12 - deleted, not stopped ('minikube start' builds a new empty cluster)"
   else
     echo "$nodes" | awk '{print $1, $2}' | while read -r n st; do
       [ "$st" = Ready ] && green "node $n" || red "node $n ($st)"

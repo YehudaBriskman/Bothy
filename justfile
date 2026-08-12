@@ -59,11 +59,19 @@ up-monitoring: network
 # topics — while together holding ~1,140 MB of the box's 4,678 MB of container
 # memory. Their compose files are kept on disk (same precedent as apps/wiki)
 # and are still referenced by `down` and `nuke` below, so an older deployment
-# still gets cleaned up. Their data volumes were PRESERVED, not deleted.
+# still gets cleaned up.
 #
-# To bring either back, one command each — nothing else to undo:
-#   docker compose -f data/redis/compose.yml up -d
-#   docker compose -f data/kafka/compose.yml up -d
+# THEIR DATA IS GONE. An earlier version of this comment said the volumes were
+# "PRESERVED, not deleted" — that was true for about twenty minutes. The
+# `kafka_data` and `redis_data` volumes were removed afterwards, along with the
+# images (apache/kafka, kafbat/kafka-ui, danielqsj/kafka-exporter, redis:8-alpine,
+# oliver006/redis_exporter). Verified 2026-08-12: neither name appears in
+# `docker volume ls`. So the commands below do NOT restore anything — they pull
+# fresh images and start an EMPTY broker / an EMPTY keyspace:
+#   docker compose -f data/redis/compose.yml up -d   # new, empty
+#   docker compose -f data/kafka/compose.yml up -d   # new, empty
+# Nothing that was in them comes back. (Nothing was in them, which is why they
+# went; the point is that the instruction must not promise otherwise.)
 #
 # postgres stays: it is in active use — Keycloak's database lives there.
 up-data: network
@@ -104,8 +112,10 @@ down:
     -docker compose -f monitoring/compose.yml down
 
 # Stop everything AND delete all data volumes (DESTRUCTIVE)
-# Sits one keystroke from `down` in the recipe list and deletes all seven data
-# volumes: postgres, redis, kafka, prometheus, grafana, loki, portainer.
+# Sits one keystroke from `down` in the recipe list and deletes every data
+# volume that still exists: postgres, prometheus, grafana, loki, portainer.
+# (redis_data and kafka_data were already deleted on 2026-08-12 — those two
+# lines below are now no-ops on this box.)
 nuke:
     @printf "This deletes ALL data volumes. Type yes to continue: " && read ans && [ "$ans" = yes ] || (echo aborted; exit 1)
     -docker compose -f auth/compose.yml down -v
@@ -115,8 +125,8 @@ nuke:
     -docker compose -f apps/portal/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
-    # retired 2026-08-12 — not started by `up-data` any more, but their volumes
-    # (kafka_data, redis_data) still exist and this is what deletes them
+    # retired 2026-08-12 and their volumes already deleted, so `-v` here is a
+    # no-op for them — kept only so an older deployment still gets cleaned up
     -docker compose -f data/kafka/compose.yml down -v
     -docker compose -f data/redis/compose.yml down -v
     -docker compose -f data/postgres/compose.yml down -v
@@ -144,7 +154,9 @@ psql:
 
 # `just redis` is GONE (2026-08-12) — redis was retired as idle (0 keys). A
 # recipe that always fails is worse than a missing one: it looks like breakage.
-# To bring redis back: docker compose -f data/redis/compose.yml up -d
+# `docker compose -f data/redis/compose.yml up -d` starts a NEW, EMPTY redis:
+# the redis_data volume and the images were deleted after the retirement, so
+# there is nothing left to restore.
 
 # Regenerate the portal's read-only Prometheus route (edge/dynamic/portal-prom.yml).
 #
@@ -182,16 +194,33 @@ urls:
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
     echo "    Keycloak      http://$IP:8090/admin   (identity — admin / shared dev login)"
-    echo "    Wiki.js       http://$IP:3001         (stack currently down)"
-    echo "    Tilt          http://$IP:10350        (when tilt up --host=0.0.0.0 runs)"
     echo ""
-    echo "  Retired 2026-08-12 — measured idle, stopped, NOT deleted:"
+    echo "  Not running right now — nothing was deleted, both come back:"
+    echo "    Wiki.js       http://$IP:3001"
+    echo "      A stack service, superseded by Docs (:8085) and dropped from"
+    echo "      'just up-apps'. Its compose file AND its 'wiki' database in the"
+    echo "      shared postgres are both intact, so this restores it WITH its"
+    echo "      content — that is why it is still listed rather than deleted:"
+    echo "        docker compose -f apps/wiki/compose.yml up -d"
+    echo "    Tilt          http://$IP:10350"
+    echo "      NOT a stack service — a per-project dev server under ~/projects"
+    echo "      (CVOps, Tals) that you start by hand. Nothing is wrong when this"
+    echo "      port is dead; that is its normal state between sessions:"
+    echo "        tilt up --host=0.0.0.0"
+    echo ""
+    echo "  Retired 2026-08-12 — measured idle, then DELETED. Data NOT recoverable:"
     echo "    Kafka + Kafka-UI (was :8081)  zero topics      ~1,110 MB"
     echo "    Redis            (was :6379)  zero keys           ~30 MB"
     echo "    minikube         (local k8s)  zero user pods   ~1,046 MB"
-    echo "    Restore:  docker compose -f data/kafka/compose.yml up -d"
-    echo "              docker compose -f data/redis/compose.yml up -d"
-    echo "              minikube start   (cluster is Stopped, not deleted)"
+    echo "      All three were first stopped and kept, then removed for real:"
+    echo "      the kafka_data and redis_data volumes and every image are gone,"
+    echo "      and 'minikube delete' ran at 13:56 (no profile remains)."
+    echo "      The compose files survive, so these commands still WORK — but"
+    echo "      each one builds something BRAND NEW AND EMPTY, it does not"
+    echo "      resume anything:"
+    echo "        docker compose -f data/kafka/compose.yml up -d   # empty broker"
+    echo "        docker compose -f data/redis/compose.yml up -d   # empty keyspace"
+    echo "        minikube start                                  # empty cluster"
     echo ""
     echo "  Windows-host mirrors via portproxy: http://100.93.197.10:<port> from the"
     echo "  tailnet, or localhost:<port> on the host. Same ports; LAN is NOT served."

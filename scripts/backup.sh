@@ -33,7 +33,7 @@ keep_if_real() {  # <file> <min-bytes> <label>
   fi
 }
 
-mkdir -p "$BK"/{postgres,redis,grafana,portainer,env}
+mkdir -p "$BK"/{postgres,grafana,portainer,env}
 
 # The timer is Persistent=true, so a schedule missed while the box was off
 # fires at the next boot — exactly when postgres is still initialising. Without
@@ -45,6 +45,15 @@ if running postgres; then
     sleep 2
   done
   if [ "$ready" = 1 ]; then
+    # pg_dumpall, NOT `pg_dump <named list>` — deliberately, and load-bearing
+    # since 2026-08-12: Keycloak's data (users, realms, clients) now lives in a
+    # `keycloak` database inside this same server, created by auth/compose.yml's
+    # keycloak-db-init against the running instance. A named-database list would
+    # not have grown a `keycloak` entry on its own, and the identity provider
+    # for the whole box would have been silently unbacked-up. `pg_dumpall` picks
+    # up any new database with no edit here. Verified: the dump contains
+    # `CREATE DATABASE keycloak` and its 132 public tables (realm, client,
+    # user_entity). Do not narrow this to a list.
     docker exec postgres pg_dumpall -U "${POSTGRES_USER:-dev}" 2>/dev/null | gzip > "$BK/postgres/pg-$ts.sql.gz"
     keep_if_real "$BK/postgres/pg-$ts.sql.gz" 1000 postgres
   else
@@ -54,13 +63,17 @@ else
   fail "postgres not running — skipped"
 fi
 
-if running redis; then
-  docker exec redis redis-cli SAVE >/dev/null 2>&1 \
-    && docker cp redis:/data/dump.rdb "$BK/redis/dump-$ts.rdb" 2>/dev/null
-  keep_if_real "$BK/redis/dump-$ts.rdb" 1 redis
-else
-  fail "redis not running — skipped"
-fi
+# A redis step lived here until 2026-08-12: `redis-cli SAVE` then
+# `docker cp redis:/data/dump.rdb`. Redis was retired that day (zero keys) and
+# its volume deleted, so the step could only ever take the else branch and print
+# "redis not running — skipped" — a FAIL, every night, for ever. That is the
+# expensive kind of wrong: a warning that fires unconditionally is one nobody
+# reads, and the next line of the report is the postgres dump that actually
+# matters. It also made the script exit 1 nightly, so the timer's own success
+# signal was useless too.
+# (Its old artifacts under $BK/redis are left on disk untouched — all 88 bytes
+# each, an empty RDB, which is what "zero keys" looks like. Nothing writes there
+# now, so they are no longer rotated; delete them by hand whenever.)
 
 if running grafana; then
   docker cp grafana:/var/lib/grafana/grafana.db "$BK/grafana/grafana-$ts.db" 2>/dev/null
@@ -85,7 +98,7 @@ else
   fail ".env not found at $root/.env"
 fi
 
-for d in postgres redis grafana portainer env; do
+for d in postgres grafana portainer env; do
   ls -1t "$BK/$d"/* 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
 done
 
