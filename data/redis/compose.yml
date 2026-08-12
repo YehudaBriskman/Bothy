@@ -1,5 +1,25 @@
 name: redis
 
+# RETIRED 2026-08-12 — kept on disk, no longer started by `just up`.
+#
+# Why: measured idle. `DBSIZE` returned 0 and `INFO keyspace` was empty — not a
+# single key in any database. The pair held ~30 MB (redis 13.2 MB,
+# redis-exporter 16.3 MB) of the box's 4,678 MB total container memory. Small,
+# but it was storing nothing at all, and the exporter cost more than the server.
+#
+# The `redis_data` volume was deliberately PRESERVED (`down` without `-v`).
+# It is cheap and deleting it is irreversible. (Note `cvops_redis_data` is a
+# different volume owned by the CVOps project — untouched, unrelated.)
+#
+# To bring it back — one command, nothing else to undo:
+#   docker compose -f data/redis/compose.yml up -d
+# Still referenced by `just down` and `just nuke` so an older deployment on
+# this box still gets cleaned up.
+#
+# While this is down, `just redis` (redis-cli shell) and the redis leg of
+# scripts/backup.sh have nothing to talk to; backup.sh already degrades
+# gracefully with "redis not running — skipped".
+
 services:
   redis:
     image: redis:8-alpine
