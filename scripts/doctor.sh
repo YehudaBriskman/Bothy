@@ -94,4 +94,51 @@ else
   else
     green "latest pg dump: $(basename "$latest") (${size}B, ${age_h}h old)"
   fi
+
+  # COVERAGE, not just freshness.
+  #
+  # On 2026-08-12 the keycloak database — the box's entire identity layer — was
+  # absent from every dump on disk, while this section reported a fresh,
+  # correctly-sized backup in green. Both facts were true: the dump was healthy,
+  # and it did not contain keycloak, because the database was created hours after
+  # the last nightly run.
+  #
+  # Age and size cannot catch that, and neither can anything else that looks only
+  # at the file. A dump that silently stopped including a database would keep
+  # passing forever — the same "check that cannot fail" this repo has now been
+  # bitten by four times. So compare what the server HAS against what the dump
+  # CONTAINS, which is the only question that can actually come back false.
+  #
+  # backup.sh uses pg_dumpall deliberately for exactly this reason; this check is
+  # what would notice if anyone ever narrowed it to a list.
+  live=$(docker exec postgres psql -U dev -tAc \
+    "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres';" 2>/dev/null | tr -d '\r')
+  if [ -n "$live" ]; then
+    # Read the dump's database list ONCE, then compare in-shell.
+    #
+    # The obvious spelling — `zcat "$latest" | grep -q "^CREATE DATABASE $db"`
+    # per database — is WRONG under this script's `set -o pipefail`, and wrong in
+    # the most misleading direction. grep -q exits the instant it matches, zcat
+    # dies of SIGPIPE, and the pipeline's status is therefore non-zero *because
+    # the database was found*. Every database present reported as missing.
+    #
+    # It is the same shape as every other bug this file has caught: not a check
+    # that failed to run, but one that ran and confidently said the opposite of
+    # the truth. Reading the list once avoids depending on a pipeline's exit
+    # status for a question about its output, and it also stops re-decompressing
+    # the whole dump once per database.
+    dumped=$(zcat "$latest" 2>/dev/null | sed -n 's/^CREATE DATABASE \([a-zA-Z0-9_]*\).*/\1/p')
+    missing=""
+    for db in $live; do
+      case " $(echo "$dumped" | tr '\n' ' ') " in
+        *" $db "*) ;;
+        *) missing="$missing $db" ;;
+      esac
+    done
+    if [ -n "$missing" ]; then
+      red "latest dump is MISSING:$missing (present in postgres, absent from the backup)"
+    else
+      green "dump covers every database: $(echo "$live" | tr '\n' ' ')"
+    fi
+  fi
 fi
