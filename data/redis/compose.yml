@@ -7,11 +7,20 @@ name: redis
 # redis-exporter 16.3 MB) of the box's 4,678 MB total container memory. Small,
 # but it was storing nothing at all, and the exporter cost more than the server.
 #
-# The `redis_data` volume was deliberately PRESERVED (`down` without `-v`).
-# It is cheap and deleting it is irreversible. (Note `cvops_redis_data` is a
-# different volume owned by the CVOps project — untouched, unrelated.)
+# The `redis_data` volume was preserved at first (`down` without `-v`) and then
+# DELETED later the same day, along with the redis:8-alpine and
+# oliver006/redis_exporter images. `docker volume ls` no longer lists it, and the
+# only redis image left on the box is redis:7-alpine, which is NOT what this file
+# pins — so `up -d` re-pulls.
 #
-# To bring it back — one command, nothing else to undo:
+# It held zero keys, so nothing was lost. But "preserved, deleting it is
+# irreversible" said the opposite, and this is the file a reader checks next
+# after the justfile said the same thing.
+#
+# (`cvops_redis_data` is a different volume owned by the CVOps project —
+# untouched, unrelated, and still present.)
+#
+# To start an empty instance again:
 #   docker compose -f data/redis/compose.yml up -d
 # Still referenced by `just down` and `just nuke` so an older deployment on
 # this box still gets cleaned up.

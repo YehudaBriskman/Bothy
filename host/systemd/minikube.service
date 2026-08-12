@@ -7,17 +7,22 @@
 # ever been deployed to it, yet it had been up 27 days holding 1,046 MB — the
 # single largest consumer of the box's 4,678 MB total container memory (~22%).
 #
-# The cluster was STOPPED, never deleted. `minikube profile list` still shows
-# the `minikube` profile (docker driver, v1.35.1) in state Stopped, so all of
-# its state is intact and starting it returns the same cluster.
+# The cluster was stopped at 13:36 and then DELETED at 13:56 the same day
+# (`~/.minikube/logs/audit.json` records both). `minikube profile list` now
+# reports MK_USAGE_NO_PROFILE, and `~/.minikube/profiles/` and `machines/` are
+# empty. There is no cluster state left to return to.
 #
-# To bring it back for one session:
+# To bring a cluster back for one session — a NEW, EMPTY one:
 #   minikube start
 # To restore start-with-the-distro behaviour permanently:
 #   sudo systemctl enable --now minikube.service
 #
-# Do NOT run `minikube delete` — that destroys the cluster irreversibly, which
-# stopping does not.
+# This header said "Do NOT run `minikube delete`" for several hours after the
+# delete had already happened, which is worse than saying nothing: it described a
+# recoverable cluster that no longer existed, so anyone reading it would have
+# expected `minikube start` to hand back their workloads. Nothing was lost —
+# there was nothing in it — but the instruction was false, and a warning against
+# an already-taken action reads as reassurance that it was not taken.
 
 [Unit]
 Description=minikube (local k8s) for devssh

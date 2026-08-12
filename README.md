@@ -104,8 +104,12 @@ Deleting them cost nothing measurable. The router table went from **22 routers t
 6** — four host-less exact-`Path()` routes for the portal's `/-/api/*` data plane,
 the portal's catch-all, and Traefik's internal metrics route — with **zero `Host()`
 rules remaining**. Nothing became unreachable, because every browser-facing service
-had kept its published port all along, and a 20-check verification harness passed
-20/20 afterwards. The only functional loss was the Traefik dashboard UI.
+had kept its published port all along, and the verification harness passed
+afterwards. The only functional loss was the Traefik dashboard UI.
+
+It is **7** as of later the same day: the Keycloak work added
+`oauth2-endpoints@file`, a `` PathPrefix(`/oauth2/`) `` route at priority 100. Still
+zero `Host()` rules — that is the invariant worth checking, not the count.
 
 **What replaced it.** A browser-facing service publishes a host port and is reached
 at `http://<node-ip>:<port>`; `just urls` prints the table and is the only
@@ -464,7 +468,7 @@ don't use this" is not a reason, and a number is.
 |---|---|---|
 | Kafka + Kafka-UI + Kafka-exporter | Zero topics | ~1,150 MB |
 | Redis + Redis-exporter | Zero keys | ~30 MB |
-| minikube | Zero non-system pods over 27 days; the only Service in the cluster was the default `kubernetes` ClusterIP | 1,097 MB |
+| minikube | Zero non-system pods over 27 days; the only Service in the cluster was the default `kubernetes` ClusterIP | 1,046 MB |
 
 Container memory went **4,678 MB → ~2,300 MB**; running containers **27 → 21**.
 

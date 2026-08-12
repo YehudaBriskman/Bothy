@@ -8,10 +8,17 @@ name: kafka
 #   kafka 776.7 MB · kafka-ui 309.2 MB · kafka-exporter 24.5 MB
 # That is ~24% of all container memory to broker zero messages.
 #
-# The `kafka_data` volume was deliberately PRESERVED (`down` without `-v`).
-# It is cheap and deleting it is irreversible.
+# The `kafka_data` volume was preserved at first (`down` without `-v`) and then
+# DELETED later the same day, along with the apache/kafka, kafbat/kafka-ui and
+# danielqsj/kafka-exporter images. `docker volume ls` no longer lists it.
 #
-# To bring it back — one command, nothing else to undo:
+# So this file no longer restores anything: bringing it back gives you an EMPTY
+# broker that re-pulls its images. That is a fine outcome for something that had
+# never held a single topic — but "preserved, deleting it is irreversible" said
+# the opposite, and a reader checking this file after the justfile would have
+# found the same false promise twice and believed it.
+#
+# To start an empty broker again:
 #   docker compose -f data/kafka/compose.yml up -d
 # (run it via `just` or with the root .env sourced; kafka-ui needs DEV_LOGIN_*).
 # Still referenced by `just down` and `just nuke` so an older deployment on

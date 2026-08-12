@@ -62,7 +62,7 @@ longer starts with the distro, and `just up` never touched it either way.
 It was retired because it was measured doing nothing: `kubectl get pods -A`
 showed only `kube-system`, the only Service in the cluster was the default
 `kubernetes` ClusterIP, and nothing had ever been deployed to it — yet it had
-been up 27 days holding **1,097 MB**, the largest single consumer of the box's
+been up 27 days holding **1,046 MB**, the largest single consumer of the box's
 4,678 MB of container memory.
 
 **The cluster was deleted** with `minikube delete`. `minikube profile list`
@@ -88,7 +88,7 @@ moved. All three were **measured** idle before removal, not assumed:
 |---|---|---|
 | Kafka + Kafka-UI + Kafka-exporter | Zero topics | ~1,150 MB |
 | Redis + Redis-exporter | Zero keys | ~30 MB |
-| minikube | Zero non-system pods over 27 days | 1,097 MB |
+| minikube | Zero non-system pods over 27 days | 1,046 MB |
 
 Container memory went **4,678 MB → ~2,300 MB**; running containers **27 → 21**.
 The compose files are kept so `just down` still cleans up an older deployment;
