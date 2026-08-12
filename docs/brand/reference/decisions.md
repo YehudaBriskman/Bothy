@@ -195,6 +195,14 @@ six were taken.
 **Cost.** None to the machine's own naming — "dev box" is still correct
 everywhere it refers to the machine, and was deliberately not renamed.
 
+**Vindicated 2026-08-12.** The name layer was deleted two days later — its
+Traefik `Host()` rules removed, its split-DNS route already gone. `dev.test` now
+resolves nowhere, so the old wordmark would have been a dead address in the most
+prominent position on the page. The run-time `location.hostname` subtitle needed
+no change at all; it simply prints the bare IP now, because that is what
+visitors actually type. A decision that survives the thing it was hedging
+against, without an edit, was the right decision.
+
 ---
 
 ## 2026-08-10 — Add a generated Prometheus route rather than a committed one

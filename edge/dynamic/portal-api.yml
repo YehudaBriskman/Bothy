@@ -1,9 +1,9 @@
 # The portal's read-only data plane.
 #
-# The portal page (dev.test) discovers what's running instead of being a
-# hand-written list. It needs two read-only APIs, and it gets them under its OWN
-# origin at /-/api/* — same-origin means zero CORS, no preflight, no headers to
-# tune. `/-/` is a RESERVED prefix on every vhost on this box.
+# The portal page discovers what's running instead of being a hand-written list.
+# It needs read-only APIs, and it gets them under its OWN origin at /-/api/* —
+# same-origin means zero CORS, no preflight, no headers to tune. `/-/` is a
+# RESERVED prefix on every address this box answers on; mount nothing else there.
 #
 # ── SECURITY: THE RULES BELOW ARE THE BOUNDARY ─────────────────────────────
 #
@@ -11,24 +11,45 @@
 # style, it is the entire security control:
 #
 #   docker-socket-proxy's CONTAINERS=1 gates by endpoint FAMILY, so it happily
-#   serves /containers/{id}/json — whose response body includes Env. On this box
-#   that means POSTGRES_PASSWORD and the Grafana admin password. A PathPrefix
-#   here would publish every container's environment to the tailnet.
+#   serves the per-container /containers/<id>/json — whose response body includes
+#   Env. On this box that means POSTGRES_PASSWORD and the Grafana admin password.
+#   A PathPrefix here would publish every container's environment to the tailnet.
 #
 #   The socket-proxy env vars do NOT prevent this. Only these Path() rules do.
 #
+#   Nothing else guards it either. As of 2026-08-12 no router on this box carries
+#   an auth middleware: sso@file/sso-errors@file are defined in auth.yml but
+#   attached to NOTHING. These Path() rules are the whole control, on their own.
+#
 # To add an endpoint: add a Path() line. Never widen to PathPrefix.
-# Verify after any change:
-#   curl -s -o /dev/null -w '%{http_code}\n' \
-#     http://dev.test/-/api/docker/containers/$(docker ps -q | head -1)/json
-#   # MUST print 404.
+#
+# ── Regression test — CHECK THE CONTENT TYPE, NOT THE STATUS ───────────────
+# Verified 2026-08-12. A blocked path no longer 404s: the portal's catch-all
+# PathPrefix(`/`) router at priority 1 answers every unrouted path with the SPA,
+# so the per-container endpoint returns 200 text/html. A status-code assertion
+# here can never fail and is worthless. Assert the content type instead:
+#
+#   BOX=127.0.0.1                       # or the tailnet IP; there is no name
+#   CID=$(docker ps -q | head -1)
+#   # BLOCKED — must print text/html (the SPA, not a container body):
+#   curl -s -o /dev/null -w '%{content_type}\n' \
+#     http://$BOX/-/api/docker/containers/$CID/json
+#   # ALLOWED — must print application/json:
+#   curl -s -o /dev/null -w '%{content_type}\n' \
+#     http://$BOX/-/api/docker/containers/json
+#
+# If the blocked line ever prints application/json, a rule here has been widened
+# and every container's Env is on the tailnet. That is the only failure that
+# matters, and only the content type detects it.
 #
 # ── Why no Host() rule ─────────────────────────────────────────────────────
-# The bare tailnet IP lands on portal-fallback, which serves the
-# portal. If these routers were scoped to Host(`dev.test`), the page would load
-# there but every fetch would fall through to nginx and 404. Host-less Path() at
-# priority 100 works from every name AND the bare IP. Priority 100 sits above
-# portal-fallback (1) and every Host route (~16-27).
+# There is no name layer left to match on. The `*.dev.test` namespace was
+# dormant from 2026-08-08 and its configuration was DELETED on 2026-08-12;
+# access is pure IP:port (`just urls`). Traefik now holds zero Host() rules.
+# Host-less Path() is therefore the only shape that works, and it answers on
+# every address the box has at once — the tailnet IP, 127.0.0.1, anything.
+# Priority 100 keeps these above the portal's catch-all at priority 1, which
+# would otherwise swallow them and serve the SPA in place of the JSON.
 
 http:
   routers:
@@ -43,9 +64,13 @@ http:
         || Path(`/-/api/docker/system/df`)
       entryPoints: [web]
       priority: 100
-      # sso also closes the DNS-rebinding hole: a rebound request carries the
-      # attacker's Host, so the .dev.test-scoped session cookie is never sent
-      # and this returns 401 instead of the container list.
+      # NO auth middleware here, and as of 2026-08-12 none anywhere on the box.
+      # This used to read "sso also closes the DNS-rebinding hole" — that was
+      # true only while a session cookie scoped to .dev.test existed. The name
+      # is gone, the cookie is gone, and sso@file is attached to no router, so
+      # that sentence would now be a false comfort. Anything on the tailnet can
+      # GET this. What it gets is bounded solely by the Path() rule above, which
+      # is why the rule is the boundary and the comment is not decoration.
       middlewares: [portal-api-docker-rewrite]
       service: portal-socket-proxy
 
@@ -71,9 +96,17 @@ http:
       middlewares: [portal-api-loki-rewrite]
       service: portal-loki
 
-    # The Traefik API is read-only by nature (no mutating endpoints), and
-    # traefik.dev.test already serves it unauthenticated, so these four paths
-    # grant no authority that isn't already there.
+    # The Traefik API is read-only by nature — no mutating endpoints exist.
+    #
+    # Updated 2026-08-12: the old justification here was "traefik.dev.test
+    # already serves it unauthenticated, so these paths grant no authority that
+    # isn't already there." That router is DELETED and `--api.dashboard=true`
+    # is now `--api=true`, so the argument no longer holds — these four paths
+    # are the only way the Traefik API is reachable at all. That is the point:
+    # the dashboard router exposed the WHOLE api@internal surface, including
+    # /api/rawdata, which rendered the live Authorization: Basic header that
+    # portal-prom.yml injects. These four exact paths carry no credential.
+    # Never add /api/rawdata, and never widen this to PathPrefix.
     portal-api-traefik:
       rule: >-
         Path(`/-/api/traefik/http/routers`)

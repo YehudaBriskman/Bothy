@@ -24,13 +24,13 @@ body:
       description: Which part of the box is misbehaving? Pick the closest match.
       options:
         - edge / Traefik
-        - auth / SSO
+        - auth / Keycloak / oauth2-proxy
         - monitoring
         - data
         - mgmt
         - apps / portal
         - docs
-        - host / DNS
+        - host / networking
         - k8s
         - not sure
     validations:
@@ -42,7 +42,10 @@ body:
       label: What happened
       description: What did you observe? Include the exact URL, command or container involved.
       placeholder: |
-        `http://grafana.dev.test` returns 404 from Traefik instead of the Grafana login page.
+        `http://<node-ip>:3000` times out instead of showing the Grafana login page.
+
+        (Access is `IP:port` — the `*.dev.test` name layer was deleted on 2026-08-12.
+        `just urls` prints the port table. Redact the address before pasting.)
     validations:
       required: true
 
@@ -59,9 +62,10 @@ body:
       label: Steps to reproduce
       description: Start from a known state — a clean `just up` if you can.
       placeholder: |
-        1. cp .env.example .env, fill in OAUTH2_* and WIKI_DB_PASSWORD
+        1. cp .env.example .env, fill in DEV_LOGIN_*, OAUTH2_* and WIKI_DB_PASSWORD
         2. just up
-        3. open http://grafana.dev.test
+        3. just urls
+        4. open http://<node-ip>:3000
     validations:
       required: true
 
