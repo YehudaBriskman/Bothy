@@ -6,8 +6,10 @@ the 2026-08-01 cold boot ([always-on.md](always-on.md)). This runbook verifies i
 ## Fastest check
 
 From the phone (on tailnet): open **http://100.117.176.85/** → the portal renders = PASS.
-(dev.test is retired since 2026-08-08; a full page matters — a blank/hanging page with
-the tab spinner is the blackhole signature, see [runbook-cant-reach.md](runbook-cant-reach.md).)
+(Names are retired — dormant 2026-08-08, deleted 2026-08-12. A **full page** matters:
+a blank/hanging page with the tab spinner is the blackhole signature, see
+[runbook-cant-reach.md](runbook-cant-reach.md). And because `:80` answers 200 for
+anything, follow up on a real service port — e.g. `:3000` — before calling it healthy.)
 
 ## Proper check (from yr055 on the PC)
 

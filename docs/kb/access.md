@@ -5,8 +5,11 @@ _See [topology.md](topology.md) for what these machines are._
 ## The front door (use this)
 
 ```bash
-ssh devssh@100.117.176.85          # or devssh@yehuda-wsl.tail7e7e3b.ts.net, or devssh@dev.test
+ssh devssh@100.117.176.85          # or devssh@yehuda-wsl.tail7e7e3b.ts.net
 ```
+
+_(`devssh@dev.test` worked until 2026-08-08 and is now resolvable only from the box
+itself — use the IP or the MagicDNS name.)_
 
 Lands in `~/stacks`. Rules that are not obvious:
 
@@ -17,8 +20,9 @@ Lands in `~/stacks`. Rules that are not obvious:
 - **The only user is `devssh`** (uid 1000, passwordless sudo). Any other username —
   including `yr055` — fails with `unknown user` at user lookup. This burned us 2026-08-02
   at 17:55: it looks like a server problem, it's a typo.
-- The client must be **on the tailnet with a working tunnel** — if `dev.test` doesn't
-  resolve either, suspect the client, not the box ([runbook-cant-reach.md](runbook-cant-reach.md)).
+- The client must be **on the tailnet with a working tunnel**. (Before 2026-08-08 a
+  failing `dev.test` lookup was the first symptom of that; names are retired now, so
+  probe the IP instead — [runbook-cant-reach.md](runbook-cant-reach.md).)
 - **Check-mode appeared in the SSH policy by 2026-08-08** (contradicting the 08-02
   check): a session may print `# To authenticate, visit: https://login.tailscale.com/a/…`
   and wait. Interactive use: click it once, it caches. Unattended use stalls on it —
@@ -65,7 +69,7 @@ Write the `.sh` with **LF endings** (`sed -i 's/\r$//'`) — CRLF breaks bash.
 **Rule:** "Access is denied" ≠ "does not exist". The postboot checker reported
 `TASK MISSING` for exactly this reason when run non-elevated.
 
-## Web access — pure IP:port (since 2026-08-08; SSO dormant, dev.test retired)
+## Web access — pure IP:port (SSO parked; `*.dev.test` deleted 2026-08-12)
 
 Canonical base: `http://100.117.176.85:<port>` (MagicDNS alias
 `yehuda-wsl.tail7e7e3b.ts.net:<port>` works too). Mirrors via Windows portproxy:
@@ -79,7 +83,7 @@ Grafana, Portainer, Dozzle, Kafka-UI, Prometheus (basic auth).
 
 | Port | Service | Note |
 |---|---|---|
-| 80 | Portal (portal-next) | Traefik catch-all; **200 expected — a 401 now means regression** |
+| 80 | Portal (portal-next) | Traefik catch-all; **200 expected — a 401 now means regression**. It answers *every* path/host, so a 200 here proves nothing about any other service |
 | 3000 | Grafana | unified dev login |
 | 3001 | Wiki.js | stack currently down |
 | 8080 | Dozzle | unified dev login (simple-auth users file) |
@@ -95,3 +99,7 @@ Grafana, Portainer, Dozzle, Kafka-UI, Prometheus (basic auth).
 Test with `curl.exe`, never `Invoke-WebRequest` ([lessons.md](lessons.md)), and check
 **bytes, not just codes** — "200 with 0 bytes" is the large-packet blackhole
 ([incidents/2026-08-08](incidents/2026-08-08-wsl-node-large-packet-blackhole.md)).
+
+**There is no Traefik dashboard any more** (deleted 2026-08-12 — it leaked a
+credential, [lessons.md](lessons.md)). For the router table:
+`http://100.117.176.85/-/api/traefik/http/routers`, or the portal's Routes page.

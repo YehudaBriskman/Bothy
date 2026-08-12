@@ -4,11 +4,14 @@
 Compose stacks for routing, observability, dev data services and management
 UIs — fronted by a homepage that discovers what is running instead of listing it.
 
-> **Access model (since 2026-08-08): plain `http://<node-ip>:<port>`.** The
-> name-based layer this repo was built around (`*.dev.test` wildcard DNS + SSO)
-> is **dormant, not deleted**: `just urls` prints the live port table, and
-> [`docs/kb/dns.md`](docs/kb/dns.md) is the re-enable manual. Sections below that
-> describe names or SSO document that dormant design.
+> **Access model: plain `http://<node-ip>:<port>`.** The name-based layer this
+> repo was built around (`*.dev.test` wildcard DNS + SSO) went dormant on
+> 2026-08-08 and was **deleted on 2026-08-12** — every `Host()` router removed,
+> the Traefik router table down from 22 to 6, none of them Host-based. `just urls`
+> prints the live port table. Sections below that describe names or SSO document a
+> **retired** design, kept because the problem it solved is real;
+> [`docs/kb/dns.md`](docs/kb/dns.md) records what would be involved in rebuilding
+> it, which is considerably more than flipping a switch.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![docker compose](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
@@ -57,64 +60,60 @@ Not a production platform, and not a template to deploy anywhere public:
 
 ## The two ideas worth stealing
 
-### 1. Nothing publishes a port. Everything gets a name.
+### 1. Nothing publishes a port. Everything gets a name. — RETIRED 2026-08-12
 
-> **Status: dormant since 2026-08-08.** The wildcard DNS that made these names
-> resolve was retired in favour of direct tailnet-IP access, so today services
-> *do* publish ports and the labels below route nothing until the split-DNS
-> route returns. The design stays documented because the collision problem it
-> solves is real, and re-enabling it is a single admin-console change.
+> **This idea is no longer implemented here.** It is kept, honestly labelled,
+> because the problem it solves is real and because how it ended is the more
+> useful half of the story.
 
 Host ports are a flat global namespace with no allocator, so every project reaches
 for 3000/8080/5432 and collides with whatever squatted there first — and the
 collision surfaces as a bind failure that doesn't name the culprit.
 
-Traefik owns `:80` and routes by `Host` header instead. It is the **only**
-container in the repo that publishes a browser-facing port. Names are infinite;
-ports are 65535 and everyone picks the same dozen.
+The answer was to have Traefik own `:80` and route by `Host` header, making it the
+**only** container in the repo publishing a browser-facing port. Names are
+infinite; ports are 65535 and everyone picks the same dozen. Adding a service was
+two labels and a name — no DNS entry, no port allocation, nothing restarted — and
+the namespace nested (`s3.<project>.dev.test` under `<project>.dev.test`) so the
+hierarchy told you what owned what. A wildcard `address=/test/` in dnsmasq meant a
+new name at any depth needed no DNS work at all.
 
-Adding a service is two labels and a name — no DNS entry, no port allocation,
-nothing restarted:
+**Why it is gone.** Two steps:
 
-```yaml
-services:
-  myapp:
-    networks: [default, devnet]      # BOTH — listing networks drops the default
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.myapp.rule=Host(`myapp.dev.test`)
-      - traefik.http.routers.myapp.entrypoints=web
-      - traefik.http.routers.myapp.service=myapp
-      - traefik.http.services.myapp.loadbalancer.server.port=8080   # container port
-networks:
-  devnet: { external: true }
-```
+1. **2026-08-08** — the tailnet split-DNS route was removed, so no client could
+   resolve `.test` any more. The routers survived, labelled "dormant, re-enable
+   later".
+2. **2026-08-12** — "dormant" proved more expensive than it saved. Dead routers
+   are configuration that *looks* live: they taught every new service the wrong
+   pattern, they needed a caveat in every document, and one of them — the Traefik
+   dashboard — was quietly serving `api@internal` unauthenticated, where
+   `/api/rawdata` dumped the merged config **including a live
+   `Authorization: Basic` header** that a `customRequestHeaders` middleware
+   injected for Prometheus. They were deleted.
 
-`http://myapp.dev.test` works immediately, from every device on the tailnet.
+Deleting them cost nothing measurable. The router table went from **22 routers to
+6** — four host-less exact-`Path()` routes for the portal's `/-/api/*` data plane,
+the portal's catch-all, and Traefik's internal metrics route — with **zero `Host()`
+rules remaining**. Nothing became unreachable, because every browser-facing service
+had kept its published port all along, and a 20-check verification harness passed
+20/20 afterwards. The only functional loss was the Traefik dashboard UI.
 
-The namespace nests, so the hierarchy tells you what owns what:
+**What replaced it.** A browser-facing service publishes a host port and is reached
+at `http://<node-ip>:<port>`; `just urls` prints the table and is the only
+allocator there is. Host processes bind `0.0.0.0` on their own port. If a service
+genuinely needs a Traefik route, the one supported shape is a **host-less exact
+`` Path(`…`) ``** rule at priority 100 — see `edge/dynamic/project.example.yml`
+for the annotated template and `edge/dynamic/portal-api.yml` for the live example.
+**Do not write a `Host()` rule:** with no name layer it registers as `enabled` and
+then matches nothing, forever, which is worse than an error.
 
-```
-dev.test                        the portal — index of everything
-├── grafana.dev.test            stack services sit one level down
-├── prometheus.dev.test
-├── docs.dev.test
-├── traefik.dev.test            check here first when a name 404s
-└── <project>.dev.test          one branch per project
-    ├── api.<project>.dev.test  a project's own pieces nest under the project,
-    └── s3.<project>.dev.test   never at the top level
-```
-
-Traefik discovers containers from labels. Processes running on the **host** have
-nothing to label, so they are declared in `edge/dynamic/*.yml` — a watched file
-provider pointing at `host.docker.internal:<port>`. Same namespace, same SSO, no
-published port either. (The host process must bind `0.0.0.0`; `127.0.0.1` is
-unreachable from inside a container and the route 502s.)
+The lesson worth stealing is the one that survived: **either keep a layer working
+or delete it — parked configuration is the expensive middle.**
 
 ### 2. The portal discovers what is running. It is never a hand-written list.
 
-The portal — Traefik's catch-all on `:80`; `dev.test` when names are enabled —
-is a React 19 + Vite app served as a static build. Its service links navigate by
+The portal — Traefik's catch-all on `:80`, and since 2026-08-12 the only non-API
+router on the box — is a React 19 + Vite app served as a static build. Its service links navigate by
 published port on whichever host you opened it from, so they work identically
 via tailnet IP, MagicDNS name or localhost. It renders by joining
 **two read-only APIs**, both proxied under its own origin so there is zero CORS:
@@ -133,14 +132,16 @@ container's own Traefik labels if the Traefik-side IP is stale.
 Containers are then classified with no lookup table anywhere: their
 `com.docker.compose.project.config_files` label says whether they belong to this
 repo (a stack service) or to a project, and **hostname nesting beats it** — so
-`s3.myproject.dev.test` groups under `myproject` even when it is a host process
-with no container at all. Optional `dev.portal.*` labels add an icon, a
+`s3.myproject.dev.test` grouped under `myproject` even when it was a host process
+with no container at all. (Since the name layer was deleted on 2026-08-12 there are
+no hostnames left to nest, so that branch is retained but dormant; classification
+falls through to `config_files`.) Optional `dev.portal.*` labels add an icon, a
 description or a display name. If the page ever *needs* a label to be correct, the
 defaults are wrong.
 
-The test of the whole thesis: **add two Traefik labels to any container and it
-appears on the portal within 10 seconds, with no edit to the portal.** Stop a
-container and its dot goes red just as fast.
+The test of the whole thesis: **start any container and it appears on the portal
+within 10 seconds, with no edit to the portal.** Stop it and its dot goes red just
+as fast.
 
 > **The security boundary is the Traefik rule, not the proxy config.**
 > `docker-socket-proxy` gates by endpoint *family*, so `CONTAINERS=1` also permits
@@ -162,9 +163,8 @@ container and its dot goes red just as fast.
   with the Compose plugin. Traefik must be **≥ v3.6** — older builds hardcode
   Docker API v1.24 and silently load zero routes against a modern daemon.
 - [`just`](https://github.com/casey/just), plus `jq` and `curl` for `just doctor`.
-- *(only for the dormant name layer)* a resolver that answers `*.test` — see
-  [DNS](#dns-how-test-names-resolve) — and a GitHub OAuth App for the parked
-  SSO (callback `http://auth.dev.test/oauth2/callback`).
+- Nothing else. The retired name layer needed a resolver answering `*.test` and a
+  GitHub OAuth App; neither is required to run this today.
 
 ```sh
 cp .env.example .env      # fill in DEV_LOGIN_* and WIKI_DB_PASSWORD (OAUTH2_* only for the parked SSO)
@@ -186,13 +186,13 @@ Then open **`http://<this-node's-tailnet-IP>/`** — `just urls` prints every ad
 
 | Path | What lives there |
 |---|---|
-| `edge/` | **Traefik** — the front door on `:80`: serves the portal catch-all and the `/-/api/*` data plane; Host-name routing is dormant. Also exports Prometheus metrics on an internal entrypoint with no host port. |
-| `edge/dynamic/` | Watched file-provider routes for things the Docker provider cannot see: `auth.yml` (the SSO middleware chain), `portal-api.yml` (the portal's read-only data plane), `host-services.yml` and per-project files for host processes. |
-| `auth/` | **oauth2-proxy** — GitHub SSO, **parked**; `edge/dynamic/auth.yml` carries the re-enable recipe. |
+| `edge/` | **Traefik** on `:80`: serves the portal catch-all and the `/-/api/*` data plane, and nothing else — Host-name routing was deleted 2026-08-12, as was the dashboard (`--api=true`, not `--api.dashboard=true`). Also exports Prometheus metrics on an internal entrypoint with no host port. |
+| `edge/dynamic/` | Watched file-provider routes: `portal-api.yml` (the portal's read-only data plane — the security boundary, read it in full), `project.example.yml` (the annotated template, entirely commented out on purpose), `auth.yml` (the parked SSO chain), `host-services.yml` (now declares no routes). |
+| `auth/` | **oauth2-proxy** — GitHub SSO, **parked** and being replaced by Keycloak; it still carries a stale `Host(auth.dev.test)` label. Treat as in flight, not final. |
 | `monitoring/` | Prometheus, Grafana, Loki + Promtail, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds six provisioned dashboards; `rules/` is for Prometheus rules. |
 | `data/postgres/`, `data/redis/`, `data/kafka/` | Each datastore plus its Prometheus exporter. Kafka is single-node KRaft. All three bind **loopback only** and are never routed by name. |
 | `mgmt/` | Portainer and Dozzle. |
-| `apps/portal-next/` | The live portal at `dev.test` — React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
+| `apps/portal-next/` | The live portal on `:80` — React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `portal-next-fallback`, the catch-all. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
 | `apps/portal/` | The retired pure-HTML portal, kept as a one-line rollback — **and the owner of `portal-socket-proxy`**, which the live portal still depends on. Do not `compose down` this directory. |
 | `apps/docs/` | MkDocs Material rendering every markdown file on the box, kept in sync by an rsync sidecar. Read-only; edits to the source files show up within ~15s. |
 | `apps/wiki/` | Wiki.js — superseded by `apps/docs/`; currently stopped, kept until its content is migrated. |
@@ -204,33 +204,28 @@ Then open **`http://<this-node's-tailnet-IP>/`** — `just urls` prints every ad
 
 ## Architecture
 
-_The diagram shows the **full design, including the dormant layer** (wildcard
-DNS names, SSO). Live traffic today goes browser → `http://<node-ip>:<port>`
-straight to each service, or `:80` for the portal._
+_As it actually is, verified 2026-08-12. Traffic goes browser →
+`http://<node-ip>:<port>` straight to each service; only the portal and its data
+plane pass through Traefik._
 
 ```mermaid
 flowchart TB
   subgraph client["Any device on the tailnet"]
-    B["Browser<br/>http://&lt;name&gt;.dev.test"]
-    DNS["dnsmasq<br/>wildcard *.test at any depth"]
+    B["Browser<br/>http://&lt;node-ip&gt;:&lt;port&gt;"]
   end
 
-  B -.->|"resolve"| DNS
-  B -->|"Host header"| T
+  B -->|":3000 :9090 :8080 :8081 :8085 :9000 …"| SVC
+  B -->|":80"| T
 
   subgraph box["The dev box"]
-    T["<b>Traefik</b><br/>:80 — the only published port<br/>routes by Host, discovers via Docker labels"]
-    O["oauth2-proxy<br/>GitHub SSO"]
+    SVC["Grafana · Prometheus · Loki<br/>Dozzle · Portainer · Kafka-UI · Docs<br/><i>each on its own published port</i>"]
 
-    T -.->|"forwardAuth · 401 becomes the sign-in page"| O
+    T["<b>Traefik</b> :80<br/>6 routers, zero Host rules<br/>catch-all (prio 1) + 4 exact Path() (prio 100)"]
 
-    T --> OBS["Grafana · Prometheus · Loki"]
-    T --> MG["Dozzle · Portainer · Kafka-UI"]
-    T --> DOC["MkDocs docs"]
-    T --> PORTAL["<b>Portal</b> — React, served static"]
-
-    T -->|"exact Path /-/api/traefik/..."| TAPI["Traefik API<br/>api@internal"]
-    T -->|"exact Path /-/api/docker/..."| SP["docker-socket-proxy<br/>read-only · no auth · socketnet only"]
+    T -->|"PathPrefix(/) — answers everything"| PORTAL["<b>Portal</b> — React, served static"]
+    T -->|"exact Path /-/api/traefik/…"| TAPI["Traefik API<br/>api@internal · dashboard OFF"]
+    T -->|"exact Path /-/api/docker/…"| SP["docker-socket-proxy<br/>read-only · no auth · socketnet only"]
+    T -->|"exact Path /-/api/loki, /-/api/prom"| OBS2["Loki · Prometheus"]
     SP --> SOCK[("/var/run/docker.sock :ro")]
 
     DATA[("Postgres · Redis · Kafka<br/>loopback only, never routed")]
@@ -238,7 +233,12 @@ flowchart TB
 
   TAPI -.->|"routes"| PORTAL
   SP -.->|"containers, health, disk"| PORTAL
+  OBS2 -.->|"logs, metrics"| PORTAL
 ```
+
+Retired from this picture on 2026-08-12: wildcard `*.dev.test` DNS, every `Host()`
+router, and the browsable Traefik dashboard. oauth2-proxy is parked, pending
+Keycloak.
 
 Two Docker networks, deliberately:
 
@@ -251,11 +251,22 @@ Two Docker networks, deliberately:
 
 ### Single sign-on
 
-> **Parked since 2026-08-08** — the OAuth callback is pinned to a name that no
-> longer resolves. In its place every dashboard runs its own login with one
-> shared dev credential (`DEV_LOGIN_*` in `.env`): Grafana, Portainer, Dozzle,
-> Kafka-UI and Prometheus (basic auth, carried by its self-scrape and the
-> Grafana datasource too). What follows documents the dormant design.
+> **Parked since 2026-08-08, and being replaced** — the OAuth callback is pinned
+> to a name that no longer exists. In its place every dashboard runs its own login
+> with one shared dev credential (`DEV_LOGIN_*` in `.env`): Grafana, Portainer,
+> Dozzle, Kafka-UI and Prometheus (basic auth, carried by its self-scrape and the
+> Grafana datasource too). A Keycloak-based replacement is in progress, so
+> `auth/` is in flight rather than final. What follows documents the parked design.
+>
+> **One thing that shipped with it is a general warning.** Prometheus' basic-auth
+> credential is injected by a Traefik `customRequestHeaders` middleware so the
+> portal can query it. On 2026-08-12 that credential was found readable by anyone
+> on the tailnet, because the Traefik dashboard served `api@internal`
+> unauthenticated and `/api/rawdata` dumps the merged config verbatim. **A headers
+> middleware hides a secret from the browser, not from the config dump.** The
+> dashboard router was deleted and `--api.dashboard=true` became `--api=true`
+> (the API itself must stay on — the portal's `/-/api/traefik/*` routes use
+> `api@internal`).
 
 Services with no login of their own — Dozzle, Kafka-UI, Prometheus, the docs, the
 Traefik dashboard and the portal — sit behind GitHub SSO via oauth2-proxy as a
@@ -299,12 +310,16 @@ but nothing else has an ordering requirement.
 
 ---
 
-## DNS: how `*.test` names resolve
+## DNS: how `*.test` names resolved — RETIRED
 
-> **Dormant since 2026-08-08:** the tailnet split-DNS route was removed, so no
-> client resolves `.test` any more. dnsmasq itself still runs — it is the box's
-> own resolver — and everything below becomes true again the moment the route
-> is re-added (admin console → DNS → Nameservers → `test` → this node).
+> **Dormant 2026-08-08, retired 2026-08-12.** The tailnet split-DNS route was
+> removed first, so no client resolved `.test` any more; the Traefik `Host()`
+> routers it fed were deleted four days later. dnsmasq itself still runs — it is
+> the box's own resolver, and its `address=/test/` line is harmless — so `.test`
+> still resolves **on the box and nowhere else**. Do not read that as names
+> working: the portal catch-all answers every request on `:80` with a 200
+> regardless. Re-adding the console route would restore resolution but route
+> nothing, because there are no Host routers left to author against.
 
 A local dnsmasq is authoritative for `.test` and answers a wildcard at **any
 depth**, so a brand-new name at any level needs no DNS work at all — only a
@@ -390,9 +405,13 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
   Windows' DNS configuration changes. `sudo chattr -i` to edit, `+i` when done.
 - **`systemctl reload dnsmasq` does not re-read the config.** SIGHUP re-reads
   `/etc/hosts` and clears the cache, nothing more. A config edit needs a restart.
-- **A name that 404s** → the router table is served at
+- **A route that misbehaves** → the router table is served at
   `http://<node-ip>/-/api/traefik/http/routers`; it shows exactly which routers
-  are registered. (`traefik.dev.test` works when names are enabled.)
+  are registered. There is no Traefik dashboard to check instead — it was deleted
+  2026-08-12 because it leaked a credential.
+- **A `Host()` rule added today registers as `enabled` and matches nothing.**
+  There is no name layer. Publish a port, or use a host-less exact
+  `` Path(`…`) `` rule — `edge/dynamic/project.example.yml` is the template.
 - **Tunnel pings pong but pages stall, or SSH hangs at key exchange** — the
   large-packet blackhole. Restart tailscaled on the box; recipe in
   [`docs/kb/incidents/2026-08-08-wsl-node-large-packet-blackhole.md`](docs/kb/incidents/2026-08-08-wsl-node-large-packet-blackhole.md).
@@ -401,8 +420,8 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
 
 ## Deeper docs
 
-- **Docs on `:8085`** (`docs.dev.test` when names are enabled) — MkDocs
-  Material, rendering every markdown file on the box, auto-synced.
+- **Docs on `:8085`** — MkDocs Material, rendering every markdown file on the box,
+  auto-synced.
 - [`docs/kb/`](docs/kb/README.md) — the operational knowledge base: topology,
   access paths, runbooks, incident files and the lessons they paid for.
 - **The compose files themselves.** Every non-obvious setting has a comment
