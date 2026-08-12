@@ -690,12 +690,31 @@ export function merge(
     );
   }
 
-  // Pass 2 — containers with no route that still publish a port. "Route OR
-  // published port" is the correct definition of "a thing a human can reach".
-  // Drops promtail/exporters (no route, no port) — they're plumbing.
+  // Pass 2 — EVERY remaining container, routed or not, published or not.
+  //
+  // This used to require a published port. The rule was "route OR published
+  // port", justified as the correct definition of "a thing a human can reach",
+  // and it deliberately dropped promtail and the exporters as plumbing.
+  //
+  // That reasoning died with the name layer on 2026-08-12. With no routers left,
+  // "route OR port" collapsed to "port", and TEN running containers went
+  // invisible at once — promtail, docs-sync, postgres-exporter, oauth2-proxy,
+  // portal-socket-proxy, and `portal-next` ITSELF. The page could not see the
+  // container serving it. It showed 16 services while 21 were running.
+  //
+  // The deeper mistake is conflating two different questions. "Can I open this?"
+  // is a property of having an address, and `isBrowsable`/`url` answer it
+  // honestly. "Is this running on my box?" is a property of EXISTING. A control
+  // plane has to answer the second one for everything, including the plumbing —
+  // an exporter that has died is exactly the kind of thing you need to be told
+  // about, and it was precisely the class this filter hid.
+  //
+  // Cost, accepted: containers belonging to other projects (cvops-*, mpeg-*)
+  // and one-shot init containers now appear. They are real things on this box.
+  // Grouping files them under their own compose project, and `stopped` recedes
+  // visually, so honesty costs less than the blind spot did.
   for (const c of containers) {
     if (claimed.has(c.Id)) continue;
-    if (!(c.Ports || []).some((p) => p.PublicPort)) continue;
     nodes.push(makeNode({ route: null, host: null, container: c, names, kind: 'unrouted' }));
   }
 

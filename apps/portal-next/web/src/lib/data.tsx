@@ -65,12 +65,26 @@ export const expectedUp = (c: HealthCounts) => c.total - c.stopped;
 // An orphan route still matters when the rest of its system is up (that IS the
 // route-with-no-backend case portal.md wants shouted about), so the rule is
 // scoped to the system rather than dropped.
+//
+//   3. (2026-08-12) A `down` container inside a system where NOTHING is
+//      running. The same mistake as 2, reached from the other direction, and it
+//      appeared the moment discovery started reporting stopped containers:
+//      `monorepo-inherited-channellink-1` exited 255 two days ago while its
+//      three siblings exited 0, i.e. somebody switched the project off and one
+//      container was untidy on the way out. Shouting about it every day since
+//      is not a fault report, it is a fault report's ghost.
+//
+//      A non-zero exit inside a LIVE system is still a real fault and still
+//      shouts — that distinction is the whole rule, and it is why this is scoped
+//      by system rather than by "is it old".
 export function needsAttention(nodes: import('./discover').PortalNode[]): import('./discover').PortalNode[] {
   const liveGroups = new Set(
     nodes.filter((n) => n.status === 'up' || n.status === 'starting').map((n) => n.group),
   );
   return nodes.filter((n) => {
-    if (n.status === 'down') return true;
+    // Both cases now ask the same question: is anything in this system alive?
+    // If the whole system is off, its wreckage is not news.
+    if (n.status === 'down') return liveGroups.has(n.group);
     if (n.kind !== 'orphan-route') return false;
     return liveGroups.has(n.group);
   });
