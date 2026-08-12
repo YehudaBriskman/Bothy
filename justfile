@@ -22,10 +22,29 @@ up: network up-edge up-auth up-monitoring up-data up-mgmt up-apps
 up-edge: network
     docker compose -f edge/compose.yml up -d
 
-# SSO: oauth2-proxy, guards the dashboards that have no login of their own.
-# Must be up before the routers that reference its middleware.
+# Identity: Keycloak (the IdP) + oauth2-proxy (what Traefik's forwardAuth asks).
+#
+# One `up -d` brings the whole chain up in order, because the compose file
+# expresses the ordering itself: the database bootstrap must EXIT SUCCESSFULLY
+# before Keycloak starts, and Keycloak must be HEALTHY before oauth2-proxy and
+# the post-import fixes run. So this blocks for as long as that takes — a minute
+# or two on first boot, while Keycloak builds and creates its schema.
+#
+# Nothing here enforces anything yet: it defines the `sso@file` middleware,
+# it does not attach it to any router. See edge/dynamic/auth.yml.
 up-auth: network
+    #!/usr/bin/env bash
+    set -euo pipefail
     docker compose -f auth/compose.yml up -d
+    IP=$(tailscale ip -4 2>/dev/null | head -1); IP=${IP:-$BOX_IP}
+    echo ""
+    echo "  Keycloak admin   http://$IP:8083/admin  (admin / KEYCLOAK_ADMIN_PASSWORD in .env)"
+    echo "  OIDC discovery   http://$IP:8083/realms/devbox/.well-known/openid-configuration"
+    echo ""
+    echo "  The 'issuer' in that document must equal oauth2-proxy's"
+    echo "  --oidc-issuer-url exactly. If they ever differ, the symptom is a"
+    echo "  redirect loop, not an error. Check it after changing BOX_IP:"
+    echo "    curl -s http://$IP:8083/realms/devbox/.well-known/openid-configuration | jq -r .issuer"
 
 # Observability: grafana, prometheus, loki, cadvisor, node-exporter
 up-monitoring: network
@@ -119,9 +138,12 @@ redis:
 portal-prom-route:
     ./scripts/gen-portal-prom-route.sh
 
-# Print access URLs. Pure-IP-over-tailscale model (2026-08-08): every service
-# has a published host port on this node's tailnet IP. Traefik Host-name routing
-# (*.dev.test) is DORMANT until a DNS layer returns — see edge/dynamic/auth.yml.
+# Print access URLs. Pure-IP-over-tailscale model: every service has a published
+# host port on this node's tailnet IP.
+#
+# Traefik Host-name routing (*.dev.test) is DELETED as of 2026-08-12 — not
+# dormant, not waiting on a DNS layer. Zero Host() rules remain in the router
+# table. A new service publishes a port; it does not declare a name.
 urls:
     #!/usr/bin/env bash
     # Identity is read from tailscale at run time and never stored in this repo:
@@ -152,7 +174,8 @@ urls:
     echo "  Logins: one unified dev login everywhere a login exists — username is"
     echo "  the owner gmail, password = DEV_LOGIN_PASSWORD in the gitignored .env."
     echo ""
-    echo "  <name>.dev.test routing + the Traefik dashboard are DORMANT (no DNS)."
+    echo "  Name-based routing (<name>.dev.test) and the Traefik dashboard were"
+    echo "  DELETED on 2026-08-12 — publish a port, never a Host() rule."
     echo "  Route data is still live at http://$IP/-/api/traefik/http/routers"
     echo ""
     echo "Databases stay off the network (loopback-bound). Reach via ssh tunnel:"

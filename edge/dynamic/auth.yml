@@ -1,53 +1,85 @@
-# DORMANT (2026-08-08): SSO is disabled while the dev.test custom-DNS layer is
-# retired — access control is tailnet membership. Everything below is the
-# working config, commented out, not deleted. To re-enable (needs DNS back:
-# the oauth2-proxy callback is pinned to http://auth.dev.test/oauth2/callback
-# and the GitHub OAuth App accepts exactly that one URL):
-#   1. uncomment this file
-#   2. re-add `sso-errors@file,sso@file` to the routers that had it
-#      (git log this commit for the exact set)
-#   3. docker compose -f auth/compose.yml up -d
+# The SSO middleware chain, and the /oauth2/ routes that make it usable.
 #
-# # The SSO middleware chain, and the /oauth2/ routes that make it usable.
-# #
-# # Attach `sso-errors,sso` (in that order) to any router that should require a
-# # login. Order matters: the request passes through sso-errors on the way in and
-# # the 401 from sso passes back out through it, which is what turns a bare 401
-# # into the sign-in page.
-# 
-# http:
-#   routers:
-#     # Host-less on purpose, exactly like the portal API routes: the sign-in
-#     # flow has to work on whichever hostname the user landed on, otherwise the
-#     # redirect after login arrives at a host with no /oauth2/ handler and 404s.
-#     oauth2-endpoints:
-#       rule: "PathPrefix(`/oauth2/`)"
-#       entryPoints: [web]
-#       priority: 100
-#       service: oauth2-proxy
-# 
-#   services:
-#     oauth2-proxy:
-#       loadBalancer:
-#         servers:
-#           - url: "http://oauth2-proxy:4180"
-# 
-#   middlewares:
-#     # Asks oauth2-proxy for a verdict on every request. 202 lets it through,
-#     # 401 means no valid session.
-#     sso:
-#       forwardAuth:
-#         address: "http://oauth2-proxy:4180/oauth2/auth"
-#         trustForwardHeader: true
-#         authResponseHeaders:
-#           - X-Auth-Request-User
-#           - X-Auth-Request-Email
-# 
-#     # Without this a signed-out user gets a blank 401 with no way forward.
-#     # Traefik fetches the sign-in page from oauth2-proxy and serves it in place
-#     # of the 401, so the login appears at the URL that was actually requested.
-#     sso-errors:
-#       errors:
-#         status: ["401"]
-#         service: oauth2-proxy
-#         query: "/oauth2/sign_in?rd={url}"
+# LIVE again as of 2026-08-12, after being dormant since 2026-08-08. What
+# changed: identity moved from GitHub to a local Keycloak (auth/compose.yml),
+# so the flow no longer depends on the retired *.dev.test name layer — the
+# oauth2-proxy callback is now an IP:port URL and Keycloak issues tokens for
+# that same address.
+#
+# ATTACHED TO NOTHING. Defining these middlewares makes `sso@file` and
+# `sso-errors@file` exist in Traefik; it does not put them in front of anything.
+# Every router on this box is still open to the tailnet, exactly as it was an
+# hour ago. That separation is deliberate:
+#
+#   Attaching auth is the step that can lock you out of the box, and the tools
+#   you would use to unlock it (portal, Grafana, Dozzle) are the very things you
+#   would have just put behind the broken login. So: define here, verify the
+#   login flow end to end against ONE low-stakes router first, and only then
+#   roll it outward.
+#
+# To require a login on a router, add BOTH, in this order:
+#   middlewares: [sso-errors@file, sso@file]
+# Order matters. The request passes through sso-errors on the way in and the 401
+# from sso passes back out through it, which is what turns a bare 401 into the
+# sign-in page. Listed the other way round, a signed-out user gets a blank 401.
+#
+# Before attaching anything, confirm the stack below is actually up:
+#   just up-auth
+#   docker inspect keycloak | jq -r '.[0].State.Health.Status'   # -> healthy
+#
+# NOTE ON THE LINE ABOVE, learned the hard way on 2026-08-12: Traefik renders
+# every file in this directory as a GO TEMPLATE before it parses the YAML, and
+# it does not skip comments. The natural way to write that check is
+# `docker inspect -f` with a doubled-brace format string — and a doubled brace
+# anywhere in this file, comment or not, is evaluated as a template action.
+# It fails with `can't evaluate field State in type bool`, and the failure takes
+# out the WHOLE FILE: no routers, no middlewares, silently, while the file on
+# disk looks perfect. Keep doubled braces out of here entirely; the jq form
+# above exists precisely to avoid them. Single braces (the `{url}` in
+# sso-errors below) are Traefik's own syntax and are fine.
+# If oauth2-proxy is down, `sso` fails closed and the router it guards returns
+# 500 to everyone. That is the correct behaviour for an auth boundary and the
+# reason not to attach it to anything you need in order to fix it.
+
+http:
+  routers:
+    # Host-less on purpose, exactly like the portal API routes: the sign-in
+    # flow has to work on whichever address the user landed on, otherwise the
+    # redirect after login arrives somewhere with no /oauth2/ handler and 404s.
+    #
+    # Under the pure-IP model this router is also what makes the callback URL
+    # work at all: oauth2-proxy publishes no host port, so
+    # http://<box-ip>/oauth2/callback reaches it only through Traefik on :80.
+    # It matches nothing outside the /oauth2/ prefix, so it takes no traffic
+    # away from the portal's catch-all.
+    oauth2-endpoints:
+      rule: "PathPrefix(`/oauth2/`)"
+      entryPoints: [web]
+      priority: 100
+      service: oauth2-proxy
+
+  services:
+    oauth2-proxy:
+      loadBalancer:
+        servers:
+          - url: "http://oauth2-proxy:4180"
+
+  middlewares:
+    # Asks oauth2-proxy for a verdict on every request. 202 lets it through,
+    # 401 means no valid session.
+    sso:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+
+    # Without this a signed-out user gets a blank 401 with no way forward.
+    # Traefik fetches the sign-in page from oauth2-proxy and serves it in place
+    # of the 401, so the login appears at the URL that was actually requested.
+    sso-errors:
+      errors:
+        status: ["401"]
+        service: oauth2-proxy
+        query: "/oauth2/sign_in?rd={url}"
