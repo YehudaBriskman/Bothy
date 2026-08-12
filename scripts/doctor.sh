@@ -39,9 +39,13 @@ else
   # that could only ever fail one way.
   # Credentials go in on STDIN, not on the command line.
   #
-  # `curl -u "$user:$pass"` puts the password in argv, where any other user on
-  # the box can read it out of `ps` or /proc/<pid>/cmdline for as long as the
-  # process lives. This box is single-user so the practical exposure is nil, but
+  # Passing them with curl's inline credential flag puts the password in argv,
+  # where any other user on the box can read it out of `ps` or
+  # /proc/<pid>/cmdline for as long as the process lives. (The pattern is spelled
+  # out nowhere in this file on purpose: gitleaks matches the shape, so writing
+  # the example literally would leave a permanent false positive behind in the
+  # very check that fixed it.)
+  # This box is single-user so the practical exposure is nil, but
   # the habit is the point - and gitleaks flags the pattern, correctly, without
   # being able to tell that these are shell variables rather than a literal.
   # Suppressing the finding would have taught the scanner to stay quiet about the
