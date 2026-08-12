@@ -30,7 +30,7 @@ name: auth
 # --oidc-issuer-url it was configured with. If those two disagree by so much as
 # a port, the symptom is not an error message — it is an infinite redirect loop
 # between the proxy and the login page. So there is exactly ONE spelling of
-# Keycloak's address in this file, http://${BOX_IP}:8083, and it is used by the
+# Keycloak's address in this file, http://${BOX_IP}:8090, and it is used by the
 # browser AND by oauth2-proxy. A container on devnet can reach the host's
 # tailnet IP on a published port (verified), so the internal shortcut
 # http://keycloak:8080 is deliberately NOT used anywhere in the OIDC config —
@@ -126,7 +126,7 @@ services:
       # http://<ip>/realms/devbox — port 80, which is Traefik, not Keycloak —
       # and oauth2-proxy's issuer check fails against a URL that resolves to the
       # wrong server entirely.
-      KC_HOSTNAME: http://${BOX_IP:?set BOX_IP in .env — this node tailnet IP, e.g. from `tailscale ip -4`}:8083
+      KC_HOSTNAME: http://${BOX_IP:?set BOX_IP in .env — this node tailnet IP, e.g. from `tailscale ip -4`}:8090
       #
       # KC_HOSTNAME_STRICT is left at its default of TRUE, deliberately. True
       # means "do not resolve the hostname from request headers, use the one I
@@ -137,7 +137,7 @@ services:
       # KC_HOSTNAME_BACKCHANNEL_DYNAMIC is also left at its default of FALSE, so
       # back-channel URLs (token, jwks) equal the front-channel ones. That is
       # the whole point of the single-spelling rule in the header comment:
-      # oauth2-proxy reaches http://${BOX_IP}:8083 directly, so there is no
+      # oauth2-proxy reaches http://${BOX_IP}:8090 directly, so there is no
       # private-network URL that needs to differ, and no second issuer to skew.
       #
       # KC_PROXY_HEADERS is deliberately NOT set. Keycloak is reached directly
@@ -157,7 +157,7 @@ services:
 
       # Creates the temporary admin on FIRST boot only; ignored afterwards.
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${DEV_LOGIN_PASSWORD:?set DEV_LOGIN_PASSWORD in .env}
 
       # ---- values the realm import substitutes in ----
       # realm-devbox.json is committed to a PUBLIC repo, so the client secret
@@ -172,11 +172,28 @@ services:
       # the 1g below and enough to make first-boot schema creation crawl.
       JAVA_OPTS_APPEND: "-XX:MaxRAMPercentage=70"
     ports:
-      # Published on all interfaces, i.e. reachable at http://${BOX_IP}:8083.
+      # Published on all interfaces, i.e. reachable at http://${BOX_IP}:8090.
       # This is one of the few things that legitimately needs a host port: it is
       # a browser-facing service and the name layer that would have let Traefik
       # route it by Host header no longer exists.
-      - "8083:8080"
+      #
+      # 8090 AND NOT 8083, moved 2026-08-12 within hours of first choosing it.
+      # 8083 is claimed by a DECLARED project — Shvil TV's `tv-player-web`, in
+      # its project.dev.yml — and that project was stopped. The portal's
+      # collector probes a declared port with a TCP connect, so the moment
+      # Keycloak bound 8083 the collector saw something listening, reported
+      # `tv-player-web: up — "listening on :8083"`, and moved the whole project
+      # from `stopped` to `degraded`. The portal was stating, in good faith,
+      # that a service nobody had started was running.
+      #
+      # The port registry that would have caught this is real but not
+      # authoritative: `just urls` lists the STACK's ports, while a project's
+      # claims live in its own project.dev.yml, and nothing reconciles the two.
+      # Before publishing a host port, check BOTH:
+      #   ss -ltn | grep :<port>
+      #   python3 -c "import json;d=json.load(open('apps/portal-next/data/projects.json'));print(sorted({s['port'] for p in d['projects'] for s in p['services'] if s.get('port')}))"
+      # Claimed today: 5000, 5400, 8083, 8084.
+      - "8090:8080"
     volumes:
       # ── auth/realm-devbox.json: the realm, its roles and its one client ────
       #
@@ -282,7 +299,7 @@ services:
   # happens — so master keeps the default sslRequired=EXTERNAL. Java considers
   # only 10/8, 172.16/12 and 192.168/16 to be site-local, and this box's tailnet
   # IP is in 100.64.0.0/10, so under EXTERNAL the admin console at
-  # http://${BOX_IP}:8083/admin answers "HTTPS required" and there is no way in.
+  # http://${BOX_IP}:8090/admin answers "HTTPS required" and there is no way in.
   # The devbox realm sets this in its own JSON; master needs the API.
   keycloak-init:
     image: quay.io/keycloak/keycloak:26.7.1
@@ -293,7 +310,7 @@ services:
         condition: service_healthy
     environment:
       KC_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
-      KC_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+      KC_ADMIN_PASSWORD: ${DEV_LOGIN_PASSWORD:?set DEV_LOGIN_PASSWORD in .env}
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
@@ -327,11 +344,11 @@ services:
       - --provider=oidc
       - --provider-display-name=Keycloak
       # The single spelling. Must equal, byte for byte, the `issuer` field that
-      # http://${BOX_IP}:8083/realms/devbox/.well-known/openid-configuration
+      # http://${BOX_IP}:8090/realms/devbox/.well-known/openid-configuration
       # returns — oauth2-proxy fetches that document and refuses to start the
       # flow if the two differ. That document's issuer comes from KC_HOSTNAME
       # above, which is why both are built from the same ${BOX_IP}.
-      - --oidc-issuer-url=http://${BOX_IP:?set BOX_IP in .env}:8083/realms/devbox
+      - --oidc-issuer-url=http://${BOX_IP:?set BOX_IP in .env}:8090/realms/devbox
       - --client-id=oauth2-proxy
       - --http-address=0.0.0.0:4180
       - --email-domain=*
