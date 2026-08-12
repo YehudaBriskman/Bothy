@@ -24,7 +24,7 @@ export function ServiceTable({
 }) {
   return (
     // tabIndex/role so keyboard users can actually scroll the overflow container
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={label}>
+    <div className="tbl-wrap scroll-shade" tabIndex={0} role="region" aria-label={label}>
       <table className={`tbl svc-tbl ${compact ? 'compact' : ''} ${showGroup ? '' : 'no-group'}`}>
         <thead>
           <tr>

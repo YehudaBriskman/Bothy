@@ -9,6 +9,29 @@
 // Either can die and the page still renders.
 
 export const BASE = 'dev.test';
+
+// ── Pure-IP navigation (2026-08-08) ─────────────────────────────────────────
+// The *.dev.test names are dormant (custom DNS retired), so browsable URLs
+// navigate by PUBLISHED PORT on whichever host the portal was opened from —
+// tailnet IP, MagicDNS name, or localhost all work. A host with no entry here
+// has no published port and is not reachable (url: null). Keep in sync with
+// `just urls` and docs/kb/access.md.
+export const HOST_PORTS: Record<string, number> = {
+  [BASE]: 80,
+  [`grafana.${BASE}`]: 3000, [`prometheus.${BASE}`]: 9090,
+  [`dozzle.${BASE}`]: 8080, [`kafka.${BASE}`]: 8081,
+  [`docs.${BASE}`]: 8085, [`portainer.${BASE}`]: 9000,
+  [`wiki.${BASE}`]: 3001,
+  [`tilt.${BASE}`]: 10350, [`tilt.cvops.${BASE}`]: 10350,
+  [`tals.${BASE}`]: 5173, [`api.tals.${BASE}`]: 3003,
+  [`auth.tals.${BASE}`]: 3002, [`algo.tals.${BASE}`]: 8000,
+};
+
+export function hostUrl(host: string, path = ''): string | null {
+  const port = HOST_PORTS[host];
+  if (port == null) return null;
+  return `http://${location.hostname}${port === 80 ? '' : `:${port}`}${path}`;
+}
 const STACK_ROOT = '/home/devssh/stacks/';
 // 'portal' is the retired pure-HTML portal (still runs the socket-proxy);
 // 'portal-next' is the compose project serving dev.test today. Both are infra —
@@ -82,7 +105,13 @@ export interface Container {
 
 // ── Derived types (what the join produces) ──────────────────────────────────
 
-export type Status = 'up' | 'down' | 'starting' | 'unknown';
+// `stopped` is deliberately NOT a flavour of `down`. Every non-running container
+// used to collapse into `down`, so five projects switched off on purpose rendered
+// as five alerts and "needs a look" could never reach zero on a box where
+// anything was idle. `down` now means "this is meant to be up and isn't" —
+// non-zero exit, restart loop, failing healthcheck. `stopped` means somebody
+// turned it off: a state, not a problem, and never an alert.
+export type Status = 'up' | 'down' | 'starting' | 'stopped' | 'unknown';
 export type Kind = 'routed' | 'orphan-route' | 'unrouted' | 'host';
 
 // What a service *is*, so the domain page can split services into meaningful
@@ -258,6 +287,25 @@ export interface PortalNode {
   uptimeSecs: number | null;
   icon: string;
   desc: string;
+  // Where this service's logs live in Loki. Set for DECLARED services (the
+  // collector knows whether a project tees to a host log file); left undefined
+  // for discovered ones, where logSourceOf() derives it from the container name.
+  logs?: { kind: 'container' | 'host'; selector: string; filter?: string | null } | null;
+}
+
+// The one place that answers "can I read this service's logs, and how".
+//
+// A declared source wins: only the project itself knows that its host processes
+// tee into a shared log file and which prefix belongs to which service. Anything
+// with a container falls back to the container stream, which promtail ships for
+// every container on the box without per-service setup — and which Loki keeps
+// after the container is gone, unlike `docker logs`.
+export function logSourceOf(
+  node: Pick<PortalNode, 'logs' | 'container'>,
+): { kind: 'container' | 'host'; selector: string; filter?: string | null } | null {
+  if (node.logs) return node.logs;
+  const name = node.container?.name;
+  return name ? { kind: 'container', selector: `{container="${name}"}` } : null;
 }
 
 // ── Pure: hostname handling ─────────────────────────────────────────────────
@@ -408,6 +456,19 @@ export function statusOf(container?: Container | null, _kind?: string): Status {
   const s = container.State;
   const stateHealth = s && typeof s === 'object' ? s.Health?.Status : undefined;
   const h = container.Health?.Status ?? stateHealth;
+
+  // STATE IS CHECKED FIRST, and that order is load-bearing. A container that has
+  // stopped keeps its last Health value, and for anything with a healthcheck
+  // that value is `unhealthy` — docker reports a stale verdict, not a failing
+  // check, because nothing is running to probe. Reading health first therefore
+  // called every stopped postgres/redis/garage "down" while a stopped nginx (no
+  // healthcheck, Health.Status "none") correctly came out "stopped": the exact
+  // split observed on this box. Health is only meaningful while it is running.
+  if (typeof s === 'string' && s !== 'running') return stateToStatus(s, container.Status);
+
+  // Health is an OBJECT here - {Status, FailingStreak} - not a string, so
+  // comparing it directly to 'healthy' was always false and every container
+  // fell through to the State check below.
   if (h === 'healthy') return 'up';
   if (h === 'unhealthy') return 'down';
   if (h === 'starting') return 'starting';
@@ -415,8 +476,57 @@ export function statusOf(container?: Container | null, _kind?: string): Status {
   // to 'running' directly was dead whenever the object shape the type permits
   // arrived — every container would have reported 'down'. Narrow first, and say
   // 'unknown' rather than 'down' when there is genuinely nothing to read.
-  if (typeof s === 'string') return s === 'running' ? 'up' : 'down';
+  if (typeof s === 'string') return stateToStatus(s, container.Status);
   return 'unknown';
+}
+
+// /containers/json carries no ExitCode field — only the human `Status` string
+// ("Exited (0) 34 minutes ago", "Exited (137) …"). That string is therefore the
+// ONLY way to tell a clean shutdown from a crash without a per-container
+// inspect, so parse it rather than treating every exit as a failure.
+const EXIT_CODE = /^Exited \((\d+)\)/;
+
+export function exitCodeOf(statusText?: string): number | null {
+  const m = EXIT_CODE.exec(statusText?.trim() ?? '');
+  return m ? Number(m[1]) : null;
+}
+
+export function stateToStatus(state: string, statusText?: string): Status {
+  switch (state) {
+    case 'running':
+      return 'up';
+    // Turned off on purpose. `created` never started, `paused` was suspended by
+    // hand, and `exited` is judged by its code just below.
+    case 'created':
+    case 'paused':
+      return 'stopped';
+    case 'exited': {
+      const code = exitCodeOf(statusText);
+      // Unreadable status text is the only ambiguous case: don't invent a
+      // failure, but don't claim it stopped cleanly either.
+      if (code == null) return 'unknown';
+      // 143 = 128+SIGTERM, i.e. exactly what `docker stop` sends. Landing on 0
+      // vs 143 is a property of the application's shutdown code, not of whether
+      // anything went wrong — redis handles SIGTERM and exits 0, the Keycloak
+      // JVM dies from the signal and exits 143. Reading the second as a failure
+      // made every deliberately-stopped JVM/service light up the dashboard.
+      //
+      // 137 (128+SIGKILL) is deliberately NOT forgiven here, unlike in the
+      // portal-collector: that also means an OOM kill, and /containers/json
+      // carries no OOMKilled field to tell the two apart. The collector has the
+      // flag and can afford the nuance; from here, calling a possible OOM
+      // "stopped" would hide the one crash you most want shouted about.
+      return code === 0 || code === 143 ? 'stopped' : 'down';
+    }
+    // A container that keeps restarting, died, or is stuck mid-removal is the
+    // real "needs a look" population.
+    case 'restarting':
+    case 'dead':
+    case 'removing':
+      return 'down';
+    default:
+      return 'unknown';
+  }
 }
 
 // ── Pure: the join ──────────────────────────────────────────────────────────
@@ -574,7 +684,7 @@ function makeNode({
     host: host || null,
     aliases,
     path,
-    url: host && browsable ? `http://${host}${path}` : null,
+    url: host && browsable ? hostUrl(host, path) : null,
     browsable,
     // hostname nesting BEATS config_files: it's what puts cvops-tilt@file (no
     // container at all) in the CVOps panel. Makes the DNS convention load-bearing.

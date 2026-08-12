@@ -1,30 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronRight, HardDrive, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronRight, HardDrive } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { usePortal, healthOf } from '../lib/data';
 import { groupByType, systemsOf, volumeSize, systemDiskBytes, fmtBytes } from '../lib/systems';
-import { TypeIcon, StatusIcon } from '../lib/icons';
+import { TypeIcon } from '../lib/icons';
 import { ServiceTable } from '../components/ServiceTable';
 import { PortsTab } from '../components/PortsTab';
 import { RoutesTab } from '../components/RoutesTab';
-import { TYPE_META } from '../lib/discover';
-import type { Status, ServiceType } from '../lib/discover';
+import { Tabs, TabPanel } from '../components/Tabs';
 import './Detail.css';
 
-const TYPE_LABEL = Object.fromEntries(
-  (Object.keys(TYPE_META) as ServiceType[]).map((t) => [t, TYPE_META[t].label]),
-) as Record<ServiceType, string>;
-
-const STATUS_ORDER: { key: Exclude<keyof ReturnType<typeof healthOf>, 'total'>; state: Status; label: string }[] = [
-  { key: 'up', state: 'up', label: 'up' },
-  { key: 'starting', state: 'starting', label: 'starting' },
-  { key: 'down', state: 'down', label: 'down' },
-  { key: 'unknown', state: 'unknown', label: 'unknown' },
-];
-
-const STATUSES: Status[] = ['up', 'starting', 'down', 'unknown'];
-const STATUS_LABEL: Record<Status, string> = { up: 'Up', starting: 'Starting', down: 'Down', unknown: 'Unknown' };
 const KIND_LABEL: Record<'project' | 'stack' | 'infra', string> = {
   project: 'Project',
   stack: 'Stack service',
@@ -36,8 +22,9 @@ export function ProjectDetail() {
   const { data } = usePortal();
   const reduce = useReducedMotion();
 
-  const [statusFilter, setStatusFilter] = useState<Set<Status>>(new Set());
-  const [typeFilter, setTypeFilter] = useState<Set<ServiceType>>(new Set());
+  // Which half of the Reachability panel is showing. Not persisted: it is a
+  // view of one page, not a fact about the box.
+  const [reach, setReach] = useState<'routes' | 'ports'>('routes');
 
   // The system rollup owns title, kind, accent and volumes — derive it once so
   // the header, chips and data card all agree.
@@ -52,40 +39,7 @@ export function ProjectDetail() {
   const ports = data.ports.filter((p) => p.group === name);
   const h = healthOf(nodes);
 
-  // Stable set of type chips: every type present in this system, type-ordered.
-  const presentTypes = useMemo(() => groupByType(nodes).map((s) => s.type), [nodes]);
-
-  // Type + status combine; each chip reports its count against the OTHER active
-  // filter (same honest-facet behaviour as the Services filter bar).
-  const { sections, typeCounts, statusCounts } = useMemo(() => {
-    const mStatus = (s: Status) => statusFilter.size === 0 || statusFilter.has(s);
-    const mType = (t: ServiceType) => typeFilter.size === 0 || typeFilter.has(t);
-    const filtered = nodes.filter((n) => mStatus(n.status) && mType(n.serviceType));
-    const sections = groupByType(filtered);
-
-    const typeCounts = new Map<ServiceType, number>();
-    for (const n of nodes) if (mStatus(n.status)) typeCounts.set(n.serviceType, (typeCounts.get(n.serviceType) ?? 0) + 1);
-
-    const statusCounts: Record<Status, number> = { up: 0, starting: 0, down: 0, unknown: 0 };
-    for (const n of nodes) if (mType(n.serviceType)) statusCounts[n.status]++;
-
-    return { sections, typeCounts, statusCounts };
-  }, [nodes, statusFilter, typeFilter]);
-
-  const toggleStatus = (s: Status) =>
-    setStatusFilter((prev) => {
-      const next = new Set(prev);
-      next.has(s) ? next.delete(s) : next.add(s);
-      return next;
-    });
-  const toggleType = (t: ServiceType) =>
-    setTypeFilter((prev) => {
-      const next = new Set(prev);
-      next.has(t) ? next.delete(t) : next.add(t);
-      return next;
-    });
-  const activeFilters = statusFilter.size > 0 || typeFilter.size > 0;
-  const clearAll = () => { setStatusFilter(new Set()); setTypeFilter(new Set()); };
+  const sections = useMemo(() => groupByType(nodes), [nodes]);
 
   const rise = (i: number) =>
     reduce
@@ -134,85 +88,28 @@ export function ProjectDetail() {
       </motion.header>
 
       <div className="dgrid" style={{ marginTop: 18 }}>
-        {/* Health rollup */}
-        <motion.section className="panel span-12" {...rise(panel++)}>
-          <div className="panel-h">Health</div>
-          <div className="panel-b health-roll">
-            <div className="health-big">
-              <span className="n">{h.up}</span>
-              <span className="d">/ {h.total} up</span>
-            </div>
-            <div className="ov-bar" role="img" aria-label={`${h.up} up, ${h.starting} starting, ${h.down} down, ${h.unknown} unknown`}>
-              {STATUS_ORDER.map(({ key, state }) =>
-                h[key] > 0 ? (
-                  <span key={state} className={`seg ${state}`} style={{ width: `${(h[key] / h.total) * 100}%` }} />
-                ) : null,
-              )}
-            </div>
-            <div className="health-tags">
-              {STATUS_ORDER.map(({ key, state, label }) =>
-                h[key] > 0 ? (
-                  <span className="tag" key={state}>
-                    <span className="dot" data-state={state} /> {label} <span className="n">{h[key]}</span>
-                  </span>
-                ) : null,
-              )}
-            </div>
-          </div>
-        </motion.section>
+        {/* The Health panel is DELETED. It restated, in a 156px panel, the
+            "N/M up · N ports · N routes · N volumes" line already printed 60px
+            above it in the header — the same numbers, one bar and a row of
+            tags. A rollup that duplicates its own page subtitle is not a
+            rollup, it is an echo. The header line IS the rollup. */}
 
-        {/* Services — split by type, with a combining type + status filter bar */}
+        {/* Services — split into sections by type. */}
         <motion.section className="panel span-12" {...rise(panel++)}>
           <div className="panel-h">Services <span className="sub">{h.total}</span></div>
           <div className="panel-b">
-            <div className="filter-bar svc-filter">
-              <SlidersHorizontal size={15} className="filters-ico" aria-hidden="true" />
-              <div className="filter-chips">
-                {presentTypes.map((t) => {
-                  const on = typeFilter.has(t);
-                  const n = typeCounts.get(t) ?? 0;
-                  return (
-                    <button
-                      key={t}
-                      className={`chip ${on ? 'on' : ''} ${n === 0 && !on ? 'is-zero' : ''}`}
-                      onClick={() => toggleType(t)}
-                      aria-pressed={on}
-                    >
-                      <TypeIcon type={t} size={13} />
-                      <span className="chip-l">{TYPE_LABEL[t]}</span>
-                      <span className="n">{n}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <span className="filter-div" aria-hidden="true" />
-              <div className="filter-chips">
-                {STATUSES.map((s) => {
-                  const on = statusFilter.has(s);
-                  const n = statusCounts[s];
-                  return (
-                    <button
-                      key={s}
-                      className={`chip ${on ? 'on' : ''} ${n === 0 && !on ? 'is-zero' : ''}`}
-                      onClick={() => toggleStatus(s)}
-                      aria-pressed={on}
-                    >
-                      <StatusIcon status={s} size={13} />
-                      <span className="chip-l">{STATUS_LABEL[s]}</span>
-                      <span className="n">{n}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {activeFilters && (
-                <button className="chip clear" onClick={clearAll}><X size={13} /> Clear</button>
-              )}
-            </div>
-
+            {/* The type + status filter bar is DELETED. It offered up to ten
+                chips to filter a table whose median length on this box is 2
+                rows and whose longest is 6 — the controls were bigger than the
+                data they controlled, and every chip carried a count that was
+                already visible as a row. Type is a SECTION heading below and
+                status is a column; both are readable without filtering. The
+                Services page keeps its filter bar, where 27 rows justify it. */}
             {sections.length === 0 ? (
+              // With no filters left, empty means the system really has nothing
+              // in it — so there is no "clear filters" escape hatch to offer.
               <div className="svc-empty">
-                <p>No services match these filters.</p>
-                <button className="btn ghost sm" onClick={clearAll}>Clear filters</button>
+                <p>No services discovered in this system.</p>
               </div>
             ) : (
               <div className="type-sections">
@@ -240,7 +137,7 @@ export function ProjectDetail() {
               Data <span className="sub">{fmtBytes(totalBytes)}{df ? '' : ' · sizes unavailable'}</span>
             </div>
             <div className="panel-b panel-tbl">
-              <div className="tbl-wrap">
+              <div className="tbl-wrap scroll-shade">
                 <table className="tbl vol-tbl">
                   <thead>
                     <tr>
@@ -267,24 +164,34 @@ export function ProjectDetail() {
           </motion.section>
         )}
 
-        {/* Routes */}
-        {routers.length > 0 && (
+        {/* Reachability — routes and ports in ONE panel.
+            They answer the same question ("how is this reached?") and were two
+            stacked panels of identical shape, so the page asked you to scroll
+            past one to discover whether the other existed. Same merge as the
+            top-level Access page, same reasoning. */}
+        {(routers.length > 0 || ports.length > 0) && (
           <motion.section className="panel span-12" {...rise(panel++)}>
-            <div className="panel-h">Routes <span className="sub">{routers.length}</span></div>
-            {/* compact: this panel is already scoped and counted by its header,
-                so the embedded copy drops its own search box and chips */}
-            <div className="panel-b panel-tbl">
-              <RoutesTab routers={routers} nodes={nodes} compact />
+            <div className="panel-h">
+              Reachability <span className="sub">{routers.length + ports.length}</span>
             </div>
-          </motion.section>
-        )}
-
-        {/* Ports */}
-        {ports.length > 0 && (
-          <motion.section className="panel span-12" {...rise(panel++)}>
-            <div className="panel-h">Ports <span className="sub">{ports.length}</span></div>
             <div className="panel-b panel-tbl">
-              <PortsTab ports={ports} query="" compact />
+              <Tabs
+                label="How this system is reached"
+                value={reach}
+                onChange={(k) => setReach(k as 'routes' | 'ports')}
+                tabs={[
+                  ...(routers.length ? [{ key: 'routes', label: 'Routes', count: routers.length }] : []),
+                  ...(ports.length ? [{ key: 'ports', label: 'Ports', count: ports.length }] : []),
+                ]}
+              />
+              {/* compact: the panel header already scopes and counts these, so
+                  the embedded tables drop their own search box and chips */}
+              <TabPanel tabKey="routes" active={reach === 'routes' && routers.length > 0}>
+                <RoutesTab routers={routers} nodes={nodes} compact />
+              </TabPanel>
+              <TabPanel tabKey="ports" active={reach === 'ports' && ports.length > 0}>
+                <PortsTab ports={ports} query="" compact />
+              </TabPanel>
             </div>
           </motion.section>
         )}

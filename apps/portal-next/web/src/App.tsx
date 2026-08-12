@@ -1,16 +1,15 @@
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { Overview } from './pages/Overview';
 import { Services } from './pages/Services';
 import { ServiceDetail } from './pages/ServiceDetail';
 import { ProjectDetail } from './pages/ProjectDetail';
-import { PortsPage } from './pages/PortsPage';
-import { RoutesPage } from './pages/RoutesPage';
+import { Access } from './pages/Access';
 import { Topology } from './pages/Topology';
 
 // Multi-page, one shared poll (lifted into <DataProvider> in main.tsx). The
-// AppShell is the persistent layout (sidebar + topbar); pages render into its
-// <Outlet>.
+// AppShell is the persistent layout (one topbar — the sidebar was deleted);
+// pages render into its <Outlet>.
 export function App() {
   return (
     <Routes>
@@ -19,8 +18,13 @@ export function App() {
         <Route path="services" element={<Services />} />
         <Route path="services/:id" element={<ServiceDetail />} />
         <Route path="systems/:name" element={<ProjectDetail />} />
-        <Route path="ports" element={<PortsPage />} />
-        <Route path="routes" element={<RoutesPage />} />
+        <Route path="access" element={<Access />} />
+        {/* /ports and /routes were separate pages and are bookmarked — and this
+            is a dashboard people link to from notes and chat, so breaking a
+            deep link is worse than carrying two redirects forever. `replace`
+            keeps the dead URL out of the history stack. */}
+        <Route path="ports" element={<Navigate to="/access?tab=ports" replace />} />
+        <Route path="routes" element={<Navigate to="/access?tab=routes" replace />} />
         <Route path="topology" element={<Topology />} />
         {/* A typo'd deep link used to render the Overview with the bad URL still
             in the bar, so a broken link looked like it had worked. */}

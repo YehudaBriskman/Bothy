@@ -1,0 +1,63 @@
+/* Time-series chart. Grid and axes recede; only the data is at full contrast. */
+
+.tc { position: relative; width: 100%; min-width: 0; }
+.tc-svg { display: block; width: 100%; overflow: visible; touch-action: pan-y; }
+
+/* 1px hairlines at low alpha — a grid you can see is a grid competing with the
+   line it exists to support. */
+.tc-grid { stroke: var(--line); stroke-width: 1; }
+.tc-ytick, .tc-xtick {
+  fill: var(--fg-subtle); font-size: 10px; font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 2px, round joins. Thin enough to read two crossing series, thick enough to
+   hold its hue at 10px of vertical travel. */
+.tc-line {
+  fill: none; stroke: var(--c); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round;
+  /* paint-order matters when two lines overlap: the ring keeps the upper one
+     legible instead of merging the two hues into a third */
+  paint-order: stroke;
+}
+.tc-area { stroke: none; }
+.tc-dot { fill: var(--c); stroke: var(--surface-1); stroke-width: 2; }
+
+.tc-cross { stroke: var(--fg-subtle); stroke-width: 1; stroke-dasharray: 3 3; }
+
+.tc-empty {
+  margin: 0; padding: 26px 10px; text-align: center;
+  color: var(--fg-subtle); font-size: 12px;
+}
+
+/* ── hover readout ─────────────────────────────────────────────────────────
+   Translated -50% so it centres on the crosshair, and clamped by the component
+   so it can never hang off either edge. */
+.tc-readout {
+  position: absolute; top: 2px; translate: -50% 0; pointer-events: none;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px 9px; border-radius: var(--r-sm);
+  background: var(--surface-4); border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-md); white-space: nowrap; z-index: 3;
+}
+.tc-readout-t { font-size: 10.5px; color: var(--fg-subtle); font-family: var(--mono); }
+.tc-readout-row {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--fg-muted);
+}
+.tc-readout-row b {
+  margin-left: auto; padding-left: 10px; color: var(--fg);
+  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px;
+}
+
+/* ── legend ────────────────────────────────────────────────────────────────
+   Present whenever there are ≥2 series — not decoration. The validated palette
+   has one adjacent pair inside the CVD floor band, and a legend plus the
+   end-dot is the non-colour encoding that makes that pair legal. */
+.tc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 4px 2px 0; }
+.tc-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--fg-muted); }
+.tc-leg b {
+  color: var(--fg); font-family: var(--mono); font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.tc-swatch { width: 9px; height: 3px; border-radius: 2px; flex: none; }

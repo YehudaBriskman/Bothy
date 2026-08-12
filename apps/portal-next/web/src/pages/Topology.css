@@ -24,7 +24,7 @@
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--ink-2);
+  color: var(--fg-muted);
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -33,10 +33,10 @@
   cursor: pointer;
   transition: background .16s ease, color .16s ease;
 }
-.topo-view-btn:hover { color: var(--ink); }
+.topo-view-btn:hover { color: var(--fg); }
 .topo-view-btn.is-on {
   color: #fff;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
 }
 
 /* ── the 3D hero: fill the remaining content height ───────────────────────── */
@@ -52,16 +52,16 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--line);
-  border-radius: var(--r);
-  background: var(--surface);
-  color: var(--dim);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  color: var(--fg-subtle);
   font-family: var(--mono);
   font-size: 13px;
   letter-spacing: 0.04em;
 }
 
 /* ── flat map (SVG) interaction polish ────────────────────────────────────── */
-.topo-col { fill: var(--dim); font-size: 11px; font-family: var(--mono); font-weight: 600;
+.topo-col { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); font-weight: 600;
   letter-spacing: 0.08em; text-transform: uppercase; text-anchor: middle; }
 
 .topo-edge { transition: opacity .16s ease, stroke-width .16s ease; }
@@ -73,12 +73,12 @@
 .topo-node-dot { transition: r .16s ease; }
 .topo-node .topo-label { transition: fill .16s ease; }
 .topo-node.on .topo-node-halo { opacity: 0.3; }
-.topo-node.on .topo-label { fill: var(--ink); font-weight: 600; }
+.topo-node.on .topo-label { fill: var(--fg); font-weight: 600; }
 .topo-node:focus-visible .topo-node-halo { opacity: 0.4; }
-.topo-node:focus-visible .topo-node-dot { stroke: var(--primary); stroke-width: 2; }
+.topo-node:focus-visible .topo-node-dot { stroke: var(--accent); stroke-width: 2; }
 
 .topo-ctr .topo-label { transition: fill .16s ease; }
-.topo-ctr.on .topo-label { fill: var(--ink-2); }
+.topo-ctr.on .topo-label { fill: var(--fg-muted); }
 
 @media (max-width: 640px) {
   .topo-3d { height: calc(100vh - 200px); min-height: 380px; }

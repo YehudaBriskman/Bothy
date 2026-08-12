@@ -135,7 +135,7 @@ export function PortsTab({
         </div>
       )}
 
-      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Published ports">
+      <div className="tbl-wrap scroll-shade" tabIndex={0} role="region" aria-label="Published ports">
         <table className="tbl">
           <thead>
             <tr>

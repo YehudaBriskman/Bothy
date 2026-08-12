@@ -11,6 +11,13 @@ services:
       dockerfile: Dockerfile
     container_name: portal-next
     restart: unless-stopped
+    volumes:
+      # Written by the host-side collector (../portal-collector), which resolves
+      # each project's project.dev.yml against real host state. Bind-mounted
+      # rather than baked into the image because it changes every minute and the
+      # image does not. Read-only: the portal renders it, never writes it, and an
+      # absent file simply means no declared projects.
+      - ./data:/usr/share/nginx/html/data:ro
     labels:
       - traefik.enable=true
       - traefik.http.services.portal-next.loadbalancer.server.port=80
@@ -18,14 +25,12 @@ services:
       - traefik.http.routers.portal-next.rule=Host(`dev.test`)
       - traefik.http.routers.portal-next.entrypoints=web
       - traefik.http.routers.portal-next.service=portal-next
-      - traefik.http.routers.portal-next.middlewares=sso-errors@file,sso@file
       # Catch-all so the bare IP + typo'd *.test names land on the portal (below
       # every real Host rule). Mirrors the old portal-fallback.
       - traefik.http.routers.portal-next-fallback.rule=PathPrefix(`/`)
       - traefik.http.routers.portal-next-fallback.priority=1
       - traefik.http.routers.portal-next-fallback.entrypoints=web
       - traefik.http.routers.portal-next-fallback.service=portal-next
-      - traefik.http.routers.portal-next-fallback.middlewares=sso-errors@file,sso@file
     deploy:
       resources:
         limits:

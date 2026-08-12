@@ -110,6 +110,15 @@ psql:
 redis:
     docker exec -it redis redis-cli
 
+# Regenerate the portal's read-only Prometheus route (edge/dynamic/portal-prom.yml).
+#
+# That file carries the basic-auth header the edge injects on the portal's
+# behalf, so it is GITIGNORED and generated from .env rather than committed.
+# Run this on a fresh clone, and again after changing DEV_LOGIN_*. Traefik
+# watches ./dynamic, so no restart is needed.
+portal-prom-route:
+    ./scripts/gen-portal-prom-route.sh
+
 # Print access URLs. Pure-IP-over-tailscale model (2026-08-08): every service
 # has a published host port on this node's tailnet IP. Traefik Host-name routing
 # (*.dev.test) is DORMANT until a DNS layer returns — see edge/dynamic/auth.yml.

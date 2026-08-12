@@ -8,20 +8,20 @@
 /* ── view-controls cluster ──────────────────────────────────────────────── */
 .services-page .view-controls { align-items: center; }
 .services-page .btn.sm { padding: 6px 12px; font-size: 12.5px; }
-.services-page .page-sub .tnum { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.services-page .page-sub .tnum { color: var(--fg); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ── filter bar: facet counts on every control ──────────────────────────── */
-.services-page .filter-bar .filters-ico { color: var(--dim); flex: none; }
+.services-page .filter-bar .filters-ico { color: var(--fg-subtle); flex: none; }
 .services-page .filter-chips .chip { text-transform: none; padding-right: 7px; }
 /* labels are already written the way they should read; capitalize mangled
    "Runtimes & tooling" into "Runtimes & Tooling", disagreeing with the section
    heading right beside it */
 .services-page .filter-chips .chip .n {
-  font-variant-numeric: tabular-nums; color: var(--dim); background: var(--surface);
+  font-variant-numeric: tabular-nums; color: var(--fg-subtle); background: var(--surface-1);
   border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center;
 }
 .services-page .filter-chips .chip.on .n {
-  color: var(--ink); background: color-mix(in srgb, var(--primary) 22%, transparent);
+  color: var(--fg); background: color-mix(in oklab, var(--accent) 22%, transparent);
 }
 .services-page .filter-chips .chip.is-zero { opacity: 0.45; }
 .services-page .filter-select select { font-variant-numeric: tabular-nums; }
@@ -52,7 +52,7 @@
 
 /* ── table rows: the whole row is a click target ────────────────────────── */
 .services-page .svc-tr { cursor: pointer; }
-.services-page .svc-tr:hover .nm-text { color: var(--ink); }
+.services-page .svc-tr:hover .nm-text { color: var(--fg); }
 .services-page .svc-td-link { max-width: 100%; }
 .services-page .svc-tbl th:last-child { width: 40px; }
 

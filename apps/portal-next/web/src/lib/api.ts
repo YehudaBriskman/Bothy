@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { allPorts, merge, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
+import { withDeclared, type CollectorPayload, type CollectorProject } from './projects';
 
 // /system/df — per-image / per-container / per-volume disk usage. Read-only,
 // carries no Env (see edge/dynamic/portal-api.yml). Purely additive enrichment:
@@ -51,20 +52,26 @@ export interface PortalData {
   nodes: PortalNode[];
   ports: PortRow[];
   df: SystemDf | null;
+  // Projects that declared themselves via project.dev.yml, resolved against
+  // host state by the collector. The only source that can report a project
+  // which is switched off, or one running as plain host processes.
+  projects: CollectorProject[];
+  projectsAt: number | null;
   errors: LoadError[];
   at: number;
   fails: number;
-  // Rolling "services up" samples, one per successful poll, newest last. This is
-  // the ONLY time series the portal has — nothing here is persisted or fetched
-  // from a TSDB, so it starts empty and fills as the page stays open. Capped so
-  // a tab left open for days can't grow without bound.
-  history: number[];
+  // `history` is GONE (2026-08-10). It was a 60-sample ring buffer of "services
+  // up", appended once per successful poll and held only in the tab — the
+  // portal's only time series before there was a real one. It fed a sparkline
+  // that therefore read "collecting…" on every fresh load and could not answer
+  // any question about a moment when the tab was closed. lib/metrics.ts now
+  // queries Prometheus, which has actual history, so both were deleted rather
+  // than left as a second, worse source of the same kind of answer.
 }
 
-export const HISTORY_MAX = 60;
-
 const EMPTY: PortalData = {
-  routers: [], nodes: [], ports: [], df: null, errors: [], at: 0, fails: 0, history: [],
+  routers: [], nodes: [], ports: [], df: null, projects: [], projectsAt: null,
+  errors: [], at: 0, fails: 0,
 };
 
 class HttpError extends Error {
@@ -88,6 +95,8 @@ export interface LoadResult {
   nodes: PortalNode[];
   ports: PortRow[];
   df: SystemDf | null;
+  projects: CollectorProject[];
+  projectsAt: number | null;
   errors: LoadError[];
 }
 
@@ -98,11 +107,15 @@ export async function loadAll(): Promise<LoadResult> {
     // allSettled, not all: partial results are first-class. Traefik is the
     // skeleton, docker is enrichment — either can die alone. df is the LEAST
     // critical: a pure size overlay, its failure never removes a service.
-    const [routers, services, containers, df] = await Promise.allSettled([
+    const [routers, services, containers, df, projects] = await Promise.allSettled([
       getJSON<Router[]>('/-/api/traefik/http/routers', ac.signal),
       getJSON<Service[]>('/-/api/traefik/http/services', ac.signal),
       getJSON<Container[]>('/-/api/docker/containers/json', ac.signal),
       getJSON<SystemDf>('/-/api/docker/system/df', ac.signal),
+      // Static file written by the host-side collector and bind-mounted into
+      // this container — NOT an /-/api/* route, so it needs no edge config and
+      // its absence (collector not installed yet) is a normal, silent no-op.
+      getJSON<CollectorPayload>('/data/projects.json', ac.signal),
     ]);
     const errors: LoadError[] = [];
     const R = routers.status === 'fulfilled' ? routers.value : (errors.push({ src: 'traefik', e: routers.reason }), []);
@@ -113,8 +126,20 @@ export async function loadAll(): Promise<LoadResult> {
     // df failing is intentionally silent-ish: record it, but never let it fail
     // the load. Sizes just don't render.
     const D = df.status === 'fulfilled' ? df.value : (errors.push({ src: 'docker df', e: df.reason }), null);
+    // Deliberately NOT pushed to `errors`: a box with no collector installed is
+    // a supported configuration, and flagging it would put a permanent warning
+    // on the page for a feature nobody asked for.
+    const P = projects.status === 'fulfilled' ? projects.value : null;
     if (!R.length && !C.length) throw new Error('both APIs unreachable');
-    return { routers: R, nodes: merge(R, S, C), ports: allPorts(C), df: D, errors };
+    return {
+      routers: R,
+      nodes: withDeclared(merge(R, S, C), P?.projects ?? []),
+      ports: allPorts(C),
+      df: D,
+      projects: P?.projects ?? [],
+      projectsAt: P?.generatedAt ?? null,
+      errors,
+    };
   } finally {
     clearTimeout(t);
   }
@@ -144,12 +169,10 @@ export function usePortalData(): { data: PortalData; refresh: () => void } {
         const d = await loadAll();
         if (cancelled) return;
         failsRef.current = 0;
-        const up = d.nodes.filter((n) => n.status === 'up').length;
-        setData((prev) => ({
+        setData(() => ({
           ...d,
           at: Date.now(),
           fails: 0,
-          history: [...prev.history, up].slice(-HISTORY_MAX),
         }));
       } catch {
         if (cancelled) return;

@@ -19,6 +19,7 @@ and the machines around it. Built 2026-08-02 from the July audit + the August in
 | [runbook-post-reboot.md](runbook-post-reboot.md) | What to do after the Windows host reboots |
 | [known-issues.md](known-issues.md) | Open items, deliberate tradeoffs, and things that look broken but aren't |
 | [lessons.md](lessons.md) | Debugging principles paid for in blood, incl. every wrong conclusion we corrected |
+| [../brand/README.md](../brand/README.md) | The design & brand system: a 184-item checklist for any website, plus the tokens, rules and dead ends behind the Bothy portal |
 | [incidents/2026-07-21-wsl-idle-timeout.md](incidents/2026-07-21-wsl-idle-timeout.md) | "Only works while SSH'd in" — WSL VM 60s idle kill |
 | [incidents/2026-08-01-ethernet-ndis.md](incidents/2026-08-01-ethernet-ndis.md) | Host NIC/NDIS pause-wedge, DHCP death, LAN IP change |
 | [incidents/2026-08-02-thinkpad-tailscale.md](incidents/2026-08-02-thinkpad-tailscale.md) | Laptop's half-upgraded tailscaled: tunnel green, all traffic dead |
