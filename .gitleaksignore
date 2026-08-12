@@ -1,0 +1,23 @@
+# Reviewed gitleaks findings.
+#
+# Each line is a FINGERPRINT: <commit>:<file>:<rule>:<line>. That is deliberately
+# the narrowest possible suppression - it pins one finding in one historical
+# commit. It does NOT disable the rule, so the same pattern appearing anywhere
+# else, in any future commit, still fails CI. Never add a bare rule name here.
+#
+# Nothing goes in this file that was not actually looked at and understood.
+
+# `curl -u "${DEV_LOGIN_USER}:${DEV_LOGIN_PASSWORD}"` in scripts/doctor.sh.
+#
+# Shell variable interpolation, not a literal credential - the values come from
+# .env, which is gitignored. gitleaks matches the SHAPE of the flag and cannot
+# tell the two apart, which is the right trade for a secret scanner to make.
+#
+# It was still worth acting on rather than just silencing: the inline credential
+# flag puts the password in argv, readable by any other user on the box via `ps`
+# or /proc/<pid>/cmdline. HEAD no longer does this - the credentials are passed
+# on stdin via `--config -`. This entry exists only because the branch's own
+# history still contains the commit that introduced the line, and rewriting a
+# published branch to hide a reviewed false positive is a worse trade than
+# recording it here.
+ea73096a783531974990e9959d8c4f6a8c0663e1:scripts/doctor.sh:curl-auth-user:37
