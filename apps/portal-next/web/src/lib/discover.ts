@@ -349,6 +349,61 @@ export function resolveEdges(nodes: PortalNode[]): ResolvedEdge[] {
   return out;
 }
 
+/**
+ * OpenTelemetry resource attributes for a node — the vocabulary the rest of the
+ * box already speaks.
+ *
+ * semconv defines `service.namespace` as "an entire system of components", which
+ * is precisely what a compose project is, and `service.name` as the logical
+ * component. This is not tidiness for its own sake: cAdvisor already exports
+ * `container_label_com_docker_compose_project` and `_service` on EVERY series,
+ * and promtail already ships the project as Loki's `stack` label. The join key
+ * has existed on both backends the whole time, unused, while the portal joined
+ * by container name instead.
+ *
+ * Returns null when the node has no compose identity (a `docker run` orphan, or
+ * a declared host process). Callers must fall back rather than query for an
+ * empty namespace, which would match everything.
+ */
+export function resourceAttrs(node: PortalNode): {
+  'service.namespace': string;
+  'service.name': string;
+  'service.instance.id'?: string;
+} | null {
+  const L = node.container?.labels;
+  const ns = L?.['com.docker.compose.project'];
+  const name = L?.['com.docker.compose.service'];
+  if (!ns || !name) return null;
+  return {
+    'service.namespace': ns,
+    'service.name': name,
+    ...(node.container?.id ? { 'service.instance.id': node.container.id } : {}),
+  };
+}
+
+/**
+ * The compose project shared by a set of nodes, or null if they disagree.
+ *
+ * Used to decide whether a whole system can be queried by ONE namespace label
+ * instead of an alternation of container names. Disagreement is normal and not
+ * an error — the `unmanaged` group is a bag of unrelated `docker run` containers
+ * by definition, and a group holding declared host processes has no compose
+ * project at all. Both must fall back to naming things individually.
+ */
+export function sharedNamespace(nodes: PortalNode[]): string | null {
+  let ns: string | null = null;
+  for (const n of nodes) {
+    const a = resourceAttrs(n);
+    // A node with no compose identity cannot vouch for the group: if any node
+    // would be MISSED by a namespace query, the query is not equivalent to the
+    // list and must not be substituted for it.
+    if (!a) return null;
+    if (ns === null) ns = a['service.namespace'];
+    else if (ns !== a['service.namespace']) return null;
+  }
+  return ns;
+}
+
 /** Human wording for a compose `depends_on` condition. */
 export function conditionLabel(condition: string): string {
   if (condition === 'service_healthy') return 'to be healthy';

@@ -14,7 +14,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Cpu, ExternalLink, HardDrive, MemoryStick, Workflow } from 'lucide-react';
-import { conditionLabel, resolveEdges } from '../lib/discover';
+import { conditionLabel, resolveEdges, sharedNamespace } from '../lib/discover';
 import type { System } from '../lib/systems';
 import { fmtBytes, fmtUptime } from '../lib/systems';
 import { serviceLink, systemLink } from '../lib/links';
@@ -44,24 +44,42 @@ export function SystemDialog({
   );
   const matcher = names.map((n) => promQuote(n).replace(/[.+*?()|[\]{}^$\\]/g, '\\$&')).join('|');
 
-  const specs = useMemo(
-    () =>
-      matcher
-        ? [
-            {
-              key: 'cpu',
-              query: `sum by (name) (rate(container_cpu_usage_seconds_total{name=~"${matcher}"}[2m]))`,
-              labelKeys: ['name'],
-            },
-            {
-              key: 'mem',
-              query: `sum by (name) (container_memory_working_set_bytes{name=~"${matcher}"})`,
-              labelKeys: ['name'],
-            },
-          ]
-        : [],
-    [matcher],
-  );
+  // Prefer the namespace label over an alternation of container names.
+  //
+  // cAdvisor exports container_label_com_docker_compose_project on every series
+  // — it has been there the whole time and nothing queried it. It is the same
+  // key semconv calls service.namespace, and it beats the name list on every
+  // axis: one label instead of an N-term regex that grows with the system and
+  // needs escaping; correct when a container is renamed or replaced; and it
+  // still finds containers this page has not discovered, which is exactly the
+  // blind spot a control plane must not have.
+  //
+  // Falls back to names when the group has no single compose project — the
+  // `unmanaged` bag of `docker run` orphans, and any group holding declared host
+  // processes. A namespace query there would silently return a DIFFERENT set
+  // than the rows above it, which is worse than the clumsier query.
+  const ns = useMemo(() => sharedNamespace(system?.nodes ?? []), [system]);
+
+  const specs = useMemo(() => {
+    const sel = ns
+      ? `container_label_com_docker_compose_project="${promQuote(ns)}"`
+      : matcher
+        ? `name=~"${matcher}"`
+        : null;
+    if (!sel) return [];
+    return [
+      {
+        key: 'cpu',
+        query: `sum by (name) (rate(container_cpu_usage_seconds_total{${sel}}[2m]))`,
+        labelKeys: ['name'],
+      },
+      {
+        key: 'mem',
+        query: `sum by (name) (container_memory_working_set_bytes{${sel}})`,
+        labelKeys: ['name'],
+      },
+    ];
+  }, [ns, matcher]);
   // 15m at a coarse step: this only ever reads the LAST point, so a long window
   // would be bytes on the wire for samples nothing renders.
   const { series, state } = useMetrics(specs, '15m', 60_000);

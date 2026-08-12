@@ -18,7 +18,10 @@
 //      that reported a stopped `tv-player-web` as running because Keycloak
 //      happened to hold its port.
 
-import { dependsOnOf, declaredOneShots, resolveEdges, conditionLabel } from './discover.mjs';
+import {
+  dependsOnOf, declaredOneShots, resolveEdges, conditionLabel,
+  resourceAttrs, sharedNamespace,
+} from './discover.mjs';
 
 let bad = 0;
 const check = (label, got, want) => {
@@ -124,6 +127,39 @@ check('unmanaged container produces no edges',
   resolveEdges([{ id: 'x', name: 'orphan', container: { labels: {} }, dependsOn: [] }]), []);
 check('node with no container at all produces no edges',
   resolveEdges([{ id: 'x', name: 'route-only', container: null, dependsOn: [] }]), []);
+
+console.log('\n── semconv identity ────────────────────────────────────');
+
+const node = (project, service, id) => ({
+  id: id ?? `${project}-${service}`, name: service,
+  container: id === null ? null : { id: id ?? 'abc123', labels: ctr(project, service).Labels },
+  dependsOn: [],
+});
+
+check('a compose container has a namespace and a name',
+  resourceAttrs(node('monitoring', 'grafana', 'deadbeef1234')),
+  { 'service.namespace': 'monitoring', 'service.name': 'grafana', 'service.instance.id': 'deadbeef1234' });
+// An unmanaged container has no compose identity. Returning a partial object
+// here would let a caller build a query for namespace "" — which on this box
+// matches a bag of unrelated containers AND misses two of the five it claims to
+// cover. null forces the caller to fall back instead.
+check('unmanaged container has no semconv identity',
+  resourceAttrs({ id: 'x', name: 'orphan', container: { id: 'a', labels: {} }, dependsOn: [] }), null);
+check('route-only node has no semconv identity',
+  resourceAttrs({ id: 'x', name: 'route', container: null, dependsOn: [] }), null);
+
+check('a uniform system shares one namespace',
+  sharedNamespace([node('auth', 'keycloak'), node('auth', 'oauth2-proxy')]), 'auth');
+check('a mixed system shares none',
+  sharedNamespace([node('auth', 'keycloak'), node('monitoring', 'grafana')]), null);
+// The load-bearing one: ONE node without a compose identity poisons the whole
+// group, because a namespace query would silently return a different set than
+// the rows it sits under. Substituting a query that is merely SIMILAR is the
+// same error as identifying a service by its port.
+check('one unmanaged node disqualifies the whole group',
+  sharedNamespace([node('auth', 'keycloak'), { id: 'x', name: 'orphan', container: { id: 'a', labels: {} }, dependsOn: [] }]),
+  null);
+check('empty group has no namespace', sharedNamespace([]), null);
 
 console.log('\n── wording ─────────────────────────────────────────────');
 check('healthy', conditionLabel('service_healthy'), 'to be healthy');
