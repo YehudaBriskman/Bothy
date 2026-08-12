@@ -1,68 +1,417 @@
 name: auth
 
-# Single sign-on for the dashboards that have no authentication of their own.
+# The identity layer for this box: Keycloak issues the identity, oauth2-proxy
+# translates it into something Traefik can ask a yes/no question of.
 #
-# Dozzle serves every container's logs, Kafka-UI runs with DYNAMIC_CONFIG_ENABLED,
-# Prometheus accepts POST /-/quit, and the Traefik dashboard exposes /api/rawdata.
-# All of them were reachable by anything that could reach the tailnet. This puts
-# a GitHub login in front of them without touching the apps themselves.
+#   Traefik --forwardAuth--> oauth2-proxy --OIDC--> Keycloak
 #
-# GitHub rather than Google as the provider for one concrete reason: Google
-# rejects http:// redirect URIs, which would force TLS, and TLS on *.dev.test
-# means a private CA installed on every device. Traffic here is already inside
-# WireGuard, so plaintext on the wire is not the exposure it would be on a LAN.
+# WHY KEYCLOAK RATHER THAN GITHUB (changed 2026-08-12). The previous version of
+# this file used --provider=github. That worked, but identity came from an
+# account on someone else's server, it could only ever answer "is this
+# YehudaBriskman", and there was nowhere to put the notion of a *role*. Keycloak
+# owns the users, the roles and the login flow locally, so authorisation becomes
+# configuration in this repo (auth/realm-devbox.json) instead of a checkbox on
+# github.com. It also survives the box being offline from the internet.
+#
+# NOTHING IS ENFORCED YET. The middlewares in edge/dynamic/auth.yml are defined
+# and live again, but they are attached to NO router. Attaching them is a
+# separate, deliberate step — get it wrong and the portal and every dashboard
+# become unreachable, on the box that is also how you would fix it.
+#
+# ── The one thing to understand before editing anything here ────────────────
+# The *.dev.test name layer was retired on 2026-08-12. There is no DNS. Every
+# URL below is built from ${BOX_IP}, this node's tailnet IP, which lives in the
+# gitignored .env because the repo is public and the node IP identifies the
+# owner's tailnet (same reasoning as `just urls`).
+#
+# Keycloak validates and re-advertises its own address: whatever KC_HOSTNAME
+# says becomes the `issuer` in the discovery document and inside every token.
+# oauth2-proxy independently checks that the issuer it gets back equals the
+# --oidc-issuer-url it was configured with. If those two disagree by so much as
+# a port, the symptom is not an error message — it is an infinite redirect loop
+# between the proxy and the login page. So there is exactly ONE spelling of
+# Keycloak's address in this file, http://${BOX_IP}:8083, and it is used by the
+# browser AND by oauth2-proxy. A container on devnet can reach the host's
+# tailnet IP on a published port (verified), so the internal shortcut
+# http://keycloak:8080 is deliberately NOT used anywhere in the OIDC config —
+# it would be a second spelling, and a second spelling is the bug.
 
 services:
+
+  # ── 1. Database bootstrap ──────────────────────────────────────────────────
+  # Keycloak needs its own database. Per the standing rule that the dev stack
+  # provides what projects don't ship, this uses the EXISTING shared postgres
+  # rather than shipping a second one — but that postgres has a populated data
+  # volume, so its docker-entrypoint-initdb.d hook will never run again. The
+  # database therefore has to be created against a running server, and this
+  # one-shot is where that happens, so a fresh clone needs no manual psql.
+  #
+  # Idempotent by construction: it is safe to re-run on every `just up-auth`,
+  # which is exactly what happens. It also re-asserts the password each time, so
+  # rotating KEYCLOAK_DB_PASSWORD in .env and running `just up-auth` is the
+  # whole rotation procedure.
+  #
+  # Separate `keycloak` role rather than reusing POSTGRES_USER: same precedent
+  # as apps/wiki, and it keeps Keycloak's tables out of reach of every other
+  # thing that holds the shared dev credential.
+  keycloak-db-init:
+    image: postgres:17          # same major as the server it talks to
+    container_name: keycloak-db-init
+    restart: "no"
+    environment:
+      # postgres lives in a different compose project, so depends_on cannot
+      # reach it; the script waits on pg_isready instead.
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-dev}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      PGDATABASE: ${POSTGRES_DB:-dev}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set KEYCLOAK_DB_PASSWORD in .env}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        for i in $$(seq 1 60); do pg_isready -q && break; sleep 1; done
+        pg_isready -q
+        psql -v ON_ERROR_STOP=1 -v pw="$$KC_DB_PASSWORD" <<'SQL'
+        -- \gexec runs the string the SELECT produced, and the SELECT produces
+        -- nothing when the object already exists. That is the standard way to
+        -- get CREATE ... IF NOT EXISTS semantics for roles and databases,
+        -- neither of which supports the clause.
+        SELECT format('CREATE ROLE keycloak LOGIN PASSWORD %L', :'pw')
+        WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'keycloak')\gexec
+        ALTER ROLE keycloak WITH LOGIN PASSWORD :'pw';
+        SELECT 'CREATE DATABASE keycloak OWNER keycloak'
+        WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'keycloak')\gexec
+        SQL
+        echo "keycloak role + database present"
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks: [devnet]
+
+  # ── 2. Keycloak — the identity provider ────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.1   # pinned: never `latest` on the auth boundary
+    container_name: keycloak
+    restart: unless-stopped
+    depends_on:
+      keycloak-db-init:
+        condition: service_completed_successfully
+    # `start`, not `start-dev`: start-dev forces an in-memory H2 database and
+    # ignores the KC_DB_* settings below, so every restart would silently lose
+    # every user. --import-realm reads /opt/keycloak/data/import/*.json once, at
+    # first boot; it is skipped if the realm already exists, so it is safe on
+    # every subsequent start but is NOT how you apply an edit to the realm file
+    # (see the note on the volume below).
+    command: ["start", "--import-realm"]
+    environment:
+      # ---- database ----
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set KEYCLOAK_DB_PASSWORD in .env}
+
+      # ---- hostname: the setting that decides whether any of this works ----
+      #
+      # Keycloak 26 uses "hostname v2". KC_HOSTNAME is given as a COMPLETE URL
+      # including scheme and port, and that exact string becomes the base of
+      # every front-channel URL: the `issuer` field, the authorization endpoint,
+      # and the issuer claim inside every token. Setting it explicitly is what
+      # makes the issuer deterministic; the alternative (deriving it from the
+      # inbound Host header) is how a token ends up issued by whatever hostname
+      # an attacker put in a header.
+      #
+      # The port MUST be here. Omit it and Keycloak advertises
+      # http://<ip>/realms/devbox — port 80, which is Traefik, not Keycloak —
+      # and oauth2-proxy's issuer check fails against a URL that resolves to the
+      # wrong server entirely.
+      KC_HOSTNAME: http://${BOX_IP:?set BOX_IP in .env — this node tailnet IP, e.g. from `tailscale ip -4`}:8083
+      #
+      # KC_HOSTNAME_STRICT is left at its default of TRUE, deliberately. True
+      # means "do not resolve the hostname from request headers, use the one I
+      # configured" — precisely the guarantee that keeps the issuer stable no
+      # matter which address the request arrived on. It is not the more
+      # permissive setting despite the name reading that way.
+      #
+      # KC_HOSTNAME_BACKCHANNEL_DYNAMIC is also left at its default of FALSE, so
+      # back-channel URLs (token, jwks) equal the front-channel ones. That is
+      # the whole point of the single-spelling rule in the header comment:
+      # oauth2-proxy reaches http://${BOX_IP}:8083 directly, so there is no
+      # private-network URL that needs to differ, and no second issuer to skew.
+      #
+      # KC_PROXY_HEADERS is deliberately NOT set. Keycloak is reached directly
+      # on its published port, not through Traefik. Trusting X-Forwarded-* with
+      # no proxy in front to overwrite them lets any client rewrite the URLs
+      # Keycloak generates.
+      #
+      # Required because there is no TLS: without it `start` refuses to boot
+      # over plain HTTP. The transport is WireGuard; see realm-devbox.json's
+      # note on sslRequired for the rest of that argument.
+      KC_HTTP_ENABLED: "true"
+
+      # /health/* and /metrics on the management port 9000, which is NOT
+      # published — only the healthcheck below and (later) Prometheus on devnet.
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+
+      # Creates the temporary admin on FIRST boot only; ignored afterwards.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+
+      # ---- values the realm import substitutes in ----
+      # realm-devbox.json is committed to a PUBLIC repo, so the client secret
+      # and the tailnet-IP-bearing redirect URI are placeholders in that file
+      # and arrive here from the gitignored .env. Names deliberately do NOT
+      # start with KC_ — Keycloak treats KC_* environment variables as its own
+      # configuration options and an unrecognised one is a startup failure.
+      DEVBOX_OAUTH2_CLIENT_SECRET: ${KEYCLOAK_OAUTH2_CLIENT_SECRET:?set KEYCLOAK_OAUTH2_CLIENT_SECRET in .env}
+      DEVBOX_OAUTH2_REDIRECT_URI: http://${BOX_IP:?set BOX_IP in .env}/oauth2/callback
+
+      # The JVM defaults to a quarter of the container limit, which is 256m of
+      # the 1g below and enough to make first-boot schema creation crawl.
+      JAVA_OPTS_APPEND: "-XX:MaxRAMPercentage=70"
+    ports:
+      # Published on all interfaces, i.e. reachable at http://${BOX_IP}:8083.
+      # This is one of the few things that legitimately needs a host port: it is
+      # a browser-facing service and the name layer that would have let Traefik
+      # route it by Host header no longer exists.
+      - "8083:8080"
+    volumes:
+      # ── auth/realm-devbox.json: the realm, its roles and its one client ────
+      #
+      # Read at FIRST BOOT ONLY. If the realm already exists the import is
+      # silently skipped, so editing that file and restarting does nothing. To
+      # actually reapply it: delete the realm in the admin console, or
+      # (destructive, dev only) drop the keycloak database and let
+      # keycloak-db-init recreate it.
+      #
+      # JSON has no comments and Keycloak REJECTS unknown fields — a "_comment"
+      # key anywhere in it fails the import with `Unrecognized field ... not
+      # marked as ignorable` and the container then crashloops. (Confirmed the
+      # hard way, 2026-08-12.) So the reasoning that would have been inline
+      # lives here instead:
+      #
+      # * sslRequired=NONE is load-bearing, not laziness. The default,
+      #   'external', permits plain HTTP only for addresses Java calls
+      #   site-local — 10/8, 172.16/12, 192.168/16. This box is reached on its
+      #   tailnet IP in 100.64.0.0/10 (RFC 6598 shared address space), which is
+      #   NOT site-local, so under 'external' Keycloak answers every request
+      #   with "HTTPS required" and the login flow dies before it starts. The
+      #   transport is WireGuard either way. Revisit if anything here is ever
+      #   reachable off the tailnet.
+      #
+      # * The four roles are flat and deliberately NON-composite. 'shell' grants
+      #   an arbitrary terminal, so it must never be reachable by holding one of
+      #   the other three — composites are how that happens by accident.
+      #
+      # * There is deliberately no defaultRole block, so Keycloak builds
+      #   default-roles-devbox from its own built-ins and none of the four is in
+      #   it: a new user lands with zero capability and is granted roles
+      #   explicitly. Do not hand-write that block — Keycloak's built-in role
+      #   descriptions contain dollar-brace i18n placeholders, and every
+      #   dollar-brace expression in this file is expanded against the
+      #   ENVIRONMENT at import time, so a copied-in block fails the import.
+      #
+      # * That same expansion is what fills in the client secret and the
+      #   redirect URI from DEVBOX_OAUTH2_* above — the literal values must
+      #   never appear in the file, which is committed to a public repo (the
+      #   secret for the obvious reason, the redirect URI because it embeds the
+      #   tailnet IP).
+      #
+      # * The realm-roles-as-groups protocol mapper exists because Keycloak puts
+      #   realm roles at realm_access.roles, which is nested, while
+      #   oauth2-proxy's --oidc-groups-claim reads a FLAT claim. Without the
+      #   mapper, `--allowed-group=operator` silently matches nothing.
+      #
+      # * STEP-UP / RE-AUTH FOR 'shell' — the acr.loa.map realm attribute
+      #   ({"standard":1,"stepup":2}) is the half that is pure configuration and
+      #   is already in the file; it is inert on its own. Enforcement is a
+      #   separate deliberate step because it needs an authentication flow:
+      #     1. copy the built-in 'browser' flow to 'browser-stepup';
+      #     2. add a subflow whose condition is
+      #        'Condition - Level of Authentication' with loa-condition-level=2,
+      #        containing an OTP form;
+      #     3. bind 'browser-stepup' as the realm's browser flow;
+      #     4. set the same acr.loa.map as a client attribute so the client may
+      #        request it;
+      #     5. have whatever guards the shell send acr_values=stepup on the
+      #        authorize request — which in practice means a SECOND oauth2-proxy
+      #        instance dedicated to that route, since --acr-values is per
+      #        instance and this one is shared by everything.
+      #   Keycloak then forces a fresh second factor whenever the session's acr
+      #   is below 2, and stamps acr=stepup in the resulting id_token so the
+      #   guard can verify the step-up actually happened rather than trusting
+      #   the role claim alone.
+      - ./realm-devbox.json:/opt/keycloak/data/import/realm-devbox.json:ro
+    healthcheck:
+      # The image is UBI-micro: no curl, no wget. It does have bash, so this
+      # talks HTTP over bash's /dev/tcp to the management port. Every
+      # curl-based healthcheck example for this image fails with "not found"
+      # and leaves the container in `health: starting` forever.
+      #
+      # Checking for DOWN *first* is the point. /health/ready returns an
+      # aggregate status plus a `checks` array, and the sub-checks report their
+      # own status — so a naive `grep '"status": "UP"'` matches a healthy
+      # SUB-check inside an overall-DOWN response and reports the container
+      # healthy while Keycloak is crashlooping. That is not hypothetical; it
+      # masked a failing realm import for several minutes on 2026-08-12.
+      test:
+        - CMD-SHELL
+        - >-
+          R=$$(exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          cat <&3) || exit 1;
+          case "$$R" in *DOWN*) exit 1;; *'"status": "UP"'*) exit 0;; *) exit 1;; esac
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      # First boot builds the Quarkus augmentation AND creates the schema.
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    networks: [devnet]
+
+  # ── 3. Post-import fixes that the realm file cannot express ────────────────
+  # One-shot, idempotent, runs after Keycloak is healthy.
+  #
+  # It exists for the `master` realm. A realm import file can only configure the
+  # realm it defines, and master is created by Keycloak itself before any import
+  # happens — so master keeps the default sslRequired=EXTERNAL. Java considers
+  # only 10/8, 172.16/12 and 192.168/16 to be site-local, and this box's tailnet
+  # IP is in 100.64.0.0/10, so under EXTERNAL the admin console at
+  # http://${BOX_IP}:8083/admin answers "HTTPS required" and there is no way in.
+  # The devbox realm sets this in its own JSON; master needs the API.
+  keycloak-init:
+    image: quay.io/keycloak/keycloak:26.7.1
+    container_name: keycloak-init
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KC_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        # Over devnet by container name, NOT the tailnet IP: this leg has to
+        # work BEFORE the sslRequired fix is applied, and a 172.x address is
+        # site-local so EXTERNAL still permits plain HTTP to it. It is an
+        # admin-API call, not part of any OIDC flow, so it does not violate the
+        # single-spelling rule that governs the issuer.
+        /opt/keycloak/bin/kcadm.sh config credentials \
+          --server http://keycloak:8080 --realm master \
+          --user "$$KC_ADMIN_USER" --password "$$KC_ADMIN_PASSWORD"
+        /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE
+        echo "master realm: sslRequired=NONE (plain HTTP admin console over the tailnet)"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks: [devnet]
+
+  # ── 4. oauth2-proxy — the thing Traefik actually talks to ──────────────────
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3   # pinned: it is the auth boundary
     container_name: oauth2-proxy
     restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_healthy
     command:
-      - --provider=github
+      # --- provider: github -> oidc (2026-08-12) ---
+      - --provider=oidc
+      - --provider-display-name=Keycloak
+      # The single spelling. Must equal, byte for byte, the `issuer` field that
+      # http://${BOX_IP}:8083/realms/devbox/.well-known/openid-configuration
+      # returns — oauth2-proxy fetches that document and refuses to start the
+      # flow if the two differ. That document's issuer comes from KC_HOSTNAME
+      # above, which is why both are built from the same ${BOX_IP}.
+      - --oidc-issuer-url=http://${BOX_IP:?set BOX_IP in .env}:8083/realms/devbox
+      - --client-id=oauth2-proxy
       - --http-address=0.0.0.0:4180
-      # Only this GitHub account may sign in. Without it any GitHub user on
-      # earth who reaches the login page would be allowed straight through.
-      - --github-user=YehudaBriskman
       - --email-domain=*
-      # Sessions are shared across every *.dev.test host, so one sign-in covers
-      # all of them and the redirect back from GitHub is allowed to land there.
-      - --cookie-domain=.dev.test
-      - --whitelist-domain=.dev.test
-      # No TLS on .dev.test, so a Secure cookie would never be sent back and the
-      # login loop would never terminate. Safe only because the tailnet is the
+      # PKCE is enforced on the Keycloak client side too
+      # (pkce.code.challenge.method=S256 in realm-devbox.json). Both ends or
+      # neither — enforcing it on only one produces a 400 at the token step.
+      - --code-challenge-method=S256
+      - --scope=openid email profile
+
+      # Keycloak users created by hand have emailVerified=false, and
+      # oauth2-proxy rejects an unverified email outright. The failure surfaces
+      # as a bare "Internal Error" after a *successful* Keycloak login, which
+      # sends you debugging the wrong half of the system. Tick "Email verified"
+      # on each user and this can go.
+      - --insecure-oidc-allow-unverified-email=true
+
+      # --- where the browser comes back to ---
+      # Port 80 = Traefik, which carries the host-less PathPrefix(`/oauth2/`)
+      # router from edge/dynamic/auth.yml. Must be listed as a valid redirect
+      # URI on the Keycloak client, which it is: the realm file takes it from
+      # DEVBOX_OAUTH2_REDIRECT_URI, built from this same ${BOX_IP}.
+      - --redirect-url=http://${BOX_IP:?set BOX_IP in .env}/oauth2/callback
+
+      # --- cookies without a cookie domain (the .dev.test settings are gone) ---
+      # The old --cookie-domain=.dev.test and --whitelist-domain=.dev.test named
+      # a namespace that no longer resolves. There is no replacement for
+      # cookie-domain and none is wanted: every service is now a different PORT
+      # on the SAME host, and cookies ignore the port. So the default host-only
+      # cookie on ${BOX_IP} is already sent to :3000, :9090, :8080 and the rest
+      # — single sign-on across the whole box falls out for free. Setting a
+      # cookie-domain with a port in it, by contrast, emits an invalid
+      # Set-Cookie that browsers drop silently.
+      #
+      # whitelist-domain still IS needed: it governs the ?rd= return-to URL, and
+      # that one does carry a port. `:*` is the documented all-ports wildcard;
+      # without it every redirect back to a non-80 service is refused.
+      - --whitelist-domain=${BOX_IP:?set BOX_IP in .env}:*
+
+      # No TLS on the tailnet, so a Secure cookie would never come back and the
+      # login loop would never terminate. Safe only because WireGuard is the
       # transport; revisit the moment anything here is exposed beyond it.
       - --cookie-secure=false
+      - --cookie-samesite=lax
       - --reverse-proxy=true
-      # Without this oauth2-proxy derives the callback from whichever host the
-      # user landed on (dozzle.dev.test/oauth2/callback, kafka.dev.test/...),
-      # and a GitHub OAuth App accepts exactly ONE registered callback URL, so
-      # every login but the first host would fail with redirect_uri mismatch.
-      # Pinning it sends every login through the one URL GitHub knows; the user
-      # is then returned to the host they came from via the whitelisted rd param.
-      - --redirect-url=http://auth.dev.test/oauth2/callback
+
       # Traefik calls /oauth2/auth for a verdict; nothing proxies through here,
       # so a static upstream is all that is needed.
       - --upstream=static://202
       - --set-xauthrequest=true
+
       # NOT skip-provider-button. With it enabled /oauth2/sign_in returns a 302
-      # straight to GitHub, and Traefik's errors middleware serves CONTENT rather
-      # than following redirects — so it fetched that 302 server-to-server, threw
-      # away the Set-Cookie carrying the CSRF token, and rendered its body: a bare
-      # "Found" link pointing directly at github.com. Clicking it skipped
-      # /oauth2/start, so the browser never received a CSRF cookie and the callback
-      # died with "CSRF cookie not found". Rendering the real sign-in page means the
-      # button is a relative /oauth2/start link that the browser visits itself.
-      - --cookie-samesite=lax
+      # straight to the IdP, and Traefik's errors middleware serves CONTENT
+      # rather than following redirects — so it fetched that 302
+      # server-to-server, threw away the Set-Cookie carrying the CSRF token, and
+      # rendered its body: a bare "Found" link. Clicking it skipped
+      # /oauth2/start, so the browser never received a CSRF cookie and the
+      # callback died with "CSRF cookie not found". Rendering the real sign-in
+      # page means the button is a relative /oauth2/start link the browser
+      # visits itself. (Learned against GitHub; the mechanism is the errors
+      # middleware, not the provider, so it applies unchanged to Keycloak.)
+
+      # --- authorisation, deliberately not enabled yet ---
+      # The realm's four roles arrive as a flat `groups` claim (see the
+      # protocol mapper in realm-devbox.json), so gating a route on a role is:
+      #   - --allowed-group=operator
+      # Left off: with no --allowed-group, any user in the devbox realm passes.
+      # That is the correct setting while NOTHING is attached — turning it on
+      # before the roles are assigned to a real user would lock out the only
+      # account that exists. Per-role gating in general wants one oauth2-proxy
+      # per role rather than this single shared instance, because the verdict
+      # endpoint is global to the instance.
     environment:
-      OAUTH2_PROXY_CLIENT_ID:     ${OAUTH2_CLIENT_ID:?set OAUTH2_CLIENT_ID in .env}
-      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET:?set OAUTH2_CLIENT_SECRET in .env}
+      OAUTH2_PROXY_CLIENT_SECRET: ${KEYCLOAK_OAUTH2_CLIENT_SECRET:?set KEYCLOAK_OAUTH2_CLIENT_SECRET in .env}
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_COOKIE_SECRET:?set OAUTH2_COOKIE_SECRET in .env}
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.oauth.rule=Host(`auth.dev.test`)
-      - traefik.http.routers.oauth.entrypoints=web
-      - traefik.http.routers.oauth.service=oauth
-      - traefik.http.services.oauth.loadbalancer.server.port=4180
+    # No traefik labels, and no host port. Routing to this container is declared
+    # in edge/dynamic/auth.yml instead — a host-less PathPrefix(`/oauth2/`)
+    # router, which is what the sign-in flow needs (it has to work on whichever
+    # address the user landed on). The old labels here pinned it to
+    # Host(`auth.dev.test`), a name retired on 2026-08-12.
+    #
     # No healthcheck: the image is distroless, with no shell and no wget, so
     # every form of docker healthcheck fails and the container sits in
     # "health: starting" forever. Liveness is observable instead through
