@@ -4,19 +4,16 @@ services:
   portainer:
     image: portainer/portainer-ce@sha256:f6bc23d1695530a609563fd65c180aaafec0fc02e019d5fc63d16b6fbe83addd
     container_name: portainer
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.portainer.rule=Host(`portainer.dev.test`)
-      - traefik.http.routers.portainer.entrypoints=web
-      - traefik.http.routers.portainer.service=portainer
-      - traefik.http.services.portainer.loadbalancer.server.port=9000
-      # Portainer holds a READ-WRITE docker socket, so its UI serves container
-      # Env — POSTGRES_PASSWORD and the Grafana admin password — and container
-      # exec, which is root on this box. Its own login is the only thing between
-      # the tailnet and that, and it is set interactively on first visit, so an
-      # unclaimed instance is a total takeover for whoever claims it first.
-      # SSO in front means a GitHub session is required before Portainer's own
-      # login is even reachable.
+    # No Traefik router: the *.dev.test name layer was retired permanently, so
+    # the Host(`portainer.dev.test`) route had nothing left to match. Reached
+    # directly on published port 9000.
+    #
+    # Portainer holds a READ-WRITE docker socket, so its UI serves container
+    # Env — POSTGRES_PASSWORD and the Grafana admin password — and container
+    # exec, which is root on this box. Its own login is now the ONLY thing
+    # between the tailnet and that (the SSO chain was parked, and the route it
+    # sat behind is gone), and it is set interactively on first visit, so an
+    # unclaimed instance is a total takeover for whoever claims it first.
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -32,16 +29,14 @@ services:
   dozzle:
     image: amir20/dozzle:v10.6.14
     container_name: dozzle
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.dozzle.rule=Host(`dozzle.dev.test`)
-      - traefik.http.routers.dozzle.entrypoints=web
-      - traefik.http.routers.dozzle.service=dozzle
-      - traefik.http.services.dozzle.loadbalancer.server.port=8080
-      # Dozzle streams every container's logs. Since the SSO chain was parked
-      # (2026-08-08) it runs its own simple-auth: users in dozzle-users.yml
-      # (generated with `dozzle generate`, gitignored - hash only, no secrets
-      # in the public repo).
+    # No Traefik router: the *.dev.test name layer was retired permanently, so
+    # the Host(`dozzle.dev.test`) route had nothing left to match. Reached
+    # directly on published port 8080.
+    #
+    # Dozzle streams every container's logs. Since the SSO chain was parked
+    # (2026-08-08) it runs its own simple-auth: users in dozzle-users.yml
+    # (generated with `dozzle generate`, gitignored - hash only, no secrets
+    # in the public repo).
     restart: unless-stopped
     environment:
       DOZZLE_AUTH_PROVIDER: simple

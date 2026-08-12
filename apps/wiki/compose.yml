@@ -4,12 +4,9 @@ services:
   wiki:
     image: ghcr.io/requarks/wiki:2
     container_name: wiki
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.wiki.rule=Host(`wiki.dev.test`)
-      - traefik.http.routers.wiki.entrypoints=web
-      - traefik.http.routers.wiki.service=wiki
-      - traefik.http.services.wiki.loadbalancer.server.port=3000
+    # No Traefik router: the *.dev.test name layer was retired permanently, so
+    # the Host(`wiki.dev.test`) route had nothing left to match. Reached
+    # directly on published port 3001.
     restart: unless-stopped
     environment:
       DB_TYPE: postgres

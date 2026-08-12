@@ -10,6 +10,16 @@ name: edge
 #
 # Consequence: this is the ONLY container that should ever publish :80, and the
 # Tailscale/portproxy layer needs exactly one rule, forever.
+#
+# STATUS 2026-08-12: the `*.dev.test` name layer above is RETIRED, not merely
+# dormant. Access is pure IP:port — http://100.117.176.85:<port>. Every
+# Host(`*.dev.test`) router in the files this compose owns has been removed, and
+# new services publish a host port rather than declaring a name. Traefik still
+# earns its keep for the host-less exact-Path() routes that make up the portal's
+# /-/api/* data plane (edge/dynamic/portal-api.yml, portal-prom.yml) and for the
+# portal fallback on the bare IP. Do not write new Host() rules against a
+# namespace that no longer resolves — the route will register and simply never
+# match.
 
 services:
   traefik:
@@ -38,7 +48,20 @@ services:
       # to ./dynamic having no effect. After any checkout:
       #   docker compose -f edge/compose.yml up -d --force-recreate
       - --entrypoints.web.address=:80
-      - --api.dashboard=true
+      # --api=true, NOT --api.dashboard=true (changed 2026-08-12).
+      #
+      # The API itself must stay on: edge/dynamic/portal-api.yml routes four
+      # exact paths (/-/api/traefik/{http/routers,http/services,overview,version})
+      # to `service: api@internal`, and that internal service only exists while
+      # the API is enabled. Turning the API off entirely 404s the portal's
+      # routes/services panels.
+      #
+      # The DASHBOARD flag is what additionally serves the UI's own assets and,
+      # with it, the browsable api@internal surface. It is off because the
+      # `dashboard` router that published it (Host(`traefik.dev.test`)) has been
+      # removed — see the note where the labels used to be. Nothing on this box
+      # needs the UI; the portal reads the four paths above instead.
+      - --api=true
       - --log.level=INFO
       - --accesslog=true
       # Prometheus metrics for the edge — request rates, latencies and error
@@ -67,13 +90,33 @@ services:
       # Lets the file-provider routes above reach processes on the host
       # (Tilt UI, and any future host-side dev server).
       - "host.docker.internal:host-gateway"
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.dashboard.rule=Host(`traefik.dev.test`)
-      - traefik.http.routers.dashboard.entrypoints=web
-      - traefik.http.routers.dashboard.service=api@internal
-      # The dashboard serves api@internal unauthenticated, including /api/rawdata,
-      # which dumps the entire dynamic config - every router, service and middleware.
+    # NO labels, and no traefik.enable — deliberately. Traefik has no router of
+    # its own any more.
+    #
+    # CREDENTIAL EXPOSURE, fixed 2026-08-12. There used to be a `dashboard`
+    # router here on Host(`traefik.dev.test`) with `service=api@internal` and no
+    # middleware, i.e. the whole Traefik API served unauthenticated. The API
+    # includes /api/rawdata, which dumps the entire merged dynamic config —
+    # every router, service AND middleware, with their values. One of those
+    # middlewares is `portal-api-prom-auth` (edge/dynamic/portal-prom.yml), whose
+    # customRequestHeaders carry a LIVE `Authorization: Basic ...` for
+    # Prometheus. Anything that could reach :80 — i.e. every device on the
+    # tailnet — could read that credential by fetching one URL. Removing the
+    # router is the fix; --api.dashboard=true -> --api=true above is the other
+    # half of it.
+    #
+    # Consequence worth knowing: api@internal now has NO listener of its own.
+    # `--api=true` does not open a port — only `--api.insecure=true` would, and
+    # that is exactly the hole we just closed. The API is reachable solely
+    # through routers that name `service: api@internal`, which today means the
+    # four exact Path() rules in edge/dynamic/portal-api.yml. /api/rawdata is
+    # deliberately not among them and must not be added: its body prints the
+    # middleware values, so its output is credential material.
+    #
+    # Do not re-add a router for the dashboard "just to look at it". If the UI is
+    # ever genuinely wanted it needs auth in front of it, not a bare Host rule —
+    # and the *.dev.test name layer it relied on is retired anyway (2026-08-12),
+    # so there is no name left to hang it on.
     deploy:
       resources:
         limits:

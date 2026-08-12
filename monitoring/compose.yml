@@ -4,14 +4,11 @@ services:
   prometheus:
     image: prom/prometheus:v3.13.2
     container_name: prometheus
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.prometheus.rule=Host(`prometheus.dev.test`)
-      - traefik.http.routers.prometheus.entrypoints=web
-      - traefik.http.routers.prometheus.service=prometheus
-      - traefik.http.services.prometheus.loadbalancer.server.port=9090
-      # Prometheus runs with --web.enable-lifecycle; its own basic auth
-      # (--web.config.file below) is the boundary since the SSO was parked.
+    # No Traefik router: the *.dev.test name layer was retired permanently, so
+    # the Host(`prometheus.dev.test`) route had nothing left to match. Reached
+    # directly on published port 9090.
+    # Prometheus runs with --web.enable-lifecycle; its own basic auth
+    # (--web.config.file below) is the boundary since the SSO was parked.
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -40,12 +37,9 @@ services:
   grafana:
     image: grafana/grafana:13.1.3
     container_name: grafana
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.grafana.rule=Host(`grafana.dev.test`)
-      - traefik.http.routers.grafana.entrypoints=web
-      - traefik.http.routers.grafana.service=grafana
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
+    # No Traefik router: the *.dev.test name layer was retired permanently, so
+    # the Host(`grafana.dev.test`) route had nothing left to match. Reached
+    # directly on published port 3000, where Grafana's own login applies.
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}

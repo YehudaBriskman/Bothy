@@ -1,53 +1,31 @@
 # Traefik routes for processes running on the HOST, not in containers.
 #
-# Containers declare themselves with labels (see any compose.yml). A host
-# process has nothing to label, so it goes here instead. Traefik watches this
-# directory — edits apply live, no restart.
+# RETIRED 2026-08-12 — this file declares no routes any more, and is kept as the
+# record of why.
 #
-# host.docker.internal resolves to the host gateway via extra_hosts in
-# ../compose.yml. The host process must bind an address the container can
-# actually reach: 127.0.0.1 is NOT reachable from inside a container, so the
-# process needs --host=0.0.0.0 (or the bridge IP). That's the usual reason a
-# route here 502s.
+# It existed because a container declares itself with labels and a host process
+# has nothing to label, so its route was written here instead. Every route it
+# held was a `Host(`*.dev.test`)` rule, and that name layer is gone: the tailnet
+# split-DNS route was removed on 2026-08-08 and the configuration deleted on
+# 2026-08-12. Access is pure IP:port.
 #
-# Naming: these nest under the PROJECT they belong to
-# (<sub>.<project>.dev.test), not at the top level. Tilt is per-project — a
-# flat `tilt.dev.test` could only ever mean one project's Tilt.
-
-http:
-  routers:
-    # Global Tilt name. Tilt binds one fixed host port (10350) and only one
-    # project's Tilt can hold it at a time, so a single flat name always points
-    # at whichever project is currently running `tilt up`. Under .dev.test on
-    # purpose: the oauth2-proxy session cookie is scoped to `.dev.test`, so a
-    # name outside that branch (e.g. tilt.test) would never receive it and the
-    # sign-in loop would never terminate.
-    tilt:
-      rule: "Host(`tilt.dev.test`)"
-      entryPoints: [web]
-      service: tilt
-      # Tilt has no auth of its own and exposes manual triggers/build controls,
-      # so it sits behind the GitHub SSO like the other dashboards. Order
-      # matters: sso-errors on the way in turns sso's 401 into the sign-in page.
-
-    # Kept as an alias so existing bookmarks/links still resolve. Same upstream.
-    cvops-tilt:
-      rule: "Host(`tilt.cvops.dev.test`)"
-      entryPoints: [web]
-      service: tilt
-
-  services:
-    tilt:
-      loadBalancer:
-        servers:
-          # Whichever project's Tilt dev UI is running: build logs, resource
-          # status, manual triggers. Started by
-          # `tilt up --host=0.0.0.0 --port=10350` in the project repo — without
-          # --host it binds 127.0.0.1 and this route 502s.
-          # 502 when no Tilt is running is expected, not a bug.
-          #
-          # This is a deliberate trade-off against per-project isolation: two
-          # projects cannot expose Tilt at once (10350 is a single host port).
-          # If that day comes, give the second project its own --port and its
-          # own router/service here.
-          - url: "http://host.docker.internal:10350"
+# The routes that were here, and where those things live now:
+#
+#   tilt.dev.test        ->  http://<tailnet-ip>:10350
+#   tilt.cvops.dev.test  ->  the same process (it was only an alias)
+#
+# Tilt binds one fixed host port and only one project's Tilt can hold it at a
+# time, so the name never distinguished projects anyway — it always pointed at
+# whichever project last ran `tilt up`. Reaching it by port loses nothing and
+# removes the illusion of per-project addressing.
+#
+# Still true, and the reason a route here used to 502: a host process must bind
+# an address the container can reach. 127.0.0.1 is NOT reachable from inside a
+# container, so Tilt needs `tilt up --host=0.0.0.0 --port=10350`. That applies to
+# reaching it directly by IP too, from any device other than this box.
+#
+# If a host process ever genuinely needs a Traefik route again, note that it
+# cannot be a Host() rule — there is no name layer to match on. It would have to
+# be a host-less exact `Path()` rule, the same shape the portal's data plane uses
+# (see portal-api.yml), and it would answer on every address at once. Think about
+# whether a published port is not simply the better answer.
