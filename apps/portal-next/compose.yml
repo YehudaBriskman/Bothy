@@ -1,8 +1,9 @@
 name: portal-next
 
-# Vite+React rewrite of the dev.test portal, served as a static build behind the
-# same Traefik + SSO. Runs at portal-next.dev.test as a PREVIEW alongside the live
-# portal; swap the Host rule to dev.test once it's approved.
+# Vite+React rewrite of the portal, served as a static build behind Traefik. It
+# is THE portal now (the pure-HTML apps/portal was retired). The *.dev.test name
+# layer is gone, so it is served on the bare tailnet IP — http://100.117.176.85/
+# — by the catch-all router below, which is the only route it has left.
 
 services:
   portal-next:
@@ -21,12 +22,18 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.services.portal-next.loadbalancer.server.port=80
-      # THE portal — the pure-HTML apps/portal was retired; this is dev.test now.
-      - traefik.http.routers.portal-next.rule=Host(`dev.test`)
-      - traefik.http.routers.portal-next.entrypoints=web
-      - traefik.http.routers.portal-next.service=portal-next
-      # Catch-all so the bare IP + typo'd *.test names land on the portal (below
-      # every real Host rule). Mirrors the old portal-fallback.
+      # ONE router, and it is the catch-all. The Host(`dev.test`) router that
+      # used to sit here was removed on 2026-08-12 with the rest of the name
+      # layer: it matched a hostname that has not resolved since 2026-08-08, so
+      # it was answering nothing.
+      #
+      # This is now the ONLY route the portal has, which makes it load-bearing:
+      # it is what serves http://<tailnet-ip>/ . Priority 1 keeps it below every
+      # real rule, so the host-less exact-Path() /-/api/* routes at priority 100
+      # (edge/dynamic/portal-api.yml, portal-prom.yml) still win over it — that
+      # ordering is why the SPA and its data plane can share one origin.
+      #
+      # Do not delete it, and do not give it a Host rule.
       - traefik.http.routers.portal-next-fallback.rule=PathPrefix(`/`)
       - traefik.http.routers.portal-next-fallback.priority=1
       - traefik.http.routers.portal-next-fallback.entrypoints=web

@@ -4,8 +4,9 @@ name: docs
 # MkDocs Material renders a curated mirror (content/) that a sidecar keeps synced
 # one-way from the real files (node_modules/caches excluded). HTTP-native (unlike
 # SilverBullet, which requires HTTPS/localhost). Read-only — edit the source files
-# and they update here within ~15s. Routed at docs.dev.test, behind the stack SSO,
-# discovered by the portal. Replaced Wiki.js.
+# and they update here within ~15s. Reached on the published port 8085 (the
+# *.dev.test name layer was retired permanently); discovered by the portal.
+# Replaced Wiki.js.
 
 services:
   docs:
@@ -15,18 +16,16 @@ services:
     working_dir: /docs
     command: serve --dev-addr=0.0.0.0:8000 --dirtyreload
     ports:
-      # Direct host port for pure-IP access (Host routing is dormant while the
-      # custom DNS is retired; 8000 itself is held by a Tals host process).
+      # The only way in: the *.dev.test name layer is gone, so access is pure
+      # IP:port (8000 itself is held by a Tals host process, hence 8085).
       - "8085:8000"
     volumes:
       - ./mkdocs.yml:/docs/mkdocs.yml:ro
       - ./content:/docs/content:ro
+    # No Traefik router: the Host(`docs.dev.test`) route had nothing left to
+    # match once the name layer was retired. Reached on published port 8085.
     labels:
-      - traefik.enable=true
-      - traefik.http.services.docs.loadbalancer.server.port=8000
-      - traefik.http.routers.docs.rule=Host(`docs.dev.test`)
-      - traefik.http.routers.docs.entrypoints=web
-      - traefik.http.routers.docs.service=docs
+      # Portal discovery metadata only — not routing.
       - dev.portal.project=Docs
       - dev.portal.name=Docs
       - dev.portal.icon=📚

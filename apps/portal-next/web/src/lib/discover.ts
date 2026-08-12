@@ -435,11 +435,64 @@ export function defaultName(
 
 // Non-HTTP things are listed but not linked — clicking an S3 or postgres
 // endpoint in a browser is never what you wanted.
-const NON_HTTP = ['garage', 'postgres', 'redis', 'kafka:', 'apache/kafka', 'socket-proxy'];
+// Images with no browsable UI. Two different reasons are mixed here, both
+// meaning "do not offer a link":
+//   · it does not speak HTTP at all (postgres, redis, kafka, the socket proxy);
+//   · it speaks HTTP but has no interface for a human.
+//
+// `traefik` is the second kind, as of 2026-08-12. Its only UI was the dashboard,
+// and that router was deleted the same day because it served the Traefik API
+// unauthenticated and `/api/rawdata` exposed an injected credential. The
+// container still publishes :80 — that is the edge listener every other service
+// is reached THROUGH — so without this entry the portal cheerfully offered a
+// "Traefik" link that just re-opened the portal.
+const NON_HTTP = ['garage', 'postgres', 'redis', 'kafka:', 'apache/kafka', 'socket-proxy', 'traefik'];
+
+/**
+ * The port a browser can actually reach this container on, or null.
+ *
+ * Published on 0.0.0.0 only: a `127.0.0.1:` binding is reachable from this box
+ * and from nothing else, so offering it as a link to someone on a phone is a
+ * link that cannot work. Lowest port wins when several are published, purely so
+ * the choice is deterministic — the Access page lists all of them.
+ */
+export function browsablePort(container?: Container | null): number | null {
+  const p = portsOf(container).find((x) => x.scope === 'public' && (x.proto ?? 'tcp') === 'tcp');
+  return p ? p.hostPort : null;
+}
+
+/**
+ * Where a browser should go for this container.
+ *
+ * Built from `location.hostname`, so it is correct from whichever address the
+ * portal itself was opened on — tailnet IP, MagicDNS name or localhost — without
+ * the page ever knowing what that address is. That is the same trick the brand
+ * line uses, and it is why nothing here hardcodes an address.
+ */
+export function containerUrl(container?: Container | null, path = ''): string | null {
+  const port = browsablePort(container);
+  if (port == null) return null;
+  return `http://${location.hostname}${port === 80 ? '' : `:${port}`}${path}`;
+}
+
+/**
+ * Can a browser open this?
+ *
+ * REWRITTEN 2026-08-12, when the `*.dev.test` name layer was retired. This used
+ * to be `if (!host) return false` — browsability was a property of having a
+ * Traefik hostname. Deleting the routers therefore made every service on the box
+ * unbrowsable at once: the portal still listed them, but every "open" link
+ * vanished, because the thing it keyed on no longer existed.
+ *
+ * Reachability is a property of having a PUBLISHED PORT, and always was. The
+ * hostname was only ever a way of spelling one.
+ */
 export function isBrowsable(host: string | null, container?: Container | null): boolean {
-  if (!host) return false;
   const img = (container?.Image || '').toLowerCase();
-  return !NON_HTTP.some((k) => img.includes(k));
+  if (NON_HTTP.some((k) => img.includes(k))) return false;
+  // A routed host still counts, so a future host-less Path() route or a
+  // re-introduced name layer keeps working without touching this again.
+  return host != null || browsablePort(container) != null;
 }
 
 // ── Pure: status ────────────────────────────────────────────────────────────
@@ -684,7 +737,10 @@ function makeNode({
     host: host || null,
     aliases,
     path,
-    url: host && browsable ? hostUrl(host, path) : null,
+    // The container's own published port FIRST. `hostUrl` is a lookup keyed by
+    // *.dev.test hostname, and those names are retired — it survives only for
+    // the handful of host processes that have a known port but no container.
+    url: browsable ? (containerUrl(container, path) ?? (host ? hostUrl(host, path) : null)) : null,
     browsable,
     // hostname nesting BEATS config_files: it's what puts cvops-tilt@file (no
     // container at all) in the CVOps panel. Makes the DNS convention load-bearing.

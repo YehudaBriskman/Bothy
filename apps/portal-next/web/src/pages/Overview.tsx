@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ExternalLink, AlertTriangle, ArrowRight, HardDrive,
-  BookOpen, BarChart3, Waypoints, type LucideIcon,
+  BookOpen, BarChart3, type LucideIcon,
 } from 'lucide-react';
 import { usePortal, needsAttention, healthOf, expectedUp } from '../lib/data';
 import {
@@ -66,17 +66,26 @@ function Panel({
 // ── quick links ──────────────────────────────────────────────────────────────
 // Borderless. Seven bordered tiles read as seven competing buttons and ate a
 // full-width row for a 15px label each; a navigation strip should recede.
-// Docs + Grafana are guaranteed anchors and stay first; the rest appear only
-// when discovery actually finds them.
-interface QuickItem { key: string; label: string; Icon?: LucideIcon; host?: string; primary?: boolean }
+//
+// Matched by CONTAINER NAME and anchored to a PORT.
+//
+// Both changed on 2026-08-12, when the *.dev.test name layer was retired. This
+// list used to match services by hostname and fall back to `hostUrl('docs.dev.test')`
+// — so when the routers went away, `n.host` became null for everything, the
+// match failed, and the whole strip collapsed to the two hard-coded anchors.
+// The port is the durable identifier: it is what you actually type.
+//
+// `port` is the fallback only. A discovered container's own published port wins,
+// so if a service is ever moved the link follows it without editing this list.
+interface QuickItem { key: string; label: string; Icon?: LucideIcon; port?: number; primary?: boolean }
 const QUICK_ITEMS: QuickItem[] = [
-  { key: 'docs', label: 'Docs', Icon: BookOpen, host: 'docs.dev.test', primary: true },
-  { key: 'grafana', label: 'Grafana', Icon: BarChart3, host: 'grafana.dev.test', primary: true },
-  { key: 'prometheus', label: 'Prometheus' },
-  { key: 'dozzle', label: 'Logs' },
-  { key: 'portainer', label: 'Portainer' },
-  { key: 'traefik', label: 'Traefik', Icon: Waypoints },
-  { key: 'kafka', label: 'Kafka UI' },
+  { key: 'docs', label: 'Docs', Icon: BookOpen, port: 8085, primary: true },
+  { key: 'grafana', label: 'Grafana', Icon: BarChart3, port: 3000, primary: true },
+  { key: 'prometheus', label: 'Prometheus', port: 9090 },
+  { key: 'dozzle', label: 'Logs', port: 8080 },
+  { key: 'portainer', label: 'Portainer', port: 9000 },
+  { key: 'kafka-ui', label: 'Kafka UI', port: 8081 },
+  { key: 'cadvisor', label: 'cAdvisor', port: 8082 },
 ];
 
 function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
@@ -86,10 +95,14 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
         const node = nodes.find(
           (n) =>
             n.browsable && n.url &&
-            ((n.host && n.host.includes(item.key)) || n.name.toLowerCase().includes(item.key)),
+            (n.container?.name === item.key || n.name.toLowerCase().includes(item.key)),
         );
-        return { ...item, node, url: node?.url ?? (item.host ? hostUrl(item.host) : null), status: node?.status ?? null };
-      }).filter((l) => l.url && (l.primary || l.node)),
+        // Same construction as lib/discover's containerUrl: the port on whatever
+        // address the portal itself was opened at, so these work from the tailnet
+        // IP, MagicDNS or localhost without knowing which one is in use.
+        const fallback = item.port ? `http://${location.hostname}:${item.port}` : null;
+        return { ...item, node, url: node?.url ?? fallback, status: node?.status ?? null };
+      }).filter((l) => l.url),
     [nodes],
   );
   return (
@@ -236,7 +249,12 @@ function AttentionStrip({ attention }: { attention: PortalNode[] }) {
 // Stack and project UIs in ONE panel — two panels of the same shape competing
 // for the same row was the duplication, not the content.
 function UiBody({ stack, project }: { stack: UiLink[]; project: UiLink[] }) {
-  const [tab, setTab] = useState<'project' | 'stack'>('project');
+  // Open on a tab that HAS something. It used to always open on "Projects",
+  // which was fine while the @file host routes made that list non-empty — and
+  // the moment those went away (2026-08-12) the panel greeted you with
+  // "Nothing browsable here" while ten stack UIs sat one click away, unseen.
+  // A default that is empty is a default that is wrong.
+  const [tab, setTab] = useState<'project' | 'stack'>(project.length ? 'project' : 'stack');
   const links = tab === 'project' ? project : stack;
   return (
     <div className="ov-ui">
