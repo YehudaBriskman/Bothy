@@ -1,18 +1,18 @@
-# DevBox portproxy refresh — keeps Windows port-forwards tracking the WSL guest IP.
+# DevBox portproxy refresh - keeps Windows port-forwards tracking the WSL guest IP.
 #
 # WHY THIS EXISTS: the dev box is devssh's WSL2 distro; its NAT IP rotates on
 # every WSL restart, and the netsh portproxy rules that forward host ports to it
-# hold a literal IP — nothing refreshed them before, so every WSL restart could
+# hold a literal IP - nothing refreshed them before, so every WSL restart could
 # silently strand them (known-issues.md). This script converges the rules to the
 # live guest IP and the tailnet+localhost-only listener policy.
 #
 # LISTENER POLICY (2026-08-08, pure-IP-over-tailscale switch): listeners bind
-# 127.0.0.1 and the host's tailnet IP 100.93.197.10 ONLY — never 0.0.0.0. The
+# 127.0.0.1 and the host's tailnet IP 100.93.197.10 ONLY - never 0.0.0.0. The
 # LAN must not reach these ports; the tailnet is the access control.
 #
 # RUNS AS: SYSTEM (scheduled task DevBox-Portproxy-Refresh; at startup + every
 # 15 min). Deliberately does NOT call wsl.exe: devssh's distro is invisible to
-# other accounts, so the guest IP is discovered by probing instead — first the
+# other accounts, so the guest IP is discovered by probing instead - first the
 # currently-configured target, then the vSwitch neighbor table. The dev box is
 # identified by answering BOTH :80 (traefik) and :9090 (prometheus), which
 # yr055's unrelated WSL VM on the same switch does not.

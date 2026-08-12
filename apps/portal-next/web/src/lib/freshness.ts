@@ -1,5 +1,5 @@
 // The freshness signal, computed one way. Green live / amber degraded|stale /
-// red down — always paired with words, never colour alone (portal.md rule).
+// red down - always paired with words, never colour alone (portal.md rule).
 import type { PortalData } from './api';
 
 export type Freshness = 'live' | 'degraded' | 'stale' | 'down';

@@ -13,7 +13,7 @@ export function nodeSub(n: PortalNode): string {
 
 // ── One vocabulary for what a node IS ────────────────────────────────────────
 // A card said "host process", a table row said "host", the detail page printed
-// the raw enum "orphan-route" and the Routes table said "host process" again —
+// the raw enum "orphan-route" and the Routes table said "host process" again -
 // four names for one thing. Every surface reads this.
 export interface KindLabel {
   label: string;
@@ -32,7 +32,7 @@ export function kindLabelOf(n: PortalNode): KindLabel {
     return {
       label: 'no container',
       bad: true,
-      hint: 'Traefik routes this name, but nothing answers on devnet — it may have stopped.',
+      hint: 'Traefik routes this name, but nothing answers on devnet - it may have stopped.',
     };
   }
   if (n.kind === 'unrouted') {
@@ -47,7 +47,7 @@ export function kindLabelOf(n: PortalNode): KindLabel {
 
 // Why a node's status is 'unknown'. Docker Health is authoritative for
 // containers; a host process has no container to ask, and the browser cannot
-// tell a 502 error page from a healthy response across origins — so the portal
+// tell a 502 error page from a healthy response across origins - so the portal
 // says so instead of guessing.
 export function unknownReason(n: PortalNode): string | null {
   if (n.status !== 'unknown') return null;

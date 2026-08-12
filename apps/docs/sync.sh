@@ -22,7 +22,7 @@ rsync -a --delete --delete-excluded --prune-empty-dirs \
   --include='*/' --include='*.md' --exclude='*' \
   /src/projects /src/claude-notes /src/stacks /dest/
 
-# Landing page. Write it only when ABSENT or CHANGED — rewriting it every cycle
+# Landing page. Write it only when ABSENT or CHANGED - rewriting it every cycle
 # churns its mtime, and MkDocs' live-reload then fires a full page refresh every
 # sync (~15s). (rsync --delete would drop a source-less file, so it lives here.)
 NEW=$(cat <<'EOF'
@@ -33,9 +33,9 @@ change shows up here within seconds.
 
 ## Sections
 
-- **projects/** — Tals & CVOps: architecture, plans, reports, task specs
-- **claude-notes/** — the box's own notes (machine · network · stack · projects)
-- **stacks/** — the shared dev-stack docs
+- **projects/** - Tals & CVOps: architecture, plans, reports, task specs
+- **claude-notes/** - the box's own notes (machine · network · stack · projects)
+- **stacks/** - the shared dev-stack docs
 
 Use the search box (top) or the navigation on the left.
 EOF

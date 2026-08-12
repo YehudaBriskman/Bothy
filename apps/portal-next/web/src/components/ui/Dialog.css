@@ -1,0 +1,66 @@
+/* Dialog - Radix behaviour, portal tokens. shadcn's proportions: a dim scrim, a
+   raised surface one step above the page, a hairline border, generous header. */
+
+.dlg-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+  animation: dlg-fade var(--dur) var(--ease);
+}
+
+.dlg {
+  position: fixed; z-index: 91;
+  left: 50%; top: 50%; translate: -50% -50%;
+  width: min(560px, calc(100vw - 32px));
+  /* The dialog is a column so the BODY scrolls, not the whole box: a header
+     that scrolls away takes the close button with it. */
+  display: flex; flex-direction: column;
+  max-height: min(84vh, 760px);
+  background: var(--surface-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  animation: dlg-in var(--dur) var(--ease);
+}
+.dlg-lg { width: min(880px, calc(100vw - 32px)); }
+
+.dlg-head {
+  display: flex; align-items: flex-start; gap: 12px; flex: none;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dlg-head-text { flex: 1; min-width: 0; }
+.dlg-title {
+  margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--fg);
+  display: flex; align-items: center; gap: 9px; min-width: 0;
+}
+.dlg-desc { margin: 4px 0 0; font-size: 12.5px; color: var(--fg-muted); }
+.dlg-head-aside { flex: none; display: flex; align-items: center; gap: 8px; }
+
+.dlg-x {
+  appearance: none; cursor: pointer; flex: none;
+  display: grid; place-items: center; width: 28px; height: 28px;
+  border-radius: var(--r-sm); color: var(--fg-subtle);
+  background: transparent; border: 1px solid transparent;
+}
+.dlg-x:hover { color: var(--fg); background: var(--surface-3); border-color: var(--line); }
+
+.dlg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px; }
+.dlg-foot {
+  flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface-2);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+
+@keyframes dlg-fade { from { opacity: 0; } to { opacity: 1; } }
+/* Rises 6px and settles. Never animates FROM opacity 0 without also animating
+   to 1 in the same declaration - see the .reveal note in index.css for why that
+   distinction has cost this app a blank page twice. */
+@keyframes dlg-in {
+  from { opacity: 0; translate: -50% calc(-50% + 6px); scale: .985; }
+  to   { opacity: 1; translate: -50% -50%; scale: 1; }
+}
+
+@media (max-width: 560px) {
+  .dlg { width: calc(100vw - 20px); max-height: 88vh; }
+}

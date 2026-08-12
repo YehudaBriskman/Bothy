@@ -57,7 +57,7 @@ type Hover = { id: string; node: PortalNode } | null;
 const rackPostH = (count: number) => Math.max(1, count) * SLAB_PITCH + 0.7;
 const emissiveFor = (s: Status) => (s === 'up' ? 0.9 : s === 'unknown' ? 0.3 : 1.35);
 
-// Decorative per-type accent (3D only — not a text/surface token, so a literal
+// Decorative per-type accent (3D only - not a text/surface token, so a literal
 // palette is fine here; it just tints a slab's spine + a machine's band).
 const TYPE_TINT: Record<ServiceType, string> = {
   web: '#4d9bff',
@@ -104,7 +104,7 @@ function glowTexture(): THREE.Texture {
 }
 
 // ── offline billboard text labels ────────────────────────────────────────────
-// drei <Text>/troika would fetch a Roboto font from a CDN — forbidden here (the
+// drei <Text>/troika would fetch a Roboto font from a CDN - forbidden here (the
 // app runs offline behind SSO). So every machine label is a cheap GPU sprite of a
 // canvas-rendered pill: no DOM cost, no network, billboards to the camera for
 // free. Textures are cached by string so repeated names cost one canvas each.
@@ -127,7 +127,7 @@ function labelTexture(text: string): LabelTex {
   cv.height = h;
   const ctx = cv.getContext('2d')!;
   ctx.font = font;
-  // rounded pill background — dark + subtle stroke so it reads on light or dark
+  // rounded pill background - dark + subtle stroke so it reads on light or dark
   const r = h / 2;
   ctx.beginPath();
   ctx.moveTo(r, 0);
@@ -211,7 +211,7 @@ function Slab({
           <boxGeometry args={[0.05, SLAB_H - 0.08, 0.02]} />
           <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={0.65} toneMapped={false} />
         </mesh>
-        {/* vent slits, left third — two banks */}
+        {/* vent slits, left third - two banks */}
         {[0, 1, 2, 3, 4].map((i) => (
           <mesh key={i} position={[-SLAB_W / 2 + 0.42, SLAB_H / 2 - 0.1 - i * 0.07, front]}>
             <boxGeometry args={[0.6, 0.024, 0.012]} />
@@ -228,7 +228,7 @@ function Slab({
           <boxGeometry args={[0.5, 0.14, 0.05]} />
           <meshStandardMaterial color={pal.handle} metalness={0.75} roughness={0.4} />
         </mesh>
-        {/* indicator array — three faint activity LEDs */}
+        {/* indicator array - three faint activity LEDs */}
         {[0, 1, 2].map((i) => (
           <mesh key={i} position={[SLAB_W / 2 - 0.16 - i * 0.14, -SLAB_H / 2 + 0.12, front + 0.008]}>
             <boxGeometry args={[0.06, 0.06, 0.02]} />
@@ -344,7 +344,7 @@ function Rack({
   );
 }
 
-// ── the edge/Traefik unit — a wide, high-presence bar above the racks ─────────
+// ── the edge/Traefik unit - a wide, high-presence bar above the racks ─────────
 function EdgeBar({
   panel, width, y, hexes, hover, setHover, onSelect, primary,
 }: {
@@ -366,7 +366,7 @@ function EdgeBar({
   const pal = usePal();
   return (
     <group position={[0, y, 0]}>
-      {/* main chassis — taller + deeper than a slab, reads as the trunk */}
+      {/* main chassis - taller + deeper than a slab, reads as the trunk */}
       <RoundedBox args={[width, H, RD + 0.6]} radius={0.06} smoothness={3}>
         <meshStandardMaterial color={pal.chassis} metalness={0.88} roughness={0.3} emissive={primary} emissiveIntensity={0.16} />
       </RoundedBox>
@@ -387,7 +387,7 @@ function EdgeBar({
         <planeGeometry args={[width - 0.3, 0.06]} />
         <meshStandardMaterial color={primary} emissive={primary} emissiveIntensity={1.6} toneMapped={false} />
       </mesh>
-      {/* under-glow plane — gives the edge a lit halo beneath it */}
+      {/* under-glow plane - gives the edge a lit halo beneath it */}
       <sprite position={[0, -H / 2 - 0.1, front - 0.2]} scale={[width * 0.9, 1.1, 1]}>
         <spriteMaterial map={glowTexture()} color={primary} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.4} />
       </sprite>
@@ -399,7 +399,7 @@ function EdgeBar({
         </mesh>
       ))}
 
-      {/* one clickable module per edge node — mini bezel + screen + LED */}
+      {/* one clickable module per edge node - mini bezel + screen + LED */}
       {nodes.map((n, i) => (
         <group
           key={n.id}
@@ -520,7 +520,7 @@ function Cables({
   );
 }
 
-// ── one labelled floor machine — a little box that reads as a real node ────────
+// ── one labelled floor machine - a little box that reads as a real node ────────
 function FloorMachine({
   node, hex, pos, onHover, onOut, onSelect,
 }: {
@@ -657,7 +657,7 @@ function Rig({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pan with Shift/Ctrl(+Cmd) + scroll — move along the screen's right/up axes.
+  // Pan with Shift/Ctrl(+Cmd) + scroll - move along the screen's right/up axes.
   // Plain scroll falls through to OrbitControls (zoom). Capture phase +
   // stopImmediatePropagation so the modifier scroll never also zooms; passive:
   // false so we can preventDefault the browser's ctrl-wheel page zoom.
@@ -701,7 +701,7 @@ function Rig({
       if (camera.position.distanceTo(anim.current.pos) < 0.06) anim.current.active = false;
       return;
     }
-    // Idle auto-orbit — a slow azimuth drift that pauses while the user drives.
+    // Idle auto-orbit - a slow azimuth drift that pauses while the user drives.
     if (animate && !paused.current && now.current >= resumeAt.current) {
       const off = new THREE.Vector3().subVectors(camera.position, c.target);
       const a = 0.0016;
@@ -793,7 +793,7 @@ function Scene({
 
   return (
     <PaletteCtx.Provider value={pal}>
-      {/* lighting — raised a notch: brighter key + fill + ambient, plus a rim */}
+      {/* lighting - raised a notch: brighter key + fill + ambient, plus a rim */}
       <ambientLight intensity={pal.ambient} />
       <hemisphereLight intensity={0.5} color={pal.sky} groundColor={pal.ground} />
       <directionalLight position={[6, 15, 10]} intensity={1.95} color={pal.key} />
@@ -902,7 +902,7 @@ function Viewport({ nodes, fill = false }: { nodes: PortalNode[]; fill?: boolean
         </Canvas>
 
         <div className="sv-vignette" aria-hidden="true" />
-        {/* No legend here — the Topology page header already renders one, and it
+        {/* No legend here - the Topology page header already renders one, and it
             serves the Flat map too. Two legends on one screen is just noise. */}
         <div className="sv-hint">drag to orbit · scroll to zoom · shift / ctrl-scroll to pan · click a unit</div>
       </div>
@@ -923,7 +923,7 @@ export function StackScene({ nodes }: { nodes: PortalNode[] }) {
   return <Viewport nodes={nodes} />;
 }
 
-// The Topology page hero — same scene, full-bleed (fills the content height).
+// The Topology page hero - same scene, full-bleed (fills the content height).
 // Reads the shared poll itself, so the page just mounts <TopologyScene />.
 export function TopologyScene() {
   const { data } = usePortal();

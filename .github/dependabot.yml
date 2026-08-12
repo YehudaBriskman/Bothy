@@ -1,6 +1,6 @@
 # Dependency updates.
 #
-# Images here are pinned — an exact tag, or a digest for third-party images
+# Images here are pinned - an exact tag, or a digest for third-party images
 # (see CONTRIBUTING.md, "Pin images"). Pinning is what keeps a surprise
 # `:latest` out of a socket-holding container; Dependabot is what stops pinning
 # from turning into rot. Two of these containers ARE the security boundary:
@@ -58,7 +58,7 @@ updates:
   # ── Images referenced from the compose files ──────────────────────────────
   # Every stack in this repo uses `compose.yml`, which the docker-compose
   # ecosystem picks up. If this ecosystem is ever unavailable to the repo,
-  # delete this block — the pins above and the `docker` block still stand.
+  # delete this block - the pins above and the `docker` block still stand.
   - package-ecosystem: docker-compose
     directories:
       - "/edge"

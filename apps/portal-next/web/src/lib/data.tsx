@@ -33,25 +33,59 @@ export interface HealthCounts {
   up: number;
   down: number;
   starting: number;
+  stopped: number;
   unknown: number;
 }
 
 export function healthOf(nodes: { status: string }[]): HealthCounts {
-  const c: HealthCounts = { total: nodes.length, up: 0, down: 0, starting: 0, unknown: 0 };
+  const c: HealthCounts = { total: nodes.length, up: 0, down: 0, starting: 0, stopped: 0, unknown: 0 };
   for (const n of nodes) {
     if (n.status === 'up') c.up++;
     else if (n.status === 'down') c.down++;
     else if (n.status === 'starting') c.starting++;
+    else if (n.status === 'stopped') c.stopped++;
     else c.unknown++;
   }
   return c;
 }
 
-// "Needs attention" — anything a manager should look at: down services and
-// orphaned routes (a route with no container is exactly what the portal should
-// shout about, per portal.md).
+// Services that are meant to be up right now. A deliberately-stopped service is
+// not part of the denominator: with it in, switching a project off dragged the
+// healthy % down and made an idle box look broken.
+export const expectedUp = (c: HealthCounts) => c.total - c.stopped;
+
+// "Needs attention" - anything a human should actually look at.
+//
+// Two things used to land here that are not problems:
+//   1. every stopped container, because statusOf() collapsed exited(0) into
+//      'down' (fixed at the source in discover.ts), and
+//   2. orphan routes belonging to a system that is entirely switched off - the
+//      four tals.dev.test file-routes point at host processes, so stopping Tals
+//      "orphaned" all four at once and each one shouted.
+// An orphan route still matters when the rest of its system is up (that IS the
+// route-with-no-backend case portal.md wants shouted about), so the rule is
+// scoped to the system rather than dropped.
+//
+//   3. (2026-08-12) A `down` container inside a system where NOTHING is
+//      running. The same mistake as 2, reached from the other direction, and it
+//      appeared the moment discovery started reporting stopped containers:
+//      `monorepo-inherited-channellink-1` exited 255 two days ago while its
+//      three siblings exited 0, i.e. somebody switched the project off and one
+//      container was untidy on the way out. Shouting about it every day since
+//      is not a fault report, it is a fault report's ghost.
+//
+//      A non-zero exit inside a LIVE system is still a real fault and still
+//      shouts - that distinction is the whole rule, and it is why this is scoped
+//      by system rather than by "is it old".
 export function needsAttention(nodes: import('./discover').PortalNode[]): import('./discover').PortalNode[] {
-  return nodes.filter(
-    (n) => n.status === 'down' || n.kind === 'orphan-route',
+  const liveGroups = new Set(
+    nodes.filter((n) => n.status === 'up' || n.status === 'starting').map((n) => n.group),
   );
+  return nodes.filter((n) => {
+    // Both cases now ask the same question: is anything in this system alive?
+    // If the whole system is off, its wreckage is not news.
+    if (n.status === 'down') return liveGroups.has(n.group);
+    if (n.kind !== 'orphan-route') return false;
+    return liveGroups.has(n.group);
+  });
 }

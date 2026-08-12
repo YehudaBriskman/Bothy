@@ -1,4 +1,4 @@
-// The "system" rollup — the new organising unit of the portal.
+// The "system" rollup - the new organising unit of the portal.
 //
 // A SYSTEM is one compose project (n.group): a real project like `tals` or
 // `cvops`, or a shared stack service (`monitoring`, `kafka`, `postgres`, …), or
@@ -8,7 +8,7 @@
 // system's domain page (/systems/:group), which splits its services by type.
 //
 // Everything here is derived from the already-joined PortalNode[] + /system/df.
-// No new fetch, no DOM — pure functions the pages compose.
+// No new fetch, no DOM - pure functions the pages compose.
 
 import type { PortalNode, Status, ServiceType, VolumeRef } from './discover';
 import { TYPE_META } from './discover';
@@ -29,7 +29,7 @@ export interface UiLink {
 }
 
 export interface System {
-  key: string; // the compose group, e.g. 'tals' — also the /systems/:name param
+  key: string; // the compose group, e.g. 'tals' - also the /systems/:name param
   title: string;
   kind: SystemKind;
   accent: string; // css var name, e.g. '--a3'
@@ -39,8 +39,10 @@ export interface System {
   up: number;
   down: number;
   starting: number;
+  stopped: number; // switched off on purpose - never an alert
   unknown: number;
   hasRunning: boolean;
+  isOff: boolean; // entirely stopped, nothing broken
   uiLinks: UiLink[];
   volumes: VolumeRef[];
   newestUptime: number | null; // smallest uptime = most recently (re)started
@@ -50,7 +52,7 @@ export interface System {
 const KIND_RANK: Record<SystemKind, number> = { project: 0, stack: 1, infra: 2 };
 
 // A project's display name comes from its own labelled node if present, else a
-// title-cased group slug — same rule as panelize/discover, kept in one place.
+// title-cased group slug - same rule as panelize/discover, kept in one place.
 function niceTitle(group: string, nodes: PortalNode[]): string {
   const labelled = nodes.find((n) => n.container?.labels?.['dev.portal.project']);
   return (
@@ -61,7 +63,7 @@ function niceTitle(group: string, nodes: PortalNode[]): string {
 
 // The system's kind = the kind of the MAJORITY of its nodes. They agree in
 // practice, but reading nodes[0] made a whole system's kind depend on router
-// insertion order — one nested hostname could flip a stack service to
+// insertion order - one nested hostname could flip a stack service to
 // "Project". Infra (edge/portal) is kept distinct so it sorts last and reads as
 // plumbing.
 function kindOf(nodes: PortalNode[]): SystemKind {
@@ -81,7 +83,7 @@ export function uiLinkOf(n: PortalNode): UiLink | null {
   if (!n.browsable || !n.url) return null;
   // Only report a port for links that ARE a port. A routed service is reached by
   // hostname, and surfacing its container's published port made the Traefik row
-  // read ":80" — the edge's own listener, not the dashboard.
+  // read ":80" - the edge's own listener, not the dashboard.
   const port = n.host
     ? null
     : n.ports.find((p) => p.scope === 'public')?.hostPort ?? n.ports[0]?.hostPort ?? null;
@@ -109,11 +111,12 @@ export function systemsOf(nodes: PortalNode[]): System[] {
 
   const systems: System[] = [];
   for (const [key, ns] of byGroup) {
-    let up = 0, down = 0, starting = 0, unknown = 0;
+    let up = 0, down = 0, starting = 0, stopped = 0, unknown = 0;
     for (const n of ns) {
       if (n.status === 'up') up++;
       else if (n.status === 'down') down++;
       else if (n.status === 'starting') starting++;
+      else if (n.status === 'stopped') stopped++;
       else unknown++;
     }
     const uptimes = ns.map((n) => n.uptimeSecs).filter((s): s is number => s != null);
@@ -132,8 +135,11 @@ export function systemsOf(nodes: PortalNode[]): System[] {
       nodes: ns,
       total: ns.length,
       running: up + starting,
-      up, down, starting, unknown,
+      up, down, starting, stopped, unknown,
       hasRunning: up + starting > 0,
+      // Off in full, and nothing wrong with it - the state a project sits in
+      // between sessions. Rendered muted and kept out of every alert count.
+      isOff: up + starting === 0 && down === 0 && stopped > 0,
       uiLinks,
       volumes,
       newestUptime: uptimes.length ? Math.min(...uptimes) : null,
@@ -151,13 +157,17 @@ export function systemsOf(nodes: PortalNode[]): System[] {
 }
 
 // A system is "clean" only when nothing is down AND nothing is unconfirmed.
-// `unknown` is not a pass — it means we could not tell, which is why the old
+// `unknown` is not a pass - it means we could not tell, which is why the old
 // down-only rule could report "Has issues 0" beside "Needs attention 7".
-export const systemHasIssues = (s: System) => s.down > 0 || s.unknown > 0;
+//
+// `stopped` IS a pass: we know exactly what happened to it (somebody stopped
+// it), which is the whole point of separating it from `down`. A system that is
+// entirely off is likewise not "unconfirmed" - it is confirmed off.
+export const systemHasIssues = (s: System) => !s.isOff && (s.down > 0 || s.unknown > 0);
 
 // Systems that are NOT running but still hold data (a stopped project whose
 // volumes persist). Note these can only appear if such a system has nodes at
-// all — see diskRows() in the Overview for volumes owned by no live service.
+// all - see diskRows() in the Overview for volumes owned by no live service.
 export const dataOnlySystems = (systems: System[]) =>
   systems.filter((s) => !s.hasRunning && s.volumes.length > 0);
 
@@ -197,11 +207,11 @@ export function groupByType(nodes: PortalNode[]): TypeSection[] {
   return sections;
 }
 
-// ── Recent activity — most recently (re)started containers ───────────────────
+// ── Recent activity - most recently (re)started containers ───────────────────
 // Uptime is coarse (docker's "Up 3 minutes"), so this is "what came up lately",
 // good enough to notice a restart. thresholdSecs default 30 min.
 // A whole-box boot is NOT activity. Docker's uptime is coarse ("Up 21 minutes"),
-// so after `just up` every node ties on the same value — the old threshold-only
+// so after `just up` every node ties on the same value - the old threshold-only
 // rule then listed all 20 containers as one undifferentiated "21m ago" feed, and
 // showed nothing at all once the box passed 30 minutes. Report only services
 // that started clearly LATER than the box's median, i.e. a genuine restart.
@@ -227,7 +237,7 @@ export function volumeSize(df: SystemDf | null, name: string): number | null {
 }
 
 // Every volume docker knows about, joined to the system that mounts it. Volumes
-// with no live mount (RefCount 0 — a renamed or deleted project's leftovers,
+// with no live mount (RefCount 0 - a renamed or deleted project's leftovers,
 // e.g. liba-postgres-data-dev after Liba became Tals) belong to no PortalNode,
 // so a nodes-derived disk panel can never show them. That is precisely the case
 // a disk panel exists for, hence the join runs this way round: df is the
@@ -273,10 +283,10 @@ export function systemDiskBytes(df: SystemDf | null, system: System): number | n
 
 // Human byte formatting, shared by every disk surface.
 export function fmtBytes(n: number | null | undefined): string {
-  if (n == null) return '—';
+  if (n == null) return '-';
   // Docker reports Size: -1 when it did not compute a volume's size. Math.log of
   // a negative is NaN, which rendered literally as "NaN undefined".
-  if (n < 0) return '—';
+  if (n < 0) return '-';
   if (n === 0) return '0 B';
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
@@ -287,14 +297,14 @@ export function fmtBytes(n: number | null | undefined): string {
 // Human "3m ago" / "2h ago" from an uptime-in-seconds. Uptime IS "time since
 // start", so uptime == age-since-started.
 export function fmtAgo(secs: number | null): string {
-  if (secs == null) return '—';
+  if (secs == null) return '-';
   if (secs < 60) return `${secs}s ago`;
   if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
   if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
   return `${Math.round(secs / 86400)}d ago`;
 }
 export function fmtUptime(secs: number | null): string {
-  if (secs == null) return '—';
+  if (secs == null) return '-';
   if (secs < 3600) return `${Math.max(1, Math.round(secs / 60))}m`;
   if (secs < 86400) return `${Math.round(secs / 3600)}h`;
   return `${Math.round(secs / 86400)}d`;

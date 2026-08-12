@@ -12,7 +12,7 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # The edge itself — request/latency/error metrics per router + service. Metrics
+  # The edge itself - request/latency/error metrics per router + service. Metrics
   # ride an internal traefik entrypoint (:8899, no host port); we reach it by name
   # over devnet. See edge/compose.yml.
   - job_name: traefik
@@ -31,15 +31,18 @@ scrape_configs:
     static_configs:
       - targets: ["node-exporter:9100"]
 
-  # Data-stack exporters (down until those stacks are up — that's fine).
+  # Data-stack exporters (down until those stacks are up - that's fine).
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter:9187"]
 
-  - job_name: redis
-    static_configs:
-      - targets: ["redis-exporter:9121"]
-
-  - job_name: kafka
-    static_configs:
-      - targets: ["kafka-exporter:9308"]
+  # redis and kafka scrape jobs REMOVED 2026-08-12, with their services.
+  #
+  # Both were retired as idle (redis: 0 keys, kafka: 0 topics). A scrape job for
+  # a service that no longer runs is not harmless: its target sits permanently
+  # DOWN, so "are all targets up?" stops being a question worth asking and the
+  # one alert that matters gets lost among two that never resolve.
+  #
+  # Restore alongside the service:
+  #   - job_name: redis   ->  redis-exporter:9121
+  #   - job_name: kafka   ->  kafka-exporter:9308

@@ -1,0 +1,73 @@
+/* The global quick view - five tiles, one row on a wide screen.
+   Tiles are a fixed internal grid so every one has the same baseline for its
+   label, value and trajectory row, whether or not it has a sub-line. */
+
+.qv {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
+}
+
+.qv-tile {
+  display: grid; grid-template-rows: auto auto auto auto; gap: 3px;
+  min-width: 0; padding: 9px 11px 8px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
+  color: inherit;
+}
+
+.qv-top { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--fg-subtle); }
+.qv-top svg { flex: none; }
+.qv-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Proportional figures, NOT tabular: tabular gives every digit the width of a
+   zero, which at this size makes a value like "15/22" look loose and gappy.
+   Tabular is for columns of numbers that must align vertically - the tables and
+   the axis ticks - not for a standalone display value. */
+.qv-value {
+  font-size: 23px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.05;
+  color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Always rendered, even when there is nothing to draw, so a tile with no metric
+   is the same height as one with a chart. */
+.qv-trend { display: flex; align-items: center; min-height: 18px; }
+.qv-sub {
+  font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.qv-off { font-size: 10px; color: var(--fg-subtle); font-style: italic; }
+
+/* ── meter ─────────────────────────────────────────────────────────────────
+   Fill carries severity; the track is the same hue at low alpha rather than a
+   neutral grey, so the whole bar reads as one object and the state is legible
+   even where the fill is short. */
+.qv-meter {
+  position: relative; display: block; width: 100%; height: 6px;
+  border-radius: var(--r-full); overflow: hidden;
+  background: color-mix(in oklab, var(--tone-c) 16%, transparent);
+}
+.qv-meter-fill { position: absolute; inset: 0 auto 0 0; border-radius: var(--r-full); background: var(--tone-c); }
+
+/* ── sparkline ─────────────────────────────────────────────────────────────
+   Stretched to the tile width with a non-uniform scale, so the stroke is
+   normalised back with `vector-effect` - otherwise a wide tile draws a fat line
+   and a narrow one a hairline. */
+.qv-spark { display: block; width: 100%; height: 18px; overflow: visible; }
+.qv-spark polyline {
+  fill: none; stroke: var(--tone-c); stroke-width: 1.5;
+  stroke-linejoin: round; stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.qv-spark-empty { display: block; width: 100%; height: 18px; }
+
+/* Tone is resolved once, here, so the meter and the spark cannot disagree. */
+.qv-meter[data-tone='ok'],  .qv-spark[data-tone='ok']   { --tone-c: var(--accent); }
+.qv-meter[data-tone='warn'], .qv-spark[data-tone='warn'] { --tone-c: var(--st-warn); }
+.qv-meter[data-tone='down'], .qv-spark[data-tone='down'] { --tone-c: var(--st-down); }
+
+/* ── responsive ─────────────────────────────────────────────────────────────
+   Five across, then three, then two. Never one: a single full-width tile is a
+   row carrying one number, which is the footprint rule inverted. */
+@media (max-width: 1180px) { .qv { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 620px)  { .qv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

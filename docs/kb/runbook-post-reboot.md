@@ -1,13 +1,15 @@
-# RUNBOOK — after the Windows host reboots
+# RUNBOOK - after the Windows host reboots
 
-The box is expected to come up **by itself, with nobody logged in as devssh** — proven on
+The box is expected to come up **by itself, with nobody logged in as devssh** - proven on
 the 2026-08-01 cold boot ([always-on.md](always-on.md)). This runbook verifies it.
 
 ## Fastest check
 
 From the phone (on tailnet): open **http://100.117.176.85/** → the portal renders = PASS.
-(dev.test is retired since 2026-08-08; a full page matters — a blank/hanging page with
-the tab spinner is the blackhole signature, see [runbook-cant-reach.md](runbook-cant-reach.md).)
+(Names are retired - dormant 2026-08-08, deleted 2026-08-12. A **full page** matters:
+a blank/hanging page with the tab spinner is the blackhole signature, see
+[runbook-cant-reach.md](runbook-cant-reach.md). And because `:80` answers 200 for
+anything, follow up on a real service port - e.g. `:3000` - before calling it healthy.)
 
 ## Proper check (from yr055 on the PC)
 
@@ -39,11 +41,11 @@ schtasks /run /TN "DevBox-WSL-Keepalive"     # elevated
 
 - That brings it up → task fine, boot **trigger** didn't fire (small fix).
 - It doesn't → log in as devssh once (always works), then investigate the task.
-- **If devssh's password changed recently, that's the cause** — the stored task
+- **If devssh's password changed recently, that's the cause** - the stored task
   credential broke silently. Re-save it.
 
 ## Also affected by a reboot
 
-- Host LAN IP may change (DHCP) — anything hard-coding it lies ([topology.md](topology.md)).
-- WSL guest NAT IP rotates — irrelevant to normal access (Tailscale/names don't care).
+- Host LAN IP may change (DHCP) - anything hard-coding it lies ([topology.md](topology.md)).
+- WSL guest NAT IP rotates - irrelevant to normal access (Tailscale/names don't care).
 - First SSH to the dev box after boot may hang seconds while the tunnel path establishes.

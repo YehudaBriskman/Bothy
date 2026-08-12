@@ -1,9 +1,9 @@
-// Lucide icon mapping — replaces the emoji `iconFor` from the original portal.
+// Lucide icon mapping - replaces the emoji `iconFor` from the original portal.
 // The user explicitly hates the emoji, so NOTHING in the UI renders node.icon
 // (the emoji string still exists on PortalNode, it is simply never surfaced).
 //
 // A service maps to an icon by its container image first, then its display name
-// (so @file host processes with no container — e.g. Tilt — still resolve). Order
+// (so @file host processes with no container - e.g. Tilt - still resolve). Order
 // matters: the specific product must precede the vendor, exactly like the
 // original table, or grafana/loki matches 'grafana' and shows the wrong glyph.
 
@@ -11,7 +11,7 @@ import {
   Database, BarChart3, Target, ScrollText, Waypoints, Container as ContainerIcon,
   Waves, BookOpen, Boxes, MemoryStick, HardDrive, Globe, Wrench, Plug, Gauge,
   Server, Box, Activity, Layers,
-  CircleCheck, CircleDot, LoaderCircle, CircleX, CircleHelp,
+  CircleCheck, CircleDot, LoaderCircle, CircleX, CircleHelp, CirclePause,
   type LucideIcon,
 } from 'lucide-react';
 import type { PortalNode, Status, ServiceType } from './discover';
@@ -83,6 +83,9 @@ export const STATUS_ICON: Record<Status, LucideIcon> = {
   up: CircleCheck,
   starting: LoaderCircle,
   down: CircleX,
+  // Pause, not a cross: the glyph has to read "someone switched this off",
+  // because form (not colour) is what carries status here.
+  stopped: CirclePause,
   unknown: CircleHelp,
 };
 
@@ -90,18 +93,20 @@ export const STATUS_ICON: Record<Status, LucideIcon> = {
 // "starting" pulse in dense tables): CircleDot for starting when spinning is too
 // busy. Exposed for callers that want the alternate.
 export const STATUS_ICON_ALT: Record<Status, LucideIcon> = {
-  up: CircleCheck, starting: CircleDot, down: CircleX, unknown: CircleHelp,
+  up: CircleCheck, starting: CircleDot, down: CircleX, stopped: CirclePause, unknown: CircleHelp,
 };
 
 export const STATUS_VAR: Record<Status, string> = {
-  up: '--ok', starting: '--warn', down: '--down', unknown: '--unk',
+  // --off is the muted token: a stopped service must recede, not compete with
+  // the things that are actually broken.
+  up: '--ok', starting: '--warn', down: '--down', stopped: '--off', unknown: '--unk',
 };
 
 const STATUS_LABEL: Record<Status, string> = {
-  up: 'Up', starting: 'Starting', down: 'Down', unknown: 'Unknown',
+  up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown',
 };
 
-// Status glyph — coloured by the reserved status palette, never colour-alone
+// Status glyph - coloured by the reserved status palette, never colour-alone
 // (always carries an accessible label). `spin` animates the starting spinner.
 export function StatusIcon({
   status, size = 15, showLabel = false, title,

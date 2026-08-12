@@ -51,4 +51,4 @@ markdown_extensions:
 plugins:
   - search
 
-# No `nav:` — MkDocs auto-builds the tree from content/, so new files just appear.
+# No `nav:` - MkDocs auto-builds the tree from content/, so new files just appear.

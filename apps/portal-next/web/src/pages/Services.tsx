@@ -1,24 +1,27 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, ChevronDown, LayoutGrid, Rows3, SlidersHorizontal, X } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { ArrowRight, ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import { usePortal } from '../lib/data';
 import { panelize } from '../lib/panels';
 import { accentVar } from '../lib/accents';
 import type { PortalNode, Status } from '../lib/discover';
 import { systemLink } from '../lib/links';
-import { ServiceCard } from '../components/ServiceCard';
 import { ServiceTable } from '../components/ServiceTable';
 import { StatusIcon } from '../lib/icons';
 import { EmptyState } from '../components/states';
 import './Services.css';
 
-type View = 'cards' | 'table';
-type Density = 'comfortable' | 'compact';
+// The card view and the density toggle are GONE. A ServiceCard measured the
+// same area as ~3 table rows while carrying strictly FEWER dimensions than the
+// row did - no image, no uptime, no ports column - so the table dominated it
+// outright: same cost, less information. Two controls that only ever chose
+// between "worse" and "better" are two controls nobody should have to operate.
+// Rows are now one height, chosen to be the dense one.
 type KindFilter = 'all' | 'routed' | 'no-container' | 'unrouted' | 'host';
 
-const STATUSES: Status[] = ['up', 'starting', 'down', 'unknown'];
-const STATUS_LABEL: Record<Status, string> = { up: 'Up', starting: 'Starting', down: 'Down', unknown: 'Unknown' };
+const STATUSES: Status[] = ['up', 'starting', 'down', 'stopped', 'unknown'];
+const STATUS_LABEL: Record<Status, string> = { up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown' };
 // These MUST partition the node set. 'Orphan' and 'Host process' used to select
 // the same 7 nodes under two names, so the four counts summed to 34 of 27 and
 // "Orphan (7)" implied 7 broken routes when they were ordinary host processes.
@@ -30,28 +33,16 @@ const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: 'unrouted', label: 'Unrouted' },
 ];
 
-function useLocalState<T extends string>(key: string, initial: T): [T, (v: T) => void] {
-  const [v, setV] = useState<T>(() => {
-    try { return (localStorage.getItem(key) as T) || initial; } catch { return initial; }
-  });
-  const set = (nv: T) => { try { localStorage.setItem(key, nv); } catch { /* ignore */ } setV(nv); };
-  return [v, set];
-}
-
 export function Services() {
   const { data } = usePortal();
   const [params, setParams] = useSearchParams();
   const q = params.get('q') || '';
   const reduced = useReducedMotion() ?? false;
 
-  const [view, setView] = useLocalState<View>('svc-view', 'cards');
-  const [density, setDensity] = useLocalState<Density>('svc-density', 'comfortable');
   const [statusFilter, setStatusFilter] = useState<Set<Status>>(new Set());
   const [project, setProject] = useState('all');
   const [kind, setKind] = useState<KindFilter>('all');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  const compact = density === 'compact';
 
   const setQ = (v: string) => {
     const next = new URLSearchParams(params);
@@ -83,7 +74,7 @@ export function Services() {
 
     const filtered = vis.filter((n) => mStatus(n) && mProject(n) && mKind(n, kind) && mText(n));
 
-    const statusCounts: Record<Status, number> = { up: 0, starting: 0, down: 0, unknown: 0 };
+    const statusCounts: Record<Status, number> = { up: 0, starting: 0, down: 0, stopped: 0, unknown: 0 };
     for (const n of vis) if (mProject(n) && mKind(n, kind) && mText(n)) statusCounts[n.status]++;
 
     const projectCounts = new Map<string, number>();
@@ -142,18 +133,10 @@ export function Services() {
               {allCollapsed ? 'Expand all' : 'Collapse all'}
             </button>
           )}
-          <div className="seg-toggle" role="group" aria-label="View">
-            <button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')} title="Cards" aria-pressed={view === 'cards'}><LayoutGrid size={16} /></button>
-            <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')} title="Table" aria-pressed={view === 'table'}><Rows3 size={16} /></button>
-          </div>
-          <div className="seg-toggle" role="group" aria-label="Density">
-            <button className={density === 'comfortable' ? 'on' : ''} onClick={() => setDensity('comfortable')} aria-pressed={density === 'comfortable'}>Comfortable</button>
-            <button className={density === 'compact' ? 'on' : ''} onClick={() => setDensity('compact')} aria-pressed={density === 'compact'}>Compact</button>
-          </div>
         </div>
       </div>
 
-      {/* Persistent filter bar — every control combines and reports its count. */}
+      {/* Persistent filter bar - every control combines and reports its count. */}
       <div className="filter-bar">
         <SlidersHorizontal size={15} className="filters-ico" aria-hidden="true" />
         <div className="filter-chips">
@@ -202,15 +185,14 @@ export function Services() {
       </div>
 
       {!panels.length ? (
-        // Only offer "Clear filter" when there IS one — otherwise the empty
+        // Only offer "Clear filter" when there IS one - otherwise the empty
         // state invites you to clear nothing.
         <EmptyState
           message={activeFilters ? 'No services match these filters' : 'No services discovered'}
           onClear={activeFilters ? clearAll : undefined}
         />
       ) : (
-        <LayoutGroup>
-          <div className="svc-groups">
+        <div className="svc-groups">
             {panels.map((p, gi) => {
               const isCollapsed = collapsed.has(p.key);
               return (
@@ -228,7 +210,7 @@ export function Services() {
                       <span className="tail" />
                       <span className="cnt">{p.nodes.length}</span>
                     </button>
-                    {/* the only path from Services to a system page — the head
+                    {/* the only path from Services to a system page - the head
                         itself is a collapse toggle, so the link sits beside it */}
                     {p.group && (
                       <Link
@@ -252,30 +234,14 @@ export function Services() {
                         transition={{ duration: 0.24, ease: [0.2, 0.7, 0.2, 1] }}
                         style={{ overflow: 'hidden' }}
                       >
-                        {view === 'cards' ? (
-                          <motion.div className={`svc-grid ${compact ? 'compact' : ''}`} layout={!reduced}>
-                            <AnimatePresence mode="popLayout">
-                              {p.nodes.map((n) => (
-                                <ServiceCard
-                                  key={n.id}
-                                  node={n}
-                                  compact={compact}
-                                  reduced={reduced}
-                                />
-                              ))}
-                            </AnimatePresence>
-                          </motion.div>
-                        ) : (
-                          <ServiceTable nodes={p.nodes} compact={compact} label={`${p.title} services`} />
-                        )}
+                        <ServiceTable nodes={p.nodes} compact label={`${p.title} services`} />
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </section>
               );
             })}
-          </div>
-        </LayoutGroup>
+        </div>
       )}
     </div>
   );

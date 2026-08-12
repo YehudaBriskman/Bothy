@@ -5,7 +5,7 @@ services:
     image: nginx:alpine
     container_name: portal
     restart: unless-stopped
-    # No published port on purpose — Traefik (edge/compose.yml) owns :80 and
+    # No published port on purpose - Traefik (edge/compose.yml) owns :80 and
     # routes here by Host. This container is now unreachable except through the
     # edge, which is the point: it can never collide with another project again.
     volumes:
@@ -18,28 +18,24 @@ services:
       # socket-proxy below still runs (the new portal needs it for /-/api/docker).
       # To roll back: set this to true and stop portal-next.
       - traefik.enable=false
-      - traefik.http.services.portal.loadbalancer.server.port=80
 
-      # The base name. Everything else on this box nests under it:
-      # <service>.dev.test for stack services, <project>.dev.test for projects,
-      # <sub>.<project>.dev.test for a project's own pieces.
-      - traefik.http.routers.portal.rule=Host(`dev.test`)
-      - traefik.http.routers.portal.entrypoints=web
-      - traefik.http.routers.portal.service=portal
-      - traefik.http.routers.portal.middlewares=sso-errors@file,sso@file
-
-      # Catch-all so the bare tailnet IP (and the legacy Windows portproxy
-      # address) still lands on the homepage — those
-      # requests carry an IP as Host, which matches no Host() rule and would
-      # otherwise 404. priority=1 keeps this below every real Host route, so it
-      # only catches what nothing else claimed. Also means a typo'd *.test name
-      # shows the portal (an index of what exists) instead of a bare 404.
-      - traefik.http.routers.portal-fallback.rule=PathPrefix(`/`)
-      - traefik.http.routers.portal-fallback.priority=1
-      - traefik.http.routers.portal-fallback.entrypoints=web
-      # The fallback catches every unrouted host, so it gates the bare IP too.
-      - traefik.http.routers.portal-fallback.middlewares=sso-errors@file,sso@file
-      - traefik.http.routers.portal-fallback.service=portal
+      # The router labels that used to live here are GONE (2026-08-12), not
+      # commented out. They were already inert - `traefik.enable=false` above
+      # means the docker provider never created them - but they were also wrong
+      # twice over: they declared `Host(`dev.test`)` against a name layer that
+      # was retired the same day, and they referenced `sso-errors@file,sso@file`,
+      # middlewares that stopped existing when the SSO was parked on 2026-08-08.
+      #
+      # Leaving that behind would have been three kinds of misleading: a route
+      # for a dead name, protected by a middleware that does not exist, on a
+      # container that is switched off. If this service is ever un-retired it
+      # needs writing against the current model anyway - a published port, or the
+      # catch-all pattern that apps/portal-next now owns.
+      #
+      # THIS SERVICE STAYS DEFINED AND RUNNING regardless: it owns
+      # `portal-socket-proxy` below, which is what serves the live portal's
+      # read-only Docker API through edge/dynamic/portal-api.yml. Stopping this
+      # compose file breaks the Overview. See the justfile's up-apps comment.
     deploy:
       resources:
         limits:
@@ -49,13 +45,13 @@ services:
   # ── The portal's read-only view of Docker ────────────────────────────────
   # The portal page discovers what's running (ports, health, projects) instead
   # of being a hand-written list. Traefik's API knows routes but not ports or
-  # health — only Docker does. nginx must NEVER touch the socket (it's
+  # health - only Docker does. nginx must NEVER touch the socket (it's
   # root-equivalent), so this proxy stands in front of it.
   #
-  # SECURITY — read this before changing anything here:
+  # SECURITY - read this before changing anything here:
   #
   #  • CONTAINERS=1 does NOT mean "only /containers/json". docker-socket-proxy
-  #    gates by endpoint FAMILY, so it also permits /containers/{id}/json —
+  #    gates by endpoint FAMILY, so it also permits /containers/{id}/json -
   #    whose response includes Env, i.e. POSTGRES_PASSWORD and the Grafana admin
   #    password. The actual boundary is the exact Path() rule in
   #    ../../edge/dynamic/portal-api.yml. Never widen that to PathPrefix.
@@ -68,17 +64,17 @@ services:
   #
   # What this exposes to the tailnet via /containers/json: container names,
   # images, ports, health, labels, Mounts (host paths) and Command (argv).
-  # NOT Env. That's a home-dir-layout disclosure — acceptable on a personal
+  # NOT Env. That's a home-dir-layout disclosure - acceptable on a personal
   # tailnet, NOT acceptable if dev.test ever reaches beyond it.
   #
   #  • SYSTEM=1 grants the /system family so the portal can read /system/df
-  #    (per-image / per-container / per-volume disk usage — the "Data & disk"
+  #    (per-image / per-container / per-volume disk usage - the "Data & disk"
   #    card). WHY THIS IS SAFE: /system/df returns the SAME categories already
   #    exposed by /containers/json (names, images, labels, command, mounts) plus
-  #    SIZE numbers — it carries NO Env and no new secret-bearing field. It is
+  #    SIZE numbers - it carries NO Env and no new secret-bearing field. It is
   #    also read-only (POST=0 still blocks every mutating /system endpoint). As
   #    with CONTAINERS, the real boundary is the exact Path() rule in
-  #    ../../edge/dynamic/portal-api.yml — only /-/api/docker/system/df is
+  #    ../../edge/dynamic/portal-api.yml - only /-/api/docker/system/df is
   #    routed; nothing else under /system is reachable from the tailnet.
   socket-proxy:
     image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
@@ -115,8 +111,8 @@ services:
       # :ro is the second lock. The proxy is the real boundary, but a writable
       # socket would leave POST=0 as the ONLY thing between the tailnet and root.
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    # NO ports: — must never be reachable from the host network.
-    # NOT on devnet — see the security note above.
+    # NO ports: - must never be reachable from the host network.
+    # NOT on devnet - see the security note above.
     networks: [socketnet]
     deploy:
       resources:

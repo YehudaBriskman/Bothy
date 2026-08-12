@@ -1,19 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
-  LayoutDashboard, Boxes, Waypoints, Plug, Share2,
-  Search, RefreshCw, Moon, Sun, Monitor, Server, Menu,
+  LayoutDashboard, Boxes, Waypoints, Share2,
+  Search, RefreshCw, Moon, Sun, Monitor,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
 import { useTheme } from '../lib/theme';
 import { freshnessOf } from '../lib/freshness';
+import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
+import { Tooltip } from './Tooltip';
+import { Brand } from './Brand';
+import { CommandPalette } from './CommandPalette';
 
+// Four destinations. Ports and Routes were two views of "how do I reach this?"
+// and are now tabs inside /access.
 const NAV = [
   { to: '/', label: 'Overview', Icon: LayoutDashboard, end: true },
   { to: '/services', label: 'Services', Icon: Boxes, end: false },
-  { to: '/ports', label: 'Ports', Icon: Plug, end: false },
-  { to: '/routes', label: 'Routes', Icon: Waypoints, end: false },
+  { to: '/access', label: 'Access', Icon: Waypoints, end: false },
   { to: '/topology', label: 'Topology', Icon: Share2, end: false },
 ];
 
@@ -21,172 +26,152 @@ function ThemeToggle() {
   const { theme, cycle } = useTheme();
   const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
   return (
-    <button className="icon-btn" onClick={cycle} title={`Theme: ${theme} (click to change)`} aria-label={`Theme: ${theme}`}>
-      <Icon size={18} />
-    </button>
+    <Tooltip label={`Theme: ${theme} - click to change`} align="end">
+      <button className="icon-btn" onClick={cycle} aria-label={`Theme: ${theme}. Click to change.`}>
+        <Icon size={18} />
+      </button>
+    </Tooltip>
   );
 }
 
 export function AppShell() {
   const { data, refresh } = usePortal();
-  const nav = useNavigate();
   const loc = useLocation();
   const fresh = freshnessOf(data);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [q, setQ] = useState('');
+
+  // Mounted once, for the whole app: a new page starts at the top and Back
+  // returns you where you were; every `.scroll-shade` container gets inner
+  // shadows on the edge it can still travel towards; the left rail tracks how
+  // far down the page you are. See lib/scroll.ts.
+  useScrollRestoration();
+  useScrollShades();
+  const progress = useScrollProgress();
   const [spin, setSpin] = useState(false);
-  const [navOpen, setNavOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  // The palette is the only thing that ever takes focus away from the page, so
+  // it is also the only thing that has to give it back.
+  const restoreFocus = useRef<HTMLElement | null>(null);
 
-  // Keep the topbar search in sync with the Services page query param.
-  const params = new URLSearchParams(loc.search);
-  const urlQ = params.get('q') || '';
-  useEffect(() => {
-    if (loc.pathname === '/services') setQ(urlQ);
-  }, [urlQ, loc.pathname]);
+  const doRefresh = useCallback(() => {
+    refresh();
+    setSpin(true);
+    setTimeout(() => setSpin(false), 700);
+  }, [refresh]);
 
-  // "/" focuses search, "r" refreshes — the two keys the old portal had.
+  const openPalette = () => {
+    restoreFocus.current = document.activeElement as HTMLElement | null;
+    setPaletteOpen(true);
+  };
+  const closePalette = () => {
+    setPaletteOpen(false);
+    restoreFocus.current?.focus();
+  };
+
+  // ⌘K / Ctrl-K and "/" open the palette; "r" refreshes. The `typing` guard is
+  // what keeps "r" from being unpressable inside the palette's own input.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        paletteOpen ? closePalette() : openPalette();
+        return;
+      }
       const typing = e.target instanceof HTMLElement && /^(input|textarea|select)$/i.test(e.target.tagName);
       if (typing) {
         if (e.key === 'Escape') (e.target as HTMLElement).blur();
         return;
       }
-      if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); }
+      if (e.key === '/') { e.preventDefault(); openPalette(); }
       else if (e.key === 'r') doRefresh();
-      // Escape closes the mobile nav — it was a one-way door before.
-      else if (e.key === 'Escape') setNavOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 
   const reduce = useReducedMotion();
-
-  const doRefresh = () => {
-    refresh();
-    setSpin(true);
-    setTimeout(() => setSpin(false), 700);
-  };
-
-  const onSearch = (v: string) => {
-    setQ(v);
-    const target = `/services${v ? `?q=${encodeURIComponent(v)}` : ''}`;
-    nav(target, { replace: loc.pathname === '/services' });
-  };
+  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
   return (
     <div className="shell">
       <div className="bg" aria-hidden="true">
-        <span className="orb a" />
-        <span className="orb b" />
         <span className="grid-lines" />
       </div>
 
-      {/* Skip link — every page cost 6 Tab presses to reach content. */}
+      {/* How far down the page you are. Scaled rather than resized, and hidden
+          outright when the page is too short to scroll. */}
+      <div className="scroll-rail" aria-hidden="true" hidden={progress === 0}>
+        <span className="scroll-rail-fill" style={{ transform: `scaleY(${progress})` }} />
+      </div>
+
+      {/* Skip link - one Tab press to content. It mattered more with the
+          sidebar (6 stops); kept because it costs nothing and the nav is still
+          the first thing in the DOM. */}
       <a href="#content" className="skip-link">Skip to content</a>
 
-      {/* At mobile widths a closed sidebar is only translated off-screen, so its
-          6 links stayed focusable and Tab order began with six invisible stops.
-          `visibility: hidden` in the <=860px block removes them from the tab
-          order there WITHOUT touching desktop, where the sidebar is visible and
-          navOpen is always false. */}
-      <aside className={`sidebar ${navOpen ? 'open' : ''}`} id="primary-nav">
-        <NavLink to="/" className="brand" end onClick={() => setNavOpen(false)}>
-          <span className="brand-mark"><Server size={18} /></span>
-          <span className="brand-text">
-            <b>dev.test</b>
-            <small>dev box</small>
-          </span>
+      <header className="topbar">
+        <NavLink to="/" className="brand" end aria-label="Bothy - overview">
+          <Brand />
         </NavLink>
 
-        <nav className="nav" aria-label="Primary">
+        {/* scroll-shade drives the horizontal edge fades when the row overflows;
+            `title` is the label's third fallback, for touch, where neither hover
+            nor focus-visible fires. */}
+        <nav className="nav scroll-shade" aria-label="Primary">
           {NAV.map(({ to, label, Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
+              title={label}
               className={({ isActive }) => `nav-item ${isActive ? 'on' : ''}`}
-              onClick={() => setNavOpen(false)}
             >
-              <Icon size={18} />
-              <span>{label}</span>
+              <Icon size={16} />
+              <span className="nav-label">{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="side-foot">
-          <div className={`pill ${fresh.kind}`} title={fresh.text}>
+        <span className="topbar-spacer" />
+
+        <Tooltip label={fresh.text}>
+          <div className={`pill ${fresh.kind} topbar-pill`}>
             <span className="pulse" />
             <span className="pill-short">{fresh.short}</span>
           </div>
-          <div className="side-cmds">
-            <code>just up</code>
-            <code>just doctor</code>
-          </div>
-        </div>
-      </aside>
+        </Tooltip>
 
-      <div className="main-col">
-        <header className="topbar">
-          <button
-            className="icon-btn hamburger"
-            onClick={() => setNavOpen((o) => !o)}
-            aria-label="Toggle navigation"
-            aria-expanded={navOpen}
-            aria-controls="primary-nav"
-          >
-            {/* Menu, not Boxes — Boxes already means "Services" in the nav */}
-            <Menu size={18} />
-          </button>
+        <button className="topbar-search" onClick={openPalette} aria-label="Search (Ctrl K)" aria-haspopup="dialog">
+          <Search size={15} className="search-ico" aria-hidden="true" />
+          <span className="search-label">Search…</span>
+          <span className="kbd">{isMac ? '⌘' : 'Ctrl '}K</span>
+        </button>
 
-          <div className={`pill ${fresh.kind} topbar-pill`} title={fresh.text}>
-            <span className="pulse" />
-            <span>{fresh.text}</span>
-          </div>
-
-          <div className="topbar-search">
-            <Search size={16} className="search-ico" aria-hidden="true" />
-            <input
-              ref={searchRef}
-              type="search"
-              placeholder="Search services…   /"
-              value={q}
-              onChange={(e) => onSearch(e.target.value)}
-              aria-label="Search services"
-            />
-          </div>
-
-          <button
-            className="icon-btn"
-            onClick={doRefresh}
-            title="Refresh now (r)"
-            aria-label="Refresh"
-          >
+        <Tooltip label="Refresh now (r)" align="end">
+          <button className="icon-btn" onClick={doRefresh} aria-label="Refresh now">
             <RefreshCw size={18} className={spin ? 'spin' : undefined} />
           </button>
-          <ThemeToggle />
-        </header>
+        </Tooltip>
+        <ThemeToggle />
+      </header>
 
-        {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />}
+      {/* Route/page transition - a short fade+rise keyed on the path. `mode:wait`
+          lets the outgoing page finish before the next mounts, so pages never
+          overlap. Reduced-motion collapses the offset to a plain fade. */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.main
+          key={loc.pathname}
+          id="content"
+          className="content"
+          initial={{ opacity: 0, y: reduce ? 0 : 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: reduce ? 0 : -8 }}
+          transition={{ duration: 0.22, ease: [0.2, 0.7, 0.2, 1] }}
+        >
+          <Outlet />
+        </motion.main>
+      </AnimatePresence>
 
-        {/* Route/page transition — a short fade+rise keyed on the path. `mode:wait`
-            lets the outgoing page finish before the next mounts, so pages never
-            overlap. Reduced-motion collapses the offset to a plain fade. */}
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.main
-            key={loc.pathname}
-            id="content"
-            className="content"
-            initial={{ opacity: 0, y: reduce ? 0 : 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: reduce ? 0 : -8 }}
-            transition={{ duration: 0.22, ease: [0.2, 0.7, 0.2, 1] }}
-          >
-            <Outlet />
-          </motion.main>
-        </AnimatePresence>
-      </div>
+      <CommandPalette open={paletteOpen} onClose={closePalette} />
     </div>
   );
 }

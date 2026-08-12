@@ -10,11 +10,17 @@ body:
         development box, so the bar for "should this exist here" is a bit
         specific. Two rules worth knowing before you write:
 
-        - The stack provides what projects **do not** ship — routing, DNS,
+        - The stack provides what projects **do not** ship - routing,
           dashboards, logs. It does not provide what a project ships for itself;
           a project keeps its own database.
-        - Nothing a browser reaches gets a published host port. It gets a
-          `*.dev.test` hostname through Traefik instead.
+        - **Access is `IP:port`.** The `*.dev.test` name layer was deleted on
+          2026-08-12 and Traefik holds zero `Host()` rules, so anything a
+          browser reaches publishes a host port and gets listed in `just urls`.
+          Proposals built on hostnames need to argue for rebuilding that layer,
+          not assume it.
+        - **Nothing is authenticated at the edge right now.** `sso@file` is
+          defined and attached to no router while identity is rebuilt on
+          Keycloak. A service that needs a login carries its own.
 
   - type: dropdown
     id: area
@@ -22,13 +28,13 @@ body:
       label: Which part of the box would this touch?
       options:
         - edge / Traefik
-        - auth / SSO
+        - auth / Keycloak / oauth2-proxy
         - monitoring
         - data
         - mgmt
         - apps / portal
         - docs
-        - host / DNS
+        - host / networking
         - k8s
         - something new
     validations:
@@ -46,7 +52,7 @@ body:
     id: proposal
     attributes:
       label: What you would like to happen
-      description: If this adds a service, say what it is, why the stack should own it rather than a project, and what hostname it would take.
+      description: If this adds a service, say what it is, why the stack should own it rather than a project, and which host port it would take (checked free against `just urls`).
     validations:
       required: true
 
@@ -54,7 +60,7 @@ body:
     id: alternatives
     attributes:
       label: Alternatives you considered
-      description: Including "do nothing" — a ruled-out option is useful information.
+      description: Including "do nothing" - a ruled-out option is useful information.
     validations:
       required: false
 
@@ -76,7 +82,7 @@ body:
       options:
         - label: I searched existing issues and discussions for the same idea.
           required: true
-        - label: This does not require publishing a host port for something a browser reaches.
+        - label: If this needs a host port, I checked it is free against `just urls` and `docker ps`.
           required: false
         - label: I am willing to open a pull request for this.
           required: false

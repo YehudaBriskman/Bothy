@@ -158,7 +158,7 @@
   /* ================= ACCESSIBILITY ================= */
   /* The .reveal line is LOAD-BEARING: .reveal starts at opacity:0 and only
      transitions to 1. Kill the transition without this and every section stays
-     invisible — the page renders blank. (That's a real bug in the old portal.) */
+     invisible - the page renders blank. (That's a real bug in the old portal.) */
   @media (prefers-reduced-motion: reduce){
     html{scroll-behavior:auto}
     *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
@@ -194,7 +194,7 @@
   [role="tabpanel"][hidden]{display:none}
 
   /* Stale: greyed but STILL CLICKABLE. If the API dies but Grafana is fine, the
-     links must keep working — losing them would be worse than stale data. */
+     links must keep working - losing them would be worse than stale data. */
   .stale{opacity:.55;filter:saturate(.4);transition:opacity .3s}
 
   /* ================= TOOLBAR ================= */
@@ -210,7 +210,7 @@
   .chips button.on{color:var(--ink);border-color:var(--line2);background:rgba(255,255,255,.06)}
 
   /* ================= TABLE ================= */
-  /* Wrapper scrolls on its own — body{overflow-x:hidden} would clip it otherwise. */
+  /* Wrapper scrolls on its own - body{overflow-x:hidden} would clip it otherwise. */
   .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--glass)}
   .tbl{width:100%;min-width:680px;border-collapse:collapse;font-size:13px}
   .tbl th{text-align:left;font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--dim);

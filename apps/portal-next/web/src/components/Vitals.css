@@ -1,0 +1,95 @@
+/* Box vitals - three single-measure charts on one shared time range. */
+
+.vit { display: flex; flex-direction: column; gap: 10px; }
+
+.vit-head { display: flex; align-items: center; gap: 9px; }
+.vit-head-ico { color: var(--fg-subtle); flex: none; }
+.vit-title {
+  margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--fg-subtle);
+}
+.vit-load { font-size: 11.5px; color: var(--fg-subtle); font-family: var(--mono); }
+.vit-load b { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+
+/* "stale", not "broken": the charts keep showing the last good window, so the
+   badge qualifies what is on screen rather than replacing it. */
+.vit-err {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; color: var(--st-warn-fg);
+}
+
+.vit-ranges {
+  margin-left: auto; display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.vit-ranges button {
+  appearance: none; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 600;
+  color: var(--fg-muted); background: transparent; border: 0;
+  border-radius: var(--r-xs); padding: 3px 9px; font-variant-numeric: tabular-nums;
+}
+.vit-ranges button:hover { color: var(--fg); }
+.vit-ranges button.on { color: var(--fg); background: var(--surface-3); }
+
+/* Three across on a wide screen, one per row on a phone. minmax(280px,1fr)
+   rather than repeat(3,1fr): below ~900px three charts share the width and the
+   x-axis labels collide with each other. */
+.vit-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px; align-items: stretch;
+}
+
+/* A column with a fixed-height body and a footer that is always present, so all
+   three panels are the same height whether or not their chart has a legend.
+   Before this the network panel was ~22px taller than its neighbours purely
+   because it had a legend row, which is what made the row look ragged. */
+.vit-panel {
+  min-width: 0; display: flex; flex-direction: column; height: 100%;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.vit-panel-head, .vit-panel-body { padding-inline: 12px; }
+.vit-panel-head { padding-top: 11px; }
+.vit-panel-body { flex: 1 1 auto; min-height: 0; padding-bottom: 4px; }
+
+.vit-foot {
+  flex: none; display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap;
+  min-height: 30px; padding: 6px 12px;
+  border-top: 1px solid var(--line); background: var(--surface-2);
+}
+.vit-stat { font-size: 11px; color: var(--fg-subtle); }
+.vit-stat b {
+  color: var(--fg-muted); font-family: var(--mono); font-weight: 700; font-size: 11.5px;
+  font-variant-numeric: tabular-nums; margin-left: 3px;
+}
+/* The legend lives in the footer now, so it should not add its own padding. */
+.vit-foot .tc-legend { padding: 0; gap: 4px 14px; }
+.vit-panel-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.vit-panel-head svg { color: var(--fg-subtle); flex: none; }
+.vit-panel-head h3 {
+  margin: 0; font-size: 12.5px; font-weight: 650; color: var(--fg-muted);
+  letter-spacing: -0.005em;
+}
+/* The headline number for a single-series chart: it is the thing you read
+   first, so it is the only text in the panel at full contrast. */
+.vit-now {
+  margin-left: auto; font-family: var(--mono); font-size: 13px; font-weight: 700;
+  color: var(--fg); font-variant-numeric: tabular-nums;
+}
+
+.vit-skel {
+  height: 132px; border-radius: var(--r-md);
+  background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+}
+
+.vit-off {
+  margin: 0; padding: 14px 16px; font-size: 12.5px; color: var(--fg-muted);
+  background: var(--surface-1); border: 1px dashed var(--line-strong); border-radius: var(--r-lg);
+}
+.vit-off code {
+  font-family: var(--mono); font-size: 11.5px; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-xs); padding: 1px 5px;
+}
+
+@media (prefers-reduced-motion: reduce) { .vit-skel { animation: none; } }
