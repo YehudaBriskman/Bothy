@@ -48,7 +48,7 @@ http:
     # ── read: requires the viewer role (see the header for why it is no
     #    longer open) ────────────────────────────────────────────────────────
     portal-files-read:
-      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/history`)"
+      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`)"
       entryPoints: [web]
       priority: 100
       service: portal-files
