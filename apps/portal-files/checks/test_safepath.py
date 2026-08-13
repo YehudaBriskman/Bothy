@@ -194,6 +194,40 @@ ok = not bad_names
 bad += 0 if ok else 1
 print(f"{'PASS' if ok else 'FAIL'}  {'every arcname is extractor-safe':<52} want=safe    {bad_names[:2] or 'all clean'}")
 
+print("\n── per-root top-level policy (the `home` root) ─────────────────────")
+# Widening to "any folder you can cd into" meant mounting a home directory. A dry
+# run against the REAL one before trusting it found .bash_history being served -
+# the rule denied dot-DIRECTORIES and that is a dot-FILE. The fix could not be
+# global: `stacks/.gitignore` and `.env.example` are opened on purpose, so
+# "deny top-level dotfiles" is a property of the ROOT, not of the service.
+home = os.path.join(tmp, "home")
+os.makedirs(os.path.join(home, ".ssh"))
+os.makedirs(os.path.join(home, "backups", "env"))
+os.makedirs(os.path.join(home, "projects", "app"))
+open(os.path.join(home, ".bash_history"), "w").write("export TOKEN=live\n")
+open(os.path.join(home, ".bashrc"), "w").write("x\n")
+open(os.path.join(home, ".ssh", "id_ed25519"), "w").write("KEY\n")
+open(os.path.join(home, "backups", "env", "env-1"), "w").write("PASSWORD=live\n")
+open(os.path.join(home, "projects", "app", "README.md"), "w").write("# app\n")
+safepath.ROOTS["home"] = home
+safepath.ROOT_POLICY["home"] = {"deny_toplevel_dots": True,
+                                "deny_toplevel": frozenset({"backups"})}
+H = lambda p: (lambda: safepath.resolve("home", p))  # noqa: E731
+
+check("home: a top-level dot FILE",      H(".bash_history"),      expect_refused=True)
+check("home: another top-level dotfile", H(".bashrc"),            expect_refused=True)
+check("home: a top-level dot DIR",       H(".ssh/id_ed25519"),    expect_refused=True)
+check("home: the backups directory",     H("backups/env/env-1"),  expect_refused=True)
+check("home: ordinary project files",    H("projects/app/README.md"), expect_refused=False)
+
+# ...and the SAME shapes must still be served from a repo root, or the explorer
+# becomes useless for the thing it is mostly used on.
+open(os.path.join(root, ".gitignore"), "w").write("node_modules\n")
+os.makedirs(os.path.join(root, ".github"), exist_ok=True)
+open(os.path.join(root, ".github", "ci.yml"), "w").write("on: push\n")
+check("repo root: .gitignore is served",  R(".gitignore"),        expect_refused=False)
+check("repo root: .github/ is served",    R(".github/ci.yml"),    expect_refused=False)
+
 print("\n── the advisory scanner: ADVISORY, and measured ────────────────────")
 # scan_for_secret marks a file; it never refuses one. That was decided by running
 # the blocking version over all 3,369 readable text files on this box: it flagged

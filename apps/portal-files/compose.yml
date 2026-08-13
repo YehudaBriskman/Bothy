@@ -53,6 +53,19 @@ services:
       # application-layer allowlist is ever loosened by mistake - two independent
       # controls rather than one.
       - /home/devssh/projects:/repos/projects:ro
+      # "any folder you can cd into", READ-ONLY.
+      #
+      # Safe only because of ROOT_POLICY["home"] in safepath.py, and that was
+      # written from a survey of this exact directory rather than from
+      # imagination. It found live Claude OAuth credentials, a GitHub token, SSH
+      # and GPG keys, kube and docker credentials, minikube CA private keys,
+      # .bash_history, 14 plaintext .env backups, and ~165,000 cache files.
+      #
+      # Every dangerous entry was a TOP-LEVEL DOT entry or ~/backups, and nothing
+      # worth browsing was - so the policy denies exactly those two classes and
+      # allows the rest. A dry run against the real directory is what caught
+      # .bash_history slipping past a dot-DIRECTORY-only rule.
+      - /home/devssh:/repos/home:ro
     networks:
       - filesnet
     labels:
