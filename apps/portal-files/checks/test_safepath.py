@@ -60,6 +60,7 @@ os.symlink(tmp, os.path.join(root, "up"))
 os.symlink(os.path.join(root, ".git"), os.path.join(root, "gitlink"))
 
 safepath.ROOTS["docs"] = root
+safepath.GIT_ROOTS["docs"] = root
 R = lambda p, w=False: (lambda: safepath.resolve("docs", p, for_write=w))  # noqa: E731
 
 print("── legitimate edits must work ──────────────────────────────────────")
@@ -127,6 +128,69 @@ bad += (0 if gr_ok else 1) + (0 if rel_ok else 1)
 
 safepath.ROOTS["docs"] = root      # restore for the remaining cases
 safepath.GIT_ROOTS["docs"] = root
+
+print("\n── SECRETS: the control that widening the roots made necessary ─────")
+# The roots used to be two markdown trees. They are now the whole box, and a
+# survey of the new scope found ~/stacks/.env holding 19 real secret values and
+# a real TLS private key under ~/projects. Matching only path COMPONENTS - which
+# is what the first version did - would have served both, because `.env` is a
+# FILE and `key.pem` is a FILE.
+for name in [".env", ".env.production", ".env.local", "id_ed25519", "id_rsa",
+             "key.pem", "cert.key", "server.p12", ".netrc", ".pgpass",
+             ".git-credentials", "credentials.json", "my-secrets.yml",
+             "db_password.txt", "sessions.sqlite", "app.db", "Key.PEM"]:
+    open(os.path.join(root, name), "w").write("SENSITIVE\n")
+    check(f"secret refused: {name}", R(name), expect_refused=True)
+
+# ...but a committed template is the file you READ to learn what to set, and
+# hiding it makes the explorer worse for no gain. Allowed BY NAME so the
+# exception can never widen to .env.production.
+for name in [".env.example", ".env.sample", ".env.template"]:
+    open(os.path.join(root, name), "w").write("PASSWORD=changeme\n")
+    check(f"template allowed: {name}", R(name), expect_refused=False)
+
+# A symlink NAMED innocuously but POINTING at a secret must be refused for what
+# it reaches. This is the case that a name-only deny-list passes cleanly.
+open(os.path.join(tmp, "real.env"), "w").write("SECRET=1\n")
+os.symlink(os.path.join(tmp, "real.env"), os.path.join(root, "harmless.md"))
+check("symlink named .md pointing at a secret", R("harmless.md"), expect_refused=True)
+
+print("\n── the advisory scanner: ADVISORY, and measured ────────────────────")
+# scan_for_secret marks a file; it never refuses one. That was decided by running
+# the blocking version over all 3,369 readable text files on this box: it flagged
+# 45, and the top hits were .env.example, auth/compose.yml and several READMEs -
+# the files you most need to open in an explorer. Two of three sampled were
+# outright false positives. These cases pin that behaviour so it cannot silently
+# become a blocker, or silently stop noticing.
+_fp = [
+    ("a placeholder with a suffix",     "PASSWORD=changeme-generate-one"),
+    ("a shell interpolation",           "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it}"),
+    ("prose about a secret",            "Set POSTGRES_PASSWORD in .env before starting."),
+    ("an angle-bracket placeholder",    'client_secret: "<your-client-secret>"'),
+    ("a short value",                   "password=abc"),
+]
+for label, text in _fp:
+    got = safepath.scan_for_secret(text)
+    ok = got is None
+    bad += 0 if ok else 1
+    print(f"{'PASS' if ok else 'FAIL'}  {'not flagged: ' + label:<52} want=quiet   {got or 'quiet'}")
+
+_tp = [
+    ("a long opaque client secret",  '"clientSecret": "kJ8x2mQ9vB4nR7wZ1pL6yT3hF5gD0sA8"'),
+    ("a bcrypt hash",                "password: $2a$11$wmPDdQ2QqFmNLLiWMDz5DTCypmXzW"),
+    ("a PEM private key block",      "-----BEGIN RSA PRIVATE KEY-----\nMIIE..."),
+]
+for label, text in _tp:
+    got = safepath.scan_for_secret(text)
+    ok = got is not None
+    bad += 0 if ok else 1
+    print(f"{'PASS' if ok else 'FAIL'}  {'flagged: ' + label:<52} want=flag    {got or 'quiet'}")
+
+# The file that proved a name-based list is a filter, not a boundary: it was
+# served to an authenticated viewer WITH a live client secret in it, and nothing
+# in its name suggested anything. Now denied by name.
+open(os.path.join(root, "realm-devbox.json"), "w").write('{"secret":"x"}')
+check("keycloak realm export refused",  R("realm-devbox.json"), expect_refused=True)
 
 print("\n── malformed input ─────────────────────────────────────────────────")
 check("empty path",                      R(""),                 expect_refused=True)
