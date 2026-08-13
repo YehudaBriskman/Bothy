@@ -23,6 +23,53 @@
 const BASE = '/-/api/files';
 const TIMEOUT = 20_000;
 
+// ── the sandbox origin ───────────────────────────────────────────────────────
+//
+// Raw bytes and archives are NOT on this origin. They are on :8100, and that is
+// a security boundary rather than a deployment detail: a different port is a
+// different origin, so a hostile SVG or PDF served there cannot read this page's
+// DOM, cannot read a response from the JSON API above, and cannot commit as the
+// signed-in user. Serving those bytes from the portal's own origin would be
+// same-origin XSS with write access. Never move these two builders onto BASE.
+//
+// Built from location.hostname rather than a constant, because this box answers
+// on several addresses (the tailnet IP, localhost, whatever a reverse proxy
+// forwards) and a hardcoded host would break every one but the author's.
+export const SANDBOX_PORT = 8100;
+
+function sandbox(endpoint: string, params: Record<string, string>): string {
+  const q = new URLSearchParams(params).toString();
+  return `${location.protocol}//${location.hostname}:${SANDBOX_PORT}${BASE}/${endpoint}?${q}`;
+}
+
+/** A file's bytes. `download` forces attachment; it may only ever DOWNGRADE. */
+export function rawUrl(root: string, path: string, download = false): string {
+  return sandbox('raw', download ? { root, path, download: '1' } : { root, path });
+}
+
+export function archiveUrl(root: string, path: string, format: 'zip' | 'tgz'): string {
+  return sandbox('archive', { root, path, format });
+}
+
+// The service's archive caps, mirrored so the client can refuse a doomed
+// download BEFORE opening a tab for it. Cross-origin means no fetch() and no
+// preflight is possible against :8100, so a 413 would otherwise land as raw JSON
+// in a new tab - and the whole `projects` root is over the entry cap, so that is
+// the ordinary case rather than the exotic one. Kept beside the URL builders so
+// the two are read together; if safepath's numbers move, these move with them.
+export const ARCHIVE_MAX_ENTRIES = 2_000;
+export const ARCHIVE_MAX_TOTAL = 100_000_000;
+export const ARCHIVE_MAX_MEMBER = 25_000_000;
+
+// Downloads open a TAB; they are never an <a download>. Signed out, :8100
+// answers a bare 401 with no sign-in page, and <a download> saves that 401 body
+// to disk as `stacks.zip` - a corrupt file with a plausible name, which is the
+// worst possible outcome. A tab shows the 401. The server always sets
+// Content-Disposition, so the `download` attribute buys nothing anyway.
+export function openDownload(url: string): void {
+  window.open(url, '_blank', 'noopener');
+}
+
 export interface FileRoot {
   key: string;
   writableSuffixes?: string[];
@@ -70,6 +117,15 @@ export interface FileRead {
   history: Commit[];
   binary?: boolean;
   lang?: string | null;
+  /** Under a git work tree. False for a file the explorer can read but not date. */
+  versioned?: boolean;
+  /**
+   * An ADVISORY string, never a refusal - the file still opens. Measured
+   * server-side by safepath.scan_for_secret; surfaced in the inspector and in
+   * the Problems tab, because "you are looking at something that smells like a
+   * credential" is worth saying once, loudly, and not worth blocking on.
+   */
+  sensitive?: string | null;
 }
 
 export interface WriteResult {
@@ -100,6 +156,49 @@ export function isAuthError(e: unknown): boolean {
   return e instanceof ApiError && e.status === 401;
 }
 
+// ── the call log ─────────────────────────────────────────────────────────────
+//
+// Every request this module makes, reported to whoever is listening. It exists
+// so the Output tab can show what the page ACTUALLY did rather than a hand-kept
+// narrative of what it meant to do - the two drift, and the log is only worth
+// having if it cannot.
+//
+// A module-level subscriber set rather than a React context: the emitters are
+// plain async functions called from effects, and threading a dispatch through
+// every one of them would put the logging concern inside the data layer's
+// signatures. Nothing here retains entries; the listener decides what to keep.
+export interface ApiCall {
+  id: number;
+  /** 'roots' | 'tree' | 'read' | 'history' | 'write' | 'download' */
+  op: string;
+  detail: string;
+  status: number;
+  /** Milliseconds, or -1 when the request never completed. */
+  ms: number;
+  at: number;
+  ok: boolean;
+  note?: string;
+}
+
+type Listener = (c: ApiCall) => void;
+const listeners = new Set<Listener>();
+let callSeq = 0;
+
+export function onApiCall(fn: Listener): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** Also called by the UI for the two things it does outside this module: the
+ *  cross-origin downloads, which JS cannot observe the outcome of. */
+export function logCall(op: string, detail: string, status: number, ms: number, note?: string): void {
+  const c: ApiCall = {
+    id: ++callSeq, op, detail, status, ms, at: Date.now(),
+    ok: status >= 200 && status < 400, note,
+  };
+  for (const l of listeners) l(c);
+}
+
 async function getJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
   const ac = new AbortController();
   // The tree can now be thousands of entries over an SSD the collector is also
@@ -109,10 +208,27 @@ async function getJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
   // One abort signal from two sources: the caller's (a superseded request) and
   // the timeout's. Without the forward the timeout would leak a hung fetch.
   signal?.addEventListener('abort', () => ac.abort(), { once: true });
+  const started = performance.now();
+  const op = url.slice(BASE.length + 1).split('?')[0];
+  const detail = decodeURIComponent(url.slice(url.indexOf('?') + 1)) || op;
   try {
     const r = await fetch(url, { signal: ac.signal, headers: { Accept: 'application/json' } });
-    if (!r.ok) throw new ApiError(r.status, await errorText(r, `${r.status} ${r.statusText}`));
+    const ms = Math.round(performance.now() - started);
+    if (!r.ok) {
+      const msg = await errorText(r, `${r.status} ${r.statusText}`);
+      logCall(op, detail, r.status, ms, msg);
+      throw new ApiError(r.status, msg);
+    }
+    logCall(op, detail, r.status, ms);
     return (await r.json()) as T;
+  } catch (e) {
+    // An abort is the page superseding its own request, not a failure worth
+    // reporting - it happens on every keystroke that changes the open file.
+    if (!(e instanceof ApiError) && !ac.signal.aborted) {
+      logCall(op, detail, 0, Math.round(performance.now() - started),
+        e instanceof Error ? e.message : 'the request never left the browser');
+    }
+    throw e;
   } finally {
     clearTimeout(t);
   }
@@ -122,7 +238,17 @@ export function listRoots(signal?: AbortSignal): Promise<{ roots: FileRoot[] }> 
   return getJSON(`${BASE}/roots`, signal);
 }
 
-export function listTree(root: string, signal?: AbortSignal): Promise<{ root: string; files: TreeFile[] }> {
+export interface TreeResult {
+  root: string;
+  files: TreeFile[];
+  /** The service hit its own listing cap. The tree is INCOMPLETE, and saying so
+   *  is the whole point of the flag - a silently short listing is how you
+   *  conclude a file does not exist. */
+  truncated?: boolean;
+  readOnly?: boolean;
+}
+
+export function listTree(root: string, signal?: AbortSignal): Promise<TreeResult> {
   return getJSON(`${BASE}/tree?root=${encodeURIComponent(root)}`, signal);
 }
 
@@ -184,6 +310,7 @@ export async function writeFile(
   message: string,
 ): Promise<SaveOutcome> {
   let r: Response;
+  const started = performance.now();
   try {
     r = await fetch(`${BASE}/write`, {
       method: 'POST',
@@ -191,8 +318,11 @@ export async function writeFile(
       body: JSON.stringify({ root, path, content, message }),
     });
   } catch (e) {
-    return { kind: 'error', message: e instanceof Error ? e.message : 'the request never left the browser' };
+    const msg = e instanceof Error ? e.message : 'the request never left the browser';
+    logCall('write', `${root}/${path}`, 0, Math.round(performance.now() - started), msg);
+    return { kind: 'error', message: msg };
   }
+  logCall('write', `${root}/${path}`, r.status, Math.round(performance.now() - started));
 
   if (r.status === 401) return { kind: 'auth' };
   // 403 covers two different facts and the browser cannot tell them apart: the
@@ -297,6 +427,19 @@ const LANG_ALIAS: Record<string, string> = {
   markdown: 'md',
   dockerfile: 'docker',
   toml: 'yml', ini: 'yml',
+  // `make` covers justfile and Makefile, which the service labels together.
+  // Mapped to the shell rules rather than left unmapped: a recipe body IS shell,
+  // and the parts that are not - the target line, a `set` directive - are
+  // comments, strings and $VARs, all of which those rules already get right.
+  // Measured: the justfile went from ZERO coloured tokens to 274 lines of
+  // correct colour, because an unmapped hint is honoured and then matches no
+  // rule set, so a labelled file highlighted WORSE than an unlabelled one.
+  make: 'sh',
+  // Explicitly nothing. `.gitignore` and `.txt` arrive labelled `text`, and
+  // there is no such thing as highlighted plain text - passing the label
+  // through would put a "TEXT" chip on the status strip that promises colour
+  // the file can never have.
+  text: '',
 };
 
 export function langFor(path: string, hint?: string | null): string {

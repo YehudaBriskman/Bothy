@@ -6,7 +6,7 @@ import { ServiceDetail } from './pages/ServiceDetail';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Access } from './pages/Access';
 import { Topology } from './pages/Topology';
-import { Files } from './pages/Files';
+import { Files } from './pages/files/Files';
 
 // Multi-page, one shared poll (lifted into <DataProvider> in main.tsx). The
 // AppShell is the persistent layout (one topbar - the sidebar was deleted);
