@@ -44,7 +44,67 @@ ROOTS: dict[str, str] = {
     "stacks": "/repos/stacks",
     "notes": "/repos/notes",
     "projects": "/repos/projects",
+    # "any folder you can cd into". Mounted READ-ONLY, and the two rules below
+    # (TOPLEVEL_DENY + dot-directories at root level) are what make it safe -
+    # see the survey recorded there.
+    "home": "/repos/home",
 }
+
+# Roots the write tier may touch. Everything else is browse-only.
+#
+# `home` is deliberately absent: it overlaps stacks and notes, so the same file
+# is reachable by two names, and only ONE of them should be able to change it.
+# Editing goes through the root that owns the repo.
+WRITABLE_ROOTS = frozenset({"stacks", "notes"})
+
+# Per-root policy, because the right rule is NOT the same for every root - and
+# discovering that is what forced this table to exist.
+#
+# A dry run of the `home` root against the real directory served `.bash_history`.
+# The dot-DIRECTORY rule missed it because it is a dot-FILE. The obvious fix -
+# deny every top-level dotfile - is correct for a home directory, where they are
+# all config and credentials, and WRONG for a repository, where `.gitignore`,
+# `.env.example` and `.dockerignore` are things you open on purpose.
+#
+# So "deny top-level dotfiles" is a property of the ROOT, not of the service.
+# This is the smallest honest version of per-path access control; it is meant to
+# grow into a declared policy rather than stay a Python constant.
+ROOT_POLICY: dict[str, dict] = {
+    "home": {
+        # Every credential store in a home directory is a top-level dot entry,
+        # and nothing worth browsing is. Denying the whole class is one
+        # auditable rule instead of a list that needs a new line each time
+        # somebody installs a tool.
+        "deny_toplevel_dots": True,
+        "deny_toplevel": frozenset({"backups"}),
+    },
+}
+
+
+def root_policy(root_key: str) -> dict:
+    return ROOT_POLICY.get(root_key, {})
+
+# Directories denied when they are a DIRECT CHILD of a root.
+#
+# Everything dangerous in a home directory sits at its top level, and a survey of
+# this one before mounting it found exactly that:
+#
+#   .claude/.credentials.json   live OAuth credentials
+#   .config/gh/hosts.yml        a GitHub token
+#   .ssh/ .gnupg/               private keys
+#   .kube/config .docker/       cluster and registry credentials
+#   .minikube/*.key             CA private keys
+#   .bash_history               every command ever typed, secrets included
+#
+# ...and every one of those is a DOT directory, while every directory worth
+# browsing (projects, stacks, claude-notes) is not. So the rule is: dot
+# directories are denied at the top level of a root and allowed below it. That
+# single line removes every credential store AND ~165,000 cache files
+# (.npm 69k, .cache 76k, .local 18k) that would have made the explorer useless -
+# while `.github/` inside a repo still opens, which a blanket dot-deny would
+# have broken.
+#
+# The non-dot exceptions the survey turned up live in ROOT_POLICY below.
 
 # The git repository each root lives inside, which is NOT always the root itself.
 #
@@ -497,6 +557,19 @@ def resolve(root_key: str, rel: str, *, for_write: bool = False) -> Resolved:
     parts = relpath.split(os.sep)
     if set(parts) & DENY_COMPONENTS:
         raise PathRefused("path is in a denied directory")
+
+    # Top-level rules, per root. Checked on the RESOLVED relpath, so a symlink
+    # that lands in ~/.ssh is caught by where it points, not by what it is named.
+    if parts and parts[0] != ".":
+        pol = root_policy(root_key)
+        head = parts[0]
+        if head in pol.get("deny_toplevel", ()):
+            raise PathRefused(
+                "that directory is excluded - it holds credentials or backups")
+        if pol.get("deny_toplevel_dots") and head.startswith("."):
+            raise PathRefused(
+                "top-level dot entries are excluded in this root - they are "
+                "config and credentials")
 
     # Then the FILENAME, which is where secrets actually live. Checked on the
     # resolved basename for the same reason: a symlink named `notes.md` pointing
