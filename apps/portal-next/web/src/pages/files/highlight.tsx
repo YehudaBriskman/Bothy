@@ -25,13 +25,18 @@ import type { ReactNode } from 'react';
 // scan of a megabyte is not the problem; ~40k <span> elements is.
 export const HIGHLIGHT_LIMIT = 200_000;
 
-type Rules = { cls: string; re: string }[];
+export type Rules = { cls: string; re: string }[];
 
 const STR_DQ = '"(?:\\\\[\\s\\S]|[^"\\\\])*"';
 const STR_SQ = "'(?:\\\\[\\s\\S]|[^'\\\\])*'";
 const NUM = '\\b(?:0[xXbo][0-9a-fA-F_]+|\\d[\\d_]*(?:\\.[\\d_]+)?(?:[eE][+-]?\\d+)?)\\b';
 
-const RULES: Record<string, Rules> = {
+// Exported because cmlang.ts turns this same table into a CodeMirror
+// StreamLanguage. ONE source of truth for what a keyword is, so the read-only
+// Source view, the editor and a markdown fence can never drift apart. No rule
+// may contain a CAPTURING group - see scannerFor below, and cmlang.ts relies on
+// the same invariant.
+export const RULES: Record<string, Rules> = {
   ts: [
     { cls: 'com', re: '//[^\\n]*|/\\*[\\s\\S]*?\\*/' },
     { cls: 'str', re: '`(?:\\\\[\\s\\S]|[^`\\\\])*`|' + STR_DQ + '|' + STR_SQ },
@@ -77,6 +82,45 @@ const RULES: Record<string, Rules> = {
     { cls: 'key', re: '\\[[^\\]\\n]*\\]\\([^)\\s]*\\)' },
     { cls: 'num', re: '`[^`\\n]+`' },
   ],
+  // css and html were added with the CodeMirror surface. They are not reachable
+  // from the extension table in lib/files.ts (which has no `.css`/`.html`
+  // entries) but they ARE reachable from the SERVICE's own `lang` hint, which is
+  // passed through untouched by langFor when it has no alias. So a .css file the
+  // service labels gets coloured, and one it does not stays plain - the same
+  // deal every other language here has.
+  css: [
+    { cls: 'com', re: '/\\*[\\s\\S]*?\\*/' },
+    { cls: 'str', re: STR_DQ + '|' + STR_SQ },
+    { cls: 'kw', re: '@[a-zA-Z-]+|![a-z]+' },
+    // A declaration's property name, wherever the declaration starts - this
+    // codebase writes three of them per line, so `^`-anchoring would colour the
+    // first and miss the rest.
+    { cls: 'key', re: '(?<=[{;]|^)[ \\t]*(?:--)?[a-zA-Z][a-zA-Z-]*(?=[ \\t]*:)' },
+    { cls: 'num', re: '#[0-9a-fA-F]{3,8}\\b|' + NUM },
+  ],
+  html: [
+    { cls: 'com', re: '<!--[\\s\\S]*?-->' },
+    { cls: 'str', re: STR_DQ + '|' + STR_SQ },
+    { cls: 'kw', re: '</?[a-zA-Z][\\w:-]*|/?>' },
+    { cls: 'key', re: '\\b[a-zA-Z-]+(?==)' },
+    { cls: 'num', re: '&[a-zA-Z#0-9]+;' },
+  ],
+};
+
+// What `Ctrl /` inserts. Read by cmlang.ts as CodeMirror language data; the
+// toggle-comment command has nowhere else to learn this from, and getting it
+// wrong on a yaml file writes `//` into a config that then fails to parse.
+export const COMMENTS: Record<string, { line?: string; block?: { open: string; close: string } }> = {
+  ts: { line: '//', block: { open: '/*', close: '*/' } },
+  py: { line: '#' },
+  sh: { line: '#' },
+  yml: { line: '#' },
+  docker: { line: '#' },
+  css: { block: { open: '/*', close: '*/' } },
+  html: { block: { open: '<!--', close: '-->' } },
+  md: { block: { open: '<!--', close: '-->' } },
+  // json deliberately absent: JSON has no comment syntax, and a Ctrl-/ that
+  // silently breaks the file is worse than a Ctrl-/ that does nothing.
 };
 
 const SCANNERS = new Map<string, { re: RegExp; classes: string[] }>();

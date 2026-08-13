@@ -18,10 +18,10 @@
 // PDFs all landed on the same dead end. That is the regression this file exists
 // to undo.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, CircleCheck, Code2, Download, Eye, FileDown, Info, LoaderCircle,
-  Lock, LogIn, Pencil, Save, Undo2, X,
+  AlertTriangle, CircleCheck, Code2, Download, Eye, FileDown, Info, Keyboard, LoaderCircle,
+  Lock, LogIn, Pencil, Save, Search, Undo2, X,
 } from 'lucide-react';
 import {
   fmtBytes, rawUrl, signInUrl, type FileRead,
@@ -33,8 +33,31 @@ import { renderMd } from './md';
 import { JsonView } from './JsonView';
 import { baseName, dirName, type Kind } from './tree';
 import { SignInCard } from './SignInCard';
+import type { CodeHandle, CodeStat } from './CodeSurface';
+
+// The whole of CodeMirror lives behind this one line. `npm run build` puts it in
+// its own chunk, and the check that it STAYED there is the entry chunk's size
+// beside it - see the note at the top of CodeSurface.tsx. Someone who never
+// opens a file never downloads a byte of it.
+const CodeSurface = lazy(() => import('./CodeSurface'));
 
 export type View = 'preview' | 'source';
+
+// Shown by the Keys button in the status strip. Every one of these is really
+// bound - the first five by @codemirror/{commands,search}, the two mouse ones by
+// the facets CodeSurface.tsx sets, and the last is the ABSENCE of a binding:
+// Tab is deliberately unbound so the editor is not a keyboard trap.
+const KEYS: [string, string][] = [
+  ['Ctrl+S', 'save'],
+  ['Ctrl+F', 'find and replace'],
+  ['Ctrl+D', 'select next match'],
+  ['Alt+↑ / ↓', 'move the line'],
+  ['Ctrl+/', 'toggle comment'],
+  ['Ctrl+Z / Y', 'undo / redo'],
+  ['Alt+click', 'add a caret'],
+  ['Alt+Shift+drag', 'column select'],
+  ['Tab', 'leaves the editor'],
+];
 
 export type Notice =
   | { tone: 'ok'; text: string }
@@ -149,10 +172,16 @@ function DownloadCard({ file, kind, onDownload, canDownload }: {
   );
 }
 
-// ── source, with a gutter ────────────────────────────────────────────────────
+// ── the plain surfaces ───────────────────────────────────────────────────────
+//
+// These are what the page WAS, kept for exactly two jobs: the instant between
+// the code-editor chunk being asked for and arriving, and the case where that
+// chunk never arrives at all. A file with unsaved edits must not become a blank
+// rectangle because a network hiccup ate a script, so the fallback is a real
+// textarea that can still be typed into and still be saved.
 //
 // Both the gutter and the highlight are memoised on the source string. In the
-// read-only view that only matters once per file; in the EDITOR below it is the
+// read-only view that only matters once per file; in the EDITOR it is the
 // difference between typing being free and every keystroke rebuilding an array
 // of N strings - 20,000 allocations per character on a large file.
 function Source({ src, lang }: { src: string; lang: string }) {
@@ -168,22 +197,31 @@ function Source({ src, lang }: { src: string; lang: string }) {
   );
 }
 
-// The editor keeps its gutter in sync by hand, because a textarea's scroll
+// The textarea keeps its gutter in sync by hand, because a textarea's scroll
 // position is not observable through React state at 60fps - and putting it in
 // state would re-render the whole centre on every wheel notch.
-function EditSurface({ draft, setDraft, editorRef }: {
+function EditSurface({ draft, setDraft, handleRef }: {
   draft: string;
   setDraft: (v: string) => void;
-  editorRef: React.RefObject<HTMLTextAreaElement | null>;
+  handleRef: React.RefObject<CodeHandle | null>;
 }) {
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
   const gutterRef = useRef<HTMLPreElement | null>(null);
   // Recomputed only when the LINE COUNT changes, not on every keystroke: typing
   // inside a line leaves the gutter identical, and that is the common case.
   const lines = useMemo(() => countLines(draft), [draft]);
   const gutter = useMemo(() => (lines <= GUTTER_LIMIT ? gutterText(lines) : null), [lines]);
   const sync = useCallback(() => {
-    if (gutterRef.current && editorRef.current) gutterRef.current.scrollTop = editorRef.current.scrollTop;
-  }, [editorRef]);
+    if (gutterRef.current && taRef.current) gutterRef.current.scrollTop = taRef.current.scrollTop;
+  }, []);
+
+  // The same imperative handle the CodeMirror surface publishes, so `startEdit`
+  // in Files.tsx focuses whichever one is actually mounted. `openFind` has no
+  // honest answer here, so it says so by doing nothing rather than by pretending.
+  useEffect(() => {
+    handleRef.current = { focus: () => taRef.current?.focus(), openFind: () => {} };
+    return () => { handleRef.current = null; };
+  }, [handleRef]);
 
   return (
     <div className="fx-code fx-code-edit">
@@ -191,7 +229,7 @@ function EditSurface({ draft, setDraft, editorRef }: {
       <label className="sr-only" htmlFor="files-editor">File contents</label>
       <textarea
         id="files-editor"
-        ref={editorRef}
+        ref={taRef}
         className="fx-textarea"
         value={draft}
         spellCheck={false}
@@ -200,6 +238,34 @@ function EditSurface({ draft, setDraft, editorRef }: {
       />
     </div>
   );
+}
+
+function PlainSurface(p: {
+  src: string; lang: string; editing: boolean;
+  draft: string; setDraft: (v: string) => void;
+  handleRef: React.RefObject<CodeHandle | null>;
+}) {
+  return p.editing
+    ? <EditSurface draft={p.draft} setDraft={p.setDraft} handleRef={p.handleRef} />
+    : <Source src={p.src} lang={p.lang} />;
+}
+
+// A failed chunk load is not an exception React can recover from on its own, and
+// the default is a blank centre column - on a page that may be holding unsaved
+// work. This pins the session to the plain surfaces and SAYS which of the two
+// the reader is looking at, because "my editor lost its line highlight" with no
+// explanation is a bug report.
+class CodeBoundary extends Component<
+  { children: React.ReactNode; fallback: React.ReactNode; onFail: () => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() { return { failed: true }; }
+
+  componentDidCatch() { this.props.onFail(); }
+
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 
 export function Editor({
@@ -235,10 +301,20 @@ export function Editor({
   onDownload: () => void;
   canDownload: boolean;
   onFallback: (why: string) => void;
-  editorRef: React.RefObject<HTMLTextAreaElement | null>;
+  editorRef: React.RefObject<CodeHandle | null>;
 }) {
   const isMarkdown = lang === 'md';
   const isJson = lang === 'json';
+  const [stat, setStat] = useState<CodeStat | null>(null);
+  const [plain, setPlain] = useState(false);
+  const [keysOpen, setKeysOpen] = useState(false);
+  const onStat = useCallback((s: CodeStat) => setStat(s), []);
+  const onFail = useCallback(() => setPlain(true), []);
+  // A different file is a different document: a fresh undo stack, a fresh
+  // scroll position and no search left over from the last one. Toggling Edit is
+  // NOT a different document, which is why the key does not mention `editing` -
+  // the surface flips a compartment and keeps where you were.
+  const docKey = `${root}|${path}`;
 
   // The status strip's two measurements, memoised for the same reason the gutter
   // is: `new Blob([draft]).size` copies the whole string, and doing that on every
@@ -281,18 +357,49 @@ export function Editor({
         </div>
       );
     }
-    if (editing) return <EditSurface draft={draft} setDraft={setDraft} editorRef={editorRef} />;
-    if (kind === 'image') {
-      return <RawPreview src={rawUrl(root, file.path)} name={baseName(file.path)} onFallback={onFallback} />;
+    // Everything that is NOT text, and the two rendered views of text, first -
+    // they are unaffected by which text surface is in use.
+    if (!editing) {
+      if (kind === 'image') {
+        return <RawPreview src={rawUrl(root, file.path)} name={baseName(file.path)} onFallback={onFallback} />;
+      }
+      if (kind === 'pdf' || kind === 'binary') {
+        return <DownloadCard file={file} kind={kind} onDownload={onDownload} canDownload={canDownload} />;
+      }
+      if (view === 'preview' && isMarkdown) {
+        return <article className="fx-read md scroll-shade" tabIndex={0}>{renderMd(file.content)}</article>;
+      }
+      if (view === 'preview' && isJson) return <JsonView src={file.content} />;
     }
-    if (kind === 'pdf' || kind === 'binary') {
-      return <DownloadCard file={file} kind={kind} onDownload={onDownload} canDownload={canDownload} />;
-    }
-    if (view === 'preview' && isMarkdown) {
-      return <article className="fx-read md scroll-shade" tabIndex={0}>{renderMd(file.content)}</article>;
-    }
-    if (view === 'preview' && isJson) return <JsonView src={file.content} />;
-    return <Source src={file.content} lang={lang} />;
+
+    const fallback = (
+      <PlainSurface
+        src={file.content} lang={lang} editing={editing}
+        draft={draft} setDraft={setDraft} handleRef={editorRef}
+      />
+    );
+    if (plain) return fallback;
+
+    // ONE surface for Source and Edit. A read-only file is this same editor with
+    // `EditorState.readOnly` set - it reports `aria-readonly`, refuses every
+    // write, and keeps the caret, the search panel and the line highlights that
+    // a `<pre>` cannot have.
+    return (
+      <CodeBoundary fallback={fallback} onFail={onFail}>
+        <Suspense fallback={fallback}>
+          <CodeSurface
+            key={docKey}
+            value={editing ? draft : file.content}
+            lang={lang}
+            editable={editing}
+            onChange={setDraft}
+            onStat={onStat}
+            handleRef={editorRef}
+            label={`${baseName(file.path)} - ${editing ? 'editable' : 'read-only'}`}
+          />
+        </Suspense>
+      </CodeBoundary>
+    );
   };
 
   return (
@@ -393,7 +500,35 @@ export function Editor({
         </div>
       )}
 
+      {plain && file && kind === 'text' && (
+        <div className="fx-note info" role="status">
+          <Info size={15} aria-hidden="true" />
+          <span>
+            The code editor did not load, so this is the plain text surface -
+            no line highlight, no find panel, no multiple cursors. Editing and
+            saving are unaffected. Reloading the page retries it.
+          </span>
+        </div>
+      )}
+
       <div className="fx-body">{body()}</div>
+
+      {/* The hotkeys, written down. An editor whose features are only reachable
+          by knowing they exist has not shipped them - and the two that are least
+          guessable (Alt-click for a second caret, Alt-Shift-drag for a column)
+          are exactly the two nothing else on the page hints at. */}
+      {keysOpen && kind === 'text' && !plain && (
+        <div className="fx-keys" role="group" aria-label="Editor keys">
+          {KEYS.map(([keys, what]) => (
+            <span className="fx-key" key={what}>
+              <span className="fx-key-combo">
+                {keys.split('+').map((k) => <span className="kbd" key={k}>{k}</span>)}
+              </span>
+              <span className="fx-key-what">{what}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* The status strip. Everything that used to be a tag scattered through
           the header, in the one place an editor puts it - so the header can be
@@ -419,10 +554,53 @@ export function Editor({
             {(file.lang || lang) && <span className="fx-stat mono">{file.lang || lang}</span>}
             <span className="fx-stat tnum">{fmtBytes(byteSize)}</span>
             {kind === 'text' && <span className="fx-stat tnum">{lineCount.toLocaleString()} lines</span>}
-            {kind === 'text' && !editing && !willHighlight(file.content, lang) && lang && (
+            {/* Only the plain surface has a size ceiling. CodeMirror renders the
+                viewport and nothing else, so document LENGTH stops mattering to
+                it and the chip would be saying something untrue. */}
+            {plain && kind === 'text' && !editing && !willHighlight(file.content, lang) && lang && (
               <span className="fx-stat">highlighting off - too large</span>
             )}
+
+            {kind === 'text' && !plain && stat && (
+              <>
+                <span className="fx-stat-sep" aria-hidden="true" />
+                <span className="fx-stat tnum">Ln {stat.line}, Col {stat.col}</span>
+                {stat.sel > 0 && <span className="fx-stat tnum">{stat.sel.toLocaleString()} selected</span>}
+                {stat.cursors > 1 && <span className="fx-stat tnum">{stat.cursors} cursors</span>}
+                {stat.find && (
+                  <span className={`fx-stat tnum ${stat.find.n === 0 || stat.find.n < 0 ? 'warn' : ''}`}>
+                    {!stat.find.q
+                      ? 'find: type to search'
+                      : stat.find.n < 0
+                        ? 'find: bad pattern'
+                        : `${stat.find.capped ? `${stat.find.n.toLocaleString()}+` : stat.find.n.toLocaleString()} `
+                          + `${stat.find.n === 1 ? 'match' : 'matches'}`}
+                  </span>
+                )}
+              </>
+            )}
+
             <span className="fx-status-spacer" />
+            {kind === 'text' && !plain && (
+              <>
+                <button
+                  type="button"
+                  className="fx-statbtn"
+                  onClick={() => editorRef.current?.openFind()}
+                  aria-label="Find in this file (Ctrl F)"
+                >
+                  <Search size={11} aria-hidden="true" /> Find
+                </button>
+                <button
+                  type="button"
+                  className={`fx-statbtn ${keysOpen ? 'on' : ''}`}
+                  onClick={() => setKeysOpen((v) => !v)}
+                  aria-expanded={keysOpen}
+                >
+                  <Keyboard size={11} aria-hidden="true" /> Keys
+                </button>
+              </>
+            )}
             {editing && <span className="fx-stat"><span className="kbd">Ctrl</span> <span className="kbd">S</span> saves</span>}
           </>
         ) : (

@@ -79,9 +79,23 @@ export function AppShell() {
         paletteOpen ? closePalette() : openPalette();
         return;
       }
-      const typing = e.target instanceof HTMLElement && /^(input|textarea|select)$/i.test(e.target.tagName);
+      // `isContentEditable` is not decoration. A tagName test alone was right
+      // for exactly as long as every text surface in the app was a <textarea>;
+      // BothyFiles' editor is a CodeMirror instance, whose writable element is
+      // `<div class="cm-content" contenteditable>`, and a tagName test says DIV.
+      // The bug that produces is not subtle: typing `/` opens the command
+      // palette and typing `r` refreshes the dashboard, in the middle of a word.
+      // The `.cm-editor` clause covers the read-only view too, where the content
+      // is deliberately NOT contenteditable but the keys still belong to it.
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      const inEditor = !!el && (el.isContentEditable || !!el.closest('.cm-editor'));
+      const typing = !!el && (/^(input|textarea|select)$/i.test(el.tagName) || inEditor);
       if (typing) {
-        if (e.key === 'Escape') (e.target as HTMLElement).blur();
+        // Escape hands a plain form field back to the page. NOT the code editor:
+        // there Escape already closes the find panel and collapses multiple
+        // cursors, and blurring on top of that would throw the caret away every
+        // time someone shuts a search.
+        if (e.key === 'Escape' && !inEditor) el.blur();
         return;
       }
       if (e.key === '/') { e.preventDefault(); openPalette(); }

@@ -31,6 +31,7 @@ import { ErrState } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
 import { Explorer, MAX_RESULTS, type Results } from './Explorer';
 import { Editor, type Notice, type View } from './Editor';
+import type { CodeHandle } from './CodeSurface';
 import { Inspector } from './Inspector';
 import { Panel, type PanelTab, type Problem } from './Panel';
 import { Resizer } from './Resizer';
@@ -89,7 +90,11 @@ export function Files() {
   const [tab, setTab] = useState<PanelTab>('problems');
   const [repoLog, setRepoLog] = useState<Commit[] | null>(null);
 
-  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  // An imperative handle rather than a DOM node: the text surface is a
+  // CodeMirror instance whose editable element is a contenteditable div the
+  // page never touches directly, and the plain textarea fallback publishes the
+  // same two methods so this side does not care which one is mounted.
+  const editorRef = useRef<CodeHandle | null>(null);
   const filterRef = useRef<HTMLInputElement | null>(null);
   const treeRef = useRef<HTMLDivElement | null>(null);
 
@@ -448,8 +453,16 @@ export function Files() {
     }
   }, [file, root, draft, message, saving, lang, raise]);
 
-  // Ctrl/Cmd-S while editing. The AppShell's global key handler already ignores
-  // keys typed into a textarea or an input, so nothing here fights it.
+  // Ctrl/Cmd-S while editing. A window listener rather than a CodeMirror
+  // binding, because it has to work from the commit-message field in the
+  // inspector too, and because it is the one shortcut that must fire whether or
+  // not the editor chunk loaded.
+  //
+  // It does not fight the AppShell's global handler: that one ignores keys typed
+  // into an input, a textarea OR a contenteditable - the last clause added with
+  // this editor, since CodeMirror's writable surface is a contenteditable div
+  // and the old tagName-only test did not match it. Without it, `/` opened the
+  // command palette and `r` refreshed the dashboard mid-word.
   useEffect(() => {
     if (!editing) return;
     const onKey = (e: KeyboardEvent) => {
