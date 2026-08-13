@@ -245,8 +245,23 @@ INLINE_TYPES: dict[str, tuple[str, tuple[bytes, ...]]] = {
 # already ships. Do not build a second, dangerous path to the same file.
 NEVER_INLINE = frozenset({
     ".svg", ".svgz", ".html", ".htm", ".xhtml", ".xht", ".mhtml", ".mht",
-    ".xml", ".xsl", ".xslt", ".swf", ".pdf",
+    ".xml", ".xsl", ".xslt", ".swf",
 })
+
+# PDF is inline-able HERE and would not be on the portal's origin.
+#
+# Browser PDF viewers do execute JavaScript - Firefox's pdf.js runs in the
+# embedding page's origin and CVE-2024-4367 was exactly arbitrary JS from a
+# crafted PDF. That is precisely why these bytes are served from :8100 and
+# nowhere else: a script that escapes the viewer lands on an origin that holds no
+# portal DOM, and the response also carries `default-src 'none'; sandbox`, so an
+# embedded PDF document gets an opaque origin and no script permission at all.
+#
+# SVG stays in NEVER_INLINE above even so, because it has a good alternative that
+# PDF does not: an SVG is text, so /read already shows it as highlighted source.
+# There is no reason to build a second, riskier path to a file that is already
+# viewable.
+PDF_TYPE = ("application/pdf", (b"%PDF-",))
 
 # ── archives ────────────────────────────────────────────────────────────────
 ARCHIVE_MAX_ENTRIES = 2_000
@@ -305,6 +320,10 @@ def content_policy(basename: str, head: bytes) -> tuple[str, str]:
     refusing would make the explorer lie about a file that plainly exists.
     """
     ext = os.path.splitext(basename)[1].lower()
+    if ext == ".pdf":
+        mime, magics = PDF_TYPE
+        return (mime, "inline") if head.startswith(magics[0]) \
+            else ("application/octet-stream", "attachment")
     if ext in NEVER_INLINE or ext not in INLINE_TYPES:
         return "application/octet-stream", "attachment"
 
