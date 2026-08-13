@@ -124,10 +124,15 @@ services:
     # socketnet: reaches portal-socket-proxy for the portal's read-only Docker
     # API (see edge/dynamic/portal-api.yml). Traefik and the proxy are the only
     # two members - the proxy has no auth, so reachability is authorisation.
-    networks: [devnet, socketnet]
+    # filesnet added 2026-08-12 with the editor tier: it holds exactly two
+    # containers, traefik and portal-files, so that a service with no auth of
+    # its own is reachable only from the edge that authorises it.
+    networks: [devnet, socketnet, filesnet]
 
 networks:
   devnet:
     external: true
   socketnet:
+    external: true
+  filesnet:
     external: true

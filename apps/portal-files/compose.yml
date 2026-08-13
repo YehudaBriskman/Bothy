@@ -1,0 +1,69 @@
+name: portal-files
+
+# The editor tier's backend: the first service on this box that can change
+# anything. Everything below is shaped by that.
+#
+# NETWORK ISOLATION IS THE PRIMARY CONTROL, and it is the lesson the socket-proxy
+# taught: a service with no auth of its own is protected by exactly one thing -
+# who can reach it. This sits on `filesnet`, which holds two containers (traefik
+# and this), and publishes NO host port. Authorisation happens at the edge, so
+# anything that can reach :8099 directly has already bypassed it.
+#
+#   DO NOT put this on devnet. ~20 containers live there, including third-party
+#   images, and every one of them would get write access to the docs and notes.
+#   Nothing would warn you; the service would work perfectly.
+#
+# The write path is: browser -> Traefik (exact Path + forwardAuth requiring the
+# `editor` role) -> here. See edge/dynamic/portal-files.yml.
+
+services:
+  portal-files:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: portal-files
+    restart: unless-stopped
+    # Never root, and never able to become root: this process holds a writable
+    # handle on two git repositories.
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true          # its own filesystem; the roots below are separate
+    tmpfs:
+      - /tmp
+    environment:
+      PORT: 8099
+      # git writes config into $HOME; without this it lands on a read-only FS.
+      HOME: /tmp
+    volumes:
+      # The REPOSITORIES are mounted, because git cannot commit without the .git
+      # directory at the toplevel. The EDITABLE surface is narrower and is set in
+      # safepath.ROOTS: `docs` resolves to /repos/stacks/docs, not to the whole
+      # repo. Two tables, two questions - see the comment on GIT_ROOTS.
+      #
+      # Collapsing them (mounting only docs/, or pointing ROOTS at the toplevel)
+      # is the easy mistake: the first breaks commits, the second silently makes
+      # README.md, CONTRIBUTING.md and every other markdown file in the repo
+      # editable from a browser. checks/test_safepath.py asserts the split holds.
+      - /home/devssh/stacks:/repos/stacks:rw
+      - /home/devssh/claude-notes:/repos/notes:rw
+    networks:
+      - filesnet
+    labels:
+      # No traefik.* router labels ON PURPOSE. The docker provider would give
+      # this a router derived from the container name; the routes are declared in
+      # edge/dynamic/portal-files.yml instead, because they need the exact
+      # Path() rules and the auth middleware, and a stray auto-generated router
+      # would be an unauthenticated way in.
+      - traefik.enable=false
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8099/healthz',timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  filesnet:
+    name: filesnet
+    external: true

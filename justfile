@@ -12,6 +12,11 @@ network:
     # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
     # read the docker socket through it. Keep the blast radius at two.
     -docker network create socketnet 2>/dev/null || true
+    # filesnet: traefik + portal-files, and nothing else. portal-files holds
+    # read-write bind mounts on two git repos and has no auth of its own, so the
+    # network IS the boundary - authorisation happens at the edge in front of it.
+    # Putting it on devnet would hand ~20 containers write access to the docs.
+    -docker network create filesnet 2>/dev/null || true
 
 # Bring up EVERYTHING
 up: network up-edge up-auth up-monitoring up-data up-mgmt up-apps
