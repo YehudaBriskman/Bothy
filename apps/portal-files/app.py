@@ -44,6 +44,27 @@ from urllib.parse import parse_qs, urlparse
 import safepath
 
 PORT = int(os.environ.get("PORT", "8099"))
+
+# A hard ceiling on one listing. ~/projects alone holds tens of thousands of
+# files once you stop pruning; without a cap the JSON is tens of megabytes and
+# the browser stalls. The cap is REPORTED (`truncated: true`) rather than applied
+# quietly, because a tree that silently stops is how you conclude a file is
+# missing when it is only past the cutoff.
+MAX_LISTING = 4000
+
+# Language hints for the editor's highlighter. Extension first, then whole
+# filename for the ones that have no extension at all.
+LANGS = {
+    ".ts": "typescript", ".tsx": "typescript", ".js": "javascript",
+    ".jsx": "javascript", ".mjs": "javascript", ".json": "json",
+    ".py": "python", ".sh": "bash", ".bash": "bash", ".zsh": "bash",
+    ".yml": "yaml", ".yaml": "yaml", ".toml": "toml", ".ini": "ini",
+    ".md": "markdown", ".markdown": "markdown", ".rst": "rst",
+    ".css": "css", ".html": "html", ".sql": "sql", ".go": "go",
+    ".rs": "rust", ".txt": "text", ".env.example": "bash",
+    "Dockerfile": "dockerfile", "justfile": "make", "Makefile": "make",
+    ".gitignore": "text", ".dockerignore": "text",
+}
 GIT_TIMEOUT = 15
 
 
@@ -60,8 +81,15 @@ def git(root: str, *args: str) -> subprocess.CompletedProcess:
     )
 
 
-def listing(root_key: str) -> list[dict]:
-    """Every readable file under a root, with size and mtime."""
+# ~/projects is mounted read-only, so nothing under it can be written no matter
+# what the extension is. Saying so in the listing means the UI never offers a
+# save button that can only fail.
+READONLY_ROOTS = frozenset({"projects"})
+
+
+def listing(root_key: str) -> tuple[list[dict], bool]:
+    """Every readable file under a root. Returns (files, truncated)."""
+    writable_root = root_key not in READONLY_ROOTS
     root = safepath.ROOTS[root_key]
     real = os.path.realpath(root)
     out: list[dict] = []
@@ -83,14 +111,44 @@ def listing(root_key: str) -> list[dict]:
                 continue
             out.append({
                 "path": res.relpath,
+                "dir": os.path.dirname(res.relpath),   # so a UI can build a tree
                 "size": st.st_size,
                 "mtime": int(st.st_mtime),
-                "writable": os.path.splitext(fn)[1].lower() in safepath.WRITABLE_SUFFIXES,
+                "writable": (writable_root
+                             and os.path.splitext(fn)[1].lower()
+                             in safepath.WRITABLE_SUFFIXES),
+                "lang": LANGS.get(os.path.splitext(fn)[1].lower())
+                        or LANGS.get(fn),
             })
-    return sorted(out, key=lambda f: f["path"])
+            if len(out) >= MAX_LISTING:
+                # A cap, and it is REPORTED rather than silently applied - a
+                # truncated tree that claims to be complete is how you conclude a
+                # file does not exist when it is only past the cutoff.
+                return sorted(out, key=lambda f: f["path"]), True
+    return sorted(out, key=lambda f: f["path"]), False
+
+
+def is_binary(path: str) -> bool:
+    """Cheap, and honest about being cheap.
+
+    A NUL byte in the first 8 KB is what `git` and `file` both use, and it is
+    right far more often than a extension list would be - this tree contains
+    images, sqlite files and compiled artefacts under names nobody predicted.
+    Dumping those bytes into a browser as "text" produces a hung tab, so the
+    read endpoint reports `binary: true` and sends no content at all.
+    """
+    try:
+        with open(path, "rb") as fh:
+            return b"\x00" in fh.read(8192)
+    except OSError:
+        return True
 
 
 def history(res: safepath.Resolved, limit: int = 20) -> list[dict]:
+    # A file under no repository has no history. Real state, not an error: it is
+    # why the write path also reports `committed: false` rather than pretending.
+    if not res.git_root:
+        return []
     p = git(res.git_root, "log", f"-{limit}", "--follow",
             "--format=%H%x1f%an%x1f%aI%x1f%s", "--", res.git_relpath)
     if p.returncode != 0:
@@ -135,7 +193,9 @@ class Handler(BaseHTTPRequestHandler):
 
             if route == "/roots":
                 return self._send(200, {"roots": [
-                    {"key": k, "writableSuffixes": sorted(safepath.WRITABLE_SUFFIXES)}
+                    {"key": k,
+                     "readOnly": k in READONLY_ROOTS,
+                     "writableSuffixes": sorted(safepath.WRITABLE_SUFFIXES)}
                     for k in sorted(safepath.ROOTS)
                 ]})
 
@@ -143,24 +203,44 @@ class Handler(BaseHTTPRequestHandler):
                 root = q.get("root", "")
                 if root not in safepath.ROOTS:
                     return self._send(400, {"error": f"unknown root {root!r}"})
-                return self._send(200, {"root": root, "files": listing(root)})
+                files, truncated = listing(root)
+                return self._send(200, {"root": root, "files": files,
+                                        "truncated": truncated,
+                                        "readOnly": root in READONLY_ROOTS})
 
             if route == "/read":
                 res = safepath.resolve(q.get("root", ""), q.get("path", ""))
                 if not os.path.isfile(res.abspath):
                     return self._send(404, {"error": "not a file"})
                 st = os.stat(res.abspath)
+                base = {
+                    "root": res.root_key, "path": res.relpath,
+                    "size": st.st_size, "mtime": int(st.st_mtime),
+                    "versioned": res.git_root is not None,
+                    "lang": LANGS.get(os.path.splitext(res.abspath)[1].lower())
+                            or LANGS.get(os.path.basename(res.abspath)),
+                    "writable": (res.root_key not in READONLY_ROOTS
+                                 and os.path.splitext(res.abspath)[1].lower()
+                                 in safepath.WRITABLE_SUFFIXES),
+                }
+                # Binary is decided BEFORE the size check: a 40 MB png should
+                # report "binary" rather than "too large to edit", which would
+                # imply that a smaller one could be edited as text.
+                if is_binary(res.abspath):
+                    return self._send(200, {**base, "binary": True,
+                                            "content": None, "writable": False,
+                                            "history": history(res)})
                 if st.st_size > safepath.MAX_BYTES:
-                    return self._send(413, {"error": "file too large to edit"})
+                    return self._send(413, {"error": "file too large to open"})
                 with open(res.abspath, encoding="utf-8", errors="replace") as fh:
                     content = fh.read()
-                return self._send(200, {
-                    "root": res.root_key, "path": res.relpath, "content": content,
-                    "size": st.st_size, "mtime": int(st.st_mtime),
-                    "writable": os.path.splitext(res.abspath)[1].lower()
-                                in safepath.WRITABLE_SUFFIXES,
-                    "history": history(res),
-                })
+                # Advisory, never a refusal - see scan_for_secret's docstring for
+                # the measurement that settled it. The UI shows a caution; the
+                # file still opens.
+                return self._send(200, {**base, "binary": False,
+                                        "content": content,
+                                        "sensitive": safepath.scan_for_secret(content),
+                                        "history": history(res)})
 
             if route == "/history":
                 res = safepath.resolve(q.get("root", ""), q.get("path", ""))
@@ -187,6 +267,12 @@ class Handler(BaseHTTPRequestHandler):
 
             res = safepath.resolve(body.get("root", ""), body.get("path", ""),
                                    for_write=True)
+            # Belt and braces with the `ro` bind mount: the kernel would refuse
+            # this anyway, but failing here gives a readable reason instead of an
+            # EROFS traceback, and keeps the rule visible in the code.
+            if res.root_key in READONLY_ROOTS:
+                return self._send(403, {
+                    "error": f"the {res.root_key!r} root is read-only"})
             content = body.get("content")
             if not isinstance(content, str):
                 return self._send(400, {"error": "content must be a string"})
@@ -209,6 +295,17 @@ class Handler(BaseHTTPRequestHandler):
             os.replace(tmp, res.abspath)
 
             msg = (body.get("message") or "").strip() or f"docs: edit {res.relpath}"
+            if not res.git_root:
+                # Written, but not versioned. Reported as such rather than
+                # silently succeeding - "saved" and "saved with history" are
+                # different promises and the UI needs to be able to tell them
+                # apart.
+                sys.stderr.write(f"WRITE {res.root_key}/{res.relpath} by={who} "
+                                 f"UNVERSIONED (no git repo)\n")
+                return self._send(200, {
+                    "ok": True, "path": res.relpath, "committed": False,
+                    "unversioned": True, "sha": None, "author": who,
+                    "message": msg, "history": []})
             git(res.git_root, "add", "--", res.git_relpath)
             commit = git(
                 res.git_root,

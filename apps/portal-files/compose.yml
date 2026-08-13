@@ -47,6 +47,12 @@ services:
       # editable from a browser. checks/test_safepath.py asserts the split holds.
       - /home/devssh/stacks:/repos/stacks:rw
       - /home/devssh/claude-notes:/repos/notes:rw
+      # ~/projects is READ-ONLY at the mount. The write tier deliberately does
+      # not extend to project source: those repos have their own review and CI,
+      # and an edit here would bypass both. `ro` means that holds even if the
+      # application-layer allowlist is ever loosened by mistake - two independent
+      # controls rather than one.
+      - /home/devssh/projects:/repos/projects:ro
     networks:
       - filesnet
     labels:
