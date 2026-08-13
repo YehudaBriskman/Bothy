@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
-  LayoutDashboard, Boxes, Waypoints, Share2,
+  LayoutDashboard, Boxes, Waypoints, Share2, FolderTree,
   Search, RefreshCw, Moon, Sun, Monitor,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
@@ -13,13 +13,16 @@ import { Tooltip } from './Tooltip';
 import { Brand } from './Brand';
 import { CommandPalette } from './CommandPalette';
 
-// Four destinations. Ports and Routes were two views of "how do I reach this?"
-// and are now tabs inside /access.
+// Five destinations. Ports and Routes were two views of "how do I reach this?"
+// and are now tabs inside /access. Files is last because it is the only
+// destination that is not about the running stack - it reads and writes the
+// box's own trees, which is a different job from watching containers.
 const NAV = [
   { to: '/', label: 'Overview', Icon: LayoutDashboard, end: true },
   { to: '/services', label: 'Services', Icon: Boxes, end: false },
   { to: '/access', label: 'Access', Icon: Waypoints, end: false },
   { to: '/topology', label: 'Topology', Icon: Share2, end: false },
+  { to: '/files', label: 'Files', Icon: FolderTree, end: false },
 ];
 
 function ThemeToggle() {
