@@ -14,6 +14,13 @@
 !host-services.yml
 !portal-api.yml
 !project.example.yml
+# The file-explorer routes. Stack-owned and load-bearing: it carries the two role
+# gates (sso-viewer / sso-editor) that are the ONLY thing standing between the
+# tailnet and write access to the repos. It contains no credential - the role
+# name is not a secret - and losing it would silently unprotect the write tier,
+# so it is tracked. It was ignored by the `*` above for its first two commits,
+# which is exactly the failure mode this comment exists to prevent repeating.
+!portal-files.yml
 # The redacted twin of the GENERATED portal-prom.yml (which stays ignored by the
 # `*` above - it carries a basic-auth credential). Comments only: a live example
 # in this directory overwrites the real router, see the file's own header.
