@@ -71,7 +71,7 @@ before = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"],
 
 body = "# editor tier e2e\n\nWritten by the portal through the write API.\n"
 r = s.post(f"{API}/write", json={
-    "root": "docs", "path": TESTFILE, "content": body,
+    "root": "stacks", "path": TESTFILE, "content": body,
     "message": "test(portal-files): editor tier end-to-end probe",
 }, timeout=20)
 check("authenticated write accepted", r.status_code == 200, f"got {r.status_code}")
