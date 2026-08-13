@@ -17,7 +17,7 @@ import requests
 BASE = "http://100.117.176.85"
 API = f"{BASE}/-/api/files"
 REPO = "/home/devssh/stacks"
-TESTFILE = "kb/_editor-tier-e2e.md"      # under docs/, cleaned up at the end
+TESTFILE = "docs/kb/_editor-tier-e2e.md"   # cleaned up at the end
 
 # This test makes a real commit and undoes it with `git reset --hard`, which
 # would also throw away any UNCOMMITTED work in the tree. Refuse to run rather
@@ -40,13 +40,18 @@ def check(label, ok, detail=""):
 s = requests.Session()
 
 print("── anonymous ───────────────────────────────────────────────────────")
-r = s.post(f"{API}/write", json={"root": "docs", "path": TESTFILE, "content": "x"}, timeout=10)
+r = s.post(f"{API}/write", json={"root": "stacks", "path": TESTFILE, "content": "x"}, timeout=10)
 check("anonymous write is refused", r.status_code in (401, 403), f"got {r.status_code}")
-check("and left no file on disk", not os.path.exists(f"{REPO}/docs/{TESTFILE}"))
+check("and left no file on disk", not os.path.exists(f"{REPO}/{TESTFILE}"))
 
-r = s.get(f"{API}/tree", params={"root": "docs"}, timeout=10)
-check("anonymous READ still works", r.status_code == 200,
-      f"{len(r.json().get('files', []))} files listed")
+# Read was OPEN when this test was written, and asserting that was correct then:
+# the roots were two markdown trees serving what the docs site already served
+# unauthenticated. Widening the roots to the whole box killed that reasoning -
+# ~/stacks/.env and a real TLS key came into scope - so read moved behind
+# `viewer` and this assertion inverted.
+r = s.get(f"{API}/tree", params={"root": "stacks"}, timeout=10)
+check("anonymous READ is refused too, since the roots widened",
+      r.status_code == 401, f"got {r.status_code}")
 
 print("\n── log in ──────────────────────────────────────────────────────────")
 r = s.get(f"{BASE}/oauth2/start", params={"rd": "/"}, allow_redirects=True, timeout=10)
@@ -72,11 +77,11 @@ r = s.post(f"{API}/write", json={
 check("authenticated write accepted", r.status_code == 200, f"got {r.status_code}")
 data = r.json() if r.status_code == 200 else {}
 
-on_disk = os.path.exists(f"{REPO}/docs/{TESTFILE}")
+on_disk = os.path.exists(f"{REPO}/{TESTFILE}")
 check("file exists on disk", on_disk)
 if on_disk:
     check("content matches exactly",
-          open(f"{REPO}/docs/{TESTFILE}").read() == body)
+          open(f"{REPO}/{TESTFILE}").read() == body)
 
 after = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"],
                        capture_output=True, text=True).stdout.strip()
@@ -99,22 +104,23 @@ check("response carries git history", len(data.get("history", [])) >= 1,
 # it, but this is the assertion that would catch it silently staging the tree.
 touched = subprocess.run(["git", "-C", REPO, "show", "--name-only", "--format=", "HEAD"],
                          capture_output=True, text=True).stdout.split()
-check("the commit touched exactly one file", touched == [f"docs/{TESTFILE}"], str(touched))
+check("the commit touched exactly one file", touched == [TESTFILE], str(touched))
 
 print("\n── guards still hold through HTTP, for an AUTHENTICATED editor ──────")
 for label, payload, want in [
     ("traversal out of the root",
-     {"root": "docs", "path": "../../etc/passwd", "content": "x"}, 403),
+     {"root": "stacks", "path": "../../etc/passwd", "content": "x"}, 403),
     ("absolute path",
-     {"root": "docs", "path": "/etc/passwd", "content": "x"}, 403),
-    ("README.md at the repo toplevel",
-     {"root": "docs", "path": "../README.md", "content": "x"}, 403),
+     {"root": "stacks", "path": "/etc/passwd", "content": "x"}, 403),
     ("a shell script",
-     {"root": "docs", "path": "kb/evil.sh", "content": "x"}, 403),
+     {"root": "stacks", "path": "docs/kb/evil.sh", "content": "x"}, 403),
     ("a compose file",
-     {"root": "docs", "path": "kb/compose.yml", "content": "x"}, 403),
+     {"root": "stacks", "path": "docs/kb/compose.yml", "content": "x"}, 403),
     ("the repo's own .git",
-     {"root": "docs", "path": "../.git/config", "content": "x"}, 403),
+     {"root": "stacks", "path": ".git/config", "content": "x"}, 403),
+    ("a denied secret", {"root": "stacks", "path": ".env", "content": "x"}, 403),
+    ("the read-only projects root",
+     {"root": "projects", "path": "notes.md", "content": "x"}, 403),
     ("an unknown root",
      {"root": "etc", "path": "passwd", "content": "x"}, 403),
 ]:
@@ -128,7 +134,7 @@ check("no stray files were created",
 print("\n── cleanup ─────────────────────────────────────────────────────────")
 subprocess.run(["git", "-C", REPO, "reset", "--hard", before],
                capture_output=True, text=True)
-gone = not os.path.exists(f"{REPO}/docs/{TESTFILE}")
+gone = not os.path.exists(f"{REPO}/{TESTFILE}")
 head = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"],
                       capture_output=True, text=True).stdout.strip()
 check("test commit reverted", head == before and gone, f"HEAD={head[:9]}")
