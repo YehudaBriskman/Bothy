@@ -151,6 +151,12 @@ doctor:
 verify mode="":
     @VERIFY_SELFTEST={{ if mode == "selftest" { "1" } else { "" } }} bash scripts/verify-access.sh
 
+# Checks for the editor tier: path-safety unit tests, per-route role enforcement,
+# and a full anonymous-refused / login / write / commit round trip.
+# `just files-check offline` runs only the part that needs nothing up.
+files-check mode="":
+    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
+
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
     @bash scripts/backup.sh
