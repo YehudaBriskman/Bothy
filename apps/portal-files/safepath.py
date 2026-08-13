@@ -26,6 +26,9 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import stat
+import time
+import urllib.parse
 from dataclasses import dataclass
 
 # Named roots, so a client never sends a filesystem path - only a short key that
@@ -198,9 +201,76 @@ ALLOW_FILES = frozenset({
 
 MAX_BYTES = 1_000_000  # a megabyte of markdown is already an unreasonable page
 
+# ── serving raw bytes ───────────────────────────────────────────────────────
+#
+# THE ORDERING RULE, and it is the security property of this whole section:
+#
+#   resolve() runs FIRST, always. The content-type table may only NARROW what
+#   resolve() already allowed. It may never be a reason to serve something.
+#
+# The tempting implementation - "look up the extension, if it is an image, serve
+# it" - inverts that and turns a `.pem` into a download.
+
+MAX_RAW_INLINE_BYTES = 25_000_000    # above this, demote to a download
+MAX_RAW_BYTES = 200_000_000          # above this, refuse outright
+
+# Extension -> (mime, accepted magic prefixes). Hardcoded on purpose.
+#
+# NOT mimetypes.guess_type(): its table is platform-dependent (it reads
+# /etc/mime.types on some images) and already contains image/svg+xml and
+# text/html. A security-relevant header must not be decided by a table that
+# varies with the base image.
+#
+# Raster formats only. Every one of these is inert - it carries pixels, not
+# script - which is exactly why the list is short and why SVG is not on it.
+INLINE_TYPES: dict[str, tuple[str, tuple[bytes, ...]]] = {
+    ".png": ("image/png", (b"\x89PNG\r\n\x1a\n",)),
+    ".jpg": ("image/jpeg", (b"\xff\xd8\xff",)),
+    ".jpeg": ("image/jpeg", (b"\xff\xd8\xff",)),
+    ".gif": ("image/gif", (b"GIF87a", b"GIF89a")),
+    ".webp": ("image/webp", (b"RIFF",)),      # plus a WEBP check at offset 8
+    ".bmp": ("image/bmp", (b"BM",)),
+    ".ico": ("image/vnd.microsoft.icon", (b"\x00\x00\x01\x00",)),
+    ".avif": ("image/avif", ()),              # checked at offset 4, below
+}
+
+# Never inline, at any content-type, on any origin. A tripwire rather than the
+# mechanism - INLINE_TYPES is an allowlist, so these are already excluded. The
+# set exists so that widening the allowlist trips a test instead of shipping.
+#
+# SVG is the one people want and it is the one that matters most: an SVG is a
+# document, it can carry <script>, and inline on the portal's origin that script
+# can read every file in three roots and commit as the signed-in user. It already
+# renders safely as highlighted SOURCE through /read - that is the answer, and it
+# already ships. Do not build a second, dangerous path to the same file.
+NEVER_INLINE = frozenset({
+    ".svg", ".svgz", ".html", ".htm", ".xhtml", ".xht", ".mhtml", ".mht",
+    ".xml", ".xsl", ".xslt", ".swf", ".pdf",
+})
+
+# ── archives ────────────────────────────────────────────────────────────────
+ARCHIVE_MAX_ENTRIES = 2_000
+ARCHIVE_MAX_TOTAL = 100_000_000      # sum of member sizes
+ARCHIVE_MAX_MEMBER = 25_000_000      # one file
+ARCHIVE_MAX_DEPTH = 32
+ARCHIVE_WALK_SECONDS = 20            # phase-1 wall clock
+
 
 class PathRefused(Exception):
     """A path was not proven safe. The message is safe to show a user."""
+
+
+# Patterns that describe a WORD in a filename rather than a file format, and so
+# must not apply to prose. Found by running collect() over the real tree: a
+# documentation page called "Change Password.md" was being hidden as a secret.
+#
+# Only true documentation formats are exempt. `.txt` deliberately is NOT -
+# `db_password.txt` is exactly the shape of a file someone leaves a credential
+# in, while `.md` and `.rst` are formats you write ABOUT credentials in. The
+# content scanner still inspects these files and can flag them as sensitive; it
+# just no longer removes them from the explorer entirely.
+_WORDY_PATTERNS = frozenset({"*secret*", "*password*"})
+_PROSE_SUFFIXES = frozenset({".md", ".markdown", ".rst"})
 
 
 def is_denied_name(basename: str) -> bool:
@@ -212,7 +282,125 @@ def is_denied_name(basename: str) -> bool:
     name = basename.lower()
     if name in ALLOW_FILES:
         return False
-    return any(fnmatch.fnmatch(name, pat) for pat in DENY_FILE_PATTERNS)
+    prose = os.path.splitext(name)[1] in _PROSE_SUFFIXES
+    for pat in DENY_FILE_PATTERNS:
+        if prose and pat in _WORDY_PATTERNS:
+            continue
+        if fnmatch.fnmatch(name, pat):
+            return True
+    return False
+
+
+def content_policy(basename: str, head: bytes) -> tuple[str, str]:
+    """Decide (content_type, disposition) for raw bytes.
+
+    Allowlist plus magic-byte confirmation. `nosniff` alone would in fact be
+    enough - a .png full of HTML, served image/png with nosniff, is not rendered
+    as HTML by any current browser - but that puts the entire property on one
+    header surviving every future refactor and every proxy in the chain. A
+    16-byte prefix check costs one read() and removes the dependency.
+
+    On a magic MISMATCH the file is demoted to a download rather than refused: a
+    mismatched extension is far more often a misnamed file than an attack, and
+    refusing would make the explorer lie about a file that plainly exists.
+    """
+    ext = os.path.splitext(basename)[1].lower()
+    if ext in NEVER_INLINE or ext not in INLINE_TYPES:
+        return "application/octet-stream", "attachment"
+
+    mime, magics = INLINE_TYPES[ext]
+    ok = False
+    if ext == ".avif":
+        ok = head[4:12] in (b"ftypavif", b"ftypavis")
+    elif ext == ".webp":
+        ok = head.startswith(b"RIFF") and head[8:12] == b"WEBP"
+    else:
+        ok = any(head.startswith(m) for m in magics)
+
+    if not ok:
+        return "application/octet-stream", "attachment"
+    return mime, "inline"
+
+
+# A header value may never contain CR or LF. Checked rather than trusted, because
+# BaseHTTPRequestHandler.send_header does no escaping whatsoever.
+_CTL = re.compile(r"[\r\n\x00]")
+
+
+def header_filename(name: str) -> tuple[str, str]:
+    """Return (ascii_fallback, rfc5987) for a Content-Disposition header.
+
+    This exists because Content-Disposition is the FIRST place user input reaches
+    a response header in this service, and `send_header` is literally
+    `("%s: %s\\r\\n" % (kw, value)).encode('latin-1', 'strict')`. So:
+
+      - a filename containing CRLF (legal on Linux) injects arbitrary headers;
+      - a filename with any non-latin-1 character - a CJK or emoji name - raises
+        UnicodeEncodeError halfway through a response, leaving headers written
+        and the request 500ing.
+
+    The percent-encoded form is ASCII by construction, so latin-1 strict is
+    satisfied and CRLF becomes %0D%0A.
+    """
+    base = os.path.basename(name) or "download"
+    ascii_fallback = re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("._") or "download"
+    return ascii_fallback[:100], urllib.parse.quote(base, safe="")
+
+
+def safe_open(abspath: str) -> tuple[int, os.stat_result]:
+    """Open a regular file, closing three races at once. Caller must os.close().
+
+    O_NOFOLLOW  - closes the window between realpath() and open() in which the
+                  final component could be swapped for a symlink.
+    O_NONBLOCK  - stops open() blocking FOREVER on a FIFO. os.walk puts FIFOs in
+                  filenames; without this, one mkfifo in a root pins a handler
+                  thread permanently. There are none today, and there is no
+                  reason to be one away from a hang.
+    fstat on fd - the size checked and the bytes sent are the same inode, so
+                  there is no size TOCTOU.
+    """
+    try:
+        fd = os.open(abspath, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError as e:
+        raise PathRefused(f"cannot open: {e.strerror}") from e
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise PathRefused("not a regular file")
+    except Exception:
+        os.close(fd)
+        raise
+    return fd, st
+
+
+_UNSAFE_ARCNAME = re.compile(r"[\\:\x00-\x1f]")
+
+
+def safe_arcname(prefix: str, relpath: str) -> str | None:
+    """Name an archive entry, or None if it cannot be named safely.
+
+    Zip-slip is the EXTRACTOR's bug, but a well-behaved producer makes it
+    unreachable. Names come from the resolved relpath and never from anything the
+    client sent.
+
+    The backslash rejection is the non-obvious one: a filename containing `\\` is
+    perfectly legal on Linux and becomes a PATH SEPARATOR on a Windows extractor,
+    i.e. traversal. Rejected rather than mangled, because mangling collides.
+
+    The single top-level prefix is the tarbomb fix: a naive `unzip` in $HOME
+    creates one directory instead of scattering 600 files.
+    """
+    rel = relpath.replace(os.sep, "/")
+    if not rel or rel == ".":
+        return None
+    if rel.startswith("/") or ".." in rel.split("/") or _UNSAFE_ARCNAME.search(rel):
+        return None
+    name = f"{prefix}/{rel}"
+    # Final tripwire: anything normpath would rewrite is something an extractor
+    # might interpret differently from us.
+    if os.path.normpath(name).replace(os.sep, "/") != name:
+        return None
+    return name
 
 
 def git_root_for(path: str, stop_at: str) -> str | None:
@@ -319,3 +507,132 @@ def resolve(root_key: str, rel: str, *, for_write: bool = False) -> Resolved:
         git_root=git_root,
         git_relpath=os.path.relpath(candidate, git_root) if git_root else None,
     )
+
+
+@dataclass(frozen=True)
+class Member:
+    """One file that will go into an archive. Already proven safe."""
+    res: Resolved
+    size: int
+    mtime: int
+    arcname: str
+
+
+class ArchiveRefused(Exception):
+    """The request asked for too much. Carries counts for a useful 413 body."""
+
+    def __init__(self, message: str, **facts):
+        super().__init__(message)
+        self.facts = facts
+
+
+def collect(
+    root_key: str,
+    rel: str = "",
+    *,
+    max_entries: int = ARCHIVE_MAX_ENTRIES,
+    max_total: int = ARCHIVE_MAX_TOTAL,
+    max_member: int = ARCHIVE_MAX_MEMBER,
+    max_depth: int = ARCHIVE_MAX_DEPTH,
+    walk_seconds: float = ARCHIVE_WALK_SECONDS,
+) -> tuple[list[Member], list[dict]]:
+    """Walk a subtree and return (members, skipped) with every check applied.
+
+    THIS FUNCTION OWNS THE WALK, and that is the point of it existing.
+
+    `listing()` in app.py used to do its own os.walk and then call resolve() -
+    correct, but a PATTERN, and a second implementation can copy a pattern
+    incorrectly. Making collect() the only way the application can learn a set of
+    paths means the security check is not something the caller has to remember;
+    it is the thing the caller called. The archive walk is the second consumer,
+    and it is exactly the place where a forgotten resolve() would put `.env` into
+    a downloadable zip.
+
+    Two failure modes, deliberately different:
+      - whole-request limits (entries, total bytes, wall clock) raise
+        ArchiveRefused, because they mean "narrow your selection" and a truncated
+        archive would be a lie;
+      - per-file problems are SKIPPED and reported, because one unreadable file
+        should not lose you the other six hundred.
+    """
+    base = resolve(root_key, rel or ".")
+    members: list[Member] = []
+    skipped: list[dict] = []
+    total = 0
+    started = time.monotonic()
+
+    def skip(path: str, why: str) -> None:
+        skipped.append({"path": path, "why": why})
+
+    if os.path.isfile(base.abspath):
+        walk_root, prefix_rel = os.path.dirname(base.abspath), os.path.dirname(base.relpath)
+        singles = [(walk_root, [], [os.path.basename(base.abspath)])]
+    else:
+        walk_root, prefix_rel = base.abspath, base.relpath
+        singles = os.walk(walk_root, followlinks=False,
+                          onerror=lambda e: skip(getattr(e, "filename", "?"), "unreadable directory"))
+
+    # `.` is what relpath returns for the root itself; it must not become part
+    # of the archive's top-level directory name ("notes-." rather than "notes").
+    prefix_rel = "" if prefix_rel in (".", "") else prefix_rel
+    slug = os.path.basename(prefix_rel.rstrip("/")) if prefix_rel else ""
+    prefix = f"{root_key}-{slug}" if slug else root_key
+
+    for dirpath, dirnames, filenames in singles:
+        if time.monotonic() - started > walk_seconds:
+            raise ArchiveRefused("took too long to scan; select a smaller folder",
+                                 seconds=walk_seconds, entries=len(members))
+        # Prune denied dirs, and symlinked dirs. followlinks=False already
+        # declines to descend, so the islink clause is redundant - kept because
+        # it puts the intent at the point of the decision instead of in a doc.
+        dirnames[:] = [d for d in dirnames
+                       if d not in DENY_COMPONENTS
+                       and not os.path.islink(os.path.join(dirpath, d))]
+        depth = os.path.relpath(dirpath, walk_root).count(os.sep)
+        if depth >= max_depth:
+            skip(os.path.relpath(dirpath, walk_root), "deeper than the depth limit")
+            dirnames[:] = []
+            continue
+
+        for fn in sorted(filenames):
+            full = os.path.join(dirpath, fn)
+            shown = os.path.relpath(full, walk_root)
+            # A symlink to a file INSIDE the root resolves fine, but res.relpath
+            # is then the TARGET's path - so the archive would carry two entries
+            # with different names for the same bytes, and a duplicate name in a
+            # zip is silently overwritten by a naive extractor. Skip all links.
+            if os.path.islink(full):
+                skip(shown, "symlink")
+                continue
+            try:
+                res = resolve(root_key, os.path.relpath(full, base.root_dir))
+            except PathRefused as e:
+                skip(shown, str(e))
+                continue
+            try:
+                fd, st = safe_open(res.abspath)
+                os.close(fd)
+            except PathRefused as e:
+                skip(shown, str(e))
+                continue
+            if st.st_size > max_member:
+                skip(shown, f"larger than the {max_member // 1_000_000} MB per-file limit")
+                continue
+            arc = safe_arcname(prefix, os.path.relpath(res.abspath, walk_root))
+            if arc is None:
+                skip(shown, "name cannot be represented safely in an archive")
+                continue
+
+            total += st.st_size
+            if len(members) >= max_entries:
+                raise ArchiveRefused(
+                    "too many files; select a smaller folder",
+                    entries=len(members), limit=max_entries)
+            if total > max_total:
+                raise ArchiveRefused(
+                    "too large; select a smaller folder",
+                    bytes=total, limit=max_total)
+            members.append(Member(res=res, size=st.st_size,
+                                  mtime=int(st.st_mtime), arcname=arc))
+
+    return members, skipped

@@ -62,6 +62,44 @@ http:
       service: portal-files
       middlewares: [portal-files-strip, files-deidentify, sso-editor, sso-errors]
 
+    # ── download: raw bytes and archives, on the SANDBOX ENTRYPOINT only ────
+    #
+    # entryPoints: [sandbox] - :8100, NOT :80. That is the security control, not
+    # a deployment detail: a different port is a different origin, so a hostile
+    # SVG or PDF served here cannot read the portal DOM or any response from the
+    # JSON API. Moving this router to `web` would silently undo it and nothing
+    # would look different.
+    #
+    # Same `viewer` tier as read - these serve exactly the file set /read serves.
+    # /raw is wider in BYTES (it sends binaries, and files above /read's 1 MB
+    # ceiling) but the file SET is identical, because both go through the same
+    # safepath.resolve().
+    #
+    # NEVER add Traefik's `buffering` middleware to this router: it would
+    # materialise a whole archive in memory before sending a byte, which defeats
+    # the streaming design entirely.
+    #
+    # These MUST stay side-effect-free GETs forever. They are reachable by
+    # cookie-bearing top-level navigation, which is how a download works at all.
+    portal-files-download:
+      rule: "Path(`/-/api/files/raw`) || Path(`/-/api/files/archive`)"
+      entryPoints: [sandbox]
+      priority: 105
+      service: portal-files
+      # sso-errors is deliberately ABSENT here, unlike every other router.
+      #
+      # It rewrites a 401 into the oauth2-proxy sign-in PAGE, and the
+      # oauth2-endpoints router only exists on :80 - so on :8100 that redirect
+      # lands on a 404. More importantly it should not be added: the sandbox
+      # origin must serve bytes and nothing else. A sign-in form rendered there
+      # would be a document on the sandbox origin, which is the exact category
+      # this entrypoint exists to keep empty.
+      #
+      # So an unauthenticated download gets a bare 401. The SPA already knows the
+      # session state - it loaded the tree - so it gates the download itself
+      # rather than relying on a redirect round-trip carrying the query string.
+      middlewares: [portal-files-strip, files-deidentify, sso-viewer]
+
   middlewares:
     # Map the public path onto the service's own. The service serves /write, the
     # world asks for /-/api/files/write - so the service cannot accidentally be

@@ -39,4 +39,7 @@ python3 checks/authz_probe.py || fail=1
 echo; echo "── end to end ──────────────────────────────────────────────"
 python3 checks/e2e.py || fail=1
 
+echo; echo "── raw bytes + archives (the sandbox origin) ───────────────"
+python3 checks/bytes_e2e.py || fail=1
+
 exit $fail
