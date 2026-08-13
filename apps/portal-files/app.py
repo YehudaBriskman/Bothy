@@ -218,6 +218,118 @@ def history(res: safepath.Resolved, limit: int = 20) -> list[dict]:
     return out
 
 
+def repos(root_key: str, rel: str = "") -> dict:
+    """Repositories at the TOP LEVEL of a scoped directory, and nothing deeper.
+
+    Deliberately not a recursive search. ~/projects contains three repos at its
+    top level and a great many more nested inside node_modules, vendor
+    directories and fixtures - listing those would bury the three you meant under
+    dozens you did not, which is exactly the complaint that prompted scoping.
+
+    So: direct children only, plus the scoped directory itself if it is a repo.
+    Scoping to `projects/army/Tals` gives you Tals; scoping to `projects` gives
+    you the three; neither gives you a fixture repo six levels down.
+    """
+    base = safepath.resolve(root_key, rel or ".")
+    found = []
+
+    def describe(path: str, name: str) -> dict | None:
+        if not os.path.isdir(os.path.join(path, ".git")):
+            return None
+        head = git(path, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        last = git(path, "log", "-1", "--format=%h%x1f%s%x1f%aI").stdout.strip()
+        sha, subject, when = (last.split("\x1f") + ["", "", ""])[:3]
+        dirty = [l for l in git(path, "status", "--porcelain").stdout.splitlines() if l]
+        return {
+            "name": name,
+            "path": os.path.relpath(path, base.root_dir),
+            "branch": head or "(detached)",
+            "lastSha": sha, "lastSubject": subject, "lastDate": when,
+            "dirty": len(dirty),
+        }
+
+    def children_of(path: str):
+        try:
+            entries = sorted(os.scandir(path), key=lambda e: e.name)
+        except OSError:
+            return
+        for e in entries:
+            if not e.is_dir(follow_symlinks=False) or e.name in safepath.DENY_COMPONENTS:
+                continue
+            try:
+                safepath.resolve(root_key, os.path.relpath(e.path, base.root_dir))
+            except safepath.PathRefused:
+                continue
+            yield e
+
+    here = describe(base.abspath, os.path.basename(base.abspath) or root_key)
+    if here:
+        found.append(here)
+    else:
+        for e in children_of(base.abspath):
+            d = describe(e.path, e.name)
+            if d:
+                found.append(d)
+                continue
+            # DEPTH 2, and only when the child is not itself a repo.
+            #
+            # Strict "direct children only" is defensible and useless in the
+            # common case: ~/projects holds `army/`, which is not a repo, so
+            # scoping to projects found NOTHING while the three repos sat one
+            # level below. Descending once more finds them.
+            #
+            # It stops at two on purpose. That is the difference between "the
+            # repos in this folder" and "every repo on the disk" - the latter
+            # buries the three you meant under fixtures and vendored copies,
+            # which is the complaint scoping exists to answer.
+            for g in children_of(e.path):
+                dd = describe(g.path, f"{e.name}/{g.name}")
+                if dd:
+                    found.append(dd)
+    return {"root": root_key, "scope": base.relpath, "repos": found,
+            "searchDepth": 2}
+
+
+def status(root_key: str, rel: str = "") -> dict:
+    """Which files have uncommitted changes, for the repo covering `rel`.
+
+    This is what lets the explorer mark a changed file the way an editor does.
+    Paths are returned RELATIVE TO THE ROOT so the UI can match them against the
+    tree without knowing where the repository boundary sits - the boundary is a
+    fact about the server's mounts, not something a client should have to model.
+    """
+    base = safepath.resolve(root_key, rel or ".")
+    if not base.git_root:
+        return {"root": root_key, "repo": None, "files": [], "branch": None}
+
+    out = []
+    p = git(base.git_root, "status", "--porcelain=v1", "-z", "--untracked-files=normal")
+    # -z: NUL-separated, so a filename containing a space, a quote or a newline
+    # parses correctly. The default format quotes and escapes those, and every
+    # hand-written parser of it is wrong for some real filename.
+    fields = [f for f in p.stdout.split("\0") if f]
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        code, name = entry[:2], entry[3:]
+        if code.startswith("R"):
+            i += 1  # rename carries the old path as the next field; skip it
+        try:
+            res = safepath.resolve(root_key, os.path.relpath(
+                os.path.join(base.git_root, name), safepath.ROOTS[root_key]))
+            shown = res.relpath
+        except (safepath.PathRefused, ValueError):
+            # A change to a file the explorer will not show. Counted, not named -
+            # otherwise the panel would advertise a path that 403s when clicked.
+            shown = None
+        out.append({"code": code.strip() or "?", "path": shown,
+                    "staged": code[0] not in " ?", "untracked": code == "??"})
+        i += 1
+    branch = git(base.git_root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    return {"root": root_key, "repo": os.path.basename(base.git_root),
+            "branch": branch, "files": out}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "portal-files"
 
@@ -321,6 +433,12 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/history":
                 res = safepath.resolve(q.get("root", ""), q.get("path", ""))
                 return self._send(200, {"path": res.relpath, "history": history(res)})
+
+            if route == "/repos":
+                return self._send(200, repos(q.get("root", ""), q.get("path", "")))
+
+            if route == "/status":
+                return self._send(200, status(q.get("root", ""), q.get("path", "")))
 
             if route == "/raw":
                 return self._raw(q)
