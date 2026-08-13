@@ -193,6 +193,176 @@
 .bothy-files .fx-json-bad b { color: var(--fg); }
 .bothy-files .fx-json-why { font-family: var(--mono); font-size: 12px; color: var(--st-down-fg); }
 
+/* ── the code editor ─────────────────────────────────────────────────────────
+   CodeMirror 6, styled from OUT HERE rather than through EditorView.theme().
+
+   Two facts make that safe and make it the better of the two. First, style-mod -
+   the engine behind every CodeMirror theme and base theme - inserts its <style>
+   tag as the FIRST child of <head>, so this stylesheet always comes later and
+   wins every specificity tie. Second, every rule here is `.bothy-files .cm-*`,
+   (0,2,0), against CodeMirror's own (0,2,0) generated selectors: a tie, decided
+   by order, in our favour. Nothing below needs !important and nothing below
+   should acquire one.
+
+   The one thing that is NOT here is token colour, which has to be a
+   HighlightStyle because CodeMirror generates those class names itself. See
+   cmtheme.ts - it is five declarations, all `var(--hl-*)`, so there is still
+   exactly one palette and it still lives in shell.css.
+
+   COLOURS. Everything below is a token or a colour-mix of one. There is no
+   second palette: a `data-theme` flip repaints this editor with no JavaScript,
+   because every value here resolves at paint time. */
+.bothy-files .fx-cm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bothy-files .fx-cm > .cm-editor { flex: 1; min-height: 0; }
+
+.bothy-files .cm-editor {
+  background: var(--bg-2); color: var(--fg);
+  font-family: var(--mono); font-size: var(--code-fs);
+  /* The guide geometry, in one place. 2ch is exactly `tab-size: 2` in this
+     font, which is why the rules land on the indent and not near it. */
+  --fx-guide-w: 2ch;
+  --fx-guide: color-mix(in oklab, var(--fg-subtle) 34%, transparent);
+  --fx-guide-hi: color-mix(in oklab, var(--hl-kw) 62%, transparent);
+}
+/* CodeMirror's own focus ring is a browser outline on the contenteditable. The
+   page's ring goes on the editor as a whole, inset, because the column clips. */
+.bothy-files .cm-editor.cm-focused { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .cm-scroller {
+  font-family: var(--mono); line-height: var(--code-lh);
+  overflow: auto;
+}
+.bothy-files .cm-content {
+  padding: 14px 0 36px; caret-color: var(--accent-fg);
+  /* Alignment is meaning in code - the same reason .fx-src does not wrap. */
+  white-space: pre;
+}
+.bothy-files .cm-line { padding: 0 20px 0 8px; }
+
+/* ── gutter ──────────────────────────────────────────────────────────────── */
+.bothy-files .cm-gutters {
+  background: var(--bg-2); color: var(--fg-subtle);
+  border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.bothy-files .cm-lineNumbers .cm-gutterElement { padding: 0 10px 0 14px; opacity: .65; }
+.bothy-files .cm-gutters .cm-activeLineGutter {
+  background: transparent; color: var(--fg); opacity: 1; font-weight: 600;
+}
+
+/* ── the bands ───────────────────────────────────────────────────────────────
+   Two of them, and they have to be TELLABLE APART or the hover one is just a
+   flicker on the active one. The active band is the accent tint the rest of the
+   app uses for "this one"; the hover band is a flat surface step, half its
+   weight, and it is suppressed on the active line entirely so the two never
+   stack into a third colour that means nothing. */
+.bothy-files .cm-activeLine { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+.bothy-files .cm-fxHoverLine { background: color-mix(in oklab, var(--fg) 5%, transparent); }
+.bothy-files .cm-line.cm-activeLine.cm-fxHoverLine { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+
+/* ── indent guides ───────────────────────────────────────────────────────────
+   Painted by the LINE, not by an overlay, so they scroll and reflow for free.
+   `background-origin: content-box` is what puts the first rule exactly on
+   column 0 of the text rather than 8px to its left in the padding.
+
+   The second layer is the guide the caret's block hangs from. `--fx-guide-on`
+   defaults to -99 on every line so the calc() is always valid: an invalid calc
+   would drop the whole background-position declaration, taking the ordinary
+   guides down with it. */
+.bothy-files .cm-line { --fx-guides: 0; --fx-guide-on: -99; }
+.bothy-files .cm-line.cm-fxGuides {
+  background-image:
+    linear-gradient(to right, var(--fx-guide-hi) 0 1px, transparent 1px),
+    repeating-linear-gradient(to right, var(--fx-guide) 0 1px, transparent 1px var(--fx-guide-w));
+  background-size: 1px 100%, calc(var(--fx-guides) * var(--fx-guide-w)) 100%;
+  background-position: calc(var(--fx-guide-on) * var(--fx-guide-w)) 0, 0 0;
+  background-repeat: no-repeat, no-repeat;
+  background-origin: content-box, content-box;
+}
+/* A band and its guides are both backgrounds, and a line can only have one
+   background-color under its background-images - so the banded lines re-declare
+   the images and add the colour underneath rather than fighting over the
+   shorthand. */
+.bothy-files .cm-line.cm-fxGuides.cm-activeLine { background-color: color-mix(in oklab, var(--accent) 12%, transparent); }
+.bothy-files .cm-line.cm-fxGuides.cm-fxHoverLine { background-color: color-mix(in oklab, var(--fg) 5%, transparent); }
+
+/* ── selection, matches, brackets ────────────────────────────────────────── */
+.bothy-files .cm-selectionBackground,
+.bothy-files .cm-content ::selection { background: color-mix(in oklab, var(--accent) 30%, transparent); }
+.bothy-files .cm-focused .cm-selectionBackground { background: color-mix(in oklab, var(--accent) 38%, transparent); }
+.bothy-files .cm-cursor, .bothy-files .cm-dropCursor { border-left-color: var(--accent-fg); border-left-width: 2px; }
+/* Every OTHER occurrence of what is selected, or of the word under the caret.
+   Outlined rather than filled: a fill at this frequency turns a page of code
+   into a page of highlighter. */
+.bothy-files .cm-selectionMatch {
+  background: color-mix(in oklab, var(--hl-kw) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--hl-kw) 45%, transparent);
+  border-radius: var(--r-xs);
+}
+.bothy-files .cm-matchingBracket, .bothy-files .cm-focused .cm-matchingBracket {
+  background: color-mix(in oklab, var(--hl-num) 22%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--hl-num) 70%, transparent);
+  color: var(--fg);
+}
+.bothy-files .cm-nonmatchingBracket, .bothy-files .cm-focused .cm-nonmatchingBracket {
+  background: var(--st-down-bg); color: var(--st-down-fg);
+}
+/* The current search hit, against the rest of them. Same relationship as the
+   active line has to the hover line: one tint, two weights. */
+.bothy-files .cm-searchMatch { background: color-mix(in oklab, var(--hl-num) 22%, transparent); border-radius: var(--r-xs); }
+.bothy-files .cm-searchMatch-selected {
+  background: color-mix(in oklab, var(--hl-num) 55%, transparent);
+  outline: 1px solid var(--hl-num);
+}
+
+/* ── the find panel ──────────────────────────────────────────────────────────
+   CodeMirror's own panel, restyled onto the tokens rather than replaced. It
+   already carries case-sensitive, whole-word, regexp, replace and replace-all,
+   and a second find UI of our own would be a second thing to keep in step. */
+.bothy-files .cm-panels {
+  background: var(--surface-2); color: var(--fg-muted);
+  border-bottom: 1px solid var(--line); font-size: 11.5px;
+}
+.bothy-files .cm-panels.cm-panels-bottom { border-top: 1px solid var(--line); border-bottom: 0; }
+.bothy-files .cm-panel.cm-search { padding: 7px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bothy-files .cm-panel.cm-search br { display: none; }
+.bothy-files .cm-panel.cm-search label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--fg-subtle); }
+.bothy-files .cm-panel.cm-search input.cm-textfield {
+  font-family: var(--mono); font-size: 11.5px; padding: 3px 7px; min-width: 180px;
+  background: var(--bg-2); color: var(--fg);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.bothy-files .cm-panel.cm-search input.cm-textfield:focus-visible { outline: 2px solid var(--ring); outline-offset: -1px; border-color: var(--accent); }
+.bothy-files .cm-panel.cm-search button:not([name='close']) {
+  font: inherit; cursor: pointer; padding: 3px 9px;
+  background: var(--surface-1); color: var(--fg-muted);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background-image: none;
+}
+.bothy-files .cm-panel.cm-search button:not([name='close']):hover { background: var(--surface-3); color: var(--fg); }
+.bothy-files .cm-panel.cm-search button[name='close'] {
+  position: absolute; top: 4px; right: 8px;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--fg-subtle); font-size: 16px; padding: 0 4px;
+}
+.bothy-files .cm-panel.cm-search button[name='close']:hover { color: var(--fg); }
+
+.bothy-files .cm-tooltip {
+  background: var(--surface-1); color: var(--fg-muted);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.bothy-files .cm-specialChar { color: var(--st-warn-fg); }
+
+/* ── the hotkey sheet ────────────────────────────────────────────────────── */
+.bothy-files .fx-keys {
+  flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px;
+  padding: 8px 14px; border-top: 1px solid var(--line);
+  background: var(--surface-1); color: var(--fg-subtle); font-size: 11px;
+}
+.bothy-files .fx-key { display: inline-flex; align-items: center; gap: 6px; }
+.bothy-files .fx-key-combo { display: inline-flex; align-items: center; gap: 2px; }
+.bothy-files .fx-keys .kbd { font-size: 9.5px; padding: 0 4px; }
+.bothy-files .fx-key-what { color: var(--fg-muted); }
+
 /* ── the status strip ────────────────────────────────────────────────────── */
 .bothy-files .fx-status {
   flex: none; display: flex; align-items: center; gap: 12px;
@@ -206,6 +376,17 @@
 .bothy-files .fx-stat-sep { width: 1px; height: 11px; background: var(--line); flex: none; }
 .bothy-files .fx-status-spacer { flex: 1; }
 .bothy-files .fx-status .kbd { font-size: 9.5px; padding: 0 4px; }
+/* Buttons in a 24px strip. Sized to the strip rather than to the button scale in
+   index.css, which starts at 28px and would grow the strip by half again. */
+.bothy-files .fx-statbtn {
+  appearance: none; cursor: pointer; font: inherit; font-size: 10.5px;
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  height: 17px; padding: 0 7px; border-radius: var(--r-xs);
+  background: transparent; color: var(--fg-subtle); border: 1px solid transparent;
+}
+.bothy-files .fx-statbtn:hover { background: var(--surface-3); color: var(--fg); }
+.bothy-files .fx-statbtn.on { background: var(--accent-bg); color: var(--accent-fg); border-color: var(--accent-line); }
+.bothy-files .fx-statbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 
 /* ── read view (markdown) ────────────────────────────────────────────────── */
 .bothy-files .fx-read { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px; }
