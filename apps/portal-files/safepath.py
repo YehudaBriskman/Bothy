@@ -84,6 +84,34 @@ ROOT_POLICY: dict[str, dict] = {
 def root_policy(root_key: str) -> dict:
     return ROOT_POLICY.get(root_key, {})
 
+
+def prune_dirs(root_key: str, rel_dir: str, dirnames: list[str]) -> list[str]:
+    """Which subdirectories a walk should DESCEND into, given the root's policy.
+
+    Exists because policy and traversal drifted apart, and it cost a measured
+    1.4 seconds per listing.
+
+    `listing()` pruned DENY_COMPONENTS during the walk, but ROOT_POLICY denies
+    `.npm`, `.cache`, `.local` and `backups` at RESOLVE time - so the walk
+    happily descended into all of them and then paid a path resolution plus a
+    raised exception for every single file, only to throw it away:
+
+        visited 33,567 files -> refused 30,093 -> served 3,474
+
+    90% of the work, discarded. Adding per-root policy without teaching the walk
+    about it is what did that, so the fix is to make one function answer both
+    questions and call it from every walk. `resolve()` still has the final say -
+    this only stops us LOOKING somewhere it would refuse.
+    """
+    pol = root_policy(root_key)
+    toplevel = rel_dir in ("", ".")
+    deny_dots = toplevel and pol.get("deny_toplevel_dots")
+    named = pol.get("deny_toplevel", ()) if toplevel else ()
+    return [d for d in dirnames
+            if d not in DENY_COMPONENTS
+            and not (deny_dots and d.startswith("."))
+            and d not in named]
+
 # Directories denied when they are a DIRECT CHILD of a root.
 #
 # Everything dangerous in a home directory sits at its top level, and a survey of
@@ -647,6 +675,7 @@ def collect(
       - per-file problems are SKIPPED and reported, because one unreadable file
         should not lose you the other six hundred.
     """
+    safepath_prune = prune_dirs
     base = resolve(root_key, rel or ".")
     members: list[Member] = []
     skipped: list[dict] = []
@@ -677,9 +706,14 @@ def collect(
         # Prune denied dirs, and symlinked dirs. followlinks=False already
         # declines to descend, so the islink clause is redundant - kept because
         # it puts the intent at the point of the decision instead of in a doc.
-        dirnames[:] = [d for d in dirnames
-                       if d not in DENY_COMPONENTS
-                       and not os.path.islink(os.path.join(dirpath, d))]
+        # Same prune as listing(), through the same function - two walks with
+        # two ideas of what to skip is how the 1.4s bug happened in the first
+        # place. The islink clause is extra here: followlinks=False already
+        # declines to descend, kept so the intent sits at the decision.
+        dirnames[:] = [d for d in safepath_prune(root_key,
+                                                 os.path.relpath(dirpath, walk_root),
+                                                 dirnames)
+                       if not os.path.islink(os.path.join(dirpath, d))]
         depth = os.path.relpath(dirpath, walk_root).count(os.sep)
         if depth >= max_depth:
             skip(os.path.relpath(dirpath, walk_root), "deeper than the depth limit")

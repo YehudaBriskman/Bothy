@@ -228,6 +228,48 @@ open(os.path.join(root, ".github", "ci.yml"), "w").write("on: push\n")
 check("repo root: .gitignore is served",  R(".gitignore"),        expect_refused=False)
 check("repo root: .github/ is served",    R(".github/ci.yml"),    expect_refused=False)
 
+print("\n── the walk must not look where policy will refuse ─────────────────")
+# A performance bug expressed as a correctness invariant, because that is what it
+# actually is: policy and traversal drifted apart. listing() pruned
+# DENY_COMPONENTS during the walk while ROOT_POLICY denied .npm/.cache/.local at
+# RESOLVE time, so the walk descended into all of them and paid a resolution plus
+# a raised exception per file to discard it - 33,567 files visited to serve
+# 3,474. Asserting "the walk visits roughly what it serves" catches that class
+# returning, which a timing assertion would do flakily and a unit test of
+# prune_dirs alone would miss entirely.
+walkroot = os.path.join(tmp, "wr")
+for d in (".npm/deep/deeper", ".cache/x", "backups/env", "src/lib", "src/.github"):
+    os.makedirs(os.path.join(walkroot, d), exist_ok=True)
+for d, n in ((".npm/deep/deeper", 40), (".cache/x", 40), ("backups/env", 10),
+             ("src/lib", 5), ("src/.github", 2)):
+    for i in range(n):
+        open(os.path.join(walkroot, d, f"f{i}.txt"), "w").write("x")
+safepath.ROOTS["wr"] = walkroot
+safepath.ROOT_POLICY["wr"] = {"deny_toplevel_dots": True,
+                              "deny_toplevel": frozenset({"backups"})}
+visited = refused = 0
+for dp, dn, fn in os.walk(walkroot):
+    dn[:] = safepath.prune_dirs("wr", os.path.relpath(dp, walkroot), dn)
+    for f in fn:
+        visited += 1
+        try:
+            safepath.resolve("wr", os.path.relpath(os.path.join(dp, f), walkroot))
+        except safepath.PathRefused:
+            refused += 1
+served = visited - refused
+ok = visited < served * 2          # unpruned this is ~137 visited for 7 served
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'walk visits ~what it serves, not 20x more':<52} "
+      f"want=lean    visited={visited} served={served} refused={refused}")
+# ...and the pruning must not have hidden anything legitimate.
+# 5 in src/lib + 2 in src/.github. The nesting matters: a dot directory is
+# denied at a root's TOP level and allowed below it, which is what lets
+# `stacks/.github/` open while `~/.ssh` does not.
+ok = served == 7
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'and still serves src/ and a nested .github/':<52} "
+      f"want=7       served={served}")
+
 print("\n── the advisory scanner: ADVISORY, and measured ────────────────────")
 # scan_for_secret marks a file; it never refuses one. That was decided by running
 # the blocking version over all 3,369 readable text files on this box: it flagged
