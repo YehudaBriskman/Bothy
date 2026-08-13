@@ -94,7 +94,28 @@ _ARCHIVE_SLOTS = threading.BoundedSemaphore(4)
 BYTE_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "default-src 'none'; sandbox",
-    "Cross-Origin-Resource-Policy": "same-origin",
+    # CORP is deliberately the PERMISSIVE value, and the route to it was two
+    # measured failures rather than one decision - worth recording, because both
+    # wrong answers look obviously right.
+    #
+    #   same-origin -> ERR_BLOCKED_BY_RESPONSE.NotSameOrigin
+    #       Copied in from a single-origin design. But this endpoint exists
+    #       precisely to serve a DIFFERENT origin, so it forbade the only request
+    #       it was built for. Images silently vanished.
+    #
+    #   same-site   -> ERR_BLOCKED_BY_RESPONSE.NotSameSite
+    #       The obvious fix, and also wrong: Chromium does not treat
+    #       http://IP:80 and http://IP:8100 as same-site here. Verified in a real
+    #       browser - no amount of reading settles it, because CORP is enforced
+    #       by the browser and nowhere else.
+    #
+    # cross-origin is safe HERE because CORP is not what protects these bytes -
+    # the session cookie is. It is SameSite=lax, and lax does NOT attach cookies
+    # to cross-site SUBRESOURCE loads. So an unrelated website embedding
+    # <img src="http://IP:8100/-/api/files/raw?..."> sends no cookie, hits
+    # sso-viewer, and gets a 401 with no body. CORP would be refusing a request
+    # that already fails.
+    "Cross-Origin-Resource-Policy": "cross-origin",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "private, no-store",
     # Range is deliberately not implemented - see _raw(). Advertising none stops
