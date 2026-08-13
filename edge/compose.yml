@@ -48,6 +48,24 @@ services:
       # to ./dynamic having no effect. After any checkout:
       #   docker compose -f edge/compose.yml up -d --force-recreate
       - --entrypoints.web.address=:80
+      # The SANDBOX ORIGIN (added 2026-08-12 with the file explorer).
+      #
+      # A different PORT is a different ORIGIN for the same-origin policy, and
+      # that is the entire point. Raw file bytes - images, PDFs, SVGs - are
+      # served ONLY here, never on :80. So a <script> inside a hostile SVG runs
+      # on http://IP:8100, where it cannot read the portal's DOM, cannot read any
+      # response from the JSON API on :80, and cannot act as the signed-in user.
+      #
+      # Nothing else may ever be routed to this entrypoint. There is no catch-all
+      # on it, so an unrouted path 404s here instead of falling through to the
+      # portal the way :80 does - which is also what makes it testable: if the
+      # SPA ever answers on :8100, the isolation is gone.
+      #
+      # It is NOT unauthenticated: the router still carries sso-viewer, and the
+      # session cookie reaches :8100 because cookies ignore ports. That same fact
+      # is why /write had to be hardened against cross-origin POSTs in the same
+      # change - see apps/portal-files/app.py do_POST.
+      - --entrypoints.sandbox.address=:8100
       # --api=true, NOT --api.dashboard=true (changed 2026-08-12).
       #
       # The API itself must stay on: edge/dynamic/portal-api.yml routes four
@@ -81,6 +99,8 @@ services:
       DOCKER_API_VERSION: "1.44"
     ports:
       - "80:80"
+      # The sandbox origin for raw file bytes. See --entrypoints.sandbox above.
+      - "8100:8100"
     volumes:
       # Read-only: Traefik only needs to watch the container list. The socket is
       # root-equivalent, so never mount it writable here.

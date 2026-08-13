@@ -34,10 +34,16 @@ history stays readable with ordinary tools if this service disappears.
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import stat
 import subprocess
 import sys
+import tarfile
+import threading
+import time
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -66,6 +72,35 @@ LANGS = {
     ".gitignore": "text", ".dockerignore": "text",
 }
 GIT_TIMEOUT = 15
+
+# An archive is the first expensive request this service serves.
+# ThreadingHTTPServer spawns an unbounded thread per connection, so without this
+# a handful of concurrent archive requests over a 2,748-file root would be the
+# whole box's CPU. /raw is cheap and deliberately NOT gated - it must not queue
+# behind a zip.
+_ARCHIVE_SLOTS = threading.BoundedSemaphore(4)
+
+# Sent on every /raw and /archive response.
+#
+# The CSP looks like it should break image display and does not, which is worth
+# stating because it is counter-intuitive: CSP is enforced on DOCUMENTS and
+# workers, never on subresource responses. When the portal renders
+# <img src="/-/api/files/raw?...">, the browser applies the PAGE's CSP, not the
+# image response's - so this header is inert on the normal path. The one place it
+# IS enforced is a top-level navigation straight to the raw URL, where the
+# browser synthesises an image document: `sandbox` gives that document an opaque
+# origin, so any script that somehow got there is orphaned from the portal.
+# That asymmetry is exactly what we want, which is why the directive stays short.
+BYTE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; sandbox",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "private, no-store",
+    # Range is deliberately not implemented - see _raw(). Advertising none stops
+    # a client asking.
+    "Accept-Ranges": "none",
+}
 
 
 def git(root: str, *args: str) -> subprocess.CompletedProcess:
@@ -177,6 +212,26 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_bytes_headers(self, code: int, extra: dict) -> None:
+        """Write headers for a byte response, refusing to emit CR/LF in a value.
+
+        send_header does no escaping at all - it is literally
+        ("%s: %s\r\n" % (kw, value)).encode("latin-1", "strict") - so a value
+        carrying CRLF injects arbitrary headers. Nothing in this service put user
+        input in a header until Content-Disposition; this assertion is what keeps
+        that true as the file grows.
+        """
+        self.send_response(code)
+        for k, v in {**BYTE_HEADERS, **extra}.items():
+            if "\r" in str(v) or "\n" in str(v):
+                raise ValueError(f"refusing to write a header containing CR/LF: {k}")
+            self.send_header(k, str(v))
+        self.end_headers()
+
+    def _disposition(self, disp: str, name: str) -> str:
+        ascii_name, encoded = safepath.header_filename(name)
+        return f"{disp}; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
+
     def _query(self) -> dict:
         return {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
 
@@ -246,7 +301,19 @@ class Handler(BaseHTTPRequestHandler):
                 res = safepath.resolve(q.get("root", ""), q.get("path", ""))
                 return self._send(200, {"path": res.relpath, "history": history(res)})
 
+            if route == "/raw":
+                return self._raw(q)
+
+            if route == "/archive":
+                return self._archive(q)
+
             return self._send(404, {"error": "no such endpoint"})
+        except safepath.ArchiveRefused as e:
+            # 413 with the numbers, so "select a smaller folder" is actionable
+            # rather than a shrug. Raised during the PRE-WALK, so nothing has been
+            # streamed and a normal JSON error is still possible - which is the
+            # entire reason the walk happens before the write.
+            return self._send(413, {"error": str(e), **e.facts})
         except safepath.PathRefused as e:
             # 403, not 404: the path was understood and deliberately refused.
             return self._send(403, {"error": str(e)})
@@ -259,6 +326,36 @@ class Handler(BaseHTTPRequestHandler):
         route = urlparse(self.path).path
         if route != "/write":
             return self._send(404, {"error": "no such endpoint"})
+        # ── CSRF, and why it is needed HERE and not before ──────────────────
+        #
+        # Raw bytes are served from a SANDBOX ORIGIN on another port so a hostile
+        # SVG or PDF cannot touch the portal. That works for reading - a
+        # different port is a different origin, so it cannot read the portal DOM
+        # or the JSON API's responses.
+        #
+        # But COOKIES IGNORE PORTS. The oauth2-proxy session cookie is sent to
+        # :8100 as well, and :8100 is SAME-SITE with the portal, so SameSite=lax
+        # does NOT block a POST from a page there to /write here. Introducing the
+        # sandbox origin is what creates this hole, so it is closed in the same
+        # change.
+        #
+        # Requiring JSON is the load-bearing half. This handler calls
+        # json.loads() on the body regardless of content type, so a text/plain
+        # POST - which is a CORS-"simple" request and therefore skips the
+        # preflight entirely - would otherwise be accepted. Demanding
+        # application/json forces a preflight cross-origin, and the preflight
+        # fails because this service sends no CORS headers at all.
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            return self._send(415, {
+                "error": "Content-Type must be application/json"})
+        # Belt and braces for browsers that send it: an explicit statement that
+        # the request did not come from another origin.
+        site = self.headers.get("Sec-Fetch-Site")
+        if site and site not in ("same-origin", "none"):
+            return self._send(403, {
+                "error": f"cross-origin writes are refused (Sec-Fetch-Site: {site})"})
+
         try:
             length = int(self.headers.get("Content-Length") or 0)
             if length <= 0 or length > safepath.MAX_BYTES:
@@ -337,6 +434,187 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             sys.stderr.write(f"ERROR /write: {type(e).__name__}: {e}\n")
             return self._send(500, {"error": "internal error"})
+
+
+    # ── raw bytes ───────────────────────────────────────────────────────────
+    def _raw(self, q: dict) -> None:
+        """Serve a file's bytes.
+
+        THE ORDERING RULE: resolve() runs first, always. The content-type table
+        may only NARROW what resolve() already allowed; it may never be a reason
+        to serve something. A .pem is 403 here before any extension is examined,
+        because resolve() refuses it - not because this function checks for it.
+
+        Consequence worth stating: /raw is wider than /read in BYTES (it sends
+        binaries, and files above /read's 1 MB ceiling) but the FILE SET is
+        exactly identical, because both go through the same resolve(). That
+        equality is the security invariant, and checks/test_safepath.py asserts
+        it.
+
+        Range is not implemented and not advertised. Nothing here is served
+        inline that needs it, and hand-rolled range parsing is a genuinely
+        bug-prone surface: suffix ranges, open-ended ranges, multipart/byteranges
+        framing, and the overlapping-range amplification where one request costs
+        N times the file.
+        """
+        res = safepath.resolve(q.get("root", ""), q.get("path", ""))
+        fd, st = safepath.safe_open(res.abspath)
+        try:
+            if st.st_size > safepath.MAX_RAW_BYTES:
+                os.close(fd)
+                return self._send(413, {
+                    "error": f"file too large to download "
+                             f"({st.st_size // 1_000_000} MB, limit "
+                             f"{safepath.MAX_RAW_BYTES // 1_000_000} MB)"})
+
+            head = os.pread(fd, 16, 0) if st.st_size else b""
+            ctype, disp = safepath.content_policy(os.path.basename(res.abspath), head)
+
+            # A big image is still a legitimate download - demote rather than
+            # refuse, so the explorer does not lie about a file that exists.
+            if disp == "inline" and st.st_size > safepath.MAX_RAW_INLINE_BYTES:
+                ctype, disp = "application/octet-stream", "attachment"
+            # The client may only ever DOWNGRADE to attachment. There is
+            # deliberately no ?inline=1: a client-controllable disposition is the
+            # exact primitive that turns the SVG refusal back into an XSS.
+            if q.get("download") == "1":
+                ctype, disp = "application/octet-stream", "attachment"
+
+            self._send_bytes_headers(200, {
+                "Content-Type": ctype,
+                "Content-Length": st.st_size,
+                "Content-Disposition": self._disposition(disp, res.relpath),
+            })
+            with os.fdopen(fd, "rb", closefd=True) as fh:
+                fd = -1
+                remaining = st.st_size
+                while remaining > 0:
+                    chunk = fh.read(min(65536, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+        except (BrokenPipeError, ConnectionResetError):
+            sys.stderr.write(f"RAW aborted by client: {res.relpath}\n")
+        finally:
+            if fd >= 0:
+                os.close(fd)
+
+    # ── archives ────────────────────────────────────────────────────────────
+    def _archive(self, q: dict) -> None:
+        """Stream a zip or tar.gz of a file or folder.
+
+        TWO PHASES, and the split is the design.
+
+        Streaming alone cannot report a failure once the headers are out: a cap
+        hit halfway leaves a truncated archive that looks complete. Buffering
+        alone costs up to 143 MB of RAM in a container whose filesystem is
+        read_only with only a tmpfs. So: walk and check EVERYTHING first, build a
+        manifest (~300 KB at the entry cap), enforce every whole-request limit
+        while a JSON error is still possible - then stream, where only a per-file
+        OSError remains.
+
+        tarfile.add() and shutil.make_archive() are BANNED here. They recurse on
+        their own, bypassing collect() and therefore bypassing resolve() on every
+        file below the first, and they copy uid/gid/mode/symlink-type off disk.
+        They are by a wide margin the most likely way the per-entry check gets
+        defeated. addfile(TarInfo(...), fileobj) only.
+        """
+        fmt = q.get("format", "zip")
+        if fmt not in ("zip", "tgz"):
+            return self._send(400, {"error": "format must be zip or tgz"})
+
+        if not _ARCHIVE_SLOTS.acquire(blocking=False):
+            self.send_response(503)
+            self.send_header("Retry-After", "5")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        try:
+            # Phase 1: everything that can fail cleanly.
+            members, skipped = safepath.collect(q.get("root", ""), q.get("path", ""))
+            if not members:
+                return self._send(404, {"error": "nothing to archive here",
+                                        "skipped": len(skipped)})
+
+            stamp = max((m.mtime for m in members), default=0)
+            name = f"{members[0].arcname.split('/')[0]}.{'zip' if fmt == 'zip' else 'tar.gz'}"
+            self._send_bytes_headers(200, {
+                "Content-Type": "application/zip" if fmt == "zip" else "application/gzip",
+                "Content-Disposition": self._disposition("attachment", name),
+                "X-Files-Entries": len(members),
+                "X-Files-Skipped": len(skipped),
+            })
+
+            # Phase 2. wfile is a raw SocketIO with wbufsize=0, so every small
+            # zipfile write would otherwise be its own send() syscall.
+            out = io.BufferedWriter(self.wfile, 65536)
+            note = _skip_note(skipped, len(members))
+            try:
+                if fmt == "zip":
+                    _stream_zip(out, members, note, stamp)
+                else:
+                    _stream_tar(out, members, note, stamp)
+                out.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                sys.stderr.write("ARCHIVE aborted by client\n")
+        finally:
+            _ARCHIVE_SLOTS.release()
+
+
+def _skip_note(skipped: list[dict], kept: int) -> bytes:
+    """SKIPPED.txt - the archive says what it does not contain.
+
+    An archive that silently omits files is how you conclude a file does not
+    exist. Written as the FIRST entry so it is the first thing an extractor
+    shows.
+    """
+    lines = [f"{kept} file(s) included, {len(skipped)} skipped.", ""]
+    lines += [f"{s['why']:<48} {s['path']}" for s in skipped]
+    return ("\n".join(lines) + "\n").encode()
+
+
+def _zinfo(name: str, mtime: int) -> zipfile.ZipInfo:
+    zi = zipfile.ZipInfo(name, date_time=time.localtime(mtime)[:6])
+    zi.compress_type = zipfile.ZIP_DEFLATED
+    # 0644, never the on-disk mode: a setuid or 0777 bit has no business
+    # surviving into something a browser downloads.
+    zi.external_attr = 0o644 << 16
+    return zi
+
+
+def _stream_zip(out, members, note: bytes, stamp: int) -> None:
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+        prefix = members[0].arcname.split("/")[0]
+        z.writestr(_zinfo(f"{prefix}/SKIPPED.txt", stamp or int(time.time())), note)
+        for m in members:
+            try:
+                with open(m.res.abspath, "rb") as fh:
+                    z.writestr(_zinfo(m.arcname, m.mtime), fh.read())
+            except OSError:
+                continue
+
+
+def _stream_tar(out, members, note: bytes, stamp: int) -> None:
+    # PAX, not the GNU/USTAR default: those truncate at 100 characters and paths
+    # under ~/projects are already longer than that.
+    with tarfile.open(fileobj=out, mode="w|gz", format=tarfile.PAX_FORMAT,
+                      compresslevel=6) as t:
+        prefix = members[0].arcname.split("/")[0]
+        ti = tarfile.TarInfo(f"{prefix}/SKIPPED.txt")
+        ti.size, ti.mtime, ti.mode = len(note), stamp or int(time.time()), 0o644
+        t.addfile(ti, io.BytesIO(note))
+        for m in members:
+            ti = tarfile.TarInfo(m.arcname)
+            ti.size, ti.mtime = m.size, m.mtime
+            # Forced, never copied off disk - same reasoning as the zip mode.
+            ti.mode, ti.uid, ti.gid, ti.type = 0o644, 0, 0, tarfile.REGTYPE
+            ti.uname = ti.gname = ""
+            try:
+                with open(m.res.abspath, "rb") as fh:
+                    t.addfile(ti, fh)
+            except OSError:
+                continue
 
 
 if __name__ == "__main__":

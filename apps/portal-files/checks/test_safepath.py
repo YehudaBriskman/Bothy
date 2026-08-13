@@ -155,6 +155,45 @@ open(os.path.join(tmp, "real.env"), "w").write("SECRET=1\n")
 os.symlink(os.path.join(tmp, "real.env"), os.path.join(root, "harmless.md"))
 check("symlink named .md pointing at a secret", R("harmless.md"), expect_refused=True)
 
+print("\n── prose is not a secret just because of a word in its name ────────")
+# Found by running collect() over the real tree: a documentation page called
+# "Change Password.md" was being hidden as a secret by the `*password*` pattern.
+# `.md`/`.rst` are formats you write ABOUT credentials in; `.txt` is a format
+# people leave them in, so it stays denied.
+for name, want_refused in [
+    ("Change Password.md", False), ("secrets.md", False), ("password.rst", False),
+    ("db_password.txt", True), ("my-secrets.yml", True), ("api_secret.json", True),
+]:
+    open(os.path.join(root, name), "w").write("x\n")
+    check(f"{'refused' if want_refused else 'served '}: {name}",
+          R(name), expect_refused=want_refused)
+
+print("\n── archive manifests: collect() == what resolve() allows ───────────")
+# THE invariant. collect() owns the walk precisely so a second implementation
+# cannot forget the per-entry check; mutation-testing it by deleting the
+# resolve() call puts .env straight into a downloadable archive (verified: 647
+# members instead of 641, .env present).
+os.makedirs(os.path.join(root, "sub"), exist_ok=True)
+open(os.path.join(root, "sub", "ok.md"), "w").write("fine\n")
+members, skipped = safepath.collect("docs", "", max_entries=10_000, max_total=10**12)
+names = {m.res.relpath for m in members}
+denied_reasons = {s["path"]: s["why"] for s in skipped}
+for planted in [".env", "key.pem", "id_ed25519", "realm-devbox.json", ".git/config"]:
+    ok = planted not in names
+    bad += 0 if ok else 1
+    print(f"{'PASS' if ok else 'FAIL'}  {'never in a manifest: ' + planted:<52} "
+          f"want=absent  {denied_reasons.get(planted, 'pruned')[:28]}")
+ok = "sub/ok.md" in names
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'but ordinary files ARE collected':<52} want=present {len(members)} members")
+# every arcname must be safe for a naive extractor
+bad_names = [m.arcname for m in members
+             if m.arcname.startswith("/") or ".." in m.arcname.split("/")
+             or "\\" in m.arcname]
+ok = not bad_names
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'every arcname is extractor-safe':<52} want=safe    {bad_names[:2] or 'all clean'}")
+
 print("\n── the advisory scanner: ADVISORY, and measured ────────────────────")
 # scan_for_secret marks a file; it never refuses one. That was decided by running
 # the blocking version over all 3,369 readable text files on this box: it flagged
