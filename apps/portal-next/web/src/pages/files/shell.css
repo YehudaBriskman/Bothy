@@ -1,0 +1,252 @@
+/* ============================================================================
+   BothyFiles - the IDE shell.
+
+   SCOPING. Every rule below is `.bothy-files <something>` - specificity (0,2,0),
+   which beats index.css's single-class rules REGARDLESS of import order. That
+   matters here and is not paranoia: main.tsx imports ./App before ./index.css,
+   so Vite emits index.css last and a (0,1,0) rule in this file would lose to a
+   (0,1,0) rule there. It is the pattern the old Files.css documented at its
+   lines 4-6, kept deliberately.
+
+   The two rules immediately below are the one exception, and they are why the
+   page can fill the window at all. They are still gated on .bothy-files being
+   present, so they cannot affect any other page: :has() takes the specificity of
+   its argument, making them (0,3,0), and they evaporate the moment this page
+   unmounts.
+   ========================================================================== */
+
+/* ── escaping the page chrome ────────────────────────────────────────────────
+   .content is `max-width: 1320px; padding: 26px 30px 70px` - correct for a
+   document, wrong for an application window. Rather than measure the topbar in
+   JS and subtract it (a measurement race, and the one thing brand/foundations/
+   space-and-layout.md says a layout must not depend on), the flex column that
+   already exists is closed: .shell stops being `min-height: 100vh` and becomes
+   exactly 100vh, so its `flex: 1` child - .content - is handed precisely the
+   space under the topbar, whatever height the topbar happens to be. No magic
+   number, and it stays right if the topbar ever changes. */
+.shell:has(.bothy-files) { height: 100vh; min-height: 0; overflow: hidden; }
+.shell:has(.bothy-files) > .content {
+  max-width: none; padding: 0; min-height: 0;
+  display: flex; flex-direction: column;
+}
+
+.bothy-files {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  /* The regions' sizes arrive as inline custom properties from panes.ts. These
+     are the fallbacks for the first paint before React has written them. */
+  --rail-l: 268px;
+  --rail-r: 300px;
+  --panel-h: 200px;
+  --fx-line: var(--line);
+  --code-fs: 12.5px;
+  --code-lh: 1.55;
+}
+
+/* ── syntax palette ──────────────────────────────────────────────────────────
+   Five token classes, which is all a viewer needs: comment, string, keyword,
+   number, key/variable. Lives here rather than in editor.css because the JSON
+   tree in the centre and the code in a markdown fence both use it.
+
+   Chosen to stay OUT of the status hues. --st-up is green, --st-warn amber,
+   --st-down rose, and the standing rule is that those colours mean state and
+   nothing else - so a highlighter built on the usual red-keyword/green-string
+   scheme would put two status colours on every screen of code and spend the
+   page's alarm budget on a `const`. Violet, sky, pink and indigo are all outside
+   that set, and none of them appears anywhere else in the app as a
+   meaning-bearing colour.
+
+   Base values are the DARK ones, matching index.css's dark-first model
+   (`:root` is dark, `:root[data-theme='light']` overrides). lib/theme.tsx always
+   stamps a concrete data-theme, so both branches are always reachable, and no
+   colour here exists in only one of them. Every value clears 4.5:1 on the
+   surface it is painted on (--bg-2 in each theme). */
+.bothy-files.bothy-files {
+  --hl-com: var(--fg-subtle);
+  --hl-kw:  #c4b5fd;   /* violet-300  ·  9.6 on #0b0b0d */
+  --hl-str: #7dd3fc;   /* sky-300     ·  11.1 */
+  --hl-num: #f9a8d4;   /* pink-300    ·  10.2 */
+  --hl-key: #a5b4fc;   /* indigo-300  ·  8.9  */
+}
+:root[data-theme='light'] .bothy-files.bothy-files {
+  --hl-kw:  #6d28d9;   /* violet-700  ·  7.9 on #f4f4f5 */
+  --hl-str: #0369a1;   /* sky-700     ·  6.4 */
+  --hl-num: #a21caf;   /* fuchsia-700 ·  6.6 */
+  --hl-key: #4338ca;   /* indigo-700  ·  8.0 */
+}
+.bothy-files .hl-com { color: var(--hl-com); font-style: italic; }
+.bothy-files .hl-kw  { color: var(--hl-kw); }
+.bothy-files .hl-str { color: var(--hl-str); }
+.bothy-files .hl-num { color: var(--hl-num); }
+.bothy-files .hl-key { color: var(--hl-key); }
+
+/* ── the header strip ────────────────────────────────────────────────────────
+   Not `.page-head`. That is a 28px title with a 20px margin under it - about
+   62px of window spent on a word, which is right above a scrolling document and
+   wrong above an application. This is 40px, carries the same two facts, and puts
+   the layout controls where every IDE puts them. */
+.bothy-files .fx-head {
+  flex: none; display: flex; align-items: center; gap: 14px;
+  padding: 0 14px 0 18px; height: 42px;
+  border-bottom: 1px solid var(--line); background: var(--surface-2);
+}
+.bothy-files .fx-head-id { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.bothy-files .fx-head-title {
+  margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; flex: none;
+}
+.bothy-files .fx-head-sub {
+  margin: 0; color: var(--fg-subtle); font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .fx-head-sub b { color: var(--fg-muted); font-weight: 700; }
+.bothy-files .fx-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; flex: none; }
+
+/* The small square button used by every region header. One definition, because
+   five near-identical icon buttons is how a toolbar starts drifting. */
+.bothy-files .fx-hbtn {
+  appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
+  width: 24px; height: 24px; border: 0; border-radius: var(--r-xs);
+  background: transparent; color: var(--fg-subtle);
+}
+.bothy-files .fx-hbtn.lg { width: 28px; height: 28px; }
+.bothy-files .fx-hbtn:hover:not(:disabled) { background: var(--surface-3); color: var(--fg); }
+.bothy-files .fx-hbtn:disabled { opacity: var(--disabled-opacity); cursor: default; }
+/* A region that is OPEN is stated by the toggle, not only by the window - the
+   toggle is the control you look at when you cannot find a rail. */
+.bothy-files .fx-hbtn.on { color: var(--accent-fg); background: var(--accent-bg); }
+.bothy-files .fx-flip { transform: rotate(180deg); }
+
+/* ── the four regions ────────────────────────────────────────────────────────
+   Explicit grid-column on every cell, so a collapsed rail can be removed from
+   the DOM entirely without the survivors sliding left into its track. The
+   separators sit in `auto` tracks and take their width from their own rule; when
+   the rail beside one is collapsed both it and the separator are unmounted and
+   the two tracks measure zero.
+
+   The CENTRE is minmax(0, 1fr) and has no size of its own. `min` of 0 rather
+   than the default `auto` is what stops a long unwrapped line of code from
+   setting the column's minimum width and pushing the inspector off-screen -
+   the single most common mysterious-overflow bug in grid, and the reason
+   brand/foundations/space-and-layout.md names it. */
+.bothy-files .fx-grid {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: var(--rail-l) auto minmax(0, 1fr) auto var(--rail-r);
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--bg);
+}
+.bothy-files .fx-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.bothy-files .fx-col-l { grid-column: 1; }
+.bothy-files .fx-sep-l { grid-column: 2; }
+.bothy-files .fx-col-mid { grid-column: 3; }
+.bothy-files .fx-sep-r { grid-column: 4; }
+.bothy-files .fx-col-r { grid-column: 5; }
+.bothy-files .fx-col-mid { grid-row: 1; }
+
+/* ── the separators ──────────────────────────────────────────────────────────
+   5px of hit area around a 1px line. A 1px target is a target nobody hits; a
+   10px one is a visible gutter. The line is drawn by the grip so the hit area
+   itself can stay transparent and the two rails keep touching.
+
+   `touch-action: none` is not decoration: without it the browser claims the
+   gesture for scrolling and the pointermove events stop arriving mid-drag on
+   any touch or pen input. */
+.bothy-files .fx-sep {
+  position: relative; flex: none; z-index: 2;
+  background: transparent; touch-action: none;
+}
+.bothy-files .fx-sep-x { width: 5px; cursor: col-resize; grid-row: 1; }
+.bothy-files .fx-sep-y { height: 5px; cursor: row-resize; }
+.bothy-files .fx-sep-grip {
+  position: absolute; inset: 0; display: block;
+  background: var(--line); transition: background var(--dur-fast) var(--ease);
+}
+.bothy-files .fx-sep-x .fx-sep-grip { left: 2px; right: 2px; }
+.bothy-files .fx-sep-y .fx-sep-grip { top: 2px; bottom: 2px; }
+.bothy-files .fx-sep:hover .fx-sep-grip,
+.bothy-files .fx-sep:active .fx-sep-grip { background: var(--accent); }
+/* The keyboard ring goes on the 5px strip itself, and it has to be inset or the
+   grid's neighbours clip it. */
+.bothy-files .fx-sep:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-sep:focus-visible .fx-sep-grip { background: var(--accent); }
+
+/* ── the rails ───────────────────────────────────────────────────────────── */
+.bothy-files .fx-rail {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1;
+  background: var(--surface-1); overflow: hidden;
+}
+.bothy-files .fx-rail-l { border-right: 1px solid var(--line); }
+.bothy-files .fx-rail-r { border-left: 1px solid var(--line); }
+.bothy-files .fx-rail-h {
+  flex: none; display: flex; align-items: center; gap: 4px;
+  height: 30px; padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--line); background: var(--surface-2);
+}
+.bothy-files .fx-rail-title {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--fg-subtle); flex: none;
+}
+.bothy-files .fx-rail-sub {
+  color: var(--fg-subtle); font-size: 10.5px; font-family: var(--mono);
+  margin-left: auto; padding-right: 4px; flex: none;
+}
+
+/* ── the sign-in gate ────────────────────────────────────────────────────── */
+.bothy-files .fx-gate { flex: 1; min-height: 0; overflow: auto; padding: 40px 24px; }
+.bothy-files .fx-signin { max-width: 520px; margin: 0 auto; }
+.bothy-files .fx-signin-ico {
+  display: inline-grid; place-items: center; width: 46px; height: 46px; margin-bottom: 12px;
+  border-radius: var(--r-lg); color: var(--accent-fg);
+  background: var(--accent-bg); border: 1px solid var(--accent-line);
+}
+.bothy-files .fx-signin p b { color: var(--fg); font-weight: 700; }
+.bothy-files .fx-signin-actions { display: flex; gap: 10px; justify-content: center; }
+
+/* Shared small controls. `.btn.sm` and `.icon-btn.sm` are used by three of the
+   five regions, so they are declared once here rather than in each. */
+.bothy-files .btn.sm { padding: 5px 10px; font-size: 12px; }
+.bothy-files .icon-btn.sm { width: 26px; height: 26px; border-radius: var(--r-sm); }
+.bothy-files .fx-skel { display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; }
+.bothy-files .fx-skel .skel { height: 20px; border-radius: var(--r-sm); }
+/* The shared tooltip is one nowrap line by design (components/Tooltip.tsx); the
+   read-only explanation is a sentence, so it wraps here rather than becoming a
+   600px ribbon. */
+.bothy-files .tip { white-space: normal; max-width: 260px; text-align: left; }
+
+/* ── responsive ──────────────────────────────────────────────────────────────
+   A four-region IDE needs width the way a spreadsheet does. Below 1080px the
+   inspector is the first to go - its content (facts, a commit list) survives
+   being reached by the toggle, while the tree does not survive being absent.
+   Below 820px the rails go entirely and the centre takes the window; the toggles
+   still work, and a rail opened at that width simply covers more of the screen,
+   which on a phone is the correct behaviour rather than a compromise. */
+@media (max-width: 1080px) {
+  .bothy-files .fx-head-sub { display: none; }
+}
+/* Below 820px a rail and the editor are ALTERNATIVES, not neighbours: the two
+   minimums alone (180 + 220) are more than a phone has, and a grid that tries to
+   fit all three gives the centre exactly zero pixels - measured at 390px, where
+   it rendered as a file that had opened into nothing.
+
+   So the grid becomes linear, the rails go full-width, and an open rail hides the
+   centre rather than crushing it. panes.ts starts both rails collapsed at this
+   width for the same reason, so the first thing a phone shows is the file. The
+   separators go with it: a 5px drag target between two full-width regions has
+   nothing to divide. Keep the 820 here and NARROW in panes.ts in step. */
+@media (max-width: 820px) {
+  .bothy-files .fx-grid { display: flex; }
+  .bothy-files .fx-col-l,
+  .bothy-files .fx-col-r { flex: none; width: 100%; }
+  .bothy-files .fx-col-mid { flex: 1; min-width: 0; }
+  .bothy-files .fx-sep-x { display: none; }
+  .bothy-files[data-collapsed-l='false'] .fx-col-mid,
+  .bothy-files[data-collapsed-r='false'] .fx-col-mid { display: none; }
+  .bothy-files .fx-rail-l { border-right: 0; }
+  .bothy-files .fx-rail-r { border-left: 0; }
+}
+/* Touch: a 5px separator is unusable with a finger, so it widens - the visible
+   line does not, because the hit area and the affordance are different things. */
+@media (pointer: coarse) {
+  .bothy-files .fx-sep-x { width: 13px; }
+  .bothy-files .fx-sep-y { height: 13px; }
+}

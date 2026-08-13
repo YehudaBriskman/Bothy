@@ -1,0 +1,119 @@
+/* ============================================================================
+   BothyFiles - the bottom panel. Scoped under .bothy-files, (0,2,0).
+   ========================================================================== */
+
+/* The tab strip is ALWAYS visible; only the body collapses. That is what makes
+   the panel discoverable: a panel that disappears entirely leaves nothing to
+   click, and the counts on the tabs are the page's only ambient signal that
+   something wants attention. `flex: 0 1 auto` so that when the panel is dragged
+   past what the window can give it, the panel shrinks rather than pushing the
+   editor below its 96px floor. */
+.bothy-files .fx-panel {
+  flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column;
+  background: var(--surface-1); border-top: 1px solid var(--line);
+}
+.bothy-files .fx-panel.is-collapsed { flex: none; }
+
+.bothy-files .fx-panel-tabs {
+  flex: none; display: flex; align-items: center; gap: 2px;
+  height: 30px; padding: 0 6px 0 8px; background: var(--surface-2);
+}
+.bothy-files .fx-panel-tab {
+  appearance: none; cursor: pointer; border: 0; background: transparent;
+  font: inherit; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--fg-subtle);
+  padding: 0 9px; height: 30px; display: inline-flex; align-items: center; gap: 6px;
+  border-bottom: 2px solid transparent;
+}
+.bothy-files .fx-panel-tab:hover { color: var(--fg-muted); }
+/* Selection is an underline AND the text colour - the underline is what survives
+   being read by someone who cannot separate the two greys. */
+.bothy-files .fx-panel-tab.on { color: var(--fg); border-bottom-color: var(--accent); }
+.bothy-files .fx-panel-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-panel-badge {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0;
+  background: var(--surface-3); color: var(--fg-muted);
+  border-radius: var(--r-full); padding: 0 5px; min-width: 16px; text-align: center;
+}
+.bothy-files .fx-panel-badge.bad { background: var(--st-down-bg); color: var(--st-down-fg); }
+.bothy-files .fx-panel-spacer { flex: 1; }
+
+/* `flex: 0 1 auto`, NOT `flex: 1`. In a flex column, `flex: 1` sets
+   `flex-basis: 0`, and the flex base size beats `height` - so with `flex: 1`
+   this box ignored --panel-h entirely and sized to its own content instead
+   (measured: 55px whatever the stored height said, which is what a drag that
+   appeared to do nothing looked like). With basis `auto` the height IS the base
+   size, and shrink 1 still lets the panel give way when the editor hits its
+   96px floor. */
+.bothy-files .fx-panel-body {
+  flex: 0 1 auto; min-height: 0; height: var(--panel-h); overflow: auto;
+}
+/* The rule between the tabs and the body belongs to the TABS. On the body it
+   was a border-box 1px that survived `height: 0`, so a panel dragged fully shut
+   still measured 1px - true, harmless, and exactly the kind of off-by-one that
+   makes a limit look like it does not work. */
+.bothy-files .fx-panel:not(.is-collapsed) .fx-panel-tabs { border-bottom: 1px solid var(--line); }
+.bothy-files .fx-panel-empty {
+  margin: 0; padding: 18px 14px; color: var(--fg-subtle); font-size: 12px;
+  display: flex; align-items: center; gap: 7px;
+}
+
+/* ── problems ────────────────────────────────────────────────────────────── */
+.bothy-files .fx-problems { list-style: none; margin: 0; padding: 4px 0; }
+.bothy-files .fx-problem {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 6px 14px; font-size: 12px; line-height: 1.45;
+}
+.bothy-files .fx-problem:hover { background: var(--surface-2); }
+.bothy-files .fx-problem svg { flex: none; margin-top: 2px; }
+.bothy-files .fx-problem.bad svg { color: var(--st-down-fg); }
+.bothy-files .fx-problem.warn svg { color: var(--st-warn-fg); }
+.bothy-files .fx-problem.info svg { color: var(--accent-fg); }
+.bothy-files .fx-problem-body { min-width: 0; flex: 1; }
+.bothy-files .fx-problem-title { color: var(--fg); font-weight: 600; }
+.bothy-files .fx-problem-detail { color: var(--fg-muted); }
+.bothy-files .fx-problem-where {
+  flex: none; max-width: 34ch; font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px;
+}
+
+/* ── output ──────────────────────────────────────────────────────────────────
+   A log line is five aligned columns, not a sentence. Alignment is what makes a
+   column of statuses scannable - the eye finds the one 403 among forty 200s
+   without reading any of them. */
+.bothy-files .fx-output { list-style: none; margin: 0; padding: 4px 0; }
+.bothy-files .fx-call {
+  display: grid;
+  grid-template-columns: 66px 60px minmax(0, 1fr) 40px 58px;
+  gap: 10px; align-items: baseline;
+  padding: 2px 14px; font-size: 11px; line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.bothy-files .fx-call:hover { background: var(--surface-2); }
+.bothy-files .fx-call-time { color: var(--fg-subtle); }
+.bothy-files .fx-call-op { color: var(--fg); font-weight: 600; }
+.bothy-files .fx-call-detail { color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bothy-files .fx-call-status { color: var(--st-up-fg); text-align: right; }
+.bothy-files .fx-call-ms { color: var(--fg-subtle); text-align: right; }
+.bothy-files .fx-call.bad .fx-call-status { color: var(--st-down-fg); font-weight: 700; }
+.bothy-files .fx-call.warn .fx-call-status { color: var(--st-warn-fg); font-weight: 700; }
+/* A note wraps under the row rather than widening the grid, because it is the
+   rare case and the columns are the point. */
+.bothy-files .fx-call-note {
+  grid-column: 3 / -1; color: var(--fg-subtle); font-size: 10.5px;
+  white-space: normal; padding-bottom: 3px;
+}
+
+/* ── git ─────────────────────────────────────────────────────────────────── */
+.bothy-files .fx-gitlog { list-style: none; margin: 0; padding: 4px 0; }
+.bothy-files .fx-gitrow {
+  display: grid; grid-template-columns: 14px 62px minmax(0, 1fr) auto 66px;
+  gap: 10px; align-items: baseline;
+  padding: 3px 14px; font-size: 11.5px;
+}
+.bothy-files .fx-gitrow:hover { background: var(--surface-2); }
+.bothy-files .fx-gitrow svg { color: var(--fg-subtle); align-self: center; }
+.bothy-files .fx-gitrow-sha { color: var(--hl-key); font-size: 10.5px; }
+.bothy-files .fx-gitrow-subject { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bothy-files .fx-gitrow-author { color: var(--fg-subtle); font-size: 10.5px; }
+.bothy-files .fx-gitrow-when { color: var(--fg-subtle); font-size: 10.5px; text-align: right; }

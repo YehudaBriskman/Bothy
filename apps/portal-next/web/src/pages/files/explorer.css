@@ -1,0 +1,183 @@
+/* ============================================================================
+   BothyFiles - the left rail. Scoped under .bothy-files, (0,2,0).
+   ========================================================================== */
+
+/* ── root chips ──────────────────────────────────────────────────────────── */
+.bothy-files .fx-roots {
+  flex: none; display: flex; gap: 4px; padding: 7px 8px 0; flex-wrap: wrap;
+}
+.bothy-files .fx-rootchip {
+  appearance: none; cursor: pointer; font: inherit; font-family: var(--mono);
+  font-size: 11px; font-weight: 600; color: var(--fg-muted);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-full); padding: 2px 9px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.bothy-files .fx-rootchip:hover { border-color: var(--line-strong); color: var(--fg); }
+.bothy-files .fx-rootchip.on {
+  color: var(--fg); border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface-2));
+}
+.bothy-files .fx-rootro { color: var(--st-off-fg); }
+.bothy-files .fx-rootchip.on .fx-rootro { color: var(--fg-subtle); }
+
+/* ── the filter ──────────────────────────────────────────────────────────── */
+.bothy-files .fx-filter {
+  flex: none; display: flex; align-items: center; gap: 7px; margin: 7px 8px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 4px 6px 4px 8px; color: var(--fg-subtle);
+}
+.bothy-files .fx-filter:focus-within { border-color: var(--accent); }
+.bothy-files .fx-filter svg { flex: none; }
+.bothy-files .fx-filter input {
+  appearance: none; border: 0; background: transparent; color: var(--fg);
+  font: inherit; font-size: 12px; width: 100%; min-width: 0; outline: none;
+}
+/* The native search-cancel button is a grey X that ignores the theme. */
+.bothy-files .fx-filter input::-webkit-search-cancel-button { display: none; }
+.bothy-files .fx-filter-x {
+  appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
+  width: 18px; height: 18px; border-radius: var(--r-xs);
+  border: 0; background: transparent; color: var(--fg-subtle);
+}
+.bothy-files .fx-filter-x:hover { color: var(--fg); background: var(--surface-3); }
+
+/* ── the tree ────────────────────────────────────────────────────────────────
+   22px rows and a 12px indent step, against the old 28/13. The rail is SCANNED,
+   not read: at 22px a 900px window shows about 38 rows instead of 30, which is
+   the difference between a directory fitting on screen and not. Nothing is lost
+   at this size because a file name is one short string and the icon carries the
+   type. */
+.bothy-files .fx-tree {
+  flex: 1; min-height: 0; overflow: auto;
+  padding: 3px 0 10px; border-top: 1px solid var(--line);
+}
+.bothy-files .fx-msg { padding: 18px 12px; color: var(--fg-subtle); font-size: 12px; text-align: center; }
+.bothy-files .fx-msg p { margin: 0 0 10px; }
+.bothy-files .fx-more {
+  margin: 8px 8px 0; padding-top: 8px; border-top: 1px solid var(--line);
+  color: var(--fg-subtle); font-size: 11px; text-align: center;
+}
+
+.bothy-files .fx-list { list-style: none; margin: 0; padding: 0; }
+
+/* ── indent guides ───────────────────────────────────────────────────────────
+   One hairline per nesting level, drawn by the <li> rather than by an element
+   per level. At four levels deep whitespace alone stops saying which parent a
+   row belongs to; the guide says it, costs no DOM, and is the thing every file
+   explorer converged on independently.
+
+   Drawn with a repeating gradient so ONE pseudo-element covers every level: the
+   li is offset by its own indent, so its stripe lands under its own chevron
+   column and nested lists stack their stripes naturally. */
+.bothy-files .fx-li { position: relative; }
+.bothy-files .fx-list .fx-list { position: relative; }
+.bothy-files .fx-list .fx-list::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0;
+  border-left: 1px solid var(--line);
+  /* Lines up with the chevron of the parent row: 6px base padding + half of the
+     12px indent step. */
+  margin-left: 12px;
+  pointer-events: none;
+}
+.bothy-files .fx-list .fx-list .fx-list::before { margin-left: 24px; }
+.bothy-files .fx-list .fx-list .fx-list .fx-list::before { margin-left: 36px; }
+
+.bothy-files .fx-rowwrap { position: relative; display: flex; align-items: stretch; }
+.bothy-files .fx-row {
+  appearance: none; cursor: pointer; width: 100%; border: 0; background: transparent;
+  display: flex; align-items: center; gap: 6px; padding: 0 8px 0 0;
+  height: 22px; color: var(--fg-muted); font: inherit; font-size: 12.5px;
+  text-align: left; min-width: 0; line-height: 1;
+}
+.bothy-files .fx-row:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .fx-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-chev {
+  flex: none; color: var(--fg-subtle);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.bothy-files .fx-chev.open { transform: rotate(90deg); }
+/* A file row has no chevron; the gap keeps its icon in the same column as the
+   folder icons on the level above, which is what makes the indent readable. */
+.bothy-files .fx-file .fx-ico { margin-left: 18px; }
+.bothy-files .fx-hit .fx-ico { margin-left: 6px; }
+.bothy-files .fx-dir .fx-name { font-weight: 600; color: var(--fg); }
+.bothy-files .fx-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bothy-files .fx-n,
+.bothy-files .fx-size {
+  margin-left: auto; flex: none; font-family: var(--mono); font-size: 10px;
+  color: var(--fg-subtle); font-variant-numeric: tabular-nums; padding-left: 6px;
+}
+.bothy-files .fx-ro { flex: none; color: var(--st-off-fg); margin-left: 4px; }
+
+/* Selection is a left bar AND weight AND a tint - never colour alone. */
+.bothy-files .fx-file.on {
+  background: var(--accent-bg); color: var(--fg); font-weight: 600;
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+.bothy-files .fx-file.on .fx-ico { color: var(--accent-fg); }
+/* Denied: shown, greyed, and not clickable. The strikethrough carries the same
+   fact without the colour, for anyone who cannot see the dimming. */
+.bothy-files .fx-row.denied { cursor: not-allowed; opacity: .55; }
+.bothy-files .fx-row.denied:hover { background: transparent; color: var(--fg-muted); }
+.bothy-files .fx-row.denied .fx-name { text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* The per-directory download. Hidden until the row is hovered or something in it
+   is focused - a button on every one of a few hundred rows is visual noise, and
+   an always-visible one would also eat the width the file count needs. */
+.bothy-files .fx-rowbtn {
+  appearance: none; cursor: pointer; position: absolute; right: 4px; top: 3px;
+  width: 16px; height: 16px; display: none; place-items: center;
+  border: 0; border-radius: var(--r-xs); background: var(--surface-3); color: var(--fg-subtle);
+}
+.bothy-files .fx-rowwrap:hover .fx-rowbtn,
+.bothy-files .fx-rowbtn:focus-visible { display: grid; }
+.bothy-files .fx-rowbtn:hover { color: var(--accent-fg); }
+
+/* ── search hits ────────────────────────────────────────────────────────────
+   The basename with its folder under it - at this scale the name alone is
+   ambiguous (six compose.yml, four README.md). The leading ellipsis is applied
+   in JS (tailPath) - see the comment there for why the CSS `direction: rtl`
+   trick is not used. */
+.bothy-files .fx-hit { height: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 4px; }
+.bothy-files .fx-hit .fx-ico { margin-top: 1px; }
+.bothy-files .fx-hit-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bothy-files .fx-hit-dir {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .fx-hit .fx-size { margin-top: 1px; }
+
+/* ── file-type colours ───────────────────────────────────────────────────────
+   Six families, all outside the reserved --st-* status set, and all a step
+   quieter than the text beside them: an icon column that shouts turns the rail
+   into a colour chart. `secret` is the exception and is deliberately the
+   loudest - it is the one family where the icon is a warning. */
+.bothy-files .fx-ico { flex: none; color: var(--fg-subtle); }
+.bothy-files .fx-ico.t-dir { color: var(--accent-fg); }
+.bothy-files .fx-ico.t-prose { color: var(--fg-muted); }
+.bothy-files .fx-ico.t-code { color: var(--hl-kw); }
+.bothy-files .fx-ico.t-data { color: var(--hl-key); }
+.bothy-files .fx-ico.t-conf { color: var(--hl-str); }
+.bothy-files .fx-ico.t-shell { color: var(--hl-num); }
+.bothy-files .fx-ico.t-media { color: var(--a4); }
+.bothy-files .fx-ico.t-doc { color: var(--fg-muted); }
+.bothy-files .fx-ico.t-bin { color: var(--st-off-fg); }
+.bothy-files .fx-ico.t-secret { color: var(--st-warn-fg); }
+.bothy-files .fx-ico.t-denied { color: var(--st-off-fg); }
+
+/* ── the footer ──────────────────────────────────────────────────────────────
+   Three facts about the root you are in, pinned so they survive scrolling the
+   tree. `truncated` earns its place here rather than only in the panel: a short
+   listing is the one condition under which the rail is LYING, and the lie is
+   invisible from the rows themselves. */
+.bothy-files .fx-rail-f {
+  flex: none; display: flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px;
+  border-top: 1px solid var(--line); background: var(--surface-2);
+  color: var(--fg-subtle); font-size: 10.5px; overflow: hidden; white-space: nowrap;
+}
+.bothy-files .fx-rail-f .mono { font-size: 10.5px; color: var(--fg-muted); }
+.bothy-files .fx-rail-f-sep { color: var(--line-strong); }
+.bothy-files .fx-rail-f-bytes { margin-left: auto; }
+.bothy-files .fx-rail-f .tag { font-size: 9.5px; padding: 1px 6px; flex: none; }
