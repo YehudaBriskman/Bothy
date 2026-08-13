@@ -150,8 +150,12 @@ def listing(root_key: str) -> tuple[list[dict], bool]:
     real = os.path.realpath(root)
     out: list[dict] = []
     for dirpath, dirnames, filenames in os.walk(real, followlinks=False):
-        # Prune denied directories in place so os.walk never descends into them.
-        dirnames[:] = [d for d in dirnames if d not in safepath.DENY_COMPONENTS]
+        # Prune in place so os.walk never descends where policy would refuse.
+        # Must go through prune_dirs(), not a bare DENY_COMPONENTS test: the
+        # per-root rules (top-level dotfiles, ~/backups) are otherwise applied
+        # only at resolve() time, and the walk pays for 30,093 files it discards.
+        dirnames[:] = safepath.prune_dirs(
+            root_key, os.path.relpath(dirpath, real), dirnames)
         for fn in sorted(filenames):
             full = os.path.join(dirpath, fn)
             try:
