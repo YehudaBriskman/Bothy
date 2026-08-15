@@ -270,6 +270,36 @@ bad += 0 if ok else 1
 print(f"{'PASS' if ok else 'FAIL'}  {'and still serves src/ and a nested .github/':<52} "
       f"want=7       served={served}")
 
+print("\n── the archive walk must use ROOT-relative paths ───────────────────")
+# collect() passed a SUBTREE-relative path to prune_dirs, whose contract is
+# root-relative. prune_dirs decides "am I at the top of this root" from that
+# path, so archiving a subtree applied the ROOT's deny_toplevel rules at the
+# SUBTREE's first level - and a pruned directory never reaches `skipped`, so the
+# archive silently lacked content while claiming to list what it omitted.
+wr2 = os.path.join(tmp, "wr2")
+for d in ("projects/app/.github", "projects/app/src", ".cache/junk"):
+    os.makedirs(os.path.join(wr2, d), exist_ok=True)
+for d, n in (("projects/app/.github", "ci.yml"), ("projects/app/src", "main.ts"),
+             (".cache/junk", "x")):
+    open(os.path.join(wr2, d, n), "w").write("x")
+safepath.ROOTS["wr2"] = wr2
+safepath.GIT_ROOTS.pop("wr2", None)
+safepath.ROOT_POLICY["wr2"] = {"deny_toplevel_dots": True,
+                               "deny_toplevel": frozenset({"backups"})}
+
+sub, _ = safepath.collect("wr2", "projects/app", max_entries=999, max_total=10**9)
+subnames = {m.res.relpath for m in sub}
+ok = any(".github" in n for n in subnames)
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'a subtree archive keeps ITS dot-dirs':<52} "
+      f"want=present {sorted(subnames)}")
+
+whole, _ = safepath.collect("wr2", "", max_entries=999, max_total=10**9)
+ok = not any(".cache" in m.res.relpath for m in whole)
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'...while the ROOT still denies its own dot-dirs':<52} "
+      f"want=absent  {len(whole)} members")
+
 print("\n── the advisory scanner: ADVISORY, and measured ────────────────────")
 # scan_for_secret marks a file; it never refuses one. That was decided by running
 # the blocking version over all 3,369 readable text files on this box: it flagged
