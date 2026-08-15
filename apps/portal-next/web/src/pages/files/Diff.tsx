@@ -96,7 +96,7 @@ export function DiffView({ target, res, loading, err }: {
             // changes": git has no previous version of an untracked file, so
             // `git diff` prints nothing however new the file is.
             ? 'This file is untracked, so git has no earlier version to compare it against. '
-              + 'Stage it and the staged side will show the whole file as new.'
+              + 'It will diff once it is tracked - stage it with git in a terminal.'
             : target.staged
               ? 'Nothing is staged for this file - its changes are all still in the working tree.'
               : 'The working tree matches the index. Any change to this file is already staged.'}

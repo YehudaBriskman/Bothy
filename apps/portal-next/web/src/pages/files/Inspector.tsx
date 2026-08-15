@@ -77,7 +77,7 @@ function Sha({ sha }: { sha: string }) {
 }
 
 export function Inspector({
-  root, path, file, loading, history, newSha, editing, message, setMessage,
+  root, path, file, loading, history, editing, message, setMessage,
   messagePlaceholder, canDownload, onDownload, onArchive,
 }: {
   root: string;
@@ -85,7 +85,6 @@ export function Inspector({
   file: FileRead | null;
   loading: boolean;
   history: Commit[] | null;
-  newSha: string | null;
   editing: boolean;
   message: string;
   setMessage: (v: string) => void;
@@ -237,7 +236,7 @@ export function Inspector({
                 <ol className="fx-commits">
                   {history.map((c) => (
                     <li
-                      className={`fx-commit ${c.sha === newSha ? 'is-new' : ''}`}
+                      className="fx-commit"
                       key={c.sha}
                       title={new Date(c.date).toLocaleString()}
                     >

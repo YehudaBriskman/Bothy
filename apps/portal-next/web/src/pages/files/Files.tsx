@@ -53,10 +53,10 @@ import { useSearchParams } from 'react-router-dom';
 import { PanelBottom, PanelLeft, PanelRight } from 'lucide-react';
 import {
   ARCHIVE_MAX_ENTRIES, ARCHIVE_MAX_MEMBER, ARCHIVE_MAX_TOTAL,
-  archiveUrl, fileHistory, fmtBytes, gitAction, gitDiff, gitStatus, isAuthError, langFor,
+  archiveUrl, fileHistory, fmtBytes, gitDiff, gitStatus, isAuthError, langFor,
   listRepos, listRoots, listTree, logCall,
   onApiCall, openDownload, rawUrl, readFile, writeFile,
-  type ApiCall, type Commit, type DiffResult, type FileRoot, type GitOutcome,
+  type ApiCall, type Commit, type DiffResult, type FileRoot,
   type RepoInfo, type StatusResult, type TreeFile,
 } from '../../lib/files';
 import { ErrState } from '../../components/states';
@@ -71,8 +71,8 @@ import { matches } from './keys';
 import { Panel, type PanelTab, type Problem } from './Panel';
 import { Resizer } from './Resizer';
 import { SignInCard } from './SignInCard';
-import { SourceControl, type DiscardAsk, type ScmNotice } from './SourceControl';
-import { decorate, groupChanges, NO_DECORATIONS, type Change } from './gitdeco';
+import { SourceControl } from './SourceControl';
+import { decorate, NO_DECORATIONS, type Change } from './gitdeco';
 import { usePanes } from './panes';
 import { ancestorsOf, baseName, buildTree, defaultMessage, type Node } from './tree';
 
@@ -88,7 +88,6 @@ const MAX_CALLS = 200;
 // A stable identity for "no deletions", so the common case does not hand
 // buildTree a new Set on every status refresh and rebuild the whole tree.
 const NO_TOMBS: Set<string> = new Set();
-const NO_PATHS: Set<string> = new Set();
 
 // The diff target is a DEPENDENCY of the fetch effect below, so its identity is
 // the request. A fresh object for a target that has not changed is a second
@@ -216,7 +215,6 @@ export function Files() {
   const active = useMemo(() => ws.docs.find((d) => d.id === activeId) ?? null, [ws.docs, activeId]);
   const activePath = active && active.root === root ? active.path : '';
 
-  const [newSha, setNewSha] = useState<string | null>(null);
   // The document whose CLOSE is waiting on an answer. Holds an id rather than a
   // navigation now: switching is free, and closing is the only thing left that
   // can discard work.
@@ -248,11 +246,6 @@ export function Files() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusErr, setStatusErr] = useState<string | null>(null);
   const [statusTick, setStatusTick] = useState(0);
-  const [scmMessage, setScmMessage] = useState('');
-  const [scmNotice, setScmNotice] = useState<ScmNotice | null>(null);
-  const [ask, setAsk] = useState<DiscardAsk | null>(null);
-  const [busyPath, setBusyPath] = useState<string | null>(null);
-  const [busyRepo, setBusyRepo] = useState(false);
 
   const [diff, setDiff] = useState<DiffTarget | null>(null);
   const [diffRes, setDiffRes] = useState<DiffResult | null>(null);
@@ -287,13 +280,10 @@ export function Files() {
   useEffect(() => () => { for (const ac of aborts.current.values()) ac.abort(); }, []);
 
   const dirtyDocs = useMemo(() => ws.docs.filter(isDirty), [ws.docs]);
-  // The paths with unsaved editor state IN THE BROWSED ROOT, which is the only
-  // root Source Control and discard are ever about.
-  const dirtyHere = useMemo(() => {
-    const out = new Set<string>();
-    for (const d of dirtyDocs) if (d.root === root) out.add(d.path);
-    return out.size ? out : NO_PATHS;
-  }, [dirtyDocs, root]);
+  // `dirtyHere` - the unsaved paths in the browsed root - lived here. Its only
+  // two readers were Source Control's dirty markers and the refusal that stopped
+  // a discard destroying the disk copy of a file a tab still held. Both are gone
+  // with discard itself; `dirtyDocs` below still guards the page unload.
 
   // ── the call log ───────────────────────────────────────────────────────────
   // Subscribed once, for the life of the page. Newest first, capped - an
@@ -491,16 +481,9 @@ export function Files() {
     }
   }, [ws.docs, patchDoc]);
 
-  // Re-read every document git may have changed underneath us. Documents being
-  // EDITED are skipped, because the read above resets the draft and a git
-  // operation that also threw away an unsaved edit would be the exact failure
-  // this page exists to prevent.
-  const rereadAll = useCallback(() => {
-    setWs((w) => ({
-      ...w,
-      docs: w.docs.map((d) => (d.editing || d.state === 'loading' ? d : { ...d, state: 'new' })),
-    }));
-  }, []);
+  // `rereadAll` lived here: re-read every open document a git mutation may have
+  // moved under the editor. Its only caller was the mutation handler, and with
+  // no verb on this page nothing changes a file behind an open tab any more.
 
   // ── open or focus ──────────────────────────────────────────────────────────
   //
@@ -652,8 +635,6 @@ export function Files() {
     setExpanded(new Set());
     setDiff(null);
     setPickedRepo('');
-    setScmNotice(null);
-    setAsk(null);
     setBrowseRoot(r);
   };
 
@@ -839,10 +820,9 @@ export function Files() {
           draft,
           notice: {
             tone: 'ok',
-            text: `Saved ${out.res.bytes} bytes to disk${out.res.versioned ? ' - commit it in Source Control' : ''}`,
+            text: `Saved ${out.res.bytes} bytes to disk${out.res.versioned ? ' - the file is tracked by git' : ''}`,
           },
         }));
-        setNewSha(null);
         // The file just became (or stopped being) a change. Without this the
         // rail keeps showing the state from before the save, which is the one
         // moment a stale decoration is guaranteed to be wrong.
@@ -903,178 +883,12 @@ export function Files() {
     patchDoc(id, (d) => ({ ...d, conflict: null, notice: null }));
   };
 
-  // ── git ────────────────────────────────────────────────────────────────────
-  //
-  // Every mutation lands here, and every outcome is turned into a SENTENCE
-  // rather than a status code. That is the whole job of this block: the service
-  // answers 400, 403 and 503 for things that are not faults - nothing is
-  // staged, this session has editor but not operator, no push credential is
-  // mounted on this box - and each of them has to read as the fact it is.
-  const afterGit = useCallback((out: GitOutcome, verb: string, onOk: (ok: Extract<GitOutcome, { kind: 'ok' }>['res']) => void) => {
-    switch (out.kind) {
-      case 'ok':
-        // Every mutation returns the fresh status, so the rail is correct
-        // without a second round trip.
-        setStatus({ root: out.res.root, repo: out.res.repo, branch: out.res.branch, files: out.res.files });
-        onOk(out.res);
-        // Re-read every open document git may have moved - except the ones being
-        // edited, which rereadAll skips.
-        rereadAll();
-        // Any open diff is now about the previous state of the repo.
-        setStatusTick((t) => t + 1);
-        break;
-      case 'auth':
-        setScmNotice({ tone: 'auth', text: `Signing in is needed to ${verb}. Nothing was changed.` });
-        break;
-      case 'role':
-        // 403. For push and pull this is the role tier, which is a fact about
-        // the session rather than a failure - the routes require `operator`
-        // deliberately, because publishing is not editing.
-        setScmNotice({
-          tone: 'info',
-          text: verb === 'push' || verb === 'pull'
-            ? `${verb === 'push' ? 'Pushing' : 'Pulling'} needs the operator role - this session can change files here but not publish them.`
-            : `The service refused to ${verb}.`,
-          detail: out.message,
-        });
-        break;
-      case 'refused':
-        // The service declining on purpose, with a sentence written for a
-        // human. Shown verbatim; anything else would be a paraphrase that can
-        // drift from what the server actually enforces.
-        setScmNotice({ tone: 'warn', text: out.message, detail: out.remote ? `remote: ${out.remote}` : out.hint });
-        break;
-      case 'unset':
-        // 503, and on this box it is the EXPECTED answer: most repos here have
-        // no push credential mounted. "Not set up" and "broken" must not look
-        // the same, so this is info and says what would make it work.
-        setScmNotice({
-          tone: 'info',
-          text: `${verb === 'push' ? 'Push' : 'Sync'} is not set up on this box yet - ${out.message}.`,
-          detail: out.hint,
-        });
-        break;
-      case 'error':
-        setScmNotice({ tone: 'bad', text: out.message });
-        break;
-    }
-  }, [rereadAll]);
-
-  const stage = useCallback(async (p: string) => {
-    setScmNotice(null);
-    setAsk(null);
-    setBusyPath(p);
-    const out = await gitAction('stage', { root, path: p });
-    setBusyPath(null);
-    afterGit(out, 'stage', () => setScmNotice({ tone: 'ok', text: `Staged ${baseName(p)}.` }));
-  }, [root, afterGit]);
-
-  const unstage = useCallback(async (p: string) => {
-    setScmNotice(null);
-    setAsk(null);
-    setBusyPath(p);
-    const out = await gitAction('unstage', { root, path: p });
-    setBusyPath(null);
-    afterGit(out, 'unstage', () => setScmNotice({ tone: 'ok', text: `Unstaged ${baseName(p)}. The change is still on disk.` }));
-  }, [root, afterGit]);
-
-  // ── discard, the only irreversible thing on this page ──────────────────────
-  //
-  // `git restore --worktree` throws away content that was NEVER IN THE OBJECT
-  // STORE, so no part of git can bring it back. Save no longer commits, which
-  // means the working tree is routinely the only copy an edit has ever had.
-  //
-  // Three guards, in this order:
-  //
-  //   1. refused outright while ANY TAB holds unsaved changes for that file.
-  //      Discarding then would destroy the disk copy while a DIFFERENT
-  //      uncommitted version sits in a tab - two losses from one click. With
-  //      tabs that tab need not be the one on screen, which is exactly why the
-  //      test is over every open document rather than over the active one.
-  //   2. a confirmation that quotes the server's own refusal. The sentence is
-  //      obtained by ASKING: the first call carries `confirm: false`, which the
-  //      service answers with 400 and its reason. That is deliberately not
-  //      "send it and see" - an explicit false can never be read as consent by
-  //      any future version of the service, so the probe cannot become the
-  //      destructive call by accident.
-  //   3. only ever per-file. The service refuses a whole-repo discard even with
-  //      confirm, and this never offers one.
-  const askDiscard = useCallback(async (p: string) => {
-    setScmNotice(null);
-    if (dirtyHere.has(p)) {
-      setScmNotice({
-        tone: 'warn',
-        text: `${baseName(p)} has unsaved changes in a tab, so discard is refused.`,
-        detail: 'Discard would throw away the version on disk - irreversibly - while a tab still holds a '
-          + 'different one. Save it or cancel the edit first, then decide.',
-      });
-      return;
-    }
-    setBusyPath(p);
-    const out = await gitAction('discard', { root, path: p, confirm: false });
-    setBusyPath(null);
-    if (out.kind === 'refused') { setAsk({ path: p, serverSaid: out.message }); return; }
-    if (out.kind === 'ok') {
-      // Should be unreachable: the service requires confirm: true. If it ever
-      // stops, that is a change in the safety contract and it gets said out
-      // loud rather than passed off as a success.
-      afterGit(out, 'discard', () => setScmNotice({
-        tone: 'bad',
-        text: `${baseName(p)} was discarded WITHOUT a confirmation - the service no longer requires one.`,
-        detail: 'That is a change in the file service, not in this page. It should be looked at.',
-      }));
-      return;
-    }
-    afterGit(out, 'discard', () => {});
-  }, [root, dirtyHere, afterGit]);
-
-  const confirmDiscard = useCallback(async () => {
-    const a = ask;
-    if (!a) return;
-    setAsk(null);
-    setBusyPath(a.path);
-    const out = await gitAction('discard', { root, path: a.path, confirm: true });
-    setBusyPath(null);
-    afterGit(out, 'discard', () => setScmNotice({
-      tone: 'ok',
-      text: `Discarded ${baseName(a.path)}. It matches the last commit again.`,
-    }));
-  }, [ask, root, afterGit]);
-
-  const commit = useCallback(async () => {
-    setScmNotice(null);
-    setAsk(null);
-    // Counted BEFORE the call, and it has to be: the commit response carries no
-    // list of committed files. The handler builds one and then loses it - it
-    // merges `**status(...)` over its own `files` key, and status has a `files`
-    // key too. See the note on GitOk.
-    const staged = groupChanges(status?.files ?? []).staged.length;
-    setBusyRepo(true);
-    const out = await gitAction('commit', { root, path: scope, message: scmMessage });
-    setBusyRepo(false);
-    afterGit(out, 'commit', (res) => {
-      setScmMessage('');
-      setNewSha(res.sha ?? null);
-      setScmNotice({
-        tone: 'ok',
-        text: `Committed ${res.sha} - ${staged} file${staged === 1 ? '' : 's'}.`,
-        detail: res.message,
-      });
-    });
-  }, [root, scope, scmMessage, status, afterGit]);
-
-  const sync = useCallback(async (verb: 'pull' | 'push') => {
-    setScmNotice(null);
-    setAsk(null);
-    setBusyRepo(true);
-    const out = await gitAction(verb, { root, path: scope });
-    setBusyRepo(false);
-    afterGit(out, verb, (res) => setScmNotice({
-      tone: 'ok',
-      text: `${verb === 'pull' ? 'Pulled' : 'Pushed'} ${status?.repo ?? root}.`,
-      detail: res.output,
-    }));
-  }, [root, scope, afterGit, status]);
+  // The git MUTATION handlers used to sit here - afterGit, stage, unstage,
+  // askDiscard, confirmDiscard, commit and sync, about 170 lines of turning
+  // 400/403/503 into sentences. They are gone with the panel's buttons and the
+  // service endpoints behind them: git actions belong at a prompt. Nothing on
+  // this page can now change a repository, which is why `statusTick` below is
+  // only ever bumped by a SAVE or by the panel's refresh button.
 
   const openDiff = useCallback((c: Change) => {
     if (!c.path) return;
@@ -1315,7 +1129,6 @@ export function Files() {
               {railView === 'scm' ? (
                 <SourceControl
                   root={root}
-                  readOnly={!!roots.find((r) => r.key === root)?.readOnly}
                   repos={repos}
                   reposErr={reposErr}
                   repoPath={repo?.path ?? ''}
@@ -1324,28 +1137,9 @@ export function Files() {
                   loading={statusLoading}
                   err={statusErr}
                   onRefresh={() => setStatusTick((t) => t + 1)}
-                  message={scmMessage}
-                  setMessage={setScmMessage}
-                  onCommit={() => void commit()}
-                  onSync={(v) => void sync(v)}
-                  onStage={(p) => void stage(p)}
-                  onUnstage={(p) => void unstage(p)}
-                  onDiscard={(p) => void askDiscard(p)}
-                  busyPath={busyPath}
-                  busyRepo={busyRepo}
-                  notice={scmNotice}
-                  dismissNotice={() => setScmNotice(null)}
-                  ask={ask}
-                  onConfirmDiscard={() => void confirmDiscard()}
-                  onCancelDiscard={() => setAsk(null)}
                   onOpenDiff={openDiff}
                   openPath={diff?.path ?? null}
                   openStaged={!!diff?.staged}
-                  // SEVERAL tabs can hold unsaved state now, and this prop takes
-                  // one path. The first is marked; the REFUSAL in askDiscard
-                  // covers all of them, which is the half that matters. Widening
-                  // this to a set is a change in SourceControl.tsx.
-                  dirtyPaths={dirtyHere}
                 />
               ) : (
                 <Explorer
@@ -1482,7 +1276,6 @@ export function Files() {
                 file={active?.file ?? null}
                 loading={active?.state === 'new' || active?.state === 'loading'}
                 history={active?.file ? active.file.history ?? [] : null}
-                newSha={newSha}
                 editing={!!active?.editing}
                 message={active?.message ?? ''}
                 setMessage={setActiveMessage}

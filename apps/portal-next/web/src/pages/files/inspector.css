@@ -79,7 +79,9 @@
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-sm); padding: 6px 9px;
 }
-/* No `:focus` rule - see the note on .fx-scm-msg in scm.css. The pair it used to
+/* No `:focus` rule - see the note on .fx-scm-repopick select in scm.css. (It
+   used to point at .fx-scm-msg, the Source Control commit box, which went with
+   the rest of that panel's write controls.) The pair it used to
    carry (`border-color: var(--accent); outline: none`) tinted the field on a
    mouse click and suppressed the keyboard ring at (0,3,0). Focus here is the
    page's one inset ring, which on a text field appears for the mouse too, and
@@ -92,10 +94,8 @@
   border-left: 2px solid transparent;
 }
 .bothy-files .fx-commit:hover { background: var(--surface-2); }
-/* The commit this page just made. Marked by a glyph colour AND a left bar AND
-   its position at the top of the list - never by the tint alone. */
-.bothy-files .fx-commit.is-new { background: var(--st-up-bg); border-left-color: var(--st-up); }
-.bothy-files .fx-commit.is-new .fx-commit-ico { color: var(--st-up-fg); }
+/* `.is-new` marked the commit this page had just made. Nothing here commits
+   any more, so the class had no way to be applied - it went with the verbs. */
 .bothy-files .fx-commit-ico { flex: none; color: var(--fg-subtle); margin-top: 1px; }
 .bothy-files .fx-commit-body { min-width: 0; flex: 1; }
 .bothy-files .fx-commit-subject {
