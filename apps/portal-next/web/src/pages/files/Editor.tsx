@@ -30,11 +30,11 @@ import {
 import { ErrState, Skeleton } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
 import { BothyMark } from '../../components/Brand';
-import { BINDINGS, chordOf, EDITOR_KEYS } from './keys';
+import { chordOf, EDITOR_KEYS, STARTER_KEYS } from './keys';
 import { countLines, gutterText, GUTTER_LIMIT, highlight, willHighlight } from './highlight';
 import { renderMd } from './md';
 import { JsonView } from './JsonView';
-import { baseName, dirName, type Kind } from './tree';
+import { baseName, dirName, isFramedText, type Kind } from './tree';
 import { SignInCard } from './SignInCard';
 import { DiffView, type DiffTarget } from './Diff';
 import type { CodeHandle, CodeStat } from './CodeSurface';
@@ -78,13 +78,18 @@ export type Notice =
 //
 // So: try the <img>, fall back to the frame, and say which one happened. When
 // the header is fixed the good path lights up with no code change.
-function RawPreview({ src, name, onFallback }: {
-  src: string; name: string; onFallback: (why: string) => void;
+function RawPreview({ src, name, kind = 'image', onFallback }: {
+  src: string; name: string; kind?: Kind; onFallback: (why: string) => void;
 }) {
-  const [mode, setMode] = useState<'img' | 'frame'>('img');
+  // Only an IMAGE can be attempted as <img>. A PDF, a video or an HTML document
+  // in an <img> is not a degraded render - it is a guaranteed onerror, which
+  // would flash the "blocked" strip on every open and blame the sandbox for a
+  // mismatch we chose. Those kinds start where they belong.
+  const wantsFrame = kind !== 'image';
+  const [mode, setMode] = useState<'img' | 'frame'>(wantsFrame ? 'frame' : 'img');
   // A new file is a new attempt - otherwise one blocked image would pin every
   // later one to the frame for the life of the page.
-  useEffect(() => { setMode('img'); }, [src]);
+  useEffect(() => { setMode(wantsFrame ? 'frame' : 'img'); }, [src, wantsFrame]);
 
   if (mode === 'frame') {
     return (
@@ -94,11 +99,16 @@ function RawPreview({ src, name, onFallback }: {
             so without this strip the reader sees the top-left corner of their
             image and has no way to tell a rendering limitation from a broken
             file. Saying which of the two it is costs one line. */}
-        <p className="fx-media-note">
-          Shown in a frame at natural size - click it to zoom. The sandbox origin
-          is refusing to be embedded directly; the Inspector&apos;s <b>Raw</b> download
-          is the full-size copy.
-        </p>
+        {/* The note is about a DEGRADED image, so it only belongs to an image
+            that fell back. For a PDF or a video the frame IS the viewer, and
+            telling the reader something was refused would be a plain untruth. */}
+        {!wantsFrame && (
+          <p className="fx-media-note">
+            Shown in a frame at natural size - click it to zoom. The sandbox origin
+            is refusing to be embedded directly; the Inspector&apos;s <b>Raw</b> download
+            is the full-size copy.
+          </p>
+        )}
         <div className="fx-media fx-media-frame">
           <iframe
             className="fx-media-iframe"
@@ -192,7 +202,7 @@ function NothingOpen() {
     <div className="fx-pad fx-empty">
       <span className="fx-empty-mark dim" aria-hidden="true"><BothyMark size={72} /></span>
       <div className="fx-empty-keys">
-        {BINDINGS.map((b) => (
+        {STARTER_KEYS.map((b) => (
           <div className="fx-empty-key" key={b.id}>
             <Chord keys={b.keys} />{' '}
             <span className="fx-key-what">{b.what}</span>
@@ -398,7 +408,11 @@ export function Editor({
   // Only formats with a genuine rendered form get a switcher. A shell script has
   // no "preview", and a toggle that swaps highlighted text for the same text is
   // a control that does nothing.
-  const previewable = kind === 'image' || isMarkdown || isJson;
+  // SVG and HTML are text with a rendered form, exactly like markdown - so they
+  // get the switcher too. Without it a framed preview is a one-way door: the
+  // file opens rendered and there is no way back to the source you came to edit.
+  const framedText = isFramedText(kind, path);
+  const previewable = kind === 'image' || isMarkdown || isJson || framedText;
   const showSwitcher = !editing && previewable && kind !== 'image';
 
   // Is the code surface actually ON SCREEN? Three things in the status strip
@@ -440,7 +454,17 @@ export function Editor({
       if (kind === 'image') {
         return <RawPreview src={rawUrl(root, file.path)} name={baseName(file.path)} onFallback={onFallback} />;
       }
-      if (kind === 'pdf' || kind === 'binary') {
+      // PDF, SVG, HTML and video all render in the sandbox frame. Each of
+      // these used to fall through to a download card or to source, not because
+      // the bytes were unavailable but because the client never asked for them -
+      // /raw has served every one of these inline, on :8100, since the origin
+      // split landed.
+      if (kind === 'pdf' || kind === 'media'
+          || (kind === 'framed' && view === 'preview')) {
+        return <RawPreview src={rawUrl(root, file.path)} name={baseName(file.path)}
+                           kind={kind} onFallback={onFallback} />;
+      }
+      if (kind === 'binary') {
         return <DownloadCard file={file} kind={kind} onDownload={onDownload} canDownload={canDownload} />;
       }
       if (view === 'preview' && isMarkdown) {
@@ -511,21 +535,6 @@ export function Editor({
               {dirty && (
                 <span className="fx-dot" role="img" aria-label="unsaved changes" title="unsaved changes" />
               )}
-              {/* Close. There are no tabs on this page - one file at a time,
-                  driven by ?root= / ?path= - so closing can only mean dropping
-                  `path` and keeping the root. It goes through the same guard as
-                  picking another file, so closing with unsaved edits raises the
-                  banner rather than quietly discarding them. */}
-              <Tooltip label="Close this file">
-                <button
-                  type="button"
-                  className="fx-hbtn fx-crumb-x"
-                  onClick={onClose}
-                  aria-label={`Close ${baseName(path)}`}
-                >
-                  <X size={13} />
-                </button>
-              </Tooltip>
             </>
           ) : (
             <span className="fx-crumb-dir">{root || '…'}</span>
@@ -586,7 +595,9 @@ export function Editor({
           )}
           {!diff && showSwitcher && (
             <div className="seg-toggle fx-seg fx-seg-ico" role="group" aria-label="View">
-              <Tooltip label={isMarkdown ? 'Preview - rendered markdown' : 'Preview - folded JSON'}>
+              <Tooltip label={isMarkdown ? 'Preview - rendered markdown'
+                : framedText ? 'Preview - rendered document'
+                : 'Preview - folded JSON'}>
                 <button
                   type="button"
                   className={view === 'preview' ? 'on' : ''}
@@ -631,13 +642,38 @@ export function Editor({
                   <Undo2 size={14} />
                 </button>
               </Tooltip>
-              <button type="button" className="btn primary sm" onClick={onSave} disabled={saving}>
-                {saving
-                  ? <LoaderCircle size={13} className="spin" aria-hidden="true" />
-                  : <Save size={13} aria-hidden="true" />}
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+              <Tooltip label={saving ? 'Saving…' : `Save to disk (${chordOf('save')})`}>
+                <button type="button" className="fx-hbtn is-primary" onClick={onSave}
+                        disabled={saving} aria-label={saving ? 'Saving' : 'Save to disk'}>
+                  {saving
+                    ? <LoaderCircle size={14} className="spin" aria-hidden="true" />
+                    : <Save size={14} aria-hidden="true" />}
+                </button>
+              </Tooltip>
             </>
+          )}
+          {/* Close sits LAST, at the far edge of the strip, away from the
+              controls that change what you are looking at. Its neighbours are
+              Edit and Save - one mis-click from "save" to "close" is the worst
+              adjacency on this bar, so it gets a separator and the end of the
+              row rather than a slot in the middle.
+              
+              There are no tabs on this page - one file at a time, driven by
+              ?root= / ?path= - so closing means dropping `path` and keeping the
+              root. It goes through the same guard as picking another file, so
+              closing with unsaved edits raises the banner rather than quietly
+              discarding them. */}
+          {path && !diff && (
+            <Tooltip label="Close this file" align="end">
+              <button
+                type="button"
+                className="fx-hbtn fx-crumb-x"
+                onClick={onClose}
+                aria-label={`Close ${baseName(path)}`}
+              >
+                <X size={14} />
+              </button>
+            </Tooltip>
           )}
         </div>
       </header>

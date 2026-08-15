@@ -165,11 +165,40 @@ export function defaultMessage(path: string, lang: string): string {
 // highlighted source, which it already did and which is the honest answer.
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif']);
 
-export type Kind = 'text' | 'image' | 'pdf' | 'binary';
+// Document formats the SANDBOX ORIGIN renders in a frame. They can carry script,
+// which is exactly why they are served from :8100 and never from the portal's
+// own origin - a script escaping one of these lands somewhere holding no portal
+// DOM, under `default-src 'none'; sandbox`.
+//
+// The comment this replaces said SVG "shows as highlighted source, which it
+// already did and which is the honest answer". That was true when the only
+// available origin was the portal's. The sandbox origin is what changed it, and
+// leaving the client on the old answer meant the whole framed-preview layer -
+// built and tested on the server - was never reachable.
+const FRAMED_EXT = new Set(['svg', 'svgz', 'html', 'htm', 'xhtml', 'xml']);
+
+// Formats the browser plays. These need Range to scrub, which /raw now serves.
+const MEDIA_EXT = new Set(['mp4', 'm4v', 'webm', 'ogv', 'mov',
+                           'mp3', 'm4a', 'wav', 'ogg', 'flac']);
+
+export type Kind = 'text' | 'image' | 'pdf' | 'framed' | 'media' | 'binary';
 
 export function kindOf(path: string, binary: boolean): Kind {
   const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
   if (IMAGE_EXT.has(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
+  if (MEDIA_EXT.has(ext)) return 'media';
+  if (FRAMED_EXT.has(ext)) return 'framed';
   return binary ? 'binary' : 'text';
+}
+
+/** Framed formats are TEXT underneath, so they get a Source view too.
+ *
+ * Which one is the right default is a per-file judgement the extension cannot
+ * make - you open an icon to look at it and a template to edit it - so the
+ * switcher decides and Preview is merely the initial guess. */
+export function isFramedText(kind: Kind, path: string): boolean {
+  if (kind !== 'framed') return false;
+  const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+  return ext !== 'svgz';   // gzipped: bytes, not source
 }
