@@ -27,12 +27,19 @@ commit - not unauthorised access - because the decision was already made upstrea
 The edge strips client-supplied X-Auth-Request-* anyway; see
 edge/dynamic/portal-files.yml.
 
-**Save writes to DISK. Committing is separate.** A save used to be a git commit,
-which was right for a docs editor and wrong for an explorer over the whole box -
-most saves are work in progress and should not each become a commit. Git is a
-deliberate act in its own area now.
+**Save writes to DISK, and this service does not commit at all.** A save used to
+BE a git commit, which was right for a docs editor and wrong for an explorer over
+the whole box - most saves are work in progress and should not each become a
+commit. That produced a git area with stage/commit/discard/pull/push, and on
+2026-08-15 those were removed too: git actions move to an in-browser command
+surface, and a second narrower path to them here would be a duplicate to keep in
+sync and a second thing to secure.
 
-Two things follow, and both are load-bearing rather than tidy:
+What remains of git here is READING - /repos, /status and /git/diff. Nothing in
+this service changes a repository's history or its index.
+
+Two things follow from save-writes-to-disk, and both are load-bearing rather than
+tidy:
 
   * The conflict check is no longer optional. While a save was a commit, git was
     a safety net - a clobber sat in the object store and was recoverable.
@@ -142,10 +149,6 @@ BYTE_HEADERS = {
 # stderr as well, so it shows up in `docker logs` without a second lookup.
 AUDIT_PATH = os.environ.get("AUDIT_LOG", "/audit/writes.log")
 
-# A fine-grained token, mounted read-only, used ONLY for push. Deliberately not
-# the gh CLI token in ~/.config/gh/hosts.yml: that one is account-wide, and it is
-# already denied from the explorer for exactly this reason.
-GIT_TOKEN_PATH = os.environ.get("GIT_TOKEN_FILE", "/run/secrets/git-token")
 _AUDIT_LOCK = threading.Lock()
 
 
@@ -631,8 +634,19 @@ class Handler(BaseHTTPRequestHandler):
         # Every mutating endpoint goes through the same guard below. Adding one
         # that skips it is the failure mode this shape exists to prevent, so the
         # list is here rather than each handler remembering.
-        if route not in ("/write", "/git/stage", "/git/unstage", "/git/discard",
-                         "/git/commit", "/git/pull", "/git/push"):
+        # /write is the ONLY mutating endpoint on this service.
+        #
+        # /git/stage, /git/unstage, /git/discard, /git/commit, /git/pull and
+        # /git/push were removed on 2026-08-15. Git actions are moving to an
+        # in-browser command surface, so a second, narrower way to do them here
+        # would be a duplicate to keep in sync and a second thing to secure.
+        #
+        # Removing them took three real risks with them: `discard`, the only
+        # irreversible action this service had (git restore --worktree throws
+        # away content that was never in the object store); the push credential,
+        # which was the ONLY secret this container was ever going to hold; and
+        # the `operator` tier, which existed solely to gate sync.
+        if route != "/write":
             return self._send(404, {"error": "no such endpoint"})
         # ── CSRF, and why it is needed HERE and not before ──────────────────
         #
@@ -669,9 +683,6 @@ class Handler(BaseHTTPRequestHandler):
             if length <= 0 or length > safepath.MAX_BYTES:
                 return self._send(413, {"error": "body missing or too large"})
             body = json.loads(self.rfile.read(length))
-
-            if route.startswith("/git/"):
-                return self._git(route[len("/git/"):], body)
 
             res = safepath.resolve(body.get("root", ""), body.get("path", ""),
                                    for_write=True)
@@ -784,193 +795,6 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write(f"ERROR /write: {type(e).__name__}: {e}\n")
             return self._send(500, {"error": "internal error"})
 
-
-    # ── git ─────────────────────────────────────────────────────────────────
-    def _git(self, verb: str, body: dict) -> None:
-        """Staging, committing and syncing. Every call names a repo by a PATH.
-
-        The repo is never taken from the client as a directory - it is derived by
-        resolving a path through safepath and asking which repository that file
-        lives in. So `/git/*` inherits every root, deny and traversal rule the
-        rest of the service has, and there is no second way in.
-        """
-        who = (self.headers.get("X-Auth-Request-Email")
-               or self.headers.get("X-Auth-Request-User") or "unknown")
-        base = safepath.resolve(body.get("root", ""), body.get("path", "") or ".")
-        # Read-only is checked FIRST. It is the more fundamental refusal, and
-        # answering "not a git repository" for a path that IS one but simply
-        # cannot be written sends the reader looking for the wrong problem.
-        if base.root_key in READONLY_ROOTS:
-            return self._send(403, {
-                "error": f"the {base.root_key!r} root is read-only"})
-        if not base.git_root:
-            return self._send(400, {"error": "that path is not inside a git repository"})
-
-        # For file-scoped verbs, the path git is given. `.` means the whole repo.
-        rel = base.git_relpath if body.get("path") else "."
-
-        if verb == "stage":
-            p = git(base.git_root, "add", "--", rel)
-            if p.returncode:
-                return self._send(400, {"error": p.stderr.strip() or "git add failed"})
-            audit(who, "STAGED", base)
-            return self._send(200, {"ok": True, **status(base.root_key, body.get("path", ""))})
-
-        if verb == "unstage":
-            p = git(base.git_root, "restore", "--staged", "--", rel)
-            if p.returncode:
-                return self._send(400, {"error": p.stderr.strip() or "git restore failed"})
-            audit(who, "UNSTAGED", base)
-            return self._send(200, {"ok": True, **status(base.root_key, body.get("path", ""))})
-
-        if verb == "discard":
-            # THE DESTRUCTIVE ONE, and it is worse here than it looks.
-            #
-            # `git restore` throws away the working-tree content, and for an
-            # UNSTAGED change that content was never in the object store - so
-            # there is nothing to recover it from. Normally git is a safety net;
-            # for this one operation it is not.
-            #
-            # That got sharper when save stopped committing: there is now a real
-            # window where the working tree holds the ONLY copy of an edit. So
-            # this refuses to act on the whole repo - a mis-click that discards
-            # one file is a bad afternoon, one that discards everything is a bad
-            # week - and it requires the caller to have said so explicitly.
-            if not body.get("path"):
-                return self._send(400, {
-                    "error": "discard needs a specific file; it will not discard a whole repo"})
-            if body.get("confirm") is not True:
-                return self._send(400, {
-                    "error": "discard is irreversible for unstaged changes - "
-                             "resend with confirm: true"})
-            p = git(base.git_root, "restore", "--worktree", "--", rel)
-            if p.returncode:
-                return self._send(400, {"error": p.stderr.strip() or "git restore failed"})
-            audit(who, "DISCARDED", base, extra="irreversible")
-            return self._send(200, {"ok": True, **status(base.root_key, body.get("path", ""))})
-
-        if verb == "commit":
-            msg = (body.get("message") or "").strip()
-            if not msg:
-                return self._send(400, {"error": "a commit needs a message"})
-            staged = git(base.git_root, "diff", "--cached", "--name-only").stdout.split()
-            if not staged:
-                # Not an error to shout about: it means the user pressed commit
-                # with nothing staged, and saying so is more useful than git's
-                # exit code.
-                return self._send(400, {"error": "nothing is staged"})
-            p = git(base.git_root,
-                    "-c", f"user.name={who}",
-                    "-c", f"user.email={who if '@' in who else who + '@devbox.local'}",
-                    "commit", "-m", msg)
-            if p.returncode:
-                return self._send(400, {"error": (p.stderr or p.stdout).strip()[:400]})
-            sha = git(base.git_root, "rev-parse", "--short", "HEAD").stdout.strip()
-            audit(who, "COMMITTED", base, extra=f"{sha} ({len(staged)} files) {msg[:60]}")
-            # `committed` rather than `files`: status() also returns a `files`
-            # key, and `{"files": staged, **status(...)}` let it win the merge -
-            # so the list of what was just committed was built and then silently
-            # thrown away. Two different meanings of "files" in one dict is the
-            # kind of thing that reads fine and is wrong, which is why the name
-            # is now distinct instead of the merge order being load-bearing.
-            return self._send(200, {"ok": True, "sha": sha, "committed": staged,
-                                    "message": msg,
-                                    **status(base.root_key, body.get("path", ""))})
-
-        if verb in ("pull", "push"):
-            return self._sync(verb, base, who)
-
-        return self._send(404, {"error": f"no such git verb {verb!r}"})
-
-    def _sync(self, verb: str, base, who: str) -> None:
-        """pull / push. The only thing here that talks to the network.
-
-        Guarded three ways, because this is the first capability that can publish
-        off the box rather than only change it locally:
-
-          1. the route requires `operator`, not `editor` - editing a file and
-             publishing it are different acts and the roles already say so;
-          2. SSH remotes are refused outright, because supporting them means an
-             SSH private key inside a container that already holds write access
-             to every repo. That is a bigger step than a scoped HTTPS token and
-             deserves its own decision rather than arriving as a side effect;
-          3. no credential means no push - it fails with a readable reason rather
-             than hanging on a git credential prompt.
-        """
-        remote = git(base.git_root, "remote", "get-url", "origin").stdout.strip()
-        if not remote:
-            return self._send(400, {"error": "this repository has no origin remote"})
-        if remote.startswith(("git@", "ssh://")):
-            return self._send(400, {
-                "error": "SSH remotes are not supported here - it would need a "
-                         "private key inside this container. Use the terminal.",
-                "remote": remote})
-        if verb == "push" and not os.path.exists(GIT_TOKEN_PATH):
-            return self._send(503, {
-                "error": "no push credential is configured on this box",
-                "hint": f"mount a fine-grained token at {GIT_TOKEN_PATH}"})
-
-        # GIT_TERMINAL_PROMPT=0 turns a missing credential into an immediate
-        # error instead of a process that blocks forever waiting for a password
-        # nobody can type.
-        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0",
-               "GIT_ASKPASS": "", "HOME": os.environ.get("HOME", "/tmp")}
-
-        # ACTUALLY USE the token. The 503 above told the operator to mount one
-        # here, and nothing read it - so following that instruction changed
-        # nothing and push still died with "could not read Username". A hint
-        # that does not work is worse than no hint.
-        #
-        # It is supplied through a credential helper on stdin rather than being
-        # written into the remote URL, so it never reaches `git remote -v`, the
-        # reflog, or any error message git prints. _redact() above is the second
-        # line of defence, not the first.
-        token = ""
-        try:
-            with open(GIT_TOKEN_PATH, encoding="utf-8") as tf:
-                token = tf.read().strip()
-        except OSError:
-            token = ""
-
-        args = ["pull", "--ff-only"] if verb == "pull" else ["push"]
-        store = None
-        try:
-            if token:
-                # The token goes in a 0600 file in the tmpfs, and git is pointed
-                # at it with `credential.helper=store --file=<path>`.
-                #
-                # NOT `-c credential.helper=!f() { echo password=<token>; }; f`,
-                # which is the obvious inline form: that puts the token in ARGV,
-                # and argv is world-readable through `ps` and /proc/<pid>/cmdline
-                # for every process on the host, not just this container. It is
-                # the same mistake this repo already fixed once in doctor.sh,
-                # where `curl -u user:pass` exposed the prometheus password.
-                # A PATH in argv is not a secret; the token never appears there.
-                host = urlparse(remote).netloc.split("@")[-1]
-                fd, store = tempfile.mkstemp(dir="/tmp", prefix=".gitcred.")
-                os.fchmod(fd, 0o600)
-                with os.fdopen(fd, "w") as cf:
-                    cf.write(f"https://x-access-token:{token}@{host}\n")
-                env["GIT_CONFIG_COUNT"] = "1"
-                env["GIT_CONFIG_KEY_0"] = "credential.helper"
-                env["GIT_CONFIG_VALUE_0"] = f"store --file={store}"
-            p = subprocess.run(["git", "-C", base.git_root, *args],
-                               capture_output=True, text=True, timeout=60, env=env)
-        finally:
-            if store and os.path.exists(store):
-                os.unlink(store)
-        # git prints the remote in full on push/pull, and a credential-bearing
-        # HTTPS remote carries the token IN the URL
-        # (https://x-access-token:ghp_...@github.com/...). Echoing that straight
-        # back would hand the client the credential this container holds - which
-        # is the one secret it has. Redacted before it can reach a response or
-        # the audit log.
-        out = _redact(p.stdout + p.stderr).strip()
-        audit(who, verb.upper(), base, extra=f"rc={p.returncode} {out[:120]}")
-        if p.returncode:
-            return self._send(400, {"error": out[:600] or f"git {verb} failed"})
-        return self._send(200, {"ok": True, "output": out[:600],
-                                **status(base.root_key, "")})
 
     # ── raw bytes ───────────────────────────────────────────────────────────
     def _raw(self, q: dict) -> None:

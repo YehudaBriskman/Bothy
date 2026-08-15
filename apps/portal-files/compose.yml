@@ -67,19 +67,13 @@ services:
       # allows the rest. A dry run against the real directory is what caught
       # .bash_history slipping past a dot-DIRECTORY-only rule.
       - /home/devssh:/repos/home:ro
-      # The push credential, if one exists.
+      # The push credential mount is GONE (2026-08-15), with push itself.
       #
-      # `${GIT_TOKEN_FILE:-/dev/null}` so the service starts either way: with no
-      # token this mounts /dev/null, the file reads empty, and /git/push returns
-      # its 503 "not set up on this box yet". With one, it is a read-only file
-      # nothing else can see.
-      #
-      # This mount was MISSING while the 503 was already telling operators to
-      # "mount a fine-grained token at /run/secrets/git-token" - so following the
-      # instruction exactly would have changed nothing, because compose never
-      # made the file reachable. That is the second time this feature has shipped
-      # a hint that could not work; the first was the code not reading the file.
-      - ${GIT_TOKEN_FILE:-/dev/null}:/run/secrets/git-token:ro
+      # Worth recording rather than just deleting: this mount was added to make
+      # the 503's own advice followable, discovered missing only because someone
+      # tried to follow it. It never carried a token, and now it never will -
+      # this container holds no secrets at all again, which is the property the
+      # socket-proxy note calls load-bearing.
       # The write log. Mounted so it outlives a container rebuild - an audit
       # trail that a `docker compose up --build` erases is not an audit trail.
       # This is the ONLY writable path outside the two editable repos.
