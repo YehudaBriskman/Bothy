@@ -42,6 +42,9 @@ python3 checks/e2e.py || fail=1
 echo; echo "── save semantics: disk, not commit, and the conflict ──────"
 python3 checks/save_semantics.py || fail=1
 
+echo; echo "── git: stage/commit/discard and the sync refusals ─────────"
+python3 checks/git_ops.py || fail=1
+
 echo; echo "── raw bytes + archives (the sandbox origin) ───────────────"
 python3 checks/bytes_e2e.py || fail=1
 

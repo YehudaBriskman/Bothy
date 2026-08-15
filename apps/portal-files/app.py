@@ -139,6 +139,11 @@ BYTE_HEADERS = {
 # Where the write log lands. A mounted path so it survives a container rebuild;
 # stderr as well, so it shows up in `docker logs` without a second lookup.
 AUDIT_PATH = os.environ.get("AUDIT_LOG", "/audit/writes.log")
+
+# A fine-grained token, mounted read-only, used ONLY for push. Deliberately not
+# the gh CLI token in ~/.config/gh/hosts.yml: that one is account-wide, and it is
+# already denied from the explorer for exactly this reason.
+GIT_TOKEN_PATH = os.environ.get("GIT_TOKEN_FILE", "/run/secrets/git-token")
 _AUDIT_LOCK = threading.Lock()
 
 
@@ -492,6 +497,20 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/status":
                 return self._send(200, status(q.get("root", ""), q.get("path", "")))
 
+            if route == "/git/diff":
+                res = safepath.resolve(q.get("root", ""), q.get("path", ""))
+                if not res.git_root:
+                    return self._send(200, {"path": res.relpath, "diff": None,
+                                            "reason": "not inside a git repository"})
+                staged = q.get("staged") == "1"
+                args = ["diff", "--no-color"] + (["--cached"] if staged else [])
+                p = git(res.git_root, *args, "--", res.git_relpath)
+                # An empty diff is a fact, not a failure: the file matches HEAD,
+                # or the change is on the other side of the staging line.
+                return self._send(200, {
+                    "path": res.relpath, "staged": staged,
+                    "diff": p.stdout, "empty": not p.stdout.strip()})
+
             if route == "/raw":
                 return self._raw(q)
 
@@ -515,7 +534,11 @@ class Handler(BaseHTTPRequestHandler):
     # ── write ───────────────────────────────────────────────────────────────
     def do_POST(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
-        if route != "/write":
+        # Every mutating endpoint goes through the same guard below. Adding one
+        # that skips it is the failure mode this shape exists to prevent, so the
+        # list is here rather than each handler remembering.
+        if route not in ("/write", "/git/stage", "/git/unstage", "/git/discard",
+                         "/git/commit", "/git/pull", "/git/push"):
             return self._send(404, {"error": "no such endpoint"})
         # ── CSRF, and why it is needed HERE and not before ──────────────────
         #
@@ -552,6 +575,9 @@ class Handler(BaseHTTPRequestHandler):
             if length <= 0 or length > safepath.MAX_BYTES:
                 return self._send(413, {"error": "body missing or too large"})
             body = json.loads(self.rfile.read(length))
+
+            if route.startswith("/git/"):
+                return self._git(route[len("/git/"):], body)
 
             res = safepath.resolve(body.get("root", ""), body.get("path", ""),
                                    for_write=True)
@@ -644,6 +670,140 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write(f"ERROR /write: {type(e).__name__}: {e}\n")
             return self._send(500, {"error": "internal error"})
 
+
+    # ── git ─────────────────────────────────────────────────────────────────
+    def _git(self, verb: str, body: dict) -> None:
+        """Staging, committing and syncing. Every call names a repo by a PATH.
+
+        The repo is never taken from the client as a directory - it is derived by
+        resolving a path through safepath and asking which repository that file
+        lives in. So `/git/*` inherits every root, deny and traversal rule the
+        rest of the service has, and there is no second way in.
+        """
+        who = (self.headers.get("X-Auth-Request-Email")
+               or self.headers.get("X-Auth-Request-User") or "unknown")
+        base = safepath.resolve(body.get("root", ""), body.get("path", "") or ".")
+        # Read-only is checked FIRST. It is the more fundamental refusal, and
+        # answering "not a git repository" for a path that IS one but simply
+        # cannot be written sends the reader looking for the wrong problem.
+        if base.root_key in READONLY_ROOTS:
+            return self._send(403, {
+                "error": f"the {base.root_key!r} root is read-only"})
+        if not base.git_root:
+            return self._send(400, {"error": "that path is not inside a git repository"})
+
+        # For file-scoped verbs, the path git is given. `.` means the whole repo.
+        rel = base.git_relpath if body.get("path") else "."
+
+        if verb == "stage":
+            p = git(base.git_root, "add", "--", rel)
+            if p.returncode:
+                return self._send(400, {"error": p.stderr.strip() or "git add failed"})
+            audit(who, "STAGED", base)
+            return self._send(200, {"ok": True, **status(base.root_key, body.get("path", ""))})
+
+        if verb == "unstage":
+            p = git(base.git_root, "restore", "--staged", "--", rel)
+            if p.returncode:
+                return self._send(400, {"error": p.stderr.strip() or "git restore failed"})
+            audit(who, "UNSTAGED", base)
+            return self._send(200, {"ok": True, **status(base.root_key, body.get("path", ""))})
+
+        if verb == "discard":
+            # THE DESTRUCTIVE ONE, and it is worse here than it looks.
+            #
+            # `git restore` throws away the working-tree content, and for an
+            # UNSTAGED change that content was never in the object store - so
+            # there is nothing to recover it from. Normally git is a safety net;
+            # for this one operation it is not.
+            #
+            # That got sharper when save stopped committing: there is now a real
+            # window where the working tree holds the ONLY copy of an edit. So
+            # this refuses to act on the whole repo - a mis-click that discards
+            # one file is a bad afternoon, one that discards everything is a bad
+            # week - and it requires the caller to have said so explicitly.
+            if not body.get("path"):
+                return self._send(400, {
+                    "error": "discard needs a specific file; it will not discard a whole repo"})
+            if body.get("confirm") is not True:
+                return self._send(400, {
+                    "error": "discard is irreversible for unstaged changes - "
+                             "resend with confirm: true"})
+            p = git(base.git_root, "restore", "--worktree", "--", rel)
+            if p.returncode:
+                return self._send(400, {"error": p.stderr.strip() or "git restore failed"})
+            audit(who, "DISCARDED", base, extra="irreversible")
+            return self._send(200, {"ok": True, **status(base.root_key, body.get("path", ""))})
+
+        if verb == "commit":
+            msg = (body.get("message") or "").strip()
+            if not msg:
+                return self._send(400, {"error": "a commit needs a message"})
+            staged = git(base.git_root, "diff", "--cached", "--name-only").stdout.split()
+            if not staged:
+                # Not an error to shout about: it means the user pressed commit
+                # with nothing staged, and saying so is more useful than git's
+                # exit code.
+                return self._send(400, {"error": "nothing is staged"})
+            p = git(base.git_root,
+                    "-c", f"user.name={who}",
+                    "-c", f"user.email={who if '@' in who else who + '@devbox.local'}",
+                    "commit", "-m", msg)
+            if p.returncode:
+                return self._send(400, {"error": (p.stderr or p.stdout).strip()[:400]})
+            sha = git(base.git_root, "rev-parse", "--short", "HEAD").stdout.strip()
+            audit(who, "COMMITTED", base, extra=f"{sha} ({len(staged)} files) {msg[:60]}")
+            return self._send(200, {"ok": True, "sha": sha, "files": staged,
+                                    "message": msg,
+                                    **status(base.root_key, body.get("path", ""))})
+
+        if verb in ("pull", "push"):
+            return self._sync(verb, base, who)
+
+        return self._send(404, {"error": f"no such git verb {verb!r}"})
+
+    def _sync(self, verb: str, base, who: str) -> None:
+        """pull / push. The only thing here that talks to the network.
+
+        Guarded three ways, because this is the first capability that can publish
+        off the box rather than only change it locally:
+
+          1. the route requires `operator`, not `editor` - editing a file and
+             publishing it are different acts and the roles already say so;
+          2. SSH remotes are refused outright, because supporting them means an
+             SSH private key inside a container that already holds write access
+             to every repo. That is a bigger step than a scoped HTTPS token and
+             deserves its own decision rather than arriving as a side effect;
+          3. no credential means no push - it fails with a readable reason rather
+             than hanging on a git credential prompt.
+        """
+        remote = git(base.git_root, "remote", "get-url", "origin").stdout.strip()
+        if not remote:
+            return self._send(400, {"error": "this repository has no origin remote"})
+        if remote.startswith(("git@", "ssh://")):
+            return self._send(400, {
+                "error": "SSH remotes are not supported here - it would need a "
+                         "private key inside this container. Use the terminal.",
+                "remote": remote})
+        if verb == "push" and not os.path.exists(GIT_TOKEN_PATH):
+            return self._send(503, {
+                "error": "no push credential is configured on this box",
+                "hint": f"mount a fine-grained token at {GIT_TOKEN_PATH}"})
+
+        # GIT_TERMINAL_PROMPT=0 turns a missing credential into an immediate
+        # error instead of a process that blocks forever waiting for a password
+        # nobody can type.
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0",
+               "GIT_ASKPASS": "", "HOME": os.environ.get("HOME", "/tmp")}
+        args = ["pull", "--ff-only"] if verb == "pull" else ["push"]
+        p = subprocess.run(["git", "-C", base.git_root, *args],
+                           capture_output=True, text=True, timeout=60, env=env)
+        out = (p.stdout + p.stderr).strip()
+        audit(who, verb.upper(), base, extra=f"rc={p.returncode} {out[:120]}")
+        if p.returncode:
+            return self._send(400, {"error": out[:600] or f"git {verb} failed"})
+        return self._send(200, {"ok": True, "output": out[:600],
+                                **status(base.root_key, "")})
 
     # ── raw bytes ───────────────────────────────────────────────────────────
     def _raw(self, q: dict) -> None:
