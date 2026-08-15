@@ -36,3 +36,13 @@ const n = {};
 for (const c of cs) { const s = statusOf(c); (n[s] ??= []).push(c.Names?.[0]?.replace(/^\//, '')); }
 for (const [k, v] of Object.entries(n)) console.log(\`  \${k.padEnd(9)} \${v.length}  \${v.slice(0, 6).join(', ')}\`);
 "
+
+echo
+echo "── the CSP and the inline script must agree ────────────"
+# Needs web/dist, so it runs after a build. Skipped rather than failed when there
+# is none: an unbuilt tree is not a broken policy.
+if [ -f "$HERE/../web/dist/index.html" ]; then
+  node "$HERE/csp_hash.mjs"
+else
+  echo "  SKIP: no web/dist - run npm run build first"
+fi

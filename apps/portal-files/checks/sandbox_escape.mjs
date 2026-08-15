@@ -68,12 +68,19 @@ console.log(`  portal still intact: ${await p.evaluate(()=>document.title)}`);
 // same payload DOES run when nothing stops it - otherwise a malformed SVG would
 // pass this test forever while proving nothing.
 const ctlSrc = `<svg xmlns="http://www.w3.org/2000/svg"><script type="application/javascript"><![CDATA[ window.__ESCAPED='script ran'; ]]><\/script></svg>`;
-await p.evaluate(src => new Promise(done => {
+// ON about:blank, NOT on the portal page. The portal now sends a CSP of its own,
+// and a `srcdoc` iframe INHERITS the embedding document's policy - so running the
+// control there measured the portal's CSP instead of the payload, reported "the
+// control does not execute anywhere", and correctly called itself vacuous. The
+// control has to sit outside every policy or it is not a control.
+const ctlPage = await ctx.newPage();
+await ctlPage.goto('about:blank');
+await ctlPage.evaluate(src => new Promise(done => {
   const f=document.createElement('iframe'); f.srcdoc=src; f.onload=()=>done();
   document.body.appendChild(f); setTimeout(done,3000);
 }), ctlSrc);
-await p.waitForTimeout(1000);
-const ctl = p.frames().filter(f => f !== p.mainFrame() && !f.url().includes('_hostile-probe')).pop();
+await ctlPage.waitForTimeout(1000);
+const ctl = ctlPage.frames().filter(f => f !== ctlPage.mainFrame()).pop();
 const ctlRan = ctl ? await ctl.evaluate(()=>window.__ESCAPED ?? null).catch(()=>null) : null;
 console.log(`  control (same payload, no CSP): ${JSON.stringify(ctlRan)}`);
 
