@@ -535,29 +535,71 @@ export function Files() {
 
   // ── the URL ────────────────────────────────────────────────────────────────
   //
+  // The URL is an INPUT to the read effect and an OUTPUT of the write effect, so
+  // the two have to be kept from answering each other. `synced` is the one value
+  // they have both already agreed on; whichever side moves first claims it, and
+  // the other recognises the next change as its own echo and stops.
+  //
+  // Comparing the URL against the active document instead - which is what this
+  // did - CANNOT work, and shipped as an infinite loop that blanked the page.
+  // The two effects run in the same commit, and on a URL change the write sees
+  // the active document from BEFORE the read's openOrFocus has committed. So it
+  // wrote the old document back over the new URL, the read opened the new one
+  // again, and the two ping-ponged - measured at ~4 flips a second, each one a
+  // history entry, until React gave up at 50 nested updates and unmounted the
+  // tree. React error #185, and a white page.
+  const synced = useRef<string | null>(null);
+  // What the URL has asked for and the workspace has not produced YET.
+  //
+  // A value comparison alone cannot settle this, because the deciding fact is
+  // not what the two sides hold but WHICH ONE MOVED - and "the URL changed, the
+  // workspace has not caught up" and "the workspace changed, the URL has not
+  // caught up" look identical from either side. Only the read effect knows it
+  // was the mover, so it says so here.
+  const awaiting = useRef<string | null>(null);
+
   // Read: a `?path=` opens or focuses that document, which is what makes an
   // existing deep link, the explorer's reveal and the browser's Back button all
   // keep working with no new scheme.
   useEffect(() => {
+    const key = `${urlRoot}\0${urlPath}`;
+    if (key === synced.current) return;
+    synced.current = key;
     if (!urlPath) {
+      awaiting.current = null;
       if (urlRoot) setBrowseRoot((b) => (b === urlRoot ? b : urlRoot));
       return;
     }
+    awaiting.current = key;
     openOrFocus(urlRoot, urlPath);
   }, [urlRoot, urlPath, openOrFocus]);
 
-  // Written: the active document, or the browsed root when nothing is open. The
-  // comparison is what stops this and the effect above from pushing each other
-  // round in a circle - the write is skipped the moment the URL already says it.
+  // Written: the active document, or the browsed root when nothing is open.
+  //
+  // `urlRoot`/`urlPath` are deliberately NOT dependencies. A URL change must not
+  // be able to trigger a write - that is precisely the edge the loop rode in on.
+  // This effect answers to the workspace and to nothing else.
   useEffect(() => {
     const r = active ? active.root : browseRoot;
     const p = active ? active.path : '';
-    if (!r || (r === urlRoot && p === urlPath)) return;
+    if (!r) return;
+    const key = `${r}\0${p}`;
+    // The URL asked for a document. Until it arrives, the workspace is simply
+    // BEHIND, and writing what it currently holds would erase the request - on
+    // first paint that meant a deep link opened nothing, because the workspace
+    // is empty for exactly one commit while the read effect's open is landing.
+    if (awaiting.current !== null) {
+      if (key !== awaiting.current) return;
+      awaiting.current = null;
+      return;
+    }
+    if (key === synced.current) return;
+    synced.current = key;
     const nextParams = new URLSearchParams();
     nextParams.set('root', r);
     if (p) nextParams.set('path', p);
     setParams(nextParams);
-  }, [active, browseRoot, urlRoot, urlPath, setParams]);
+  }, [active, browseRoot, setParams]);
 
   // A deep link into a nested file must arrive with its folders already open,
   // or the tree shows the reader a closed root and no sign of where they are.
