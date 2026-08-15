@@ -26,6 +26,7 @@ import {
   archiveUrl, fileHistory, fmtBytes, isAuthError, langFor, listRoots, listTree, logCall,
   looksBinary, onApiCall, openDownload, rawUrl, readFile, writeFile,
   type ApiCall, type Commit, type FileRead, type FileRoot, type TreeFile,
+  type WriteConflict,
 } from '../../lib/files';
 import { ErrState } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
@@ -81,6 +82,34 @@ export function Files() {
   // Set when a file or root is picked while there are unsaved edits: the switch
   // waits for an answer instead of silently throwing the work away.
   const [pending, setPending] = useState<{ root: string; path: string } | null>(null);
+  // Set when the server refuses a stale save. Holds BOTH versions so the user
+  // can choose; never auto-resolved, because picking for them is exactly the
+  // silent data loss this whole mechanism exists to prevent.
+  const [conflict, setConflict] = useState<WriteConflict | null>(null);
+
+  // Resolving a conflict is the user's decision, so each branch does exactly
+  // what it says and nothing more.
+  const resolveConflict = (choice: 'mine' | 'theirs' | 'dismiss') => {
+    const c = conflict;
+    setConflict(null);
+    if (!c || !file) return;
+    if (choice === 'theirs') {
+      // Take the disk version. Their bytes AND their mtime, so the next save
+      // is based on what is actually there.
+      setFile({ ...file, content: c.theirs, mtime: c.currentMtime });
+      setDraft(c.theirs);
+      setNotice({ tone: 'info', text: 'Loaded the version from disk. Your edits were discarded.' });
+      return;
+    }
+    if (choice === 'mine') {
+      // Re-save against the CURRENT mtime, which is a deliberate overwrite
+      // rather than an accidental one - the user has been shown both sizes.
+      setFile({ ...file, mtime: c.currentMtime });
+      setNotice({ tone: 'info', text: 'Press Save again to overwrite the version on disk.' });
+      return;
+    }
+    setNotice(null);
+  };
 
   const [calls, setCalls] = useState<ApiCall[]>([]);
   // Problems the page RAISED rather than observed - a refused download, a
@@ -413,30 +442,42 @@ export function Files() {
     if (!file || saving) return;
     setSaving(true);
     setNotice(null);
-    const out = await writeFile(root, file.path, draft, message.trim() || defaultMessage(file.path, lang));
+    // file.mtime is what this tab READ. Sending it is the whole conflict
+    // guarantee - see docs/kb/editor-drafts.md.
+    const out = await writeFile(root, file.path, draft,
+                                message.trim() || defaultMessage(file.path, lang),
+                                file.mtime);
     setSaving(false);
     switch (out.kind) {
       case 'saved':
+        setEditing(false);
+        setNewSha(null);
+        // Carry the SERVER's mtime forward, not a locally guessed one. It
+        // becomes the baseMtime of the next save from this tab, so it has to be
+        // the value the filesystem actually holds - an earlier version used
+        // `Date.now() / 1000` here, which would have disagreed with the server
+        // and made the very next save 409 against our own write.
         setFile({
           ...file,
           content: draft,
-          history: out.res.history,
-          size: new TextEncoder().encode(draft).length,
-          mtime: Date.now() / 1000,
+          mtime: out.res.mtime,
+          size: out.res.bytes,
+          history: out.res.history ?? file.history,
         });
-        setNewSha(out.res.sha ?? null);
-        setEditing(false);
         setNotice({
           tone: 'ok',
-          text: `Committed ${(out.res.sha ?? '').slice(0, 7)} - ${out.res.message || message}`,
+          text: `Saved ${out.res.bytes} bytes to disk${out.res.versioned ? ' - commit it in Source Control' : ''}`,
         });
         break;
-      case 'unchanged':
-        // Success with nothing to do. "Failed" here would be a lie, and "saved"
-        // would imply a commit that does not exist.
-        setEditing(false);
-        if (out.res.history?.length) setFile({ ...file, history: out.res.history });
-        setNotice({ tone: 'info', text: 'No changes - nothing to commit.' });
+      case 'conflict':
+        // NOT an error. The file moved underneath this tab, and the server
+        // refused rather than overwriting - so the only honest thing to do is
+        // hand the choice back rather than pick for them.
+        setConflict(out.conflict);
+        setNotice({
+          tone: 'bad',
+          text: 'This file changed on disk since you opened it. Nothing was overwritten.',
+        });
         break;
       case 'auth':
         setNotice({ tone: 'auth' });
@@ -641,6 +682,8 @@ export function Files() {
               onCancel={cancelEdit}
               onSave={() => void save()}
               notice={notice}
+              conflict={conflict}
+              onResolveConflict={resolveConflict}
               dismissNotice={() => setNotice(null)}
               pending={pending !== null}
               resolvePending={resolvePending}

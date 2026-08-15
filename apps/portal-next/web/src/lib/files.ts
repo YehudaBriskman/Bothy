@@ -131,12 +131,27 @@ export interface FileRead {
 export interface WriteResult {
   ok: boolean;
   path: string;
-  committed: boolean;
-  unchanged: boolean;
-  sha?: string;
+  // The mtime the file now has. Must be carried back into the editor's state:
+  // it becomes the baseMtime of the NEXT save, and without that a second save
+  // from the same tab would look stale to the server and 409.
+  mtime: number;
+  created: boolean;
+  bytes: number;
   author?: string;
-  message?: string;
+  versioned: boolean;
   history: Commit[];
+}
+
+// The file changed on disk between opening it and saving. The server refuses
+// rather than overwriting, and hands back both versions so the choice is the
+// user's - see docs/kb/editor-drafts.md for why this is the server's job.
+export interface WriteConflict {
+  error: string;
+  path: string;
+  baseMtime: number;
+  currentMtime: number;
+  yours: string;
+  theirs: string;
 }
 
 // Carries the HTTP status, which is the whole point: the page has to tell "you
@@ -272,13 +287,13 @@ export function signInUrl(): string {
   return `/oauth2/sign_in?rd=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
 }
 
-// The outcomes a save can have. `auth` and `unchanged` are deliberately NOT
+// The outcomes a save can have. `auth` and `conflict` are deliberately NOT
 // errors: a signed-out reader hitting Save is the documented flow, and a save
 // with nothing to commit succeeded - it just had no work to do.
 export type SaveOutcome =
   | { kind: 'saved'; res: WriteResult }
-  | { kind: 'unchanged'; res: WriteResult }
   | { kind: 'auth' }
+  | { kind: 'conflict'; conflict: WriteConflict }
   | { kind: 'refused'; message: string }
   | { kind: 'too-large'; message: string }
   | { kind: 'error'; message: string };
@@ -308,6 +323,10 @@ export async function writeFile(
   path: string,
   content: string,
   message: string,
+  // The mtime this editor session read. Sending it is what buys the guarantee
+  // that a stale tab cannot silently overwrite someone else's work; omitting it
+  // is allowed by the API (scripts have no mtime) but the UI always has one.
+  baseMtime?: number,
 ): Promise<SaveOutcome> {
   let r: Response;
   const started = performance.now();
@@ -315,7 +334,7 @@ export async function writeFile(
     r = await fetch(`${BASE}/write`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ root, path, content, message }),
+      body: JSON.stringify({ root, path, content, message, baseMtime }),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'the request never left the browser';
@@ -333,6 +352,15 @@ export async function writeFile(
   if (r.status === 403) {
     return { kind: 'refused', message: await errorText(r, 'you can read this file but not save it') };
   }
+  if (r.status === 409) {
+    // Not an error - a decision the user has to make. Handled before the
+    // generic !r.ok branch so it never degrades into "something went wrong".
+    try {
+      return { kind: 'conflict', conflict: (await r.json()) as WriteConflict };
+    } catch {
+      return { kind: 'error', message: 'the file changed on disk, and the details could not be read' };
+    }
+  }
   if (r.status === 413) return { kind: 'too-large', message: await errorText(r, 'the file is over the 1 MB limit') };
   if (!r.ok) return { kind: 'error', message: await errorText(r, `${r.status} ${r.statusText}`) };
 
@@ -343,7 +371,13 @@ export async function writeFile(
     return { kind: 'error', message: 'the save returned a body this page could not read' };
   }
   if (!res.ok) return { kind: 'error', message: 'the server reported the save did not complete' };
-  return res.unchanged ? { kind: 'unchanged', res } : { kind: 'saved', res };
+  // `unchanged` used to come from the server: a save was a commit, and git told
+  // us "nothing to commit" when the content already matched. A plain write has
+  // no such notion - it writes the bytes either way - so the caller decides,
+  // and it already knows: it tracks dirty state to enable the Save button at
+  // all. Keeping a server-reported `unchanged` here would have meant inventing
+  // a comparison the server no longer does.
+  return { kind: 'saved', res };
 }
 
 // ── formatting ───────────────────────────────────────────────────────────────

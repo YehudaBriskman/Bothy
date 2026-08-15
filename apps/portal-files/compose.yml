@@ -33,6 +33,7 @@ services:
       - /tmp
     environment:
       PORT: 8099
+      AUDIT_LOG: /audit/writes.log
       # git writes config into $HOME; without this it lands on a read-only FS.
       HOME: /tmp
     volumes:
@@ -66,6 +67,10 @@ services:
       # allows the rest. A dry run against the real directory is what caught
       # .bash_history slipping past a dot-DIRECTORY-only rule.
       - /home/devssh:/repos/home:ro
+      # The write log. Mounted so it outlives a container rebuild - an audit
+      # trail that a `docker compose up --build` erases is not an audit trail.
+      # This is the ONLY writable path outside the two editable repos.
+      - ./audit:/audit:rw
     networks:
       - filesnet
     labels:

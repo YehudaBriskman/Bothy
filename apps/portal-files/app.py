@@ -27,9 +27,21 @@ commit - not unauthorised access - because the decision was already made upstrea
 The edge strips client-supplied X-Auth-Request-* anyway; see
 edge/dynamic/portal-files.yml.
 
-**Git is the version store.** Both roots are repositories, so a write is a commit
-and history is `git log`. No separate revision table, no custom format, and the
-history stays readable with ordinary tools if this service disappears.
+**Save writes to DISK. Committing is separate.** A save used to be a git commit,
+which was right for a docs editor and wrong for an explorer over the whole box -
+most saves are work in progress and should not each become a commit. Git is a
+deliberate act in its own area now.
+
+Two things follow, and both are load-bearing rather than tidy:
+
+  * The conflict check is no longer optional. While a save was a commit, git was
+    a safety net - a clobber sat in the object store and was recoverable.
+    Writing straight to disk removes that net, so the baseMtime comparison in
+    do_POST is the ONLY thing between a stale editor tab and someone else's
+    work. The failure it prevents is silent, which is why it is the server's job.
+
+  * The audit trail had to be rebuilt. Every write used to carry an author
+    because every write was a commit; see audit().
 """
 
 from __future__ import annotations
@@ -122,6 +134,42 @@ BYTE_HEADERS = {
     # a client asking.
     "Accept-Ranges": "none",
 }
+
+
+# Where the write log lands. A mounted path so it survives a container rebuild;
+# stderr as well, so it shows up in `docker logs` without a second lookup.
+AUDIT_PATH = os.environ.get("AUDIT_LOG", "/audit/writes.log")
+_AUDIT_LOCK = threading.Lock()
+
+
+def audit(who: str, action: str, res, size: int | None = None,
+          extra: str = "") -> None:
+    """Append-only record of every change this service makes.
+
+    This exists because decoupling save from commit removed the audit trail
+    without anyone asking for that. Every write USED to be a git commit with an
+    author, so "who changed this file" was always answerable. Once save writes
+    straight to disk, a file changes and nothing records who or when - and that
+    is a property worth keeping deliberately rather than losing as a side effect.
+
+    Append-only and boring on purpose: one line, `tail`-able, no rotation logic
+    to get wrong, no format anything else has to parse. A failure to LOG must
+    never fail the write - losing the record of a save is bad, refusing a
+    legitimate save because the log is full is worse - so this swallows its own
+    errors and reports them to stderr.
+    """
+    line = (f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{who}\t"
+            f"{action}\t{res.root_key}/{res.relpath}"
+            f"{f'   {size} bytes' if size is not None else ''}"
+            f"{f'   {extra}' if extra else ''}")
+    sys.stderr.write(line + "\n")
+    try:
+        with _AUDIT_LOCK:
+            os.makedirs(os.path.dirname(AUDIT_PATH), exist_ok=True)
+            with open(AUDIT_PATH, "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+    except OSError as e:
+        sys.stderr.write(f"AUDIT LOG UNWRITABLE ({e}) - the write itself was fine\n")
 
 
 def git(root: str, *args: str) -> subprocess.CompletedProcess:
@@ -525,6 +573,39 @@ class Handler(BaseHTTPRequestHandler):
             who = (self.headers.get("X-Auth-Request-Email")
                    or self.headers.get("X-Auth-Request-User") or "unknown")
 
+            # ── THE CONFLICT CHECK ───────────────────────────────────────────
+            #
+            # This is load-bearing now in a way it was not before. While a save
+            # WAS a commit, git was the safety net: a clobber sat in the object
+            # store and could be recovered. Writing straight to disk removes that
+            # net entirely, so this check is the only thing standing between a
+            # stale editor tab and somebody else's work.
+            #
+            # The failure it prevents is silent, which is why it must be the
+            # server's job and not the client's: you open a file, leave the tab,
+            # a `git pull` or another editor rewrites it, and your tab still
+            # holds the old content looking perfectly current. Saving would
+            # revert the newer version with nothing anywhere saying "conflict".
+            #
+            # baseMtime is OPTIONAL, and that is deliberate - a client that does
+            # not send it (curl, a script) is not blocked. But a client that DOES
+            # send it gets the guarantee, and the UI always sends it.
+            base_mtime = body.get("baseMtime")
+            existed = os.path.exists(res.abspath)
+            if base_mtime is not None and existed:
+                current = int(os.stat(res.abspath).st_mtime)
+                if int(base_mtime) != current:
+                    with open(res.abspath, encoding="utf-8", errors="replace") as fh:
+                        theirs = fh.read()
+                    return self._send(409, {
+                        "error": "the file changed on disk since you opened it",
+                        "path": res.relpath,
+                        "baseMtime": int(base_mtime), "currentMtime": current,
+                        # BOTH versions, so the UI can offer keep/take/compare
+                        # rather than making the user guess what they would lose.
+                        "yours": content, "theirs": theirs,
+                    })
+
             os.makedirs(os.path.dirname(res.abspath), exist_ok=True)
             # Write to a temp file in the same directory, then rename. rename is
             # atomic within a filesystem, so a crash mid-write leaves the old file
@@ -533,41 +614,26 @@ class Handler(BaseHTTPRequestHandler):
             with open(tmp, "w", encoding="utf-8") as fh:
                 fh.write(content)
             os.replace(tmp, res.abspath)
+            mtime = int(os.stat(res.abspath).st_mtime)
 
-            msg = (body.get("message") or "").strip() or f"docs: edit {res.relpath}"
-            if not res.git_root:
-                # Written, but not versioned. Reported as such rather than
-                # silently succeeding - "saved" and "saved with history" are
-                # different promises and the UI needs to be able to tell them
-                # apart.
-                sys.stderr.write(f"WRITE {res.root_key}/{res.relpath} by={who} "
-                                 f"UNVERSIONED (no git repo)\n")
-                return self._send(200, {
-                    "ok": True, "path": res.relpath, "committed": False,
-                    "unversioned": True, "sha": None, "author": who,
-                    "message": msg, "history": []})
-            git(res.git_root, "add", "--", res.git_relpath)
-            commit = git(
-                res.git_root,
-                "-c", f"user.name={who}",
-                "-c", f"user.email={who if '@' in who else who + '@devbox.local'}",
-                "commit", "-m", msg, "--only", "--", res.git_relpath,
-            )
-            # "nothing to commit" is a success: the content matched what was
-            # already there. Reporting it as an error would make saving an
-            # unchanged file look like a failure.
-            committed = commit.returncode == 0
-            nothing = "nothing to commit" in (commit.stdout + commit.stderr)
-
-            sha = git(res.git_root, "rev-parse", "--short", "HEAD").stdout.strip()
-            sys.stderr.write(
-                f"WRITE {res.root_key}/{res.relpath} by={who} "
-                f"committed={committed} sha={sha}\n"
-            )
+            # ── NO COMMIT ────────────────────────────────────────────────────
+            #
+            # Save used to mean commit. That was right for a docs editor and
+            # wrong for a file explorer over the whole box, where most saves are
+            # work in progress that should not each become a commit. Committing
+            # is now a deliberate act in the git area.
+            #
+            # The cost is the audit trail: every write USED to be attributable,
+            # because every write was a commit with an author. audit() replaces
+            # that - see its docstring.
+            audit(who, "WROTE", res, len(content.encode()))
             return self._send(200, {
-                "ok": True, "path": res.relpath, "committed": committed,
-                "unchanged": nothing and not committed, "sha": sha,
-                "author": who, "message": msg,
+                "ok": True, "path": res.relpath, "mtime": mtime,
+                "created": not existed, "author": who,
+                "bytes": len(content.encode()),
+                # Still reported so the UI can show whether this file is even
+                # versioned, and offer the git area when it is.
+                "versioned": res.git_root is not None,
                 "history": history(res),
             })
         except safepath.PathRefused as e:

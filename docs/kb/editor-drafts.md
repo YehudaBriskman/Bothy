@@ -31,6 +31,21 @@ Press Save and you have reverted three days of someone else's work, with a commi
 in your name and no indication anything was lost. Nothing in the UI ever said the
 word "conflict".
 
+## Update, 2026-08-13: the server enforces this too
+
+When this was written, a save WAS a git commit, so git was a safety net - a
+clobber sat in the object store and was recoverable. Save now writes straight to
+disk, which removes that net entirely and promotes the mtime check from a client
+courtesy to **the only thing standing between a stale tab and lost work**.
+
+So `/write` takes the `baseMtime` the client read and refuses with `409` if the
+file moved underneath, returning BOTH versions. The client still keeps drafts as
+described below; the difference is that the server no longer trusts it to.
+
+`baseMtime` is optional on the API - a script or a curl has no mtime to send and
+is not blocked - but the UI always sends it, so the guarantee always applies
+where the risk actually lives.
+
 ## The decision
 
 **`localStorage`, keyed by `root + path`, storing the draft AND the `mtime` it
