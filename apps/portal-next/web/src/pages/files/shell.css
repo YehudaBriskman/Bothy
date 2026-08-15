@@ -291,7 +291,19 @@
 /* The shared tooltip is one nowrap line by design (components/Tooltip.tsx); the
    read-only explanation is a sentence, so it wraps here rather than becoming a
    600px ribbon. */
-.bothy-files .tip { white-space: normal; max-width: 260px; text-align: left; }
+/* A tooltip's containing block is the element it hangs from - and in these rails
+   that is a 24px icon button. `white-space: normal` alone therefore wrapped every
+   tip into a three-character-wide ribbon; the Push tooltip rendered nine lines
+   tall. `width: max-content` lets it size to its text first, and max-width then
+   caps it, which is the order that actually produces a readable bubble.
+   
+   This was fixed for two clusters and left broken everywhere else; it belongs on
+   the base rule, because every icon button in this page has the same 24px
+   containing block. */
+.bothy-files .tip {
+  width: max-content; max-width: 260px;
+  white-space: normal; text-align: left;
+}
 
 /* ── responsive ──────────────────────────────────────────────────────────────
    A four-region IDE needs width the way a spreadsheet does. Below 1080px the
