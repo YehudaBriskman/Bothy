@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""End-to-end test of the editor tier: log in, write, verify the commit.
+"""End-to-end test of the editor tier: log in, write, verify it hit DISK.
 
 Checks the things a status code cannot:
   - an anonymous write is refused AND leaves no file
   - an authenticated write actually lands on disk
-  - it produces a real git commit attributed to the logged-in user
+  - it lands on disk and does NOT commit (save and commit were decoupled;
+    committing is a deliberate act in the git area now)
+  - the write is recorded in the audit log, which replaced the commit as the
+    thing that says who changed what
   - the path guards still hold THROUGH the HTTP layer, not just in the unit test
   - a non-writable extension is refused even for an authenticated editor
 """
@@ -19,9 +22,10 @@ API = f"{BASE}/-/api/files"
 REPO = "/home/devssh/stacks"
 TESTFILE = "docs/kb/_editor-tier-e2e.md"   # cleaned up at the end
 
-# This test makes a real commit and undoes it with `git reset --hard`, which
-# would also throw away any UNCOMMITTED work in the tree. Refuse to run rather
-# than destroy someone's edits to prove a point about file safety.
+# This test writes a real file into a real repo and cleans up after itself. It no
+# longer creates a commit - save stopped doing that - but it still refuses to run
+# against a dirty tree, because its cleanup path uses `git reset --hard` as a
+# backstop and that would discard someone's uncommitted work.
 _dirty = subprocess.run(["git", "-C", REPO, "status", "--porcelain"],
                         capture_output=True, text=True).stdout
 _dirty = [l for l in _dirty.splitlines() if not l.startswith("??")]
@@ -85,26 +89,23 @@ if on_disk:
 
 after = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"],
                        capture_output=True, text=True).stdout.strip()
-check("a new commit was created", before != after, f"{before[:9]} -> {after[:9]}")
+# THE inversion. This assertion used to be "a new commit was created" and was
+# correct then; save WAS a commit. Decoupling them means a save must leave the
+# history alone - if HEAD moves here, saving is committing again and the whole
+# point of the change is gone.
+check("NO commit was created - save writes to disk only",
+      before == after, f"HEAD {before[:9]} unchanged")
+check("git sees the file as a pending change instead",
+      TESTFILE in subprocess.run(["git", "-C", REPO, "status", "--porcelain"],
+                                 capture_output=True, text=True).stdout)
+check("the response reports the new mtime, for the conflict check",
+      isinstance(data.get("mtime"), int), f"mtime={data.get('mtime')}")
 
-author = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%an"],
-                        capture_output=True, text=True).stdout.strip()
-check("commit is attributed to the logged-in user",
-      author == os.environ["DEV_LOGIN_USER"], f"author={author}")
-
-subject = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%s"],
-                         capture_output=True, text=True).stdout.strip()
-check("commit message is the one supplied",
-      subject == "test(portal-files): editor tier end-to-end probe", subject)
-
-check("response carries git history", len(data.get("history", [])) >= 1,
-      f"{len(data.get('history', []))} entries")
-
-# Only the intended file may be in that commit. `--only <path>` should guarantee
-# it, but this is the assertion that would catch it silently staging the tree.
-touched = subprocess.run(["git", "-C", REPO, "show", "--name-only", "--format=", "HEAD"],
-                         capture_output=True, text=True).stdout.split()
-check("the commit touched exactly one file", touched == [TESTFILE], str(touched))
+# The audit log is what replaced the commit as the record of who changed what.
+alog = subprocess.run(["docker", "exec", "portal-files", "cat", "/audit/writes.log"],
+                      capture_output=True, text=True).stdout
+check("the write is in the audit log, with an author",
+      TESTFILE in alog and os.environ["DEV_LOGIN_USER"] in alog)
 
 print("\n── guards still hold through HTTP, for an AUTHENTICATED editor ──────")
 for label, payload, want in [
@@ -132,12 +133,16 @@ check("no stray files were created",
       and not os.path.exists(f"{REPO}/docs/kb/compose.yml"))
 
 print("\n── cleanup ─────────────────────────────────────────────────────────")
+# The file is untracked now (no commit), so reset --hard does not remove it.
+# Delete it, then reset as a backstop for anything else this touched.
+if os.path.exists(f"{REPO}/{TESTFILE}"):
+    os.remove(f"{REPO}/{TESTFILE}")
 subprocess.run(["git", "-C", REPO, "reset", "--hard", before],
                capture_output=True, text=True)
 gone = not os.path.exists(f"{REPO}/{TESTFILE}")
 head = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"],
                       capture_output=True, text=True).stdout.strip()
-check("test commit reverted", head == before and gone, f"HEAD={head[:9]}")
+check("probe file removed, history untouched", head == before and gone, f"HEAD={head[:9]}")
 
 print(f"\n{fails} FAILED" if fails else "\nall pass")
 sys.exit(1 if fails else 0)

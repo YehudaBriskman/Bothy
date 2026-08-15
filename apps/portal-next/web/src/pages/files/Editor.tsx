@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import {
   fmtBytes, rawUrl, signInUrl, type FileRead,
+  type WriteConflict,
 } from '../../lib/files';
 import { EmptyState, ErrState, Skeleton } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
@@ -272,6 +273,7 @@ export function Editor({
   root, path, file, kind, lang, loading, err, auth, onRetryOpen,
   view, setView, editing, draft, setDraft, dirty, saving, editable,
   onEdit, onCancel, onSave, notice, dismissNotice, pending, resolvePending,
+  conflict, onResolveConflict,
   onDownload, canDownload, onFallback, editorRef,
 }: {
   root: string;
@@ -295,6 +297,8 @@ export function Editor({
   onCancel: () => void;
   onSave: () => void;
   notice: Notice | null;
+  conflict: WriteConflict | null;
+  onResolveConflict: (choice: 'mine' | 'theirs' | 'dismiss') => void;
   dismissNotice: () => void;
   pending: boolean;
   resolvePending: (discard: boolean) => void;
@@ -468,6 +472,35 @@ export function Editor({
             <button type="button" className="btn ghost sm" onClick={() => resolvePending(false)}>Keep editing</button>
             <button type="button" className="btn sm" onClick={() => resolvePending(true)}>Discard and open</button>
           </span>
+        </div>
+      )}
+
+      {conflict && (
+        // The stale-save case. Deliberately NOT auto-resolved and deliberately
+        // not dismissible by accident: the whole reason the server refuses this
+        // write is that picking a winner silently is how work disappears. Both
+        // versions are in hand, so the choice is offered explicitly.
+        <div className="fx-conflict" role="alert">
+          <div className="fx-conflict-h">
+            <AlertTriangle size={15} aria-hidden="true" />
+            <strong>This file changed on disk since you opened it.</strong>
+            <span className="dim">Nothing was overwritten.</span>
+          </div>
+          <p className="fx-conflict-p">
+            Yours is {conflict.yours.length} characters; the version on disk is{' '}
+            {conflict.theirs.length}.
+          </p>
+          <div className="fx-conflict-actions">
+            <button type="button" className="btn sm primary" onClick={() => onResolveConflict('mine')}>
+              Keep mine, overwrite disk
+            </button>
+            <button type="button" className="btn sm" onClick={() => onResolveConflict('theirs')}>
+              Take the disk version, discard mine
+            </button>
+            <button type="button" className="btn sm ghost" onClick={() => onResolveConflict('dismiss')}>
+              Leave it for now
+            </button>
+          </div>
         </div>
       )}
 

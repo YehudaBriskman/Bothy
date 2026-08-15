@@ -450,3 +450,18 @@
 }
 .bothy-files .md .md-tbl td { padding: 6px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .bothy-files .md .md-tbl tr:last-child td { border-bottom: 0; }
+
+/* The stale-save conflict. Styled as a decision to make, not an error that
+   happened: nothing was lost, and the point is that the user chooses. It sits
+   above the notice region because it outranks anything else on screen. */
+.bothy-files .fx-conflict {
+  margin: 8px 10px 0; padding: 10px 12px;
+  border: 1px solid var(--st-warn-line); border-radius: var(--r-sm);
+  background: var(--st-warn-bg);
+}
+.bothy-files .fx-conflict-h {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--st-warn-fg);
+}
+.bothy-files .fx-conflict-p { margin: 6px 0 9px; font-size: 12px; color: var(--fg-muted); }
+.bothy-files .fx-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
