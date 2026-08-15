@@ -15,6 +15,14 @@ ts=$(date +%Y%m%d-%H%M%S)
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 [ -f "$root/.env" ] && { set -a; . "$root/.env"; set +a; }
 
+# EVERY artifact here is a credential store, so none of them may be world- or
+# group-readable. The postgres dump is the sharp one: pg_dumpall includes the
+# keycloak database, so it carries the identity provider's user table - password
+# hashes for every account on the box - and it was being written 0644 by the
+# default umask. The .env copies were already 600; the dumps were not, which is
+# the wrong way round from how they were being thought about.
+umask 077
+
 fails=0
 log()  { printf '[backup %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 fail() { printf '[backup %s] FAIL: %s\n' "$(date +%H:%M:%S)" "$*" >&2; fails=$((fails + 1)); }
@@ -34,6 +42,9 @@ keep_if_real() {  # <file> <min-bytes> <label>
 }
 
 mkdir -p "$BK"/{postgres,grafana,portainer,env}
+# The directories too, and on every run: `mkdir -p` leaves an existing directory
+# alone, so the umask above would never reach ones already created 0755.
+chmod 700 "$BK" "$BK"/{postgres,grafana,portainer,env} 2>/dev/null
 
 # The timer is Persistent=true, so a schedule missed while the box was off
 # fires at the next boot - exactly when postgres is still initialising. Without
