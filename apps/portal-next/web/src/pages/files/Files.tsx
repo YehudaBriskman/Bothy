@@ -17,23 +17,53 @@
 // and ~/projects, which hold real secrets, so `viewer` is required to read and
 // `editor` to save. A 401 from any call is therefore an INVITATION, not an
 // error, and it is handled in exactly one shape (SignInCard) wherever it lands.
+//
+// ── THE DOCUMENT MODEL ───────────────────────────────────────────────────────
+//
+// This page used to hold exactly ONE open file: one `file`, one `draft`, one
+// `editing`, driven straight off `?root=`/`?path=`, with the unsaved-changes
+// guard sitting on the single navigation that changed them. Everything
+// downstream assumed one document.
+//
+// It now holds a WORKSPACE: an ordered list of documents, one or two groups
+// that each own a slice of that list, and a focused group. The whole of it is
+// ONE piece of state on purpose - every transition (open, focus, close, move,
+// split, collapse) touches the list, the groups and the focus together, and
+// three separate `useState`s would mean three updaters that can be interleaved
+// or double-invoked into a workspace that never existed. `next(fn)` below is
+// the only way in, and every helper it takes is a pure function of the previous
+// workspace.
+//
+// Three consequences worth stating, because each replaces a rule that used to
+// be written the other way round:
+//
+//   · THE DIRTY GUARD MOVED FROM SWITCH TO CLOSE. Switching away from a
+//     document with unsaved changes is now free - that is what tabs are for.
+//     Closing one is the only action that can still throw work away, so it is
+//     the only one that asks.
+//   · THE URL CARRIES THE ACTIVE DOCUMENT, unchanged in shape: `?root=&path=`.
+//     Existing links, the explorer's reveal and the browser's Back all keep
+//     working. The EXPLORER's root is separate state (`browseRoot`), because
+//     browsing another root no longer closes what you have open.
+//   · EVERY DOCUMENT STAYS MOUNTED (see Editor.tsx). That is what lets undo
+//     history survive a tab switch, which the old `key={docKey}` destroyed.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PanelBottom, PanelLeft, PanelRight } from 'lucide-react';
 import {
   ARCHIVE_MAX_ENTRIES, ARCHIVE_MAX_MEMBER, ARCHIVE_MAX_TOTAL,
   archiveUrl, fileHistory, fmtBytes, gitAction, gitDiff, gitStatus, isAuthError, langFor,
   listRepos, listRoots, listTree, logCall,
-  looksBinary, onApiCall, openDownload, rawUrl, readFile, writeFile,
-  type ApiCall, type Commit, type DiffResult, type FileRead, type FileRoot, type GitOutcome,
-  type RepoInfo, type StatusResult, type TreeFile, type WriteConflict,
+  onApiCall, openDownload, rawUrl, readFile, writeFile,
+  type ApiCall, type Commit, type DiffResult, type FileRoot, type GitOutcome,
+  type RepoInfo, type StatusResult, type TreeFile,
 } from '../../lib/files';
 import { ErrState } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
 import { ActivityBar, type RailView } from './ActivityBar';
 import { Explorer, MAX_RESULTS, type Results } from './Explorer';
-import { Editor, type Notice, type View } from './Editor';
+import { Editor, isDirty, type Doc, type Group, type View } from './Editor';
 import type { CodeHandle } from './CodeSurface';
 import type { DiffTarget } from './Diff';
 import { Inspector } from './Inspector';
@@ -44,7 +74,7 @@ import { SignInCard } from './SignInCard';
 import { SourceControl, type DiscardAsk, type ScmNotice } from './SourceControl';
 import { decorate, groupChanges, NO_DECORATIONS, type Change } from './gitdeco';
 import { usePanes } from './panes';
-import { ancestorsOf, baseName, buildTree, defaultMessage, kindOf, type Node } from './tree';
+import { ancestorsOf, baseName, buildTree, defaultMessage, type Node } from './tree';
 
 import './shell.css';
 import './explorer.css';
@@ -58,6 +88,7 @@ const MAX_CALLS = 200;
 // A stable identity for "no deletions", so the common case does not hand
 // buildTree a new Set on every status refresh and rebuild the whole tree.
 const NO_TOMBS: Set<string> = new Set();
+const NO_PATHS: Set<string> = new Set();
 
 // The diff target is a DEPENDENCY of the fetch effect below, so its identity is
 // the request. A fresh object for a target that has not changed is a second
@@ -67,12 +98,99 @@ const sameDiff = (a: DiffTarget | null, b: DiffTarget | null) =>
   a === b || (!!a && !!b && a.root === b.root && a.path === b.path
     && a.staged === b.staged && a.untracked === b.untracked);
 
+// ── the workspace, and the pure transitions on it ────────────────────────────
+
+interface Workspace {
+  docs: Doc[];
+  /** One or two. Three is a tiling window manager, not an editor, and none of
+   *  them is readable at this page's width. */
+  groups: Group[];
+  focus: number;
+  /** The id counter. Ids are NOT root+path: two tabs on one file are legal, and
+   *  the draft they share is keyed by root+path (docs/kb/editor-drafts.md)
+   *  precisely because one FILE has one draft however many tabs point at it. */
+  seq: number;
+}
+
+const EMPTY_WS: Workspace = { docs: [], groups: [{ tabs: [], active: null }], focus: 0, seq: 1 };
+
+function newDoc(id: string, root: string, path: string): Doc {
+  return {
+    id, root, path, state: 'new', file: null, err: null,
+    editing: false, draft: '', view: 'preview', message: '',
+    notice: null, conflict: null, saving: false,
+  };
+}
+
+/** Drop a tab from a group and pick its successor. The tab that takes its place
+ *  is the one to its RIGHT, falling back to its left - the same choice every
+ *  editor makes, and the one that keeps a rapid close-close-close sequence
+ *  moving in a single direction. */
+function withoutTab(g: Group, id: string): Group {
+  if (!g.tabs.includes(id)) return g;
+  const at = g.tabs.indexOf(id);
+  const tabs = g.tabs.filter((t) => t !== id);
+  return { tabs, active: g.active === id ? (tabs[at] ?? tabs[at - 1] ?? null) : g.active };
+}
+
+/** A group that has lost its last tab stops existing, and the split collapses
+ *  back to one column. An empty group holding a divider is a piece of furniture
+ *  with nothing behind it. The SOLE group is allowed to be empty - that is the
+ *  page at rest, and it renders the empty state. */
+function collapseEmpty(w: Workspace): Workspace {
+  if (w.groups.length < 2) return w;
+  const empty = w.groups.findIndex((g) => g.tabs.length === 0);
+  if (empty < 0) return w;
+  return { ...w, groups: w.groups.filter((_, i) => i !== empty), focus: 0 };
+}
+
+function removeDoc(w: Workspace, id: string): Workspace {
+  return collapseEmpty({
+    ...w,
+    docs: w.docs.filter((d) => d.id !== id),
+    groups: w.groups.map((g) => withoutTab(g, id)),
+  });
+}
+
+function moveDoc(w: Workspace, id: string, to: number): Workspace {
+  const from = w.groups.findIndex((g) => g.tabs.includes(id));
+  if (from < 0 || from === to || to < 0 || to >= w.groups.length) return w;
+  return collapseEmpty({
+    ...w,
+    groups: w.groups.map((g, i) => {
+      if (i === from) return withoutTab(g, id);
+      if (i === to) return { tabs: [...g.tabs, id], active: id };
+      return g;
+    }),
+    focus: to,
+  });
+}
+
+/** Make the split, with this document in the new group. Refused when the source
+ *  group holds only this one tab: it would empty, collapseEmpty would merge it
+ *  straight back, and the gesture would be an animation with no result. */
+function splitOff(w: Workspace, id: string): Workspace {
+  if (w.groups.length > 1) {
+    const to = w.groups.findIndex((g) => !g.tabs.includes(id));
+    return to < 0 ? w : moveDoc(w, id, to);
+  }
+  const from = w.groups.findIndex((g) => g.tabs.includes(id));
+  if (from < 0 || w.groups[from].tabs.length < 2) return w;
+  return { ...w, groups: [withoutTab(w.groups[from], id), { tabs: [id], active: id }], focus: 1 };
+}
+
 export function Files() {
   const [params, setParams] = useSearchParams();
-  const root = params.get('root') || '';
-  const path = params.get('path') || '';
+  const urlRoot = params.get('root') || '';
+  const urlPath = params.get('path') || '';
 
   const { panes, setSize, nudge, reset, toggle } = usePanes();
+
+  // The EXPLORER's root. Separate from the active document's root now that
+  // browsing elsewhere no longer closes what is open - and seeded from the URL,
+  // so a `?root=` link still lands where it says.
+  const [browseRoot, setBrowseRoot] = useState(urlRoot);
+  const root = browseRoot;
 
   const [roots, setRoots] = useState<FileRoot[]>([]);
   const [entries, setEntries] = useState<TreeFile[]>([]);
@@ -86,49 +204,33 @@ export function Files() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
 
-  const [file, setFile] = useState<FileRead | null>(null);
-  const [fileLoading, setFileLoading] = useState(false);
-  const [fileErr, setFileErr] = useState<string | null>(null);
-  const [fileAuth, setFileAuth] = useState(false);
+  const [ws, setWs] = useState<Workspace>(EMPTY_WS);
+  // The latest workspace, for the handlers that must read it without being
+  // rebuilt whenever it changes - the window key listener above all, which would
+  // otherwise re-subscribe on every keystroke typed into a document.
+  const wsRef = useRef(ws);
+  useEffect(() => { wsRef.current = ws; });
 
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [message, setMessage] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const groups = ws.groups;
+  const activeId = groups[ws.focus]?.active ?? null;
+  const active = useMemo(() => ws.docs.find((d) => d.id === activeId) ?? null, [ws.docs, activeId]);
+  const activePath = active && active.root === root ? active.path : '';
+
   const [newSha, setNewSha] = useState<string | null>(null);
-  const [view, setView] = useState<View>('preview');
-  // Set when a file or root is picked while there are unsaved edits: the switch
-  // waits for an answer instead of silently throwing the work away.
-  const [pending, setPending] = useState<{ root: string; path: string } | null>(null);
-  // Set when the server refuses a stale save. Holds BOTH versions so the user
-  // can choose; never auto-resolved, because picking for them is exactly the
-  // silent data loss this whole mechanism exists to prevent.
-  const [conflict, setConflict] = useState<WriteConflict | null>(null);
+  // The document whose CLOSE is waiting on an answer. Holds an id rather than a
+  // navigation now: switching is free, and closing is the only thing left that
+  // can discard work.
+  const [pending, setPending] = useState<string | null>(null);
+  // Which group is showing the diff overlay. Fixed when it opens, so a diff does
+  // not hop across the split the moment focus moves.
+  const [diffGroup, setDiffGroup] = useState(0);
+  const [dragId, setDragId] = useState<string | null>(null);
 
-  // Resolving a conflict is the user's decision, so each branch does exactly
-  // what it says and nothing more.
-  const resolveConflict = (choice: 'mine' | 'theirs' | 'dismiss') => {
-    const c = conflict;
-    setConflict(null);
-    if (!c || !file) return;
-    if (choice === 'theirs') {
-      // Take the disk version. Their bytes AND their mtime, so the next save
-      // is based on what is actually there.
-      setFile({ ...file, content: c.theirs, mtime: c.currentMtime });
-      setDraft(c.theirs);
-      setNotice({ tone: 'info', text: 'Loaded the version from disk. Your edits were discarded.' });
-      return;
-    }
-    if (choice === 'mine') {
-      // Re-save against the CURRENT mtime, which is a deliberate overwrite
-      // rather than an accidental one - the user has been shown both sizes.
-      setFile({ ...file, mtime: c.currentMtime });
-      setNotice({ tone: 'info', text: 'Press Save again to overwrite the version on disk.' });
-      return;
-    }
-    setNotice(null);
-  };
+  const next = useCallback((fn: (w: Workspace) => Workspace) => setWs(fn), []);
+
+  const patchDoc = useCallback((id: string, fn: (d: Doc) => Doc) => {
+    setWs((w) => ({ ...w, docs: w.docs.map((d) => (d.id === id ? fn(d) : d)) }));
+  }, []);
 
   // ── the git area ───────────────────────────────────────────────────────────
   //
@@ -151,10 +253,6 @@ export function Files() {
   const [ask, setAsk] = useState<DiscardAsk | null>(null);
   const [busyPath, setBusyPath] = useState<string | null>(null);
   const [busyRepo, setBusyRepo] = useState(false);
-  // Re-read the OPEN FILE after git changed it underneath us. Guarded at the
-  // call site: it must never fire while an edit is in progress, because the
-  // read effect resets the draft.
-  const [fileTick, setFileTick] = useState(0);
 
   const [diff, setDiff] = useState<DiffTarget | null>(null);
   const [diffRes, setDiffRes] = useState<DiffResult | null>(null);
@@ -169,15 +267,33 @@ export function Files() {
   const [tab, setTab] = useState<PanelTab>('problems');
   const [repoLog, setRepoLog] = useState<Commit[] | null>(null);
 
-  // An imperative handle rather than a DOM node: the text surface is a
-  // CodeMirror instance whose editable element is a contenteditable div the
-  // page never touches directly, and the plain textarea fallback publishes the
-  // same two methods so this side does not care which one is mounted.
-  const editorRef = useRef<CodeHandle | null>(null);
+  // An imperative handle PER DOCUMENT rather than one for the page. The text
+  // surface is a CodeMirror instance whose editable element is a contenteditable
+  // div the page never touches directly, and every open document now has one
+  // mounted at the same time - so a single shared ref would be owned by
+  // whichever surface mounted last, and Find would search the wrong file.
+  const handles = useRef(new Map<string, React.RefObject<CodeHandle | null>>());
+  const handleFor = useCallback((id: string) => {
+    let h = handles.current.get(id);
+    if (!h) { h = { current: null }; handles.current.set(id, h); }
+    return h;
+  }, []);
   const filterRef = useRef<HTMLInputElement | null>(null);
   const treeRef = useRef<HTMLDivElement | null>(null);
 
-  const dirty = editing && !!file && draft !== file.content;
+  // Every in-flight read, so closing a tab stops its fetch rather than letting
+  // it land on a document that no longer exists.
+  const aborts = useRef(new Map<string, AbortController>());
+  useEffect(() => () => { for (const ac of aborts.current.values()) ac.abort(); }, []);
+
+  const dirtyDocs = useMemo(() => ws.docs.filter(isDirty), [ws.docs]);
+  // The paths with unsaved editor state IN THE BROWSED ROOT, which is the only
+  // root Source Control and discard are ever about.
+  const dirtyHere = useMemo(() => {
+    const out = new Set<string>();
+    for (const d of dirtyDocs) if (d.root === root) out.add(d.path);
+    return out.size ? out : NO_PATHS;
+  }, [dirtyDocs, root]);
 
   // ── the call log ───────────────────────────────────────────────────────────
   // Subscribed once, for the life of the page. Newest first, capped - an
@@ -201,10 +317,11 @@ export function Files() {
         // widen again, and people bookmark these URLs): fall back to the first
         // one rather than letting a stale link render a 400 as if the service
         // were broken. `replace`, so Back does not bounce off the dead URL.
-        if (!root || !r.roots.some((x) => x.key === root)) {
-          const next = new URLSearchParams();
-          next.set('root', r.roots[0].key);
-          setParams(next, { replace: true });
+        if (!urlRoot || !r.roots.some((x) => x.key === urlRoot)) {
+          const nextParams = new URLSearchParams();
+          nextParams.set('root', r.roots[0].key);
+          setParams(nextParams, { replace: true });
+          setBrowseRoot(r.roots[0].key);
         }
       })
       .catch((e: unknown) => {
@@ -214,8 +331,8 @@ export function Files() {
         setTreeLoading(false);
       });
     return () => ac.abort();
-    // `root` is read but deliberately not a dependency: this runs once, and the
-    // default-root write below is a one-shot that would otherwise re-fire.
+    // `urlRoot` is read but deliberately not a dependency: this runs once, and
+    // the default-root write above is a one-shot that would otherwise re-fire.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadTick]);
 
@@ -293,13 +410,13 @@ export function Files() {
   const repo = useMemo(() => {
     if (!repos) return null;
     if (pickedRepo) return repos.find((r) => r.path === pickedRepo) ?? null;
-    return (path ? repoForPath(repos, path) : null) ?? repos[0] ?? null;
-  }, [repos, pickedRepo, path, repoForPath]);
+    return (activePath ? repoForPath(repos, activePath) : null) ?? repos[0] ?? null;
+  }, [repos, pickedRepo, activePath, repoForPath]);
 
   // What every git call is scoped to. A path inside the repo is enough - the
   // service derives the repository from it, which is why no client ever names a
   // directory as a repo.
-  const scope = repo ? repo.path : (path || '');
+  const scope = repo ? repo.path : (activePath || '');
 
   useEffect(() => {
     if (!root) return;
@@ -335,47 +452,140 @@ export function Files() {
     return () => ac.abort();
   }, [diff, statusTick]);
 
-  // The open file. Every mode/draft/notice reset lives here, keyed on the URL,
-  // so there is exactly one place that decides what "a different file" means.
+  // ── reading documents ──────────────────────────────────────────────────────
+  //
+  // ONE effect for the whole list rather than one per document, because a
+  // document is a row in an array and hooks cannot be. Anything marked 'new' has
+  // never been read (or has been marked for a re-read after git moved it on
+  // disk); this picks those up, flips them to 'loading' so they are picked up
+  // exactly once, and fills them in as they land.
   useEffect(() => {
-    setEditing(false);
-    setNotice(null);
-    setNewSha(null);
-    setView('preview');
-    setFileAuth(false);
-    if (!root || !path) { setFile(null); setFileErr(null); return; }
-    const ac = new AbortController();
-    setFileLoading(true);
-    readFile(root, path, ac.signal)
-      .then((f) => {
-        setFile(f);
-        setFileErr(null);
-        setDraft(f.content ?? '');
-        setMessage(defaultMessage(f.path, langFor(f.path, f.lang)));
-      })
-      .catch((e: unknown) => {
-        if (ac.signal.aborted) return;
-        setFile(null);
-        if (isAuthError(e)) { setFileAuth(true); setFileErr(null); return; }
-        setFileErr(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => { if (!ac.signal.aborted) setFileLoading(false); });
-    return () => ac.abort();
-    // `fileTick` re-reads the same file after git changed it on disk. It is
-    // only ever bumped while nothing is being edited - see afterGit - because
-    // everything above resets the draft.
-  }, [root, path, fileTick]);
+    const fresh = ws.docs.filter((d) => d.state === 'new');
+    if (!fresh.length) return;
+    setWs((w) => ({ ...w, docs: w.docs.map((d) => (d.state === 'new' ? { ...d, state: 'loading' } : d)) }));
+    for (const d of fresh) {
+      aborts.current.get(d.id)?.abort();
+      const ac = new AbortController();
+      aborts.current.set(d.id, ac);
+      readFile(d.root, d.path, ac.signal)
+        .then((f) => {
+          if (ac.signal.aborted) return;
+          // Every mode/draft/notice reset for a document lives here, so there is
+          // exactly one place that decides what "this document was (re)read"
+          // means. It is only ever reached for a document that is NOT being
+          // edited - see rereadAll.
+          patchDoc(d.id, (cur) => ({
+            ...cur,
+            state: 'ready', file: f, err: null,
+            editing: false, draft: f.content ?? '', view: 'preview',
+            notice: null, conflict: null,
+            message: defaultMessage(f.path, langFor(f.path, f.lang)),
+          }));
+        })
+        .catch((e: unknown) => {
+          if (ac.signal.aborted) return;
+          patchDoc(d.id, (cur) => (isAuthError(e)
+            ? { ...cur, state: 'auth', file: null, err: null }
+            : { ...cur, state: 'error', file: null, err: e instanceof Error ? e.message : String(e) }));
+        });
+    }
+  }, [ws.docs, patchDoc]);
+
+  // Re-read every document git may have changed underneath us. Documents being
+  // EDITED are skipped, because the read above resets the draft and a git
+  // operation that also threw away an unsaved edit would be the exact failure
+  // this page exists to prevent.
+  const rereadAll = useCallback(() => {
+    setWs((w) => ({
+      ...w,
+      docs: w.docs.map((d) => (d.editing || d.state === 'loading' ? d : { ...d, state: 'new' })),
+    }));
+  }, []);
+
+  // ── open or focus ──────────────────────────────────────────────────────────
+  //
+  // What `pick()` became. A file that is already open is FOCUSED wherever it
+  // lives - including in the other group - rather than opened a second time.
+  const openOrFocus = useCallback((r: string, p: string) => {
+    if (!r || !p) return;
+    next((w) => {
+      const found = w.docs.find((d) => d.root === r && d.path === p);
+      if (found) {
+        const gi = w.groups.findIndex((g) => g.tabs.includes(found.id));
+        if (gi < 0) return w;
+        if (w.focus === gi && w.groups[gi].active === found.id) return w;
+        return { ...w, focus: gi, groups: w.groups.map((g, i) => (i === gi ? { ...g, active: found.id } : g)) };
+      }
+      const id = `d${w.seq}`;
+      const gi = w.focus;
+      return {
+        docs: [...w.docs, newDoc(id, r, p)],
+        groups: w.groups.map((g, i) => (i === gi ? { tabs: [...g.tabs, id], active: id } : g)),
+        focus: gi,
+        seq: w.seq + 1,
+      };
+    });
+  }, [next]);
+
+  const forget = useCallback((id: string) => {
+    aborts.current.get(id)?.abort();
+    aborts.current.delete(id);
+    handles.current.delete(id);
+  }, []);
+
+  // The guard, in the one place it still belongs. `force` is only ever passed by
+  // the banner's own Discard button.
+  const closeDoc = useCallback((id: string, force = false) => {
+    const d = wsRef.current.docs.find((x) => x.id === id);
+    if (!d) return;
+    if (!force && isDirty(d)) { setPending(id); return; }
+    setPending((p) => (p === id ? null : p));
+    forget(id);
+    next((w) => removeDoc(w, id));
+  }, [forget, next]);
+
+  const resolvePending = useCallback((discard: boolean) => {
+    const id = pending;
+    setPending(null);
+    if (discard && id) closeDoc(id, true);
+  }, [pending, closeDoc]);
+
+  // ── the URL ────────────────────────────────────────────────────────────────
+  //
+  // Read: a `?path=` opens or focuses that document, which is what makes an
+  // existing deep link, the explorer's reveal and the browser's Back button all
+  // keep working with no new scheme.
+  useEffect(() => {
+    if (!urlPath) {
+      if (urlRoot) setBrowseRoot((b) => (b === urlRoot ? b : urlRoot));
+      return;
+    }
+    openOrFocus(urlRoot, urlPath);
+  }, [urlRoot, urlPath, openOrFocus]);
+
+  // Written: the active document, or the browsed root when nothing is open. The
+  // comparison is what stops this and the effect above from pushing each other
+  // round in a circle - the write is skipped the moment the URL already says it.
+  useEffect(() => {
+    const r = active ? active.root : browseRoot;
+    const p = active ? active.path : '';
+    if (!r || (r === urlRoot && p === urlPath)) return;
+    const nextParams = new URLSearchParams();
+    nextParams.set('root', r);
+    if (p) nextParams.set('path', p);
+    setParams(nextParams);
+  }, [active, browseRoot, urlRoot, urlPath, setParams]);
 
   // A deep link into a nested file must arrive with its folders already open,
   // or the tree shows the reader a closed root and no sign of where they are.
   useEffect(() => {
-    if (!path) return;
+    if (!activePath) return;
     setExpanded((prev) => {
-      const next = new Set(prev);
-      for (const a of ancestorsOf(path)) next.add(a);
-      return next;
+      const nextSet = new Set(prev);
+      for (const a of ancestorsOf(activePath)) nextSet.add(a);
+      return nextSet;
     });
-  }, [path]);
+  }, [activePath]);
 
   // ── decorations ────────────────────────────────────────────────────────────
   //
@@ -424,42 +634,34 @@ export function Files() {
 
   const fileCount = useMemo(() => entries.filter((e) => e.dir !== true).length, [entries]);
 
-  const go = useCallback((nextRoot: string, nextPath: string) => {
-    const next = new URLSearchParams();
-    next.set('root', nextRoot);
-    if (nextPath) next.set('path', nextPath);
-    setParams(next);
-  }, [setParams]);
-
+  // Opening a file closes the diff. They share the centre column, and leaving a
+  // diff on top of a file the user just asked for is the one behaviour nobody
+  // expects. NO dirty guard: opening another file no longer disturbs this one.
   const pick = (p: string) => {
-    if (dirty) { setPending({ root, path: p }); return; }
-    // Opening a file closes the diff. They share the centre column, and leaving
-    // a diff on top of a file the user just asked for is the one behaviour
-    // nobody expects.
+    if (!p) return;
     setDiff(null);
-    go(root, p);
+    openOrFocus(root, p);
   };
+
+  // Picking a root moves the EXPLORER, and nothing else. It used to close the
+  // open file (and ask first, if it was dirty); with tabs there is no reason for
+  // browsing elsewhere to touch what you have open.
   const pickRoot = (r: string) => {
     if (r === root) return;
-    if (dirty) { setPending({ root: r, path: '' }); return; }
     setQ('');
     setExpanded(new Set());
     setDiff(null);
     setPickedRepo('');
     setScmNotice(null);
     setAsk(null);
-    go(r, '');
+    setBrowseRoot(r);
   };
-  const resolvePending = (discard: boolean) => {
-    const p = pending;
-    setPending(null);
-    if (discard && p) go(p.root, p.path);
-  };
+
   const toggleDir = (p: string) =>
     setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(p) ? next.delete(p) : next.add(p);
-      return next;
+      const nextSet = new Set(prev);
+      nextSet.has(p) ? nextSet.delete(p) : nextSet.add(p);
+      return nextSet;
     });
 
   const collapseAll = () => setExpanded(new Set());
@@ -469,25 +671,18 @@ export function Files() {
   // exist until the expansion has rendered - the lazy tree is what makes that
   // true and it is the price of the lazy tree being cheap.
   const reveal = useCallback(() => {
-    if (!path) return;
+    if (!activePath) return;
     setExpanded((prev) => {
-      const next = new Set(prev);
-      for (const a of ancestorsOf(path)) next.add(a);
-      return next;
+      const nextSet = new Set(prev);
+      for (const a of ancestorsOf(activePath)) nextSet.add(a);
+      return nextSet;
     });
     setQ('');
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      const row = treeRef.current?.querySelector(`[data-path="${CSS.escape(path)}"]`);
+      const row = treeRef.current?.querySelector(`[data-path="${CSS.escape(activePath)}"]`);
       row?.scrollIntoView({ block: 'center' });
     }));
-  }, [path]);
-
-  // `binary` is the backend's answer when it sends one; the local sniff is the
-  // fallback for a response that does not carry the field.
-  const binary = !!file && (file.binary === true || looksBinary(file.content ?? ''));
-  const kind = useMemo(() => kindOf(path || (file?.path ?? ''), binary), [path, file, binary]);
-  const editable = !!file && file.writable && kind === 'text';
-  const lang = file ? langFor(file.path, file.lang) : '';
+  }, [activePath]);
 
   // ── downloads ──────────────────────────────────────────────────────────────
   //
@@ -511,9 +706,9 @@ export function Files() {
   }, [canDownload]);
 
   const downloadFile = useCallback((asAttachment: boolean) => {
-    if (!file) return;
-    download(rawUrl(root, file.path, asAttachment), `${root}/${file.path}`);
-  }, [download, file, root]);
+    if (!active?.file) return;
+    download(rawUrl(active.root, active.file.path, asAttachment), `${active.root}/${active.file.path}`);
+  }, [download, active]);
 
   // The archive caps, enforced BEFORE a tab opens.
   //
@@ -557,9 +752,9 @@ export function Files() {
   const archiveNode = useCallback((n: Node) => archive(n.path, n.path || root, n.files, n.bytes, 'zip'), [archive, root]);
   const archiveRoot = useCallback(() => archive('', root, tree.files, tree.bytes, 'zip'), [archive, root, tree]);
   const archiveFile = useCallback((format: 'zip' | 'tgz') => {
-    if (!file) return;
-    archive(file.path, baseName(file.path), 1, file.size, format);
-  }, [archive, file]);
+    if (!active?.file) return;
+    archive(active.file.path, baseName(active.file.path), 1, active.file.size, format);
+  }, [archive, active]);
 
   // ── problems ───────────────────────────────────────────────────────────────
   //
@@ -576,20 +771,25 @@ export function Files() {
         where: root,
       });
     }
-    if (file?.sensitive) {
-      out.push({
-        id: `sensitive-${file.path}`, tone: 'warn', title: 'This file looks sensitive',
-        detail: `${file.sensitive} - the service flagged it and opened it anyway; it is an advisory, not a refusal.`,
-        where: `${root}/${file.path}`,
-      });
-    }
-    if (file && file.size > ARCHIVE_MAX_MEMBER) {
-      out.push({
-        id: `member-${file.path}`, tone: 'info', title: 'Too large for an archive',
-        detail: `${fmtBytes(file.size)} is over the ${fmtBytes(ARCHIVE_MAX_MEMBER)} per-file cap, so an archive `
-          + 'would list it in SKIPPED.txt rather than include it. Raw download still works.',
-        where: `${root}/${file.path}`,
-      });
+    // Every OPEN document, not only the active one: a warning about a file you
+    // have in a tab does not stop being true because you looked at another tab.
+    for (const d of ws.docs) {
+      if (!d.file) continue;
+      if (d.file.sensitive) {
+        out.push({
+          id: `sensitive-${d.root}/${d.file.path}`, tone: 'warn', title: 'This file looks sensitive',
+          detail: `${d.file.sensitive} - the service flagged it and opened it anyway; it is an advisory, not a refusal.`,
+          where: `${d.root}/${d.file.path}`,
+        });
+      }
+      if (d.file.size > ARCHIVE_MAX_MEMBER) {
+        out.push({
+          id: `member-${d.root}/${d.file.path}`, tone: 'info', title: 'Too large for an archive',
+          detail: `${fmtBytes(d.file.size)} is over the ${fmtBytes(ARCHIVE_MAX_MEMBER)} per-file cap, so an archive `
+            + 'would list it in SKIPPED.txt rather than include it. Raw download still works.',
+          where: `${d.root}/${d.file.path}`,
+        });
+      }
     }
     for (const c of calls) {
       if (c.ok || c.status === 401) continue;
@@ -602,39 +802,47 @@ export function Files() {
       });
     }
     return [...raised, ...out];
-  }, [truncated, file, calls, raised, root]);
+  }, [truncated, ws.docs, calls, raised, root]);
 
   // ── saving ─────────────────────────────────────────────────────────────────
-  const save = useCallback(async () => {
-    if (!file || saving) return;
-    setSaving(true);
-    setNotice(null);
-    // file.mtime is what this tab READ. Sending it is the whole conflict
+  //
+  // Per document, and reading the document out of `wsRef` rather than closing
+  // over it - so the window's Ctrl-S listener does not have to be torn down and
+  // rebuilt on every keystroke.
+  const save = useCallback(async (id: string) => {
+    const d = wsRef.current.docs.find((x) => x.id === id);
+    if (!d || !d.file || d.saving) return;
+    const f = d.file;
+    const draft = d.draft;
+    const lang = langFor(f.path, f.lang);
+    patchDoc(id, (c) => ({ ...c, saving: true, notice: null }));
+    // file.mtime is what this TAB read. Sending it is the whole conflict
     // guarantee - see docs/kb/editor-drafts.md.
-    const out = await writeFile(root, file.path, draft,
-                                message.trim() || defaultMessage(file.path, lang),
-                                file.mtime);
-    setSaving(false);
+    const out = await writeFile(d.root, f.path, draft,
+                                d.message.trim() || defaultMessage(f.path, lang),
+                                f.mtime);
+    patchDoc(id, (c) => ({ ...c, saving: false }));
     switch (out.kind) {
       case 'saved':
-        setEditing(false);
+        patchDoc(id, (c) => ({
+          ...c,
+          editing: false,
+          // Carry the SERVER's mtime forward, not a locally guessed one. It
+          // becomes the baseMtime of the next save from this tab, so it has to
+          // be the value the filesystem actually holds - an earlier version used
+          // `Date.now() / 1000` here, which would have disagreed with the server
+          // and made the very next save 409 against our own write.
+          file: c.file
+            ? { ...c.file, content: draft, mtime: out.res.mtime, size: out.res.bytes,
+                history: out.res.history ?? c.file.history }
+            : c.file,
+          draft,
+          notice: {
+            tone: 'ok',
+            text: `Saved ${out.res.bytes} bytes to disk${out.res.versioned ? ' - commit it in Source Control' : ''}`,
+          },
+        }));
         setNewSha(null);
-        // Carry the SERVER's mtime forward, not a locally guessed one. It
-        // becomes the baseMtime of the next save from this tab, so it has to be
-        // the value the filesystem actually holds - an earlier version used
-        // `Date.now() / 1000` here, which would have disagreed with the server
-        // and made the very next save 409 against our own write.
-        setFile({
-          ...file,
-          content: draft,
-          mtime: out.res.mtime,
-          size: out.res.bytes,
-          history: out.res.history ?? file.history,
-        });
-        setNotice({
-          tone: 'ok',
-          text: `Saved ${out.res.bytes} bytes to disk${out.res.versioned ? ' - commit it in Source Control' : ''}`,
-        });
         // The file just became (or stopped being) a change. Without this the
         // rail keeps showing the state from before the save, which is the one
         // moment a stale decoration is guaranteed to be wrong.
@@ -644,26 +852,56 @@ export function Files() {
         // NOT an error. The file moved underneath this tab, and the server
         // refused rather than overwriting - so the only honest thing to do is
         // hand the choice back rather than pick for them.
-        setConflict(out.conflict);
-        setNotice({
-          tone: 'bad',
-          text: 'This file changed on disk since you opened it. Nothing was overwritten.',
-        });
+        patchDoc(id, (c) => ({
+          ...c,
+          conflict: out.conflict,
+          notice: { tone: 'bad', text: 'This file changed on disk since you opened it. Nothing was overwritten.' },
+        }));
         break;
       case 'auth':
-        setNotice({ tone: 'auth' });
+        patchDoc(id, (c) => ({ ...c, notice: { tone: 'auth' } }));
         break;
       case 'refused':
       case 'too-large':
       case 'error':
-        setNotice({ tone: 'bad', text: out.message });
+        patchDoc(id, (c) => ({ ...c, notice: { tone: 'bad', text: out.message } }));
         raise({
           id: `save-${Date.now()}`, tone: 'bad', title: 'Save refused',
-          detail: out.message, where: `${root}/${file.path}`,
+          detail: out.message, where: `${d.root}/${f.path}`,
         });
         break;
     }
-  }, [file, root, draft, message, saving, lang, raise]);
+  }, [patchDoc, raise]);
+
+  // Resolving a conflict is the user's decision, so each branch does exactly
+  // what it says and nothing more.
+  const resolveConflict = (choice: 'mine' | 'theirs' | 'dismiss') => {
+    if (!active) return;
+    const c = active.conflict;
+    const id = active.id;
+    if (!c) { patchDoc(id, (d) => ({ ...d, conflict: null })); return; }
+    if (choice === 'theirs') {
+      // Take the disk version. Their bytes AND their mtime, so the next save
+      // is based on what is actually there.
+      patchDoc(id, (d) => ({
+        ...d, conflict: null, draft: c.theirs,
+        file: d.file ? { ...d.file, content: c.theirs, mtime: c.currentMtime } : d.file,
+        notice: { tone: 'info', text: 'Loaded the version from disk. Your edits were discarded.' },
+      }));
+      return;
+    }
+    if (choice === 'mine') {
+      // Re-save against the CURRENT mtime, which is a deliberate overwrite
+      // rather than an accidental one - the user has been shown both sizes.
+      patchDoc(id, (d) => ({
+        ...d, conflict: null,
+        file: d.file ? { ...d.file, mtime: c.currentMtime } : d.file,
+        notice: { tone: 'info', text: 'Press Save again to overwrite the version on disk.' },
+      }));
+      return;
+    }
+    patchDoc(id, (d) => ({ ...d, conflict: null, notice: null }));
+  };
 
   // ── git ────────────────────────────────────────────────────────────────────
   //
@@ -679,10 +917,9 @@ export function Files() {
         // without a second round trip.
         setStatus({ root: out.res.root, repo: out.res.repo, branch: out.res.branch, files: out.res.files });
         onOk(out.res);
-        // Re-read the open file only when nothing is being edited: the read
-        // effect resets the draft, and a discard that also threw away an
-        // unsaved edit would be the exact failure this page exists to prevent.
-        if (!editing) setFileTick((t) => t + 1);
+        // Re-read every open document git may have moved - except the ones being
+        // edited, which rereadAll skips.
+        rereadAll();
         // Any open diff is now about the previous state of the repo.
         setStatusTick((t) => t + 1);
         break;
@@ -721,7 +958,7 @@ export function Files() {
         setScmNotice({ tone: 'bad', text: out.message });
         break;
     }
-  }, [editing]);
+  }, [rereadAll]);
 
   const stage = useCallback(async (p: string) => {
     setScmNotice(null);
@@ -749,9 +986,11 @@ export function Files() {
   //
   // Three guards, in this order:
   //
-  //   1. refused outright while the editor holds unsaved changes for that file.
+  //   1. refused outright while ANY TAB holds unsaved changes for that file.
   //      Discarding then would destroy the disk copy while a DIFFERENT
-  //      uncommitted version sits in a tab - two losses from one click.
+  //      uncommitted version sits in a tab - two losses from one click. With
+  //      tabs that tab need not be the one on screen, which is exactly why the
+  //      test is over every open document rather than over the active one.
   //   2. a confirmation that quotes the server's own refusal. The sentence is
   //      obtained by ASKING: the first call carries `confirm: false`, which the
   //      service answers with 400 and its reason. That is deliberately not
@@ -762,11 +1001,11 @@ export function Files() {
   //      confirm, and this never offers one.
   const askDiscard = useCallback(async (p: string) => {
     setScmNotice(null);
-    if (dirty && file && file.path === p) {
+    if (dirtyHere.has(p)) {
       setScmNotice({
         tone: 'warn',
-        text: `${baseName(p)} has unsaved changes in the editor, so discard is refused.`,
-        detail: 'Discard would throw away the version on disk - irreversibly - while your tab still holds a '
+        text: `${baseName(p)} has unsaved changes in a tab, so discard is refused.`,
+        detail: 'Discard would throw away the version on disk - irreversibly - while a tab still holds a '
           + 'different one. Save it or cancel the edit first, then decide.',
       });
       return;
@@ -787,7 +1026,7 @@ export function Files() {
       return;
     }
     afterGit(out, 'discard', () => {});
-  }, [root, dirty, file, afterGit]);
+  }, [root, dirtyHere, afterGit]);
 
   const confirmDiscard = useCallback(async () => {
     const a = ask;
@@ -839,8 +1078,9 @@ export function Files() {
 
   const openDiff = useCallback((c: Change) => {
     if (!c.path) return;
-    const next: DiffTarget = { root, path: c.path, staged: c.side === 'staged', untracked: c.untracked };
-    setDiff((d) => (sameDiff(d, next) ? d : next));
+    const target: DiffTarget = { root, path: c.path, staged: c.side === 'staged', untracked: c.untracked };
+    setDiffGroup(wsRef.current.focus);
+    setDiff((d) => (sameDiff(d, target) ? d : target));
   }, [root]);
 
   // From the tree - a tombstone row, where the diff is the only readable thing
@@ -849,10 +1089,11 @@ export function Files() {
   // about a file that is gone.
   const openDiffPath = useCallback((p: string) => {
     const d = deco.files.get(p);
-    const next: DiffTarget = {
+    const target: DiffTarget = {
       root, path: p, staged: d?.side === 'staged', untracked: d?.letter === 'U' && d.state === 'added',
     };
-    setDiff((cur) => (sameDiff(cur, next) ? cur : next));
+    setDiffGroup(wsRef.current.focus);
+    setDiff((cur) => (sameDiff(cur, target) ? cur : target));
   }, [root, deco]);
 
   // The activity bar. Clicking the view you are already in collapses the rail,
@@ -864,52 +1105,78 @@ export function Files() {
     if (panes.cl) toggle('l');
   }, [railView, panes.cl, toggle]);
 
-  // Ctrl/Cmd-S while editing. A window listener rather than a CodeMirror
-  // binding, because it has to work from the commit-message field in the
-  // inspector too, and because it is the one shortcut that must fire whether or
-  // not the editor chunk loaded.
+  const cycleTab = useCallback((by: number) => {
+    next((w) => {
+      const g = w.groups[w.focus];
+      if (!g || g.tabs.length < 2) return w;
+      const at = g.active ? g.tabs.indexOf(g.active) : -1;
+      const to = g.tabs[((at + by) % g.tabs.length + g.tabs.length) % g.tabs.length];
+      return { ...w, groups: w.groups.map((x, i) => (i === w.focus ? { ...x, active: to } : x)) };
+    });
+  }, [next]);
+
+  // ── the page's own keys ────────────────────────────────────────────────────
+  //
+  // A window listener rather than CodeMirror bindings, because Save has to work
+  // from the commit-message field in the inspector too, and because it is the
+  // one shortcut that must fire whether or not the editor chunk loaded.
   //
   // It does not fight the AppShell's global handler: that one ignores keys typed
   // into an input, a textarea OR a contenteditable - the last clause added with
   // this editor, since CodeMirror's writable surface is a contenteditable div
   // and the old tagName-only test did not match it. Without it, `/` opened the
   // command palette and `r` refreshed the dashboard mid-word.
+  //
+  // Every test comes from keys.ts, which is also what the empty state and the
+  // Keys sheet render. That is the whole point of the table: the list of
+  // shortcuts and the code that dispatches them cannot drift apart, because
+  // there is only one of them.
   useEffect(() => {
-    if (!editing) return;
-    // The test comes from keys.ts, which is also what the empty state and the
-    // Keys sheet render. That is the whole point of the table: the list of
-    // shortcuts and the code that dispatches them cannot drift apart, because
-    // there is only one of them.
     const onKey = (e: KeyboardEvent) => {
+      const w = wsRef.current;
+      const id = w.groups[w.focus]?.active ?? null;
       if (matches('save', e)) {
+        // Only while something is actually being edited. Otherwise Ctrl-S is
+        // left to the browser, exactly as it was before this listener existed.
+        const d = id ? w.docs.find((x) => x.id === id) : null;
+        if (!d?.editing) return;
         e.preventDefault();
-        void save();
+        void save(d.id);
+        return;
+      }
+      if (matches('nexttab', e)) { e.preventDefault(); cycleTab(1); return; }
+      if (matches('prevtab', e)) { e.preventDefault(); cycleTab(-1); return; }
+      if (matches('closetab', e)) {
+        e.preventDefault();
+        // Through the same guard as the X on the tab. A shortcut that is the
+        // cheap way to lose an edit is worse than no shortcut.
+        if (id) closeDoc(id);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editing, save]);
+  }, [save, cycleTab, closeDoc]);
 
-  // The browser's own guard, for the one exit this page cannot intercept.
+  // The browser's own guard, for the one exit this page cannot intercept. ANY
+  // dirty document arms it, not only the one on screen - the whole point of
+  // tabs is that the others are still there.
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirtyDocs.length) return;
     const onLeave = (e: BeforeUnloadEvent) => { e.preventDefault(); };
     window.addEventListener('beforeunload', onLeave);
     return () => window.removeEventListener('beforeunload', onLeave);
-  }, [dirty]);
+  }, [dirtyDocs.length]);
 
   const startEdit = () => {
-    if (!file) return;
-    setDraft(file.content);
-    setNotice(null);
-    setEditing(true);
-    requestAnimationFrame(() => editorRef.current?.focus());
+    if (!active?.file) return;
+    const id = active.id;
+    patchDoc(id, (d) => ({ ...d, editing: true, draft: d.file?.content ?? '', notice: null }));
+    requestAnimationFrame(() => handleFor(id).current?.focus());
   };
 
   const cancelEdit = () => {
-    if (file) setDraft(file.content);
-    setEditing(false);
-    setNotice(null);
+    if (!active) return;
+    patchDoc(active.id, (d) => ({ ...d, editing: false, draft: d.file?.content ?? '', notice: null }));
   };
 
   const retry = () => setReloadTick((t) => t + 1);
@@ -925,12 +1192,37 @@ export function Files() {
     });
   }, [raise]);
 
+  // The inspector's commit-message field, aimed at whichever document is active.
+  // Typed as a Dispatch so it is assignable wherever a `useState` setter was.
+  const setActiveMessage: React.Dispatch<React.SetStateAction<string>> = useCallback((v) => {
+    const w = wsRef.current;
+    const id = w.groups[w.focus]?.active;
+    if (!id) return;
+    patchDoc(id, (d) => ({ ...d, message: typeof v === 'function' ? v(d.message) : v }));
+  }, [patchDoc]);
+
+  // Merge the split back into one column, keeping every tab. This is what the
+  // divider's Enter/Space does - Resizer's `onToggle` - because "collapse this
+  // region" for a region full of open documents has to mean moving them, never
+  // hiding them.
+  const mergeGroups = useCallback(() => {
+    next((w) => {
+      if (w.groups.length < 2) return w;
+      const [a, b] = w.groups;
+      return { ...w, groups: [{ tabs: [...a.tabs, ...b.tabs], active: b.active ?? a.active }], focus: 0 };
+    });
+  }, [next]);
+
+  const pendingDoc = pending ? ws.docs.find((d) => d.id === pending) ?? null : null;
+  const shownDiffGroup = Math.min(diffGroup, groups.length - 1);
+
   // The shell's CSS variables. Written as a style object on the root, so a drag
   // is one style write and nothing below re-renders while the pointer moves.
   const vars = {
     '--rail-l': `${panes.cl ? 0 : panes.l}px`,
     '--rail-r': `${panes.cr ? 0 : panes.r}px`,
     '--panel-h': `${panes.cp ? 0 : panes.p}px`,
+    '--split-w': `${panes.s}px`,
   } as React.CSSProperties;
 
   return (
@@ -1049,9 +1341,11 @@ export function Files() {
                   onOpenDiff={openDiff}
                   openPath={diff?.path ?? null}
                   openStaged={!!diff?.staged}
-                  // Exactly one file can hold unsaved editor state, and discard
-                  // has to know which.
-                  dirtyPath={dirty ? file?.path ?? null : null}
+                  // SEVERAL tabs can hold unsaved state now, and this prop takes
+                  // one path. The first is marked; the REFUSAL in askDiscard
+                  // covers all of them, which is the half that matters. Widening
+                  // this to a set is a change in SourceControl.tsx.
+                  dirtyPaths={dirtyHere}
                 />
               ) : (
                 <Explorer
@@ -1063,7 +1357,7 @@ export function Files() {
                   setQuery={setQ}
                   expanded={expanded}
                   onToggleDir={toggleDir}
-                  current={path}
+                  current={activePath}
                   onPick={pick}
                   onPickRoot={pickRoot}
                   onCollapseAll={collapseAll}
@@ -1091,53 +1385,69 @@ export function Files() {
           )}
 
           <div className="fx-col fx-col-mid">
-            <Editor
-              root={root}
-              path={path}
-              file={file}
-              kind={kind}
-              lang={lang}
-              loading={fileLoading}
-              err={fileErr}
-              auth={fileAuth}
-              onRetryOpen={() => go(root, path)}
-              view={view}
-              setView={setView}
-              editing={editing}
-              draft={draft}
-              setDraft={setDraft}
-              dirty={dirty}
-              saving={saving}
-              editable={editable}
-              onEdit={startEdit}
-              onCancel={cancelEdit}
-              onSave={() => void save()}
-              // Close is `pick('')`, on purpose: there are no tabs here, so
-              // closing IS a navigation to "no file", and it has to be the same
-              // navigation as any other or it becomes the one route that skips
-              // the unsaved-changes guard.
-              onClose={() => pick('')}
-              notice={notice}
-              conflict={conflict}
-              onResolveConflict={resolveConflict}
-              diff={diff}
-              diffRes={diffRes}
-              diffLoading={diffLoading}
-              diffErr={diffErr}
-              onDiffSide={(staged) => setDiff((d) => (!d || d.staged === staged ? d : { ...d, staged }))}
-              onCloseDiff={() => setDiff(null)}
-              dismissNotice={() => setNotice(null)}
-              pending={pending !== null}
-              // A close is the pending target that keeps the root and drops the
-              // path; picking another ROOT while dirty also has an empty path,
-              // which is why the root is compared too.
-              pendingClose={pending !== null && pending.path === '' && pending.root === root}
-              resolvePending={resolvePending}
-              onDownload={() => downloadFile(true)}
-              canDownload={canDownload}
-              onFallback={onFallback}
-              editorRef={editorRef}
-            />
+            {/* One or two groups, side by side, with the SAME resizer the rails
+                use between them - pointer capture, arrow keys, role="separator"
+                and aria-valuenow all come with it. A second resizer written for
+                this would be a second set of those bugs to fix. */}
+            <div className="fx-groups" data-split={groups.length > 1}>
+              {groups.map((g, gi) => (
+                <Fragment key={gi}>
+                  {gi === 1 && (
+                    <Resizer
+                      axis="x" pane="s" value={panes.s} label="Split width"
+                      onSize={setSize} onNudge={nudge} onReset={reset}
+                      // Enter/Space on the divider merges the split rather than
+                      // hiding a group: a hidden group still holding open
+                      // documents is a place work can go missing.
+                      onToggle={mergeGroups}
+                    />
+                  )}
+                  <Editor
+                    group={gi}
+                    docs={g.tabs.map((id) => ws.docs.find((d) => d.id === id)).filter((d): d is Doc => !!d)}
+                    activeId={g.active}
+                    focused={ws.focus === gi}
+                    canSplit={groups.length === 1}
+                    dragId={dragId}
+                    onFocusGroup={() => next((w) => (w.focus === gi ? w : { ...w, focus: gi }))}
+                    onSelect={(id) => next((w) => ({
+                      ...w, focus: gi,
+                      groups: w.groups.map((x, i) => (i === gi ? { ...x, active: id } : x)),
+                    }))}
+                    onCloseDoc={(id) => closeDoc(id)}
+                    onDragStart={setDragId}
+                    onDragEnd={() => setDragId(null)}
+                    onDropInto={() => { if (dragId) next((w) => moveDoc(w, dragId, gi)); setDragId(null); }}
+                    onDropEdge={() => { if (dragId) next((w) => splitOff(w, dragId)); setDragId(null); }}
+                    onSplitOff={() => { if (g.active) next((w) => splitOff(w, g.active as string)); }}
+                    setDraft={(id, v) => patchDoc(id, (d) => ({ ...d, draft: v }))}
+                    setView={(v: View) => { if (g.active) patchDoc(g.active, (d) => ({ ...d, view: v })); }}
+                    onEdit={startEdit}
+                    onCancel={cancelEdit}
+                    onSave={() => { if (g.active) void save(g.active); }}
+                    onRetryOpen={(id) => patchDoc(id, (d) => ({ ...d, state: 'new', err: null }))}
+                    dismissNotice={() => { if (g.active) patchDoc(g.active, (d) => ({ ...d, notice: null })); }}
+                    onResolveConflict={resolveConflict}
+                    pending={pendingDoc && g.tabs.includes(pendingDoc.id)
+                      ? { id: pendingDoc.id, name: baseName(pendingDoc.path) }
+                      : null}
+                    resolvePending={resolvePending}
+                    diff={gi === shownDiffGroup ? diff : null}
+                    diffRes={diffRes}
+                    diffLoading={diffLoading}
+                    diffErr={diffErr}
+                    onDiffSide={(staged) => setDiff((d) => (!d || d.staged === staged ? d : { ...d, staged }))}
+                    onCloseDiff={() => setDiff(null)}
+                    onDownload={() => downloadFile(true)}
+                    onArchive={archiveFile}
+                    onReveal={reveal}
+                    canDownload={canDownload}
+                    onFallback={onFallback}
+                    handleFor={handleFor}
+                  />
+                </Fragment>
+              ))}
+            </div>
 
             {!panes.cp && (
               <Resizer
@@ -1167,16 +1477,18 @@ export function Files() {
           {!panes.cr && (
             <div className="fx-col fx-col-r">
               <Inspector
-                root={root}
-                path={path}
-                file={file}
-                loading={fileLoading}
-                history={file ? file.history ?? [] : null}
+                root={active?.root ?? root}
+                path={active?.path ?? ''}
+                file={active?.file ?? null}
+                loading={active?.state === 'new' || active?.state === 'loading'}
+                history={active?.file ? active.file.history ?? [] : null}
                 newSha={newSha}
-                editing={editing}
-                message={message}
-                setMessage={setMessage}
-                messagePlaceholder={file ? defaultMessage(file.path, lang) : ''}
+                editing={!!active?.editing}
+                message={active?.message ?? ''}
+                setMessage={setActiveMessage}
+                messagePlaceholder={active?.file
+                  ? defaultMessage(active.file.path, langFor(active.file.path, active.file.lang))
+                  : ''}
                 canDownload={canDownload}
                 onDownload={downloadFile}
                 onArchive={archiveFile}

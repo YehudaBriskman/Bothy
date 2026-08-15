@@ -16,23 +16,48 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-export const DEFAULTS = { l: 268, r: 300, p: 200 } as const;
+export const DEFAULTS = { l: 268, r: 300, p: 200, s: 460 } as const;
 
 // Minimums are the width below which the region stops being able to do its job:
 // 180px is about twenty characters of a file name plus its icon and chevron,
 // 220px is a commit subject wrapped to two lines. Below either, collapse is the
 // honest state and the toggle is right there.
+//
+// `s` is the SECOND EDITOR GROUP, and it is here rather than in a resizer of its
+// own for one reason: Resizer.tsx already does pointer capture, arrow keys,
+// role="separator" and aria-valuenow, and it is parameterised by PaneKey. Adding
+// a key is the whole cost of reusing it. It behaves like the right rail - it
+// lives on the right, so it grows as the pointer moves LEFT, which is exactly
+// what `sign = pane === 'l' ? 1 : -1` in Resizer already says.
 export const LIMITS = {
   l: { min: 180, max: () => Math.round(window.innerWidth / 2) },
   r: { min: 220, max: () => Math.round(window.innerWidth / 2) },
   p: { min: 0, max: () => window.innerHeight },
+  // Measured against the CENTRE, not the window, and that is not a detail: the
+  // rails and the panel have the window to divide up, but the second editor
+  // group only ever has whatever the centre column was left. Clamping this one
+  // against `innerWidth` let the separator announce `aria-valuenow: 583` while
+  // the group it names rendered at 486 - the layout gave way (flex-shrink) and
+  // the announcement did not, which makes a screen reader's only readout of this
+  // control a number that is simply wrong. 185 is the first group's own minimum
+  // plus the 5px separator.
+  s: {
+    min: 200,
+    max: () => {
+      const el = typeof document !== 'undefined'
+        ? document.querySelector('.bothy-files .fx-groups')
+        : null;
+      const room = el ? el.clientWidth : window.innerWidth;
+      return Math.max(200, Math.round(room - 185));
+    },
+  },
 } as const;
 
-export type PaneKey = 'l' | 'r' | 'p';
+export type PaneKey = 'l' | 'r' | 'p' | 's';
 
 export interface Panes {
-  l: number; r: number; p: number;
-  cl: boolean; cr: boolean; cp: boolean;
+  l: number; r: number; p: number; s: number;
+  cl: boolean; cr: boolean; cp: boolean; cs: boolean;
 }
 
 // Versioned, so a shape change is a reset rather than a crash on somebody's
@@ -53,12 +78,16 @@ const NARROW = 820;
 function fallback(): Panes {
   const narrow = typeof window !== 'undefined' && window.innerWidth <= NARROW;
   return {
-    l: DEFAULTS.l, r: DEFAULTS.r, p: DEFAULTS.p,
+    l: DEFAULTS.l, r: DEFAULTS.r, p: DEFAULTS.p, s: DEFAULTS.s,
     cl: narrow, cr: narrow,
     // The bottom panel starts CLOSED at every width. It carries diagnostics, and
     // a diagnostics pane that is open before anything has gone wrong trains
     // people to ignore it.
     cp: true,
+    // `cs` exists only so `toggle` has a flag for every PaneKey. The split is
+    // created and collapsed by moving TABS, never by hiding a group - a hidden
+    // group holding open documents is a place work can go missing.
+    cs: false,
   };
 }
 
@@ -76,7 +105,8 @@ function read(): Panes {
       l: clamp('l', typeof j.l === 'number' ? j.l : DEFAULTS.l),
       r: clamp('r', typeof j.r === 'number' ? j.r : DEFAULTS.r),
       p: clamp('p', typeof j.p === 'number' ? j.p : DEFAULTS.p),
-      cl: !!j.cl, cr: !!j.cr, cp: j.cp !== false,
+      s: clamp('s', typeof j.s === 'number' ? j.s : DEFAULTS.s),
+      cl: !!j.cl, cr: !!j.cr, cp: j.cp !== false, cs: !!j.cs,
     };
   } catch {
     // A quota error, private mode, a hand-edited value - none of them are a
@@ -97,8 +127,8 @@ export function usePanes() {
   // resize is what stops a restored layout from eating a narrow screen.
   useEffect(() => {
     const onResize = () => setPanes((p) => {
-      const next = { ...p, l: clamp('l', p.l), r: clamp('r', p.r), p: clamp('p', p.p) };
-      return next.l === p.l && next.r === p.r && next.p === p.p ? p : next;
+      const next = { ...p, l: clamp('l', p.l), r: clamp('r', p.r), p: clamp('p', p.p), s: clamp('s', p.s) };
+      return next.l === p.l && next.r === p.r && next.p === p.p && next.s === p.s ? p : next;
     });
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -117,7 +147,7 @@ export function usePanes() {
   }, []);
 
   const toggle = useCallback((key: PaneKey) => {
-    const flag = (`c${key}`) as 'cl' | 'cr' | 'cp';
+    const flag = (`c${key}`) as 'cl' | 'cr' | 'cp' | 'cs';
     setPanes((p) => ({ ...p, [flag]: !p[flag] }));
   }, []);
 

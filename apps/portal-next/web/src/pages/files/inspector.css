@@ -35,9 +35,35 @@
 .bothy-files .fx-fact-path { overflow-wrap: anywhere; font-size: 11px; color: var(--fg); }
 .bothy-files .fx-fact .tag { font-size: 9.5px; padding: 1px 7px; }
 
-/* ── downloads ───────────────────────────────────────────────────────────── */
-.bothy-files .fx-dl { display: flex; gap: 6px; flex-wrap: wrap; }
-.bothy-files .fx-dl .btn.sm { padding: 4px 9px; font-size: 11.5px; }
+/* ── downloads ───────────────────────────────────────────────────────────────
+   The last row of the facts, on the facts' own 68px grid, so "Download" reads
+   as one more thing this file HAS rather than as a section about it. Three
+   `.btn.ghost.sm` in a wrapping flex row was the old shape: it wrapped to two
+   lines at this rail width and looked like three unrelated offers.
+
+   A segmented control instead - one border, one shared background, hairlines
+   between - which is the standard way to say "same question, three answers".
+   `align-items: center` because a button has no useful baseline to share with
+   the `dt` beside it. */
+.bothy-files .fx-fact-dl { align-items: center; margin-top: 3px; }
+.bothy-files .fx-dl {
+  display: inline-flex; align-items: stretch; max-width: 100%;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface-2); overflow: hidden;
+}
+.bothy-files .fx-dlbtn {
+  appearance: none; cursor: pointer; flex: 0 1 auto; min-width: 0;
+  border: 0; border-left: 1px solid var(--line); background: transparent;
+  color: var(--fg-muted); font: inherit; font-size: 11px; font-weight: 600;
+  line-height: 1; padding: 6px 9px; white-space: nowrap;
+}
+.bothy-files .fx-dlbtn:first-child { border-left: 0; }
+.bothy-files .fx-dlbtn:hover:not(:disabled) { background: var(--surface-3); color: var(--fg); }
+/* Inset, like every other focus ring on this page: the segments share a border,
+   so an outset ring would be clipped by the group's `overflow: hidden`. */
+.bothy-files .fx-dlbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-dlbtn:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
+
 .bothy-files .fx-dl-note {
   margin: 8px 0 0; color: var(--fg-subtle); font-size: 10.5px; line-height: 1.45;
 }

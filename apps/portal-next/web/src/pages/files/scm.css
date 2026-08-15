@@ -55,6 +55,22 @@
   background: var(--accent); color: var(--on-accent);
 }
 
+/* ── tooltips in a 268px rail ────────────────────────────────────────────────
+   MEASURED, not guessed. shell.css sets `.bothy-files .tip { white-space:
+   normal }` so a sentence can wrap instead of becoming a 600px ribbon - but an
+   absolutely positioned box shrinks to fit its CONTAINING BLOCK, and here that
+   is the 24px icon button it hangs off. The result was one word per line: the
+   Push tooltip rendered as a nine-line column three characters wide.
+
+   `width: max-content` asks for the natural single-line width first and lets
+   `max-width` do the wrapping. Only for `[data-align='end']` tooltips, which
+   are pinned to the button's RIGHT edge and therefore grow leftwards into the
+   rail - a centred one would grow into `.fx-rail`'s `overflow: hidden` and be
+   cut in half. Every tooltip in these two clusters passes align="end". */
+.bothy-files .fx-rail-h .tip[data-align='end'],
+.bothy-files .fx-scm-acts .tip[data-align='end'],
+.bothy-files .fx-scm-groupacts .tip[data-align='end'] { width: max-content; max-width: 220px; }
+
 /* ── Source Control ──────────────────────────────────────────────────────── */
 .bothy-files .fx-scm { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
 
@@ -71,16 +87,23 @@
 .bothy-files .fx-scm-branch.dim { color: var(--fg-subtle); font-weight: 400; font-size: 11.5px; }
 .bothy-files .fx-scm-branch.dim svg { color: var(--fg-subtle); }
 .bothy-files .fx-scm-reponame {
-  margin-left: auto; flex: none; font-size: 10.5px; color: var(--fg-subtle);
+  margin-left: auto; flex: none; max-width: 45%; font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.bothy-files .fx-scm-pick { display: block; padding: 0 10px 6px; }
-.bothy-files .fx-scm-pick select {
-  width: 100%; appearance: none; font: inherit; font-size: 11.5px; color: var(--fg);
+/* The picker, which IS the repository name when there is more than one. It used
+   to be a full-width select on its own row underneath a span that printed the
+   same name - two rows, one fact. It sits where the name sat, so the row reads
+   `branch · repository` either way and only its affordance changes. */
+.bothy-files .fx-scm-repopick { margin-left: auto; min-width: 0; max-width: 58%; flex: 0 1 auto; }
+.bothy-files .fx-scm-repopick select {
+  max-width: 100%; appearance: none; font: inherit; font-size: 11px; color: var(--fg-muted);
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 4px 8px;
+  border-radius: var(--r-sm); padding: 2px 6px;
+  text-overflow: ellipsis;
 }
-/* No `:focus` rule, and that is the fix rather than the omission.
+.bothy-files .fx-scm-repopick select:hover { color: var(--fg); border-color: var(--line-strong); }
+/* No `:focus` rule on that select, and that is the fix rather than the omission.
    It used to read `select:focus { border-color: var(--accent); outline: none }`,
    which was wrong twice over. `:focus` fires on a MOUSE click, so picking a
    repository tinted the control blue and left it that way; and `outline: none`
@@ -160,31 +183,27 @@
   color: var(--fg); background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-sm); padding: 6px 9px; line-height: 1.45;
 }
-/* Same as .fx-scm-pick select above: the `:focus { border-color; outline: none }`
+/* Same as .fx-scm-repopick select above: the `:focus { border-color; outline: none }`
    pair is gone, and focus is the page's inset ring. On a TEXT control the ring
    does still appear for a mouse click - :focus-visible matches text fields
    whatever the modality, by design in every engine - and that is the right
    answer here rather than a leak: this is the one control on the page where
    "your typing goes in here" is worth saying out loud, and the alternative is a
    1px blinking caret in a four-region window. */
+/* Sync used to live here, under the commit box, as two full-width buttons and a
+   hint line. It is in the rail header now (see the file header) - so this is
+   also where the body stops and the list begins, and the rule the sync block
+   used to draw belongs to the commit box that is still here. */
 .bothy-files .fx-scm-commitbtn { justify-content: center; }
-
-/* ── sync ────────────────────────────────────────────────────────────────── */
-.bothy-files .fx-scm-sync {
-  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
-  padding: 0 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
-}
-.bothy-files .fx-scm-sync .btn.sm { padding: 4px 10px; font-size: 11.5px; }
-/* Said once, quietly, beside the two buttons it is about - so a 403 later is a
-   confirmation rather than a surprise. */
-.bothy-files .fx-scm-synchint {
-  width: 100%; color: var(--fg-subtle); font-size: 10px;
-}
+.bothy-files .fx-scm-commit { border-bottom: 1px solid var(--line); margin-bottom: 6px; padding-bottom: 10px; }
 
 /* ── the groups ──────────────────────────────────────────────────────────── */
 .bothy-files .fx-scm-group { margin-bottom: 2px; }
+/* The header is a ROW now, not a button: the collapse toggle plus one action
+   that applies to the whole group. */
+.bothy-files .fx-scm-grouprow { position: relative; display: flex; align-items: center; }
 .bothy-files .fx-scm-grouph {
-  appearance: none; cursor: pointer; width: 100%; border: 0; background: transparent;
+  appearance: none; cursor: pointer; flex: 1; min-width: 0; border: 0; background: transparent;
   display: flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; height: 24px;
   font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: var(--fg-subtle); text-align: left;
@@ -194,6 +213,23 @@
 .bothy-files .fx-scm-count {
   margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: 0;
 }
+
+/* Stage-all / unstage-all. Revealed the same way the per-row actions are, and
+   for the same reason stated there: `opacity`, never `display: none`, and
+   `:focus-within` on the ROW as well as `:hover` - the toggle beside it is
+   focusable, so tabbing into the header reveals this, and one more Tab lands on
+   it. A `display: none` button is not in the tab order at all, which is how the
+   explorer's per-directory download spent a release being mouse-only. */
+.bothy-files .fx-scm-groupacts {
+  position: absolute; right: 6px; display: flex; align-items: center;
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+  /* The count is already at this end of the header, so the button covers it -
+     the same overlap the per-row actions have, faded the same way. */
+  background: linear-gradient(90deg, transparent, var(--surface-2) 40%);
+  padding-left: 16px;
+}
+.bothy-files .fx-scm-grouprow:hover .fx-scm-groupacts,
+.bothy-files .fx-scm-grouprow:focus-within .fx-scm-groupacts { opacity: 1; }
 
 .bothy-files .fx-scm-li { position: relative; display: flex; align-items: center; }
 .bothy-files .fx-scm-row {

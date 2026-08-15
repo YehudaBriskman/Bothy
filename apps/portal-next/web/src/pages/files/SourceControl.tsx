@@ -29,6 +29,20 @@
 //  3. 503 FROM PUSH IS THE ORDINARY ANSWER on this box: most repos have no push
 //     credential mounted. It reads as "not set up", because dressing an expected
 //     state as a failure is how people learn to ignore failures.
+//
+// WHERE THINGS SIT, AND WHY IT CHANGED. Pull and Push were two full-width
+// buttons and a hint line in the middle of the body, between the commit box and
+// the file groups - so the two actions that leave the box sat among the ones
+// that touch a single file, and the panel's widest controls were also its
+// rarest. They are in the panel header now, beside the branch they act on and
+// the refresh that re-reads it: three repo-scoped icon buttons in one place.
+// The requirement they carry ("operator, not editor") moved with them, into
+// each button's tooltip, where it describes the button rather than judging the
+// person reading it.
+//
+// The repository NAME and the repository PICKER were also two things saying one
+// thing, on two rows. When there is more than one repo in scope the name IS the
+// picker; when there is one, it is just the name.
 
 import { useState } from 'react';
 import {
@@ -115,7 +129,14 @@ function Row({ c, onOpenDiff, open, busy, onStage, onUnstage, onDiscard, dirty, 
             {/* Discard, and everything that makes it survivable. Untracked is
                 its own case: `git restore --worktree` cannot remove a file git
                 has never seen, so offering it would be offering a 400. */}
-            <Tooltip label={
+            {/* align="end" is not cosmetic here: a tooltip is sized by its
+                containing block, which is the 20px button, so a centred one
+                wraps to a three-character ribbon AND grows into the rail's
+                `overflow: hidden`. Pinned to the right edge it grows leftwards
+                into the panel, where there is room - see the sizing rule in
+                scm.css. These are the longest sentences in the panel and they
+                explain the one irreversible action on the page. */}
+            <Tooltip align="end" label={
               frozen
                 ? 'This root is mounted read-only - nothing here can be changed.'
                 : c.untracked
@@ -164,6 +185,22 @@ function Row({ c, onOpenDiff, open, busy, onStage, onUnstage, onDiscard, dirty, 
   );
 }
 
+/**
+ * One group, and the one action that applies to all of it.
+ *
+ * THE BULK ACTION IS THE SAME ROUTE AS A SINGLE FILE, not a loop. `/git/stage`
+ * derives the repository from the path it is given and hands git that path
+ * relative to the toplevel - so the REPO'S OWN path arrives as `.`, and
+ * `git add -- .` / `git restore --staged -- .` do the whole tree in one call.
+ * Firing N single-file calls instead would race the busy state, race each
+ * other's `index.lock`, and refresh N times.
+ *
+ * IT IS REFUSED WHEN THE GROUP HOLDS A CHANGE THIS PAGE MAY NOT NAME. `.` is
+ * git's idea of everything, and git has never heard of the deny rules - so a
+ * group containing one of those counted-but-unnamed rows would stage a file the
+ * explorer refuses to open, from a button whose label says "all". The per-file
+ * buttons stay; only the sweeping one is withheld, and it says why.
+ */
 function Group({ title, changes, ...rest }: {
   title: string;
   changes: Change[];
@@ -175,23 +212,60 @@ function Group({ title, changes, ...rest }: {
   onStage: (p: string) => void;
   onUnstage: (p: string) => void;
   onDiscard: (p: string) => void;
-  dirtyPath: string | null;
+  /** Every path with unsaved editor state, not just one.
+   *
+   * This was `dirtyPath: string | null` when the page could only hold one open
+   * file. Tabs made that quietly wrong: with two dirty documents the marker
+   * appeared on whichever happened to be first, and the other looked clean
+   * while holding unsaved work - the exact confusion the marker exists to
+   * prevent. The refusal in askDiscard always covered all of them; only the
+   * visual half was lying. */
+  dirtyPaths: ReadonlySet<string>;
+  /** The repository, root-relative. What `.` resolves to for git. */
+  repoPath: string;
 }) {
   const [open, setOpen] = useState(true);
   if (!changes.length) return null;
   const staged = changes[0].side === 'staged';
+  const unnamed = changes.some((c) => c.path === null);
+  const busy = rest.busyPath !== null;
+  const bulkWord = staged ? 'Unstage' : 'Stage';
   return (
     <section className="fx-scm-group">
-      <button
-        type="button"
-        className="fx-scm-grouph"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <ChevronRight size={12} className={`fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
-        <span>{title}</span>
-        <span className="fx-scm-count tnum">{changes.length}</span>
-      </button>
+      <div className="fx-scm-grouprow">
+        <button
+          type="button"
+          className="fx-scm-grouph"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <ChevronRight size={12} className={`fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
+          <span>{title}</span>
+          <span className="fx-scm-count tnum">{changes.length}</span>
+        </button>
+        <span className="fx-scm-groupacts">
+          <Tooltip
+            align="end"
+            label={
+              rest.frozen
+                ? 'This root is mounted read-only - nothing here can be changed.'
+                : unnamed
+                  ? `One change here cannot be named, so "${bulkWord.toLowerCase()} all" would sweep up a file the explorer may not open. Use the per-file buttons.`
+                  : `${bulkWord} all ${changes.length} - one call on the whole repository`
+            }
+          >
+            <button
+              type="button"
+              className="fx-scm-act"
+              disabled={busy || rest.frozen || unnamed}
+              onClick={() => (staged ? rest.onUnstage : rest.onStage)(rest.repoPath)}
+              aria-label={`${bulkWord} all ${changes.length} file${changes.length === 1 ? '' : 's'} in ${title}`}
+            >
+              {staged ? <Minus size={13} aria-hidden="true" /> : <Plus size={13} aria-hidden="true" />}
+            </button>
+          </Tooltip>
+        </span>
+      </div>
       {open && (
         <ul className="fx-list">
           {changes.map((c) => (
@@ -205,7 +279,7 @@ function Group({ title, changes, ...rest }: {
               onUnstage={rest.onUnstage}
               onDiscard={rest.onDiscard}
               frozen={rest.frozen}
-              dirty={c.path !== null && c.path === rest.dirtyPath}
+              dirty={c.path !== null && rest.dirtyPaths.has(c.path)}
             />
           ))}
         </ul>
@@ -218,7 +292,7 @@ export function SourceControl({
   root, readOnly, repos, reposErr, repoPath, onPickRepo, status, loading, err, onRefresh,
   message, setMessage, onCommit, onSync, onStage, onUnstage, onDiscard,
   busyPath, busyRepo, notice, dismissNotice, ask, onConfirmDiscard, onCancelDiscard,
-  onOpenDiff, openPath, openStaged, dirtyPath,
+  onOpenDiff, openPath, openStaged, dirtyPaths,
 }: {
   root: string;
   /** The root is mounted READ-ONLY in the service, so every git verb - pull
@@ -250,7 +324,15 @@ export function SourceControl({
   onOpenDiff: (c: Change) => void;
   openPath: string | null;
   openStaged: boolean;
-  dirtyPath: string | null;
+  /** Every path with unsaved editor state, not just one.
+   *
+   * This was `dirtyPath: string | null` when the page could only hold one open
+   * file. Tabs made that quietly wrong: with two dirty documents the marker
+   * appeared on whichever happened to be first, and the other looked clean
+   * while holding unsaved work - the exact confusion the marker exists to
+   * prevent. The refusal in askDiscard always covered all of them; only the
+   * visual half was lying. */
+  dirtyPaths: ReadonlySet<string>;
 }) {
   const groups = groupChanges(status?.files ?? []);
   const repo = repos?.find((r) => r.path === repoPath) ?? null;
@@ -258,9 +340,41 @@ export function SourceControl({
 
   return (
     <aside className="fx-rail fx-rail-l" aria-label="Source Control">
+      {/* ── the repository's own header ──────────────────────────────────────
+          Everything here acts on the REPOSITORY rather than on a file: fetch
+          it, send it, re-read it. That is the whole membership rule, and it is
+          why Pull and Push are here and not beside the per-file stage buttons.
+
+          "Requires the operator role" is on each button rather than on a line
+          under them. Same fact, but attached to the control it constrains: a
+          statement about what Push needs is true for every reader, where a
+          sentence sitting in the panel reads like a verdict on the one holding
+          the mouse - and this session has the role. */}
       <div className="fx-rail-h">
         <span className="fx-rail-title">Source Control</span>
         <span className="fx-rail-sub tnum">{total || ''}</span>
+        <Tooltip label="Pull - fast-forward this branch from the remote. Requires the operator role." align="end">
+          <button
+            type="button"
+            className="fx-hbtn"
+            onClick={() => onSync('pull')}
+            disabled={busyRepo || readOnly || !status?.repo}
+            aria-label="Pull from the remote"
+          >
+            <ArrowDownToLine size={13} />
+          </button>
+        </Tooltip>
+        <Tooltip label="Push - publish this branch to the remote. Requires the operator role." align="end">
+          <button
+            type="button"
+            className="fx-hbtn"
+            onClick={() => onSync('push')}
+            disabled={busyRepo || readOnly || !status?.repo}
+            aria-label="Push to the remote"
+          >
+            <ArrowUpFromLine size={13} />
+          </button>
+        </Tooltip>
         <Tooltip label="Re-read git status" align="end">
           <button
             type="button"
@@ -281,35 +395,38 @@ export function SourceControl({
             talking about before anything below it means anything. */}
         <div className="fx-scm-repo">
           {status?.repo ? (
-            <>
-              <span className="fx-scm-branch">
-                <GitBranch size={13} aria-hidden="true" />
-                <span className="mono">{status.branch || '(detached)'}</span>
-              </span>
-              <span className="fx-scm-reponame mono" title={`${root}/${repoPath === '.' ? '' : repoPath}`}>
-                {status.repo}
-              </span>
-            </>
+            <span className="fx-scm-branch">
+              <GitBranch size={13} aria-hidden="true" />
+              <span className="mono">{status.branch || '(detached)'}</span>
+            </span>
           ) : (
             <span className="fx-scm-branch dim">
               <GitBranch size={13} aria-hidden="true" />
               <span>{loading ? 'looking…' : 'no repository in scope'}</span>
             </span>
           )}
+          {/* The name and the picker are the same fact. With one repo in scope
+              there is nothing to pick, so it is a label; with several, the
+              label is the control - which is what a <select> already looks
+              like, and is one row shorter than printing the name and then
+              offering a menu of names underneath it. */}
+          {repos && repos.length > 1 ? (
+            <label className="fx-scm-repopick">
+              <span className="sr-only">Repository</span>
+              <select value={repoPath} onChange={(e) => onPickRepo(e.target.value)}>
+                {repos.map((r) => (
+                  <option key={r.path} value={r.path}>
+                    {r.name}{r.dirty ? ` · ${r.dirty} changed` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : status?.repo ? (
+            <span className="fx-scm-reponame mono" title={`${root}/${repoPath === '.' ? '' : repoPath}`}>
+              {status.repo}
+            </span>
+          ) : null}
         </div>
-
-        {repos && repos.length > 1 && (
-          <label className="fx-scm-pick">
-            <span className="sr-only">Repository</span>
-            <select value={repoPath} onChange={(e) => onPickRepo(e.target.value)}>
-              {repos.map((r) => (
-                <option key={r.path} value={r.path}>
-                  {r.name}{r.dirty ? ` · ${r.dirty} changed` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
 
         {readOnly && (
           <p className="fx-scm-ro">
@@ -411,34 +528,6 @@ export function SourceControl({
           </button>
         </div>
 
-        {/* ── sync ──────────────────────────────────────────────────────────
-            A tier above everything else on this page: these are the only two
-            actions that leave the box, and the route requires `operator` rather
-            than `editor`. A 403 here is a fact about the session, not a fault. */}
-        <div className="fx-scm-sync">
-          <button
-            type="button"
-            className="btn ghost sm"
-            onClick={() => onSync('pull')}
-            disabled={busyRepo || readOnly || !status?.repo}
-          >
-            <ArrowDownToLine size={13} aria-hidden="true" /> Pull
-          </button>
-          <button
-            type="button"
-            className="btn ghost sm"
-            onClick={() => onSync('push')}
-            disabled={busyRepo || readOnly || !status?.repo}
-          >
-            <ArrowUpFromLine size={13} aria-hidden="true" /> Push
-          </button>
-          {/* A requirement, not a verdict. "needs the operator role" read like a
-              refusal aimed at the current session - which would be wrong for
-              anyone who has it, and this session does. Phrased as what the
-              buttons require, which is true regardless of who is looking. */}
-          <span className="fx-scm-synchint">Pull and Push require the operator role</span>
-        </div>
-
         {/* ── the groups ────────────────────────────────────────────────── */}
         {err ? (
           <div className="fx-msg">
@@ -468,6 +557,7 @@ export function SourceControl({
             <Group
               title="Staged Changes"
               changes={groups.staged}
+              repoPath={repoPath}
               frozen={readOnly}
               onOpenDiff={onOpenDiff}
               openPath={openPath}
@@ -476,11 +566,12 @@ export function SourceControl({
               onStage={onStage}
               onUnstage={onUnstage}
               onDiscard={onDiscard}
-              dirtyPath={dirtyPath}
+              dirtyPaths={dirtyPaths}
             />
             <Group
               title="Changes"
               changes={groups.worktree}
+              repoPath={repoPath}
               frozen={readOnly}
               onOpenDiff={onOpenDiff}
               openPath={openPath}
@@ -489,7 +580,7 @@ export function SourceControl({
               onStage={onStage}
               onUnstage={onUnstage}
               onDiscard={onDiscard}
-              dirtyPath={dirtyPath}
+              dirtyPaths={dirtyPaths}
             />
           </>
         )}

@@ -327,6 +327,14 @@
   .bothy-files[data-collapsed-r='false'] .fx-col-mid { display: none; }
   .bothy-files .fx-rail-l { border-right: 0; }
   .bothy-files .fx-rail-r { border-left: 0; }
+  /* A split centre at phone width is two 190px columns, which is neither a file
+     nor two files. It stacks instead - the documents stay open and stay
+     reachable, which is the part that matters, and the divider goes with the
+     other .fx-sep-x above (a 5px drag target between two full-width regions has
+     nothing to divide). */
+  .bothy-files .fx-groups { flex-direction: column; }
+  .bothy-files .fx-groups[data-split='true'] > .fx-centre { min-width: 0; }
+  .bothy-files .fx-centre-b { flex: 1 1 0; border-left: 0; border-top: 1px solid var(--line); }
 }
 /* Touch: a 5px separator is unusable with a finger, so it widens - the visible
    line does not, because the hit area and the affordance are different things. */
