@@ -14,7 +14,13 @@
 //                         add a row to, and moving it stopped the editor from
 //                         losing 60px of height to a field that is only in use
 //                         while saving.
-//   4. How do I get it?   raw, zip, tar.gz.
+//   4. How do I get it?   raw, zip, tar.gz - and this is question 1 continued,
+//                         not a section of its own. "Which format" is the last
+//                         row of the file's facts now: a segmented control in a
+//                         `Download` dd, sitting under Path/Size/Modified where
+//                         the thing it is about already is. Three loose buttons
+//                         under their own heading claimed to be a fourth topic;
+//                         they are one answer with three shapes.
 //
 // Downloads are GATED here rather than delegated to a redirect. The sandbox
 // origin has no sign-in page - an unauthenticated request to it is a bare 401 -
@@ -24,7 +30,7 @@
 
 import { useCallback, useState } from 'react';
 import {
-  Check, Copy, Download, FileArchive, GitCommitVertical, Lock, ShieldAlert,
+  Check, Copy, GitCommitVertical, Lock, ShieldAlert,
 } from 'lucide-react';
 import { fmtBytes, relDate, type Commit, type FileRead } from '../../lib/files';
 import { Tooltip } from '../../components/Tooltip';
@@ -136,50 +142,58 @@ export function Inspector({
                         ? <span className="tag public">yes</span>
                         : <span className="tag"><Lock size={9} aria-hidden="true" /> no</span>}
                     </Fact>
-                  </dl>
-                </section>
 
-                <section className="fx-insp-sec">
-                  <h3 className="fx-insp-h">Download</h3>
-                  <div className="fx-dl">
-                    <button
-                      type="button"
-                      className="btn ghost sm"
-                      disabled={!canDownload}
-                      onClick={() => onDownload(true)}
-                      title={`${baseName(file.path)} - the file itself`}
-                    >
-                      <Download size={13} aria-hidden="true" /> Raw
-                    </button>
-                    {/* An extension is not a name. Out of context ".zip" says
-                        nothing about what is in it or where it came from, and
-                        Raw beside it already carries a title - so these do too,
-                        and the accessible name says which file is being
-                        wrapped. */}
-                    <button
-                      type="button"
-                      className="btn ghost sm"
-                      disabled={!canDownload}
-                      onClick={() => onArchive('zip')}
-                      title={`${baseName(file.path)} - wrapped in a zip archive`}
-                      aria-label={`Download ${baseName(file.path)} as a zip archive`}
-                    >
-                      <FileArchive size={13} aria-hidden="true" /> .zip
-                    </button>
-                    <button
-                      type="button"
-                      className="btn ghost sm"
-                      disabled={!canDownload}
-                      onClick={() => onArchive('tgz')}
-                      title={`${baseName(file.path)} - wrapped in a gzipped tar archive`}
-                      aria-label={`Download ${baseName(file.path)} as a tar.gz archive`}
-                    >
-                      <FileArchive size={13} aria-hidden="true" /> .tar.gz
-                    </button>
-                  </div>
+                    {/* The last fact, and it happens to be actionable. One
+                        labelled group - a `group` role with the file's name in
+                        it - rather than three buttons that each have to
+                        reintroduce themselves.
+
+                        AN EXTENSION IS NOT A NAME. ".zip" out of context says
+                        nothing about what is in it or where it came from, so
+                        every segment carries an aria-label naming the file and
+                        the wrapper. Without one, a screen reader reads the
+                        second control on this rail as, in full, "dot zip". */}
+                    <div className="fx-fact fx-fact-dl">
+                      <dt>Download</dt>
+                      <dd>
+                        <div className="fx-dl" role="group" aria-label={`Download ${baseName(file.path)}`}>
+                          <button
+                            type="button"
+                            className="fx-dlbtn"
+                            disabled={!canDownload}
+                            onClick={() => onDownload(true)}
+                            title={`${baseName(file.path)} - the file itself`}
+                            aria-label={`Download ${baseName(file.path)} as it is`}
+                          >
+                            Raw
+                          </button>
+                          <button
+                            type="button"
+                            className="fx-dlbtn"
+                            disabled={!canDownload}
+                            onClick={() => onArchive('zip')}
+                            title={`${baseName(file.path)} - wrapped in a zip archive`}
+                            aria-label={`Download ${baseName(file.path)} as a zip archive`}
+                          >
+                            .zip
+                          </button>
+                          <button
+                            type="button"
+                            className="fx-dlbtn"
+                            disabled={!canDownload}
+                            onClick={() => onArchive('tgz')}
+                            title={`${baseName(file.path)} - wrapped in a gzipped tar archive`}
+                            aria-label={`Download ${baseName(file.path)} as a tar.gz archive`}
+                          >
+                            .tar.gz
+                          </button>
+                        </div>
+                      </dd>
+                    </div>
+                  </dl>
                   <p className="fx-dl-note">
                     {canDownload
-                      ? <>Served from the sandbox origin on port <span className="mono">8100</span>, so nothing it returns can touch this page.</>
+                      ? <>Sandbox origin, port <span className="mono">8100</span> - nothing it returns can touch this page.</>
                       : <>Sign in first - the download origin has no sign-in page of its own.</>}
                   </p>
                 </section>

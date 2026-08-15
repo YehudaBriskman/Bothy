@@ -47,6 +47,15 @@ const bare = (k: string) => (e: KeyboardEvent) =>
 const mod = (k: string) => (e: KeyboardEvent) =>
   e.key.toLowerCase() === k && (e.metaKey || e.ctrlKey);
 
+// Mod AND Alt together, which is the only free corner of the keyboard here.
+// Plain Alt-← / Alt-→ is the browser's Back/Forward on Windows and Linux, and
+// Mod-← / Mod-→ is CodeMirror's cursorGroupLeft/Right - so both of the obvious
+// chords are already taken by something that would still fire underneath us.
+// CodeMirror matches modifiers EXACTLY, so adding Alt takes the key out of its
+// keymap rather than firing both.
+const modAlt = (k: string) => (e: KeyboardEvent) =>
+  e.key.toLowerCase() === k.toLowerCase() && e.altKey && (e.metaKey || e.ctrlKey);
+
 export const BINDINGS: readonly Binding[] = [
   // ── the whole portal (AppShell.tsx) ────────────────────────────────────────
   { id: 'palette', keys: [MOD, 'K'], what: 'the command palette', scope: 'global', match: mod('k') },
@@ -59,6 +68,12 @@ export const BINDINGS: readonly Binding[] = [
   // loaded. Files.tsx consumes `match` below; that is the only reason this row
   // and that handler cannot disagree.
   { id: 'save', keys: [MOD, 'S'], what: 'save the open file to disk', scope: 'page', match: mod('s') },
+  // The tab strip, from the keyboard. `close` goes through the SAME dirty guard
+  // as the X on the tab - a shortcut that is the cheap way to lose an edit is
+  // worse than no shortcut.
+  { id: 'nexttab', keys: [MOD, 'Alt', '→'], what: 'the next tab', scope: 'page', match: modAlt('arrowright') },
+  { id: 'prevtab', keys: [MOD, 'Alt', '←'], what: 'the previous tab', scope: 'page', match: modAlt('arrowleft') },
+  { id: 'closetab', keys: [MOD, 'Alt', 'W'], what: 'close the tab', scope: 'page', match: modAlt('w') },
 
   // ── the code surface (CodeSurface.tsx) ────────────────────────────────────
   // Bound by @codemirror/{search,commands}. There is no `match` because nothing

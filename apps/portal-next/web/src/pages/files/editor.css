@@ -3,12 +3,47 @@
    Scoped under .bothy-files, (0,2,0).
    ========================================================================== */
 
+/* ── the groups ──────────────────────────────────────────────────────────────
+   One or two. The FIRST absorbs the remainder and the second carries the stored
+   width, which is the same arrangement as the shell's four regions and for the
+   same reason (panes.ts): with both sides sized there are two numbers to
+   reconcile against one container on every resize, and the reconciliation is
+   where every "the pane jumped" bug lives.
+
+   `flex: 0 1 var(--split-w)` on the second, not `0 0`: the stored width is
+   clamped against the WINDOW, not against the centre column, so a wide split
+   restored on a narrow window has to be allowed to give way rather than push
+   the first group to nothing. */
+.bothy-files .fx-groups { flex: 1 1 0; min-height: 0; min-width: 0; display: flex; }
+.bothy-files .fx-groups[data-split='true'] > .fx-centre { min-width: 180px; }
+
 .bothy-files .fx-centre {
-  flex: 1 1 0; min-height: 96px; min-width: 0;
+  flex: 1 1 0; min-height: 96px; min-width: 0; position: relative;
   display: flex; flex-direction: column; background: var(--bg-2); overflow: hidden;
+}
+/* AFTER `.fx-centre`, and it has to be: both selectors are (0,2,0), so the tie
+   is broken by order alone. With this rule written first - which is how it was,
+   for one round of testing - `.fx-centre { flex: 1 1 0 }` won, both groups took
+   half the column each, and the divider moved `aria-valuenow` while the layout
+   ignored it completely. */
+.bothy-files .fx-centre-b {
+  flex: 0 1 var(--split-w);
+  border-left: 1px solid var(--line);
+}
+/* Which group the keyboard is in. A hairline rather than a fill: with two groups
+   side by side, "which one does Ctrl-S mean" is a real question and the answer
+   has to be visible without being loud. Only ever drawn when there IS a second
+   group - a single group is unambiguously the focused one. */
+.bothy-files .fx-groups[data-split='true'] > .fx-centre.is-focused .fx-tabbar {
+  box-shadow: inset 0 2px 0 var(--accent);
 }
 
 /* ── the tab bar ─────────────────────────────────────────────────────────────
+   It finally holds tabs. It used to hold a breadcrumb - one file at a time,
+   `?root=`/`?path=` - and the path it showed now lives in the status strip
+   beside the rest of the facts about the file, because a strip that spells out
+   a full path has no room left for the second tab.
+
    No bottom border. It and .fx-status's top border were the two horizontals
    that, with the rails' own vertical borders, closed a complete rectangle around
    the document - so the file looked like it was sitting inside a window inside
@@ -16,30 +51,119 @@
    other); these two go, and the strip is told apart from the document the way
    every other strip on this page is: --surface-2 against the centre's --bg-2. */
 .bothy-files .fx-tabbar {
-  flex: none; display: flex; align-items: center; gap: 10px;
-  height: 34px; padding: 0 8px 0 14px;
+  flex: none; display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 8px 0 6px;
   background: var(--surface-2);
 }
-.bothy-files .fx-crumb {
-  min-width: 0; display: flex; align-items: center; gap: 6px;
-  font-family: var(--mono); font-size: 12px; white-space: nowrap; overflow: hidden;
+
+/* ── the tabs ────────────────────────────────────────────────────────────────
+   Overflow SCROLLS. It must not wrap: a wrapped strip changes the height of the
+   chrome as files open, so the document underneath jumps every time - and the
+   jump is largest exactly when you are opening things quickly. The strip is
+   34px whether it holds one tab or thirty.
+
+   The scrollbar is hidden rather than styled: a horizontal bar inside a 34px
+   strip is 8px of the 34, and the tabs already say there is more by being cut
+   off at the edge. Wheel and drag still scroll it. */
+.bothy-files .fx-tabs {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: stretch; gap: 2px;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
 }
-.bothy-files .fx-crumb-dir {
-  color: var(--fg-subtle); overflow: hidden; text-overflow: ellipsis;
-  /* The tail of a path is what identifies it; the head is what wraps. Shrinking
-     only the directory keeps the file name whole at every width. */
-  direction: ltr; min-width: 0;
+.bothy-files .fx-tabs::-webkit-scrollbar { height: 0; }
+.bothy-files .fx-tab {
+  flex: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  max-width: 200px; padding: 0 4px 0 10px; margin: 4px 0;
+  border-radius: var(--r-sm);
+  color: var(--fg-subtle); font-size: 12px; white-space: nowrap;
+  border: 1px solid transparent;
 }
-.bothy-files .fx-crumb-base { color: var(--fg); font-weight: 600; flex: none; }
+.bothy-files .fx-tab:hover { background: var(--surface-3); color: var(--fg-muted); }
+/* The active tab is the accent TINT the rest of the page uses for "this one" -
+   the same relationship .fx-hbtn.on and .seg-toggle button.on already have, so a
+   selected tab reads the same way as every other selected control here. Never
+   colour alone: it is also the only tab at full text weight. */
+.bothy-files .fx-tab.on {
+  background: var(--accent-bg); border-color: var(--accent-line);
+  color: var(--accent-fg); font-weight: 600;
+}
+.bothy-files .fx-tab.dragging { opacity: .45; }
+.bothy-files .fx-tab-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bothy-files .fx-tab-x {
+  appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
+  width: 17px; height: 17px; border: 0; border-radius: var(--r-xs);
+  background: transparent; color: inherit; opacity: .55;
+}
+.bothy-files .fx-tab-x:hover { background: var(--surface-1); opacity: 1; }
+/* NOT hover-revealed. `display: none` until :hover takes a control out of the
+   tab order entirely, which is how the explorer's per-directory download shipped
+   mouse-only. The X is always there and always reachable; hover only changes
+   how loud it is. */
+
 /* The unsaved dot, exactly where VS Code puts it, because that is where people
    look for it. Never the only signal - the status strip says it in words. */
 .bothy-files .fx-dot {
   flex: none; width: 7px; height: 7px; border-radius: var(--r-full);
   background: var(--st-warn); margin-left: 2px;
 }
-.bothy-files .fx-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
+.bothy-files .fx-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .bothy-files .fx-seg { border-radius: var(--r-sm); padding: 2px; }
 .bothy-files .fx-seg button { padding: 3px 9px; font-size: 11.5px; border-radius: var(--r-xs); }
+
+/* ── the split target ────────────────────────────────────────────────────────
+   Rendered only while a tab is actually in the air. A permanent drop zone on the
+   side of the editor is a 40% strip of nothing for the whole of the time nobody
+   is dragging, and it would eat pointer events from the document under it. */
+.bothy-files .fx-dropedge {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 38%;
+  z-index: 5; display: grid; place-items: center;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-left: 2px dashed var(--accent);
+}
+.bothy-files .fx-dropedge-hint {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--accent-fg); background: var(--surface-1);
+  border: 1px solid var(--accent-line); border-radius: var(--r-sm); padding: 3px 9px;
+}
+
+/* ── the overflow menu ───────────────────────────────────────────────────────
+   Anchored to the ⋯ button rather than portalled: the strip is at the TOP of a
+   tall pane, so a menu opening downward has room, and a portal would need its
+   own collision logic to do the same job. `.fx-centre` clips its overflow, which
+   is why the menu is capped in height and scrolls rather than growing past the
+   pane's bottom edge. */
+.bothy-files .fx-menu-wrap { position: relative; flex: none; display: flex; }
+.bothy-files .fx-menu {
+  position: absolute; top: calc(100% + 4px); z-index: 40;
+  min-width: 246px; max-height: 60vh; overflow: auto;
+  padding: 4px; display: flex; flex-direction: column;
+  background: var(--surface-1); color: var(--fg-muted);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+}
+.bothy-files .fx-menu-end { right: 0; }
+.bothy-files .fx-menu-start { left: 0; }
+.bothy-files .fx-menu-item {
+  appearance: none; cursor: pointer; font: inherit; text-align: left;
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 9px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--fg-muted); font-size: 12.5px;
+}
+.bothy-files .fx-menu-item:hover:not([aria-disabled='true']),
+.bothy-files .fx-menu-item:focus-visible { background: var(--surface-3); color: var(--fg); }
+/* `aria-disabled`, not `disabled` - a disabled button cannot be focused, and the
+   reason written beside it would be unreachable to exactly the reader who needs
+   it most. So it stays in the arrow order and refuses the activation instead. */
+.bothy-files .fx-menu-item[aria-disabled='true'] { cursor: default; opacity: var(--disabled-opacity); }
+.bothy-files .fx-menu-ico { flex: none; display: grid; place-items: center; width: 15px; color: var(--fg-subtle); }
+.bothy-files .fx-menu-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bothy-files .fx-menu-note { font-size: 10.5px; color: var(--fg-subtle); white-space: normal; }
+.bothy-files .fx-menu-chord { flex: none; display: inline-flex; gap: 2px; }
+.bothy-files .fx-menu .kbd { font-size: 9.5px; padding: 0 4px; }
+/* A rule between groups of items, drawn by the item BELOW it so a group can be
+   added or removed without a separate element to keep in step. */
+.bothy-files .fx-menu-cut { margin-top: 5px; padding-top: 9px; border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sm) var(--r-sm); }
 
 /* ── notices ─────────────────────────────────────────────────────────────────
    One row, under the tab bar, for every outcome a save can have. Five tones, and
@@ -68,7 +192,20 @@
 .bothy-files .fx-note.auth { background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent-fg); }
 .bothy-files .fx-note.auth .btn { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
-.bothy-files .fx-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* ── the document stack ──────────────────────────────────────────────────────
+   EVERY open document is mounted, all the time, and the inactive ones are
+   `hidden`. That is not tidiness - it is the whole reason undo survives a tab
+   switch. CodeMirror's history lives in the EditorState, which dies with the
+   view; rendering only the active document would put the surfaces back on a
+   mount/unmount cycle, which is exactly the `key={docKey}` behaviour the
+   document model exists to replace.
+
+   The [hidden] rule has to be written out: `display: flex` below beats the UA
+   stylesheet's `[hidden] { display: none }`, so without this line "hidden"
+   documents are stacked on top of each other and every one of them is visible. */
+.bothy-files .fx-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.bothy-files .fx-doc { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bothy-files .fx-doc[hidden] { display: none; }
 .bothy-files .fx-pad { flex: 1; min-height: 0; overflow: auto; padding: 24px; }
 
 /* ── source, with a gutter ───────────────────────────────────────────────────
@@ -421,20 +558,23 @@
 .bothy-files .fx-stat.mono { font-family: var(--mono); text-transform: uppercase; letter-spacing: .05em; }
 .bothy-files .fx-stat-sep { width: 1px; height: 11px; background: var(--line); flex: none; }
 .bothy-files .fx-status-spacer { flex: 1; }
-.bothy-files .fx-status .kbd { font-size: 9.5px; padding: 0 4px; }
-/* Buttons in a 24px strip. Sized to the strip rather than to the button scale in
-   index.css, which starts at 28px and would grow the strip by half again. */
-.bothy-files .fx-statbtn {
-  appearance: none; cursor: pointer; font: inherit; font-size: 10.5px;
-  display: inline-flex; align-items: center; gap: 4px; flex: none;
-  height: 17px; padding: 0 7px; border-radius: var(--r-xs);
-  background: transparent; color: var(--fg-subtle); border: 1px solid transparent;
+/* The file's PATH, which moved down here when the tab bar became a tab strip.
+   A tab can only carry a name; this is where the rest of the identity goes.
+   The one thing in the strip allowed to SHRINK - everything else is a short
+   measurement, and a path is the only part that can be truncated without
+   losing a fact. `display: block` because .fx-stat is an inline-flex with a
+   gap, which would put 4px of air inside the path. */
+.bothy-files .fx-stat.fx-path {
+  display: block; flex: 0 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--mono);
 }
-.bothy-files .fx-statbtn:hover { background: var(--surface-3); color: var(--fg); }
-.bothy-files .fx-statbtn.on { background: var(--accent-bg); color: var(--accent-fg); border-color: var(--accent-line); }
-/* Inset, like the rest of the page (shell.css). At -1px rather than -2px: the
-   button is 17px tall, and a 2px ring 2px in would be sitting on the glyph. */
-.bothy-files .fx-statbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: -1px; }
+.bothy-files .fx-stat.fx-path b { color: var(--fg-muted); font-weight: 600; }
+.bothy-files .fx-status .kbd { font-size: 9.5px; padding: 0 4px; }
+/* `.fx-statbtn` used to be here - a button sized for the 24px strip, for Find
+   and Keys. Both moved into the toolbar's overflow menu and this strip is a
+   readout now, so the rule went with them rather than being left as furniture
+   for a control that no longer exists. */
 
 /* ── read view (markdown) ────────────────────────────────────────────────── */
 .bothy-files .fx-read { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px; }
@@ -559,13 +699,14 @@
   .bothy-files .fx-empty-mark { display: none; }
 }
 
-/* Close, at the far edge. `margin-left: auto` inside the flex strip pushes it
-   past everything else, and the separator makes the gap deliberate rather than
+/* Close, at the far edge. The separator makes the gap deliberate rather than
    looking like a layout accident. Its neighbours would otherwise be Edit and
-   Save; one slip from "save" to "close" is the worst adjacency on this bar. */
+   Save; one slip from "save" to "close" is the worst adjacency on this bar.
+   (The `margin-inline-start: auto` this rule used to carry is gone: the tab
+   strip is `flex: 1` now, so it does the pushing.) */
 .bothy-files .fx-crumb-x {
-  margin-inline-start: auto;
   padding-inline-start: 8px;
   border-inline-start: 1px solid var(--line);
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  width: auto; min-width: 24px;
 }
