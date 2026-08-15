@@ -20,6 +20,40 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# The policy is loaded at import and validates that every root is a real
+# directory - so importing safepath on the HOST, where /repos/* does not exist,
+# now fails by design. That is the fail-closed behaviour working; it just means
+# this file has to bring its own policy.
+#
+# Which it should anyway. A unit test of the boundary that depends on the
+# PRODUCTION policy tests two things at once and fails for the wrong reason when
+# somebody edits a root. These cases override ROOTS per-section regardless; the
+# policy below exists only to satisfy the loader.
+_BOOT = tempfile.mkdtemp(prefix="safepath-boot-")
+_POLICY = os.path.join(_BOOT, "policy.toml")
+with open(_POLICY, "w") as _f:
+    _f.write(
+        f'[roots.docs]\npath = "{_BOOT}"\nwritable = true\n'
+        f'[deny]\n'
+        f'components = [".git", ".ssh", ".gnupg", "node_modules", ".venv", "venv",'
+        f' "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",'
+        f' ".next", ".turbo", ".cache", "target"]\n'
+        f'file_patterns = [".env", ".env.*", "*.env", "*.pem", "*.key", "*.p12",'
+        f' "*.pfx", "*.jks", "*.keystore", "id_rsa", "id_dsa", "id_ecdsa",'
+        f' "id_ed25519", "*.ppk", "*.kdbx", "*.gpg", "*.asc", ".netrc", ".pgpass",'
+        f' ".htpasswd", ".git-credentials", "credentials", "credentials.*",'
+        f' "*secret*", "*password*", "*.sqlite", "*.db", "realm-*.json",'
+        f' "*-realm.json", "realm.json"]\n'
+        f'wordy_patterns = ["*secret*", "*password*"]\n'
+        f'prose_suffixes = [".md", ".markdown", ".rst"]\n'
+        f'allow_files = [".env.example", ".env.sample", ".env.template",'
+        f' ".env.test.example", ".env.local.template", ".env.production.template",'
+        f' ".env.defaults"]\n'
+        f'[write]\nsuffixes = [".md", ".markdown", ".txt", ".rst", ".svg",'
+        f' ".html", ".htm", ".xml"]\n')
+os.environ.setdefault("POLICY_FILE", _POLICY)
+
 import safepath  # noqa: E402
 
 bad = 0
