@@ -1,0 +1,339 @@
+/* ============================================================================
+   BothyFiles - the activity bar, Source Control, the diff, and the git
+   decorations in the tree. Scoped under .bothy-files, (0,2,0), for the reason
+   shell.css states at its top: index.css is emitted last, so a (0,1,0) rule
+   here would lose to a (0,1,0) rule there.
+
+   COLOUR RULE, AND IT IS THE WHOLE PALETTE FOR THIS FILE: git state is painted
+   with the app's existing status tokens and nothing else -
+
+       --st-up-fg    added / untracked   (something arrived)
+       --st-warn-fg  modified            (something changed)
+       --st-down-fg  deleted / conflict  (something left, or broke)
+
+   A fourth hue for git would put five meanings on this page's three status
+   colours and make all of them mean less. Every one of these tokens is defined
+   in BOTH themes in index.css, so nothing below needs a light-mode branch.
+   ========================================================================== */
+
+/* ── the activity bar ────────────────────────────────────────────────────────
+   46px, which is one 28px target plus breathing room, and fixed: this strip
+   must not resize, because it is the control that gets the rail back when the
+   rail is gone. It is never collapsed, so it is the one region with no toggle
+   of its own. */
+.bothy-files .fx-act {
+  grid-column: 1; grid-row: 1;
+  flex: none; width: 46px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 0;
+  background: var(--surface-2); border-right: 1px solid var(--line);
+}
+.bothy-files .fx-actbtn {
+  appearance: none; cursor: pointer; position: relative;
+  width: 38px; height: 38px; display: grid; place-items: center;
+  border: 0; border-radius: var(--r-sm); background: transparent; color: var(--fg-subtle);
+}
+.bothy-files .fx-actbtn:hover { color: var(--fg); background: var(--surface-3); }
+.bothy-files .fx-actbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+/* Selected AND the rail is open: a left bar plus full-strength colour, the same
+   two-signal rule the tree's selection uses. */
+.bothy-files .fx-actbtn.on {
+  color: var(--fg);
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+/* Selected but the rail is COLLAPSED. The distinction is real - the view is
+   still the one that will appear when the rail comes back - so it is stated
+   quietly rather than not at all. */
+.bothy-files .fx-actbtn.sel { color: var(--fg-muted); }
+
+.bothy-files .fx-actbadge {
+  position: absolute; right: 3px; bottom: 3px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  display: grid; place-items: center;
+  font-size: 9.5px; font-weight: 700; line-height: 1;
+  border-radius: var(--r-full);
+  background: var(--accent); color: var(--on-accent);
+}
+
+/* ── Source Control ──────────────────────────────────────────────────────── */
+.bothy-files .fx-scm { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
+
+.bothy-files .fx-scm-repo {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 8px 10px 6px;
+}
+.bothy-files .fx-scm-branch {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+  color: var(--fg); font-size: 12px; font-weight: 600;
+}
+.bothy-files .fx-scm-branch svg { flex: none; color: var(--accent-fg); }
+.bothy-files .fx-scm-branch .mono { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bothy-files .fx-scm-branch.dim { color: var(--fg-subtle); font-weight: 400; font-size: 11.5px; }
+.bothy-files .fx-scm-branch.dim svg { color: var(--fg-subtle); }
+.bothy-files .fx-scm-reponame {
+  margin-left: auto; flex: none; font-size: 10.5px; color: var(--fg-subtle);
+}
+
+.bothy-files .fx-scm-pick { display: block; padding: 0 10px 6px; }
+.bothy-files .fx-scm-pick select {
+  width: 100%; appearance: none; font: inherit; font-size: 11.5px; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 4px 8px;
+}
+.bothy-files .fx-scm-pick select:focus { border-color: var(--accent); outline: none; }
+
+/* A read-only root. Stated once, up front, instead of four buttons that each
+   turn out to 403 - the refusal is a property of the MOUNT and is known before
+   anything is clicked. */
+.bothy-files .fx-scm-ro {
+  display: flex; gap: 7px; align-items: flex-start;
+  margin: 0 10px 8px; padding: 7px 9px;
+  background: var(--st-off-bg); border: 1px solid var(--st-off-line);
+  border-radius: var(--r-sm); color: var(--fg-subtle); font-size: 11px; line-height: 1.45;
+}
+.bothy-files .fx-scm-ro svg { flex: none; margin-top: 1px; }
+.bothy-files .fx-scm-ro b { color: var(--fg-muted); font-size: 10.5px; }
+
+.bothy-files .fx-scm-last {
+  margin: 0; padding: 0 10px 8px; color: var(--fg-subtle); font-size: 10.5px;
+  line-height: 1.45; display: flex; gap: 6px; align-items: baseline;
+  overflow: hidden;
+}
+.bothy-files .fx-scm-last .mono { color: var(--fg-muted); font-size: 10.5px; flex: none; }
+.bothy-files .fx-scm-last .fx-scm-when { margin-left: auto; flex: none; }
+
+/* The action outcome. Reuses .fx-note's tones from editor.css, so a 503 here is
+   the same shade of "information" as an info notice in the centre column. */
+.bothy-files .fx-scm-note {
+  margin: 0 10px 8px; align-items: flex-start; font-size: 11.5px; line-height: 1.45;
+}
+.bothy-files .fx-scm-note-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bothy-files .fx-scm-note-detail {
+  color: inherit; opacity: .82; font-family: var(--mono); font-size: 10.5px;
+  overflow-wrap: anywhere; white-space: pre-wrap;
+}
+.bothy-files .fx-scm-note .icon-btn { margin-left: auto; flex: none; }
+
+/* ── the discard confirmation ────────────────────────────────────────────────
+   The loudest surface on the page, and the only one that earns it: this is the
+   single action here that destroys work with nothing to recover it from. Down
+   tone, a real border, and three sentences - a one-line "are you sure?" would
+   understate it. */
+.bothy-files .fx-scm-confirm {
+  margin: 0 10px 10px; padding: 10px 11px;
+  background: var(--st-down-bg); border: 1px solid var(--st-down-line);
+  border-radius: var(--r-sm); color: var(--fg-muted); font-size: 11.5px; line-height: 1.5;
+}
+.bothy-files .fx-scm-confirm-h {
+  display: flex; align-items: center; gap: 7px; color: var(--st-down-fg); margin-bottom: 6px;
+}
+.bothy-files .fx-scm-confirm-h svg { flex: none; }
+.bothy-files .fx-scm-confirm-h strong { font-size: 12px; overflow-wrap: anywhere; }
+.bothy-files .fx-scm-confirm p { margin: 0 0 7px; }
+.bothy-files .fx-scm-confirm p b { color: var(--st-down-fg); font-weight: 700; }
+/* The server's own sentence, quoted. Monospace so it reads as a quotation from
+   the service rather than as more of this page's prose. */
+.bothy-files .fx-scm-confirm-said {
+  font-family: var(--mono); font-size: 10.5px; color: var(--fg-subtle);
+  border-left: 2px solid var(--st-down-line); padding-left: 8px;
+}
+.bothy-files .fx-scm-confirm-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.bothy-files .btn.fx-danger {
+  background: var(--st-down); border-color: var(--st-down); color: var(--on-accent);
+}
+.bothy-files .btn.fx-danger:hover { filter: brightness(1.08); }
+
+/* ── commit ──────────────────────────────────────────────────────────────── */
+.bothy-files .fx-scm-commit { padding: 4px 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.bothy-files .fx-scm-msg { display: block; }
+.bothy-files .fx-scm-msg textarea {
+  width: 100%; resize: vertical; appearance: none; font: inherit; font-size: 12px;
+  color: var(--fg); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 6px 9px; line-height: 1.45;
+}
+.bothy-files .fx-scm-msg textarea:focus { border-color: var(--accent); outline: none; }
+.bothy-files .fx-scm-commitbtn { justify-content: center; }
+
+/* ── sync ────────────────────────────────────────────────────────────────── */
+.bothy-files .fx-scm-sync {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  padding: 0 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
+}
+.bothy-files .fx-scm-sync .btn.sm { padding: 4px 10px; font-size: 11.5px; }
+/* Said once, quietly, beside the two buttons it is about - so a 403 later is a
+   confirmation rather than a surprise. */
+.bothy-files .fx-scm-synchint {
+  width: 100%; color: var(--fg-subtle); font-size: 10px;
+}
+
+/* ── the groups ──────────────────────────────────────────────────────────── */
+.bothy-files .fx-scm-group { margin-bottom: 2px; }
+.bothy-files .fx-scm-grouph {
+  appearance: none; cursor: pointer; width: 100%; border: 0; background: transparent;
+  display: flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; height: 24px;
+  font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--fg-subtle); text-align: left;
+}
+.bothy-files .fx-scm-grouph:hover { color: var(--fg); background: var(--surface-2); }
+.bothy-files .fx-scm-grouph:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-scm-count {
+  margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: 0;
+}
+
+.bothy-files .fx-scm-li { position: relative; display: flex; align-items: center; }
+.bothy-files .fx-scm-row {
+  appearance: none; cursor: pointer; flex: 1; min-width: 0; border: 0; background: transparent;
+  display: flex; align-items: center; gap: 6px; padding: 0 6px 0 22px; height: 24px;
+  color: var(--fg-muted); font: inherit; font-size: 12.5px; text-align: left; line-height: 1;
+}
+.bothy-files .fx-scm-row:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .fx-scm-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-scm-row.on {
+  background: var(--accent-bg); color: var(--fg); box-shadow: inset 2px 0 0 0 var(--accent);
+}
+/* A change the explorer may not open. Shown because the count would otherwise
+   disagree with git for no visible reason; not a button, because there is
+   nothing behind it. */
+.bothy-files .fx-scm-row.denied { cursor: default; opacity: .7; }
+.bothy-files .fx-scm-text { min-width: 0; display: flex; align-items: baseline; gap: 6px; flex: 1; }
+.bothy-files .fx-scm-text .fx-name { flex: none; max-width: 60%; }
+.bothy-files .fx-scm-dir {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.bothy-files .fx-scm-code {
+  flex: none; font-family: var(--mono); font-size: 11px; font-weight: 700; width: 12px;
+  text-align: center;
+}
+
+/* The per-row actions. `opacity`, NOT `display: none` - a hidden button cannot
+   be focused, and these are the only way to stage anything, so a keyboard user
+   would have no path to them at all. Tab reveals them. */
+.bothy-files .fx-scm-acts {
+  position: absolute; right: 4px; display: flex; align-items: center; gap: 1px;
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+  background: linear-gradient(90deg, transparent, var(--surface-2) 18%);
+  padding-left: 14px;
+}
+.bothy-files .fx-scm-li:hover .fx-scm-acts,
+.bothy-files .fx-scm-acts:focus-within { opacity: 1; }
+.bothy-files .fx-scm-act {
+  appearance: none; cursor: pointer; display: grid; place-items: center;
+  width: 20px; height: 20px; border: 0; border-radius: var(--r-xs);
+  background: transparent; color: var(--fg-subtle);
+}
+.bothy-files .fx-scm-act:hover:not(:disabled) { background: var(--surface-3); color: var(--fg); }
+.bothy-files .fx-scm-act:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
+.bothy-files .fx-scm-busy { color: var(--fg-subtle); }
+
+/* ── decorations in the tree ─────────────────────────────────────────────────
+   Colour on the NAME, and a letter beside it. Never colour alone: the letter is
+   what survives a monochrome screen, colour blindness, and a screenshot in a
+   ticket. `data-git` carries the tone so one attribute drives both. */
+.bothy-files .fx-row[data-git='up'] .fx-name { color: var(--st-up-fg); }
+.bothy-files .fx-row[data-git='warn'] .fx-name { color: var(--st-warn-fg); }
+.bothy-files .fx-row[data-git='down'] .fx-name { color: var(--st-down-fg); }
+/* A directory's name is already --fg and bold; the tone replaces the colour and
+   keeps the weight, so the hierarchy does not move when a change appears. */
+.bothy-files .fx-dir[data-git] .fx-name { font-weight: 600; }
+
+.bothy-files .fx-gitcode {
+  margin-left: auto; flex: none; padding-left: 6px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 700; line-height: 1;
+}
+.bothy-files .fx-gitcode.t-up { color: var(--st-up-fg); }
+.bothy-files .fx-gitcode.t-warn { color: var(--st-warn-fg); }
+.bothy-files .fx-gitcode.t-down { color: var(--st-down-fg); }
+/* Staged is a RING, not another colour: which side of the staging line a change
+   is on is a second dimension, and spending a hue on it would collide with the
+   three that already mean something. */
+.bothy-files .fx-gitcode.staged {
+  border-radius: var(--r-xs); padding: 1px 3px; margin-left: auto;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* The count on a collapsed folder - the propagation, made countable. */
+.bothy-files .fx-gitn {
+  margin-left: auto; flex: none; padding-left: 6px;
+  font-family: var(--mono); font-size: 10px; color: var(--fg-subtle);
+}
+.bothy-files .fx-dir[data-git='up'] .fx-gitn { color: var(--st-up-fg); }
+.bothy-files .fx-dir[data-git='warn'] .fx-gitn { color: var(--st-warn-fg); }
+.bothy-files .fx-dir[data-git='down'] .fx-gitn { color: var(--st-down-fg); }
+
+/* ── the tombstone ───────────────────────────────────────────────────────────
+   A deleted file is in /status and cannot be in the tree. Struck through, so
+   "this is not here any more" is legible without the colour, and clickable,
+   because the diff is the only thing left that can still be read. */
+.bothy-files .fx-row.fx-tomb .fx-name {
+  text-decoration: line-through; text-decoration-thickness: 1px;
+  color: var(--st-down-fg); opacity: .85;
+}
+.bothy-files .fx-ico.t-tomb { color: var(--st-down-fg); opacity: .8; }
+
+/* ── the diff ────────────────────────────────────────────────────────────────
+   Rows, not a highlighted document: a diff has no language (the +/- column
+   breaks every rule set at the start of a line) and exactly one thing to say
+   per line - which side of the change it is on. */
+.bothy-files .fx-diff {
+  flex: 1; min-height: 0; overflow: auto; background: var(--bg-2);
+  font-family: var(--mono); font-size: var(--code-fs); line-height: var(--code-lh);
+}
+.bothy-files .fx-diff:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-diff-sum {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 7px 14px; border-bottom: 1px solid var(--line);
+  background: var(--surface-2); color: var(--fg-muted); font-size: 11.5px;
+}
+.bothy-files .fx-diff-sum svg { flex: none; color: var(--fg-subtle); }
+.bothy-files .fx-diff-sum .mono { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bothy-files .fx-diff-side {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  color: var(--fg-subtle); font-size: 10.5px; font-family: var(--sans, inherit);
+}
+.bothy-files .fx-diff-counts { margin-left: auto; flex: none; display: flex; gap: 8px; font-size: 11px; }
+.bothy-files .fx-diff-counts .add { color: var(--st-up-fg); }
+.bothy-files .fx-diff-counts .del { color: var(--st-down-fg); }
+
+.bothy-files .fx-diff-body { margin: 0; padding: 0 0 30px; min-width: max-content; }
+.bothy-files .fx-diff-line {
+  display: block; white-space: pre; padding: 0 20px 0 12px;
+  color: var(--fg-muted); font: inherit;
+  /* The tint is a full-bleed row, so it has to be at least as wide as the
+     widest line rather than as wide as the viewport. */
+  min-width: 100%; box-sizing: border-box;
+}
+.bothy-files .fx-diff-line.k-add {
+  background: var(--st-up-bg); color: var(--st-up-fg);
+  box-shadow: inset 2px 0 0 0 var(--st-up);
+}
+.bothy-files .fx-diff-line.k-del {
+  background: var(--st-down-bg); color: var(--st-down-fg);
+  box-shadow: inset 2px 0 0 0 var(--st-down);
+}
+/* The hunk header is navigation, not content: it is the one line people scan
+   for, so it gets the accent rather than a status colour. */
+.bothy-files .fx-diff-line.k-hunk {
+  color: var(--accent-fg); background: var(--accent-bg);
+  margin-top: 6px; font-weight: 600;
+}
+.bothy-files .fx-diff-line.k-meta { color: var(--fg-subtle); opacity: .8; }
+
+/* The path in the status strip. `.fx-stat.mono` would have done, except that it
+   also UPPERCASES - correct for a `TS` language chip, wrong for a path, where it
+   quietly claims a spelling the file does not have. */
+.bothy-files .fx-stat.fx-diffpath { font-family: var(--mono); }
+
+/* The crumb, when the centre is showing a diff rather than a file. */
+.bothy-files .fx-crumb-ico { flex: none; color: var(--fg-subtle); }
+.bothy-files .fx-crumb-tag {
+  flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--accent-fg); background: var(--accent-bg); border: 1px solid var(--accent-line);
+  border-radius: var(--r-xs); padding: 1px 5px;
+}
+
+/* The strip survives every width, including the phone layout in shell.css where
+   the grid becomes a flex row: it is 46px, it never collapses, and it is the
+   only way back to a hidden rail - so it is the last thing that could ever be
+   dropped. It needs no responsive rule of its own; `flex: none` is enough. */

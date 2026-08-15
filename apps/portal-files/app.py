@@ -802,7 +802,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": (p.stderr or p.stdout).strip()[:400]})
             sha = git(base.git_root, "rev-parse", "--short", "HEAD").stdout.strip()
             audit(who, "COMMITTED", base, extra=f"{sha} ({len(staged)} files) {msg[:60]}")
-            return self._send(200, {"ok": True, "sha": sha, "files": staged,
+            # `committed` rather than `files`: status() also returns a `files`
+            # key, and `{"files": staged, **status(...)}` let it win the merge -
+            # so the list of what was just committed was built and then silently
+            # thrown away. Two different meanings of "files" in one dict is the
+            # kind of thing that reads fine and is wrong, which is why the name
+            # is now distinct instead of the merge order being load-bearing.
+            return self._send(200, {"ok": True, "sha": sha, "committed": staged,
                                     "message": msg,
                                     **status(base.root_key, body.get("path", ""))})
 

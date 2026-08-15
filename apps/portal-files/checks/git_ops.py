@@ -95,6 +95,11 @@ check("it is attributed to the signed-in user",
       g("log", "-1", "--format=%an"))
 check("and touched exactly the one file",
       g("show", "--name-only", "--format=", "HEAD").split() == [F])
+# The response must actually SAY what it committed. It used to build that list
+# under the key `files` and then lose it: status() returns a `files` key too, and
+# the dict merge put status last. Two meanings of one name in one dict.
+check("the response names what it committed",
+      r.json().get("committed") == [F], str(r.json().get("committed")))
 
 print("\n── discard: the irreversible one ───────────────────────────────────")
 s.post(f"{API}/write", json={**P, "content": "# one\n# two\n# UNSAVED WORK\n"}, timeout=20)

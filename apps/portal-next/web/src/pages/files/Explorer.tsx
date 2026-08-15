@@ -14,19 +14,20 @@
 
 import { useMemo } from 'react';
 import {
-  ChevronRight, ChevronsDownUp, FileDown, Folder, FolderOpen, Lock, Locate, Search, X,
+  ChevronRight, ChevronsDownUp, FileDown, FileX2, Folder, FolderOpen, Lock, Locate, Search, X,
 } from 'lucide-react';
 import { fmtBytes, type FileRoot, type TreeFile } from '../../lib/files';
 import { Tooltip } from '../../components/Tooltip';
 import { FileIcon } from './icons';
 import { baseName, dirName, tailPath, type Node } from './tree';
+import { toneFor, type Decorations } from './gitdeco';
 
 export const MAX_RESULTS = 250;
 
 export interface Results { total: number; shown: TreeFile[] }
 
 function TreeRows({
-  nodes, depth, expanded, onToggle, current, onPick, onDownloadDir,
+  nodes, depth, expanded, onToggle, current, onPick, onDownloadDir, deco, tombs, onOpenDiff,
 }: {
   nodes: Node[];
   depth: number;
@@ -35,6 +36,13 @@ function TreeRows({
   current: string;
   onPick: (path: string) => void;
   onDownloadDir: (node: Node) => void;
+  /** Git state for every path git mentioned, plus the colour that has to reach
+   *  the collapsed folders above it. */
+  deco: Decorations;
+  /** Paths that are in `/status` and CANNOT be on disk. See the tombstone row
+   *  below - the alternative is a file that silently is not there. */
+  tombs: Set<string>;
+  onOpenDiff: (path: string) => void;
 }) {
   return (
     <ul className="fx-list">
@@ -48,6 +56,11 @@ function TreeRows({
 
         if (n.dir) {
           const open = expanded.has(n.path);
+          // The propagation that makes a change visible without expanding
+          // anything. A closed folder is one row and no children, so without
+          // this the only way to find a modification is to already know where
+          // it is.
+          const dd = deco.dirs.get(n.path);
           return (
             <li key={n.path} className="fx-li">
               <div className={`fx-rowwrap ${open ? 'open' : ''}`}>
@@ -56,15 +69,24 @@ function TreeRows({
                   className="fx-row fx-dir"
                   style={pad}
                   aria-expanded={open}
+                  data-git={dd ? toneFor(dd.state) : undefined}
                   onClick={() => onToggle(n.path)}
-                  title={`${n.path} - ${n.files.toLocaleString()} files, ${fmtBytes(n.bytes)}`}
+                  title={`${n.path} - ${n.files.toLocaleString()} files, ${fmtBytes(n.bytes)}`
+                    + (dd ? ` · ${dd.count} changed` : '')}
                 >
                   <ChevronRight size={12} className={`fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
                   {open
                     ? <FolderOpen size={13} className="fx-ico t-dir" aria-hidden="true" />
                     : <Folder size={13} className="fx-ico t-dir" aria-hidden="true" />}
                   <span className="fx-name">{n.name}</span>
-                  <span className="fx-n">{n.files.toLocaleString()}</span>
+                  {/* The git count REPLACES the file count when there is one.
+                      Both in the same 10px column is two numbers that look
+                      alike and mean nothing alike, and at this width one of
+                      them has to go - the changed count is the one you are
+                      looking for. The full pair stays in the title. */}
+                  {dd
+                    ? <span className="fx-gitn tnum">{dd.count}</span>
+                    : <span className="fx-n">{n.files.toLocaleString()}</span>}
                 </button>
                 {/* Per-directory download. On the row rather than in a menu
                     because it is the only action a directory HAS, and a menu for
@@ -90,6 +112,9 @@ function TreeRows({
                   current={current}
                   onPick={onPick}
                   onDownloadDir={onDownloadDir}
+                  deco={deco}
+                  tombs={tombs}
+                  onOpenDiff={onOpenDiff}
                 />
               )}
             </li>
@@ -98,6 +123,35 @@ function TreeRows({
 
         const on = n.path === current;
         const writable = n.entry?.writable !== false;
+        const d = deco.files.get(n.path);
+
+        // ── the tombstone ──────────────────────────────────────────────────
+        // A deleted file is in `/status` and cannot be in the tree, because the
+        // tree is a listing of what is on disk. Leaving it out would make a
+        // deletion the one change with no representation where you look for
+        // files - so it gets a row of its own: struck through, marked D, and
+        // opening the DIFF rather than the file, which is the only thing left
+        // that can still be read.
+        if (tombs.has(n.path)) {
+          return (
+            <li key={n.path} className="fx-li">
+              <button
+                type="button"
+                className="fx-row fx-file fx-tomb"
+                style={pad}
+                data-path={n.path}
+                data-git="down"
+                onClick={() => onOpenDiff(n.path)}
+                title={`${n.path} - deleted, and not yet committed. Opens the diff; the file itself is gone.`}
+              >
+                <FileX2 size={13} className="fx-ico t-tomb" aria-hidden="true" />
+                <span className="fx-name">{n.name}</span>
+                <span className="fx-gitcode t-down" aria-label="deleted">D</span>
+              </button>
+            </li>
+          );
+        }
+
         return (
           <li key={n.path} className="fx-li">
             <button
@@ -105,20 +159,27 @@ function TreeRows({
               className={`fx-row fx-file ${on ? 'on' : ''} ${denied ? 'denied' : ''}`}
               style={pad}
               data-path={n.path}
+              data-git={d ? toneFor(d.state) : undefined}
               aria-current={on ? 'true' : undefined}
               aria-disabled={denied || undefined}
               disabled={denied}
               onClick={() => !denied && onPick(n.path)}
               title={denied
                 ? `${n.path} - this session may not read it`
-                : `${n.path}${n.entry ? ` · ${fmtBytes(n.entry.size)}` : ''}${writable ? '' : ' · read-only'}`}
+                : `${n.path}${n.entry ? ` · ${fmtBytes(n.entry.size)}` : ''}${writable ? '' : ' · read-only'}`
+                  + (d ? ` · ${d.label}${d.staged ? ', staged' : ''}` : '')}
             >
               {denied
                 ? <Lock size={13} className="fx-ico t-denied" aria-hidden="true" />
                 : <FileIcon name={n.name} />}
               <span className="fx-name">{n.name}</span>
               {!writable && !denied && <Lock size={10} className="fx-ro" aria-hidden="true" />}
-              {n.entry && !denied && <span className="fx-size">{fmtBytes(n.entry.size)}</span>}
+              {/* The letter, not just the colour: the state has to survive a
+                  monochrome screen and a reader who cannot tell amber from
+                  green. It takes the size column, which the size can spare. */}
+              {d
+                ? <span className={`fx-gitcode t-${toneFor(d.state)} ${d.staged ? 'staged' : ''}`} aria-label={d.label}>{d.letter}</span>
+                : n.entry && !denied && <span className="fx-size">{fmtBytes(n.entry.size)}</span>}
             </button>
           </li>
         );
@@ -130,7 +191,7 @@ function TreeRows({
 export function Explorer({
   roots, root, tree, results, query, setQuery, expanded, onToggleDir, current,
   onPick, onPickRoot, onCollapseAll, onReveal, onDownloadDir, onDownloadRoot,
-  loading, error, onRetry, truncated, fileCount, filterRef,
+  loading, error, onRetry, truncated, fileCount, filterRef, deco, tombs, onOpenDiff,
 }: {
   roots: FileRoot[];
   root: string;
@@ -153,6 +214,9 @@ export function Explorer({
   truncated: boolean;
   fileCount: number;
   filterRef: React.RefObject<HTMLInputElement | null>;
+  deco: Decorations;
+  tombs: Set<string>;
+  onOpenDiff: (path: string) => void;
 }) {
   const shownCount = results
     ? `${Math.min(results.total, MAX_RESULTS).toLocaleString()} of ${results.total.toLocaleString()}`
@@ -245,30 +309,40 @@ export function Explorer({
           ) : (
             <>
               <ul className="fx-list">
-                {results.shown.map((e) => (
-                  <li key={e.path} className="fx-li">
-                    <button
-                      type="button"
-                      className={`fx-row fx-file fx-hit ${e.path === current ? 'on' : ''} ${e.readable === false ? 'denied' : ''}`}
-                      disabled={e.readable === false}
-                      aria-disabled={e.readable === false || undefined}
-                      onClick={() => onPick(e.path)}
-                      title={e.path}
-                    >
-                      {e.readable === false
-                        ? <Lock size={13} className="fx-ico t-denied" aria-hidden="true" />
-                        : <FileIcon name={e.path} />}
-                      {/* The basename with its folder under it - at this scale
-                          the name alone is ambiguous (six compose.yml, four
-                          README.md). */}
-                      <span className="fx-hit-text">
-                        <span className="fx-name">{baseName(e.path)}</span>
-                        <span className="fx-hit-dir">{tailPath(dirName(e.path).replace(/\/$/, '') || root)}</span>
-                      </span>
-                      <span className="fx-size">{fmtBytes(e.size)}</span>
-                    </button>
-                  </li>
-                ))}
+                {results.shown.map((e) => {
+                  // Search hits carry the same decoration as tree rows. They
+                  // have to: at this scale the filter IS the navigation, and a
+                  // state that only exists in one of the two views is a state
+                  // half the users never see.
+                  const d = deco.files.get(e.path);
+                  return (
+                    <li key={e.path} className="fx-li">
+                      <button
+                        type="button"
+                        className={`fx-row fx-file fx-hit ${e.path === current ? 'on' : ''} ${e.readable === false ? 'denied' : ''}`}
+                        disabled={e.readable === false}
+                        aria-disabled={e.readable === false || undefined}
+                        data-git={d ? toneFor(d.state) : undefined}
+                        onClick={() => onPick(e.path)}
+                        title={d ? `${e.path} · ${d.label}` : e.path}
+                      >
+                        {e.readable === false
+                          ? <Lock size={13} className="fx-ico t-denied" aria-hidden="true" />
+                          : <FileIcon name={e.path} />}
+                        {/* The basename with its folder under it - at this scale
+                            the name alone is ambiguous (six compose.yml, four
+                            README.md). */}
+                        <span className="fx-hit-text">
+                          <span className="fx-name">{baseName(e.path)}</span>
+                          <span className="fx-hit-dir">{tailPath(dirName(e.path).replace(/\/$/, '') || root)}</span>
+                        </span>
+                        {d
+                          ? <span className={`fx-gitcode t-${toneFor(d.state)} ${d.staged ? 'staged' : ''}`} aria-label={d.label}>{d.letter}</span>
+                          : <span className="fx-size">{fmtBytes(e.size)}</span>}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
               {results.total > MAX_RESULTS && (
                 <p className="fx-more">
@@ -288,6 +362,9 @@ export function Explorer({
             current={current}
             onPick={onPick}
             onDownloadDir={onDownloadDir}
+            deco={deco}
+            tombs={tombs}
+            onOpenDiff={onOpenDiff}
           />
         )}
       </div>

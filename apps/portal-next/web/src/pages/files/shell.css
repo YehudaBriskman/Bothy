@@ -127,20 +127,25 @@
    than the default `auto` is what stops a long unwrapped line of code from
    setting the column's minimum width and pushing the inspector off-screen -
    the single most common mysterious-overflow bug in grid, and the reason
-   brand/foundations/space-and-layout.md names it. */
+   brand/foundations/space-and-layout.md names it.
+
+   The first track is the ACTIVITY BAR and it is `auto`, taking its 46px from
+   its own rule in scm.css. It is outside the collapse: with the left rail
+   hidden the strip is the only control that can bring it back, so unmounting it
+   with the rail would be unmounting the way back. */
 .bothy-files .fx-grid {
   flex: 1; min-height: 0;
   display: grid;
-  grid-template-columns: var(--rail-l) auto minmax(0, 1fr) auto var(--rail-r);
+  grid-template-columns: auto var(--rail-l) auto minmax(0, 1fr) auto var(--rail-r);
   grid-template-rows: minmax(0, 1fr);
   background: var(--bg);
 }
 .bothy-files .fx-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.bothy-files .fx-col-l { grid-column: 1; }
-.bothy-files .fx-sep-l { grid-column: 2; }
-.bothy-files .fx-col-mid { grid-column: 3; }
-.bothy-files .fx-sep-r { grid-column: 4; }
-.bothy-files .fx-col-r { grid-column: 5; }
+.bothy-files .fx-col-l { grid-column: 2; }
+.bothy-files .fx-sep-l { grid-column: 3; }
+.bothy-files .fx-col-mid { grid-column: 4; }
+.bothy-files .fx-sep-r { grid-column: 5; }
+.bothy-files .fx-col-r { grid-column: 6; }
 .bothy-files .fx-col-mid { grid-row: 1; }
 
 /* ── the separators ──────────────────────────────────────────────────────────
@@ -235,8 +240,12 @@
    nothing to divide. Keep the 820 here and NARROW in panes.ts in step. */
 @media (max-width: 820px) {
   .bothy-files .fx-grid { display: flex; }
+  /* `flex: 1` rather than `width: 100%`: the activity bar takes 46px of the row
+     now, and a rail claiming the FULL width beside it would overflow the window
+     by exactly that much. An open rail still hides the centre, so flexing to
+     "everything that is left" is the same layout without the overflow. */
   .bothy-files .fx-col-l,
-  .bothy-files .fx-col-r { flex: none; width: 100%; }
+  .bothy-files .fx-col-r { flex: 1; min-width: 0; }
   .bothy-files .fx-col-mid { flex: 1; min-width: 0; }
   .bothy-files .fx-sep-x { display: none; }
   .bothy-files[data-collapsed-l='false'] .fx-col-mid,
