@@ -49,10 +49,12 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import threading
 import time
 import zipfile
@@ -163,10 +165,25 @@ def audit(who: str, action: str, res, size: int | None = None,
     legitimate save because the log is full is worse - so this swallows its own
     errors and reports them to stderr.
     """
-    line = (f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{who}\t"
-            f"{action}\t{res.root_key}/{res.relpath}"
-            f"{f'   {size} bytes' if size is not None else ''}"
-            f"{f'   {extra}' if extra else ''}")
+    # Every field is flattened to one line before it is written.
+    #
+    # The log is tab-separated and one record per line, so a newline in ANY field
+    # forges a record. `extra` carries the client's commit message and git accepts
+    # multi-line messages, so a message containing
+    #   "\n<timestamp>\tsomeone@else\tDISCARDED\tstacks/compose.yml"
+    # produced a syntactically perfect entry attributing a destructive action to
+    # another user. `relpath` is the same vector - newlines are legal in Linux
+    # filenames.
+    #
+    # The point of this log is that a change is always attributable; a record
+    # anyone can forge attributes nothing.
+    def flat(v: object) -> str:
+        return re.sub(r"[\r\n\t]+", " ", str(v)).strip()
+
+    line = (f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{flat(who)}\t"
+            f"{flat(action)}\t{flat(res.root_key)}/{flat(res.relpath)}"
+            f"{f'   {int(size)} bytes' if size is not None else ''}"
+            f"{f'   {flat(extra)}' if extra else ''}")
     sys.stderr.write(line + "\n")
     try:
         with _AUDIT_LOCK:
@@ -175,6 +192,15 @@ def audit(who: str, action: str, res, size: int | None = None,
                 fh.write(line + "\n")
     except OSError as e:
         sys.stderr.write(f"AUDIT LOG UNWRITABLE ({e}) - the write itself was fine\n")
+
+
+# userinfo in a URL: scheme://<anything>@host. The token lives in that group.
+_CREDS_IN_URL = re.compile(r"(\w+://)[^/\s@]+@")
+
+
+def _redact(text: str) -> str:
+    """Strip credentials out of anything git says before we repeat it."""
+    return _CREDS_IN_URL.sub(r"\1<redacted>@", text)
 
 
 def parse_range(header: str, size: int) -> tuple[int, int] | None | str:
@@ -216,6 +242,14 @@ def parse_range(header: str, size: int) -> tuple[int, int] | None | str:
             n = int(last)
             if n <= 0:
                 return "bad"
+            # A zero-length file has no last N bytes. Without this the branch
+            # returned (0, -1) - it sits BEFORE the validation below, so nothing
+            # else caught it - and _raw then emitted
+            # `206 Content-Range: bytes 0--1/0`, which is not a parseable field
+            # value. RFC 9110 wants 416 here. Reachable with any empty file in a
+            # repo (.keep, py.typed, a freshly touched file).
+            if size == 0:
+                return "bad"
             return (max(0, size - n), size - 1)
         start = int(first)
         end = int(last) if last else size - 1
@@ -242,7 +276,18 @@ def git(root: str, *args: str) -> subprocess.CompletedProcess:
 # ~/projects is mounted read-only, so nothing under it can be written no matter
 # what the extension is. Saying so in the listing means the UI never offers a
 # save button that can only fail.
-READONLY_ROOTS = frozenset({"projects"})
+# Derived from safepath.WRITABLE_ROOTS rather than restated, because restating
+# it is what let the two drift: WRITABLE_ROOTS said {stacks, notes} and this set
+# said "everything except projects", so `home` - which mounts /home/devssh and
+# therefore ALIASES every other root - was reported to the UI as writable.
+#
+# Three things followed. /roots and /tree advertised `readOnly: false` and
+# `writable: true` for files under home, which is precisely what this flag exists
+# to prevent. A write through home reached open() and died on the read-only bind
+# mount as an opaque 500 instead of a 403. And /git/push through
+# home/projects/<repo> passed the read-only check that the `projects` root
+# exists to enforce, because home was not in the set.
+READONLY_ROOTS = frozenset(safepath.ROOTS) - safepath.WRITABLE_ROOTS
 
 
 def listing(root_key: str) -> tuple[list[dict], bool]:
@@ -685,10 +730,30 @@ class Handler(BaseHTTPRequestHandler):
             # Write to a temp file in the same directory, then rename. rename is
             # atomic within a filesystem, so a crash mid-write leaves the old file
             # intact rather than a truncated one.
-            tmp = res.abspath + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                fh.write(content)
-            os.replace(tmp, res.abspath)
+            # A UNIQUE temp name per write, not a fixed `<path>.tmp`.
+            #
+            # This is a threaded server, so two saves of one file could both open
+            # the same fixed temp path, interleave their writes, and the first
+            # rename would move the SECOND's partial content into place while the
+            # second failed with ENOENT. The mtime conflict check does not help:
+            # both requests can legitimately hold the same baseMtime.
+            #
+            # Same directory, so os.replace stays an atomic rename within one
+            # filesystem. mkstemp also means a real file called `x.md.tmp` in the
+            # tree is never clobbered.
+            tmpfd, tmp = tempfile.mkstemp(
+                dir=os.path.dirname(res.abspath),
+                prefix=f".{os.path.basename(res.abspath)}.", suffix=".tmp")
+            try:
+                with os.fdopen(tmpfd, "w", encoding="utf-8") as fh:
+                    fh.write(content)
+                os.replace(tmp, res.abspath)
+            except BaseException:
+                # Never leave the temp behind - it would be listed and served as
+                # ordinary content by /tree and /read.
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+                raise
             mtime = int(os.stat(res.abspath).st_mtime)
 
             # ── NO COMMIT ────────────────────────────────────────────────────
@@ -850,10 +915,57 @@ class Handler(BaseHTTPRequestHandler):
         # nobody can type.
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0",
                "GIT_ASKPASS": "", "HOME": os.environ.get("HOME", "/tmp")}
+
+        # ACTUALLY USE the token. The 503 above told the operator to mount one
+        # here, and nothing read it - so following that instruction changed
+        # nothing and push still died with "could not read Username". A hint
+        # that does not work is worse than no hint.
+        #
+        # It is supplied through a credential helper on stdin rather than being
+        # written into the remote URL, so it never reaches `git remote -v`, the
+        # reflog, or any error message git prints. _redact() above is the second
+        # line of defence, not the first.
+        token = ""
+        try:
+            with open(GIT_TOKEN_PATH, encoding="utf-8") as tf:
+                token = tf.read().strip()
+        except OSError:
+            token = ""
+
         args = ["pull", "--ff-only"] if verb == "pull" else ["push"]
-        p = subprocess.run(["git", "-C", base.git_root, *args],
-                           capture_output=True, text=True, timeout=60, env=env)
-        out = (p.stdout + p.stderr).strip()
+        store = None
+        try:
+            if token:
+                # The token goes in a 0600 file in the tmpfs, and git is pointed
+                # at it with `credential.helper=store --file=<path>`.
+                #
+                # NOT `-c credential.helper=!f() { echo password=<token>; }; f`,
+                # which is the obvious inline form: that puts the token in ARGV,
+                # and argv is world-readable through `ps` and /proc/<pid>/cmdline
+                # for every process on the host, not just this container. It is
+                # the same mistake this repo already fixed once in doctor.sh,
+                # where `curl -u user:pass` exposed the prometheus password.
+                # A PATH in argv is not a secret; the token never appears there.
+                host = urlparse(remote).netloc.split("@")[-1]
+                fd, store = tempfile.mkstemp(dir="/tmp", prefix=".gitcred.")
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "w") as cf:
+                    cf.write(f"https://x-access-token:{token}@{host}\n")
+                env["GIT_CONFIG_COUNT"] = "1"
+                env["GIT_CONFIG_KEY_0"] = "credential.helper"
+                env["GIT_CONFIG_VALUE_0"] = f"store --file={store}"
+            p = subprocess.run(["git", "-C", base.git_root, *args],
+                               capture_output=True, text=True, timeout=60, env=env)
+        finally:
+            if store and os.path.exists(store):
+                os.unlink(store)
+        # git prints the remote in full on push/pull, and a credential-bearing
+        # HTTPS remote carries the token IN the URL
+        # (https://x-access-token:ghp_...@github.com/...). Echoing that straight
+        # back would hand the client the credential this container holds - which
+        # is the one secret it has. Redacted before it can reach a response or
+        # the audit log.
+        out = _redact(p.stdout + p.stderr).strip()
         audit(who, verb.upper(), base, extra=f"rc={p.returncode} {out[:120]}")
         if p.returncode:
             return self._send(400, {"error": out[:600] or f"git {verb} failed"})
@@ -883,15 +995,30 @@ class Handler(BaseHTTPRequestHandler):
         """
         res = safepath.resolve(q.get("root", ""), q.get("path", ""))
         fd, st = safepath.safe_open(res.abspath)
-        try:
+        # ONE owner for the descriptor, and it is this `with`.
+        #
+        # The previous shape closed the fd inline on the 413 and 416 branches and
+        # ALSO had a `finally: if fd >= 0: os.close(fd)`, with only the success
+        # path setting the fd = -1 sentinel. So both early returns closed the
+        # same descriptor twice - and a second close does NOT reliably raise. It
+        # succeeds and closes whatever file inherited that number in the
+        # meantime, which on a ThreadingHTTPServer is ANOTHER REQUEST'S file:
+        # thread A refuses a bad Range, thread B opens a file and is handed the
+        # freed number, thread A's stray close silently breaks it, and thread B
+        # serves a truncated body or 500s. Verified: closing a reused fd twice
+        # succeeded and corrupted the second file.
+        #
+        # os.fdopen takes ownership immediately, so every exit - return, raise,
+        # or the stream completing - closes exactly once and there is no
+        # sentinel to keep in sync.
+        with os.fdopen(fd, "rb", closefd=True) as fh:
             if st.st_size > safepath.MAX_RAW_BYTES:
-                os.close(fd)
                 return self._send(413, {
                     "error": f"file too large to download "
                              f"({st.st_size // 1_000_000} MB, limit "
                              f"{safepath.MAX_RAW_BYTES // 1_000_000} MB)"})
 
-            head = os.pread(fd, 16, 0) if st.st_size else b""
+            head = os.pread(fh.fileno(), 16, 0) if st.st_size else b""
             ctype, disp = safepath.content_policy(os.path.basename(res.abspath), head)
 
             # A big image is still a legitimate download - demote rather than
@@ -906,7 +1033,6 @@ class Handler(BaseHTTPRequestHandler):
 
             rng = parse_range(self.headers.get("Range", ""), st.st_size)
             if rng == "bad":
-                os.close(fd)
                 self.send_response(416)
                 self.send_header("Content-Range", f"bytes */{st.st_size}")
                 self.send_header("Content-Length", "0")
@@ -924,8 +1050,7 @@ class Handler(BaseHTTPRequestHandler):
                 extra["Content-Range"] = f"bytes {start}-{end}/{st.st_size}"
             self._send_bytes_headers(206 if rng else 200, extra)
 
-            with os.fdopen(fd, "rb", closefd=True) as fh:
-                fd = -1
+            try:
                 fh.seek(start)
                 remaining = length
                 while remaining > 0:
@@ -934,11 +1059,8 @@ class Handler(BaseHTTPRequestHandler):
                         break
                     self.wfile.write(chunk)
                     remaining -= len(chunk)
-        except (BrokenPipeError, ConnectionResetError):
-            sys.stderr.write(f"RAW aborted by client: {res.relpath}\n")
-        finally:
-            if fd >= 0:
-                os.close(fd)
+            except (BrokenPipeError, ConnectionResetError):
+                sys.stderr.write(f"RAW aborted by client: {res.relpath}\n")
 
     # ── archives ────────────────────────────────────────────────────────────
     def _archive(self, q: dict) -> None:

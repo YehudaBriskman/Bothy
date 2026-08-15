@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-import io, os, re, sys, zipfile, tarfile, requests
+import atexit, io, os, re, sys, zipfile, tarfile, requests
+
+# Probe files are removed even when an assertion above them raises.
+#
+# Without this, an abort left `_viewer-probe.svg` untracked in ~/claude-notes -
+# and git_ops.py REFUSES to run against a dirty tree, so the damage surfaced on
+# the NEXT run of the suite, in a different file, which is the hardest ordering
+# to diagnose. run.sh deliberately has no `set -e` so every suite runs, which
+# compounds it rather than stopping.
+_PROBES: list[str] = []
+def _probe(path: str) -> str:
+    _PROBES.append(path)
+    return path
+atexit.register(lambda: [os.remove(p) for p in _PROBES if os.path.exists(p)])
 
 BASE = "http://100.117.176.85"
 SANDBOX = "http://100.117.176.85:8100"
@@ -85,12 +98,47 @@ for label, hdr in [("multi-range", "bytes=0-10,20-30"),
                headers={"Range": hdr}, timeout=30)
     check(f"{label} is refused with 416", rr.status_code == 416, f"got {rr.status_code}")
 
+# A zero-length file has no "last N bytes". The suffix branch returned before
+# the validation, so it produced (0, -1) -> `206 Content-Range: bytes 0--1/0`,
+# which is not a parseable field value. Any empty file in a repo reaches it.
+empty = _probe("/home/devssh/claude-notes/_empty-probe.md")
+open(empty, "w").close()
+r = s.get(f"{SANDBOX}/-/api/files/raw",
+          params={"root": "notes", "path": "_empty-probe.md"},
+          headers={"Range": "bytes=-100"}, timeout=20)
+check("a suffix range on an EMPTY file is 416, not 206",
+      r.status_code == 416, f"got {r.status_code} {r.headers.get('Content-Range','')}")
+r = s.get(f"{SANDBOX}/-/api/files/raw",
+          params={"root": "notes", "path": "_empty-probe.md"}, timeout=20)
+check("...and the empty file still serves normally", r.status_code == 200 and r.content == b"",
+      f"got {r.status_code}")
+os.remove(empty)
+
+# The fd double-close: a refused Range closed the descriptor inline AND in the
+# finally. A second close does not reliably raise - it succeeds and closes
+# whatever file inherited the number, which on a threaded server is another
+# request's file. Fire the refusals repeatedly while reading a real file, and
+# require every read to come back whole.
+import concurrent.futures as _cf
+def _bad_range(_):
+    return s.get(f"{SANDBOX}/-/api/files/raw", params=PNG,
+                 headers={"Range": "bytes=nonsense"}, timeout=30).status_code
+def _good_read(_):
+    rr = s.get(f"{SANDBOX}/-/api/files/raw", params=PNG, timeout=30)
+    return rr.status_code == 200 and len(rr.content) == size
+with _cf.ThreadPoolExecutor(max_workers=8) as ex:
+    bads = list(ex.map(_bad_range, range(12)))
+    goods = list(ex.map(_good_read, range(12)))
+check("12 refused Ranges all return 416", all(b == 416 for b in bads), str(set(bads)))
+check("...and 12 concurrent full reads are all INTACT",
+      all(goods), f"{sum(goods)}/12 correct")
+
 print("\n── the new viewers ─────────────────────────────────────────────────")
 # SVG and HTML are served INLINE now - on the sandbox origin only, which is what
 # makes it safe. checks/sandbox_escape.mjs proves the containment; this only
 # proves the content type is right.
 import tempfile
-probe = "/home/devssh/claude-notes/_viewer-probe.svg"
+probe = _probe("/home/devssh/claude-notes/_viewer-probe.svg")
 open(probe, "w").write('<svg xmlns="http://www.w3.org/2000/svg"><text>x</text></svg>')
 r = s.get(f"{SANDBOX}/-/api/files/raw",
           params={"root": "notes", "path": "_viewer-probe.svg"}, timeout=20)

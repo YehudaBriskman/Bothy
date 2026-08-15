@@ -4,7 +4,7 @@
 // argument for rendering SVG and HTML at all is "sandbox + opaque origin stops
 // it", and that is a claim about browser behaviour, not about our code.
 import { chromium } from '/home/devssh/.npm/_npx/705bc6b22212b352/node_modules/playwright-core/index.mjs';
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, unlinkSync, existsSync } from 'node:fs';
 const [U,P]=[process.env.DEV_LOGIN_USER,process.env.DEV_LOGIN_PASSWORD];
 const BASE='http://100.117.176.85', SB='http://100.117.176.85:8100';
 const F='/home/devssh/claude-notes/_hostile-probe.svg';
@@ -20,6 +20,11 @@ writeFileSync(F, `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80
     try { window.__COOKIE = document.cookie; } catch(e) { window.__COOKIEERR = 'blocked'; }
   ]]></script>
 </svg>`);
+
+let cleanedUp = false;
+const cleanup = () => { if (!cleanedUp && existsSync(F)) { unlinkSync(F); cleanedUp = true; } };
+process.on('exit', cleanup);
+process.on('uncaughtException', e => { cleanup(); console.error(e); process.exit(1); });
 
 const b=await chromium.launch(); const ctx=await b.newContext({viewport:{width:1200,height:800}});
 const p=await ctx.newPage();
@@ -73,13 +78,37 @@ const ctlRan = ctl ? await ctl.evaluate(()=>window.__ESCAPED ?? null).catch(()=>
 console.log(`  control (same payload, no CSP): ${JSON.stringify(ctlRan)}`);
 
 const framed = frames.length > 0;
-const escaped = false;   // set above only if any frame reported __ESCAPED
 let bad = 0;
 if (!framed) { console.log('FAIL  the svg was never framed - nothing was tested'); bad++; }
 if (!ctlRan) { console.log('FAIL  the control payload does not execute anywhere - this test is vacuous'); bad++; }
+// Interrogate the frame for EVERY escape it attempted, and distinguish
+// "blocked" from "I could not look".
+//
+// The previous shape was `.catch(() => null)` and then `if (r) FAIL` - so an
+// evaluate that REJECTED (detached frame, failed load, opaque origin refusing
+// the call) produced null, which was the PASS value. "The script was blocked"
+// and "the test could not check" were the same result. It also only ever
+// asserted __ESCAPED, while __READ / __PARENT / __COOKIE were collected,
+// printed, and never checked - a regression letting the SVG read
+// document.cookie but not set a global would have printed the cookie and
+// exited 0.
 for (const f of frames) {
-  const r = await f.evaluate(()=>window.__ESCAPED ?? null).catch(()=>null);
-  if (r) { console.log(`FAIL  a hostile script RAN inside the sandbox frame: ${r}`); bad++; }
+  let probe;
+  try {
+    probe = await f.evaluate(() => ({
+      escaped: window.__ESCAPED ?? null,
+      read: window.__READ ?? null,
+      parent: window.__PARENT ?? null,
+      cookie: window.__COOKIE ?? null,
+    }));
+  } catch (e) {
+    console.log(`FAIL  could not interrogate the sandbox frame - this test proved nothing: ${String(e).slice(0,90)}`);
+    bad++;
+    continue;
+  }
+  for (const [k, v] of Object.entries(probe)) {
+    if (v) { console.log(`FAIL  a hostile script ESCAPED via ${k}: ${String(v).slice(0,80)}`); bad++; }
+  }
 }
 console.log(bad ? `\n${bad} FAILED` : '\nall pass');
 await b.close();

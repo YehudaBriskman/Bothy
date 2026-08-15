@@ -736,16 +736,38 @@ def collect(
     total = 0
     started = time.monotonic()
 
+    # The skip list is CAPPED, and the cap is reported.
+    #
+    # members is bounded (2000 entries / 100 MB) but a skipped file does not
+    # count toward it, so a tree full of denied names, symlinks or oversized
+    # files could accumulate hundreds of thousands of dicts inside the 20s walk
+    # budget - and every one of them is then joined into SKIPPED.txt in memory,
+    # in a container whose only writable space is a tmpfs.
+    MAX_SKIPPED = 500
+
     def skip(path: str, why: str) -> None:
-        skipped.append({"path": path, "why": why})
+        if len(skipped) < MAX_SKIPPED:
+            skipped.append({"path": path, "why": why})
+        elif len(skipped) == MAX_SKIPPED:
+            # One final entry saying the list itself was truncated, so the
+            # archive never claims a complete account of what it omitted.
+            skipped.append({"path": "…", "why": f"and more - only the first "
+                                                f"{MAX_SKIPPED} are listed"})
 
     if os.path.isfile(base.abspath):
         walk_root, prefix_rel = os.path.dirname(base.abspath), os.path.dirname(base.relpath)
         singles = [(walk_root, [], [os.path.basename(base.abspath)])]
     else:
         walk_root, prefix_rel = base.abspath, base.relpath
-        singles = os.walk(walk_root, followlinks=False,
-                          onerror=lambda e: skip(getattr(e, "filename", "?"), "unreadable directory"))
+        # relpath the filename, like every other skip() call site - the raw
+        # value is an ABSOLUTE container path, and it ends up verbatim inside
+        # SKIPPED.txt in a downloadable archive.
+        def _walk_err(e: OSError) -> None:
+            fn = getattr(e, "filename", None)
+            skip(os.path.relpath(fn, base.root_dir) if fn else "?",
+                 "unreadable directory")
+
+        singles = os.walk(walk_root, followlinks=False, onerror=_walk_err)
 
     # `.` is what relpath returns for the root itself; it must not become part
     # of the archive's top-level directory name ("notes-." rather than "notes").
@@ -764,8 +786,20 @@ def collect(
         # two ideas of what to skip is how the 1.4s bug happened in the first
         # place. The islink clause is extra here: followlinks=False already
         # declines to descend, kept so the intent sits at the decision.
+        # relpath from the ROOT, not from walk_root.
+        #
+        # prune_dirs decides "am I at the top level of this root" from the path
+        # it is given, and applies the root's deny_toplevel rules there. Passing
+        # a SUBTREE-relative path made the subtree's own first level look like
+        # the root's, so archiving `home/projects` pruned every dot-directory
+        # directly under projects - files resolve() would happily have served.
+        #
+        # Worse than the omission: a pruned directory never reaches `skipped`,
+        # so it does not appear in SKIPPED.txt either. The archive quietly lacked
+        # content while claiming to list everything it left out, which is exactly
+        # the failure that note exists to prevent.
         dirnames[:] = [d for d in safepath_prune(root_key,
-                                                 os.path.relpath(dirpath, walk_root),
+                                                 os.path.relpath(dirpath, base.root_dir),
                                                  dirnames)
                        if not os.path.islink(os.path.join(dirpath, d))]
         depth = os.path.relpath(dirpath, walk_root).count(os.sep)
