@@ -523,7 +523,13 @@ def git_root_for(path: str, stop_at: str) -> str | None:
     cannot accidentally resolve to a repository outside it.
     """
     stop_at = os.path.realpath(stop_at)
-    cur = os.path.dirname(os.path.realpath(path))
+    real = os.path.realpath(path)
+    # Start AT the path when it is a directory, not at its parent. Walking from
+    # the parent is right for a file and wrong for a directory: asking about
+    # `projects/army/Tals/frontend` would skip `frontend/.git` and report the
+    # repo above it, or none at all. Found by a test that expected a read-only
+    # refusal and got "not a git repository" instead.
+    cur = real if os.path.isdir(real) else os.path.dirname(real)
     while cur.startswith(stop_at):
         if os.path.isdir(os.path.join(cur, ".git")):
             return cur
