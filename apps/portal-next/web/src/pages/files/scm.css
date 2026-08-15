@@ -55,21 +55,14 @@
   background: var(--accent); color: var(--on-accent);
 }
 
-/* ── tooltips in a 268px rail ────────────────────────────────────────────────
-   MEASURED, not guessed. shell.css sets `.bothy-files .tip { white-space:
-   normal }` so a sentence can wrap instead of becoming a 600px ribbon - but an
-   absolutely positioned box shrinks to fit its CONTAINING BLOCK, and here that
-   is the 24px icon button it hangs off. The result was one word per line: the
-   Push tooltip rendered as a nine-line column three characters wide.
-
-   `width: max-content` asks for the natural single-line width first and lets
-   `max-width` do the wrapping. Only for `[data-align='end']` tooltips, which
-   are pinned to the button's RIGHT edge and therefore grow leftwards into the
-   rail - a centred one would grow into `.fx-rail`'s `overflow: hidden` and be
-   cut in half. Every tooltip in these two clusters passes align="end". */
-.bothy-files .fx-rail-h .tip[data-align='end'],
-.bothy-files .fx-scm-acts .tip[data-align='end'],
-.bothy-files .fx-scm-groupacts .tip[data-align='end'] { width: max-content; max-width: 220px; }
+/* No tooltip-sizing rules here any more. There used to be three selectors
+   giving `width: max-content` to the tips in the rail header, the per-row action
+   cluster and the group action cluster - because a tooltip sizes to its
+   CONTAINING BLOCK, which was a 24px icon button, and the Push tooltip rendered
+   as a nine-line column three characters wide. Two of those three clusters no
+   longer exist, and the fix has since been promoted onto the base `.tip` rule in
+   shell.css where it covers every icon button on the page. Restating it here
+   would be a narrower duplicate of a rule that already applies. */
 
 /* ── Source Control ──────────────────────────────────────────────────────── */
 .bothy-files .fx-scm { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
@@ -114,17 +107,11 @@
    A <select> is not a text field, so :focus-visible correctly declines to match
    a mouse click on it: the popup it just opened is the indication. */
 
-/* A read-only root. Stated once, up front, instead of four buttons that each
-   turn out to 403 - the refusal is a property of the MOUNT and is known before
-   anything is clicked. */
-.bothy-files .fx-scm-ro {
-  display: flex; gap: 7px; align-items: flex-start;
-  margin: 0 10px 8px; padding: 7px 9px;
-  background: var(--st-off-bg); border: 1px solid var(--st-off-line);
-  border-radius: var(--r-sm); color: var(--fg-subtle); font-size: 11px; line-height: 1.45;
-}
-.bothy-files .fx-scm-ro svg { flex: none; margin-top: 1px; }
-.bothy-files .fx-scm-ro b { color: var(--fg-muted); font-size: 10.5px; }
+/* The read-only-root notice is gone with the buttons it explained. It said that
+   staging, committing and syncing were refused on a read-only mount - true then,
+   and now true of every mount, because none of those verbs is on this page at
+   all. A box that explains a restriction which no longer restricts anything is
+   just noise sized like a warning. */
 
 .bothy-files .fx-scm-last {
   margin: 0; padding: 0 10px 8px; color: var(--fg-subtle); font-size: 10.5px;
@@ -134,76 +121,34 @@
 .bothy-files .fx-scm-last .mono { color: var(--fg-muted); font-size: 10.5px; flex: none; }
 .bothy-files .fx-scm-last .fx-scm-when { margin-left: auto; flex: none; }
 
-/* The action outcome. Reuses .fx-note's tones from editor.css, so a 503 here is
-   the same shade of "information" as an info notice in the centre column. */
-.bothy-files .fx-scm-note {
-  margin: 0 10px 8px; align-items: flex-start; font-size: 11.5px; line-height: 1.45;
-}
-.bothy-files .fx-scm-note-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.bothy-files .fx-scm-note-detail {
-  color: inherit; opacity: .82; font-family: var(--mono); font-size: 10.5px;
-  overflow-wrap: anywhere; white-space: pre-wrap;
-}
-.bothy-files .fx-scm-note .icon-btn { margin-left: auto; flex: none; }
+/* ── where the git verbs are ─────────────────────────────────────────────────
+   One line, and it takes the place of the commit box - including the rule the
+   commit box drew, which is the break between "facts about this repository" and
+   "the files that changed".
 
-/* ── the discard confirmation ────────────────────────────────────────────────
-   The loudest surface on the page, and the only one that earns it: this is the
-   single action here that destroys work with nothing to recover it from. Down
-   tone, a real border, and three sentences - a one-line "are you sure?" would
-   understate it. */
-.bothy-files .fx-scm-confirm {
-  margin: 0 10px 10px; padding: 10px 11px;
-  background: var(--st-down-bg); border: 1px solid var(--st-down-line);
-  border-radius: var(--r-sm); color: var(--fg-muted); font-size: 11.5px; line-height: 1.5;
+   It is deliberately NOT a callout: no background, no border box, no status
+   tone. This is not a warning and not a refusal - nothing here is being denied
+   to anybody - it is a signpost, so it is sized and coloured like the
+   last-commit line directly above it and reads as one more fact about the
+   repository. --fg-subtle and one hairline, nothing else. */
+.bothy-files .fx-scm-where {
+  display: flex; gap: 7px; align-items: flex-start;
+  margin: 0 0 6px; padding: 2px 10px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-subtle); font-size: 10.5px; line-height: 1.5;
 }
-.bothy-files .fx-scm-confirm-h {
-  display: flex; align-items: center; gap: 7px; color: var(--st-down-fg); margin-bottom: 6px;
-}
-.bothy-files .fx-scm-confirm-h svg { flex: none; }
-.bothy-files .fx-scm-confirm-h strong { font-size: 12px; overflow-wrap: anywhere; }
-.bothy-files .fx-scm-confirm p { margin: 0 0 7px; }
-.bothy-files .fx-scm-confirm p b { color: var(--st-down-fg); font-weight: 700; }
-/* The server's own sentence, quoted. Monospace so it reads as a quotation from
-   the service rather than as more of this page's prose. */
-.bothy-files .fx-scm-confirm-said {
-  font-family: var(--mono); font-size: 10.5px; color: var(--fg-subtle);
-  border-left: 2px solid var(--st-down-line); padding-left: 8px;
-}
-.bothy-files .fx-scm-confirm-acts { display: flex; gap: 8px; flex-wrap: wrap; }
-.bothy-files .btn.fx-danger {
-  background: var(--st-down); border-color: var(--st-down); color: var(--on-accent);
-}
-.bothy-files .btn.fx-danger:hover { filter: brightness(1.08); }
-
-/* ── commit ──────────────────────────────────────────────────────────────── */
-.bothy-files .fx-scm-commit { padding: 4px 10px 8px; display: flex; flex-direction: column; gap: 6px; }
-.bothy-files .fx-scm-msg { display: block; }
-.bothy-files .fx-scm-msg textarea {
-  width: 100%; resize: vertical; appearance: none; font: inherit; font-size: 12px;
-  color: var(--fg); background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 6px 9px; line-height: 1.45;
-}
-/* Same as .fx-scm-repopick select above: the `:focus { border-color; outline: none }`
-   pair is gone, and focus is the page's inset ring. On a TEXT control the ring
-   does still appear for a mouse click - :focus-visible matches text fields
-   whatever the modality, by design in every engine - and that is the right
-   answer here rather than a leak: this is the one control on the page where
-   "your typing goes in here" is worth saying out loud, and the alternative is a
-   1px blinking caret in a four-region window. */
-/* Sync used to live here, under the commit box, as two full-width buttons and a
-   hint line. It is in the rail header now (see the file header) - so this is
-   also where the body stops and the list begins, and the rule the sync block
-   used to draw belongs to the commit box that is still here. */
-.bothy-files .fx-scm-commitbtn { justify-content: center; }
-.bothy-files .fx-scm-commit { border-bottom: 1px solid var(--line); margin-bottom: 6px; padding-bottom: 10px; }
+.bothy-files .fx-scm-where svg { flex: none; margin-top: 2px; }
+.bothy-files .fx-scm-where .mono { color: var(--fg-muted); font-size: 10.5px; }
 
 /* ── the groups ──────────────────────────────────────────────────────────── */
 .bothy-files .fx-scm-group { margin-bottom: 2px; }
-/* The header is a ROW now, not a button: the collapse toggle plus one action
-   that applies to the whole group. */
-.bothy-files .fx-scm-grouprow { position: relative; display: flex; align-items: center; }
+/* The header is a BUTTON again, and only a button. It spent a while as a flex
+   row wrapping the collapse toggle plus a stage-all/unstage-all action revealed
+   on hover; with the bulk action gone the wrapper went too, rather than being
+   left as a one-child flex container and an absolutely-positioned slot with
+   nothing to position. */
 .bothy-files .fx-scm-grouph {
-  appearance: none; cursor: pointer; flex: 1; min-width: 0; border: 0; background: transparent;
+  appearance: none; cursor: pointer; width: 100%; min-width: 0; border: 0; background: transparent;
   display: flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; height: 24px;
   font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: var(--fg-subtle); text-align: left;
@@ -214,24 +159,7 @@
   margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: 0;
 }
 
-/* Stage-all / unstage-all. Revealed the same way the per-row actions are, and
-   for the same reason stated there: `opacity`, never `display: none`, and
-   `:focus-within` on the ROW as well as `:hover` - the toggle beside it is
-   focusable, so tabbing into the header reveals this, and one more Tab lands on
-   it. A `display: none` button is not in the tab order at all, which is how the
-   explorer's per-directory download spent a release being mouse-only. */
-.bothy-files .fx-scm-groupacts {
-  position: absolute; right: 6px; display: flex; align-items: center;
-  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
-  /* The count is already at this end of the header, so the button covers it -
-     the same overlap the per-row actions have, faded the same way. */
-  background: linear-gradient(90deg, transparent, var(--surface-2) 40%);
-  padding-left: 16px;
-}
-.bothy-files .fx-scm-grouprow:hover .fx-scm-groupacts,
-.bothy-files .fx-scm-grouprow:focus-within .fx-scm-groupacts { opacity: 1; }
-
-.bothy-files .fx-scm-li { position: relative; display: flex; align-items: center; }
+.bothy-files .fx-scm-li { display: flex; align-items: center; }
 .bothy-files .fx-scm-row {
   appearance: none; cursor: pointer; flex: 1; min-width: 0; border: 0; background: transparent;
   display: flex; align-items: center; gap: 6px; padding: 0 6px 0 22px; height: 24px;
@@ -257,25 +185,18 @@
   text-align: center;
 }
 
-/* The per-row actions. `opacity`, NOT `display: none` - a hidden button cannot
-   be focused, and these are the only way to stage anything, so a keyboard user
-   would have no path to them at all. Tab reveals them. */
-.bothy-files .fx-scm-acts {
-  position: absolute; right: 4px; display: flex; align-items: center; gap: 1px;
-  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
-  background: linear-gradient(90deg, transparent, var(--surface-2) 18%);
-  padding-left: 14px;
-}
-.bothy-files .fx-scm-li:hover .fx-scm-acts,
-.bothy-files .fx-scm-acts:focus-within { opacity: 1; }
-.bothy-files .fx-scm-act {
-  appearance: none; cursor: pointer; display: grid; place-items: center;
-  width: 20px; height: 20px; border: 0; border-radius: var(--r-xs);
-  background: transparent; color: var(--fg-subtle);
-}
-.bothy-files .fx-scm-act:hover:not(:disabled) { background: var(--surface-3); color: var(--fg); }
-.bothy-files .fx-scm-act:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
-.bothy-files .fx-scm-busy { color: var(--fg-subtle); }
+/* NOTHING IN THIS PANEL IS REVEALED ON HOVER ANY MORE. The per-row stage /
+   unstage / discard cluster and the group's stage-all were the only two, and
+   both are gone with the actions themselves - so there is no `opacity: 0`, no
+   `display: none`, and no `:focus-within` reveal left to get wrong. Every
+   control the panel has is visible and in the tab order at all times: one
+   refresh, one heading per group, one row per file.
+
+   Keeping the rule as written: if anything is ever added back here, reveal it
+   with `opacity` and pair `:hover` with `:focus-within` on the containing row -
+   never `display: none`, which takes an element out of the tab order and is how
+   the explorer's per-directory download spent a release being mouse-only
+   (explorer.css has the corrected pattern). */
 
 /* ── decorations in the tree ─────────────────────────────────────────────────
    Colour on the NAME, and a letter beside it. Never colour alone: the letter is

@@ -382,20 +382,20 @@ export async function writeFile(
 
 // ── git ──────────────────────────────────────────────────────────────────────
 //
-// The repository plane. Three reads (viewer), four local mutations (editor) and
-// two that leave the box (OPERATOR - a tier above editor, because editing a file
-// and publishing it are different acts).
+// The repository plane, and it is READ-ONLY: three GETs, no verbs. There was a
+// `gitAction` here that POSTed stage / unstage / discard / commit / pull / push,
+// with a six-way outcome type and a role tier above `editor` for the two that
+// left the box. All of it is gone, along with the endpoints it called - git
+// actions belong at a prompt, and this client has no business being a worse
+// terminal. Nothing in this module can now change a repository.
 //
 // The shapes below are MEASURED against the live service, not copied from a
-// spec. Two of them are unusual enough to be worth stating here, because a
-// caller that assumes otherwise is subtly wrong rather than broken:
+// spec. One of them is unusual enough to be worth stating here, because a caller
+// that assumes otherwise is subtly wrong rather than broken:
 //
 //   · `StatusFile.path` can be NULL. It is a changed file the explorer would
 //     refuse to open - a denied secret - so the service counts it and does not
 //     name it. A null path must never become a link.
-//   · every MUTATION returns the fresh status of the repo alongside its own
-//     result, so the caller never has to re-fetch to stay current. That is why
-//     GitOk carries a StatusResult rather than just `{ok: true}`.
 
 export interface RepoInfo {
   name: string;
@@ -459,126 +459,6 @@ export function gitDiff(root: string, path: string, staged: boolean, signal?: Ab
     `${BASE}/git/diff?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}${staged ? '&staged=1' : ''}`,
     signal,
   );
-}
-
-/** What a mutation answers with. Everything the service reports about the repo
- *  afterwards, flattened onto the status it also returns. */
-export interface GitOk extends StatusResult {
-  ok: boolean;
-  /** commit only - the short sha it produced. */
-  sha?: string;
-  /** commit only - the message it used. */
-  message?: string;
-  /** pull/push only - git's own combined output, capped by the service. */
-  output?: string;
-  // NOTE, MEASURED against app.py rather than assumed: the commit response has
-  // NO list of committed file names, even though the handler builds one. It
-  // returns `{..., "files": staged, **status(...)}` and `status` ALSO has a
-  // `files` key - so the status listing wins the merge and the staged names are
-  // gone by the time the JSON is written. `files` here is therefore always the
-  // StatusFile[] inherited from StatusResult, and anything wanting "how many
-  // did that commit" has to count what was staged BEFORE the call.
-}
-
-// The outcomes, and the reason there are six rather than "ok or error":
-//
-//   auth         no session. An invitation, exactly as it is for reads.
-//   role         403. For push/pull this is "you have editor, not operator",
-//                which is a FACT ABOUT THE SESSION and not a failure.
-//   refused      400. The server declining on purpose - nothing staged, no
-//                message, no remote, an SSH remote, discard without confirm.
-//                Every one of those carries a sentence written for a human.
-//   unset        503. No push credential is mounted. This is the EXPECTED answer
-//                for most repos on this box, so it is its own outcome rather
-//                than an error - "not set up yet" and "broken" must not look the
-//                same.
-//   error        anything else, including a request that never left the browser.
-export type GitOutcome =
-  | { kind: 'ok'; res: GitOk }
-  | { kind: 'auth' }
-  | { kind: 'role'; message: string }
-  | { kind: 'refused'; message: string; hint?: string; remote?: string }
-  | { kind: 'unset'; message: string; hint?: string }
-  | { kind: 'error'; message: string };
-
-export type GitVerb = 'stage' | 'unstage' | 'discard' | 'commit' | 'pull' | 'push';
-
-export interface GitBody {
-  root: string;
-  /** '' or omitted means the whole repository. `discard` refuses that. */
-  path?: string;
-  message?: string;
-  /** discard ONLY, and the server returns 400 without it - deliberately, so a
-   *  mis-click cannot destroy uncommitted work. See SourceControl.tsx: the UI
-   *  sends the unconfirmed call FIRST so the refusal it shows is the server's
-   *  own sentence rather than a copy of it that can drift. */
-  confirm?: boolean;
-}
-
-// A failure body, read once. `hint` and `remote` are extra fields the service
-// attaches to two specific refusals and they are worth surfacing: the hint says
-// where a token would have to be mounted, the remote says which URL was refused.
-async function gitError(r: Response): Promise<{ message: string; hint?: string; remote?: string }> {
-  const fallback = `${r.status} ${r.statusText}`;
-  try {
-    const body = await r.text();
-    if (!body) return { message: fallback };
-    try {
-      const j = JSON.parse(body) as { error?: string; message?: string; hint?: string; remote?: string };
-      return { message: j.error || j.message || fallback, hint: j.hint, remote: j.remote };
-    } catch {
-      // oauth2-proxy answers text/plain, so this is the ordinary path for 401
-      // and 403 rather than an exotic one.
-      const flat = body.trim().replace(/\s+/g, ' ');
-      return { message: flat && flat.length <= 200 ? flat : fallback };
-    }
-  } catch {
-    return { message: fallback };
-  }
-}
-
-/**
- * Every git mutation, through one door.
- *
- * `Content-Type: application/json` is REQUIRED by the service - it refuses a
- * body it was not told the type of - which is why no caller is allowed to build
- * its own fetch for these.
- */
-export async function gitAction(verb: GitVerb, body: GitBody): Promise<GitOutcome> {
-  const started = performance.now();
-  const detail = `${body.root}/${body.path || '.'}`;
-  let r: Response;
-  try {
-    r = await fetch(`${BASE}/git/${verb}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : 'the request never left the browser';
-    logCall(`git/${verb}`, detail, 0, Math.round(performance.now() - started), message);
-    return { kind: 'error', message };
-  }
-  const ms = Math.round(performance.now() - started);
-
-  if (r.status === 401) {
-    logCall(`git/${verb}`, detail, 401, ms, 'no session');
-    return { kind: 'auth' };
-  }
-  if (!r.ok) {
-    const { message, hint, remote } = await gitError(r);
-    logCall(`git/${verb}`, detail, r.status, ms, message);
-    if (r.status === 403) return { kind: 'role', message };
-    if (r.status === 503) return { kind: 'unset', message, hint };
-    if (r.status === 400) return { kind: 'refused', message, hint, remote };
-    return { kind: 'error', message };
-  }
-  logCall(`git/${verb}`, detail, r.status, ms);
-  try {
-    return { kind: 'ok', res: (await r.json()) as GitOk };
-  } catch {
-    return { kind: 'error', message: `${verb} succeeded but returned a body this page could not read` };
-  }
 }
 
 // ── formatting ───────────────────────────────────────────────────────────────
