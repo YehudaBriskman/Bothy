@@ -255,9 +255,21 @@
    app uses for "this one"; the hover band is a flat surface step, half its
    weight, and it is suppressed on the active line entirely so the two never
    stack into a third colour that means nothing. */
-.bothy-files .cm-activeLine { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+/* The active line is an UNDERLINE, not a filled band - neovim's cursorline
+   rather than a highlight.
+   
+   box-shadow rather than border-bottom: a border changes the line's height, so
+   every line below the caret would shift by a pixel as you move, and the whole
+   document would jitter while you navigate. An inset shadow paints inside the
+   existing box and moves nothing. */
+.bothy-files .cm-activeLine {
+  background: transparent;
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--accent) 55%, transparent);
+}
 .bothy-files .cm-fxHoverLine { background: color-mix(in oklab, var(--fg) 5%, transparent); }
-.bothy-files .cm-line.cm-activeLine.cm-fxHoverLine { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+/* The caret's line wins over the pointer's: hovering the line you are already
+   on must not repaint it, or the underline flickers as the mouse crosses. */
+.bothy-files .cm-line.cm-activeLine.cm-fxHoverLine { background: transparent; }
 
 /* ── indent guides ───────────────────────────────────────────────────────────
    Painted by the LINE, not by an overlay, so they scroll and reflow for free.
@@ -282,7 +294,9 @@
    background-color under its background-images - so the banded lines re-declare
    the images and add the colour underneath rather than fighting over the
    shorthand. */
-.bothy-files .cm-line.cm-fxGuides.cm-activeLine { background-color: color-mix(in oklab, var(--accent) 12%, transparent); }
+/* Indent guides are painted with a background-image, so the active line must
+   keep background-color transparent or it would cover them. */
+.bothy-files .cm-line.cm-fxGuides.cm-activeLine { background-color: transparent; }
 .bothy-files .cm-line.cm-fxGuides.cm-fxHoverLine { background-color: color-mix(in oklab, var(--fg) 5%, transparent); }
 
 /* ── selection, matches, brackets ────────────────────────────────────────── */
