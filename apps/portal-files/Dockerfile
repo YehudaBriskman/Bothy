@@ -7,7 +7,7 @@ FROM python:3.13-alpine
 RUN apk add --no-cache git
 
 WORKDIR /app
-COPY safepath.py app.py ./
+COPY safepath.py app.py policy.toml ./
 
 # Runs as a NON-ROOT user whose uid matches the host's devssh (1000), because the
 # roots are bind-mounted from the host and the files it commits must stay owned
