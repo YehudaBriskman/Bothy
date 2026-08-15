@@ -23,20 +23,25 @@ import { useSearchParams } from 'react-router-dom';
 import { PanelBottom, PanelLeft, PanelRight } from 'lucide-react';
 import {
   ARCHIVE_MAX_ENTRIES, ARCHIVE_MAX_MEMBER, ARCHIVE_MAX_TOTAL,
-  archiveUrl, fileHistory, fmtBytes, isAuthError, langFor, listRoots, listTree, logCall,
+  archiveUrl, fileHistory, fmtBytes, gitAction, gitDiff, gitStatus, isAuthError, langFor,
+  listRepos, listRoots, listTree, logCall,
   looksBinary, onApiCall, openDownload, rawUrl, readFile, writeFile,
-  type ApiCall, type Commit, type FileRead, type FileRoot, type TreeFile,
-  type WriteConflict,
+  type ApiCall, type Commit, type DiffResult, type FileRead, type FileRoot, type GitOutcome,
+  type RepoInfo, type StatusResult, type TreeFile, type WriteConflict,
 } from '../../lib/files';
 import { ErrState } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
+import { ActivityBar, type RailView } from './ActivityBar';
 import { Explorer, MAX_RESULTS, type Results } from './Explorer';
 import { Editor, type Notice, type View } from './Editor';
 import type { CodeHandle } from './CodeSurface';
+import type { DiffTarget } from './Diff';
 import { Inspector } from './Inspector';
 import { Panel, type PanelTab, type Problem } from './Panel';
 import { Resizer } from './Resizer';
 import { SignInCard } from './SignInCard';
+import { SourceControl, type DiscardAsk, type ScmNotice } from './SourceControl';
+import { decorate, groupChanges, NO_DECORATIONS, type Change } from './gitdeco';
 import { usePanes } from './panes';
 import { ancestorsOf, baseName, buildTree, defaultMessage, kindOf, type Node } from './tree';
 
@@ -45,8 +50,13 @@ import './explorer.css';
 import './editor.css';
 import './inspector.css';
 import './panel.css';
+import './scm.css';
 
 const MAX_CALLS = 200;
+
+// A stable identity for "no deletions", so the common case does not hand
+// buildTree a new Set on every status refresh and rebuild the whole tree.
+const NO_TOMBS: Set<string> = new Set();
 
 export function Files() {
   const [params, setParams] = useSearchParams();
@@ -110,6 +120,37 @@ export function Files() {
     }
     setNotice(null);
   };
+
+  // ── the git area ───────────────────────────────────────────────────────────
+  //
+  // The rail is one column with two occupants, chosen by the activity bar. The
+  // STATUS behind it is fetched either way, because the explorer's decorations
+  // need it as much as the panel does - a colour that only appears once you
+  // open Source Control is a colour nobody sees.
+  const [railView, setRailView] = useState<RailView>('explorer');
+  const [repos, setRepos] = useState<RepoInfo[] | null>(null);
+  const [reposErr, setReposErr] = useState<string | null>(null);
+  // '' means "follow the open file". Set only when the user picks a repository
+  // explicitly, so the panel does not fight the file being browsed.
+  const [pickedRepo, setPickedRepo] = useState('');
+  const [status, setStatus] = useState<StatusResult | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusErr, setStatusErr] = useState<string | null>(null);
+  const [statusTick, setStatusTick] = useState(0);
+  const [scmMessage, setScmMessage] = useState('');
+  const [scmNotice, setScmNotice] = useState<ScmNotice | null>(null);
+  const [ask, setAsk] = useState<DiscardAsk | null>(null);
+  const [busyPath, setBusyPath] = useState<string | null>(null);
+  const [busyRepo, setBusyRepo] = useState(false);
+  // Re-read the OPEN FILE after git changed it underneath us. Guarded at the
+  // call site: it must never fire while an edit is in progress, because the
+  // read effect resets the draft.
+  const [fileTick, setFileTick] = useState(0);
+
+  const [diff, setDiff] = useState<DiffTarget | null>(null);
+  const [diffRes, setDiffRes] = useState<DiffResult | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffErr, setDiffErr] = useState<string | null>(null);
 
   const [calls, setCalls] = useState<ApiCall[]>([]);
   // Problems the page RAISED rather than observed - a refused download, a
@@ -203,6 +244,88 @@ export function Files() {
     return () => ac.abort();
   }, [root, reloadTick]);
 
+  // ── which repository the git area is about ─────────────────────────────────
+  //
+  // A ROOT IS NOT A REPOSITORY, and on this box that is the ordinary case rather
+  // than the exception: `home` and `projects` are directories holding several
+  // repos and are not repos themselves. So the panel has to name one, and the
+  // default has to be the one the user is already looking at.
+  useEffect(() => {
+    if (!root) return;
+    const ac = new AbortController();
+    setRepos(null);
+    setReposErr(null);
+    listRepos(root, '', ac.signal)
+      .then((r) => setRepos(r.repos))
+      .catch((e: unknown) => {
+        if (ac.signal.aborted) return;
+        setRepos([]);
+        // 401 is already said once, by the tree. Repeating it here would put two
+        // sign-in prompts on one screen.
+        if (!isAuthError(e)) setReposErr(e instanceof Error ? e.message : String(e));
+      });
+    return () => ac.abort();
+  }, [root, reloadTick]);
+
+  // The repo covering a path: the LONGEST repo path that contains it. Longest,
+  // not first, because `projects` holds nested checkouts and the innermost one
+  // is the one a file actually belongs to.
+  const repoForPath = useCallback((list: RepoInfo[], p: string): RepoInfo | null => {
+    let best: RepoInfo | null = null;
+    let bestLen = -1;
+    for (const r of list) {
+      const rp = r.path === '.' ? '' : r.path.replace(/\/+$/, '');
+      if (rp && p !== rp && !p.startsWith(`${rp}/`)) continue;
+      if (rp.length > bestLen) { best = r; bestLen = rp.length; }
+    }
+    return best;
+  }, []);
+
+  const repo = useMemo(() => {
+    if (!repos) return null;
+    if (pickedRepo) return repos.find((r) => r.path === pickedRepo) ?? null;
+    return (path ? repoForPath(repos, path) : null) ?? repos[0] ?? null;
+  }, [repos, pickedRepo, path, repoForPath]);
+
+  // What every git call is scoped to. A path inside the repo is enough - the
+  // service derives the repository from it, which is why no client ever names a
+  // directory as a repo.
+  const scope = repo ? repo.path : (path || '');
+
+  useEffect(() => {
+    if (!root) return;
+    const ac = new AbortController();
+    setStatusLoading(true);
+    gitStatus(root, scope, ac.signal)
+      .then((s) => { setStatus(s); setStatusErr(null); })
+      .catch((e: unknown) => {
+        if (ac.signal.aborted) return;
+        setStatus(null);
+        if (!isAuthError(e)) setStatusErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => { if (!ac.signal.aborted) setStatusLoading(false); });
+    return () => ac.abort();
+  }, [root, scope, statusTick, reloadTick]);
+
+  // The diff, whenever one is open. Refetched on `statusTick` too: staging a
+  // file moves its whole content across the staging line, so a diff left open
+  // beside that action would otherwise be describing the world as it was.
+  useEffect(() => {
+    if (!diff) { setDiffRes(null); setDiffErr(null); return; }
+    const ac = new AbortController();
+    setDiffLoading(true);
+    setDiffErr(null);
+    gitDiff(diff.root, diff.path, diff.staged, ac.signal)
+      .then((d) => setDiffRes(d))
+      .catch((e: unknown) => {
+        if (ac.signal.aborted) return;
+        setDiffRes(null);
+        setDiffErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => { if (!ac.signal.aborted) setDiffLoading(false); });
+    return () => ac.abort();
+  }, [diff, statusTick]);
+
   // The open file. Every mode/draft/notice reset lives here, keyed on the URL,
   // so there is exactly one place that decides what "a different file" means.
   useEffect(() => {
@@ -229,7 +352,10 @@ export function Files() {
       })
       .finally(() => { if (!ac.signal.aborted) setFileLoading(false); });
     return () => ac.abort();
-  }, [root, path]);
+    // `fileTick` re-reads the same file after git changed it on disk. It is
+    // only ever bumped while nothing is being edited - see afterGit - because
+    // everything above resets the draft.
+  }, [root, path, fileTick]);
 
   // A deep link into a nested file must arrive with its folders already open,
   // or the tree shows the reader a closed root and no sign of where they are.
@@ -242,7 +368,31 @@ export function Files() {
     });
   }, [path]);
 
-  const tree = useMemo(() => buildTree(entries), [entries]);
+  // ── decorations ────────────────────────────────────────────────────────────
+  //
+  // One derivation from `/status`, read by the tree, by the search hits and by
+  // the activity bar's badge. Derived rather than stored: a decoration that
+  // outlives the status it came from is a lie with a colour on it.
+  const deco = useMemo(
+    () => (status?.files.length ? decorate(status.files) : NO_DECORATIONS),
+    [status],
+  );
+
+  // Deleted files are in `/status` and CANNOT be in the tree - the tree lists
+  // what is on disk. Anything git calls deleted that the listing does not carry
+  // gets grafted in as a tombstone; anything the listing DOES carry (a deletion
+  // that has since been recreated, and staged-only deletions of a path that
+  // exists again) is left exactly as the listing described it.
+  const tombs = useMemo(() => {
+    if (!deco.deleted.size) return NO_TOMBS;
+    const listed = new Set<string>();
+    for (const e of entries) if (e.dir !== true) listed.add(e.path);
+    const out = new Set<string>();
+    for (const p of deco.deleted) if (!listed.has(p)) out.add(p);
+    return out.size ? out : NO_TOMBS;
+  }, [deco, entries]);
+
+  const tree = useMemo(() => buildTree(entries, tombs), [entries, tombs]);
 
   // Filtering switches the rail from a tree to a flat, ranked, capped list. At
   // this scale search IS the navigation: a name match outranks a path-only
@@ -274,6 +424,10 @@ export function Files() {
 
   const pick = (p: string) => {
     if (dirty) { setPending({ root, path: p }); return; }
+    // Opening a file closes the diff. They share the centre column, and leaving
+    // a diff on top of a file the user just asked for is the one behaviour
+    // nobody expects.
+    setDiff(null);
     go(root, p);
   };
   const pickRoot = (r: string) => {
@@ -281,6 +435,10 @@ export function Files() {
     if (dirty) { setPending({ root: r, path: '' }); return; }
     setQ('');
     setExpanded(new Set());
+    setDiff(null);
+    setPickedRepo('');
+    setScmNotice(null);
+    setAsk(null);
     go(r, '');
   };
   const resolvePending = (discard: boolean) => {
@@ -468,6 +626,10 @@ export function Files() {
           tone: 'ok',
           text: `Saved ${out.res.bytes} bytes to disk${out.res.versioned ? ' - commit it in Source Control' : ''}`,
         });
+        // The file just became (or stopped being) a change. Without this the
+        // rail keeps showing the state from before the save, which is the one
+        // moment a stale decoration is guaranteed to be wrong.
+        setStatusTick((t) => t + 1);
         break;
       case 'conflict':
         // NOT an error. The file moved underneath this tab, and the server
@@ -493,6 +655,201 @@ export function Files() {
         break;
     }
   }, [file, root, draft, message, saving, lang, raise]);
+
+  // ── git ────────────────────────────────────────────────────────────────────
+  //
+  // Every mutation lands here, and every outcome is turned into a SENTENCE
+  // rather than a status code. That is the whole job of this block: the service
+  // answers 400, 403 and 503 for things that are not faults - nothing is
+  // staged, this session has editor but not operator, no push credential is
+  // mounted on this box - and each of them has to read as the fact it is.
+  const afterGit = useCallback((out: GitOutcome, verb: string, onOk: (ok: Extract<GitOutcome, { kind: 'ok' }>['res']) => void) => {
+    switch (out.kind) {
+      case 'ok':
+        // Every mutation returns the fresh status, so the rail is correct
+        // without a second round trip.
+        setStatus({ root: out.res.root, repo: out.res.repo, branch: out.res.branch, files: out.res.files });
+        onOk(out.res);
+        // Re-read the open file only when nothing is being edited: the read
+        // effect resets the draft, and a discard that also threw away an
+        // unsaved edit would be the exact failure this page exists to prevent.
+        if (!editing) setFileTick((t) => t + 1);
+        // Any open diff is now about the previous state of the repo.
+        setStatusTick((t) => t + 1);
+        break;
+      case 'auth':
+        setScmNotice({ tone: 'auth', text: `Signing in is needed to ${verb}. Nothing was changed.` });
+        break;
+      case 'role':
+        // 403. For push and pull this is the role tier, which is a fact about
+        // the session rather than a failure - the routes require `operator`
+        // deliberately, because publishing is not editing.
+        setScmNotice({
+          tone: 'info',
+          text: verb === 'push' || verb === 'pull'
+            ? `${verb === 'push' ? 'Pushing' : 'Pulling'} needs the operator role - this session can change files here but not publish them.`
+            : `The service refused to ${verb}.`,
+          detail: out.message,
+        });
+        break;
+      case 'refused':
+        // The service declining on purpose, with a sentence written for a
+        // human. Shown verbatim; anything else would be a paraphrase that can
+        // drift from what the server actually enforces.
+        setScmNotice({ tone: 'warn', text: out.message, detail: out.remote ? `remote: ${out.remote}` : out.hint });
+        break;
+      case 'unset':
+        // 503, and on this box it is the EXPECTED answer: most repos here have
+        // no push credential mounted. "Not set up" and "broken" must not look
+        // the same, so this is info and says what would make it work.
+        setScmNotice({
+          tone: 'info',
+          text: `${verb === 'push' ? 'Push' : 'Sync'} is not set up on this box yet - ${out.message}.`,
+          detail: out.hint,
+        });
+        break;
+      case 'error':
+        setScmNotice({ tone: 'bad', text: out.message });
+        break;
+    }
+  }, [editing]);
+
+  const stage = useCallback(async (p: string) => {
+    setScmNotice(null);
+    setAsk(null);
+    setBusyPath(p);
+    const out = await gitAction('stage', { root, path: p });
+    setBusyPath(null);
+    afterGit(out, 'stage', () => setScmNotice({ tone: 'ok', text: `Staged ${baseName(p)}.` }));
+  }, [root, afterGit]);
+
+  const unstage = useCallback(async (p: string) => {
+    setScmNotice(null);
+    setAsk(null);
+    setBusyPath(p);
+    const out = await gitAction('unstage', { root, path: p });
+    setBusyPath(null);
+    afterGit(out, 'unstage', () => setScmNotice({ tone: 'ok', text: `Unstaged ${baseName(p)}. The change is still on disk.` }));
+  }, [root, afterGit]);
+
+  // ── discard, the only irreversible thing on this page ──────────────────────
+  //
+  // `git restore --worktree` throws away content that was NEVER IN THE OBJECT
+  // STORE, so no part of git can bring it back. Save no longer commits, which
+  // means the working tree is routinely the only copy an edit has ever had.
+  //
+  // Three guards, in this order:
+  //
+  //   1. refused outright while the editor holds unsaved changes for that file.
+  //      Discarding then would destroy the disk copy while a DIFFERENT
+  //      uncommitted version sits in a tab - two losses from one click.
+  //   2. a confirmation that quotes the server's own refusal. The sentence is
+  //      obtained by ASKING: the first call carries `confirm: false`, which the
+  //      service answers with 400 and its reason. That is deliberately not
+  //      "send it and see" - an explicit false can never be read as consent by
+  //      any future version of the service, so the probe cannot become the
+  //      destructive call by accident.
+  //   3. only ever per-file. The service refuses a whole-repo discard even with
+  //      confirm, and this never offers one.
+  const askDiscard = useCallback(async (p: string) => {
+    setScmNotice(null);
+    if (dirty && file && file.path === p) {
+      setScmNotice({
+        tone: 'warn',
+        text: `${baseName(p)} has unsaved changes in the editor, so discard is refused.`,
+        detail: 'Discard would throw away the version on disk - irreversibly - while your tab still holds a '
+          + 'different one. Save it or cancel the edit first, then decide.',
+      });
+      return;
+    }
+    setBusyPath(p);
+    const out = await gitAction('discard', { root, path: p, confirm: false });
+    setBusyPath(null);
+    if (out.kind === 'refused') { setAsk({ path: p, serverSaid: out.message }); return; }
+    if (out.kind === 'ok') {
+      // Should be unreachable: the service requires confirm: true. If it ever
+      // stops, that is a change in the safety contract and it gets said out
+      // loud rather than passed off as a success.
+      afterGit(out, 'discard', () => setScmNotice({
+        tone: 'bad',
+        text: `${baseName(p)} was discarded WITHOUT a confirmation - the service no longer requires one.`,
+        detail: 'That is a change in the file service, not in this page. It should be looked at.',
+      }));
+      return;
+    }
+    afterGit(out, 'discard', () => {});
+  }, [root, dirty, file, afterGit]);
+
+  const confirmDiscard = useCallback(async () => {
+    const a = ask;
+    if (!a) return;
+    setAsk(null);
+    setBusyPath(a.path);
+    const out = await gitAction('discard', { root, path: a.path, confirm: true });
+    setBusyPath(null);
+    afterGit(out, 'discard', () => setScmNotice({
+      tone: 'ok',
+      text: `Discarded ${baseName(a.path)}. It matches the last commit again.`,
+    }));
+  }, [ask, root, afterGit]);
+
+  const commit = useCallback(async () => {
+    setScmNotice(null);
+    setAsk(null);
+    // Counted BEFORE the call, and it has to be: the commit response carries no
+    // list of committed files. The handler builds one and then loses it - it
+    // merges `**status(...)` over its own `files` key, and status has a `files`
+    // key too. See the note on GitOk.
+    const staged = groupChanges(status?.files ?? []).staged.length;
+    setBusyRepo(true);
+    const out = await gitAction('commit', { root, path: scope, message: scmMessage });
+    setBusyRepo(false);
+    afterGit(out, 'commit', (res) => {
+      setScmMessage('');
+      setNewSha(res.sha ?? null);
+      setScmNotice({
+        tone: 'ok',
+        text: `Committed ${res.sha} - ${staged} file${staged === 1 ? '' : 's'}.`,
+        detail: res.message,
+      });
+    });
+  }, [root, scope, scmMessage, status, afterGit]);
+
+  const sync = useCallback(async (verb: 'pull' | 'push') => {
+    setScmNotice(null);
+    setAsk(null);
+    setBusyRepo(true);
+    const out = await gitAction(verb, { root, path: scope });
+    setBusyRepo(false);
+    afterGit(out, verb, (res) => setScmNotice({
+      tone: 'ok',
+      text: `${verb === 'pull' ? 'Pulled' : 'Pushed'} ${status?.repo ?? root}.`,
+      detail: res.output,
+    }));
+  }, [root, scope, afterGit, status]);
+
+  const openDiff = useCallback((c: Change) => {
+    if (!c.path) return;
+    setDiff({ root, path: c.path, staged: c.side === 'staged', untracked: c.untracked });
+  }, [root]);
+
+  // From the tree - a tombstone row, where the diff is the only readable thing
+  // left. The SIDE matters: a deletion that is already staged has an empty
+  // working-tree diff, so opening the wrong one would report "nothing to show"
+  // about a file that is gone.
+  const openDiffPath = useCallback((p: string) => {
+    const d = deco.files.get(p);
+    setDiff({ root, path: p, staged: d?.side === 'staged', untracked: d?.letter === 'U' && d.state === 'added' });
+  }, [root, deco]);
+
+  // The activity bar. Clicking the view you are already in collapses the rail,
+  // which is what every editor with this strip does and the only way to get the
+  // width back without leaving the mouse.
+  const pickView = useCallback((v: RailView) => {
+    if (v === railView && !panes.cl) { toggle('l'); return; }
+    setRailView(v);
+    if (panes.cl) toggle('l');
+  }, [railView, panes.cl, toggle]);
 
   // Ctrl/Cmd-S while editing. A window listener rather than a CodeMirror
   // binding, because it has to work from the commit-message field in the
@@ -573,7 +930,16 @@ export function Files() {
               ? 'sign in to browse the box'
               : treeErr
                 ? 'the file service is unreachable'
-                : <><b className="tnum">{fileCount.toLocaleString()}</b> in <span className="mono">{root || '…'}</span> · edits land as git commits</>}
+                : <>
+                    <b className="tnum">{fileCount.toLocaleString()}</b> in <span className="mono">{root || '…'}</span>
+                    {' · '}
+                    {/* Save writes to disk and stops. Git is a separate, deliberate
+                        act now, and the strip has to say so - it used to say
+                        "edits land as git commits", which stopped being true. */}
+                    {deco.total > 0
+                      ? <><b className="tnum">{deco.total}</b> uncommitted change{deco.total === 1 ? '' : 's'}</>
+                      : 'save writes to disk; commit in Source Control'}
+                  </>}
           </p>
         </div>
         <div className="fx-head-actions" role="group" aria-label="Layout">
@@ -625,31 +991,79 @@ export function Files() {
         </div>
       ) : (
         <div className="fx-grid">
+          {/* The activity bar is OUTSIDE the collapse: with the rail hidden it
+              is the only thing that can bring it back, and its badge is how a
+              change count reaches someone who works with the rail shut. */}
+          <ActivityBar
+            view={railView}
+            onPick={pickView}
+            changes={deco.total}
+            collapsed={panes.cl}
+          />
+
           {!panes.cl && (
             <div className="fx-col fx-col-l" ref={treeRef}>
-              <Explorer
-                roots={roots}
-                root={root}
-                tree={tree}
-                results={results}
-                query={q}
-                setQuery={setQ}
-                expanded={expanded}
-                onToggleDir={toggleDir}
-                current={path}
-                onPick={pick}
-                onPickRoot={pickRoot}
-                onCollapseAll={collapseAll}
-                onReveal={reveal}
-                onDownloadDir={archiveNode}
-                onDownloadRoot={archiveRoot}
-                loading={treeLoading}
-                error={treeErr}
-                onRetry={retry}
-                truncated={truncated}
-                fileCount={fileCount}
-                filterRef={filterRef}
-              />
+              {railView === 'scm' ? (
+                <SourceControl
+                  root={root}
+                  readOnly={!!roots.find((r) => r.key === root)?.readOnly}
+                  repos={repos}
+                  reposErr={reposErr}
+                  repoPath={repo?.path ?? ''}
+                  onPickRepo={setPickedRepo}
+                  status={status}
+                  loading={statusLoading}
+                  err={statusErr}
+                  onRefresh={() => setStatusTick((t) => t + 1)}
+                  message={scmMessage}
+                  setMessage={setScmMessage}
+                  onCommit={() => void commit()}
+                  onSync={(v) => void sync(v)}
+                  onStage={(p) => void stage(p)}
+                  onUnstage={(p) => void unstage(p)}
+                  onDiscard={(p) => void askDiscard(p)}
+                  busyPath={busyPath}
+                  busyRepo={busyRepo}
+                  notice={scmNotice}
+                  dismissNotice={() => setScmNotice(null)}
+                  ask={ask}
+                  onConfirmDiscard={() => void confirmDiscard()}
+                  onCancelDiscard={() => setAsk(null)}
+                  onOpenDiff={openDiff}
+                  openPath={diff?.path ?? null}
+                  openStaged={!!diff?.staged}
+                  // Exactly one file can hold unsaved editor state, and discard
+                  // has to know which.
+                  dirtyPath={dirty ? file?.path ?? null : null}
+                />
+              ) : (
+                <Explorer
+                  roots={roots}
+                  root={root}
+                  tree={tree}
+                  results={results}
+                  query={q}
+                  setQuery={setQ}
+                  expanded={expanded}
+                  onToggleDir={toggleDir}
+                  current={path}
+                  onPick={pick}
+                  onPickRoot={pickRoot}
+                  onCollapseAll={collapseAll}
+                  onReveal={reveal}
+                  onDownloadDir={archiveNode}
+                  onDownloadRoot={archiveRoot}
+                  loading={treeLoading}
+                  error={treeErr}
+                  onRetry={retry}
+                  truncated={truncated}
+                  fileCount={fileCount}
+                  filterRef={filterRef}
+                  deco={deco}
+                  tombs={tombs}
+                  onOpenDiff={openDiffPath}
+                />
+              )}
             </div>
           )}
           {!panes.cl && (
@@ -684,6 +1098,12 @@ export function Files() {
               notice={notice}
               conflict={conflict}
               onResolveConflict={resolveConflict}
+              diff={diff}
+              diffRes={diffRes}
+              diffLoading={diffLoading}
+              diffErr={diffErr}
+              onDiffSide={(staged) => setDiff((d) => (d ? { ...d, staged } : d))}
+              onCloseDiff={() => setDiff(null)}
               dismissNotice={() => setNotice(null)}
               pending={pending !== null}
               resolvePending={resolvePending}

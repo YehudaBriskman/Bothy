@@ -35,7 +35,17 @@ function newNode(name: string, path: string, dir: boolean): Node {
   return { name, path, dir, entry: null, children: [], files: 0, bytes: 0 };
 }
 
-export function buildTree(entries: TreeFile[]): Node {
+/**
+ * @param entries the listing, as the service sent it.
+ * @param tombs   paths that git says have been DELETED. They are not on disk,
+ *                so they are not in `entries` - they are grafted in here so a
+ *                deletion has a row where files live, and they are counted as
+ *                ZERO files and ZERO bytes: the per-directory archive check
+ *                reads those totals to decide whether a download would be
+ *                refused, and a file that no longer exists must not move that
+ *                answer.
+ */
+export function buildTree(entries: TreeFile[], tombs?: ReadonlySet<string>): Node {
   const root = newNode('', '', true);
   const index = new Map<string, Node>([['', root]]);
 
@@ -68,6 +78,19 @@ export function buildTree(entries: TreeFile[]): Node {
     index.set(e.path, node);
   }
 
+  // The graft. After the real entries, so a path that is somehow BOTH listed and
+  // reported deleted keeps its real entry rather than being replaced by a stub.
+  if (tombs) {
+    for (const p of tombs) {
+      if (!p || index.has(p)) continue;
+      const cut = p.lastIndexOf('/');
+      const parent = ensureDir(cut === -1 ? '' : p.slice(0, cut));
+      const node = newNode(p.slice(cut + 1), p, false);
+      parent.children.push(node);
+      index.set(p, node);
+    }
+  }
+
   // Directories first, then files, each alphabetically - the ordering every file
   // explorer uses, and the one that makes a deep path predictable to scan.
   // `numeric` so incident-02 sorts before incident-10.
@@ -76,7 +99,10 @@ export function buildTree(entries: TreeFile[]): Node {
       a.dir !== b.dir ? (a.dir ? -1 : 1) : a.name.localeCompare(b.name, undefined, { numeric: true }));
     for (const c of n.children) {
       if (c.dir) finish(c);
-      else { c.files = 1; c.bytes = c.entry?.size ?? 0; }
+      // `entry === null` on a FILE node means a tombstone and nothing else -
+      // every listed file is given its entry above. It counts as no file and no
+      // bytes, because it is not there.
+      else { c.files = c.entry ? 1 : 0; c.bytes = c.entry?.size ?? 0; }
       n.files += c.files;
       n.bytes += c.bytes;
     }

@@ -20,11 +20,11 @@
 
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, CircleCheck, Code2, Download, Eye, FileDown, Info, Keyboard, LoaderCircle,
-  Lock, LogIn, Pencil, Save, Search, Undo2, X,
+  AlertTriangle, CircleCheck, Code2, Download, Eye, FileDiff, FileDown, GitCommitVertical,
+  Info, Keyboard, LoaderCircle, Lock, LogIn, Pencil, Save, Search, Undo2, X,
 } from 'lucide-react';
 import {
-  fmtBytes, rawUrl, signInUrl, type FileRead,
+  fmtBytes, rawUrl, signInUrl, type DiffResult, type FileRead,
   type WriteConflict,
 } from '../../lib/files';
 import { EmptyState, ErrState, Skeleton } from '../../components/states';
@@ -34,6 +34,7 @@ import { renderMd } from './md';
 import { JsonView } from './JsonView';
 import { baseName, dirName, type Kind } from './tree';
 import { SignInCard } from './SignInCard';
+import { DiffView, type DiffTarget } from './Diff';
 import type { CodeHandle, CodeStat } from './CodeSurface';
 
 // The whole of CodeMirror lives behind this one line. `npm run build` puts it in
@@ -274,6 +275,7 @@ export function Editor({
   view, setView, editing, draft, setDraft, dirty, saving, editable,
   onEdit, onCancel, onSave, notice, dismissNotice, pending, resolvePending,
   conflict, onResolveConflict,
+  diff, diffRes, diffLoading, diffErr, onDiffSide, onCloseDiff,
   onDownload, canDownload, onFallback, editorRef,
 }: {
   root: string;
@@ -302,6 +304,17 @@ export function Editor({
   dismissNotice: () => void;
   pending: boolean;
   resolvePending: (discard: boolean) => void;
+  // ── the diff ───────────────────────────────────────────────────────────────
+  // A TRANSIENT OVERLAY on the centre, not a navigation. Opening one does not
+  // change which file is open, does not touch the URL, and does not disturb an
+  // edit in progress - so a look at "what did I actually change" costs nothing
+  // and can be closed back to exactly where you were.
+  diff: DiffTarget | null;
+  diffRes: DiffResult | null;
+  diffLoading: boolean;
+  diffErr: string | null;
+  onDiffSide: (staged: boolean) => void;
+  onCloseDiff: () => void;
   onDownload: () => void;
   canDownload: boolean;
   onFallback: (why: string) => void;
@@ -338,6 +351,9 @@ export function Editor({
   const showSwitcher = !editing && previewable && kind !== 'image';
 
   const body = () => {
+    // The diff wins over everything, including a file that is mid-edit: it was
+    // asked for explicitly, and the edit is untouched underneath it.
+    if (diff) return <DiffView target={diff} res={diffRes} loading={diffLoading} err={diffErr} />;
     if (!path) {
       return (
         <div className="fx-pad">
@@ -410,7 +426,14 @@ export function Editor({
     <section className="fx-centre" aria-label="File">
       <header className="fx-tabbar">
         <div className="fx-crumb">
-          {path ? (
+          {diff ? (
+            <>
+              <FileDiff size={13} className="fx-crumb-ico" aria-hidden="true" />
+              <span className="fx-crumb-dir">{diff.root}/{dirName(diff.path)}</span>
+              <span className="fx-crumb-base">{baseName(diff.path)}</span>
+              <span className="fx-crumb-tag">diff</span>
+            </>
+          ) : path ? (
             <>
               <span className="fx-crumb-dir">{root}/{dirName(path)}</span>
               <span className="fx-crumb-base">{baseName(path)}</span>
@@ -422,7 +445,36 @@ export function Editor({
         </div>
 
         <div className="fx-actions">
-          {showSwitcher && (
+          {diff && (
+            <>
+              {/* Both sides of the staging line, from one row. They are
+                  genuinely different diffs - working tree against the index,
+                  and the index against HEAD - and which one you are looking at
+                  is the single most confusable thing about a diff. */}
+              <div className="seg-toggle fx-seg" role="group" aria-label="Diff side">
+                <button
+                  type="button"
+                  className={!diff.staged ? 'on' : ''}
+                  aria-pressed={!diff.staged}
+                  onClick={() => onDiffSide(false)}
+                >
+                  <Pencil size={12} aria-hidden="true" /> Working
+                </button>
+                <button
+                  type="button"
+                  className={diff.staged ? 'on' : ''}
+                  aria-pressed={diff.staged}
+                  onClick={() => onDiffSide(true)}
+                >
+                  <GitCommitVertical size={12} aria-hidden="true" /> Staged
+                </button>
+              </div>
+              <button type="button" className="btn ghost sm" onClick={onCloseDiff}>
+                <X size={13} aria-hidden="true" /> Close diff
+              </button>
+            </>
+          )}
+          {!diff && showSwitcher && (
             <div className="seg-toggle fx-seg" role="group" aria-label="View">
               <button
                 type="button"
@@ -443,12 +495,12 @@ export function Editor({
             </div>
           )}
           {/* No Save button on a file that can only be refused. */}
-          {file && editable && !editing && (
+          {!diff && file && editable && !editing && (
             <button type="button" className="btn sm" onClick={onEdit}>
               <Pencil size={13} aria-hidden="true" /> Edit
             </button>
           )}
-          {editing && (
+          {!diff && editing && (
             <>
               <button type="button" className="btn ghost sm" onClick={onCancel} disabled={saving}>
                 <Undo2 size={13} aria-hidden="true" /> Cancel
@@ -550,7 +602,7 @@ export function Editor({
           by knowing they exist has not shipped them - and the two that are least
           guessable (Alt-click for a second caret, Alt-Shift-drag for a column)
           are exactly the two nothing else on the page hints at. */}
-      {keysOpen && kind === 'text' && !plain && (
+      {keysOpen && !diff && kind === 'text' && !plain && (
         <div className="fx-keys" role="group" aria-label="Editor keys">
           {KEYS.map(([keys, what]) => (
             <span className="fx-key" key={what}>
@@ -567,7 +619,20 @@ export function Editor({
           the header, in the one place an editor puts it - so the header can be
           about the file's identity and its actions, and nothing else. */}
       <footer className="fx-status">
-        {file ? (
+        {diff ? (
+          // The diff is an overlay, so the strip stops describing the file
+          // underneath it - a byte count and a line count that belong to a
+          // different document than the one on screen is worse than none.
+          <>
+            <span className="fx-stat">{diff.staged ? 'staged, against HEAD' : 'working tree, against the index'}</span>
+            <span className="fx-stat-sep" aria-hidden="true" />
+            {/* NOT `.fx-stat.mono` - that class uppercases, which is right for
+                a three-letter language chip and wrong for a path. */}
+            <span className="fx-stat fx-diffpath">{diff.path}</span>
+            <span className="fx-status-spacer" />
+            {dirty && <span className="fx-stat warn">the editor still holds unsaved changes</span>}
+          </>
+        ) : file ? (
           <>
             {editing
               ? <span className={`fx-stat ${dirty ? 'warn' : ''}`}>{dirty ? 'unsaved changes' : 'editing - no changes yet'}</span>
