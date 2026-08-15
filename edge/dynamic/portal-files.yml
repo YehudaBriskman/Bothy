@@ -54,28 +54,19 @@ http:
       service: portal-files
       middlewares: [portal-files-strip, files-deidentify, sso-viewer, sso-errors]
 
-    # ── git: local repository actions. `editor`, same tier as writing a file,
-    #    because staging and committing change the repo the same way editing
-    #    does. push/pull are NOT here - see the operator router below.
-    portal-files-git:
-      rule: "Path(`/-/api/files/git/stage`) || Path(`/-/api/files/git/unstage`) || Path(`/-/api/files/git/discard`) || Path(`/-/api/files/git/commit`)"
-      entryPoints: [web]
-      priority: 110
-      service: portal-files
-      middlewares: [portal-files-strip, files-deidentify, sso-editor, sso-errors]
-
-    # ── sync: the only thing that leaves the box. `operator`, deliberately a
-    #    tier above editor.
+    # The git ACTION routes are gone (2026-08-15). /git/stage, /git/unstage,
+    # /git/discard, /git/commit, /git/pull and /git/push were removed with the
+    # `operator` tier they needed - git actions move to an in-browser command
+    # surface, and a second narrower path to them here would be a duplicate to
+    # keep in sync and a second thing to secure.
     #
-    # Editing a file and PUBLISHING it are different acts, and the roles already
-    # exist to say so. This is also the first capability that needs a credential
-    # in the container at all, so it gets the narrower gate on both counts.
-    portal-files-sync:
-      rule: "Path(`/-/api/files/git/pull`) || Path(`/-/api/files/git/push`)"
-      entryPoints: [web]
-      priority: 110
-      service: portal-files
-      middlewares: [portal-files-strip, files-deidentify, sso-operator, sso-errors]
+    # `/git/diff` survives and is on the READ router above: it changes nothing.
+    #
+    # sso-operator went with them. It was defined for exactly one purpose - to
+    # keep publishing a tier above editing - and a middleware nothing references
+    # is a loaded gun with no trigger: it looks like protection while protecting
+    # nothing, and the next router to want a gate might pick it up believing it
+    # is already proven in use.
 
     # ── write: requires the editor role ─────────────────────────────────────
     portal-files-write:
@@ -160,15 +151,6 @@ http:
     sso-viewer:
       forwardAuth:
         address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=viewer"
-        trustForwardHeader: true
-        authResponseHeaders:
-          - X-Auth-Request-User
-          - X-Auth-Request-Email
-          - X-Auth-Request-Preferred-Username
-
-    sso-operator:
-      forwardAuth:
-        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=operator"
         trustForwardHeader: true
         authResponseHeaders:
           - X-Auth-Request-User

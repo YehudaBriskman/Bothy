@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""The git area: stage, unstage, diff, commit, discard, and the sync refusals.
+"""Git is VIEW-ONLY. The mutating endpoints must be gone, not merely unused.
 
-Two things here are worth more than the rest.
+Stage, unstage, discard, commit, pull and push were removed on 2026-08-15. Git
+actions move to an in-browser command surface, and keeping a second narrower
+path to them here would be a duplicate to secure and to keep in sync.
 
-`discard` is the only irreversible action this service has. `git restore
---worktree` throws away working-tree content, and for an UNSTAGED change that
-content was never in the object store - so nothing can recover it. That got
-sharper when save stopped committing, because the working tree is now often the
-only copy of an edit. The refusals around it are therefore tested first and
-tested hardest.
+This file used to exercise those verbs. It now asserts they are UNREACHABLE,
+which is a different and more useful claim: a UI that stops calling an endpoint
+leaves the endpoint standing, and an endpoint nobody calls is one nobody watches.
 
-`push` is the only thing that leaves the box, and it is gated a tier higher than
-everything else. Here we can only prove the REFUSALS (no credential, SSH remote),
-because proving a successful push would mean publishing to a real remote.
+The reads it still checks - /repos, /status, /git/diff - are the whole remaining
+surface.
 """
 import os
 import re
@@ -24,7 +22,7 @@ import requests
 BASE = "http://100.117.176.85"
 API = f"{BASE}/-/api/files"
 REPO = "/home/devssh/claude-notes"
-F = "_git-ops-probe.md"
+F = "_git-view-probe.md"
 
 fails = 0
 
@@ -55,97 +53,53 @@ s.post(m.group(1).replace("&amp;", "&"),
        allow_redirects=True, timeout=10)
 
 before_head = g("rev-parse", "HEAD")
-P = {"root": "notes", "path": F}
 
-print("── stage / unstage ─────────────────────────────────────────────────")
-s.post(f"{API}/write", json={**P, "content": "# one\n"}, timeout=20)
-check("a saved file starts UNSTAGED", g("status", "--porcelain", "--", F).startswith("??"),
-      g("status", "--porcelain", "--", F))
+print("── the mutating verbs must be GONE ─────────────────────────────────")
+# Each of these was a working endpoint. Removing the UI's buttons would leave
+# them reachable by anyone who knew the path, so the assertion is on the SERVICE.
+for verb in ("stage", "unstage", "discard", "commit", "pull", "push"):
+    r = s.post(f"{API}/git/{verb}",
+               json={"root": "notes", "path": F, "message": "x", "confirm": True},
+               timeout=20)
+    # 404 from the service, or a Traefik-level refusal - either means unroutable.
+    # NOT 200, and NOT the SPA's catch-all 200 either, which is why the body is
+    # checked too.
+    gone = r.status_code in (404, 405) or (
+        r.status_code == 200 and "<title>Bothy" in r.text)
+    check(f"/git/{verb} is unreachable", gone, f"got {r.status_code}")
 
-r = s.post(f"{API}/git/stage", json=P, timeout=20)
-check("stage succeeds", r.status_code == 200, f"got {r.status_code}")
-check("and git agrees it is staged", g("status", "--porcelain", "--", F).startswith("A"),
-      g("status", "--porcelain", "--", F))
+check("and nothing was written by trying",
+      not os.path.exists(f"{REPO}/{F}") and g("rev-parse", "HEAD") == before_head)
 
-r = s.post(f"{API}/git/unstage", json=P, timeout=20)
-check("unstage succeeds", r.status_code == 200, f"got {r.status_code}")
-check("and it is untracked again", g("status", "--porcelain", "--", F).startswith("??"),
-      g("status", "--porcelain", "--", F))
+print("\n── what remains is reading, and it still works ─────────────────────")
+open(f"{REPO}/{F}", "w").write("# probe\n")
 
-print("\n── diff ────────────────────────────────────────────────────────────")
-s.post(f"{API}/git/stage", json=P, timeout=20)
-s.post(f"{API}/git/commit", json={**P, "message": "test(probe): add"}, timeout=30)
-s.post(f"{API}/write", json={**P, "content": "# one\n# two\n"}, timeout=20)
-d = s.get(f"{API}/git/diff", params=P, timeout=20).json()
-check("an unstaged edit produces a diff", not d.get("empty"), f"{len(d.get('diff') or '')} chars")
-check("and the diff contains the new line", "+# two" in (d.get("diff") or ""))
+r = s.get(f"{API}/status", params={"root": "notes"}, timeout=20)
+check("/status lists the change", r.status_code == 200
+      and any(f and F in (f.get("path") or "") for f in r.json().get("files", [])),
+      f"got {r.status_code}")
 
-print("\n── commit ──────────────────────────────────────────────────────────")
-r = s.post(f"{API}/git/commit", json={**P, "message": "no staging"}, timeout=30)
-check("commit with nothing staged is refused, and says so",
-      r.status_code == 400 and "staged" in r.text, f"got {r.status_code}")
-r = s.post(f"{API}/git/commit", json={**P, "message": ""}, timeout=30)
-check("commit with no message is refused", r.status_code == 400, f"got {r.status_code}")
+r = s.get(f"{API}/repos", params={"root": "notes"}, timeout=20)
+check("/repos still reports the repo", r.status_code == 200
+      and len(r.json().get("repos", [])) >= 1, f"got {r.status_code}")
 
-s.post(f"{API}/git/stage", json=P, timeout=20)
-r = s.post(f"{API}/git/commit", json={**P, "message": "test(probe): second"}, timeout=30)
-check("a staged commit succeeds", r.status_code == 200, f"got {r.status_code}")
-check("it is attributed to the signed-in user",
-      g("log", "-1", "--format=%an") == os.environ["DEV_LOGIN_USER"],
-      g("log", "-1", "--format=%an"))
-check("and touched exactly the one file",
-      g("show", "--name-only", "--format=", "HEAD").split() == [F])
-# The response must actually SAY what it committed. It used to build that list
-# under the key `files` and then lose it: status() returns a `files` key too, and
-# the dict merge put status last. Two meanings of one name in one dict.
-check("the response names what it committed",
-      r.json().get("committed") == [F], str(r.json().get("committed")))
-
-print("\n── discard: the irreversible one ───────────────────────────────────")
-s.post(f"{API}/write", json={**P, "content": "# one\n# two\n# UNSAVED WORK\n"}, timeout=20)
-
-r = s.post(f"{API}/git/discard", json=P, timeout=20)
-check("discard WITHOUT confirm is refused", r.status_code == 400, f"got {r.status_code}")
-check("and it explains why, rather than just failing",
-      "irreversible" in r.text.lower(), r.json().get("error", "")[:60])
-check("the file is untouched", "# UNSAVED WORK" in open(f"{REPO}/{F}").read())
-
-r = s.post(f"{API}/git/discard", json={"root": "notes", "confirm": True}, timeout=20)
-check("discard of a WHOLE REPO is refused even with confirm",
-      r.status_code == 400, f"got {r.status_code}")
-check("...because one mis-click should not cost everything",
-      "whole repo" in r.text.lower() or "specific file" in r.text.lower())
-check("the file is still untouched", "# UNSAVED WORK" in open(f"{REPO}/{F}").read())
-
-r = s.post(f"{API}/git/discard", json={**P, "confirm": True}, timeout=20)
-check("discard WITH confirm and a path succeeds", r.status_code == 200, f"got {r.status_code}")
-check("and the working-tree edit is gone",
-      "# UNSAVED WORK" not in open(f"{REPO}/{F}").read())
-check("it was recorded as irreversible in the audit log",
-      "DISCARDED" in subprocess.run(
-          ["docker", "exec", "portal-files", "cat", "/audit/writes.log"],
-          capture_output=True, text=True).stdout)
-
-print("\n── sync: refusals we can prove ─────────────────────────────────────")
-r = s.post(f"{API}/git/push", json={"root": "notes"}, timeout=30)
-check("push on a repo with NO remote is refused",
-      r.status_code == 400 and "remote" in r.text, f"got {r.status_code}")
-
-# Tals is a real SSH remote. Read-only root, so this checks the SSH refusal
-# lands before anything else could go wrong.
-r = s.post(f"{API}/git/push",
-           json={"root": "projects", "path": "army/Tals/frontend"}, timeout=30)
-check("push on a read-only root is refused", r.status_code == 403, f"got {r.status_code}")
+# A diff needs a TRACKED change - an untracked file has nothing to diff against.
+subprocess.run(["git", "-C", REPO, "add", F], capture_output=True)
+subprocess.run(["git", "-C", REPO, "-c", "user.name=probe",
+                "-c", "user.email=probe@local", "commit", "-m", "probe"],
+               capture_output=True)
+open(f"{REPO}/{F}", "w").write("# probe\n# changed\n")
+r = s.get(f"{API}/git/diff", params={"root": "notes", "path": F}, timeout=20)
+check("/git/diff still returns a diff",
+      r.status_code == 200 and "+# changed" in (r.json().get("diff") or ""),
+      f"got {r.status_code}")
 
 print("\n── cleanup ─────────────────────────────────────────────────────────")
 if os.path.exists(f"{REPO}/{F}"):
     os.remove(f"{REPO}/{F}")
-subprocess.run(["git", "-C", REPO, "reset", "--hard", before_head],
-               capture_output=True, text=True)
-check("repo restored to where it started",
-      g("rev-parse", "HEAD") == before_head and not os.path.exists(f"{REPO}/{F}"),
+subprocess.run(["git", "-C", REPO, "reset", "--hard", before_head], capture_output=True)
+check("repo restored", g("rev-parse", "HEAD") == before_head and not g("status", "--porcelain"),
       g("rev-parse", "--short", "HEAD"))
-check("and the tree is clean", not g("status", "--porcelain"))
 
 print(f"\n{fails} FAILED" if fails else "\nall pass")
 sys.exit(1 if fails else 0)
