@@ -300,6 +300,65 @@ bad += 0 if ok else 1
 print(f"{'PASS' if ok else 'FAIL'}  {'...while the ROOT still denies its own dot-dirs':<52} "
       f"want=absent  {len(whole)} members")
 
+print("\n── the policy file itself ──────────────────────────────────────────")
+# The rules are DECLARED now, in policy.toml, so the file is part of the
+# boundary and gets linted like one. The point of these is that a policy edit
+# cannot quietly widen access: it either loads and matches what is asserted
+# here, or the service refuses to start.
+import subprocess as _sp, tempfile as _tf, textwrap as _tw
+
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def _load(policy_text, label, want_fail):
+    global bad
+    with _tf.NamedTemporaryFile("w", suffix=".toml", delete=False) as f:
+        f.write(policy_text)
+        p = f.name
+    r = _sp.run([sys.executable, "-c", "import sys; sys.path.insert(0, %r); import safepath" % _HERE],
+                env={**os.environ, "POLICY_FILE": p}, capture_output=True, text=True)
+    failed = r.returncode != 0
+    ok = failed == want_fail
+    bad += 0 if ok else 1
+    why = (r.stderr.strip().splitlines() or [""])[-1][:52]
+    print(f"{'PASS' if ok else 'FAIL'}  {label:<52} "
+          f"want={'refuse' if want_fail else 'load':<7} {why if failed else 'loaded'}")
+    os.unlink(p)
+
+# FAIL CLOSED. Each of these must stop the service, because the alternative is a
+# service running with a policy nobody wrote - and the only safe fallback is
+# "serve nothing", which looks broken and gets worked around.
+_load("this is not toml [[[", "malformed policy is refused", True)
+_load('[deny]\ncomponents=[]\nfile_patterns=[]\n[write]\nsuffixes=[]\n',
+      "a policy with no roots is refused", True)
+_load('[roots.x]\npath="/nope/not/here"\n[deny]\ncomponents=[]\n'
+      'file_patterns=[]\n[write]\nsuffixes=[]\n',
+      "a root that is not mounted is refused", True)
+_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n',
+      "a policy missing [write] is refused", True)
+# ...and a valid one loads, or the four above would pass for the wrong reason.
+_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
+      '[write]\nsuffixes=[".md"]\n',
+      "a valid policy loads", False)
+
+# The shipped policy must still say what the boundary needs it to say.
+_ship = {}
+with open(os.path.join(_HERE, "policy.toml"), "rb") as _f:
+    import tomllib as _tl
+    _ship = _tl.load(_f)
+_writable = {k for k, v in _ship["roots"].items() if v.get("writable")}
+ok = _writable == {"stacks", "notes"}
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'only stacks and notes are writable':<52} "
+      f"want=2       {sorted(_writable)}")
+ok = _ship["roots"]["home"].get("deny_toplevel_dots") is True
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'home still denies top-level dot entries':<52} "
+      f"want=True    {_ship['roots']['home'].get('deny_toplevel_dots')}")
+ok = ".toml" not in _ship["write"]["suffixes"]
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'the policy file cannot rewrite itself':<52} "
+      f"want=absent  .toml in write.suffixes: {'.toml' in _ship['write']['suffixes']}")
+
 print("\n── the advisory scanner: ADVISORY, and measured ────────────────────")
 # scan_for_secret marks a file; it never refuses one. That was decided by running
 # the blocking version over all 3,369 readable text files on this box: it flagged

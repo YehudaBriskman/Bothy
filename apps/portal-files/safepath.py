@@ -28,8 +28,84 @@ import os
 import re
 import stat
 import time
+import tomllib
 import urllib.parse
 from dataclasses import dataclass
+
+# ── the policy is DECLARED, not coded ───────────────────────────────────────
+#
+# Everything below used to be Python constants. That meant widening access
+# needed a code change and a redeploy, which is how something gets missed - and
+# it also meant the rules and the reasons for them lived in a file most people
+# would never open.
+#
+# It FAILS CLOSED. A missing file, a parse error, or a root whose directory does
+# not exist raises at import and the service does not start. It never falls back
+# to a built-in default, because the only safe default is "serve nothing", and a
+# service that serves nothing looks broken in a way people work around by
+# disabling the check.
+POLICY_PATH = os.environ.get("POLICY_FILE",
+                             os.path.join(os.path.dirname(__file__), "policy.toml"))
+
+
+class PolicyError(Exception):
+    """The policy could not be loaded. Fatal on purpose."""
+
+
+def _load_policy(path: str) -> dict:
+    try:
+        with open(path, "rb") as fh:
+            doc = tomllib.load(fh)
+    except FileNotFoundError as e:
+        raise PolicyError(f"no policy at {path} - refusing to start") from e
+    except tomllib.TOMLDecodeError as e:
+        raise PolicyError(f"policy at {path} does not parse: {e}") from e
+
+    roots = doc.get("roots")
+    if not isinstance(roots, dict) or not roots:
+        raise PolicyError("policy declares no roots")
+    for name, cfg in roots.items():
+        if not isinstance(cfg, dict) or not cfg.get("path"):
+            raise PolicyError(f"root {name!r} has no path")
+        # A declared-but-unmounted root would present as an empty directory,
+        # which reads as "nothing to see" rather than "misconfigured".
+        if not os.path.isdir(cfg["path"]):
+            raise PolicyError(
+                f"root {name!r} points at {cfg['path']}, which is not a directory "
+                f"- is it mounted in compose.yml?")
+
+    for section, key in (("deny", "components"), ("deny", "file_patterns"),
+                         ("write", "suffixes")):
+        if not isinstance(doc.get(section, {}).get(key), list):
+            raise PolicyError(f"policy is missing [{section}].{key}")
+    return doc
+
+
+POLICY = _load_policy(POLICY_PATH)
+
+ROOTS: dict[str, str] = {k: v["path"] for k, v in POLICY["roots"].items()}
+WRITABLE_ROOTS = frozenset(
+    k for k, v in POLICY["roots"].items() if v.get("writable") is True)
+ROOT_POLICY: dict[str, dict] = {
+    k: {"deny_toplevel_dots": v.get("deny_toplevel_dots", False),
+        "deny_toplevel": frozenset(v.get("deny_toplevel", []))}
+    for k, v in POLICY["roots"].items()
+}
+
+DENY_COMPONENTS = frozenset(POLICY["deny"]["components"])
+DENY_FILE_PATTERNS = tuple(POLICY["deny"]["file_patterns"])
+ALLOW_FILES = frozenset(POLICY["deny"].get("allow_files", []))
+_WORDY_PATTERNS = frozenset(POLICY["deny"].get("wordy_patterns", []))
+_PROSE_SUFFIXES = frozenset(POLICY["deny"].get("prose_suffixes", []))
+WRITABLE_SUFFIXES = frozenset(POLICY["write"]["suffixes"])
+
+# GIT_ROOTS stays in code: it is not policy, it is a fact about where the
+# repositories physically are. A root may contain many (~/projects) or none, and
+# git_root_for() discovers that per file.
+GIT_ROOTS: dict[str, str] = {
+    k: v["path"] for k, v in POLICY["roots"].items() if v.get("writable")
+}
+
 
 # Named roots, so a client never sends a filesystem path - only a short key that
 # must match this table exactly. An unknown key is refused; there is no default
@@ -38,25 +114,11 @@ from dataclasses import dataclass
 # These are git repositories (or contain them), which is the entire versioning
 # story: editing a file produces a commit, and `git log` is the page history.
 # Nothing else needs to store versions.
-ROOTS: dict[str, str] = {
-    # The whole stack repo, not just docs/ - this is a file explorer now, so
-    # compose files, scripts and source are all in scope for READING.
-    "stacks": "/repos/stacks",
-    "notes": "/repos/notes",
-    "projects": "/repos/projects",
-    # "any folder you can cd into". Mounted READ-ONLY, and the two rules below
-    # (TOPLEVEL_DENY + dot-directories at root level) are what make it safe -
-    # see the survey recorded there.
-    "home": "/repos/home",
-}
-
 # Roots the write tier may touch. Everything else is browse-only.
 #
 # `home` is deliberately absent: it overlaps stacks and notes, so the same file
 # is reachable by two names, and only ONE of them should be able to change it.
 # Editing goes through the root that owns the repo.
-WRITABLE_ROOTS = frozenset({"stacks", "notes"})
-
 # Per-root policy, because the right rule is NOT the same for every root - and
 # discovering that is what forced this table to exist.
 #
@@ -69,18 +131,6 @@ WRITABLE_ROOTS = frozenset({"stacks", "notes"})
 # So "deny top-level dotfiles" is a property of the ROOT, not of the service.
 # This is the smallest honest version of per-path access control; it is meant to
 # grow into a declared policy rather than stay a Python constant.
-ROOT_POLICY: dict[str, dict] = {
-    "home": {
-        # Every credential store in a home directory is a top-level dot entry,
-        # and nothing worth browsing is. Denying the whole class is one
-        # auditable rule instead of a list that needs a new line each time
-        # somebody installs a tool.
-        "deny_toplevel_dots": True,
-        "deny_toplevel": frozenset({"backups"}),
-    },
-}
-
-
 def root_policy(root_key: str) -> dict:
     return ROOT_POLICY.get(root_key, {})
 
@@ -145,16 +195,6 @@ def prune_dirs(root_key: str, rel_dir: str, dirnames: list[str]) -> list[str]:
 #
 # Collapsing them into one is the easy mistake, and it widens the blast radius
 # without changing anything visible.
-GIT_ROOTS: dict[str, str] = {
-    "stacks": "/repos/stacks",
-    "notes": "/repos/notes",
-    # ~/projects is NOT one repo - it contains several unrelated ones (CVOps,
-    # Tals, monorepo-inherited), each with its own .git. So there is no single
-    # toplevel to commit against. git_root_for() walks up to find the right one
-    # per file; a file under no repo at all is readable but cannot be committed,
-    # which the write path reports honestly rather than silently not versioning.
-}
-
 # Write is restricted to text formats a human edits. This is not about parsing -
 # it is a blast-radius limit. Without it, "edit a doc" also means "rewrite
 # compose.yml", "rewrite a shell script that cron runs", or "drop a .py that
@@ -164,10 +204,6 @@ GIT_ROOTS: dict[str, str] = {
 # vector in that app. That is a property of the repo rather than of this service,
 # and it is a real widening of what the editor can change - not a formatting
 # detail.
-WRITABLE_SUFFIXES = frozenset({
-    ".md", ".markdown", ".txt", ".rst", ".svg", ".html", ".htm", ".xml",
-})
-
 # Directories never served or listed, at any depth.
 #
 # `.git` is the big one: it holds the repo's own object store and config, and
@@ -175,12 +211,6 @@ WRITABLE_SUFFIXES = frozenset({
 # the build/venv dirs are excluded for volume rather than secrecy - they are tens
 # of thousands of files nobody browses, and including them would make the tree
 # useless and the listing slow.
-DENY_COMPONENTS = frozenset({
-    ".git", ".ssh", ".gnupg", "node_modules", ".venv", "venv",
-    "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",
-    ".next", ".turbo", ".cache", "target",
-})
-
 # Files never served, matched on the FILENAME rather than on a path component.
 #
 # This is the control that widening the roots made necessary, and it is the
@@ -197,22 +227,6 @@ DENY_COMPONENTS = frozenset({
 # deny-list that cannot see filenames is not a deny-list for secrets.
 #
 # fnmatch patterns, tested against the lowercased basename.
-DENY_FILE_PATTERNS = (
-    ".env", ".env.*", "*.env",          # NOT .env.example - allowed below
-    "*.pem", "*.key", "*.p12", "*.pfx", "*.jks", "*.keystore",
-    "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "*.ppk",
-    "*.kdbx", "*.gpg", "*.asc",
-    ".netrc", ".pgpass", ".htpasswd", ".git-credentials",
-    "credentials", "credentials.*", "*secret*", "*password*",
-    "*.sqlite", "*.db",                 # may hold sessions/tokens
-    # Keycloak realm exports. Added after this exact file - auth/realm-devbox.json -
-    # was served to an authenticated viewer WITH a live client secret in it. Its
-    # name suggests nothing; every pattern above missed it. It is the case that
-    # proves a name-based deny-list is a filter and not a boundary, which is why
-    # scan_for_secret() below exists as well.
-    "realm-*.json", "*-realm.json", "realm.json",
-)
-
 # Content patterns that mean "this file carries a live credential", checked on
 # the bytes rather than on the name.
 #
@@ -289,11 +303,6 @@ def scan_for_secret(text: str) -> str | None:
 # and hiding it makes the explorer worse for no gain. It is allowed BY NAME so
 # that the exception can never widen: `.env.example` is listed, `.env.production`
 # is not.
-ALLOW_FILES = frozenset({
-    ".env.example", ".env.sample", ".env.template", ".env.test.example",
-    ".env.local.template", ".env.production.template", ".env.defaults",
-})
-
 MAX_BYTES = 1_000_000  # a megabyte of markdown is already an unreasonable page
 
 # ── serving raw bytes ───────────────────────────────────────────────────────
@@ -414,10 +423,6 @@ class PathRefused(Exception):
 # in, while `.md` and `.rst` are formats you write ABOUT credentials in. The
 # content scanner still inspects these files and can flag them as sensitive; it
 # just no longer removes them from the explorer entirely.
-_WORDY_PATTERNS = frozenset({"*secret*", "*password*"})
-_PROSE_SUFFIXES = frozenset({".md", ".markdown", ".rst"})
-
-
 def is_denied_name(basename: str) -> bool:
     """True if this filename must never be served.
 
