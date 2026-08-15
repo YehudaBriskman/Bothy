@@ -38,10 +38,62 @@
   --rail-l: 268px;
   --rail-r: 300px;
   --panel-h: 200px;
-  --fx-line: var(--line);
   --code-fs: 12.5px;
   --code-lh: 1.55;
 }
+
+/* ── focus, stated once for the whole page ───────────────────────────────────
+   index.css closes with `*:focus-visible { outline: 2px solid var(--accent);
+   outline-offset: 2px; border-radius: 3px }`. On a document that is right: the
+   controls sit on open background, and a ring with 2px of air around it reads as
+   a ring. In this window they do not. Every control here is packed into a 24-42px
+   strip, inside a region with `overflow: hidden`, with its neighbour 2px away -
+   so an OUTSET ring is a blue rectangle floating AROUND the button rather than a
+   mark ON it, and against a clipping edge it is a blue rectangle with a side
+   missing.
+
+   So the ring comes inside. That is not a new idea here: .fx-actbtn,
+   .fx-panel-tab, .fx-scm-row, .fx-scm-grouph, .fx-row, .fx-sep, .fx-code,
+   .fx-json and .fx-read had each independently worked it out and written
+   `outline-offset: -2px` for themselves, while every control that did NOT write
+   its own rule - .btn, .icon-btn, .seg-toggle, .fx-hbtn, .fx-rootchip,
+   .fx-filter-x, .fx-sha - inherited the outset one and looked wrong. This says it
+   once, for all of them; those nine rules are now agreements rather than
+   exceptions, and a control added tomorrow gets it for free.
+
+   `.bothy-files *:focus-visible` is (0,2,0), so it beats the (0,1,0) global
+   REGARDLESS of import order - the same reason the rest of this file is written
+   the way it is - and every (0,3,0) rule in the page's own five stylesheets still
+   wins over it. Nothing outside this page is touched.
+
+   THE RING IS RESTYLED, NEVER REMOVED. Stated as a decision: this page is driven
+   from the keyboard (Ctrl+S, Ctrl+F, arrows in the tree, arrows on the
+   separators), and a control whose focus cannot be seen is a control that only
+   exists for a mouse. */
+.bothy-files *:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+/* The global rule also forces `border-radius: 3px`, and that is not the
+   outline's radius - it is the ELEMENT's. A focused control re-rounds its own
+   corners and holds the new shape for as long as it is focused. An outline
+   already follows the element's own radius, so the fix is to hand each control
+   its radius back rather than to let a focus rule reshape it.
+
+   Only three selectors are needed, and the reason is the same specificity fact
+   this file is built on: every control the PAGE styles declares its radius at
+   (0,2,0) and already beats the (0,1,0) global. What squares off is exactly the
+   primitives borrowed from index.css, whose own radius is declared at (0,1,0) -
+   .btn and .icon-btn at 10px, .seg-toggle's buttons at 7px. Measured: a focused
+   .btn went 10px -> 3px before this. Tokens, not repeated literals, and they are
+   the same tokens index.css sets those radii with. */
+.bothy-files .btn:focus-visible,
+.bothy-files .icon-btn:focus-visible { border-radius: var(--r-md); }
+.bothy-files .seg-toggle button:focus-visible { border-radius: var(--r-sm); }
+/* ...except the segments in the tab bar, which editor.css tightens to --r-xs for
+   the 34px strip. Same specificity as the line above, so it must come after it.
+   Measured before this line existed: focusing one grew it 5px -> 7px. */
+.bothy-files .fx-seg button:focus-visible { border-radius: var(--r-xs); }
 
 /* ── syntax palette ──────────────────────────────────────────────────────────
    Five token classes, which is all a viewer needs: comment, string, keyword,
@@ -115,6 +167,29 @@
    toggle is the control you look at when you cannot find a rail. */
 .bothy-files .fx-hbtn.on { color: var(--accent-fg); background: var(--accent-bg); }
 .bothy-files .fx-flip { transform: rotate(180deg); }
+
+/* ── pressed is FILLED, not outlined ─────────────────────────────────────────
+   The rule .fx-hbtn.on above is the reference: a pressed control takes the
+   accent TINT and the accent TEXT colour, so "this one is on" is a change of
+   weight in the thing itself. The two primitives borrowed from index.css did not
+   follow it - .seg-toggle button.on lifted itself with a surface step and a
+   shadow, which on this page's dark chrome is nearly the same grey as its own
+   container - so they are re-stated here in the page's own language.
+
+   Never colour alone, in either rule: the segment also goes from 600 to 700, and
+   both carry a lucide glyph and their own word. `aria-pressed` is matched
+   alongside `.on` on purpose - it is the attribute that MEANS pressed, three of
+   these toggles set it, and pairing them means the paint cannot drift from the
+   announcement. Tokens only; no new colours. */
+.bothy-files .seg-toggle button.on,
+.bothy-files .seg-toggle button[aria-pressed='true'] {
+  background: var(--accent-bg); color: var(--accent-fg); font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.bothy-files .btn.on,
+.bothy-files .btn[aria-pressed='true'] {
+  background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent-fg);
+}
 
 /* ── the four regions ────────────────────────────────────────────────────────
    Explicit grid-column on every cell, so a collapsed rail can be removed from

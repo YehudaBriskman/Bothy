@@ -27,7 +27,17 @@
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-sm); padding: 4px 6px 4px 8px; color: var(--fg-subtle);
 }
-.bothy-files .fx-filter:focus-within { border-color: var(--accent); }
+/* The input inside has no border and `outline: none`, so the focus mark has to
+   go on the wrapper that frames it - the same arrangement, and the same
+   selector, as .cmdk-in in index.css. `:has(input:focus-visible)` rather than
+   the `:focus-within { border-color: var(--accent) }` this used to be: that was
+   a 1px colour change and nothing else, which is colour alone, and it is the box
+   the "clicking it turns the border blue" report was about. Now it is the page's
+   one inset ring, which a text field shows for the mouse as well - correct here,
+   because this box is where a keystroke goes and there is no other sign of it. */
+.bothy-files .fx-filter:has(input:focus-visible) {
+  outline: 2px solid var(--ring); outline-offset: -2px;
+}
 .bothy-files .fx-filter svg { flex: none; }
 .bothy-files .fx-filter input {
   appearance: none; border: 0; background: transparent; color: var(--fg);
@@ -130,8 +140,18 @@
   width: 16px; height: 16px; display: none; place-items: center;
   border: 0; border-radius: var(--r-xs); background: var(--surface-3); color: var(--fg-subtle);
 }
+/* `:focus-within` on the WRAPPER, not `:focus-visible` on the button.
+   
+   The old rule could never match. The button is `display: none` until revealed,
+   and a display:none element is not in the tab order - so it could not receive
+   focus, so `:focus-visible` on it was unreachable, so the per-directory
+   download button was mouse-only. Watching the rule and reasoning about it in
+   isolation both suggest it works; only tabbing to it shows that it does not.
+   
+   The wrapper's own row IS focusable, so `:focus-within` reveals the button as
+   soon as the row is reached by keyboard, and one more Tab lands on it. */
 .bothy-files .fx-rowwrap:hover .fx-rowbtn,
-.bothy-files .fx-rowbtn:focus-visible { display: grid; }
+.bothy-files .fx-rowwrap:focus-within .fx-rowbtn { display: grid; }
 .bothy-files .fx-rowbtn:hover { color: var(--accent-fg); }
 
 /* ── search hits ────────────────────────────────────────────────────────────
