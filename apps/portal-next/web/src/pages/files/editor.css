@@ -513,3 +513,59 @@
 }
 .bothy-files .fx-conflict-p { margin: 6px 0 9px; font-size: 12px; color: var(--fg-muted); }
 .bothy-files .fx-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── the empty state ────────────────────────────────────────────────────────
+   
+   These five classes were used by Editor.tsx and defined NOWHERE for a while,
+   so the panel rendered as raw markup: a 72px mark and fifteen unstyled rows
+   stacked down the page. Two agents worked this file in parallel and the
+   handoff between them had no closing step.
+   
+   Borderless on purpose. Every other "nothing here" surface in this app is a
+   bordered `.state` card, and a card in the middle of an IDE's editor pane
+   reads as a dialog you need to dismiss. This is the pane at rest, not a
+   message about it. */
+.bothy-files .fx-empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 18px;
+  height: 100%; padding: 32px 24px;
+  /* The pane is the widest thing on the page; text centred across 1000px is
+     unreadable. Cap the block, not the pane. */
+  --fx-empty-w: 380px;
+}
+.bothy-files .fx-empty-mark {
+  opacity: 0.13;           /* present, not decorative-looking */
+  line-height: 0;
+}
+.bothy-files .fx-empty-keys {
+  display: grid;
+  /* Chord column sized to its content and right-aligned, so the keys form a
+     clean edge against the descriptions rather than a ragged one. */
+  grid-template-columns: auto 1fr;
+  gap: 7px 14px;
+  width: 100%; max-width: var(--fx-empty-w);
+  font-size: 12.5px;
+}
+.bothy-files .fx-empty-key { display: contents; }
+.bothy-files .fx-empty-key > .fx-key-combo { justify-content: flex-end; }
+.bothy-files .fx-empty-hint {
+  margin: 0; font-size: 12.5px; text-align: center;
+}
+
+@media (max-height: 520px) {
+  /* A short pane cannot hold the mark and the list. The list is the useful
+     half, so the mark goes first. */
+  .bothy-files .fx-empty { gap: 12px; }
+  .bothy-files .fx-empty-mark { display: none; }
+}
+
+/* Close, at the far edge. `margin-left: auto` inside the flex strip pushes it
+   past everything else, and the separator makes the gap deliberate rather than
+   looking like a layout accident. Its neighbours would otherwise be Edit and
+   Save; one slip from "save" to "close" is the worst adjacency on this bar. */
+.bothy-files .fx-crumb-x {
+  margin-inline-start: auto;
+  padding-inline-start: 8px;
+  border-inline-start: 1px solid var(--line);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}

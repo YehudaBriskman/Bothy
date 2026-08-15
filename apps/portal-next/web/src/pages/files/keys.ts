@@ -96,3 +96,17 @@ export function chordOf(id: string): readonly string[] {
 /** Everything that only works with a file open in the code surface, plus Save -
  *  which is what the Keys sheet in the status strip is about. */
 export const EDITOR_KEYS = BINDINGS.filter((b) => b.scope !== 'global');
+
+/** The handful an empty pane should teach. The rest live in the Keys sheet.
+ *
+ * Fifteen rows is a reference card, not an empty state - it fills the pane with
+ * something nobody reads and buries the one line that matters ("pick a file").
+ * These six are the ones you need before you have opened anything; every
+ * editor-scoped binding is useless until there is an editor. */
+// Three that work RIGHT NOW with nothing open, then three you will want the
+// moment something is. Deliberately not `close` - the X has no binding, and
+// listing a chord that does not exist is how a reference card becomes a lie.
+const STARTER = ['palette', 'search', 'refresh', 'save', 'find', 'undo'] as const;
+export const STARTER_KEYS = STARTER
+  .map((id) => BY_ID.get(id))
+  .filter((b): b is Binding => !!b);

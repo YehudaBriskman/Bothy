@@ -334,3 +334,19 @@
   .bothy-files .fx-sep-x { width: 13px; }
   .bothy-files .fx-sep-y { height: 13px; }
 }
+
+/* Save wears the Edit button's shape now, so the only thing separating the one
+   action that WRITES from the ones that do not is its fill. `.fx-hbtn` on its
+   own is a quiet, transparent icon button - correct for Edit and Cancel, wrong
+   for the button that commits your work to disk.
+   
+   This is the weight that used to be carried by the word "Save". */
+.bothy-files .fx-hbtn.is-primary {
+  background: var(--accent-bg);
+  color: var(--accent-fg);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.bothy-files .fx-hbtn.is-primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 24%, transparent);
+  color: var(--accent-fg);
+}
