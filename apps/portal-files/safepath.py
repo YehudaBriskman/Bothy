@@ -24,6 +24,7 @@ destination - which is the only thing that matters.
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import os
 import re
 import stat
@@ -78,6 +79,22 @@ def _load_policy(path: str) -> dict:
                          ("write", "suffixes")):
         if not isinstance(doc.get(section, {}).get(key), list):
             raise PolicyError(f"policy is missing [{section}].{key}")
+
+    # The snapshot directory is checked exactly like a root: declared but not
+    # mounted is a startup error. A missing undo net that nobody notices until
+    # they need it is worse than no undo net at all, because the whole point of
+    # it is that it is there without being thought about.
+    snaps = doc.get("snapshots")
+    if not isinstance(snaps, dict) or not snaps.get("path"):
+        raise PolicyError("policy declares no [snapshots].path")
+    if not os.path.isdir(snaps["path"]):
+        raise PolicyError(
+            f"snapshot directory {snaps['path']} is not a directory "
+            f"- is it mounted in compose.yml?")
+    if not os.access(snaps["path"], os.W_OK | os.X_OK):
+        raise PolicyError(
+            f"snapshot directory {snaps['path']} is not writable by uid "
+            f"{os.getuid()} - a bind mount docker created will be root-owned")
     return doc
 
 
@@ -98,6 +115,20 @@ ALLOW_FILES = frozenset(POLICY["deny"].get("allow_files", []))
 _WORDY_PATTERNS = frozenset(POLICY["deny"].get("wordy_patterns", []))
 _PROSE_SUFFIXES = frozenset(POLICY["deny"].get("prose_suffixes", []))
 WRITABLE_SUFFIXES = frozenset(POLICY["write"]["suffixes"])
+
+SNAPSHOT_DIR: str = POLICY["snapshots"]["path"]
+SNAPSHOT_KEEP = int(POLICY["snapshots"].get("keep", 20))
+SNAPSHOT_MAX_AGE = int(POLICY["snapshots"].get("max_age_days", 30)) * 86400
+# A ceiling on what is worth keeping a copy of. Every writable suffix is a text
+# format, but nothing stops a 200 MB generated .html, and filling the disk to
+# protect an edit would be a poor trade.
+SNAPSHOT_MAX_BYTES = 16 * 1024 * 1024
+# Returned when a save destroys nothing, and distinct from None, which means the
+# copy was WANTED and did not happen. The caller logs the second and ignores the
+# first; collapsing them would either lose the warning or make it fire on every
+# no-op save until nobody reads it.
+SNAPSHOT_UNCHANGED = ""
+_SWEEP_EVERY = 3600
 
 # GIT_ROOTS stays in code: it is not policy, it is a fact about where the
 # repositories physically are. A root may contain many (~/projects) or none, and
@@ -239,7 +270,15 @@ def prune_dirs(root_key: str, rel_dir: str, dirnames: list[str]) -> list[str]:
 # refusing to serve the README would be a worse outcome than the risk. So a
 # placeholder (`changeme`, `${VAR}`, `<your-password>`, `xxx`) does not trip it;
 # a long opaque literal assigned to a secret-shaped key does.
-_SECRET_KEY = r"(?:client[_-]?secret|api[_-]?key|access[_-]?token|private[_-]?key|password|passwd|secret)"
+# A BARE `token` is in here, and it was not: the key pattern matched
+# `access_token` and `api_key` but not `API_TOKEN`, `GITHUB_TOKEN` or
+# `AUTH_TOKEN`, which are the commonest shapes of all. Found by planting
+# `STAGING_API_TOKEN=<24 opaque chars>` in a served file and watching
+# checks/served_secrets.py report "nothing new" - the check was passing because
+# the detector could not see it, which is the failure mode a scanner has that a
+# broken one does not announce.
+_SECRET_KEY = (r"(?:client[_-]?secret|api[_-]?key|access[_-]?token|private[_-]?key"
+               r"|password|passwd|secret|token|bearer)")
 # Prefix matches, not exact: measured against the real tree, the two commonest
 # false positives were `changeme-generate-one` (a placeholder with a suffix) and
 # `${POSTGRES_PASSWORD:?set` (a shell variable reference, truncated by the value
@@ -247,9 +286,33 @@ _SECRET_KEY = r"(?:client[_-]?secret|api[_-]?key|access[_-]?token|private[_-]?ke
 # match. Anchored at the start only, so anything BEGINNING like a placeholder or
 # an interpolation is treated as one.
 _PLACEHOLDER = re.compile(
-    r"^(?:change[-_]?me|placeholder|example|sample|test|dummy|none|null|true|false"
-    r"|your[-_]|my[-_]|xxx|\.\.\.|<|\$\{|\$[A-Z_]|__[A-Z_]|\*|redacted|todo)",
+    r"^(?:change[-_]?me|replace[-_]?me|placeholder|example|sample|test|dummy|none|null|true|false"
+    r"|your[-_]|my[-_]|xxx|\.\.\.|<|\$\{|\$[A-Z_]|__[A-Z_]|\*|redacted|todo"
+    # READS OF a secret, which are the opposite of a leak - the whole point of
+    # `password: process.env.DB_PASSWORD` is that the value is NOT in the file.
+    # Measured: these accounted for most of the false positives in the first
+    # sweep of the served tree, across four languages.
+    r"|process\.env|os\.environ|import\.meta\.env|Deno\.env|settings\.|config\."
+    r"|secrets\.|env\.|getenv|decodeURIComponent|hash_password|Mapped\[|z\.string)",
     re.I,
+)
+
+# Self-identifying credentials: the ones that carry their own issuer prefix.
+#
+# These skip the placeholder rule entirely, because nothing legitimately begins a
+# string with `ghp_` or `AKIA` and the right shape after it - so unlike the
+# key=value heuristic, a match here is very nearly always real. This is the half
+# of the detector with no false-positive budget to spend.
+_HIGH_SIGNAL = (
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "an AWS access key id"),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b"), "a GitHub token"),
+    (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{60,}\b"), "a GitHub fine-grained token"),
+    (re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b"), "a GitLab token"),
+    (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), "a Slack token"),
+    (re.compile(r"\bsk_live_[A-Za-z0-9]{16,}\b"), "a Stripe live key"),
+    (re.compile(r"\bsk-[A-Za-z0-9]{32,}\b"), "an API key"),
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+     "a signed JWT"),
 )
 _SECRET_PATTERNS = (
     # "clientSecret": "aBc123..."   /   "secret": "aBc123..."
@@ -286,6 +349,9 @@ def scan_for_secret(text: str) -> str | None:
     is - which is exactly why realm-*.json is denied BY NAME above rather than
     left to this.
     """
+    for pat, what in _HIGH_SIGNAL:
+        if pat.search(text):
+            return f"contains {what}"
     for pat in _SECRET_PATTERNS:
         m = pat.search(text)
         if not m:
@@ -531,6 +597,135 @@ def safe_open(abspath: str) -> tuple[int, os.stat_result]:
         os.close(fd)
         raise
     return fd, st
+
+
+def snapshot(root: str, relpath: str, abspath: str,
+             incoming: bytes | None = None) -> str | None:
+    """Keep the bytes a write is about to destroy. Returns the copy, or None.
+
+    THE ONE QUESTION THIS ANSWERS is "what did the file say before I saved over
+    it?" It is not version control and must not grow into it: no ordering, no
+    messages, no merging. git is for history; this is for the ten seconds after
+    a mistake.
+
+    BEST EFFORT, DELIBERATELY. A failure here returns None and the write still
+    happens. That is the opposite of how everything else in this module fails,
+    so it needs its argument: refusing to save because the safety net is missing
+    would DESTROY the work it exists to protect - the user would have unsaved
+    changes in a tab and no way to put them anywhere. The caller reports which
+    way it went, so a silently absent net is still visible.
+
+    COPIED, NOT HARD-LINKED. os.link would be free - os.replace only moves the
+    name, so the old inode survives with its content. But an editor that
+    truncates in place instead of renaming (`>`, sed -i without a suffix) would
+    then rewrite the snapshot's bytes through the shared inode, and a backup
+    that silently follows the file it is backing up is worse than none.
+    """
+    # relpath is already resolved, but the trash is one more place a `..` would
+    # be catastrophic, so it is checked here too rather than trusted from afar.
+    dest_dir = os.path.realpath(os.path.join(SNAPSHOT_DIR, root, relpath))
+    if not (dest_dir + os.sep).startswith(os.path.realpath(SNAPSHOT_DIR) + os.sep):
+        return None
+
+    try:
+        fd, st = safe_open(abspath)
+    except (PathRefused, OSError):
+        return None  # nothing there yet: a create, not an overwrite
+    try:
+        if st.st_size > SNAPSHOT_MAX_BYTES:
+            return None
+        with os.fdopen(fd, "rb") as fh:
+            data = fh.read()
+    except OSError:
+        os.close(fd)
+        return None
+
+    # A save that changes nothing destroys nothing, so there is nothing to keep.
+    # This is the real "unchanged" test, and it is not the same as "identical to
+    # the last snapshot": after v1 -> v2, saving v2 again would differ from the
+    # stored v1 and bank a copy of the version still on disk. Twenty of those
+    # would evict the twenty states that actually differed.
+    if incoming is not None and data == incoming:
+        return SNAPSHOT_UNCHANGED
+
+    digest = hashlib.sha256(data).hexdigest()[:12]
+    try:
+        os.makedirs(dest_dir, mode=0o700, exist_ok=True)
+        prior = sorted(os.listdir(dest_dir))
+        name = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.{digest}"
+        path = os.path.join(dest_dir, name)
+        # O_EXCL: two saves in the same second must not clobber each other's
+        # copy, which is exactly when a snapshot is most likely to be wanted.
+        for n in range(20):
+            try:
+                sfd = os.open(f"{path}{'' if n == 0 else f'-{n}'}",
+                              os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                break
+            except FileExistsError:
+                continue
+        else:
+            return None
+        with os.fdopen(sfd, "wb") as out:
+            out.write(data)
+
+        _prune(dest_dir, prior)
+        _sweep()
+        return path
+    except OSError:
+        return None
+
+
+def _prune(dest_dir: str, prior: list[str]) -> None:
+    """Hold one file's snapshots to SNAPSHOT_KEEP, oldest dropped first."""
+    if len(prior) < SNAPSHOT_KEEP:
+        return
+    for old in prior[:len(prior) - SNAPSHOT_KEEP + 1]:
+        try:
+            os.unlink(os.path.join(dest_dir, old))
+        except OSError:
+            pass
+
+
+def _sweep() -> None:
+    """Drop snapshots older than the policy's age, at most hourly.
+
+    Gated on a marker's mtime rather than a timer thread: the work is
+    proportional to the trash, and doing it on the save path means it cannot be
+    forgotten when the process restarts. A save must not pay for a full walk, so
+    the common case is one stat().
+    """
+    marker = os.path.join(SNAPSHOT_DIR, ".last-sweep")
+    now = time.time()
+    try:
+        if now - os.stat(marker).st_mtime < _SWEEP_EVERY:
+            return
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return
+    try:
+        with open(marker, "w"):
+            pass
+    except OSError:
+        return
+
+    cutoff = now - SNAPSHOT_MAX_AGE
+    for dirpath, _dirnames, filenames in os.walk(SNAPSHOT_DIR, topdown=False):
+        for fn in filenames:
+            if fn == ".last-sweep":
+                continue
+            p = os.path.join(dirpath, fn)
+            try:
+                if os.stat(p).st_mtime < cutoff:
+                    os.unlink(p)
+            except OSError:
+                pass
+        if dirpath != SNAPSHOT_DIR:
+            # An empty directory here is a file nobody has edited in a month.
+            try:
+                os.rmdir(dirpath)
+            except OSError:
+                pass
 
 
 _UNSAFE_ARCNAME = re.compile(r"[\\:\x00-\x1f]")

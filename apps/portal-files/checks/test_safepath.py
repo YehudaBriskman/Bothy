@@ -51,7 +51,8 @@ with open(_POLICY, "w") as _f:
         f' ".env.test.example", ".env.local.template", ".env.production.template",'
         f' ".env.defaults"]\n'
         f'[write]\nsuffixes = [".md", ".markdown", ".txt", ".rst", ".svg",'
-        f' ".html", ".htm", ".xml"]\n')
+        f' ".html", ".htm", ".xml"]\n'
+        f'[snapshots]\npath = "{_BOOT}"\n')
 os.environ.setdefault("POLICY_FILE", _POLICY)
 
 import safepath  # noqa: E402
@@ -367,11 +368,20 @@ _load('[deny]\ncomponents=[]\nfile_patterns=[]\n[write]\nsuffixes=[]\n',
 _load('[roots.x]\npath="/nope/not/here"\n[deny]\ncomponents=[]\n'
       'file_patterns=[]\n[write]\nsuffixes=[]\n',
       "a root that is not mounted is refused", True)
-_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n',
+_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
+      '[snapshots]\npath="/tmp"\n',
       "a policy missing [write] is refused", True)
-# ...and a valid one loads, or the four above would pass for the wrong reason.
+# The undo net is checked like a root: declared but not mounted stops the
+# service. A net that is silently absent is discovered on the day it was needed.
 _load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
       '[write]\nsuffixes=[".md"]\n',
+      "a policy with no [snapshots] is refused", True)
+_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
+      '[write]\nsuffixes=[".md"]\n[snapshots]\npath="/nope/not/here"\n',
+      "an unmounted snapshot directory is refused", True)
+# ...and a valid one loads, or the five above would pass for the wrong reason.
+_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
+      '[write]\nsuffixes=[".md"]\n[snapshots]\npath="/tmp"\n',
       "a valid policy loads", False)
 
 # The shipped policy must still say what the boundary needs it to say.
