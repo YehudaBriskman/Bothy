@@ -8,11 +8,17 @@
   display: flex; flex-direction: column; background: var(--bg-2); overflow: hidden;
 }
 
-/* ── the tab bar ─────────────────────────────────────────────────────────── */
+/* ── the tab bar ─────────────────────────────────────────────────────────────
+   No bottom border. It and .fx-status's top border were the two horizontals
+   that, with the rails' own vertical borders, closed a complete rectangle around
+   the document - so the file looked like it was sitting inside a window inside
+   the window. The rails' borders stay (without them the panes merge into each
+   other); these two go, and the strip is told apart from the document the way
+   every other strip on this page is: --surface-2 against the centre's --bg-2. */
 .bothy-files .fx-tabbar {
   flex: none; display: flex; align-items: center; gap: 10px;
   height: 34px; padding: 0 8px 0 14px;
-  border-bottom: 1px solid var(--line); background: var(--surface-2);
+  background: var(--surface-2);
 }
 .bothy-files .fx-crumb {
   min-width: 0; display: flex; align-items: center; gap: 6px;
@@ -224,9 +230,26 @@
   --fx-guide: color-mix(in oklab, var(--fg-subtle) 34%, transparent);
   --fx-guide-hi: color-mix(in oklab, var(--hl-kw) 62%, transparent);
 }
-/* CodeMirror's own focus ring is a browser outline on the contenteditable. The
-   page's ring goes on the editor as a whole, inset, because the column clips. */
-.bothy-files .cm-editor.cm-focused { outline: 2px solid var(--ring); outline-offset: -2px; }
+/* NO ring around the editor. `.cm-focused` is set on a plain mouse click, so a
+   ring here drew a 2px accent rectangle around the whole document the instant
+   anyone clicked into it - the "outline around the window" this page was
+   reported for. It is also the wrong shape of signal: a ring says "this control
+   is selected", and a text surface says the same thing far better by showing
+   where the next character will land.
+       `outline: none` rather than deleting the rule. CodeMirror's own baseTheme
+   ships `&.cm-focused { outline: 1px dotted #212121 }` - dropping our
+   declaration would not remove a ring, it would swap ours for a hardcoded dotted
+   grey one that ignores the theme entirely.
+       What remains as the focus indicator, and it is deliberate, not an
+   omission: the caret (2px, --accent-fg, .cm-cursor below) plus the active-line
+   underline, which goes to full accent strength on focus - see .cm-activeLine. */
+.bothy-files .cm-editor.cm-focused { outline: none; }
+/* And the same for the contenteditable INSIDE it, which is the element that
+   actually takes focus - so it picks up the page-wide ring in shell.css and
+   redraws the same rectangle one box in. Measured: with only the rule above,
+   a mouse click still painted `solid 2px rgb(96,165,250)` on .cm-content.
+   Both halves are needed; removing either one puts the box back. */
+.bothy-files .cm-content:focus-visible { outline: none; }
 .bothy-files .cm-scroller {
   font-family: var(--mono); line-height: var(--code-lh);
   overflow: auto;
@@ -266,6 +289,12 @@
   background: transparent;
   box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--accent) 55%, transparent);
 }
+/* At FULL strength while the editor has focus. This is the editor's focus
+   indicator now that the ring is gone (see .cm-focused above): the underline is
+   already the mark that says which line the caret is on, so making it state
+   "and this editor is the thing the keyboard is talking to" costs no new
+   furniture and is visible without a blinking caret to catch. */
+.bothy-files .cm-editor.cm-focused .cm-activeLine { box-shadow: inset 0 -1px 0 var(--accent); }
 .bothy-files .cm-fxHoverLine { background: color-mix(in oklab, var(--fg) 5%, transparent); }
 /* The caret's line wins over the pointer's: hovering the line you are already
    on must not repaint it, or the underline flickers as the mouse crosses. */
@@ -377,11 +406,14 @@
 .bothy-files .fx-keys .kbd { font-size: 9.5px; padding: 0 4px; }
 .bothy-files .fx-key-what { color: var(--fg-muted); }
 
-/* ── the status strip ────────────────────────────────────────────────────── */
+/* ── the status strip ────────────────────────────────────────────────────────
+   No top border, for the reason .fx-tabbar has no bottom one: the pair of them
+   drew the horizontals of a box around the document. --surface-2 against the
+   centre column's --bg-2 separates the strip on its own. */
 .bothy-files .fx-status {
   flex: none; display: flex; align-items: center; gap: 12px;
   height: 24px; padding: 0 14px;
-  border-top: 1px solid var(--line); background: var(--surface-2);
+  background: var(--surface-2);
   color: var(--fg-subtle); font-size: 10.5px; overflow: hidden; white-space: nowrap;
 }
 .bothy-files .fx-stat { display: inline-flex; align-items: center; gap: 4px; flex: none; }
@@ -400,7 +432,9 @@
 }
 .bothy-files .fx-statbtn:hover { background: var(--surface-3); color: var(--fg); }
 .bothy-files .fx-statbtn.on { background: var(--accent-bg); color: var(--accent-fg); border-color: var(--accent-line); }
-.bothy-files .fx-statbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+/* Inset, like the rest of the page (shell.css). At -1px rather than -2px: the
+   button is 17px tall, and a 2px ring 2px in would be sitting on the glyph. */
+.bothy-files .fx-statbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: -1px; }
 
 /* ── read view (markdown) ────────────────────────────────────────────────── */
 .bothy-files .fx-read { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px; }

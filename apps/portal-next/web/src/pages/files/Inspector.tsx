@@ -151,10 +151,29 @@ export function Inspector({
                     >
                       <Download size={13} aria-hidden="true" /> Raw
                     </button>
-                    <button type="button" className="btn ghost sm" disabled={!canDownload} onClick={() => onArchive('zip')}>
+                    {/* An extension is not a name. Out of context ".zip" says
+                        nothing about what is in it or where it came from, and
+                        Raw beside it already carries a title - so these do too,
+                        and the accessible name says which file is being
+                        wrapped. */}
+                    <button
+                      type="button"
+                      className="btn ghost sm"
+                      disabled={!canDownload}
+                      onClick={() => onArchive('zip')}
+                      title={`${baseName(file.path)} - wrapped in a zip archive`}
+                      aria-label={`Download ${baseName(file.path)} as a zip archive`}
+                    >
                       <FileArchive size={13} aria-hidden="true" /> .zip
                     </button>
-                    <button type="button" className="btn ghost sm" disabled={!canDownload} onClick={() => onArchive('tgz')}>
+                    <button
+                      type="button"
+                      className="btn ghost sm"
+                      disabled={!canDownload}
+                      onClick={() => onArchive('tgz')}
+                      title={`${baseName(file.path)} - wrapped in a gzipped tar archive`}
+                      aria-label={`Download ${baseName(file.path)} as a tar.gz archive`}
+                    >
                       <FileArchive size={13} aria-hidden="true" /> .tar.gz
                     </button>
                   </div>

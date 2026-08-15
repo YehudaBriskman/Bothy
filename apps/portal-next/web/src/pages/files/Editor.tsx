@@ -27,8 +27,10 @@ import {
   fmtBytes, rawUrl, signInUrl, type DiffResult, type FileRead,
   type WriteConflict,
 } from '../../lib/files';
-import { EmptyState, ErrState, Skeleton } from '../../components/states';
+import { ErrState, Skeleton } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
+import { BothyMark } from '../../components/Brand';
+import { BINDINGS, chordOf, EDITOR_KEYS } from './keys';
 import { countLines, gutterText, GUTTER_LIMIT, highlight, willHighlight } from './highlight';
 import { renderMd } from './md';
 import { JsonView } from './JsonView';
@@ -44,22 +46,6 @@ import type { CodeHandle, CodeStat } from './CodeSurface';
 const CodeSurface = lazy(() => import('./CodeSurface'));
 
 export type View = 'preview' | 'source';
-
-// Shown by the Keys button in the status strip. Every one of these is really
-// bound - the first five by @codemirror/{commands,search}, the two mouse ones by
-// the facets CodeSurface.tsx sets, and the last is the ABSENCE of a binding:
-// Tab is deliberately unbound so the editor is not a keyboard trap.
-const KEYS: [string, string][] = [
-  ['Ctrl+S', 'save'],
-  ['Ctrl+F', 'find and replace'],
-  ['Ctrl+D', 'select next match'],
-  ['Alt+↑ / ↓', 'move the line'],
-  ['Ctrl+/', 'toggle comment'],
-  ['Ctrl+Z / Y', 'undo / redo'],
-  ['Alt+click', 'add a caret'],
-  ['Alt+Shift+drag', 'column select'],
-  ['Tab', 'leaves the editor'],
-];
 
 export type Notice =
   | { tone: 'ok'; text: string }
@@ -174,6 +160,50 @@ function DownloadCard({ file, kind, onDownload, canDownload }: {
   );
 }
 
+/** One chord, one `<span class="kbd">` per part. The parts come from keys.ts,
+ *  so `Ctrl` vs `⌘` is decided in one place for every list that shows them. */
+function Chord({ keys }: { keys: readonly string[] }) {
+  return (
+    <span className="fx-key-combo">
+      {keys.map((k) => <span className="kbd" key={k}>{k}</span>)}
+    </span>
+  );
+}
+
+// ── nothing open ─────────────────────────────────────────────────────────────
+//
+// Borderless on purpose. A card would draw a box inside a pane that is already
+// a box, and the state it is describing is not an error or an empty result -
+// it is the ordinary starting position of the page.
+//
+// It teaches the keys because this is the one moment the centre column has
+// nothing else to say, and because a shortcut nobody is told about has not
+// shipped. Every row is read from the SAME table the handlers use (keys.ts) -
+// a hand-written list here would be right today and wrong the first time a
+// binding moves, and a reader cannot tell those two apart.
+//
+// The markup leans on classes that ALREADY have styles - `.fx-pad` for the
+// scroll box, `.fx-key-combo` / `.fx-key-what` for the chords, `.dim` for the
+// faded mark - so it reads correctly before a single new rule exists. The four
+// `.fx-empty-*` hooks are for the two-column grid and the centring; without
+// them this is a plain readable list rather than a broken one.
+function NothingOpen() {
+  return (
+    <div className="fx-pad fx-empty">
+      <span className="fx-empty-mark dim" aria-hidden="true"><BothyMark size={72} /></span>
+      <div className="fx-empty-keys">
+        {BINDINGS.map((b) => (
+          <div className="fx-empty-key" key={b.id}>
+            <Chord keys={b.keys} />{' '}
+            <span className="fx-key-what">{b.what}</span>
+          </div>
+        ))}
+      </div>
+      <p className="fx-empty-hint dim">Pick a file on the left to begin.</p>
+    </div>
+  );
+}
+
 // ── the plain surfaces ───────────────────────────────────────────────────────
 //
 // These are what the page WAS, kept for exactly two jobs: the instant between
@@ -192,7 +222,11 @@ function Source({ src, lang }: { src: string; lang: string }) {
     return lines <= GUTTER_LIMIT ? gutterText(lines) : null;
   }, [src]);
   return (
-    <div className="fx-code scroll-shade" tabIndex={0}>
+    // `tabIndex` is what makes a scrollable box reachable by keyboard at all -
+    // and a tab stop with no role and no name is announced as nothing, so it
+    // reads as a dead press. The role and the label are what turn it back into
+    // a place you can be.
+    <div className="fx-code scroll-shade" tabIndex={0} role="region" aria-label="File source">
       {gutter && <pre className="fx-gutter" aria-hidden="true">{gutter}</pre>}
       <pre className="fx-src"><code>{highlight(src, lang)}</code></pre>
     </div>
@@ -273,7 +307,7 @@ class CodeBoundary extends Component<
 export function Editor({
   root, path, file, kind, lang, loading, err, auth, onRetryOpen,
   view, setView, editing, draft, setDraft, dirty, saving, editable,
-  onEdit, onCancel, onSave, notice, dismissNotice, pending, resolvePending,
+  onEdit, onCancel, onSave, onClose, notice, dismissNotice, pending, pendingClose, resolvePending,
   conflict, onResolveConflict,
   diff, diffRes, diffLoading, diffErr, onDiffSide, onCloseDiff,
   onDownload, canDownload, onFallback, editorRef,
@@ -298,11 +332,19 @@ export function Editor({
   onEdit: () => void;
   onCancel: () => void;
   onSave: () => void;
+  /** Drop `path` from the URL and keep the root. Routed through the SAME
+   *  dirty-guard as picking another file - see `pick` in Files.tsx - because
+   *  the one thing a close button must never do is be the cheap way to lose an
+   *  edit. */
+  onClose: () => void;
   notice: Notice | null;
   conflict: WriteConflict | null;
   onResolveConflict: (choice: 'mine' | 'theirs' | 'dismiss') => void;
   dismissNotice: () => void;
   pending: boolean;
+  /** The waiting navigation is a CLOSE rather than another file, so the banner
+   *  can say what will actually happen. */
+  pendingClose: boolean;
   resolvePending: (discard: boolean) => void;
   // ── the diff ───────────────────────────────────────────────────────────────
   // A TRANSIENT OVERLAY on the centre, not a navigation. Opening one does not
@@ -322,16 +364,25 @@ export function Editor({
 }) {
   const isMarkdown = lang === 'md';
   const isJson = lang === 'json';
-  const [stat, setStat] = useState<CodeStat | null>(null);
   const [plain, setPlain] = useState(false);
   const [keysOpen, setKeysOpen] = useState(false);
-  const onStat = useCallback((s: CodeStat) => setStat(s), []);
   const onFail = useCallback(() => setPlain(true), []);
   // A different file is a different document: a fresh undo stack, a fresh
   // scroll position and no search left over from the last one. Toggling Edit is
   // NOT a different document, which is why the key does not mention `editing` -
   // the surface flips a compartment and keeps where you were.
   const docKey = `${root}|${path}`;
+
+  // ── the cursor readout, and who it belongs to ──────────────────────────────
+  //
+  // Stamped with the document it was measured on. It used to be a bare
+  // `CodeStat`, set by the code surface and never cleared - so opening a .md
+  // after a .ts left `Ln 42, Col 7` from the PREVIOUS file sitting in the
+  // status strip, because markdown renders as an <article> and the surface that
+  // owns those numbers is never mounted to correct them. A stale measurement
+  // that looks live is the one kind of wrong a status strip must not be.
+  const [stat, setStat] = useState<{ key: string; s: CodeStat } | null>(null);
+  const onStat = useCallback((s: CodeStat) => setStat({ key: docKey, s }), [docKey]);
 
   // The status strip's two measurements, memoised for the same reason the gutter
   // is: `new Blob([draft]).size` copies the whole string, and doing that on every
@@ -350,20 +401,26 @@ export function Editor({
   const previewable = kind === 'image' || isMarkdown || isJson;
   const showSwitcher = !editing && previewable && kind !== 'image';
 
+  // Is the code surface actually ON SCREEN? Three things in the status strip
+  // are facts ABOUT that surface - the cursor readout, the Find button and the
+  // Keys sheet - and none of them may outlive it. The old gate asked
+  // `kind === 'text' && !plain`, which is true of a markdown file in Preview:
+  // the buttons were there, `editorRef.current` was null, Find silently did
+  // nothing and Keys listed shortcuts that were not bound to anything.
+  //
+  // This mirrors `body()` below, in its order. Anything that changes which
+  // branch body() takes has to change here too - which is why it is written
+  // once, beside it, rather than re-derived at each use.
+  const codeMounted = !diff && !!path && !auth && !loading && !err && !!file
+    && kind === 'text' && !plain
+    && (editing || !(view === 'preview' && (isMarkdown || isJson)));
+  const liveStat = codeMounted && stat && stat.key === docKey ? stat.s : null;
+
   const body = () => {
     // The diff wins over everything, including a file that is mid-edit: it was
     // asked for explicitly, and the edit is untouched underneath it.
     if (diff) return <DiffView target={diff} res={diffRes} loading={diffLoading} err={diffErr} />;
-    if (!path) {
-      return (
-        <div className="fx-pad">
-          <EmptyState
-            message="No file open"
-            hint="Pick one on the left, or search for a path. Browsing needs the viewer role; saving needs editor."
-          />
-        </div>
-      );
-    }
+    if (!path) return <NothingOpen />;
     if (auth) return <div className="fx-pad"><SignInCard what="read this file" onRetry={onRetryOpen} /></div>;
     if (loading) return <div className="fx-pad"><Skeleton variant="table" /></div>;
     if (err || !file) {
@@ -387,7 +444,17 @@ export function Editor({
         return <DownloadCard file={file} kind={kind} onDownload={onDownload} canDownload={canDownload} />;
       }
       if (view === 'preview' && isMarkdown) {
-        return <article className="fx-read md scroll-shade" tabIndex={0}>{renderMd(file.content)}</article>;
+        // `<article>` already carries a role, so it wants a NAME rather than a
+        // second role - an unnamed tab stop is the defect, not the element.
+        return (
+          <article
+            className="fx-read md scroll-shade"
+            tabIndex={0}
+            aria-label={`${baseName(file.path)} - rendered`}
+          >
+            {renderMd(file.content)}
+          </article>
+        );
       }
       if (view === 'preview' && isJson) return <JsonView src={file.content} />;
     }
@@ -437,13 +504,48 @@ export function Editor({
             <>
               <span className="fx-crumb-dir">{root}/{dirName(path)}</span>
               <span className="fx-crumb-base">{baseName(path)}</span>
-              {dirty && <span className="fx-dot" aria-label="unsaved changes" title="unsaved changes" />}
+              {/* `role="img"` is what makes the name reachable. `aria-label` on
+                  a bare <span> is ignored outright by screen readers - the
+                  element has no role, so there is nothing for a name to name,
+                  and the dot was announcing exactly nothing. */}
+              {dirty && (
+                <span className="fx-dot" role="img" aria-label="unsaved changes" title="unsaved changes" />
+              )}
+              {/* Close. There are no tabs on this page - one file at a time,
+                  driven by ?root= / ?path= - so closing can only mean dropping
+                  `path` and keeping the root. It goes through the same guard as
+                  picking another file, so closing with unsaved edits raises the
+                  banner rather than quietly discarding them. */}
+              <Tooltip label="Close this file">
+                <button
+                  type="button"
+                  className="fx-hbtn fx-crumb-x"
+                  onClick={onClose}
+                  aria-label={`Close ${baseName(path)}`}
+                >
+                  <X size={13} />
+                </button>
+              </Tooltip>
             </>
           ) : (
             <span className="fx-crumb-dir">{root || '…'}</span>
           )}
         </div>
 
+        {/* ── the actions, as icons ───────────────────────────────────────────
+            Every control here is a glyph plus a Tooltip plus an `aria-label`,
+            which is the pattern the explorer header and the layout toggles
+            already use - the strip is chrome, and chrome that spells itself out
+            in words is chrome that keeps taking width from the file.
+
+            SAVE IS THE EXCEPTION, deliberately. It is the one action in the row
+            whose cost of being missed is unsaved work, and an unlabelled floppy
+            is precisely where that goes wrong. It keeps its text.
+
+            The tooltip opens DOWNWARD (components/Tooltip.tsx: no portal, no
+            collision logic) which is fine here - this strip is at the TOP. The
+            same treatment is refused in the status strip at the bottom, where
+            the bubble would open off-screen. */}
         <div className="fx-actions">
           {diff && (
             <>
@@ -451,60 +553,84 @@ export function Editor({
                   genuinely different diffs - working tree against the index,
                   and the index against HEAD - and which one you are looking at
                   is the single most confusable thing about a diff. */}
-              <div className="seg-toggle fx-seg" role="group" aria-label="Diff side">
-                <button
-                  type="button"
-                  className={!diff.staged ? 'on' : ''}
-                  aria-pressed={!diff.staged}
-                  onClick={() => onDiffSide(false)}
-                >
-                  <Pencil size={12} aria-hidden="true" /> Working
-                </button>
-                <button
-                  type="button"
-                  className={diff.staged ? 'on' : ''}
-                  aria-pressed={diff.staged}
-                  onClick={() => onDiffSide(true)}
-                >
-                  <GitCommitVertical size={12} aria-hidden="true" /> Staged
-                </button>
+              <div className="seg-toggle fx-seg fx-seg-ico" role="group" aria-label="Diff side">
+                <Tooltip label="Working tree, against the index">
+                  <button
+                    type="button"
+                    className={!diff.staged ? 'on' : ''}
+                    aria-pressed={!diff.staged}
+                    aria-label="Working tree, against the index"
+                    onClick={() => onDiffSide(false)}
+                  >
+                    <Pencil size={13} aria-hidden="true" />
+                  </button>
+                </Tooltip>
+                <Tooltip label="Staged, against HEAD">
+                  <button
+                    type="button"
+                    className={diff.staged ? 'on' : ''}
+                    aria-pressed={diff.staged}
+                    aria-label="Staged, against HEAD"
+                    onClick={() => onDiffSide(true)}
+                  >
+                    <GitCommitVertical size={13} aria-hidden="true" />
+                  </button>
+                </Tooltip>
               </div>
-              <button type="button" className="btn ghost sm" onClick={onCloseDiff}>
-                <X size={13} aria-hidden="true" /> Close diff
-              </button>
+              <Tooltip label="Close the diff" align="end">
+                <button type="button" className="fx-hbtn" onClick={onCloseDiff} aria-label="Close the diff">
+                  <X size={14} />
+                </button>
+              </Tooltip>
             </>
           )}
           {!diff && showSwitcher && (
-            <div className="seg-toggle fx-seg" role="group" aria-label="View">
-              <button
-                type="button"
-                className={view === 'preview' ? 'on' : ''}
-                aria-pressed={view === 'preview'}
-                onClick={() => setView('preview')}
-              >
-                <Eye size={13} aria-hidden="true" /> Preview
-              </button>
-              <button
-                type="button"
-                className={view === 'source' ? 'on' : ''}
-                aria-pressed={view === 'source'}
-                onClick={() => setView('source')}
-              >
-                <Code2 size={13} aria-hidden="true" /> Source
-              </button>
+            <div className="seg-toggle fx-seg fx-seg-ico" role="group" aria-label="View">
+              <Tooltip label={isMarkdown ? 'Preview - rendered markdown' : 'Preview - folded JSON'}>
+                <button
+                  type="button"
+                  className={view === 'preview' ? 'on' : ''}
+                  aria-pressed={view === 'preview'}
+                  aria-label="Preview"
+                  onClick={() => setView('preview')}
+                >
+                  <Eye size={13} aria-hidden="true" />
+                </button>
+              </Tooltip>
+              <Tooltip label="Source - the text itself">
+                <button
+                  type="button"
+                  className={view === 'source' ? 'on' : ''}
+                  aria-pressed={view === 'source'}
+                  aria-label="Source"
+                  onClick={() => setView('source')}
+                >
+                  <Code2 size={13} aria-hidden="true" />
+                </button>
+              </Tooltip>
             </div>
           )}
           {/* No Save button on a file that can only be refused. */}
           {!diff && file && editable && !editing && (
-            <button type="button" className="btn sm" onClick={onEdit}>
-              <Pencil size={13} aria-hidden="true" /> Edit
-            </button>
+            <Tooltip label="Edit this file" align="end">
+              <button type="button" className="fx-hbtn" onClick={onEdit} aria-label="Edit this file">
+                <Pencil size={14} />
+              </button>
+            </Tooltip>
           )}
           {!diff && editing && (
             <>
-              <button type="button" className="btn ghost sm" onClick={onCancel} disabled={saving}>
-                <Undo2 size={13} aria-hidden="true" /> Cancel
-              </button>
+              <Tooltip label="Cancel - restore the saved text">
+                <button
+                  type="button"
+                  className="fx-hbtn"
+                  onClick={onCancel}
+                  disabled={saving}
+                  aria-label="Cancel the edit and restore the saved text"
+                >
+                  <Undo2 size={14} />
+                </button>
+              </Tooltip>
               <button type="button" className="btn primary sm" onClick={onSave} disabled={saving}>
                 {saving
                   ? <LoaderCircle size={13} className="spin" aria-hidden="true" />
@@ -519,10 +645,15 @@ export function Editor({
       {pending && file && (
         <div className="fx-note warn" role="alert">
           <AlertTriangle size={15} aria-hidden="true" />
-          <span><b>{baseName(file.path)}</b> has unsaved changes. Opening another file discards them.</span>
+          <span>
+            <b>{baseName(file.path)}</b> has unsaved changes.{' '}
+            {pendingClose ? 'Closing it discards them.' : 'Opening another file discards them.'}
+          </span>
           <span className="fx-note-actions">
             <button type="button" className="btn ghost sm" onClick={() => resolvePending(false)}>Keep editing</button>
-            <button type="button" className="btn sm" onClick={() => resolvePending(true)}>Discard and open</button>
+            <button type="button" className="btn sm" onClick={() => resolvePending(true)}>
+              {pendingClose ? 'Discard and close' : 'Discard and open'}
+            </button>
           </span>
         </div>
       )}
@@ -602,14 +733,12 @@ export function Editor({
           by knowing they exist has not shipped them - and the two that are least
           guessable (Alt-click for a second caret, Alt-Shift-drag for a column)
           are exactly the two nothing else on the page hints at. */}
-      {keysOpen && !diff && kind === 'text' && !plain && (
-        <div className="fx-keys" role="group" aria-label="Editor keys">
-          {KEYS.map(([keys, what]) => (
-            <span className="fx-key" key={what}>
-              <span className="fx-key-combo">
-                {keys.split('+').map((k) => <span className="kbd" key={k}>{k}</span>)}
-              </span>
-              <span className="fx-key-what">{what}</span>
+      {keysOpen && codeMounted && (
+        <div className="fx-keys" role="group" aria-label="Editor keys" id="fx-keys-sheet">
+          {EDITOR_KEYS.map((b) => (
+            <span className="fx-key" key={b.id}>
+              <Chord keys={b.keys} />
+              <span className="fx-key-what">{b.what}</span>
             </span>
           ))}
         </div>
@@ -659,33 +788,47 @@ export function Editor({
               <span className="fx-stat">highlighting off - too large</span>
             )}
 
-            {kind === 'text' && !plain && stat && (
+            {liveStat && (
               <>
                 <span className="fx-stat-sep" aria-hidden="true" />
-                <span className="fx-stat tnum">Ln {stat.line}, Col {stat.col}</span>
-                {stat.sel > 0 && <span className="fx-stat tnum">{stat.sel.toLocaleString()} selected</span>}
-                {stat.cursors > 1 && <span className="fx-stat tnum">{stat.cursors} cursors</span>}
-                {stat.find && (
-                  <span className={`fx-stat tnum ${stat.find.n === 0 || stat.find.n < 0 ? 'warn' : ''}`}>
-                    {!stat.find.q
+                <span className="fx-stat tnum">Ln {liveStat.line}, Col {liveStat.col}</span>
+                {liveStat.sel > 0 && <span className="fx-stat tnum">{liveStat.sel.toLocaleString()} selected</span>}
+                {liveStat.cursors > 1 && <span className="fx-stat tnum">{liveStat.cursors} cursors</span>}
+                {liveStat.find && (
+                  <span className={`fx-stat tnum ${liveStat.find.n === 0 || liveStat.find.n < 0 ? 'warn' : ''}`}>
+                    {!liveStat.find.q
                       ? 'find: type to search'
-                      : stat.find.n < 0
+                      : liveStat.find.n < 0
                         ? 'find: bad pattern'
-                        : `${stat.find.capped ? `${stat.find.n.toLocaleString()}+` : stat.find.n.toLocaleString()} `
-                          + `${stat.find.n === 1 ? 'match' : 'matches'}`}
+                        : `${liveStat.find.capped ? `${liveStat.find.n.toLocaleString()}+` : liveStat.find.n.toLocaleString()} `
+                          + `${liveStat.find.n === 1 ? 'match' : 'matches'}`}
                   </span>
                 )}
               </>
             )}
 
             <span className="fx-status-spacer" />
-            {kind === 'text' && !plain && (
+            {/* Both of these are about the CODE SURFACE, so both are gated on it
+                actually being mounted. In Preview they used to be present and
+                dead: `editorRef.current` is null with no surface under it, so
+                Find did nothing at all and Keys listed shortcuts that were not
+                bound to anything. Hidden rather than made to switch to Source
+                first - a button that silently changes what you are looking at
+                is a second surprise on top of the first, and the Preview/Source
+                switcher is two inches away in the header.
+
+                `title`, not <Tooltip>: this strip is at the BOTTOM of the pane
+                and the tooltip has no collision logic - it always opens
+                downward, which here is off-screen. Same reason ActivityBar.tsx
+                gives for refusing it. */}
+            {codeMounted && (
               <>
                 <button
                   type="button"
                   className="fx-statbtn"
                   onClick={() => editorRef.current?.openFind()}
-                  aria-label="Find in this file (Ctrl F)"
+                  aria-label={`Find in this file (${chordOf('find').join(' ')})`}
+                  title={`Find in this file - ${chordOf('find').join(' ')}`}
                 >
                   <Search size={11} aria-hidden="true" /> Find
                 </button>
@@ -694,12 +837,16 @@ export function Editor({
                   className={`fx-statbtn ${keysOpen ? 'on' : ''}`}
                   onClick={() => setKeysOpen((v) => !v)}
                   aria-expanded={keysOpen}
+                  aria-controls="fx-keys-sheet"
+                  title="Every key this editor binds"
                 >
                   <Keyboard size={11} aria-hidden="true" /> Keys
                 </button>
               </>
             )}
-            {editing && <span className="fx-stat"><span className="kbd">Ctrl</span> <span className="kbd">S</span> saves</span>}
+            {editing && (
+              <span className="fx-stat"><Chord keys={chordOf('save')} /> saves</span>
+            )}
           </>
         ) : (
           <span className="fx-stat">no file open</span>

@@ -106,7 +106,15 @@ export function DiffView({ target, res, loading, err }: {
   }
 
   return (
-    <div className="fx-diff scroll-shade" tabIndex={0}>
+    // A named region rather than a bare tab stop: it is focusable so it can be
+    // scrolled from the keyboard, and an unnamed focusable div is announced as
+    // nothing at all.
+    <div
+      className="fx-diff scroll-shade"
+      tabIndex={0}
+      role="region"
+      aria-label={`Diff of ${target.path}, ${target.staged ? 'staged against HEAD' : 'working tree against the index'}`}
+    >
       <div className="fx-diff-sum">
         <FileDiff size={13} aria-hidden="true" />
         <span className="mono">{target.path}</span>

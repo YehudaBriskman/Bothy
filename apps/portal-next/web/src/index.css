@@ -345,9 +345,13 @@ main.wrap { padding-top: 12px; padding-bottom: 60px; }
 /* `outline: none` used to live here, with a border-colour change as the only
    replacement. That fails on two counts: it removes the keyboard focus
    indicator entirely (2.4.7), and a 1px border tint is colour-alone. Keeping
-   the border change for the mouse and letting the global :focus-visible ring
-   through for the keyboard costs nothing and fixes both. */
-.search:focus { border-color: var(--accent); }
+   the border change and letting the :focus-visible ring through for the
+   keyboard costs nothing and fixes both.
+   `:focus-visible`, not `:focus`: the two must never be able to disagree about
+   whether this field is focused, and one selector cannot. On a text field this
+   is not a behaviour change - :focus-visible matches text inputs whatever the
+   modality, so the mouse still gets the tint, which is the point of it. */
+.search:focus-visible { border-color: var(--accent); }
 .hint { color: var(--fg-subtle); font-size: 12px; }
 kbd { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
@@ -680,7 +684,9 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .filter-search { flex: 1; min-width: 180px; appearance: none; font: inherit; color: var(--fg);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; }
-.filter-search:focus { border-color: var(--accent); }
+/* :focus-visible for the reason .search states above - one selector, so the
+   tint and the ring cannot disagree, and no change for a text field. */
+.filter-search:focus-visible { border-color: var(--accent); }
 
 /* ── services groups ─────────────────────────────────────────────────────── */
 .svc-groups { display: flex; flex-direction: column; gap: 26px; }

@@ -138,7 +138,9 @@ export function JsonView({ src }: { src: string }) {
   }
 
   return (
-    <div className="fx-json scroll-shade" tabIndex={0}>
+    // Focusable so the keyboard can scroll it - which needs a role and a name,
+    // or it is a tab stop that announces nothing.
+    <div className="fx-json scroll-shade" tabIndex={0} role="region" aria-label="JSON, folded">
       <Row name={null} value={parsed.value} depth={0} path="" budget={budget} />
     </div>
   );

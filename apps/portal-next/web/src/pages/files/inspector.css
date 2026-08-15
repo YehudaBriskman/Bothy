@@ -53,7 +53,11 @@
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-sm); padding: 6px 9px;
 }
-.bothy-files .fx-commit-msg input:focus { border-color: var(--accent); outline: none; }
+/* No `:focus` rule - see the note on .fx-scm-msg in scm.css. The pair it used to
+   carry (`border-color: var(--accent); outline: none`) tinted the field on a
+   mouse click and suppressed the keyboard ring at (0,3,0). Focus here is the
+   page's one inset ring, which on a text field appears for the mouse too, and
+   should. */
 
 /* ── commits ─────────────────────────────────────────────────────────────── */
 .bothy-files .fx-commits { list-style: none; margin: 0; padding: 0; }

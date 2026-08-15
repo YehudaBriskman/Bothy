@@ -80,7 +80,16 @@
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-sm); padding: 4px 8px;
 }
-.bothy-files .fx-scm-pick select:focus { border-color: var(--accent); outline: none; }
+/* No `:focus` rule, and that is the fix rather than the omission.
+   It used to read `select:focus { border-color: var(--accent); outline: none }`,
+   which was wrong twice over. `:focus` fires on a MOUSE click, so picking a
+   repository tinted the control blue and left it that way; and `outline: none`
+   at (0,3,0) beat every focus ring on the page, including the keyboard one, so
+   the control a keyboard user was standing on showed a 1px colour change and
+   nothing else - colour alone, and a 2.4.7 failure.
+   Focus here is now the page's one inset ring (shell.css) and nothing else.
+   A <select> is not a text field, so :focus-visible correctly declines to match
+   a mouse click on it: the popup it just opened is the indication. */
 
 /* A read-only root. Stated once, up front, instead of four buttons that each
    turn out to 403 - the refusal is a property of the MOUNT and is known before
@@ -151,7 +160,13 @@
   color: var(--fg); background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-sm); padding: 6px 9px; line-height: 1.45;
 }
-.bothy-files .fx-scm-msg textarea:focus { border-color: var(--accent); outline: none; }
+/* Same as .fx-scm-pick select above: the `:focus { border-color; outline: none }`
+   pair is gone, and focus is the page's inset ring. On a TEXT control the ring
+   does still appear for a mouse click - :focus-visible matches text fields
+   whatever the modality, by design in every engine - and that is the right
+   answer here rather than a leak: this is the one control on the page where
+   "your typing goes in here" is worth saying out loud, and the alternative is a
+   1px blinking caret in a four-region window. */
 .bothy-files .fx-scm-commitbtn { justify-content: center; }
 
 /* ── sync ────────────────────────────────────────────────────────────────── */
@@ -290,7 +305,9 @@
 .bothy-files .fx-diff-sum .mono { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bothy-files .fx-diff-side {
   flex: none; display: inline-flex; align-items: center; gap: 4px;
-  color: var(--fg-subtle); font-size: 10.5px; font-family: var(--sans, inherit);
+  /* --font, not --sans: --sans has never existed. The `inherit` fallback meant
+     the mistake rendered correctly and read as a token that was real. */
+  color: var(--fg-subtle); font-size: 10.5px; font-family: var(--font);
 }
 .bothy-files .fx-diff-counts { margin-left: auto; flex: none; display: flex; gap: 8px; font-size: 11px; }
 .bothy-files .fx-diff-counts .add { color: var(--st-up-fg); }

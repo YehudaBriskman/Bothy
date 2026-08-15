@@ -37,6 +37,7 @@ import { Editor, type Notice, type View } from './Editor';
 import type { CodeHandle } from './CodeSurface';
 import type { DiffTarget } from './Diff';
 import { Inspector } from './Inspector';
+import { matches } from './keys';
 import { Panel, type PanelTab, type Problem } from './Panel';
 import { Resizer } from './Resizer';
 import { SignInCard } from './SignInCard';
@@ -57,6 +58,14 @@ const MAX_CALLS = 200;
 // A stable identity for "no deletions", so the common case does not hand
 // buildTree a new Set on every status refresh and rebuild the whole tree.
 const NO_TOMBS: Set<string> = new Set();
+
+// The diff target is a DEPENDENCY of the fetch effect below, so its identity is
+// the request. A fresh object for a target that has not changed is a second
+// round trip for the same bytes - which is what clicking the already-active
+// Working/Staged segment used to do. Every setter goes through this.
+const sameDiff = (a: DiffTarget | null, b: DiffTarget | null) =>
+  a === b || (!!a && !!b && a.root === b.root && a.path === b.path
+    && a.staged === b.staged && a.untracked === b.untracked);
 
 export function Files() {
   const [params, setParams] = useSearchParams();
@@ -830,7 +839,8 @@ export function Files() {
 
   const openDiff = useCallback((c: Change) => {
     if (!c.path) return;
-    setDiff({ root, path: c.path, staged: c.side === 'staged', untracked: c.untracked });
+    const next: DiffTarget = { root, path: c.path, staged: c.side === 'staged', untracked: c.untracked };
+    setDiff((d) => (sameDiff(d, next) ? d : next));
   }, [root]);
 
   // From the tree - a tombstone row, where the diff is the only readable thing
@@ -839,7 +849,10 @@ export function Files() {
   // about a file that is gone.
   const openDiffPath = useCallback((p: string) => {
     const d = deco.files.get(p);
-    setDiff({ root, path: p, staged: d?.side === 'staged', untracked: d?.letter === 'U' && d.state === 'added' });
+    const next: DiffTarget = {
+      root, path: p, staged: d?.side === 'staged', untracked: d?.letter === 'U' && d.state === 'added',
+    };
+    setDiff((cur) => (sameDiff(cur, next) ? cur : next));
   }, [root, deco]);
 
   // The activity bar. Clicking the view you are already in collapses the rail,
@@ -863,8 +876,12 @@ export function Files() {
   // command palette and `r` refreshed the dashboard mid-word.
   useEffect(() => {
     if (!editing) return;
+    // The test comes from keys.ts, which is also what the empty state and the
+    // Keys sheet render. That is the whole point of the table: the list of
+    // shortcuts and the code that dispatches them cannot drift apart, because
+    // there is only one of them.
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key === 's' || e.key === 'S') && (e.metaKey || e.ctrlKey)) {
+      if (matches('save', e)) {
         e.preventDefault();
         void save();
       }
@@ -1095,6 +1112,11 @@ export function Files() {
               onEdit={startEdit}
               onCancel={cancelEdit}
               onSave={() => void save()}
+              // Close is `pick('')`, on purpose: there are no tabs here, so
+              // closing IS a navigation to "no file", and it has to be the same
+              // navigation as any other or it becomes the one route that skips
+              // the unsaved-changes guard.
+              onClose={() => pick('')}
               notice={notice}
               conflict={conflict}
               onResolveConflict={resolveConflict}
@@ -1102,10 +1124,14 @@ export function Files() {
               diffRes={diffRes}
               diffLoading={diffLoading}
               diffErr={diffErr}
-              onDiffSide={(staged) => setDiff((d) => (d ? { ...d, staged } : d))}
+              onDiffSide={(staged) => setDiff((d) => (!d || d.staged === staged ? d : { ...d, staged }))}
               onCloseDiff={() => setDiff(null)}
               dismissNotice={() => setNotice(null)}
               pending={pending !== null}
+              // A close is the pending target that keeps the root and drops the
+              // path; picking another ROOT while dirty also has an empty path,
+              // which is why the root is compared too.
+              pendingClose={pending !== null && pending.path === '' && pending.root === root}
               resolvePending={resolvePending}
               onDownload={() => downloadFile(true)}
               canDownload={canDownload}
