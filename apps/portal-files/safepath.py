@@ -159,7 +159,14 @@ GIT_ROOTS: dict[str, str] = {
 # it is a blast-radius limit. Without it, "edit a doc" also means "rewrite
 # compose.yml", "rewrite a shell script that cron runs", or "drop a .py that
 # something imports". The read side is deliberately wider than the write side.
-WRITABLE_SUFFIXES = frozenset({".md", ".markdown", ".txt", ".rst"})
+# .svg and .html were added 2026-08-13 with their viewers. Worth stating plainly:
+# a writable .html or .svg in a repo that some OTHER app serves is a stored-XSS
+# vector in that app. That is a property of the repo rather than of this service,
+# and it is a real widening of what the editor can change - not a formatting
+# detail.
+WRITABLE_SUFFIXES = frozenset({
+    ".md", ".markdown", ".txt", ".rst", ".svg", ".html", ".htm", ".xml",
+})
 
 # Directories never served or listed, at any depth.
 #
@@ -331,10 +338,45 @@ INLINE_TYPES: dict[str, tuple[str, tuple[bytes, ...]]] = {
 # can read every file in three roots and commit as the signed-in user. It already
 # renders safely as highlighted SOURCE through /read - that is the answer, and it
 # already ships. Do not build a second, dangerous path to the same file.
+# Formats that must never be served inline ON THE PORTAL'S OWN ORIGIN. They are
+# all documents that can carry script, and there the script would run beside the
+# session cookie.
+#
+# They ARE served inline on the sandbox origin (:8100), which is the entire
+# reason that origin exists: a different port is a different origin, so a script
+# escaping one of these lands somewhere holding no portal DOM, under
+# `default-src 'none'; sandbox`. FRAMED_TYPES below is that list.
+#
+# The distinction is worth stating because the two lists look contradictory: this
+# one is "never on :80", not "never anywhere".
 NEVER_INLINE = frozenset({
-    ".svg", ".svgz", ".html", ".htm", ".xhtml", ".xht", ".mhtml", ".mht",
-    ".xml", ".xsl", ".xslt", ".swf",
+    ".swf",   # no viewer, no reason, and a byword for this whole problem
 })
+
+# Document formats rendered in a sandboxed frame on :8100.
+#
+# `sandbox` with no allow-* tokens gives the framed document an OPAQUE origin,
+# which is what makes this safe: it cannot read :8100's other responses, cannot
+# reach the portal, and `default-src 'none'` denies it script and network
+# entirely. That is an assumption about browser behaviour, so it is tested
+# empirically (checks/sandbox_escape.py) rather than trusted.
+FRAMED_TYPES: dict[str, str] = {
+    ".svg": "image/svg+xml",
+    ".svgz": "image/svg+xml",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".xhtml": "application/xhtml+xml",
+    ".xht": "application/xhtml+xml",
+    ".xml": "text/xml",
+}
+
+# Video, so the browser can play it. Needs Range - see _raw().
+MEDIA_TYPES: dict[str, str] = {
+    ".mp4": "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm",
+    ".ogv": "video/ogg", ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav",
+    ".ogg": "audio/ogg", ".flac": "audio/flac",
+}
 
 # PDF is inline-able HERE and would not be on the portal's origin.
 #
@@ -408,11 +450,17 @@ def content_policy(basename: str, head: bytes) -> tuple[str, str]:
     refusing would make the explorer lie about a file that plainly exists.
     """
     ext = os.path.splitext(basename)[1].lower()
+    if ext in NEVER_INLINE:
+        return "application/octet-stream", "attachment"
+    if ext in FRAMED_TYPES:
+        return FRAMED_TYPES[ext], "inline"
+    if ext in MEDIA_TYPES:
+        return MEDIA_TYPES[ext], "inline"
     if ext == ".pdf":
         mime, magics = PDF_TYPE
         return (mime, "inline") if head.startswith(magics[0]) \
             else ("application/octet-stream", "attachment")
-    if ext in NEVER_INLINE or ext not in INLINE_TYPES:
+    if ext not in INLINE_TYPES:
         return "application/octet-stream", "attachment"
 
     mime, magics = INLINE_TYPES[ext]

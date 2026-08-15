@@ -130,9 +130,9 @@ BYTE_HEADERS = {
     "Cross-Origin-Resource-Policy": "cross-origin",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "private, no-store",
-    # Range is deliberately not implemented - see _raw(). Advertising none stops
-    # a client asking.
-    "Accept-Ranges": "none",
+    # Range IS implemented now, narrowly - video needs it to scrub. See
+    # parse_range() for exactly how narrowly, and why.
+    "Accept-Ranges": "bytes",
 }
 
 
@@ -175,6 +175,55 @@ def audit(who: str, action: str, res, size: int | None = None,
                 fh.write(line + "\n")
     except OSError as e:
         sys.stderr.write(f"AUDIT LOG UNWRITABLE ({e}) - the write itself was fine\n")
+
+
+def parse_range(header: str, size: int) -> tuple[int, int] | None | str:
+    """Parse a Range header. Returns (start, end) inclusive, None, or "bad".
+
+    Range was deliberately NOT implemented at first, and that was right while
+    nothing was served inline that needed it: hand-rolled range parsing is a
+    known-bad surface. A 72 MB video with no scrubbing is what changed the
+    balance, so it is implemented as narrowly as possible instead of generally.
+
+    What is supported: exactly ONE range, `bytes=start-end`, `bytes=start-`, and
+    the suffix form `bytes=-N` (the last N bytes).
+
+    What is refused, on purpose:
+      * MULTIPLE ranges. They require multipart/byteranges framing, and they are
+        also the amplification vector - one request asking for a thousand
+        overlapping ranges costs the server a thousand times the file. Nothing
+        here needs them.
+      * Any unit other than bytes.
+      * A start beyond the end of the file (416, per RFC 9110).
+
+    Returning the string "bad" rather than raising keeps the caller's shape
+    simple: None means "no range asked for", a tuple means honour it, "bad"
+    means 416.
+    """
+    if not header:
+        return None
+    header = header.strip()
+    if not header.startswith("bytes="):
+        return "bad"
+    spec = header[len("bytes="):].strip()
+    if "," in spec:
+        return "bad"                      # multi-range: refused, see above
+    if "-" not in spec:
+        return "bad"
+    first, _, last = spec.partition("-")
+    try:
+        if not first:                     # bytes=-N  -> the final N bytes
+            n = int(last)
+            if n <= 0:
+                return "bad"
+            return (max(0, size - n), size - 1)
+        start = int(first)
+        end = int(last) if last else size - 1
+    except ValueError:
+        return "bad"
+    if start < 0 or end < start or start >= size:
+        return "bad"
+    return (start, min(end, size - 1))
 
 
 def git(root: str, *args: str) -> subprocess.CompletedProcess:
@@ -849,14 +898,30 @@ class Handler(BaseHTTPRequestHandler):
             if q.get("download") == "1":
                 ctype, disp = "application/octet-stream", "attachment"
 
-            self._send_bytes_headers(200, {
+            rng = parse_range(self.headers.get("Range", ""), st.st_size)
+            if rng == "bad":
+                os.close(fd)
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{st.st_size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+
+            start, end = rng if rng else (0, st.st_size - 1)
+            length = end - start + 1
+            extra = {
                 "Content-Type": ctype,
-                "Content-Length": st.st_size,
+                "Content-Length": length,
                 "Content-Disposition": self._disposition(disp, res.relpath),
-            })
+            }
+            if rng:
+                extra["Content-Range"] = f"bytes {start}-{end}/{st.st_size}"
+            self._send_bytes_headers(206 if rng else 200, extra)
+
             with os.fdopen(fd, "rb", closefd=True) as fh:
                 fd = -1
-                remaining = st.st_size
+                fh.seek(start)
+                remaining = length
                 while remaining > 0:
                     chunk = fh.read(min(65536, remaining))
                     if not chunk:

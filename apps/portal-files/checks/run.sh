@@ -45,6 +45,15 @@ python3 checks/save_semantics.py || fail=1
 echo; echo "── git: stage/commit/discard and the sync refusals ─────────"
 python3 checks/git_ops.py || fail=1
 
+echo; echo "── the sandbox must actually contain a hostile document ────"
+# Needs a browser: the claim is about browser enforcement, so nothing else can
+# test it. Skipped rather than failed if playwright-core is absent.
+if [ -d /home/devssh/.npm/_npx/705bc6b22212b352/node_modules/playwright-core ]; then
+  node checks/sandbox_escape.mjs || fail=1
+else
+  echo "  SKIP: playwright-core not installed"
+fi
+
 echo; echo "── raw bytes + archives (the sandbox origin) ───────────────"
 python3 checks/bytes_e2e.py || fail=1
 
