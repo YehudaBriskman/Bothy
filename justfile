@@ -152,7 +152,8 @@ verify mode="":
     @VERIFY_SELFTEST={{ if mode == "selftest" { "1" } else { "" } }} bash scripts/verify-access.sh
 
 # Checks for the editor tier: path-safety unit tests, per-route role enforcement,
-# and a full anonymous-refused / login / write / commit round trip.
+# a full anonymous-refused / login / write round trip, the undo net, and a scan
+# of everything the portal SERVES for anything that looks like a credential.
 # `just files-check offline` runs only the part that needs nothing up.
 files-check mode="":
     @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}

@@ -7,8 +7,8 @@
 #                     real planted symlinks. Runs anywhere, needs nothing up.
 #   authz_probe.py    does oauth2-proxy actually enforce a per-route role? Asks
 #                     for a role the user does NOT hold and requires a 403.
-#   e2e.py            the whole path: anonymous refused, login, write, commit,
-#                     and the guards re-checked THROUGH http rather than in-process.
+#   e2e.py            the whole path: anonymous refused, login, write, and the
+#                     guards re-checked THROUGH http rather than in-process.
 #
 # The unit tests alone would pass with the edge wide open; the probe alone would
 # pass with the path guards removed. Both have to run.
@@ -42,8 +42,17 @@ python3 checks/e2e.py || fail=1
 echo; echo "── save semantics: disk, not commit, and the conflict ──────"
 python3 checks/save_semantics.py || fail=1
 
-echo; echo "── git: stage/commit/discard and the sync refusals ─────────"
+echo; echo "── git is VIEW-ONLY: the mutating verbs must be gone ────────"
 python3 checks/git_ops.py || fail=1
+
+echo; echo "── the undo net: an overwrite keeps what it destroyed ───────"
+python3 checks/snapshots.py || fail=1
+
+echo; echo "── does anything SERVED look like a credential? ─────────────"
+# Baseline diff, not "fail on any hit" - the detector flags 40 files and the top
+# hits are .env.example and READMEs, so an absolute check would be noise nobody
+# reads. This fails on something NEW.
+python3 checks/served_secrets.py || fail=1
 
 echo; echo "── the sandbox must actually contain a hostile document ────"
 # Needs a browser: the claim is about browser enforcement, so nothing else can

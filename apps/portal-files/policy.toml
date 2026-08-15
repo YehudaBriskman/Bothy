@@ -101,6 +101,13 @@ file_patterns = [
   "credentials", "credentials.*", "*secret*", "*password*",
   "*.sqlite", "*.db",
   "realm-*.json", "*-realm.json", "realm.json",
+  # A bcrypt hash IS a credential, just a slow one - $2a$11$ is crackable
+  # offline at leisure, and the file exists to hold nothing else. Found by
+  # checks/served_secrets.py on its first run, which is the argument for that
+  # check: nothing in the name matches "secret", "password" or "credentials",
+  # so every pattern above missed it. Named exactly, like realm-*.json, rather
+  # than guessed at with `*users*` - which would hide ordinary user lists.
+  "dozzle-users.yml",
 ]
 
 # Patterns above that describe a WORD rather than a file format, and so must not
@@ -121,6 +128,32 @@ allow_files = [
   ".env.example", ".env.sample", ".env.template", ".env.test.example",
   ".env.local.template", ".env.production.template", ".env.defaults",
 ]
+
+# ── snapshots ───────────────────────────────────────────────────────────────
+#
+# THE UNDO NET, and the reason it exists is worth stating plainly.
+#
+# A save used to be a git commit, so every version of every file was in the
+# object store and nothing could be lost. Saving straight to disk removed that,
+# and removing the git verbs on 2026-08-15 removed the rest: there is no commit,
+# no stash, and no `discard` to restore from. The working tree is now the ONLY
+# copy of an edit, and an editor with no undo beyond its own session is one
+# stale tab away from silently reverting somebody's afternoon.
+#
+# So every overwrite copies the OUTGOING bytes here first. Not version control -
+# it keeps no order, no message and no merge. It answers exactly one question:
+# "what did this file say before I saved over it?"
+#
+# Declared here, and checked at startup like a root, because a snapshot
+# directory that is not mounted would leave the net silently absent - which is
+# the same class of bug as the 503 that advised mounting a token file nothing
+# ever mounted. It must fail loudly at start rather than quietly at 3am.
+[snapshots]
+path = "/var/lib/bothy/trash"
+# Per FILE, not in total. A file edited all afternoon keeps its last 20 states;
+# a file edited once a year keeps that one for `max_age_days`.
+keep = 20
+max_age_days = 30
 
 # ── write ───────────────────────────────────────────────────────────────────
 

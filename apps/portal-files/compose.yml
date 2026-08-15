@@ -76,8 +76,20 @@ services:
       # socket-proxy note calls load-bearing.
       # The write log. Mounted so it outlives a container rebuild - an audit
       # trail that a `docker compose up --build` erases is not an audit trail.
-      # This is the ONLY writable path outside the two editable repos.
       - ./audit:/audit:rw
+      # The undo net: the previous version of every file this service overwrites.
+      #
+      # OUTSIDE the roots on purpose. Under ~/.local it is invisible to the
+      # `home` root anyway (top-level dots are denied), but the reason it lives
+      # here is stronger than that: a backup inside the tree it is backing up is
+      # one recursive save away from backing up its own backups.
+      #
+      # CREATE IT BEFORE FIRST RUN - `mkdir -p ~/.local/state/bothy/trash`.
+      # Docker creates a missing bind source as ROOT, and this container runs as
+      # uid 1000, so it would be mounted and unwritable. safepath refuses to
+      # start in that case rather than running with a net that silently drops
+      # everything.
+      - /home/devssh/.local/state/bothy/trash:/var/lib/bothy/trash:rw
     networks:
       - filesnet
     labels:

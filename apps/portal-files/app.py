@@ -737,6 +737,21 @@ class Handler(BaseHTTPRequestHandler):
                         "yours": content, "theirs": theirs,
                     })
 
+            # ── THE UNDO NET ─────────────────────────────────────────────────
+            #
+            # Keep the outgoing bytes BEFORE the rename, while they are still
+            # reachable. After os.replace the old content has no name and the
+            # only reference to it is gone.
+            #
+            # The conflict check above stops you overwriting somebody ELSE's
+            # work. Nothing stopped you overwriting your own - and since save
+            # stopped committing, and the git verbs went with it, there was no
+            # copy of the previous version anywhere on the box. This is that
+            # copy. See safepath.snapshot for why it is best-effort.
+            kept = (safepath.snapshot(res.root_key, res.relpath, res.abspath,
+                                      content.encode())
+                    if existed else None)
+
             os.makedirs(os.path.dirname(res.abspath), exist_ok=True)
             # Write to a temp file in the same directory, then rename. rename is
             # atomic within a filesystem, so a crash mid-write leaves the old file
@@ -772,16 +787,24 @@ class Handler(BaseHTTPRequestHandler):
             # Save used to mean commit. That was right for a docs editor and
             # wrong for a file explorer over the whole box, where most saves are
             # work in progress that should not each become a commit. Committing
-            # is now a deliberate act in the git area.
+            # is done with `git` in a terminal; this service has no verb for it.
             #
             # The cost is the audit trail: every write USED to be attributable,
             # because every write was a commit with an author. audit() replaces
             # that - see its docstring.
             audit(who, "WROTE", res, len(content.encode()))
+            # A save whose previous version was NOT kept is worth a line of its
+            # own. It is rare and it is the moment the net was missing.
+            if existed and kept is None:
+                audit(who, "NOSNAPSHOT", res, len(content.encode()))
             return self._send(200, {
                 "ok": True, "path": res.relpath, "mtime": mtime,
                 "created": not existed, "author": who,
                 "bytes": len(content.encode()),
+                # Whether the previous version was kept. Reported rather than
+                # assumed, so "there is an undo net" is never something the UI
+                # claims on the service's behalf.
+                "snapshot": bool(kept),
                 # Still reported so the UI can show whether this file is even
                 # versioned, and offer the git area when it is.
                 "versioned": res.git_root is not None,
