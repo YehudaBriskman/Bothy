@@ -50,6 +50,59 @@ for label, root, path, want in [
     rr = s.get(f"{SANDBOX}/-/api/files/raw", params={"root": root, "path": path}, timeout=15)
     check(label, rr.status_code == want, f"got {rr.status_code}")
 
+print("\n── Range: implemented narrowly, and each refusal is its own path ───")
+# Range was deliberately NOT implemented at first, and that was right while
+# nothing inline needed it. Video changed the balance. Each case below is a
+# separate branch of the parser, so each gets its own assertion - a single
+# "ranges work" check would pass with three of them broken.
+PNG = {"root": "stacks", "path": "docs/assets/portal-overview.png"}
+full = s.get(f"{SANDBOX}/-/api/files/raw", params=PNG, timeout=30)
+size = len(full.content)
+
+r = s.get(f"{SANDBOX}/-/api/files/raw", params=PNG,
+          headers={"Range": "bytes=0-99"}, timeout=30)
+check("a first-N range returns 206", r.status_code == 206, f"got {r.status_code}")
+check("...with exactly those bytes", len(r.content) == 100 and r.content == full.content[:100])
+check("...and a correct Content-Range",
+      r.headers.get("Content-Range") == f"bytes 0-99/{size}", r.headers.get("Content-Range"))
+
+r = s.get(f"{SANDBOX}/-/api/files/raw", params=PNG,
+          headers={"Range": "bytes=-100"}, timeout=30)
+check("a SUFFIX range returns the LAST bytes",
+      r.status_code == 206 and r.content == full.content[-100:], f"got {r.status_code}")
+
+r = s.get(f"{SANDBOX}/-/api/files/raw", params=PNG,
+          headers={"Range": f"bytes={size-50}-"}, timeout=30)
+check("an open-ended range runs to EOF",
+      r.status_code == 206 and r.content == full.content[-50:], f"got {r.status_code}")
+
+for label, hdr in [("multi-range", "bytes=0-10,20-30"),
+                   ("a non-byte unit", "items=0-9"),
+                   ("garbage", "bytes=abc"),
+                   ("a start past EOF", f"bytes={size+10}-"),
+                   ("a reversed range", "bytes=50-10")]:
+    rr = s.get(f"{SANDBOX}/-/api/files/raw", params=PNG,
+               headers={"Range": hdr}, timeout=30)
+    check(f"{label} is refused with 416", rr.status_code == 416, f"got {rr.status_code}")
+
+print("\n── the new viewers ─────────────────────────────────────────────────")
+# SVG and HTML are served INLINE now - on the sandbox origin only, which is what
+# makes it safe. checks/sandbox_escape.mjs proves the containment; this only
+# proves the content type is right.
+import tempfile
+probe = "/home/devssh/claude-notes/_viewer-probe.svg"
+open(probe, "w").write('<svg xmlns="http://www.w3.org/2000/svg"><text>x</text></svg>')
+r = s.get(f"{SANDBOX}/-/api/files/raw",
+          params={"root": "notes", "path": "_viewer-probe.svg"}, timeout=20)
+check("an SVG is served inline as image/svg+xml",
+      r.status_code == 200 and r.headers.get("Content-Type") == "image/svg+xml"
+      and "inline" in r.headers.get("Content-Disposition", ""),
+      f"{r.status_code} {r.headers.get('Content-Type')}")
+check("...carrying the CSP that contains it",
+      "sandbox" in (r.headers.get("Content-Security-Policy") or ""),
+      r.headers.get("Content-Security-Policy"))
+os.remove(probe)
+
 print("\n── /archive: zip ───────────────────────────────────────────────────")
 r = s.get(f"{SANDBOX}/-/api/files/archive",
           params={"root": "notes", "format": "zip"}, timeout=60)
