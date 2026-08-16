@@ -296,7 +296,14 @@ def port_open(port: int) -> bool:
 
 # ── declaration parsing ──────────────────────────────────────────────────────
 
-VAR_RE = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
+# Case-insensitive on purpose. A declaration's ${VAR} names a key in that
+# project's OWN port file, so the collector must not dictate how the project
+# spells it: Shvil TV's .dev-ports.env writes TV_PLAYER_WEB_PORT, while Thales'
+# manifests/.ports.lock writes `frontend=5173`. Uppercase-only silently left
+# `${frontend}` unsubstituted, as_port() then failed, and every host service in
+# that project reported `unknown / nothing to observe` while it was running.
+# Widening only ever matches more, so no existing declaration changes meaning.
+VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def load_ports_file(base: Path, rel: str | None) -> dict[str, str]:
