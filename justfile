@@ -1,5 +1,24 @@
 set dotenv-load := true
 
+# Bothy - the web app on :80, its editor tier, and the socket proxy its Docker
+# API reads through. ONE compose project on purpose (2026-08-16).
+#
+# It used to be three: `portal`, `portal-next` and `portal-files`. Bothy groups
+# systems by com.docker.compose.project, so it rendered ITSELF as three separate
+# cards in its own Overview - the "why are there 3 portals?" bug. One project,
+# one card.
+#
+# The three files stay separate and are pulled together by `include:` in
+# apps/bothy/compose.yml - read that file for why it is `include:` and NOT
+# repeated `-f` (the short version: with `-f`, every relative path resolves
+# against the FIRST file's directory, which built the editor tier from the web
+# tier's Dockerfile and moved its audit log).
+#
+# apps/portal-files/compose.yml was in NO lifecycle recipe before this: it ran,
+# but `just down` never stopped it and `just up` never started it. It is reached
+# through exactly one path now, so it cannot fall out again.
+BOTHY := "-f apps/bothy/compose.yml"
+
 # List recipes
 default:
     @just --list
@@ -86,26 +105,20 @@ up-data: network
 up-mgmt: network
     docker compose -f mgmt/compose.yml up -d
 
-# Apps: the portal homepage + the docs site.
+# Apps: Bothy + the docs site.
 #
-# apps/portal is the RETIRED pure-HTML portal - its nginx carries
-# traefik.enable=false, but its compose file also owns portal-socket-proxy, which
-# the live portal's Docker API depends on. So it stays up; do not remove it.
-# apps/portal-next is what actually serves the portal, on the bare IP.
 # apps/wiki (Wiki.js) was superseded by apps/docs and is no longer started; its
 # compose file is kept so `just down` can still clean up an old deployment.
 up-apps: network
-    docker compose -f apps/portal/compose.yml up -d
-    docker compose -f apps/portal-next/compose.yml up -d
+    docker compose {{BOTHY}} up -d
     docker compose -f apps/docs/compose.yml up -d
 
 # Stop everything (keeps volumes/data)
 down:
     -docker compose -f auth/compose.yml down
     -docker compose -f edge/compose.yml down
-    -docker compose -f apps/portal-next/compose.yml down
+    -docker compose {{BOTHY}} down
     -docker compose -f apps/docs/compose.yml down
-    -docker compose -f apps/portal/compose.yml down
     # superseded by apps/docs - kept so an older deployment still gets cleaned up
     -docker compose -f apps/wiki/compose.yml down
     -docker compose -f mgmt/compose.yml down
@@ -125,9 +138,8 @@ nuke:
     @printf "This deletes ALL data volumes. Type yes to continue: " && read ans && [ "$ans" = yes ] || (echo aborted; exit 1)
     -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
-    -docker compose -f apps/portal-next/compose.yml down -v
+    -docker compose {{BOTHY}} down -v
     -docker compose -f apps/docs/compose.yml down -v
-    -docker compose -f apps/portal/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
     # retired 2026-08-12 and their volumes already deleted, so `-v` here is a

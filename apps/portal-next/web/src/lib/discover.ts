@@ -33,10 +33,18 @@ export function hostUrl(host: string, path = ''): string | null {
   return `http://${location.hostname}${port === 80 ? '' : `:${port}`}${path}`;
 }
 const STACK_ROOT = '/home/devssh/stacks/';
-// 'portal' is the retired pure-HTML portal (still runs the socket-proxy);
-// 'portal-next' is the compose project serving dev.test today. Both are infra -
-// leaving portal-next out filed the portal itself under "Stack".
-const INFRA_PROJECTS = new Set(['edge', 'portal', 'portal-next']);
+// 'bothy' is this app itself - web tier, editor tier and socket-proxy, all one
+// compose project since 2026-08-16. It was three ('portal', 'portal-next',
+// 'portal-files'), which made Bothy render as three separate cards in its own
+// Overview, since a system IS a compose project.
+//
+// Bothy is infra, not stack: leaving it out files the thing you are looking at
+// under "Stack", next to the services it is meant to be describing.
+//
+// The old names stay listed. A container from a previous deployment keeps its
+// compose labels until it is recreated, and misfiling it for one poll is a
+// worse outcome than three dead strings.
+const INFRA_PROJECTS = new Set(['edge', 'bothy', 'portal', 'portal-next', 'portal-files']);
 
 // ── Wire types (the raw API shapes) ─────────────────────────────────────────
 

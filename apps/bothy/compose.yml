@@ -1,0 +1,41 @@
+# Bothy — one compose project over three tiers.
+#
+# Bothy groups systems by com.docker.compose.project, so while the web tier, the
+# editor tier and the socket proxy were three projects (`portal-next`,
+# `portal-files`, `portal`) it rendered ITSELF as three separate cards in its own
+# Overview. One project, one card.
+#
+# ── WHY `include:` AND NOT `-f a.yml -f b.yml` ───────────────────────────────
+# Tried the multi-file form first, on 2026-08-16, and it broke portal-files.
+#
+# With repeated `-f`, EVERY relative path in EVERY file resolves against the
+# FIRST file's directory — not against the file that wrote it. So
+# portal-files' `build: context: .` resolved to apps/portal-next/ and built the
+# WEB tier's Dockerfile: the editor tier came up as nginx, which then hit
+# portal-files' own `read_only: true` and crash-looped on
+# `mkdir /var/cache/nginx/client_temp`. Its `./audit:/audit:rw` mount had
+# likewise moved to apps/portal-next/audit, so the write log would have silently
+# stopped accumulating in the place anything looks for it.
+#
+# `include:` resolves each fragment's paths against ITS OWN directory, which is
+# exactly the difference that matters here. It is also why this file is a stub
+# rather than a merge of the three: the three files each carry the isolation
+# rationale for a tier, and those tiers are NOT alike —
+#
+#   portal-files    alone with traefik on filesnet, rw handles on two git repos
+#   socket-proxy    alone with traefik on socketnet, holds the docker socket
+#   portal-next     on devnet, the only one that is meant to be broadly reachable
+#
+# Merging them into one document would file three different security postures
+# under one set of comments. Merging the PROJECT is what fixes the display;
+# nothing about the isolation needs to change, so nothing here changes it.
+#
+# apps/portal/ is included for its socket-proxy only — its own nginx is retired
+# (traefik.enable=false) and is next to be dropped.
+
+name: bothy
+
+include:
+  - path: ../portal-next/compose.yml
+  - path: ../portal-files/compose.yml
+  - path: ../portal/compose.yml
