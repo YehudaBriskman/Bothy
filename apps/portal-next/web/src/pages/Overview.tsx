@@ -90,8 +90,10 @@ const QUICK_ITEMS: QuickItem[] = [
   { key: 'files', label: 'Files', Icon: FolderTree, to: '#/files', primary: true },
   { key: 'grafana', label: 'Grafana', Icon: BarChart3, port: 3000, primary: true },
   { key: 'prometheus', label: 'Prometheus', port: 9090 },
-  { key: 'dozzle', label: 'Logs', port: 8080 },
-  { key: 'portainer', label: 'Portainer', port: 9000 },
+  // dozzle:8080 and portainer:9000 came out on 2026-08-17 with those services.
+  // The quick strip already has a rule for this - it only links what discovery
+  // can SEE, so a stopped service silently drops out and no link 404s. Removing
+  // the entries as well is about the strip not describing the box it used to be.
   // kafka-ui:8081 REMOVED 2026-08-12 with kafka itself (retired as idle, zero
   // topics). It was still rendering a link to a port nothing listens on - see
   // the fallback rule below, which is the reason it survived the retirement.
