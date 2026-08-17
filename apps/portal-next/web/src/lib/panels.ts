@@ -21,13 +21,16 @@ export interface Panel {
 export function panelize(nodes: PortalNode[], allNodes: PortalNode[] = nodes): Panel[] {
   const vis = nodes.filter((n) => !n.hidden);
 
-  // A project's display name comes from its own depth-1 node if labelled, so
-  // "cvops" can present as "CVOps" in breadcrumbs without a second label.
+  // A group's display name is read off the NODE. It used to be re-derived here
+  // from the labels - a third implementation of the same rule, after discover.ts
+  // and systems.ts - and three copies is how the Overview came to call a system
+  // `Identity · Keycloak` while two other pages called it `auth`.
+  //
+  // Built from `allNodes`, not `nodes`: the title has to survive a filter that
+  // excludes the one node carrying the label, which is the reason this function
+  // takes both lists in the first place.
   const nice = new Map<string, string>();
-  for (const n of allNodes) {
-    const L = n.container?.labels || {};
-    if (L['dev.portal.project']) nice.set(n.group, L['dev.portal.project']);
-  }
+  for (const n of allNodes) if (n.groupTitle) nice.set(n.group, n.groupTitle);
   const title = (g: string) =>
     nice.get(g) || g.replace(/[-_]/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
   const byOrder = (a: PortalNode, b: PortalNode) =>

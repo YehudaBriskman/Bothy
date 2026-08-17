@@ -34,7 +34,12 @@ export function ServiceRow({ node, showGroup = true }: { node: PortalNode; showG
           title={node.container?.statusText || unknownReason(node) || node.status}
         />
       </td>
-      {showGroup && <td className="mono">{node.group}</td>}
+      {/* The group's DISPLAY name, not its compose slug. This cell printed
+          `node.group` and so read `auth` while the Overview called the same
+          system `Identity · Keycloak` - the rename reached one surface out of
+          three. `groupTitle` is resolved once in discovery, so every surface
+          now agrees by construction rather than by remembering. */}
+      {showGroup && <td>{node.groupTitle}</td>}
       <td><span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span></td>
       <td className="mono">{node.ports.map((p) => p.hostPort).join(', ') || '-'}</td>
       <td className="mono svc-td-img">{node.container?.image || '-'}</td>
