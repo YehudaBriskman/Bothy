@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, HardDrive } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -9,6 +9,8 @@ import { ServiceTable } from '../components/ServiceTable';
 import { PortsTab } from '../components/PortsTab';
 import { RoutesTab } from '../components/RoutesTab';
 import { Tabs, TabPanel } from '../components/Tabs';
+import { SystemName } from '../components/SystemName';
+import type { Drift } from '../lib/config';
 import './Detail.css';
 
 const KIND_LABEL: Record<'project' | 'stack' | 'infra', string> = {
@@ -25,6 +27,24 @@ export function ProjectDetail() {
   // Which half of the Reachability panel is showing. Not persisted: it is a
   // view of one page, not a fact about the box.
   const [reach, setReach] = useState<'routes' | 'ports'>('routes');
+
+  // WHETHER THE FILE IS AHEAD OF THE CONTAINER, reported up by the Name panel.
+  //
+  // The heading below is drawn from the container's label, so when somebody has
+  // renamed this system and nothing has been recreated yet, the biggest word on
+  // the page is the stale one. That is the honest thing to show - it IS what is
+  // running - and it is also exactly where the correction belongs, so the panel
+  // hands its comparison up rather than the page fetching the file a second time
+  // and inventing a second opinion about it.
+  //
+  // STAMPED WITH THE SYSTEM IT IS ABOUT. React Router reuses this component when
+  // only the `:name` param changes, so a bare piece of state would survive the
+  // navigation and print one system's pending rename under another system's
+  // title for as long as it took the new panel to answer. Carrying the name with
+  // the answer makes that impossible rather than unlikely.
+  const [drift, setDrift] = useState<{ for: string; drift: Drift | null } | null>(null);
+  const onDrift = useCallback((d: Drift | null) => setDrift({ for: name, drift: d }), [name]);
+  const pending = drift && drift.for === name ? drift.drift : null;
 
   // The system rollup owns title, kind, accent and volumes - derive it once so
   // the header, chips and data card all agree.
@@ -84,6 +104,17 @@ export function ProjectDetail() {
               {h.up}/{h.total} up · {ports.length} {ports.length === 1 ? 'port' : 'ports'} · {routers.length} {routers.length === 1 ? 'route' : 'routes'} · {system.volumes.length} {system.volumes.length === 1 ? 'volume' : 'volumes'}
             </span>
           </div>
+          {/* One line, and only when it is true. The title above is what is
+              RUNNING; this says what the file says instead, and points at the
+              panel that explains it. No link and no button - the panel is on
+              this page, and a second Apply affordance up here would be a second
+              thing to keep honest. */}
+          {pending && (
+            <p className="detail-drift">
+              Renamed to &ldquo;{pending.declared}&rdquo; in the compose file, and not yet applied -
+              see Name, below.
+            </p>
+          )}
         </div>
       </motion.header>
 
@@ -195,6 +226,27 @@ export function ProjectDetail() {
             </div>
           </motion.section>
         )}
+
+        {/* Name - the one field a form may change here, and the pending state
+            that follows a change to it.
+            LAST, on purpose. Renaming a system is done a handful of times in the
+            life of the box, and Services and Reachability are why anybody opens
+            this page; a settings block above them would put the rarest thing
+            first. When it does matter - when the file is ahead of the container -
+            the header carries a line saying so, which is where somebody
+            confused by the title is already looking. */}
+        <motion.section className="panel span-12" {...rise(panel++)}>
+          <div className="panel-h">
+            Name
+            <span className="sub">{pending ? 'Written, not yet applied' : 'What Bothy calls this system'}</span>
+          </div>
+          <div className="panel-b">
+            {/* Keyed on the system, so a draft typed on one page does not follow
+                the reader to another system's form when only the route param
+                changes and React keeps the instance. */}
+            <SystemName key={name} nodes={nodes} onDrift={onDrift} />
+          </div>
+        </motion.section>
       </div>
     </div>
   );
