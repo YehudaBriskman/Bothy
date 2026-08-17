@@ -3,7 +3,15 @@
 // The narrow icon strip on the far left, and the only control that decides WHAT
 // THE RAIL IS. Three entries, because this page has three rail-shaped questions:
 // which file (Explorer), what is in the files (Search), and what has changed
-// (Source Control).
+// (Changes).
+//
+// IT WAS CALLED "SOURCE CONTROL" until 2026-08-17, which is what VS Code calls
+// it, and the rename is not a preference. The top nav now has a section called
+// Control, and two unrelated things a click apart cannot share a word that
+// carries as much weight as that one - a reader who has just learned that
+// "Control" is where the running stack lives should not meet it again meaning
+// git. Bothy does not have to borrow VS Code's noun, and "Changes" is what the
+// badge on this icon actually counts.
 //
 // SEARCH WAS DELIBERATELY ABSENT until 2026-08-17, and the reasoning is kept
 // rather than deleted because it was correct while it lasted: "the explorer's
@@ -27,11 +35,14 @@ import { Files as FilesIcon, GitBranch, Search } from 'lucide-react';
 export type RailView = 'explorer' | 'search' | 'scm';
 
 // `hide` is spelled out per view rather than built from the label: "Hide the
-// source control" is what a template produces and it is not English.
+// changes" is what a template produces and it is not English.
 const VIEWS: { id: RailView; label: string; hide: string; Icon: typeof FilesIcon }[] = [
   { id: 'explorer', label: 'Explorer', hide: 'Hide the explorer', Icon: FilesIcon },
   { id: 'search', label: 'Search', hide: 'Hide search', Icon: Search },
-  { id: 'scm', label: 'Source Control', hide: 'Hide Source Control', Icon: GitBranch },
+  // The id stays `scm`. It is the localStorage key and the discriminant on
+  // RailView; renaming it would reset everyone's open rail to buy nothing a
+  // reader ever sees.
+  { id: 'scm', label: 'Changes', hide: 'Hide changes', Icon: GitBranch },
 ];
 
 export function ActivityBar({ view, onPick, changes, collapsed }: {
@@ -68,7 +79,7 @@ export function ActivityBar({ view, onPick, changes, collapsed }: {
             onClick={() => onPick(id)}
           >
             <Icon size={19} aria-hidden="true" />
-            {/* Only Source Control carries a count, and only when there is one:
+            {/* Only Changes carries a count, and only when there is one:
                 a badge reading 0 is a badge that has stopped meaning anything.
                 Capped at 99 so a repo mid-rebase cannot widen the strip. */}
             {id === 'scm' && changes > 0 && (
