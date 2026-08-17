@@ -27,6 +27,13 @@
 # credential. Added in the same commit as the file, on the strength of the note
 # above - portal-files.yml went two commits untracked before anyone noticed.
 !bothy-config.yml
+# The control-tier routes, tracked for the same reason again - and this one has
+# the strongest case of the three. It DEFINES sso-operator, which exists nowhere
+# else in this directory, so losing the file would not merely unprotect these
+# routes: it would delete the only definition of the role gate on the one
+# service that can stop this box's databases. Added in the same commit as the
+# service, on the strength of the note above.
+!bothy-control.yml
 # The redacted twin of the GENERATED portal-prom.yml (which stays ignored by the
 # `*` above - it carries a basic-auth credential). Comments only: a live example
 # in this directory overwrites the real router, see the file's own header.
