@@ -11,17 +11,18 @@ echo "== containers =="
 # traefik, oauth2-proxy and portal-socket-proxy are the front door and the login
 # for everything else, and were missing from this list entirely.
 #
-# `wiki` was retired and replaced by the mkdocs stack in apps/docs (`docs` serves
-# the site, `docs-sync` rsyncs ~/claude-notes into it) - it sat here reporting a
+# `wiki` was retired and replaced by Bothy Files - it sat here reporting a
 # permanent red ✗ that had to be explained away every single sweep, which is how
-# a health check teaches you to ignore it. `portal-next` is the LIVE portal;
+# a health check teaches you to ignore it. `portal-files` took its slot: it is
+# the editor tier, it has no published port, and a health sweep that cannot see
+# the one service that can WRITE to the repos is missing the thing worth watching. `portal-next` is the LIVE portal;
 # `portal` is the retired nginx one, kept only because its compose file also owns
 # portal-socket-proxy. Both run, so both are expected.
 # redis/redis-exporter/kafka/kafka-ui/kafka-exporter removed 2026-08-12 - retired
 # as idle. Leaving them here made `just doctor` report five phantom absences,
 # which is the fastest way to teach someone to ignore the health check.
 # keycloak/oauth2-proxy are the identity layer added the same day.
-expected="traefik oauth2-proxy keycloak portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portainer dozzle docs docs-sync portal portal-next"
+expected="traefik oauth2-proxy keycloak portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portainer dozzle portal portal-next portal-files"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"

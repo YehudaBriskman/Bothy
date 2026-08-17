@@ -72,7 +72,7 @@ position, a label or an order.
 ## Map
 
 Reading order, not alphabetical order. The navigation on the left is
-alphabetical because MkDocs builds it automatically; this table is the one that
+alphabetical because the file tree builds it automatically; this table is the one that
 knows what depends on what.
 
 ### Foundations - decide these first, everything else references them

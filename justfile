@@ -105,21 +105,22 @@ up-data: network
 up-mgmt: network
     docker compose -f mgmt/compose.yml up -d
 
-# Apps: Bothy + the docs site.
+# Apps: Bothy - the web tier, the editor tier and the socket proxy, one project.
 #
-# apps/wiki (Wiki.js) was superseded by apps/docs and is no longer started; its
-# compose file is kept so `just down` can still clean up an old deployment.
+# There is nothing else here. Reading and editing the box's markdown is Bothy
+# Files, a route in the portal backed by apps/portal-files, which reads the real
+# file from a bind mount. No second copy, no sync lag, nothing to keep out of git.
 up-apps: network
     docker compose {{BOTHY}} up -d
-    docker compose -f apps/docs/compose.yml up -d
 
 # Stop everything (keeps volumes/data)
 down:
     -docker compose -f auth/compose.yml down
     -docker compose -f edge/compose.yml down
     -docker compose {{BOTHY}} down
-    -docker compose -f apps/docs/compose.yml down
-    # superseded by apps/docs - kept so an older deployment still gets cleaned up
+    # apps/wiki is superseded but never deleted: its content lives in a `wiki`
+    # database this cannot recreate. Kept so an older deployment still gets
+    # cleaned up.
     -docker compose -f apps/wiki/compose.yml down
     -docker compose -f mgmt/compose.yml down
     # retired 2026-08-12 (idle: zero topics / zero keys) - no longer in `up-data`,
@@ -139,7 +140,6 @@ nuke:
     -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
     -docker compose {{BOTHY}} down -v
-    -docker compose -f apps/docs/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
     # retired 2026-08-12 and their volumes already deleted, so `-v` here is a
@@ -219,7 +219,6 @@ urls:
     echo "    Prometheus    http://$IP:9090"
     echo "    Dozzle        http://$IP:8080         (live container logs)"
     echo "    cAdvisor      http://$IP:8082"
-    echo "    Docs          http://$IP:8085         (MkDocs, auto-rebuilt)"
     echo "    Portainer     http://$IP:9000         (unified dev login)"
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
@@ -234,7 +233,7 @@ urls:
     echo ""
     echo "  Not running right now - nothing was deleted, both come back:"
     echo "    Wiki.js       http://$IP:3001"
-    echo "      A stack service, superseded by Docs (:8085) and dropped from"
+    echo "      A stack service, superseded by Bothy Files and dropped from"
     echo "      'just up-apps'. Its compose file AND its 'wiki' database in the"
     echo "      shared postgres are both intact, so this restores it WITH its"
     echo "      content - that is why it is still listed rather than deleted:"

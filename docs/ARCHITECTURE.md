@@ -132,9 +132,9 @@ browser reaches anything but the portal. What exists today:
 | Container | Host bind | Status |
 |---|---|---|
 | `traefik` | `0.0.0.0:80` | **The front door for the portal and its data plane**, and nothing else. |
-| `grafana` `prometheus` `dozzle` `kafka-ui` `portainer` `loki` `cadvisor` `node-exporter` `docs` `keycloak` | `0.0.0.0:3000` `9090` `8080` `8081` `9000` `3100` `8082` `9100` `8085` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. |
+| `grafana` `prometheus` `dozzle` `kafka-ui` `portainer` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `9090` `8080` `8081` `9000` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. |
 | `postgres` `redis` `kafka` | `127.0.0.1:5432` `6379` `9092` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database - Redis runs with no `requirepass` at all. Reached over an SSH tunnel, or by name over devnet from another container. |
-| `portal-next` `docs-sync` `oauth2-proxy` `portal-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
+| `portal-next` `portal-files` `oauth2-proxy` `portal-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
 
 The cost of the port model is real and worth stating: ports are a flat global
 namespace with no allocator, so every new service is a manual collision check
@@ -194,7 +194,7 @@ flowchart TB
         OAUTH["oauth2-proxy"]
         OBS["monitoring - grafana, prometheus, loki,<br/>promtail, cadvisor, node-exporter"]
         MGMT["mgmt - portainer, dozzle"]
-        APPSG["apps - portal-next, docs, docs-sync"]
+        APPSG["apps - portal-next, portal-files, portal-socket-proxy"]
         KUI["kafka-ui"]
         DATAG["data - postgres, redis, kafka<br/>plus exporters - not routed"]
         PROJ["project containers<br/>e.g. cvops-nginx, cvops-garage"]
@@ -343,7 +343,7 @@ flowchart TB
     subgraph s_apps["apps/ - what the box itself serves"]
         PNEXT["portal-next - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
         PSOCK["portal-socket-proxy<br/>still shipped by apps/portal"]
-        DOCS["docs - MkDocs Material,<br/>with an rsync sidecar mirroring<br/>every markdown file under the home dir"]
+        PFILES["portal-files - the editor tier.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
     end
 
     subgraph s_host["host/ - configuration that is not in any container"]
@@ -375,7 +375,7 @@ numbers below are repeated here only so this table is readable on its own.
 | `mgmt/` | `mgmt` | `portainer` `dozzle` | `:9000` `:8080` | both `DEV_LOGIN_*`. Portainer mounts the socket **read-write** and its UI exposes container `Env` and `exec` |
 | `apps/portal` | `portal` | `portal` (retired nginx, `traefik.enable=false`), `portal-socket-proxy` | none - socketnet only | n/a |
 | `apps/portal-next` | `portal-next` | `portal-next` | the `:80` catch-all | **none** |
-| `apps/docs` | `docs` | `docs` `docs-sync` | `:8085` | **none** |
+| `apps/portal-files` | `bothy` | `portal-files` | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
 | `host/` | - | none | - | - |
 
 Every "none" in that last column is reachable by anything on the tailnet without
@@ -388,11 +388,12 @@ Notes on `apps/`:
   retired but kept as a one-line rollback (`traefik.enable=true`).
   **Do not `docker compose down apps/portal`** - that compose file still owns
   `portal-socket-proxy`, which the live portal depends on for `/-/api/docker`.
-- **`apps/docs` (MkDocs Material) replaced Wiki.js.** A read-only markdown viewer:
-  an rsync sidecar mirrors the real markdown files one-way into `content/` every
-  15 s, MkDocs serves them, edits to the source files appear within ~15 s. The
-  retired `apps/wiki/compose.yml` is still on disk and still referenced by
-  `just up-apps`, but Wiki.js is not part of the running architecture.
+- **Bothy Files replaced every markdown viewer this box has had.** It is a route
+  in the portal (`/#/files`) backed by `apps/portal-files`, and it reads the real
+  file from a bind mount rather than a mirror of it - so there is no sync lag, no
+  second copy to keep out of git, and the same surface can search, render and
+  edit. The retired `apps/wiki/compose.yml` is still on disk, but Wiki.js is not
+  part of the running architecture.
 
 ### Observability, and why it covers everything for free
 
@@ -453,7 +454,6 @@ flowchart LR
 
     BASE --> TRA["traefik.dev.test"]
     BASE --> GRA["grafana.dev.test"]
-    BASE --> DOC["docs.dev.test"]
     BASE --> TIL["tilt.dev.test"]
 
     BASE --> CVO["cvops.dev.test"]
@@ -804,7 +804,7 @@ Then, in order:
 
 Publish nothing. Join `devnet` and let other containers reach it by service
 name. This is still the correct default for exporters, sidecars and proxies -
-`portal-socket-proxy`, `oauth2-proxy`, `docs-sync` and every `*-exporter` do it.
+`portal-socket-proxy`, `oauth2-proxy`, `portal-files` and every `*-exporter` do it.
 
 ### A host process
 

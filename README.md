@@ -210,8 +210,8 @@ Then open **`http://<this-node's-tailnet-IP>/`** - `just urls` prints every addr
 | `mgmt/` | Portainer and Dozzle. |
 | `apps/portal-next/` | The live portal on `:80` - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `portal-next-fallback`, the catch-all. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
 | `apps/portal/` | The retired pure-HTML portal, kept as a one-line rollback - **and the owner of `portal-socket-proxy`**, which the live portal still depends on. Do not `compose down` this directory. |
-| `apps/docs/` | MkDocs Material rendering every markdown file on the box, kept in sync by an rsync sidecar. Read-only; edits to the source files show up within ~15s. |
-| `apps/wiki/` | Wiki.js - superseded by `apps/docs/`; currently stopped, kept until its content is migrated. |
+| `apps/portal-files/` | The editor tier behind Bothy Files - the read/write file API over the stacks repo, `~/claude-notes` and `~/projects`, with full-text search. No published port; reached only through the edge. |
+| `apps/wiki/` | Wiki.js - superseded by Bothy Files; currently stopped, kept because its content lives in a `wiki` database. |
 | `host/` | Copies of the host configuration git cannot see: dnsmasq, `daemon.json`, `wsl.conf`, the systemd units, and the Windows keepalive task. Required to rebuild the box. See [`host/README.md`](host/README.md). |
 | `scripts/` | `backup.sh` and `doctor.sh`. |
 | `justfile` | Every operation. Start here. |
@@ -230,12 +230,12 @@ flowchart TB
     B["Browser<br/>http://&lt;node-ip&gt;:&lt;port&gt;"]
   end
 
-  B -->|":3000 :9090 :8080 :8085 :9000 …"| SVC
+  B -->|":3000 :9090 :8080 :9000 …"| SVC
   B -->|":8090"| KC
   B -->|":80"| T
 
   subgraph box["The dev box"]
-    SVC["Grafana · Prometheus · Loki<br/>Dozzle · cAdvisor · Portainer · Docs<br/><i>each on its own published port</i>"]
+    SVC["Grafana · Prometheus · Loki<br/>Dozzle · cAdvisor · Portainer<br/><i>each on its own published port</i>"]
 
     T["<b>Traefik</b> :80<br/>7 routers, zero Host rules<br/>catch-all (prio 1) + exact Path() / PathPrefix (prio 100)"]
 
@@ -570,8 +570,8 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
 
 ## Deeper docs
 
-- **Docs on `:8085`** - MkDocs Material, rendering every markdown file on the box,
-  auto-synced.
+- **Bothy Files** - <http://100.117.176.85/#/files>. Every markdown file on the
+  box, rendered, searchable and editable, read straight from disk.
 - [`docs/kb/`](docs/kb/README.md) - the operational knowledge base: topology,
   access paths, runbooks, incident files and the lessons they paid for.
 - **The compose files themselves.** Every non-obvious setting has a comment
