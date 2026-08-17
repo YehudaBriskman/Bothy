@@ -1,0 +1,83 @@
+/* ============================================================================
+   Settings page. Builds ON the shared utilities in index.css (.panel .panel-h
+   .panel-b .kv-list .kv .mono .tag .btn) and carries only the deltas, all scoped
+   under .settings-page so nothing leaks and the overrides win regardless of
+   import order.
+
+   Narrower than the 1320px shell. Almost everything here is a sentence, and a
+   sentence 1300px wide is one nobody finishes - the measure is the point.
+   ========================================================================== */
+
+.settings-page { max-width: 820px; display: flex; flex-direction: column; gap: 20px; }
+.settings-page .page-head { margin-bottom: 0; }
+
+/* .panel-h is written for a div; these are real headings, because a settings
+   page is a document someone navigates by landmark. Only the browser's default
+   heading margin and size have to be undone. */
+.settings-page .panel-h { margin: 0; font-size: 14px; }
+
+.settings-page .set-lede { color: var(--fg-muted); font-size: 13.5px; line-height: 1.55;
+  margin: 0 0 14px; }
+
+/* A note under a value: the sentence that says what the value is FOR. Quieter
+   than the value it explains, and on its own line, so the column of values
+   stays scannable. */
+.settings-page .set-note { display: block; margin-top: 3px; font-size: 12px;
+  color: var(--fg-subtle); line-height: 1.5; }
+.settings-page .set-sub { font-size: 12px; color: var(--fg-muted); }
+
+/* ── roles ───────────────────────────────────────────────────────────────── */
+.settings-page .roles { list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; }
+.settings-page .role { display: flex; gap: 12px; padding: 13px 0;
+  border-bottom: 1px solid var(--line); }
+.settings-page .role:first-child { padding-top: 0; }
+.settings-page .role:last-child { padding-bottom: 0; border-bottom: 0; }
+.settings-page .role-mark { flex: none; margin-top: 1px; }
+.settings-page .role-text { min-width: 0; }
+.settings-page .role-line { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+  margin: 0 0 3px; }
+.settings-page .role-id { font-size: 13.5px; font-weight: 700; color: var(--fg); }
+.settings-page .role-state { font-size: 11px; font-weight: 700; letter-spacing: .03em;
+  text-transform: uppercase; padding: 2px 9px; border-radius: 999px; line-height: 1.35;
+  border: 1px solid var(--line); }
+.settings-page .role-why { margin: 0; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
+
+/* Held and not-held are STATE, which is the one thing the reserved status
+   palette is for. `--st-up` for held; `--st-off` for not - the quietest token in
+   the palette, chosen because failing to hold a role is not a fault and must not
+   read as one. Colour is never the only encoder here: the glyph differs
+   (CircleCheck / Circle / Ban) and the state is written out in words. */
+/* --st-up-fg, not --st-up. The token block in index.css says it outright: the
+   fill values are sized for large solid areas and `up` measures 2.50:1 on light
+   - "re-verify if any of these is ever used for a small glyph". A 17px stroked
+   icon is that case, and the -fg values are the ones that clear 4.5:1. */
+.settings-page .role[data-held='yes'] .role-mark { color: var(--st-up-fg); }
+.settings-page .role[data-held='yes'] .role-state { color: var(--st-up-fg);
+  border-color: color-mix(in oklab, var(--st-up) 34%, transparent); }
+.settings-page .role[data-held='no'] .role-mark { color: var(--st-off-fg); }
+.settings-page .role[data-held='no'] .role-state { color: var(--fg-subtle); }
+
+/* ── what is stored where ────────────────────────────────────────────────── */
+.settings-page .stores { list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; }
+.settings-page .store { padding: 13px 0; border-bottom: 1px solid var(--line); }
+.settings-page .store:first-child { padding-top: 0; }
+.settings-page .store:last-child { padding-bottom: 0; border-bottom: 0; }
+.settings-page .store-what { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--fg); }
+.settings-page .store-where { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 5px 0 6px; font-size: 12.5px; color: var(--fg-muted); }
+/* The store's own name, beside the plain-English answer rather than instead of
+   it: "This browser" is what the reader wants, "localStorage" is what they need
+   when they go looking for it. */
+.settings-page .store-store { font-size: 11.5px; color: var(--fg-subtle);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 1px 9px; }
+.settings-page .store-why { margin: 0; font-size: 13px; color: var(--fg-muted); line-height: 1.55; }
+
+@media (max-width: 560px) {
+  /* At this width the 96px label column and the value column both end up too
+     narrow to hold a line, so the pair stacks. */
+  .settings-page .kv-list { grid-template-columns: 1fr; }
+  .settings-page .kv { gap: 2px; }
+}
