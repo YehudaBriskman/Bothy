@@ -49,8 +49,8 @@
 //     history survive a tab switch, which the old `key={docKey}` destroyed.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { PanelBottom, PanelLeft, PanelRight } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { BookOpen, PanelBottom, PanelLeft, PanelRight } from 'lucide-react';
 import {
   ARCHIVE_MAX_ENTRIES, ARCHIVE_MAX_MEMBER, ARCHIVE_MAX_TOTAL,
   archiveUrl, fileHistory, fmtBytes, gitDiff, gitStatus, isAuthError, langFor,
@@ -75,6 +75,7 @@ import { SignInCard } from './SignInCard';
 import { SourceControl } from './SourceControl';
 import { decorate, NO_DECORATIONS, type Change } from './gitdeco';
 import { usePanes } from './panes';
+import { filesHref } from './routes';
 import { ancestorsOf, baseName, buildTree, defaultMessage, type Node } from './tree';
 
 import './shell.css';
@@ -1172,6 +1173,27 @@ export function Files() {
                   </>}
           </p>
         </div>
+        {/* ── the way back ─────────────────────────────────────────────────
+            Work -> Read, which reading-first.md §2 asks for so that closing the
+            tools is one click and does not lose the file: it carries the ACTIVE
+            document, not just the root.
+
+            Here rather than in the status strip, which is where the file's path
+            now lives. That strip is a readout - position, size, language,
+            writability - and it says so out loud ("NO BUTTONS BELOW THIS LINE",
+            Editor.tsx); it is also per-GROUP, and a split would give the page two
+            of these. This header is the one thing on screen that belongs to the
+            page rather than to a document.
+
+            Spelled out in words rather than an icon, unlike its three neighbours,
+            because it is a DESTINATION and they are layout toggles. */}
+        <Link
+          className="btn ghost sm fx-head-read"
+          to={filesHref('read', active ? active.root : root, active ? active.path : '')}
+          title={active ? `Read ${baseName(active.path)} without the editor` : 'Open the reading view'}
+        >
+          <BookOpen size={14} aria-hidden="true" /> Reading view
+        </Link>
         <div className="fx-head-actions" role="group" aria-label="Layout">
           <Tooltip label={`${panes.cl ? 'Show' : 'Hide'} the explorer`}>
             <button
