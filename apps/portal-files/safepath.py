@@ -75,8 +75,8 @@ def _load_policy(path: str) -> dict:
                 f"root {name!r} points at {cfg['path']}, which is not a directory "
                 f"- is it mounted in compose.yml?")
 
-    for section, key in (("deny", "components"), ("deny", "file_patterns"),
-                         ("write", "suffixes")):
+    for section, key in (("deny", "components"),
+                         ("sensitive", "file_patterns")):
         if not isinstance(doc.get(section, {}).get(key), list):
             raise PolicyError(f"policy is missing [{section}].{key}")
 
@@ -116,18 +116,17 @@ ROOT_POLICY: dict[str, dict] = {
 }
 
 DENY_COMPONENTS = frozenset(POLICY["deny"]["components"])
-DENY_FILE_PATTERNS = tuple(POLICY["deny"]["file_patterns"])
-ALLOW_FILES = frozenset(POLICY["deny"].get("allow_files", []))
-_WORDY_PATTERNS = frozenset(POLICY["deny"].get("wordy_patterns", []))
-_PROSE_SUFFIXES = frozenset(POLICY["deny"].get("prose_suffixes", []))
-WRITABLE_SUFFIXES = frozenset(POLICY["write"]["suffixes"])
+SENSITIVE_PATTERNS = tuple(POLICY["sensitive"]["file_patterns"])
+NOT_SENSITIVE = frozenset(POLICY["sensitive"].get("allow_files", []))
+_WORDY_PATTERNS = frozenset(POLICY["sensitive"].get("wordy_patterns", []))
+_PROSE_SUFFIXES = frozenset(POLICY["sensitive"].get("prose_suffixes", []))
 
 SNAPSHOT_DIR: str = POLICY["snapshots"]["path"]
 SNAPSHOT_KEEP = int(POLICY["snapshots"].get("keep", 20))
 SNAPSHOT_MAX_AGE = int(POLICY["snapshots"].get("max_age_days", 30)) * 86400
-# A ceiling on what is worth keeping a copy of. Every writable suffix is a text
-# format, but nothing stops a 200 MB generated .html, and filling the disk to
-# protect an edit would be a poor trade.
+# A ceiling on what is worth keeping a copy of. Now that any suffix may be
+# written, this is the only thing standing between the undo net and a 200 MB
+# file, and filling the disk to protect one edit would be a poor trade.
 SNAPSHOT_MAX_BYTES = 16 * 1024 * 1024
 # Returned when a save destroys nothing, and distinct from None, which means the
 # copy was WANTED and did not happen. The caller logs the second and ignores the
@@ -495,22 +494,57 @@ class PathRefused(Exception):
 # in, while `.md` and `.rst` are formats you write ABOUT credentials in. The
 # content scanner still inspects these files and can flag them as sensitive; it
 # just no longer removes them from the explorer entirely.
-def is_denied_name(basename: str) -> bool:
-    """True if this filename must never be served.
+def is_sensitive_name(basename: str) -> bool:
+    """True if this filename is the shape of a credential store.
+
+    A LABEL, not a refusal - see [sensitive] in policy.toml. The client is told,
+    and decides how loudly to say so.
 
     Case-insensitive, because the filesystem here is case-sensitive but the
     person who named `Key.PEM` did not mean something different by it.
     """
     name = basename.lower()
-    if name in ALLOW_FILES:
+    if name in NOT_SENSITIVE:
         return False
     prose = os.path.splitext(name)[1] in _PROSE_SUFFIXES
-    for pat in DENY_FILE_PATTERNS:
+    for pat in SENSITIVE_PATTERNS:
         if prose and pat in _WORDY_PATTERNS:
             continue
         if fnmatch.fnmatch(name, pat):
             return True
     return False
+
+
+CAUTION_RULES = tuple(
+    {"match": tuple(r["match"]), "level": r["level"], "note": " ".join(r["note"].split())}
+    for r in POLICY.get("write", {}).get("caution", [])
+)
+
+
+def caution_for(relpath: str) -> dict | None:
+    """What editing this path costs, or None when the answer is "nothing".
+
+    FIRST MATCH WINS, so policy.toml is ordered most specific first - the rule
+    for `edge/dynamic/*.yml` sits above the one for `**/*.yml`, and reordering
+    them silently downgrades the most dangerous file in the repo to a generic
+    note. That ordering is the only thing making the table correct, which is why
+    it is stated here as well as there.
+
+    Matched against the path RELATIVE TO ITS ROOT. fnmatch has no notion of `**`
+    - its `*` already crosses `/` - so a `**/` prefix is normalised to "either
+    this file at the top, or anywhere below", which is what a reader means by it.
+    """
+    rel = relpath.lstrip("/")
+    for rule in CAUTION_RULES:
+        for pat in rule["match"]:
+            if pat.startswith("**/"):
+                tail = pat[3:]
+                hit = fnmatch.fnmatch(rel, tail) or fnmatch.fnmatch(rel, "*/" + tail)
+            else:
+                hit = fnmatch.fnmatch(rel, pat)
+            if hit:
+                return {"level": rule["level"], "note": rule["note"]}
+    return None
 
 
 def content_policy(basename: str, head: bytes) -> tuple[str, str]:
@@ -859,17 +893,25 @@ def resolve(root_key: str, rel: str, *, for_write: bool = False) -> Resolved:
                 "top-level dot entries are excluded in this root - they are "
                 "config and credentials")
 
-    # Then the FILENAME, which is where secrets actually live. Checked on the
-    # resolved basename for the same reason: a symlink named `notes.md` pointing
-    # at `.env` must be refused for what it reaches, not for what it is called.
-    if is_denied_name(os.path.basename(candidate)):
-        raise PathRefused("this file is excluded as a possible secret")
+    # The FILENAME is no longer a refusal. It used to be - a name matching the
+    # secret patterns was excluded outright - and [sensitive] in policy.toml
+    # records why that became a LABEL instead. The check still runs, on the
+    # RESOLVED basename for the reason it always did: a symlink named `notes.md`
+    # pointing at `.env` must be judged by what it reaches, not what it is
+    # called. The result now travels to the client as `sensitive` rather than
+    # stopping here.
 
     if for_write:
-        if os.path.splitext(candidate)[1].lower() not in WRITABLE_SUFFIXES:
-            raise PathRefused(
-                "only " + ", ".join(sorted(WRITABLE_SUFFIXES)) + " files may be written"
-            )
+        # NO EXTENSION CHECK. There was one - an allowlist of prose formats - and
+        # [write] in policy.toml records why it is gone. In short: it did not
+        # stop the risky edit, it stopped the risky edit from going through the
+        # path that snapshots, attributes and conflict-checks it.
+        #
+        # Everything below this line still applies, and none of it is a
+        # preference: containment was proved above, the symlink rule is next, the
+        # root must be writable, and the edge decides whether this session holds
+        # `editor` at all.
+        #
         # Writing THROUGH a symlink would let someone plant a link inside the root
         # and have us overwrite its target. The realpath check above already
         # proves the destination is inside the root, so this only forbids the
@@ -915,6 +957,11 @@ def collect(
     max_member: int = ARCHIVE_MAX_MEMBER,
     max_depth: int = ARCHIVE_MAX_DEPTH,
     walk_seconds: float = ARCHIVE_WALK_SECONDS,
+    # True only for the two archive endpoints. See the `for_archive` check in the
+    # loop below: credential files are readable one at a time and excluded from
+    # bulk downloads, and this flag is the whole difference between those two
+    # statements. Defaulting it to True would silently make SEARCH lie.
+    for_archive: bool = False,
 ) -> tuple[list[Member], list[dict]]:
     """Walk a subtree and return (members, skipped) with every check applied.
 
@@ -1028,6 +1075,28 @@ def collect(
                 res = resolve(root_key, os.path.relpath(full, base.root_dir))
             except PathRefused as e:
                 skip(shown, str(e))
+                continue
+            # AN ARCHIVE IS NOT A READ, and this is the one place the two come
+            # apart on purpose.
+            #
+            # [sensitive] in policy.toml decided that a credential file is served
+            # and marked rather than hidden: opening ~/stacks/.env in the
+            # explorer is a deliberate act by the person who owns it. Putting the
+            # same file into a zip is not - it is a side effect of downloading
+            # the folder above it, and the result is a file that travels. The
+            # bulk path has no moment where anyone looks at what is inside.
+            #
+            # So the mark that is advisory everywhere else is a REFUSAL here, and
+            # it is reported in `skipped` rather than applied silently: an archive
+            # that quietly omits things is worse than one that says what it left
+            # out, because the omission is discovered by the person restoring it.
+            #
+            # OFF BY DEFAULT, and that is not timidity. This walk is shared with
+            # SEARCH, which is a read: searching the box for a string and being
+            # told it does not appear - when it appears in .env - is the walk
+            # lying about the filesystem. Only the archive endpoints pass True.
+            if for_archive and is_sensitive_name(os.path.basename(res.abspath)):
+                skip(shown, "looks like a credential store - excluded from archives")
                 continue
             try:
                 fd, st = safe_open(res.abspath)

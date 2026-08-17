@@ -30,7 +30,7 @@
 
 import { useCallback, useState } from 'react';
 import {
-  Check, Copy, GitCommitVertical, Lock, ShieldAlert,
+  Check, Copy, GitCommitVertical, Lock, ShieldAlert, TriangleAlert,
 } from 'lucide-react';
 import { fmtBytes, relDate, type Commit, type FileRead } from '../../lib/files';
 import { Tooltip } from '../../components/Tooltip';
@@ -116,7 +116,28 @@ export function Inspector({
                 {file.sensitive && (
                   <div className="fx-sensitive" role="note">
                     <ShieldAlert size={15} aria-hidden="true" />
-                    <span><b>Looks sensitive.</b> {file.sensitive}</span>
+                    <span>
+                      <b>Looks sensitive.</b> {file.sensitive}
+                      {' '}It is shown because this is your box, and it is left out
+                      of folder downloads because those travel.
+                    </span>
+                  </div>
+                )}
+
+                {/* WHAT AN EDIT COSTS, said before the edit rather than after.
+                    This is the half that replaced the extension allowlist: the
+                    service will write the file now, so the interface owes the
+                    reader the consequence. `critical` is also confirmed at save
+                    time; this is the standing statement, not the dialog. */}
+                {file.caution && (
+                  <div className={`fx-caution is-${file.caution.level}`} role="note">
+                    <TriangleAlert size={15} aria-hidden="true" />
+                    <span>
+                      <b>{file.caution.level === 'critical'
+                        ? 'Editing this is load-bearing.'
+                        : 'This configures something that is running.'}</b>
+                      {' '}{file.caution.note}
+                    </span>
                   </div>
                 )}
 
