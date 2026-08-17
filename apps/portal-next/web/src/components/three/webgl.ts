@@ -21,18 +21,25 @@ export function prefersReducedMotion(): boolean {
 
 import type { Status } from '../../lib/discover';
 
-// The reserved status palette, mirrored EXACTLY from index.css
-// (--ok/--warn/--down/--unk) so the 3D LEDs glow in the same colours as every
-// dot on the page. Kept as a hard fallback; `statusHexes()` prefers the live
-// computed values so a theme/token change stays in sync automatically.
+// The reserved status palette, mirrored from index.css's DARK block
+// (--st-up/--st-warn/--st-down/--st-off/--st-unknown) so the 3D LEDs glow in the
+// same colours as every dot on the page. This is a hard fallback for the case
+// where there is no computed style to read (SSR, a detached canvas);
+// `statusHexes()` prefers the live token values, so a theme change stays in sync
+// automatically.
+//
+// `stopped` and `unknown` were #4a5263 and #6b7688 here, against tokens of
+// #4a5568 and #64748b. Two hand-copied values drifting is exactly what happens
+// when the live path silently stops running - the fallback becomes the only code
+// path and nothing compares it to its source again. Corrected with the bridge.
 export const STATUS_HEX: Record<Status, string> = {
   up: '#34d399',
   starting: '#fbbf24',
   down: '#fb7185',
   // Dimmer than 'unknown': a stopped unit should read as an unlit slab in the
   // rack, not as another thing demanding attention.
-  stopped: '#4a5263',
-  unknown: '#6b7688',
+  stopped: '#4a5568',
+  unknown: '#64748b',
 };
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -43,10 +50,23 @@ export const STATUS_LABEL: Record<Status, string> = {
   unknown: 'Unknown',
 };
 
-// index.css maps state → status var (up=ok, starting=warn, down=down,
-// stopped=off, unknown=unk).
+// index.css maps state → status token.
+//
+// The BARE fill, not the `-fg` half, and that differs from lib/icons.tsx on
+// purpose: these drive emissive materials on LEDs in a 3D scene - light sources
+// a few pixels across seen against a dark rack - not text on a surface. The
+// contrast floors that make `-fg` the right answer for a glyph are a statement
+// about text on a background, and there is no background here.
+//
+// These names were `--ok/--warn/--down/--off/--unk` until the palette was
+// reorganised into `--st-*`, and the map was left behind. Because cssVar()
+// returns '' for an undefined property, every lookup fell through to the
+// STATUS_HEX fallback below and the "prefers the live computed values" promise
+// in that comment had been false ever since - which is why two of the five
+// fallbacks had drifted from the tokens they claim to mirror.
 const STATUS_VAR: Record<Status, string> = {
-  up: '--ok', starting: '--warn', down: '--down', stopped: '--off', unknown: '--unk',
+  up: '--st-up', starting: '--st-warn', down: '--st-down',
+  stopped: '--st-off', unknown: '--st-unknown',
 };
 
 // Read a CSS custom property off :root, trimmed. Returns '' if unavailable.
@@ -79,10 +99,22 @@ export interface ScenePalette {
   frame: string;       // rack cabinet frame + edge legs
   backPanel: string;   // rack back wall
   rail: string;        // rack rails
-  slab: string;        // 1U server body
+  slab: string;        // 1U server front bezel
+  // The slab's CHASSIS, behind the bezel, and its hover state. These were two
+  // literals inline on the mesh while the bezel one line below already read
+  // `pal.slab`, so a light theme lifted the bezel to mid-slate and left the body
+  // it sits on near-black. A palette with a hole in it is worse than no palette:
+  // the surrounding meshes move and the hole stays put, which reads as a
+  // rendering fault rather than as a missing value.
+  slabBody: string;
+  slabBodyHover: string;
   slabScreen: string;
   slabGlow: string;
   handle: string;
+  // The three faint activity LEDs on each slab, and the cyan point light that
+  // keys the scene. Emissive, so they need to stay bright against a dark rack
+  // and step down against a white page.
+  activity: string;
   machine: string;     // container-floor machine body
   vent: string;
   pad: string;         // grounding pad under the floor
@@ -99,7 +131,9 @@ const DARK: ScenePalette = {
   screen: '#0a1622', screenGlow: '#12405a',
   chassis: '#16203a', bezel: '#0c1324',
   frame: '#0d1119', backPanel: '#0a0d14', rail: '#2b3446',
-  slab: '#0f141f', slabScreen: '#0a1622', slabGlow: '#123449', handle: '#3c4a63',
+  slab: '#0f141f', slabBody: '#182031', slabBodyHover: '#26324a',
+  slabScreen: '#0a1622', slabGlow: '#123449', handle: '#3c4a63',
+  activity: '#22d3ee',
   machine: '#161d2c', vent: '#05070c',
   pad: '#0a0f18', padOpacity: 0.55,
   sky: '#d7e6ff', ground: '#0a0e16',
@@ -115,7 +149,13 @@ const LIGHT: ScenePalette = {
   screen: '#dbeafe', screenGlow: '#60a5fa',
   chassis: '#8fa0b5', bezel: '#aab6c7',
   frame: '#7d8b9e', backPanel: '#9aa7b8', rail: '#cbd5e1',
-  slab: '#b3bece', slabScreen: '#dbeafe', slabGlow: '#7dd3fc', handle: '#e2e8f0',
+  // slabBody sits a step DARKER than the bezel it carries, the same way the dark
+  // set does - the relationship is what makes it read as a body, not the value.
+  slab: '#b3bece', slabBody: '#9fabbb', slabBodyHover: '#c3ccd9',
+  slabScreen: '#dbeafe', slabGlow: '#7dd3fc', handle: '#e2e8f0',
+  // Cyan-600 rather than cyan-400: an emissive that glows against a black rack
+  // washes out to near-white against a white page.
+  activity: '#0891b2',
   machine: '#a8b4c4', vent: '#7c8aa3',
   pad: '#64748b', padOpacity: 0.16,
   sky: '#ffffff', ground: '#cbd5e1',

@@ -39,7 +39,7 @@
      26px box and loses the disappearing act: muted at rest, full contrast on
      hover. A control you cannot find has a footprint of zero and a value to
      match. */
-  opacity: var(--rest-opacity, .55);
+  opacity: var(--rest-opacity);
   transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               border-color var(--dur-fast) var(--ease);
 }
