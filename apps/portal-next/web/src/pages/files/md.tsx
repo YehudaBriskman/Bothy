@@ -10,6 +10,9 @@
 // and the Source toggle is one click away, so a mis-parse is cosmetic.
 
 import type { ReactNode } from 'react';
+import {
+  Info, Lightbulb, MessageSquareWarning, OctagonAlert, TriangleAlert,
+} from 'lucide-react';
 import { langFor } from '../../lib/files';
 import { highlight } from './highlight';
 import { resolveRelative } from './tree';
@@ -30,6 +33,16 @@ export interface MdLinks {
   /** Open a root-relative path in the same root. `frag` is the `#heading` the
    *  link carried, or `''`; the caller decides whether it can honour it. */
   open: (path: string, frag: string) => void;
+  /** Resolve a WIKILINK target - `[[dns]]`, `[[network/dns]]`, `[[dns#ttl]]` -
+   *  to a real path, or null.
+   *
+   *  Supplied by the caller rather than computed here, and that is the same
+   *  division this interface already draws: a wikilink has no extension and no
+   *  directory, so answering it needs the LIST OF DOCUMENTS, which is exactly
+   *  the knowledge this module is built not to have. Absent, wikilinks render
+   *  inert like any other unresolvable link - which is the honest result for a
+   *  caller that cannot say what exists. */
+  resolveWiki?: (target: string) => { path: string; frag: string } | null;
 }
 
 // Only http(s), mailto and anchors become an <a href>. Everything else is a
@@ -43,7 +56,9 @@ const RE_WEB = /^(https?:\/\/|#|mailto:)/i;
 // not a path; `//host/x` is not one either.
 const RE_SCHEME = /^([a-z][a-z0-9+.-]*:|\/\/)/i;
 
-function refLink(href: string, label: string, key: string, links?: MdLinks): ReactNode {
+function refLink(
+  href: string, label: string, key: string, links?: MdLinks, wiki = false,
+): ReactNode {
   // Today's rendering, and still the answer for anything that does not resolve:
   // the text, with the target beside it, because the target is information the
   // reader wanted and an unresolvable link is worth SEEING as unresolvable.
@@ -51,7 +66,22 @@ function refLink(href: string, label: string, key: string, links?: MdLinks): Rea
     <span className="md-reflink" key={key}>{label || href}<span className="md-reftarget">{href}</span></span>
   );
   if (!links || RE_SCHEME.test(href)) return inert;
-  const hit = resolveRelative(links.dir, href);
+  // A wikilink is resolved ONLY against the index, and never falls back to
+  // resolveRelative - which is the difference between the two syntaxes rather
+  // than an omission.
+  //
+  // resolveRelative normalises a path; it does not know what exists, because for
+  // a markdown link it does not have to - the author wrote a path and the reader
+  // can see whether it opens. `[[nothing-here]]` has no path in it at all, so
+  // falling through turned it into a live button pointing at a file of that
+  // name. Measured on a probe document: an unresolvable wikilink rendered as
+  // resolved, which is the worst of the three possible answers.
+  //
+  // resolveWikiIn handles `[[network/dns]]` too, so nothing is lost by not
+  // falling back.
+  const hit = wiki
+    ? (links.resolveWiki?.(href) ?? null)
+    : resolveRelative(links.dir, href);
   if (!hit) return inert;
   // A BUTTON, never an anchor. The `javascript:` argument above only stays true
   // as long as nothing here writes an href, and a handler that calls the
@@ -74,7 +104,10 @@ function refLink(href: string, label: string, key: string, links?: MdLinks): Rea
   );
 }
 
-const INLINE_RE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]\n]*\]\([^)\s]+\))/g;
+// The wiki alternative comes FIRST and that is load-bearing: `[[dns]]` would
+// otherwise be matched by the inline-link arm as `[` followed by `[dns]`, and
+// the reader would print a stray bracket beside a broken link.
+const INLINE_RE = /(\[\[[^\]\n]+\]\])|(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]\n]*\]\([^)\s]+\))/g;
 
 function inlineMd(text: string, k: string, links?: MdLinks): ReactNode[] {
   const out: ReactNode[] = [];
@@ -89,7 +122,18 @@ function inlineMd(text: string, k: string, links?: MdLinks): ReactNode[] {
     // containing a link or a `code span` swallows it whole and prints the
     // markdown source - measured on docs/kb/access.md, whose second line is
     // exactly that shape. Code is terminal by definition: it is literal.
-    if (tok.startsWith('`')) out.push(<code className="md-code" key={key}>{tok.slice(1, -1)}</code>);
+    if (tok.startsWith('[[')) {
+      // `[[target]]` or `[[target|label]]`. It resolves through refLink, the
+      // SAME path a relative markdown link takes - so a wikilink inherits the
+      // property that file records at length: it never becomes an <a href>, and
+      // therefore `javascript:` can never reach one. A new syntax, an existing
+      // resolver.
+      const inner = tok.slice(2, -2);
+      const bar = inner.indexOf('|');
+      const target = (bar === -1 ? inner : inner.slice(0, bar)).trim();
+      const label = bar === -1 ? '' : inner.slice(bar + 1).trim();
+      out.push(refLink(target, label || target, key, links, true));
+    } else if (tok.startsWith('`')) out.push(<code className="md-code" key={key}>{tok.slice(1, -1)}</code>);
     else if (tok.startsWith('**')) out.push(<strong key={key}>{inlineMd(tok.slice(2, -2), `${key}s`, links)}</strong>);
     else if (tok.startsWith('[')) {
       const cut = tok.indexOf('](');
@@ -114,6 +158,32 @@ const RE_HEAD = /^(#{1,6})\s+(.*)$/;
 const RE_RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
 const RE_QUOTE = /^>\s?/;
 const RE_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+
+// ── callouts ─────────────────────────────────────────────────────────────────
+//
+// `> [!warning] Optional title`, the syntax Obsidian and GitHub both understand.
+// Using theirs rather than inventing one matters here: ~/claude-notes is read in
+// this reader AND in an editor, and a note that renders as a panel in one and as
+// a literal `[!warning]` in the other is worse than plain prose in both.
+//
+// THE COLOURS ARE THE STATUS COLOURS, and that is a deliberate exemption from
+// the standing rule that `--st-*` is reserved for service state. The rule exists
+// so a green decoration is never read as "up"; in a rendered DOCUMENT there is
+// no service status on the page for an amber panel to be confused with. The
+// exemption is scoped to `.md-callout` and stated in read.css beside the rule.
+// If a callout is ever rendered somewhere that also shows service status, it is
+// void.
+const RE_CALLOUT = /^\s*\[!([a-z]+)\]\s*(.*)$/i;
+
+type CalloutKind = 'note' | 'tip' | 'important' | 'warning' | 'caution';
+
+const CALLOUTS: Record<CalloutKind, { title: string; tone: string; Icon: typeof Info }> = {
+  note:      { title: 'Note',      tone: 'note', Icon: Info },
+  tip:       { title: 'Tip',       tone: 'tip',  Icon: Lightbulb },
+  important: { title: 'Important', tone: 'note', Icon: MessageSquareWarning },
+  warning:   { title: 'Warning',   tone: 'warn', Icon: TriangleAlert },
+  caution:   { title: 'Caution',   tone: 'bad',  Icon: OctagonAlert },
+};
 
 function isBlockStart(line: string): boolean {
   return RE_FENCE.test(line) || RE_HEAD.test(line) || RE_RULE.test(line)
@@ -199,6 +269,34 @@ export function renderMd(src: string, k = 'b', links?: MdLinks): ReactNode[] {
     if (RE_QUOTE.test(line)) {
       const buf: string[] = [];
       while (i < lines.length && RE_QUOTE.test(lines[i])) buf.push(lines[i++].replace(RE_QUOTE, ''));
+
+      // A CALLOUT is a blockquote whose first line names a kind. Obsidian's
+      // syntax and GitHub's are the same here, which is the reason to use it
+      // rather than invent one: the notes in ~/claude-notes are read in both.
+      //
+      // Parsed as a branch of the quote rather than as its own block type,
+      // because that is exactly what it is - everything below the marker line
+      // is quote content and renders through the same path.
+      const marker = RE_CALLOUT.exec(buf[0] ?? '');
+      if (marker) {
+        const kind = marker[1].toLowerCase() as CalloutKind;
+        const meta = CALLOUTS[kind] ?? CALLOUTS.note;
+        const title = marker[2]?.trim() || meta.title;
+        const body = buf.slice(1).join('\n');
+        out.push(
+          <div className={`md-callout is-${meta.tone}`} key={key()} role="note">
+            <p className="md-callout-h">
+              <meta.Icon size={15} aria-hidden="true" />
+              <span>{title}</span>
+            </p>
+            {body.trim() && (
+              <div className="md-callout-b">{renderMd(body, `${key()}c`, links)}</div>
+            )}
+          </div>,
+        );
+        continue;
+      }
+
       out.push(<blockquote className="md-quote" key={key()}>{renderMd(buf.join('\n'), `${key()}q`, links)}</blockquote>);
       continue;
     }

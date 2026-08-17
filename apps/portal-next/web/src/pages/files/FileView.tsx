@@ -36,7 +36,9 @@ type State =
   | { at: 'too-large'; why: string }
   | { at: 'error'; why: string };
 
-export function FileView({ root, path, view = 'preview', frag = '', onOpen, onLoad }: {
+export function FileView({
+  root, path, view = 'preview', frag = '', onOpen, onLoad, resolveWiki,
+}: {
   root: string;
   path: string;
   /** Controlled by the caller. A reader that wants a Preview/Source switch owns
@@ -44,6 +46,10 @@ export function FileView({ root, path, view = 'preview', frag = '', onOpen, onLo
   view?: View;
   /** The `#heading` to land on, if the caller arrived by following a link. */
   frag?: string;
+  /** Resolve a `[[wikilink]]` against the documents that exist. Passed down
+   *  rather than computed here for the reason md.tsx gives: answering one needs
+   *  the list of files, and neither this component nor the renderer holds it. */
+  resolveWiki?: (target: string) => { path: string; frag: string } | null;
   /** Follow a cross-document link. Absent means those links keep rendering as
    *  inert text, which is the honest state for a view with nowhere to send you. */
   onOpen?: (path: string, frag: string) => void;
@@ -172,7 +178,7 @@ export function FileView({ root, path, view = 'preview', frag = '', onOpen, onLo
         // Nothing on this surface reports a degraded image; the frame it falls
         // back to labels itself.
         onFallback={() => {}}
-        links={onOpen ? { dir, open: onOpen } : undefined}
+        links={onOpen ? { dir, open: onOpen, resolveWiki } : undefined}
       />
     </div>
   );

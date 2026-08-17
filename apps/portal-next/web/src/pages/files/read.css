@@ -277,3 +277,47 @@
   .bothy-files.bothy-read .fx-read { padding: 16px 16px 40px; }
   .bothy-files .rd-empty { padding: 32px 16px; }
 }
+
+/* ── callouts ────────────────────────────────────────────────────────────────
+   `> [!warning] Title`, the syntax Obsidian and GitHub share.
+
+   THE STATUS COLOURS ARE USED HERE, and index.css's standing rule says they are
+   reserved for service state and never used as chrome. This is a deliberate,
+   scoped exemption, and the argument is that the rule's PURPOSE does not reach
+   this far: it exists so nobody reads a green decoration as "a service is up".
+   A rendered document has no service status anywhere on it, so there is nothing
+   for an amber panel to be mistaken for.
+
+   The exemption is scoped to .md-callout and it is VOID the moment a callout is
+   rendered on a surface that also shows service state. If that ever happens
+   these need their own token family; they do not get to keep borrowing.
+
+   Bordered on the left only, and tinted, rather than a full box: a document with
+   four boxed panels in it stops looking like prose and starts looking like a
+   dashboard, which is the opposite of what the reading view is for. */
+.bothy-files .md-callout {
+  margin: 0 0 var(--read-gap);
+  padding: 10px 14px;
+  border-left: 3px solid var(--st-unknown);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--surface-2);
+}
+.bothy-files .md-callout-h {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0; font-size: 12.5px; font-weight: 700;
+  letter-spacing: .01em; color: var(--fg);
+}
+.bothy-files .md-callout-h svg { flex: none; }
+/* The body inherits the reading scale; only its last block loses its margin, so
+   a one-paragraph callout is not padded twice at the bottom. */
+.bothy-files .md-callout-b { margin-top: 6px; }
+.bothy-files .md-callout-b > *:last-child { margin-bottom: 0; }
+
+.bothy-files .md-callout.is-note { border-left-color: var(--accent); background: var(--accent-bg); }
+.bothy-files .md-callout.is-note .md-callout-h { color: var(--accent-fg); }
+.bothy-files .md-callout.is-tip  { border-left-color: var(--st-up);   background: var(--st-up-bg); }
+.bothy-files .md-callout.is-tip .md-callout-h  { color: var(--st-up-fg); }
+.bothy-files .md-callout.is-warn { border-left-color: var(--st-warn); background: var(--st-warn-bg); }
+.bothy-files .md-callout.is-warn .md-callout-h { color: var(--st-warn-fg); }
+.bothy-files .md-callout.is-bad  { border-left-color: var(--st-down); background: var(--st-down-bg); }
+.bothy-files .md-callout.is-bad .md-callout-h  { color: var(--st-down-fg); }

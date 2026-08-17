@@ -579,21 +579,21 @@
 /* ── read view (markdown) ────────────────────────────────────────────────── */
 .bothy-files .fx-read { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px; }
 .bothy-files .fx-read:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-/* 72ch: prose, not a terminal. The measure rule changes reading speed more than
-   the typeface does. Full-bleed for the two things that are not prose. */
-.bothy-files .fx-read > * { max-width: 72ch; }
+/* The measure comes from --read-measure (index.css, where the reasoning is).
+   Full-bleed for the two things that are not prose. */
+.bothy-files .fx-read > * { max-width: var(--read-measure); }
 .bothy-files .fx-read > .md-tbl-wrap,
 .bothy-files .fx-read > .md-pre { max-width: 100%; }
 
-.bothy-files .md { color: var(--fg-muted); font-size: 14.5px; line-height: 1.65; }
+.bothy-files .md { color: var(--fg-muted); font-size: var(--read-fs); line-height: var(--read-lh); }
 .bothy-files .md .md-h { color: var(--fg); letter-spacing: -0.015em; line-height: 1.25; margin: 26px 0 10px; font-weight: 700; }
 .bothy-files .md > .md-h:first-child { margin-top: 0; }
-.bothy-files .md .md-h1 { font-size: 25px; font-weight: 800; }
-.bothy-files .md .md-h2 { font-size: 19px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-.bothy-files .md .md-h3 { font-size: 16px; }
-.bothy-files .md .md-h4, .bothy-files .md .md-h5, .bothy-files .md .md-h6 { font-size: 14px; color: var(--fg-muted); }
-.bothy-files .md .md-p { margin: 0 0 13px; }
-.bothy-files .md .md-list { margin: 0 0 13px; padding-left: 22px; }
+.bothy-files .md .md-h1 { font-size: var(--read-h1); font-weight: 800; }
+.bothy-files .md .md-h2 { font-size: var(--read-h2); padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.bothy-files .md .md-h3 { font-size: var(--read-h3); }
+.bothy-files .md .md-h4, .bothy-files .md .md-h5, .bothy-files .md .md-h6 { font-size: var(--read-h4); color: var(--fg-muted); }
+.bothy-files .md .md-p { margin: 0 0 var(--read-gap); }
+.bothy-files .md .md-list { margin: 0 0 var(--read-gap); padding-left: 22px; }
 .bothy-files .md .md-list li { margin: 3px 0; }
 .bothy-files .md .md-list .md-list { margin-bottom: 0; }
 .bothy-files .md .md-hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }

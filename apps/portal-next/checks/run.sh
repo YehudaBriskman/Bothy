@@ -38,8 +38,17 @@ mv "$OUT/contract.js" "$OUT/contract.mjs"
 (cd "$WEB" && npx tsc src/lib/customThemes.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
+# tree.ts is the one module here that is not import-free: it carries a TYPE-only
+# import, which tsc erases from the output but still uses to compute rootDir - so
+# this one lands at $OUT/pages/files/ rather than at the top. Moved rather than
+# forced with --rootDir, which makes tsc error on the very import it is about to
+# erase.
+(cd "$WEB" && npx tsc src/pages/files/tree.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
-   "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" "$OUT/"
+   "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
+   "$HERE/wikilinks.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -87,6 +96,13 @@ echo "── a theme dropped in by hand is read correctly ───────�
 # it decides which base palette the pre-paint script stamps, so a light theme
 # would render its first frame on the dark base.
 node "$OUT/user-themes.mjs"
+
+echo
+echo "── a wikilink finds the right document ─────────────────"
+# `[[dns]]` carries no directory and no extension, so resolving one is a SEARCH
+# with a precedence order. Get the order wrong and the failure is not an error -
+# it is a link that quietly opens the wrong note.
+node "$OUT/wikilinks.mjs"
 
 echo
 echo "── every colour comes from a token ─────────────────────"
