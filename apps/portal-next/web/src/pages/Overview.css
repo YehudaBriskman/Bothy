@@ -252,3 +252,26 @@
 @media (prefers-reduced-motion: reduce) {
   .ov-ql-item { transition: none; }
 }
+
+/* ── Bothy's own line ────────────────────────────────────────────────────────
+   Under the inventory, not in it. Quiet by construction: this row exists to be
+   available rather than noticed, because most of what it reports cannot fail in
+   a way you could read here. It gets loud only when it has something to say -
+   see the `bad` branch, which is the one case the row is worth having. */
+.ov-self {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 10px 0 0; padding: 0 2px;
+  font-size: 12.5px; color: var(--fg-subtle);
+}
+.ov-self-open {
+  appearance: none; border: 0; background: transparent; padding: 0; cursor: pointer;
+  font: inherit; font-weight: 600; color: var(--fg-muted);
+}
+.ov-self-open:hover { color: var(--fg); text-decoration: underline; }
+.ov-self-open:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--r-xs); }
+.ov-self-sep { color: var(--fg-subtle); opacity: .6; }
+.ov-self-note { font-style: italic; }
+/* A status colour here IS state - this is the row reporting a part that is not
+   running - which is the one use the reserved palette is for. */
+.ov-self-bad { display: inline-flex; align-items: center; gap: 6px; color: var(--st-down-fg); }
+.ov-self-bad svg { flex: none; }
