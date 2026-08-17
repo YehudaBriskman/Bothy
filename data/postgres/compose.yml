@@ -16,6 +16,12 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # Card title in Bothy's Overview, `Role · Vendor` - see edge/compose.yml.
+    # The shared database - Keycloak's schema lives here and projects borrow it -
+    # so a name implying the portal OWNED the data would be the wrong claim
+    # twice over.
+    labels:
+      - dev.portal.project=Database · Postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dev}"]
       interval: 10s

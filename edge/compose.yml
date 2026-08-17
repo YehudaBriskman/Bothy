@@ -26,6 +26,22 @@ services:
     image: traefik:v3.7
     container_name: traefik
     restart: unless-stopped
+    # The card title in Bothy's Overview, in the form `Role · Vendor`.
+    #
+    # NOT "Bothy Edge". The Bothy prefix is earned by AUTHORSHIP, not proximity:
+    # Bothy names what Bothy's code implements, and this is Traefik, which Bothy
+    # merely configures. The test is "if this breaks at 3am, whose documentation
+    # do you open?" - and it is not Bothy's.
+    #
+    # The ROLE is the durable half. When a part is replaced, the role survives and
+    # only the credit changes, which is exactly what you want from a name. The
+    # form is not invented here either: the Topology view has labelled the edge
+    # rack `Edge · Traefik` all along - this propagates it.
+    #
+    # One label per compose project names the whole project (projectNames() in
+    # apps/portal-next/web/src/lib/discover.ts).
+    labels:
+      - dev.portal.project=Edge · Traefik
     command:
       # Discover routes from container labels. exposedbydefault=false means a
       # container is invisible until it opts in with traefik.enable=true, so

@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ExternalLink, AlertTriangle, ArrowRight, HardDrive,
-  BookOpen, BarChart3, type LucideIcon,
+  FolderTree, BarChart3, type LucideIcon,
 } from 'lucide-react';
 import { usePortal, needsAttention, healthOf, expectedUp } from '../lib/data';
 import {
@@ -67,19 +67,27 @@ function Panel({
 // Borderless. Seven bordered tiles read as seven competing buttons and ate a
 // full-width row for a 15px label each; a navigation strip should recede.
 //
-// Matched by CONTAINER NAME and anchored to a PORT.
+// Matched by CONTAINER NAME and anchored to a PORT - except the first entry,
+// which is INTERNAL. Files is a route in this app, not a service on a port, so it
+// carries `to` instead of `port` and opens in the same tab. It leads the strip
+// because it is the one destination here that is Bothy's own.
 //
 // Both changed on 2026-08-12, when the *.dev.test name layer was retired. This
-// list used to match services by hostname and fall back to `hostUrl('docs.dev.test')`
+// list used to match services by hostname and fall back to a `hostUrl()` lookup
 // - so when the routers went away, `n.host` became null for everything, the
 // match failed, and the whole strip collapsed to the two hard-coded anchors.
 // The port is the durable identifier: it is what you actually type.
 //
 // `port` is the fallback only. A discovered container's own published port wins,
 // so if a service is ever moved the link follows it without editing this list.
-interface QuickItem { key: string; label: string; Icon?: LucideIcon; port?: number; primary?: boolean }
+interface QuickItem {
+  key: string; label: string; Icon?: LucideIcon; port?: number; primary?: boolean;
+  /** An in-app route. Mutually exclusive with `port`: this one is not a service
+   *  and has no container to discover, so it is never matched or falsified. */
+  to?: string;
+}
 const QUICK_ITEMS: QuickItem[] = [
-  { key: 'docs', label: 'Docs', Icon: BookOpen, port: 8085, primary: true },
+  { key: 'files', label: 'Files', Icon: FolderTree, to: '#/files', primary: true },
   { key: 'grafana', label: 'Grafana', Icon: BarChart3, port: 3000, primary: true },
   { key: 'prometheus', label: 'Prometheus', port: 9090 },
   { key: 'dozzle', label: 'Logs', port: 8080 },
@@ -94,6 +102,8 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
   const links = useMemo(
     () =>
       QUICK_ITEMS.map((item) => {
+        // An internal route needs no discovery and cannot be "gone".
+        if (item.to) return { ...item, node: undefined, url: item.to, status: null };
         const node = nodes.find(
           (n) =>
             n.browsable && n.url &&
@@ -121,13 +131,14 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
   );
   return (
     <nav className="ov-ql" aria-label="Quick links">
-      {links.map(({ key, label, Icon, url, status, node, primary }) => (
+      {links.map(({ key, label, Icon, url, status, node, primary, to }) => (
         <a
           key={key}
           className={`ov-ql-item ${primary ? 'is-primary' : ''}`}
           href={url!}
-          target="_blank"
-          rel="noopener noreferrer"
+          // An in-app route stays in this tab; a service on another port is a
+          // different origin and keeps opening in a new one.
+          {...(to ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
         >
           <span className="ov-ql-ico">
             {node ? <ServiceIcon node={node} size={15} />

@@ -18,6 +18,13 @@ services:
       # config + password file are gitignored; see their headers to regenerate.
       # The self-scrape job and the Grafana datasource carry these creds too.
       - --web.config.file=/etc/prometheus/web.yml
+    # Card title in Bothy's Overview, `Role · Vendor` - see edge/compose.yml.
+    # Credited to Grafana, though the project is four upstream products
+    # (Prometheus, Grafana, Loki, promtail) plus two exporters. The vendor slot
+    # names the one you OPEN; the others are its plumbing and are listed on the
+    # system's own page.
+    labels:
+      - dev.portal.project=Monitoring · Grafana
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus-web.yml:/etc/prometheus/web.yml:ro

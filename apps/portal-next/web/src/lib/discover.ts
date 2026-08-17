@@ -20,7 +20,7 @@ export const HOST_PORTS: Record<string, number> = {
   [BASE]: 80,
   [`grafana.${BASE}`]: 3000, [`prometheus.${BASE}`]: 9090,
   [`dozzle.${BASE}`]: 8080, [`kafka.${BASE}`]: 8081,
-  [`docs.${BASE}`]: 8085, [`portainer.${BASE}`]: 9000,
+  [`portainer.${BASE}`]: 9000,
   [`wiki.${BASE}`]: 3001,
   [`tilt.${BASE}`]: 10350, [`tilt.cvops.${BASE}`]: 10350,
   [`tals.${BASE}`]: 5173, [`api.tals.${BASE}`]: 3003,
@@ -33,10 +33,18 @@ export function hostUrl(host: string, path = ''): string | null {
   return `http://${location.hostname}${port === 80 ? '' : `:${port}`}${path}`;
 }
 const STACK_ROOT = '/home/devssh/stacks/';
-// 'portal' is the retired pure-HTML portal (still runs the socket-proxy);
-// 'portal-next' is the compose project serving dev.test today. Both are infra -
-// leaving portal-next out filed the portal itself under "Stack".
-const INFRA_PROJECTS = new Set(['edge', 'portal', 'portal-next']);
+// 'bothy' is this app itself - web tier, editor tier and socket-proxy, all one
+// compose project since 2026-08-16. It was three ('portal', 'portal-next',
+// 'portal-files'), which made Bothy render as three separate cards in its own
+// Overview, since a system IS a compose project.
+//
+// Bothy is infra, not stack: leaving it out files the thing you are looking at
+// under "Stack", next to the services it is meant to be describing.
+//
+// The old names stay listed. A container from a previous deployment keeps its
+// compose labels until it is recreated, and misfiling it for one poll is a
+// worse outcome than three dead strings.
+const INFRA_PROJECTS = new Set(['edge', 'bothy', 'portal', 'portal-next', 'portal-files']);
 
 // ── Wire types (the raw API shapes) ─────────────────────────────────────────
 
@@ -607,7 +615,19 @@ export function defaultName(
 
   let base = container?.Labels?.['com.docker.compose.service'];
   if (!base) base = n.leaf ?? undefined;
-  if (!base) base = (container?.Names?.[0] || '').replace(/^\//, '');
+  if (!base) {
+    const raw = (container?.Names?.[0] || '').replace(/^\//, '');
+    // A DOCKER-GENERATED name is not a name. With no `--name`, docker invents
+    // `adjective_surname` - and title-cased into the service column,
+    // `inspiring_dhawan` reads as something this box owns and somebody chose.
+    // The image is the honest answer: it says what the container actually is,
+    // which is the question the column is asking. Matched on the exact shape
+    // docker generates (two lowercase words, one underscore) so a real name that
+    // merely contains an underscore is untouched.
+    base = /^[a-z]+_[a-z]+$/.test(raw) && (container?.Image || '')
+      ? String(container?.Image).split('/').pop()!.split(':')[0]
+      : raw;
+  }
   if (!base) base = 'unknown';
   const title = titleCase(base);
 
@@ -889,7 +909,7 @@ export function merge(
   //
   // That reasoning died with the name layer on 2026-08-12. With no routers left,
   // "route OR port" collapsed to "port", and TEN running containers went
-  // invisible at once - promtail, docs-sync, postgres-exporter, oauth2-proxy,
+  // invisible at once - promtail, postgres-exporter, oauth2-proxy,
   // portal-socket-proxy, and `portal-next` ITSELF. The page could not see the
   // container serving it. It showed 16 services while 21 were running.
   //

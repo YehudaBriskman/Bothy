@@ -48,6 +48,12 @@ python3 checks/git_ops.py || fail=1
 echo; echo "── the undo net: an overwrite keeps what it destroyed ───────"
 python3 checks/snapshots.py || fail=1
 
+echo; echo "── search must not see what the explorer refuses to open ────"
+# The endpoint reads FILE CONTENT, so a deny-list miss here shows a secret's
+# LINE rather than merely its filename. Plants a token in three kinds of denied
+# file and requires that only the served one comes back.
+python3 checks/search_denied.py || fail=1
+
 echo; echo "── does anything SERVED look like a credential? ─────────────"
 # Baseline diff, not "fail on any hit" - the detector flags 40 files and the top
 # hits are .env.example and READMEs, so an absolute check would be noise nobody

@@ -134,8 +134,8 @@ export function dirName(p: string): string {
 // the one piece of the string that carries no information.
 //
 // Done in JS rather than in CSS on purpose. The CSS trick for a leading ellipsis
-// is `direction: rtl`, which also REORDERS the text ("apps/docs/" renders as
-// "/apps/docs", which looks like an absolute path and is a different claim), and
+// is `direction: rtl`, which also REORDERS the text ("apps/bothy/" renders as
+// "/apps/bothy", which looks like an absolute path and is a different claim), and
 // the usual fix for that, `unicode-bidi: plaintext`, resets the resolved
 // direction to LTR and puts the ellipsis back at the end - so the two
 // properties cancel out. Measured in Chromium: neither alone works, and together

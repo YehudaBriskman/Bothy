@@ -90,7 +90,6 @@ Grafana, Portainer, Dozzle, Kafka-UI, Prometheus (basic auth).
 | 8081 | Kafka-UI | unified dev login (LOGIN_FORM) |
 | 8082 | cAdvisor | 307 at / is normal |
 | 8084/8086/8091/8092 | keycloak / monorepo services | not portproxied |
-| 8085 | Docs (MkDocs) | replaced Wiki.js |
 | 9000 | Portainer | unified dev login (username = the email) |
 | 9090 | Prometheus | unified dev login (basic auth; unauth = 401); 302 → /query is normal |
 | 9100 / 3100 | node-exporter / Loki | Loki 404 at / is normal |

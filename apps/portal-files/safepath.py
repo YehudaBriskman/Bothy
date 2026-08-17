@@ -103,6 +103,12 @@ POLICY = _load_policy(POLICY_PATH)
 ROOTS: dict[str, str] = {k: v["path"] for k, v in POLICY["roots"].items()}
 WRITABLE_ROOTS = frozenset(
     k for k, v in POLICY["roots"].items() if v.get("writable") is True)
+# Roots that reach the SAME files as another root under a different name. Used by
+# anything that would otherwise visit one file twice - see searchable_roots() in
+# app.py. It cannot be computed from the paths in this process; policy.toml's
+# [roots.home] comment explains why.
+ALIAS_ROOTS = frozenset(
+    k for k, v in POLICY["roots"].items() if v.get("aliases") is True)
 ROOT_POLICY: dict[str, dict] = {
     k: {"deny_toplevel_dots": v.get("deny_toplevel_dots", False),
         "deny_toplevel": frozenset(v.get("deny_toplevel", []))}
