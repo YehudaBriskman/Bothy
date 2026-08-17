@@ -37,3 +37,7 @@ apps/portal-next/data/projects.json
 
 # Agent worktrees. Real git checkouts under the repo - never content of it.
 .claude/worktrees/
+
+# Reversible quarantine from /cleanup. Emptied by hand once the removals have
+# been lived with; never content of the repo.
+.cleanup-trash/

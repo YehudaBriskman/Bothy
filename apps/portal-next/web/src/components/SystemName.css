@@ -1,0 +1,139 @@
+/* ============================================================================
+   The rename form and its pending state.
+
+   Co-located with its component and taking only deltas on top of index.css -
+   .btn, .mono, .link, .panel and the type scale all come from there. No colour
+   below is a literal; every one is a token reference.
+
+   THE STATUS PALETTE APPEARS ONCE, on the drift block, and it is legal there for
+   the reason principles.md rule 1 gives: "the file says one thing and the
+   container says another" IS a state, the same family as `starting`, so --st-warn
+   is what it is for. The Save button beside it is chrome and takes the accent or
+   nothing - a coloured Save would spend the status palette on decoration and
+   amber would stop meaning "not settled yet" everywhere else on the page.
+   ========================================================================== */
+
+.sn { display: flex; flex-direction: column; gap: 14px; }
+
+.sn-h { margin: 0; font-size: 14px; font-weight: 700; color: var(--fg); }
+.sn-sub { margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--fg-muted);
+  text-transform: uppercase; letter-spacing: 0.04em; }
+.sn-note { margin: 0; font-size: 13px; line-height: 1.55; color: var(--fg-muted);
+  max-width: 68ch; }
+.sn-note.sn-inline { font-size: 12.5px; }
+
+/* ── the form ───────────────────────────────────────────────────────────────
+   One row on a wide page, stacked under 560px. The input takes the space
+   because the value is the content; the button is sized by its word. */
+.sn-form { display: flex; flex-direction: column; gap: 8px; }
+.sn-label { font-size: 12.5px; font-weight: 700; color: var(--fg-muted); }
+.sn-field { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+
+.sn-input {
+  flex: 1 1 260px; min-width: 0;
+  appearance: none; font: inherit; font-size: 14.5px; font-weight: 600;
+  color: var(--fg); background: var(--surface-2);
+  border: 1px solid var(--line-strong); border-radius: 10px;
+  padding: 9px 13px;
+}
+.sn-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px;
+  border-color: var(--accent); }
+/* readOnly rather than disabled: a disabled input is skipped by the keyboard, so
+   a reader tabbing this panel would never reach the value the sentence beneath
+   it is about. Same choice, for the same reason, as the aria-disabled verb rows
+   in ServiceActions.tsx. */
+.sn-input[readonly] { color: var(--fg-muted); background: var(--surface-1); cursor: default; }
+.sn-input[aria-invalid='true'] { border-color: color-mix(in oklab, var(--st-down) 55%, var(--line-strong)); }
+
+/* Save is disabled until the value differs from the file, so its resting state
+   is the disabled one and it has to LOOK like it. Without this it reads as a
+   live button that does nothing when pressed, which is how a form teaches
+   somebody that it is broken. */
+.sn-field .btn { flex: none; }
+.sn-field .btn:disabled { cursor: default; color: var(--fg-subtle);
+  background: transparent; border-color: var(--line); }
+
+.sn-hint { margin: 0; display: flex; gap: 7px; align-items: flex-start;
+  font-size: 12.5px; line-height: 1.5; color: var(--fg-subtle); }
+.sn-hint svg { flex: none; margin-top: 2px; }
+.sn-hint .mono { color: var(--fg-muted); }
+
+.sn-bad { margin: 0; font-size: 12.5px; line-height: 1.5;
+  color: var(--st-down-fg); max-width: 68ch; }
+
+/* ── the pending state ──────────────────────────────────────────────────────
+   An inset block rather than a banner across the panel: it is a fact about this
+   system's name, and it sits with the form that produced it. The left rule is
+   the only decoration, and it carries the state colour so the block is legible
+   as "not settled" before a word of it is read. */
+.sn-drift {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px; border-radius: var(--r-md);
+  background: var(--st-warn-bg);
+  border: 1px solid var(--st-warn-line);
+  border-left-width: 3px;
+}
+.sn-drift-h { margin: 0; display: flex; align-items: center; gap: 8px;
+  font-size: 13.5px; font-weight: 700; color: var(--fg); }
+.sn-drift-h svg { flex: none; color: var(--st-warn); }
+
+/* Declared against observed, in the collector's own vocabulary. A two-column
+   grid so the two values line up and the difference is the thing you see; it
+   stacks under 480px, where a 96px label column would leave nothing for the
+   value. */
+.sn-vs { margin: 0; display: flex; flex-direction: column; gap: 7px; }
+.sn-vs > div { display: grid; grid-template-columns: 84px 1fr; gap: 12px; align-items: baseline; }
+.sn-vs dt { font-size: 12px; font-weight: 700; color: var(--fg-muted); }
+.sn-vs dd { margin: 0; min-width: 0; font-size: 13.5px; color: var(--fg);
+  overflow-wrap: anywhere; }
+.sn-val { font-weight: 700; }
+.sn-val-none { font-weight: 500; color: var(--fg-subtle); font-style: italic; }
+.sn-vs-src { font-size: 11.5px; color: var(--fg-subtle); }
+
+/* ── the command that actually applies it ─────────────────────────────────── */
+.sn-cmd {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: var(--r-sm);
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.sn-cmd code { flex: 1; min-width: 0; font-size: 12px; color: var(--fg);
+  /* Wraps rather than scrolls. A command you cannot see the end of is a command
+     you cannot check before pasting it into a shell on the box. */
+  overflow-wrap: anywhere; }
+.sn-copy {
+  flex: none; appearance: none; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--fg-muted); background: transparent;
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 5px 9px;
+}
+.sn-copy:hover { color: var(--fg); border-color: var(--fg-subtle); }
+
+.sn-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sn-row .btn { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ── outcomes and refusals ─────────────────────────────────────────────────── */
+.sn-out { display: flex; flex-direction: column; gap: 7px;
+  padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line); }
+.sn-out[data-ok='false'] {
+  border-color: color-mix(in oklab, var(--st-down) 30%, var(--line));
+}
+.sn-out-h { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--fg); }
+.sn-out .sn-vs { margin-top: 3px; }
+
+.sn-norole { display: flex; flex-direction: column; gap: 7px;
+  padding-top: 12px; border-top: 1px solid var(--line); }
+.sn-signin { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 3px; }
+
+@media (max-width: 560px) {
+  /* `.btn` is an inline-flex whose default justification is flex-start, so a
+     full-width one puts its word against the left edge and reads as a second
+     text field under the first. */
+  .sn-field .btn { width: 100%; justify-content: center; }
+}
+@media (max-width: 480px) {
+  .sn-vs > div { grid-template-columns: 1fr; gap: 2px; }
+  .sn-cmd { flex-direction: column; align-items: stretch; }
+  .sn-copy { align-self: flex-end; }
+}

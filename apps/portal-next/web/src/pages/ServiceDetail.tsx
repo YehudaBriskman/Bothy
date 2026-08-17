@@ -8,6 +8,7 @@ import { systemsOf } from '../lib/systems';
 import { accentVar } from '../lib/accents';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { systemLink, kindLabelOf, unknownReason } from '../lib/links';
+import { ActionCell } from '../components/ServiceActions';
 import './Detail.css';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -91,11 +92,19 @@ export function ServiceDetail() {
           </div>
           {why && <p className="detail-why">{why}</p>}
         </div>
-        {node.browsable && node.url && (
-          <a className="btn primary" href={node.url} target="_blank" rel="noopener noreferrer">
-            Open <ExternalLink size={15} />
-          </a>
-        )}
+        {/* The two things you can DO to a service, side by side in its header.
+            The action control lived only as a hover-revealed cell in the
+            Services table, which meant the page dedicated to one service - the
+            first place anyone looks for "stop this" - offered no way to act on
+            it at all. */}
+        <div className="detail-head-actions">
+          {node.browsable && node.url && (
+            <a className="btn primary" href={node.url} target="_blank" rel="noopener noreferrer">
+              Open <ExternalLink size={15} />
+            </a>
+          )}
+          <ActionCell node={node} />
+        </div>
       </motion.header>
 
       {desc && <p className="detail-lede">{desc}</p>}

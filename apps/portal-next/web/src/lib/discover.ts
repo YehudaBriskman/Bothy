@@ -8,30 +8,30 @@
 //
 // Either can die and the page still renders.
 
-export const BASE = 'dev.test';
+// ── The name layer is GONE, and so is the code that served it ───────────────
+//
+// Until 2026-08-17 this file opened with `BASE = 'the name layer'` and a HOST_PORTS
+// table mapping `a service hostname -> 3000`, `wiki.the name layer -> 3001` and so on,
+// plus a `hostUrl()` that looked a hostname up in it.
+//
+// Every one of those entries was unreachable. A node only carries a `host` when
+// a router's rule contains `Host(...)`, and the router table has held ZERO
+// Host rules since the name layer was deleted on 2026-08-12 - measured again
+// before this deletion, still zero. So the table could never be consulted, the
+// nesting convention it encoded (`a nested hostname` under `cvops`) could never
+// fire, and eight of its thirteen entries named services that have themselves
+// been retired since.
+//
+// It is deleted rather than kept "in case the names come back", which is the
+// rule this repo already paid to learn: dead configuration looks live, teaches
+// every new service the wrong pattern, and needs a caveat in every document.
+// If routing by name ever returns it will be designed against what exists then,
+// not resurrected from a table of ports that have moved.
+//
+// `host` survives as a FIELD, because it is derived honestly from a router's
+// rule and would be true again the moment anyone wrote one. What is gone is the
+// assumption that a host belongs to one specific namespace.
 
-// ── Pure-IP navigation (2026-08-08) ─────────────────────────────────────────
-// The *.dev.test names are dormant (custom DNS retired), so browsable URLs
-// navigate by PUBLISHED PORT on whichever host the portal was opened from -
-// tailnet IP, MagicDNS name, or localhost all work. A host with no entry here
-// has no published port and is not reachable (url: null). Keep in sync with
-// `just urls` and docs/kb/access.md.
-export const HOST_PORTS: Record<string, number> = {
-  [BASE]: 80,
-  [`grafana.${BASE}`]: 3000, [`prometheus.${BASE}`]: 9090,
-  [`dozzle.${BASE}`]: 8080, [`kafka.${BASE}`]: 8081,
-  [`portainer.${BASE}`]: 9000,
-  [`wiki.${BASE}`]: 3001,
-  [`tilt.${BASE}`]: 10350, [`tilt.cvops.${BASE}`]: 10350,
-  [`tals.${BASE}`]: 5173, [`api.tals.${BASE}`]: 3003,
-  [`auth.tals.${BASE}`]: 3002, [`algo.tals.${BASE}`]: 8000,
-};
-
-export function hostUrl(host: string, path = ''): string | null {
-  const port = HOST_PORTS[host];
-  if (port == null) return null;
-  return `http://${location.hostname}${port === 80 ? '' : `:${port}`}${path}`;
-}
 const STACK_ROOT = '/home/devssh/stacks/';
 // 'bothy' is this app itself - web tier, editor tier and socket-proxy, all one
 // compose project since 2026-08-16. It was three ('portal', 'portal-next',
@@ -438,8 +438,8 @@ export interface PortalNode {
   kind: Kind;
   name: string;
   host: string | null;
-  // Extra hostnames that resolve to this same backend. tilt.dev.test and
-  // tilt.cvops.dev.test are one `tilt up` on one port, not two services.
+  // Extra hostnames that resolve to this same backend. a host process and
+  // a nested host process are one `tilt up` on one port, not two services.
   aliases: string[];
   path: string;
   url: string | null;
@@ -534,20 +534,28 @@ export function extractHost(rule: unknown): string | null {
   return m[1];
 }
 
-// Where does a hostname sit in the dev.test hierarchy?
-//   dev.test            -> depth 0, the portal itself
-//   grafana.dev.test    -> depth 1, leaf 'grafana',  parent null
-//   s3.cvops.dev.test   -> depth 2, leaf 's3',       parent 'cvops'
+// Nesting is GONE with the namespace that gave it meaning.
+//
+// It read `a nested hostname` as "leaf s3, parent cvops" and used the parent as
+// the system a node belonged to - a genuinely good idea while a wildcard DNS
+// zone made the hierarchy free. With no Host rules there are no hostnames to
+// nest, so every call returned the same empty answer and the branches that
+// consumed it were dead weight in the join.
+//
+// Classification now falls through to `com.docker.compose.project.config_files`
+// alone, which is what has actually decided it for months.
+export interface Nesting {
+  depth: number | null;
+  parent: string | null;
+  leaf: string | null;
+}
+const NO_NESTING: Nesting = { depth: null, parent: null, leaf: null };
+
+/** Retained so a hostname that IS set still yields its own leaf - a router with
+ *  a Host rule should still be nameable - but it no longer assumes a base
+ *  domain, and so can no longer report a parent. */
 export function nest(host: string | null): Nesting {
-  if (!host) return { depth: null, parent: null, leaf: null };
-  if (host === BASE) return { depth: 0, parent: null, leaf: null };
-  if (!host.endsWith('.' + BASE)) return { depth: null, parent: null, leaf: host };
-  const labels = host.slice(0, -(BASE.length + 1)).split('.');
-  return {
-    depth: labels.length,
-    leaf: labels[0],
-    parent: labels.length > 1 ? labels[labels.length - 1] : null,
-  };
+  return host ? { depth: null, parent: null, leaf: host } : NO_NESTING;
 }
 
 // ── Pure: classification ────────────────────────────────────────────────────
@@ -653,7 +661,7 @@ export function defaultName(
   if (!base) base = 'unknown';
   const title = titleCase(base);
 
-  // Routed under a project: s3.cvops.dev.test -> "CVOps · S3"
+  // Routed under a project: a nested hostname -> "CVOps · S3"
   if (n.parent) return `${nice(n.parent)} · ${title}`;
   // Unrouted but owned by a project: cvops-postgres-1 -> "CVOps · Postgres",
   // so it can't be confused with the stack's own Postgres in another panel.
@@ -708,7 +716,7 @@ export function containerUrl(container?: Container | null, path = ''): string | 
 /**
  * Can a browser open this?
  *
- * REWRITTEN 2026-08-12, when the `*.dev.test` name layer was retired. This used
+ * REWRITTEN 2026-08-12, when the `the name layer` name layer was retired. This used
  * to be `if (!host) return false` - browsability was a property of having a
  * Traefik hostname. Deleting the routers therefore made every service on the box
  * unbrowsable at once: the portal still listed them, but every "open" link
@@ -849,7 +857,7 @@ export function merge(
   // Pass 1 - everything Traefik routes.
   //
   // Resolve every routable router first, THEN collapse: two routers can name the
-  // same backend service (tilt.dev.test and tilt.cvops.dev.test are one `tilt up`
+  // same backend service (a host process and a nested host process are one `tilt up`
   // holding one fixed port), and that is one service with two names. Emitting it
   // twice double-counts it in the header total, in Needs attention and in the UI
   // lists, and forces a guess about which project owns it - the portal must not
@@ -900,7 +908,7 @@ export function merge(
   }
 
   for (const group of bySvc.values()) {
-    // Canonical = the shallowest hostname, so the flat `tilt.dev.test` wins over
+    // Canonical = the shallowest hostname, so the flat `a host process` wins over
     // the project-scoped alias rather than the other way round. Alphabetical
     // tie-break keeps the choice stable across polls.
     const sorted = group.slice().sort((a, b) => {
@@ -1002,17 +1010,18 @@ function makeNode({
     host: host || null,
     aliases,
     path,
-    // The container's own published port FIRST. `hostUrl` is a lookup keyed by
-    // *.dev.test hostname, and those names are retired - it survives only for
-    // the handful of host processes that have a known port but no container.
-    url: browsable ? (containerUrl(container, path) ?? (host ? hostUrl(host, path) : null)) : null,
+    // The container's own published port, and nothing else. The old fallback
+    // looked the hostname up in a table of the name layer names; with that table
+    // gone, a browsable node with no published port has no URL, which is the
+    // truth rather than a guess.
+    url: browsable ? containerUrl(container, path) : null,
     browsable,
     // hostname nesting BEATS config_files: it's what puts cvops-tilt@file (no
     // container at all) in the CVOps panel. Makes the DNS convention load-bearing.
     //
-    // A depth-1 host process (tals.dev.test) has no parent, so it used to fall
+    // A depth-1 host process (tals.the name layer) has no parent, so it used to fall
     // through to classify()'s 'host' sentinel - which filed Tals' own front-end
-    // under a fabricated system, separate from api/auth/algo.tals.dev.test. Its
+    // under a fabricated system, separate from api/auth/algo.tals.the name layer. Its
     // leaf IS its system name, so use that.
     group,
     groupTitle: names.get(group) || RESIDUE_TITLES[group] || titleCase(group),
@@ -1122,7 +1131,7 @@ export function allPorts(containers: Container[] = []): PortRow[] {
 // @file routers have no container to label, so overrides live here. Two entries
 // isn't a config system. If this reaches ~8, promote it to a fetched portal.json.
 export const HOST_OVERRIDES: Record<string, { icon: string; desc: string }> = {
-  'tilt.cvops.dev.test': {
+  'a nested host process': {
     icon: '🔧',
     desc: 'Build logs, resource status and manual triggers for the CVOps dev loop. Needs `tilt up --host=0.0.0.0`.',
   },
@@ -1130,8 +1139,18 @@ export const HOST_OVERRIDES: Record<string, { icon: string; desc: string }> = {
 
 // Last-resort floor: shown only if BOTH APIs are unreachable. This is the page
 // you open when things are broken, so it must never be blank.
-export const KNOWN_HOSTS: [string, string][] = [
-  ['dev.test', 'Portal'], ['grafana.dev.test', 'Grafana'], ['prometheus.dev.test', 'Prometheus'],
-  ['dozzle.dev.test', 'Dozzle'], ['portainer.dev.test', 'Portainer'], ['kafka.dev.test', 'Kafka UI'],
-  ['wiki.dev.test', 'Wiki.js'], ['traefik.dev.test', 'Traefik'], ['cvops.dev.test', 'CVOps'],
+// The last-resort floor: shown only when BOTH APIs are unreachable, which is to
+// say on the page you open when the box is broken.
+//
+// IT LINKED TO NINE the name layer NAMES UNTIL 2026-08-17. That is the worst place
+// on the box for a dead link - the one screen whose entire job is to work when
+// nothing else does was offering nine addresses that have not resolved since
+// August, two of them (Kafka UI, Wiki.js) for services that no longer exist.
+//
+// Ports, not names, and built against `location.hostname` so the links work from
+// whichever address the reader actually typed. Only things that run: this is a
+// floor, and a floor with a hole in it is worse than a bare one.
+export const KNOWN_SERVICES: [string, number][] = [
+  ['Grafana', 3000], ['Prometheus', 9090], ['cAdvisor', 8082],
+  ['Keycloak', 8090], ['Loki', 3100],
 ];

@@ -31,6 +31,13 @@ network:
     # taught applies with a higher stake - it authenticates nobody, and the
     # network is what stands in for that.
     -docker network create confignet 2>/dev/null || true
+    # controlnet / controlsocknet: the action tier, and the reason it is TWO
+    # networks rather than one holding three. traefik must not be ABLE to reach a
+    # proxy that can mutate containers - only bothy-control may - so the edge
+    # meets the service on one network and the service meets its proxies on
+    # another. Each holds exactly two members.
+    -docker network create controlnet 2>/dev/null || true
+    -docker network create controlsocknet 2>/dev/null || true
     # socketnet holds exactly two containers: traefik + portal-socket-proxy.
     # docker-socket-proxy has NO auth, so network reachability IS authorisation -
     # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
@@ -128,6 +135,10 @@ up-apps: network
     # than none at all.
     mkdir -p ~/.local/state/bothy/config-trash
     docker compose -f apps/bothy-config/compose.yml up -d
+    # The action tier. Its routes require the `operator` role, and oauth2-proxy
+    # fails CLOSED on a group nobody holds - so shipping this before the role
+    # exists refuses everybody rather than admitting everybody.
+    docker compose -f apps/bothy-control/compose.yml up -d
 
 # Stop everything (keeps volumes/data)
 down:
@@ -135,6 +146,7 @@ down:
     -docker compose -f edge/compose.yml down
     -docker compose {{BOTHY}} down
     -docker compose -f apps/bothy-config/compose.yml down
+    -docker compose -f apps/bothy-control/compose.yml down
     # apps/wiki is superseded but never deleted: its content lives in a `wiki`
     # database this cannot recreate. Kept so an older deployment still gets
     # cleaned up.
@@ -158,6 +170,7 @@ nuke:
     -docker compose -f edge/compose.yml down -v
     -docker compose {{BOTHY}} down -v
     -docker compose -f apps/bothy-config/compose.yml down -v
+    -docker compose -f apps/bothy-control/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
     # retired 2026-08-12 and their volumes already deleted, so `-v` here is a
@@ -218,7 +231,7 @@ portal-prom-route:
 # Print access URLs. Pure-IP-over-tailscale model: every service has a published
 # host port on this node's tailnet IP.
 #
-# Traefik Host-name routing (*.dev.test) is DELETED as of 2026-08-12 - not
+# Traefik Host-name routing is DELETED - not
 # dormant, not waiting on a DNS layer. Zero Host() rules remain in the router
 # table. A new service publishes a port; it does not declare a name.
 urls:
@@ -235,9 +248,7 @@ urls:
     echo "  Stack services:"
     echo "    Grafana       http://$IP:3000         (unified dev login)"
     echo "    Prometheus    http://$IP:9090"
-    echo "    Dozzle        http://$IP:8080         (live container logs)"
     echo "    cAdvisor      http://$IP:8082"
-    echo "    Portainer     http://$IP:9000         (unified dev login)"
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
     echo "    Keycloak      http://$IP:8090/admin   (identity - admin / shared dev login)"
@@ -248,6 +259,19 @@ urls:
     echo "                                            SVG/PDF served here cannot touch"
     echo "                                            the portal session. Nothing else"
     echo "                                            may be routed to :8100.)"
+    echo ""
+    echo "  Retired 2026-08-17 - stopped, not deleted. Bothy Control replaced them:"
+    echo "    Portainer     (was :9000)   start/stop/restart is Control now"
+    echo "    Dozzle        (was :8080)   logs are on each service page, from Loki,"
+    echo "                                which also keeps them after a container is gone"
+    echo "      WHAT YOU LOSE, said plainly rather than discovered later:"
+    echo "        · a shell in the browser. Bothy Control does exec deliberately"
+    echo "          NEVER - that is root on this box. Use Tailscale SSH:"
+    echo "            ssh devssh@$HOST   then   docker exec -it <name> sh"
+    echo "        · image, volume and network management. Those are docker CLI."
+    echo "        · a true streaming tail. Bothy polls Loki on a range instead."
+    echo "      Both come back with their content and settings intact:"
+    echo "        docker compose -f mgmt/compose.yml up -d"
     echo ""
     echo "  Not running right now - nothing was deleted, both come back:"
     echo "    Wiki.js       http://$IP:3001"
@@ -289,7 +313,7 @@ urls:
     echo "  Logins: one unified dev login everywhere a login exists - username is"
     echo "  the owner gmail, password = DEV_LOGIN_PASSWORD in the gitignored .env."
     echo ""
-    echo "  Name-based routing (<name>.dev.test) and the Traefik dashboard were"
+    echo "  Name-based routing and the Traefik dashboard were"
     echo "  DELETED on 2026-08-12 - publish a port, never a Host() rule."
     echo "  Route data is still live at http://$IP/-/api/traefik/http/routers"
     echo ""
