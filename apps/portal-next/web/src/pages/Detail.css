@@ -25,6 +25,14 @@
   overflow-wrap: anywhere; }
 .detail-head-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 
+/* The file says one thing and the running container says another. Amber because
+   that is what --st-warn means everywhere else on this box - "meant to settle
+   and has not yet" - and one line rather than a banner, because the panel that
+   explains it is on the same page and a second copy of the explanation is a
+   second thing that can go stale. */
+.detail-drift { margin: 7px 0 0; font-size: 13px; line-height: 1.5; color: var(--st-warn);
+  max-width: 68ch; }
+
 /* status pill - reuses StatusIcon's coloured glyph+label, framed by the reserved
    status hue (form + label, never colour alone). */
 .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px;
