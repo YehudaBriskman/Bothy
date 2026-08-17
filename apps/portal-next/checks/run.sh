@@ -63,6 +63,13 @@ for (const [k, v] of Object.entries(n)) console.log(\`  \${k.padEnd(9)} \${v.len
 "
 
 echo
+echo "── every theme keeps the palette's contract ────────────"
+# Reads index.css, shell.css and src/themes/*.css directly. Runs against the two
+# SHIPPED palettes as well as the named themes, on purpose: a rule that fails on
+# Bothy's own colours is a wrong rule, and this is where that gets found out.
+node "$HERE/theme-contract.mjs"
+
+echo
 echo "── every colour comes from a token ─────────────────────"
 # Reads the source tree directly - no compile step, because it is looking at the
 # text rather than at behaviour. Runs regardless of whether there is a build.

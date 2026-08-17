@@ -23,6 +23,7 @@
 import { Ban, Circle, CircleCheck, LogIn } from 'lucide-react';
 import { ROLES, ROLE_MEANING, signInHref, type Me, type Role } from '../lib/me';
 import { useMe } from '../components/UserMenu';
+import { useTheme } from '../lib/theme';
 import { Skeleton } from '../components/states';
 import './Settings.css';
 
@@ -40,6 +41,18 @@ export function Settings() {
 
       {loading ? <Skeleton variant="panels" /> : me ? <You me={me} /> : <SignedOut />}
 
+      {/* Appearance is the ONE control on this page, and it is here because the
+          topbar button stopped being able to express the choice. A cycle button
+          works for two states; with a registry of themes behind it, cycling to
+          get back to where you started is the whole interaction. The button
+          stays as the quick dark/light/system toggle, and the list lives here.
+
+          It is not a contradiction of the read-only rule. That rule is about a
+          SERVER-side preference store - a write path, an audit trail, a
+          boundary. This writes one key to localStorage in this browser, which is
+          the same thing the topbar button has always done. */}
+      <Appearance />
+
       {/* Both of these are statements about the box, not about the visitor, so
           they render whether or not there is a session to describe. Someone
           signed out is the reader most likely to want to know where the sign-in
@@ -47,6 +60,71 @@ export function Settings() {
       <Session />
       <Storage />
     </div>
+  );
+}
+
+function Appearance() {
+  const { selection, theme, themes, setSelection } = useTheme();
+
+  // System first, then the themes. It is the only entry that is not a palette -
+  // it is a rule for picking one - so it gets said in words rather than given a
+  // swatch row that would imply it had colours of its own.
+  return (
+    <section className="panel">
+      <h2 className="panel-h">Appearance</h2>
+      <div className="panel-b">
+        <p className="set-lede">
+          Kept in this browser. The topbar button still toggles dark, light and system;
+          this is where the rest of them live.
+        </p>
+
+        <div className="theme-grid" role="radiogroup" aria-label="Theme">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={selection === 'system'}
+            className={`theme-card ${selection === 'system' ? 'is-on' : ''}`}
+            onClick={() => setSelection('system')}
+          >
+            <span className="theme-name">System</span>
+            <span className="theme-note">
+              Follow the desktop. Currently {theme.name.replace(/^Bothy /, '').toLowerCase()}.
+            </span>
+          </button>
+
+          {themes.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={selection === t.id}
+              className={`theme-card ${selection === t.id ? 'is-on' : ''}`}
+              onClick={() => setSelection(t.id)}
+            >
+              <span className="theme-name">{t.name}</span>
+              <span className="theme-note">{t.note}</span>
+              {/* The swatches are painted BY the theme they advertise, so a card
+                  cannot show colours the theme does not actually have.
+
+                  `--sw-N` with the real token as the FALLBACK, which resolves
+                  both cases in one expression: a theme file applies its whole
+                  palette to this subtree, so var(--accent) is already right and
+                  --sw-1 is undefined; the two built-ins live on :root only, so
+                  they supply --sw-1..5 instead (index.css, guarded by the
+                  contract check). Neither case needs the component to know
+                  which kind of theme it is rendering. */}
+              <span className="theme-swatch" data-bothy-theme={t.id} aria-hidden="true">
+                <i style={{ background: 'var(--sw-1, var(--accent))' }} />
+                <i style={{ background: 'var(--sw-2, var(--st-up))' }} />
+                <i style={{ background: 'var(--sw-3, var(--st-warn))' }} />
+                <i style={{ background: 'var(--sw-4, var(--st-down))' }} />
+                <i style={{ background: 'var(--sw-5, var(--a5))' }} />
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

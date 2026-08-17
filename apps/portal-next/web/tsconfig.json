@@ -4,8 +4,18 @@
   // "typecheck clean" claim made against that command was hollow; only
   // `npm run build` (which runs `tsc -b`) was ever catching anything.
   //
-  // The references stay, because `tsc -b` and the build depend on them. What
-  // changes is that `npx tsc --noEmit` now reports the truth instead of silence.
+  // The references stay, because `tsc -b` and the build depend on them.
+  //
+  // WHAT WAS ACTUALLY FIXED, corrected 2026-08-17: not the bare command. This
+  // note used to end "...what changes is that `npx tsc --noEmit` now reports the
+  // truth instead of silence", and that was never true - `"files": []` still
+  // makes it check nothing and exit 0, verified again by planting an error and
+  // watching it pass. What the fix added was the `typecheck` script and CI's
+  // `npx tsc -b --noEmit`, both of which do check.
+  //
+  // So: the working commands are `npm run typecheck` and `npm run build`.
+  // `npx tsc --noEmit` is still a lie, and a comment claiming it had been fixed
+  // is worse than no comment - it is what made a second person trust it.
   "files": [],
   "references": [
     { "path": "./tsconfig.app.json" },

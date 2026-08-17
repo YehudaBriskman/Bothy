@@ -27,12 +27,17 @@ const NAV = [
   { to: '/files', label: 'Files', Icon: FolderTree, end: false },
 ];
 
+// The topbar control stays a one-tap toggle over the two built-ins and System,
+// not a menu of every theme. Cycling through the whole list to get back to where
+// you started is the failure mode of putting a registry behind a single button;
+// the full picker lives in Settings, where choosing is the point.
 function ThemeToggle() {
-  const { theme, cycle } = useTheme();
-  const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const { selection, theme, cycle } = useTheme();
+  const Icon = selection === 'system' ? Monitor : theme.appearance === 'light' ? Sun : Moon;
+  const label = selection === 'system' ? `System, currently ${theme.name}` : theme.name;
   return (
-    <Tooltip label={`Theme: ${theme} - click to change`} align="end">
-      <button className="icon-btn" onClick={cycle} aria-label={`Theme: ${theme}. Click to change.`}>
+    <Tooltip label={`Theme: ${label} - click to change`} align="end">
+      <button className="icon-btn" onClick={cycle} aria-label={`Theme: ${label}. Click to change.`}>
         <Icon size={18} />
       </button>
     </Tooltip>

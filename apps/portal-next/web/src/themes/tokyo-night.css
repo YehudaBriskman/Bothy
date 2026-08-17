@@ -1,0 +1,150 @@
+/* ============================================================================
+   Tokyo Night - after the editor theme by enkia.
+
+   THE REFERENCE IMPLEMENTATION OF THE THEME FORMAT. Read this before writing
+   another one; everything the format requires is visible here, in order.
+
+   A theme declares all 41 of its own tokens and nothing else:
+
+     · NOT the 16 DERIVED tokens (--accent-bg, --st-*-bg, --st-*-line, --ring,
+       --track, the scrollbar thumbs). Those are color-mix() over the tokens
+       below, defined once in index.css and evaluated on the SAME element, so
+       they re-compute against whatever this file sets. Redeclaring one here
+       would be a copy that stops following its source.
+     · NOT the 16 STRUCTURAL tokens (radii, motion, fonts, widths). Those are
+       the product's shape, not its palette, and a theme that changed them would
+       be a different application wearing the same name.
+
+   The doubled attribute selector is not a typo. `:root[data-bothy-theme='x']`
+   ties with `:root[data-theme='light']` at 0,2,0, so which wins would depend on
+   emission order, and Vite hoists @import. Doubling takes it to 0,3,0 and makes
+   it deterministic from anywhere in the bundle. shell.css uses the same trick.
+
+   Every value below is checked by checks/theme-contract.mjs: text at >= 4.5:1 on
+   every ground it is painted on, the five accents legal against every status
+   (>= 45 degrees of hue from a chromatic one, >= 0.06 more chroma than a
+   near-grey one), the chart slots inside the dark lightness band and >= 3:1 on a
+   card. Run it before committing a palette; it is faster than looking.
+
+   WHERE THIS DEPARTS FROM UPSTREAM, and why. Tokyo Night's own palette is an
+   editor palette - it has no notion of a reserved status set, so several of its
+   signature colours sit exactly where this design system forbids chrome to be:
+
+     · Its green #9ece6a and red #f7768e are the status hues here. They are used
+       ONLY as --st-up and --st-down, never as an accent or a chart slot.
+     · Its cyan #7dcfff sits at H 224, which is --a1's slot, so the accents run
+       from it through the blues and violets to magenta - inside the single legal
+       120-degree window (208-328) that the status set leaves free.
+     · Its yellow #e0af68 is --st-warn and nothing else.
+
+   The rule bends the palette; the palette never bends the rule. That is the
+   whole reason the contract is a check and not a paragraph.
+   ========================================================================== */
+
+/* TWO SELECTORS, and both are load-bearing.
+
+   The `:root` one scores 0,3,0 and is what beats the base palettes on the
+   document element. The bare one scores 0,2,0 and exists so the palette can also
+   be applied to a SUBTREE - which the theme picker in Settings relies on to
+   paint each card's swatches in the theme it is advertising. Without it a
+   preview would have to hardcode five colours per theme, and a hardcoded
+   preview is the first thing to disagree with the palette it claims to show. */
+:root[data-bothy-theme='tokyo-night'][data-bothy-theme],
+[data-bothy-theme='tokyo-night'][data-bothy-theme] {
+  color-scheme: dark;
+
+  /* ── elevation ladder ──────────────────────────────────────────────────────
+     Tokyo Night's own backgrounds are #1a1b26 (normal) and #16161e (storm's
+     darker inset). Extended to four steps the way index.css does, because two
+     steps is what forces one-off mixes wherever a third is needed. */
+  --bg:        #1a1b26;
+  --bg-2:      #16161e;
+  --surface-1: #1f2233;
+  --surface-2: #24283b;
+  --surface-3: #2f334d;
+  --surface-4: #373b54;
+  /* The page wash. Kept far dimmer than a card so the elevation ladder still
+     reads as a ladder - a tinted, position-dependent backdrop is the one thing
+     index.css records as forbidden here. */
+  --bg-glow:   radial-gradient(60% 50% at 50% 0%, #2a2f4a 0%, transparent 70%);
+
+  /* ── foreground pairs ────────────────────────────────────────────────────── */
+  --fg:        #c0caf5;   /* 11.62 on surface-1 */
+  --fg-muted:  #a9b1d6;   /*  8.94 */
+  /* Upstream's comment grey (#565f89) measures 2.05 here - far below AA at the
+     11-12px sizes this token is used at. Lifted, exactly as index.css lifts
+     zinc-500 for the same reason. The original survives as --hl-com, where it
+     is a comment and is meant to recede. */
+  --fg-subtle: #8b93b8;   /*  5.34 */
+  --on-accent: #16161e;   /* text on a filled --accent */
+
+  --line:        rgb(192 202 245 / 11%);
+  --line-strong: rgb(192 202 245 / 19%);
+
+  /* ── accent (chrome only - never encodes state) ────────────────────────── */
+  --accent:      #7aa2f7;
+  --accent-2:    #5d80e6;
+  --accent-fg:   #9eb8ff;
+
+  /* ── chart series (chrome, never state) ──────────────────────────────────
+     Slot ORDER is part of what the contract validates - series are assigned
+     1,2,3... in order and never reordered or cycled - so these are listed in the
+     order they will be used, not in the order they look nicest as a row.
+
+     Every one of these is DARKER than the Tokyo Night colour it is named after.
+     Upstream's chart-ish hues sit at L 0.72-0.79 - they are editor foregrounds,
+     meant to sit on a dark editor background at full brightness - and the dark
+     band here has a 0.67 ceiling, because a series line that bright glares
+     against a card. Measured: the literal upstream set failed all five slots. */
+  --chart-1: #5b8ae6;   /* blue    L .643 */
+  --chart-2: #1f9fb8;   /* cyan    L .649 */
+  --chart-3: #c96a2a;   /* orange  L .624 */
+  --chart-4: #8f6ae0;   /* violet  L .616 */
+  --chart-5: #d94f6a;   /* rose    L .620 */
+
+  /* ── status (RESERVED - never used as chrome) ───────────────────────────── */
+  --st-up:      #9ece6a;  --st-up-fg:      #9ece6a;
+  --st-warn:    #e0af68;  --st-warn-fg:    #e0af68;
+  --st-down:    #f7768e;  --st-down-fg:    #f7768e;
+  --st-unknown: #545c7e;  --st-unknown-fg: #949dc6;  /* fg 5.48 on surface-2 */
+  --st-off:     #3b4261;  --st-off-fg:     #8890b5;  /* fg 4.65 - quieter than unknown */
+
+  /* ── panel accents (chrome only - never encode state) ─────────────────────
+     Five slots across the one legal window the status hues leave open
+     (208-328), spaced so no spine is louder than another. */
+  --a1: #2ac3de;  /* H 208 */
+  --a2: #7aa2f7;  /* H 248 */
+  --a3: #9d86f9;  /* H 276 */
+  --a4: #bb9af7;  /* H 296 */
+  --a5: #cf8ae0;  /* H 320 - 51 from --st-down; #e57ce0 was 41, inside the floor */
+
+  /* ── shadows ──────────────────────────────────────────────────────────────
+     Theme-specific recipes, never a hardcoded black: the drop is tuned to the
+     page it falls on, and the inset hairline is what stops a raised surface
+     reading as a flat rectangle. */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 42%), inset 0 1px 0 rgb(192 202 245 / 4%);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 46%), inset 0 1px 0 rgb(192 202 245 / 5%);
+  --shadow-lg: 0 18px 44px rgb(0 0 0 / 54%), inset 0 1px 0 rgb(192 202 245 / 6%);
+
+  /* ── scroll affordance ──────────────────────────────────────────────────── */
+  --scroll-shade: rgb(22 22 30 / 82%);
+  --hover-opacity: .9;
+}
+
+/* The five syntax tokens, on the same doubled-specificity idiom shell.css uses.
+   OPTIONAL for a theme - omitting them falls back to a set already checked for
+   this appearance - but a theme that restyles everything except the code in the
+   editor is a theme with a hole in it. These are close to upstream, which is
+   already built to keep keywords and strings out of the status hues. */
+:root[data-bothy-theme='tokyo-night'] .bothy-files.bothy-files {
+  /* Upstream's comment grey is #565f89, which measures 2.91 on this theme's
+     --bg-2. A comment is meant to recede, but it is still text you are expected
+     to be able to read, and 2.91 is not readable - it is decoration. Pointed at
+     --fg-subtle, which is the same decision index.css makes for its own
+     --hl-com, and which this theme has already lifted for exactly this reason. */
+  --hl-com: var(--fg-subtle);
+  --hl-kw:  #bb9af7;
+  --hl-str: #9ece6a;
+  --hl-num: #ff9e64;
+  --hl-key: #7dcfff;
+}
