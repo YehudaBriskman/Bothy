@@ -163,7 +163,11 @@ services:
     # filesnet added 2026-08-12 with the editor tier: it holds exactly two
     # containers, traefik and portal-files, so that a service with no auth of
     # its own is reachable only from the edge that authorises it.
-    networks: [devnet, socketnet, filesnet]
+    # confignet joins the same family as socketnet and filesnet: one network per
+    # thing that authenticates nobody, holding traefik and that thing only. The
+    # config tier can rewrite compose files and edge routes, so it is the highest
+    # stake of the three.
+    networks: [devnet, socketnet, filesnet, confignet]
 
 networks:
   devnet:
@@ -171,4 +175,6 @@ networks:
   socketnet:
     external: true
   filesnet:
+    external: true
+  confignet:
     external: true
