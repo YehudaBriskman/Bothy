@@ -12,7 +12,7 @@ instead of vanishing. After editing a real file, copy it back here.
 
 | Copy | Real location | Why it exists |
 |---|---|---|
-| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Wildcard `*.test` → this box's tailnet IP. **The name layer was DELETED on 2026-08-12, not parked** - zero `Host()` rules remain in Traefik's router table and access is pure IP:port, so restoring names is a rebuild, not a switch. **dnsmasq itself still runs and still matters** as the box's own resolver: `domain-needed` is what keeps bare dotless hostnames from hanging. See below. |
+| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Wildcard the name layer → this box's tailnet IP. **The name layer was DELETED on 2026-08-12, not parked** - zero `Host()` rules remain in Traefik's router table and access is pure IP:port, so restoring names is a rebuild, not a switch. **dnsmasq itself still runs and still matters** as the box's own resolver: `domain-needed` is what keeps bare dotless hostnames from hanging. See below. |
 | `docker/daemon.json` | `/etc/docker/daemon.json` | Log rotation (10m × 3) and `metrics-addr` on :9323, which `monitoring/prometheus.yml` scrapes as its `docker-daemon` job. Without it that target is permanently down. |
 | `wsl/wsl.conf` | `/etc/wsl.conf` (in the distro) | `systemd=true` - the reason `docker.service` can be enabled and every stack comes up with the distro. Also `generateResolvConf=false`. |
 | `wsl/wslconfig` | `C:\Users\devssh\.wslconfig` | Memory, CPU and nested virtualisation for the WSL VM. |
@@ -23,7 +23,7 @@ instead of vanishing. After editing a real file, copy it back here.
 
 ## dnsmasq stays, even though the names are gone
 
-The `*.test` name layer was **deleted** on 2026-08-12 - not parked, not dormant.
+the name layer was **deleted** on 2026-08-12 - not parked, not dormant.
 The tailnet split-DNS route had already been removed on 2026-08-08; four days
 later the Traefik `Host()` routers it fed were deleted too, leaving zero `Host()`
 rules on the box. Bringing names back therefore means re-adding the split-DNS

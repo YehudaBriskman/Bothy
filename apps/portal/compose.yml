@@ -1,46 +1,29 @@
 name: portal
 
-services:
-  portal:
-    image: nginx:alpine
-    container_name: portal
-    restart: unless-stopped
-    # No published port on purpose - Traefik (edge/compose.yml) owns :80 and
-    # routes here by Host. This container is now unreachable except through the
-    # edge, which is the point: it can never collide with another project again.
-    volumes:
-      - ./html:/usr/share/nginx/html:ro
-      # no-cache for the static assets so live edits show without a hard-refresh
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    labels:
-      # Superseded by apps/portal-next (the Vite+React rewrite), which now owns
-      # Host(dev.test) + the catch-all. This nginx no longer routes; the
-      # socket-proxy below still runs (the new portal needs it for /-/api/docker).
-      # To roll back: set this to true and stop portal-next.
-      - traefik.enable=false
+# WHAT THIS FILE IS NOW: the socket proxy, and nothing else.
+#
+# It used to also run the original pure-HTML portal on nginx, kept as a one-line
+# rollback after apps/portal-next replaced it (`traefik.enable=false`, roll back
+# by flipping it to true). That rollback was deleted on 2026-08-17 and the
+# reasoning is worth keeping, because "keep it, it costs nothing" is how it
+# survived this long:
+#
+#   · It cost 64 MB and a running container to serve nothing. Traefik has not
+#     routed to it since portal-next took the catch-all.
+#   · The rollback was a fiction. The HTML it served was written against
+#     hostnames that no longer resolve, and its
+#     portal.js carried its own copy of the name tables. Flipping the label
+#     would have restored a portal whose every link was dead, so the thing being
+#     "kept for safety" could not have been safely used.
+#   · It held ten references to the dead namespace, in a file nobody
+#     read because nobody served it.
+#
+# The directory keeps its name because the container it still owns is called
+# `portal-socket-proxy`, and renaming that means recreating the one container
+# the live portal cannot render without.
 
-      # The router labels that used to live here are GONE (2026-08-12), not
-      # commented out. They were already inert - `traefik.enable=false` above
-      # means the docker provider never created them - but they were also wrong
-      # twice over: they declared `Host(`dev.test`)` against a name layer that
-      # was retired the same day, and they referenced `sso-errors@file,sso@file`,
-      # middlewares that stopped existing when the SSO was parked on 2026-08-08.
-      #
-      # Leaving that behind would have been three kinds of misleading: a route
-      # for a dead name, protected by a middleware that does not exist, on a
-      # container that is switched off. If this service is ever un-retired it
-      # needs writing against the current model anyway - a published port, or the
-      # catch-all pattern that apps/portal-next now owns.
-      #
-      # THIS SERVICE STAYS DEFINED AND RUNNING regardless: it owns
-      # `portal-socket-proxy` below, which is what serves the live portal's
-      # read-only Docker API through edge/dynamic/portal-api.yml. Stopping this
-      # compose file breaks the Overview. See the justfile's up-apps comment.
-    deploy:
-      resources:
-        limits:
-          memory: 64m
-    networks: [devnet]
+
+services:
 
   # ── The portal's read-only view of Docker ────────────────────────────────
   # The portal page discovers what's running (ports, health, projects) instead
@@ -65,7 +48,7 @@ services:
   # What this exposes to the tailnet via /containers/json: container names,
   # images, ports, health, labels, Mounts (host paths) and Command (argv).
   # NOT Env. That's a home-dir-layout disclosure - acceptable on a personal
-  # tailnet, NOT acceptable if dev.test ever reaches beyond it.
+  # tailnet, NOT acceptable if this box ever reaches beyond it.
   #
   #  • SYSTEM=1 grants the /system family so the portal can read /system/df
   #    (per-image / per-container / per-volume disk usage - the "Data & disk"

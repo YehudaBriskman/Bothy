@@ -231,7 +231,7 @@ portal-prom-route:
 # Print access URLs. Pure-IP-over-tailscale model: every service has a published
 # host port on this node's tailnet IP.
 #
-# Traefik Host-name routing (*.dev.test) is DELETED as of 2026-08-12 - not
+# Traefik Host-name routing is DELETED - not
 # dormant, not waiting on a DNS layer. Zero Host() rules remain in the router
 # table. A new service publishes a port; it does not declare a name.
 urls:
@@ -302,7 +302,7 @@ urls:
     echo "  Logins: one unified dev login everywhere a login exists - username is"
     echo "  the owner gmail, password = DEV_LOGIN_PASSWORD in the gitignored .env."
     echo ""
-    echo "  Name-based routing (<name>.dev.test) and the Traefik dashboard were"
+    echo "  Name-based routing and the Traefik dashboard were"
     echo "  DELETED on 2026-08-12 - publish a port, never a Host() rule."
     echo "  Route data is still live at http://$IP/-/api/traefik/http/routers"
     echo ""

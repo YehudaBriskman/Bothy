@@ -8,7 +8,7 @@ _See [topology.md](topology.md) for what these machines are._
 ssh devssh@100.117.176.85          # or devssh@yehuda-wsl.tail7e7e3b.ts.net
 ```
 
-_(`devssh@dev.test` worked until 2026-08-08 and is now resolvable only from the box
+_(`devssh@the name layer` worked until 2026-08-08 and is now resolvable only from the box
 itself - use the IP or the MagicDNS name.)_
 
 Lands in `~/stacks`. Rules that are not obvious:
@@ -21,7 +21,7 @@ Lands in `~/stacks`. Rules that are not obvious:
   including `yr055` - fails with `unknown user` at user lookup. This burned us 2026-08-02
   at 17:55: it looks like a server problem, it's a typo.
 - The client must be **on the tailnet with a working tunnel**. (Before 2026-08-08 a
-  failing `dev.test` lookup was the first symptom of that; names are retired now, so
+  failing the name layer lookup was the first symptom of that; names are retired now, so
   probe the IP instead - [runbook-cant-reach.md](runbook-cant-reach.md).)
 - **Check-mode appeared in the SSH policy by 2026-08-08** (contradicting the 08-02
   check): a session may print `# To authenticate, visit: https://login.tailscale.com/a/…`
@@ -69,7 +69,7 @@ Write the `.sh` with **LF endings** (`sed -i 's/\r$//'`) - CRLF breaks bash.
 **Rule:** "Access is denied" ≠ "does not exist". The postboot checker reported
 `TASK MISSING` for exactly this reason when run non-elevated.
 
-## Web access - pure IP:port (SSO parked; `*.dev.test` deleted 2026-08-12)
+## Web access - pure IP:port (SSO parked; the name layer deleted 2026-08-12)
 
 Canonical base: `http://100.117.176.85:<port>` (MagicDNS alias
 `yehuda-wsl.tail7e7e3b.ts.net:<port>` works too). Mirrors via Windows portproxy:

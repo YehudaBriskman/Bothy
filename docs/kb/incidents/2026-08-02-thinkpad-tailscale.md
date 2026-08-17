@@ -5,7 +5,7 @@
 `C:\Users\yr055\ts-log-copy\`.
 
 ## Symptom
-From the ThinkPad: `dev.test` stopped working, then SSH to the dev stack died and never
+From the ThinkPad: the name layer stopped working, then SSH to the dev stack died and never
 came back - while `tailscale status` on the laptop looked fine and everything worked from
 the PC. Looked exactly like a dev-box failure. It wasn't; the box was healthy throughout.
 
@@ -17,7 +17,7 @@ every `tailscale` command. The stale daemon left `tailscale0` **without its IPv4
 - Tunnel-internal checks all passed (disco pong, TSMP pong) → status green.
 - Every kernel-level packet died, both directions (inbound dropped; outbound hung because
   reply SYN-ACKs were dropped coming back).
-- `dev.test` broke first because `.test` DNS rides the same tunnel ([../dns.md](../dns.md)).
+- the name layer broke first because `.test` DNS rides the same tunnel ([../dns.md](../dns.md)).
 - `sudo tailscale down && up` did **not** help (same broken daemon).
 
 ## Fix

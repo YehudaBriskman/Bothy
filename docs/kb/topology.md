@@ -17,7 +17,7 @@ from yr055, running in its own utility VM, with its own Tailscale node *inside* 
 | `yehuda-thinkpad` | 100.108.35.26 | The Linux laptop | 2027-01-16 |
 | `iphone-14` | 100.101.204.32 | Phone (useful as an independent tailnet test client) | - |
 
-~~`dev.test` and `*.dev.test` all point at 100.117.176.85~~ **Retired** - dormant
+~~the name layer and the name layer all point at 100.117.176.85~~ **Retired** - dormant
 2026-08-08 (split-DNS route removed), **deleted 2026-08-12** (every Traefik `Host()`
 router removed). Access is IP:port on 100.117.176.85 (see [access.md](access.md));
 [dns.md](dns.md) records what survives and why restoring names is a rebuild.

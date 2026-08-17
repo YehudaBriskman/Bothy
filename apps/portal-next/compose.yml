@@ -1,7 +1,7 @@
 name: portal-next
 
 # Vite+React rewrite of the portal, served as a static build behind Traefik. It
-# is THE portal now (the pure-HTML apps/portal was retired). The *.dev.test name
+# is THE portal now (the pure-HTML apps/portal was retired). The the name layer name
 # layer is gone, so it is served on the bare tailnet IP - http://100.117.176.85/
 # - by the catch-all router below, which is the only route it has left.
 
@@ -22,7 +22,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.services.portal-next.loadbalancer.server.port=80
-      # ONE router, and it is the catch-all. The Host(`dev.test`) router that
+      # ONE router, and it is the catch-all. The Host(the name layer) router that
       # used to sit here was removed on 2026-08-12 with the rest of the name
       # layer: it matched a hostname that has not resolved since 2026-08-08, so
       # it was answering nothing.

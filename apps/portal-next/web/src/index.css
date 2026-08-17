@@ -545,7 +545,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   background: color-mix(in oklab, var(--bg) 78%, transparent); backdrop-filter: blur(14px); }
 
 /* ── brand ───────────────────────────────────────────────────────────────────
-   "dev.test / dev box" is gone. It named the box after a DNS name that has been
+   "an address, not a name" is gone. It named the box after a DNS name that has been
    dormant since 2026-08-08, so for anyone arriving on the tailnet IP - which is
    everyone, currently - the topbar stated an address that does not resolve.
    The wordmark is now the box's own name and the line under it is read from
