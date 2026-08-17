@@ -3,13 +3,13 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   LayoutDashboard, Gauge, FolderTree,
-  Search, RefreshCw, Moon, Sun, Monitor,
+  Search, RefreshCw,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
-import { useTheme } from '../lib/theme';
 import { freshnessOf } from '../lib/freshness';
 import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
 import { Tooltip } from './Tooltip';
+import { ThemeMenu } from './ThemeMenu';
 import { Brand } from './Brand';
 import { CommandPalette } from './CommandPalette';
 import { UserMenu } from './UserMenu';
@@ -26,23 +26,6 @@ const NAV = [
   { to: '/control', label: 'Control', Icon: Gauge, end: false },
   { to: '/files', label: 'Files', Icon: FolderTree, end: false },
 ];
-
-// The topbar control stays a one-tap toggle over the two built-ins and System,
-// not a menu of every theme. Cycling through the whole list to get back to where
-// you started is the failure mode of putting a registry behind a single button;
-// the full picker lives in Settings, where choosing is the point.
-function ThemeToggle() {
-  const { selection, theme, cycle } = useTheme();
-  const Icon = selection === 'system' ? Monitor : theme.appearance === 'light' ? Sun : Moon;
-  const label = selection === 'system' ? `System, currently ${theme.name}` : theme.name;
-  return (
-    <Tooltip label={`Theme: ${label} - click to change`} align="end">
-      <button className="icon-btn" onClick={cycle} aria-label={`Theme: ${label}. Click to change.`}>
-        <Icon size={18} />
-      </button>
-    </Tooltip>
-  );
-}
 
 export function AppShell() {
   const { data, refresh } = usePortal();
@@ -197,7 +180,7 @@ export function AppShell() {
             <RefreshCw size={18} className={spin ? 'spin' : undefined} />
           </button>
         </Tooltip>
-        <ThemeToggle />
+        <ThemeMenu />
         {/* Last in the right cluster, and the only entry point to /settings -
             which is why it is not a nav slot. */}
         <UserMenu />

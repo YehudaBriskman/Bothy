@@ -1,0 +1,63 @@
+/* ============================================================================
+   The theme picker's shared parts: the swatch, and swatch-only palettes for the
+   two built-in themes.
+
+   IT LIVES IN themes/ ON PURPOSE. This file DEFINES colour values, which makes
+   it a palette definition site like index.css and the theme files beside it -
+   not a component stylesheet that happens to contain hexes. It sat in
+   Settings.css for one commit and broke checks/stray-colour.mjs, which was
+   right to complain: a component file with ten literals in it is exactly the
+   thing that check exists to catch.
+
+   It is glob-imported with the themes by main.tsx, so it needs no import of its
+   own, and both places that draw a swatch - the Settings picker and the topbar
+   menu - get it without either owning it.
+   ========================================================================== */
+
+.theme-swatch { display: flex; gap: 4px; margin-top: 3px; }
+.theme-swatch i {
+  width: 18px;
+  height: 8px;
+  border-radius: var(--r-xs);
+  /* An outline rather than a border, so the swatch keeps its measured size and
+     a near-background colour (a light theme's surface, a stopped grey) still
+     reads as a chip rather than dissolving into the card. */
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+}
+
+/* ── swatch palettes for the theme picker ───────────────────────────────────
+   The two built-in palettes above live on :root, because that is where a theme
+   is applied. The picker in Settings needs them on a SUBTREE as well, so a card
+   can paint its own five swatches in the theme it is advertising rather than in
+   whatever theme happens to be active.
+
+   A theme FILE solves this by declaring both selectors (see src/themes/*.css).
+   The built-ins cannot: their palettes are the :root blocks at the top of this
+   file, and repeating 41 tokens twice to make them subtree-applicable would be
+   the duplication the token model exists to prevent.
+
+   So this repeats FIVE values, and checks/theme-contract.mjs asserts each one
+   still equals the token it previews. Five guarded copies beat eighty-two
+   unguarded ones, and the guard is what makes it a cache rather than a fork.
+
+   SCOPED TO .theme-swatch, and that is not tidiness. Unscoped, these matched
+   the ROOT element - which carries data-bothy-theme too - so --sw-1..5 were
+   inherited by the whole document and shadowed the `var(--sw-1, var(--accent))`
+   fallback everywhere, including inside the cards for OTHER themes. Every
+   swatch on the page painted the active theme's colours while looking
+   entirely correct. */
+.theme-swatch[data-bothy-theme='bothy-dark'] {
+  --sw-1: #60a5fa;  /* --accent  */
+  --sw-2: #34d399;  /* --st-up   */
+  --sw-3: #fbbf24;  /* --st-warn */
+  --sw-4: #fb7185;  /* --st-down */
+  --sw-5: #e169fc;  /* --a5      */
+}
+.theme-swatch[data-bothy-theme='bothy-light'] {
+  --sw-1: #2563eb;  /* --accent  */
+  --sw-2: #10b981;  /* --st-up   */
+  --sw-3: #d97706;  /* --st-warn */
+  --sw-4: #e11d48;  /* --st-down */
+  --sw-5: #b921d6;  /* --a5      */
+}

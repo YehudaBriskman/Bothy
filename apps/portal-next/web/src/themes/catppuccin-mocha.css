@@ -1,0 +1,82 @@
+/* ============================================================================
+   Catppuccin Mocha - after the palette by the Catppuccin project.
+
+   See tokyo-night.css for what the format requires and why the selector is
+   doubled; this file only records where it departs from upstream.
+
+   Catppuccin ships a 26-colour palette with no notion of a reserved status set,
+   so the departures are the same shape as every port's:
+
+     · green, yellow and red become --st-up / --st-warn / --st-down and appear
+       nowhere else. Teal and peach are close enough to those hues to be
+       unusable as chrome, so they are not used at all.
+     · The accents run sapphire -> blue -> lavender -> mauve -> pink, which is
+       the part of Catppuccin that happens to sit inside the one legal window
+       (208-328) the status hues leave open.
+     · Every chart slot is darkened. Catppuccin is a pastel palette - its colours
+       sit high in lightness by design - and the dark band ends at L 0.67.
+   ========================================================================== */
+
+:root[data-bothy-theme='catppuccin-mocha'][data-bothy-theme],
+[data-bothy-theme='catppuccin-mocha'][data-bothy-theme] {
+  color-scheme: dark;
+
+  /* base / mantle / crust, extended to the four-step ladder. Upstream's
+     surface0..2 are the top three steps; the lower two are interpolated,
+     because Catppuccin's own base-to-surface0 jump is larger than this ladder
+     wants between a page and a card. */
+  --bg:        #1e1e2e;
+  --bg-2:      #181825;
+  --surface-1: #252539;
+  --surface-2: #2b2b40;
+  --surface-3: #313244;
+  --surface-4: #3a3a52;
+  --bg-glow:   radial-gradient(60% 50% at 50% 0%, #302f4a 0%, transparent 70%);
+
+  --fg:        #cdd6f4;
+  --fg-muted:  #a6adc8;
+  /* overlay1 (#7f849c) measures below AA at the 11-12px sizes this is used at,
+     so subtext-ward. Same lift index.css applies to zinc-500. */
+  --fg-subtle: #939ab7;
+  --on-accent: #181825;
+
+  --line:        rgb(205 214 244 / 11%);
+  --line-strong: rgb(205 214 244 / 19%);
+
+  --accent:      #89b4fa;
+  --accent-2:    #6a9bf0;
+  --accent-fg:   #a9c8ff;
+
+  --chart-1: #5b8ae6;
+  --chart-2: #2f97ab;
+  --chart-3: #c1702f;
+  --chart-4: #8f6ae0;
+  --chart-5: #d4547c;
+
+  --st-up:      #a6e3a1;  --st-up-fg:      #a6e3a1;
+  --st-warn:    #f9e2af;  --st-warn-fg:    #f9e2af;
+  --st-down:    #f38ba8;  --st-down-fg:    #f38ba8;
+  --st-unknown: #585b70;  --st-unknown-fg: #9ca3bd;
+  --st-off:     #45475a;  --st-off-fg:     #8d94ae;
+
+  --a1: #74c7ec;
+  --a2: #89b4fa;
+  --a3: #aab4fe;  /* lavender, chroma raised to clear the near-grey statuses by 0.06 */
+  --a4: #cba6f7;
+  --a5: #d69ef1;  /* moved off --st-down's hue: 32 degrees was inside the 45 floor */
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%), inset 0 1px 0 rgb(205 214 244 / 4%);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 44%), inset 0 1px 0 rgb(205 214 244 / 5%);
+  --shadow-lg: 0 18px 44px rgb(0 0 0 / 52%), inset 0 1px 0 rgb(205 214 244 / 6%);
+
+  --scroll-shade: rgb(24 24 37 / 82%);
+  --hover-opacity: .9;
+}
+
+:root[data-bothy-theme='catppuccin-mocha'] .bothy-files.bothy-files {
+  --hl-com: var(--fg-subtle);
+  --hl-kw:  #cba6f7;
+  --hl-str: #a6e3a1;
+  --hl-num: #fab387;
+  --hl-key: #89dceb;
+}
