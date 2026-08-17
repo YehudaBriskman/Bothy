@@ -14,25 +14,53 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <!-- Two values, one per scheme: this paints the browser/OS chrome around
-         the page (Android address bar, iOS status bar in standalone mode), so a
-         single dark value put white text on a white bar for light-mode users. -->
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <!-- Paints the browser/OS chrome around the page (Android address bar, iOS
+         status bar in standalone mode). One tag, rewritten at runtime from the
+         resolved --bg by lib/theme.tsx.
+
+         It used to be two tags keyed on prefers-color-scheme. That was already
+         wrong for anyone who had PINNED a theme against their OS - the page went
+         light and the address bar stayed dark - and it cannot express a named
+         theme at all. This value is only the pre-paint default. -->
+    <meta name="theme-color" content="#09090b" />
     <!-- Stamp the resolved theme BEFORE first paint. index.css carries one light
          palette keyed on [data-theme='light'] (no prefers-color-scheme copy to
          drift out of sync), so without this a 'system' user on a light desktop
          would see a dark frame until React mounted. Kept deliberately tiny and
-         duplicated from lib/theme.tsx - an import would defeat the purpose. -->
+         duplicated from lib/theme.tsx - an import would defeat the purpose.
+
+         IT DELIBERATELY CARRIES NO LIST OF THEMES. A named theme's appearance is
+         read back from localStorage, written there by the app when the theme was
+         chosen, so adding a theme never means editing this script - which is the
+         one edit that would also force the CSP hash in nginx.conf to be
+         regenerated. The two BUILT-IN ids are known here because they are the
+         base palettes in index.css itself, not because this is a registry.
+
+         Editing this script at all means updating that hash; checks/csp_hash.mjs
+         fails the build otherwise. -->
     <script>
       (function () {
+        var e = document.documentElement;
         try {
-          var t = localStorage.getItem('portal-theme') || 'dark';
-          if (t === 'system')
-            t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'dark');
+          var sel = localStorage.getItem('portal-theme') || 'bothy-dark';
+          if (sel === 'dark') sel = 'bothy-dark';
+          if (sel === 'light') sel = 'bothy-light';
+          var app;
+          if (sel === 'system') {
+            app = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            sel = app === 'dark' ? 'bothy-dark' : 'bothy-light';
+          } else if (sel === 'bothy-light') {
+            app = 'light';
+          } else if (sel === 'bothy-dark') {
+            app = 'dark';
+          } else {
+            app = localStorage.getItem('portal-theme-appearance') === 'light' ? 'light' : 'dark';
+          }
+          e.setAttribute('data-theme', app);
+          e.setAttribute('data-bothy-theme', sel);
+        } catch (err) {
+          e.setAttribute('data-theme', 'dark');
+          e.setAttribute('data-bothy-theme', 'bothy-dark');
         }
       })();
     </script>
