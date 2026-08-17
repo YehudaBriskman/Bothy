@@ -25,10 +25,11 @@ Traefik on `:80` serves the portal and its read-only data plane.
 2026-08-12). `*.dev.test` went dormant on 2026-08-08 when the split-DNS route
 was removed, and its configuration was **deleted on 2026-08-12**: Traefik holds
 zero `Host()` rules, and the Traefik dashboard router was deleted with them.
-Identity is being rebuilt on Keycloak + oauth2-proxy - the `sso@file` and
-`sso-errors@file` middlewares are **defined and attached to no router**, so
-**no request to this box is authenticated at the edge today**. Sections below
-that describe the SSO design describe what is being rebuilt, and say so.
+Identity was rebuilt on Keycloak + oauth2-proxy and **now enforces on the tier
+that can change things**: three routers carry a role requirement (`viewer` to read
+a file, `editor` to write one). Everything else is still reached without passing
+an edge auth boundary, so "SSO is running" must not be read as "everything is
+behind SSO".
 
 **Who can reach it.** Only devices on that tailnet. The tailnet is WireGuard, so
 the transport is encrypted even though every URL is plain `http://`. A device not
@@ -36,17 +37,20 @@ joined to the tailnet cannot route to the box at all; the Windows-host port
 mirrors bind `127.0.0.1` + the host's tailnet IP only, so nothing is exposed to
 the LAN or to the internet.
 
-**The current control, stated plainly.** With no edge auth, three things and
-nothing else stand between a tailnet device and the box:
+**The current control, stated plainly.** Four things stand between a tailnet
+device and the box, and edge auth covers only the last of them:
 
 | Control | Covers |
 |---|---|
 | The tailnet itself | Everything. It is the outer perimeter and, today, very nearly the only one |
-| Each service's own login, using the shared `DEV_LOGIN_*` credential | Grafana, Portainer, Dozzle, Kafka-UI, Prometheus |
+| Each service's own login, using the shared `DEV_LOGIN_*` credential | Grafana, Portainer, Dozzle, Prometheus |
+| Keycloak roles at the edge (`forwardAuth`) | The editor tier: `viewer` to read a file, `editor` to write one. The only place a role is enforced today |
 | The exact `Path()` rules in `edge/dynamic/portal-api.yml` and `portal-prom.yml` | The portal's data plane - the only reachable slice of the Docker socket, Loki, Prometheus and the Traefik API |
 
-The portal itself and the docs site have **no** login. That is accepted, not
-overlooked.
+The portal itself has **no** login for browsing its own pages. That is accepted,
+not overlooked - but note the asymmetry that is *not* accepted and has been
+closed: the file API underneath it requires `viewer` for every read and `editor`
+for every write, because its roots cover the whole home directory.
 
 **What is therefore in scope.**
 
@@ -69,9 +73,10 @@ overlooked.
   and disk sizes, plus every Prometheus metric and label value. That is
   home-directory-layout disclosure, judged acceptable on a personal tailnet -
   and **not** acceptable the moment the box reaches beyond one.
-- The absence of edge authentication as of 2026-08-12. It is a known,
-  time-boxed state while identity is rebuilt, recorded under
-  [Accepted risks](#accepted-risks) - not a finding.
+- The absence of edge authentication on the **dashboards** (Grafana, Portainer,
+  Dozzle, Prometheus). Each carries its own login; putting them behind the edge is
+  planned, recorded under [Accepted risks](#accepted-risks) - not a finding. A
+  *regression* on the editor tier, which is enforced, very much is one.
 
 **If you fork this and expose it beyond a private tailnet, the model above stops
 holding.** Plaintext HTTP, an unauthenticated portal and data plane, and
@@ -101,8 +106,8 @@ commits; a credited advisory is published for anything that would have leaked a
 credential or granted socket access.
 
 **Please do not report:** the absence of TLS, the sample credentials in
-`.env.example`, or the absence of edge authentication as of 2026-08-12 - all
-three are documented decisions, below. Traefik's unauthenticated dashboard was a
+`.env.example`, or the fact that the dashboards sit behind their own logins rather
+than the edge - all three are documented decisions, below. Traefik's unauthenticated dashboard was a
 real finding and **was fixed on 2026-08-12** by deleting the router; a report
 that it is still exposed is out of date, and a report that it has *returned* is
 very much wanted.
@@ -114,12 +119,14 @@ very much wanted.
 Every rule here has a reason written next to it in the source. Changing one is a
 security change, and should be reviewed as one.
 
-### 1. SSO is being rebuilt, and is attached to nothing
+### 1. SSO enforces on the editor tier, and nowhere else yet
 
-> **Status 2026-08-12: NOT ENFORCED.** The middlewares exist; no router carries
-> them. Every service on this box is reachable from the tailnet without passing
-> through an auth boundary. Interim control: each dashboard's native login with
-> the shared `DEV_LOGIN_*` credential, plus the tailnet itself.
+> **Status: ENFORCED, narrowly.** `edge/dynamic/portal-files.yml` carries three
+> role-gated routers - `viewer` for reads and downloads, `editor` for writes.
+> Every *other* service is still reachable from the tailnet without passing an
+> auth boundary; their control is each dashboard's native login with the shared
+> `DEV_LOGIN_*` credential, plus the tailnet itself. Do not widen that gap without
+> widening this section.
 
 **What happened.** The original design was oauth2-proxy against GitHub, with the
 OAuth callback pinned to `http://auth.dev.test/oauth2/callback`. When the name
@@ -134,11 +141,17 @@ host port `8090`) so the callback is an IP:port URL and depends on no name.
 - `sso-errors` - an `errors` middleware that catches that 401 and serves the
   sign-in page in its place, at the URL the user actually asked for.
 
-**Defining them does not enforce them.** It makes `sso@file` and `sso-errors@file`
-resolvable names in Traefik and nothing more. The one router the auth stack does
-own is `oauth2-endpoints` (`PathPrefix(/oauth2/)`, priority 100, host-less), which
-exists so the login flow and its callback are reachable at all - oauth2-proxy
+**Defining a middleware does not enforce it** - that takes a router referencing
+it, which is the distinction this section existed to make while nothing did. Three
+routers do now, all in `edge/dynamic/portal-files.yml`, using `sso-viewer` and
+`sso-editor`: the same `forwardAuth`, differing only in `?allowed_groups=`. The
+auth stack also owns `oauth2-endpoints` (`PathPrefix(/oauth2/)`, priority 100,
+host-less), so the login flow and its callback are reachable at all - oauth2-proxy
 publishes no host port.
+
+Verified with a role the user does **not** hold: `allowed_groups=editor` → 202,
+`allowed_groups=shell` → 403, `allowed_groups=<junk>` → 403. It fails closed, and
+`just files-check` re-runs that probe.
 
 **Why it is being rolled out one router at a time, not all at once.** Attaching
 auth is the step that can lock you out of the box, and the tools you would use to
@@ -154,13 +167,16 @@ passes through `sso-errors` on the way in and the 401 travels back out through
 it. Get the order wrong and a signed-out user receives a blank 401 with no way
 forward.
 
-**What will need the pair, in rough priority order when it returns:** Portainer
-first (it mounts the Docker socket **read-write** and its UI grants container
-`exec`, which is root on this box), then Prometheus (it accepts `POST /-/quit`),
-Dozzle (every container's logs), Kafka-UI (`DYNAMIC_CONFIG_ENABLED`), the portal
-and its data-plane routers, the docs site, and the catch-all fallback router -
-that last one because it answers every request matching no other rule, so
-leaving it open is a hole in exactly that shape.
+**What still needs it, in rough priority order:** Portainer first (it mounts the
+Docker socket **read-write** and its UI grants container `exec`, which is root on
+this box), then Prometheus (it accepts `POST /-/quit`), Dozzle (every container's
+logs), the portal and its data-plane routers, and the catch-all fallback router -
+that last one because it answers every request matching no other rule, so leaving
+it open is a hole in exactly that shape.
+
+The editor tier is the proof that the mechanism works: `sso-viewer` and
+`sso-editor` are one word apart in the middleware, and extending the pattern to
+anything above is YAML, not new infrastructure.
 
 **A trap that already cost a session (2026-08-12).** Traefik renders every file
 in `edge/dynamic/` as a **Go template before parsing the YAML, and does not skip
@@ -181,8 +197,8 @@ box. Four properties keep that safe, and all four are load-bearing:
   Therefore:
 - **It lives on `socketnet`, not `devnet`.** `socketnet` holds exactly two
   containers - Traefik and the socket proxy. `devnet` holds around twenty,
-  including third-party images (Keycloak, Kafka-UI, Portainer, project images)
-  that could simply `curl` it. The network *is* the access-control list; keep
+  including third-party images (Keycloak, Portainer, project images) that could
+  simply `curl` it. The network *is* the access-control list; keep
   the blast radius at two. (`just network` creates both, with that reasoning
   inline.)
 - **`POST: 0`.** Without it, `CONTAINERS=1` also grants
@@ -262,10 +278,10 @@ Rules that follow from this:
   middleware also closed a DNS-rebinding hole, because a rebound request carries
   the attacker's `Host` and so never receives the `.dev.test`-scoped session
   cookie. That reasoning is void as of 2026-08-12: there is no name, no
-  name-scoped cookie, `sso@file` is attached to no router, and there is no name
-  left to rebind - only an IP. The exact `Path()` rules are the entire control,
-  alone, and should be reviewed as if they were the only line of defence,
-  because they are.
+  name-scoped cookie, and no name left to rebind - only an IP. Nor is the portal's
+  data plane role-gated the way the editor tier is: the exact `Path()` rules are
+  its entire control, alone, and should be reviewed as if they were the only line
+  of defence, because they are.
 - **The Traefik API is reachable only through four exact paths, and that now
   matters more than it did.** The dashboard router that served the whole of
   `api@internal` was deleted on 2026-08-12 - see
