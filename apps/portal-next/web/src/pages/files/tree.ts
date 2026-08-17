@@ -129,6 +129,57 @@ export function dirName(p: string): string {
   return i === -1 ? '' : p.slice(0, i + 1);
 }
 
+// ── where a repo-relative link points ────────────────────────────────────────
+//
+// `docs/kb/access.md` links to `../plans/editing-model.md`, and `~/claude-notes`
+// is built almost entirely out of links like it. Joining the target against the
+// DIRECTORY THE FILE IS IN - not against the page's URL, which has nothing to do
+// with it - and normalising away `.` and `..` is the whole of the resolution.
+//
+// The refusal is the part worth stating. A `..` that would step above the root
+// returns null rather than a clamped path, for two reasons that point the same
+// way: the file service refuses those paths anyway (safepath resolves and
+// compares), so a clamped guess would render as a live link that 403s, and a
+// link which LOOKS live and fails is strictly worse than one that renders as
+// text - the second one tells you it is broken, the first blames the server.
+//
+// Existence is deliberately NOT checked here, and that is a decision rather than
+// an omission. The page holds one tree, for the root the EXPLORER is browsing,
+// which is not necessarily the root the open document lives in - so an existence
+// test would answer differently depending on what the sidebar happens to be
+// showing, and the same link in the same document would resolve or not by
+// accident. A link to a file that is not there opens and reports the missing
+// path by name, which is a better broken-link report than silent text.
+export function resolveRelative(dir: string, target: string): { path: string; frag: string } | null {
+  // The fragment is stripped for RESOLUTION and handed back: `#a-heading` names
+  // a place inside the file, not a different file, and a path ending in one
+  // matches nothing on disk.
+  const cut = target.indexOf('#');
+  const frag = cut === -1 ? '' : target.slice(cut);
+  let rel = cut === -1 ? target : target.slice(0, cut);
+  const q = rel.indexOf('?');
+  if (q !== -1) rel = rel.slice(0, q);
+  // A bare `#anchor` has no file part; it is handled as an anchor by the caller
+  // and must never be resolved into the directory itself.
+  if (!rel) return null;
+
+  // A leading slash means "from the root of this root", which is the only
+  // reading that makes sense here - there is no server document root to mean
+  // anything else - and it cannot escape.
+  const out = rel.startsWith('/') ? [] : dir.split('/').filter(Boolean);
+  for (const seg of rel.split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') {
+      if (!out.length) return null;   // the escape. See above.
+      out.pop();
+      continue;
+    }
+    out.push(seg);
+  }
+  if (!out.length) return null;
+  return { path: out.join('/'), frag };
+}
+
 // Truncate a folder path from the LEFT, because its tail is what distinguishes
 // one of twelve compose.yml from the others - "army/CVOps/services/fronte…" is
 // the one piece of the string that carries no information.
