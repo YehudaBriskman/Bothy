@@ -1355,6 +1355,7 @@ export function Files() {
                     canDownload={canDownload}
                     onFallback={onFallback}
                     handleFor={handleFor}
+                    onOpenPath={openOrFocus}
                   />
                 </Fragment>
               ))}
