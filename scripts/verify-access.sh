@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Verify the box's access model still holds.  `just verify`
 #
-# Written on 2026-08-12 to check that retiring the *.dev.test name layer changed
+# Written on 2026-08-12 to check that retiring the name layer changed
 # exactly what it was meant to, and kept because those are the same properties
 # worth re-checking after ANY edge change: services reachable on their own ports,
 # the portal and its data plane up, no Host() rules, no config leak, the
@@ -26,8 +26,11 @@ echo "== 1. Services must still be reachable at IP:port (unchanged from baseline
 # kafka-ui:8081 was removed from this list on 2026-08-12 when kafka was retired
 # as idle (0 topics). Leaving it here would fail forever and turn a green harness
 # into a red one nobody reads - the same failure this repo just fixed in doctor.sh.
-for e in grafana:3000:302 prometheus:9090:401 dozzle:8080:307 \
-         cadvisor:8082:307 portainer:9000:200 loki:3100:404 node-exporter:9100:200; do
+# dozzle:8080 and portainer:9000 left this baseline on 2026-08-17, when Bothy
+# Control replaced what they did. Their compose file is kept, so if either is
+# started again this list is where its port goes back.
+for e in grafana:3000:302 prometheus:9090:401 \
+         cadvisor:8082:307 loki:3100:404 node-exporter:9100:200; do
   n=${e%%:*}; rest=${e#*:}; p=${rest%%:*}; want=${rest##*:}
   got=$(code "http://$IP:$p/")
   [ "$got" = "$want" ] && ok "$n :$p -> $got" || bad "$n :$p -> $got (baseline was $want)"
@@ -44,7 +47,7 @@ if curl -s -m 4 "http://$IP/" | grep -q '<title>Bothy'; then ok "bare IP serves 
 
 echo
 echo "== 3. THE LEAK: the Traefik dashboard/API must no longer be routed =="
-raw=$(curl -s -m 4 -H 'Host: traefik.dev.test' "http://$IP/api/rawdata")
+raw=$(curl -s -m 4 "http://$IP/api/rawdata")
 if echo "$raw" | head -c 200 | grep -qi '<!doctype html'; then
   ok "/api/rawdata now falls through to the SPA (no config dump)"
 elif [ -z "$raw" ]; then
@@ -60,10 +63,14 @@ else
 fi
 
 echo
-echo "== 4. No dev.test router may remain in Traefik =="
+# Was "no router for the old namespace may remain", which named one dead thing. Routing
+# by hostname is what is gone, not one spelling of it - so assert the general
+# thing. A Host() rule of ANY kind registers as enabled and then matches
+# nothing, forever, which is worse than an error.
+echo "== 4. No Host() router may exist at all =="
 left=$(curl -s -m 4 "http://$IP/-/api/traefik/http/routers" \
-  | python3 -c 'import sys,json;print(" ".join(r["name"] for r in json.load(sys.stdin) if "dev.test" in r.get("rule","")))' 2>/dev/null)
-[ -z "$left" ] && ok "zero dev.test routers" || bad "still present: $left"
+  | python3 -c 'import sys,json;print(" ".join(r["name"] for r in json.load(sys.stdin) if "Host(" in r.get("rule","")))' 2>/dev/null)
+[ -z "$left" ] && ok "zero Host() routers" || bad "still present: $left"
 
 echo
 echo "== 5. No router may be in an error/disabled state =="

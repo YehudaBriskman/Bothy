@@ -1,0 +1,200 @@
+/* ============================================================================
+   The row-level action control, and the dialog it opens.
+
+   Co-located with its component and taking only deltas on top of index.css -
+   .btn, .mono, .link, .sr-only and the dialog frame all come from there. No
+   colour below is a literal; every one is a token reference.
+
+   THE STATUS PALETTE APPEARS EXACTLY ONCE HERE, on the outcome block, and that
+   is the whole of principles.md rule 1 in practice: "Restarted traefik. running
+   -> running" is a STATE, so --st-up is legal. The buttons that caused it are
+   chrome and take --accent or nothing, however good the outcome was. A green
+   Restart button would spend the status palette on decoration and green would
+   stop meaning healthy everywhere else on the page.
+   ========================================================================== */
+
+/* ── the row trigger ─────────────────────────────────────────────────────────
+   26px, and transparent at rest. Reserving the space rather than revealing it on
+   hover is deliberate: a cell that grows when the pointer arrives reflows the
+   two columns beside it, and a table that twitches under the cursor is harder to
+   read than one narrow empty column. */
+.svc-tbl th.svc-th-act,
+.svc-tbl td.svc-td-act { width: 34px; padding-left: 0; padding-right: 8px; }
+
+.svc-act-btn {
+  appearance: none; cursor: pointer; font: inherit; padding: 0;
+  display: grid; place-items: center;
+  /* 26px is under the 24x24 minimum only if the box is the target - it is not:
+     the padding on the cell is part of the hit area, and the control is not a
+     frequent one. */
+  width: 26px; height: 26px; border-radius: var(--r-sm);
+  color: var(--fg-subtle); background: var(--surface-2); border: 1px solid var(--line);
+  /* VISIBLE AT REST. It was `opacity: 0`, revealed on row hover, keyboard focus,
+     touch, or its own dialog being open - four paths, carefully done, and it
+     still failed the only test that matters: the person who asked for this
+     feature could not find it. "Where do I stop a service?" is not a question a
+     correct affordance leaves open.
+     The footprint rule says a one-bit control should not take a full column at
+     rest, and that is right about SIZE, not about EXISTENCE. So it keeps the
+     26px box and loses the disappearing act: muted at rest, full contrast on
+     hover. A control you cannot find has a footprint of zero and a value to
+     match. */
+  opacity: var(--rest-opacity, .55);
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.svc-act-btn svg { display: block; }
+
+/* Three ways in, because a hover-revealed affordance that has only the first is
+   unusable by half the people who need it: the pointer, the keyboard, and its
+   own dialog being open. */
+/* Still four ways to reach full contrast; the difference is that none of them is
+   now the difference between existing and not. */
+.svc-tr:hover .svc-act-btn,
+.svc-act-btn:hover,
+.svc-act-btn:focus-visible,
+.svc-act-btn[data-open='true'] { opacity: 1; }
+
+.svc-act-btn:hover { color: var(--fg); border-color: var(--line-strong); }
+/* The global ring is 3px and would sit inside a 7px corner. */
+.svc-act-btn:focus-visible { border-radius: var(--r-sm); }
+
+/* Touch has no hover and no focus-visible, so it goes to full contrast there
+   rather than sitting muted at something nobody can brighten. */
+@media (hover: none) {
+  .svc-act-btn { opacity: 1; }
+}
+
+/* Not `opacity: 0` under reduced motion - that would be hiding rather than
+   collapsing, which motion.md calls the same bug in a different costume. The
+   fade just stops being a fade. */
+@media (prefers-reduced-motion: reduce) {
+  .svc-act-btn { transition: none; }
+}
+
+/* ── the dialog ─────────────────────────────────────────────────────────────*/
+.sa-title .mono { font-size: .92em; color: var(--fg-muted); }
+
+.sa-body { display: flex; flex-direction: column; gap: 14px; }
+
+.sa-note { margin: 0; color: var(--fg-muted); font-size: 13px; line-height: 1.55; }
+
+/* ── the verb list ──────────────────────────────────────────────────────────
+   Each row carries three facts - the verb, what it does, and whether it costs
+   you something - which is what earns a full-width row under the footprint rule.
+   A row with a label alone would not, and would be a menu item. */
+.sa-verbs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.sa-verb {
+  appearance: none; cursor: pointer; font: inherit; text-align: left; width: 100%;
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 11px 13px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--fg);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.sa-verb:hover { border-color: var(--accent-line); background: var(--surface-3); }
+.sa-verb:active { background: var(--surface-2); }
+.sa-verb:focus-visible { border-radius: var(--r-md); }
+
+/* aria-disabled, not disabled, so the row keeps its place in the tab order and
+   the sentence above it can be reached by whoever needs it most. It therefore
+   needs its own inert treatment - :hover and :active are excluded by hand, since
+   there is no native attribute for the browser to honour. */
+.sa-verb[aria-disabled='true'] { cursor: default; opacity: var(--disabled-opacity); }
+.sa-verb[aria-disabled='true']:hover { border-color: var(--line); background: var(--surface-2); }
+
+.sa-verb-ico { flex: none; margin-top: 1px; color: var(--fg-muted); }
+.sa-verb-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sa-verb-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 700; font-size: 13.5px; }
+.sa-verb-why { color: var(--fg-muted); font-size: 12.5px; line-height: 1.5; }
+
+/* A glyph and a word, then a colour. --st-warn is legal here for the same reason
+   it is on the outcome: this is a fact about the container's role on the box,
+   not a decoration on a button. */
+.sa-flag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; letter-spacing: .01em;
+  color: var(--st-warn-fg); background: var(--st-warn-bg);
+  border: 1px solid var(--st-warn-line); border-radius: var(--r-full);
+  padding: 1px 8px;
+}
+.sa-flag svg { flex: none; }
+
+/* ── the confirm step ───────────────────────────────────────────────────────*/
+.sa-consequence { display: flex; flex-direction: column; gap: 10px; }
+.sa-warn {
+  display: flex; align-items: flex-start; gap: 10px; margin: 0;
+  padding: 12px 14px; border-radius: var(--r-md);
+  font-size: 13.5px; line-height: 1.55; font-weight: 600;
+  color: var(--fg); background: var(--st-warn-bg); border: 1px solid var(--st-warn-line);
+}
+.sa-warn svg { flex: none; margin-top: 2px; color: var(--st-warn-fg); }
+
+/* ── in flight ──────────────────────────────────────────────────────────────*/
+.sa-working { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 13.5px; color: var(--fg-muted); }
+.sa-spin {
+  flex: none; width: 15px; height: 15px; border-radius: var(--r-full);
+  border: 2px solid var(--line-strong); border-top-color: var(--accent);
+  animation: sa-turn .8s linear infinite;
+}
+@keyframes sa-turn { to { transform: rotate(360deg); } }
+
+/* The global reduced-motion block already caps every animation at .01ms, which
+   would leave a static ring at a random angle. A pulse of opacity carries the
+   same "still working" without spinning. */
+@media (prefers-reduced-motion: reduce) {
+  .sa-spin { border-top-color: var(--line-strong); }
+}
+
+/* ── the outcome ────────────────────────────────────────────────────────────*/
+.sa-outcome { display: flex; flex-direction: column; gap: 8px; }
+.sa-outcome-h { margin: 0; font-size: 14.5px; font-weight: 700; line-height: 1.4; }
+.sa-outcome[data-ok='true'] .sa-outcome-h { color: var(--st-up-fg); }
+.sa-outcome[data-ok='false'] .sa-outcome-h { color: var(--st-down-fg); }
+
+.sa-transition {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0;
+  font-size: 13px; color: var(--fg-muted);
+}
+.sa-transition .sa-to { color: var(--fg); font-weight: 600; }
+.sa-transition .sa-took {
+  margin-left: 4px; font-variant-numeric: tabular-nums;
+  color: var(--fg-subtle); font-size: 12px;
+}
+
+/* ── no role ────────────────────────────────────────────────────────────────*/
+.sa-norole {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+  padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.sa-norole-h { margin: 0; font-size: 13.5px; font-weight: 700; }
+
+/* align-self, not align-items on the parent: the paragraphs beside it DO want
+   the full width, and a flex column that stops stretching stops wrapping its
+   prose at the dialog's edge. Measured - the button was 525px wide and read as a
+   banner rather than an action. */
+.sa-signin { margin-top: 2px; align-self: flex-start; }
+
+/* ── the footer's act button ────────────────────────────────────────────────
+   Not .btn.primary. The accent is chrome and it is this app's "press me", so
+   filling the answer that takes the edge down with it would make the destructive
+   choice the one the eye lands on. It reads as an ordinary button, and the
+   sentence above it does the arguing. */
+.sa-go { border-color: var(--st-warn-line); }
+.sa-go:hover { border-color: var(--st-warn); background: var(--st-warn-bg); }
+
+/* index.css's `.btn` declares no :disabled at all - measured, the in-flight
+   footer button came out at full weight and read as the live control it had
+   just stopped being. Declared here rather than there because a component never
+   edits the global file; the same treatment as every other inert control in the
+   app, opacity token and no pointer. */
+.sa-go:disabled,
+.sa-busy:disabled { opacity: var(--disabled-opacity); cursor: default; }
+.sa-busy:disabled:hover { border-color: var(--line-strong); }
+
+/* ── narrow ────────────────────────────────────────────────────────────────*/
+@media (max-width: 560px) {
+  .sa-verb { padding: 10px 11px; }
+  .sa-verb-name { font-size: 13px; }
+}

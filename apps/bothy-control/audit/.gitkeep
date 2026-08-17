@@ -1,0 +1,12 @@
+The action log lands here (see compose.yml's ./audit:/audit mount).
+
+This directory is COMMITTED, empty, on purpose. Docker creates a missing bind
+source as root, and bothy-control runs as uid 1000, so an absent directory would
+be mounted and unwritable - and audit() swallows that error by design, because a
+full disk must never block a legitimate restart. The symptom would therefore be
+a silently empty log rather than a failure, which is the worst way for an audit
+trail to be broken. Committing the directory means it is always there and always
+owned by whoever cloned the repo.
+
+apps/portal-files and apps/bothy-config declare the same mount and do NOT commit
+this file. They have the same latent bug; fixing theirs is not this change's.

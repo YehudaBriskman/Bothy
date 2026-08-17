@@ -18,7 +18,7 @@ Two things to read before you change anything:
 **You need:** Linux (or WSL2), Docker Engine with the Compose plugin,
 [`just`](https://github.com/casey/just). **No resolver, no DNS setup, no
 hostnames** - access is `IP:port` and `just urls` prints the table. (`host/dnsmasq/`
-still holds the configuration for the retired `*.dev.test` name layer; as of
+still holds the configuration for the retired the name layer; as of
 2026-08-12 nothing depends on it.) Node 24 is only needed if you are working on
 the portal front-end. `jq` and `tailscale` are optional; `just urls` degrades
 gracefully without them.
@@ -85,7 +85,7 @@ them will be sent back.
 ### Add a browser-facing service with a published port and a `just urls` entry
 
 > **Rewritten 2026-08-12.** This section used to teach a two-label recipe that
-> gave a service a `<name>.dev.test` hostname and **no** published port. That
+> gave a service a `<name>.the name layer` hostname and **no** published port. That
 > recipe is dead: the name layer was deleted on 2026-08-12, Traefik holds zero
 > `Host()` rules, and such a router would register, report `enabled`, and match
 > nothing forever. If you find that recipe anywhere else, it is stale.

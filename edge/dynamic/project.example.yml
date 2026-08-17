@@ -4,7 +4,7 @@
 # this file declares nothing" at the bottom. Copy the shape, not the file.
 #
 # ── THE CURRENT MODEL: publish a port ────────────────────────────────────────
-# There is no name layer any more. The `*.dev.test` namespace was dormant from
+# There is no name layer any more. The namespace was dormant from
 # 2026-08-08 and deleted on 2026-08-12, so a `Host(...)` rule registers happily
 # and then matches nothing, forever. Do not write one.
 #

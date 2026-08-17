@@ -7,7 +7,7 @@ _Each of these was learned by getting it wrong first._
 1. **First question for any "the dev box is broken": is that device on the tailnet?**
    Every false alarm and the real Aug-2 incident started here. Client-side tunnel
    failure is indistinguishable from a dead box, from that client. (Until 2026-08-08
-   the tell was a failing `dev.test` lookup; names are retired, so probe
+   the tell was a failing the name layer lookup; names are retired, so probe
    `http://100.117.176.85:<port>` instead.)
 2. **Prove which side is broken before touching the box** - layered pings
    (`tailscale ping` → `--tsmp` → `--icmp` → real traffic) name the exact broken layer
@@ -34,7 +34,7 @@ _Each of these was learned by getting it wrong first._
 **An unauthenticated admin API that echoes your own configuration will leak any
 credential you inject via a headers middleware.** Found and fixed 2026-08-12.
 
-Traefik's `dashboard` router served `api@internal` on `Host(traefik.dev.test)`
+Traefik's `dashboard` router served `api@internal` on `Host(a service hostname)`
 with no middleware in front of it. That API includes **`/api/rawdata`**, which
 dumps the entire merged dynamic configuration - including the
 `portal-api-prom-auth` middleware, whose `customRequestHeaders` carried a live
@@ -78,7 +78,7 @@ The generalisable part, which is worth more than the fix:
 15. **Write things down where the next debugging session will look.** The Aug-2 diagnosis
     was fast *because* July's audit had recorded the topology (per-user WSL, Tailscale
     SSH, split DNS). This KB exists to keep that compounding.
-16. **"Dormant" is a decision deferred, and it keeps costing.** The `*.dev.test`
+16. **"Dormant" is a decision deferred, and it keeps costing.** The the name layer
     routers were left in place on 2026-08-08 as "dormant, re-enable later". For four
     days they were configuration that looked live: they taught every new service the
     wrong pattern, they had to be explained in every note, and one of them was

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="512" height="512">
+  <!-- Bothy - MASKABLE variant. Rasterise to icon-maskable-512.png and declare
+       it in site.webmanifest with "purpose": "maskable".
+
+       Two differences from favicon.svg, both required by the platform:
+         · FULL BLEED. No rx. Android applies its own shape (circle, squircle,
+           teardrop, ...). Baking our own rounding inside theirs produces a
+           visibly inset, double-rounded tile - which is exactly what the
+           current apple-touch-icon.png does.
+         · The mark is scaled to 0.72 about (12, 12.2). The maskable safe zone
+           is the centred circle of diameter 80% of the canvas, i.e. radius 9.6
+           in this 24-unit box. The mark's furthest point from its own centre is
+           the wall foot at (5, 20.2), radius 10.63 - OUTSIDE the safe circle at
+           scale 1.0, which is why the current icons get clipped through the
+           eaves and the wall feet on a circular mask. At 0.72 the furthest
+           point sits at radius 7.65, i.e. 31.9% of the canvas: inside the safe
+           circle with room to spare. -->
+  <rect width="24" height="24" fill="#09090b"/>
+  <g transform="translate(12 12.2) scale(0.72) translate(-12 -12.2)">
+    <path fill="#fafafa" d="M12 4.2 L22.4 10.6 L22.4 11.8 L19 11.8 L19 20.2 L5 20.2 L5 11.8 L1.6 11.8 L1.6 10.6 Z"/>
+    <path fill="#60a5fa" d="M9 20.2 V17.2 a3 3 0 0 1 6 0 V20.2 Z"/>
+  </g>
+</svg>

@@ -22,7 +22,7 @@ tailnet**. Services are reached at `tailnet-IP:port` (published host ports);
 Traefik on `:80` serves the portal and its read-only data plane.
 
 **The name layer and the SSO in front of it are gone, not dormant** (updated
-2026-08-12). `*.dev.test` went dormant on 2026-08-08 when the split-DNS route
+2026-08-12). the name layer went dormant on 2026-08-08 when the split-DNS route
 was removed, and its configuration was **deleted on 2026-08-12**: Traefik holds
 zero `Host()` rules, and the Traefik dashboard router was deleted with them.
 Identity was rebuilt on Keycloak + oauth2-proxy and **now enforces on the tier
@@ -129,7 +129,7 @@ security change, and should be reviewed as one.
 > widening this section.
 
 **What happened.** The original design was oauth2-proxy against GitHub, with the
-OAuth callback pinned to `http://auth.dev.test/oauth2/callback`. When the name
+OAuth callback pinned to `http://a service hostname/oauth2/callback`. When the name
 layer went dormant on 2026-08-08 the callback stopped resolving and the whole
 flow broke - an authentication layer with a single-point dependency on a DNS
 setting. On 2026-08-12 identity moved to a **local Keycloak** (`auth/compose.yml`,
@@ -276,7 +276,7 @@ Rules that follow from this:
   address this box serves; do not mount anything else under it.
 - **Nothing else guards these routes.** This section used to add that the `sso`
   middleware also closed a DNS-rebinding hole, because a rebound request carries
-  the attacker's `Host` and so never receives the `.dev.test`-scoped session
+  the attacker's `Host` and so never receives the `.the name layer`-scoped session
   cookie. That reasoning is void as of 2026-08-12: there is no name, no
   name-scoped cookie, and no name left to rebind - only an IP. Nor is the portal's
   data plane role-gated the way the editor tier is: the exact `Path()` rules are
@@ -372,7 +372,7 @@ judge them, and so nobody "fixes" one without understanding what it buys.
 - **Plain HTTP everywhere.** TLS would mean a private CA installed on every
   device. The tailnet is already WireGuard, so the wire is encrypted regardless.
   Safe *only* because the tailnet is the transport - revisit the moment anything
-  here is reachable from outside it. Under the old name layer this also forced
+  here is reachable from outside it. Under the name layer this also forced
   `--cookie-secure=false` and GitHub-over-Google as the SSO provider (Google
   rejects `http://` redirect URIs); with an IP:port callback, the plain-HTTP
   constraint still applies to whatever identity provider replaces it.

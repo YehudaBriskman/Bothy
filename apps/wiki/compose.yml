@@ -4,9 +4,7 @@ services:
   wiki:
     image: ghcr.io/requarks/wiki:2
     container_name: wiki
-    # No Traefik router: the *.dev.test name layer was retired permanently, so
-    # the Host(`wiki.dev.test`) route had nothing left to match. Reached
-    # directly on published port 3001.
+    # No Traefik router - reached directly on published port 3001.
     restart: unless-stopped
     environment:
       DB_TYPE: postgres

@@ -15,7 +15,7 @@ import { QuickView } from '../components/QuickView';
 import { Vitals } from '../components/Vitals';
 import { TopContainers } from '../components/TopContainers';
 import { StatusBar, BarGauge, type Seg, type GaugeRow } from '../components/viz';
-import { KNOWN_HOSTS, hostUrl, type PortalNode, type Status } from '../lib/discover';
+import { KNOWN_SERVICES, type PortalNode, type Status } from '../lib/discover';
 import { serviceLink, systemLink, kindLabelOf } from '../lib/links';
 import { Skeleton } from '../components/states';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
@@ -72,7 +72,7 @@ function Panel({
 // carries `to` instead of `port` and opens in the same tab. It leads the strip
 // because it is the one destination here that is Bothy's own.
 //
-// Both changed on 2026-08-12, when the *.dev.test name layer was retired. This
+// Both changed on 2026-08-12, when the name layer was retired. This
 // list used to match services by hostname and fall back to a `hostUrl()` lookup
 // - so when the routers went away, `n.host` became null for everything, the
 // match failed, and the whole strip collapsed to the two hard-coded anchors.
@@ -90,8 +90,10 @@ const QUICK_ITEMS: QuickItem[] = [
   { key: 'files', label: 'Files', Icon: FolderTree, to: '#/files', primary: true },
   { key: 'grafana', label: 'Grafana', Icon: BarChart3, port: 3000, primary: true },
   { key: 'prometheus', label: 'Prometheus', port: 9090 },
-  { key: 'dozzle', label: 'Logs', port: 8080 },
-  { key: 'portainer', label: 'Portainer', port: 9000 },
+  // dozzle:8080 and portainer:9000 came out on 2026-08-17 with those services.
+  // The quick strip already has a rule for this - it only links what discovery
+  // can SEE, so a stopped service silently drops out and no link 404s. Removing
+  // the entries as well is about the strip not describing the box it used to be.
   // kafka-ui:8081 REMOVED 2026-08-12 with kafka itself (retired as idle, zero
   // topics). It was still rendering a link to a port nothing listens on - see
   // the fallback rule below, which is the reason it survived the retirement.
@@ -149,6 +151,47 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
         </a>
       ))}
     </nav>
+  );
+}
+
+// ── Bothy, describing itself ─────────────────────────────────────────────────
+//
+// One line under the inventory rather than a chip inside it. See the comment on
+// `groups` for why: most of what this reports cannot fail in a way you could
+// read here, so it does not get a peer slot - but `portal-files` genuinely can,
+// so it is reported rather than hidden.
+//
+// The wording is deliberately first-person about the limit. "You are reading
+// this through it" is the whole reason the row is quiet, and a reader who knows
+// that will not wonder why Bothy is not in the list above.
+function SelfLine({ system, onOpen }: { system: System; onOpen: () => void }) {
+  const parts = [...system.nodes]
+    .filter((n) => !n.hidden)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const bad = parts.filter((n) => n.status === 'down' || n.status === 'unknown');
+
+  return (
+    <p className="ov-self">
+      <button type="button" className="ov-self-open" onClick={onOpen}>
+        {system.title}
+      </button>
+      <span className="ov-self-sep" aria-hidden="true">·</span>
+      <span className="ov-self-what">
+        {parts.length} {parts.length === 1 ? 'part' : 'parts'}
+      </span>
+      <span className="ov-self-sep" aria-hidden="true">·</span>
+      {bad.length === 0 ? (
+        // Not "all up" - that would claim more than this row can know.
+        <span className="ov-self-note">
+          you are reading this through it
+        </span>
+      ) : (
+        <span className="ov-self-bad">
+          <StatusIcon status="down" size={13} />
+          {bad.map((n) => n.name).join(', ')} {bad.length === 1 ? 'is' : 'are'} not running
+        </span>
+      )}
+    </p>
   );
 }
 
@@ -434,8 +477,25 @@ export function Overview() {
   // Grouping survives - projects, the shared stack and the plumbing really are
   // three different kinds of thing - but as headings over one flow of chips,
   // not as three cards with independent open/closed state.
+  // BOTHY IS NOT A PEER OF THE THINGS IT DESCRIBES, so it comes out of the
+  // inventory and goes in a line beneath it.
+  //
+  // The argument is not aesthetic. You are reading this page THROUGH portal-next,
+  // served BY traefik, enriched BY portal-socket-proxy - so for two of Bothy's
+  // three containers the cell can only ever say `up`, because if they were not,
+  // there would be no page to read the cell on. A card that cannot report a
+  // problem is a card carrying no information, and by the footprint rule it
+  // should not hold a slot beside `Edge · Traefik`, which can.
+  //
+  // It is NOT wholly uninformative, and that is why this is a demotion rather
+  // than a deletion: `portal-files` can be down while this page renders
+  // perfectly - you would simply lose the Files page. So the line below still
+  // reports its parts. Removing the card entirely would have thrown that away to
+  // win an argument.
+  const self = useMemo(() => systems.find((s) => s.key === 'bothy') ?? null, [systems]);
+
   const groups = useMemo<MatrixGroup[]>(() => {
-    const of = (k: System['kind']) => systems.filter((s) => s.kind === k);
+    const of = (k: System['kind']) => systems.filter((s) => s.kind === k && s.key !== 'bothy');
     return [
       { key: 'project', title: 'Projects', systems: of('project') },
       { key: 'stack', title: 'Stack', systems: of('stack') },
@@ -443,7 +503,13 @@ export function Overview() {
     ].filter((g) => g.systems.length > 0);
   }, [systems]);
 
-  const floorLinks = KNOWN_HOSTS.map(([host, name]) => ({ id: host, name, url: hostUrl(host) ?? `http://${host}` }));
+  // Built from location.hostname, so the floor works from the tailnet IP,
+  // MagicDNS or localhost - whichever the reader reached the box by. It used to
+  // be a table of the name layer names, which is to say the emergency page offered
+  // addresses that had not resolved since August.
+  const floorLinks = KNOWN_SERVICES.map(([name, port]) => ({
+    id: name, name, url: `http://${location.hostname}:${port}`,
+  }));
 
   return (
     <div className="overview">
@@ -496,6 +562,8 @@ export function Overview() {
               attentionIds={attentionIds}
               onOpen={(s) => setOpenKey(s.key)}
             />
+
+            {self && <SelfLine system={self} onOpen={() => setOpenKey(self.key)} />}
 
             {/* The graphs. Deliberately BELOW the health answer: "is anything
                 broken" is the question this page exists for, and a row of charts

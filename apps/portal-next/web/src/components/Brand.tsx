@@ -43,10 +43,10 @@ export function BothyMark({ size = 20 }: { size?: number }) {
  *
  * The subtitle is read from `location.hostname` at RUN TIME and is never
  * written down. Two reasons, and the second is the important one: it is
- * honest - it shows `dev.test` when you came in by name and the bare IP when
+ * honest - it shows the name layer when you came in by name and the bare IP when
  * you came in by IP, which is exactly the distinction that matters on this box
  * while the name layer is dormant - and this repo is public, so the tailnet
- * address does not belong in it. (The old lockup hardcoded "dev.test / dev box",
+ * address does not belong in it. (The old lockup hardcoded "an address, not a name",
  * which was wrong for every visitor arriving on the IP.)
  */
 export function Brand() {

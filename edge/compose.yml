@@ -11,9 +11,8 @@ name: edge
 # Consequence: this is the ONLY container that should ever publish :80, and the
 # Tailscale/portproxy layer needs exactly one rule, forever.
 #
-# STATUS 2026-08-12: the `*.dev.test` name layer above is RETIRED, not merely
-# dormant. Access is pure IP:port - http://100.117.176.85:<port>. Every
-# Host(`*.dev.test`) router in the files this compose owns has been removed, and
+# STATUS 2026-08-12: routing by hostname is GONE, not merely dormant. Access is pure IP:port - http://100.117.176.85:<port>. Every
+# Host() router in the files this compose owns has been removed, and
 # new services publish a host port rather than declaring a name. Traefik still
 # earns its keep for the host-less exact-Path() routes that make up the portal's
 # /-/api/* data plane (edge/dynamic/portal-api.yml, portal-prom.yml) and for the
@@ -92,7 +91,7 @@ services:
       #
       # The DASHBOARD flag is what additionally serves the UI's own assets and,
       # with it, the browsable api@internal surface. It is off because the
-      # `dashboard` router that published it (Host(`traefik.dev.test`)) has been
+      # `dashboard` router that published it (a Host() rule) has been
       # removed - see the note where the labels used to be. Nothing on this box
       # needs the UI; the portal reads the four paths above instead.
       - --api=true
@@ -130,7 +129,7 @@ services:
     # its own any more.
     #
     # CREDENTIAL EXPOSURE, fixed 2026-08-12. There used to be a `dashboard`
-    # router here on Host(`traefik.dev.test`) with `service=api@internal` and no
+    # router here on a Host() rule with `service=api@internal` and no
     # middleware, i.e. the whole Traefik API served unauthenticated. The API
     # includes /api/rawdata, which dumps the entire merged dynamic config -
     # every router, service AND middleware, with their values. One of those
@@ -151,7 +150,7 @@ services:
     #
     # Do not re-add a router for the dashboard "just to look at it". If the UI is
     # ever genuinely wanted it needs auth in front of it, not a bare Host rule -
-    # and the *.dev.test name layer it relied on is retired anyway (2026-08-12),
+    # and the name layer it relied on is gone,
     # so there is no name left to hang it on.
     deploy:
       resources:
@@ -167,7 +166,9 @@ services:
     # thing that authenticates nobody, holding traefik and that thing only. The
     # config tier can rewrite compose files and edge routes, so it is the highest
     # stake of the three.
-    networks: [devnet, socketnet, filesnet, confignet]
+    # controlnet, and deliberately NOT controlsocknet: the edge reaches the
+    # action SERVICE, never the proxies that can mutate containers.
+    networks: [devnet, socketnet, filesnet, confignet, controlnet]
 
 networks:
   devnet:
@@ -177,4 +178,6 @@ networks:
   filesnet:
     external: true
   confignet:
+    external: true
+  controlnet:
     external: true

@@ -13,13 +13,21 @@ name: auth
 # configuration in this repo (auth/realm-devbox.json) instead of a checkbox on
 # github.com. It also survives the box being offline from the internet.
 #
-# NOTHING IS ENFORCED YET. The middlewares in edge/dynamic/auth.yml are defined
-# and live again, but they are attached to NO router. Attaching them is a
-# separate, deliberate step - get it wrong and the portal and every dashboard
-# become unreachable, on the box that is also how you would fix it.
+# WHAT IS ENFORCED, AND WHAT IS NOT. This said "NOTHING IS ENFORCED YET" long
+# after it stopped being true. Six routers now carry a role requirement: the
+# editor tier's three (`sso-viewer` on reads and downloads, `sso-editor` on
+# writes), the config tier's, and the action tier's (`sso-operator`).
+#
+# The dashboards - Grafana, Prometheus, Portainer, Dozzle - are still on their
+# own logins and are NOT behind the edge. That is the remaining work, and it is
+# deliberate rather than forgotten: attaching auth is the step that can lock you
+# out, and the tools you would use to unlock it are exactly the ones you would
+# have just put behind the broken login. It was proven on the tier where being
+# wrong costs most - a service holding read-write handles on two git repos -
+# before being pointed at anything else.
 #
 # ── The one thing to understand before editing anything here ────────────────
-# The *.dev.test name layer was retired on 2026-08-12. There is no DNS. Every
+# There is no name layer and no DNS. Every
 # URL below is built from ${BOX_IP}, this node's tailnet IP, which lives in the
 # gitignored .env because the repo is public and the node IP identifies the
 # owner's tailnet (same reasoning as `just urls`).
@@ -377,8 +385,8 @@ services:
       # DEVBOX_OAUTH2_REDIRECT_URI, built from this same ${BOX_IP}.
       - --redirect-url=http://${BOX_IP:?set BOX_IP in .env}/oauth2/callback
 
-      # --- cookies without a cookie domain (the .dev.test settings are gone) ---
-      # The old --cookie-domain=.dev.test and --whitelist-domain=.dev.test named
+      # --- cookies without a cookie domain (the cookie-domain settings are gone) ---
+      # The old --cookie-domain and --whitelist-domain settings named
       # a namespace that no longer resolves. There is no replacement for
       # cookie-domain and none is wanted: every service is now a different PORT
       # on the SAME host, and cookies ignore the port. So the default host-only
@@ -442,7 +450,7 @@ services:
     # in edge/dynamic/auth.yml instead - a host-less PathPrefix(`/oauth2/`)
     # router, which is what the sign-in flow needs (it has to work on whichever
     # address the user landed on). The old labels here pinned it to
-    # Host(`auth.dev.test`), a name retired on 2026-08-12.
+    # a Host() rule, and routing by hostname is gone.
     #
     # No healthcheck: the image is distroless, with no shell and no wget, so
     # every form of docker healthcheck fails and the container sits in

@@ -1,14 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
-  <!-- Bothy. The same geometry as scripts/gen-icons.py - if you change one,
-       change both. A gabled shelter with the door open and the light on.
-       The tile is drawn dark in BOTH themes on purpose: a favicon sits on the
+  <!-- Bothy - the mark. THIS FILE IS THE SOURCE for every raster icon:
+       scripts/gen-icons.py reads it and icon-maskable.svg and writes the PNGs,
+       so the geometry lives in one place and a drift is not possible.
+       (The previous version of this comment pointed at that script as though it
+       existed. It did not, for as long as the comment claimed it did.)
+
+       A bothy is a squat stone hut with the door left open and the light on.
+       Two shapes only:
+         · the hut, a SOLID silhouette (no strokes - lucide is a 2px-stroke set,
+           so a filled mark is categorically not one of its glyphs, which is the
+           cheapest reliable way to stop reading as `house`),
+         · the doorway, the one coloured element, 19% of the mark's area so it
+           still measures 4x4 device pixels at 16px.
+
+       The tile is dark in BOTH themes on purpose: a favicon sits on the
        browser's tab strip, not on the page, so it cannot know the page theme,
        and a mark that inverts is a mark nobody recognises at a glance. -->
   <rect width="24" height="24" rx="5.4" fill="#09090b"/>
-  <g fill="none" stroke="#fafafa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M2.4 11.6 L12 4.2 L21.6 11.6"/>
-    <path d="M5.6 10.6 V20.4 H18.4 V10.6"/>
-  </g>
+  <!-- the hut: apex, deep eaves with a blunt 1.2-unit face, squat walls -->
+  <path fill="#fafafa" d="M12 4.2 L22.4 10.6 L22.4 11.8 L19 11.8 L19 20.2 L5 20.2 L5 11.8 L1.6 11.8 L1.6 10.6 Z"/>
   <!-- the lit doorway -->
-  <path d="M10.15 20.4 V15.3 a1.85 1.85 0 0 1 3.7 0 V20.4 Z" fill="#60a5fa"/>
+  <path fill="#60a5fa" d="M9 20.2 V17.2 a3 3 0 0 1 6 0 V20.2 Z"/>
 </svg>
