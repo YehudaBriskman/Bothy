@@ -63,6 +63,12 @@ for (const [k, v] of Object.entries(n)) console.log(\`  \${k.padEnd(9)} \${v.len
 "
 
 echo
+echo "── every colour comes from a token ─────────────────────"
+# Reads the source tree directly - no compile step, because it is looking at the
+# text rather than at behaviour. Runs regardless of whether there is a build.
+node "$HERE/stray-colour.mjs"
+
+echo
 echo "── the CSP and the inline script must agree ────────────"
 # Needs web/dist, so it runs after a build. Skipped rather than failed when there
 # is none: an unbuilt tree is not a broken policy.
