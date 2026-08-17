@@ -34,6 +34,12 @@ edge/dynamic/portal-prom.yml
 # from git. The portal treats an absent file as a supported configuration and
 # renders normally without it (see lib/api.ts).
 apps/portal-next/data/projects.json
+# User themes: .css files somebody dropped into apps/portal-next/data/themes on
+# their own box. Per-BOX by definition - the whole point is that they work
+# without a source tree - so they are not this repository's business. The
+# directory itself is tracked (.gitkeep) so a fresh clone has somewhere to put
+# one, and so nginx has a directory to list rather than a 404.
+apps/portal-next/data/themes/*.css
 
 # Agent worktrees. Real git checkouts under the repo - never content of it.
 .claude/worktrees/
