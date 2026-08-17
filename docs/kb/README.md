@@ -1,6 +1,6 @@
-# dev-box knowledge base
+# Bothy knowledge base
 
-Everything known about the dev stack ("stack system dev", repo `YehudaBriskman/dev-box`)
+Everything known about the dev stack ("stack system dev", repo `YehudaBriskman/Bothy`)
 and the machines around it. Built 2026-08-02 from the July audit + the August incidents.
 
 > **Something is broken RIGHT NOW?** → open **[runbook-cant-reach.md](runbook-cant-reach.md)**

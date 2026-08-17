@@ -291,10 +291,10 @@ every container's `Env` is on the tailnet.
 **Nothing else guards this.** The old note here said the `sso` middleware also
 closed a DNS-rebinding hole, because a rebound request carries the attacker's
 `Host` and so never receives the `.dev.test`-scoped session cookie. That
-reasoning died with the name layer on 2026-08-12: there is no name, no
-name-scoped cookie, and `sso@file` is attached to no router. DNS rebinding is
-also no longer the relevant attack - there is no name to rebind, only an IP.
-The exact `Path()` rules are the entire control, alone.
+reasoning died with the name layer on 2026-08-12: there is no name and no
+name-scoped cookie. DNS rebinding is also no longer the relevant attack - there is
+no name to rebind, only an IP. This data plane is not role-gated the way the
+editor tier is, so the exact `Path()` rules are its entire control, alone.
 
 **What this deliberately exposes to the tailnet, unauthenticated:** container
 names, images, ports, health, labels, mounts and per-volume disk sizes, plus
@@ -316,7 +316,7 @@ flowchart TB
 
     subgraph s_auth["auth/ - identity, defined but NOT enforced"]
         KC["keycloak<br/>local IdP - host port 8090"]
-        OAUTH["oauth2-proxy<br/>callback is an IP:port URL<br/>middlewares attached to no router"]
+        OAUTH["oauth2-proxy<br/>callback is an IP:port URL<br/>gates the editor tier by role"]
     end
 
     subgraph s_mon["monitoring/ - observability"]

@@ -17,7 +17,7 @@
 # identified by answering BOTH :80 (traefik) and :9090 (prometheus), which
 # yr055's unrelated WSL VM on the same switch does not.
 #
-# Mirrored in the dev-box repo at host/windows/refresh-portproxy.ps1.
+# Mirrored in the Bothy repo at host/windows/refresh-portproxy.ps1.
 
 $ErrorActionPreference = 'Stop'
 $Ports     = 80, 3000, 3001, 8080, 8081, 9000, 9090

@@ -9,7 +9,7 @@
 
    Two rules that predate this file and still hold:
      · --st-* status colours are RESERVED and never used as chrome.
-     · --a1..--a6 panel accents are chrome only and never encode state.
+     · --a1..--a5 panel accents are chrome only and never encode state.
 
    Third rule, new: an element's footprint should be proportional to the number
    of information dimensions it carries. One bit does not get a full-width row.
@@ -108,9 +108,25 @@
      that you notice only if you look for it. */
   --bg-glow: #131316;
 
-  /* panel accents (chrome only, never state) */
-  --a1: #8b5cf6; --a2: #22d3ee; --a3: #f472b6;
-  --a4: #34d399; --a5: #60a5fa; --a6: #f59e0b;
+  /* Panel accents. CHROME ONLY, never state - and until 2026-08-17 that claim was
+     false in the strongest possible way: `--a4` was #34d399, BYTE-IDENTICAL to
+     `--st-up`. A decorative spine and an "up" cell rendered the same green, ~8px
+     apart on the Overview.
+     THE RULE, so this cannot rot again. An accent is legal iff, against every
+     status token IN THE SAME THEME: (a) for a chromatic status (OKLCH C >= 0.06:
+     up, warn, down) its hue differs by >= 45deg; (b) for a near-grey status
+     (C < 0.06: unknown, off) its chroma exceeds the status's by >= 0.06.
+     Hue alone is the wrong test - `unknown` (H 257) and `off` (H 261) sit in the
+     blue band, so "use slate for chrome" passes a hue check and still collides.
+     Applying (a) forbids the arc 328 -> 208 through red, amber and green, which
+     leaves exactly one 120deg window: 208-328, cyan-blue through violet to
+     magenta. FIVE slots spaced ~24deg across it, at constant OKLCH L .72 so no
+     spine is louder than another. Do not add a sixth without re-running the check. */
+  --a1: #1eb5e0;  /* L .72 C .130 H 224 */
+  --a2: #4cabfd;  /* L .72 C .149 H 248 */
+  --a3: #869efc;  /* L .72 C .140 H 272 */
+  --a4: #ae8dfc;  /* L .72 C .159 H 296 */
+  --a5: #e169fc;  /* L .72 C .230 H 320 */
 
   /* ── layout ─────────────────────────────────────────────────────────────── */
   --r-xs: 5px; --r-sm: 7px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
@@ -233,6 +249,17 @@
   --st-down:    #e11d48;  --st-down-fg:    #be123c;  /* fg 6.18 · fill 4.62 */
   --st-unknown: #adbac7;  --st-unknown-fg: #64748b;  /* fg 4.68 · fill 1.94 */
   --st-off:     #cbd5e1;  --st-off-fg:     #6b7688;  /* fg 4.52 · fill 1.46 */
+
+  /* The accents' FIRST light remap. They were never redefined here, so the DARK
+     values were rendering on #fafafa - and .svc-group-idx paints an accent as
+     12px bold TEXT, so that was six of six below WCAG AA: measured 1.73, 2.06,
+     2.44, 2.54, 4.06 and 1.84 to 1. These are chosen for >= 4.6:1 on --surface-2,
+     not merely for hue. Same legal arc as the dark set above. */
+  --a1: #077a99;  /* 4.73:1 on #fafafa */
+  --a2: #1575be;  /* 4.66:1 */
+  --a3: #4e5ffb;  /* 4.62:1 */
+  --a4: #8e3ffe;  /* 4.69:1 */
+  --a5: #b921d6;  /* 4.73:1 */
 
   --bg-glow: #dfe5f5;
 

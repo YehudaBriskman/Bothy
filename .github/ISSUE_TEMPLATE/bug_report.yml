@@ -11,7 +11,7 @@ body:
         Two things before you start:
 
         - **Do not report a security vulnerability here.** Use a private
-          advisory instead - see [SECURITY.md](https://github.com/YehudaBriskman/dev-box/blob/main/SECURITY.md).
+          advisory instead - see [SECURITY.md](https://github.com/YehudaBriskman/Bothy/blob/main/SECURITY.md).
         - **Redact before you paste.** `just doctor` and `docker logs` output can
           contain hostnames, IP addresses, tailnet names, e-mail addresses and
           environment variables. Replace anything that identifies you or your
@@ -118,7 +118,7 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: I have read [SECURITY.md](https://github.com/YehudaBriskman/dev-box/blob/main/SECURITY.md) and this is a bug, not a vulnerability.
+        - label: I have read [SECURITY.md](https://github.com/YehudaBriskman/Bothy/blob/main/SECURITY.md) and this is a bug, not a vulnerability.
           required: true
         - label: I removed secrets, personal identifiers, real hostnames and IP addresses from everything I pasted.
           required: true

@@ -3,7 +3,7 @@
 // polyline, which keeps the bundle flat and the rendering exact.
 //
 // Rules they all follow (see index.css): status colours are RESERVED for status
-// and never used as chrome; accents (--a1..--a6) are chrome and never encode
+// and never used as chrome; accents (--a1..--a5) are chrome and never encode
 // state.
 
 import type { ReactNode } from 'react';
