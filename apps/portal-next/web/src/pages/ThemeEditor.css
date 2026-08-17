@@ -1,0 +1,118 @@
+/* The theme editor. Deliberately plain: this page is a form beside a preview,
+   and the preview is the whole app behind it - so anything decorative here
+   competes with the thing it is meant to help you judge. */
+
+.theme-editor .te-back {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-bottom: 6px; padding: 0; border: 0; background: none;
+  font: inherit; font-size: 12px; color: var(--fg-subtle); cursor: pointer;
+}
+.theme-editor .te-back:hover { color: var(--fg); }
+
+.theme-editor .te-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.theme-editor .te-danger { color: var(--st-down-fg); border-color: var(--st-down-line); }
+.theme-editor .te-danger:hover:not(:disabled) { background: var(--st-down-bg); }
+
+.theme-editor .te-empty { padding: 24px 2px; color: var(--fg-muted); }
+
+.theme-editor .te-note {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 0 0 14px; padding: 9px 11px; font-size: 12.5px; line-height: 1.45;
+  border-radius: var(--r-sm); border: 1px solid var(--line);
+}
+.theme-editor .te-note svg { flex: none; margin-top: 1px; }
+.theme-editor .te-ok   { background: var(--st-up-bg);   border-color: var(--st-up-line);   color: var(--st-up-fg); }
+.theme-editor .te-bad  { background: var(--st-down-bg); border-color: var(--st-down-line); color: var(--st-down-fg); }
+.theme-editor .te-warn { background: var(--st-warn-bg); border-color: var(--st-warn-line); color: var(--st-warn-fg); }
+.theme-editor .te-info { background: var(--surface-2); color: var(--fg-muted); }
+
+/* ── identity ─────────────────────────────────────────────────────────────── */
+.theme-editor .te-identity {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.theme-editor .te-wide { grid-column: 1 / -1; }
+.theme-editor .te-field { display: flex; flex-direction: column; gap: 4px; }
+.theme-editor .te-field > span { font-size: 11.5px; font-weight: 600; color: var(--fg-muted); }
+.theme-editor .te-field small { font-size: 10.5px; color: var(--fg-subtle); overflow-wrap: anywhere; }
+.theme-editor .te-field input,
+.theme-editor .te-field select {
+  padding: 7px 9px; font: inherit; font-size: 13px;
+  color: var(--fg); background: var(--bg-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.theme-editor .te-field input:focus-visible,
+.theme-editor .te-field select:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: -1px;
+}
+.theme-editor .te-field input:disabled { color: var(--fg-subtle); }
+
+/* ── tokens ───────────────────────────────────────────────────────────────── */
+.theme-editor .te-grid {
+  display: grid; gap: 10px; margin-top: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.theme-editor .te-token { display: flex; flex-direction: column; gap: 4px; }
+.theme-editor .te-token-name { font-size: 11px; color: var(--fg-muted); }
+.theme-editor .te-token.is-bad .te-token-name { color: var(--st-down-fg); font-weight: 700; }
+.theme-editor .te-token-row { display: flex; gap: 6px; align-items: center; }
+/* A colour well, sized to line up with the text field beside it. The default
+   rendering is a chunky button in every engine, so the padding is stripped and
+   the swatch made to fill it. */
+.theme-editor .te-token-row input[type='color'] {
+  flex: none; width: 34px; height: 30px; padding: 2px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); cursor: pointer;
+}
+.theme-editor .te-token-row input[type='text'] {
+  flex: 1; min-width: 0; padding: 6px 8px; font-size: 12px;
+  color: var(--fg); background: var(--bg-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.theme-editor .te-token.is-bad .te-token-row input[type='text'] { border-color: var(--st-down-line); }
+
+/* ── the report ───────────────────────────────────────────────────────────── */
+.theme-editor .te-badge {
+  margin-left: 10px; padding: 2px 7px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  border-radius: var(--r-full); vertical-align: 2px;
+}
+.theme-editor .te-badge.is-ok  { color: var(--st-up-fg);   background: var(--st-up-bg); }
+.theme-editor .te-badge.is-bad { color: var(--st-down-fg); background: var(--st-down-bg); }
+
+.theme-editor .te-finding {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 6px 2px; font-size: 12px; line-height: 1.45;
+  border-top: 1px solid var(--line);
+}
+.theme-editor .te-finding svg { flex: none; margin-top: 2px; }
+.theme-editor .te-finding.is-fail  { color: var(--st-down-fg); }
+.theme-editor .te-finding.is-allow { color: var(--fg-subtle); }
+.theme-editor .te-finding.is-pass  { color: var(--fg-muted); }
+.theme-editor .te-finding b { font-weight: 600; color: inherit; }
+
+.theme-editor .te-more {
+  margin-top: 8px; padding: 0; border: 0; background: none;
+  font: inherit; font-size: 12px; color: var(--accent-fg); cursor: pointer;
+}
+.theme-editor .te-more:hover { text-decoration: underline; }
+
+/* ── the file ─────────────────────────────────────────────────────────────── */
+.theme-editor .te-css {
+  width: 100%; min-height: 320px; margin-top: 10px; padding: 10px 12px;
+  font-size: 12.5px; line-height: 1.55;
+  color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  resize: vertical; white-space: pre;
+}
+
+/* The section notes. `.set-note` is scoped to `.settings-page` next door, so
+   this page - which is a sibling route, not inside it - was rendering them at
+   body size and they read as prose the page wanted you to stop and read rather
+   than as the caption under a heading. Same treatment, stated here rather than
+   by widening the other file's selector, because these are two pages that
+   happen to want the same caption, not one component. */
+.theme-editor .set-note {
+  display: block; margin: 0; font-size: 12px; line-height: 1.5;
+  color: var(--fg-subtle); max-width: 78ch;
+}

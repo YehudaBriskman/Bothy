@@ -188,6 +188,13 @@ export type EvaluateOptions = {
  *  is fed whatever the user has typed so far, and a crash there is not a review. */
 const MEASURED = [
   '--surface-1', '--surface-2', '--bg-2',
+  // --bg-glow carries no contrast rule; it is here so that a value which is
+  // not a flat colour is REPORTED. index.css builds the page wash with
+  // `radial-gradient(... var(--bg-glow) 0%, ...)`, so a gradient in this token
+  // nests one gradient inside another's colour stop - invalid, silently
+  // dropped, and the wash disappears with no error anywhere. Five ported
+  // themes shipped with exactly that before this line existed.
+  '--bg-glow',
   '--fg', '--fg-muted', '--fg-subtle',
   '--accent', '--accent-fg', '--on-accent',
   ...STATUSES.map((s) => `--st-${s}`),

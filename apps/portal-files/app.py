@@ -49,6 +49,15 @@ tidy:
 
   * The audit trail had to be rebuilt. Every write used to carry an author
     because every write was a commit; see audit().
+
+**DELETE exists, and ONLY because the undo net does.** Removal was deliberately
+absent while this service had no way to give a file back - `discard` was taken
+out on 2026-08-15 for being the one irreversible verb here, and a delete with no
+copy anywhere would have put that back under a friendlier name. The snapshot
+trash changed the arithmetic rather than the appetite: /delete keeps the outgoing
+bytes exactly as /write does, so removing a file is a thing you can walk back
+from. That is also why the snapshot is the ONE place this service fails CLOSED
+where the write path fails open - see _delete().
 """
 
 from __future__ import annotations
@@ -865,13 +874,17 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write(f"ERROR {route}: {type(e).__name__}: {e}\n")
             return self._send(500, {"error": "internal error"})
 
-    # ── write ───────────────────────────────────────────────────────────────
+    # ── write and delete ────────────────────────────────────────────────────
     def do_POST(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
         # Every mutating endpoint goes through the same guard below. Adding one
         # that skips it is the failure mode this shape exists to prevent, so the
         # list is here rather than each handler remembering.
-        # /write is the ONLY mutating endpoint on this service.
+        # /write and /delete are the ONLY mutating endpoints on this service, and
+        # they are named in ONE place on purpose. The CSRF, content-type and body
+        # limits below are shared, so a third verb that dispatched itself before
+        # reaching them would silently be the unprotected one - which is exactly
+        # how a per-handler check goes wrong.
         #
         # /git/stage, /git/unstage, /git/discard, /git/commit, /git/pull and
         # /git/push were removed on 2026-08-15. Git actions are moving to an
@@ -883,7 +896,12 @@ class Handler(BaseHTTPRequestHandler):
         # away content that was never in the object store); the push credential,
         # which was the ONLY secret this container was ever going to hold; and
         # the `operator` tier, which existed solely to gate sync.
-        if route != "/write":
+        #
+        # /delete is NOT `discard` coming back, and the difference is the whole
+        # licence for it: discard destroyed content that had never been anywhere
+        # else, while a delete here refuses unless the snapshot trash took a copy
+        # first. Removal is offered because the net exists, not despite it.
+        if route not in ("/write", "/delete"):
             return self._send(404, {"error": "no such endpoint"})
         # ── CSRF, and why it is needed HERE and not before ──────────────────
         #
@@ -920,6 +938,13 @@ class Handler(BaseHTTPRequestHandler):
             if length <= 0 or length > safepath.MAX_BYTES:
                 return self._send(413, {"error": "body missing or too large"})
             body = json.loads(self.rfile.read(length))
+
+            # Dispatched AFTER the guards above, never before them. _delete does
+            # its own resolve() because a delete has no `content` and no temp
+            # file, but it reaches this line having already paid the same CSRF,
+            # content-type and body-size tolls as a save.
+            if route == "/delete":
+                return self._delete(body)
 
             res = safepath.resolve(body.get("root", ""), body.get("path", ""),
                                    for_write=True)
@@ -1052,9 +1077,151 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self._send(400, {"error": "body must be JSON"})
         except Exception as e:  # noqa: BLE001
-            sys.stderr.write(f"ERROR /write: {type(e).__name__}: {e}\n")
+            # The ROUTE, not a hardcoded "/write". Two verbs share this handler
+            # now, and a 500 attributed to the wrong one sends whoever reads the
+            # log to the wrong half of the file.
+            sys.stderr.write(f"ERROR {route}: {type(e).__name__}: {e}\n")
             return self._send(500, {"error": "internal error"})
 
+    # ── delete ──────────────────────────────────────────────────────────────
+    def _delete(self, body: dict) -> None:
+        """Remove one regular file, after keeping a copy of it.
+
+        Reached only through do_POST, so the CSRF and body guards have already
+        run. Every refusal below returns with the file still on disk; that is the
+        property the checks assert, because a 403 that deleted anyway would look
+        identical from the status code.
+        """
+        # Deleting IS a write, so it goes through the SAME resolve() with the
+        # same for_write rules: containment proved on the resolved path, no
+        # writing through a symlink, and nothing under a read-only root. A
+        # narrower check written here would be a second boundary to keep correct,
+        # which is the duplication safepath exists to prevent.
+        res = safepath.resolve(body.get("root", ""), body.get("path", ""),
+                               for_write=True)
+        # Belt and braces with the `ro` bind mount, exactly as /write does it. The
+        # kernel refuses regardless, but EROFS surfaces as an opaque 500, and the
+        # rule is worth being able to read in the code.
+        if res.root_key in READONLY_ROOTS:
+            return self._send(403, {
+                "error": f"the {res.root_key!r} root is read-only"})
+
+        # lstat, not stat, and the FileNotFoundError branch is the 404 the caller
+        # was promised would be DISTINGUISHABLE from a refusal. "there is nothing
+        # here" and "you may not touch this" send someone to two different
+        # places, and collapsing them into one code is how a deleted-by-someone-
+        # else file gets reported as a permissions problem.
+        try:
+            st = os.lstat(res.abspath)
+        except FileNotFoundError:
+            return self._send(404, {"error": "no such file", "path": res.relpath})
+        except OSError as e:
+            return self._send(403, {"error": f"cannot stat: {e.strerror}"})
+
+        # A DIRECTORY IS REFUSED EXPLICITLY, and that is the whole point of this
+        # branch existing at all. os.unlink would raise EISDIR and land in the
+        # 500 handler - a refusal by accident, which reads as a bug in the
+        # service rather than as a decision, and which stops holding the moment
+        # somebody "fixes" the 500 with rmtree. Recursive delete is out of scope:
+        # one click that removes a subtree has no proportionate undo, because the
+        # snapshot net below is per file.
+        if stat.S_ISDIR(st.st_mode):
+            return self._send(403, {
+                "error": "refusing to delete a directory - one regular file at a time",
+                "path": res.relpath})
+        if not stat.S_ISREG(st.st_mode):
+            # A fifo, socket or device node. os.walk puts these in filenames, so
+            # they are reachable; none of them has bytes a snapshot could keep,
+            # so removing one would be the unrecoverable case wearing a filename.
+            return self._send(403, {
+                "error": "not a regular file", "path": res.relpath})
+
+        # Attribution only, same header and same fallback as /write - see the
+        # module docstring. A missing header means a misconfigured edge, and
+        # losing the name is not a reason to refuse a legitimate action.
+        who = (self.headers.get("X-Auth-Request-Email")
+               or self.headers.get("X-Auth-Request-User") or "unknown")
+
+        # ── THE CONFLICT CHECK, for the reason /write has one ────────────────
+        #
+        # Deleting a file somebody rewrote a minute ago is the same class of
+        # mistake as overwriting it: the tab you are looking at is stale and
+        # nothing on the screen says so. If anything it is the worse half - an
+        # overwrite leaves a file behind to notice, a delete leaves an absence.
+        #
+        # OPTIONAL exactly as it is on the write path, so curl and scripts are
+        # not blocked; a client that sends it gets the guarantee, and the UI
+        # always sends it.
+        base_mtime = body.get("baseMtime")
+        if base_mtime is not None:
+            current = int(st.st_mtime)
+            if int(base_mtime) != current:
+                return self._send(409, {
+                    "error": "the file changed on disk since you opened it",
+                    "path": res.relpath,
+                    "baseMtime": int(base_mtime), "currentMtime": current,
+                    # The SIZE, not the bytes. /write returns both versions
+                    # because it has keep/take/compare to offer; there is no
+                    # merge to offer for a delete, and the file may be a 200 MB
+                    # binary that a 409 body has no business carrying.
+                    "size": st.st_size,
+                })
+
+        # ── THE UNDO NET, AND IT FAILS CLOSED HERE ───────────────────────────
+        #
+        # /write treats a missing snapshot as survivable and reports it: refusing
+        # a save would destroy the very work the net exists to protect - unsaved
+        # changes in a tab with nowhere to put them. A DELETE inverts that
+        # argument completely. Refusing costs the caller nothing, because the
+        # file they asked to remove is still sitting there; proceeding without a
+        # copy is the one outcome on this service that nothing can walk back.
+        #
+        # So this is the single place where the net is a PRECONDITION.
+        # safepath.snapshot returns None for a real failure - an unwritable
+        # trash, or a file above SNAPSHOT_MAX_BYTES - and both are reasons to
+        # stop rather than to shrug. The 16 MB ceiling means a very large file
+        # cannot be removed through this API at all; that is a deliberate
+        # consequence of the guarantee, and the error says so rather than
+        # pretending the path was refused.
+        kept = safepath.snapshot(res.root_key, res.relpath, res.abspath)
+        if kept is None:
+            # Logged even though nothing changed. The write path logs its
+            # equivalent (NOSNAPSHOT) for the same reason: "the trash stopped
+            # working" is precisely what this log gets read for afterwards, and a
+            # refusal that leaves no trace is one nobody finds out about until a
+            # delete that mattered.
+            audit(who, "DELETE-REFUSED", res, st.st_size, "no snapshot was kept")
+            return self._send(403, {
+                "error": "refusing to delete: the previous version could not be "
+                         "kept, so this would not be undoable",
+                "path": res.relpath, "size": st.st_size})
+
+        try:
+            os.unlink(res.abspath)
+        except FileNotFoundError:
+            # Removed by somebody else between the lstat and here. Their outcome
+            # is the one that was asked for, so it is not an error - but it is a
+            # 404 and not a 200, because THIS request did not do it and the
+            # audit line below would otherwise credit it.
+            return self._send(404, {"error": "no such file", "path": res.relpath})
+        except OSError as e:
+            return self._send(403, {"error": f"cannot delete: {e.strerror}"})
+
+        # The same audit line /write writes, through the same function, with the
+        # same attribution. It matters more here than anywhere else: for every
+        # other change the file itself is evidence of what happened, and after a
+        # delete this line is the only record that the file ever existed.
+        audit(who, "DELETED", res, st.st_size)
+        return self._send(200, {
+            "ok": True, "root": res.root_key, "path": res.relpath,
+            "author": who, "bytes": st.st_size,
+            # Always true by the time we reach this line - the refusal above is
+            # the alternative. Reported anyway, so "you can undo this" is
+            # something the UI reads from the response rather than something it
+            # assumes about the server.
+            "snapshot": True,
+            "versioned": res.git_root is not None,
+        })
 
     # ── raw bytes ───────────────────────────────────────────────────────────
     def _raw(self, q: dict) -> None:
