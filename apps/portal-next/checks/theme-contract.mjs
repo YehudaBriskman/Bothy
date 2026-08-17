@@ -16,83 +16,29 @@
 // shared by every theme). The remaining 41 are the theme's own, and a theme must
 // declare all of them: a missing token silently inherits the base palette, which
 // is how you get a Gruvbox page with one blue button on it.
+//
+// THE RULES THEMSELVES ARE NOT IN HERE - they are in web/src/lib/contract.ts,
+// which imports nothing and is compiled by run.sh into the temp dir this file is
+// run from. They moved because the in-app theme editor has to show the SAME
+// warnings live while somebody picks colours, and two copies of a threshold is
+// one copy that will be wrong. What stays here is the part that is node's:
+// finding the stylesheets, parsing them, discovering the themes, printing lines.
+// Run it through checks/run.sh; on its own there is no compiled contract to
+// import.
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  evaluateTheme, requiredTokens, STRUCTURAL,
+} from './contract.mjs';
+
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const SRC = join(HERE, '..', 'web', 'src');
-
-// ── colour ──────────────────────────────────────────────────────────────────
-
-const srgbToLinear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-
-/** Parse the value forms that actually appear in these files: #rgb, #rrggbb,
- *  #rrggbbaa, rgb()/rgba() in both comma and space syntax. Returns
- *  {r,g,b,a} in 0..1, or null for anything else (a var(), a gradient, a
- *  shadow recipe) - callers decide whether "not a flat colour" is a failure. */
-function parseColour(v) {
-  const s = String(v).trim();
-  const hex = s.match(/^#([0-9a-fA-F]{3,8})$/);
-  if (hex) {
-    let h = hex[1];
-    if (h.length === 3 || h.length === 4) h = [...h].map((c) => c + c).join('');
-    if (h.length !== 6 && h.length !== 8) return null;
-    const n = (i) => parseInt(h.slice(i, i + 2), 16) / 255;
-    return { r: n(0), g: n(2), b: n(4), a: h.length === 8 ? n(6) : 1 };
-  }
-  const fn = s.match(/^rgba?\(([^)]+)\)$/i);
-  if (fn) {
-    const parts = fn[1].replace(/\//g, ' ').split(/[\s,]+/).filter(Boolean);
-    if (parts.length < 3) return null;
-    const num = (p) => (p.endsWith('%') ? parseFloat(p) / 100 * 255 : parseFloat(p));
-    const alpha = (p) => (p == null ? 1 : p.endsWith('%') ? parseFloat(p) / 100 : parseFloat(p));
-    const [r, g, b] = parts.slice(0, 3).map(num);
-    if ([r, g, b].some(Number.isNaN)) return null;
-    return { r: r / 255, g: g / 255, b: b / 255, a: alpha(parts[3]) };
-  }
-  return null;
-}
-
-/** Flatten a translucent colour onto an opaque one. --line and the shadow
- *  recipes are alpha over a surface, and comparing them un-composited would
- *  measure a colour that is never on screen. */
-const over = (fg, bg) => ({
-  r: fg.r * fg.a + bg.r * (1 - fg.a),
-  g: fg.g * fg.a + bg.g * (1 - fg.a),
-  b: fg.b * fg.a + bg.b * (1 - fg.a),
-  a: 1,
-});
-
-const luminance = (c) =>
-  0.2126 * srgbToLinear(c.r) + 0.7152 * srgbToLinear(c.g) + 0.0722 * srgbToLinear(c.b);
-
-function contrast(a, b) {
-  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
-  return (x + 0.05) / (y + 0.05);
-}
-
-/** sRGB → OKLCH. The accent-legality rule is stated in OKLCH (hue degrees and
- *  chroma), and index.css records every accent's coordinates in a comment, so
- *  this is the space the contract is written in. */
-function oklch(c) {
-  const [r, g, b] = [c.r, c.g, c.b].map(srgbToLinear);
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
-  const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
-  const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
-  const C = Math.hypot(A, B);
-  let H = (Math.atan2(B, A) * 180) / Math.PI;
-  if (H < 0) H += 360;
-  return { L, C, H };
-}
-
-/** Shortest angular distance, because hue is a circle and 355° is 20° away from
- *  15°, not 340°. The --a5/--st-down pair is only legal by this reading. */
-const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+// Unlike the other checks, this one READS the source tree, and run.sh runs it
+// from a temp dir beside the compiled contract - so the tree is passed in rather
+// than assumed to be a sibling. The fallback is what it means to run in place.
+const SRC = process.argv[2] ?? join(HERE, '..', 'web', 'src');
 
 // ── the token blocks ────────────────────────────────────────────────────────
 
@@ -175,41 +121,12 @@ const HL_DARK = merge(...hlBlocks.filter((b) => !b.sel.includes('light')).map((b
 const HL_LIGHT = merge(...hlBlocks.filter((b) => b.sel.includes('light')).map((b) => b.toks));
 
 const DERIVED = new Set(Object.entries(BASE).filter(([, v]) => v.includes('var(')).map(([k]) => k));
-const STRUCTURAL = new Set([
-  '--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-full', '--border-w', '--wrap',
-  '--scrollbar-w', '--dur-fast', '--dur', '--dur-slow', '--ease', '--font', '--mono',
-  '--disabled-opacity', '--rest-opacity',
-]);
-// Required of every theme: literal, not derived, not structural.
-const REQUIRED = Object.keys(BASE)
-  .filter((k) => !DERIVED.has(k) && !STRUCTURAL.has(k))
-  .sort();
+// Required of every theme: literal, not derived, not structural. The rule for
+// which is which is in contract.ts, because the editor has to answer the same
+// question about a half-finished theme.
+const REQUIRED = requiredTokens(BASE);
 
-// ── the rules ───────────────────────────────────────────────────────────────
-
-const STATUSES = ['up', 'warn', 'down', 'unknown', 'off'];
-const ACCENTS = ['--a1', '--a2', '--a3', '--a4', '--a5'];
-const CHARTS = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5'];
-
-// Written into index.css as measurements, reproduced here as thresholds.
-const AA = 4.5;              // text
-const ACCENT_ON_SURFACE = 4.6; // --a1..--a5 are painted as 12px bold text
-const CHART_VS_CARD = 3.0;
-const CHROMATIC_C = 0.06;    // a status at or above this is "chromatic"
-const HUE_SEPARATION = 45;   // degrees, against a chromatic status
-const CHROMA_MARGIN = 0.06;  // against a near-grey status
-const BAND = { dark: [0.48, 0.67], light: [0.43, 0.77] };
-
-// Three light-mode status FILLS sit below 3:1 on purpose: they are large solid
-// areas beside a track, never small glyphs or 1px borders, and status is never
-// encoded by colour alone. Recorded as an allowance WITH its reason so that a
-// new theme cannot quietly widen it - the allowance is per token, not a blanket
-// "fills are exempt".
-const FILL_ALLOWANCE = {
-  '--st-up': 'large filled area beside a track; the -fg half carries any text',
-  '--st-unknown': 'as --st-up',
-  '--st-off': 'as --st-up, and deliberately the quietest thing on the page',
-};
+// ── printing ────────────────────────────────────────────────────────────────
 
 let failures = 0, passes = 0;
 const say = (ok, label, detail = '') => {
@@ -217,122 +134,20 @@ const say = (ok, label, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  ${detail}` : ''}`);
 };
 
+// An 'allow' is a fill below the floor that the palette permits out loud, so it
+// prints its reason rather than a verdict - see FILL_ALLOWANCE in contract.ts.
+const render = (f) => {
+  if (f.level === 'allow') {
+    console.log(`ALLOW ${f.label} - ${f.detail}`);
+    passes++;
+    return;
+  }
+  say(f.level === 'pass', f.label, f.detail);
+};
+
 function checkTheme(name, appearance, toks, hl) {
   console.log(`\n── ${name}  (${appearance}) ─────────────────────────────────`);
-
-  // 1. completeness
-  const missing = REQUIRED.filter((k) => !(k in toks));
-  say(!missing.length, 'declares every required token',
-    missing.length ? `missing ${missing.length}: ${missing.slice(0, 6).join(' ')}` : `${REQUIRED.length} tokens`);
-  if (missing.length) return;
-
-  const C = (k) => {
-    const p = parseColour(toks[k]);
-    return p;
-  };
-  const s1 = C('--surface-1'), s2 = C('--surface-2'), bg2 = C('--bg-2');
-  const on = (fg, bg) => contrast(fg.a < 1 ? over(fg, bg) : fg, bg);
-
-  // A foreground is measured against every ground it is PAINTED on, not against
-  // one canonical background. That distinction is not pedantry: the first thing
-  // this check found was that the two quietest status foregrounds had been
-  // measured on a card while being used mostly in the file explorer and the
-  // reader's index, both of which sit on --bg-2 - a darker ground, so the real
-  // ratios were ~0.35 lower than the ones written into index.css, and below AA.
-  const GROUNDS = [['surface-1', s1], ['surface-2', s2], ['bg-2', bg2]];
-  const worst = (fg) => GROUNDS.reduce(
-    (acc, [n, g]) => { const v = on(fg, g); return v < acc.v ? { n, v } : acc; },
-    { n: '', v: Infinity },
-  );
-
-  // 2. foreground contrast
-  for (const k of ['--fg', '--fg-muted', '--fg-subtle']) {
-    const w = worst(C(k));
-    say(w.v >= AA, `${k} >= ${AA}:1 on every ground it is painted on`,
-      `worst ${w.v.toFixed(2)} on ${w.n}`);
-  }
-  {
-    const a = on(C('--accent-fg'), s1);
-    say(a >= AA, `--accent-fg >= ${AA}:1 on surface-1`, a.toFixed(2));
-    const o = on(C('--on-accent'), C('--accent'));
-    say(o >= 3.0, '--on-accent >= 3:1 on --accent (button text)', o.toFixed(2));
-  }
-
-  // 3. status: -fg is the text-safe half, the fill is not asserted where the
-  //    palette says out loud that it is a large area.
-  for (const s of STATUSES) {
-    const w = worst(C(`--st-${s}-fg`));
-    say(w.v >= AA, `--st-${s}-fg >= ${AA}:1 on every ground it is painted on`,
-      `worst ${w.v.toFixed(2)} on ${w.n}`);
-  }
-  for (const s of STATUSES) {
-    const key = `--st-${s}`;
-    const v = on(C(key), s1);
-    if (key in FILL_ALLOWANCE) {
-      console.log(`ALLOW ${key} fill at ${v.toFixed(2)}:1 - ${FILL_ALLOWANCE[key]}`);
-      passes++;
-    } else {
-      say(v >= CHART_VS_CARD, `${key} fill >= 3:1 on surface-1`, v.toFixed(2));
-    }
-  }
-
-  // 4. light-mode status weight must run down > warn > up > unknown > stopped.
-  //    Not asserted on dark: a saturated red is intrinsically darker than a
-  //    saturated green and index.css forbids "fixing" it by brightening the red
-  //    into the amber's territory.
-  if (appearance === 'light') {
-    const order = ['down', 'warn', 'up', 'unknown', 'off'];
-    const w = order.map((s) => ({ s, L: oklch(C(`--st-${s}`)).L }));
-    const ok = w.every((x, i) => i === 0 || w[i - 1].L <= x.L + 1e-9);
-    say(ok, 'light status weight runs down > warn > up > unknown > stopped',
-      w.map((x) => `${x.s} ${x.L.toFixed(3)}`).join(' < '));
-  }
-
-  // 5. accent legality - the whole reason --a4 stopped being #34d399
-  const stats = STATUSES.map((s) => ({ s, ...oklch(C(`--st-${s}`)) }));
-  for (const k of ACCENTS) {
-    const a = oklch(C(k));
-    const bad = [];
-    for (const st of stats) {
-      if (st.C >= CHROMATIC_C) {
-        const g = hueGap(a.H, st.H);
-        if (g < HUE_SEPARATION) bad.push(`${st.s}: hue gap ${g.toFixed(0)}° < ${HUE_SEPARATION}°`);
-      } else if (a.C - st.C < CHROMA_MARGIN) {
-        bad.push(`${st.s}: chroma margin ${(a.C - st.C).toFixed(3)} < ${CHROMA_MARGIN}`);
-      }
-    }
-    say(!bad.length, `${k} is legal against every status`,
-      bad.length ? bad.join('; ') : `L ${a.L.toFixed(2)} C ${a.C.toFixed(3)} H ${a.H.toFixed(0)}°`);
-  }
-  for (const k of ACCENTS) {
-    const v = on(C(k), s2);
-    say(v >= ACCENT_ON_SURFACE, `${k} >= ${ACCENT_ON_SURFACE}:1 on surface-2 (12px bold text)`,
-      v.toFixed(2));
-  }
-
-  // 6. charts - band, and separation against the card. Slot ORDER is part of
-  //    what was validated upstream, so the check reads them in order and never
-  //    sorts them.
-  const [lo, hi] = BAND[appearance];
-  for (const k of CHARTS) {
-    const c = oklch(C(k));
-    say(c.L >= lo && c.L <= hi, `${k} inside the ${appearance} lightness band ${lo}-${hi}`,
-      `L ${c.L.toFixed(3)}`);
-  }
-  for (const k of CHARTS) {
-    const v = on(C(k), s1);
-    say(v >= CHART_VS_CARD, `${k} >= 3:1 on surface-1`, v.toFixed(2));
-  }
-
-  // 7. the syntax palette, when the theme carries one
-  if (hl && Object.keys(hl).length) {
-    for (const [k, v] of Object.entries(hl)) {
-      const c = parseColour(v);
-      if (!c) continue; // --hl-com is var(--fg-subtle); already checked above
-      const a = contrast(c, bg2);
-      say(a >= AA, `${k} >= ${AA}:1 on --bg-2`, a.toFixed(2));
-    }
-  }
+  for (const f of evaluateTheme(toks, appearance, { required: REQUIRED, syntax: hl })) render(f);
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────

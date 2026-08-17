@@ -32,8 +32,14 @@ mv "$OUT/routes.js" "$OUT/files-routes.mjs"
 (cd "$WEB" && npx tsc src/pages/files/titles.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/titles.js" "$OUT/titles.mjs"
+(cd "$WEB" && npx tsc src/lib/contract.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/contract.js" "$OUT/contract.mjs"
+(cd "$WEB" && npx tsc src/lib/customThemes.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
-   "$HERE/titles-table.mjs" "$OUT/"
+   "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -67,7 +73,20 @@ echo "── every theme keeps the palette's contract ────────�
 # Reads index.css, shell.css and src/themes/*.css directly. Runs against the two
 # SHIPPED palettes as well as the named themes, on purpose: a rule that fails on
 # Bothy's own colours is a wrong rule, and this is where that gets found out.
-node "$HERE/theme-contract.mjs"
+#
+# The rules it applies come from lib/contract.ts, compiled above and shared with
+# the in-app theme editor. This is the only check that reads the source tree, so
+# it is run from $OUT (where the compiled contract is) and told where the tree
+# is, rather than inferring a sibling that is not there.
+node "$OUT/theme-contract.mjs" "$WEB/src"
+
+echo
+echo "── a theme dropped in by hand is read correctly ────────"
+# lib/customThemes.ts parses a .css file somebody wrote into
+# apps/portal-next/data/themes. Getting `appearance` wrong there is not cosmetic:
+# it decides which base palette the pre-paint script stamps, so a light theme
+# would render its first frame on the dark base.
+node "$OUT/user-themes.mjs"
 
 echo
 echo "── every colour comes from a token ─────────────────────"
