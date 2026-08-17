@@ -86,7 +86,7 @@ Please report privately, **not** as a public issue.
 
 Use **GitHub private security advisories** on this repository:
 **Security → Advisories → Report a vulnerability**
-(<https://github.com/YehudaBriskman/dev-box/security/advisories/new>).
+(<https://github.com/YehudaBriskman/Bothy/security/advisories/new>).
 
 Include:
 
