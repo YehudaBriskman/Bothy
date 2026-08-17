@@ -41,3 +41,10 @@ apps/portal-next/data/projects.json
 # Reversible quarantine from /cleanup. Emptied by hand once the removals have
 # been lived with; never content of the repo.
 .cleanup-trash/
+
+# Screenshots at the REPO ROOT are always an accident - a verification shot that
+# was meant to be looked at and deleted. Two of them (edge-dark.png,
+# services-1.png) reached main this way. Root-only on purpose: docs/assets holds
+# the README images and must stay tracked.
+/*.png
+/*.jpg
