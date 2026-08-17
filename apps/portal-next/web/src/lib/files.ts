@@ -126,6 +126,20 @@ export interface FileRead {
    * credential" is worth saying once, loudly, and not worth blocking on.
    */
   sensitive?: string | null;
+  /**
+   * What editing THIS path costs, decided server-side from the path alone
+   * (safepath.caution_for, declared in policy.toml's [[write.caution]]).
+   *
+   * It replaced a refusal. The editor used to decline to write anything that
+   * was not prose, which did not stop the edit - it moved it to `vim`, where
+   * there is no snapshot, no conflict check and no audit line. So the service
+   * permits the write and states the consequence, and this is that statement.
+   *
+   * `critical` is confirmed before saving; `caution` is shown and not confirmed.
+   * Absent means an ordinary file, and most files are ordinary - a warning on
+   * everything is a warning on nothing.
+   */
+  caution?: { level: 'caution' | 'critical'; note: string } | null;
 }
 
 export interface WriteResult {

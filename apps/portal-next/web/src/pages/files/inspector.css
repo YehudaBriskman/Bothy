@@ -119,3 +119,26 @@
 }
 .bothy-files .fx-sha:hover { color: var(--fg); border-color: var(--line-strong); }
 .bothy-files .fx-sha .mono { font-size: 10.5px; }
+
+/* WHAT AN EDIT COSTS. Same shape as .fx-sensitive next to it, two tones.
+   `caution` borrows the warn tokens; `critical` borrows the down ones - and that
+   is the one place in the app where a status colour is used for something other
+   than a service's state.
+
+   It is legal for the same reason the reader's callouts are: this rail describes
+   a FILE, and there is no service status anywhere on it, so there is nothing for
+   an amber panel to be confused with. If a service's state ever appears in the
+   inspector, this borrowing is void and these need their own tokens. */
+.bothy-files .fx-caution {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 10px 12px 0; padding: 8px 10px; font-size: 11.5px; line-height: 1.45;
+  border-radius: var(--r-sm);
+  background: var(--st-warn-bg); border: 1px solid var(--st-warn-line);
+  color: var(--st-warn-fg);
+}
+.bothy-files .fx-caution.is-critical {
+  background: var(--st-down-bg); border-color: var(--st-down-line);
+  color: var(--st-down-fg);
+}
+.bothy-files .fx-caution svg { flex: none; margin-top: 1px; }
+.bothy-files .fx-caution b { font-weight: 700; }

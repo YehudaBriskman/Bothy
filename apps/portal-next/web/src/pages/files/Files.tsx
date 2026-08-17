@@ -904,6 +904,28 @@ export function Files() {
     const f = d.file;
     const draft = d.draft;
     const lang = langFor(f.path, f.lang);
+
+    // THE CONFIRMATION THAT REPLACED THE REFUSAL.
+    //
+    // The service used to decline to write anything that was not prose. It does
+    // not any more - see [write] in policy.toml - so the last thing standing
+    // between a typo and a stack that will not come up is this sentence, and it
+    // has to name the consequence rather than ask "are you sure?".
+    //
+    // Only `critical`. A confirm on every YAML file is a dialog people dismiss
+    // without reading, which would cost the warning its meaning on exactly the
+    // files it exists for.
+    if (f.caution?.level === 'critical' && !confirm(
+      `${f.path}\n\n${f.caution.note}\n\n`
+      + 'The previous contents are kept in the undo snapshot, and the file is in '
+      + 'git, so this is recoverable.\n\nSave anyway?')) {
+      patchDoc(id, (c) => ({
+        ...c,
+        notice: { tone: 'info', text: 'Not saved - you cancelled.' },
+      }));
+      return;
+    }
+
     patchDoc(id, (c) => ({ ...c, saving: true, notice: null }));
     // file.mtime is what this TAB read. Sending it is the whole conflict
     // guarantee - see docs/kb/editor-drafts.md.
