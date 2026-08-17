@@ -643,3 +643,41 @@ export function langFor(path: string, hint?: string | null): string {
   if (dot <= 0) return '';
   return EXT_LANG[name.slice(dot + 1).toLowerCase()] ?? '';
 }
+
+/** Remove a file. Used by the theme editor to delete a theme somebody made.
+ *
+ *  A SEPARATE VERB RATHER THAN AN EMPTY WRITE, because those are different acts
+ *  and only one of them is recoverable in the way people expect: the service
+ *  snapshots the outgoing bytes first, so a deleted theme is in the undo net
+ *  exactly as an overwritten one is. Writing an empty file would leave a file
+ *  that is still listed, still selectable, and paints nothing.
+ *
+ *  `baseMtime` carries the same conflict guarantee as writeFile: deleting a file
+ *  somebody else just changed is the same class of mistake as overwriting it,
+ *  and gets the same 409.
+ */
+export async function deleteFile(
+  root: string,
+  path: string,
+  baseMtime?: number,
+): Promise<SaveOutcome> {
+  let r: Response;
+  try {
+    r = await fetch(`${BASE}/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ root, path, baseMtime }),
+    });
+  } catch (e) {
+    return { kind: 'error', message: e instanceof Error ? e.message : 'the service did not answer' };
+  }
+  if (r.status === 401) return { kind: 'auth' };
+  if (r.status === 409) {
+    return {
+      kind: 'error',
+      message: 'The file changed on disk since this page read it. Reload before deleting.',
+    };
+  }
+  if (!r.ok) return { kind: 'refused', message: await errorText(r, 'the delete was refused') };
+  return { kind: 'saved', res: { ok: true, path, mtime: 0, bytes: 0 } as WriteResult };
+}

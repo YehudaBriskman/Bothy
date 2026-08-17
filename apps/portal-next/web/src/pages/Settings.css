@@ -137,3 +137,29 @@
   background: var(--accent-bg); border: 1px solid var(--accent-line);
   border-radius: var(--r-xs); vertical-align: 1px;
 }
+
+/* The card is a <button>; this is a <Link> inside it. It sits in the corner and
+   only shows on hover or focus, so it is present without competing with the
+   swatches - the row you are actually reading. */
+.settings-page .theme-card { position: relative; }
+.settings-page .theme-edit {
+  position: absolute; top: 8px; right: 8px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 6px; border-radius: var(--r-xs);
+  font-size: 10.5px; font-weight: 600; text-decoration: none;
+  color: var(--accent-fg); background: var(--accent-bg);
+  border: 1px solid var(--accent-line);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+}
+.settings-page .theme-card:hover .theme-edit,
+.settings-page .theme-edit:focus-visible { opacity: 1; }
+
+/* The make-a-theme card. Dashed, so it reads as an action rather than as an
+   eighth palette sitting in a list of palettes. */
+.settings-page .theme-new {
+  border-style: dashed;
+  text-decoration: none;
+  justify-content: flex-start;
+}
+.settings-page .theme-new:hover { border-color: var(--accent-line); background: var(--accent-bg); }
+.settings-page .theme-new .theme-name { display: inline-flex; align-items: center; gap: 6px; }
