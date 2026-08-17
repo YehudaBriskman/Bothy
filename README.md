@@ -10,18 +10,10 @@ what a project *doesn't* ship - an edge, identity, observability, a shared
 database, backups. Bothy shows you what is running by **asking Docker**, never
 by reading a list somebody remembered to update.
 
-> **Access model: plain `http://<node-ip>:<port>`.** The `*.dev.test` wildcard-DNS
-> layer this repo was built around went dormant on 2026-08-08 and was **deleted on
-> 2026-08-12** - every `Host()` router removed, none left in the router table.
-> `just urls` prints the live port table. Sections below that describe names
-> document a **retired** design, kept because the problem it solved is real;
-> [`docs/kb/dns.md`](docs/kb/dns.md) records what would be involved in rebuilding
-> it, which is considerably more than flipping a switch.
->
-> **SSO was not retired with it - it was rebuilt on IP, and it now enforces.**
-> Identity is a local Keycloak on `:8090` with oauth2-proxy in front. Three
-> routers require a role: reading a file needs `viewer`, writing one needs
-> `editor`. See [Single sign-on](#single-sign-on).
+> **Access model: plain `http://<node-ip>:<port>`.** Every browser-facing
+> service publishes its own host port; `just urls` prints the table. Reads and
+> writes to the file API additionally require a Keycloak role - see
+> [Single sign-on](#single-sign-on).
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![docker compose](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
@@ -31,15 +23,13 @@ by reading a list somebody remembered to update.
 ![React 19](https://img.shields.io/badge/React%2019-%2B%20Vite-61DAFB?logo=react&logoColor=000)
 ![WSL2](https://img.shields.io/badge/WSL2-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)
 
-<p align="center">
-  <img src="docs/assets/portal-overview.png"
-       alt="The portal Overview page: a hero reading N / M services up with a status bar, grouped Projects / Stack / Infrastructure cards, and panels for services needing attention, open UIs, disk usage and recent activity."
-       width="860">
-  <br><br>
-  <img src="docs/assets/portal-topology.png"
-       alt="The portal Topology page: a 3D rack view of the box, with the Traefik edge at the top connected by animated cables down to racks of running containers."
-       width="860">
-</p>
+![The Bothy Overview: 23 up / 14 off across a status bar, then one card per system - Monitoring · Grafana, Identity · Keycloak, Containers · Portainer, Database · Postgres - above live CPU, memory and network charts.](docs/assets/overview.png)
+
+_Every card on that page was discovered by asking Docker. Nothing about it is a list._
+
+![Bothy Files: a file tree of the stacks repo on the left, this README rendered in the centre, and the file's git history on the right.](docs/assets/files.png)
+
+_Bothy Files, reading this README off the disk it lives on - with search, git history and an editor._
 
 ---
 
@@ -51,8 +41,8 @@ database, backups - and it does so for every project on the machine at once.
 Every non-obvious line in these compose files carries a comment explaining **why**
 it is there, usually because the alternative broke something.
 
-It does **not** provide routing-by-name or DNS. It used to; both were deleted on
-2026-08-12, and the section below says what replaced them.
+It does **not** provide routing-by-name or DNS. Every browser-facing service
+publishes its own port instead; the section below says why.
 
 ## What this is not
 
@@ -61,10 +51,10 @@ Not a production platform, and not a template to deploy anywhere public:
 - **Plaintext HTTP everywhere.** It is safe here only because the transport is a
   WireGuard tailnet. On a LAN or the internet, it is not.
 - **Dev credentials.** `.env.example` ships placeholders (`changeme`, `admin`)
-  and every one of them is meant to be replaced. On 2026-08-12 the Postgres
-  superuser password was found to still be the published placeholder on the live
-  box; it was rotated and the insecure compose fallback removed, so a missing
-  `POSTGRES_PASSWORD` now aborts instead of silently defaulting.
+  and every one of them is meant to be replaced. A missing `POSTGRES_PASSWORD`
+  now aborts rather than silently defaulting - the fallback was removed after the
+  superuser password on the live box was found to still be the published
+  placeholder.
 - **Single node, single user.** Access control is tailnet membership, plus one
   shared dev login on the dashboards, plus Keycloak roles on the one tier that
   can write - see [Single sign-on](#single-sign-on). There is no HA, no TLS, no
@@ -79,8 +69,8 @@ Not a production platform, and not a template to deploy anywhere public:
 
 ### 1. The portal discovers what is running. It is never a hand-written list.
 
-The portal - Traefik's catch-all on `:80`, and since 2026-08-12 the only non-API
-router on the box - is a React 19 + Vite app served as a static build. Its service links navigate by
+The portal - Traefik's catch-all on `:80` - is a React 19 + Vite app served as a
+static build. Its service links navigate by
 published port on whichever host you opened it from, so they work identically
 via tailnet IP, MagicDNS name or localhost. It renders by joining
 **two read-only APIs**, both proxied under its own origin so there is zero CORS:
@@ -98,12 +88,10 @@ container's own Traefik labels if the Traefik-side IP is stale.
 
 Containers are then classified with no lookup table anywhere: their
 `com.docker.compose.project.config_files` label says whether they belong to this
-repo (a stack service) or to a project, and **hostname nesting beats it** - so
-`s3.myproject.dev.test` grouped under `myproject` even when it was a host process
-with no container at all. (Since the name layer was deleted on 2026-08-12 there are
-no hostnames left to nest, so that branch is retained but dormant; classification
-falls through to `config_files`.) Optional `dev.portal.*` labels add an icon, a
-description or a display name. If the page ever *needs* a label to be correct, the
+repo (a stack service) or to a project. Optional `dev.portal.*` labels add an
+icon, a description or a display name - one label names a whole compose project,
+which is how `Edge · Traefik` and `Identity · Keycloak` get their titles. If the
+page ever *needs* a label to be correct, the
 defaults are wrong.
 
 The test of the whole thesis: **start any container and it appears on the portal
@@ -158,21 +146,6 @@ kinds of denied file and requires that only the served one comes back.
 The general form: **if a rule can be forgotten, it will be. Put it somewhere it
 cannot be skipped, then write the test that proves it was not.**
 
-### The one that got away
-
-This repo used to route everything by hostname - `Host()` rules, a wildcard
-`.test` namespace, no published ports. That layer went dormant on 2026-08-08 and
-was **deleted** on 2026-08-12, dropping the router table from 22 routers to 6 with
-zero `Host()` rules left. Nothing became unreachable, because every service had
-kept its port all along. One of the dead routers had been quietly serving the
-Traefik API unauthenticated, where `/api/rawdata` dumped a live
-`Authorization: Basic` header.
-
-The lesson that survived is worth more than the design: **either keep a layer
-working or delete it - parked configuration is the expensive middle.** Dead
-routers look live, teach every new service the wrong pattern, and need a caveat in
-every document. Full account in [`docs/kb/`](docs/kb/README.md).
-
 ---
 
 ## Quick start
@@ -183,10 +156,8 @@ every document. Full account in [`docs/kb/`](docs/kb/README.md).
   with the Compose plugin. Traefik must be **≥ v3.6** - older builds hardcode
   Docker API v1.24 and silently load zero routes against a modern daemon.
 - [`just`](https://github.com/casey/just), plus `jq` and `curl` for `just doctor`.
-- Nothing else. The retired name layer needed a resolver answering `*.test`, and
-  the retired GitHub SSO needed an OAuth App on github.com; neither is required
-  today. Identity is now local - Keycloak in a container, no internet account
-  involved.
+- Nothing else. No DNS to configure and no account on anyone else's server:
+  identity is a local Keycloak in a container.
 
 ```sh
 cp .env.example .env      # fill in BOX_IP, DEV_LOGIN_*, POSTGRES_PASSWORD, WIKI_DB_PASSWORD, KEYCLOAK_*
@@ -208,12 +179,12 @@ Then open **`http://<this-node's-tailnet-IP>/`** - `just urls` prints every addr
 
 | Path | What lives there |
 |---|---|
-| `edge/` | **Traefik** on `:80`: serves the portal catch-all and the `/-/api/*` data plane, and nothing else - Host-name routing was deleted 2026-08-12, as was the dashboard (`--api=true`, not `--api.dashboard=true`). Also exports Prometheus metrics on an internal entrypoint with no host port. |
-| `edge/dynamic/` | Watched file-provider routes: `portal-api.yml` (the portal's read-only data plane - the security boundary, read it in full), `project.example.yml` (the annotated template, entirely commented out on purpose), `auth.yml` (live again 2026-08-12 - defines the `sso@file` / `sso-errors@file` middlewares and the host-less `` PathPrefix(`/oauth2/`) `` router, but **attaches the middlewares to no router**), `host-services.yml` (now declares no routes). |
-| `auth/` | **Keycloak 26.7.1 + oauth2-proxy** - the local identity layer, running since 2026-08-12. Keycloak publishes `:8090` and stores its data in the shared Postgres under its own `keycloak` role; oauth2-proxy runs `--provider=oidc` against the `devbox` realm and publishes no port. **Nothing is enforced yet.** See [Single sign-on](#single-sign-on). |
+| `edge/` | **Traefik** on `:80`: the portal catch-all, the `/-/api/*` data plane, and the editor tier's role-gated routes. No Host-name routing and no dashboard (`--api=true`, never `--api.dashboard=true` - it served the merged config, credentials included). Exports Prometheus metrics on an internal entrypoint with no host port. |
+| `edge/dynamic/` | Watched file-provider routes: `portal-api.yml` (the portal's read-only data plane - the security boundary, read it in full), `portal-files.yml` (the editor tier's three role-gated routers), `auth.yml` (the `sso@file` / `sso-errors@file` middlewares and the host-less `` PathPrefix(`/oauth2/`) `` router), `project.example.yml` (the annotated template, commented out on purpose). |
+| `auth/` | **Keycloak 26.7.1 + oauth2-proxy** - the local identity layer. Keycloak publishes `:8090` and stores its data in the shared Postgres under its own `keycloak` role; oauth2-proxy runs `--provider=oidc` against the `devbox` realm and publishes no port. Enforces on the editor tier; see [Single sign-on](#single-sign-on). |
 | `monitoring/` | Prometheus, Grafana, Loki + Promtail, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds six provisioned dashboards; `rules/` is for Prometheus rules. |
 | `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. In active use - the dev database, Wiki.js and Keycloak all live here. |
-| `data/redis/`, `data/kafka/` | **Retired 2026-08-12** as measured-idle - see [What was retired](#what-was-retired-2026-08-12). The compose files are kept so `just down` and `just nuke` still clean up an older deployment; `just up-data` no longer starts them. |
+| `data/redis/`, `data/kafka/` | **Retired** - both measured completely idle (zero keys, zero topics) and removed. The compose files are kept so `just down` and `just nuke` still clean up an older deployment; `just up-data` no longer starts them, and their volumes are gone. |
 | `mgmt/` | Portainer and Dozzle. |
 | `apps/portal-next/` | The live portal on `:80` - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `portal-next-fallback`, the catch-all. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
 | `apps/portal/` | The retired pure-HTML portal, kept as a one-line rollback - **and the owner of `portal-socket-proxy`**, which the live portal still depends on. Do not `compose down` this directory. |
@@ -227,7 +198,7 @@ Then open **`http://<this-node's-tailnet-IP>/`** - `just urls` prints every addr
 
 ## Architecture
 
-_As it actually is, verified 2026-08-12. Traffic goes browser →
+_As it actually is, verified against the live router table. Traffic goes browser →
 `http://<node-ip>:<port>` straight to each service; only the portal, its data
 plane and the `/oauth2/` sign-in endpoints pass through Traefik._
 
@@ -271,11 +242,8 @@ Verified against the live router table: **10 routers, zero `Host()` rules.** The
 count moves as tiers are added; the zero is the invariant, and `just verify`
 asserts it.
 
-Retired from this picture on 2026-08-12: wildcard `*.dev.test` DNS, every `Host()`
-router, the browsable Traefik dashboard, and - as separate work the same day -
-Redis, Kafka and minikube. Keycloak and oauth2-proxy now **enforce** on the editor
-tier's three routers; the dotted line above is a control there and a capability
-everywhere else.
+Keycloak and oauth2-proxy **enforce** on the editor tier's three routers; the
+dotted line above is a control there and a capability everywhere else.
 
 Three Docker networks, deliberately - each holding the minimum that can reach a
 thing worth protecting:
@@ -350,8 +318,8 @@ else's server, it could only ever answer "is this one specific GitHub user", and
 there was nowhere to put the notion of a *role*. Keycloak owns the users, the
 roles and the login flow locally, so authorisation becomes configuration in this
 repo (`auth/realm-devbox.json`) instead of a checkbox on github.com - and it
-survives the box being offline from the internet. The GitHub callback was also
-pinned to `auth.dev.test`, a name deleted the same day.
+survives the box being offline from the internet. The GitHub callback also had a
+single-point dependency on a DNS name; an IP:port callback depends on nothing.
 
 **The one spelling rule.** Keycloak re-advertises its own address: whatever
 `KC_HOSTNAME` says becomes the `issuer` in the discovery document and inside
@@ -362,10 +330,9 @@ appears exactly once as a value and is used by the browser *and* by
 oauth2-proxy; the internal shortcut `http://keycloak:8080` is deliberately not
 used anywhere in the OIDC config, because a second spelling is the bug.
 
-**Cookies, now that there is no cookie domain.** The old
-`--cookie-domain=.dev.test` named a namespace that no longer resolves, and there
-is no replacement - none is wanted. Every service is now a different *port* on
-the same host, and cookies ignore the port, so the default host-only cookie on
+**Cookies, and why there is no cookie domain.** There is none, and none is
+wanted. Every service is a different *port* on the same host, and cookies ignore
+the port, so the default host-only cookie on
 `${BOX_IP}` is already sent to `:3000`, `:9090`, `:8080` and the rest: single
 sign-on across the whole box falls out for free. `--whitelist-domain` is still
 needed, with the `:*` all-ports wildcard, because it governs the `?rd=`
@@ -378,8 +345,8 @@ too). Postgres is loopback-only and unrouted.
 
 > **A general warning that outlived the design it shipped with.** Prometheus'
 > basic-auth credential is injected by a Traefik `customRequestHeaders`
-> middleware so the portal can query it. On 2026-08-12 that credential was found
-> readable by anyone on the tailnet, because the Traefik dashboard served
+> middleware so the portal can query it. That credential was once readable by
+> anyone on the tailnet, because the Traefik dashboard served
 > `api@internal` unauthenticated and `/api/rawdata` dumps the merged config
 > verbatim. **A headers middleware hides a secret from the browser, not from the
 > config dump.** The dashboard router was deleted and `--api.dashboard=true`
@@ -415,7 +382,7 @@ just psql        # a psql shell on the dev database
 just network     # create the devnet + socketnet networks (idempotent; every up- depends on it)
 ```
 
-`just redis` was **removed on 2026-08-12** with Redis itself. A recipe that can
+`just redis` was **removed** with Redis itself. A recipe that can
 only ever fail looks like breakage, so it is gone rather than left pointing at a
 container that does not exist. `just doctor` prints minikube's absence as a
 third state, `dim` - deliberately switched off, not broken - for the same
@@ -439,13 +406,12 @@ The `.test` name layer is gone, but two of its hazards outlived it, and both cos
 real debugging time.
 
 **A 200 proves nothing about routing.** The portal's catch-all `` PathPrefix(`/`) ``
-answers *every* unmatched request on `:80` with its own HTML - from any hostname
-and from the bare IP. dnsmasq's `address=/test/` line is also still in the local
-config, so `.dev.test` names still resolve **on this box**, to this box, where
-that catch-all cheerfully returns 200. From another device the same name is
-`NXDOMAIN`; from here it looks like it works. It is the most convincing false
-positive available on this machine. **Assert on content, never on a status code** -
-which is exactly what `just verify` does.
+answers *every* unmatched request on `:80` with its own HTML - from any hostname,
+from the bare IP, and for any path no other rule matched. So a service you believe
+you routed can be dead while `curl` reports a cheerful 200 and a page full of
+someone else's markup. It is the most convincing false positive available on this
+machine. **Assert on content, never on a status code** - which is exactly what
+`just verify` does.
 
 **A dotless hostname in a host process is a landmine.** dnsmasq runs with
 `domain-needed`, and that is not cosmetic. Without it, a bare compose service name
@@ -467,56 +433,14 @@ ssh -L 5432:localhost:5432 <user>@<this-node>.<your-tailnet>.ts.net
 
 ---
 
-## What was retired 2026-08-12
-
-Three services were removed the same day, each **measured** idle before being
-touched rather than assumed idle. The measurement is the point: "we probably
-don't use this" is not a reason, and a number is.
-
-| Retired | Evidence it was idle | Reclaimed |
-|---|---|---|
-| Kafka + Kafka-UI + Kafka-exporter | Zero topics | ~1,150 MB |
-| Redis + Redis-exporter | Zero keys | ~30 MB |
-| minikube | Zero non-system pods over 27 days; the only Service in the cluster was the default `kubernetes` ClusterIP | 1,046 MB |
-
-Container memory went **4,678 MB → ~2,300 MB**; running containers **27 → 21**.
-
-The compose files are kept and are still referenced by `just down` and
-`just nuke`, so an older deployment can still be cleaned up - but `just up-data`
-no longer starts them, and their volumes and images were deleted afterwards.
-Marking something retired with a pointer beats deleting the file, following the
-`apps/wiki` precedent. minikube's systemd unit is likewise left installed but
-disabled; the cluster itself **was** deleted, so `minikube start` builds a new
-one rather than resuming the old.
-
-**Removing a service is not finished when the container stops.** Three things
-kept insisting the box was broken afterwards, and fixing them was the larger
-half of the work:
-
-- Prometheus still scraped `redis-exporter` and `kafka-exporter`, so two targets
-  sat permanently DOWN. That is worse than noise - "are all targets up?" stops
-  being a question worth asking, and a real alert would have been lost among two
-  that never resolve.
-- `scripts/doctor.sh` expected five containers that no longer exist and reported
-  five phantom absences on every run.
-- `just redis` pointed at a container that is gone.
-
-Postgres is **unaffected and in active use** - the dev database, Wiki.js and now
-Keycloak all live in it. Its superuser password was rotated the same day: it had
-still been the placeholder published in `.env.example`, and the compose fallback
-that allowed a missing `POSTGRES_PASSWORD` to silently default was removed.
-
----
-
 ## Backups
 
 `stacks-backup.timer` runs `scripts/backup.sh` at 03:00 daily, keeping the newest
-14 of each: the Postgres dump - which since 2026-08-12 carries Keycloak's realm,
+14 of each: the Postgres dump - which carries Keycloak's realm,
 users and roles as well as the dev database - the Grafana and Portainer
 databases, and `.env`, which is gitignored and exists in exactly one place on
 earth, so losing it loses every credential on the box. Its Redis step still runs
-and now always reports "redis not running - skipped", because Redis was retired
-on 2026-08-12.
+and now always reports "redis not running - skipped", because Redis is gone.
 
 The script is deliberately **not** `set -e`: one failed service must not skip the
 others. It waits for Postgres to accept connections before dumping, verifies
@@ -553,7 +477,7 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
 - **A route that misbehaves** → the router table is served at
   `http://<node-ip>/-/api/traefik/http/routers`; it shows exactly which routers
   are registered. There is no Traefik dashboard to check instead - it was deleted
-  2026-08-12 because it leaked a credential.
+  because it leaked a credential.
 - **A `Host()` rule added today registers as `enabled` and matches nothing.**
   There is no name layer. Publish a port, or use a host-less exact
   `` Path(`…`) `` rule - `edge/dynamic/project.example.yml` is the template.
@@ -563,14 +487,15 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
   form instead.
 - **`just urls` is not an authoritative port registry.** It lists the *stack's*
   ports; a project's claims live in its own `project.dev.yml`, and nothing
-  reconciles the two. On 2026-08-12 Keycloak was published on `:8083`, which a
-  stopped project had already declared - the portal's collector TCP-probed the
-  declared port, found something listening, and reported a service nobody had
-  started as up. Keycloak moved to `:8090`. Check **both** `ss -ltn` and the
+  reconciles the two. Keycloak was once published on `:8083`, which a stopped
+  project had already declared - the collector TCP-probed the declared port, found
+  something listening, and reported a service nobody had started as up. It moved
+  to `:8090`. Check **both** `ss -ltn` and the
   project manifests before publishing a port.
-- **"SSO is running" does not mean "SSO is protecting this."** As of 2026-08-12
-  Keycloak and oauth2-proxy are up and the middlewares are defined, but no router
-  references them. Confirm with the router table, not with `docker ps`.
+- **"SSO is running" does not mean "SSO is protecting this."** Defining a
+  middleware is not attaching it. Today three routers carry a role requirement and
+  every other service carries its own login instead. Confirm with the router
+  table, not with `docker ps`.
 - **Tunnel pings pong but pages stall, or SSH hangs at key exchange** - the
   large-packet blackhole. Restart tailscaled on the box; recipe in
   [`docs/kb/incidents/2026-08-08-wsl-node-large-packet-blackhole.md`](docs/kb/incidents/2026-08-08-wsl-node-large-packet-blackhole.md).
