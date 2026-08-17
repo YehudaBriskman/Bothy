@@ -43,20 +43,40 @@ for u in "/" "/-/api/traefik/http/routers" "/-/api/docker/containers/json" "/-/a
   [ "$got" = "200" ] && ok "$u -> 200" || bad "$u -> $got (expected 200)"
 done
 # The portal must be the SPA, not an error page.
-if curl -s -m 4 "http://$IP/" | grep -q '<title>Bothy'; then ok "bare IP serves the Bothy SPA"; else bad "bare IP is not serving the SPA"; fi
+# `cmd | grep -q` IS A TRAP HERE, and it cost a security check its meaning.
+#
+# This script runs under `set -o pipefail`. `grep -q` exits the moment it
+# matches, the writer upstream dies of SIGPIPE, and the PIPELINE's status is
+# therefore non-zero *because the grep succeeded*. An `if` around it then takes
+# the else branch and reports a failure that did not happen.
+#
+# Measured on this box: the /raw assertion below failed in 2 runs out of 3, and
+# what it printed was "the sandbox split is broken" - a check crying wolf about a
+# boundary that was fine, which is worse than no check at all, because the next
+# real failure reads as noise. doctor.sh documents the same trap for `zcat`.
+#
+# So: capture first, then match with bash's own `[[ ... == *needle* ]]`, which
+# involves no second process and no pipe.
+
+body=$(curl -s -m 4 "http://$IP/")
+if [[ $body == *'<title>Bothy'* ]]; then ok "bare IP serves the Bothy SPA"; else bad "bare IP is not serving the SPA"; fi
 
 echo
 echo "== 3. THE LEAK: the Traefik dashboard/API must no longer be routed =="
 raw=$(curl -s -m 4 "http://$IP/api/rawdata")
-if echo "$raw" | head -c 200 | grep -qi '<!doctype html'; then
+# Same pipefail trap again, twice over: `head -c 200` also exits early and
+# SIGPIPEs the echo feeding it. Both of these decide whether a CONFIG DUMP is
+# being served, so a false "bad" here is the loudest possible wrong answer.
+head200=${raw:0:200}
+if [[ ${head200,,} == *'<!doctype html'* ]]; then
   ok "/api/rawdata now falls through to the SPA (no config dump)"
 elif [ -z "$raw" ]; then
   ok "/api/rawdata returns nothing"
 else
-  bad "/api/rawdata STILL returns config: $(echo "$raw" | head -c 120)"
+  bad "/api/rawdata STILL returns config: ${raw:0:120}"
 fi
 # The specific thing that was leaking.
-if echo "$raw" | grep -qi '"authorization"'; then
+if [[ ${raw,,} == *'"authorization"'* ]]; then
   bad "an Authorization header is STILL exposed via /api/rawdata"
 else
   ok "no Authorization header exposed"
@@ -122,7 +142,10 @@ if [ "${VERIFY_SELFTEST:-}" = "1" ]; then
   probe=edge/dynamic/_selftest.yml
   printf '# {{ selftest\n' > "$probe"
   sleep 4
-  if docker logs traefik --since 15s 2>&1 | grep -qiE 'collecting file configs|_selftest'; then
+  # Same pipefail/SIGPIPE trap as above, and `docker logs` is the case most
+  # likely to hit it: the output is far larger than a pipe buffer.
+  logs=$(docker logs traefik --since 15s 2>&1)
+  if grep -qiE 'collecting file configs|_selftest' <<<"$logs"; then
     ok "selftest: the probe DOES detect a voided file"
   else
     bad "selftest: the probe did NOT detect a voided file - check 5b proves nothing"
@@ -152,7 +175,8 @@ got=$(code "http://$IP:8100/-/api/files/raw?root=stacks&path=README.md")
                    || bad "sandbox /raw -> $got (expected 401)"
 # The portal origin must NOT serve raw bytes. It answers 200 with the SPA
 # because of the catch-all, so this asserts CONTENT, not status.
-if curl -s -m 4 "http://$IP/-/api/files/raw?root=stacks&path=README.md" | grep -q '<title>Bothy'; then
+body=$(curl -s -m 4 "http://$IP/-/api/files/raw?root=stacks&path=README.md")
+if [[ $body == *'<title>Bothy'* ]]; then
   ok "raw is NOT routed on the portal origin (falls through to the SPA)"
 else
   bad "the portal origin served something for /raw - the sandbox split is broken"
