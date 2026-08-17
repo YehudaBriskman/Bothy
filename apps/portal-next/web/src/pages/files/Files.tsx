@@ -1168,7 +1168,7 @@ export function Files() {
                         "edits land as git commits", which stopped being true. */}
                     {deco.total > 0
                       ? <><b className="tnum">{deco.total}</b> uncommitted change{deco.total === 1 ? '' : 's'}</>
-                      : 'save writes to disk; commit in Source Control'}
+                      : 'save writes to disk; commit in Changes'}
                   </>}
           </p>
         </div>

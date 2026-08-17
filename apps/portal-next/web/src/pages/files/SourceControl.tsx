@@ -1,4 +1,8 @@
-// ── the left rail, as Source Control ─────────────────────────────────────────
+// ── the left rail, as Changes ────────────────────────────────────────────────
+//
+// The view is `scm` in code and "Changes" on screen. See ActivityBar.tsx for why
+// it stopped being called Source Control: the top nav now has a section called
+// Control, and two unrelated things a click apart cannot share that word.
 //
 // The same column the explorer lives in, answering a different question: not
 // "which file" but WHAT HAS CHANGED, AND WHAT DOES THAT CHANGE LOOK LIKE.
@@ -154,14 +158,14 @@ export function SourceControl({
   const total = groups.staged.length + groups.worktree.length;
 
   return (
-    <aside className="fx-rail fx-rail-l" aria-label="Source Control">
+    <aside className="fx-rail fx-rail-l" aria-label="Changes">
       {/* One button, and it re-reads. There is no `readOnly` branch anywhere in
           this panel any more: with nothing here that writes, a read-only mount
           and a writable one look and behave identically, so saying which was
           which would be explaining a restriction that no longer restricts
           anything on this page. */}
       <div className="fx-rail-h">
-        <span className="fx-rail-title">Source Control</span>
+        <span className="fx-rail-title">Changes</span>
         <span className="fx-rail-sub tnum">{total || ''}</span>
         <Tooltip label="Re-read git status" align="end">
           <button

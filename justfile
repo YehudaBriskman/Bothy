@@ -26,6 +26,11 @@ default:
 # Create the shared docker networks (idempotent)
 network:
     -docker network create devnet 2>/dev/null || true
+    # confignet: traefik + bothy-config, and nothing else. That service can
+    # REWRITE compose files and edge routes, so the same rule the socket proxy
+    # taught applies with a higher stake - it authenticates nobody, and the
+    # network is what stands in for that.
+    -docker network create confignet 2>/dev/null || true
     # socketnet holds exactly two containers: traefik + portal-socket-proxy.
     # docker-socket-proxy has NO auth, so network reachability IS authorisation -
     # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
@@ -112,12 +117,24 @@ up-mgmt: network
 # file from a bind mount. No second copy, no sync lag, nothing to keep out of git.
 up-apps: network
     docker compose {{BOTHY}} up -d
+    # The config tier. Separate from the editor tier on purpose: portal-files
+    # states it carries no third-party dependencies because it holds read-write
+    # handles on two repositories, and a YAML parser is a dependency. This one
+    # carries it, and mounts far less.
+    #
+    # The snapshot directory must exist before it starts - policy.toml declares
+    # it and the service refuses to boot without it, on the same reasoning as the
+    # editor tier's undo net: a safety net nobody notices is missing is worse
+    # than none at all.
+    mkdir -p ~/.local/state/bothy/config-trash
+    docker compose -f apps/bothy-config/compose.yml up -d
 
 # Stop everything (keeps volumes/data)
 down:
     -docker compose -f auth/compose.yml down
     -docker compose -f edge/compose.yml down
     -docker compose {{BOTHY}} down
+    -docker compose -f apps/bothy-config/compose.yml down
     # apps/wiki is superseded but never deleted: its content lives in a `wiki`
     # database this cannot recreate. Kept so an older deployment still gets
     # cleaned up.
@@ -140,6 +157,7 @@ nuke:
     -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
     -docker compose {{BOTHY}} down -v
+    -docker compose -f apps/bothy-config/compose.yml down -v
     -docker compose -f apps/wiki/compose.yml down -v
     -docker compose -f mgmt/compose.yml down -v
     # retired 2026-08-12 and their volumes already deleted, so `-v` here is a

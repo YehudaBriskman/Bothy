@@ -34,3 +34,6 @@ edge/dynamic/portal-prom.yml
 # from git. The portal treats an absent file as a supported configuration and
 # renders normally without it (see lib/api.ts).
 apps/portal-next/data/projects.json
+
+# Agent worktrees. Real git checkouts under the repo - never content of it.
+.claude/worktrees/

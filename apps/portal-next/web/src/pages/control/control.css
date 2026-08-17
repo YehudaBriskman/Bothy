@@ -1,0 +1,272 @@
+/* ============================================================================
+   The Control section - a two-column shell with a persistent left nav.
+
+   SCOPING. Every rule is `.control-sec <something>` - (0,2,0) or better, which
+   beats index.css's single-class rules REGARDLESS of import order. That is not
+   paranoia: main.tsx imports ./App before ./index.css, so Vite emits index.css
+   last and a (0,1,0) rule here would lose to a (0,1,0) rule there. Same reason
+   pages/files/shell.css is written the way it is.
+   ========================================================================== */
+
+/* ── A FIXED-HEIGHT SECTION, not a tall page ─────────────────────────────────
+
+   The first version scrolled as one document: the nav sat in normal flow and
+   went up with the page, and the body was capped by `.content`'s 1320px and
+   centred, so on a wide screen the nav floated ~90px in from the left edge with
+   whitespace either side of everything.
+
+   It was written NOT sticky, deliberately, and that reasoning was sound as far
+   as it went: `position: sticky` needs a `top`, the only correct value is the
+   topbar's height, and nothing in this app states that as a number - it is
+   padding plus whatever the tallest control happens to be, changing at two
+   breakpoints. shell.css already refused to measure it in JS.
+
+   The way out is not a better guess. It is to stop the page scrolling at all.
+   `pages/files/shell.css` does exactly this and says why: with `:has()` the
+   shell "stops being min-height: 100vh and becomes exactly 100vh, so its flex:1
+   child is handed precisely the space that is left". The topbar is then a flex
+   ROW rather than an overlay, so there is no offset to know - the nav simply
+   cannot go under it. Every region owns its own scrollbar.
+
+   100dvh, not 100vh: on a phone the browser chrome is part of vh, so 100vh puts
+   the last nav entry under the URL bar. Files predates dvh support; this does
+   not have to. */
+.shell:has(.control-sec) { height: 100dvh; min-height: 0; overflow: hidden; }
+
+/* `.content` is `max-width: 1320px; margin: 0 auto; padding: 26px 30px` for
+   ordinary pages, and every one of those is wrong for a shell: the max-width is
+   what held the body away from the right edge, the auto margins are what held
+   the nav away from the left, and the padding belongs to the regions now,
+   because they scroll independently and a shared pad would scroll with one of
+   them. */
+.shell:has(.control-sec) .content {
+  max-width: none;
+  padding: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* minmax(0, 1fr) rather than 1fr on the body, because `auto` as the implicit
+   minimum lets one unwrapped mono cell in the ports table set the column's
+   minimum width and push the page sideways - the single most common mysterious
+   overflow bug in grid.
+
+   `align-items: stretch` now, not `start`: both columns are full height and each
+   scrolls itself. The old comment warned a stretched nav would be "900px of
+   empty column"; that was true when the column was empty space, and is not when
+   the column is a scroll region with its own end. */
+.control-sec {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Its own scroll region, so more entries can be added below without the section
+   growing a second scrollbar or pushing the body down. The border replaces the
+   26px gap: at this width a rule reads as a boundary and whitespace reads as a
+   mistake. */
+.control-sec .ct-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 186px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 10px 18px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-0, transparent);
+  transition: width var(--dur) var(--ease);
+}
+
+/* THE BODY SCROLLS, NOT THE PAGE. min-height: 0 is load-bearing - without it a
+   grid item's implicit `auto` minimum is its content height, the item refuses to
+   shrink, and the overflow silently moves back to the page. */
+.control-sec .ct-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 30px 64px;
+}
+.control-sec[data-collapsed='true'] .ct-nav { width: 46px; }
+
+.control-sec .ct-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r-sm);
+  color: var(--fg-muted); font-weight: 600; font-size: 13.5px;
+  position: relative; white-space: nowrap; min-width: 0;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.control-sec .ct-item svg { flex: none; opacity: .85; }
+.control-sec .ct-item:hover { background: var(--surface-1); color: var(--fg); }
+
+/* "You are here" is a STATEMENT, not a control - so it is a marker and a weight
+   change, never a filled pill that reads as a button asking to be pressed. The
+   topbar says this with an underline; a vertical list's equivalent is a bar down
+   the leading edge. `--accent` is chrome, and it is used here for exactly what
+   chrome may encode: position. Never state. */
+.control-sec .ct-item.on { color: var(--fg); background: var(--surface-1); }
+.control-sec .ct-item.on svg { opacity: 1; }
+.control-sec .ct-item.on::before {
+  content: ''; position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 2px; border-radius: 0 2px 2px 0; background: var(--accent);
+}
+
+/* The section's own name, and the link to its landing page. A rule under it
+   rather than a heading above it: the pages below already carry an <h1>, and a
+   second one here would give every page in the section two. */
+.control-sec .ct-home {
+  font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--fg);
+  margin-bottom: 4px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--line); border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+.control-sec .ct-home.on::before { bottom: 11px; }
+
+.control-sec .ct-collapse {
+  appearance: none; cursor: pointer; font: inherit;
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 8px; padding: 8px 10px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--fg-subtle);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+.control-sec .ct-collapse svg { flex: none; }
+.control-sec .ct-collapse:hover { background: var(--surface-1); color: var(--fg); }
+
+/* `display: none` cannot be animated, so the collapsed label is a zero max-width
+   with hidden overflow - which can. Same trick as .nav-label in index.css. */
+.control-sec .ct-label {
+  display: inline-block; overflow: hidden;
+  transition: max-width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease),
+              margin-left var(--dur) var(--ease);
+}
+.control-sec[data-collapsed='true'] .ct-label {
+  max-width: 0; opacity: 0; margin-left: -10px;
+}
+.control-sec[data-collapsed='true'] .ct-item,
+.control-sec[data-collapsed='true'] .ct-collapse { justify-content: center; padding: 8px 0; }
+.control-sec[data-collapsed='true'] .ct-home { padding-bottom: 10px; }
+
+
+/* ── narrow ──────────────────────────────────────────────────────────────────
+   900px, which is where the topbar already sheds the freshness pill and the
+   wordmark - reusing a breakpoint the app has rather than inventing a fifth one.
+   Below it a 174px column beside a table is two things that both need the width,
+   so the nav stops being a column and becomes the same horizontal scroller the
+   topbar nav is: overflow driven by measurement (lib/scroll.ts sets
+   data-shade-l/r on any `.scroll-shade`), faded on whichever edge still has
+   content, never squeezed until it is unreadable.
+
+   Specificity has to match the collapsed rules above, which are (0,3,0) - hence
+   `[data-collapsed]` with no value on the ones that override them. The COLLAPSED
+   state is ignored here on purpose: a horizontal strip of five unlabelled
+   squares is not a saving, and there is no column left to reclaim. */
+/* Below 900px the nav becomes a horizontal strip above the body, so the
+   two-region layout has nothing left to hold apart - and a fixed-height shell on
+   a phone fights the browser's own chrome. Hand the page back its scroll. */
+@media (max-width: 900px) {
+  .shell:has(.control-sec) { height: auto; min-height: 100vh; overflow: visible; }
+  .shell:has(.control-sec) .content { display: block; padding: 20px 16px 60px; }
+  .control-sec { grid-template-columns: minmax(0, 1fr); gap: 16px; height: auto; }
+  .control-sec .ct-nav {
+    height: auto; overflow-y: hidden; padding: 0;
+    border-right: 0; border-bottom: 1px solid var(--line);
+  }
+  .control-sec .ct-body { overflow-y: visible; padding: 0; }
+  .control-sec[data-collapsed] .ct-nav {
+    width: auto; flex-direction: row; align-items: center; gap: 2px;
+    overflow-x: auto; overflow-y: hidden;
+    /* The strip has its own scroll affordance (the mask below); a 10px scrollbar
+       under a 34px row would eat a third of it. */
+    scrollbar-width: none;
+    /* Keeps the active item's 2px underline from being clipped by the scroll
+       box, and leaves room for the rule under the row. */
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .control-sec .ct-nav::-webkit-scrollbar { display: none; }
+  .control-sec .ct-nav[data-shade-l] { mask-image: linear-gradient(90deg, transparent, #000 22px); }
+  .control-sec .ct-nav[data-shade-r] { mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); }
+  .control-sec .ct-nav[data-shade-l][data-shade-r] {
+    mask-image: linear-gradient(90deg, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+  }
+  /* The mask above paints the inset shadows `.scroll-shade` would otherwise draw
+     out of existence anyway; turn them off so the two affordances do not stack. */
+  .control-sec .ct-nav { box-shadow: none; }
+
+  .control-sec[data-collapsed] .ct-label {
+    max-width: none; opacity: 1; margin-left: 0;
+  }
+  .control-sec[data-collapsed] .ct-item,
+  .control-sec[data-collapsed] .ct-collapse { justify-content: flex-start; padding: 7px 10px; flex: none; }
+  /* Nothing to collapse into. */
+  .control-sec .ct-collapse { display: none; }
+  /* A leading bar on a horizontal row reads as a divider between items, so the
+     current entry is underlined here - which is what the topbar nav does, and
+     the two rows now sit one above the other. */
+  .control-sec .ct-home {
+    margin-bottom: 0; padding-bottom: 7px; border-bottom: 0; border-radius: var(--r-sm);
+  }
+  .control-sec .ct-item.on::before {
+    left: 10px; right: 10px; top: auto; bottom: -8px;
+    width: auto; height: 2px; border-radius: 2px 2px 0 0;
+  }
+}
+
+/* Expanding a label is motion; a reader who asked for less of it gets the label
+   instantly rather than not at all. */
+@media (prefers-reduced-motion: reduce) {
+  .control-sec .ct-nav, .control-sec .ct-label { transition: none; }
+}
+
+/* ── the section landing ─────────────────────────────────────────────────────
+   A triage list, and nothing else. Every row carries four facts - what is
+   affected, what is wrong with it, which entry owns it, and that it is a link -
+   which is what earns a full-width row under the footprint rule. A row with a
+   name and a colour would not.
+
+   Scoped to `.control-page` rather than `.control-sec` because the landing is
+   the only page in the section that draws these; the same (0,2,0) floor applies.
+   ========================================================================== */
+.control-page .ctl-clear,
+.control-page .ctl-degraded {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 0 18px; color: var(--fg-muted); font-size: 13.5px; line-height: 1.5;
+}
+.control-page .ctl-degraded { color: var(--st-warn); }
+.control-page .ctl-clear .si,
+.control-page .ctl-degraded svg { flex: none; }
+
+.control-page .ctl-findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.control-page .ctl-finding {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: var(--r-md);
+  background: var(--surface-1); border: 1px solid var(--line);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.control-page .ctl-finding:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.control-page .ctl-f-ico { display: inline-flex; flex: none; color: var(--fg-subtle); }
+.control-page .ctl-f-subject { font-weight: 700; font-size: 13.5px; flex: none; }
+/* The specifics wrap and can be long (two container names); they take the slack
+   and shrink first, because the subject and the destination are the two parts a
+   reader scans down a column of these. */
+.control-page .ctl-f-what {
+  color: var(--fg-muted); font-size: 13px; min-width: 0; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.control-page .ctl-f-where {
+  flex: none; font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--fg-subtle);
+}
+.control-page .ctl-f-arrow { flex: none; color: var(--fg-subtle); }
+.control-page .ctl-finding:hover .ctl-f-arrow { color: var(--fg); }
+
+/* At phone width the row is four things competing for 360px, so it stacks: subject
+   over specifics, destination on the right of the first line. */
+@media (max-width: 560px) {
+  .control-page .ctl-finding { flex-wrap: wrap; row-gap: 4px; }
+  .control-page .ctl-f-what { flex: 1 0 100%; white-space: normal; }
+  .control-page .ctl-f-where { margin-left: auto; }
+}

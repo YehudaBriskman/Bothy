@@ -1,0 +1,124 @@
+# Routes for the config tier - the second place on this box where a request can
+# CHANGE something, so the shape here is the security control.
+#
+# WARNING - this directory is rendered as a Go template. A doubled brace
+# anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. Traefik then keeps
+# serving its last-good config, so nothing looks wrong until the next restart,
+# when every @file router disappears at once. `just verify` check 5b catches it.
+#
+# THE RULES ARE EXACT Path(), NEVER PathPrefix. The variable part of every
+# request travels in the QUERY STRING for reads and in the JSON BODY for writes,
+# exactly as the file tier's routes do. That is not style: a prefix rule covering
+# /-/api/config/ would also cover any endpoint added to that service later,
+# including one nobody meant to expose. With exact paths a new endpoint is
+# unreachable until someone writes a rule here - which is the correct default for
+# a service holding write access to the repository that describes this box.
+#
+# READ requires `viewer`; WRITE requires `editor`. Same tiers as the file tier,
+# on purpose: this service can change strictly LESS than portal-files can (one
+# declared field in one file type, versus the whole text of any writable file),
+# so a role above `editor` would be claiming a boundary that is not there. If it
+# ever grows a class B field - an image tag, a published port - that is the
+# moment to revisit this line, not before.
+#
+# ── the middlewares are borrowed, and that is a real coupling ───────────────
+#
+# `sso-viewer`, `sso-editor` and `sso-errors` are NOT defined in this file. They
+# are defined in edge/dynamic/portal-files.yml and edge/dynamic/auth.yml, and
+# Traefik's file provider merges every .yml in this directory into one namespace,
+# so referencing them by bare name resolves.
+#
+# Defining a second copy here would be the worse option and it is worth saying
+# why, because copying them looks tidier: two definitions of a middleware named
+# `sso-editor` in one provider is a collision, and the one that wins is not
+# something this file can decide. The two would then drift, and the drift would
+# be invisible - both routers would still answer, one of them against the wrong
+# role.
+#
+# The cost is that deleting portal-files.yml silently unauthenticates this file's
+# routers. That is a genuine hazard and the mitigation is this paragraph plus
+# checks/authz_probe-style verification at the edge, not a duplicate definition.
+
+http:
+  routers:
+    # ── read: what is patchable here, and what it says now ─────────────────
+    #
+    # `viewer`, not `editor`. This endpoint returns the current value of a
+    # compose label and the file's mtime - both of which any viewer can already
+    # read through the file tier, and through the compose file itself. Gating it
+    # at `editor` would mean a viewer's settings page could not render the
+    # values it is not allowed to change, which makes the UI worse and hides
+    # nothing.
+    #
+    # It returns NO env values, ever. §8 of docs/plans/editing-model.md: keys and
+    # set/not-set, never values. The service has no endpoint that reads one, and
+    # the policy's [patch].suffixes cannot reach a `.env` file at all.
+    bothy-config-read:
+      rule: "Path(`/-/api/config/fields`)"
+      entryPoints: [web]
+      priority: 100
+      service: bothy-config
+      middlewares: [bothy-config-strip, config-deidentify, sso-viewer, sso-errors]
+
+    # ── write: requires the editor role ────────────────────────────────────
+    bothy-config-write:
+      rule: "Path(`/-/api/config/patch`)"
+      entryPoints: [web]
+      priority: 110          # above the read router; disjoint anyway, but explicit
+      service: bothy-config
+      middlewares: [bothy-config-strip, config-deidentify, sso-editor, sso-errors]
+
+    # NO router for /healthz, deliberately. It is reached by the container's own
+    # HEALTHCHECK on 127.0.0.1 and needs no route; publishing it would put the
+    # root list and the field allowlist on the tailnet for nothing.
+
+  middlewares:
+    # Map the public path onto the service's own. The service serves
+    # /config/patch, the world asks for /-/api/config/patch - so the service
+    # cannot accidentally be correct about a path nobody routed.
+    #
+    # stripPrefix of `/-/api` rather than `/-/api/config`, because the service's
+    # own routes are already under /config/. Stripping the longer prefix would
+    # leave `/patch`, which no handler answers.
+    bothy-config-strip:
+      stripPrefix:
+        prefixes: ["/-/api"]
+
+    # Delete any X-Auth-Request-* header the CLIENT sent, before forwardAuth runs.
+    #
+    # The service names the audit line's author from X-Auth-Request-Email.
+    # Traefik sets that header from the auth response, but a client is free to
+    # send one too, and relying on "the auth response wins" is relying on an
+    # ordering rather than on a guarantee. An empty value in customRequestHeaders
+    # removes the header outright, so the only one that can reach the service is
+    # the one oauth2-proxy produced.
+    #
+    # The blast radius if this were missing is a forged NAME in the patch log,
+    # not unauthorised access - authorisation is decided by sso-editor, which
+    # reads a signed session cookie and never a header. It matters more here than
+    # in the file tier even so: a form write leaves no diff a human reads, so the
+    # log is closer to being the only record of who did it.
+    #
+    # A SEPARATE middleware from portal-files' `files-deidentify`, with the same
+    # body. This one is not shared because it is not a role gate - it is a local
+    # scrub with no coupling worth taking, and the duplication is six lines that
+    # cannot drift into a wrong ANSWER, only into a wrong-but-harmless list.
+    config-deidentify:
+      headers:
+        customRequestHeaders:
+          X-Auth-Request-User: ""
+          X-Auth-Request-Email: ""
+          X-Auth-Request-Groups: ""
+          X-Auth-Request-Preferred-Username: ""
+          X-Forwarded-User: ""
+          X-Forwarded-Email: ""
+
+  services:
+    bothy-config:
+      loadBalancer:
+        servers:
+          # confignet holds exactly two containers: traefik and this. The service
+          # publishes no host port and has no auth of its own, so reachability IS
+          # authorisation - the same rule the socket-proxy and the file tier are
+          # both built on.
+          - url: "http://bothy-config:8098"
