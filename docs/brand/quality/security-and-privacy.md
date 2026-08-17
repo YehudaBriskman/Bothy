@@ -81,7 +81,7 @@ statements above stronger rather than weaker.
 
 | Change | Effect on this page |
 |---|---|
-| The `*.dev.test` name layer was deleted, not merely parked | The routes were already host-less exact paths, so nothing in the data plane changed. There is no name-scoped cookie any more, which retires a secondary argument that used to be made for the SSO here |
+| the name layer was deleted, not merely parked | The routes were already host-less exact paths, so nothing in the data plane changed. There is no name-scoped cookie any more, which retires a secondary argument that used to be made for the SSO here |
 | No router carries an auth middleware while identity is rebuilt on a local IdP | "The data plane is the security boundary" stopped being an emphasis and became literal. The exact paths are the whole control, with nothing behind them |
 | The reverse proxy's dashboard router was deleted | It served the proxy's own API unauthenticated, and the raw-config endpoint rendered the injected `Authorization` header **verbatim**. The generated-not-committed rule above protected the repository; it did not protect the runtime, and this closed that half |
 

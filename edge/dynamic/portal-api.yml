@@ -43,7 +43,7 @@
 # matters, and only the content type detects it.
 #
 # ── Why no Host() rule ─────────────────────────────────────────────────────
-# There is no name layer left to match on. The `*.dev.test` namespace was
+# There is no name layer left to match on. That namespace was
 # dormant from 2026-08-08 and its configuration was DELETED on 2026-08-12;
 # access is pure IP:port (`just urls`). Traefik now holds zero Host() rules.
 # Host-less Path() is therefore the only shape that works, and it answers on
@@ -66,7 +66,7 @@ http:
       priority: 100
       # NO auth middleware here, and as of 2026-08-12 none anywhere on the box.
       # This used to read "sso also closes the DNS-rebinding hole" - that was
-      # true only while a session cookie scoped to .dev.test existed. The name
+      # true only while a session cookie scoped to a shared parent domain existed. The name
       # is gone, the cookie is gone, and sso@file is attached to no router, so
       # that sentence would now be a false comfort. Anything on the tailnet can
       # GET this. What it gets is bounded solely by the Path() rule above, which
@@ -98,7 +98,7 @@ http:
 
     # The Traefik API is read-only by nature - no mutating endpoints exist.
     #
-    # Updated 2026-08-12: the old justification here was "traefik.dev.test
+    # Updated 2026-08-12: the old justification here was "the dashboard host
     # already serves it unauthenticated, so these paths grant no authority that
     # isn't already there." That router is DELETED and `--api.dashboard=true`
     # is now `--api=true`, so the argument no longer holds - these four paths

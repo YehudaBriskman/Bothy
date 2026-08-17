@@ -15,7 +15,7 @@ import { QuickView } from '../components/QuickView';
 import { Vitals } from '../components/Vitals';
 import { TopContainers } from '../components/TopContainers';
 import { StatusBar, BarGauge, type Seg, type GaugeRow } from '../components/viz';
-import { KNOWN_HOSTS, hostUrl, type PortalNode, type Status } from '../lib/discover';
+import { KNOWN_SERVICES, type PortalNode, type Status } from '../lib/discover';
 import { serviceLink, systemLink, kindLabelOf } from '../lib/links';
 import { Skeleton } from '../components/states';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
@@ -72,7 +72,7 @@ function Panel({
 // carries `to` instead of `port` and opens in the same tab. It leads the strip
 // because it is the one destination here that is Bothy's own.
 //
-// Both changed on 2026-08-12, when the *.dev.test name layer was retired. This
+// Both changed on 2026-08-12, when the name layer was retired. This
 // list used to match services by hostname and fall back to a `hostUrl()` lookup
 // - so when the routers went away, `n.host` became null for everything, the
 // match failed, and the whole strip collapsed to the two hard-coded anchors.
@@ -443,7 +443,13 @@ export function Overview() {
     ].filter((g) => g.systems.length > 0);
   }, [systems]);
 
-  const floorLinks = KNOWN_HOSTS.map(([host, name]) => ({ id: host, name, url: hostUrl(host) ?? `http://${host}` }));
+  // Built from location.hostname, so the floor works from the tailnet IP,
+  // MagicDNS or localhost - whichever the reader reached the box by. It used to
+  // be a table of the name layer names, which is to say the emergency page offered
+  // addresses that had not resolved since August.
+  const floorLinks = KNOWN_SERVICES.map(([name, port]) => ({
+    id: name, name, url: `http://${location.hostname}:${port}`,
+  }));
 
   return (
     <div className="overview">

@@ -4,9 +4,7 @@ services:
   prometheus:
     image: prom/prometheus:v3.13.2
     container_name: prometheus
-    # No Traefik router: the *.dev.test name layer was retired permanently, so
-    # the Host(`prometheus.dev.test`) route had nothing left to match. Reached
-    # directly on published port 9090.
+    # No Traefik router - reached directly on published port 9090.
     # Prometheus runs with --web.enable-lifecycle; its own basic auth
     # (--web.config.file below) is the boundary since the SSO was parked.
     restart: unless-stopped
@@ -44,9 +42,7 @@ services:
   grafana:
     image: grafana/grafana:13.1.3
     container_name: grafana
-    # No Traefik router: the *.dev.test name layer was retired permanently, so
-    # the Host(`grafana.dev.test`) route had nothing left to match. Reached
-    # directly on published port 3000, where Grafana's own login applies.
+    # No Traefik router - reached on published port 3000, where Grafana's own login applies.
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}

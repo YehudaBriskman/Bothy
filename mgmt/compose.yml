@@ -4,9 +4,7 @@ services:
   portainer:
     image: portainer/portainer-ce@sha256:f6bc23d1695530a609563fd65c180aaafec0fc02e019d5fc63d16b6fbe83addd
     container_name: portainer
-    # No Traefik router: the *.dev.test name layer was retired permanently, so
-    # the Host(`portainer.dev.test`) route had nothing left to match. Reached
-    # directly on published port 9000.
+    # No Traefik router - reached directly on published port 9000.
     #
     # Portainer holds a READ-WRITE docker socket, so its UI serves container
     # Env - POSTGRES_PASSWORD and the Grafana admin password - and container
@@ -35,9 +33,7 @@ services:
   dozzle:
     image: amir20/dozzle:v10.6.15
     container_name: dozzle
-    # No Traefik router: the *.dev.test name layer was retired permanently, so
-    # the Host(`dozzle.dev.test`) route had nothing left to match. Reached
-    # directly on published port 8080.
+    # No Traefik router - reached directly on published port 8080.
     #
     # Dozzle streams every container's logs. Since the SSO chain was parked
     # (2026-08-08) it runs its own simple-auth: users in dozzle-users.yml

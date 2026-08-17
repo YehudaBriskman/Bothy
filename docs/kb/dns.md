@@ -11,8 +11,8 @@
 > |---|---|---|
 > | Tailnet split-DNS route `test → 100.117.176.85` | **deleted 2026-08-08** | admin console; the only off-box change |
 > | Traefik `Host()` routers | **deleted 2026-08-12** | the router table went 22 → 6; **zero** Host rules remain, and none exist in any compose or dynamic file |
-> | Traefik dashboard (`traefik.dev.test`) | **deleted 2026-08-12** | it was leaking a credential - see [lessons.md](lessons.md) |
-> | SSO / oauth2-proxy | **parked**, container down | being replaced by Keycloak in a separate change; `auth/compose.yml` still carries a stale `Host(auth.dev.test)` label ([known-issues.md](known-issues.md)) |
+> | Traefik dashboard (`a service hostname`) | **deleted 2026-08-12** | it was leaking a credential - see [lessons.md](lessons.md) |
+> | SSO / oauth2-proxy | **parked**, container down | being replaced by Keycloak in a separate change; `auth/compose.yml` still carries a stale `Host(a service hostname)` label ([known-issues.md](known-issues.md)) |
 > | dnsmasq on the box | **RUNNING, unchanged** | it is the box's own resolver (`/etc/resolv.conf` → 127.0.0.1, `generateResolvConf=false`, `accept-dns=false`). Only its `.test` *audience* is gone. **Do NOT disable it.** |
 >
 > **This is no longer a re-enable manual**
@@ -33,15 +33,15 @@
 > and a 20-check verification harness passed 20/20 afterwards.
 >
 > **The trap this leaves:** dnsmasq still answers `address=/test/`, so on the box
-> itself `getent hosts dev.test` returns `100.117.176.85` and `curl
-> http://dev.test/` returns 200 - the portal catch-all answers everything. Neither
+> itself `getent hosts the name layer` returns `100.117.176.85` and `curl
+> the portal/` returns 200 - the portal catch-all answers everything. Neither
 > is evidence that a name works. From any other device, `.test` is NXDOMAIN, and
 > that is expected.
 >
 > Everything below is how the DNS half worked while live. It is still accurate
 > about dnsmasq, and it is still the manual for step 1 above.
 
-## How `dev.test` worked, and every way it fooled you
+## How the name layer worked, and every way it fooled you
 
 _Historical from here down - accurate as of 2026-08-08, kept as the record._
 
@@ -50,7 +50,7 @@ _Historical from here down - accurate as of 2026-08-08, kept as the record._
 ```
 client on tailnet → Tailscale split DNS: "test" → 100.117.176.85
                   → dnsmasq on the dev box (authoritative for .test)
-                  → answers dev.test / *.dev.test = 100.117.176.85
+                  → answers the name layer / the name layer = 100.117.176.85
 client connects   → Traefik on :80 routes by Host header → service
 ```
 
@@ -60,7 +60,7 @@ client connects   → Traefik on :80 routes by Host header → service
 ### The consequence that keeps causing false alarms
 
 **`.test` names only resolve for a client whose Tailscale tunnel + DNS are working.**
-When a client's tailscale degrades, `dev.test` breaks *first* (DNS), then SSH - which
+When a client's tailscale degrades, the name layer breaks *first* (DNS), then SSH - which
 looks exactly like "the dev box is down". It never was, in any incident so far
 (2026-07-21 ×2, 2026-08-02). First question, always: **is this device actually on the
 tailnet, with a working tunnel?** → [runbook-cant-reach.md](runbook-cant-reach.md)
@@ -82,8 +82,8 @@ tailnet, with a working tunnel?** → [runbook-cant-reach.md](runbook-cant-reach
 
 | Symptom | Actual cause |
 |---|---|
-| `Invoke-WebRequest` to `*.dev.test` times out | .NET Happy-Eyeballs quirk (A record only). **Use `curl.exe`.** The site is fine. |
+| `Invoke-WebRequest` to the name layer times out | .NET Happy-Eyeballs quirk (A record only). **Use `curl.exe`.** The site is fine. |
 | Browser says NXDOMAIN, curl works | Chrome Secure DNS (DoH) bypasses the system resolver - it can never see `.test`. |
-| `dev.test` dead + SSH dead on ONE device, fine elsewhere | That device's tailscale - see [incidents/2026-08-02](incidents/2026-08-02-thinkpad-tailscale.md). |
+| the name layer dead + SSH dead on ONE device, fine elsewhere | That device's tailscale - see [incidents/2026-08-02](incidents/2026-08-02-thinkpad-tailscale.md). |
 | `.test` doesn't resolve *inside* the dev box's own shell | Was finding #1 in the audit - fixed 2026-07-21; if it recurs, check resolv.conf + dnsmasq listen addresses. |
 | Windows host can't resolve `.test` | Host must have Tailscale DNS on (`tailscale dns status` → "Tailscale DNS: enabled"). |

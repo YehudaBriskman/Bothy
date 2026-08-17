@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ---------------
-The portal (dev.test) is a static SPA. It can only render what is served to it,
+The portal (the name layer) is a static SPA. It can only render what is served to it,
 and what is served to it is the live Docker container list and the Traefik router
 table. That means it can only see a project once the project is already running
 as a container or already routed through the edge - so:

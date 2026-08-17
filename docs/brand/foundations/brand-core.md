@@ -49,7 +49,7 @@ Byre (two projects), Dovecote (a PaaS). Bothy, Steading and Undercroft came back
 clean on 2026-08-10; Bothy won on length.
 
 **What it replaced, and why the old one was wrong.** The topbar used to read
-`dev.test / dev box`. That named the product after a DNS name which had been
+`the name layer / dev box`. That named the product after a DNS name which had been
 dormant since 2026-08-08, when access moved to pure IP:port. So for every
 current visitor the brand line stated an address that did not resolve. The
 wordmark is now the product's own name, and the line under it is read from
@@ -60,7 +60,7 @@ actually typed. It is also never written into the repository, which is public.
 > configuration was **deleted** on 2026-08-12, and Traefik now holds zero
 > `Host()` rules. The rename was written on 2026-08-10 while the name was still
 > theoretically revivable, which is why the sentence above originally read "it
-> shows `dev.test` if you arrived by name". No visitor can arrive by name any
+> shows the name layer if you arrived by name". No visitor can arrive by name any
 > more, so `location.hostname` now always renders the bare IP. The decision
 > needed no revision, which is the point of it: the wordmark never depended on
 > the address in the first place. What the deletion changed is only the *value*
@@ -94,7 +94,7 @@ README correctly say "dev box" throughout and were deliberately not renamed.
 
 ## Dead ends
 
-- **Naming it after the hostname.** `dev.test` was the name for a year. It broke
+- **Naming it after the hostname.** the name layer was the name for a year. It broke
   the moment the access model changed, which is the general lesson: do not name a
   product after an address, because addresses change and names should not.
   Confirmed the hard way on 2026-08-12, two days after the rename: the name

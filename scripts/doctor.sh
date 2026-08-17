@@ -13,7 +13,10 @@ echo "== containers =="
 #
 # `wiki` was retired and replaced by Bothy Files - it sat here reporting a
 # permanent red ✗ that had to be explained away every single sweep, which is how
-# a health check teaches you to ignore it. `portal-files` took its slot: it is
+# a health check teaches you to ignore it. `portal` - the original pure-HTML
+# nginx portal, retired behind traefik.enable=false and kept as a rollback - was
+# deleted on 2026-08-17 and comes out of this list with it. The rollback was a
+# fiction anyway: the HTML it served linked to hostnames that no longer resolve. `portal-files` took its slot: it is
 # the editor tier, it has no published port, and a health sweep that cannot see
 # the one service that can WRITE to the repos is missing the thing worth watching. `portal-next` is the LIVE portal;
 # `portal` is the retired nginx one, kept only because its compose file also owns
@@ -22,7 +25,7 @@ echo "== containers =="
 # as idle. Leaving them here made `just doctor` report five phantom absences,
 # which is the fastest way to teach someone to ignore the health check.
 # keycloak/oauth2-proxy are the identity layer added the same day.
-expected="traefik oauth2-proxy keycloak portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portainer dozzle portal portal-next portal-files"
+expected="traefik oauth2-proxy keycloak portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portainer dozzle portal-next portal-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"

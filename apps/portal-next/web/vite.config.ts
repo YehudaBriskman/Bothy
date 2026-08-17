@@ -5,10 +5,10 @@ import react from '@vitejs/plugin-react';
 // this app). For local `vite dev` only, proxy them to the live box so the
 // dashboard has something to render. The production build never sees this.
 //
-// THIS POINTED AT http://dev.test UNTIL 2026-08-17, a name whose entire
+// THIS POINTED AT the portal UNTIL 2026-08-17, a name whose entire
 // configuration was deleted on 2026-08-12 - so `vite dev` had been proxying to
 // something that does not resolve for two months. It survived a purge of every
-// other `dev.test` reference because that sweep read prose and this is a config
+// other the name layer reference because that sweep read prose and this is a config
 // value. Grep the deleted thing, not the sentences about it.
 export default defineConfig({
   plugins: [react()],

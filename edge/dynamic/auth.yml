@@ -2,7 +2,7 @@
 #
 # LIVE again as of 2026-08-12, after being dormant since 2026-08-08. What
 # changed: identity moved from GitHub to a local Keycloak (auth/compose.yml),
-# so the flow no longer depends on the retired *.dev.test name layer - the
+# so the flow no longer depends on the retired name layer - the
 # oauth2-proxy callback is now an IP:port URL and Keycloak issues tokens for
 # that same address.
 #
