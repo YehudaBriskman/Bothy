@@ -6,7 +6,9 @@
 #   test_safepath.py  the security boundary as a PURE unit - 30 cases including
 #                     real planted symlinks. Runs anywhere, needs nothing up.
 #   authz_probe.py    does oauth2-proxy actually enforce a per-route role? Asks
-#                     for a role the user does NOT hold and requires a 403.
+#                     for a role the user does NOT hold and requires a 403 - then
+#                     reads Traefik's runtime router table to check which gate
+#                     each route is actually wired to.
 #   e2e.py            the whole path: anonymous refused, login, write, and the
 #                     guards re-checked THROUGH http rather than in-process.
 #
@@ -47,6 +49,13 @@ python3 checks/git_ops.py || fail=1
 
 echo; echo "── the undo net: an overwrite keeps what it destroyed ───────"
 python3 checks/snapshots.py || fail=1
+
+echo; echo "── delete: and the net is a PRECONDITION for it ─────────────"
+# Runs after snapshots.py on purpose. Delete is only defensible because the undo
+# net works, so the check that the net works should have gone green first - a
+# delete suite passing while the trash is broken would be reporting the wrong
+# thing as healthy.
+python3 checks/delete_semantics.py || fail=1
 
 echo; echo "── search must not see what the explorer refuses to open ────"
 # The endpoint reads FILE CONTENT, so a deny-list miss here shows a secret's

@@ -13,7 +13,7 @@
 # With exact paths, a new endpoint is unreachable until someone writes a rule -
 # which is the correct default for a service holding write access to two repos.
 #
-# READ requires `viewer`; WRITE requires `editor`.
+# READ requires `viewer`; WRITE and DELETE require `editor`.
 #
 # Read was OPEN in the first version of this file, and the reasoning was sound at
 # the time: the roots were two markdown trees of published documentation, so a
@@ -77,6 +77,31 @@ http:
       rule: "Path(`/-/api/files/write`)"
       entryPoints: [web]
       priority: 110          # above the read router; disjoint anyway, but explicit
+      service: portal-files
+      middlewares: [portal-files-strip, files-deidentify, sso-editor, sso-errors]
+
+    # ── delete: the same role that may write ────────────────────────────────
+    #
+    # `sso-editor`, and the SAME middleware chain as the write router - strip,
+    # de-identify, gate, errors - because removing a file IS a write. A separate
+    # role for it would be a second thing to grant, a second thing to revoke, and
+    # a second thing to get wrong, for an action whose blast radius is smaller
+    # than an overwrite's: the service refuses to delete unless the snapshot
+    # trash took a copy first, so the recovery story is the one the write path
+    # already has.
+    #
+    # ITS OWN ROUTER, rather than another Path() alternative on
+    # portal-files-write. Two rules that share a role today must not share it by
+    # accident tomorrow - if delete ever moves up a tier, that is one word in one
+    # rule here rather than a router that has to be split first, under pressure.
+    #
+    # Exact Path(), like every rule in this file: the root and path travel in the
+    # JSON body, nothing variable is in the URL, and a PathPrefix would silently
+    # expose the next endpoint somebody adds to this service.
+    portal-files-delete:
+      rule: "Path(`/-/api/files/delete`)"
+      entryPoints: [web]
+      priority: 110          # same tier as write; the rules are disjoint
       service: portal-files
       middlewares: [portal-files-strip, files-deidentify, sso-editor, sso-errors]
 
