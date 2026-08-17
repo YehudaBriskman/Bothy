@@ -63,10 +63,17 @@
   --surface-2: #24283b;
   --surface-3: #2f334d;
   --surface-4: #373b54;
-  /* The page wash. Kept far dimmer than a card so the elevation ladder still
-     reads as a ladder - a tinted, position-dependent backdrop is the one thing
-     index.css records as forbidden here. */
-  --bg-glow:   radial-gradient(60% 50% at 50% 0%, #2a2f4a 0%, transparent 70%);
+  /* The page wash, and it is a FLAT COLOUR rather than a gradient. index.css
+     builds the wash itself with `radial-gradient(... var(--bg-glow) 0%,
+     var(--bg) 60%)`, so a gradient in this token nests one inside another's
+     colour stop: invalid, dropped without an error, and the wash silently
+     disappears. Five themes shipped that way before the contract learned to
+     check it.
+
+     Kept far dimmer than a card, so the elevation ladder still reads as a
+     ladder - a tinted, position-dependent backdrop is the one thing index.css
+     records as forbidden here. */
+  --bg-glow:   #2a2f4a;
 
   /* ── foreground pairs ────────────────────────────────────────────────────── */
   --fg:        #c0caf5;   /* 11.62 on surface-1 */

@@ -30,7 +30,12 @@
   --surface-2: #3b4252;
   --surface-3: #434c5e;
   --surface-4: #4c566a;
-  --bg-glow:   radial-gradient(60% 50% at 50% 0%, #3d4759 0%, transparent 70%);
+  /* A FLAT COLOUR, not a gradient. index.css builds the page wash with
+     `radial-gradient(... var(--bg-glow) 0%, var(--bg) 60%)`, so a gradient
+     here nests one inside another's colour stop - invalid, and the whole
+     background declaration is dropped rather than erroring. The wash simply
+     vanishes. Caught by the editor, which reads the token as a colour. */
+  --bg-glow:   #3d4759;
 
   --fg:        #eceff4;
   --fg-muted:  #d8dee9;
