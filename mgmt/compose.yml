@@ -15,6 +15,12 @@ services:
     # sat behind is gone), and it is set interactively on first visit, so an
     # unclaimed instance is a total takeover for whoever claims it first.
     restart: unless-stopped
+    # Card title in Bothy's Overview, `Role · Vendor` - see edge/compose.yml.
+    # "Containers", not "Management" - a role has to say what it manages. This is
+    # also the name most likely to outlive its vendor: when container actions
+    # become first-party, "Containers" stays and only the credit changes.
+    labels:
+      - dev.portal.project=Containers · Portainer
     ports:
       - "9000:9000"
     volumes:

@@ -98,6 +98,11 @@ services:
     depends_on:
       keycloak-db-init:
         condition: service_completed_successfully
+    # Card title in Bothy's Overview, `Role · Vendor` - see edge/compose.yml.
+    # "Identity" rather than "Auth": the role is the IdP plus the thing Traefik
+    # asks, and it is what issues the roles the editor tier enforces.
+    labels:
+      - dev.portal.project=Identity · Keycloak
     # `start`, not `start-dev`: start-dev forces an in-memory H2 database and
     # ignores the KC_DB_* settings below, so every restart would silently lose
     # every user. --import-realm reads /opt/keycloak/data/import/*.json once, at
