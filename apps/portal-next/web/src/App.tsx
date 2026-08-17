@@ -8,6 +8,7 @@ import { Ports, Routes as RoutesPage } from './pages/Access';
 import { Topology } from './pages/Topology';
 import { Settings } from './pages/Settings';
 import { Files } from './pages/files/Files';
+import { Reader } from './pages/files/Reader';
 import { ControlShell } from './pages/control/ControlShell';
 import { Control } from './pages/control/Control';
 import { LEGACY_PATHS, legacyTarget } from './pages/control/redirects';
@@ -42,10 +43,18 @@ export function App() {
 
         <Route path="settings" element={<Settings />} />
 
-        {/* BothyFiles - the explorer. `?root=` and `?path=` rather than path
-            segments, so a file whose own path contains slashes needs no encoding
-            games and a deep link survives being pasted into chat. */}
-        <Route path="files" element={<Files />} />
+        {/* Bothy Files - one nav entry, two destinations (docs/plans/
+            reading-first.md §2). `/files` opens as a READER; the IDE is
+            unchanged at `/files/edit`.
+
+            Both take the same `?root=` and `?path=` - path segments would make a
+            file whose own path contains slashes an encoding game, and the query
+            string is what lets an existing deep link resolve in EITHER mode. The
+            route paths and the two link builders live in pages/files/routes.ts
+            with a truth table over them, because a builder that drops `path` is
+            a link that answers 200 and quietly goes somewhere else. */}
+        <Route path="files" element={<Reader />} />
+        <Route path="files/edit" element={<Files />} />
 
         {/* The retired URLs. Built from the table rather than listed again here,
             so the router and pages/control/redirects.ts cannot disagree about
