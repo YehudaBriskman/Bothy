@@ -1151,6 +1151,6 @@ export const HOST_OVERRIDES: Record<string, { icon: string; desc: string }> = {
 // whichever address the reader actually typed. Only things that run: this is a
 // floor, and a floor with a hole in it is worse than a bare one.
 export const KNOWN_SERVICES: [string, number][] = [
-  ['Grafana', 3000], ['Prometheus', 9090], ['Logs', 8080], ['cAdvisor', 8082],
-  ['Portainer', 9000], ['Keycloak', 8090], ['Loki', 3100],
+  ['Grafana', 3000], ['Prometheus', 9090], ['cAdvisor', 8082],
+  ['Keycloak', 8090], ['Loki', 3100],
 ];
