@@ -564,6 +564,303 @@ def search(root_keys: list[str], rel: str, needle: str, *,
     }
 
 
+# ── backlinks ───────────────────────────────────────────────────────────────
+#
+# "3 documents link here". A markdown corpus is a graph and the reader only ever
+# sees one direction of it: the links OUT of the page they are on. The edges
+# pointing IN are the ones that say whether a note is load-bearing or orphaned,
+# and no document knows its own.
+#
+# THE WALK GOES THROUGH safepath.collect(), for the reason the search comment
+# above gives at length: a second os.walk is a second chance to forget the
+# per-entry resolve(), and that is exactly how `.env` ends up in an index. This
+# is a READ, like search, so it does NOT pass for_archive - that flag is the
+# difference between "a credential file is excluded from a bulk download" and "an
+# index lies about what is on disk", and only the archive endpoints want it.
+#
+# MARKDOWN ONLY, and the constraint is doing real work rather than being tidy.
+# A link graph over `.py`, `.png` and `.sqlite` is not a document graph; those
+# files are not documents, cannot carry a wikilink, and including them turns a
+# few hundred reads into a whole-tree read of every byte in the root for edges
+# that cannot exist.
+LINKS_MAX_FILES = SEARCH_MAX_FILES        # candidates the WALK may enumerate
+LINKS_MAX_DOCS = 2_000                    # markdown files actually indexed
+LINKS_MAX_FILE_BYTES = 1_000_000          # per file; bigger than this is not prose
+LINKS_SECONDS = 10.0                      # the READ phase; collect() bounds the walk
+# The title is looked for in the HEAD of the file only. A `# heading` that is not
+# in the first couple of lines is not the document's title - it is a section - so
+# scanning further would find the wrong string, and it would do it while reading
+# every byte of every document a second time. 200 bytes clears a front-matter-less
+# `# Title` line with room for a leading blank line or two.
+LINKS_TITLE_BYTES = 200
+MARKDOWN_SUFFIXES = (".md", ".markdown")
+
+# `[label](target)` - deliberately the same shape as the link arm of INLINE_RE in
+# md.tsx. If the two disagree, the reader sees a link the index does not count or
+# counts one the reader cannot follow, and both look like a bug in the backlinks
+# rather than in the parser.
+_RE_INLINE_LINK = re.compile(r"\[[^\]\n]*\]\(([^)\s]+)\)")
+# `[[target]]` and `[[target|label]]` - the notes' own convention (see the
+# "Cross-link liberally with wikilinks" rule in claude-notes/README.md). The
+# renderer does not resolve these yet; the index does, because a wikilink is the
+# commonest edge in the corpus this feature exists for.
+_RE_WIKI_LINK = re.compile(r"\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]")
+# A fence opens and closes with the SAME character, and the closer must be at
+# least as long as the opener - so a ```` ``` ```` inside a ```` ```` ```` block
+# does not end it. Up to three leading spaces, per CommonMark.
+_RE_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+# An inline code span is literal, and md.tsx already treats it that way - its
+# INLINE_RE puts the backtick arm FIRST, so `[foo](bar)` inside backticks renders
+# as code and never as a link. Blanked here so the two agree.
+_RE_CODESPAN = re.compile(r"`[^`\n]+`")
+# Anything carrying a scheme, or a protocol-relative `//host/x`, is a URL and not
+# a path into this root - the same test md.tsx applies before it will resolve
+# anything. A bare `#anchor` names a place INSIDE the document, so it is not an
+# edge between documents either.
+_RE_SCHEME = re.compile(r"^([a-z][a-z0-9+.-]*:|//)", re.I)
+_RE_TITLE = re.compile(r"^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.M)
+
+
+def _doc_title(head: str, relpath: str) -> str:
+    """The first `# heading` in `head`, or the filename made readable."""
+    m = _RE_TITLE.search(head)
+    if m:
+        return m.group(1).strip()
+    # Only the first character is capitalised. Title-casing the rest turns `dns`
+    # into "Dns" and `wsl.md` into "Wsl", which is worse than leaving them alone -
+    # this fallback exists for the untitled file, not to rename anything.
+    stem = os.path.splitext(os.path.basename(relpath))[0].replace("-", " ").replace("_", " ")
+    return stem[:1].upper() + stem[1:] if stem else relpath
+
+
+def _link_targets(text: str) -> list[tuple[str, bool]]:
+    """Every (target, is_wikilink) in a document, code excluded.
+
+    FENCED BLOCKS ARE SKIPPED ENTIRELY, and that is not a nicety: this repo's
+    documentation is largely about shell commands and config, so a code sample
+    containing `[foo](bar)` or a glob that looks like `[[x]]` is common. Counting
+    those would make the backlink number a count of code samples, which is the
+    one number nobody asked for.
+    """
+    out: list[tuple[str, bool]] = []
+    fence = ""
+    for line in text.splitlines():
+        m = _RE_FENCE.match(line)
+        if m:
+            mark = m.group(1)
+            if not fence:
+                fence = mark
+            elif mark[0] == fence[0] and len(mark) >= len(fence):
+                fence = ""
+            continue
+        if fence:
+            continue
+        line = _RE_CODESPAN.sub(" ", line)
+        for w in _RE_WIKI_LINK.finditer(line):
+            out.append((w.group(1).strip(), True))
+        for i in _RE_INLINE_LINK.finditer(line):
+            out.append((i.group(1).strip(), False))
+    return out
+
+
+def _resolve_link(src_dir: str, target: str, wiki: bool,
+                  index: dict, by_base: dict[str, list[str]]) -> str | None:
+    """Which document in THIS INDEX a target names, or None.
+
+    RESOLUTION IS A LOOKUP IN THE INDEX, never a stat() of a path built from file
+    content, and that is the security shape of this function. The index holds
+    exactly what safepath.collect() proved readable, so an edge can only ever name
+    a file that walk already allowed - a link that says `../../../.env` or
+    `~/.ssh/id_ed25519` resolves to nothing at all, because those are not keys in
+    the dict. Touching the filesystem here would put a second, weaker path to the
+    same question beside the one that is already correct.
+
+    The joining rules are md.tsx's resolveRelative(), for the reason the shapes
+    above are shared: a link the reader can click and the index cannot count is
+    indistinguishable from a broken backlink count.
+    """
+    rel = target.split("#", 1)[0].split("?", 1)[0].strip()
+    if not rel or _RE_SCHEME.match(rel):
+        return None
+    # A leading slash means "from the top of this root" - there is no other
+    # document root here for it to mean.
+    parts = [] if rel.startswith("/") else [p for p in src_dir.split("/") if p]
+    for seg in rel.split("/"):
+        if not seg or seg == ".":
+            continue
+        if seg == "..":
+            if not parts:
+                return None      # climbing out of the root is not an edge
+            parts.pop()
+            continue
+        parts.append(seg)
+    if not parts:
+        return None
+    cand = "/".join(parts)
+    if cand in index:
+        return cand
+    # A wikilink carries no extension, and neither does a hand-written relative
+    # link to a sibling note. Both spellings are what a human means by the file.
+    for suffix in MARKDOWN_SUFFIXES:
+        if cand + suffix in index:
+            return cand + suffix
+        if f"{cand}/index{suffix}" in index:
+            return f"{cand}/index{suffix}"
+    if not wiki:
+        # Only wikilinks get the basename fallback. An inline `[x](notes)` that
+        # points nowhere is a broken link in the document and should read as one;
+        # inventing a target for it would put an edge on the page that the reader
+        # cannot follow.
+        return None
+    # `[[dns]]` means the document called dns.md wherever it lives - the notes are
+    # written that way on purpose ("cross-link liberally") and a wikilink is a
+    # NAME, not a path. Both spellings are tried, because `[[dns.md]]` is the same
+    # link written by someone who knew the extension.
+    base = os.path.basename(cand).lower()
+    hits = [p for name in (base, base + ".md", base + ".markdown")
+            for p in by_base.get(name, [])]
+    if not hits:
+        return None
+    if len(hits) == 1:
+        return hits[0]
+    # AMBIGUITY IS RESOLVED DETERMINISTICALLY, not by walk order. Two files named
+    # `dns.md` in different folders would otherwise attach the backlink to
+    # whichever one os.walk reached first, so the same tree would answer
+    # differently after a rename somewhere else entirely. Nearest first (same
+    # directory as the linking document), then the shallowest path, then the name.
+    return sorted(hits, key=lambda p: (os.path.dirname(p) != src_dir,
+                                       p.count("/"), p))[0]
+
+
+# The cache, keyed on (max mtime, file count) over the markdown files the walk
+# returned.
+#
+# WHAT IT REMOVES is the READ, which is all of the cost: the walk is stat-only
+# and takes tens of milliseconds, while opening and parsing several hundred
+# documents is the second that a reader waits for on every page they open. So the
+# walk still runs on every request and is what produces the key - a cache that
+# skipped the walk could not know it was stale.
+#
+# WHY MTIME-MAX IS ENOUGH, and it is worth being precise because it is a
+# heuristic and not a hash: any edit to any indexed file sets that file's mtime to
+# now, so the maximum moves and the key changes. That covers the only mutation
+# this service performs itself (a save) and every edit made from a shell.
+#
+# WHAT IT MISSES: a DELETE leaves the surviving files' mtimes alone, so the
+# maximum can be unchanged - which is exactly why the count is half the key. What
+# survives both halves is a change that cancels out: deleting one file while
+# restoring another with a preserved old mtime (`cp -p`, `git checkout`, `rsync
+# -t`) in the same instant, or an edit that deliberately rewinds the mtime with
+# `touch -d`. Both are recoverable by touching any file in the tree, and neither
+# is worth hashing several hundred documents on every request to catch.
+_LINKS_CACHE: dict[tuple[str, str], tuple[tuple[int, int], dict]] = {}
+_LINKS_CACHE_LOCK = threading.Lock()
+# Per root AND per scope, bounded. ThreadingHTTPServer is one long-lived process,
+# so an unbounded dict keyed on a caller-supplied path is a memory leak with a
+# public trigger: `?path=` takes any directory in the root.
+_LINKS_CACHE_MAX = 8
+
+
+def links(root_key: str, rel: str = "") -> dict:
+    """A markdown adjacency list over one root: who links out, who links in.
+
+    `in` IS THE INVERSE OF `out`, computed by inverting the map rather than by a
+    second pass over the corpus. A second pass would read every file twice to
+    answer a question the first pass already answered, and - worse - it would be a
+    second implementation of resolution, so the two directions could disagree.
+    "3 documents link here" that does not match the three documents' own link
+    lists is a bug nobody can see from either end.
+    """
+    deadline = time.monotonic() + LINKS_SECONDS
+    members, _skipped = safepath.collect(
+        root_key, rel,
+        max_entries=LINKS_MAX_FILES,
+        max_total=1 << 40,          # not building an archive; size is not the bound
+        max_member=LINKS_MAX_FILE_BYTES,
+        walk_seconds=max(1.0, deadline - time.monotonic()),
+    )
+    docs = [m for m in members
+            if os.path.splitext(m.res.relpath)[1].lower() in MARKDOWN_SUFFIXES]
+
+    truncated: dict | None = None
+    if len(docs) > LINKS_MAX_DOCS:
+        # Reported rather than applied quietly, exactly as /search and /tree do: a
+        # backlink list that silently stops is how a reader concludes a page is an
+        # orphan when it is only past the cutoff.
+        truncated = {"reason": "too many documents", "limit": LINKS_MAX_DOCS,
+                     "found": len(docs)}
+        docs = sorted(docs, key=lambda m: m.res.relpath)[:LINKS_MAX_DOCS]
+
+    stamp = (max((m.mtime for m in docs), default=0), len(docs))
+    key = (root_key, rel or "")
+    with _LINKS_CACHE_LOCK:
+        cached = _LINKS_CACHE.get(key)
+    if cached and cached[0] == stamp:
+        return {**cached[1], "cached": True}
+
+    index: dict[str, dict] = {}
+    by_base: dict[str, list[str]] = {}
+    raw: dict[str, list[tuple[str, bool]]] = {}
+    scanned = 0
+
+    for m in docs:
+        if time.monotonic() > deadline:
+            truncated = truncated or {"reason": "took too long",
+                                      "seconds": LINKS_SECONDS, "scanned": scanned}
+            break
+        path = m.res.relpath
+        try:
+            with open(m.res.abspath, encoding="utf-8", errors="replace") as fh:
+                text = fh.read(LINKS_MAX_FILE_BYTES)
+        except OSError:
+            # One unreadable file must not lose the other six hundred - the same
+            # split collect() makes between per-file problems and whole-request
+            # limits.
+            continue
+        scanned += 1
+        index[path] = {"title": _doc_title(text[:LINKS_TITLE_BYTES], path),
+                       "out": [], "in": []}
+        by_base.setdefault(os.path.basename(path).lower(), []).append(path)
+        raw[path] = _link_targets(text)
+
+    for src, targets in raw.items():
+        seen: list[str] = []
+        for target, wiki in targets:
+            dst = _resolve_link(os.path.dirname(src), target, wiki, index, by_base)
+            # A document that links to itself is not a backlink. Left in, every
+            # page with a table of contents would report that one document links
+            # here - itself - which is the one answer the reader already has.
+            if dst is None or dst == src or dst in seen:
+                continue
+            seen.append(dst)
+        index[src]["out"] = sorted(seen)
+
+    for src, doc in index.items():
+        for dst in doc["out"]:
+            # `out` only ever names a key of `index`, so this cannot raise and
+            # cannot invent a node. That is the same property that keeps a denied
+            # file out of the graph: it was never indexed, so nothing can point at
+            # it and it can point at nothing.
+            index[dst]["in"].append(src)
+    for doc in index.values():
+        doc["in"].sort()
+
+    payload = {
+        "root": root_key,
+        "path": rel,
+        "docs": index,
+        "scanned": scanned,
+        "edges": sum(len(d["out"]) for d in index.values()),
+        # Always present, null when nothing was cut - see /search.
+        "truncated": truncated,
+    }
+    with _LINKS_CACHE_LOCK:
+        if len(_LINKS_CACHE) >= _LINKS_CACHE_MAX and key not in _LINKS_CACHE:
+            _LINKS_CACHE.pop(next(iter(_LINKS_CACHE)))
+        _LINKS_CACHE[key] = (stamp, payload)
+    return {**payload, "cached": False}
+
+
 def history(res: safepath.Resolved, limit: int = 20) -> list[dict]:
     # A file under no repository has no history. Real state, not an error: it is
     # why the write path also reports `committed: false` rather than pretending.
@@ -782,6 +1079,21 @@ class Handler(BaseHTTPRequestHandler):
                     case=q.get("case") == "1",
                     glob=q.get("glob") or None,
                     limit=max(1, limit)))
+
+            if route == "/links":
+                # NO `root=*`, unlike /search, and the reason is the shape of the
+                # answer rather than caution: `docs` is keyed on a path relative to
+                # ONE root, and a link inside a document cannot name another root -
+                # there is no syntax for it. A merged graph would have to key on
+                # (root, path) tuples to stay honest, and every hit under `home`
+                # would duplicate a node that already exists under stacks or notes.
+                root = q.get("root", "")
+                if root not in safepath.ROOTS:
+                    return self._send(400, {"error": f"unknown root {root!r}"})
+                # `path` scopes the graph to a subtree, like /search's. Backlinks
+                # are read while a document is open, so the useful scope is often
+                # the folder it lives in rather than a 3,000-file root.
+                return self._send(200, links(root, q.get("path", "")))
 
             if route == "/read":
                 res = safepath.resolve(q.get("root", ""), q.get("path", ""))

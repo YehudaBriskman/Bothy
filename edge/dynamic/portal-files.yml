@@ -52,7 +52,13 @@ http:
       # the file set /read serves - same safepath.collect(), same deny-list, same
       # per-root rules - and a separate router would imply a separate boundary.
       # It is a GET with the query in the query string, like every rule here.
-      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/search`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
+      #
+      # /links is here for the same reason /search is: it reads exactly the file
+      # set /read serves, through the same safepath.collect(), and it returns
+      # nothing that /read would refuse - a document the walk skipped is not a
+      # node in the graph, so it cannot be a link target either. A separate router
+      # would imply a separate boundary where there is one.
+      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/search`) || Path(`/-/api/files/links`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
       entryPoints: [web]
       priority: 100
       service: portal-files
