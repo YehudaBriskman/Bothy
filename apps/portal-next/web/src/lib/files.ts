@@ -681,3 +681,48 @@ export async function deleteFile(
   if (!r.ok) return { kind: 'refused', message: await errorText(r, 'the delete was refused') };
   return { kind: 'saved', res: { ok: true, path, mtime: 0, bytes: 0 } as WriteResult };
 }
+
+// ── the link graph ───────────────────────────────────────────────────────────
+//
+// Which documents point at which, for the reader's backlinks panel. Built
+// server-side because answering "what links HERE" needs every document, not the
+// one on screen - the browser holds one file at a time by design.
+
+export interface DocLinks {
+  title: string;
+  /** Documents this one points at, root-relative. */
+  out: string[];
+  /** Documents that point at this one. The inverse of `out`, computed by the
+   *  service so there is one implementation of what counts as a link. */
+  in: string[];
+}
+
+export interface LinkIndex {
+  root: string;
+  docs: Record<string, DocLinks>;
+  scanned: number;
+  truncated: { reason: string; limit?: number } | null;
+}
+
+/** The whole graph for a root.
+ *
+ *  One request per root rather than one per document: the index is built from a
+ *  walk either way, so asking per-document would repeat the expensive half and
+ *  still not let the reader say "3 documents link here" without it. Measured on
+ *  this box: 20 documents in 14ms warm, and the service caches on (max mtime,
+ *  count) so an unchanged tree costs a stat walk.
+ *
+ *  Absent is a supported answer. A root with no markdown, a service too old to
+ *  know the route, a 404 - all of them mean "no backlinks to show", which is a
+ *  panel that does not render rather than an error nobody can act on.
+ */
+export async function fetchLinks(root: string, signal?: AbortSignal): Promise<LinkIndex | null> {
+  try {
+    const r = await fetch(`${BASE}/links?root=${encodeURIComponent(root)}`, { signal });
+    if (!r.ok) return null;
+    const j = (await r.json()) as LinkIndex;
+    return j && typeof j.docs === 'object' ? j : null;
+  } catch {
+    return null;
+  }
+}

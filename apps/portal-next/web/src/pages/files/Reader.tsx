@@ -40,7 +40,8 @@ import { SearchView } from './Search';
 import { SignInCard } from './SignInCard';
 import { Toc, useHeadings } from './Toc';
 import { filesHref } from './routes';
-import { baseName, dirName } from './tree';
+import { baseName, dirName, resolveWikiIn } from './tree';
+import { fetchLinks, type LinkIndex } from '../../lib/files';
 
 // shell.css carries the section scope (the full-height escape from `.content`,
 // the inset focus ring and the syntax palette) and editor.css carries `.fx-read`
@@ -65,6 +66,15 @@ export function Reader() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [rootsErr, setRootsErr] = useState<string | null>(null);
   const [trees, setTrees] = useState<Record<string, RootTree | undefined>>({});
+  // The link graph for the open root. One request per root, not per document:
+  // the service builds it from a walk either way, and asking per-document would
+  // repeat the expensive half while still not answering "what links here".
+  //
+  // Deliberately NOT awaited before the document renders. Backlinks are context
+  // you read after the page, so blocking the page on them would trade the thing
+  // people came for against the thing they might glance at.
+  const [graph, setGraph] = useState<Record<string, LinkIndex | null>>({});
+
   const [openRoots, setOpenRoots] = useState<Set<string>>(new Set());
   const [allFiles, setAllFiles] = useState(false);
   const [tick, setTick] = useState(0);
@@ -83,6 +93,17 @@ export function Reader() {
 
   const docBox = useRef<HTMLDivElement | null>(null);
   const root = urlRoot;
+
+  useEffect(() => {
+    if (!root || root in graph) return;
+    const ac = new AbortController();
+    // `null` is written on failure as well as on success-with-nothing, because
+    // both mean the same thing to this page - no panel - and leaving the key
+    // absent would retry the request on every render.
+    fetchLinks(root, ac.signal).then((g) => setGraph((m) => ({ ...m, [root]: g })));
+    return () => ac.abort();
+  }, [root, graph]);
+
 
   // ── the roots ──────────────────────────────────────────────────────────────
   //
@@ -335,7 +356,24 @@ export function Reader() {
                     // ~/claude-notes is built out of relative links, and a
                     // documentation site whose links do not click is not one.
                     onOpen={(p, at) => openDoc(root, p, at)}
+                    // Wikilinks resolve against the CURRENT root's listing,
+                    // which this page already has for the index beside it. Only
+                    // that root: `[[dns]]` in a note means the note called dns,
+                    // and reaching into another root to find one would make the
+                    // same link mean different things depending on what happened
+                    // to be loaded.
+                    resolveWiki={(t) => resolveWikiIn(
+                      (trees[root]?.entries ?? []).map((e) => e.path), t,
+                    )}
                     onLoad={setFile}
+                  />
+                  {/* AFTER the document, never beside it. Backlinks are context
+                      you want once you have read the thing, and a sidebar of
+                      them competes with the outline for the same glance. */}
+                  <Backlinks
+                    index={graph[root] ?? null}
+                    path={path}
+                    onOpen={(p) => openDoc(root, p, undefined)}
                   />
                 </div>
               </>
@@ -363,5 +401,49 @@ export function Reader() {
         </div>
       )}
     </div>
+  );
+}
+
+/** "3 documents link here", and which ones.
+ *
+ *  WHY THIS IS WORTH A PANEL. A note in ~/claude-notes is written as if the
+ *  reader arrived from somewhere - "see the naming note" - and the reverse
+ *  question, "what refers to this", has no answer anywhere else on the box. The
+ *  index makes it a lookup; without it you are grepping.
+ *
+ *  It renders NOTHING when there is nothing to say. A panel reading "0 documents
+ *  link here" is a row of furniture on every orphan, and this reader's whole
+ *  argument is that the rarer case should not tax the common one.
+ */
+function Backlinks({ index, path, onOpen }: {
+  index: LinkIndex | null;
+  path: string;
+  onOpen: (path: string) => void;
+}) {
+  if (!index) return null;
+  const doc = index.docs[path];
+  const from = doc?.in ?? [];
+  if (!from.length) return null;
+
+  return (
+    <section className="rd-backlinks" aria-label="Documents that link here">
+      <h2>
+        {from.length} document{from.length === 1 ? '' : 's'} link
+        {from.length === 1 ? 's' : ''} here
+      </h2>
+      <ul>
+        {from.map((p) => (
+          <li key={p}>
+            {/* A button, not a link, for the reason md.tsx gives at length:
+                there is no URL for a file inside a root, and writing one would
+                be inventing an href this page cannot honour. */}
+            <button type="button" onClick={() => onOpen(p)} title={p}>
+              <span className="rd-bl-title">{index.docs[p]?.title || baseName(p)}</span>
+              <span className="rd-bl-path mono">{p}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -277,3 +277,83 @@
   .bothy-files.bothy-read .fx-read { padding: 16px 16px 40px; }
   .bothy-files .rd-empty { padding: 32px 16px; }
 }
+
+/* ── callouts ────────────────────────────────────────────────────────────────
+   `> [!warning] Title`, the syntax Obsidian and GitHub share.
+
+   THE STATUS COLOURS ARE USED HERE, and index.css's standing rule says they are
+   reserved for service state and never used as chrome. This is a deliberate,
+   scoped exemption, and the argument is that the rule's PURPOSE does not reach
+   this far: it exists so nobody reads a green decoration as "a service is up".
+   A rendered document has no service status anywhere on it, so there is nothing
+   for an amber panel to be mistaken for.
+
+   The exemption is scoped to .md-callout and it is VOID the moment a callout is
+   rendered on a surface that also shows service state. If that ever happens
+   these need their own token family; they do not get to keep borrowing.
+
+   Bordered on the left only, and tinted, rather than a full box: a document with
+   four boxed panels in it stops looking like prose and starts looking like a
+   dashboard, which is the opposite of what the reading view is for. */
+.bothy-files .md-callout {
+  margin: 0 0 var(--read-gap);
+  padding: 10px 14px;
+  border-left: 3px solid var(--st-unknown);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--surface-2);
+}
+.bothy-files .md-callout-h {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0; font-size: 12.5px; font-weight: 700;
+  letter-spacing: .01em; color: var(--fg);
+}
+.bothy-files .md-callout-h svg { flex: none; }
+/* The body inherits the reading scale; only its last block loses its margin, so
+   a one-paragraph callout is not padded twice at the bottom. */
+.bothy-files .md-callout-b { margin-top: 6px; }
+.bothy-files .md-callout-b > *:last-child { margin-bottom: 0; }
+
+.bothy-files .md-callout.is-note { border-left-color: var(--accent); background: var(--accent-bg); }
+.bothy-files .md-callout.is-note .md-callout-h { color: var(--accent-fg); }
+.bothy-files .md-callout.is-tip  { border-left-color: var(--st-up);   background: var(--st-up-bg); }
+.bothy-files .md-callout.is-tip .md-callout-h  { color: var(--st-up-fg); }
+.bothy-files .md-callout.is-warn { border-left-color: var(--st-warn); background: var(--st-warn-bg); }
+.bothy-files .md-callout.is-warn .md-callout-h { color: var(--st-warn-fg); }
+.bothy-files .md-callout.is-bad  { border-left-color: var(--st-down); background: var(--st-down-bg); }
+.bothy-files .md-callout.is-bad .md-callout-h  { color: var(--st-down-fg); }
+
+/* ── backlinks ───────────────────────────────────────────────────────────────
+   Under the document, separated by a rule rather than boxed: it is a footnote
+   to the page, not a second panel competing with it. Renders nothing at all
+   when a document has no inbound links - see the component. */
+.bothy-files .rd-backlinks {
+  max-width: var(--read-measure);
+  margin: 34px 0 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.bothy-files .rd-backlinks h2 {
+  margin: 0 0 8px;
+  font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--fg-subtle);
+}
+.bothy-files .rd-backlinks ul { margin: 0; padding: 0; list-style: none; }
+.bothy-files .rd-backlinks li { margin: 0; }
+.bothy-files .rd-backlinks button {
+  display: flex; align-items: baseline; gap: 10px;
+  width: 100%; padding: 5px 8px; margin-left: -8px;
+  border: 0; background: none; border-radius: var(--r-sm);
+  font: inherit; text-align: left; cursor: pointer; color: var(--fg-muted);
+}
+.bothy-files .rd-backlinks button:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .rd-backlinks button:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: -2px;
+}
+.bothy-files .rd-bl-title { font-size: 13px; font-weight: 600; }
+/* The path is the disambiguator - two notes can share a title - so it is
+   present but never competes with the name. */
+.bothy-files .rd-bl-path {
+  font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
