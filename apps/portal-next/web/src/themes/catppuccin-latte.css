@@ -1,0 +1,84 @@
+/* ============================================================================
+   Catppuccin Latte - the light flavour of the same palette.
+
+   The only LIGHT theme here besides Bothy Light, and light is where this design
+   system's rules bite hardest. Two extra constraints apply that no dark theme
+   has to satisfy:
+
+     · Status WEIGHT must run down > warn > up > unknown > stopped. On a white
+       page the eye reads "heavier" as "more urgent", and Catppuccin's own
+       yellow (#df8e1d) against its green (#40a02b) inverts that - the green is
+       darker. Both are pulled until the ladder is in the right order.
+     · The chart band is L 0.43-0.77, and a light theme's series have to clear
+       3:1 against a near-white card, which most of Latte does not do unaided.
+
+   Upstream's own accessibility work is why this is a port and not a fight:
+   Latte was designed to be readable on white, so most values need nudging
+   rather than replacing.
+   ========================================================================== */
+
+:root[data-bothy-theme='catppuccin-latte'][data-bothy-theme],
+[data-bothy-theme='catppuccin-latte'][data-bothy-theme] {
+  color-scheme: light;
+
+  /* Latte inverts the ladder the way Bothy Light does: the CARD is the lightest
+     thing, the page sits a step below it, and insets go darker still. A light
+     theme that makes the page white and the card whiter has no ladder left. */
+  --bg:        #eff1f5;
+  --bg-2:      #e6e9ef;
+  --surface-1: #ffffff;
+  --surface-2: #f7f8fa;
+  --surface-3: #eaecf2;
+  --surface-4: #ffffff;
+  --bg-glow:   radial-gradient(60% 50% at 50% 0%, #dce0e8 0%, transparent 70%);
+
+  --fg:        #4c4f69;
+  --fg-muted:  #5c5f77;
+  --fg-subtle: #63667c;
+  --on-accent: #ffffff;
+
+  --line:        rgb(76 79 105 / 14%);
+  --line-strong: rgb(76 79 105 / 24%);
+
+  --accent:      #1e66f5;
+  --accent-2:    #1552d0;
+  --accent-fg:   #1a56c9;
+
+  --chart-1: #1e66f5;
+  --chart-2: #179299;
+  --chart-3: #d1730a;
+  --chart-4: #8839ef;
+  --chart-5: #d20f39;
+
+  /* The ladder, in weight order. Upstream green #40a02b is darker than upstream
+     yellow #df8e1d, which would put "up" above "warn" - so the yellow is
+     deepened and the green lightened until down > warn > up holds. */
+  --st-up:      #56b942;  --st-up-fg:      #287717;
+  --st-warn:    #c47a10;  --st-warn-fg:    #935c0b;
+  --st-down:    #d20f39;  --st-down-fg:    #b30c30;
+  --st-unknown: #b8bcc9;  --st-unknown-fg: #5b5f72;
+  --st-off:     #cdd0da;  --st-off-fg:     #64687b;
+
+  --a1: #067b93;
+  --a2: #1560c4;
+  --a3: #4c4ddb;
+  --a4: #8839ef;
+  --a5: #b81fa8;
+
+  /* A light theme's shadow is a shadow, not a glow: the inset hairline that
+     lifts a dark surface has to become a dark hairline here or it disappears. */
+  --shadow-sm: 0 1px 2px rgb(76 79 105 / 10%), inset 0 1px 0 rgb(255 255 255 / 60%);
+  --shadow-md: 0 4px 14px rgb(76 79 105 / 13%), inset 0 1px 0 rgb(255 255 255 / 65%);
+  --shadow-lg: 0 18px 44px rgb(76 79 105 / 18%), inset 0 1px 0 rgb(255 255 255 / 70%);
+
+  --scroll-shade: rgb(239 241 245 / 84%);
+  --hover-opacity: .8;
+}
+
+:root[data-bothy-theme='catppuccin-latte'] .bothy-files.bothy-files {
+  --hl-com: var(--fg-subtle);
+  --hl-kw:  #7c2ae0;
+  --hl-str: #0a6e8a;
+  --hl-num: #a5157d;
+  --hl-key: #3538b8;
+}

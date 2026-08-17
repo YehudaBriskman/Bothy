@@ -24,6 +24,7 @@ import { Ban, Circle, CircleCheck, LogIn } from 'lucide-react';
 import { ROLES, ROLE_MEANING, signInHref, type Me, type Role } from '../lib/me';
 import { useMe } from '../components/UserMenu';
 import { useTheme } from '../lib/theme';
+import { ThemeSwatch } from '../components/ThemeSwatch';
 import { Skeleton } from '../components/states';
 import './Settings.css';
 
@@ -103,23 +104,7 @@ function Appearance() {
             >
               <span className="theme-name">{t.name}</span>
               <span className="theme-note">{t.note}</span>
-              {/* The swatches are painted BY the theme they advertise, so a card
-                  cannot show colours the theme does not actually have.
-
-                  `--sw-N` with the real token as the FALLBACK, which resolves
-                  both cases in one expression: a theme file applies its whole
-                  palette to this subtree, so var(--accent) is already right and
-                  --sw-1 is undefined; the two built-ins live on :root only, so
-                  they supply --sw-1..5 instead (index.css, guarded by the
-                  contract check). Neither case needs the component to know
-                  which kind of theme it is rendering. */}
-              <span className="theme-swatch" data-bothy-theme={t.id} aria-hidden="true">
-                <i style={{ background: 'var(--sw-1, var(--accent))' }} />
-                <i style={{ background: 'var(--sw-2, var(--st-up))' }} />
-                <i style={{ background: 'var(--sw-3, var(--st-warn))' }} />
-                <i style={{ background: 'var(--sw-4, var(--st-down))' }} />
-                <i style={{ background: 'var(--sw-5, var(--a5))' }} />
-              </span>
+              <ThemeSwatch id={t.id} />
             </button>
           ))}
         </div>
