@@ -29,7 +29,17 @@
      frequent one. */
   width: 26px; height: 26px; border-radius: var(--r-sm);
   color: var(--fg-subtle); background: var(--surface-2); border: 1px solid var(--line);
-  opacity: 0;
+  /* VISIBLE AT REST. It was `opacity: 0`, revealed on row hover, keyboard focus,
+     touch, or its own dialog being open - four paths, carefully done, and it
+     still failed the only test that matters: the person who asked for this
+     feature could not find it. "Where do I stop a service?" is not a question a
+     correct affordance leaves open.
+     The footprint rule says a one-bit control should not take a full column at
+     rest, and that is right about SIZE, not about EXISTENCE. So it keeps the
+     26px box and loses the disappearing act: muted at rest, full contrast on
+     hover. A control you cannot find has a footprint of zero and a value to
+     match. */
+  opacity: var(--rest-opacity, .55);
   transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               border-color var(--dur-fast) var(--ease);
 }
@@ -38,6 +48,8 @@
 /* Three ways in, because a hover-revealed affordance that has only the first is
    unusable by half the people who need it: the pointer, the keyboard, and its
    own dialog being open. */
+/* Still four ways to reach full contrast; the difference is that none of them is
+   now the difference between existing and not. */
 .svc-tr:hover .svc-act-btn,
 .svc-act-btn:hover,
 .svc-act-btn:focus-visible,
@@ -47,8 +59,8 @@
 /* The global ring is 3px and would sit inside a 7px corner. */
 .svc-act-btn:focus-visible { border-radius: var(--r-sm); }
 
-/* Touch has no hover and no focus-visible, so the reveal never fires and the
-   control would simply not exist on a phone. */
+/* Touch has no hover and no focus-visible, so it goes to full contrast there
+   rather than sitting muted at something nobody can brighten. */
 @media (hover: none) {
   .svc-act-btn { opacity: 1; }
 }

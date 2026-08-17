@@ -146,6 +146,3 @@ export function JsonView({ src }: { src: string }) {
   );
 }
 
-export function isJsonParseable(src: string): boolean {
-  try { JSON.parse(src); return true; } catch { return false; }
-}

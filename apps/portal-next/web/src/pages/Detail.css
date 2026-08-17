@@ -168,3 +168,14 @@
 
 /* ── not-found / empty ─────────────────────────────────────────────────────── */
 .detail .state { margin-top: 8px; }
+
+/* The two things you can do to a service, together in its header. The action
+   control is 26px and the Open button is a full control, so they align on the
+   end rather than stretching - a 26px box stretched to a 36px button's height
+   reads as a broken button rather than a quiet one. */
+.detail-head-actions {
+  display: flex; align-items: center; gap: 10px; flex: none; align-self: center;
+}
+/* In a header there is no row to hover, so the reveal that the table relies on
+   never fires. It is simply visible here. */
+.detail-head-actions .svc-act-btn { opacity: 1; width: 30px; height: 30px; }

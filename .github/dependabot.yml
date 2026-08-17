@@ -70,8 +70,14 @@ updates:
       - "/data/kafka"
       - "/apps/portal"
       - "/apps/portal-next"
+      - "/apps/portal-files"
+      - "/apps/bothy-config"
+      - "/apps/bothy-control"
+      # /apps/docs was still listed after that directory was deleted, which is
+      # how a missing-directory warning goes unread for a fortnight. Removed.
+      # /apps/wiki, /data/redis and /data/kafka stay: those compose files are
+      # deliberately kept on disk, so their images are still worth bumping.
       - "/apps/wiki"
-      - "/apps/docs"
     schedule:
       interval: weekly
       day: monday

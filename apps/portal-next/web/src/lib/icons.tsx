@@ -11,7 +11,7 @@ import {
   Database, BarChart3, Target, ScrollText, Waypoints, Container as ContainerIcon,
   Waves, BookOpen, Boxes, MemoryStick, HardDrive, Globe, Wrench, Plug, Gauge,
   Server, Box, Activity, Layers,
-  CircleCheck, CircleDot, LoaderCircle, CircleX, CircleHelp, CirclePause,
+  CircleCheck, LoaderCircle, CircleX, CircleHelp, CirclePause,
   type LucideIcon,
 } from 'lucide-react';
 import type { PortalNode, Status, ServiceType } from './discover';
@@ -90,11 +90,6 @@ export const STATUS_ICON: Record<Status, LucideIcon> = {
 };
 
 // A tiny variant used where a filled dot reads better than an outline (e.g. the
-// "starting" pulse in dense tables): CircleDot for starting when spinning is too
-// busy. Exposed for callers that want the alternate.
-export const STATUS_ICON_ALT: Record<Status, LucideIcon> = {
-  up: CircleCheck, starting: CircleDot, down: CircleX, stopped: CirclePause, unknown: CircleHelp,
-};
 
 export const STATUS_VAR: Record<Status, string> = {
   // --off is the muted token: a stopped service must recede, not compete with

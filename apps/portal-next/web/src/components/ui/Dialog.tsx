@@ -68,5 +68,10 @@ export function Dialog({
   );
 }
 
-export const DialogTrigger = RD.Trigger;
+// DialogClose stays and DialogTrigger went, which looks arbitrary and is not.
+// This Dialog is CONTROLLED-ONLY - it requires `open`/`onOpenChange` and owns
+// RD.Root internally - so a Trigger placed in `children` would render INSIDE the
+// already-open dialog. It could not work, which makes it a misleading re-export
+// rather than an escape hatch. Close renders inside Root and does work; both
+// consumers currently hand-roll it, so it is a refactor away from use.
 export const DialogClose = RD.Close;

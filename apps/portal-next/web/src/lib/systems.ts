@@ -41,7 +41,6 @@ export interface System {
   starting: number;
   stopped: number; // switched off on purpose - never an alert
   unknown: number;
-  hasRunning: boolean;
   isOff: boolean; // entirely stopped, nothing broken
   uiLinks: UiLink[];
   volumes: VolumeRef[];
@@ -143,7 +142,6 @@ export function systemsOf(nodes: PortalNode[]): System[] {
       total: ns.length,
       running: up + starting,
       up, down, starting, stopped, unknown,
-      hasRunning: up + starting > 0,
       // Off in full, and nothing wrong with it - the state a project sits in
       // between sessions. Rendered muted and kept out of every alert count.
       isOff: up + starting === 0 && down === 0 && stopped > 0,
@@ -176,12 +174,6 @@ export function systemsOf(nodes: PortalNode[]): System[] {
 // it), which is the whole point of separating it from `down`. A system that is
 // entirely off is likewise not "unconfirmed" - it is confirmed off.
 export const systemHasIssues = (s: System) => !s.isOff && (s.down > 0 || s.unknown > 0);
-
-// Systems that are NOT running but still hold data (a stopped project whose
-// volumes persist). Note these can only appear if such a system has nodes at
-// all - see diskRows() in the Overview for volumes owned by no live service.
-export const dataOnlySystems = (systems: System[]) =>
-  systems.filter((s) => !s.hasRunning && s.volumes.length > 0);
 
 // ── Browsable UIs, split stack vs project (the "Open UI ports" card) ─────────
 export interface UiPortGroups {
@@ -306,15 +298,6 @@ export function fmtBytes(n: number | null | undefined): string {
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
 }
 
-// Human "3m ago" / "2h ago" from an uptime-in-seconds. Uptime IS "time since
-// start", so uptime == age-since-started.
-export function fmtAgo(secs: number | null): string {
-  if (secs == null) return '-';
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
-  return `${Math.round(secs / 86400)}d ago`;
-}
 export function fmtUptime(secs: number | null): string {
   if (secs == null) return '-';
   if (secs < 3600) return `${Math.max(1, Math.round(secs / 60))}m`;
