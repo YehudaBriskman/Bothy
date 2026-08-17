@@ -23,18 +23,25 @@ import './three.css';
 const PaletteCtx = createContext<ScenePalette>(scenePalette());
 const usePal = () => useContext(PaletteCtx);
 
-// Re-reads on a theme pin (data-theme) or an OS theme change.
-function useScenePalette(): ScenePalette {
-  const [pal, setPal] = useState<ScenePalette>(scenePalette);
+// "The theme changed" as one subscription, counted rather than valued.
+//
+// This used to live inside useScenePalette and serve only the ScenePalette, so
+// the two OTHER things this scene reads from the theme - the status LED hexes
+// and the accent that lights it - were `useMemo(..., [])` and were read exactly
+// once, at mount. Flipping the theme repainted the chassis and left the lights
+// and the LEDs on the old palette. A tick shared by all three is what makes
+// "reads a token" and "follows the theme" the same statement.
+function useThemeTick(): number {
+  const [tick, setTick] = useState(0);
   useEffect(() => {
-    const update = () => setPal(scenePalette());
-    const mo = new MutationObserver(update);
+    const bump = () => setTick((n) => n + 1);
+    const mo = new MutationObserver(bump);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     const mq = window.matchMedia('(prefers-color-scheme: light)');
-    mq.addEventListener('change', update);
-    return () => { mo.disconnect(); mq.removeEventListener('change', update); };
+    mq.addEventListener('change', bump);
+    return () => { mo.disconnect(); mq.removeEventListener('change', bump); };
   }, []);
-  return pal;
+  return tick;
 }
 
 // ── layout constants (world units; 1U slab ≈ 0.5 tall) ───────────────────────
@@ -199,7 +206,7 @@ function Slab({
       <group ref={grp}>
         {/* chassis */}
         <RoundedBox args={[SLAB_W, SLAB_H, SLAB_D]} radius={0.03} smoothness={2}>
-          <meshStandardMaterial color={hovered ? '#26324a' : '#182031'} metalness={0.85} roughness={0.34} />
+          <meshStandardMaterial color={hovered ? pal.slabBodyHover : pal.slabBody} metalness={0.85} roughness={0.34} />
         </RoundedBox>
         {/* brushed front bezel, slightly proud */}
         <mesh position={[0, 0, SLAB_D / 2 + 0.001]}>
@@ -232,7 +239,7 @@ function Slab({
         {[0, 1, 2].map((i) => (
           <mesh key={i} position={[SLAB_W / 2 - 0.16 - i * 0.14, -SLAB_H / 2 + 0.12, front + 0.008]}>
             <boxGeometry args={[0.06, 0.06, 0.02]} />
-            <meshStandardMaterial color="#22d3ee" emissive="#22d3ee" emissiveIntensity={0.55} toneMapped={false} />
+            <meshStandardMaterial color={pal.activity} emissive={pal.activity} emissiveIntensity={0.55} toneMapped={false} />
           </mesh>
         ))}
         {/* status LED + additive glow, top-right */}
@@ -750,9 +757,15 @@ function Scene({
     return () => { document.body.style.cursor = ''; };
   }, [hover]);
 
-  const hexes = useMemo<Hexes>(() => statusHexes(), []);
-  const pal = useScenePalette();
-  const primary = useMemo(() => cssVar('--primary') || '#4d9bff', []);
+  // All three read from the theme, so all three share its tick.
+  const tick = useThemeTick();
+  const hexes = useMemo<Hexes>(() => statusHexes(), [tick]);
+  const pal = useMemo<ScenePalette>(() => scenePalette(), [tick]);
+  // `--accent`, not `--primary` - the latter was never a token, so this had been
+  // pinned to the literal below since the accent palette was replaced, and three
+  // point lights plus the rack emissive were still lighting the scene in the old
+  // blue. Reading `--accent` is what makes the scene follow a theme at all.
+  const primary = useMemo(() => cssVar('--accent') || '#4d9bff', [tick]);
 
   const edgePanel = panels.find((p) => p.key === 'infra');
   const rackPanels = panels.filter((p) => p.key !== 'infra');
@@ -799,7 +812,7 @@ function Scene({
       <directionalLight position={[6, 15, 10]} intensity={1.95} color={pal.key} />
       <directionalLight position={[-9, 8, -6]} intensity={0.7} color={pal.fill} />
       <pointLight position={[-7, 8, -5]} intensity={55} distance={50} color={primary} />
-      <pointLight position={[0, 3, 13]} intensity={22} distance={44} color="#22d3ee" />
+      <pointLight position={[0, 3, 13]} intensity={22} distance={44} color={pal.activity} />
       <pointLight position={[0, edgeY, 5]} intensity={16} distance={30} color={primary} />
 
       <Rig focus={focus} presets={presets} animate={animate} />

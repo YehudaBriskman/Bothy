@@ -2,7 +2,19 @@ import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortal } from '../lib/data';
 import { panelize } from '../lib/panels';
-import { STATUS_HEX } from '../components/three/webgl';
+// The flat map paints in TOKENS, not in the 3D scene's hex mirror.
+//
+// It used to import STATUS_HEX from webgl.ts and inline it into `style`, which
+// made this the one view in the app that could not re-theme: every edge, halo,
+// dot, legend swatch and container square stayed on the dark palette on a white
+// page. The hexes belong to the 3D scene, which paints with real materials and
+// genuinely cannot read CSS; an SVG in the document can, so it should.
+//
+// STATUS_VAR is the `-fg` half of each pair - see the note on it - and that is
+// the right half here for the same reason it is right for StatusIcon: these are
+// 7px dots and 14px squares, not the large filled areas the bare fills were
+// measured for.
+import { STATUS_VAR } from '../lib/icons';
 import { serviceLink } from '../lib/links';
 import { conditionLabel, resolveEdges, type PortalNode } from '../lib/discover';
 import './Topology.css';
@@ -50,7 +62,7 @@ export function Topology() {
           </div>
           <div className="topo-legend">
             {(['up', 'starting', 'down', 'unknown'] as const).map((s) => (
-              <span key={s} className="leg"><span className="leg-dot" style={{ background: STATUS_HEX[s] }} /> {s}</span>
+              <span key={s} className="leg"><span className="leg-dot" style={{ background: `var(${STATUS_VAR[s]})` }} /> {s}</span>
             ))}
             {/* Only meaningful on the flat map - the 3D scene has no dependency
                 lines to explain, and a legend for something not on screen is
@@ -165,7 +177,7 @@ function FlatMap() {
         {/* edges: hub -> service (routed), service -> container */}
         {placed.map(({ node, y }) => {
           const lit = isLit(node.id);
-          const hex = STATUS_HEX[node.status];
+          const hex = `var(${STATUS_VAR[node.status]})`;
           const hasRoute = !!node.route;
           const hasCtr = !!node.container;
           const active = hover === node.id;
@@ -242,7 +254,7 @@ function FlatMap() {
 
         {/* service nodes */}
         {placed.map(({ node, y }) => {
-          const hex = STATUS_HEX[node.status];
+          const hex = `var(${STATUS_VAR[node.status]})`;
           const lit = isLit(node.id);
           const active = hover === node.id;
           return (
@@ -271,7 +283,7 @@ function FlatMap() {
 
         {/* container nodes */}
         {placed.filter((p) => p.node.container).map(({ node, y }) => {
-          const hex = STATUS_HEX[node.status];
+          const hex = `var(${STATUS_VAR[node.status]})`;
           const active = hover === node.id;
           return (
             <g key={`c-${node.id}`} className={`topo-ctr ${active ? 'on' : ''}`} transform={`translate(${CTR_X} ${y})`} style={{ opacity: isLit(node.id) ? 1 : 0.18 }}>

@@ -59,7 +59,8 @@
 }
 .sv-focus-btn:hover { color: var(--fg); }
 .sv-focus-btn.is-on {
-  color: #fff;
+  /* See .topo-view-btn.is-on - same control, same fix. */
+  color: var(--on-accent);
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
 }
 
@@ -96,6 +97,11 @@
   border-radius: inherit;
   background: radial-gradient(120% 120% at 50% 40%,
     transparent 52%,
+    /* stray-colour-ok: #000 here is a DARKENER, not a colour. The value that
+       carries the theme is var(--bg); black is the direction it is pushed in,
+       and "further from the viewer is darker" is true of every theme, including
+       the light one - where this correctly darkens white rather than lightening
+       it. A token for it would be a token whose only legal value is black. */
     color-mix(in oklab, var(--bg) 58%, #000 42%) 100%);
 }
 
