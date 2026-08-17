@@ -2,7 +2,7 @@ name: mgmt
 
 services:
   portainer:
-    image: portainer/portainer-ce@sha256:f6bc23d1695530a609563fd65c180aaafec0fc02e019d5fc63d16b6fbe83addd
+    image: portainer/portainer-ce@sha256:3fa8750ac2b98ce56784ca292df1adc3ec38f0062fd572811ea4b2221beee310
     container_name: portainer
     # No Traefik router: the *.dev.test name layer was retired permanently, so
     # the Host(`portainer.dev.test`) route had nothing left to match. Reached
