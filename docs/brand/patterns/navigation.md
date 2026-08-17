@@ -37,9 +37,13 @@ See [CHECKLIST.md § 13](../CHECKLIST.md#13-navigation-and-information-architect
 
 ## What Bothy decided, and why
 
-- **Four destinations in a topbar.** Five is roughly where a topbar stops
-  working; a sidebar was tried and deleted (see
-  [space-and-layout](../foundations/space-and-layout.md)).
+- **Three destinations in a topbar** (2026-08-17, was four). Five is roughly
+  where a topbar stops working, but the count was never the real rule. The rule
+  is that **a top-level slot belongs to a DATASET, not to a view of one**:
+  Services, Access and Topology were three renderings of the same merged node
+  list and held three slots, while Files - a different dataset entirely - held
+  one. They now sit behind `Control`, which owns that dataset and navigates
+  itself. Overview · Control · Files.
 - **The current item is underlined**, not filled.
 - **Responsive behaviour is a hybrid**, because the two problems are different.
   Below roughly 1080px the labels collapse to zero width and expand on hover
@@ -61,7 +65,13 @@ See [CHECKLIST.md § 13](../CHECKLIST.md#13-navigation-and-information-architect
 
 ## Dead ends
 
-- **A sidebar.** See [space-and-layout](../foundations/space-and-layout.md).
+- **A sidebar AS THE TOP-LEVEL NAVIGATION.** See
+  [space-and-layout](../foundations/space-and-layout.md). Still a dead end, and
+  worth keeping distinct from what shipped on 2026-08-17: a sidebar *within a
+  section*, subordinate to a topbar entry. The rejected version competed with the
+  topbar for the same job; this one does a job the topbar cannot do, which is
+  hold the five-odd destinations of one dataset without spending five top-level
+  slots on them. Bothy Files had already proved the pattern.
 - **A search input in the topbar that routed on every keystroke.** One history
   entry per character.
 - **Rendering the Overview for an unknown route.** A typo'd deep link looked
@@ -70,6 +80,12 @@ See [CHECKLIST.md § 13](../CHECKLIST.md#13-navigation-and-information-architect
 ## How this is verified
 
 - Assert the skip link is the first tab stop and becomes visible on focus.
+  **This item was listed and not actually verified, and it hid a real defect for
+  months.** Under `HashRouter` the fragment IS the route, so `href="#content"`
+  set `location.hash = "content"`, which react-router resolved to `/content` -
+  the not-found page. The application's first tab stop navigated away from the
+  application. Found 2026-08-17 while restructuring the nav. An item on a
+  checklist is a claim; only a check is evidence.
 - Assert the current item carries `aria-current`.
 - Crawl for detail pages with no way back.
 - At a narrow width, assert the nav overflows, that the fade appears on the side

@@ -216,7 +216,7 @@ export function Inspector({
                       still claimed otherwise, and a stale promise about where a
                       change goes is worse than no promise at all. */}
                   Saving writes the file to disk - <span className="kbd">Ctrl</span> <span className="kbd">S</span>.
-                  It does not commit. Stage and commit the change in <b>Source Control</b>, which has
+                  It does not commit. Stage and commit the change in <b>Changes</b>, which has
                   its own message box.
                 </p>
               </section>
