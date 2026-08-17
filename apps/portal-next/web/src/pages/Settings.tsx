@@ -26,6 +26,8 @@ import { useMe } from '../components/UserMenu';
 import { useTheme } from '../lib/theme';
 import { THEME_DIR_HOST } from '../lib/customThemes';
 import { ThemeSwatch } from '../components/ThemeSwatch';
+import { Link } from 'react-router-dom';
+import { Pencil, Plus } from 'lucide-react';
 import { Skeleton } from '../components/states';
 import './Settings.css';
 
@@ -126,8 +128,34 @@ function Appearance() {
               </span>
               <span className="theme-note">{t.note}</span>
               <ThemeSwatch id={t.id} />
+              {/* An anchor INSIDE the card, and the card is a button - so the
+                  click has to be stopped from also selecting the theme. Nested
+                  interactive elements are usually a smell; here the alternative
+                  was a second row of controls under every card, which is worse
+                  for the seven themes that will never have one. */}
+              {t.user && (
+                <Link
+                  to={`/settings/theme/${t.id}`}
+                  className="theme-edit"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Edit ${t.name}`}
+                >
+                  <Pencil size={12} aria-hidden="true" /> Edit
+                </Link>
+              )}
             </button>
           ))}
+
+          {/* Last, not first: the list is for choosing, and this is for making.
+              Putting it first would push the theme you are looking for down a
+              row every time. */}
+          <Link to="/settings/theme/new" className="theme-card theme-new">
+            <span className="theme-name"><Plus size={14} aria-hidden="true" /> New theme</span>
+            <span className="theme-note">
+              Start from the theme you are using now, change what you want, and watch
+              the page follow. Saves as a file you can keep or send on.
+            </span>
+          </Link>
         </div>
       </div>
     </section>
