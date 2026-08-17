@@ -608,7 +608,8 @@
   border-radius: var(--r-xs); padding: 1px 5px;
 }
 .bothy-files .md .md-link { color: var(--accent-fg); text-decoration: underline; text-underline-offset: 2px; }
-/* A repo-relative link is not a URL this page can follow. Shown as text with its
+/* A repo-relative link that does NOT resolve - one that would climb out of the
+   root, or carries a scheme this page will not follow. Shown as text with its
    target beside it rather than as a link that would 404 - and rather than
    dropping the target, which is information the reader wanted. */
 .bothy-files .md .md-reflink { color: var(--fg); }
@@ -617,6 +618,18 @@
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-xs); padding: 0 4px; margin-left: 5px;
 }
+/* One that DOES resolve. A <button>, never an <a href> - see md.tsx - so it has
+   to be undressed back to inline text before it can look like the link it is.
+   `text-align: inherit` matters as much as the rest: a button centres its label
+   by default, which shows up the moment one wraps across two lines. */
+.bothy-files .md .md-reflink-on {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; text-align: inherit; cursor: pointer;
+  color: var(--accent-fg); text-decoration: underline; text-underline-offset: 2px;
+}
+/* The only hover the .md-link beside it does not have, and it earns its line:
+   this one is a control, so it has to answer "will clicking do something". */
+.bothy-files .md .md-reflink-on:hover { text-decoration-thickness: 2px; }
 .bothy-files .md .md-pre {
   position: relative; margin: 0 0 15px; padding: 13px 15px; overflow: auto;
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md);
