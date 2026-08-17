@@ -56,7 +56,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         id: `svc-${n.id}`,
         group: 'Services' as const,
         label: n.name,
-        sub: n.host || n.group,
+        sub: n.host || n.groupTitle,
         to: `/services/${encodeURIComponent(n.id)}`,
         status: n.status,
       }));

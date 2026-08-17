@@ -295,6 +295,9 @@ export interface PortRow extends Port {
   container: string;
   image?: string;
   group: string;
+  /** The group's display name, same contract as PortalNode.groupTitle - the
+   *  Ports table is a third surface that was printing the raw slug. */
+  groupTitle: string;
   groupKind: string;
 }
 
@@ -442,6 +445,15 @@ export interface PortalNode {
   url: string | null;
   browsable: boolean;
   group: string;
+  /** The group's DISPLAY name - what a human should ever see. Resolved here, in
+   *  discovery, rather than at each render point, because the alternative is
+   *  what shipped: the Overview routed the group through a display-name lookup
+   *  and the Services and Access tables printed the raw compose slug, so one
+   *  system was called `Identity · Keycloak` on one page and `auth` on two
+   *  others. brand-core's "one word per concept" cannot hold if the word is
+   *  chosen per surface. Falls back to a title-cased slug, so it is never empty
+   *  and never needs a label to be correct. */
+  groupTitle: string;
   groupKind: string;
   parent: string | null;
   depth: number | null;
@@ -560,6 +572,16 @@ export function classify(container?: Container | null): Classification {
   }
   return { group: proj, groupKind: 'project' };
 }
+
+// Groups that are not systems and so cannot be named like one. `unmanaged` is
+// what classify() returns for a container with no compose labels - a `docker run`
+// nobody declared. It is not a system, it is *whatever did not match*, and
+// "Unmanaged" title-cased into a peer chip beside `Edge · Traefik` claims a
+// coherence it does not have. Named for what it is; systems.ts also sorts it last.
+export const RESIDUE_TITLES: Record<string, string> = {
+  unmanaged: 'Other containers',
+  host: 'Host processes',
+};
 
 const titleCase = (s: string): string =>
   String(s).replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
@@ -968,6 +990,11 @@ function makeNode({
   const path = pick('path', '');
   const browsable = isBrowsable(host, container);
 
+  // Computed BEFORE the node literal because two fields need it: the slug the
+  // app keys everything by, and the name a human reads. Deriving the title at
+  // each render point instead is exactly the bug this replaces.
+  const group = pick('group', n.parent || (container ? cls.group : n.leaf || cls.group));
+
   const node: PortalNode = {
     id: route ? route.name : `container:${container?.Id?.slice(0, 12)}`,
     kind,
@@ -987,7 +1014,8 @@ function makeNode({
     // through to classify()'s 'host' sentinel - which filed Tals' own front-end
     // under a fabricated system, separate from api/auth/algo.tals.dev.test. Its
     // leaf IS its system name, so use that.
-    group: pick('group', n.parent || (container ? cls.group : n.leaf || cls.group)),
+    group,
+    groupTitle: names.get(group) || RESIDUE_TITLES[group] || titleCase(group),
     groupKind: pick('groupKind', n.parent ? 'project' : cls.groupKind),
     parent: n.parent,
     depth: n.depth,
@@ -1070,6 +1098,9 @@ export function portsOf(container?: Container | null): Port[] {
 // Every published port on the box, flattened - the collision map.
 export function allPorts(containers: Container[] = []): PortRow[] {
   const rows: PortRow[] = [];
+  // Same map merge() uses, so a port row and a service row can never disagree
+  // about what a system is called.
+  const names = projectNames(containers);
   for (const c of containers) {
     const cls = classify(c);
     for (const p of portsOf(c)) {
@@ -1078,6 +1109,7 @@ export function allPorts(containers: Container[] = []): PortRow[] {
         container: (c.Names?.[0] || '').replace(/^\//, ''),
         image: c.Image,
         group: cls.group,
+        groupTitle: names.get(cls.group) || RESIDUE_TITLES[cls.group] || titleCase(cls.group),
         groupKind: cls.groupKind,
       });
     }
