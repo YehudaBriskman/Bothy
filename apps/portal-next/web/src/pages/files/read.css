@@ -321,3 +321,39 @@
 .bothy-files .md-callout.is-warn .md-callout-h { color: var(--st-warn-fg); }
 .bothy-files .md-callout.is-bad  { border-left-color: var(--st-down); background: var(--st-down-bg); }
 .bothy-files .md-callout.is-bad .md-callout-h  { color: var(--st-down-fg); }
+
+/* ── backlinks ───────────────────────────────────────────────────────────────
+   Under the document, separated by a rule rather than boxed: it is a footnote
+   to the page, not a second panel competing with it. Renders nothing at all
+   when a document has no inbound links - see the component. */
+.bothy-files .rd-backlinks {
+  max-width: var(--read-measure);
+  margin: 34px 0 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.bothy-files .rd-backlinks h2 {
+  margin: 0 0 8px;
+  font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--fg-subtle);
+}
+.bothy-files .rd-backlinks ul { margin: 0; padding: 0; list-style: none; }
+.bothy-files .rd-backlinks li { margin: 0; }
+.bothy-files .rd-backlinks button {
+  display: flex; align-items: baseline; gap: 10px;
+  width: 100%; padding: 5px 8px; margin-left: -8px;
+  border: 0; background: none; border-radius: var(--r-sm);
+  font: inherit; text-align: left; cursor: pointer; color: var(--fg-muted);
+}
+.bothy-files .rd-backlinks button:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .rd-backlinks button:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: -2px;
+}
+.bothy-files .rd-bl-title { font-size: 13px; font-weight: 600; }
+/* The path is the disambiguator - two notes can share a title - so it is
+   present but never competes with the name. */
+.bothy-files .rd-bl-path {
+  font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
