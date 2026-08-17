@@ -119,7 +119,18 @@ export function Reader() {
         setRootsErr(null);
         if (!r.roots.length) return;
         const known = r.roots.some((x) => x.key === urlRoot);
-        const pick = known ? urlRoot : r.roots[0].key;
+        // NOT roots[0]. The service returns them alphabetically, which put
+        // `home` first - the one root that is read-only, holds ~4,000 entries,
+        // and ALIASES every other root, so everything worth reading appeared
+        // twice under a name that cannot be written to. Landing there was an
+        // accident of sort order, and it made the reader open on the worst
+        // possible listing.
+        //
+        // A writable root is the one somebody keeps documents in; `readOnly`
+        // already travels with each root, so this needs nothing new from the
+        // service. Falls back to whatever exists if every root is read-only.
+        const best = r.roots.find((x) => !x.readOnly) ?? r.roots[0];
+        const pick = known ? urlRoot : best.key;
         if (!known) {
           const next = new URLSearchParams();
           next.set('root', pick);
@@ -139,6 +150,32 @@ export function Reader() {
     // write is a one-shot that would otherwise re-fire on its own result.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick]);
+
+  // ── the front page ────────────────────────────────────────────────────────
+  //
+  // Arriving at /files with no document used to show "Pick a document" beside
+  // an index, which is a filing cabinet rather than a reader: the page had
+  // nothing to read on it. A ROOT'S README IS ITS FRONT PAGE - ~/claude-notes
+  // opens with a map of the notes, ~/stacks with the repo's own README - so if
+  // the root has one, it is what the reader lands on.
+  //
+  // `replace`, so Back leaves the reader instead of bouncing between the empty
+  // state and the document. Only when no path was asked for: a deep link always
+  // wins, and this must never fight one.
+  useEffect(() => {
+    if (path || !root) return;
+    const tree = trees[root];
+    if (!tree || tree.loading || !tree.entries.length) return;
+    const top = tree.entries.filter((e) => !e.path.includes('/'));
+    const landing = ['README.md', 'readme.md', 'index.md', 'README.markdown']
+      .map((n) => top.find((e) => e.path === n))
+      .find(Boolean);
+    if (!landing) return;
+    const next = new URLSearchParams();
+    next.set('root', root);
+    next.set('path', landing.path);
+    setParams(next, { replace: true });
+  }, [path, root, trees, setParams]);
 
   // ── one listing per opened root ────────────────────────────────────────────
   //
