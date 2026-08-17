@@ -52,10 +52,19 @@ check("?download=1 downgrades to attachment",
       and r2.headers["Content-Type"] == "application/octet-stream")
 
 print("\n── /raw: the guards still hold ─────────────────────────────────────")
+# The two SECRET rows moved from 403 to 200 on 2026-08-17, and that is the whole
+# of what [sensitive] in policy.toml changed. They stay in this table rather than
+# being deleted, because "the raw endpoint serves a credential file" is exactly
+# the assertion someone will want to re-read the day they wonder whether it was
+# deliberate.
+#
+# Everything else in this table is a BOUNDARY and did not move: traversal, the
+# object store, and a directory where a file is expected. Those are what make the
+# two 200s safe to have here at all.
 for label, root, path, want in [
-    ("a denied secret (.env)", "stacks", ".env", 403),
-    ("a private key", "projects",
-     "army/monorepo-inherited/apps/site-relay-app/cert/key.pem", 403),
+    ("a secret, now SERVED (.env)", "stacks", ".env", 200),
+    ("a private key, now SERVED", "projects",
+     "army/monorepo-inherited/apps/site-relay-app/cert/key.pem", 200),
     ("traversal", "stacks", "../../etc/passwd", 403),
     ("the repo .git", "stacks", ".git/config", 403),
     ("a directory, not a file", "stacks", "docs", 403),

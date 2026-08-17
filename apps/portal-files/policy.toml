@@ -260,6 +260,16 @@ the file is not applying it. `docker compose up -d` on that file is the apply \
 step; `docker restart` is not, because a label is fixed at creation time."""
 
 [[write.caution]]
+match = [".env", "**/.env"]
+level = "critical"
+note = """Every service reads this at START, so nothing here is live until the \
+stack it belongs to is brought up again. Two values bite harder than the rest: \
+BOX_IP is baked into Keycloak's issuer and redirect URI, so changing it without \
+re-running `just up-auth` makes every login fail with a mismatch nobody can read \
+from the error; and OAUTH2_COOKIE_SECRET invalidates every existing session the \
+moment it changes."""
+
+[[write.caution]]
 match = ["**/policy.toml"]
 level = "critical"
 note = """This file is the access model for the service that is about to write \
