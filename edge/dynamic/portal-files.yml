@@ -16,11 +16,11 @@
 # READ requires `viewer`; WRITE requires `editor`.
 #
 # Read was OPEN in the first version of this file, and the reasoning was sound at
-# the time: the roots were two markdown trees, serving the same content the docs
-# site already serves unauthenticated on :8085, so a login would have added
-# friction without protecting anything.
+# the time: the roots were two markdown trees of published documentation, so a
+# login would have added friction without protecting anything.
 #
-# That reasoning died when the roots widened from "docs" to "the box". A survey
+# That reasoning died when the roots widened from two markdown trees to "the
+# box". A survey
 # of what the new scope actually contains settled it:
 #
 #   ~/stacks/.env                  19 real secret values
@@ -48,7 +48,11 @@ http:
     # ── read: requires the viewer role (see the header for why it is no
     #    longer open) ────────────────────────────────────────────────────────
     portal-files-read:
-      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
+      # /search is on THIS router, not one of its own, because it serves exactly
+      # the file set /read serves - same safepath.collect(), same deny-list, same
+      # per-root rules - and a separate router would imply a separate boundary.
+      # It is a GET with the query in the query string, like every rule here.
+      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/search`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
       entryPoints: [web]
       priority: 100
       service: portal-files

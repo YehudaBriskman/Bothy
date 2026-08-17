@@ -1,27 +1,36 @@
 // ── the activity bar ─────────────────────────────────────────────────────────
 //
 // The narrow icon strip on the far left, and the only control that decides WHAT
-// THE RAIL IS. Two entries, because this page has two rail-shaped questions:
-// which file (Explorer) and what has changed (Source Control).
+// THE RAIL IS. Three entries, because this page has three rail-shaped questions:
+// which file (Explorer), what is in the files (Search), and what has changed
+// (Source Control).
 //
-// There is deliberately NO Search icon. The explorer's filter is already above
-// the tree, always visible, and searches the same index a Search view would - so
-// a third icon would open a panel that duplicates a control the user is already
-// looking at. An icon that leads somewhere pointless is worse than no icon.
+// SEARCH WAS DELIBERATELY ABSENT until 2026-08-17, and the reasoning is kept
+// rather than deleted because it was correct while it lasted: "the explorer's
+// filter is already above the tree, always visible, and searches the same index
+// a Search view would - so a third icon would open a panel that duplicates a
+// control the user is already looking at."
+//
+// What changed is the second clause. The filter matches NAMES in a tree the
+// browser already holds; the new view reads file CONTENT on the server
+// (/-/api/files/search). They no longer search the same index, or answer the
+// same question, or cost the same amount - so this is a third view rather than a
+// mode of that box, and "no results" now means something unambiguous in each.
 //
 // It stays mounted when the rail is COLLAPSED, which is the whole reason it is a
 // separate column rather than a header inside the rail: with the rail hidden the
 // strip is the only thing that can bring it back, and a badge on it is the only
 // way "there are eleven changes" reaches someone who works with the rail shut.
 
-import { Files as FilesIcon, GitBranch } from 'lucide-react';
+import { Files as FilesIcon, GitBranch, Search } from 'lucide-react';
 
-export type RailView = 'explorer' | 'scm';
+export type RailView = 'explorer' | 'search' | 'scm';
 
 // `hide` is spelled out per view rather than built from the label: "Hide the
 // source control" is what a template produces and it is not English.
 const VIEWS: { id: RailView; label: string; hide: string; Icon: typeof FilesIcon }[] = [
   { id: 'explorer', label: 'Explorer', hide: 'Hide the explorer', Icon: FilesIcon },
+  { id: 'search', label: 'Search', hide: 'Hide search', Icon: Search },
   { id: 'scm', label: 'Source Control', hide: 'Hide Source Control', Icon: GitBranch },
 ];
 
