@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+# The patch log, bind-mounted from compose.yml. It is a record of what happened
+# on THIS box, not part of the box's description.
+audit/
+# Built by checks/run.sh when no interpreter on the host has ruamel.yaml. The
+# pin lives in requirements.txt; this is a cache of it.
+.venv/

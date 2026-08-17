@@ -1,0 +1,185 @@
+# What a form may change, and where.
+#
+# This file IS the allowlist. On the apps/portal-files/policy.toml precedent, and
+# for the same reason: a rule expressed as a Python constant needs a code change
+# and a redeploy to widen, which is how something gets missed - and it puts the
+# rules, and the reasons for them, in a file most people never open.
+#
+# THREE RULES ABOUT EDITING IT
+#
+#   1. It fails CLOSED. A missing file, a parse error, a root whose path does not
+#      exist, an unwritable snapshot directory, or an empty [fields] table stops
+#      the service from starting. There is no fallback default, because the only
+#      safe default is "patch nothing", and a service that patches nothing looks
+#      broken in a way people work around.
+#
+#   2. checks/run.sh lints it, offline and with the stack down. Run that after
+#      any change here.
+#
+#   3. It is not patchable by the thing it governs. `.toml` is not in
+#      [patch].suffixes, so the file that declares what may be written cannot be
+#      rewritten through the API it declares.
+#
+# The paths below are CONTAINER paths. They are mounted in compose.yml, and a
+# root declared here but not mounted there is a startup error rather than an
+# empty directory.
+#
+# WHAT IS NOT HERE, and deliberately. There is no list of forbidden CHARACTERS.
+# Which bytes may appear in a YAML plain scalar is a property of the format, not
+# an access decision, and expressing it in TOML means writing escape sequences
+# into a file whose whole job is to be read by a person. yamlpatch guarantees
+# correctness by re-parsing its own output; app.py rejects the obvious cases
+# early only so the error message is readable. Neither is policy.
+
+# ── roots ───────────────────────────────────────────────────────────────────
+#
+# ONE root, and that is the design rather than a starting point. portal-files
+# mounts four (the stack repo, the notes, every project, and the whole home
+# directory) because a file explorer is only useful over everything. A config
+# patcher is useful over exactly the files that declare THIS box, and every one
+# of those is in the stack repo.
+#
+# Nothing in ~/projects is here on purpose: those repos have their own review and
+# CI, and a form that edited them would bypass both.
+
+[roots.stacks]
+path = "/repos/stacks"
+writable = true
+
+# ── what may be opened at all ───────────────────────────────────────────────
+
+[patch]
+# YAML only, because a YAML parser is the only thing this service knows how to
+# splice safely. This is a blast-radius limit and not a parsing convenience:
+# without it, "rename a project" would also mean "rewrite a shell script that
+# cron runs".
+#
+# `.toml` is deliberately absent - see rule 3 above.
+suffixes = [".yml", ".yaml"]
+
+# Directories nothing may patch, matched as a prefix on the path relative to the
+# root. A directory rather than a list of the files in it, which would go stale.
+#
+# `edge/dynamic/` is CLASS C in docs/plans/editing-model.md, and it is the one
+# place on this box where a plausible edit takes everything down quietly. Traefik
+# renders that directory as a Go template BEFORE parsing the YAML, and does not
+# skip comments - so a doubled brace anywhere, including inside a comment, voids
+# the whole file: no routers, no middlewares, while the file on disk looks
+# perfect. Traefik then keeps serving its last-good config, so nothing looks
+# wrong until the next restart, when every @file router disappears at once.
+#
+# §6 of the plan says routes are GENERATED from a template and verified against
+# the live router table afterwards, with a rollback from the snapshot if the rule
+# does not appear. This service does neither yet, so it does not touch them.
+#
+# It is also the corpus where the naive YAML round-trip does its worst damage -
+# three of those files are ENTIRELY comments, and a round-tripper turns 1,702
+# bytes of explanation into 9. See yamlpatch.py's header.
+deny_prefixes = [
+  "edge/dynamic/",
+]
+
+# Files excluded even though their suffix and directory allow them, by exact path
+# from the root.
+#
+# `monitoring/prometheus-web.yml` carries a bcrypt hash. It is a credential file
+# whose name matches none of the deny patterns below, which is exactly the class
+# of miss that put `dozzle-users.yml` in portal-files' list by name. A bcrypt
+# hash IS a credential, just a slow one.
+#
+# The field allowlist already makes this unreachable - it carries no
+# `dev.portal.*` label - so this is the second, independent control. The first is
+# the one that would have to be widened by mistake.
+deny_relpaths = [
+  "monitoring/prometheus-web.yml",
+]
+
+# ── the fields ──────────────────────────────────────────────────────────────
+#
+# ONE LINE PER FIELD. That is the property this format exists for: adding
+# `dev.portal.name`, `dev.portal.desc`, `dev.portal.icon` and `dev.portal.order`
+# is four more lines here and no Python at all, because they are the same SHAPE -
+# a docker-compose label carrying a plain string.
+#
+# `kind` names a locator in yamlpatch.LOCATORS. A new kind - an env var's value,
+# a published port, a key in project.dev.yml - is a new function there as well as
+# a line here, and that is the right amount of friction. A new shape is a new set
+# of ways to be wrong about where a value ends, and being wrong about that
+# corrupts a file rather than rejecting a request.
+#
+# ── why exactly one field to begin with ─────────────────────────────────────
+#
+# §3 of docs/plans/editing-model.md sorts configuration into three classes, and
+# this is the safest member of the safest one. `dev.portal.project` is the card
+# title Bothy shows in its Overview. It changes what Bothy DISPLAYS and nothing
+# else: no container behaviour, no route, no credential. The worst possible
+# outcome of a wrong value is a card with the wrong title, which makes it the
+# right field to prove the whole chain on - form to patch to file to git to a
+# visible change - before anything with a blast radius is added.
+#
+# What must NOT appear here, at any point, is class C: `volumes`, `privileged`,
+# `cap_add`, `command`, `entrypoint`, `network_mode`, anything mounting a socket.
+# A wrong value in those is arbitrary code on the box or a credential leak. They
+# are edited as a diff, by someone who has read the comment above them.
+
+[fields]
+"dev.portal.project" = { kind = "compose-label", max_length = 80 }
+
+# ── validation ──────────────────────────────────────────────────────────────
+
+[validate]
+# A ceiling on any value, whatever its field's own limit says. A form field is a
+# form field; a megabyte in one is not a long project name.
+max_length = 500
+
+# ── snapshots ───────────────────────────────────────────────────────────────
+#
+# THE UNDO NET. Every overwrite copies the outgoing bytes here first.
+#
+# It matters more here than in the file tier, which is worth saying rather than
+# inheriting silently: a person editing text in Files can SEE what they are about
+# to overwrite. A person typing into a form cannot see the file at all, so this
+# copy is the only evidence that a patch landed somewhere unintended.
+#
+# A SEPARATE directory from portal-files' trash, not a shared one. Sharing would
+# give the box one undo net instead of two, which is nicer - and it would have
+# two containers pruning one tree under different policies, where the loser is
+# whichever service's snapshots the other evicted. Two nets that each work beat
+# one that mostly does.
+#
+# CREATE IT BEFORE FIRST RUN - `mkdir -p ~/.local/state/bothy/config-trash`.
+# Docker creates a missing bind source as ROOT and this container runs as uid
+# 1000, so it would be mounted and unwritable; the loader refuses to start in
+# that case rather than running with a net that silently drops everything.
+[snapshots]
+path = "/var/lib/bothy/config-trash"
+keep = 20
+max_age_days = 30
+
+# ── deny ────────────────────────────────────────────────────────────────────
+#
+# Inherited wholesale from portal-files. Most of it is unreachable here - this
+# service opens only `.yml` files under one root - and it is carried anyway
+# because the cost is a list and the alternative is discovering that a `.yml`
+# symlink pointed at something inside `.git`.
+
+[deny]
+components = [
+  ".git", ".ssh", ".gnupg", "node_modules", ".venv", "venv",
+  "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",
+  ".next", ".turbo", ".cache", "target",
+]
+
+# Matched on the FILENAME, because a component-only list cannot see `.env` or
+# `key.pem` - both are files. `dozzle-users.yml` and `realm-*.json` are the two
+# that prove the point: nothing in either name matches "secret", "password" or
+# "credentials", and both carry a live credential.
+file_patterns = [
+  ".env", ".env.*", "*.env",
+  "*.pem", "*.key", "*.p12", "*.pfx", "*.jks", "*.keystore",
+  "*.kdbx", "*.gpg", "*.asc",
+  ".netrc", ".pgpass", ".htpasswd", ".git-credentials",
+  "credentials", "credentials.*", "*secret*", "*password*",
+  "realm-*.json", "*-realm.json", "realm.json",
+  "dozzle-users.yml",
+]
