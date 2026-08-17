@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+
+# The action LOG is not committed - it is a record of this box, not of the code.
+#
+# The DIRECTORY is, and that is a deliberate divergence from
+# apps/portal-files/.gitignore, which ignores `audit/` outright. Docker creates
+# a missing bind source as ROOT and this container runs as uid 1000, so an
+# absent directory is mounted unwritable - and audit() swallows that error by
+# design, because a full disk must never block a legitimate restart. The symptom
+# is therefore a silently empty audit trail rather than a failure, which is the
+# worst way for an audit trail to be broken. See audit/.gitkeep.
+audit/*
+!audit/.gitkeep

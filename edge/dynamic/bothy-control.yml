@@ -1,0 +1,188 @@
+# Routes for the control tier - the third place on this box where a request can
+# CHANGE something, and the first where it can change something that is RUNNING.
+#
+# WARNING - this directory is rendered as a Go template. A doubled brace
+# anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. Traefik then keeps
+# serving its last-good config, so nothing looks wrong until the next restart,
+# when every @file router disappears at once. `just verify` check 5b catches it.
+#
+# ── one exact Path per verb, and never a prefix ─────────────────────────────
+#
+# Three routers would collapse tidily into one PathPrefix rule over
+# /-/api/control/ and that is precisely the mistake. A prefix rule covers every
+# endpoint the service grows LATER, including one nobody meant to expose. With
+# exact paths, a fourth verb is unreachable until somebody edits this file -
+# which is the correct default for the one service on this box that can stop a
+# database.
+#
+# They are written as three separate routers rather than one rule with three
+# Path() alternatives, which is a real departure from portal-files.yml (whose
+# read router lists eight paths in one rule). The reason is that these three are
+# not one permission: the day `stop` needs a tier above `restart`, or `start`
+# needs to be reachable when the others are not, that is an edit to one router
+# here instead of a rule that has to be split first. Three lines of duplication
+# buys three independently revocable grants.
+#
+# ── the `operator` role, and why the middleware is new ──────────────────────
+#
+# `sso-operator` is defined HERE, and it is a deliberate re-introduction. It
+# used to exist in edge/dynamic/portal-files.yml and was deleted on 2026-08-15
+# with the git action routes it gated, for a reason that file states well: "a
+# middleware nothing references is a loaded gun with no trigger - it looks like
+# protection while protecting nothing, and the next router to want a gate might
+# pick it up believing it is already proven in use."
+#
+# So it comes back now, in the file that references it, and it goes away again
+# with that file. It is not defined in portal-files.yml or auth.yml: a
+# middleware and its only consumer should be deletable in one move.
+#
+# It is IDENTICAL to sso-viewer and sso-editor except for one word in the URL,
+# which is the property that made this design worth having in the first place -
+# portal-files.yml said adding the operator tier would be "another four lines,
+# not another container", and this is the four lines.
+#
+# The `operator` role must exist in the Keycloak realm and be granted to whoever
+# should hold it. Verified there before this is trusted, on the precedent in
+# portal-files.yml's header:
+#
+#   allowed_groups=editor -> 202   (devssh has it)
+#   allowed_groups=shell  -> 403   (nobody has it)
+#   allowed_groups=<junk> -> 403   (fails closed)
+#
+# The last line is the one that matters here. oauth2-proxy fails CLOSED on a
+# group nobody holds, so if `operator` is never created in the realm, these
+# three routes refuse everybody rather than admitting everybody. That is the
+# safe direction to be wrong in, and it means this file can ship before the
+# realm change does.
+#
+# ── the middlewares that are BORROWED, and the coupling that creates ────────
+#
+# `sso-errors` is not defined here. It lives in edge/dynamic/auth.yml, and
+# Traefik's file provider merges every .yml in this directory into one
+# namespace, so referencing it by bare name resolves. Defining a second copy
+# would be a collision whose winner this file cannot decide, and the two would
+# then drift invisibly.
+#
+# The cost is that deleting auth.yml would silently change these routers'
+# behaviour. It is worth taking for sso-errors and it was NOT worth taking for
+# sso-operator, and the difference is what each one does: sso-errors only
+# rewrites a 401 into a sign-in page, so losing it degrades an error message.
+# sso-operator IS the role gate, and a role gate should live next to the thing
+# it gates.
+#
+# Honest note on sso-errors here: every caller of these routes is a fetch() from
+# lib/actions.ts, never a top-level navigation, so the sign-in PAGE it
+# substitutes is bytes nobody renders. Traefik preserves the original status
+# code, so act() still sees 401 and still throws correctly. It is kept for
+# consistency with the other two write routers rather than for an effect - and
+# it is the right default the day somebody drives one of these by hand.
+
+http:
+  routers:
+    # ── restart ──────────────────────────────────────────────────────────────
+    bothy-control-restart:
+      rule: "Path(`/-/api/control/restart`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-control
+      middlewares: [bothy-control-strip, control-deidentify, sso-operator, sso-errors]
+
+    # ── stop ─────────────────────────────────────────────────────────────────
+    bothy-control-stop:
+      rule: "Path(`/-/api/control/stop`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-control
+      middlewares: [bothy-control-strip, control-deidentify, sso-operator, sso-errors]
+
+    # ── start ────────────────────────────────────────────────────────────────
+    bothy-control-start:
+      rule: "Path(`/-/api/control/start`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-control
+      middlewares: [bothy-control-strip, control-deidentify, sso-operator, sso-errors]
+
+    # NO router for /healthz, deliberately. It is reached by the container's own
+    # HEALTHCHECK on 127.0.0.1 and needs no route; publishing it would put the
+    # verb list and the deny list on the tailnet for nothing.
+    #
+    # And NO read router at all. This service answers no read - what is running
+    # is already served by the portal's read-only Docker API
+    # (edge/dynamic/portal-api.yml), and a second source of truth for container
+    # state would be two things to keep agreeing.
+
+  middlewares:
+    # Map the public path onto the service's own. The service serves
+    # /control/restart, the world asks for /-/api/control/restart - so the
+    # service cannot accidentally be correct about a path nobody routed.
+    #
+    # stripPrefix of `/-/api` rather than `/-/api/control`, because the service's
+    # own routes are already under /control/. Stripping the longer prefix would
+    # leave `/restart`, which no handler answers.
+    bothy-control-strip:
+      stripPrefix:
+        prefixes: ["/-/api"]
+
+    # Delete any X-Auth-Request-* header the CLIENT sent, before forwardAuth runs.
+    #
+    # The service names the audit line's actor from X-Auth-Request-Email.
+    # Traefik sets that header from the auth response, but a client is free to
+    # send one too, and relying on "the auth response wins" is relying on an
+    # ordering rather than on a guarantee. An empty value in customRequestHeaders
+    # removes the header outright, so the only one that can reach the service is
+    # the one oauth2-proxy produced.
+    #
+    # The blast radius if this were missing is a forged NAME in the action log,
+    # not an unauthorised restart - authorisation is decided by sso-operator,
+    # which reads a signed session cookie and never a header.
+    #
+    # It matters more here than in either editing tier, and for a reason worth
+    # stating: a forged file write leaves a diff a human can read and revert. A
+    # forged `stop postgres` is over before anybody reads anything, and the log
+    # is the only record that it happened at all.
+    #
+    # A SEPARATE middleware from files-deidentify and config-deidentify, with the
+    # same body, on the same reasoning those two give each other: it is not a
+    # role gate, so the duplication is six lines that cannot drift into a wrong
+    # ANSWER, only into a wrong-but-harmless list.
+    control-deidentify:
+      headers:
+        customRequestHeaders:
+          X-Auth-Request-User: ""
+          X-Auth-Request-Email: ""
+          X-Auth-Request-Groups: ""
+          X-Auth-Request-Preferred-Username: ""
+          X-Forwarded-User: ""
+          X-Forwarded-Email: ""
+
+    # The role gate. Identical to sso-viewer and sso-editor in
+    # edge/dynamic/portal-files.yml except for the word `operator`.
+    #
+    # NOTE for the interface: a 403 from here carries oauth2-proxy's own error
+    # page, not JSON, so the `needsRole` field in ActionRefusal never actually
+    # arrives on the wire. lib/actions.ts already degrades correctly - it
+    # catches the JSON parse failure and falls back to the status code - so the
+    # UI should read `.status === 403` and not the absent field.
+    sso-operator:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=operator"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Preferred-Username
+
+  services:
+    bothy-control:
+      loadBalancer:
+        servers:
+          # controlnet holds exactly two containers: traefik and this. The
+          # service publishes no host port and has no auth of its own, so
+          # reachability IS authorisation - the same rule the socket proxy, the
+          # file tier and the config tier are all built on.
+          #
+          # Traefik is deliberately NOT on controlsocknet, where this service's
+          # two socket proxies live. It has no route to them and never should;
+          # the network is what makes that a fact rather than a configuration.
+          - url: "http://bothy-control:8097"
