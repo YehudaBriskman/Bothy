@@ -142,7 +142,12 @@
   padding: 0 14px 0 18px; height: 42px;
   border-bottom: 1px solid var(--line); background: var(--surface-2);
 }
-.bothy-files .fx-head-id { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+/* `flex: 1 1 auto` so the identity block claims the free width and everything
+   after it is pushed to the right edge. It used to be content-sized, which was
+   invisible while `.fx-head-actions` (margin-left: auto) was the only thing to
+   its right; the Reading view link is now between the two, and without this it
+   floats a few pixels off the end of the subtitle. */
+.bothy-files .fx-head-id { flex: 1 1 auto; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .bothy-files .fx-head-title {
   margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; flex: none;
 }
@@ -151,7 +156,14 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .fx-head-sub b { color: var(--fg-muted); font-weight: 700; }
-.bothy-files .fx-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; flex: none; }
+.bothy-files .fx-head-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+/* Work -> Read. A DESTINATION, so it carries its words; its neighbours are
+   layout toggles and carry glyphs. The rule that separates the two is in
+   docs/brand/patterns/navigation.md and it is the reason this is not a fourth
+   icon in the group beside it. */
+.bothy-files .fx-head-read {
+  flex: none; gap: 6px; text-decoration: none; margin-right: 8px;
+}
 
 /* The small square button used by every region header. One definition, because
    five near-identical icon buttons is how a toolbar starts drifting. */

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Compile the dependency-free modules and run their truth tables against them:
 # the status classifier and the dependency graph out of discover.ts, the retired
-# URLs out of pages/control/redirects.ts, plus a pass over the box's real
-# container list.
+# URLs out of pages/control/redirects.ts, the two Files URLs out of
+# pages/files/routes.ts and the document titles out of pages/files/titles.ts,
+# plus a pass over the box's real container list.
 #
 # There is no test runner in this app on purpose - one 13-case truth table did
 # not justify pulling vitest into a static SPA's toolchain. Both modules import
@@ -25,7 +26,14 @@ mv "$OUT/discover.js" "$OUT/discover.mjs"
 (cd "$WEB" && npx tsc src/pages/control/redirects.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/redirects.js" "$OUT/redirects.mjs"
-cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" "$OUT/"
+(cd "$WEB" && npx tsc src/pages/files/routes.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/routes.js" "$OUT/files-routes.mjs"
+(cd "$WEB" && npx tsc src/pages/files/titles.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/titles.js" "$OUT/titles.mjs"
+cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
+   "$HERE/titles-table.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -35,8 +43,12 @@ echo "── relations ───────────────────
 node "$OUT/relations.mjs"
 
 echo
-echo "── redirects ───────────────────────────────────────────"
+echo "── redirects and the two Files URLs ────────────────────"
 node "$OUT/redirect-table.mjs"
+
+echo
+echo "── document titles ─────────────────────────────────────"
+node "$OUT/titles-table.mjs"
 
 echo
 echo "── this box, right now ─────────────────────────────────"

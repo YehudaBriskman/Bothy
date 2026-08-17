@@ -17,6 +17,7 @@
 // the old name.
 
 import { LEGACY_PATHS, LIVE_PATHS, legacyTarget } from './redirects.mjs';
+import { EDIT_PATH, READ_PATH, filesHref, filesMode, filesTarget } from './files-routes.mjs';
 
 let bad = 0;
 const check = (label, got, want) => {
@@ -103,6 +104,83 @@ check('/services/ resolves like /services', legacyTarget('/services/'), '/contro
 // stops resolving.
 check('an encoded id survives',
   legacyTarget('/services/edge%2Ftraefik'), '/control/services/edge%2Ftraefik');
+
+console.log('\n── Files: one nav entry, two destinations ──────────────');
+
+// WHY THIS IS IN THE SAME FILE as the redirects. It is the same defect with a
+// different cause: a URL that resolves, answers 200, renders a plausible page,
+// and is not the page the link meant. `/files` used to be the IDE and is now the
+// reader, `/files/edit` is the IDE, and BOTH carry `?root=&path=` so that every
+// deep link written before the split opens the same document in either. There is
+// nothing on screen that distinguishes "your link opened your document" from
+// "your link opened the reader's empty state", which is exactly the property
+// that makes this worth a truth table rather than a glance.
+//
+// The expectations are written longhand and NOT derived from the module: a check
+// that computes its answer the same way the code does asserts nothing.
+
+check('/files is the reader', filesMode('/files'), 'read');
+check('/files/edit is the editor', filesMode('/files/edit'), 'edit');
+// `/files` is a PREFIX of `/files/edit`, so an order-sensitive implementation
+// gets this wrong in a way that sends every Edit click to the reader.
+check('/files/edit is not matched as /files', filesMode('/files/edit') !== 'read', true);
+// A pasted link often carries a trailing slash. Same page.
+check('/files/ resolves', filesMode('/files/'), 'read');
+check('/files/edit/ resolves', filesMode('/files/edit/'), 'edit');
+// A near miss must be nothing at all rather than the reader, or a typo renders
+// a document index instead of the not-found page that says the link is broken.
+for (const p of ['/', '/filesx', '/files/editx', '/files/edit/x', '/control', '/settings']) {
+  check(`${p} is not a Files route`, filesMode(p), null);
+}
+
+console.log('\n── ?root= and ?path= survive both modes ────────────────');
+
+// The pair that has to hold in both directions: a URL built for one mode, parsed
+// back, is the same document. A builder that drops `path` passes every test that
+// only looks at the pathname.
+const DOCS = [
+  ['stacks', 'docs/plans/reading-first.md'],
+  ['notes', 'network/dns.md'],
+  // A space and a hash in a filename - both are legal on disk, and both break a
+  // hand-rolled query string. The hash matters twice over here: main.tsx mounts
+  // a HashRouter, so a raw `#` in a value would truncate the whole route.
+  ['projects', 'a folder/a file #2.md'],
+  ['home', 'x.md'],
+];
+for (const mode of ['read', 'edit']) {
+  for (const [root, path] of DOCS) {
+    const href = filesHref(mode, root, path);
+    const [p, s] = href.split('?');
+    check(`${mode}: ${root}/${path} round-trips`,
+      filesTarget(p, s), { mode, root, path });
+    check(`${mode}: ${path} carries no bare #`, href.includes('#'), false);
+  }
+}
+// The reader with nothing open still names its root, so a reload lands on the
+// same index rather than on the first root in the list.
+check('a root with no path keeps the root',
+  filesTarget(...filesHref('read', 'notes').split('?')), { mode: 'read', root: 'notes', path: '' });
+// A bare /files is legal - it is what the nav entry links to.
+check('a bare /files parses', filesTarget('/files'), { mode: 'read', root: '', path: '' });
+// The two modes must produce DIFFERENT urls for the same document, or the Edit
+// button is a link to the page it is already on.
+check('the two modes differ',
+  filesHref('read', 'stacks', 'a.md') !== filesHref('edit', 'stacks', 'a.md'), true);
+
+console.log('\n── the router and the redirect table agree ─────────────');
+
+// Both routes have to be in LIVE_PATHS: that list is what every redirect target
+// is tested against, so a page missing from it turns a correct redirect into a
+// reported failure - and, worse, hides a redirect that really does point at a
+// page that no longer exists.
+check('/files is a live route', new Set(LIVE_PATHS).has(READ_PATH), true);
+check('/files/edit is a live route', new Set(LIVE_PATHS).has(EDIT_PATH), true);
+// Neither is a redirect. `/files` in particular: it changed MEANING rather than
+// address, and the temptation when that happens is to redirect the old meaning
+// somewhere. Every link ever shared to /files was a link to a file, and it still
+// opens that file - in the reader.
+check('/files is not a redirect', legacyTarget(READ_PATH), null);
+check('/files/edit is not a redirect', legacyTarget(EDIT_PATH), null);
 
 console.log(bad ? `\n${bad} FAILED` : '\nall pass');
 process.exit(bad ? 1 : 0);

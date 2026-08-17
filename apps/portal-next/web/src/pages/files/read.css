@@ -1,0 +1,279 @@
+/* ============================================================================
+   Bothy Files - the reader. Scoped under .bothy-files, (0,2,0), for the reason
+   shell.css states at its top: main.tsx imports ./App before ./index.css, so a
+   (0,1,0) rule here would lose to a (0,1,0) rule there whatever the file order.
+
+   The page carries BOTH classes - `.bothy-files .bothy-read` - because
+   `.bothy-files` is the SECTION's scope and not the IDE's. It is what buys the
+   full-height escape from `.content`, the inset focus ring, the syntax palette
+   and every `.md-*` rule, all of which belong to a rendered document rather than
+   to an editor. `.bothy-read` is only the layout below.
+   ========================================================================== */
+
+/* ── three columns, and only one of them is unsized ──────────────────────────
+   The document takes the remainder, which is the same arrangement panes.ts
+   argues for in the IDE and for the same reason - a fixed centre plus a
+   remainder rail is a reconciliation bug waiting for a resize.
+
+   The document is NOT stretched to the column: `.fx-read > *` is already capped
+   at 72ch (editor.css), which is the measure this whole page exists to give
+   back. The extra width becomes margin, which is what a wide screen is for. */
+.bothy-files.bothy-read .rd-grid {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 296px minmax(0, 1fr) 232px;
+}
+
+/* ── the side panel ──────────────────────────────────────────────────────── */
+.bothy-files .rd-side {
+  min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--line); background: var(--bg-2);
+}
+.bothy-files .rd-side > .fx-sr { padding-top: 4px; }
+
+/* ── the one thing the reader changes about the search rail ──────────────────
+   SearchView is reused whole - same component, same debounce, same options, no
+   fork (see the `idle` prop in Search.tsx). One piece of it is IDE-shaped and
+   does not survive the move: the line NUMBER on each hit.
+
+   In the editor that number is a destination - clicking a hit jumps the caret
+   to it. A reader has no caret and, in a rendered document, no lines: the
+   preview is prose, and there is nothing at "line 141" to land on. Printing a
+   precise number beside a click that lands at the top of the document is a
+   promise the page cannot keep, and it is the kind of broken promise nobody
+   reports - the reader concludes the search is wrong.
+
+   The matched line ITSELF stays, because it is the most valuable thing in the
+   list: it is the sentence you were looking for, with the match marked. */
+.bothy-files.bothy-read .fx-sr-no { display: none; }
+.bothy-files.bothy-read .fx-sr-line { padding-left: 26px; }
+
+.bothy-files .rd-index { padding: 0 0 14px; }
+/* Sticky, because the index lives inside the search view's scrolling result
+   area (that is what puts search at the TOP of the panel rather than behind an
+   icon) - and without this the All files switch scrolls away after ten rows,
+   leaving no way back to it except scrolling the list you were reading. */
+.bothy-files .rd-index-h {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px 7px; border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.bothy-files .rd-index-title {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+/* The toggle that changes what the list CLAIMS to be. Left visible rather than
+   put in a menu: it decides whether this is a library or a filesystem, and the
+   reader has to be able to see which one they are looking at. */
+.bothy-files .rd-all {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--fg-muted); cursor: pointer; user-select: none;
+}
+.bothy-files .rd-all input { margin: 0; accent-color: var(--accent); }
+.bothy-files .rd-all svg { color: var(--fg-subtle); }
+.bothy-files .rd-all:hover { color: var(--fg); }
+
+.bothy-files .rd-root { border-bottom: 1px solid var(--line); }
+/* The root name sticks under the index header, so a long listing never leaves
+   you looking at folders without knowing which root they are in. `top` is the
+   header's own height, measured rather than guessed - 30px is 6+16+7 plus the
+   border. */
+.bothy-files .rd-root-h {
+  position: sticky; top: 30px; z-index: 1;
+  margin: 0; font-size: inherit; font-weight: inherit; background: var(--bg-2);
+}
+.bothy-files .rd-root-btn {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 6px;
+  border: 0; background: transparent; font: inherit; color: var(--fg);
+  padding: 0 10px; height: 28px;
+}
+.bothy-files .rd-root-btn:hover { background: var(--surface-2); }
+.bothy-files .rd-root-name { font-size: 11.5px; font-weight: 700; }
+.bothy-files .rd-root-ro { color: var(--st-off-fg); }
+.bothy-files .rd-root-n {
+  margin-left: auto; font-size: 10px; font-family: var(--mono); color: var(--fg-subtle);
+}
+.bothy-files .rd-chev { flex: none; color: var(--fg-subtle); transition: transform .12s ease; }
+.bothy-files .rd-chev.open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .bothy-files .rd-chev { transition: none; }
+}
+
+.bothy-files .rd-folder { padding-bottom: 4px; }
+/* The folder, in mono, small and quiet. It is an ADDRESS - the one piece of
+   filesystem left in a panel of titles - so it is typeset as one rather than as
+   a heading competing with the documents under it. */
+.bothy-files .rd-folder-h {
+  margin: 8px 0 2px; padding: 0 10px;
+  font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .rd-list { list-style: none; margin: 0; padding: 0; }
+.bothy-files .rd-li { margin: 0; }
+
+/* 26px rather than the tree's 22px: this row can carry two lines of text, and
+   these are read rather than scanned. */
+.bothy-files .rd-doc {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 8px;
+  border: 0; border-left: 2px solid transparent; background: transparent;
+  font: inherit; color: var(--fg-muted);
+  padding: 3px 10px 3px 8px; min-height: 26px; min-width: 0;
+}
+.bothy-files .rd-doc:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .rd-doc-ico { flex: none; color: var(--fg-subtle); }
+.bothy-files .rd-doc-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bothy-files .rd-doc-title {
+  font-size: 12.5px; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The filename under the title, for anyone who arrived knowing the path. Only
+   rendered when it differs from the title, so most rows are one line. */
+.bothy-files .rd-doc-name {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The open document. A left BAR and a background, never colour alone -
+   docs/brand/foundations/principles.md, and it is what makes the mark survive a
+   monochrome screen. */
+.bothy-files .rd-doc.on {
+  border-left-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  color: var(--fg);
+}
+.bothy-files .rd-doc.on .rd-doc-ico { color: var(--accent-fg); }
+.bothy-files .rd-doc.on .rd-doc-title { font-weight: 600; }
+.bothy-files .rd-doc.denied { cursor: not-allowed; opacity: .5; }
+
+.bothy-files .rd-msg { padding: 12px 12px 14px; color: var(--fg-subtle); font-size: 12px; text-align: center; }
+.bothy-files .rd-msg p { margin: 0 0 8px; }
+.bothy-files .rd-more {
+  margin: 6px 10px 8px; font-size: 10.5px; line-height: 1.45; color: var(--fg-subtle);
+}
+.bothy-files .rd-more.warn { color: var(--st-warn-fg); }
+.bothy-files .rd-skel { display: grid; gap: 6px; padding: 8px 10px 12px; }
+.bothy-files .rd-skel .skel { height: 16px; }
+
+/* ── the document ────────────────────────────────────────────────────────── */
+.bothy-files .rd-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+/* The strip above the document: what it is and where it came from. It carries
+   no title - the document's own first heading is the title, and printing a
+   second one derived from the filename says the same words twice. See the note
+   in Reader.tsx. */
+.bothy-files .rd-head {
+  flex: none; padding: 14px 28px 12px; border-bottom: 1px solid var(--line);
+}
+.bothy-files .rd-head-row { display: flex; align-items: center; gap: 16px; }
+.bothy-files .rd-crumb {
+  margin: 0; flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .rd-crumb b { color: var(--fg); font-weight: 700; }
+.bothy-files .rd-edit { flex: none; text-decoration: none; gap: 6px; }
+
+.bothy-files .rd-prov {
+  display: flex; align-items: baseline; gap: 7px; margin: 7px 0 0;
+  font-size: 12px; color: var(--fg-subtle); line-height: 1.45;
+}
+.bothy-files .rd-prov svg { flex: none; align-self: center; }
+/* `flex: 1 1 0` and not `1 1 auto`. The sentence has to wrap INSIDE itself
+   rather than as a whole - with `auto` its flex base size is its content width,
+   which on a phone is wider than the row, so the whole span moved to a second
+   line and left the commit glyph sitting alone on the first. A zero basis makes
+   its hypothetical size 0, so it always shares the line and wraps its own text.
+   Measured at 390px. */
+.bothy-files .rd-prov-t { flex: 1 1 0; min-width: 0; }
+.bothy-files .rd-prov b { color: var(--fg-muted); font-weight: 600; }
+.bothy-files .rd-sha {
+  flex: none; margin-left: auto; font-size: 10.5px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-xs); padding: 0 5px;
+}
+
+/* The wrapper FileView renders into. It is `.rd-body` and not `.rd-doc` on
+   purpose: `.rd-doc` is the index row, and two elements a screen apart sharing a
+   class is how a padding change to one silently moves the other. */
+.bothy-files .rd-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* FileView's own root is `.fx-doc`, which editor.css already makes a
+   full-height flex column - so the document, its skeleton and its error states
+   all fill this box without a second set of rules. */
+
+.bothy-files .rd-empty {
+  flex: 1; min-height: 0; overflow: auto;
+  padding: 64px 28px; max-width: 60ch; color: var(--fg-muted);
+}
+.bothy-files .rd-empty h2 { margin: 0 0 10px; font-size: 20px; color: var(--fg); }
+.bothy-files .rd-empty p { margin: 0 0 12px; line-height: 1.6; }
+.bothy-files .rd-empty-note { font-size: 12.5px; color: var(--fg-subtle); }
+.bothy-files .rd-empty a { color: var(--accent-fg); }
+
+/* ── the outline ─────────────────────────────────────────────────────────── */
+.bothy-files .rd-toc {
+  min-width: 0; min-height: 0; overflow: auto;
+  padding: 22px 12px 40px 4px; border-left: 1px solid var(--line);
+}
+.bothy-files .rd-toc-h {
+  margin: 0 0 8px 10px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.bothy-files .rd-toc-list { list-style: none; margin: 0; padding: 0; }
+.bothy-files .rd-toc-list li { margin: 0; }
+.bothy-files .rd-toc-a {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  border: 0; border-left: 2px solid var(--line); background: transparent;
+  font: inherit; font-size: 11.5px; line-height: 1.35; color: var(--fg-subtle);
+  padding: 4px 6px 4px 10px;
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .rd-toc-a:hover { color: var(--fg); border-left-color: var(--line-strong); }
+/* The heading you are reading. Weight and a bar, not colour on its own. */
+.bothy-files .rd-toc-a.on {
+  color: var(--fg); font-weight: 600; border-left-color: var(--accent);
+}
+
+/* ── the way back on a narrow screen ─────────────────────────────────────────
+   Hidden by default because on a wide screen the index is already beside the
+   document and a "back" that goes nowhere is furniture. */
+.bothy-files .rd-back {
+  display: none;
+  appearance: none; cursor: pointer; align-items: center; gap: 4px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--fg-muted);
+  font: inherit; font-size: 11.5px; padding: 3px 9px 3px 6px; margin: 0 0 8px;
+}
+.bothy-files .rd-back:hover { color: var(--fg); border-color: var(--line-strong); }
+
+/* ── narrower than three columns ────────────────────────────────────────────
+   The outline goes first. It is the most valuable column per pixel on a wide
+   screen and the least useful on a narrow one, where the document it points into
+   is itself only a few characters wide. */
+@media (max-width: 1180px) {
+  .bothy-files.bothy-read .rd-grid { grid-template-columns: 268px minmax(0, 1fr); }
+  .bothy-files .rd-toc { display: none; }
+}
+
+/* ── one column ──────────────────────────────────────────────────────────────
+   List and detail, which is what a reader on a phone actually does: choose a
+   document, then read it. Both columns rendered and one of them hidden, so
+   nothing refetches when you go back to the index and the scroll position of
+   both survives the trip.
+
+   Driven by `data-pane` on the root, written by React. CSS alone cannot express
+   "show the index unless a document is open AND the reader has not asked for the
+   index back", because the second half is a decision rather than a state. */
+@media (max-width: 820px) {
+  .bothy-files.bothy-read .rd-grid { grid-template-columns: minmax(0, 1fr); }
+  .bothy-files .rd-side { border-right: 0; }
+  .bothy-files.bothy-read[data-pane='doc'] .rd-side { display: none; }
+  .bothy-files.bothy-read[data-pane='index'] .rd-main { display: none; }
+  .bothy-files .rd-back { display: inline-flex; }
+  .bothy-files .rd-head { padding: 12px 16px 10px; }
+  /* editor.css pads .fx-read at 24px 28px; at this width that is a tenth of the
+     line. The 72ch cap is doing nothing here - the viewport is the measure. */
+  .bothy-files.bothy-read .fx-read { padding: 16px 16px 40px; }
+  .bothy-files .rd-empty { padding: 32px 16px; }
+}
