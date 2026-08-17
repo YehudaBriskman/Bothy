@@ -40,6 +40,11 @@ export interface ThemeDef {
   /** The two palettes that live in index.css itself and need no theme file.
    *  They are the base every other theme is layered over. */
   builtin?: boolean;
+  /** Added by a person, loaded at runtime from /data/themes rather than compiled
+   *  into the bundle. The pre-paint script needs to know this and cannot work it
+   *  out - see the note on it in index.html - so it is persisted beside the
+   *  selection, which makes it a property of the theme rather than a lookup. */
+  user?: boolean;
 }
 
 export const THEMES: readonly ThemeDef[] = [
@@ -96,7 +101,12 @@ export type Selection = 'system' | (string & {});
 
 export const DEFAULT_SELECTION: Selection = 'bothy-dark';
 
-export const byId = (id: string): ThemeDef | undefined => THEMES.find((t) => t.id === id);
+/** `all` defaults to the built-ins and is widened at runtime to include the user
+ *  themes loaded from /data/themes. It is a PARAMETER rather than mutable module
+ *  state so this file keeps importing nothing and stays compilable on its own -
+ *  the same property discover.ts and config.ts depend on for their checks. */
+export const byId = (id: string, all: readonly ThemeDef[] = THEMES): ThemeDef | undefined =>
+  all.find((t) => t.id === id);
 
 /** Older builds stored 'dark' | 'light' | 'system' under the same key. Mapping
  *  rather than discarding matters: a stored 'light' is a user who chose light,
@@ -106,13 +116,27 @@ export function migrate(stored: string | null): Selection {
   if (stored === 'system') return 'system';
   if (stored === 'dark') return 'bothy-dark';
   if (stored === 'light') return 'bothy-light';
-  return byId(stored) ? stored : DEFAULT_SELECTION;
+  // NOT validated against THEMES, and that is the fix for a real bug rather than
+  // laxness: a USER theme's id is not in this file - it is a filename in
+  // /data/themes discovered after mount - so checking membership here threw the
+  // selection away on every reload and silently put the reader back on Bothy
+  // Dark. Shape is checked instead, and resolveSelection() already falls back
+  // safely when an id turns out to name nothing.
+  return /^[a-z0-9][a-z0-9-]*$/i.test(stored) ? stored : DEFAULT_SELECTION;
 }
 
 /** What a selection actually paints, with `system` collapsed against the OS.
  *  `prefersDark` is passed in rather than read here so this module stays free of
  *  browser globals and can be compiled and tested on its own. */
-export function resolveSelection(sel: Selection, prefersDark: boolean): ThemeDef {
-  if (sel === 'system') return byId(prefersDark ? 'bothy-dark' : 'bothy-light')!;
-  return byId(sel) ?? byId(DEFAULT_SELECTION)!;
+export function resolveSelection(
+  sel: Selection,
+  prefersDark: boolean,
+  all: readonly ThemeDef[] = THEMES,
+): ThemeDef {
+  if (sel === 'system') return byId(prefersDark ? 'bothy-dark' : 'bothy-light', all)!;
+  // Falling back to the default covers the case that actually happens: a user
+  // theme was selected and then its file was deleted from the box. The selection
+  // survives in localStorage and now names nothing, and the honest answer is the
+  // default palette rather than a page with no colours at all.
+  return byId(sel, all) ?? byId(DEFAULT_SELECTION, all) ?? THEMES[0];
 }
