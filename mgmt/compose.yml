@@ -33,7 +33,7 @@ services:
     networks: [devnet]
 
   dozzle:
-    image: amir20/dozzle:v10.6.15
+    image: amir20/dozzle:v10.7.1
     container_name: dozzle
     # No Traefik router: the *.dev.test name layer was retired permanently, so
     # the Host(`dozzle.dev.test`) route had nothing left to match. Reached
