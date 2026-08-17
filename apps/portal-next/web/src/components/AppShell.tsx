@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
-  LayoutDashboard, Boxes, Waypoints, Share2, FolderTree,
+  LayoutDashboard, Gauge, FolderTree,
   Search, RefreshCw, Moon, Sun, Monitor,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
@@ -12,16 +12,18 @@ import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib
 import { Tooltip } from './Tooltip';
 import { Brand } from './Brand';
 import { CommandPalette } from './CommandPalette';
+import { UserMenu } from './UserMenu';
 
-// Five destinations. Ports and Routes were two views of "how do I reach this?"
-// and are now tabs inside /access. Files is last because it is the only
-// destination that is not about the running stack - it reads and writes the
-// box's own trees, which is a different job from watching containers.
+// Three destinations, and they are three DATASETS rather than three views.
+// Services, Access and Topology used to hold three of the five slots between
+// them while rendering one dataset - the merged node list - which mis-stated
+// what the box contains; they are now four entries in the Control sidebar. Files
+// keeps its own slot because it genuinely is a different dataset with a
+// different mental model: it reads and writes the box's own trees, which is a
+// different job from watching containers.
 const NAV = [
   { to: '/', label: 'Overview', Icon: LayoutDashboard, end: true },
-  { to: '/services', label: 'Services', Icon: Boxes, end: false },
-  { to: '/access', label: 'Access', Icon: Waypoints, end: false },
-  { to: '/topology', label: 'Topology', Icon: Share2, end: false },
+  { to: '/control', label: 'Control', Icon: Gauge, end: false },
   { to: '/files', label: 'Files', Icon: FolderTree, end: false },
 ];
 
@@ -120,10 +122,32 @@ export function AppShell() {
         <span className="scroll-rail-fill" style={{ transform: `scaleY(${progress})` }} />
       </div>
 
-      {/* Skip link - one Tab press to content. It mattered more with the
-          sidebar (6 stops); kept because it costs nothing and the nav is still
-          the first thing in the DOM. */}
-      <a href="#content" className="skip-link">Skip to content</a>
+      {/* Skip link - one Tab press to content, past the ten stops in this bar.
+          It matters again now that Control has a nav of its own inside the page.
+
+          THE onClick IS THE WHOLE THING, and without it this link had never
+          worked. The app is a <HashRouter>, so the fragment IS the route:
+          following `#content` sets location.hash to "content", react-router
+          normalises that to the path "/content", and the skip link - the app's
+          first tab stop, the one control an assistive-technology user reaches
+          first - navigated to the not-found page. It cannot be `href="#/…"`
+          either, because that is a route and not an element. So the href stays
+          as the honest statement of intent for anything reading the markup, and
+          the default is prevented and the target focused directly. `main` needs
+          tabIndex={-1} to be focusable at all; focusing rather than only
+          scrolling is what actually moves the keyboard into the page. */}
+      <a
+        href="#content"
+        className="skip-link"
+        onClick={(e) => {
+          e.preventDefault();
+          const el = document.getElementById('content');
+          el?.focus();
+          el?.scrollIntoView();
+        }}
+      >
+        Skip to content
+      </a>
 
       <header className="topbar">
         <NavLink to="/" className="brand" end aria-label="Bothy - overview">
@@ -169,15 +193,27 @@ export function AppShell() {
           </button>
         </Tooltip>
         <ThemeToggle />
+        {/* Last in the right cluster, and the only entry point to /settings -
+            which is why it is not a nav slot. */}
+        <UserMenu />
       </header>
 
-      {/* Route/page transition - a short fade+rise keyed on the path. `mode:wait`
-          lets the outgoing page finish before the next mounts, so pages never
-          overlap. Reduced-motion collapses the offset to a plain fade. */}
+      {/* Route/page transition - a short fade+rise keyed on the SECTION, not on
+          the path. `mode:wait` lets the outgoing page finish before the next
+          mounts, so pages never overlap. Reduced-motion collapses the offset to
+          a plain fade.
+
+          Keying on the full pathname re-mounted everything under <main> on every
+          navigation, and once Control had a sidebar in there that meant the
+          "persistent" nav faded out and back in on each of its own links - a
+          sidebar-shaped page element rather than a sidebar. The section shell
+          runs the same transition around its own <Outlet>, so moving within
+          Control still animates; it just animates the part that changed. */}
       <AnimatePresence mode="wait" initial={false}>
         <motion.main
-          key={loc.pathname}
+          key={loc.pathname.split('/')[1] ?? ''}
           id="content"
+          tabIndex={-1}
           className="content"
           initial={{ opacity: 0, y: reduce ? 0 : 10 }}
           animate={{ opacity: 1, y: 0 }}
