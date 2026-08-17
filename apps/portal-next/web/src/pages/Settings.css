@@ -126,3 +126,14 @@
    data-bothy-theme), so these rules must not paint any colour themselves. */
 
 
+
+/* A theme that came from the box rather than from the bundle. Quiet: it answers
+   "where did this come from" for someone who is looking, and says nothing to
+   anyone who is not. */
+.settings-page .theme-tag {
+  margin-left: 6px; padding: 1px 5px;
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--accent-fg);
+  background: var(--accent-bg); border: 1px solid var(--accent-line);
+  border-radius: var(--r-xs); vertical-align: 1px;
+}

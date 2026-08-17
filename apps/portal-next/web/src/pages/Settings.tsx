@@ -24,6 +24,7 @@ import { Ban, Circle, CircleCheck, LogIn } from 'lucide-react';
 import { ROLES, ROLE_MEANING, signInHref, type Me, type Role } from '../lib/me';
 import { useMe } from '../components/UserMenu';
 import { useTheme } from '../lib/theme';
+import { THEME_DIR_HOST } from '../lib/customThemes';
 import { ThemeSwatch } from '../components/ThemeSwatch';
 import { Skeleton } from '../components/states';
 import './Settings.css';
@@ -66,6 +67,7 @@ export function Settings() {
 
 function Appearance() {
   const { selection, theme, themes, setSelection } = useTheme();
+  const custom = themes.filter((t) => t.user).length;
 
   // System first, then the themes. It is the only entry that is not a palette -
   // it is a rule for picking one - so it gets said in words rather than given a
@@ -77,6 +79,22 @@ function Appearance() {
         <p className="set-lede">
           Kept in this browser. The topbar button still toggles dark, light and system;
           this is where the rest of them live.
+        </p>
+
+        {/* The only instruction on this page, and it earns its place: a theme
+            you add is a FILE, and nothing else on screen would tell you where
+            it goes. Deliberately a host path rather than a container one -
+            the person who needs this sentence is standing in the repo. */}
+        <p className="set-note">
+          Add your own by dropping a <code className="mono">.css</code> file into{' '}
+          <code className="mono">{THEME_DIR_HOST}</code> on the box and reloading.
+          One file is the whole theme, and it survives a rebuild — copy an existing
+          one to start.{' '}
+          {custom === 0
+            ? 'Nothing is there yet.'
+            : custom === 1
+              ? 'One theme below came from there.'
+              : `${custom} of the themes below came from there.`}
         </p>
 
         <div className="theme-grid" role="radiogroup" aria-label="Theme">
@@ -102,7 +120,10 @@ function Appearance() {
               className={`theme-card ${selection === t.id ? 'is-on' : ''}`}
               onClick={() => setSelection(t.id)}
             >
-              <span className="theme-name">{t.name}</span>
+              <span className="theme-name">
+                {t.name}
+                {t.user && <span className="theme-tag">yours</span>}
+              </span>
               <span className="theme-note">{t.note}</span>
               <ThemeSwatch id={t.id} />
             </button>

@@ -58,6 +58,22 @@
           }
           e.setAttribute('data-theme', app);
           e.setAttribute('data-bothy-theme', sel);
+          // A USER theme's stylesheet is not in the bundle - it is a file in
+          // /data/themes on the box - so it has to be requested, and requesting
+          // it here rather than after React mounts is the difference between a
+          // correct first frame and a flash of the base palette.
+          //
+          // The flag is written by lib/theme.tsx when the theme was chosen. This
+          // script cannot work it out: telling a bundled `tokyo-night` from a
+          // user `tokyo-night` needs the registry, and putting the registry here
+          // would mean regenerating the CSP hash every time a theme is added.
+          if (localStorage.getItem('portal-theme-is-user') === '1') {
+            var l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.setAttribute('data-bothy-user-theme', sel);
+            l.href = '/data/themes/' + encodeURIComponent(sel) + '.css';
+            document.head.appendChild(l);
+          }
         } catch (err) {
           e.setAttribute('data-theme', 'dark');
           e.setAttribute('data-bothy-theme', 'bothy-dark');
