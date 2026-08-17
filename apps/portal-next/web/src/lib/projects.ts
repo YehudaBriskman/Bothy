@@ -85,6 +85,10 @@ function nodeOf(project: CollectorProject, svc: CollectorService): PortalNode {
     url,
     browsable: url != null,
     group: project.key,
+    // A declared project brings its own display name, so it needs no lookup -
+    // which is the point of the field: every node carries the name a human
+    // should see, however that node came into existence.
+    groupTitle: project.name || project.key,
     groupKind: project.kind === 'stack' || project.kind === 'infra' ? project.kind : 'project',
     parent: null,
     depth: null,

@@ -51,7 +51,16 @@ export function Services() {
   };
 
   const projectOptions = useMemo(
-    () => [...new Set(data.nodes.filter((n) => !n.hidden).map((n) => n.group))].sort(),
+    // [slug, display name]. The VALUE stays the compose slug - it is the filter
+    // key, and `?project=` in the URL must keep working - but the LABEL reads
+    // like every other surface. A dropdown offering `auth` next to a table
+    // saying "Identity · Keycloak" is the same one-name-per-system failure in
+    // miniature.
+    () => {
+      const seen = new Map<string, string>();
+      for (const n of data.nodes) if (!n.hidden) seen.set(n.group, n.groupTitle || n.group);
+      return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    },
     [data.nodes],
   );
 
@@ -62,7 +71,7 @@ export function Services() {
     const vis = data.nodes.filter((n) => !n.hidden);
     const needle = q.trim().toLowerCase();
     const mText = (n: PortalNode) =>
-      !needle || `${n.name} ${n.host ?? ''} ${n.group} ${n.container?.image ?? ''}`.toLowerCase().includes(needle);
+      !needle || `${n.name} ${n.host ?? ''} ${n.group} ${n.groupTitle} ${n.container?.image ?? ''}`.toLowerCase().includes(needle);
     const mProject = (n: PortalNode) => project === 'all' || n.group === project;
     const mStatus = (n: PortalNode) => statusFilter.size === 0 || statusFilter.has(n.status);
     const isHost = (n: PortalNode) => n.route?.provider === 'file';
@@ -161,7 +170,7 @@ export function Services() {
           <span>Project</span>
           <select value={project} onChange={(e) => setProject(e.target.value)}>
             <option value="all">All ({projectAll})</option>
-            {projectOptions.map((p) => <option key={p} value={p}>{p} ({projectCounts.get(p) ?? 0})</option>)}
+            {projectOptions.map(([slug, label]) => <option key={slug} value={slug}>{label} ({projectCounts.get(slug) ?? 0})</option>)}
           </select>
         </label>
         <label className="filter-select">

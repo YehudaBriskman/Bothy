@@ -51,7 +51,7 @@ export function PortsTab({
     const terms = [query, external].map((s) => s.toLowerCase().trim()).filter(Boolean);
     const matchText = (p: PortRow) =>
       terms.every((q) =>
-        `${p.hostPort} ${p.containerPort} ${p.container} ${p.group} ${p.image} ${p.scope}`
+        `${p.hostPort} ${p.containerPort} ${p.container} ${p.group} ${p.groupTitle} ${p.image} ${p.scope}`
           .toLowerCase()
           .includes(q),
       );
@@ -69,14 +69,19 @@ export function PortsTab({
     if (filter !== 'all') r = r.filter((p) => p.scope === filter);
     for (const q of terms)
       r = r.filter((p) =>
-        `${p.hostPort} ${p.containerPort} ${p.container} ${p.group} ${p.image} ${p.scope}`
+        `${p.hostPort} ${p.containerPort} ${p.container} ${p.group} ${p.groupTitle} ${p.image} ${p.scope}`
           .toLowerCase()
           .includes(q),
       );
     const { key, dir } = sort;
     r.sort((a, b) => {
-      const av = a[key] as string | number | undefined;
-      const bv = b[key] as string | number | undefined;
+      // Sort the Group column by what it DISPLAYS. Ordering by the hidden
+      // compose slug puts `auth` before `edge` while the screen reads
+      // "Identity · Keycloak" after "Edge · Traefik" - a sort that looks broken
+      // because the user cannot see the key it used.
+      const k = key === 'group' ? 'groupTitle' : key;
+      const av = a[k] as string | number | undefined;
+      const bv = b[k] as string | number | undefined;
       const cmp =
         typeof av === 'number' && typeof bv === 'number'
           ? av - bv
@@ -181,7 +186,7 @@ export function PortsTab({
                   </td>
                   <td className="mono">{r.containerPort}</td>
                   <td>{r.container}</td>
-                  {!compact && <td className="mono">{r.group}</td>}
+                  {!compact && <td>{r.groupTitle}</td>}
                   <td className="mono">{r.proto}</td>
                   <td>
                     <span className={`tag ${r.scope}`}>{r.scope === 'public' ? 'exposed' : 'loopback'}</span>

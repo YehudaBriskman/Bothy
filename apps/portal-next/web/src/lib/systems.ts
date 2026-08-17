@@ -51,27 +51,21 @@ export interface System {
 
 const KIND_RANK: Record<SystemKind, number> = { project: 0, stack: 1, infra: 2 };
 
-// Groups that are not systems at all, and so cannot be named like one.
+// A system's display name now arrives ON THE NODE (`groupTitle`, resolved in
+// discover.ts) rather than being looked up again here. This function used to own
+// a second copy of that rule - label-or-title-case - and a third lived in
+// panels.ts, which is precisely how the Services and Access tables ended up
+// printing raw compose slugs while this page printed the pretty name.
 //
-// `unmanaged` is what classify() returns for a container with no compose labels
-// - a `docker run` that nobody declared. It is not a system, it is *whatever did
-// not match*, and "Unmanaged" title-cased into a peer chip beside Edge · Traefik
-// claims a coherence it does not have. Named for what it is, and sorted last.
-const RESIDUE: Record<string, string> = {
-  unmanaged: 'Other containers',
-  host: 'Host processes',
-};
-export const isResidue = (key: string) => key in RESIDUE;
+// The residue names (`unmanaged` -> "Other containers") moved with it. What
+// stays here is the SORT: residue belongs last, because it is not a system
+// competing for position, it is the remainder.
+import { RESIDUE_TITLES } from './discover';
 
-// A project's display name comes from its own labelled node if present, else a
-// title-cased group slug - same rule as panelize/discover, kept in one place.
-function niceTitle(group: string, nodes: PortalNode[]): string {
-  const labelled = nodes.find((n) => n.container?.labels?.['dev.portal.project']);
-  return (
-    labelled?.container?.labels?.['dev.portal.project'] ||
-    RESIDUE[group] ||
-    group.replace(/[-_]/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
-  );
+export const isResidue = (key: string) => key in RESIDUE_TITLES;
+
+function niceTitle(_group: string, nodes: PortalNode[]): string {
+  return nodes[0]?.groupTitle || _group;
 }
 
 // The system's kind = the kind of the MAJORITY of its nodes. They agree in
