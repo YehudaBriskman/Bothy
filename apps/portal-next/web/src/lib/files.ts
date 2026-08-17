@@ -271,6 +271,67 @@ export function readFile(root: string, path: string, signal?: AbortSignal): Prom
   return getJSON(`${BASE}/read?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`, signal);
 }
 
+// ── search ───────────────────────────────────────────────────────────────────
+//
+// CONTENT search, which is a different question from the explorer's filter above
+// the tree - that one matches NAMES in a tree the browser already holds. This one
+// reads files on the server.
+//
+// Content hits and name hits come back in separate arrays and are kept separate
+// all the way to the screen. Merging them would make the count meaningless: a
+// name hit has no line number, and the panel has to say which question it
+// answered.
+export interface SearchMatch {
+  root: string;
+  path: string;
+  line: number;
+  /** Offset of the match WITHIN `text`, already adjusted if the line was
+   *  trimmed - highlighting by an offset into the untrimmed line marks the wrong
+   *  characters, which reads as a broken search rather than a broken renderer. */
+  col: number;
+  /** Offset of the match within the REAL line in the file. Differs from `col`
+   *  whenever the excerpt was trimmed, and it is the one the editor selects
+   *  with - the file has the untrimmed line. */
+  srcCol: number;
+  text: string;
+  /** This file had more matches than the per-file cap. */
+  more?: boolean;
+}
+export interface SearchNameHit {
+  root: string;
+  path: string;
+  size: number;
+  mtime: number;
+}
+export interface SearchResult {
+  query: string;
+  roots: string[];
+  path: string;
+  matches: SearchMatch[];
+  names: SearchNameHit[];
+  scanned: number;
+  skipped: number;
+  /** Null when nothing was cut. Always present, so a caller cannot forget to
+   *  check it and present a capped list as a complete one. */
+  truncated: { reason: string; limit?: number; seconds?: number; scanned: number } | null;
+}
+
+/** `root` may be a root key, or `*` for every root that does not alias another
+ *  (the service decides which those are - see searchable_roots in app.py). */
+export function searchFiles(
+  root: string,
+  query: string,
+  opts: { path?: string; glob?: string; caseSensitive?: boolean; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<SearchResult> {
+  const p = new URLSearchParams({ root, q: query });
+  if (opts.path) p.set('path', opts.path);
+  if (opts.glob) p.set('glob', opts.glob);
+  if (opts.caseSensitive) p.set('case', '1');
+  if (opts.limit) p.set('limit', String(opts.limit));
+  return getJSON(`${BASE}/search?${p}`, signal);
+}
+
 export function fileHistory(root: string, path: string, signal?: AbortSignal): Promise<{ path: string; history: Commit[] }> {
   return getJSON(`${BASE}/history?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`, signal);
 }

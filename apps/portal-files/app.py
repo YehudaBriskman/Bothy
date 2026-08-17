@@ -53,6 +53,7 @@ tidy:
 
 from __future__ import annotations
 
+import fnmatch
 import io
 import json
 import os
@@ -354,6 +355,201 @@ def is_binary(path: str) -> bool:
         return True
 
 
+# ── search ──────────────────────────────────────────────────────────────────
+#
+# Full-text search across every markdown file - and every other text file - on the
+# box. The explorer's filter searches NAMES only, over a tree the browser already
+# holds; this reads file BYTES on the server. They are different questions and
+# this answers the second one.
+#
+# THE WALK GOES THROUGH safepath.collect(), and that is the whole security design
+# of this feature. collect()'s own docstring argues it: listing() doing its own
+# os.walk was "correct, but a PATTERN, and a second implementation can copy a
+# pattern incorrectly". A search endpoint is precisely where a forgotten
+# resolve() puts a line of ~/stacks/.env into a result snippet - the file is
+# denied by name, but only if something asks. collect() already applies
+# prune_dirs, resolve, is_denied_name, the per-root top-level rules, symlink
+# refusal and safe_open to every path it returns, so nothing here can widen the
+# served set. It takes its limits as arguments for exactly this reason: a second
+# consumer with different bounds, not a second walk.
+SEARCH_MAX_FILES = 20_000        # candidate files enumerated, per request
+SEARCH_MAX_FILE_BYTES = 2_000_000  # bigger than this is not prose; skipped
+SEARCH_MAX_MATCHES = 500         # the browser renders every one of these
+SEARCH_MAX_PER_FILE = 20         # one generated file must not fill the page
+SEARCH_SECONDS = 10.0            # the READ phase; collect() bounds the walk
+SEARCH_LINE_CHARS = 400          # a minified line is not a search result
+
+
+def searchable_roots() -> list[str]:
+    """Roots to search when the caller asks for all of them.
+
+    Every root except the ones that ALIAS another. `home` mounts /home/devssh and
+    therefore reaches `stacks`, `notes` and `projects` a second time, so searching
+    all four returns every hit twice under two different names - and the second
+    name is the one whose root cannot be written to, so clicking it opens a
+    read-only view of a file that is editable elsewhere.
+
+    THE DERIVED VERSION DOES NOT WORK, and this is worth recording because it is
+    the obvious implementation. "Skip a root whose directory contains another
+    root's directory" is correct on the host and blind inside the container:
+    compose mounts each root separately at /repos/<name>, so /repos/home does not
+    contain /repos/stacks by any path comparison available to this process. It
+    was written that way first, and checks/search_denied.py caught it - the
+    endpoint answered, the results looked plausible, and every file appeared
+    twice.
+
+    So the overlap is DECLARED, in policy.toml, next to the mount it is a
+    property of. The containment test stays as a second, automatic guard for the
+    case somebody does nest two roots inside one mount, where it does work.
+    """
+    real = {k: os.path.realpath(p) for k, p in safepath.ROOTS.items()}
+    return sorted(
+        k for k, p in real.items()
+        if k not in safepath.ALIAS_ROOTS
+        and not any(q != p and q.startswith(p + os.sep) for q in real.values())
+    )
+
+
+def _excerpt(line: str, at: int, width: int = SEARCH_LINE_CHARS) -> tuple[str, int]:
+    """Trim a long line to a window around the hit. Returns (text, new offset).
+
+    The offset is returned because the UI highlights the match by position, and a
+    trimmed line whose offset still refers to the untrimmed one highlights the
+    wrong characters - which looks like a bug in the search rather than in the
+    rendering.
+    """
+    line = line.rstrip("\n").replace("\t", "    ")
+    if len(line) <= width:
+        return line, at
+    start = max(0, at - width // 3)
+    text = line[start:start + width]
+    return ("…" + text if start else text), at - start + (1 if start else 0)
+
+
+def search(root_keys: list[str], rel: str, needle: str, *,
+           case: bool = False, glob: str | None = None,
+           limit: int = SEARCH_MAX_MATCHES) -> dict:
+    """Literal substring search over file CONTENT and file NAMES.
+
+    LITERAL, not a regex, and that is a decision rather than an omission. A
+    caller-supplied regex over a few thousand files is a CPU denial of service
+    that needs no privilege at all - one nested quantifier and this process, which
+    holds read-write handles on two repositories, stops answering. If a regex mode
+    is ever wanted it needs a per-file timeout, which stdlib `re` cannot give;
+    passing the pattern straight through is not the cheap version of that, it is
+    the broken one.
+
+    Content hits and name hits are returned SEPARATELY. Merging them would make
+    the count meaningless: a file whose name matches has no line number, and the
+    UI has to say which question it answered.
+    """
+    if not needle:
+        raise safepath.PathRefused("empty query")
+    deadline = time.monotonic() + SEARCH_SECONDS
+    hay_fold = None if case else str.lower
+    target = needle if case else needle.lower()
+
+    matches: list[dict] = []
+    names: list[dict] = []
+    scanned = 0
+    skipped = 0
+    truncated: dict | None = None
+
+    for root_key in root_keys:
+        if truncated:
+            break
+        # collect() raises ArchiveRefused when a bound bites, and that propagates
+        # to a 413 carrying the numbers. Deliberate: a *walk* that ran out of
+        # budget has seen an unknown fraction of the tree, so "here are some
+        # results" would be a claim we cannot support. The MATCH bounds below are
+        # different - they stop after a complete-enough look, so they truncate and
+        # say so.
+        members, skips = safepath.collect(
+            root_key, rel,
+            max_entries=SEARCH_MAX_FILES,
+            max_total=1 << 40,          # not building an archive; size is not the bound
+            max_member=SEARCH_MAX_FILE_BYTES,
+            walk_seconds=max(1.0, deadline - time.monotonic()),
+        )
+        skipped += len(skips)
+
+        for m in members:
+            if time.monotonic() > deadline:
+                truncated = {"reason": "took too long", "seconds": SEARCH_SECONDS,
+                             "scanned": scanned}
+                break
+            if len(matches) >= limit:
+                truncated = {"reason": "too many matches", "limit": limit,
+                             "scanned": scanned}
+                break
+
+            res = m.res
+            base = os.path.basename(res.relpath)
+            if glob and not fnmatch.fnmatch(base.lower(), glob.lower()):
+                continue
+
+            if target in (base if case else base.lower()):
+                names.append({"root": root_key, "path": res.relpath,
+                              "size": m.size, "mtime": m.mtime})
+
+            # A file is read only for CONTENT. The name half above still answers
+            # for a binary or an oversized file, which is the useful half there.
+            if m.size > SEARCH_MAX_FILE_BYTES or is_binary(res.abspath):
+                skipped += 1
+                continue
+            try:
+                with open(res.abspath, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                skipped += 1
+                continue
+            scanned += 1
+
+            # One pass over the whole file before splitting it into lines: the
+            # overwhelming majority of files do not match at all, and splitlines()
+            # on every one of them is most of the cost of the endpoint.
+            hay = text if case else hay_fold(text)
+            if target not in hay:
+                continue
+
+            hits = 0
+            for n, line in enumerate(text.splitlines(), 1):
+                col = (line if case else line.lower()).find(target)
+                if col < 0:
+                    continue
+                shown, at = _excerpt(line, col)
+                # TWO offsets, because two different consumers need two
+                # different origins and conflating them puts the highlight in
+                # the wrong place in one of them:
+                #   col  - into `text`, which may have been trimmed. The result
+                #          list marks the run here.
+                #   srcCol - into the real line in the file. The editor selects
+                #          this range when you click through to the file, and on
+                #          a trimmed line it is NOT the same number.
+                matches.append({"root": root_key, "path": res.relpath,
+                                "line": n, "col": at, "srcCol": col,
+                                "text": shown})
+                hits += 1
+                if hits >= SEARCH_MAX_PER_FILE:
+                    matches[-1]["more"] = True
+                    break
+                if len(matches) >= limit:
+                    break
+
+    return {
+        "query": needle,
+        "roots": root_keys,
+        "path": rel,
+        "matches": matches,
+        "names": names,
+        "scanned": scanned,
+        "skipped": skipped,
+        # Always present, null when nothing was cut. A truncation field that only
+        # appears when it fired is one a caller forgets to check.
+        "truncated": truncated,
+    }
+
+
 def history(res: safepath.Resolved, limit: int = 20) -> list[dict]:
     # A file under no repository has no history. Real state, not an error: it is
     # why the write path also reports `committed: false` rather than pretending.
@@ -549,6 +745,29 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"root": root, "files": files,
                                         "truncated": truncated,
                                         "readOnly": root in READONLY_ROOTS})
+
+            if route == "/search":
+                # `root=*` is every root that does not contain another - see
+                # searchable_roots(). Anything else must name a root exactly;
+                # there is no default and no "search everything" fallback, for
+                # the same reason resolve() has no default root.
+                root = q.get("root", "")
+                if root == "*":
+                    roots = searchable_roots()
+                elif root in safepath.ROOTS:
+                    roots = [root]
+                else:
+                    return self._send(400, {"error": f"unknown root {root!r}"})
+                try:
+                    limit = min(int(q.get("limit", SEARCH_MAX_MATCHES)),
+                                SEARCH_MAX_MATCHES)
+                except ValueError:
+                    return self._send(400, {"error": "limit must be a number"})
+                return self._send(200, search(
+                    roots, q.get("path", ""), q.get("q", ""),
+                    case=q.get("case") == "1",
+                    glob=q.get("glob") or None,
+                    limit=max(1, limit)))
 
             if route == "/read":
                 res = safepath.resolve(q.get("root", ""), q.get("path", ""))

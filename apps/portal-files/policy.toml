@@ -49,6 +49,19 @@ path = "/repos/home"
 # stacks and notes, so the same file is reachable under two names and only one
 # of them should be able to change it.
 writable = false
+# The same overlap, stated as a fact the code can act on. A search across ALL
+# roots skips this one, because every hit in stacks, notes and projects would
+# otherwise come back a second time under a home/... path - and the second copy
+# is the one whose root cannot be written to, so clicking it opens a read-only
+# view of a file that is editable elsewhere.
+#
+# WHY THIS IS DECLARED AND NOT DERIVED. The obvious implementation is "skip any
+# root whose directory contains another root's directory", and it does not work
+# HERE: compose mounts each root separately at /repos/<name>, so inside the
+# container /repos/home does not contain /repos/stacks at all. The containment
+# is real on the host and invisible to this process. It was written that way
+# first and the check caught it.
+aliases = true
 # Every credential store in a home directory is a top-level dot entry, and
 # nothing worth browsing is. A survey of this one before mounting it found live
 # Claude OAuth credentials, a GitHub token, SSH and GPG keys, kube and docker

@@ -1,0 +1,109 @@
+/* ============================================================================
+   BothyFiles - the search rail. Scoped under .bothy-files, (0,2,0).
+
+   Same 22px rhythm as the tree next door, for the same reason: this column is
+   SCANNED. The one place it deliberately differs is the result line, which is
+   monospaced - a matched line is code or config far more often than prose, and
+   proportional type makes an indented snippet unreadable at this width.
+   ========================================================================== */
+
+.bothy-files .fx-sr {
+  display: flex; flex-direction: column; min-height: 0; height: 100%;
+}
+
+/* ── options row ─────────────────────────────────────────────────────────── */
+.bothy-files .fx-sr-opts {
+  flex: none; display: flex; align-items: center; gap: 6px; margin: 0 8px 6px;
+}
+.bothy-files .fx-sr-scope {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+}
+.bothy-files .fx-sr-lbl { font-size: 11px; color: var(--fg-subtle); }
+.bothy-files .fx-sr-scope select {
+  appearance: none; font: inherit; font-size: 11px; font-family: var(--mono);
+  color: var(--fg); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 3px 6px; max-width: 110px;
+}
+.bothy-files .fx-sr-glob { margin: 0; flex: 1 1 auto; min-width: 0; }
+.bothy-files .fx-sr-glob input { font-family: var(--mono); font-size: 11px; }
+.bothy-files .fx-sr-toggle {
+  appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--fg-subtle);
+}
+.bothy-files .fx-sr-toggle:hover { color: var(--fg); border-color: var(--line-strong); }
+/* Pressed is a BORDER and a background, not colour alone - the page's own rule
+   (docs/brand/foundations/principles.md: colour is never the only encoder), and
+   `aria-pressed` carries it for anyone not reading pixels. */
+.bothy-files .fx-sr-toggle.on {
+  color: var(--fg); border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 16%, var(--surface-2));
+}
+
+/* ── status + the cap notice ─────────────────────────────────────────────── */
+.bothy-files .fx-sr-status {
+  flex: none; min-height: 16px; margin: 0 9px 4px;
+  font-size: 11px; color: var(--fg-subtle);
+}
+.bothy-files .fx-sr-err { color: var(--st-down-fg); }
+.bothy-files .fx-sr-cap {
+  flex: none; margin: 0 8px 6px; padding: 5px 7px;
+  font-size: 11px; line-height: 1.4; color: var(--fg-muted);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-left: 2px solid var(--st-warn-fg); border-radius: var(--r-sm);
+}
+
+/* ── results ─────────────────────────────────────────────────────────────── */
+.bothy-files .fx-sr-list {
+  flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: 8px;
+}
+.bothy-files .fx-sr-group { margin-bottom: 2px; }
+.bothy-files .fx-sr-sec {
+  margin: 10px 9px 4px; font-size: 11px; font-weight: 600; color: var(--fg-subtle);
+}
+
+.bothy-files .fx-sr-file,
+.bothy-files .fx-sr-line {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 6px;
+  border: 0; background: transparent; font: inherit; color: var(--fg-muted);
+  padding: 0 8px; height: 22px; min-width: 0;
+}
+.bothy-files .fx-sr-file { color: var(--fg); font-size: 12px; }
+.bothy-files .fx-sr-file:hover,
+.bothy-files .fx-sr-line:hover { background: var(--surface-2); }
+.bothy-files .fx-sr-file:focus-visible,
+.bothy-files .fx-sr-line:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: -2px;
+}
+.bothy-files .fx-sr-base { flex: none; font-weight: 500; }
+.bothy-files .fx-sr-dir {
+  flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl;
+  text-align: left;
+}
+.bothy-files .fx-sr-n {
+  flex: none; font-size: 10px; font-family: var(--mono); color: var(--fg-subtle);
+  background: var(--surface-3); border-radius: var(--r-full); padding: 0 6px;
+}
+
+.bothy-files .fx-sr-line { padding-left: 14px; font-size: 11.5px; }
+.bothy-files .fx-sr-no {
+  flex: none; width: 34px; text-align: right; font-family: var(--mono);
+  font-size: 10px; color: var(--fg-subtle);
+}
+.bothy-files .fx-sr-text {
+  flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: pre;
+}
+/* The match itself. A background, and the text stays at full contrast - a
+   highlight that recolours the glyphs makes the matched run the LEAST readable
+   part of the line it was drawn to point at. */
+.bothy-files .fx-sr-mark {
+  background: color-mix(in oklab, var(--accent) 32%, transparent);
+  color: inherit; border-radius: 2px; padding: 0 1px;
+}
+.bothy-files .fx-sr-more {
+  margin: 0 0 2px 22px; font-size: 10.5px; color: var(--fg-subtle);
+}

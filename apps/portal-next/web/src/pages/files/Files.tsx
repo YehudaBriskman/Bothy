@@ -70,6 +70,7 @@ import { Inspector } from './Inspector';
 import { matches } from './keys';
 import { Panel, type PanelTab, type Problem } from './Panel';
 import { Resizer } from './Resizer';
+import { SearchView } from './Search';
 import { SignInCard } from './SignInCard';
 import { SourceControl } from './SourceControl';
 import { decorate, NO_DECORATIONS, type Change } from './gitdeco';
@@ -82,6 +83,7 @@ import './editor.css';
 import './inspector.css';
 import './panel.css';
 import './scm.css';
+import './search.css';
 
 const MAX_CALLS = 200;
 
@@ -113,11 +115,17 @@ interface Workspace {
 
 const EMPTY_WS: Workspace = { docs: [], groups: [{ tabs: [], active: null }], focus: 0, seq: 1 };
 
-function newDoc(id: string, root: string, path: string): Doc {
+type GotoAt = NonNullable<Doc['goto']>;
+
+function newDoc(id: string, root: string, path: string, goto?: GotoAt): Doc {
   return {
     id, root, path, state: 'new', file: null, err: null,
     editing: false, draft: '', view: 'preview', message: '',
     notice: null, conflict: null, saving: false,
+    // A search result opens on `source`, not `preview`: the hit is a LINE, and a
+    // rendered markdown preview has no lines to jump to. Opening a file the
+    // normal way is unaffected.
+    ...(goto ? { goto, view: 'source' as View } : {}),
   };
 }
 
@@ -273,6 +281,41 @@ export function Files() {
   }, []);
   const filterRef = useRef<HTMLInputElement | null>(null);
   const treeRef = useRef<HTMLDivElement | null>(null);
+
+  // ── honouring a search result's line ───────────────────────────────────────
+  //
+  // `doc.goto` is a REQUEST left by openOrFocus, and it cannot be honoured where
+  // it is set: the content has not been fetched yet, and the surface that owns
+  // line addressing is `lazy()`-loaded, so its handle appears some frames after
+  // the document is ready. Hence a poll rather than a one-shot effect.
+  //
+  // BOUNDED, and it gives up rather than retrying forever. The plain-textarea
+  // fallback reports `goto() === false` because it genuinely cannot scroll to a
+  // line, and a surface that never mounts at all (a file that turned out to be
+  // binary) has no handle to ask. Both end the same way: clear the request, so
+  // the tab settles at the top of the file instead of the page spinning on a
+  // jump that is never going to happen.
+  const jumps = useRef(new Map<string, number>());
+  useEffect(() => {
+    const wants = ws.docs.filter((d) => d.goto && d.state === 'ready');
+    if (!wants.length) return;
+    let raf = 0;
+    const tick = () => {
+      for (const d of wants) {
+        const tries = (jumps.current.get(d.id) ?? 0) + 1;
+        jumps.current.set(d.id, tries);
+        const g = d.goto!;
+        const done = handles.current.get(d.id)?.current?.goto(g.line, g.col, g.len) ?? false;
+        if (done || tries > 60) {
+          jumps.current.delete(d.id);
+          patchDoc(d.id, (x) => ({ ...x, goto: null }));
+        }
+      }
+      if (jumps.current.size) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [ws.docs, patchDoc]);
 
   // Every in-flight read, so closing a tab stops its fetch rather than letting
   // it land on a document that no longer exists.
@@ -467,7 +510,17 @@ export function Files() {
           patchDoc(d.id, (cur) => ({
             ...cur,
             state: 'ready', file: f, err: null,
-            editing: false, draft: f.content ?? '', view: 'preview',
+            editing: false, draft: f.content ?? '',
+            // `preview` is the right default and the WRONG one for a document
+            // opened from a search result. This reset runs after the read, so it
+            // used to overwrite the `source` that newDoc had just chosen - a
+            // markdown hit then landed on the rendered article, which has no
+            // lines to scroll to, and the jump silently did nothing.
+            //
+            // The pending jump is what distinguishes the two cases, so it is
+            // what decides: a document with somewhere to go opens where it can
+            // go there.
+            view: cur.goto ? 'source' : 'preview',
             notice: null, conflict: null,
             message: defaultMessage(f.path, langFor(f.path, f.lang)),
           }));
@@ -489,20 +542,32 @@ export function Files() {
   //
   // What `pick()` became. A file that is already open is FOCUSED wherever it
   // lives - including in the other group - rather than opened a second time.
-  const openOrFocus = useCallback((r: string, p: string) => {
+  const openOrFocus = useCallback((r: string, p: string, at?: GotoAt) => {
     if (!r || !p) return;
     next((w) => {
       const found = w.docs.find((d) => d.root === r && d.path === p);
       if (found) {
         const gi = w.groups.findIndex((g) => g.tabs.includes(found.id));
         if (gi < 0) return w;
-        if (w.focus === gi && w.groups[gi].active === found.id) return w;
-        return { ...w, focus: gi, groups: w.groups.map((g, i) => (i === gi ? { ...g, active: found.id } : g)) };
+        // An ALREADY-OPEN file still has to move when a search result asks for a
+        // different line, so the jump is re-armed on the existing doc rather
+        // than only on a fresh one. Without this, the second result you click in
+        // the same file focuses its tab and goes nowhere - which reads as the
+        // result being wrong rather than the jump being skipped.
+        const jump = at
+          ? (d: Doc) => (d.id === found.id ? { ...d, goto: at, view: 'source' as View } : d)
+          : null;
+        const docs = jump ? w.docs.map(jump) : w.docs;
+        if (!jump && w.focus === gi && w.groups[gi].active === found.id) return w;
+        return {
+          ...w, docs, focus: gi,
+          groups: w.groups.map((g, i) => (i === gi ? { ...g, active: found.id } : g)),
+        };
       }
       const id = `d${w.seq}`;
       const gi = w.focus;
       return {
-        docs: [...w.docs, newDoc(id, r, p)],
+        docs: [...w.docs, newDoc(id, r, p, at)],
         groups: w.groups.map((g, i) => (i === gi ? { tabs: [...g.tabs, id], active: id } : g)),
         focus: gi,
         seq: w.seq + 1,
@@ -1168,7 +1233,17 @@ export function Files() {
 
           {!panes.cl && (
             <div className="fx-col fx-col-l" ref={treeRef}>
-              {railView === 'scm' ? (
+              {railView === 'search' ? (
+                <SearchView
+                  roots={roots}
+                  root={root}
+                  // Opening from a result does NOT move the explorer's root, for
+                  // the same reason picking a root does not close the open file:
+                  // browsing and reading are separate places to be.
+                  onOpen={(r, p, at) => { setDiff(null); openOrFocus(r, p, at); }}
+                  onNeedsAuth={retry}
+                />
+              ) : railView === 'scm' ? (
                 <SourceControl
                   root={root}
                   repos={repos}

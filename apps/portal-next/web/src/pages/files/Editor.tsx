@@ -95,6 +95,14 @@ export interface Doc {
   notice: Notice | null;
   conflict: WriteConflict | null;
   saving: boolean;
+  /** Where to jump once the content has loaded, set when the tab was opened from
+   *  a search result: the 1-based line, and the run to SELECT within it so the
+   *  editor lights up every other occurrence in the file.
+   *
+   *  A REQUEST, not a position: it is cleared the moment it is honoured, because
+   *  a sticky value would drag the caret back every time the document
+   *  re-rendered - and the caret is the user's, not ours. */
+  goto?: { line: number; col: number; len: number } | null;
 }
 
 /** One column of the centre. Two at most - a third is a tiling window manager,
@@ -329,8 +337,15 @@ function EditSurface({ draft, setDraft, handleRef, id }: {
   // The same imperative handle the CodeMirror surface publishes, so `startEdit`
   // in Files.tsx focuses whichever one is actually mounted. `openFind` has no
   // honest answer here, so it says so by doing nothing rather than by pretending.
+  // `goto` returns FALSE for the same reason and one step further: a textarea has
+  // no line addressing, and a caller told "done" would leave a search result
+  // pointing at line 412 of a file scrolled to the top.
   useEffect(() => {
-    handleRef.current = { focus: () => taRef.current?.focus(), openFind: () => {} };
+    handleRef.current = {
+      focus: () => taRef.current?.focus(),
+      openFind: () => {},
+      goto: () => false,
+    };
     return () => { handleRef.current = null; };
   }, [handleRef]);
 
