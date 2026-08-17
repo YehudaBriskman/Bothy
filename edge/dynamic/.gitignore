@@ -21,6 +21,12 @@
 # so it is tracked. It was ignored by the `*` above for its first two commits,
 # which is exactly the failure mode this comment exists to prevent repeating.
 !portal-files.yml
+# The config-tier routes, tracked for exactly the reason portal-files.yml is:
+# they carry the `editor` gate on a service that can rewrite this repo's compose
+# files, so losing the file would silently unprotect a write path. It holds no
+# credential. Added in the same commit as the file, on the strength of the note
+# above - portal-files.yml went two commits untracked before anyone noticed.
+!bothy-config.yml
 # The redacted twin of the GENERATED portal-prom.yml (which stays ignored by the
 # `*` above - it carries a basic-auth credential). Comments only: a live example
 # in this directory overwrites the real router, see the file's own header.

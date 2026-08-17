@@ -1,0 +1,19 @@
+# THE dependency, and the reason this is a separate service.
+#
+# apps/portal-files/app.py has no third-party dependencies at all, on purpose:
+# "this container holds read-write bind mounts on two git repositories, and every
+# dependency is something that can ship a vulnerability into that position".
+# A YAML parser is a dependency, so the parser lives here instead - with one
+# repository mounted instead of four roots, and its own network.
+#
+# PINNED EXACTLY, not floored. This is the code that decides where a value ends
+# inside somebody's compose file; a minor release changing how `lc` reports a
+# column would move every span by one character, and the failure would be a
+# corrupted file rather than an ImportError. checks/noop_bytes.py is what proves
+# a given version is safe, so the version it proved is the version that ships.
+#
+# ruamel.yaml.clib is deliberately NOT installed. It is an optional C accelerator
+# and 0.19 on CPython 3.13 does not pull it in; the pure-Python round-trip parser
+# is what the checks were run against, and a native extension in a process that
+# writes to this repository is surface bought with speed nobody asked for.
+ruamel.yaml==0.19.1

@@ -1,0 +1,102 @@
+name: bothy-config
+
+# The config tier's backend: the service that lets a form change one declared
+# field in a file without destroying the file. Everything below is shaped by
+# that, and by the fact that it is the second service on this box able to change
+# anything.
+#
+# NETWORK ISOLATION IS THE PRIMARY CONTROL, and it is the lesson the socket-proxy
+# taught and portal-files repeated: a service with no auth of its own is
+# protected by exactly one thing - who can reach it. This sits on `confignet`,
+# which holds two containers (traefik and this), and publishes NO host port.
+# Authorisation happens at the edge, so anything that can reach :8098 directly
+# has already bypassed it.
+#
+#   DO NOT put this on devnet. ~20 containers live there, including third-party
+#   images, and every one of them would get the ability to rewrite this box's
+#   compose files. Nothing would warn you; the service would work perfectly.
+#
+# The write path is: browser -> Traefik (exact Path + forwardAuth requiring the
+# `editor` role) -> here. See edge/dynamic/bothy-config.yml.
+#
+# WHY THIS IS NOT AN ENDPOINT ON portal-files. That service states at the top of
+# app.py that it has no third-party dependencies, because it holds read-write
+# bind mounts on two git repositories and "every dependency is something that can
+# ship a vulnerability into that position". A YAML round-tripper is a dependency.
+# So it lives here, carrying the parser and paying for it with a much narrower
+# mount: one repository instead of four roots.
+
+services:
+  bothy-config:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bothy-config
+    restart: unless-stopped
+    # Never root, and never able to become root: this process holds a writable
+    # handle on the repository that describes this box.
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true          # its own filesystem; the root below is separate
+    tmpfs:
+      - /tmp
+    environment:
+      PORT: 8098
+      AUDIT_LOG: /audit/patches.log
+    volumes:
+      # ONE mount, and the narrowness is the point.
+      #
+      # portal-files mounts four roots because a file explorer over three of them
+      # is not a file explorer. This service exists to patch the files that
+      # DECLARE this box, and every one of those is in the stack repo - so
+      # nothing else is mounted, and ~/projects, ~/claude-notes and $HOME are
+      # simply not reachable from this container at any policy setting.
+      #
+      # The mount is the whole repo rather than a subdirectory because the
+      # patchable compose files are scattered across it (edge/, auth/, data/*,
+      # monitoring/, mgmt/, apps/*). policy.toml is what narrows it from there,
+      # and it narrows it hard: .yml and .yaml only, edge/dynamic/ excluded
+      # outright, and exactly one field name patchable in any of them.
+      - /home/devssh/stacks:/repos/stacks:rw
+      # The patch log. Mounted so it outlives a container rebuild - an audit
+      # trail that a `docker compose up --build` erases is not an audit trail.
+      - ./audit:/audit:rw
+      # The undo net: the previous version of every file this service overwrites.
+      #
+      # A SEPARATE directory from portal-files' trash. Sharing would give the box
+      # one undo net instead of two, which is nicer - and it would have two
+      # containers pruning one tree under different policies. See policy.toml.
+      #
+      # CREATE IT BEFORE FIRST RUN - `mkdir -p ~/.local/state/bothy/config-trash`.
+      # Docker creates a missing bind source as ROOT, and this container runs as
+      # uid 1000, so it would be mounted and unwritable. safepath refuses to start
+      # in that case rather than running with a net that silently drops
+      # everything.
+      - /home/devssh/.local/state/bothy/config-trash:/var/lib/bothy/config-trash:rw
+    networks:
+      - confignet
+    labels:
+      # No traefik.* router labels ON PURPOSE. The docker provider would give
+      # this a router derived from the container name; the routes are declared in
+      # edge/dynamic/bothy-config.yml instead, because they need the exact Path()
+      # rules and the auth middleware, and a stray auto-generated router would be
+      # an unauthenticated way to rewrite this repo's compose files.
+      - traefik.enable=false
+      # Deliberately NO dev.portal.project label, and the omission is on purpose
+      # rather than an oversight. That label is the one field this service can
+      # patch; giving itself one would make it the first thing a form offers to
+      # rename, and a service that can rewrite its own card title is a needless
+      # loop to explain. It appears on the Bothy card through its compose project
+      # name like anything else.
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8098/healthz',timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  confignet:
+    name: confignet
+    external: true
