@@ -167,7 +167,9 @@ services:
     # thing that authenticates nobody, holding traefik and that thing only. The
     # config tier can rewrite compose files and edge routes, so it is the highest
     # stake of the three.
-    networks: [devnet, socketnet, filesnet, confignet]
+    # controlnet, and deliberately NOT controlsocknet: the edge reaches the
+    # action SERVICE, never the proxies that can mutate containers.
+    networks: [devnet, socketnet, filesnet, confignet, controlnet]
 
 networks:
   devnet:
@@ -177,4 +179,6 @@ networks:
   filesnet:
     external: true
   confignet:
+    external: true
+  controlnet:
     external: true
