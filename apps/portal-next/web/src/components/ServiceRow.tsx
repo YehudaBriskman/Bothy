@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import type { PortalNode } from '../lib/discover';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { serviceLink, nodeSub, kindLabelOf, unknownReason } from '../lib/links';
+import { ActionCell } from './ServiceActions';
 
 // The dense table row - the manager's default when there are ~40 services and
 // cards would overwhelm. The WHOLE row navigates to detail (the name is still a
@@ -43,6 +44,13 @@ export function ServiceRow({ node, showGroup = true }: { node: PortalNode; showG
       <td><span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span></td>
       <td className="mono">{node.ports.map((p) => p.hostPort).join(', ') || '-'}</td>
       <td className="mono svc-td-img">{node.container?.image || '-'}</td>
+      {/* The action control. BEFORE the open-in-new cell rather than after it,
+          because "act on this" and "go to this" are different kinds of thing and
+          the row should not end on two adjacent icons that both look like exits.
+          It renders nothing at all when there is no container behind the row. */}
+      <td className="svc-td-act" onClick={(e) => e.stopPropagation()}>
+        <ActionCell node={node} />
+      </td>
       <td className="svc-td-open">
         {node.browsable && node.url ? (
           <a href={node.url} target="_blank" rel="noopener noreferrer" title={node.url} onClick={(e) => e.stopPropagation()}>

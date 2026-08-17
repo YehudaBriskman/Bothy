@@ -3,7 +3,7 @@ import { ServiceRow } from './ServiceRow';
 
 // The dense services table, in ONE place.
 //
-// The 7-column <thead> used to be hand-written verbatim in both Services.tsx and
+// The <thead> used to be hand-written verbatim in both Services.tsx and
 // ProjectDetail.tsx, and rendered once per group panel - so the columns of two
 // sections on the same page could not be relied on to line up, and adding a
 // column meant editing two files. A fixed column template keeps every instance
@@ -34,6 +34,13 @@ export function ServiceTable({
             <th>Kind</th>
             <th>Ports</th>
             <th>Image</th>
+            {/* Two unlabelled cells, and both need an accessible name: a screen
+                reader announcing a column reads the header, and "blank" twice at
+                the end of every row is the table refusing to say what those
+                controls are. Nothing is drawn, because a visible "Actions"
+                heading over a control that is transparent at rest would label an
+                empty column. */}
+            <th className="svc-th-act" aria-label="Actions" />
             <th aria-label="Open" />
           </tr>
         </thead>
