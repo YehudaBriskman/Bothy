@@ -133,6 +133,12 @@
   --border-w: 1px;
   --hover-opacity: .9;
   --disabled-opacity: .5;
+  /* An always-present control that is quiet until you reach for it (the per-row
+     action trigger). It belongs beside the other two rather than as a fallback
+     inside one component: this is the third state in the same family, and a
+     component-local `var(--rest-opacity, .55)` describing a token that does not
+     exist reads as configurable when nothing can configure it. */
+  --rest-opacity: .55;
 
   /* ── motion ─────────────────────────────────────────────────────────────── */
   --dur-fast: 120ms;   /* hover, colour */

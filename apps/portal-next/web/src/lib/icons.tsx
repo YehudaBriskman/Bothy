@@ -91,10 +91,26 @@ export const STATUS_ICON: Record<Status, LucideIcon> = {
 
 // A tiny variant used where a filled dot reads better than an outline (e.g. the
 
+// The reserved status tokens, by state.
+//
+// These were `--ok/--warn/--down/--off/--unk` until the palette was reorganised
+// into the `--st-*` family, and this map was not updated with it. Nothing threw:
+// an undefined custom property makes `var(--ok)` resolve to nothing, so
+// `StatusIcon` silently inherited its parent's colour and every status glyph in
+// the app had been rendering in body text for as long as the rename was old.
+// That is the failure mode to remember - a dead token name is not an error, it
+// is a colour that quietly stops being applied.
+// The `-fg` half of each pair, NOT the bare fill, because line 126 sets `color`
+// on a 15px glyph. index.css measures the two halves separately and says so: the
+// fills are legal at 2.50/1.94/1.46 to 1 in light mode only because they are
+// large solid areas beside a track, and it warns in as many words to "re-verify
+// if any of these is ever used for a small glyph". This is that glyph. The `-fg`
+// values are the ones held at >= 4.5:1.
 export const STATUS_VAR: Record<Status, string> = {
-  // --off is the muted token: a stopped service must recede, not compete with
-  // the things that are actually broken.
-  up: '--ok', starting: '--warn', down: '--down', stopped: '--off', unknown: '--unk',
+  // --st-off-fg is the muted token: a stopped service must recede, not compete
+  // with the things that are actually broken.
+  up: '--st-up-fg', starting: '--st-warn-fg', down: '--st-down-fg',
+  stopped: '--st-off-fg', unknown: '--st-unknown-fg',
 };
 
 const STATUS_LABEL: Record<Status, string> = {

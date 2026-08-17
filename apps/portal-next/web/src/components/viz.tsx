@@ -104,7 +104,14 @@ export function BarGauge({
             <span className="vz-gauge-val">{r.display}</span>
           </>
         );
-        const style = { ['--acc' as string]: `var(${r.accent ?? '--primary'})` } as React.CSSProperties;
+        // `--accent`, not `--primary`: the latter has never been defined. That
+        // was not merely a dead fallback rescued by viz.css's `--acc:
+        // var(--accent)` default - an INLINE style wins over that rule, so on
+        // every gauge without an explicit accent this set `--acc` to the
+        // guaranteed-invalid value, and `var(--acc)` downstream resolved to
+        // `unset` rather than to the default. The default only ever protected
+        // the rows that never reached this line.
+        const style = { ['--acc' as string]: `var(${r.accent ?? '--accent'})` } as React.CSSProperties;
         const cls = `vz-gauge-row ${r.muted ? 'is-muted' : ''}`;
         return renderRow ? (
           <div key={r.key} className={cls} style={style}>{renderRow(r, body)}</div>

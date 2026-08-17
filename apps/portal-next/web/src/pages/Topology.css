@@ -35,7 +35,10 @@
 }
 .topo-view-btn:hover { color: var(--fg); }
 .topo-view-btn.is-on {
-  color: #fff;
+  /* --on-accent, not #fff: this text sits on a filled --accent, which is what
+     that token is for and what .btn.primary already uses. The literal was white
+     in both themes, so on the light theme it was white on a light-blue gradient. */
+  color: var(--on-accent);
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
 }
 
