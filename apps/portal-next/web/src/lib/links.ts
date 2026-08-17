@@ -1,10 +1,16 @@
 import type { PortalNode } from './discover';
 
 // React Router decodes params for us, so encode on the way out only.
-export const serviceLink = (n: Pick<PortalNode, 'id'>) => `/services/${encodeURIComponent(n.id)}`;
+//
+// Both moved under /control when Services and Access became one section. The old
+// paths still resolve (pages/control/redirects.ts), so pointing these at them
+// would still WORK - it would just make every service click in the app a
+// redirect, and make these two functions a stale statement about where a service
+// page lives. One line each is cheaper than either.
+export const serviceLink = (n: Pick<PortalNode, 'id'>) => `/control/services/${encodeURIComponent(n.id)}`;
 // A "system" is a compose group (project OR stack service). Its domain page is
-// /systems/:group.
-export const systemLink = (group: string) => `/systems/${encodeURIComponent(group)}`;
+// /control/systems/:group.
+export const systemLink = (group: string) => `/control/systems/${encodeURIComponent(group)}`;
 
 // The one-line subtitle shown under a service name (host, else ports, else name).
 export function nodeSub(n: PortalNode): string {
