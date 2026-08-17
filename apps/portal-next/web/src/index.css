@@ -249,12 +249,24 @@
      large solid areas beside a track, not controls whose boundary must be
      discernible. Safe only because status is never encoded by colour alone.
      Re-verify if any of these is ever used for a small glyph or a 1px border.
-     The -fg values are all ≥ 4.5:1 and are the ones safe for text. */
+     The -fg values are all ≥ 4.5:1 and are the ones safe for text.
+
+     THE TWO QUIET ONES WERE MEASURED AGAINST THE WRONG GROUND (fixed 2026-08-17
+     by checks/theme-contract.mjs, the first thing it found). The ratios recorded
+     above were taken on a CARD; the two quietest foregrounds are painted mostly
+     on --bg-2 - the file explorer's `.fx-ro` and `.fx-ico.t-denied`, the
+     reader's `.rd-root-ro` - which is darker than a card, so the real numbers
+     were lower than the ones written down: unknown 4.33 and stopped 4.18, both
+     below AA, on 12px text. Darkened until they clear 4.5 on --bg-2 while
+     keeping the ordering that matters (stopped stays the quietest thing on the
+     page, and quieter than unknown). This is why the check measures a token
+     against the surfaces it is actually used on rather than against one
+     canonical background. */
   --st-up:      #10b981;  --st-up-fg:      #047857;  /* fg 5.39 · fill 2.50 */
   --st-warn:    #d97706;  --st-warn-fg:    #92400e;  /* fg 6.97 · fill 3.13 */
   --st-down:    #e11d48;  --st-down-fg:    #be123c;  /* fg 6.18 · fill 4.62 */
-  --st-unknown: #adbac7;  --st-unknown-fg: #64748b;  /* fg 4.68 · fill 1.94 */
-  --st-off:     #cbd5e1;  --st-off-fg:     #6b7688;  /* fg 4.52 · fill 1.46 */
+  --st-unknown: #adbac7;  --st-unknown-fg: #5f6a7d;  /* fg 4.97 on --bg-2 · fill 1.94 */
+  --st-off:     #cbd5e1;  --st-off-fg:     #666f7d;  /* fg 4.62 on --bg-2 · fill 1.46 */
 
   /* The accents' FIRST light remap. They were never redefined here, so the DARK
      values were rendering on #fafafa - and .svc-group-idx paints an accent as
@@ -1102,3 +1114,4 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
      leave an element at opacity:0 - that was the old .reveal failure mode. */
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
