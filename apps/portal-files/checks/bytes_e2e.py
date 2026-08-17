@@ -36,7 +36,7 @@ s.post(m.group(1).replace("&amp;", "&"),
 
 print("── /raw: real bytes ────────────────────────────────────────────────")
 r = s.get(f"{SANDBOX}/-/api/files/raw",
-          params={"root": "stacks", "path": "docs/assets/portal-overview.png"}, timeout=30)
+          params={"root": "stacks", "path": "docs/assets/overview.png"}, timeout=30)
 check("a PNG is served inline as image/png",
       r.status_code == 200 and r.headers["Content-Type"] == "image/png"
       and "inline" in r.headers["Content-Disposition"])
@@ -45,7 +45,7 @@ check("the bytes are a REAL png (magic intact)",
 check("Content-Length matches the body", int(r.headers["Content-Length"]) == len(r.content))
 
 r2 = s.get(f"{SANDBOX}/-/api/files/raw",
-           params={"root": "stacks", "path": "docs/assets/portal-overview.png",
+           params={"root": "stacks", "path": "docs/assets/overview.png",
                    "download": "1"}, timeout=30)
 check("?download=1 downgrades to attachment",
       "attachment" in r2.headers["Content-Disposition"]
@@ -68,7 +68,7 @@ print("\n── Range: implemented narrowly, and each refusal is its own path �
 # nothing inline needed it. Video changed the balance. Each case below is a
 # separate branch of the parser, so each gets its own assertion - a single
 # "ranges work" check would pass with three of them broken.
-PNG = {"root": "stacks", "path": "docs/assets/portal-overview.png"}
+PNG = {"root": "stacks", "path": "docs/assets/overview.png"}
 full = s.get(f"{SANDBOX}/-/api/files/raw", params=PNG, timeout=30)
 size = len(full.content)
 
