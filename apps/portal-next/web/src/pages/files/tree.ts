@@ -253,3 +253,57 @@ export function isFramedText(kind: Kind, path: string): boolean {
   const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
   return ext !== 'svgz';   // gzipped: bytes, not source
 }
+
+// ── wikilinks ────────────────────────────────────────────────────────────────
+//
+// `[[dns]]` names a DOCUMENT, not a path. That is the whole difference from a
+// markdown link, and it is why this needs the list of files while
+// resolveRelative() needs only a string: there is no directory in the target and
+// no extension on it, so the only way to answer is to look.
+//
+// The order below is the resolution order, and it is the order a person means:
+//
+//   1. exactly that path            [[network/dns.md]]
+//   2. that path plus .md           [[network/dns]]
+//   3. that path as a folder        [[network]]      -> network/index.md
+//   4. a document with that NAME    [[dns]]          -> network/dns.md
+//
+// 4 is last on purpose. It is the one people write most and the one that can be
+// ambiguous, so a target that resolves exactly must never be beaten by a
+// basename match somewhere else in the tree.
+//
+// AMBIGUITY IS RESOLVED BY SHORTEST PATH, and stated rather than left to the
+// order the walk happened to return. Two files named dns.md is not an error
+// worth refusing over - it is a note the reader still wants to reach - and "the
+// one nearest the top" is the only tie-break that does not depend on how the
+// tree was listed.
+const WIKI_SUFFIXES = ['.md', '.markdown'];
+
+export function resolveWikiIn(
+  paths: readonly string[],
+  target: string,
+): { path: string; frag: string } | null {
+  const cut = target.indexOf('#');
+  const frag = cut === -1 ? '' : target.slice(cut);
+  const raw = (cut === -1 ? target : target.slice(0, cut)).trim().replace(/^\/+/, '');
+  if (!raw) return null;
+
+  const has = new Set(paths);
+  if (has.has(raw)) return { path: raw, frag };
+  for (const ext of WIKI_SUFFIXES) {
+    if (has.has(raw + ext)) return { path: raw + ext, frag };
+    if (has.has(`${raw}/index${ext}`)) return { path: `${raw}/index${ext}`, frag };
+  }
+
+  // By basename, case-insensitively - a link written `[[DNS]]` to a file called
+  // dns.md is a link somebody meant.
+  const want = raw.toLowerCase();
+  const hits = paths.filter((p) => {
+    const base = p.slice(p.lastIndexOf('/') + 1).toLowerCase();
+    if (base === want) return true;
+    return WIKI_SUFFIXES.some((e) => base === want + e);
+  });
+  if (!hits.length) return null;
+  hits.sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
+  return { path: hits[0], frag };
+}

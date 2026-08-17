@@ -40,7 +40,7 @@ import { SearchView } from './Search';
 import { SignInCard } from './SignInCard';
 import { Toc, useHeadings } from './Toc';
 import { filesHref } from './routes';
-import { baseName, dirName } from './tree';
+import { baseName, dirName, resolveWikiIn } from './tree';
 
 // shell.css carries the section scope (the full-height escape from `.content`,
 // the inset focus ring and the syntax palette) and editor.css carries `.fx-read`
@@ -335,6 +335,15 @@ export function Reader() {
                     // ~/claude-notes is built out of relative links, and a
                     // documentation site whose links do not click is not one.
                     onOpen={(p, at) => openDoc(root, p, at)}
+                    // Wikilinks resolve against the CURRENT root's listing,
+                    // which this page already has for the index beside it. Only
+                    // that root: `[[dns]]` in a note means the note called dns,
+                    // and reaching into another root to find one would make the
+                    // same link mean different things depending on what happened
+                    // to be loaded.
+                    resolveWiki={(t) => resolveWikiIn(
+                      (trees[root]?.entries ?? []).map((e) => e.path), t,
+                    )}
                     onLoad={setFile}
                   />
                 </div>

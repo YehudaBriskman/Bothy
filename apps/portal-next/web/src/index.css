@@ -140,6 +140,27 @@
      exist reads as configurable when nothing can configure it. */
   --rest-opacity: .55;
 
+  /* ── reading ──────────────────────────────────────────────────────────────
+     The rendered-document scale, tokenised 2026-08-17. It was ~30 literal
+     values in editor.css, which meant a theme could restyle every colour in the
+     app and not touch the one surface people spend the most time reading.
+
+     STRUCTURAL, so a theme inherits these unless it opts in - the same
+     treatment radii and motion get. A theme is a palette; changing the reading
+     measure would make it a different product wearing the same name. But a
+     theme MAY set them, which is the point of their being tokens at all.
+
+     72ch is prose, not a terminal. The measure rule changes reading speed more
+     than the typeface does. */
+  --read-measure: 72ch;
+  --read-fs: 14.5px;
+  --read-lh: 1.65;
+  --read-gap: 13px;      /* between blocks */
+  --read-h1: 25px;
+  --read-h2: 19px;
+  --read-h3: 16px;
+  --read-h4: 14px;
+
   /* ── motion ─────────────────────────────────────────────────────────────── */
   --dur-fast: 120ms;   /* hover, colour */
   --dur:      180ms;   /* transform, elevation */
