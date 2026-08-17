@@ -45,7 +45,13 @@ export const LIVE_PATHS = [
   '/control/routes',
   '/control/topology',
   '/settings',
+  // Files is one nav entry and two routes since reading-first.md §2: `/files`
+  // reads, `/files/edit` is the IDE. Both are listed because this array is what
+  // the check tests redirect targets against - and because the moment a page
+  // exists and is not in here, a redirect pointed at it would be reported as
+  // broken by a check that was right about everything except this list.
   '/files',
+  '/files/edit',
 ] as const;
 
 /**

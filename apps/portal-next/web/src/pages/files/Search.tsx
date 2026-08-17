@@ -85,7 +85,7 @@ function Marked({ text, col, len }: { text: string; col: number; len: number }) 
 }
 
 export function SearchView({
-  roots, root, onOpen, onNeedsAuth,
+  roots, root, onOpen, onNeedsAuth, idle,
 }: {
   roots: FileRoot[];
   /** The root the EXPLORER is browsing. The search starts scoped to it, because
@@ -96,6 +96,15 @@ export function SearchView({
    *  editor highlights every other occurrence in that file. */
   onOpen: (root: string, path: string, at?: { line: number; col: number; len: number }) => void;
   onNeedsAuth: () => void;
+  /** What fills the result area when nothing has been searched yet.
+   *
+   *  In the IDE this is absent and the area is blank, which is right for a rail
+   *  you opened on purpose. The READER puts its document index here, because
+   *  reading-first.md §3 wants search at the top of the panel rather than behind
+   *  an icon - and stacking two scrolling lists to achieve that would give the
+   *  panel two scrollbars. This is the one line that lets one component be both,
+   *  and it is why the reader does not fork this file. */
+  idle?: React.ReactNode;
 }) {
   const [q, setQ] = useState('');
   const [scope, setScope] = useState<string>(root);
@@ -240,6 +249,11 @@ export function SearchView({
       )}
 
       <div className="fx-sr-list">
+        {/* `res` and not `q`: the index stays put while a query is being typed
+            and only gives way once an ANSWER exists. Swapping on the first
+            keystroke would blank the panel for the whole debounce, which reads
+            as the list having been lost. */}
+        {idle && !res ? idle : null}
         {groups.map((g) => (
           <div className="fx-sr-group" key={`${g.root} ${g.path}`}>
             <button

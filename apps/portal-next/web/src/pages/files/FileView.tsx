@@ -36,7 +36,7 @@ type State =
   | { at: 'too-large'; why: string }
   | { at: 'error'; why: string };
 
-export function FileView({ root, path, view = 'preview', frag = '', onOpen }: {
+export function FileView({ root, path, view = 'preview', frag = '', onOpen, onLoad }: {
   root: string;
   path: string;
   /** Controlled by the caller. A reader that wants a Preview/Source switch owns
@@ -47,6 +47,14 @@ export function FileView({ root, path, view = 'preview', frag = '', onOpen }: {
   /** Follow a cross-document link. Absent means those links keep rendering as
    *  inert text, which is the honest state for a view with nowhere to send you. */
   onOpen?: (path: string, frag: string) => void;
+  /** The file this view is currently showing, or null while it is not showing
+   *  one. Read-only, and it is worth saying WHY that is not a crack in the rule
+   *  at the top: a caller cannot write anything with it. It exists because the
+   *  facts a reader puts around a document - when it last changed and who
+   *  changed it - come back on the SAME read this component already made, and
+   *  the alternative is the page fetching the file a second time to learn what
+   *  this component already knows. */
+  onLoad?: (file: FileRead | null) => void;
 }) {
   const [state, setState] = useState<State>({ at: 'loading' });
   const [tick, setTick] = useState(0);
@@ -90,6 +98,16 @@ export function FileView({ root, path, view = 'preview', frag = '', onOpen }: {
     const at = box.current?.querySelector(`[data-md-anchor="${CSS.escape(slug)}"]`);
     at?.scrollIntoView({ block: 'start', behavior: 'auto' });
   }, [state, frag]);
+
+  // Announced from an EFFECT rather than from the `.then()` above, so a caller
+  // that sets state on it is not doing so during this component's render - and
+  // so every path that stops showing a file (missing, denied, too large) reports
+  // the same `null` without each catch branch having to remember to.
+  const notify = useRef(onLoad);
+  useEffect(() => { notify.current = onLoad; });
+  useEffect(() => {
+    notify.current?.(state.at === 'ready' ? state.file : null);
+  }, [state]);
 
   const retry = () => setTick((n) => n + 1);
 
