@@ -125,6 +125,33 @@ if [ "${VERIFY_SELFTEST:-}" = "1" ]; then
 fi
 
 echo
+echo "== 5c. The sandbox origin must serve BYTES ONLY =="
+# :8100 exists so a hostile SVG or PDF runs on a different ORIGIN and therefore
+# cannot read the portal DOM or the JSON API's responses. That property is worth
+# exactly as much as this check: if anything else ever answers there - the SPA, a
+# JSON route, an oauth2 page - the isolation is silently gone and every page will
+# still look fine.
+#
+# Note this asserts 404, and here that IS sound: :8100 has NO catch-all, which is
+# the whole point. On :80 a 404 would be impossible (the portal answers
+# everything), which is why check 6 below has to assert content instead.
+for p in "/" "/-/api/traefik/http/routers" "/-/api/docker/containers/json" "/oauth2/sign_in"; do
+  got=$(code "http://$IP:8100$p")
+  [ "$got" = "404" ] && ok "sandbox 404s $p" || bad "sandbox served $p -> $got (must be 404)"
+done
+# ...and the two routes that SHOULD be there are routed and gated.
+got=$(code "http://$IP:8100/-/api/files/raw?root=stacks&path=README.md")
+[ "$got" = "401" ] && ok "sandbox routes /raw, gated (401 unauthenticated)" \
+                   || bad "sandbox /raw -> $got (expected 401)"
+# The portal origin must NOT serve raw bytes. It answers 200 with the SPA
+# because of the catch-all, so this asserts CONTENT, not status.
+if curl -s -m 4 "http://$IP/-/api/files/raw?root=stacks&path=README.md" | grep -q '<title>Bothy'; then
+  ok "raw is NOT routed on the portal origin (falls through to the SPA)"
+else
+  bad "the portal origin served something for /raw - the sandbox split is broken"
+fi
+
+echo
 echo "== 6. The socket-proxy boundary must still hold =="
 # Test the CONTENT TYPE, not the status. The portal owns a catch-all
 # PathPrefix(`/`) router, so an UNROUTED path returns 200 with the SPA's HTML -

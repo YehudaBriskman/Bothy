@@ -1,0 +1,112 @@
+name: portal-files
+
+# The editor tier's backend: the first service on this box that can change
+# anything. Everything below is shaped by that.
+#
+# NETWORK ISOLATION IS THE PRIMARY CONTROL, and it is the lesson the socket-proxy
+# taught: a service with no auth of its own is protected by exactly one thing -
+# who can reach it. This sits on `filesnet`, which holds two containers (traefik
+# and this), and publishes NO host port. Authorisation happens at the edge, so
+# anything that can reach :8099 directly has already bypassed it.
+#
+#   DO NOT put this on devnet. ~20 containers live there, including third-party
+#   images, and every one of them would get write access to the docs and notes.
+#   Nothing would warn you; the service would work perfectly.
+#
+# The write path is: browser -> Traefik (exact Path + forwardAuth requiring the
+# `editor` role) -> here. See edge/dynamic/portal-files.yml.
+
+services:
+  portal-files:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: portal-files
+    restart: unless-stopped
+    # Never root, and never able to become root: this process holds a writable
+    # handle on two git repositories.
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true          # its own filesystem; the roots below are separate
+    tmpfs:
+      - /tmp
+    environment:
+      PORT: 8099
+      AUDIT_LOG: /audit/writes.log
+      # git writes config into $HOME; without this it lands on a read-only FS.
+      HOME: /tmp
+    volumes:
+      # The REPOSITORIES are mounted, because git cannot commit without the .git
+      # directory at the toplevel. The EDITABLE surface is narrower and is set in
+      # safepath.ROOTS: `docs` resolves to /repos/stacks/docs, not to the whole
+      # repo. Two tables, two questions - see the comment on GIT_ROOTS.
+      #
+      # Collapsing them (mounting only docs/, or pointing ROOTS at the toplevel)
+      # is the easy mistake: the first breaks commits, the second silently makes
+      # README.md, CONTRIBUTING.md and every other markdown file in the repo
+      # editable from a browser. checks/test_safepath.py asserts the split holds.
+      - /home/devssh/stacks:/repos/stacks:rw
+      - /home/devssh/claude-notes:/repos/notes:rw
+      # ~/projects is READ-ONLY at the mount. The write tier deliberately does
+      # not extend to project source: those repos have their own review and CI,
+      # and an edit here would bypass both. `ro` means that holds even if the
+      # application-layer allowlist is ever loosened by mistake - two independent
+      # controls rather than one.
+      - /home/devssh/projects:/repos/projects:ro
+      # "any folder you can cd into", READ-ONLY.
+      #
+      # Safe only because of ROOT_POLICY["home"] in safepath.py, and that was
+      # written from a survey of this exact directory rather than from
+      # imagination. It found live Claude OAuth credentials, a GitHub token, SSH
+      # and GPG keys, kube and docker credentials, minikube CA private keys,
+      # .bash_history, 14 plaintext .env backups, and ~165,000 cache files.
+      #
+      # Every dangerous entry was a TOP-LEVEL DOT entry or ~/backups, and nothing
+      # worth browsing was - so the policy denies exactly those two classes and
+      # allows the rest. A dry run against the real directory is what caught
+      # .bash_history slipping past a dot-DIRECTORY-only rule.
+      - /home/devssh:/repos/home:ro
+      # The push credential mount is GONE (2026-08-15), with push itself.
+      #
+      # Worth recording rather than just deleting: this mount was added to make
+      # the 503's own advice followable, discovered missing only because someone
+      # tried to follow it. It never carried a token, and now it never will -
+      # this container holds no secrets at all again, which is the property the
+      # socket-proxy note calls load-bearing.
+      # The write log. Mounted so it outlives a container rebuild - an audit
+      # trail that a `docker compose up --build` erases is not an audit trail.
+      - ./audit:/audit:rw
+      # The undo net: the previous version of every file this service overwrites.
+      #
+      # OUTSIDE the roots on purpose. Under ~/.local it is invisible to the
+      # `home` root anyway (top-level dots are denied), but the reason it lives
+      # here is stronger than that: a backup inside the tree it is backing up is
+      # one recursive save away from backing up its own backups.
+      #
+      # CREATE IT BEFORE FIRST RUN - `mkdir -p ~/.local/state/bothy/trash`.
+      # Docker creates a missing bind source as ROOT, and this container runs as
+      # uid 1000, so it would be mounted and unwritable. safepath refuses to
+      # start in that case rather than running with a net that silently drops
+      # everything.
+      - /home/devssh/.local/state/bothy/trash:/var/lib/bothy/trash:rw
+    networks:
+      - filesnet
+    labels:
+      # No traefik.* router labels ON PURPOSE. The docker provider would give
+      # this a router derived from the container name; the routes are declared in
+      # edge/dynamic/portal-files.yml instead, because they need the exact
+      # Path() rules and the auth middleware, and a stray auto-generated router
+      # would be an unauthenticated way in.
+      - traefik.enable=false
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8099/healthz',timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  filesnet:
+    name: filesnet
+    external: true

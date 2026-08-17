@@ -1,4 +1,11 @@
 {
+  // `"files": []` with only references makes a bare `tsc --noEmit` check NOTHING
+  // and exit 0 - verified by injecting a type error and watching it pass. Every
+  // "typecheck clean" claim made against that command was hollow; only
+  // `npm run build` (which runs `tsc -b`) was ever catching anything.
+  //
+  // The references stay, because `tsc -b` and the build depend on them. What
+  // changes is that `npx tsc --noEmit` now reports the truth instead of silence.
   "files": [],
   "references": [
     { "path": "./tsconfig.app.json" },

@@ -1,0 +1,176 @@
+# Routes for the editor tier. This is the first place on this box where a
+# request can CHANGE something, so the shape here is the security control.
+#
+# WARNING - this directory is rendered as a Go template. A doubled brace
+# anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. Traefik then keeps
+# serving its last-good config, so nothing looks wrong until the next restart,
+# when every @file router disappears at once. `just verify` check 5b catches it.
+#
+# THE RULES ARE EXACT Path(), NEVER PathPrefix(). The variable part of every
+# request travels in the QUERY STRING, exactly as the docker API routes do. That
+# is not style: a prefix rule that covered /-/api/files/ would also cover any
+# endpoint added to that service later, including one nobody meant to expose.
+# With exact paths, a new endpoint is unreachable until someone writes a rule -
+# which is the correct default for a service holding write access to two repos.
+#
+# READ requires `viewer`; WRITE requires `editor`.
+#
+# Read was OPEN in the first version of this file, and the reasoning was sound at
+# the time: the roots were two markdown trees, serving the same content the docs
+# site already serves unauthenticated on :8085, so a login would have added
+# friction without protecting anything.
+#
+# That reasoning died when the roots widened from "docs" to "the box". A survey
+# of what the new scope actually contains settled it:
+#
+#   ~/stacks/.env                  19 real secret values
+#   ~/projects/.../cert/key.pem    a real TLS private key
+#
+# Those two files are now excluded by name (safepath.DENY_FILE_PATTERNS), but a
+# deny-list is a filter, not a boundary - it protects against the secrets we
+# thought of. Compose files, scripts and source are in scope by design and are
+# worth a login on their own. So read is gated too, one tier lower.
+#
+# The asymmetry that remains is the useful one: `viewer` may read everything the
+# explorer exposes, `editor` may change it, and the two are separate roles that
+# can be granted separately.
+#
+# Verified before this file was written, with a role the user does NOT hold:
+#   allowed_groups=editor -> 202   (devssh has it)
+#   allowed_groups=shell  -> 403   (nobody has it)
+#   allowed_groups=<junk> -> 403   (fails closed)
+# So the role requirement lives here, in the middleware, and one oauth2-proxy
+# gates every future tier. `operator` and `shell` routes will differ from these
+# by one word.
+
+http:
+  routers:
+    # ── read: requires the viewer role (see the header for why it is no
+    #    longer open) ────────────────────────────────────────────────────────
+    portal-files-read:
+      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
+      entryPoints: [web]
+      priority: 100
+      service: portal-files
+      middlewares: [portal-files-strip, files-deidentify, sso-viewer, sso-errors]
+
+    # The git ACTION routes are gone (2026-08-15). /git/stage, /git/unstage,
+    # /git/discard, /git/commit, /git/pull and /git/push were removed with the
+    # `operator` tier they needed - git actions move to an in-browser command
+    # surface, and a second narrower path to them here would be a duplicate to
+    # keep in sync and a second thing to secure.
+    #
+    # `/git/diff` survives and is on the READ router above: it changes nothing.
+    #
+    # sso-operator went with them. It was defined for exactly one purpose - to
+    # keep publishing a tier above editing - and a middleware nothing references
+    # is a loaded gun with no trigger: it looks like protection while protecting
+    # nothing, and the next router to want a gate might pick it up believing it
+    # is already proven in use.
+
+    # ── write: requires the editor role ─────────────────────────────────────
+    portal-files-write:
+      rule: "Path(`/-/api/files/write`)"
+      entryPoints: [web]
+      priority: 110          # above the read router; disjoint anyway, but explicit
+      service: portal-files
+      middlewares: [portal-files-strip, files-deidentify, sso-editor, sso-errors]
+
+    # ── download: raw bytes and archives, on the SANDBOX ENTRYPOINT only ────
+    #
+    # entryPoints: [sandbox] - :8100, NOT :80. That is the security control, not
+    # a deployment detail: a different port is a different origin, so a hostile
+    # SVG or PDF served here cannot read the portal DOM or any response from the
+    # JSON API. Moving this router to `web` would silently undo it and nothing
+    # would look different.
+    #
+    # Same `viewer` tier as read - these serve exactly the file set /read serves.
+    # /raw is wider in BYTES (it sends binaries, and files above /read's 1 MB
+    # ceiling) but the file SET is identical, because both go through the same
+    # safepath.resolve().
+    #
+    # NEVER add Traefik's `buffering` middleware to this router: it would
+    # materialise a whole archive in memory before sending a byte, which defeats
+    # the streaming design entirely.
+    #
+    # These MUST stay side-effect-free GETs forever. They are reachable by
+    # cookie-bearing top-level navigation, which is how a download works at all.
+    portal-files-download:
+      rule: "Path(`/-/api/files/raw`) || Path(`/-/api/files/archive`)"
+      entryPoints: [sandbox]
+      priority: 105
+      service: portal-files
+      # sso-errors is deliberately ABSENT here, unlike every other router.
+      #
+      # It rewrites a 401 into the oauth2-proxy sign-in PAGE, and the
+      # oauth2-endpoints router only exists on :80 - so on :8100 that redirect
+      # lands on a 404. More importantly it should not be added: the sandbox
+      # origin must serve bytes and nothing else. A sign-in form rendered there
+      # would be a document on the sandbox origin, which is the exact category
+      # this entrypoint exists to keep empty.
+      #
+      # So an unauthenticated download gets a bare 401. The SPA already knows the
+      # session state - it loaded the tree - so it gates the download itself
+      # rather than relying on a redirect round-trip carrying the query string.
+      middlewares: [portal-files-strip, files-deidentify, sso-viewer]
+
+  middlewares:
+    # Map the public path onto the service's own. The service serves /write, the
+    # world asks for /-/api/files/write - so the service cannot accidentally be
+    # correct about a path nobody routed.
+    portal-files-strip:
+      stripPrefix:
+        prefixes: ["/-/api/files"]
+
+    # Delete any X-Auth-Request-* header the CLIENT sent, before forwardAuth runs.
+    #
+    # The service names the git commit author from X-Auth-Request-Email. Traefik
+    # sets that header from the auth response, but a client is free to send one
+    # too, and relying on "the auth response wins" is relying on an ordering
+    # rather than on a guarantee. An empty value in customRequestHeaders removes
+    # the header outright, so the only one that can reach the service is the one
+    # oauth2-proxy produced.
+    #
+    # The blast radius if this were missing is a forged NAME in a commit, not
+    # unauthorised access - authorisation is decided by sso-editor below, which
+    # reads a signed session cookie and never a header. Defence in depth, not the
+    # defence.
+    files-deidentify:
+      headers:
+        customRequestHeaders:
+          X-Auth-Request-User: ""
+          X-Auth-Request-Email: ""
+          X-Auth-Request-Groups: ""
+          X-Auth-Request-Preferred-Username: ""
+          X-Forwarded-User: ""
+          X-Forwarded-Email: ""
+
+    # The two role gates. They are IDENTICAL except for one word in the URL,
+    # which is exactly the property that makes this design worth having: adding
+    # the `operator` tier later is another four lines, not another container.
+    sso-viewer:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=viewer"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Preferred-Username
+
+    sso-editor:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=editor"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Preferred-Username
+
+  services:
+    portal-files:
+      loadBalancer:
+        servers:
+          # filesnet holds exactly two containers: traefik and this. The service
+          # publishes no host port and has no auth of its own, so reachability IS
+          # authorisation - the same rule the socket-proxy is built on.
+          - url: "http://portal-files:8099"

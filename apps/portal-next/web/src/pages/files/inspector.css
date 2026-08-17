@@ -1,0 +1,121 @@
+/* ============================================================================
+   BothyFiles - the right rail. Scoped under .bothy-files, (0,2,0).
+   ========================================================================== */
+
+.bothy-files .fx-insp { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 14px; }
+.bothy-files .fx-insp-empty { margin: 14px 12px; color: var(--fg-subtle); font-size: 12px; }
+
+.bothy-files .fx-insp-sec { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.bothy-files .fx-insp-sec:last-child { border-bottom: 0; }
+.bothy-files .fx-insp-h {
+  margin: 0 0 8px; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--fg-subtle);
+}
+
+/* ── the advisory ────────────────────────────────────────────────────────────
+   Warn, not error, and deliberately: the service flagged the file and opened it
+   anyway. An error tone would claim a refusal that did not happen. */
+.bothy-files .fx-sensitive {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 10px 12px 0; padding: 8px 10px; font-size: 11.5px; line-height: 1.45;
+  background: var(--st-warn-bg); border: 1px solid var(--st-warn-line);
+  border-radius: var(--r-sm); color: var(--st-warn-fg);
+}
+.bothy-files .fx-sensitive svg { flex: none; margin-top: 1px; }
+.bothy-files .fx-sensitive b { font-weight: 700; }
+
+/* ── facts ───────────────────────────────────────────────────────────────────
+   A definition list, because that is what it is: six labelled values, each one
+   short. A two-column grid rather than a table, so a long path can wrap under
+   its own label instead of stretching the rail. */
+.bothy-files .fx-facts { margin: 0; display: grid; gap: 5px; }
+.bothy-files .fx-fact { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.bothy-files .fx-fact dt { color: var(--fg-subtle); font-size: 11px; }
+.bothy-files .fx-fact dd { margin: 0; color: var(--fg-muted); font-size: 11.5px; min-width: 0; }
+.bothy-files .fx-fact-path { overflow-wrap: anywhere; font-size: 11px; color: var(--fg); }
+.bothy-files .fx-fact .tag { font-size: 9.5px; padding: 1px 7px; }
+
+/* ── downloads ───────────────────────────────────────────────────────────────
+   The last row of the facts, on the facts' own 68px grid, so "Download" reads
+   as one more thing this file HAS rather than as a section about it. Three
+   `.btn.ghost.sm` in a wrapping flex row was the old shape: it wrapped to two
+   lines at this rail width and looked like three unrelated offers.
+
+   A segmented control instead - one border, one shared background, hairlines
+   between - which is the standard way to say "same question, three answers".
+   `align-items: center` because a button has no useful baseline to share with
+   the `dt` beside it. */
+.bothy-files .fx-fact-dl { align-items: center; margin-top: 3px; }
+.bothy-files .fx-dl {
+  display: inline-flex; align-items: stretch; max-width: 100%;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface-2); overflow: hidden;
+}
+.bothy-files .fx-dlbtn {
+  appearance: none; cursor: pointer; flex: 0 1 auto; min-width: 0;
+  border: 0; border-left: 1px solid var(--line); background: transparent;
+  color: var(--fg-muted); font: inherit; font-size: 11px; font-weight: 600;
+  line-height: 1; padding: 6px 9px; white-space: nowrap;
+}
+.bothy-files .fx-dlbtn:first-child { border-left: 0; }
+.bothy-files .fx-dlbtn:hover:not(:disabled) { background: var(--surface-3); color: var(--fg); }
+/* Inset, like every other focus ring on this page: the segments share a border,
+   so an outset ring would be clipped by the group's `overflow: hidden`. */
+.bothy-files .fx-dlbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-dlbtn:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
+
+.bothy-files .fx-dl-note {
+  margin: 8px 0 0; color: var(--fg-subtle); font-size: 10.5px; line-height: 1.45;
+}
+.bothy-files .fx-dl-note .mono { font-size: 10.5px; }
+
+/* ── the commit form ────────────────────────────────────────────────────────
+   Moved here from under the textarea. It belongs beside the history it is about
+   to add a row to, and moving it gave the editor back the ~60px it was spending
+   on a field that is only in use while saving. */
+.bothy-files .fx-commit-msg { display: block; }
+.bothy-files .fx-commit-msg input {
+  width: 100%; appearance: none; font: inherit; font-size: 12px; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 6px 9px;
+}
+/* No `:focus` rule - see the note on .fx-scm-repopick select in scm.css. (It
+   used to point at .fx-scm-msg, the Source Control commit box, which went with
+   the rest of that panel's write controls.) The pair it used to
+   carry (`border-color: var(--accent); outline: none`) tinted the field on a
+   mouse click and suppressed the keyboard ring at (0,3,0). Focus here is the
+   page's one inset ring, which on a text field appears for the mouse too, and
+   should. */
+
+/* ── commits ─────────────────────────────────────────────────────────────── */
+.bothy-files .fx-commits { list-style: none; margin: 0; padding: 0; }
+.bothy-files .fx-commit {
+  display: flex; gap: 7px; padding: 6px 6px 6px 4px; border-radius: var(--r-sm);
+  border-left: 2px solid transparent;
+}
+.bothy-files .fx-commit:hover { background: var(--surface-2); }
+/* `.is-new` marked the commit this page had just made. Nothing here commits
+   any more, so the class had no way to be applied - it went with the verbs. */
+.bothy-files .fx-commit-ico { flex: none; color: var(--fg-subtle); margin-top: 1px; }
+.bothy-files .fx-commit-body { min-width: 0; flex: 1; }
+.bothy-files .fx-commit-subject {
+  color: var(--fg); font-size: 12px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere;
+}
+.bothy-files .fx-commit-meta {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 3px; color: var(--fg-subtle); font-size: 10.5px;
+}
+.bothy-files .fx-commit-author { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bothy-files .fx-commit-when { margin-left: auto; flex: none; }
+
+/* A sha you have to retype is a sha nobody uses, so the sha IS the copy button.
+   The icon swaps to a tick for 1.4s - the acknowledgement has to be at the
+   control, because there is no toast layer in this product. */
+.bothy-files .fx-sha {
+  appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+  font: inherit; font-size: 10.5px; color: var(--fg-muted);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-xs); padding: 0 5px; flex: none;
+}
+.bothy-files .fx-sha:hover { color: var(--fg); border-color: var(--line-strong); }
+.bothy-files .fx-sha .mono { font-size: 10.5px; }

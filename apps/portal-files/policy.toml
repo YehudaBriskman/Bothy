@@ -1,0 +1,171 @@
+# Who can see and change what, on this box.
+#
+# This file IS the access policy. It used to be a set of Python constants, which
+# meant every widening needed a code change and a redeploy - and that is exactly
+# how something gets missed. It is read at startup and nowhere else.
+#
+# THREE RULES ABOUT EDITING IT
+#
+#   1. It fails CLOSED. A missing file, a parse error, or a root whose path does
+#      not exist stops the service from starting. It never falls back to a
+#      default, because the only safe default is "nothing" and a service serving
+#      nothing looks broken in a way people work around.
+#
+#   2. `just files-check` lints it. Run that after any change here; it asserts
+#      the file parses, every root exists, and the deny rules still refuse the
+#      things they were written for.
+#
+#   3. It is not editable through the explorer. `.toml` is not in
+#      [write].suffixes, so the file that defines the write rules cannot be
+#      rewritten by the thing it governs.
+#
+# The paths below are CONTAINER paths. They are mounted in compose.yml, and a
+# root declared here that is not mounted there is a startup error rather than an
+# empty directory - a silently empty root reads as "nothing to see".
+
+# ── roots ───────────────────────────────────────────────────────────────────
+#
+# A root is a named place. Clients send the NAME, never a filesystem path, so
+# there is no default and no way to ask for "the whole disk".
+
+[roots.stacks]
+path = "/repos/stacks"
+writable = true
+
+[roots.notes]
+path = "/repos/notes"
+writable = true
+
+[roots.projects]
+path = "/repos/projects"
+# Read-only, and also mounted `:ro` in compose. Two independent controls: the
+# application refuses with a readable 403, and the kernel refuses regardless.
+# Project repos have their own review and CI, and an edit here would bypass both.
+writable = false
+
+[roots.home]
+path = "/repos/home"
+# "Any folder you can cd into". NOT writable, and deliberately so: it OVERLAPS
+# stacks and notes, so the same file is reachable under two names and only one
+# of them should be able to change it.
+writable = false
+# Every credential store in a home directory is a top-level dot entry, and
+# nothing worth browsing is. A survey of this one before mounting it found live
+# Claude OAuth credentials, a GitHub token, SSH and GPG keys, kube and docker
+# credentials, minikube CA private keys, .bash_history, and ~165,000 cache files -
+# all of them top-level dot entries.
+#
+# Denying that whole class is one auditable rule instead of a list that needs a
+# new line every time a tool is installed. Dot entries BELOW the top level are
+# still served, which is what keeps `.github/` inside a repo openable.
+#
+# This is per-root because it is wrong for a repository: `stacks/.gitignore` and
+# `.env.example` are things you open on purpose.
+deny_toplevel_dots = true
+# The non-dot exception the survey turned up: 14 nightly plaintext copies of
+# .env, plus pg_dumpall output carrying every database including keycloak's.
+deny_toplevel = ["backups"]
+
+# ── deny ────────────────────────────────────────────────────────────────────
+
+[deny]
+# Directories never served, at any depth, in any root.
+#
+# `.git` is the security one - it holds the object store and a config that can
+# carry a credential. The rest are volume: they are tens of thousands of files
+# nobody browses, and including them makes the explorer useless and the listing
+# slow. Both reasons matter; do not split the list by motive.
+components = [
+  ".git", ".ssh", ".gnupg", "node_modules", ".venv", "venv",
+  "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",
+  ".next", ".turbo", ".cache", "target",
+]
+
+# Files never served, matched on the FILENAME rather than a path component.
+#
+# This exists because a component-only list cannot see `.env` or `key.pem` -
+# both are FILES. That gap was live: a survey found ~/stacks/.env holding 19 real
+# secret values and a real TLS private key under ~/projects, and neither was
+# caught by the directory rules.
+#
+# `realm-*.json` is here because auth/realm-devbox.json was served to an
+# authenticated viewer WITH a live Keycloak client secret in it. Nothing in its
+# name suggests anything, and every other pattern missed it. It is the case that
+# proves a name list catches the files somebody thought of, and nothing else.
+file_patterns = [
+  ".env", ".env.*", "*.env",
+  "*.pem", "*.key", "*.p12", "*.pfx", "*.jks", "*.keystore",
+  "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "*.ppk",
+  "*.kdbx", "*.gpg", "*.asc",
+  ".netrc", ".pgpass", ".htpasswd", ".git-credentials",
+  "credentials", "credentials.*", "*secret*", "*password*",
+  "*.sqlite", "*.db",
+  "realm-*.json", "*-realm.json", "realm.json",
+  # A bcrypt hash IS a credential, just a slow one - $2a$11$ is crackable
+  # offline at leisure, and the file exists to hold nothing else. Found by
+  # checks/served_secrets.py on its first run, which is the argument for that
+  # check: nothing in the name matches "secret", "password" or "credentials",
+  # so every pattern above missed it. Named exactly, like realm-*.json, rather
+  # than guessed at with `*users*` - which would hide ordinary user lists.
+  "dozzle-users.yml",
+]
+
+# Patterns above that describe a WORD rather than a file format, and so must not
+# apply to prose. Found by running the walk over the real tree: a documentation
+# page called "Change Password.md" was being hidden as a secret.
+#
+# Only true documentation formats are exempt. `.txt` deliberately is NOT -
+# `db_password.txt` is exactly the shape of a file someone leaves a credential
+# in, while `.md` and `.rst` are formats you write ABOUT credentials in.
+wordy_patterns = ["*secret*", "*password*"]
+prose_suffixes = [".md", ".markdown", ".rst"]
+
+# Explicit exceptions, by exact name. A committed `.env.example` is a TEMPLATE
+# full of placeholders - the file you read to learn what to set - and hiding it
+# makes the explorer worse for no gain. Listed by NAME so the exception can never
+# widen: `.env.example` is served, `.env.production` is not.
+allow_files = [
+  ".env.example", ".env.sample", ".env.template", ".env.test.example",
+  ".env.local.template", ".env.production.template", ".env.defaults",
+]
+
+# ── snapshots ───────────────────────────────────────────────────────────────
+#
+# THE UNDO NET, and the reason it exists is worth stating plainly.
+#
+# A save used to be a git commit, so every version of every file was in the
+# object store and nothing could be lost. Saving straight to disk removed that,
+# and removing the git verbs on 2026-08-15 removed the rest: there is no commit,
+# no stash, and no `discard` to restore from. The working tree is now the ONLY
+# copy of an edit, and an editor with no undo beyond its own session is one
+# stale tab away from silently reverting somebody's afternoon.
+#
+# So every overwrite copies the OUTGOING bytes here first. Not version control -
+# it keeps no order, no message and no merge. It answers exactly one question:
+# "what did this file say before I saved over it?"
+#
+# Declared here, and checked at startup like a root, because a snapshot
+# directory that is not mounted would leave the net silently absent - which is
+# the same class of bug as the 503 that advised mounting a token file nothing
+# ever mounted. It must fail loudly at start rather than quietly at 3am.
+[snapshots]
+path = "/var/lib/bothy/trash"
+# Per FILE, not in total. A file edited all afternoon keeps its last 20 states;
+# a file edited once a year keeps that one for `max_age_days`.
+keep = 20
+max_age_days = 30
+
+# ── write ───────────────────────────────────────────────────────────────────
+
+[write]
+# A blast-radius limit, not a parsing concern. Without it, "edit a doc" also
+# means "rewrite compose.yml", "rewrite a shell script that cron runs", or "drop
+# a .py that something imports".
+#
+# `.svg` and `.html` are here because they have viewers now. Worth stating: a
+# writable .html in a repo that some OTHER app serves is a stored-XSS vector in
+# THAT app. That is a property of the repo rather than of this service, but it is
+# a real widening of what the editor can reach.
+suffixes = [
+  ".md", ".markdown", ".txt", ".rst", ".svg", ".html", ".htm", ".xml",
+]

@@ -1,0 +1,712 @@
+/* ============================================================================
+   BothyFiles - the centre column: tab bar, previews, source, editor, status.
+   Scoped under .bothy-files, (0,2,0).
+   ========================================================================== */
+
+/* ── the groups ──────────────────────────────────────────────────────────────
+   One or two. The FIRST absorbs the remainder and the second carries the stored
+   width, which is the same arrangement as the shell's four regions and for the
+   same reason (panes.ts): with both sides sized there are two numbers to
+   reconcile against one container on every resize, and the reconciliation is
+   where every "the pane jumped" bug lives.
+
+   `flex: 0 1 var(--split-w)` on the second, not `0 0`: the stored width is
+   clamped against the WINDOW, not against the centre column, so a wide split
+   restored on a narrow window has to be allowed to give way rather than push
+   the first group to nothing. */
+.bothy-files .fx-groups { flex: 1 1 0; min-height: 0; min-width: 0; display: flex; }
+.bothy-files .fx-groups[data-split='true'] > .fx-centre { min-width: 180px; }
+
+.bothy-files .fx-centre {
+  flex: 1 1 0; min-height: 96px; min-width: 0; position: relative;
+  display: flex; flex-direction: column; background: var(--bg-2); overflow: hidden;
+}
+/* AFTER `.fx-centre`, and it has to be: both selectors are (0,2,0), so the tie
+   is broken by order alone. With this rule written first - which is how it was,
+   for one round of testing - `.fx-centre { flex: 1 1 0 }` won, both groups took
+   half the column each, and the divider moved `aria-valuenow` while the layout
+   ignored it completely. */
+.bothy-files .fx-centre-b {
+  flex: 0 1 var(--split-w);
+  border-left: 1px solid var(--line);
+}
+/* Which group the keyboard is in. A hairline rather than a fill: with two groups
+   side by side, "which one does Ctrl-S mean" is a real question and the answer
+   has to be visible without being loud. Only ever drawn when there IS a second
+   group - a single group is unambiguously the focused one. */
+.bothy-files .fx-groups[data-split='true'] > .fx-centre.is-focused .fx-tabbar {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+/* ── the tab bar ─────────────────────────────────────────────────────────────
+   It finally holds tabs. It used to hold a breadcrumb - one file at a time,
+   `?root=`/`?path=` - and the path it showed now lives in the status strip
+   beside the rest of the facts about the file, because a strip that spells out
+   a full path has no room left for the second tab.
+
+   No bottom border. It and .fx-status's top border were the two horizontals
+   that, with the rails' own vertical borders, closed a complete rectangle around
+   the document - so the file looked like it was sitting inside a window inside
+   the window. The rails' borders stay (without them the panes merge into each
+   other); these two go, and the strip is told apart from the document the way
+   every other strip on this page is: --surface-2 against the centre's --bg-2. */
+.bothy-files .fx-tabbar {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 8px 0 6px;
+  background: var(--surface-2);
+}
+
+/* ── the tabs ────────────────────────────────────────────────────────────────
+   Overflow SCROLLS. It must not wrap: a wrapped strip changes the height of the
+   chrome as files open, so the document underneath jumps every time - and the
+   jump is largest exactly when you are opening things quickly. The strip is
+   34px whether it holds one tab or thirty.
+
+   The scrollbar is hidden rather than styled: a horizontal bar inside a 34px
+   strip is 8px of the 34, and the tabs already say there is more by being cut
+   off at the edge. Wheel and drag still scroll it. */
+.bothy-files .fx-tabs {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: stretch; gap: 2px;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.bothy-files .fx-tabs::-webkit-scrollbar { height: 0; }
+.bothy-files .fx-tab {
+  flex: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  max-width: 200px; padding: 0 4px 0 10px; margin: 4px 0;
+  border-radius: var(--r-sm);
+  color: var(--fg-subtle); font-size: 12px; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.bothy-files .fx-tab:hover { background: var(--surface-3); color: var(--fg-muted); }
+/* The active tab is the accent TINT the rest of the page uses for "this one" -
+   the same relationship .fx-hbtn.on and .seg-toggle button.on already have, so a
+   selected tab reads the same way as every other selected control here. Never
+   colour alone: it is also the only tab at full text weight. */
+.bothy-files .fx-tab.on {
+  background: var(--accent-bg); border-color: var(--accent-line);
+  color: var(--accent-fg); font-weight: 600;
+}
+.bothy-files .fx-tab.dragging { opacity: .45; }
+.bothy-files .fx-tab-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bothy-files .fx-tab-x {
+  appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
+  width: 17px; height: 17px; border: 0; border-radius: var(--r-xs);
+  background: transparent; color: inherit; opacity: .55;
+}
+.bothy-files .fx-tab-x:hover { background: var(--surface-1); opacity: 1; }
+/* NOT hover-revealed. `display: none` until :hover takes a control out of the
+   tab order entirely, which is how the explorer's per-directory download shipped
+   mouse-only. The X is always there and always reachable; hover only changes
+   how loud it is. */
+
+/* The unsaved dot, exactly where VS Code puts it, because that is where people
+   look for it. Never the only signal - the status strip says it in words. */
+.bothy-files .fx-dot {
+  flex: none; width: 7px; height: 7px; border-radius: var(--r-full);
+  background: var(--st-warn); margin-left: 2px;
+}
+.bothy-files .fx-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.bothy-files .fx-seg { border-radius: var(--r-sm); padding: 2px; }
+.bothy-files .fx-seg button { padding: 3px 9px; font-size: 11.5px; border-radius: var(--r-xs); }
+
+/* ── the split target ────────────────────────────────────────────────────────
+   Rendered only while a tab is actually in the air. A permanent drop zone on the
+   side of the editor is a 40% strip of nothing for the whole of the time nobody
+   is dragging, and it would eat pointer events from the document under it. */
+.bothy-files .fx-dropedge {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 38%;
+  z-index: 5; display: grid; place-items: center;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-left: 2px dashed var(--accent);
+}
+.bothy-files .fx-dropedge-hint {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--accent-fg); background: var(--surface-1);
+  border: 1px solid var(--accent-line); border-radius: var(--r-sm); padding: 3px 9px;
+}
+
+/* ── the overflow menu ───────────────────────────────────────────────────────
+   Anchored to the ⋯ button rather than portalled: the strip is at the TOP of a
+   tall pane, so a menu opening downward has room, and a portal would need its
+   own collision logic to do the same job. `.fx-centre` clips its overflow, which
+   is why the menu is capped in height and scrolls rather than growing past the
+   pane's bottom edge. */
+.bothy-files .fx-menu-wrap { position: relative; flex: none; display: flex; }
+.bothy-files .fx-menu {
+  position: absolute; top: calc(100% + 4px); z-index: 40;
+  min-width: 246px; max-height: 60vh; overflow: auto;
+  padding: 4px; display: flex; flex-direction: column;
+  background: var(--surface-1); color: var(--fg-muted);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+}
+.bothy-files .fx-menu-end { right: 0; }
+.bothy-files .fx-menu-start { left: 0; }
+.bothy-files .fx-menu-item {
+  appearance: none; cursor: pointer; font: inherit; text-align: left;
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 9px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--fg-muted); font-size: 12.5px;
+}
+.bothy-files .fx-menu-item:hover:not([aria-disabled='true']),
+.bothy-files .fx-menu-item:focus-visible { background: var(--surface-3); color: var(--fg); }
+/* `aria-disabled`, not `disabled` - a disabled button cannot be focused, and the
+   reason written beside it would be unreachable to exactly the reader who needs
+   it most. So it stays in the arrow order and refuses the activation instead. */
+.bothy-files .fx-menu-item[aria-disabled='true'] { cursor: default; opacity: var(--disabled-opacity); }
+.bothy-files .fx-menu-ico { flex: none; display: grid; place-items: center; width: 15px; color: var(--fg-subtle); }
+.bothy-files .fx-menu-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bothy-files .fx-menu-note { font-size: 10.5px; color: var(--fg-subtle); white-space: normal; }
+.bothy-files .fx-menu-chord { flex: none; display: inline-flex; gap: 2px; }
+.bothy-files .fx-menu .kbd { font-size: 9.5px; padding: 0 4px; }
+/* A rule between groups of items, drawn by the item BELOW it so a group can be
+   added or removed without a separate element to keep in step. */
+.bothy-files .fx-menu-cut { margin-top: 5px; padding-top: 9px; border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sm) var(--r-sm); }
+
+/* ── notices ─────────────────────────────────────────────────────────────────
+   One row, under the tab bar, for every outcome a save can have. Five tones, and
+   the tone is never the only signal - each carries its own lucide glyph and its
+   own words:
+     ok    a commit happened            --st-up
+     info  nothing to commit            --accent (neutral: not a warning)
+     warn  unsaved work is at risk      --st-warn
+     bad   refused / too large / broken --st-down
+     auth  you need to sign in          --accent, because it is an INVITATION
+   `auth` deliberately does NOT take a status colour: needing a session is the
+   designed flow, not a fault. */
+.bothy-files .fx-note {
+  flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 8px 12px 0; padding: 7px 11px; font-size: 12.5px;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--fg-muted);
+}
+.bothy-files .fx-note svg { flex: none; }
+.bothy-files .fx-note b { color: var(--fg); font-family: var(--mono); font-weight: 600; }
+.bothy-files .fx-note-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.bothy-files .fx-note.ok { background: var(--st-up-bg); border-color: var(--st-up-line); color: var(--st-up-fg); }
+.bothy-files .fx-note.bad { background: var(--st-down-bg); border-color: var(--st-down-line); color: var(--st-down-fg); }
+.bothy-files .fx-note.warn { background: var(--st-warn-bg); border-color: var(--st-warn-line); color: var(--st-warn-fg); }
+.bothy-files .fx-note.info,
+.bothy-files .fx-note.auth { background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent-fg); }
+.bothy-files .fx-note.auth .btn { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* ── the document stack ──────────────────────────────────────────────────────
+   EVERY open document is mounted, all the time, and the inactive ones are
+   `hidden`. That is not tidiness - it is the whole reason undo survives a tab
+   switch. CodeMirror's history lives in the EditorState, which dies with the
+   view; rendering only the active document would put the surfaces back on a
+   mount/unmount cycle, which is exactly the `key={docKey}` behaviour the
+   document model exists to replace.
+
+   The [hidden] rule has to be written out: `display: flex` below beats the UA
+   stylesheet's `[hidden] { display: none }`, so without this line "hidden"
+   documents are stacked on top of each other and every one of them is visible. */
+.bothy-files .fx-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.bothy-files .fx-doc { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bothy-files .fx-doc[hidden] { display: none; }
+.bothy-files .fx-pad { flex: 1; min-height: 0; overflow: auto; padding: 24px; }
+
+/* ── source, with a gutter ───────────────────────────────────────────────────
+   One scroll container holding two panes. The gutter is `position: sticky;
+   left: 0` so it stays put while a long line scrolls sideways under it - which
+   is the only reason the two are in the same container rather than side by side
+   with synchronised scrolling, a design that always drifts by a pixel.
+
+   Both panes inherit --code-fs and --code-lh from the shell root. They MUST:
+   the numbers line up with the code because both are laid out by the same font
+   metrics, not because anything measured them. */
+.bothy-files .fx-code {
+  flex: 1; min-height: 0; overflow: auto; display: flex; align-items: flex-start;
+  background: var(--bg-2);
+  font-family: var(--mono); font-size: var(--code-fs); line-height: var(--code-lh); tab-size: 2;
+}
+.bothy-files .fx-gutter {
+  position: sticky; left: 0; z-index: 1; flex: none; margin: 0;
+  padding: 14px 10px 36px 14px; text-align: right;
+  font: inherit; color: var(--fg-subtle); opacity: .65;
+  background: var(--bg-2); border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums; user-select: none;
+}
+.bothy-files .fx-src {
+  margin: 0; padding: 14px 20px 36px 14px; font: inherit; color: var(--fg-muted);
+  min-width: max-content;
+}
+/* Source does NOT wrap - alignment is meaning in code, and a wrapped shell
+   pipeline or a yaml block reads as a different program. It scrolls sideways
+   instead, with the standard edge shading to say so. */
+.bothy-files .fx-src code { font: inherit; white-space: pre; display: block; }
+.bothy-files .fx-code:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* ── the editor ──────────────────────────────────────────────────────────────
+   The textarea scrolls itself, so its gutter cannot be sticky inside a shared
+   container - it is a sibling whose scrollTop is written by hand on every
+   scroll event (Editor.tsx). Hidden overflow on the gutter, because two
+   scrollbars for one document is a bug people report. */
+.bothy-files .fx-code-edit { overflow: hidden; align-items: stretch; }
+.bothy-files .fx-code-edit .fx-gutter {
+  position: static; overflow: hidden; padding-bottom: 0;
+}
+.bothy-files .fx-textarea {
+  flex: 1; min-width: 0; resize: none; appearance: none;
+  border: 0; border-radius: 0; padding: 14px 20px 14px 14px;
+  background: var(--bg-2); color: var(--fg);
+  font: inherit; tab-size: 2;
+  outline: none; white-space: pre; overflow-wrap: normal; overflow: auto;
+}
+/* The textarea has no border of its own, so the keyboard ring goes inside it -
+   an outset ring would be clipped by the column's overflow: hidden. */
+.bothy-files .fx-textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* ── media ───────────────────────────────────────────────────────────────────
+   A checkerboard, because transparency is information about a PNG and a flat
+   background hides it. Sized to fit rather than to fill: an icon blown up to
+   1200px tells you less about it than the icon does. */
+.bothy-files .fx-media {
+  flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center;
+  padding: 24px;
+  background:
+    conic-gradient(from 90deg at 1px 1px, transparent 25%, var(--surface-2) 0) 0 0 / 18px 18px,
+    var(--bg-2);
+}
+.bothy-files .fx-media-img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  border-radius: var(--r-sm); box-shadow: var(--shadow-md);
+}
+.bothy-files .fx-media-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bothy-files .fx-media-note {
+  flex: none; margin: 0; padding: 7px 14px; font-size: 11.5px; line-height: 1.45;
+  color: var(--fg-subtle); background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.bothy-files .fx-media-note b { color: var(--fg-muted); }
+.bothy-files .fx-media-frame { padding: 0; display: block; overflow: hidden; }
+.bothy-files .fx-media-iframe { width: 100%; height: 100%; border: 0; display: block; background: transparent; }
+
+/* ── the binary / PDF card ───────────────────────────────────────────────── */
+.bothy-files .fx-binary {
+  flex: 1; min-height: 0; overflow: auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 40px 24px; text-align: center;
+}
+.bothy-files .fx-binary-ico {
+  display: grid; place-items: center; width: 46px; height: 46px;
+  border-radius: var(--r-lg); color: var(--fg-subtle);
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.bothy-files .fx-binary h4 { margin: 0; font-size: 16px; }
+.bothy-files .fx-binary p { margin: 0; color: var(--fg-muted); font-size: 13px; max-width: 46ch; }
+.bothy-files .fx-binary p b { color: var(--fg); }
+.bothy-files .fx-binary-facts { display: flex; gap: 8px; color: var(--fg-subtle); font-size: 12px; }
+.bothy-files .fx-binary-note { color: var(--fg-subtle); font-size: 11.5px; }
+
+/* ── JSON, folded ────────────────────────────────────────────────────────── */
+.bothy-files .fx-json {
+  flex: 1; min-height: 0; overflow: auto; padding: 12px 14px 30px;
+  background: var(--bg-2);
+  font-family: var(--mono); font-size: var(--code-fs); line-height: 1.7;
+}
+.bothy-files .fx-json:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-json-row {
+  display: flex; align-items: center; gap: 4px;
+  min-height: 21px; white-space: pre; color: var(--fg-muted);
+}
+.bothy-files .fx-json-branch {
+  appearance: none; cursor: pointer; border: 0; background: transparent;
+  font: inherit; text-align: left; width: 100%; border-radius: var(--r-xs);
+}
+.bothy-files .fx-json-branch:hover { background: var(--surface-2); }
+.bothy-files .fx-json-branch:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .fx-json-chev {
+  flex: none; color: var(--fg-subtle); margin-left: -14px;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.bothy-files .fx-json-chev.open { transform: rotate(90deg); }
+.bothy-files .fx-json-colon { color: var(--fg-subtle); margin-right: 2px; }
+.bothy-files .fx-json-brace { color: var(--fg-subtle); }
+/* A collapsed branch prints its own size. An empty {} and a 300-key object look
+   identical folded, and they are not the same fact. */
+.bothy-files .fx-json-count {
+  font-size: 10.5px; color: var(--fg-subtle); font-style: italic;
+  background: var(--surface-2); border-radius: var(--r-xs); padding: 0 5px; margin: 0 4px;
+}
+.bothy-files .fx-json-close { color: var(--fg-subtle); }
+.bothy-files .fx-json-bad { padding: 30px 24px; color: var(--fg-muted); font-size: 13px; }
+.bothy-files .fx-json-bad b { color: var(--fg); }
+.bothy-files .fx-json-why { font-family: var(--mono); font-size: 12px; color: var(--st-down-fg); }
+
+/* ── the code editor ─────────────────────────────────────────────────────────
+   CodeMirror 6, styled from OUT HERE rather than through EditorView.theme().
+
+   Two facts make that safe and make it the better of the two. First, style-mod -
+   the engine behind every CodeMirror theme and base theme - inserts its <style>
+   tag as the FIRST child of <head>, so this stylesheet always comes later and
+   wins every specificity tie. Second, every rule here is `.bothy-files .cm-*`,
+   (0,2,0), against CodeMirror's own (0,2,0) generated selectors: a tie, decided
+   by order, in our favour. Nothing below needs !important and nothing below
+   should acquire one.
+
+   The one thing that is NOT here is token colour, which has to be a
+   HighlightStyle because CodeMirror generates those class names itself. See
+   cmtheme.ts - it is five declarations, all `var(--hl-*)`, so there is still
+   exactly one palette and it still lives in shell.css.
+
+   COLOURS. Everything below is a token or a colour-mix of one. There is no
+   second palette: a `data-theme` flip repaints this editor with no JavaScript,
+   because every value here resolves at paint time. */
+.bothy-files .fx-cm { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bothy-files .fx-cm > .cm-editor { flex: 1; min-height: 0; }
+
+.bothy-files .cm-editor {
+  background: var(--bg-2); color: var(--fg);
+  font-family: var(--mono); font-size: var(--code-fs);
+  /* The guide geometry, in one place. 2ch is exactly `tab-size: 2` in this
+     font, which is why the rules land on the indent and not near it. */
+  --fx-guide-w: 2ch;
+  --fx-guide: color-mix(in oklab, var(--fg-subtle) 34%, transparent);
+  --fx-guide-hi: color-mix(in oklab, var(--hl-kw) 62%, transparent);
+}
+/* NO ring around the editor. `.cm-focused` is set on a plain mouse click, so a
+   ring here drew a 2px accent rectangle around the whole document the instant
+   anyone clicked into it - the "outline around the window" this page was
+   reported for. It is also the wrong shape of signal: a ring says "this control
+   is selected", and a text surface says the same thing far better by showing
+   where the next character will land.
+       `outline: none` rather than deleting the rule. CodeMirror's own baseTheme
+   ships `&.cm-focused { outline: 1px dotted #212121 }` - dropping our
+   declaration would not remove a ring, it would swap ours for a hardcoded dotted
+   grey one that ignores the theme entirely.
+       What remains as the focus indicator, and it is deliberate, not an
+   omission: the caret (2px, --accent-fg, .cm-cursor below) plus the active-line
+   underline, which goes to full accent strength on focus - see .cm-activeLine. */
+.bothy-files .cm-editor.cm-focused { outline: none; }
+/* And the same for the contenteditable INSIDE it, which is the element that
+   actually takes focus - so it picks up the page-wide ring in shell.css and
+   redraws the same rectangle one box in. Measured: with only the rule above,
+   a mouse click still painted `solid 2px rgb(96,165,250)` on .cm-content.
+   Both halves are needed; removing either one puts the box back. */
+.bothy-files .cm-content:focus-visible { outline: none; }
+.bothy-files .cm-scroller {
+  font-family: var(--mono); line-height: var(--code-lh);
+  overflow: auto;
+}
+.bothy-files .cm-content {
+  padding: 14px 0 36px; caret-color: var(--accent-fg);
+  /* Alignment is meaning in code - the same reason .fx-src does not wrap. */
+  white-space: pre;
+}
+.bothy-files .cm-line { padding: 0 20px 0 8px; }
+
+/* ── gutter ──────────────────────────────────────────────────────────────── */
+.bothy-files .cm-gutters {
+  background: var(--bg-2); color: var(--fg-subtle);
+  border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.bothy-files .cm-lineNumbers .cm-gutterElement { padding: 0 10px 0 14px; opacity: .65; }
+.bothy-files .cm-gutters .cm-activeLineGutter {
+  background: transparent; color: var(--fg); opacity: 1; font-weight: 600;
+}
+
+/* ── the bands ───────────────────────────────────────────────────────────────
+   Two of them, and they have to be TELLABLE APART or the hover one is just a
+   flicker on the active one. The active band is the accent tint the rest of the
+   app uses for "this one"; the hover band is a flat surface step, half its
+   weight, and it is suppressed on the active line entirely so the two never
+   stack into a third colour that means nothing. */
+/* The active line is an UNDERLINE, not a filled band - neovim's cursorline
+   rather than a highlight.
+   
+   box-shadow rather than border-bottom: a border changes the line's height, so
+   every line below the caret would shift by a pixel as you move, and the whole
+   document would jitter while you navigate. An inset shadow paints inside the
+   existing box and moves nothing. */
+.bothy-files .cm-activeLine {
+  background: transparent;
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--accent) 55%, transparent);
+}
+/* At FULL strength while the editor has focus. This is the editor's focus
+   indicator now that the ring is gone (see .cm-focused above): the underline is
+   already the mark that says which line the caret is on, so making it state
+   "and this editor is the thing the keyboard is talking to" costs no new
+   furniture and is visible without a blinking caret to catch. */
+.bothy-files .cm-editor.cm-focused .cm-activeLine { box-shadow: inset 0 -1px 0 var(--accent); }
+.bothy-files .cm-fxHoverLine { background: color-mix(in oklab, var(--fg) 5%, transparent); }
+/* The caret's line wins over the pointer's: hovering the line you are already
+   on must not repaint it, or the underline flickers as the mouse crosses. */
+.bothy-files .cm-line.cm-activeLine.cm-fxHoverLine { background: transparent; }
+
+/* ── indent guides ───────────────────────────────────────────────────────────
+   Painted by the LINE, not by an overlay, so they scroll and reflow for free.
+   `background-origin: content-box` is what puts the first rule exactly on
+   column 0 of the text rather than 8px to its left in the padding.
+
+   The second layer is the guide the caret's block hangs from. `--fx-guide-on`
+   defaults to -99 on every line so the calc() is always valid: an invalid calc
+   would drop the whole background-position declaration, taking the ordinary
+   guides down with it. */
+.bothy-files .cm-line { --fx-guides: 0; --fx-guide-on: -99; }
+.bothy-files .cm-line.cm-fxGuides {
+  background-image:
+    linear-gradient(to right, var(--fx-guide-hi) 0 1px, transparent 1px),
+    repeating-linear-gradient(to right, var(--fx-guide) 0 1px, transparent 1px var(--fx-guide-w));
+  background-size: 1px 100%, calc(var(--fx-guides) * var(--fx-guide-w)) 100%;
+  background-position: calc(var(--fx-guide-on) * var(--fx-guide-w)) 0, 0 0;
+  background-repeat: no-repeat, no-repeat;
+  background-origin: content-box, content-box;
+}
+/* A band and its guides are both backgrounds, and a line can only have one
+   background-color under its background-images - so the banded lines re-declare
+   the images and add the colour underneath rather than fighting over the
+   shorthand. */
+/* Indent guides are painted with a background-image, so the active line must
+   keep background-color transparent or it would cover them. */
+.bothy-files .cm-line.cm-fxGuides.cm-activeLine { background-color: transparent; }
+.bothy-files .cm-line.cm-fxGuides.cm-fxHoverLine { background-color: color-mix(in oklab, var(--fg) 5%, transparent); }
+
+/* ── selection, matches, brackets ────────────────────────────────────────── */
+.bothy-files .cm-selectionBackground,
+.bothy-files .cm-content ::selection { background: color-mix(in oklab, var(--accent) 30%, transparent); }
+.bothy-files .cm-focused .cm-selectionBackground { background: color-mix(in oklab, var(--accent) 38%, transparent); }
+.bothy-files .cm-cursor, .bothy-files .cm-dropCursor { border-left-color: var(--accent-fg); border-left-width: 2px; }
+/* Every OTHER occurrence of what is selected, or of the word under the caret.
+   Outlined rather than filled: a fill at this frequency turns a page of code
+   into a page of highlighter. */
+.bothy-files .cm-selectionMatch {
+  background: color-mix(in oklab, var(--hl-kw) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--hl-kw) 45%, transparent);
+  border-radius: var(--r-xs);
+}
+.bothy-files .cm-matchingBracket, .bothy-files .cm-focused .cm-matchingBracket {
+  background: color-mix(in oklab, var(--hl-num) 22%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--hl-num) 70%, transparent);
+  color: var(--fg);
+}
+.bothy-files .cm-nonmatchingBracket, .bothy-files .cm-focused .cm-nonmatchingBracket {
+  background: var(--st-down-bg); color: var(--st-down-fg);
+}
+/* The current search hit, against the rest of them. Same relationship as the
+   active line has to the hover line: one tint, two weights. */
+.bothy-files .cm-searchMatch { background: color-mix(in oklab, var(--hl-num) 22%, transparent); border-radius: var(--r-xs); }
+.bothy-files .cm-searchMatch-selected {
+  background: color-mix(in oklab, var(--hl-num) 55%, transparent);
+  outline: 1px solid var(--hl-num);
+}
+
+/* ── the find panel ──────────────────────────────────────────────────────────
+   CodeMirror's own panel, restyled onto the tokens rather than replaced. It
+   already carries case-sensitive, whole-word, regexp, replace and replace-all,
+   and a second find UI of our own would be a second thing to keep in step. */
+.bothy-files .cm-panels {
+  background: var(--surface-2); color: var(--fg-muted);
+  border-bottom: 1px solid var(--line); font-size: 11.5px;
+}
+.bothy-files .cm-panels.cm-panels-bottom { border-top: 1px solid var(--line); border-bottom: 0; }
+.bothy-files .cm-panel.cm-search { padding: 7px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bothy-files .cm-panel.cm-search br { display: none; }
+.bothy-files .cm-panel.cm-search label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--fg-subtle); }
+.bothy-files .cm-panel.cm-search input.cm-textfield {
+  font-family: var(--mono); font-size: 11.5px; padding: 3px 7px; min-width: 180px;
+  background: var(--bg-2); color: var(--fg);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.bothy-files .cm-panel.cm-search input.cm-textfield:focus-visible { outline: 2px solid var(--ring); outline-offset: -1px; border-color: var(--accent); }
+.bothy-files .cm-panel.cm-search button:not([name='close']) {
+  font: inherit; cursor: pointer; padding: 3px 9px;
+  background: var(--surface-1); color: var(--fg-muted);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background-image: none;
+}
+.bothy-files .cm-panel.cm-search button:not([name='close']):hover { background: var(--surface-3); color: var(--fg); }
+.bothy-files .cm-panel.cm-search button[name='close'] {
+  position: absolute; top: 4px; right: 8px;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--fg-subtle); font-size: 16px; padding: 0 4px;
+}
+.bothy-files .cm-panel.cm-search button[name='close']:hover { color: var(--fg); }
+
+.bothy-files .cm-tooltip {
+  background: var(--surface-1); color: var(--fg-muted);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.bothy-files .cm-specialChar { color: var(--st-warn-fg); }
+
+/* ── the hotkey sheet ────────────────────────────────────────────────────── */
+.bothy-files .fx-keys {
+  flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px;
+  padding: 8px 14px; border-top: 1px solid var(--line);
+  background: var(--surface-1); color: var(--fg-subtle); font-size: 11px;
+}
+.bothy-files .fx-key { display: inline-flex; align-items: center; gap: 6px; }
+.bothy-files .fx-key-combo { display: inline-flex; align-items: center; gap: 2px; }
+.bothy-files .fx-keys .kbd { font-size: 9.5px; padding: 0 4px; }
+.bothy-files .fx-key-what { color: var(--fg-muted); }
+
+/* ── the status strip ────────────────────────────────────────────────────────
+   No top border, for the reason .fx-tabbar has no bottom one: the pair of them
+   drew the horizontals of a box around the document. --surface-2 against the
+   centre column's --bg-2 separates the strip on its own. */
+.bothy-files .fx-status {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  height: 24px; padding: 0 14px;
+  background: var(--surface-2);
+  color: var(--fg-subtle); font-size: 10.5px; overflow: hidden; white-space: nowrap;
+}
+.bothy-files .fx-stat { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.bothy-files .fx-stat.warn { color: var(--st-warn-fg); font-weight: 600; }
+.bothy-files .fx-stat.mono { font-family: var(--mono); text-transform: uppercase; letter-spacing: .05em; }
+.bothy-files .fx-stat-sep { width: 1px; height: 11px; background: var(--line); flex: none; }
+.bothy-files .fx-status-spacer { flex: 1; }
+/* The file's PATH, which moved down here when the tab bar became a tab strip.
+   A tab can only carry a name; this is where the rest of the identity goes.
+   The one thing in the strip allowed to SHRINK - everything else is a short
+   measurement, and a path is the only part that can be truncated without
+   losing a fact. `display: block` because .fx-stat is an inline-flex with a
+   gap, which would put 4px of air inside the path. */
+.bothy-files .fx-stat.fx-path {
+  display: block; flex: 0 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--mono);
+}
+.bothy-files .fx-stat.fx-path b { color: var(--fg-muted); font-weight: 600; }
+.bothy-files .fx-status .kbd { font-size: 9.5px; padding: 0 4px; }
+/* `.fx-statbtn` used to be here - a button sized for the 24px strip, for Find
+   and Keys. Both moved into the toolbar's overflow menu and this strip is a
+   readout now, so the rule went with them rather than being left as furniture
+   for a control that no longer exists. */
+
+/* ── read view (markdown) ────────────────────────────────────────────────── */
+.bothy-files .fx-read { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px; }
+.bothy-files .fx-read:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+/* 72ch: prose, not a terminal. The measure rule changes reading speed more than
+   the typeface does. Full-bleed for the two things that are not prose. */
+.bothy-files .fx-read > * { max-width: 72ch; }
+.bothy-files .fx-read > .md-tbl-wrap,
+.bothy-files .fx-read > .md-pre { max-width: 100%; }
+
+.bothy-files .md { color: var(--fg-muted); font-size: 14.5px; line-height: 1.65; }
+.bothy-files .md .md-h { color: var(--fg); letter-spacing: -0.015em; line-height: 1.25; margin: 26px 0 10px; font-weight: 700; }
+.bothy-files .md > .md-h:first-child { margin-top: 0; }
+.bothy-files .md .md-h1 { font-size: 25px; font-weight: 800; }
+.bothy-files .md .md-h2 { font-size: 19px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.bothy-files .md .md-h3 { font-size: 16px; }
+.bothy-files .md .md-h4, .bothy-files .md .md-h5, .bothy-files .md .md-h6 { font-size: 14px; color: var(--fg-muted); }
+.bothy-files .md .md-p { margin: 0 0 13px; }
+.bothy-files .md .md-list { margin: 0 0 13px; padding-left: 22px; }
+.bothy-files .md .md-list li { margin: 3px 0; }
+.bothy-files .md .md-list .md-list { margin-bottom: 0; }
+.bothy-files .md .md-hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
+.bothy-files .md .md-quote {
+  margin: 0 0 13px; padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--accent-line); color: var(--fg-subtle);
+}
+.bothy-files .md .md-quote .md-p:last-child { margin-bottom: 0; }
+.bothy-files .md .md-code {
+  font-family: var(--mono); font-size: 0.87em; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-xs); padding: 1px 5px;
+}
+.bothy-files .md .md-link { color: var(--accent-fg); text-decoration: underline; text-underline-offset: 2px; }
+/* A repo-relative link is not a URL this page can follow. Shown as text with its
+   target beside it rather than as a link that would 404 - and rather than
+   dropping the target, which is information the reader wanted. */
+.bothy-files .md .md-reflink { color: var(--fg); }
+.bothy-files .md .md-reftarget {
+  font-family: var(--mono); font-size: 11px; color: var(--fg-subtle);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-xs); padding: 0 4px; margin-left: 5px;
+}
+.bothy-files .md .md-pre {
+  position: relative; margin: 0 0 15px; padding: 13px 15px; overflow: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md);
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--fg-muted);
+}
+.bothy-files .md .md-pre code { font: inherit; }
+.bothy-files .md .md-lang {
+  position: absolute; top: 6px; right: 10px; font-family: var(--mono); font-size: 10px;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--fg-subtle);
+}
+.bothy-files .md .md-tbl-wrap {
+  overflow: auto; margin: 0 0 15px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-1);
+}
+.bothy-files .md .md-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.bothy-files .md .md-tbl th {
+  text-align: left; padding: 7px 12px; color: var(--fg-subtle); font-weight: 600;
+  background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.bothy-files .md .md-tbl td { padding: 6px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.bothy-files .md .md-tbl tr:last-child td { border-bottom: 0; }
+
+/* The stale-save conflict. Styled as a decision to make, not an error that
+   happened: nothing was lost, and the point is that the user chooses. It sits
+   above the notice region because it outranks anything else on screen. */
+.bothy-files .fx-conflict {
+  margin: 8px 10px 0; padding: 10px 12px;
+  border: 1px solid var(--st-warn-line); border-radius: var(--r-sm);
+  background: var(--st-warn-bg);
+}
+.bothy-files .fx-conflict-h {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--st-warn-fg);
+}
+.bothy-files .fx-conflict-p { margin: 6px 0 9px; font-size: 12px; color: var(--fg-muted); }
+.bothy-files .fx-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── the empty state ────────────────────────────────────────────────────────
+   
+   These five classes were used by Editor.tsx and defined NOWHERE for a while,
+   so the panel rendered as raw markup: a 72px mark and fifteen unstyled rows
+   stacked down the page. Two agents worked this file in parallel and the
+   handoff between them had no closing step.
+   
+   Borderless on purpose. Every other "nothing here" surface in this app is a
+   bordered `.state` card, and a card in the middle of an IDE's editor pane
+   reads as a dialog you need to dismiss. This is the pane at rest, not a
+   message about it. */
+.bothy-files .fx-empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 18px;
+  height: 100%; padding: 32px 24px;
+  /* The pane is the widest thing on the page; text centred across 1000px is
+     unreadable. Cap the block, not the pane. */
+  --fx-empty-w: 380px;
+}
+.bothy-files .fx-empty-mark {
+  opacity: 0.13;           /* present, not decorative-looking */
+  line-height: 0;
+}
+.bothy-files .fx-empty-keys {
+  display: grid;
+  /* Chord column sized to its content and right-aligned, so the keys form a
+     clean edge against the descriptions rather than a ragged one. */
+  grid-template-columns: auto 1fr;
+  gap: 7px 14px;
+  width: 100%; max-width: var(--fx-empty-w);
+  font-size: 12.5px;
+}
+.bothy-files .fx-empty-key { display: contents; }
+.bothy-files .fx-empty-key > .fx-key-combo { justify-content: flex-end; }
+.bothy-files .fx-empty-hint {
+  margin: 0; font-size: 12.5px; text-align: center;
+}
+
+@media (max-height: 520px) {
+  /* A short pane cannot hold the mark and the list. The list is the useful
+     half, so the mark goes first. */
+  .bothy-files .fx-empty { gap: 12px; }
+  .bothy-files .fx-empty-mark { display: none; }
+}
+
+/* Close, at the far edge. The separator makes the gap deliberate rather than
+   looking like a layout accident. Its neighbours would otherwise be Edit and
+   Save; one slip from "save" to "close" is the worst adjacency on this bar.
+   (The `margin-inline-start: auto` this rule used to carry is gone: the tab
+   strip is `flex: 1` now, so it does the pushing.) */
+.bothy-files .fx-crumb-x {
+  padding-inline-start: 8px;
+  border-inline-start: 1px solid var(--line);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  width: auto; min-width: 24px;
+}

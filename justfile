@@ -12,6 +12,11 @@ network:
     # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
     # read the docker socket through it. Keep the blast radius at two.
     -docker network create socketnet 2>/dev/null || true
+    # filesnet: traefik + portal-files, and nothing else. portal-files holds
+    # read-write bind mounts on two git repos and has no auth of its own, so the
+    # network IS the boundary - authorisation happens at the edge in front of it.
+    # Putting it on devnet would hand ~20 containers write access to the docs.
+    -docker network create filesnet 2>/dev/null || true
 
 # Bring up EVERYTHING
 up: network up-edge up-auth up-monitoring up-data up-mgmt up-apps
@@ -146,6 +151,13 @@ doctor:
 verify mode="":
     @VERIFY_SELFTEST={{ if mode == "selftest" { "1" } else { "" } }} bash scripts/verify-access.sh
 
+# Checks for the editor tier: path-safety unit tests, per-route role enforcement,
+# a full anonymous-refused / login / write round trip, the undo net, and a scan
+# of everything the portal SERVES for anything that looks like a credential.
+# `just files-check offline` runs only the part that needs nothing up.
+files-check mode="":
+    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
+
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
     @bash scripts/backup.sh
@@ -200,6 +212,13 @@ urls:
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
     echo "    Keycloak      http://$IP:8090/admin   (identity - admin / shared dev login)"
+    echo ""
+    echo "    Files (raw)   http://$IP:8100         (SANDBOX ORIGIN - raw file bytes"
+    echo "                                            only. A different port is a"
+    echo "                                            different origin, so a hostile"
+    echo "                                            SVG/PDF served here cannot touch"
+    echo "                                            the portal session. Nothing else"
+    echo "                                            may be routed to :8100.)"
     echo ""
     echo "  Not running right now - nothing was deleted, both come back:"
     echo "    Wiki.js       http://$IP:3001"

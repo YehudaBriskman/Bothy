@@ -305,16 +305,12 @@ a { color: inherit; text-decoration: none; }
 
 h1 { font-size: clamp(38px, 6vw, 68px); line-height: 1.02; letter-spacing: -0.03em;
   font-weight: 800; margin: 22px 0 16px; }
-.grad { background: linear-gradient(100deg, var(--accent), var(--accent-2) 60%, var(--a2));
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.lede { max-width: 640px; color: var(--fg-muted); font-size: 17px; margin: 0 0 30px; }
-.lede b { color: var(--fg); font-weight: 600; }
+
 
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; max-width: 760px; }
 .stat { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: 18px 20px; }
-.stat-n { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.stat-l { color: var(--fg-subtle); font-size: 13px; margin-top: 2px; }
+
 
 /* ── tabs / toolbar ──────────────────────────────────────────────────────── */
 main.wrap { padding-top: 12px; padding-bottom: 60px; }
@@ -339,27 +335,27 @@ main.wrap { padding-top: 12px; padding-bottom: 60px; }
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-full); padding: 0 6px; }
 .tabs button[role="tab"].on .tab-n { color: var(--fg-muted); }
-.tabs-spacer { flex: 1; }
+
 .search { appearance: none; background: var(--surface-1); border: 1px solid var(--line);
   color: var(--fg); border-radius: 10px; padding: 8px 12px; font: inherit; min-width: 200px; }
 /* `outline: none` used to live here, with a border-colour change as the only
    replacement. That fails on two counts: it removes the keyboard focus
    indicator entirely (2.4.7), and a 1px border tint is colour-alone. Keeping
-   the border change for the mouse and letting the global :focus-visible ring
-   through for the keyboard costs nothing and fixes both. */
-.search:focus { border-color: var(--accent); }
+   the border change and letting the :focus-visible ring through for the
+   keyboard costs nothing and fixes both.
+   `:focus-visible`, not `:focus`: the two must never be able to disagree about
+   whether this field is focused, and one selector cannot. On a text field this
+   is not a behaviour change - :focus-visible matches text inputs whatever the
+   modality, so the mouse still gets the tint, which is the point of it. */
+.search:focus-visible { border-color: var(--accent); }
 .hint { color: var(--fg-subtle); font-size: 12px; }
 kbd { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
 
 /* ── services panels + cards ─────────────────────────────────────────────── */
 .panels { display: flex; flex-direction: column; gap: 34px; }
-.cat { --acc: var(--accent); }
-.cat-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-.cat-idx { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--acc);
-  border: 1px solid color-mix(in oklab, var(--acc) 40%, transparent); border-radius: 8px; padding: 4px 8px; }
-.cat-title h3 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
-.cat-sub { color: var(--fg-subtle); font-size: 13px; }
+
+
 .tail { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
 .cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: 700;
   background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; font-size: 13px; }
@@ -375,11 +371,11 @@ a.card { transition: transform .16s ease, border-color .16s ease, box-shadow .16
 a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   box-shadow: var(--shadow-lg); }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.card-row { display: flex; gap: 12px; align-items: flex-start; }
+
 .ico { font-size: 22px; width: 40px; height: 40px; display: grid; place-items: center;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; flex: none; }
-.card-meta { min-width: 0; flex: 1; }
-.nm { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+
+
 .nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pt { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -399,10 +395,10 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 /* No glow: a stopped service is a state, not a signal. */
 .dot[data-state="stopped"] { background: var(--st-off); }
 .dot[data-state="unknown"] { background: var(--st-unknown); }
-.status-label { font-size: 12px; color: var(--fg-muted); }
+
 
 /* ── tables (ports / routes) ─────────────────────────────────────────────── */
-.tbar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+
 .chips { display: flex; gap: 6px; }
 .chips button { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
   color: var(--fg-muted); background: var(--surface-1); border: 1px solid var(--line);
@@ -459,12 +455,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .grid.floor { margin-top: 18px; }
 
 /* ── footer ──────────────────────────────────────────────────────────────── */
-.foot { border-top: 1px solid var(--line); margin-top: 40px; }
-.foot-in { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px;
-  color: var(--fg-subtle); font-size: 13px; }
-.cmds { display: flex; gap: 8px; flex-wrap: wrap; }
-.cmds code { font-family: var(--mono); font-size: 12px; background: var(--surface-1);
-  border: 1px solid var(--line); border-radius: 7px; padding: 3px 9px; color: var(--fg-muted); }
+
 
 @media (max-width: 640px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
@@ -649,7 +640,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   flex-wrap: wrap; margin-bottom: 20px; }
 .page-head h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
 .page-sub { color: var(--fg-subtle); font-size: 13.5px; margin: 4px 0 0; }
-.sec-h { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; margin: 30px 0 14px; color: var(--fg); }
+
 .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-subtle); font-size: 13px;
   font-weight: 600; margin-bottom: 14px; }
 .back-link:hover { color: var(--fg); }
@@ -680,7 +671,9 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .filter-search { flex: 1; min-width: 180px; appearance: none; font: inherit; color: var(--fg);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; }
-.filter-search:focus { border-color: var(--accent); }
+/* :focus-visible for the reason .search states above - one selector, so the
+   tint and the ring cannot disagree, and no change for a text field. */
+.filter-search:focus-visible { border-color: var(--accent); }
 
 /* ── services groups ─────────────────────────────────────────────────────── */
 .svc-groups { display: flex; flex-direction: column; gap: 26px; }
@@ -704,35 +697,19 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .svc-group-head .cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: 700;
   background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; font-size: 13px; }
 
-.svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+
 .svc-grid.compact { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 
 /* ── service card ────────────────────────────────────────────────────────── */
-.svc-card { --acc: var(--accent); display: flex; flex-direction: column; gap: 12px; padding: 16px;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
-  position: relative; overflow: hidden; color: inherit;
-  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
-  animation: rise 0.45s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(min(var(--i, 0), 12) * 0.03s); }
-.svc-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--acc); opacity: 0.7; }
-.svc-card:hover { transform: translateY(-3px); border-color: var(--line-strong);
-  box-shadow: var(--shadow-lg); }
+
+
 .svc-card.compact { padding: 12px; gap: 8px; }
-.svc-card-top { display: flex; align-items: flex-start; gap: 12px; }
-.svc-meta { min-width: 0; flex: 1; }
-.nm { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+
+
 .nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pt { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.svc-desc { color: var(--fg-muted); font-size: 13px; flex: 1; display: -webkit-box; -webkit-line-clamp: 2;
-  line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.svc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.svc-card-group { font-family: var(--mono); font-size: 11px; color: var(--fg-subtle); }
-.svc-note { font-size: 12px; color: var(--fg-subtle); }
-.open-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700;
-  color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent);
-  border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent); border-radius: 8px; padding: 4px 9px; }
-.open-pill:hover { background: color-mix(in oklab, var(--accent) 22%, transparent); }
+
 
 /* ── service table rows ──────────────────────────────────────────────────── */
 .svc-tbl td { vertical-align: middle; }
@@ -750,35 +727,14 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 /* ── overview ────────────────────────────────────────────────────────────── */
 .overview { }
 .ov-body { padding: 40px 0 20px; display: flex; flex-direction: column; gap: 44px; }
-.ov-section { }
-.ov-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.ov-head h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
-.ov-head svg { color: var(--accent); }
-.ov-head .warn-ico { color: var(--st-warn); }
-.ov-head-sub { color: var(--fg-subtle); font-size: 13px; margin-left: auto; }
 
-.ov-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.ov-stat { --tone: var(--accent); background: var(--surface-1); border: 1px solid var(--line);
-  border-radius: var(--r-lg); padding: 16px 16px; position: relative; overflow: hidden; }
-.ov-stat::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--tone); opacity: .8; }
-.ov-stat-n { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.ov-stat-l { color: var(--fg-subtle); font-size: 12.5px; margin-top: 2px; }
 
-.ov-projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-.ov-proj { --acc: var(--accent); display: block; padding: 14px 16px; background: var(--surface-1);
-  border: 1px solid var(--line); border-radius: var(--r-lg); color: inherit; transition: border-color .15s, transform .15s; }
-.ov-proj:hover { border-color: var(--line-strong); transform: translateY(-2px); }
-.ov-proj-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-.ov-proj-name { font-weight: 700; }
-.ov-proj-count { font-family: var(--mono); font-size: 12px; color: var(--fg-subtle); }
-.ov-bar { display: flex; height: 8px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
-.ov-bar .seg { display: block; }
 .ov-bar .seg.up { background: var(--st-up); }
 .ov-bar .seg.starting { background: var(--st-warn); }
 .ov-bar .seg.down { background: var(--st-down); }
 .ov-bar .seg.unknown { background: var(--st-unknown); }
 
-.ov-attention { display: flex; flex-direction: column; gap: 8px; }
+
 .ov-alert { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: inherit;
   background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px;
   border-left: 3px solid var(--st-down); }
@@ -786,8 +742,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .ov-alert-name { font-weight: 700; }
 .ov-alert-why { color: var(--fg-subtle); font-size: 12.5px; margin-left: auto; }
 .ov-alert-arrow { color: var(--fg-subtle); flex: none; }
-.ov-clear { display: flex; align-items: center; gap: 10px; padding: 16px 18px; color: var(--fg-muted);
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: 12px; }
+
 
 .ov-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .ov-quick-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; color: inherit;
@@ -795,23 +750,13 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .ov-quick-item:hover { border-color: var(--accent); transform: translateY(-2px); transition: .15s; }
 .ov-quick-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-quick-ext { color: var(--fg-subtle); margin-left: auto; flex: none; }
-.ov-all { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; color: var(--accent); font-weight: 600; font-size: 13.5px; }
+
 .ov-offline { text-align: left; }
 .ov-offline .ov-quick { margin-top: 16px; }
 
 /* ── 3D scene ────────────────────────────────────────────────────────────── */
-.scene-track { position: relative; width: 100%; }
-.scene-sticky { position: sticky; top: 0; height: 100vh; width: 100%; overflow: hidden; }
-.scene-sticky canvas { display: block; width: 100% !important; height: 100% !important; }
-.scene-overlay { position: absolute; inset: 0; pointer-events: none; padding: 60px 40px; }
-.scene-title { max-width: 460px; }
-.scene-kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--accent); }
-.scene-title h2 { font-size: clamp(30px, 4.5vw, 52px); font-weight: 800; letter-spacing: -0.03em; margin: 8px 0 10px;
-  background: linear-gradient(100deg, var(--accent), var(--accent-2) 60%, var(--a2));
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.scene-title p { color: var(--fg-muted); font-size: 15px; max-width: 400px; }
-.scene-legend { position: absolute; left: 40px; bottom: 44px; display: flex; gap: 16px; flex-wrap: wrap; }
+
+
 .leg { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-muted); text-transform: capitalize; }
 .leg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 /* Legend swatch for a DASHED line, so "waits for" is distinguishable from the
@@ -822,42 +767,19 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   width: 14px; height: 0; display: inline-block; vertical-align: middle;
   border-top: 1.5px dashed var(--fg-subtle);
 }
-.scene-scrollcue { position: absolute; right: 40px; bottom: 44px; font-family: var(--mono); font-size: 12px;
-  color: var(--fg-subtle); animation: bob 1.8s ease-in-out infinite; }
+
 @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
-.scene-fallback { padding: 40px 0 10px; }
-.scene-loading { height: 70vh; background:
-  radial-gradient(600px 300px at 50% 30%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 70%); }
+
 
 /* static (no-webgl / reduced-motion) layered diagram */
-.static-stack { display: flex; flex-direction: column; gap: 10px; perspective: 1000px; }
-.ss-layer { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-1);
-  padding: 14px 18px; }
-.ss-edge { background: linear-gradient(100deg, color-mix(in oklab, var(--accent) 18%, var(--surface-1)), var(--surface-1));
-  border-color: color-mix(in oklab, var(--accent) 35%, var(--line)); }
-.ss-label { font-weight: 700; font-size: 14px; }
-.ss-sub { color: var(--fg-subtle); font-size: 12.5px; margin-left: 10px; }
-.ss-rack { display: flex; align-items: center; gap: 16px; }
-.ss-rack .ss-label { min-width: 140px; }
-.ss-units { display: flex; gap: 8px; flex-wrap: wrap; }
-.ss-unit { width: 22px; height: 22px; border-radius: 5px; display: inline-block; }
+
 
 /* ── detail pages ────────────────────────────────────────────────────────── */
-.detail-page { --acc: var(--accent); }
-.detail-hero { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
-.detail-hero-meta { flex: 1; min-width: 0; }
-.detail-hero-meta h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 8px; }
-.detail-hero-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.btn-open { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14px;
-  color: var(--on-accent); background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-radius: 10px; padding: 10px 16px; }
-.btn-open:hover { filter: brightness(1.08); }
-.detail-desc { color: var(--fg-muted); font-size: 14.5px; max-width: 720px; margin: 6px 0 24px; }
-.detail-title { display: flex; align-items: center; gap: 12px; }
+
+
 .acc-bar { width: 5px; height: 26px; border-radius: 3px; background: var(--acc); display: inline-block; }
-.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
-.detail-card { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
-  padding: 18px; }
-.detail-card h3 { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: var(--fg); }
+
+
 /* A hard 96px label column wrapped "Also reachable at" onto three lines while
    leaving a gap beside "Host". minmax lets the column take what the longest
    label needs and no more - and because every .kv in a .kv-list is a separate
@@ -877,7 +799,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .kv-sub-n { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0;
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-full); padding: 0 6px; }
-.detail-labels { grid-column: 1 / -1; }
+
 .labels-scroll { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 6px;
   border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--bg-2); }
 .label-row { display: grid; grid-template-columns: minmax(200px, 40%) 1fr; gap: 12px; font-size: 12px; }
