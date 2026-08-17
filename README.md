@@ -1,8 +1,14 @@
-# dev-box
+# Bothy
 
-**A self-hosted developer environment on a private WireGuard tailnet.** Docker
-Compose stacks for routing, observability, dev data services and management
-UIs - fronted by a homepage that discovers what is running instead of listing it.
+**A self-discovering console for one machine.** A bothy is a small stone hut in
+the Scottish hills, left unlocked, that anyone can shelter in - which is what
+this box is: one machine that quietly holds everything, open to anyone on the
+tailnet, not a service anybody sells.
+
+Bothy is the web application on `:80`. Around it, Docker Compose stacks provide
+what a project *doesn't* ship - an edge, identity, observability, a shared
+database, backups. Bothy shows you what is running by **asking Docker**, never
+by reading a list somebody remembered to update.
 
 > **Access model: plain `http://<node-ip>:<port>`.** The `*.dev.test` wildcard-DNS
 > layer this repo was built around went dormant on 2026-08-08 and was **deleted on
@@ -12,10 +18,10 @@ UIs - fronted by a homepage that discovers what is running instead of listing it
 > [`docs/kb/dns.md`](docs/kb/dns.md) records what would be involved in rebuilding
 > it, which is considerably more than flipping a switch.
 >
-> **SSO was not retired with it - it was rebuilt on IP.** Since 2026-08-12
-> identity is a local Keycloak on `:8090` with oauth2-proxy in front, replacing
-> GitHub. It is running and it **enforces nothing yet**: the middlewares exist,
-> no router uses them. See [Single sign-on](#single-sign-on).
+> **SSO was not retired with it - it was rebuilt on IP, and it now enforces.**
+> Identity is a local Keycloak on `:8090` with oauth2-proxy in front. Three
+> routers require a role: reading a file needs `viewer`, writing one needs
+> `editor`. See [Single sign-on](#single-sign-on).
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![docker compose](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
@@ -40,10 +46,13 @@ UIs - fronted by a homepage that discovers what is running instead of listing it
 ## What this is
 
 One person's reproducible development box, in git. It provides the things a
-project *doesn't* ship - routing, DNS, dashboards, log aggregation, backups - and
-it does so for every project on the machine at once. Every non-obvious line in
-these compose files carries a comment explaining **why** it is there, usually
-because the alternative broke something.
+project *doesn't* ship - an edge, identity, dashboards, log aggregation, a shared
+database, backups - and it does so for every project on the machine at once.
+Every non-obvious line in these compose files carries a comment explaining **why**
+it is there, usually because the alternative broke something.
+
+It does **not** provide routing-by-name or DNS. It used to; both were deleted on
+2026-08-12, and the section below says what replaced them.
 
 ## What this is not
 
@@ -56,74 +65,19 @@ Not a production platform, and not a template to deploy anywhere public:
   superuser password was found to still be the published placeholder on the live
   box; it was rotated and the insecure compose fallback removed, so a missing
   `POSTGRES_PASSWORD` now aborts instead of silently defaulting.
-- **Single node, single user.** Access control is tailnet membership plus one
-  shared dev login on the dashboards. A Keycloak-based SSO exists as of
-  2026-08-12 but **enforces nothing yet** - see [Single sign-on](#single-sign-on).
-  There is no HA, no TLS, no multi-tenancy, and backups sit on the disk they
-  protect.
+- **Single node, single user.** Access control is tailnet membership, plus one
+  shared dev login on the dashboards, plus Keycloak roles on the one tier that
+  can write - see [Single sign-on](#single-sign-on). There is no HA, no TLS, no
+  multi-tenancy, and backups sit on the disk they protect.
 - **A helper, not a dependency.** A project keeps its own Postgres so it stays
-  self-contained. If Traefik is down, your project still runs - you just lose the
-  pretty hostname.
+  self-contained. If the edge is down, your project still runs on its own port -
+  the only thing you lose is Bothy's view of it.
 
 ---
 
-## The two ideas worth stealing
+## The three ideas worth stealing
 
-### 1. Nothing publishes a port. Everything gets a name. - RETIRED 2026-08-12
-
-> **This idea is no longer implemented here.** It is kept, honestly labelled,
-> because the problem it solves is real and because how it ended is the more
-> useful half of the story.
-
-Host ports are a flat global namespace with no allocator, so every project reaches
-for 3000/8080/5432 and collides with whatever squatted there first - and the
-collision surfaces as a bind failure that doesn't name the culprit.
-
-The answer was to have Traefik own `:80` and route by `Host` header, making it the
-**only** container in the repo publishing a browser-facing port. Names are
-infinite; ports are 65535 and everyone picks the same dozen. Adding a service was
-two labels and a name - no DNS entry, no port allocation, nothing restarted - and
-the namespace nested (`s3.<project>.dev.test` under `<project>.dev.test`) so the
-hierarchy told you what owned what. A wildcard `address=/test/` in dnsmasq meant a
-new name at any depth needed no DNS work at all.
-
-**Why it is gone.** Two steps:
-
-1. **2026-08-08** - the tailnet split-DNS route was removed, so no client could
-   resolve `.test` any more. The routers survived, labelled "dormant, re-enable
-   later".
-2. **2026-08-12** - "dormant" proved more expensive than it saved. Dead routers
-   are configuration that *looks* live: they taught every new service the wrong
-   pattern, they needed a caveat in every document, and one of them - the Traefik
-   dashboard - was quietly serving `api@internal` unauthenticated, where
-   `/api/rawdata` dumped the merged config **including a live
-   `Authorization: Basic` header** that a `customRequestHeaders` middleware
-   injected for Prometheus. They were deleted.
-
-Deleting them cost nothing measurable. The router table went from **22 routers to
-6** - four host-less exact-`Path()` routes for the portal's `/-/api/*` data plane,
-the portal's catch-all, and Traefik's internal metrics route - with **zero `Host()`
-rules remaining**. Nothing became unreachable, because every browser-facing service
-had kept its published port all along, and the verification harness passed
-afterwards. The only functional loss was the Traefik dashboard UI.
-
-It is **7** as of later the same day: the Keycloak work added
-`oauth2-endpoints@file`, a `` PathPrefix(`/oauth2/`) `` route at priority 100. Still
-zero `Host()` rules - that is the invariant worth checking, not the count.
-
-**What replaced it.** A browser-facing service publishes a host port and is reached
-at `http://<node-ip>:<port>`; `just urls` prints the table and is the only
-allocator there is. Host processes bind `0.0.0.0` on their own port. If a service
-genuinely needs a Traefik route, the one supported shape is a **host-less exact
-`` Path(`…`) ``** rule at priority 100 - see `edge/dynamic/project.example.yml`
-for the annotated template and `edge/dynamic/portal-api.yml` for the live example.
-**Do not write a `Host()` rule:** with no name layer it registers as `enabled` and
-then matches nothing, forever, which is worse than an error.
-
-The lesson worth stealing is the one that survived: **either keep a layer working
-or delete it - parked configuration is the expensive middle.**
-
-### 2. The portal discovers what is running. It is never a hand-written list.
+### 1. The portal discovers what is running. It is never a hand-written list.
 
 The portal - Traefik's catch-all on `:80`, and since 2026-08-12 the only non-API
 router on the box - is a React 19 + Vite app served as a static build. Its service links navigate by
@@ -165,6 +119,59 @@ as fast.
 > The proxy also holds the socket read-only, sets `POST=0`, publishes no port, and
 > lives alone with Traefik on a separate `socketnet` - it has no authentication of
 > its own, so network reachability *is* authorisation.
+
+### 2. A service with no auth of its own is protected by exactly one thing: who can reach it
+
+The socket proxy taught this and the editor tier is built on it. `portal-files`
+holds read-write bind mounts on two git repositories and authenticates nobody. It
+publishes **no host port** and sits on a network holding exactly two containers -
+itself and Traefik. Authorisation happens at the edge, in a `forwardAuth`
+middleware; anything that can reach the service directly has already bypassed it.
+
+That single sentence decides the layout: three networks, each holding the minimum
+that can talk to a thing worth protecting.
+
+| Network | Holds | Because |
+|---|---|---|
+| `socketnet` | traefik + the socket proxy | the proxy has no auth, and the socket is root-equivalent |
+| `filesnet` | traefik + the editor tier | read-write handles on the repos |
+| `devnet` | everything else (~20 containers) | nothing here is a boundary |
+
+Put either of the first two on `devnet` and about twenty containers - including
+third-party images - inherit the capability. Nothing would warn you; the service
+would work perfectly.
+
+### 3. Make one function own the walk, so the security check is not something a caller has to remember
+
+The file API's `safepath.collect()` is the only way the application can learn a
+set of paths. It applies the deny rules, resolves every path, refuses symlinks and
+opens files safely - so a *new* endpoint gets those properties by calling it,
+rather than by its author remembering to.
+
+This was learned the expensive way twice. First a listing that did its own walk
+paid for 30,093 refused files to serve 3,474. Then, when full-text search was
+added, the same shortcut would have returned a matching **line** out of `.env` -
+the deny-list would still have been correct, and the secret would still have been
+on screen. `checks/search_denied.py` plants a credential-shaped token in three
+kinds of denied file and requires that only the served one comes back.
+
+The general form: **if a rule can be forgotten, it will be. Put it somewhere it
+cannot be skipped, then write the test that proves it was not.**
+
+### The one that got away
+
+This repo used to route everything by hostname - `Host()` rules, a wildcard
+`.test` namespace, no published ports. That layer went dormant on 2026-08-08 and
+was **deleted** on 2026-08-12, dropping the router table from 22 routers to 6 with
+zero `Host()` rules left. Nothing became unreachable, because every service had
+kept its port all along. One of the dead routers had been quietly serving the
+Traefik API unauthenticated, where `/api/rawdata` dumped a live
+`Authorization: Basic` header.
+
+The lesson that survived is worth more than the design: **either keep a layer
+working or delete it - parked configuration is the expensive middle.** Dead
+routers look live, teach every new service the wrong pattern, and need a caveat in
+every document. Full account in [`docs/kb/`](docs/kb/README.md).
 
 ---
 
@@ -260,15 +267,18 @@ flowchart TB
   O2P -.->|"sso@file / sso-errors@file exist,<br/>but are attached to NO router"| T
 ```
 
-Verified against the live router table on 2026-08-12: **7 routers, zero `Host()`
-rules.** The seventh is `oauth2-endpoints@file`, added the same day with Keycloak.
+Verified against the live router table: **10 routers, zero `Host()` rules.** The
+count moves as tiers are added; the zero is the invariant, and `just verify`
+asserts it.
 
 Retired from this picture on 2026-08-12: wildcard `*.dev.test` DNS, every `Host()`
 router, the browsable Traefik dashboard, and - as separate work the same day -
-Redis, Kafka and minikube. Keycloak and oauth2-proxy are **running but enforcing
-nothing**; the dotted line above is a capability, not a control.
+Redis, Kafka and minikube. Keycloak and oauth2-proxy now **enforce** on the editor
+tier's three routers; the dotted line above is a control there and a capability
+everywhere else.
 
-Two Docker networks, deliberately:
+Three Docker networks, deliberately - each holding the minimum that can reach a
+thing worth protecting:
 
 - **`devnet`** - the shared external network everything joins. Traefik pins its
   discovery to it (`--providers.docker.network=devnet`) so it can never pick the
@@ -276,32 +286,61 @@ Two Docker networks, deliberately:
 - **`socketnet`** - holds exactly two containers, Traefik and
   `portal-socket-proxy`. The proxy has no authentication, so keeping the blast
   radius at two members is the control.
+- **`filesnet`** - holds exactly two, Traefik and `portal-files`. That service has
+  read-write handles on two git repositories and no auth of its own, so the same
+  rule applies with a higher stake.
 
 ### Single sign-on
 
-**Status, 2026-08-12: built and running, enforcing nothing.** This is the
-single most important sentence in this section. Keycloak is up, oauth2-proxy is
-up, the middlewares exist in Traefik - and **no router references them**, so
-every service on the box is still open to anyone on the tailnet, exactly as it
-was before. Do not read "SSO is running" as "SSO is protecting something".
+**Status: enforcing, on the tier that can change things.** Keycloak issues the
+roles, oauth2-proxy answers Traefik's `forwardAuth`, and three routers require a
+role today. It is deliberately not yet on the dashboards - see *Why the split*
+below.
 
     Traefik --forwardAuth--> oauth2-proxy --OIDC--> Keycloak
 
-| Piece | State on 2026-08-12 |
+| Piece | State |
 |---|---|
 | Keycloak 26.7.1 | Running, published on host port **8090**, admin console at `/admin` |
 | Keycloak's database | The **existing shared Postgres**, under its own `keycloak` role and database, created by an idempotent one-shot on every `just up-auth` |
 | oauth2-proxy 7.15.3 | Running with `--provider=oidc` (was `--provider=github`), no host port |
-| `edge/dynamic/auth.yml` | Uncommented - `sso@file` and `sso-errors@file` exist again, plus a host-less `` PathPrefix(`/oauth2/`) `` router |
-| Routers using those middlewares | **None** |
-| Realm `devbox` | Exists, with flat non-composite roles `viewer`, `editor`, `operator`, `shell`, and one user |
+| Realm `devbox` | Flat, **non-composite** roles `viewer`, `editor`, `operator`, `shell`, and one user |
 | The `shell` role | Deliberately granted to nobody. It means an arbitrary terminal, so it must never be reachable by holding one of the other three - which is also why none of the four are composite |
+
+**What a role actually gates today**, from `edge/dynamic/portal-files.yml`:
+
+| Router | Requires | Covers |
+|---|---|---|
+| `portal-files-read` | `viewer` | `/roots` `/tree` `/read` `/search` `/history` `/repos` `/status` `/git/diff` |
+| `portal-files-download` | `viewer` | `/raw` `/archive`, on the `:8100` sandbox entrypoint only |
+| `portal-files-write` | `editor` | `/write` |
+
+Everything else on the box - Grafana, Prometheus, Portainer, Dozzle - still runs
+its own login on one shared dev credential (`DEV_LOGIN_*` in `.env`). Postgres is
+loopback-only and unrouted. So "SSO is running" does **not** mean "everything is
+behind SSO"; it means the write tier is, and nothing else is yet.
 
 **Why the split.** Attaching auth is the step that can lock you out, and the
 tools you would use to unlock it - the portal, Grafana, Dozzle - are the very
-things you would have just put behind the broken login. So the middlewares are
-defined first, verified end to end against one low-stakes router, and only then
-rolled outward. To require a login on a router, add **both, in this order**:
+things you would have just put behind the broken login. So the middlewares were
+defined first, then proven against the one tier where the cost of being wrong is
+highest (a service holding read-write handles on two git repos), and only then
+considered for anything else. Rolling outward from there is a decision, not a
+backlog item.
+
+The role requirement lives in the **middleware**, not in the service:
+`sso-viewer` and `sso-editor` are identical but for one word in the URL
+(`?allowed_groups=`). That is the property that makes the design worth having -
+adding an `operator` tier is four lines of YAML, not another container. The
+service itself authenticates nobody, which is why it must never leave its own
+network: reachability *is* authorisation there.
+
+Verified before it was built, with a role the user does **not** hold:
+`allowed_groups=editor` → 202, `allowed_groups=shell` → 403,
+`allowed_groups=<junk>` → 403. It fails closed. `just files-check` re-runs that
+probe, so the property is tested rather than assumed.
+
+To require a login on a further router, add **both, in this order**:
 `middlewares: [sso-errors@file, sso@file]`. Reversed, a signed-out user gets a
 blank 401 instead of a sign-in page.
 
@@ -394,63 +433,33 @@ expects to be routed, and auth before any router that references its middleware
 
 ---
 
-## DNS: how `*.test` names resolved - RETIRED
+## Two traps this box still has
 
-> **Dormant 2026-08-08, retired 2026-08-12.** The tailnet split-DNS route was
-> removed first, so no client resolved `.test` any more; the Traefik `Host()`
-> routers it fed were deleted four days later. dnsmasq itself still runs - it is
-> the box's own resolver, and its `address=/test/` line is harmless - so `.test`
-> still resolves **on the box and nowhere else**. Do not read that as names
-> working: the portal catch-all answers every request on `:80` with a 200
-> regardless. Re-adding the console route would restore resolution but route
-> nothing, because there are no Host routers left to author against.
+The `.test` name layer is gone, but two of its hazards outlived it, and both cost
+real debugging time.
 
-A local dnsmasq is authoritative for `.test` and answers a wildcard at **any
-depth**, so a brand-new name at any level needs no DNS work at all - only a
-Traefik rule.
+**A 200 proves nothing about routing.** The portal's catch-all `` PathPrefix(`/`) ``
+answers *every* unmatched request on `:80` with its own HTML - from any hostname
+and from the bare IP. dnsmasq's `address=/test/` line is also still in the local
+config, so `.dev.test` names still resolve **on this box**, to this box, where
+that catch-all cheerfully returns 200. From another device the same name is
+`NXDOMAIN`; from here it looks like it works. It is the most convincing false
+positive available on this machine. **Assert on content, never on a status code** -
+which is exactly what `just verify` does.
 
-```conf
-# /etc/dnsmasq.d/dev.conf
-bind-dynamic                 # not bind-interfaces: the tailnet iface may not exist yet at boot
-listen-address=<this-node>   # only the tailnet IP; systemd-resolved owns 127.0.0.53
-no-resolv                    # authoritative for .test, forwards nothing
-address=/test/<this-node>    # wildcard at ANY depth
-domain-needed                # dotless names NXDOMAIN instantly - see below
-```
+**A dotless hostname in a host process is a landmine.** dnsmasq runs with
+`domain-needed`, and that is not cosmetic. Without it, a bare compose service name
+(`tempo`, `redis`) leaking out of a container into a host process is forwarded to
+an upstream resolver that drops it silently instead of answering NXDOMAIN. Lookups
+hang ~40s each - and since `getaddrinfo` runs on libuv's four-thread pool, a
+handful of them starve *every other lookup in the process*. It presents as
+unrelated database timeouts, which is a very expensive way to learn about DNS.
 
-Tailscale **split DNS** used to route `test` queries to this node, so every device
-on the tailnet resolved `*.dev.test` directly. **That route is gone** - verified
-2026-08-12, `tailscale dns status` lists exactly one split route (`ts.net`) and no
-`test`. Nothing is published to the LAN or the internet, and the tailnet is
-WireGuard, so plain `http://` here is still encrypted in transit.
+The full dnsmasq configuration, the `.test`-not-`.dev` reasoning (`.dev` is a real
+HSTS-preloaded gTLD, so plain HTTP never loads) and the split-DNS history are in
+[`docs/kb/`](docs/kb/README.md).
 
-**The trap this leaves behind.** `address=/test/` above is still in the local
-dnsmasq config, so `.dev.test` names still resolve **on this box** - and resolve to
-this box, where the portal's catch-all `PathPrefix('/')` router answers every
-unmatched path with 200 and its own HTML. So `curl http://anything.dev.test/` from
-here returns a cheerful 200 that is not the service you asked for. It is the most
-convincing false positive available on this machine: from another device the same
-name is `NXDOMAIN`, and from here it looks like it works. **Assert on content, never
-on a status code.**
-
-Three things that are load-bearing here:
-
-- **`.test`, never `.dev`.** `.dev` is a real gTLD and is HSTS-preloaded, so
-  browsers force `https://` and plain HTTP never loads. `.test` is reserved by
-  RFC 6761, can never become a real TLD, and nothing preloads it.
-- **`domain-needed` is not cosmetic.** Without it, a dotless name that leaks out
-  of a container into a host process (`tempo`, `redis`, any bare compose service
-  name) is forwarded upstream to a resolver that drops it silently rather than
-  answering NXDOMAIN. Lookups then hang ~40s each - and since `getaddrinfo` runs
-  on libuv's four-thread pool, a handful of them starve *every other lookup in
-  the process*. That presents as unrelated database timeouts, which is a very
-  expensive way to learn about DNS.
-- **`local=/test/`** makes dnsmasq answer AAAA for `.test` with an immediate
-  NODATA. A plain `curl http://x.dev.test` that hangs while `curl -4` works
-  instantly is always something answering AAAA with silence instead.
-
-Databases are deliberately **not** routed by name. Reach them over SSH - only
-Postgres now, since Redis and Kafka were retired on 2026-08-12:
+Databases are deliberately not routed at all. Reach Postgres over SSH:
 
 ```sh
 ssh -L 5432:localhost:5432 <user>@<this-node>.<your-tailnet>.ts.net
