@@ -39,7 +39,12 @@ export interface Me {
   roles: Role[];
 }
 
-const KNOWN: Role[] = ['viewer', 'editor', 'operator', 'shell'];
+/** The four, in the order they are always shown - least privilege first, so the
+ *  Settings page reads as a ladder rather than as an unordered set. Exported
+ *  because the page enumerates all four and this narrows the token to them: two
+ *  copies of "which roles exist" is exactly how a UI comes to disagree with the
+ *  realm about what a role is. */
+export const ROLES: readonly Role[] = ['viewer', 'editor', 'operator', 'shell'];
 
 /** Null when signed out. Never throws for a 401 - being signed out is ordinary. */
 export async function fetchMe(signal?: AbortSignal): Promise<Me | null> {
@@ -57,7 +62,7 @@ export async function fetchMe(signal?: AbortSignal): Promise<Me | null> {
     email: raw.email ?? '',
     preferredUsername: raw.preferredUsername ?? raw.email ?? 'unknown',
     groups,
-    roles: KNOWN.filter((k) => groups.includes(k)),
+    roles: ROLES.filter((k) => groups.includes(k)),
   };
 }
 

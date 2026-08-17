@@ -1,0 +1,63 @@
+/* ============================================================================
+   The person control in the topbar. Builds ON the shared utilities in index.css
+   (.icon-btn .tag) and only carries the deltas, so a change to the topbar's
+   button shape reaches this one for free.
+
+   The panel is drawn to the command palette's recipe - --surface-4, a strong
+   line and --shadow-lg - because it is the same KIND of object: something that
+   floats over the page rather than another card sitting in it.
+
+   EVERY RULE IS SCOPED UNDER .user-menu, including the ones that only touch the
+   trigger. Not tidiness: `.user-btn` and `.icon-btn` are both one class, so a
+   bare `.user-btn { width: auto }` ties with index.css and loses on import
+   order - which it does, since index.css is imported by main.tsx after this
+   file's component. The measured symptom was the button staying a 38px square
+   and clipping the username. Two classes wins regardless of order.
+   ========================================================================== */
+
+.user-menu { position: relative; display: inline-flex; flex: none; }
+
+/* .icon-btn is a fixed 38px square built for a glyph alone. This one also
+   carries a name, so it grows sideways and keeps the square as its floor: the
+   control must not shift the row when the label is hidden at narrow widths. */
+.user-menu .user-btn { width: auto; min-width: 38px; grid-auto-flow: column; gap: 8px;
+  padding: 0 12px 0 10px; font: inherit; font-size: 13px; font-weight: 600; }
+.user-menu .user-btn:hover { color: var(--fg); border-color: var(--line-strong); }
+.user-menu .user-btn.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
+.user-menu .user-btn:disabled { cursor: default; }
+.user-menu .user-btn svg { flex: none; }
+
+/* A username is arbitrary text from the realm; without a ceiling one long
+   enough would push the search box off the row. */
+.user-menu .user-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 900px is where the topbar already drops its labels (the freshness pill, the
+   brand text, the search hint). This joins them rather than picking its own
+   breakpoint, so the row thins out in one step instead of four. */
+@media (max-width: 900px) {
+  .user-menu .user-name { display: none; }
+  .user-menu .user-btn { width: 38px; padding: 0; }
+}
+
+/* ── the panel ───────────────────────────────────────────────────────────── */
+.user-menu .um-panel { position: absolute; z-index: 60; top: calc(100% + 8px); right: 0;
+  min-width: 234px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface-4); border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg); }
+
+.user-menu .um-who { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px;
+  margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.user-menu .um-who-name { font-size: 13.5px; font-weight: 700; color: var(--fg); }
+.user-menu .um-who-mail { font-size: 12px; color: var(--fg-subtle); overflow-wrap: anywhere; }
+.user-menu .um-roles { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.user-menu .um-noroles { font-size: 11.5px; color: var(--fg-subtle); }
+
+.user-menu .um-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border-radius: var(--r-sm); font-size: 13.5px; color: var(--fg-muted); cursor: pointer; }
+.user-menu .um-item svg { flex: none; }
+.user-menu .um-item:hover { background: var(--surface-3); color: var(--fg); }
+/* The rows are inside a menu that traps Tab, so focus is the ONLY way most of
+   this panel is reached by keyboard. It gets the same weight as hover plus the
+   ring, not less. */
+.user-menu .um-item:focus-visible { background: var(--surface-3); color: var(--fg);
+  outline: 2px solid var(--ring); outline-offset: -2px; }
