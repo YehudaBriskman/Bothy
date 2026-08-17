@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Compile the (dependency-free) discover module and run the status truth table
-# against it, plus a pass over the box's real container list.
+# Compile the dependency-free modules and run their truth tables against them:
+# the status classifier and the dependency graph out of discover.ts, the retired
+# URLs out of pages/control/redirects.ts, plus a pass over the box's real
+# container list.
 #
 # There is no test runner in this app on purpose - one 13-case truth table did
-# not justify pulling vitest into a static SPA's toolchain. discover.ts imports
-# nothing, which is what makes this one-liner possible; if that ever stops being
-# true, that is the moment to add a real runner.
+# not justify pulling vitest into a static SPA's toolchain. Both modules import
+# NOTHING, which is what makes these one-liners possible, and it is why anything
+# worth checking here gets written as a module that imports nothing. If that ever
+# stops being true, that is the moment to add a real runner.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,10 +16,16 @@ WEB="$HERE/../web"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 
+# One invocation per module, not one with two inputs: with two, tsc's rootDir
+# becomes their common ancestor and it reproduces the source tree's directories
+# under --outDir, so the outputs stop being where the checks import them from.
 (cd "$WEB" && npx tsc src/lib/discover.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/discover.js" "$OUT/discover.mjs"
-cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$OUT/"
+(cd "$WEB" && npx tsc src/pages/control/redirects.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/redirects.js" "$OUT/redirects.mjs"
+cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -24,6 +33,10 @@ node "$OUT/status-classifier.mjs"
 echo
 echo "── relations ───────────────────────────────────────────"
 node "$OUT/relations.mjs"
+
+echo
+echo "── redirects ───────────────────────────────────────────"
+node "$OUT/redirect-table.mjs"
 
 echo
 echo "── this box, right now ─────────────────────────────────"

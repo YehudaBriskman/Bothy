@@ -38,7 +38,7 @@ export function ServiceDetail() {
   if (!node) {
     return (
       <div className="page detail">
-        <Link to="/services" className="back-link"><ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} /> Services</Link>
+        <Link to="/control/services" className="back-link"><ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} /> Services</Link>
         <div className="state"><h4>Service not found</h4><p>It may have stopped, or the page was reloaded from a stale link.</p></div>
       </div>
     );
@@ -70,7 +70,7 @@ export function ServiceDetail() {
   return (
     <div className="page detail" style={accStyle}>
       <nav className="crumbs" aria-label="Breadcrumb">
-        <Link to="/services">Services</Link>
+        <Link to="/control/services">Services</Link>
         <ChevronRight size={13} className="sep" aria-hidden="true" />
         <Link to={systemLink(node.group)}>{systemTitle}</Link>
         <ChevronRight size={13} className="sep" aria-hidden="true" />

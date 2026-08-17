@@ -31,14 +31,22 @@ export interface Cmd {
 
 const GROUPS: Cmd['group'][] = ['Go to', 'Services', 'Systems'];
 
+// These point at the LIVE paths, not through the redirects. Every old URL still
+// resolves, so leaving them would have worked - and would have been a palette
+// telling you a page lives somewhere it does not, one bounce at a time.
+//
+// `Access` is kept as a searchable ALIAS rather than a destination. It was the
+// name of a page for months; someone who types it should land somewhere useful
+// instead of getting nothing, but the label says where they are actually going.
 const DESTINATIONS: Cmd[] = [
   { id: 'go-/', group: 'Go to', label: 'Overview', to: '/' },
-  { id: 'go-/services', group: 'Go to', label: 'Services', to: '/services' },
-  // Both spellings stay reachable by name even though they are one page now -
-  // someone who thinks "ports" should not have to know it was merged.
-  { id: 'go-/access', group: 'Go to', label: 'Access', sub: 'routes + ports', to: '/access?tab=routes' },
-  { id: 'go-/ports', group: 'Go to', label: 'Ports', sub: 'in Access', to: '/access?tab=ports' },
-  { id: 'go-/topology', group: 'Go to', label: 'Topology', to: '/topology' },
+  { id: 'go-/control', group: 'Go to', label: 'Control', sub: 'what is running, and how you reach it', to: '/control' },
+  { id: 'go-/services', group: 'Go to', label: 'Services', to: '/control/services' },
+  { id: 'go-/routes', group: 'Go to', label: 'Routes', sub: 'was Access', to: '/control/routes' },
+  { id: 'go-/ports', group: 'Go to', label: 'Ports', sub: 'was Access', to: '/control/ports' },
+  { id: 'go-/topology', group: 'Go to', label: 'Topology', to: '/control/topology' },
+  { id: 'go-/files', group: 'Go to', label: 'Files', to: '/files' },
+  { id: 'go-/settings', group: 'Go to', label: 'Settings', sub: 'who you are, and what that lets you do', to: '/settings' },
 ];
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
