@@ -63,6 +63,30 @@ export const THEMES: readonly ThemeDef[] = [
     appearance: 'dark',
     note: 'After the editor theme by enkia. Cooler and bluer than Bothy Dark.',
   },
+  {
+    id: 'catppuccin-mocha',
+    name: 'Catppuccin Mocha',
+    appearance: 'dark',
+    note: 'Pastel and low-glare, on a soft violet-grey ground.',
+  },
+  {
+    id: 'catppuccin-latte',
+    name: 'Catppuccin Latte',
+    appearance: 'light',
+    note: 'The light flavour of the same palette. Warmer than Bothy Light.',
+  },
+  {
+    id: 'gruvbox',
+    name: 'Gruvbox',
+    appearance: 'dark',
+    note: 'Warm retro browns and cream, after the palette by morhetz.',
+  },
+  {
+    id: 'nord',
+    name: 'Nord',
+    appearance: 'dark',
+    note: 'Arctic blue-grey. The calmest of the set, and the lowest contrast.',
+  },
 ];
 
 /** `'system'` is a SELECTION, never a theme: it means "follow the OS", and it
