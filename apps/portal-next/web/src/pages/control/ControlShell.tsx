@@ -34,6 +34,30 @@ import './control.css';
 // type) while routes are the edge's own model of the box, so ports first is the
 // order of increasing indirection. /access with no ?tab still lands on Routes -
 // see redirects.ts. Topology is last because it is the expensive one.
+//
+// THERE IS NO `Actions` ENTRY, and that is the decision rather than the backlog.
+// docs/plans/control-and-settings.md §5 sketched one alongside the row-level
+// controls, and Control.tsx above it records the test a fifth entry has to pass:
+// it has to say something the pages already here cannot. Three candidates were
+// worked through and all three fail it:
+//
+//   · "what should I act on" is the landing page's entire job, and it already
+//     answers it with three fault classes and a link into whichever entry owns
+//     each one. A second triage list in the same section would compete with it;
+//   · "what can I act on" would need the allowlist bothy-control holds, and the
+//     contract in lib/actions.ts exposes no route that reports it. Inventing one
+//     would break the thing that made writing the contract first worth doing;
+//   · "what have I done" - ActionResult carries from/to/tookMs, and the contract
+//     calls it a transition, so a log is clearly anticipated somewhere. It is not
+//     anticipated HERE. Anything this page could hold is per-tab and dies on
+//     reload, so it would be silent about an action taken from a terminal, from
+//     another tab, or five minutes before the page was opened. A log that is
+//     wrong by omission is worse than no log, and the real one belongs wherever
+//     bothy-control writes its own.
+//
+// So the verbs live on the row you are looking at (components/ServiceActions.tsx)
+// and nowhere else. A sidebar entry leading to a worse version of the Services
+// table would be furniture.
 const NAV = [
   { to: '/control/services', label: 'Services', Icon: Boxes },
   { to: '/control/ports', label: 'Ports', Icon: Plug },
