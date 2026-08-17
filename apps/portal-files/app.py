@@ -325,9 +325,14 @@ def listing(root_key: str) -> tuple[list[dict], bool]:
                 "dir": os.path.dirname(res.relpath),   # so a UI can build a tree
                 "size": st.st_size,
                 "mtime": int(st.st_mtime),
-                "writable": (writable_root
-                             and os.path.splitext(fn)[1].lower()
-                             in safepath.WRITABLE_SUFFIXES),
+                # Writable now means only "the root allows writes". The suffix
+                # allowlist that used to narrow this is gone - see [write] in
+                # policy.toml - so the explorer no longer greys out a compose
+                # file it is perfectly able to save.
+                "writable": writable_root,
+                # The LABEL, not a refusal. A name-shaped credential is served
+                # and marked; the client decides how loudly to say so.
+                "sensitive": safepath.is_sensitive_name(fn),
                 "lang": LANGS.get(os.path.splitext(fn)[1].lower())
                         or LANGS.get(fn),
             })
@@ -733,7 +738,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"roots": [
                     {"key": k,
                      "readOnly": k in READONLY_ROOTS,
-                     "writableSuffixes": sorted(safepath.WRITABLE_SUFFIXES)}
+                     }
                     for k in sorted(safepath.ROOTS)
                 ]})
 
@@ -780,9 +785,11 @@ class Handler(BaseHTTPRequestHandler):
                     "versioned": res.git_root is not None,
                     "lang": LANGS.get(os.path.splitext(res.abspath)[1].lower())
                             or LANGS.get(os.path.basename(res.abspath)),
-                    "writable": (res.root_key not in READONLY_ROOTS
-                                 and os.path.splitext(res.abspath)[1].lower()
-                                 in safepath.WRITABLE_SUFFIXES),
+                    "writable": res.root_key not in READONLY_ROOTS,
+                    # What this edit costs, if anything, decided from the path
+                    # alone so it is known before a byte is read. None for the
+                    # ordinary case.
+                    "caution": safepath.caution_for(res.relpath),
                 }
                 # Binary is decided BEFORE the size check: a 40 MB png should
                 # report "binary" rather than "too large to edit", which would
@@ -798,9 +805,20 @@ class Handler(BaseHTTPRequestHandler):
                 # Advisory, never a refusal - see scan_for_secret's docstring for
                 # the measurement that settled it. The UI shows a caution; the
                 # file still opens.
+                #
+                # TWO SOURCES, and the NAME is checked first because it is the
+                # one that catches an empty or as-yet-unwritten credential file.
+                # The content scan reads what is actually there; the name scan
+                # knows what the file is FOR. `.env` with one commented line is
+                # still the place secrets go, and only the name says so.
+                sensitive = (
+                    "the filename is the shape of a credential store"
+                    if safepath.is_sensitive_name(os.path.basename(res.abspath))
+                    else safepath.scan_for_secret(content)
+                )
                 return self._send(200, {**base, "binary": False,
                                         "content": content,
-                                        "sensitive": safepath.scan_for_secret(content),
+                                        "sensitive": sensitive,
                                         "history": history(res)})
 
             if route == "/history":
@@ -1160,7 +1178,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             # Phase 1: everything that can fail cleanly.
-            members, skipped = safepath.collect(q.get("root", ""), q.get("path", ""))
+            # for_archive=True is what excludes credential files from the zip.
+            # They remain readable one at a time; see the comment on that check.
+            members, skipped = safepath.collect(q.get("root", ""), q.get("path", ""),
+                                                for_archive=True)
             if not members:
                 return self._send(404, {"error": "nothing to archive here",
                                         "skipped": len(skipped)})

@@ -15,9 +15,13 @@
 #      the file parses, every root exists, and the deny rules still refuse the
 #      things they were written for.
 #
-#   3. It is not editable through the explorer. `.toml` is not in
-#      [write].suffixes, so the file that defines the write rules cannot be
-#      rewritten by the thing it governs.
+#   3. IT IS NOW EDITABLE THROUGH THE EXPLORER, and it was not before. `.toml`
+#      used to be absent from [write].suffixes, so the file defining the write
+#      rules could not be rewritten by the thing it governs. That allowlist is
+#      gone (see [write]), so this file is writable like any other - and it is
+#      marked `critical` in [[write.caution]] for the reason rule 1 gives: it
+#      fails closed, so a bad edit here does not produce a permissive service,
+#      it produces one that will not start, repaired from a shell on the box.
 #
 # The paths below are CONTAINER paths. They are mounted in compose.yml, and a
 # root declared here that is not mounted there is a startup error rather than an
@@ -94,17 +98,37 @@ components = [
   ".next", ".turbo", ".cache", "target",
 ]
 
-# Files never served, matched on the FILENAME rather than a path component.
+# ── sensitive ───────────────────────────────────────────────────────────────
 #
-# This exists because a component-only list cannot see `.env` or `key.pem` -
-# both are FILES. That gap was live: a survey found ~/stacks/.env holding 19 real
-# secret values and a real TLS private key under ~/projects, and neither was
-# caught by the directory rules.
+# THESE FILES ARE SERVED. The list marks them; it no longer hides them.
 #
-# `realm-*.json` is here because auth/realm-devbox.json was served to an
-# authenticated viewer WITH a live Keycloak client secret in it. Nothing in its
-# name suggests anything, and every other pattern missed it. It is the case that
-# proves a name list catches the files somebody thought of, and nothing else.
+# It used to be `[deny].file_patterns` - a refusal - and the reasoning was that a
+# component-only list cannot see `.env` or `key.pem`, which is true and is why
+# the patterns are still here. What changed on 2026-08-17 is what happens when
+# one matches: the file is labelled, not withheld. This is one box, reached over
+# a tailnet, owned by the person reading it, and a file explorer that hides the
+# owner's own `.env` from them is not protecting anybody - it is teaching them
+# that Bothy cannot be trusted with the interesting half of the box.
+#
+# ONE CONSEQUENCE THAT IS NOT "MY BOX, MY FILES", and it should be read before
+# deciding this was obvious: ~/stacks/.env contains OAUTH2_COOKIE_SECRET. Anyone
+# who can read it can mint a session cookie for any role, so on this deployment
+# `viewer` is now worth the same as `operator`. That is fine while one person
+# holds all four roles and it stops being fine the moment a second person holds
+# only `viewer`. If that day comes, the answer is a role gate on this list -
+# `operator` to read a marked file - not a return to hiding them.
+#
+# The second thing worth naming: ~ holds credentials to OTHER systems - SSH
+# keys, a GitHub token, Claude's OAuth credentials. Tailscale protects the wire,
+# not the blast radius, and those keys open machines that are not this one.
+# `~` is a read-only root, so they cannot be changed through Bothy, only read.
+#
+# `realm-*.json` is here because auth/realm-devbox.json carries a live Keycloak
+# client secret and nothing in its name suggests it. It is the case that proves a
+# name list catches the files somebody thought of and nothing else - which is now
+# an argument about the LABEL being incomplete rather than about the wall being
+# incomplete, and a label that is sometimes missing is a much cheaper failure.
+[sensitive]
 file_patterns = [
   ".env", ".env.*", "*.env",
   "*.pem", "*.key", "*.p12", "*.pfx", "*.jks", "*.keystore",
@@ -125,7 +149,9 @@ file_patterns = [
 
 # Patterns above that describe a WORD rather than a file format, and so must not
 # apply to prose. Found by running the walk over the real tree: a documentation
-# page called "Change Password.md" was being hidden as a secret.
+# page called "Change Password.md" was being MARKED as a secret. It mattered more
+# when the mark was a refusal; it still matters, because a label on every page
+# that mentions a password is a label nobody reads.
 #
 # Only true documentation formats are exempt. `.txt` deliberately is NOT -
 # `db_password.txt` is exactly the shape of a file someone leaves a credential
@@ -133,10 +159,10 @@ file_patterns = [
 wordy_patterns = ["*secret*", "*password*"]
 prose_suffixes = [".md", ".markdown", ".rst"]
 
-# Explicit exceptions, by exact name. A committed `.env.example` is a TEMPLATE
-# full of placeholders - the file you read to learn what to set - and hiding it
-# makes the explorer worse for no gain. Listed by NAME so the exception can never
-# widen: `.env.example` is served, `.env.production` is not.
+# Explicit exceptions, by exact name: files that match a pattern above but carry
+# no credential. A committed `.env.example` is a TEMPLATE full of placeholders -
+# the file you read to learn what to set - so marking it would be crying wolf on
+# the one .env-shaped file that is safe by construction.
 allow_files = [
   ".env.example", ".env.sample", ".env.template", ".env.test.example",
   ".env.local.template", ".env.production.template", ".env.defaults",
@@ -171,14 +197,118 @@ max_age_days = 30
 # ── write ───────────────────────────────────────────────────────────────────
 
 [write]
-# A blast-radius limit, not a parsing concern. Without it, "edit a doc" also
-# means "rewrite compose.yml", "rewrite a shell script that cron runs", or "drop
-# a .py that something imports".
+# THERE IS NO EXTENSION ALLOWLIST. Removed 2026-08-17, on purpose.
 #
-# `.svg` and `.html` are here because they have viewers now. Worth stating: a
-# writable .html in a repo that some OTHER app serves is a stored-XSS vector in
-# THAT app. That is a property of the repo rather than of this service, but it is
-# a real widening of what the editor can reach.
-suffixes = [
-  ".md", ".markdown", ".txt", ".rst", ".svg", ".html", ".htm", ".xml",
-]
+# There used to be one - .md, .txt, .rst, .svg, .html, .xml - justified as a
+# blast-radius limit: "without it, edit a doc also means rewrite compose.yml".
+# That is true, and it is not this project's call to make. Bothy is dev-box
+# tooling for the person who owns the box. If they want to edit a compose file
+# and restart it, that is the job, not an accident to be prevented - and a tool
+# that refuses is a tool they work around with `vim`, which has none of the
+# things this write path provides.
+#
+# WHAT THE REFUSAL WAS ACTUALLY COSTING. Every write through this service gets a
+# role gate at the edge, a baseMtime conflict check, a snapshot of the outgoing
+# bytes, and an audit line naming who did it. Editing the same file by any other
+# means gets none of those. So the allowlist did not stop the dangerous edit; it
+# stopped the dangerous edit from being SAFE and ATTRIBUTED.
+#
+# WHAT IS STILL REFUSED, and why those are different in kind:
+#   · [deny] below. Secrets are not "risky to edit", they are files this service
+#     must never hand out AT ALL, read or write. Unchanged.
+#   · Paths outside a root, and writes through a symlink. Containment is not a
+#     policy preference, it is the boundary the whole service rests on.
+#   · Read-only roots (~/projects, ~). Declared, not incidental.
+#   · Anyone without the `editor` role. Enforced at the edge, not here.
+#
+# In place of refusing, the service now SAYS WHAT WILL HAPPEN - see
+# [[write.caution]]. Arch's bargain: you may do it, and you will be told what it
+# does first.
+#
+# STILL MISSING, and worth naming rather than implying it is handled: if an edit
+# does break something, the repair paths today are the snapshot this service
+# takes (see [snapshots]) and git, and both are file-level. There is no terminal
+# in Bothy - `shell` is a role granted to nobody - so a change that stops a
+# container from starting is repaired from a real shell on the box. That is the
+# gap a terminal would close, and it is the reason to build one.
+
+# What an edit COSTS, stated before it is made. These do not refuse anything.
+#
+# Ordered most specific first; the first match wins, so a rule for one file
+# inside a directory goes above the rule for the directory. `match` globs are
+# matched against the path RELATIVE TO ITS ROOT, with `**` crossing directories.
+#
+# The note is the whole point, so it says what breaks and how it is noticed -
+# not "be careful". A warning that does not name a consequence is decoration,
+# and it trains people to click past the ones that matter.
+
+[[write.caution]]
+match = ["edge/dynamic/*.yml", "edge/dynamic/*.yaml"]
+level = "critical"
+note = """Traefik renders these as Go templates BEFORE parsing the YAML, and it \
+does not skip comments. A doubled brace anywhere in the file - including inside \
+a comment - voids the whole file: no routers, no middlewares, while the file on \
+disk still looks perfect. Nothing errors and the routes simply stop existing. \
+Run `just verify` after saving; check 5b exists to catch exactly this."""
+
+[[write.caution]]
+match = ["**/compose.yml", "**/compose.yaml", "**/compose.*.yml", "docker-compose*.yml"]
+level = "critical"
+note = """This defines containers. A YAML error stops the stack coming up, and a \
+changed label or port does nothing until the container is RECREATED - editing \
+the file is not applying it. `docker compose up -d` on that file is the apply \
+step; `docker restart` is not, because a label is fixed at creation time."""
+
+[[write.caution]]
+match = [".env", "**/.env"]
+level = "critical"
+note = """Every service reads this at START, so nothing here is live until the \
+stack it belongs to is brought up again. Two values bite harder than the rest: \
+BOX_IP is baked into Keycloak's issuer and redirect URI, so changing it without \
+re-running `just up-auth` makes every login fail with a mismatch nobody can read \
+from the error; and OAUTH2_COOKIE_SECRET invalidates every existing session the \
+moment it changes."""
+
+[[write.caution]]
+match = ["**/policy.toml"]
+level = "critical"
+note = """This file is the access model for the service that is about to write \
+it. It fails closed - a malformed policy stops the service starting rather than \
+starting it permissively - so the failure mode is an editor that will not come \
+back, repaired from a shell on the box."""
+
+[[write.caution]]
+match = ["**/*.sh", "scripts/**", "host/**", ".github/workflows/**", "justfile", "Justfile"]
+level = "critical"
+note = """This runs as a command, some of it on a schedule and some of it as \
+root. An edit here is not configuration, it is code that something will execute \
+without being asked again."""
+
+[[write.caution]]
+match = ["**/Dockerfile", "**/Dockerfile.*", "**/nginx.conf", "**/*.conf"]
+level = "critical"
+note = """This is built or served rather than read. It takes effect on a rebuild \
+or a reload, so a mistake here is usually noticed as "the container will not \
+start" some time after the edit that caused it."""
+
+[[write.caution]]
+match = ["monitoring/**", "auth/**", "data/**", "**/*.yml", "**/*.yaml", "**/*.toml", "**/*.json", "**/*.ini"]
+level = "caution"
+note = """Configuration for a running service. It is read when that service \
+starts or reloads, so the change is not live yet, and a syntax error surfaces as \
+a service that stops rather than as an error here."""
+
+[[write.caution]]
+match = ["**/*.css"]
+level = "caution"
+note = """A stylesheet the portal serves. Custom themes under \
+apps/portal-next/data/themes are picked up on reload; anything under src/ is \
+compiled into the bundle and needs a rebuild to take effect."""
+
+[[write.caution]]
+match = ["**/*.html", "**/*.htm", "**/*.svg"]
+level = "caution"
+note = """A document some OTHER application may serve. If it does, a script \
+inside it runs in THAT application's origin, with whatever session the reader \
+has there. Bothy serves raw bytes only from the sandbox origin on :8100, which \
+is why it is safe HERE and not necessarily safe there."""

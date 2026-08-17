@@ -92,7 +92,17 @@ try:
           any(c.name.startswith("_oauth2_proxy") for c in s.cookies))
 
     # ── the boundary ────────────────────────────────────────────────────────
-    print("\n── denied files must not appear in results ─────────────────────────")
+    #
+    # THIS ASSERTION INVERTED ON 2026-08-17. Files matching the credential name
+    # patterns are served now and marked instead - see [sensitive] in
+    # policy.toml - so search finds them, and the thing being tested is that the
+    # walk still agrees with resolve(). It always did; what changed is what
+    # resolve() permits.
+    #
+    # The DIRECTORY rule did not change, and that is the half still worth
+    # guarding: `node_modules` is pruned during the walk, so nothing inside it
+    # can surface no matter what the content is.
+    print("\n── search agrees with what resolve() now permits ────────────────────")
     r = s.get(f"{API}/search",
               params={"root": "stacks", "path": PROBE_REL, "q": TOKEN}, timeout=30)
     check("search answers", r.status_code == 200, f"got {r.status_code}")
@@ -101,18 +111,19 @@ try:
 
     check("the served file IS found",
           f"{PROBE_REL}/found.md" in hit_paths, f"{sorted(hit_paths)}")
-    for denied, why in (("secret-probe.txt", "*secret* name pattern"),
-                        (".env.probe", ".env.* name pattern"),
-                        ("node_modules/x.md", "denied path component")):
-        check(f"NOT found: {denied}",
-              f"{PROBE_REL}/{denied}" not in hit_paths, why)
+    for now_served, why in (("secret-probe.txt", "*secret* is a label, not a wall"),
+                            (".env.probe", ".env.* is a label, not a wall")):
+        check(f"now found: {now_served}",
+              f"{PROBE_REL}/{now_served}" in hit_paths, why)
+    check("NOT found: node_modules/x.md",
+          f"{PROBE_REL}/node_modules/x.md" not in hit_paths,
+          "denied path component - unchanged")
 
     # The name half of the response goes through the same walk, so it gets the
-    # same assertion - a denied file must not surface by NAME either.
+    # same assertion: a PRUNED DIRECTORY must not surface by name either.
     name_paths = {m["path"] for m in body.get("names", [])}
-    check("no denied file surfaces as a NAME hit",
-          not any(p.startswith(f"{PROBE_REL}/") and not p.endswith("found.md")
-                  for p in name_paths),
+    check("no file from a pruned directory surfaces as a NAME hit",
+          not any(p.startswith(f"{PROBE_REL}/node_modules/") for p in name_paths),
           f"{sorted(name_paths)}")
 
     # ── the overlapping root ────────────────────────────────────────────────

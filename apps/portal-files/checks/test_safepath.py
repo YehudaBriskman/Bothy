@@ -39,6 +39,7 @@ with open(_POLICY, "w") as _f:
         f'components = [".git", ".ssh", ".gnupg", "node_modules", ".venv", "venv",'
         f' "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",'
         f' ".next", ".turbo", ".cache", "target"]\n'
+        f'[sensitive]\n'
         f'file_patterns = [".env", ".env.*", "*.env", "*.pem", "*.key", "*.p12",'
         f' "*.pfx", "*.jks", "*.keystore", "id_rsa", "id_dsa", "id_ecdsa",'
         f' "id_ed25519", "*.ppk", "*.kdbx", "*.gpg", "*.asc", ".netrc", ".pgpass",'
@@ -50,8 +51,10 @@ with open(_POLICY, "w") as _f:
         f'allow_files = [".env.example", ".env.sample", ".env.template",'
         f' ".env.test.example", ".env.local.template", ".env.production.template",'
         f' ".env.defaults"]\n'
-        f'[write]\nsuffixes = [".md", ".markdown", ".txt", ".rst", ".svg",'
-        f' ".html", ".htm", ".xml"]\n'
+        f'[[write.caution]]\nmatch = ["edge/dynamic/*.yml"]\n'
+        f'level = "critical"\nnote = "go templates"\n'
+        f'[[write.caution]]\nmatch = ["**/*.yml"]\n'
+        f'level = "caution"\nnote = "service config"\n'
         f'[snapshots]\npath = "{_BOOT}"\n')
 os.environ.setdefault("POLICY_FILE", _POLICY)
 
@@ -128,10 +131,19 @@ print("\n── the name-prefix trap ──────────────�
 # starts with "/tmp/x/docs" and this would be served.
 check("sibling dir sharing a prefix",    R("../docs-secret/keys.md"), expect_refused=True)
 
-print("\n── write is narrower than read ─────────────────────────────────────")
+print("\n── write is no longer narrower than read, by extension ─────────────")
+# It used to be: an allowlist of prose suffixes meant a shell script or a compose
+# file could be READ and not WRITTEN. That is gone - [write] in policy.toml has
+# the reasoning - so these now assert the OPPOSITE of what they used to, which is
+# the point of leaving them here rather than deleting them. If a future change
+# re-narrows writes by extension, these are what notice.
+#
+# Write is still narrower than read in every way that is a boundary rather than a
+# preference: a read-only root, a symlink, and anything outside a root. Those are
+# tested above and did not move.
 check("reading a shell script",          R("script.sh"),        expect_refused=False)
-check("WRITING a shell script",          R("script.sh", True),  expect_refused=True)
-check("writing a compose file",          R("compose.yml", True), expect_refused=True)
+check("WRITING a shell script",          R("script.sh", True),  expect_refused=False)
+check("writing a compose file",          R("compose.yml", True), expect_refused=False)
 
 print("\n── repo is mounted, but only the content dir is editable ───────────")
 # The compose file mounts the WHOLE stacks repo, because git needs .git at the
@@ -164,18 +176,26 @@ bad += (0 if gr_ok else 1) + (0 if rel_ok else 1)
 safepath.ROOTS["docs"] = root      # restore for the remaining cases
 safepath.GIT_ROOTS["docs"] = root
 
-print("\n── SECRETS: the control that widening the roots made necessary ─────")
-# The roots used to be two markdown trees. They are now the whole box, and a
-# survey of the new scope found ~/stacks/.env holding 19 real secret values and
-# a real TLS private key under ~/projects. Matching only path COMPONENTS - which
-# is what the first version did - would have served both, because `.env` is a
-# FILE and `key.pem` is a FILE.
+print("\n── SECRETS: served, and MARKED rather than hidden ──────────────────")
+# These used to be REFUSED. They are served now and labelled instead - see
+# [sensitive] in policy.toml for the decision and for its one consequence that
+# is not "my box, my files": ~/stacks/.env carries OAUTH2_COOKIE_SECRET, so
+# being able to read it is equivalent to holding every role.
+#
+# What is tested here is therefore the LABEL, on exactly the names that used to
+# be refused. A mark that silently stopped matching would restore none of the
+# old protection and remove all of the new warning, and would look like nothing
+# at all in a diff.
 for name in [".env", ".env.production", ".env.local", "id_ed25519", "id_rsa",
              "key.pem", "cert.key", "server.p12", ".netrc", ".pgpass",
              ".git-credentials", "credentials.json", "my-secrets.yml",
              "db_password.txt", "sessions.sqlite", "app.db", "Key.PEM"]:
     open(os.path.join(root, name), "w").write("SENSITIVE\n")
-    check(f"secret refused: {name}", R(name), expect_refused=True)
+    check(f"secret served: {name}", R(name), expect_refused=False)
+    marked = safepath.is_sensitive_name(name)
+    bad += 0 if marked else 1
+    print(f"{'PASS' if marked else 'FAIL'}  {'  ...and marked sensitive: ' + name:<52} "
+          f"want=True    {marked}")
 
 # ...but a committed template is the file you READ to learn what to set, and
 # hiding it makes the explorer worse for no gain. Allowed BY NAME so the
@@ -195,13 +215,20 @@ print("\n── prose is not a secret just because of a word in its name ──�
 # "Change Password.md" was being hidden as a secret by the `*password*` pattern.
 # `.md`/`.rst` are formats you write ABOUT credentials in; `.txt` is a format
 # people leave them in, so it stays denied.
-for name, want_refused in [
+for name, want_marked in [
     ("Change Password.md", False), ("secrets.md", False), ("password.rst", False),
     ("db_password.txt", True), ("my-secrets.yml", True), ("api_secret.json", True),
 ]:
     open(os.path.join(root, name), "w").write("x\n")
-    check(f"{'refused' if want_refused else 'served '}: {name}",
-          R(name), expect_refused=want_refused)
+    # Everything is served now, so the question is only whether it is LABELLED -
+    # and a label on every page that merely mentions a password is a label
+    # nobody reads, which is the same failure the refusal had.
+    check(f"served: {name}", R(name), expect_refused=False)
+    got = safepath.is_sensitive_name(name)
+    ok = got is want_marked
+    bad += 0 if ok else 1
+    print(f"{'PASS' if ok else 'FAIL'}  {'  marked: ' + name:<52} "
+          f"want={str(want_marked):<7} {got}")
 
 print("\n── archive manifests: collect() == what resolve() allows ───────────")
 # THE invariant. collect() owns the walk precisely so a second implementation
@@ -210,14 +237,49 @@ print("\n── archive manifests: collect() == what resolve() allows ───�
 # members instead of 641, .env present).
 os.makedirs(os.path.join(root, "sub"), exist_ok=True)
 open(os.path.join(root, "sub", "ok.md"), "w").write("fine\n")
-members, skipped = safepath.collect("docs", "", max_entries=10_000, max_total=10**12)
+members, skipped = safepath.collect("docs", "", max_entries=10_000, max_total=10**12,
+                                    for_archive=True)
 names = {m.res.relpath for m in members}
 denied_reasons = {s["path"]: s["why"] for s in skipped}
-for planted in [".env", "key.pem", "id_ed25519", "realm-devbox.json", ".git/config"]:
+# AN ARCHIVE IS NOT A READ. Credential files are SERVED now - open ~/stacks/.env
+# in the explorer and you get it - but they are still excluded from bulk
+# downloads, because a zip is produced by one click on a parent folder and then
+# travels somewhere nobody re-reads it. This is the single place where the
+# `sensitive` mark is a refusal rather than a label, and it is the assertion that
+# keeps the two apart.
+for planted in [".env", "key.pem", "id_ed25519"]:
     ok = planted not in names
     bad += 0 if ok else 1
-    print(f"{'PASS' if ok else 'FAIL'}  {'never in a manifest: ' + planted:<52} "
-          f"want=absent  {denied_reasons.get(planted, 'pruned')[:28]}")
+    print(f"{'PASS' if ok else 'FAIL'}  {'excluded from a manifest: ' + planted:<52} "
+          f"want=absent  {denied_reasons.get(planted, 'MISSING REASON')[:30]}")
+# ...and the omission is REPORTED, not silent. An archive that quietly drops
+# files is discovered by whoever restores it.
+ok = all("credential" in denied_reasons.get(p, "") for p in [".env", "key.pem"])
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'...and each says why it was left out':<52} "
+      f"want=stated  {denied_reasons.get('.env', '(none)')[:30]}")
+# A DIRECTORY component is a different rule and did not change. `.git` is pruned
+# during the walk, so nothing inside it is ever a member.
+ok = ".git/config" not in names
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'still never in a manifest: .git/config':<52} "
+      f"want=absent  {denied_reasons.get('.git/config', 'pruned')[:28]}")
+# But a sensitive NAME is not a sensitive ROOT: ordinary files beside it are
+# still collected, or the exclusion would be a folder-level denial by accident.
+ok = "sub/ok.md" in names and "index.md" in names
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'neighbours of a secret are still collected':<52} "
+      f"want=present {sorted(n for n in names if n.endswith('.md'))[:3]}")
+# The SAME walk without for_archive keeps them, because search runs through it
+# and a search that cannot see .env is a search that lies about the filesystem.
+# This pair is the entire difference between "readable" and "downloadable in
+# bulk", so it is asserted rather than left to the flag's name.
+_search_members, _ = safepath.collect("docs", "", max_entries=10_000, max_total=10**12)
+_search_names = {m.res.relpath for m in _search_members}
+ok = ".env" in _search_names and "key.pem" in _search_names
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'...but the SEARCH walk still sees them':<52} "
+      f"want=present {'.env' in _search_names}")
 ok = "sub/ok.md" in names
 bad += 0 if ok else 1
 print(f"{'PASS' if ok else 'FAIL'}  {'but ordinary files ARE collected':<52} want=present {len(members)} members")
@@ -362,26 +424,28 @@ def _load(policy_text, label, want_fail):
 # FAIL CLOSED. Each of these must stop the service, because the alternative is a
 # service running with a policy nobody wrote - and the only safe fallback is
 # "serve nothing", which looks broken and gets worked around.
+_DENY = '[deny]\ncomponents=[]\n'
+_SENS = '[sensitive]\nfile_patterns=[]\n'
 _load("this is not toml [[[", "malformed policy is refused", True)
-_load('[deny]\ncomponents=[]\nfile_patterns=[]\n[write]\nsuffixes=[]\n',
-      "a policy with no roots is refused", True)
-_load('[roots.x]\npath="/nope/not/here"\n[deny]\ncomponents=[]\n'
-      'file_patterns=[]\n[write]\nsuffixes=[]\n',
+_load(_DENY + _SENS, "a policy with no roots is refused", True)
+_load('[roots.x]\npath="/nope/not/here"\n' + _DENY + _SENS,
       "a root that is not mounted is refused", True)
-_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
-      '[snapshots]\npath="/tmp"\n',
-      "a policy missing [write] is refused", True)
+# [write] is now OPTIONAL - it carries only the caution table, and a policy with
+# no cautions is a policy that warns about nothing, not one that permits nothing.
+# [sensitive] is the one that must be present, because a missing marker list
+# would silently stop labelling credentials.
+_load('[roots.x]\npath="/tmp"\n' + _DENY + '[snapshots]\npath="/tmp"\n',
+      "a policy missing [sensitive] is refused", True)
+_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/tmp"\n',
+      "a policy with no [write] LOADS - cautions are optional", False)
 # The undo net is checked like a root: declared but not mounted stops the
 # service. A net that is silently absent is discovered on the day it was needed.
-_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
-      '[write]\nsuffixes=[".md"]\n',
+_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS,
       "a policy with no [snapshots] is refused", True)
-_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
-      '[write]\nsuffixes=[".md"]\n[snapshots]\npath="/nope/not/here"\n',
+_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/nope/not/here"\n',
       "an unmounted snapshot directory is refused", True)
 # ...and a valid one loads, or the five above would pass for the wrong reason.
-_load('[roots.x]\npath="/tmp"\n[deny]\ncomponents=[]\nfile_patterns=[]\n'
-      '[write]\nsuffixes=[".md"]\n[snapshots]\npath="/tmp"\n',
+_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/tmp"\n',
       "a valid policy loads", False)
 
 # The shipped policy must still say what the boundary needs it to say.
@@ -398,10 +462,45 @@ ok = _ship["roots"]["home"].get("deny_toplevel_dots") is True
 bad += 0 if ok else 1
 print(f"{'PASS' if ok else 'FAIL'}  {'home still denies top-level dot entries':<52} "
       f"want=True    {_ship['roots']['home'].get('deny_toplevel_dots')}")
-ok = ".toml" not in _ship["write"]["suffixes"]
+# The write allowlist is gone on purpose; assert it has not crept back, because
+# re-adding it would silently make every non-prose file read-only again.
+ok = "suffixes" not in _ship.get("write", {})
 bad += 0 if ok else 1
-print(f"{'PASS' if ok else 'FAIL'}  {'the policy file cannot rewrite itself':<52} "
-      f"want=absent  .toml in write.suffixes: {'.toml' in _ship['write']['suffixes']}")
+print(f"{'PASS' if ok else 'FAIL'}  {'no extension allowlist has crept back':<52} "
+      f"want=absent  {sorted(_ship.get('write', {}))}")
+# policy.toml is writable now, so the thing that used to be a refusal has to be
+# a warning instead - and the warning has to be the loud one.
+#
+# Asserted against the SHIPPED table rather than through caution_for(), which is
+# bound to this file's small fixture policy. Getting that wrong would have made
+# these pass by describing the fixture.
+def _ship_caution(rel):
+    """First matching shipped rule, by the same first-match-wins order."""
+    import fnmatch as _fn
+    for r in _ship.get("write", {}).get("caution", []):
+        for pat in r["match"]:
+            tail = pat[3:] if pat.startswith("**/") else None
+            hit = (_fn.fnmatch(rel, tail) or _fn.fnmatch(rel, "*/" + tail)) if tail \
+                else _fn.fnmatch(rel, pat)
+            if hit:
+                return r
+    return None
+
+for rel, want_level, needle in [
+    ("apps/portal-files/policy.toml", "critical", "fails closed"),
+    # The ordering that makes the whole table correct: the most dangerous file in
+    # the repo must not fall through to the generic YAML rule below it.
+    ("edge/dynamic/portal-api.yml", "critical", "template"),
+    ("monitoring/prometheus.yml", "caution", "running service"),
+    ("scripts/backup.sh", "critical", "runs as a command"),
+    ("docs/kb/access.md", None, ""),
+]:
+    _c = _ship_caution(rel)
+    got = _c["level"] if _c else None
+    ok = got == want_level and (not needle or needle in " ".join(_c["note"].split()).lower())
+    bad += 0 if ok else 1
+    print(f"{'PASS' if ok else 'FAIL'}  {'caution: ' + rel:<52} "
+          f"want={str(want_level):<8} {got}")
 
 print("\n── the advisory scanner: ADVISORY, and measured ────────────────────")
 # scan_for_secret marks a file; it never refuses one. That was decided by running
@@ -436,9 +535,16 @@ for label, text in _tp:
 
 # The file that proved a name-based list is a filter, not a boundary: it was
 # served to an authenticated viewer WITH a live client secret in it, and nothing
-# in its name suggested anything. Now denied by name.
+# in its name suggested anything.
+#
+# It is served again now, deliberately, and the same fact reads differently: a
+# name list was a poor WALL and is a perfectly good LABEL, because a label that
+# misses a file costs a missing warning rather than a leak.
 open(os.path.join(root, "realm-devbox.json"), "w").write('{"secret":"x"}')
-check("keycloak realm export refused",  R("realm-devbox.json"), expect_refused=True)
+check("keycloak realm export served",   R("realm-devbox.json"), expect_refused=False)
+_m = safepath.is_sensitive_name("realm-devbox.json")
+bad += 0 if _m else 1
+print(f"{'PASS' if _m else 'FAIL'}  {'  ...and marked sensitive':<52} want=True    {_m}")
 
 print("\n── malformed input ─────────────────────────────────────────────────")
 check("empty path",                      R(""),                 expect_refused=True)
