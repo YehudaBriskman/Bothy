@@ -63,6 +63,13 @@ echo; echo "── search must not see what the explorer refuses to open ──�
 # file and requires that only the served one comes back.
 python3 checks/search_denied.py || fail=1
 
+echo; echo "── backlinks: the graph, and what must not be in it ─────────"
+# Runs after search_denied.py for the same reason it exists: /links walks with
+# safepath.collect() too, and an index is a place a denied file would sit
+# permanently rather than only appearing in one answer. Plants its corpus in
+# $HOME - never inside either repo - and removes it in a finally.
+python3 checks/links_index.py || fail=1
+
 echo; echo "── does anything SERVED look like a credential? ─────────────"
 # Baseline diff, not "fail on any hit" - the detector flags 40 files and the top
 # hits are .env.example and READMEs, so an absolute check would be noise nobody
