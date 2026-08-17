@@ -1,0 +1,84 @@
+/* ============================================================================
+   Gruvbox Dark - after the palette by morhetz.
+
+   THE HARDEST PORT OF THE FOUR, and worth saying why: Gruvbox is a WARM palette.
+   Its surfaces are brown-grey, its foreground is cream, and its bright accents
+   are red, green, yellow, orange, aqua and a dusty pink. That distribution is
+   almost exactly wrong for this design system, because three of those hues are
+   reserved for status and the remaining chrome window is the cool 120 degrees
+   (208-328) that Gruvbox barely visits.
+
+   So this port keeps everything Gruvbox is recognisable BY - the warm surfaces,
+   the cream text, the red/green/yellow status - and accepts that its five panel
+   accents are the least Gruvbox-looking part of it:
+
+     · Upstream blue (#83a598) is really a desaturated aqua at H ~193, outside
+       the legal window and too close to nothing in particular. The accents are
+       built as cooled, Gruvbox-weight versions across 210-325 instead.
+     · Upstream purple (#d3869b) sits at H ~5, which is --st-down's hue. It is
+       not used as chrome anywhere.
+     · Charts are darkened for the L<=0.67 band, as everywhere else.
+
+   The alternative - bending the accent rule to keep Gruvbox's own aqua and pink
+   - was rejected on the grounds the rule exists for: a decorative spine that
+   shares a hue with "up" or "down" is read as status, and it is read that way
+   most reliably by the people the contrast rules are for.
+   ========================================================================== */
+
+:root[data-bothy-theme='gruvbox'][data-bothy-theme],
+[data-bothy-theme='gruvbox'][data-bothy-theme] {
+  color-scheme: dark;
+
+  --bg:        #282828;
+  --bg-2:      #1d2021;
+  --surface-1: #32302f;
+  --surface-2: #3c3836;
+  --surface-3: #504945;
+  --surface-4: #5a524c;
+  --bg-glow:   radial-gradient(60% 50% at 50% 0%, #423c37 0%, transparent 70%);
+
+  --fg:        #ebdbb2;
+  --fg-muted:  #d5c4a1;
+  --fg-subtle: #b0a189;
+  --on-accent: #1d2021;
+
+  --line:        rgb(235 219 178 / 12%);
+  --line-strong: rgb(235 219 178 / 20%);
+
+  --accent:      #7fb3d4;
+  --accent-2:    #6a9bbd;
+  --accent-fg:   #9cc6e2;
+
+  --chart-1: #4f8fbd;
+  --chart-2: #2f8f8a;
+  --chart-3: #c1702f;
+  --chart-4: #8a6fc4;
+  --chart-5: #c25a6e;
+
+  --st-up:      #b8bb26;  --st-up-fg:      #b8bb26;
+  --st-warn:    #fabd2f;  --st-warn-fg:    #fabd2f;
+  --st-down:    #fb4934;  --st-down-fg:    #ff7a68;
+  --st-unknown: #665c54;  --st-unknown-fg: #bdae93;
+  --st-off:     #504945;  --st-off-fg:     #ada18c;
+
+  --a1: #65b4d4;
+  --a2: #7da8e0;
+  --a3: #a09de9;
+  --a4: #ba95df;
+  --a5: #d48ec8;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 44%), inset 0 1px 0 rgb(235 219 178 / 5%);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 48%), inset 0 1px 0 rgb(235 219 178 / 6%);
+  --shadow-lg: 0 18px 44px rgb(0 0 0 / 56%), inset 0 1px 0 rgb(235 219 178 / 7%);
+
+  --scroll-shade: rgb(29 32 33 / 84%);
+  --hover-opacity: .9;
+}
+
+:root[data-bothy-theme='gruvbox'] .bothy-files.bothy-files {
+  --hl-com: var(--fg-subtle);
+  --hl-kw:  #d3a3e0;
+  --hl-str: #8ec07c;
+  --hl-num: #fe8019;
+  --hl-key: #8fbfe0;
+}

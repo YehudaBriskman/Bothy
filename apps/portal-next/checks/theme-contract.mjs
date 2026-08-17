@@ -350,9 +350,12 @@ console.log('\n── picker swatches match the palettes they preview ───�
 {
   const PREVIEWS = [['--sw-1', '--accent'], ['--sw-2', '--st-up'], ['--sw-3', '--st-warn'],
     ['--sw-4', '--st-down'], ['--sw-5', '--a5']];
-  // They live in Settings.css, scoped to .theme-swatch, because unscoped they
-  // matched the root element and leaked --sw-1..5 into the whole document.
-  const settings = blocks(readFileSync(join(SRC, 'pages', 'Settings.css'), 'utf8'));
+  // They live in themes/picker.css, scoped to .theme-swatch: scoped, because
+  // unscoped they matched the root element and leaked --sw-1..5 into the whole
+  // document; in themes/, because a file that defines colour values is a
+  // palette definition site and stray-colour.mjs is right to refuse them
+  // anywhere else.
+  const settings = blocks(readFileSync(join(SRC, 'themes', 'picker.css'), 'utf8'));
   for (const [id, toks] of [['bothy-dark', BASE], ['bothy-light', merge(BASE, LIGHT)]]) {
     const want = `.theme-swatch[data-bothy-theme='${id}']`;
     const sw = merge(...settings

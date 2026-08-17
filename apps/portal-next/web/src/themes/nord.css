@@ -1,0 +1,79 @@
+/* ============================================================================
+   Nord - after the palette by Arctic Ice Studio.
+
+   Nord is the closest fit of the four ports, and for a structural reason: it is
+   already split into a cool set and a warm set. Frost is chrome, Aurora is
+   state. That is the same division this design system enforces between
+   --a1..--a5 and --st-*, arrived at independently.
+
+   Where it still departs:
+
+     · Frost's two greenest members (#8fbcbb at H ~185 and #88c0d0 at H ~205)
+       sit just outside the legal accent window, which opens at 208. The accent
+       ramp starts from a cooled #88c0d0 instead and runs to a violet extended
+       past Aurora's purple, because Nord has nothing at the magenta end.
+     · Aurora's yellow (#ebcb8b) is very light and its green (#a3be8c) is muted;
+       both are usable as status fills but the pair needed separating so that
+       "warn" does not read as a paler "up".
+     · Nord's surfaces are famously low-contrast. The ladder is kept close to
+       upstream's Polar Night, but --fg-subtle is lifted well above #4c566a,
+       which is a SURFACE colour upstream and cannot carry 11px text.
+   ========================================================================== */
+
+:root[data-bothy-theme='nord'][data-bothy-theme],
+[data-bothy-theme='nord'][data-bothy-theme] {
+  color-scheme: dark;
+
+  --bg:        #2e3440;
+  --bg-2:      #272c38;
+  --surface-1: #343b49;
+  --surface-2: #3b4252;
+  --surface-3: #434c5e;
+  --surface-4: #4c566a;
+  --bg-glow:   radial-gradient(60% 50% at 50% 0%, #3d4759 0%, transparent 70%);
+
+  --fg:        #eceff4;
+  --fg-muted:  #d8dee9;
+  --fg-subtle: #a7b1c2;
+  --on-accent: #272c38;
+
+  --line:        rgb(236 239 244 / 12%);
+  --line-strong: rgb(236 239 244 / 20%);
+
+  --accent:      #88c0d0;
+  --accent-2:    #6fa8bd;
+  --accent-fg:   #9ed0e0;
+
+  --chart-1: #588bb6;
+  --chart-2: #359494;
+  --chart-3: #bd7233;
+  --chart-4: #9178c5;
+  --chart-5: #cd6674;
+
+  --st-up:      #a3be8c;  --st-up-fg:      #a3be8c;
+  --st-warn:    #ebcb8b;  --st-warn-fg:    #ebcb8b;
+  --st-down:    #c96a73;  --st-down-fg:    #f1969d;
+  --st-unknown: #4c566a;  --st-unknown-fg: #b4bece;
+  --st-off:     #3f4859;  --st-off-fg:     #a3afc4;
+
+  --a1: #68c7e1;
+  --a2: #7eb5eb;
+  --a3: #a9aaef;
+  --a4: #c2a5e7;
+  --a5: #d99ddd;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 38%), inset 0 1px 0 rgb(236 239 244 / 5%);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 42%), inset 0 1px 0 rgb(236 239 244 / 6%);
+  --shadow-lg: 0 18px 44px rgb(0 0 0 / 50%), inset 0 1px 0 rgb(236 239 244 / 7%);
+
+  --scroll-shade: rgb(39 44 56 / 84%);
+  --hover-opacity: .9;
+}
+
+:root[data-bothy-theme='nord'] .bothy-files.bothy-files {
+  --hl-com: var(--fg-subtle);
+  --hl-kw:  #b48ead;
+  --hl-str: #a3be8c;
+  --hl-num: #d08770;
+  --hl-key: #8fbcbb;
+}
