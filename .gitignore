@@ -1,12 +1,11 @@
 # Secrets - never commit real credentials
 .env
 
-# Defence in depth. apps/docs/content/ is a GENERATED mirror of the notes trees
-# and is already ignored by apps/docs/.gitignore; these repeat the guard at the
-# root so a single edited ignore file cannot publish live credentials from what
-# is now a public repository. sync.sh also refuses to copy them in the first
-# place - three independent layers, because the failure mode is unrecoverable.
-apps/docs/content/
+# Defence in depth on a PUBLIC repository. `claude-notes/machine/credentials.md`
+# holds live stack passwords, and nothing in this repo should ever be able to
+# carry a copy of it in. The pattern stays even though the mirror that used to
+# copy notes into this tree is gone: the guard costs one line and the failure it
+# prevents is unrecoverable.
 **/credentials.md
 *.env
 !.env.example

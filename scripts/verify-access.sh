@@ -27,7 +27,7 @@ echo "== 1. Services must still be reachable at IP:port (unchanged from baseline
 # as idle (0 topics). Leaving it here would fail forever and turn a green harness
 # into a red one nobody reads - the same failure this repo just fixed in doctor.sh.
 for e in grafana:3000:302 prometheus:9090:401 dozzle:8080:307 \
-         cadvisor:8082:307 docs:8085:200 portainer:9000:200 loki:3100:404 node-exporter:9100:200; do
+         cadvisor:8082:307 portainer:9000:200 loki:3100:404 node-exporter:9100:200; do
   n=${e%%:*}; rest=${e#*:}; p=${rest%%:*}; want=${rest##*:}
   got=$(code "http://$IP:$p/")
   [ "$got" = "$want" ] && ok "$n :$p -> $got" || bad "$n :$p -> $got (baseline was $want)"

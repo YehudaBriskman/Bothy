@@ -22,7 +22,7 @@ powershell -ExecutionPolicy Bypass -File C:\Users\yr055\dev-box-postboot-check.p
 
 Report lands in `C:\Users\yr055\dev-box-postboot-report.txt`. Healthy looks like
 (2026-08-08 pure-IP model): vmmemWSL = 2 · tailnet IP + `localhost` + `100.93.197.10`
-→ **200 with bytes > 0** · grafana :3000 → 302 · docs :8085 → 200 · `yehuda-wsl`
+→ **200 with bytes > 0** · grafana :3000 → 302 · portainer :9000 → 200 · `yehuda-wsl`
 active · ForceDaemon true · both tasks (`DevBox-WSL-Keepalive`,
 `DevBox-Portproxy-Refresh`) present and recently run.
 

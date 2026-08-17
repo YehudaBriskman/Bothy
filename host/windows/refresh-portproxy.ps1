@@ -20,7 +20,7 @@
 # Mirrored in the dev-box repo at host/windows/refresh-portproxy.ps1.
 
 $ErrorActionPreference = 'Stop'
-$Ports     = 80, 3000, 3001, 8080, 8081, 8085, 9000, 9090
+$Ports     = 80, 3000, 3001, 8080, 8081, 9000, 9090
 $Listeners = '127.0.0.1', '100.93.197.10'
 $LogFile   = 'C:\Users\Public\devbox\portproxy-refresh.log'
 
