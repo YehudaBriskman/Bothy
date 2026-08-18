@@ -277,8 +277,19 @@ export interface TreeResult {
   readOnly?: boolean;
 }
 
-export function listTree(root: string, signal?: AbortSignal): Promise<TreeResult> {
-  return getJSON(`${BASE}/tree?root=${encodeURIComponent(root)}`, signal);
+export function listTree(
+  root: string,
+  signal?: AbortSignal,
+  /** SCOPE the listing to one folder inside the root - what `cd` does to `ls`.
+   *  The service walks from there rather than filtering a full listing, which
+   *  is the difference between 3,200 entries and a handful: measured on this
+   *  box, `home` is 360ms and `home/stacks/docs` is 9ms. Paths still come back
+   *  root-relative, so everything that opens a file keeps working unchanged. */
+  scope = '',
+): Promise<TreeResult> {
+  const q = `root=${encodeURIComponent(root)}`
+    + (scope ? `&path=${encodeURIComponent(scope)}` : '');
+  return getJSON(`${BASE}/tree?${q}`, signal);
 }
 
 export function readFile(root: string, path: string, signal?: AbortSignal): Promise<FileRead> {

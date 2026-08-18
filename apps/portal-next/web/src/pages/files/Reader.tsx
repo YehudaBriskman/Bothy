@@ -60,6 +60,10 @@ export function Reader() {
   const [params, setParams] = useSearchParams();
   const urlRoot = params.get('root') || '';
   const path = params.get('path') || '';
+  // The folder the index is narrowed to. In the URL rather than in state so
+  // that a scoped view is a thing you can send someone, and so Back steps out
+  // of a folder the way it stepped in.
+  const scope = (params.get('in') || '').replace(/^\/+|\/+$/g, '');
   const { me } = useMe();
 
   const [roots, setRoots] = useState<FileRoot[]>([]);
@@ -194,36 +198,44 @@ export function Reader() {
   useEffect(() => () => { for (const ac of inflight.current.values()) ac.abort(); }, []);
 
   useEffect(() => {
-    const want = [...openRoots].filter((k) => !trees[k] && !inflight.current.has(k));
+    // Keyed by root AND scope: the same root narrowed to two different folders
+    // is two different listings, and keying on the root alone would show the
+    // first one forever.
+    const keyOf = (k: string) => (k === root && scope ? `${k}\u0000${scope}` : k);
+    const want = [...openRoots].filter((k) => !trees[keyOf(k)] && !inflight.current.has(keyOf(k)));
     if (!want.length) return;
     setTrees((prev) => {
       const next = { ...prev };
-      for (const k of want) next[k] = LOADING;
+      for (const k of want) next[keyOf(k)] = LOADING;
       return next;
     });
     for (const k of want) {
       const ac = new AbortController();
-      inflight.current.set(k, ac);
-      listTree(k, ac.signal)
+      inflight.current.set(keyOf(k), ac);
+      listTree(k, ac.signal, k === root ? scope : '')
         .then((r) => {
           if (ac.signal.aborted) return;
-          inflight.current.delete(k);
+          inflight.current.delete(keyOf(k));
           setTrees((prev) => ({
             ...prev,
-            [k]: { entries: r.files, truncated: !!r.truncated, loading: false, err: null },
+            [keyOf(k)]: { entries: r.files, truncated: !!r.truncated, loading: false, err: null },
           }));
         })
         .catch((e: unknown) => {
           if (ac.signal.aborted) return;
-          inflight.current.delete(k);
+          inflight.current.delete(keyOf(k));
           if (isAuthError(e)) { setNeedsAuth(true); return; }
           setTrees((prev) => ({
             ...prev,
-            [k]: { entries: [], truncated: false, loading: false, err: e instanceof Error ? e.message : String(e) },
+            [keyOf(k)]: { entries: [], truncated: false, loading: false, err: e instanceof Error ? e.message : String(e) },
           }));
         });
     }
-  }, [openRoots, trees]);
+    // `root` and `scope` are dependencies because keyOf() is built from them:
+    // changing the scope changes which key this effect is looking for, and
+    // without them the effect never re-runs, so the scoped listing is never
+    // fetched and the index renders an empty folder. Caught exactly that way.
+  }, [openRoots, trees, root, scope]);
 
   const openDoc = useCallback((r: string, p: string, at = '') => {
     const next = new URLSearchParams();
@@ -280,7 +292,7 @@ export function Reader() {
   const index = (
     <DocIndex
       roots={roots}
-      trees={trees}
+      trees={scope ? { ...trees, [root]: trees[`${root}\u0000${scope}`] } : trees}
       openRoots={openRoots}
       onToggleRoot={toggleRoot}
       allFiles={allFiles}
@@ -289,6 +301,18 @@ export function Reader() {
       currentPath={path}
       onOpen={openDoc}
       onRetry={retryRoot}
+      scope={scope}
+      onScope={(r, dir) => {
+        // The scope goes in the URL, and the open document is kept: narrowing
+        // the index is a change to what you are BROWSING, not to what you are
+        // reading, and closing the document because you opened a folder would
+        // be the reader losing your place to help you find it.
+        const next = new URLSearchParams();
+        next.set('root', r);
+        if (dir) next.set('in', dir);
+        if (path && r === root) next.set('path', path);
+        setParams(next);
+      }}
     />
   );
 

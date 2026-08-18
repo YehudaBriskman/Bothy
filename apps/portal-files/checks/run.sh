@@ -70,6 +70,14 @@ echo; echo "── backlinks: the graph, and what must not be in it ────
 # $HOME - never inside either repo - and removes it in a finally.
 python3 checks/links_index.py || fail=1
 
+echo
+echo "── /tree?path= scopes, and cannot leave the root ────────────"
+# `path` was accepted and silently ignored: a client asking for a subtree got
+# the whole root and no way to tell. It names a DIRECTORY, which resolve() does
+# not answer for, so listing() does its own containment check - and that is the
+# half worth asserting.
+python3 checks/tree_scope.py || fail=1
+
 echo; echo "── does anything SERVED look like a credential? ─────────────"
 # Baseline diff, not "fail on any hit" - the detector flags 40 files and the top
 # hits are .env.example and READMEs, so an absolute check would be noise nobody
