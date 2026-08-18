@@ -238,7 +238,7 @@ jobs:
           docker ps -a > /tmp/logs/ps.txt
           docker volume ls > /tmp/logs/volumes.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: upgrade-failure-logs

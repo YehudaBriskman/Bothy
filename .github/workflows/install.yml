@@ -402,7 +402,7 @@ jobs:
             || { echo "FAIL  $left container(s) left:"; docker ps -a --format '  {{.Names}} ({{.Status}})'; exit 1; }
 
       # After `down`, because the logs were already captured to /tmp/logs above.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: install-failure-logs
