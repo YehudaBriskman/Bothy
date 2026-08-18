@@ -76,7 +76,7 @@ jobs:
                       /usr/local/share/boost /usr/share/swift || true
           df -h / | tail -1
 
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
 
       - name: Clone, and go back one commit
         run: |
