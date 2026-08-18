@@ -343,6 +343,38 @@ services:
         /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE
         echo "master realm: sslRequired=NONE (plain HTTP admin console over the tailnet)"
 
+        # ── VERIFY_PROFILE off, or the seeded user cannot finish a login ──
+        #
+        # Keycloak 26 adds this required action DYNAMICALLY whenever a profile is
+        # incomplete, and its declarative user profile marks firstName and
+        # lastName required. The user created below has neither - a dev box
+        # identity is an email address - so the login gets as far as the password,
+        # is accepted, and then 302s to
+        #
+        #   /login-actions/required-action?execution=VERIFY_PROFILE
+        #
+        # an "Update Account Information" form. No token is ever issued, so
+        # oauth2-proxy answers 401 to every gated route and the box looks like it
+        # rejected a correct password. `just verify` still passes 23/23 throughout,
+        # because none of those checks completes a login.
+        #
+        # DISABLED RATHER THAN WORKED AROUND BY INVENTING NAMES. Setting
+        # firstName/lastName on create would satisfy this one user and leave the
+        # next person who adds an account by hand hitting the same wall - and it
+        # would put a fabricated surname on somebody's identity. The honest
+        # statement is that this realm does not ask for a profile.
+        #
+        # Not in realm-devbox.json for the usual reason: that import is first-boot
+        # only, so it would fix new installs and silently skip every existing one.
+        # Idempotent - setting enabled=false twice is a no-op.
+        #
+        # Found by `just ci-install`: on this box the account predates the check
+        # and already has a complete profile, so it has never once fired here.
+        /opt/keycloak/bin/kcadm.sh update authentication/required-actions/VERIFY_PROFILE \
+          -r devbox -s enabled=false 2>/dev/null \
+          && echo "devbox realm: VERIFY_PROFILE off (an email is the whole identity here)" \
+          || echo "devbox realm: VERIFY_PROFILE already off or absent"
+
         # ── the first user ────────────────────────────────────────────────
         #
         # WITHOUT THIS A FRESH INSTALL REFUSES EVERYONE. realm-devbox.json
