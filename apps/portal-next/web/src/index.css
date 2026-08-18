@@ -631,7 +631,29 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 
    The size is the measured aspect ratio, 2.666:1 (getBBox in a real browser,
    not guessed), at the cap height of the 14.5px type it replaces. */
+/* THE LIT DOT IS THE MARK. The wordmark's "o" is a ring with a lit dot in its
+   middle - the same idea as the hut's doorway in favicon.svg, and the reason
+   this logo is not just the word set in a typeface. The original artwork drew
+   it as a 900 KB embedded bitmap with a soft glow; stripping the rasters took
+   the dot with them, which left the word and lost the point of it.
+
+   It comes back as geometry, in two layers, because a CSS mask is monochrome
+   and this needs two colours:
+
+     ::before  the letterforms, masked from wordmark.svg, in currentColor
+     ::after   the dot, a plain circle, in var(--accent)
+
+   The mask lives on ::before rather than on the element, because a mask set on
+   the element would clip ::after away with everything else.
+
+   THE NUMBERS ARE MEASURED, not eyeballed. The dot's centre is 33.9% across and
+   45.0% down the ink box - taken from the source artwork's own transform
+   (a 190.5-unit square at 481.49,663.92 inside a 1128.09x423.17 ink box) and
+   confirmed independently by finding the green pixels in a render: 0.3388,
+   0.4487. Its diameter is 9.6% of the wordmark's WIDTH - the saturated core
+   rather than the glow - so it sits inside the ring's hole with air around it. */
 .brand-wordmark {
+  position: relative;
   display: block;
   border: 0;
   /* 2.666:1, the measured aspect ratio. It replaced 14.5px bold type and was
@@ -641,9 +663,29 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   width: 64px;
   height: 24px;
   font-size: 0;              /* the glyphs are replaced; the text stays for a11y */
+}
+.brand-wordmark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: currentColor;
   -webkit-mask: url(/wordmark.svg) no-repeat left center / contain;
   mask: url(/wordmark.svg) no-repeat left center / contain;
+}
+.brand-wordmark::after {
+  content: '';
+  position: absolute;
+  /* 9.6% of the WIDTH, not 25.5% of the height - they are the same circle, but a
+     percentage width resolves against the containing block's WIDTH, and the
+     first version of this said 25.5% and rendered a dot that swallowed the o.
+     144 measured units of green core over a 1504-unit ink box = 9.57%. */
+  width: 9.6%;
+  aspect-ratio: 1;
+  left: 33.9%;
+  top: 45%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 
