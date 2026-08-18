@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import atexit, io, os, re, sys, zipfile, tarfile, requests
+import atexit, io, os, re, shutil, sys, zipfile, tarfile, requests
 
 # Probe files are removed even when an assertion above them raises.
 #
@@ -8,6 +8,8 @@ import atexit, io, os, re, sys, zipfile, tarfile, requests
 # the NEXT run of the suite, in a different file, which is the hardest ordering
 # to diagnose. run.sh deliberately has no `set -e` so every suite runs, which
 # compounds it rather than stopping.
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 _PROBES: list[str] = []
 def _probe(path: str) -> str:
     _PROBES.append(path)
@@ -17,7 +19,7 @@ atexit.register(lambda: [os.remove(p) for p in _PROBES if os.path.exists(p)])
 # One resolver for the whole suite - checks/env.py. These were literals in
 # twelve files, which put this node's tailnet address in a public repo and
 # made the suite unrunnable by anyone but its author.
-from env import BASE, NOTES, SANDBOX
+from env import BASE, NOTES, PROJECTS, SANDBOX
 fails = 0
 
 
@@ -63,10 +65,30 @@ print("\n── /raw: the guards still hold ────────────
 # Everything else in this table is a BOUNDARY and did not move: traversal, the
 # object store, and a directory where a file is expected. Those are what make the
 # two 200s safe to have here at all.
+# PLANTED, not borrowed. This named a real key inside one of this box's own
+# projects - army/monorepo-inherited/apps/site-relay-app/cert/key.pem - so the
+# row passed here and 403'd on every other machine, including a fresh install
+# where ~/projects is empty. "a private key, now SERVED: got 403" then reads as
+# the policy having changed back, when the truth is that no such file exists.
+#
+# THE CONTENTS ARE PLAIN TEXT, and deliberately not a PEM. The policy decides by
+# NAME - `*.pem` is what [sensitive] matches - so the bytes were never part of
+# the assertion. The first version wrote a real BEGIN PRIVATE KEY header for
+# realism, and this repo's own scanner immediately flagged the check file itself:
+#
+#   FAIL  NEW  stacks:apps/portal-files/checks/bytes_e2e.py - contains a private key block
+#
+# Correct, and the right lesson: a public repository should not carry a literal
+# PEM header for the sake of a test that does not read it. Registered with
+# _probe so the atexit above removes it however this run ends.
+_KEY = _probe(f"{PROJECTS}/_bytes_probe_key.pem")
+os.makedirs(PROJECTS, exist_ok=True)
+with open(_KEY, "w") as _fh:
+    _fh.write("planted by bytes_e2e.py - the policy matches on the .pem NAME, not on these bytes\n")
+
 for label, root, path, want in [
     ("a secret, now SERVED (.env)", "stacks", ".env", 200),
-    ("a private key, now SERVED", "projects",
-     "army/monorepo-inherited/apps/site-relay-app/cert/key.pem", 200),
+    ("a private key, now SERVED", "projects", "_bytes_probe_key.pem", 200),
     ("traversal", "stacks", "../../etc/passwd", 403),
     ("the repo .git", "stacks", ".git/config", 403),
     ("a directory, not a file", "stacks", "docs", 403),
@@ -184,9 +206,22 @@ if r.status_code == 200:
     check("no .env in the archive",
           not any(os.path.basename(n) == ".env" for n in names))
     check("no .git/ in the archive", not any("/.git/" in n for n in names))
-    # content actually survives
-    body = z.read([n for n in names if n.endswith("README.md")][0])
-    check("a member's bytes are intact", len(body) > 100, f"README.md {len(body)} bytes")
+    # Content actually survives. COMPARED AGAINST THE FILE ON DISK, not against a
+    # size threshold: this was `len(body) > 100`, which is a statement about how
+    # long THIS box's notes README happens to be. On a fresh install that file is
+    # the 58-byte one bootstrap writes, so the check failed with "a member's bytes
+    # are intact: README.md 58 bytes" - which reads as corruption when the bytes
+    # were perfectly intact and merely fewer than someone expected.
+    #
+    # Byte equality is also the stronger assertion. A length test passes on a
+    # truncated file, on a re-encoded one, and on the wrong file of the right
+    # size; this one fails on all three.
+    _member = [n for n in names if n.endswith("README.md")][0]
+    body = z.read(_member)
+    with open(f"{NOTES}/{_member.split('/', 1)[1]}", "rb") as _fh:
+        on_disk = _fh.read()
+    check("a member's bytes are intact", body == on_disk,
+          f"{_member} {len(body)} bytes vs {len(on_disk)} on disk")
 
 print("\n── /archive: tar.gz ────────────────────────────────────────────────")
 r = s.get(f"{SANDBOX}/-/api/files/archive",
@@ -201,16 +236,41 @@ if r.status_code == 200:
     check("no symlink entries", not any(m.issym() or m.islnk() for m in ms))
 
 print("\n── /archive: caps ──────────────────────────────────────────────────")
+# BOTH SIDES OF THIS ARE PLANTED. They used to lean on ~/projects being one
+# particular person's: "over 2000 entries" and a subtree literally named
+# army/Tals/auth. On a fresh install that root is empty, so the cap was never
+# reached (200 instead of 413) and the subtree 404'd - two failures that say
+# nothing about caps.
+#
+# The count comes from safepath.ARCHIVE_MAX_ENTRIES rather than from a literal
+# 2001, so raising the cap cannot leave this check quietly passing for the wrong
+# reason. The subtree is small and separate, because the claim is that scoping
+# gets you UNDER the cap the whole root exceeds.
+_cap = int(re.search(r"^ARCHIVE_MAX_ENTRIES\s*=\s*([\d_]+)",
+                     open(f"{HERE}/../safepath.py").read(), re.M).group(1).replace("_", ""))
+_over = f"{PROJECTS}/_archive_cap_probe"
+_sub = f"{PROJECTS}/_archive_sub_probe"
+shutil.rmtree(_over, ignore_errors=True); shutil.rmtree(_sub, ignore_errors=True)
+os.makedirs(_over, exist_ok=True); os.makedirs(_sub, exist_ok=True)
+for _i in range(_cap + 1):
+    with open(f"{_over}/f{_i}.md", "w") as _fh:
+        _fh.write("x\n")
+for _n in ("a.md", "b.md"):
+    with open(f"{_sub}/{_n}", "w") as _fh:
+        _fh.write("small enough to archive\n")
+atexit.register(lambda: (shutil.rmtree(_over, ignore_errors=True),
+                         shutil.rmtree(_sub, ignore_errors=True)))
+
 r = s.get(f"{SANDBOX}/-/api/files/archive",
           params={"root": "projects", "format": "zip"}, timeout=120)
-check("the whole projects root is REFUSED by the entry cap",
+check(f"the whole projects root is REFUSED by the entry cap ({_cap})",
       r.status_code == 413, f"got {r.status_code}")
 if r.status_code == 413:
     check("and the refusal is actionable JSON, nothing streamed",
           "limit" in r.json(), str(r.json())[:90])
 
 r = s.get(f"{SANDBOX}/-/api/files/archive",
-          params={"root": "projects", "path": "army/Tals/auth", "format": "zip"}, timeout=60)
+          params={"root": "projects", "path": "_archive_sub_probe", "format": "zip"}, timeout=60)
 check("but a SUBTREE of projects archives fine",
       r.status_code == 200, f"got {r.status_code}")
 

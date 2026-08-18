@@ -12,6 +12,15 @@
 # stops being true, that is the moment to add a real runner.
 set -euo pipefail
 
+# `--offline` drops the one section that needs a docker daemon. Everything else
+# here is a truth table over compiled, dependency-free modules and reads only the
+# source tree, which is what lets CI run 290-odd assertions in a job that starts
+# no containers. Without the flag the whole file was unusable there: one `curl`
+# against /var/run/docker.sock at the end failed the run and took every passing
+# check with it.
+OFFLINE=0
+[ "${1:-}" = "--offline" ] && OFFLINE=1
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB="$HERE/../web"
 OUT="$(mktemp -d)"
@@ -48,7 +57,7 @@ mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
-   "$HERE/wikilinks.mjs" "$OUT/"
+   "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -66,7 +75,21 @@ echo "── document titles ─────────────────
 node "$OUT/titles-table.mjs"
 
 echo
+echo "── where this repo is, asked of docker not assumed ─────"
+# The two functions that replaced a hardcoded home directory. Every case here is
+# a SECOND MACHINE - a different checkout path, a sibling directory that is a
+# prefix of it, nothing mounted yet - which is precisely what could not be tested
+# while the value was a literal.
+node "$OUT/repo-roots.mjs"
+
+echo
 echo "── this box, right now ─────────────────────────────────"
+if [ "$OFFLINE" = 1 ]; then
+  # SAID OUT LOUD rather than silently skipped. A suite that quietly drops a
+  # section reads as "everything passed" in a log, which is the failure mode
+  # this repo keeps rediscovering.
+  echo "  SKIPPED (--offline): needs a docker daemon"
+else
 curl -s --unix-socket /var/run/docker.sock "http://localhost/containers/json?all=1" > "$OUT/containers.json"
 node --input-type=module -e "
 import { statusOf } from '$OUT/discover.mjs';
@@ -76,6 +99,7 @@ const n = {};
 for (const c of cs) { const s = statusOf(c); (n[s] ??= []).push(c.Names?.[0]?.replace(/^\//, '')); }
 for (const [k, v] of Object.entries(n)) console.log(\`  \${k.padEnd(9)} \${v.length}  \${v.slice(0, 6).join(', ')}\`);
 "
+fi
 
 echo
 echo "── every theme keeps the palette's contract ────────────"
@@ -109,6 +133,13 @@ echo "── every colour comes from a token ───────────�
 # Reads the source tree directly - no compile step, because it is looking at the
 # text rather than at behaviour. Runs regardless of whether there is a build.
 node "$HERE/stray-colour.mjs"
+
+echo
+echo "── a brand asset is small, vector, and follows the theme ─"
+# Reads web/public directly, so it needs no build. The logo that prompted this
+# was 1467 KB of baked bitmap in an SVG wrapper, and half of it was hard white -
+# invisible on a light theme. Both are invisible in a diff: the file is one line.
+node "$HERE/brand-assets.mjs"
 
 echo
 echo "── the CSP and the inline script must agree ────────────"

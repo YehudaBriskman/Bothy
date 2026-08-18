@@ -46,29 +46,34 @@
  *  three chances to typo something that fails as "not declared in this file". */
 export const PROJECT_TITLE_FIELD = 'dev.portal.project';
 
-/** Where each of bothy-config's roots lives on the host.
+/** Where each of bothy-config's roots lives on the host: root name -> host path.
  *
  *  The service answers in `{root, path}` pairs and a container tells us an
  *  ABSOLUTE host path, so somebody has to hold the mapping between them. It is
  *  policy - apps/bothy-config/policy.toml declares exactly one root, `stacks`,
- *  mounted at /repos/stacks from /home/devssh/stacks - and the browser has no
- *  way to ask for it: /healthz lists the root NAMES and is deliberately not
- *  routed, precisely so the field allowlist is not on the tailnet.
+ *  mounted at /repos/stacks - and the browser cannot ask the service for it:
+ *  /healthz lists the root NAMES and is deliberately not routed, precisely so
+ *  the field allowlist is not on the tailnet.
  *
- *  discover.ts holds the same string as `STACK_ROOT` and this does not import
- *  it, which is a duplication worth stating rather than hiding. They answer
- *  different questions: STACK_ROOT decides whether a compose file makes a
- *  container a "project" or a "stack service", and would still be right if
- *  bothy-config were deleted tomorrow. This one is the patch service's mount
- *  list. Sharing them would tie a classification rule to a write policy, and
- *  the import would cost this module the property the header opens with. */
-export const ROOT_PATHS: Readonly<Record<string, string>> = {
-  // Trailing slash on purpose: without it `/home/devssh/stacks-old/x.yml` would
-  // match `stacks` and resolve to the relative path `-old/x.yml`, which the
-  // service would then refuse for reasons that have nothing to do with the
-  // mistake that was made.
-  stacks: '/home/devssh/stacks/',
-};
+ *  THIS WAS A LITERAL - one entry, mapping `stacks` to the absolute path of
+ *  its author's own checkout - and it was therefore wrong on every machine but
+ *  one. A clone into any other directory matched no root, so every patch came
+ *  back `outside-roots` and the form said the compose file lived somewhere
+ *  Bothy could not reach, which was a statement about a hardcoded string rather
+ *  than about the file. It is now derived from what docker reports for that
+ *  container's bind mounts and threaded in from the poll; see repoRoots.ts for
+ *  why the mount table is the honest source.
+ *
+ *  DERIVED FROM bothy-config's MOUNTS SPECIFICALLY, not from any container that
+ *  happens to bind /repos/<name>. The file tier mounts four roots and this
+ *  service accepts one, so a shared table would offer `notes` and `projects` as
+ *  patch targets and collect a 400 from the service for each. A root exists here
+ *  only if the service that must open it is the one that mounted it.
+ *
+ *  Empty is a real value and is handled: it means bothy-config is not running,
+ *  in which case there is nothing to patch anyway and `outside-roots` - "this
+ *  file is not somewhere Bothy can write" - is the true answer. */
+export type RootPaths = Readonly<Record<string, string>>;
 
 const CONFIG_FILES = 'com.docker.compose.project.config_files';
 const COMPOSE_SERVICE = 'com.docker.compose.service';
@@ -119,9 +124,9 @@ export type ComposeTarget =
   | { t: 'no-compose'; container: string }
   | { t: 'outside-roots'; abs: string; container: string };
 
-function underRoot(abs: string): { root: string; path: string } | null {
-  for (const root of Object.keys(ROOT_PATHS)) {
-    const prefix = ROOT_PATHS[root];
+function underRoot(abs: string, rootPaths: RootPaths): { root: string; path: string } | null {
+  for (const root of Object.keys(rootPaths)) {
+    const prefix = rootPaths[root];
     if (abs.startsWith(prefix) && abs.length > prefix.length) {
       return { root, path: abs.slice(prefix.length) };
     }
@@ -132,6 +137,7 @@ function underRoot(abs: string): { root: string; path: string } | null {
 export function composeTarget(
   bearers: readonly LabelBearer[],
   field: string = PROJECT_TITLE_FIELD,
+  rootPaths: RootPaths = {},
 ): ComposeTarget {
   if (bearers.length === 0) return { t: 'no-container' };
 
@@ -151,7 +157,7 @@ export function composeTarget(
 
   const candidates = raw.split(',').map((s) => s.trim()).filter(Boolean);
   for (const abs of candidates) {
-    const hit = underRoot(abs);
+    const hit = underRoot(abs, rootPaths);
     // The FIRST candidate inside a root wins, not the first candidate. A project
     // brought up as `-f compose.yml -f ~/local-override.yml` has one file this
     // service may open and one it may not, and refusing the whole system because

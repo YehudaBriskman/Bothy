@@ -160,11 +160,28 @@ cannot be skipped, then write the test that proves it was not.**
   identity is a local Keycloak in a container.
 
 ```sh
-cp .env.example .env      # fill in BOX_IP, DEV_LOGIN_*, POSTGRES_PASSWORD, WIKI_DB_PASSWORD, KEYCLOAK_*
+cp .env.example .env      # nothing to fill in - see below
 just up                   # bring everything up, in dependency order
 just urls                 # print every address
 just doctor               # health-check the whole box
 ```
+
+**There is nothing to edit in `.env` before the first `just up`.** The five
+credentials the stack actually uses — the two database passwords, the SSO cookie
+secret, the OIDC client secret and your login password — are **generated** by
+`just bootstrap`, which `just up` runs for you. It prints which keys it wrote,
+never their values, and never touches a value you set yourself.
+
+Two things you may still want to set, neither of which blocks a first start:
+
+| Key | Why |
+|---|---|
+| `BOX_IP` | The address this box answers on. Left alone, Bothy asks `tailscale` and falls back to `127.0.0.1` — which works, but only from this machine. **Keycloak's issuer is built from it**, so changing it later means re-running `just up-auth`. |
+| `DEV_LOGIN_USER` | Your login, `dev@example.com` by default. It must be an email address: Keycloak logs in by email. |
+
+Your password is `DEV_LOGIN_PASSWORD` in `.env`. **Back that file up** — the
+generated secrets are not recoverable, and `POSTGRES_PASSWORD` and
+`KEYCLOAK_DB_PASSWORD` are baked into their database volumes at first start.
 
 Then open **`http://<this-node's-tailnet-IP>/`** - `just urls` prints every address.
 

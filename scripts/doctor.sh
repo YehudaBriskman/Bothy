@@ -5,8 +5,25 @@ set -uo pipefail
 # for why they are derived rather than declared here.
 # shellcheck disable=SC1091
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/env.sh"
+# `--strict` makes this EXIT NON-ZERO when anything is red. Without it the
+# script always exited 0, so it could report a dead Keycloak and a missing backup
+# and still look, to anything that reads exit codes, exactly like a clean box -
+# which is why CI has never been able to gate on it despite it being the most
+# complete picture of the stack in the repo.
+#
+# OFF BY DEFAULT, deliberately. The everyday use is a human reading the report,
+# and for them a non-zero exit adds nothing and makes `just doctor` unusable in a
+# shell with `set -e`. The flag exists for the caller that wants a verdict rather
+# than a report.
+STRICT=0
+[ "${1:-}" = "--strict" ] && STRICT=1
+faults=0
+
 green() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
-red()   { printf '  \033[31m✗\033[0m %s\n' "$*"; }
+# Counting lives HERE rather than at each call site: there are 20-odd of them,
+# and a verdict that depends on remembering to increment at every one is a
+# verdict that is quietly wrong the first time somebody adds a check.
+red()   { faults=$((faults + 1)); printf '  \033[31m✗\033[0m %s\n' "$*"; }
 # Neither a pass nor a fault: something deliberately switched off. Without this
 # third state, every retired service reads as breakage and the report cries wolf.
 dim()   { printf '  \033[2m·\033[0m %s\n' "$*"; }
@@ -70,9 +87,19 @@ else
   if [ -z "$targets" ]; then
     red "prometheus returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
   else
-    echo "$targets" | while read -r j h; do
+    # A HERE-STRING, NOT `echo "$targets" | while`. A pipeline runs its right
+    # side in a SUBSHELL, so red()'s `faults=$((faults + 1))` incremented a copy
+    # that was thrown away at the end of the loop - two down targets printed in
+    # red and `--strict` reported "2 fault(s)" when it should have said 4, and
+    # would have exited 0 if these were the only ones. Found on the first fresh
+    # install, where several targets are legitimately down.
+    #
+    # This is the failure mode the counter was put inside red() to avoid, arriving
+    # by a different door: not a call site that forgot to count, but one whose
+    # count could not escape.
+    while read -r j h; do
       [ "$h" = up ] && green "$j" || red "$j ($h)"
-    done
+    done <<< "$targets"
   fi
 fi
 
@@ -169,3 +196,16 @@ else
     fi
   fi
 fi
+
+# ── verdict ──────────────────────────────────────────────────────────────────
+echo
+# printf, not green/red: red() increments the counter, and a verdict line that
+# counts itself is the kind of off-by-one nobody reads twice.
+if [ "$faults" -eq 0 ]; then
+  printf '  \033[32m✓\033[0m no faults\n'
+else
+  printf '  \033[31m✗\033[0m %s fault(s) above\n' "$faults"
+fi
+# Zero unless asked, for the reason at the top of this file.
+[ "$STRICT" = 1 ] && exit $(( faults > 0 ? 1 : 0 ))
+exit 0

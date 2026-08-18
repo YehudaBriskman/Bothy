@@ -1,4 +1,13 @@
+# shellcheck shell=bash
 # Where things are, and what this box is called. Sourced, never executed.
+#
+# That directive is not a suppression - it answers the question the linter asks.
+# This file has no shebang BECAUSE it is sourced, and with no shell to assume the
+# linter reports SC2148 as an ERROR and then analyses nothing else in the file.
+#
+# Note the wording: a comment line may not BEGIN with the linter's own name, or
+# it is read as a directive and fails to parse. That is how the first version of
+# this very comment broke the build it was explaining.
 #
 #   . "$(dirname "${BASH_SOURCE[0]}")/lib/env.sh"
 #

@@ -109,10 +109,22 @@ try:
     code, out = delete(s, "notes", "/etc/passwd")
     check("an absolute path is refused", code == 403, f"got {code}")
 
-    # ~/projects is read-only in policy AND mounted `ro`. The path is a file that
-    # really exists, deliberately: pointing at a missing one would let a 404 pass
-    # for a read-only refusal and the check would still look green.
-    victim = "army/CVOps/docs/01-principles-and-architecture.md"
+    # ~/projects is read-only in policy AND mounted `ro`. The path must be a file
+    # that REALLY EXISTS: pointing at a missing one would let a 404 pass for a
+    # read-only refusal and the check would still look green.
+    #
+    # PLANTED, not borrowed. This named a real document inside one of this box's
+    # own projects - army/CVOps/docs/01-principles-and-architecture.md - which
+    # made the check pass here and fail on every other machine, including a fresh
+    # install where ~/projects is empty. It reported "that real file is untouched"
+    # as a FAILURE when the truth was that no such file had ever been there.
+    #
+    # Planting one satisfies the same requirement without borrowing somebody
+    # else's content, and it is removed in the finally below.
+    victim = "_delete_probe_victim.md"
+    os.makedirs(PROJECTS, exist_ok=True)
+    with open(f"{PROJECTS}/{victim}", "w") as fh:
+        fh.write("planted by delete_semantics.py - a real file for the read-only refusal\n")
     code, out = delete(s, "projects", victim)
     check("the read-only projects root is refused", code == 403, f"got {code}")
     check("...and it named the ROOT, not the path", "read-only" in str(out.get("error")),
@@ -190,6 +202,12 @@ try:
     check("and it did not bank a second snapshot", len(snaps()) == 1, f"{snaps()}")
 
 finally:
+    # The planted read-only victim. Removed here rather than inline so a failure
+    # between planting and asserting does not leave it behind.
+    try:
+        os.remove(f"{PROJECTS}/_delete_probe_victim.md")
+    except OSError:
+        pass
     print("\n── cleanup ─────────────────────────────────────────────────────────")
     for p in (DISK, f"{REPO}/{PROBE_DIR}/inside.md"):
         if os.path.exists(p):
