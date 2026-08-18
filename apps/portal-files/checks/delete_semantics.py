@@ -22,13 +22,16 @@ import sys
 
 import requests
 
-BASE = "http://100.117.176.85"
+# One resolver for the whole suite - checks/env.py. These were literals in
+# twelve files, which put this node's tailnet address in a public repo and
+# made the suite unrunnable by anyone but its author.
+from env import BASE, NOTES, PROJECTS, TRASH
+
 API = f"{BASE}/-/api/files"
 # ~/claude-notes, not ~/stacks. e2e.py ends in `git reset --hard` on stacks and
 # snapshots.py plants its probe at the top of it; sharing a repo with either
 # means one check's cleanup is another's missing file.
-REPO = "/home/devssh/claude-notes"
-TRASH = "/home/devssh/.local/state/bothy/trash"
+REPO = NOTES
 PROBE = "_delete_probe.md"
 PROBE_DIR = "_delete_probe_dir"
 DISK = f"{REPO}/{PROBE}"
@@ -115,7 +118,7 @@ try:
     check("...and it named the ROOT, not the path", "read-only" in str(out.get("error")),
           out.get("error"))
     check("...and that real file is untouched",
-          os.path.exists(f"/home/devssh/projects/{victim}"))
+          os.path.exists(f"{PROJECTS}/{victim}"))
 
     # A directory must be refused ON PURPOSE. If this ever returns 500 the
     # refusal has become an accident of os.unlink raising EISDIR, which is one

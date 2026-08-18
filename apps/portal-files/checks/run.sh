@@ -86,12 +86,17 @@ python3 checks/served_secrets.py || fail=1
 
 echo; echo "── the sandbox must actually contain a hostile document ────"
 # Needs a browser: the claim is about browser enforcement, so nothing else can
-# test it. Skipped rather than failed if playwright-core is absent.
-if [ -d /home/devssh/.npm/_npx/705bc6b22212b352/node_modules/playwright-core ]; then
-  node checks/sandbox_escape.mjs || fail=1
-else
-  echo "  SKIP: playwright-core not installed"
-fi
+# test it. Skipped rather than failed if playwright-core is absent - the SKIP now
+# lives INSIDE the check, which is the only place that can tell the difference
+# between "no browser here" and "the browser is somewhere else". The guard this
+# replaced stat'd one literal path in one person's npx cache, so it printed SKIP
+# on every other machine and on this one the moment npx rehashed the directory.
+#
+# In a SUBSHELL, and that is the point of the parentheses: env.py is the suite's
+# one resolver and this is the one check that cannot import it, so the values are
+# handed over as exported variables. Scoping them here keeps the rest of the run
+# on the ordinary resolution path rather than on a $BOTHY_BASE this script set.
+( eval "$(python3 checks/env.py --sh)"; node checks/sandbox_escape.mjs ) || fail=1
 
 echo; echo "── raw bytes + archives (the sandbox origin) ───────────────"
 python3 checks/bytes_e2e.py || fail=1
