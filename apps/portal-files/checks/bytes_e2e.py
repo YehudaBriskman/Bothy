@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import atexit, io, os, re, sys, zipfile, tarfile, requests
+import atexit, io, os, re, shutil, sys, zipfile, tarfile, requests
 
 # Probe files are removed even when an assertion above them raises.
 #
@@ -8,6 +8,8 @@ import atexit, io, os, re, sys, zipfile, tarfile, requests
 # the NEXT run of the suite, in a different file, which is the hardest ordering
 # to diagnose. run.sh deliberately has no `set -e` so every suite runs, which
 # compounds it rather than stopping.
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 _PROBES: list[str] = []
 def _probe(path: str) -> str:
     _PROBES.append(path)
@@ -234,16 +236,41 @@ if r.status_code == 200:
     check("no symlink entries", not any(m.issym() or m.islnk() for m in ms))
 
 print("\n── /archive: caps ──────────────────────────────────────────────────")
+# BOTH SIDES OF THIS ARE PLANTED. They used to lean on ~/projects being one
+# particular person's: "over 2000 entries" and a subtree literally named
+# army/Tals/auth. On a fresh install that root is empty, so the cap was never
+# reached (200 instead of 413) and the subtree 404'd - two failures that say
+# nothing about caps.
+#
+# The count comes from safepath.ARCHIVE_MAX_ENTRIES rather than from a literal
+# 2001, so raising the cap cannot leave this check quietly passing for the wrong
+# reason. The subtree is small and separate, because the claim is that scoping
+# gets you UNDER the cap the whole root exceeds.
+_cap = int(re.search(r"^ARCHIVE_MAX_ENTRIES\s*=\s*([\d_]+)",
+                     open(f"{HERE}/../safepath.py").read(), re.M).group(1).replace("_", ""))
+_over = f"{PROJECTS}/_archive_cap_probe"
+_sub = f"{PROJECTS}/_archive_sub_probe"
+shutil.rmtree(_over, ignore_errors=True); shutil.rmtree(_sub, ignore_errors=True)
+os.makedirs(_over, exist_ok=True); os.makedirs(_sub, exist_ok=True)
+for _i in range(_cap + 1):
+    with open(f"{_over}/f{_i}.md", "w") as _fh:
+        _fh.write("x\n")
+for _n in ("a.md", "b.md"):
+    with open(f"{_sub}/{_n}", "w") as _fh:
+        _fh.write("small enough to archive\n")
+atexit.register(lambda: (shutil.rmtree(_over, ignore_errors=True),
+                         shutil.rmtree(_sub, ignore_errors=True)))
+
 r = s.get(f"{SANDBOX}/-/api/files/archive",
           params={"root": "projects", "format": "zip"}, timeout=120)
-check("the whole projects root is REFUSED by the entry cap",
+check(f"the whole projects root is REFUSED by the entry cap ({_cap})",
       r.status_code == 413, f"got {r.status_code}")
 if r.status_code == 413:
     check("and the refusal is actionable JSON, nothing streamed",
           "limit" in r.json(), str(r.json())[:90])
 
 r = s.get(f"{SANDBOX}/-/api/files/archive",
-          params={"root": "projects", "path": "army/Tals/auth", "format": "zip"}, timeout=60)
+          params={"root": "projects", "path": "_archive_sub_probe", "format": "zip"}, timeout=60)
 check("but a SUBTREE of projects archives fine",
       r.status_code == 200, f"got {r.status_code}")
 
