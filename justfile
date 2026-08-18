@@ -74,7 +74,11 @@ up-auth: network
     #!/usr/bin/env bash
     set -euo pipefail
     docker compose -f auth/compose.yml up -d
-    IP=$(tailscale ip -4 2>/dev/null | head -1); IP=${IP:-$BOX_IP}
+    # One resolver, not a second copy of the dance - see scripts/lib/box-addr.sh
+    # for the order. This one matters more than most: the address printed here
+    # has to be the address Keycloak's issuer was built from, or the admin
+    # console link works and the login it leads to does not.
+    IP=$(bash scripts/lib/box-addr.sh)
     echo ""
     echo "  Keycloak admin   http://$IP:8090/admin  (admin / DEV_LOGIN_PASSWORD in .env - the shared dev login)"
     echo "  OIDC discovery   http://$IP:8090/realms/devbox/.well-known/openid-configuration"
@@ -245,7 +249,7 @@ urls:
     #!/usr/bin/env bash
     # Identity is read from tailscale at run time and never stored in this repo:
     # the node name/IP identify the owner's tailnet, and this repo is public.
-    IP=$(tailscale ip -4 2>/dev/null | head -1); IP=${IP:-<this-node-ip>}
+    IP=$(bash scripts/lib/box-addr.sh)
     HOST=$(tailscale status --json 2>/dev/null | jq -r '.Self.DNSName // ""' | sed 's/\.$//'); HOST=${HOST:-<this-node>}
     echo "This box is a tailnet node: $HOST / $IP - reachable directly."
     echo "Access is by IP:port ($HOST:<port> also works - MagicDNS is free)."

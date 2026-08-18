@@ -9,7 +9,11 @@
 # portainer un-backed-up for six days without anything looking wrong.
 set -uo pipefail
 
-BK="${1:-/home/devssh/backups}"
+# shellcheck disable=SC1091
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/env.sh"
+# $1 still wins, because the systemd unit and a person at a prompt both pass one
+# sometimes; BACKUP_ROOT is the default and comes from .env or from $HOME.
+BK="${1:-$BACKUP_ROOT}"
 KEEP=14
 ts=$(date +%Y%m%d-%H%M%S)
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
