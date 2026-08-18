@@ -16,7 +16,12 @@
 # pass with the path guards removed. Both have to run.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$HERE/.."
+# `|| exit` is load-bearing, and none of these three files runs under `set -e`.
+# Without it a failed cd is ignored and every check below runs against whatever
+# directory the caller happened to be in - reading some other tree, or none, and
+# reporting on it as if it were this service. A suite that passes in the wrong
+# place is worse than one that errors.
+cd "$HERE/.." || exit 1
 
 fail=0
 echo "── path safety (unit) ──────────────────────────────────────"
