@@ -261,7 +261,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # Nothing is pushed and nothing is loaded into the daemon: the question is
       # only whether the Dockerfile still builds. A broken one currently reaches
