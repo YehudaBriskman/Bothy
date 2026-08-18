@@ -19,7 +19,7 @@
 #   POSTGRES_PASSWORD   Postgres would initialise with `changeme-generate-one`
 #                       while .env held a real password, and the next `just up`
 #                       could not connect to the database it had just created.
-#   BOX_IP              oauth2-proxy dialled 100.64.0.1:8090 for OIDC discovery,
+#   BOX_IP              oauth2-proxy dialled the placeholder address for OIDC discovery,
 #                       timed out, crash-looped, and every gated route answered
 #                       502 - on a stack whose .env plainly said 172.18.0.1.
 #                       Observed, in that form, by `just ci-install`.

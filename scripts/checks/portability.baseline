@@ -5,6 +5,14 @@
 # adding a reason - say why in the commit message.
 #
 # file<TAB>kind<TAB>count
+# apps/portal-next/checks/repo-roots.mjs holds 18 home-path hits ON PURPOSE.
+# Every one is a FICTIONAL machine - /home/ada, /Users/ada, /opt/bothy - because
+# the whole file tests that Bothy works on a checkout that is NOT this one. A
+# path to somebody else's home in that file is the opposite of a portability
+# problem, and rewriting them to /srv/x would make the cases unreadable.
+# Excluding all of apps/*/checks/ instead would be too broad: checks/env.py once
+# carried this node's real tailnet address, and this check is what found it.
+apps/portal-next/checks/repo-roots.mjs	home-path	18
 apps/portal-next/compose.yml	tailnet-ip	1
 apps/portal-next/web/vite.config.ts	tailnet-ip	1
 auth/compose.yml	tailnet-ip	2
