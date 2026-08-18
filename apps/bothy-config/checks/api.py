@@ -55,9 +55,12 @@ os.makedirs(TRASH)
 
 # The real compose files, copied. Only the ones carrying a patchable label plus
 # one that must stay unreachable.
+# data/kafka/compose.yml was in this list until 2026-08-18 as "one that must
+# stay unreachable"; it was deleted with the rest of the retired stacks.
+# edge/dynamic/portal-files.yml plays that role - a real repo file with no
+# patchable label - so the case is still covered.
 for rel in ("edge/compose.yml", "auth/compose.yml", "monitoring/compose.yml",
-            "data/kafka/compose.yml", "edge/dynamic/portal-files.yml",
-            "README.md"):
+            "edge/dynamic/portal-files.yml", "README.md"):
     src = os.path.join(REPO, rel)
     if not os.path.exists(src):
         continue
