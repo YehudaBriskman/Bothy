@@ -11,7 +11,7 @@ like style and are actually the security boundary - a well-meaning
 leak or a remote root shell. Those are listed under
 [Load-bearing design rules](#load-bearing-design-rules). Read that section before
 touching `edge/dynamic/portal-api.yml`, `edge/dynamic/portal-prom.yml`,
-`apps/portal/compose.yml`, `edge/dynamic/auth.yml` or `auth/`.
+`apps/bothy/socket-proxy.yml`, `edge/dynamic/auth.yml` or `auth/`.
 
 ---
 
@@ -43,7 +43,7 @@ device and the box, and edge auth covers only the last of them:
 | Control | Covers |
 |---|---|
 | The tailnet itself | Everything. It is the outer perimeter and, today, very nearly the only one |
-| Each service's own login, using the shared `DEV_LOGIN_*` credential | Grafana, Portainer, Dozzle, Prometheus |
+| Each service's own login, using the shared `DEV_LOGIN_*` credential | Grafana, Prometheus |
 | Keycloak roles at the edge (`forwardAuth`) | The editor tier: `viewer` to read a file, `editor` to write one. The only place a role is enforced today |
 | The exact `Path()` rules in `edge/dynamic/portal-api.yml` and `portal-prom.yml` | The portal's data plane - the only reachable slice of the Docker socket, Loki, Prometheus and the Traefik API |
 
@@ -73,8 +73,8 @@ for every write, because its roots cover the whole home directory.
   and disk sizes, plus every Prometheus metric and label value. That is
   home-directory-layout disclosure, judged acceptable on a personal tailnet -
   and **not** acceptable the moment the box reaches beyond one.
-- The absence of edge authentication on the **dashboards** (Grafana, Portainer,
-  Dozzle, Prometheus). Each carries its own login; putting them behind the edge is
+- The absence of edge authentication on the **dashboards** (Grafana, Prometheus).
+  Each carries its own login; putting them behind the edge is
   planned, recorded under [Accepted risks](#accepted-risks) - not a finding. A
   *regression* on the editor tier, which is enforced, very much is one.
 
@@ -155,7 +155,7 @@ Verified with a role the user does **not** hold: `allowed_groups=editor` → 202
 
 **Why it is being rolled out one router at a time, not all at once.** Attaching
 auth is the step that can lock you out of the box, and the tools you would use to
-unlock it - the portal, Grafana, Dozzle - are exactly what you would have just
+unlock it - the portal, Grafana - are exactly what you would have just
 put behind the broken login. Worse, `sso` **fails closed**: if oauth2-proxy is
 down, every router carrying it returns 500 to everyone. That is correct for an
 auth boundary and it is precisely why you do not attach it to the thing you need
@@ -167,10 +167,8 @@ passes through `sso-errors` on the way in and the 401 travels back out through
 it. Get the order wrong and a signed-out user receives a blank 401 with no way
 forward.
 
-**What still needs it, in rough priority order:** Portainer first (it mounts the
-Docker socket **read-write** and its UI grants container `exec`, which is root on
-this box), then Prometheus (it accepts `POST /-/quit`), Dozzle (every container's
-logs), the portal and its data-plane routers, and the catch-all fallback router -
+**What still needs it, in rough priority order:** Prometheus first (it accepts
+`POST /-/quit`), then the portal and its data-plane routers, and the catch-all fallback router -
 that last one because it answers every request matching no other rule, so leaving
 it open is a hole in exactly that shape.
 
@@ -188,7 +186,7 @@ middlewares, while the file on disk looks perfect. Keep doubled braces out of
 
 ### 2. docker-socket-proxy: network reachability *is* authorisation
 
-`apps/portal/compose.yml` runs `tecnativa/docker-socket-proxy` so that nginx
+`apps/bothy/socket-proxy.yml` runs `tecnativa/docker-socket-proxy` so that nginx
 never has to touch `/var/run/docker.sock` - which is root-equivalent on this
 box. Four properties keep that safe, and all four are load-bearing:
 
@@ -197,7 +195,7 @@ box. Four properties keep that safe, and all four are load-bearing:
   Therefore:
 - **It lives on `socketnet`, not `devnet`.** `socketnet` holds exactly two
   containers - Traefik and the socket proxy. `devnet` holds around twenty,
-  including third-party images (Keycloak, Portainer, project images) that could
+  including third-party images (Keycloak, Grafana, project images) that could
   simply `curl` it. The network *is* the access-control list; keep
   the blast radius at two. (`just network` creates both, with that reasoning
   inline.)

@@ -29,7 +29,7 @@ loading and dumping with nothing changed:
 
 The four survivors of every setting we could find are the interesting part:
 
-  1. `apps/portal/compose.yml` loses HAND-ALIGNED COLUMNS. The socket-proxy's
+  1. `apps/bothy/socket-proxy.yml` loses HAND-ALIGNED COLUMNS. The socket-proxy's
      deny block is written as a column of `POST:         0   # no mutation`, and
      ruamel re-emits it as `POST: 0           # no mutation`. The comments are
      all still there; the table they were arranged into is not. 42 lines change

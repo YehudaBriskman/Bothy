@@ -5,7 +5,7 @@ name: bothy-control
 #
 # ── the constraint this whole file exists to satisfy ────────────────────────
 #
-# DO NOT set POST=1 on the portal's socket proxy. apps/portal/compose.yml says
+# DO NOT set POST=1 on the portal's socket proxy. apps/bothy/socket-proxy.yml says
 # "POST=0 is load-bearing" and it is understating it. The proxy image is
 # tecnativa/docker-socket-proxy, whose haproxy rules are, in order:
 #

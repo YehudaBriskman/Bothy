@@ -4,7 +4,7 @@
 # (see CONTRIBUTING.md, "Pin images"). Pinning is what keeps a surprise
 # `:latest` out of a socket-holding container; Dependabot is what stops pinning
 # from turning into rot. Two of these containers ARE the security boundary:
-#   • tecnativa/docker-socket-proxy  (apps/portal/compose.yml)
+#   • tecnativa/docker-socket-proxy  (apps/bothy/socket-proxy.yml)
 #   • quay.io/oauth2-proxy           (auth/compose.yml)
 # Review their PRs by hand and re-run the boundary check in SECURITY.md before
 # merging. Do not let them be batched into a group.
@@ -64,20 +64,21 @@ updates:
       - "/edge"
       - "/auth"
       - "/monitoring"
-      - "/mgmt"
       - "/data/postgres"
       - "/data/redis"
       - "/data/kafka"
-      - "/apps/portal"
+      - "/apps/bothy"
       - "/apps/portal-next"
       - "/apps/portal-files"
       - "/apps/bothy-config"
       - "/apps/bothy-control"
       # /apps/docs was still listed after that directory was deleted, which is
       # how a missing-directory warning goes unread for a fortnight. Removed.
-      # /apps/wiki, /data/redis and /data/kafka stay: those compose files are
-      # deliberately kept on disk, so their images are still worth bumping.
-      - "/apps/wiki"
+      # /data/redis and /data/kafka stay: those compose files are deliberately
+      # kept on disk, so their images are still worth bumping. /mgmt and
+      # /apps/wiki were DELETED on 2026-08-18 and removed from this list in the
+      # same change - a dependabot entry for a directory that does not exist is
+      # the missing-directory warning this comment already records going unread.
     schedule:
       interval: weekly
       day: monday
