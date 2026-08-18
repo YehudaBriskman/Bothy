@@ -5,27 +5,6 @@
 # adding a reason - say why in the commit message.
 #
 # file<TAB>kind<TAB>count
-apps/portal-files/checks/authz_probe.py	tailnet-ip	1
-apps/portal-files/checks/bytes_e2e.py	home-path	3
-apps/portal-files/checks/bytes_e2e.py	tailnet-ip	2
-apps/portal-files/checks/delete_semantics.py	home-path	3
-apps/portal-files/checks/delete_semantics.py	tailnet-ip	1
-apps/portal-files/checks/e2e.py	home-path	1
-apps/portal-files/checks/e2e.py	tailnet-ip	1
-apps/portal-files/checks/git_ops.py	home-path	1
-apps/portal-files/checks/git_ops.py	tailnet-ip	1
-apps/portal-files/checks/links_index.py	home-path	1
-apps/portal-files/checks/links_index.py	tailnet-ip	1
-apps/portal-files/checks/run.sh	home-path	1
-apps/portal-files/checks/sandbox_escape.mjs	home-path	2
-apps/portal-files/checks/sandbox_escape.mjs	tailnet-ip	1
-apps/portal-files/checks/save_semantics.py	home-path	1
-apps/portal-files/checks/save_semantics.py	tailnet-ip	1
-apps/portal-files/checks/search_denied.py	home-path	1
-apps/portal-files/checks/search_denied.py	tailnet-ip	1
-apps/portal-files/checks/snapshots.py	home-path	4
-apps/portal-files/checks/snapshots.py	tailnet-ip	1
-apps/portal-files/checks/tree_scope.py	tailnet-ip	1
 apps/portal-next/compose.yml	tailnet-ip	1
 apps/portal-next/web/src/lib/config.ts	home-path	3
 apps/portal-next/web/src/lib/discover.ts	home-path	1
@@ -50,3 +29,7 @@ host/windows/install-portproxy-refresh.cmd	tailnet-ip	1
 host/windows/refresh-portproxy.ps1	tailnet-ip	3
 justfile	tailnet-ip	1
 README.md	tailnet-ip	1
+scripts/backup.sh	home-path	1
+scripts/checks/portability.sh	tailnet-ip	1
+scripts/doctor.sh	home-path	1
+scripts/verify-access.sh	tailnet-ip	1
