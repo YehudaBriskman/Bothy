@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   LayoutDashboard, Gauge, FolderTree,
-  Search, RefreshCw,
+  Search,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
 import { freshnessOf } from '../lib/freshness';
@@ -39,17 +39,15 @@ export function AppShell() {
   useScrollRestoration();
   useScrollShades();
   const progress = useScrollProgress();
-  const [spin, setSpin] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   // The palette is the only thing that ever takes focus away from the page, so
   // it is also the only thing that has to give it back.
   const restoreFocus = useRef<HTMLElement | null>(null);
 
-  const doRefresh = useCallback(() => {
-    refresh();
-    setSpin(true);
-    setTimeout(() => setSpin(false), 700);
-  }, [refresh]);
+  // The `spin` state went with the refresh BUTTON: it existed to spin that
+  // icon for 700ms so a click had visible feedback. `r` needs none - the numbers
+  // change, which is the feedback.
+  const doRefresh = useCallback(() => { refresh(); }, [refresh]);
 
   const openPalette = () => {
     restoreFocus.current = document.activeElement as HTMLElement | null;
@@ -175,11 +173,11 @@ export function AppShell() {
           <span className="kbd">{isMac ? '⌘' : 'Ctrl '}K</span>
         </button>
 
-        <Tooltip label="Refresh now (r)" align="end">
-          <button className="icon-btn" onClick={doRefresh} aria-label="Refresh now">
-            <RefreshCw size={18} className={spin ? 'spin' : undefined} />
-          </button>
-        </Tooltip>
+        {/* THE REFRESH BUTTON IS GONE (2026-08-18). The page polls every 10s and
+            refreshes on focus, so the button re-fetched data that was already
+            about to arrive - a control whose honest label is "wait less". The
+            keyboard `r` is kept for the one case the poll cannot cover: you just
+            changed something outside the browser and want to see it now. */}
         <ThemeMenu />
         {/* Last in the right cluster, and the only entry point to /settings -
             which is why it is not a nav slot. */}
