@@ -135,6 +135,13 @@ echo "── every colour comes from a token ───────────�
 node "$HERE/stray-colour.mjs"
 
 echo
+echo "── a brand asset is small, vector, and follows the theme ─"
+# Reads web/public directly, so it needs no build. The logo that prompted this
+# was 1467 KB of baked bitmap in an SVG wrapper, and half of it was hard white -
+# invisible on a light theme. Both are invisible in a diff: the file is one line.
+node "$HERE/brand-assets.mjs"
+
+echo
 echo "── the CSP and the inline script must agree ────────────"
 # Needs web/dist, so it runs after a build. Skipped rather than failed when there
 # is none: an unbuilt tree is not a broken policy.
