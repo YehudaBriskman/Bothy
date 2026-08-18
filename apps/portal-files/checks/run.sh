@@ -24,10 +24,22 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE/.." || exit 1
 
 fail=0
+
+# Flags, in a loop rather than as `$1`, because there are two of them now and
+# `[ "${1:-}" = ... ]` silently ignores the second.
+OFFLINE=0
+SKIP_SURVEY=0
+for arg in "$@"; do
+  case "$arg" in
+    --offline)      OFFLINE=1 ;;
+    --skip-survey)  SKIP_SURVEY=1 ;;
+    *) echo "unknown flag: $arg" >&2; exit 2 ;;
+  esac
+done
 echo "── path safety (unit) ──────────────────────────────────────"
 python3 checks/test_safepath.py || fail=1
 
-if [ "${1:-}" = "--offline" ]; then
+if [ "$OFFLINE" = 1 ]; then
   echo; echo "(--offline: skipping the probes that need the stack up)"
   exit $fail
 fi
@@ -87,7 +99,25 @@ echo; echo "── does anything SERVED look like a credential? ─────�
 # Baseline diff, not "fail on any hit" - the detector flags 40 files and the top
 # hits are .env.example and READMEs, so an absolute check would be noise nobody
 # reads. This fails on something NEW.
-python3 checks/served_secrets.py || fail=1
+#
+# THE ONE CHECK HERE THAT IS ABOUT A MACHINE RATHER THAN ABOUT THE CODE, which
+# is why it can be skipped and nothing else can. Its baseline is a hash of what
+# THIS box happens to serve, so on any other machine every hit is "NEW" - on a
+# GitHub runner it correctly reported the runner's own
+# actions-runner/.credentials, a real signed JWT that has nothing to do with
+# Bothy. That is the detector working, and it is also an answer no CI run can
+# act on, because the finding is about the host it was handed.
+#
+# So the install job skips it and says so, and it stays a first-class check
+# everywhere a human runs `just files-check`. It is not weakened, not
+# baselined-away, and not made conditional on some heuristic about the
+# environment - it is one flag, used in one place, for a stated reason.
+if [ "$SKIP_SURVEY" = 1 ]; then
+  echo "  SKIPPED (--skip-survey): the baseline fingerprints one box's content,"
+  echo "  so on any other machine every hit is NEW and none of them is actionable."
+else
+  python3 checks/served_secrets.py || fail=1
+fi
 
 echo; echo "── the sandbox must actually contain a hostile document ────"
 # Needs a browser: the claim is about browser enforcement, so nothing else can
