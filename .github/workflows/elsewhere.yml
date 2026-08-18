@@ -1,0 +1,67 @@
+# Does Bothy install somewhere that is not this author's ~/stacks?
+#
+# The install job proves Bothy installs. It proves it at /tmp/bothy, every time,
+# which is one path shape - short, no spaces, three levels from the root. Every
+# portability bug this repo has had looked fine at exactly one path.
+#
+# So this runs THE SAME JOB at paths chosen to be awkward. It is `uses:` rather
+# than a copy on purpose: a second install job drifts from the real one within a
+# month and then proves something about a workflow nobody runs.
+#
+# ── the paths, and what each one is for ─────────────────────────────────────
+#
+# A SPACE IN THE PATH is the one most likely to be broken right now and the
+# cheapest to check. This repo is shell scripts nearly all the way down -
+# bootstrap.sh, box-addr.sh, env.sh, the four checks/run.sh - and an unquoted
+# "$VAR" survives every test at /tmp/bothy and splits into two arguments the
+# first time somebody clones into "~/My Projects/bothy". It is not hypothetical
+# here: docs/brand/ already carries a filename with a space in it.
+#
+# A DEEP NESTED PATH catches the other half: anything that counted directory
+# levels rather than resolving them. The compose fragments mount the repo with
+# `- ../..:/repos/stacks`, which is correct because compose resolves it against
+# the fragment's own directory - but that claim has only ever been exercised at
+# one depth.
+#
+# ── why nightly and not on every PR ─────────────────────────────────────────
+#
+# Each row is a full 4-12 minute install of ~26 containers. On every PR that is
+# three of them for a property that changes about once a quarter. Nightly on
+# main catches it within a day of landing, which is the right trade for a
+# property nobody edits on purpose. workflow_dispatch is there for when somebody
+# HAS edited path handling and wants to know before merging.
+name: Elsewhere
+
+on:
+  schedule:
+    # 03:00 UTC. Nothing else runs then, and a failure is waiting in the morning.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paths:
+    name: Install at ${{ matrix.label }}
+    strategy:
+      # NEVER fail-fast. The whole value is learning which path shapes break, and
+      # cancelling the other two the moment one goes red throws that away - you
+      # would learn "something about paths is broken" and have to run it again to
+      # find out what.
+      fail-fast: false
+      matrix:
+        include:
+          - label: a path with a space in it
+            dir: /tmp/bothy elsewhere/my checkout
+          - label: a deeply nested path
+            dir: /tmp/bothy-deep/one/two/three/four/five/six/checkout
+          # The ordinary path too, in the same run. Without it a nightly failure
+          # is ambiguous: it could be the path, or it could be something that
+          # broke on main since the last push - and telling those apart is the
+          # difference between a portability bug and an ordinary regression.
+          - label: the ordinary path (control)
+            dir: /tmp/bothy
+    uses: ./.github/workflows/install.yml
+    with:
+      dir: ${{ matrix.dir }}
