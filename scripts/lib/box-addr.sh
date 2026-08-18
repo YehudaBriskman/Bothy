@@ -14,6 +14,15 @@
 #   4. 127.0.0.1          not a fallback so much as an admission: no tailnet, no
 #                         declared address, so the only honest answer is "here".
 #
+# $BOTHY_IGNORE_BOX_IP=1 removes rung 3, and exists for exactly one caller:
+# bootstrap, resolving BOX_IP when it is still the .env.example placeholder.
+# Without it that resolution is a no-op in the case that needs it most - a box
+# with no tailscale falls to rung 3, reads the placeholder out of .env, and
+# writes it over itself while reporting success. Blanking the
+# variable at the call site does NOT work either: this script sources env.sh,
+# which re-reads .env with `:=`, and that assigns when a variable is empty as
+# well as when it is unset. So the skip has to be here.
+#
 # BOX_IP KEEPS ITS NAME on purpose. auth/compose.yml spends thirty lines
 # explaining that the issuer, the redirect URI and the cookie domain are all
 # built from one value so they cannot drift apart, and introducing a second name
@@ -52,7 +61,7 @@ if command -v tailscale >/dev/null 2>&1 \
   fi
 fi
 
-if [ -n "${BOX_IP:-}" ]; then
+if [ -n "${BOX_IP:-}" ] && [ "${BOTHY_IGNORE_BOX_IP:-}" != 1 ]; then
   printf '%s\n' "$BOX_IP"
   exit 0
 fi

@@ -132,7 +132,21 @@ ok("docker.sock" not in svc,
 ok(not re.search(r"^    ports:", svc, re.M),
    "bothy-control publishes NO host port - reachability IS authorisation")
 ok("no-new-privileges:true" in svc, "bothy-control cannot gain privileges")
-ok('user: "1000:1000"' in svc, "bothy-control does not run as root")
+# The uid became configurable so Bothy could be installed by somebody who is not
+# uid 1000 - a macOS account is 501, a CI runner is 1001, and this service writes
+# an audit log into a bind mount. That parameterisation must not quietly become a
+# way to run the docker-socket client as root, so this checks BOTH halves: the
+# form is the parameterised one, and its DEFAULT is not 0. bootstrap refuses to
+# write PUID=0 for the same reason.
+_user = re.search(r'^    user: "([^"]+)"', svc, re.M)
+ok(bool(_user), f"bothy-control declares a user ({_user.group(1) if _user else None!r})")
+if _user:
+    spec = _user.group(1)
+    ok(spec == '${PUID:-1000}:${PGID:-1000}',
+       f"bothy-control's uid is configurable but pinned by default ({spec})")
+    _default = re.match(r'^\$\{PUID:-(\d+)\}', spec)
+    ok(bool(_default) and _default.group(1) != "0",
+       "bothy-control does not run as root by default")
 ok("read_only: true" in svc, "bothy-control's own filesystem is read-only")
 
 print()

@@ -176,10 +176,18 @@ export type EvaluateOptions = {
    *  holds the base palette. Omitted, completeness is simply not asserted: a
    *  caller that does not know the base palette cannot honestly check it. */
   required?: readonly string[];
-  /** The theme's syntax palette (--hl-*), when it carries one. Optional group:
-   *  a theme that omits it falls back to a set already checked for its
-   *  appearance. */
+  /** The theme's syntax palette (--hl-*), when it carries one. Optional as a
+   *  GROUP - a theme may restyle no code at all - but see `syntaxBase` for why
+   *  it is not optional token by token. */
   syntax?: Record<string, string> | null;
+  /** The syntax palette the theme inherits when it declares none: shell.css's
+   *  set for this appearance. Supplied so completeness can be asserted against
+   *  what actually exists rather than against a list written out here, which
+   *  would drift the first time shell.css gained a token and go quiet.
+   *
+   *  Omitted, the all-or-nothing rule is simply not applied - the same honesty
+   *  `required` uses: a caller that does not know the base cannot check it. */
+  syntaxBase?: Record<string, string> | null;
 };
 
 /** Every token whose value the rules below actually measure. Parsed up front so
@@ -344,8 +352,27 @@ export function evaluateTheme(
   }
 
   // 7. the syntax palette, when the theme carries one
+  //
+  // ALL OR NOTHING, and the reason is not tidiness. A theme declaring no
+  // --hl-* is fine: code renders in shell.css's set, which was chosen for this
+  // appearance. A theme declaring FOUR of the five is the bad case, because the
+  // fifth silently comes from that other palette - so the reader gets four
+  // colours picked to sit together and one picked to sit with something else,
+  // against a background neither was measured on.
+  //
+  // It is not hypothetical: a mutation renaming `--hl-kw` in tokyo-night.css
+  // passed every check this function had, which is how the rule got written.
+  // scripts/checks/mutants.sh plants that exact mutation and requires a failure.
   const hl = options.syntax;
   if (hl && Object.keys(hl).length) {
+    const base = options.syntaxBase;
+    if (base) {
+      for (const k of Object.keys(base)) {
+        say(`syntax/${k}-declared`, k in hl,
+          `a theme that restyles code must declare ${k}`,
+          k in hl ? '' : 'missing - it would inherit a colour chosen for another palette');
+      }
+    }
     for (const [k, v] of Object.entries(hl)) {
       const c = parseColour(v);
       if (!c) continue; // --hl-com is var(--fg-subtle); already checked above

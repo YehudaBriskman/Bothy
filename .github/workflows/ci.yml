@@ -1,3 +1,22 @@
+# CI, in tiers, by what a job needs to be running.
+#
+# The repo carries about 600 check assertions across six suites. Until now CI ran
+# three jobs and none of them started a container, so every one of those
+# assertions ran only when a human remembered to type `just verify`. The four
+# regressions that actually hurt this project were all found that way, or not at
+# all - and every one of them was a CHECK being wrong rather than the product.
+# That shapes the tiers more than coverage does.
+#
+#   tree     nothing running. Reads the source. ~1 min, gates everything else.
+#   compose  every compose file resolves. No daemon contact.
+#   portal   typecheck, build, and the CSP hash that only exists after a build.
+#   images   every Dockerfile still builds.
+#
+# The install tier - clone into an empty directory, `just up`, run all six suites
+# against a real stack - is deliberately NOT here yet. It needs its own file and
+# its own timeout, and landing it in the same change as the tiers it depends on
+# would make a red run ambiguous.
+
 name: CI
 
 on:
@@ -13,12 +32,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  portal:
-    name: Portal typecheck and build
+  # ── Tier 0 ──────────────────────────────────────────────────────────────────
+  tree:
+    name: Checks that need nothing running
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/portal-next/web
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -28,18 +46,125 @@ jobs:
           cache: npm
           cache-dependency-path: apps/portal-next/web/package-lock.json
 
-      - name: Install dependencies
+      # The portal-next harness compiles TypeScript modules with a bare
+      # `tsc <file>` before running its truth tables against them, so it needs
+      # the dev dependencies even though it never builds the app.
+      - name: Install portal dependencies
+        working-directory: apps/portal-next/web
         run: npm ci
 
-      - name: Typecheck
-        run: npx tsc -b --noEmit
+      # The config tier's checks need ruamel.yaml, which the system python
+      # deliberately does not have (it is a container's dependency, not the
+      # box's). Its run.sh builds a venv with uv when it cannot find one.
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Build
-        run: npm run build
+      # ONE STEP PER SUITE, not one step running all of them. A single step
+      # reports one red X for six suites and hides which; separate steps name the
+      # failure in the job summary without opening a log.
+      #
+      # `if: always()` on each so one failure does not cancel the rest. The whole
+      # point of splitting them is to see every failure in one run.
 
+      - name: Could anyone but its author run this?
+        if: always()
+        run: ./scripts/checks/portability.sh
+
+      - name: Portal - truth tables, themes, wikilinks, stray colour
+        if: always()
+        run: bash apps/portal-next/checks/run.sh --offline
+
+      - name: Config tier - the patch boundary
+        if: always()
+        run: bash apps/bothy-config/checks/run.sh
+
+      - name: Control tier - the verb allowlist and the socket grants
+        if: always()
+        run: bash apps/bothy-control/checks/run.sh --offline
+
+      - name: Editor tier - path safety, with real planted symlinks
+        if: always()
+        working-directory: apps/portal-files
+        run: bash checks/run.sh --offline
+
+      - name: shellcheck
+        if: always()
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          # -x follows `. scripts/lib/env.sh` so sourced definitions are known.
+          #
+          # WARNINGS ARE FATAL, not just errors. The expected move here was to
+          # start lenient because a first run always finds a pile - but it found
+          # exactly three, all the same one: `cd "$HERE/.."` with no `|| exit` in
+          # three suites that do not run under `set -e`. A failed cd there is
+          # silent and every check below then runs against whatever directory the
+          # caller was in. Three real fixes is a cheaper price than a gate that
+          # starts lenient, since a threshold nobody ever raises is the threshold.
+          find scripts apps/*/checks -name '*.sh' -print0 \
+            | xargs -0 shellcheck -x -S warning
+
+      - name: No bash 4 syntax (macOS ships bash 3.2)
+        if: always()
+        run: bash scripts/checks/bash32.sh
+
+  # ── the checks must be able to fail ─────────────────────────────────────────
+  #
+  # Everything above answers "is the tree healthy". This answers the question
+  # underneath it - "would any of those have noticed if it were not" - which is
+  # where this repo's expensive bugs have actually lived. See the header of
+  # scripts/checks/mutants.sh for the five it has already shipped.
+  #
+  # Its own job rather than a step in `tree`, because it needs a CLEAN GIT TREE:
+  # it plants a mutation, runs one check, and reverts with `git checkout --`. A
+  # step running after something that dirtied the tree would refuse to start.
+  #
+  # Runs on every push, not nightly. It is offline and takes about two minutes,
+  # and a decorative check is worth catching in the PR that writes it rather than
+  # the night after it merges.
+  mutants:
+    name: Every check must be able to fail
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/portal-next/web/package-lock.json
+
+      - name: Install portal dependencies
+        working-directory: apps/portal-next/web
+        run: npm ci
+
+      # One row plants an unguarded `cd` and requires shellcheck to catch it.
+      # Without the tool that row SKIPS - out loud, but it still skips, and this
+      # is the job whose whole purpose is that nothing quietly stops running.
+      - name: shellcheck (one mutation needs it)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      # `npm ci` leaves the tree clean, but a cache restore or a generated file
+      # would not, and mutants.sh refuses to run dirty. Failing HERE names the
+      # cause; failing inside the harness looks like the harness is broken.
+      - name: The tree must be clean before planting anything
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "the checkout is dirty before any mutation was applied:"
+            git status --short
+            exit 1
+          fi
+          echo "ok - clean"
+
+      - name: Plant a mutation, require the check to catch it
+        run: bash scripts/checks/mutants.sh
+
+  # ── every compose file still resolves ───────────────────────────────────────
   compose:
     name: Compose files parse
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
 
@@ -48,9 +173,10 @@ jobs:
         run: |
           set -euo pipefail
           cp .env.example .env
-          # .env.example deliberately ships these three blank; the compose files
-          # use ${VAR:?...} so interpolation aborts without them. These values are
-          # never used to talk to anything - `config -q` only parses.
+          # `config -q` only parses - these are never used to talk to anything.
+          # The five real secrets are NOT needed here: bootstrap generates them,
+          # and compose interpolates whatever is in the file. What is needed is
+          # that nothing is left unset behind a `${VAR:?}`.
           {
             echo "OAUTH2_CLIENT_ID=ci-placeholder"
             echo "OAUTH2_CLIENT_SECRET=ci-placeholder"
@@ -85,3 +211,65 @@ jobs:
           fi
           echo "$found compose file(s) checked"
           exit $rc
+
+  # ── the SPA ─────────────────────────────────────────────────────────────────
+  portal:
+    name: Portal typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/portal-next/web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/portal-next/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npx tsc --noEmit` checks NOTHING in this repo - tsconfig.json has
+      # "files": [] and delegates to project references. `tsc -b` is the one that
+      # actually reads the source.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # Only meaningful after a build: it compares the sha256 in nginx.conf's CSP
+      # against the inline script in the BUILT index.html. Edit that script and
+      # the pre-paint theme stamp silently stops running - a light-mode reader
+      # gets a dark flash and nothing errors.
+      - name: The CSP and the inline script must agree
+        working-directory: apps/portal-next
+        run: node checks/csp_hash.mjs
+
+  # ── Tier 1 ──────────────────────────────────────────────────────────────────
+  images:
+    name: Every image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [portal-next, portal-files, bothy-config, bothy-control]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Nothing is pushed and nothing is loaded into the daemon: the question is
+      # only whether the Dockerfile still builds. A broken one currently reaches
+      # main freely, because the compose job parses the yaml without ever
+      # building what it points at.
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/${{ matrix.app }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}

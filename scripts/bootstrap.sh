@@ -27,6 +27,51 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
 
+# The five credentials the running stack actually reads. Declared up here rather
+# than beside the generator because preflight consults the list too - it skips
+# these when warning about placeholders, since a placeholder in one of them is
+# about to be replaced rather than reported. See "== secrets ==" below.
+# The list lives in scripts/lib/secret-keys.sh, because the justfile needs the
+# same one: `up` must unset these before re-invoking just, or compose reads the
+# placeholder that was on disk when just parsed rather than the value generated
+# here. Two copies of this list disagreeing is a silent, specific failure - see
+# that file for what it looks like.
+# shellcheck disable=SC1091
+. scripts/lib/bootstrap-keys.sh
+
+is_secret() { for _k in $SECRET_KEYS; do [ "$_k" = "$1" ] && return 0; done; return 1; }
+
+# Reading and writing one key in .env. Defined up here because PREFLIGHT calls
+# env_value too - a function is only usable once the shell has executed its
+# definition, and putting these beside their main user (the secrets phase) meant
+# preflight called a name that did not exist yet.
+#
+# env_set edits with awk and an environment handoff, NOT `sed -i`. The values it
+# writes contain `/` and `+`, both of which sed gives meaning to in a
+# replacement, and `-i` differs between GNU and BSD - on macOS it eats the next
+# argument as a backup suffix. awk with an exact prefix match has neither
+# problem, and nothing in the value is ever re-interpreted.
+env_value() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'; }
+
+# What .env.example ships as BOX_IP: a shape, not an address - the first host in
+# tailscale's CGNAT range. READ FROM THE FILE rather than written out here, for
+# two reasons. A second copy of the literal means editing the example silently
+# stops this recognising it; and spelling a CGNAT address into the source is a
+# hit for scripts/checks/portability.sh, correctly, because it looks like one
+# machine's address. Both call sites below share this one value.
+box_ip_placeholder="$(grep -E '^BOX_IP=' .env.example 2>/dev/null | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//')"
+
+env_set() {
+  # awk, exact prefix, value passed through the environment so no shell or awk
+  # metacharacter in it is ever re-interpreted.
+  BOOTSTRAP_K="$1" BOOTSTRAP_V="$2" awk '
+    BEGIN { k = ENVIRON["BOOTSTRAP_K"]; v = ENVIRON["BOOTSTRAP_V"]; done = 0 }
+    !done && index($0, k "=") == 1 { print k "=" v; done = 1; next }
+    { print }
+    END { if (!done) print k "=" v }
+  ' .env > .env.bootstrap.tmp && mv .env.bootstrap.tmp .env
+}
+
 bad=0
 say()  { printf '  %s\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
@@ -55,12 +100,22 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# PLACEHOLDERS ARE THE HIGH-VALUE CHECK. A copied .env produces a Keycloak whose
-# admin password is literally `changeme`, and nothing anywhere says so - the
-# stack comes up and looks healthy.
+# PLACEHOLDERS USED TO BE A HARD FAILURE HERE. A copied .env produces a Keycloak
+# whose admin password is literally `changeme`, the stack comes up, and nothing
+# anywhere says so - so this refused to run and named each key to fix.
 #
-# BUT ONLY FOR KEYS THAT ARE ACTUALLY LOAD-BEARING, and the first version of
-# this got that wrong in both directions on its first real run:
+# IT NOW GENERATES THEM INSTEAD (see "== secrets ==" below), which solves the
+# same problem better. The refusal prevented a weak credential; generating
+# prevents it AND removes the step where a tired person pastes something short,
+# or copies the same string into all five. `cp .env.example .env && just up` -
+# the thing README.md has promised for a year - is finally true.
+#
+# What is still checked here is the half generation cannot fix: a key that is
+# UNSET in a way nothing can guess (BOX_IP), and one that must have a specific
+# SHAPE rather than a specific strength (DEV_LOGIN_USER).
+#
+# The unused-placeholder warning survives, and it is still worth printing. It
+# was got wrong in both directions on this file's first real run:
 #
 #   · GRAFANA_ADMIN_EMAIL=admin@localhost is not a placeholder at all. It is
 #     the DEFAULT monitoring/compose.yml declares for itself, twice.
@@ -68,31 +123,23 @@ fi
 #     not start - apps/wiki is superseded and kept only so `down` cleans up an
 #     older deployment.
 #
-# Failing on either stops a bootstrap that would have worked. So the hard list
-# is the credentials that the services `up` DOES start will actually use, and
-# everything else is a warning - which is also the honest signal, because a
-# placeholder in an unused key is a fact rather than a problem.
-REQUIRED_REAL="POSTGRES_PASSWORD DEV_LOGIN_PASSWORD OAUTH2_COOKIE_SECRET KEYCLOAK_DB_PASSWORD KEYCLOAK_OAUTH2_CLIENT_SECRET"
-placeholder=0
+# A placeholder in a key nothing reads is a FACT, not a problem, so it says so
+# and continues.
 while IFS='=' read -r k v; do
   case "$k" in ''|\#*) continue ;; esac
+  is_secret "$k" && continue
   case "$v" in
-    changeme|change-me|changeme-generate-one|dev@example.com)
-      if printf '%s ' $REQUIRED_REAL | grep -q " $k "; then
-        die "$k is still the .env.example placeholder ($v)"; placeholder=1
-      else
-        # NO BACKTICKS IN A DOUBLE-QUOTED STRING. This line said `just up`
-        # inside double quotes and bash COMMAND-SUBSTITUTED it: a warning
-        # message started the whole stack, from a throwaway clone, against the
-        # real docker daemon - which recreated traefik and keycloak from
-        # /tmp because compose project names are global.
-        warn "$k is still a placeholder ($v) - nothing that 'just up' starts reads it"
-      fi ;;
+    changeme|change-me|changeme-generate-one)
+      # NO BACKTICKS IN A DOUBLE-QUOTED STRING. This line said `just up`
+      # inside double quotes and bash COMMAND-SUBSTITUTED it: a warning
+      # message started the whole stack, from a throwaway clone, against the
+      # real docker daemon - which recreated traefik and keycloak from
+      # /tmp because compose project names are global.
+      warn "$k is still a placeholder ($v) - nothing that 'just up' starts reads it" ;;
   esac
 done < .env
-[ "$placeholder" = 0 ] && ok "every credential the stack actually uses is set"
 
-for k in POSTGRES_PASSWORD DEV_LOGIN_USER DEV_LOGIN_PASSWORD BOX_IP; do
+for k in DEV_LOGIN_USER BOX_IP; do
   v="$(grep -E "^$k=" .env | head -1 | cut -d= -f2-)"
   [ -n "$v" ] || die "$k is empty in .env"
 done
@@ -109,17 +156,26 @@ esac
 # refuse to start - a failure that looks like a permissions bug in Bothy.
 me_u=$(id -u); me_g=$(id -g)
 if [ "$me_u" != "1000" ] || [ "$me_g" != "1000" ]; then
-  warn "you are ${me_u}:${me_g}, and portal-files/bothy-config/bothy-control run as 1000:1000"
-  say "  set PUID=$me_u and PGID=$me_g in .env once those services read them"
+  say "you are ${me_u}:${me_g}, not 1000:1000 - PUID/PGID will be set below"
 fi
 
-addr=$(bash scripts/lib/box-addr.sh)
-if [ "$addr" = "127.0.0.1" ]; then
-  warn "no tailnet address and no BOX_IP - reachable only from this machine"
-  say "  that is a supported way to run Bothy; nothing else on your network will reach it"
-else
-  ok "this box answers on $addr"
-fi
+# SKIPPED WHEN BOX_IP IS STILL A PLACEHOLDER, because the secrets phase below is
+# about to resolve and WRITE it. box-addr.sh prints a drift warning ending "logins
+# will fail until .env is updated and `just up-auth` is re-run" - true for every
+# other caller, and stale here by about four lines. A first-run install that opens
+# with a warning about a thing the same run then fixes is how people learn to skim
+# this output.
+case "$(env_value BOX_IP)" in
+  ''|"$box_ip_placeholder") say "BOX_IP is still the .env.example placeholder - resolving it below" ;;
+  *)
+    addr=$(bash scripts/lib/box-addr.sh)
+    if [ "$addr" = "127.0.0.1" ]; then
+      warn "no tailnet address and no BOX_IP - reachable only from this machine"
+      say "  that is a supported way to run Bothy; nothing else on your network will reach it"
+    else
+      ok "this box answers on $addr"
+    fi ;;
+esac
 
 case "$(uname -s)" in
   Linux)
@@ -137,6 +193,184 @@ case "$(uname -s)" in
 esac
 
 [ "$bad" = 0 ] || { echo; echo "  Fix the above and run again. Nothing was changed."; exit 1; }
+
+# ── A½. secrets ──────────────────────────────────────────────────────────────
+#
+# The five credentials the running stack actually reads. Generated when they are
+# BLANK or still hold a .env.example placeholder, never touched otherwise.
+#
+# WHY GENERATE RATHER THAN REFUSE. This used to `die` with "POSTGRES_PASSWORD is
+# still the .env.example placeholder", which is a good error message attached to
+# the wrong answer: it made the documented install a lie (README promised two
+# lines and needed six), and it handed a person five `openssl` invocations to
+# run by hand at the exact moment they are least interested in cryptography.
+# What actually happens then is one password, reused five times. Generating is
+# both easier AND stronger, which is rare enough to take.
+#
+# NEVER OVERWRITTEN, AND --force DOES NOT CHANGE THAT. Regenerating a secret is
+# not idempotent the way regenerating a config file is: POSTGRES_PASSWORD is
+# baked into the database volume at initdb time and KEYCLOAK_DB_PASSWORD into
+# Keycloak's, so a fresh value locks you out of your own data with no error that
+# mentions this script. Rotation is a real operation with a real order to it
+# (change it, then `just up-auth`), and .env.example documents that per key. A
+# flag named --force must not be the thing that does it by accident.
+#
+# VALUES ARE NEVER PRINTED. Only key names. This runs in CI, in a terminal
+# somebody may be sharing, and into scrollback that outlives the session; the
+# values are in .env, which is where they should be read from.
+#
+# EDITED WITH awk, NOT sed -i. The values contain `/` and `&`, both of which sed
+# gives meaning to in a replacement, and `sed -i` differs between GNU and BSD -
+# on macOS `-i` eats the next argument as a backup suffix. awk with an exact
+# prefix match and an environment handoff has neither problem.
+
+# Each generator matches the format .env.example documents for that key, because
+# two of them are not free choices:
+#
+#   OAUTH2_COOKIE_SECRET           oauth2-proxy requires a value that decodes to
+#                                  exactly 16, 24 or 32 bytes and refuses to
+#                                  start otherwise. base64 of 32, url-safe.
+#   KEYCLOAK_OAUTH2_CLIENT_SECRET  imported into the realm AND handed to
+#                                  oauth2-proxy; hex avoids any argument about
+#                                  which encoding either end applies.
+#   DEV_LOGIN_PASSWORD             the one a HUMAN types, into Keycloak, Grafana
+#                                  and Portainer. Alphanumeric and shorter on
+#                                  purpose: a 44-character base64 string with
+#                                  `-` and `_` in it is a password people copy
+#                                  wrong at a login form, and this one is typed
+#                                  far more often than it is strong-enough-once.
+gen_secret() {
+  case "$1" in
+    OAUTH2_COOKIE_SECRET)          openssl rand -base64 32 | tr -- '+/' '-_' | tr -d '\n' ;;
+    KEYCLOAK_OAUTH2_CLIENT_SECRET) openssl rand -hex 32 | tr -d '\n' ;;
+    DEV_LOGIN_PASSWORD)            LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24 ;;
+    *)                             openssl rand -base64 24 | tr -d '\n' ;;
+  esac
+}
+
+echo
+echo "== secrets =="
+
+
+generated=""
+for k in $SECRET_KEYS; do
+  v="$(env_value "$k")"
+  case "$v" in
+    ''|changeme|change-me|changeme-generate-one)
+      new="$(gen_secret "$k")"
+      env_set "$k" "$new"
+      # Export directly rather than re-reading .env at the end. `set -a; . .env`
+      # is the exact pattern scripts/lib/env.sh refuses to use, for two reasons
+      # that both apply here: it EXECUTES the file (a secret containing a
+      # backtick would run), and it lets the file overwrite the environment,
+      # which is the opposite of how Docker Compose resolves the same variable.
+      export "$k=$new"
+      ok "$k generated"
+      generated="$generated $k" ;;
+    *)
+      # Short is a WARNING, not a failure. It is somebody's own box, they typed
+      # this on purpose, and a tool that overrules a deliberate choice is worse
+      # than one that mentions it. Length only - judging character classes here
+      # would reject a passphrase, which is the good answer.
+      if [ "${#v}" -lt 12 ]; then
+        warn "$k is set but only ${#v} characters - short for something on a network"
+      fi
+      ok "$k already set - left alone" ;;
+  esac
+done
+
+# ── BOX_IP, which is not a secret but is the other thing a fresh clone gets
+#    wrong, silently ─────────────────────────────────────────────────────────
+#
+# .env.example ships BOX_IP set to the first host in tailscale's CGNAT range - a
+# shape, not an address. It LOOKS right and is almost certainly not this machine.
+#
+# WHY THAT IS WORSE THAN A BLANK. auth/compose.yml reads ${BOX_IP} DIRECTLY, not
+# through box-addr.sh, in five places: KC_HOSTNAME, the realm's redirect URI, the
+# OIDC issuer URL, oauth2-proxy's redirect URL and its whitelist. Keycloak then
+# advertises itself at an address that does not exist, oauth2-proxy fetches the
+# discovery document from that same address and cannot reach it, and the whole
+# stack comes up healthy with SSO that can never complete a login. Nothing is
+# red. The preflight below already prints the drift when tailscale disagrees, but
+# printing it is not enough when the value it disagrees with is a placeholder
+# nobody chose.
+#
+# So the placeholder is RESOLVED, by the one resolver - scripts/lib/box-addr.sh,
+# which prefers $BOTHY_BASE_HOST, then tailscale, then $BOX_IP, then 127.0.0.1.
+# An address somebody actually set is left alone, exactly like a secret they set.
+#
+# $BOTHY_BASE_HOST is how CI drives this: on a runner there is no tailscale and
+# 127.0.0.1 is wrong (inside a container it means the container), so the job
+# exports the docker bridge gateway and this writes it everywhere it is needed.
+box_ip="$(env_value BOX_IP)"
+case "$box_ip" in
+  ''|"$box_ip_placeholder")
+    # BOTHY_IGNORE_BOX_IP drops the resolver's third rung, which is "$BOX_IP
+    # from .env" - the very placeholder being replaced. Without it this is a
+    # no-op in the case that needs it most: no tailscale, so the resolver falls
+    # to rung 3, reads the placeholder back out of the file and writes it over
+    # itself, reporting success. Found by running with tailscale off the PATH.
+    resolved="$(BOTHY_IGNORE_BOX_IP=1 bash scripts/lib/box-addr.sh 2>/dev/null)"
+    if [ -n "$resolved" ]; then
+      env_set BOX_IP "$resolved"
+      export BOX_IP="$resolved"
+      ok "BOX_IP resolved to $resolved"
+      if [ "$resolved" = "127.0.0.1" ]; then
+        warn "that is loopback - Bothy will work, but only from this machine"
+        say "  set BOX_IP in .env to this box's address to reach it from anywhere else"
+      fi
+    fi ;;
+  *) ok "BOX_IP already set to $box_ip - left alone" ;;
+esac
+
+# ── PUID/PGID: who the three writing services run as ─────────────────────────
+#
+# portal-files, bothy-config and bothy-control write into bind-mounted host
+# directories - the audit logs, and for the editor tier the repositories
+# themselves. Their compose files ran them as a hardcoded `1000:1000`, which
+# made Bothy installable only by somebody who happens to BE uid 1000. That is
+# most single-user Linux boxes and NOBODY on macOS, where the first account is
+# 501; it is also not a GitHub runner, which is 1001.
+#
+# The failure is not a permission error anybody sees. The container starts, its
+# writes fail, and the tier looks broken from the outside - which is why this
+# check has been printing "set PUID=$me_u and PGID=$me_g in .env once those
+# services read them" for months. They read them now, so this sets them.
+#
+# WRITTEN ONLY WHEN ABSENT, like every other value here. Changing PUID on an
+# existing install does not migrate anything: the directories keep the ownership
+# they were created with, and the services stop being able to write to them.
+# NEVER 0, and this is a security boundary rather than a preference.
+# bothy-control talks to the docker daemon through two socket proxies, and
+# apps/bothy-control/checks/grants.py asserts it does not run as root - because a
+# root process holding container control is a straight path from "restart a
+# container" to the host. Installing AS root is a thing people do; propagating it
+# into the service is not. The directories are chowned instead, so the services
+# keep uid 1000 and can still write.
+if [ "$(env_value PUID)" = "" ] && [ "$me_u" != "1000" ]; then
+  if [ "$me_u" = "0" ]; then
+    warn "installing as root - PUID stays 1000 (bothy-control must not be root)"
+    say "  the directories created above are chowned to 1000:1000 so writes still work"
+    for d in "$STATE_ROOT/bothy/trash" "$STATE_ROOT/bothy/config-trash" \
+             apps/portal-files/audit apps/bothy-config/audit apps/bothy-control/audit; do
+      [ -d "$d" ] && chown -R 1000:1000 "$d" 2>/dev/null
+    done
+  else
+    env_set PUID "$me_u"; export PUID="$me_u"
+    env_set PGID "$me_g"; export PGID="$me_g"
+    ok "PUID/PGID set to ${me_u}:${me_g} - the writing services will run as you"
+  fi
+fi
+
+if [ -n "$generated" ]; then
+  n=$(set -- $generated; echo $#)
+  say ""
+  say "Wrote $n secret(s) to .env. Their values are not printed here, and they are"
+  say "not recoverable - back .env up before you need it."
+  say "POSTGRES_PASSWORD and KEYCLOAK_DB_PASSWORD are baked into their database"
+  say "volumes at first start, so changing them later is an ordered operation;"
+  say ".env.example documents it per key."
+fi
 
 # ── B. create ────────────────────────────────────────────────────────────────
 echo

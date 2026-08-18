@@ -62,7 +62,68 @@ network:
 # gitignored users file that nothing generates - so `just up` failed partway
 # through on every fresh clone, at a service the box does not use. `just up-mgmt`
 # still exists for anyone who wants them back.
-up: bootstrap network up-edge up-auth up-monitoring up-data up-apps
+# THE RE-INVOCATION IS THE POINT, and it fixes a bug that made the documented
+# one-command install impossible.
+#
+# `set dotenv-load` reads .env when just PARSES this file - before any recipe
+# runs, and therefore before `bootstrap` generates the five credentials a fresh
+# clone does not have. So on a first `just up`, compose was handed the values
+# that were on disk a moment BEFORE bootstrap wrote the real ones, and died with
+#
+#     required variable OAUTH2_COOKIE_SECRET is missing a value
+#
+# on a .env that visibly contained one. Found by `just ci-install`, on its first
+# complete run, which is the entire reason that recipe exists.
+#
+# A nested just is a new process, so it re-reads .env and sees what bootstrap
+# wrote. That alone is NOT enough, and the gap is the subtle half: just's
+# dotenv-load does not override a variable already in the environment (verified),
+# and an EMPTY value in .env is never exported at all.
+#
+# So the blank OAUTH2_COOKIE_SECRET was simply absent, and the child picked up
+# the generated one - which made this look fixed. Every key shipping a non-empty
+# PLACEHOLDER was exported by the parent and kept by the child:
+#
+#   POSTGRES_PASSWORD   Postgres initialises with `changeme-generate-one` while
+#                       .env holds a real password, and the next `just up`
+#                       cannot connect to the database it just created.
+#   BOX_IP              oauth2-proxy dials the placeholder address for OIDC discovery,
+#                       times out, crash-loops, and every gated route answers
+#                       502 - on a stack whose .env plainly says otherwise.
+#
+# Hence `env -u` over everything bootstrap may write, not just the secrets. The
+# list is scripts/lib/bootstrap-keys.sh, shared with bootstrap so the two cannot
+# drift; both failures above were found by `just ci-install`, one after the
+# other, because fixing the first revealed the second.
+up: bootstrap
+    #!/usr/bin/env bash
+    set -euo pipefail
+    unset_flags=()
+    for k in $(bash -c '. scripts/lib/bootstrap-keys.sh && printf "%s " $BOOTSTRAP_KEYS'); do
+      unset_flags+=(-u "$k")
+    done
+    env "${unset_flags[@]}" just _up-all
+
+# Not called directly - `up` runs it in a re-read environment. Split out rather
+# than inlined so the dependency ORDER, which is load-bearing, stays declarative.
+#
+# DATA BEFORE AUTH, and that ordering is a bug fix rather than a preference.
+# `keycloak-db-init` creates Keycloak's role and database inside the SHARED
+# postgres, which lives in a different compose project - so `depends_on` cannot
+# reach it and the script waits on `pg_isready` for sixty seconds instead. A wait
+# cannot help when the thing waited for has not been started yet: with auth
+# ahead of data, a genuinely fresh box spent a minute failing to resolve the name
+# `postgres`, exited 2, and took `just up` down with it.
+#
+# It never showed up here because postgres was ALREADY RUNNING from the previous
+# `just up`, every time. That is the shape of every bug this install job exists
+# to find: correct on the machine it was written on, and only there. Found by
+# `just ci-install` against an empty daemon.
+#
+# monitoring moves after data for the same reason, one step milder:
+# postgres-exporter dials postgres, and starting it first just means a few
+# restarts before it settles.
+_up-all: network up-edge up-data up-auth up-monitoring up-apps
     @echo "All stacks up. Run 'just urls' for access."
 
 # Edge: Traefik - the single front door on :80. It no longer routes anything by
@@ -201,8 +262,30 @@ ps:
     docker ps
 
 # One-glance health check of the whole environment
-doctor:
-    @bash scripts/doctor.sh
+# Plain `just doctor` never exits non-zero, and should not: the everyday use is a
+# human reading the report, and for them an exit code adds nothing while making
+# the recipe unusable under `set -e`. The flag is for a caller that wants a
+# verdict rather than a report - which until now meant nothing could gate on the
+# most complete picture of the stack in this repo.
+#
+# One-glance health check of the whole environment. `just doctor strict` also exits non-zero on any fault.
+doctor mode="":
+    @bash scripts/doctor.sh {{ if mode == "strict" { "--strict" } else { "" } }}
+
+# Reproduce the Install CI job on this box, inside docker-in-docker.
+#
+# NOT a clone in /tmp, which is what everyone reaches for first and which does
+# not work: every compose file here pins a top-level `name:`, compose project
+# names are GLOBAL to the daemon, and a second `just up` therefore ADOPTS the
+# running stack and recreates its containers from the other directory. That has
+# already happened here once. A separate daemon is the only real isolation.
+#
+# Pulls ~6 GB inside the container and takes about as long as the CI job. The
+# container is left running afterwards so you can run the suites against it.
+#
+# Run the whole download-and-run install in an isolated daemon, like CI does.
+ci-install:
+    @bash scripts/ci-install.sh
 
 # Verify the access model still holds - run after ANY edge/routing change.
 # `just verify selftest` additionally proves the template-error probe can fail,
@@ -227,9 +310,9 @@ bootstrap *args:
 # Checks for the editor tier: path-safety unit tests, per-route role enforcement,
 # a full anonymous-refused / login / write round trip, the undo net, and a scan
 # of everything the portal SERVES for anything that looks like a credential.
-# `just files-check offline` runs only the part that needs nothing up.
+# `just files-check offline` runs only the part that needs nothing up; `ci` runs everything except the box-specific credential survey.
 files-check mode="":
-    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
+    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
 
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
