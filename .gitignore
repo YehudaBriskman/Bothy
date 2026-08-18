@@ -18,7 +18,6 @@ backups/
 
 # Logs / scratch
 *.log
-mgmt/dozzle-users.yml
 monitoring/prometheus-web.yml
 monitoring/prom-password.txt
 
@@ -59,3 +58,10 @@ apps/portal-next/data/themes/*.css
 # with every clone - a build artifact of whatever interpreter happened to run there.
 __pycache__/
 *.pyc
+
+# A dozzle users file, still on disk from before mgmt/ was deleted. It holds an
+# email and a bcrypt hash, so it must never be committed - and it WAS, once,
+# because this line was removed as "a file in a directory that no longer exists"
+# and `git add -A` then swept the untracked file it had been protecting. The
+# directory is gone; the rule stays until the file does.
+mgmt/dozzle-users.yml
