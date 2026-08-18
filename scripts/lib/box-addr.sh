@@ -34,7 +34,22 @@ fi
 if command -v tailscale >/dev/null 2>&1 \
    && tailscale status --json >/dev/null 2>&1; then
   ip=$(tailscale ip -4 2>/dev/null | head -1)
-  [ -n "$ip" ] && { printf '%s\n' "$ip"; exit 0; }
+  if [ -n "$ip" ]; then
+    # A DISAGREEMENT IS WORTH SAYING. tailscale reports the address that
+    # actually reaches the box, so it wins - but BOX_IP is what Keycloak's
+    # issuer and redirect URI were built from, so when they differ, pages load
+    # and logins fail with a mismatch nobody can read from the error. Silently
+    # picking either one hides that; saying so points at the real problem.
+    #
+    # stderr, because this script's stdout IS the address and every caller
+    # takes it with $(...).
+    if [ -n "${BOX_IP:-}" ] && [ "$BOX_IP" != "$ip" ]; then
+      printf '  ! BOX_IP is %s but tailscale reports %s - using %s.\n' "$BOX_IP" "$ip" "$ip" >&2
+      printf '    Keycloak'"'"'s issuer is built from BOX_IP, so logins will fail until\n' >&2
+      printf '    .env is updated and `just up-auth` is re-run.\n' >&2
+    fi
+    printf '%s\n' "$ip"; exit 0
+  fi
 fi
 
 if [ -n "${BOX_IP:-}" ]; then
