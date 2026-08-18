@@ -53,6 +53,37 @@ KEYCLOAK_OAUTH2_CLIENT_SECRET
 # every key as not-a-secret. Iterating splits on any whitespace.
 is_secret() { for _k in $SECRET_KEYS; do [ "$_k" = "$1" ] && return 0; done; return 1; }
 
+# Reading and writing one key in .env. Defined up here because PREFLIGHT calls
+# env_value too - a function is only usable once the shell has executed its
+# definition, and putting these beside their main user (the secrets phase) meant
+# preflight called a name that did not exist yet.
+#
+# env_set edits with awk and an environment handoff, NOT `sed -i`. The values it
+# writes contain `/` and `+`, both of which sed gives meaning to in a
+# replacement, and `-i` differs between GNU and BSD - on macOS it eats the next
+# argument as a backup suffix. awk with an exact prefix match has neither
+# problem, and nothing in the value is ever re-interpreted.
+env_value() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'; }
+
+# What .env.example ships as BOX_IP: a shape, not an address - the first host in
+# tailscale's CGNAT range. READ FROM THE FILE rather than written out here, for
+# two reasons. A second copy of the literal means editing the example silently
+# stops this recognising it; and spelling a CGNAT address into the source is a
+# hit for scripts/checks/portability.sh, correctly, because it looks like one
+# machine's address. Both call sites below share this one value.
+box_ip_placeholder="$(grep -E '^BOX_IP=' .env.example 2>/dev/null | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//')"
+
+env_set() {
+  # awk, exact prefix, value passed through the environment so no shell or awk
+  # metacharacter in it is ever re-interpreted.
+  BOOTSTRAP_K="$1" BOOTSTRAP_V="$2" awk '
+    BEGIN { k = ENVIRON["BOOTSTRAP_K"]; v = ENVIRON["BOOTSTRAP_V"]; done = 0 }
+    !done && index($0, k "=") == 1 { print k "=" v; done = 1; next }
+    { print }
+    END { if (!done) print k "=" v }
+  ' .env > .env.bootstrap.tmp && mv .env.bootstrap.tmp .env
+}
+
 bad=0
 say()  { printf '  %s\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
@@ -120,9 +151,6 @@ while IFS='=' read -r k v; do
   esac
 done < .env
 
-# BOX_IP is not generatable: nothing can guess which address this box answers
-# on. It is also not fatal - box-addr.sh prefers tailscale and falls back to
-# 127.0.0.1, which is a supported way to run Bothy.
 for k in DEV_LOGIN_USER BOX_IP; do
   v="$(grep -E "^$k=" .env | head -1 | cut -d= -f2-)"
   [ -n "$v" ] || die "$k is empty in .env"
@@ -144,13 +172,23 @@ if [ "$me_u" != "1000" ] || [ "$me_g" != "1000" ]; then
   say "  set PUID=$me_u and PGID=$me_g in .env once those services read them"
 fi
 
-addr=$(bash scripts/lib/box-addr.sh)
-if [ "$addr" = "127.0.0.1" ]; then
-  warn "no tailnet address and no BOX_IP - reachable only from this machine"
-  say "  that is a supported way to run Bothy; nothing else on your network will reach it"
-else
-  ok "this box answers on $addr"
-fi
+# SKIPPED WHEN BOX_IP IS STILL A PLACEHOLDER, because the secrets phase below is
+# about to resolve and WRITE it. box-addr.sh prints a drift warning ending "logins
+# will fail until .env is updated and `just up-auth` is re-run" - true for every
+# other caller, and stale here by about four lines. A first-run install that opens
+# with a warning about a thing the same run then fixes is how people learn to skim
+# this output.
+case "$(env_value BOX_IP)" in
+  ''|"$box_ip_placeholder") say "BOX_IP is still the .env.example placeholder - resolving it below" ;;
+  *)
+    addr=$(bash scripts/lib/box-addr.sh)
+    if [ "$addr" = "127.0.0.1" ]; then
+      warn "no tailnet address and no BOX_IP - reachable only from this machine"
+      say "  that is a supported way to run Bothy; nothing else on your network will reach it"
+    else
+      ok "this box answers on $addr"
+    fi ;;
+esac
 
 case "$(uname -s)" in
   Linux)
@@ -226,18 +264,6 @@ gen_secret() {
 echo
 echo "== secrets =="
 
-env_value() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'; }
-
-env_set() {
-  # awk, exact prefix, value passed through the environment so no shell or awk
-  # metacharacter in it is ever re-interpreted.
-  BOOTSTRAP_K="$1" BOOTSTRAP_V="$2" awk '
-    BEGIN { k = ENVIRON["BOOTSTRAP_K"]; v = ENVIRON["BOOTSTRAP_V"]; done = 0 }
-    !done && index($0, k "=") == 1 { print k "=" v; done = 1; next }
-    { print }
-    END { if (!done) print k "=" v }
-  ' .env > .env.bootstrap.tmp && mv .env.bootstrap.tmp .env
-}
 
 generated=""
 for k in $SECRET_KEYS; do
@@ -265,6 +291,50 @@ for k in $SECRET_KEYS; do
       ok "$k already set - left alone" ;;
   esac
 done
+
+# ── BOX_IP, which is not a secret but is the other thing a fresh clone gets
+#    wrong, silently ─────────────────────────────────────────────────────────
+#
+# .env.example ships BOX_IP set to the first host in tailscale's CGNAT range - a
+# shape, not an address. It LOOKS right and is almost certainly not this machine.
+#
+# WHY THAT IS WORSE THAN A BLANK. auth/compose.yml reads ${BOX_IP} DIRECTLY, not
+# through box-addr.sh, in five places: KC_HOSTNAME, the realm's redirect URI, the
+# OIDC issuer URL, oauth2-proxy's redirect URL and its whitelist. Keycloak then
+# advertises itself at an address that does not exist, oauth2-proxy fetches the
+# discovery document from that same address and cannot reach it, and the whole
+# stack comes up healthy with SSO that can never complete a login. Nothing is
+# red. The preflight below already prints the drift when tailscale disagrees, but
+# printing it is not enough when the value it disagrees with is a placeholder
+# nobody chose.
+#
+# So the placeholder is RESOLVED, by the one resolver - scripts/lib/box-addr.sh,
+# which prefers $BOTHY_BASE_HOST, then tailscale, then $BOX_IP, then 127.0.0.1.
+# An address somebody actually set is left alone, exactly like a secret they set.
+#
+# $BOTHY_BASE_HOST is how CI drives this: on a runner there is no tailscale and
+# 127.0.0.1 is wrong (inside a container it means the container), so the job
+# exports the docker bridge gateway and this writes it everywhere it is needed.
+box_ip="$(env_value BOX_IP)"
+case "$box_ip" in
+  ''|"$box_ip_placeholder")
+    # BOTHY_IGNORE_BOX_IP drops the resolver's third rung, which is "$BOX_IP
+    # from .env" - the very placeholder being replaced. Without it this is a
+    # no-op in the case that needs it most: no tailscale, so the resolver falls
+    # to rung 3, reads the placeholder back out of the file and writes it over
+    # itself, reporting success. Found by running with tailscale off the PATH.
+    resolved="$(BOTHY_IGNORE_BOX_IP=1 bash scripts/lib/box-addr.sh 2>/dev/null)"
+    if [ -n "$resolved" ]; then
+      env_set BOX_IP "$resolved"
+      export BOX_IP="$resolved"
+      ok "BOX_IP resolved to $resolved"
+      if [ "$resolved" = "127.0.0.1" ]; then
+        warn "that is loopback - Bothy will work, but only from this machine"
+        say "  set BOX_IP in .env to this box's address to reach it from anywhere else"
+      fi
+    fi ;;
+  *) ok "BOX_IP already set to $box_ip - left alone" ;;
+esac
 
 if [ -n "$generated" ]; then
   n=$(set -- $generated; echo $#)
