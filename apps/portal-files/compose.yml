@@ -46,14 +46,26 @@ services:
       # is the easy mistake: the first breaks commits, the second silently makes
       # README.md, CONTRIBUTING.md and every other markdown file in the repo
       # editable from a browser. checks/test_safepath.py asserts the split holds.
-      - /home/devssh/stacks:/repos/stacks:rw
-      - /home/devssh/claude-notes:/repos/notes:rw
+      # RELATIVE, and that is what makes this repository runnable by anyone.
+      # A compose fragment resolves its relative paths against ITS OWN
+      # directory - verified with `docker compose config`, and the same rule
+      # `./audit` below already relied on - so `../..` IS the repo root, on
+      # every machine, with no variable to set and nothing to go stale after a
+      # `mv`. An absolute path here was a promise that one person's home
+      # directory would never change.
+      - ../..:/repos/stacks:rw
+      # Outside the repo, so this one genuinely needs a value - but a DEFAULT
+      # rather than a requirement: an unedited .env still starts. The nested
+      # form is used elsewhere in this stack already (monitoring/compose.yml
+      # mounts ${HOME}/.local/state/devbox-logs), so it is a convention here
+      # rather than a new idea.
+      - ${NOTES_ROOT:-${HOME}/claude-notes}:/repos/notes:rw
       # ~/projects is READ-ONLY at the mount. The write tier deliberately does
       # not extend to project source: those repos have their own review and CI,
       # and an edit here would bypass both. `ro` means that holds even if the
       # application-layer allowlist is ever loosened by mistake - two independent
       # controls rather than one.
-      - /home/devssh/projects:/repos/projects:ro
+      - ${PROJECTS_ROOT:-${HOME}/projects}:/repos/projects:ro
       # "any folder you can cd into", READ-ONLY.
       #
       # Safe only because of ROOT_POLICY["home"] in safepath.py, and that was
@@ -66,7 +78,7 @@ services:
       # worth browsing was - so the policy denies exactly those two classes and
       # allows the rest. A dry run against the real directory is what caught
       # .bash_history slipping past a dot-DIRECTORY-only rule.
-      - /home/devssh:/repos/home:ro
+      - ${HOME_ROOT:-${HOME}}:/repos/home:ro
       # The push credential mount is GONE (2026-08-15), with push itself.
       #
       # Worth recording rather than just deleting: this mount was added to make
@@ -89,7 +101,7 @@ services:
       # uid 1000, so it would be mounted and unwritable. safepath refuses to
       # start in that case rather than running with a net that silently drops
       # everything.
-      - /home/devssh/.local/state/bothy/trash:/var/lib/bothy/trash:rw
+      - ${STATE_ROOT:-${HOME}/.local/state}/bothy/trash:/var/lib/bothy/trash:rw
     networks:
       - filesnet
     labels:
