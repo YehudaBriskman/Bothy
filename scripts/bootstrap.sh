@@ -119,9 +119,11 @@ fi
 #
 #   · GRAFANA_ADMIN_EMAIL=admin@localhost is not a placeholder at all. It is
 #     the DEFAULT monitoring/compose.yml declares for itself, twice.
-#   · WIKI_DB_PASSWORD=changeme is a placeholder for a service `just up` does
-#     not start - apps/wiki is superseded and kept only so `down` cleans up an
-#     older deployment.
+#   · WIKI_DB_PASSWORD=changeme was a placeholder for a service `just up` did
+#     not start. apps/wiki was deleted on 2026-08-18 and the key went with it -
+#     the example is kept because the SHAPE of the mistake recurs: a placeholder
+#     in a key nothing reads is a fact, not a fault, and flagging it trains
+#     people to ignore the check.
 #
 # A placeholder in a key nothing reads is a FACT, not a problem, so it says so
 # and continues.

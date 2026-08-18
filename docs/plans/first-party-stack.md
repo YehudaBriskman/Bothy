@@ -190,7 +190,7 @@ So the log half of Dozzle is already done. What is missing is three verbs.
 
 ### The shape, and the trap to avoid
 
-**Do not set `POST=1` on the existing socket proxy.** `apps/portal/compose.yml`
+**Do not set `POST=1` on the existing socket proxy.** `apps/bothy/socket-proxy.yml`
 says "POST=0 is load-bearing", and it is understating it: `POST=1` with
 `CONTAINERS=1` grants the whole container POST family, which includes
 `/containers/create`. The read-only surface must stay read-only.

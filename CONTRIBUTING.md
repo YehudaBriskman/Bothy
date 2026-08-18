@@ -109,7 +109,7 @@ Then, in order:
 |---|---|
 | Check the port is free - `just urls`, then `docker ps` | Ports are a flat namespace of 65,535 with no allocator, and everyone reaches for 3000, 8080, 5432. This check is the price of the model |
 | Add it to the `urls` recipe in the `justfile` | `just urls` is the only inventory of what is reachable. A service missing from it is a service nobody finds |
-| Give it a login | Use the shared `DEV_LOGIN_*` credential from `.env`, the way Grafana, Portainer, Dozzle, Kafka-UI and Prometheus do. There is no edge auth to fall back on |
+| Give it a login | Use the shared `DEV_LOGIN_*` credential from `.env`, the way Grafana and Prometheus do. There is no edge auth to fall back on |
 | Join `devnet` as well as `default` | So Prometheus can scrape it and the portal can discover it |
 | **Do not** add `traefik.http.routers.*.rule=Host(...)` | There is no name to match |
 | **Do not** attach `sso-errors@file,sso@file` | See below |

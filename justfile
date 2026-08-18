@@ -56,12 +56,16 @@ network:
 # applies - if a rule can be forgotten, it will be, so put it somewhere it
 # cannot be skipped.
 #
-# `up-mgmt` is NOT here any more. Portainer and Dozzle were retired on
-# 2026-08-17; `just urls` and scripts/doctor.sh both already say so and neither
-# expects them. Worse for a newcomer, dozzle cannot start at all without a
-# gitignored users file that nothing generates - so `just up` failed partway
-# through on every fresh clone, at a service the box does not use. `just up-mgmt`
-# still exists for anyone who wants them back.
+# Portainer and Dozzle were retired on 2026-08-17 and DELETED on 2026-08-18,
+# along with `up-mgmt` and mgmt/. Bothy grew its own answer to both - the Control
+# tier manages containers, and Loki plus Grafana hold the logs - so keeping a
+# second, unauthenticated copy of each was not a rollback path, it was two more
+# things to secure. Dozzle could not even start without a gitignored users file
+# that nothing generated, so `just up` used to fail partway through on every
+# fresh clone at a service the box does not use.
+#
+# `git revert` brings them back if that turns out to be wrong; a compose file
+# kept on disk "just in case" is how this repo ended up with four of them.
 # THE RE-INVOCATION IS THE POINT, and it fixes a bug that made the documented
 # one-command install impossible.
 #
@@ -170,9 +174,14 @@ up-monitoring: network
 # redis and kafka were RETIRED 2026-08-12 and are no longer started here. Both
 # were measured completely idle - redis `DBSIZE` = 0, kafka `--list` = zero
 # topics - while together holding ~1,140 MB of the box's 4,678 MB of container
-# memory. Their compose files are kept on disk (same precedent as apps/wiki)
-# and are still referenced by `down` and `nuke` below, so an older deployment
-# still gets cleaned up.
+# memory. Their compose files are still on disk and still referenced by `down`
+# and `nuke` below, so an older deployment gets cleaned up.
+#
+# THE apps/wiki PRECEDENT THIS USED TO CITE IS GONE: wiki and mgmt were deleted
+# on 2026-08-18 because Bothy had grown its own replacement for each. These two
+# are a different case and that is why they survived it - nothing here replaces
+# a message queue or a cache, so if either is ever wanted again it will be
+# wanted as itself rather than as a rollback.
 #
 # THEIR DATA IS GONE. An earlier version of this comment said the volumes were
 # "PRESERVED, not deleted" - that was true for about twenty minutes. The
@@ -189,10 +198,6 @@ up-monitoring: network
 # postgres stays: it is in active use - Keycloak's database lives there.
 up-data: network
     docker compose -f data/postgres/compose.yml up -d
-
-# Management UIs: portainer, dozzle
-up-mgmt: network
-    docker compose -f mgmt/compose.yml up -d
 
 # Apps: Bothy - the web tier, the editor tier and the socket proxy, one project.
 #
@@ -224,11 +229,10 @@ down:
     -docker compose {{BOTHY}} down
     -docker compose -f apps/bothy-config/compose.yml down
     -docker compose -f apps/bothy-control/compose.yml down
-    # apps/wiki is superseded but never deleted: its content lives in a `wiki`
-    # database this cannot recreate. Kept so an older deployment still gets
-    # cleaned up.
-    -docker compose -f apps/wiki/compose.yml down
-    -docker compose -f mgmt/compose.yml down
+    # apps/wiki and mgmt/ were DELETED on 2026-08-18, so there is nothing here to
+    # bring down any more. The `wiki` database they were kept for went with them:
+    # its content was superseded by the Files tier, and it is in the nightly dump
+    # if that turns out to be wrong.
     # retired 2026-08-12 (idle: zero topics / zero keys) - no longer in `up-data`,
     # kept here so an older deployment still gets cleaned up
     -docker compose -f data/kafka/compose.yml down
@@ -248,8 +252,6 @@ nuke:
     -docker compose {{BOTHY}} down -v
     -docker compose -f apps/bothy-config/compose.yml down -v
     -docker compose -f apps/bothy-control/compose.yml down -v
-    -docker compose -f apps/wiki/compose.yml down -v
-    -docker compose -f mgmt/compose.yml down -v
     # retired 2026-08-12 and their volumes already deleted, so `-v` here is a
     # no-op for them - kept only so an older deployment still gets cleaned up
     -docker compose -f data/kafka/compose.yml down -v
@@ -373,26 +375,22 @@ urls:
     echo "                                            the portal session. Nothing else"
     echo "                                            may be routed to :8100.)"
     echo ""
-    echo "  Retired 2026-08-17 - stopped, not deleted. Bothy Control replaced them:"
-    echo "    Portainer     (was :9000)   start/stop/restart is Control now"
+    echo "  Deleted 2026-08-18 - Bothy replaced each of them:"
+    echo "    Portainer     (was :9000)   start/stop/restart is the Control tier"
     echo "    Dozzle        (was :8080)   logs are on each service page, from Loki,"
     echo "                                which also keeps them after a container is gone"
+    echo "    Wiki.js       (was :3001)   docs and notes are the Files tier"
     echo "      WHAT YOU LOSE, said plainly rather than discovered later:"
     echo "        · a shell in the browser. Bothy Control does exec deliberately"
     echo "          NEVER - that is root on this box. Use Tailscale SSH:"
     echo "            ssh devssh@$HOST   then   docker exec -it <name> sh"
     echo "        · image, volume and network management. Those are docker CLI."
     echo "        · a true streaming tail. Bothy polls Loki on a range instead."
-    echo "      Both come back with their content and settings intact:"
-    echo "        docker compose -f mgmt/compose.yml up -d"
+    echo "      Retired 2026-08-17, deleted with mgmt/ and apps/wiki/ the next day,"
+    echo "      along with the 'wiki' database - superseded, and in the nightly dump."
+    echo "      \`git revert\` brings the compose files back if that was wrong."
     echo ""
-    echo "  Not running right now - nothing was deleted, both come back:"
-    echo "    Wiki.js       http://$IP:3001"
-    echo "      A stack service, superseded by Bothy Files and dropped from"
-    echo "      'just up-apps'. Its compose file AND its 'wiki' database in the"
-    echo "      shared postgres are both intact, so this restores it WITH its"
-    echo "      content - that is why it is still listed rather than deleted:"
-    echo "        docker compose -f apps/wiki/compose.yml up -d"
+    echo "  Not running right now - normal, not a fault:"
     echo "    Tilt          http://$IP:10350"
     echo "      NOT a stack service - a per-project dev server under ~/projects"
     echo "      (CVOps, Tals) that you start by hand. Nothing is wrong when this"
