@@ -18,11 +18,14 @@ import sys
 
 import requests
 
-BASE = "http://100.117.176.85"
+# One resolver for the whole suite - checks/env.py. These were literals in
+# twelve files, which put this node's tailnet address in a public repo and
+# made the suite unrunnable by anyone but its author.
+from env import AUDIT_LOG, BASE, STACKS, TRASH
+
 API = f"{BASE}/-/api/files"
-TRASH = "/home/devssh/.local/state/bothy/trash"
 PROBE = "_snap_probe.md"
-DISK = f"/home/devssh/stacks/{PROBE}"
+DISK = f"{STACKS}/{PROBE}"
 SNAPS = f"{TRASH}/stacks/{PROBE}"
 
 fails = 0
@@ -112,7 +115,7 @@ try:
         check("and says so honestly: snapshot=false", out.get("snapshot") is False,
               f"snapshot={out.get('snapshot')}")
         check("the write really landed", open(DISK).read() == "version three\n")
-        log = subprocess.run(["tail", "-3", "/home/devssh/stacks/apps/portal-files/audit/writes.log"],
+        log = subprocess.run(["tail", "-3", AUDIT_LOG],
                              capture_output=True, text=True).stdout
         check("and the failure is in the audit log", "NOSNAPSHOT" in log,
               log.strip().splitlines()[-1][:58] if log.strip() else "(empty)")
@@ -138,7 +141,7 @@ finally:
     if os.path.exists(DISK):
         os.remove(DISK)
     subprocess.run(["rm", "-rf", SNAPS], check=False)
-    dirty = subprocess.run(["git", "-C", "/home/devssh/stacks", "status", "--porcelain",
+    dirty = subprocess.run(["git", "-C", STACKS, "status", "--porcelain",
                             "--", PROBE], capture_output=True, text=True).stdout.strip()
     check("the probe left nothing behind", not dirty and not os.path.exists(DISK), dirty)
 
