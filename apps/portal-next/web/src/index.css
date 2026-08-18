@@ -552,10 +552,22 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .ico.lg { width: 56px; height: 56px; border-radius: 14px; color: var(--accent); }
 .ico svg { display: block; }
 
+/* NO BOX. The topbar's right-hand controls are the theme menu and the user menu
+   - two icons - and each used to sit in its own 38px bordered, filled tile. Four
+   borders and two fills to say "these are buttons", next to a search field that
+   is genuinely a box, which made the row read as three competing containers.
+   The icon alone is enough: it is in the topbar, it is 38px of hit area, and the
+   cursor changes. Colour carries the hover instead of chrome.
+
+   The hit area is UNCHANGED at 38x38 - only the paint is gone. Shrinking a
+   control to match its new visual weight is the mistake that follows this one. */
 .icon-btn { appearance: none; cursor: pointer; display: grid; place-items: center;
   width: 38px; height: 38px; border-radius: 10px; color: var(--fg-muted);
-  background: var(--surface-1); border: 1px solid var(--line); }
-.icon-btn:hover { color: var(--fg); border-color: var(--line-strong); }
+  background: none; border: 0; }
+.icon-btn:hover { color: var(--fg); }
+/* Focus still needs a visible ring: removing the border removed the only thing
+   that showed keyboard focus on these two controls. */
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .badge { font-size: 10.5px; font-weight: 600; color: var(--fg-muted); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
@@ -590,18 +602,95 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    The wordmark is now the box's own name and the line under it is read from
    location.hostname at run time, so it is always the address you actually used.
    See components/Brand.tsx. */
-.brand { display: flex; align-items: center; gap: 10px; padding-right: 6px; flex: none; }
-.brand-mark { width: 30px; height: 30px; border-radius: var(--r-md); display: grid; place-items: center;
-  color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); flex: none;
-  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
-.brand:hover .brand-mark { border-color: var(--line-strong); background: var(--surface-3); }
+/* THE HUT TILE IS GONE (2026-08-18), and so is the address line under the word.
+   The lockup was a bordered 30px tile holding the hut mark, then "Bothy" in
+   bold, then the host in grey mono - three elements to say one thing, in the
+   corner every page shows. The wordmark IS the logo now; the mark survives as
+   the favicon and in the Files empty state, where it is doing work.
+
+   The address moved into the wordmark's tooltip, where it is read when wanted
+   and right-click copies it. See components/Brand.tsx for why that gesture. */
+.brand { display: flex; align-items: center; padding-right: 6px; flex: none; }
 /* The lit doorway - the only coloured part of the mark, and the reason it is
    not just another house glyph. */
 .brand-door { fill: var(--accent); }
-.brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
-.brand-text b { font-size: 14.5px; font-weight: 700; letter-spacing: -0.015em; }
-.brand-text small { color: var(--fg-subtle); font-family: var(--mono); font-size: 10px;
-  max-width: 15ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The wordmark, painted as a MASK rather than embedded as markup or an <img>.
+   Three reasons, and the middle one is the trap:
+
+     · A MASK takes its colour from `background`, so `currentColor` here means
+       the wordmark follows the theme the way the type it replaced did. There
+       are seven themes; a two-tone logo fixed to one of them is unreadable in
+       the other six.
+     · AN <img> WOULD NOT WORK. An SVG loaded through <img> is an isolated
+       document with no parent to inherit from, so `currentColor` inside it
+       resolves to black and the mark goes theme-blind. This cost a render cycle
+       to discover - the fix looked like it had failed when it had not.
+     · INLINING the markup would put 13 KB of path data in the JS bundle on
+       every page. As a mask it is one cached request, 3.6 KB gzipped, and it
+       does not grow the bundle at all.
+
+   The size is the measured aspect ratio, 2.666:1 (getBBox in a real browser,
+   not guessed), at the cap height of the 14.5px type it replaces. */
+/* THE LIT DOT IS THE MARK. The wordmark's "o" is a ring with a lit dot in its
+   middle - the same idea as the hut's doorway in favicon.svg, and the reason
+   this logo is not just the word set in a typeface. The original artwork drew
+   it as a 900 KB embedded bitmap with a soft glow; stripping the rasters took
+   the dot with them, which left the word and lost the point of it.
+
+   It comes back as geometry, in two layers, because a CSS mask is monochrome
+   and this needs two colours:
+
+     ::before  the letterforms, masked from wordmark.svg, in currentColor
+     ::after   the dot, a plain circle, in var(--accent)
+
+   The mask lives on ::before rather than on the element, because a mask set on
+   the element would clip ::after away with everything else.
+
+   THE NUMBERS ARE MEASURED, not eyeballed. The dot's centre is 33.9% across and
+   45.0% down the ink box - taken from the source artwork's own transform
+   (a 190.5-unit square at 481.49,663.92 inside a 1128.09x423.17 ink box) and
+   confirmed independently by finding the green pixels in a render: 0.3388,
+   0.4487. Its diameter is 9.6% of the wordmark's WIDTH - the saturated core
+   rather than the glow - so it sits inside the ring's hole with air around it. */
+.brand-wordmark {
+  position: relative;
+  display: block;
+  border: 0;
+  /* 2.666:1, the measured aspect ratio. It replaced 14.5px bold type and was
+     first set to that cap height, which read as smaller than the type had -
+     a wordmark is a shape, not a line of text, so it needs the room the
+     descender and the counters actually use. */
+  width: 64px;
+  height: 24px;
+  font-size: 0;              /* the glyphs are replaced; the text stays for a11y */
+}
+.brand-wordmark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  -webkit-mask: url(/wordmark.svg) no-repeat left center / contain;
+  mask: url(/wordmark.svg) no-repeat left center / contain;
+}
+.brand-wordmark::after {
+  content: '';
+  position: absolute;
+  /* 7% of the WIDTH. The source artwork's dot measures 9.57% (108 units of green
+     over a 1128-unit ink box) and is an ellipse taller than it is wide; this is
+     a smaller circle on purpose, because at 24px tall the artwork's proportion
+     reads as a blob filling the counter rather than as a light inside it.
+     Percentage width, not height: it resolves against the containing block's
+     WIDTH, and the first version of this said 25.5% - the same circle expressed
+     against the height - and rendered a dot two and a half times too big. */
+  width: 7%;
+  aspect-ratio: 1;
+  left: 33.9%;
+  top: 45%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 
 /* ── nav ─────────────────────────────────────────────────────────────────────
    The active item is marked by an underline rather than a filled pill: at this
@@ -685,7 +774,10 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   .nav-item.on::after { left: 9px; right: 9px; }
 }
 @media (max-width: 900px) {
-  .topbar-pill, .brand-text { display: none; }
+  /* `.brand-text` used to be hidden here, leaving the hut tile as the whole
+     brand on a narrow screen. There is no tile now, so hiding the wordmark
+     would leave the corner empty - it stays, and only the freshness pill goes. */
+  .topbar-pill { display: none; }
   .topbar-search { width: auto; }
   .topbar-search .search-label, .topbar-search .kbd { display: none; }
   .content { padding: 22px 18px 60px; }
@@ -978,6 +1070,12 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   width: 8px; height: 8px; background: var(--fg); border-radius: 1px; }
 .tip[data-align='end'] { left: auto; right: 0; translate: none; }
 .tip[data-align='end']::before { left: auto; right: 12px; translate: none; }
+/* Pinned to the trigger's LEFT edge. Without it, a centred tooltip on the brand
+   - the leftmost thing in the topbar - renders half outside the window. There is
+   no collision detection here on purpose (see components/Tooltip.tsx); the two
+   corner cases get an explicit alignment instead. */
+.tip[data-align='start'] { left: 0; right: auto; translate: none; }
+.tip[data-align='start']::before { left: 12px; translate: none; }
 
 /* ── command palette ─────────────────────────────────────────────────────────
    Hand-written against the tokens - cmdk is ~14 KB for a 27-item list. The

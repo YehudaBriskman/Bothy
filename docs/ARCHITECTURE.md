@@ -193,10 +193,8 @@ flowchart TB
     subgraph s_devnet["devnet - around two dozen containers"]
         OAUTH["oauth2-proxy"]
         OBS["monitoring - grafana, prometheus, loki,<br/>promtail, cadvisor, node-exporter"]
-        MGMT["mgmt - portainer, dozzle"]
         APPSG["apps - portal-next, portal-files, portal-socket-proxy"]
-        KUI["kafka-ui"]
-        DATAG["data - postgres, redis, kafka<br/>plus exporters - not routed"]
+        DATAG["data - postgres plus its exporter - not routed"]
         PROJ["project containers<br/>e.g. cvops-nginx, cvops-garage"]
     end
 
@@ -204,9 +202,7 @@ flowchart TB
 
     TRAEFIK --> OAUTH
     TRAEFIK --> OBS
-    TRAEFIK --> MGMT
     TRAEFIK --> APPSG
-    TRAEFIK --> KUI
     TRAEFIK --> PROJ
     TRAEFIK -->|"the only path to the proxy"| PROXY
     PROXY -->|"mounted read-only"| SOCKET
@@ -330,14 +326,6 @@ flowchart TB
 
     subgraph s_data["data/ - dev data services"]
         PG["postgres 17 + postgres-exporter"]
-        RD["redis 7 + redis-exporter"]
-        KFK["kafka 4.3 single-node KRaft + kafka-exporter"]
-        KUI["kafka-ui"]
-    end
-
-    subgraph s_mgmt["mgmt/ - container management"]
-        PORTAINER["portainer - read-write socket"]
-        DOZZLE["dozzle - read-only socket, live logs"]
     end
 
     subgraph s_apps["apps/ - what the box itself serves"]
@@ -370,10 +358,7 @@ numbers below are repeated here only so this table is readable on its own.
 | `auth/` | `auth` | `keycloak` `oauth2-proxy` | Keycloak `:8090`; oauth2-proxy only via `/oauth2/` on `:80` | n/a - it *is* the identity layer, and it guards nothing yet |
 | `monitoring/` | `monitoring` | `prometheus` `grafana` `loki` `promtail` `cadvisor` `node-exporter` | `:9090` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and Prometheus use the shared `DEV_LOGIN_*` credential. Prometheus runs `--web.enable-lifecycle`, so an unauthenticated `POST /-/quit` would stop it - its login is the only thing preventing that |
 | `data/postgres` | `postgres` | `postgres` `postgres-exporter` | `127.0.0.1:5432` | Postgres' own |
-| `data/redis` | `redis` | `redis` `redis-exporter` | `127.0.0.1:6379` | **none - no `requirepass` at all.** The loopback bind is the whole control |
-| `data/kafka` | `kafka` | `kafka` `kafka-ui` `kafka-exporter` | Kafka `127.0.0.1:9092`; Kafka-UI `:8081` | Kafka-UI uses `DEV_LOGIN_*` - it runs with `DYNAMIC_CONFIG_ENABLED` and could otherwise mutate topic config |
-| `mgmt/` | `mgmt` | `portainer` `dozzle` | `:9000` `:8080` | both `DEV_LOGIN_*`. Portainer mounts the socket **read-write** and its UI exposes container `Env` and `exec` |
-| `apps/portal` | `portal` | `portal` (retired nginx, `traefik.enable=false`), `portal-socket-proxy` | none - socketnet only | n/a |
+| `apps/bothy` | `bothy` | `portal-socket-proxy` (the read-only Docker socket the portal's data plane goes through) | none - socketnet only | n/a |
 | `apps/portal-next` | `portal-next` | `portal-next` | the `:80` catch-all | **none** |
 | `apps/portal-files` | `bothy` | `portal-files` | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
 | `host/` | - | none | - | - |
@@ -392,8 +377,9 @@ Notes on `apps/`:
   in the portal (`/#/files`) backed by `apps/portal-files`, and it reads the real
   file from a bind mount rather than a mirror of it - so there is no sync lag, no
   second copy to keep out of git, and the same surface can search, render and
-  edit. The retired `apps/wiki/compose.yml` is still on disk, but Wiki.js is not
-  part of the running architecture.
+  edit. Wiki.js was retired, and on 2026-08-18 `apps/wiki/` and its `wiki`
+  database were deleted outright - the content it held was the last argument for
+  keeping either, and it had already been superseded by the files themselves.
 
 ### Observability, and why it covers everything for free
 
@@ -714,8 +700,6 @@ flowchart LR
 | Volume | Owner | Holds | In the backup |
 |---|---|---|---|
 | `postgres_postgres_data` | `data/postgres` | The shared dev database | yes - logical dump |
-| `redis_redis_data` | `data/redis` | AOF-enabled Redis data | yes - RDB snapshot |
-| `kafka_kafka_data` | `data/kafka` | KRaft log dirs | no |
 | `monitoring_prometheus_data` | `monitoring` | TSDB, 15-day retention | no |
 | `monitoring_grafana_data` | `monitoring` | `grafana.db` - users, dashboards, alert state | yes |
 | `monitoring_loki_data` | `monitoring` | Log chunks and index | no |

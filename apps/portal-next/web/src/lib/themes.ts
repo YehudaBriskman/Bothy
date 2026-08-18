@@ -62,17 +62,23 @@ export const THEMES: readonly ThemeDef[] = [
     note: 'The same palette re-measured for a white page.',
     builtin: true,
   },
+  // FIVE THEMES, NOT SEVEN (2026-08-18). Catppuccin Mocha and Nord were dropped
+  // because they were not telling anyone apart from Tokyo Night: measured in
+  // OKLCH across --surface-1, --fg and --accent, mocha-vs-tokyo scored 0.0747
+  // and nord landed between them, while every surviving pair is 0.34 or more.
+  // Three dark blue-violet themes at the same lightness is one theme and two
+  // near-misses - it makes the picker longer without making it wider.
+  //
+  // What is left spans the axes that actually differ: two lightnesses (dark and
+  // light), and within dark a cool blue (Tokyo Night) against a warm low-chroma
+  // brown (Gruvbox, chroma 0.073 at 237 degrees). Adding a theme is adding a
+  // file; the bar is that it is legibly different from all of these, not that it
+  // is a palette somebody likes.
   {
     id: 'tokyo-night',
     name: 'Tokyo Night',
     appearance: 'dark',
     note: 'After the editor theme by enkia. Cooler and bluer than Bothy Dark.',
-  },
-  {
-    id: 'catppuccin-mocha',
-    name: 'Catppuccin Mocha',
-    appearance: 'dark',
-    note: 'Pastel and low-glare, on a soft violet-grey ground.',
   },
   {
     id: 'catppuccin-latte',
@@ -85,12 +91,6 @@ export const THEMES: readonly ThemeDef[] = [
     name: 'Gruvbox',
     appearance: 'dark',
     note: 'Warm retro browns and cream, after the palette by morhetz.',
-  },
-  {
-    id: 'nord',
-    name: 'Nord',
-    appearance: 'dark',
-    note: 'Arctic blue-grey. The calmest of the set, and the lowest contrast.',
   },
 ];
 

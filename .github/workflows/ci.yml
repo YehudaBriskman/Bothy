@@ -267,7 +267,7 @@ jobs:
       # only whether the Dockerfile still builds. A broken one currently reaches
       # main freely, because the compose job parses the yaml without ever
       # building what it points at.
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: apps/${{ matrix.app }}
           push: false

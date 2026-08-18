@@ -23,7 +23,7 @@ by reading a list somebody remembered to update.
 ![React 19](https://img.shields.io/badge/React%2019-%2B%20Vite-61DAFB?logo=react&logoColor=000)
 ![WSL2](https://img.shields.io/badge/WSL2-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)
 
-![The Bothy Overview: 23 up / 14 off across a status bar, then one card per system - Monitoring · Grafana, Identity · Keycloak, Containers · Portainer, Database · Postgres - above live CPU, memory and network charts.](docs/assets/overview.png)
+![The Bothy Overview: 25 up / 14 off across a status bar, then one card per system - Monitoring · Grafana, Identity · Keycloak, Bothy Control, Database · Postgres, Bothy Config - above live CPU, memory and network charts.](docs/assets/overview.png)
 
 _Every card on that page was discovered by asking Docker. Nothing about it is a list._
 
@@ -201,7 +201,6 @@ Then open **`http://<this-node's-tailnet-IP>/`** - `just urls` prints every addr
 | `auth/` | **Keycloak 26.7.1 + oauth2-proxy** - the local identity layer. Keycloak publishes `:8090` and stores its data in the shared Postgres under its own `keycloak` role; oauth2-proxy runs `--provider=oidc` against the `devbox` realm and publishes no port. Enforces on the editor tier; see [Single sign-on](#single-sign-on). |
 | `monitoring/` | Prometheus, Grafana, Loki + Promtail, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds six provisioned dashboards; `rules/` is for Prometheus rules. |
 | `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. In active use - the dev database and Keycloak both live here. |
-| `data/redis/`, `data/kafka/` | **Retired** - both measured completely idle (zero keys, zero topics) and removed. The compose files are kept so `just down` and `just nuke` still clean up an older deployment; `just up-data` no longer starts them, and their volumes are gone. |
 | `apps/portal-next/` | The live portal on `:80` - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `portal-next-fallback`, the catch-all. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
 | `apps/bothy/` | The one compose project over Bothy's three tiers, via `include:`. Also **owns `portal-socket-proxy`** - the read-only Docker socket the portal's `/-/api/docker` data plane goes through. It moved here on 2026-08-18 when `apps/portal/`, which existed only to hold it, was deleted. |
 | `apps/portal-files/` | The editor tier behind Bothy Files - the read/write file API over the stacks repo, `~/claude-notes` and `~/projects`, with full-text search. No published port; reached only through the edge. |
