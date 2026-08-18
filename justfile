@@ -194,6 +194,13 @@ doctor:
 verify mode="":
     @VERIFY_SELFTEST={{ if mode == "selftest" { "1" } else { "" } }} bash scripts/verify-access.sh
 
+# Could anyone but its author run this? Counts the absolute paths and tailnet
+# addresses that are baked in, against a baseline that should only ever shrink.
+# Runs against the TREE, so it needs nothing up - which is why it is its own
+# recipe rather than a section of `verify`.
+portability:
+    @bash scripts/checks/portability.sh
+
 # Checks for the editor tier: path-safety unit tests, per-route role enforcement,
 # a full anonymous-refused / login / write round trip, the undo net, and a scan
 # of everything the portal SERVES for anything that looks like a credential.
