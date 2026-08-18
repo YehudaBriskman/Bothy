@@ -6,8 +6,6 @@
 #
 # file<TAB>kind<TAB>count
 apps/portal-next/compose.yml	tailnet-ip	1
-apps/portal-next/web/src/lib/config.ts	home-path	3
-apps/portal-next/web/src/lib/discover.ts	home-path	1
 apps/portal-next/web/vite.config.ts	tailnet-ip	1
 auth/compose.yml	tailnet-ip	2
 docs/kb/access.md	tailnet-ip	6
