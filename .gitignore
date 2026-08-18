@@ -54,3 +54,8 @@ apps/portal-next/data/themes/*.css
 # the README images and must stay tracked.
 /*.png
 /*.jpg
+
+# Python bytecode. One of these was committed (portal-collector) and travelled
+# with every clone - a build artifact of whatever interpreter happened to run there.
+__pycache__/
+*.pyc
