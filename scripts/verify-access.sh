@@ -15,7 +15,14 @@
 #
 # Run AFTER `docker compose ... up -d` has applied the edits.
 set -uo pipefail
-IP=100.117.176.85
+# The box's address, resolved rather than declared - see scripts/lib/box-addr.sh
+# for the order and why each rung is there. It was a literal, which meant this
+# whole script only ever verified one machine.
+IP=$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/box-addr.sh")
+if [ -z "$IP" ]; then
+  echo "FAIL  could not work out this box's address - set BOX_IP in .env"
+  exit 1
+fi
 pass=0; fail=0
 ok()   { printf '  \033[32mPASS\033[0m  %s\n' "$1"; pass=$((pass+1)); }
 bad()  { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
