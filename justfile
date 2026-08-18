@@ -310,9 +310,9 @@ bootstrap *args:
 # Checks for the editor tier: path-safety unit tests, per-route role enforcement,
 # a full anonymous-refused / login / write round trip, the undo net, and a scan
 # of everything the portal SERVES for anything that looks like a credential.
-# `just files-check offline` runs only the part that needs nothing up.
+# `just files-check offline` runs only the part that needs nothing up; `ci` runs everything except the box-specific credential survey.
 files-check mode="":
-    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
+    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
 
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
