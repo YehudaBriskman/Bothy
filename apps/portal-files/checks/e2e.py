@@ -18,9 +18,13 @@ import subprocess
 import sys
 import requests
 
-BASE = "http://100.117.176.85"
+# One resolver for the whole suite - checks/env.py. These were literals in
+# twelve files, which put this node's tailnet address in a public repo and
+# made the suite unrunnable by anyone but its author.
+from env import BASE, STACKS
+
 API = f"{BASE}/-/api/files"
-REPO = "/home/devssh/stacks"
+REPO = STACKS
 TESTFILE = "docs/kb/_editor-tier-e2e.md"   # cleaned up at the end
 
 # This test writes a real file into a real repo and cleans up after itself. It no
