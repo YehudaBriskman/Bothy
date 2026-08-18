@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import subprocess
 import urllib.parse
 from pathlib import Path
@@ -144,7 +145,31 @@ def _box_host() -> str:
     3. 127.0.0.1, so a bare clone with nothing configured still runs the checks
        against a locally published portal instead of dying on a KeyError.
     """
-    return _conf("BOX_IP") or _tailscale_ip() or "127.0.0.1"
+    # TAILSCALE BEFORE BOX_IP, and this was the other way round until the two
+    # resolvers on this box were compared - scripts/lib/box-addr.sh does the
+    # shell side of the same job and had the opposite order. One of them had to
+    # be wrong, and it was this one.
+    #
+    # BOX_IP is the DECLARED address; tailscale reports the actual one. When
+    # they agree - the ordinary case - the order does not matter. When they
+    # disagree, the declared value is the one that cannot be reached, and
+    # .env.example ships BOX_IP as a placeholder in the CGNAT range, so a fresh
+    # clone that never edited it would resolve to an address nothing answers on.
+    # (Written out rather than quoted, because quoting it here would put a
+    # tailnet-shaped literal back into the repo that scripts/checks/portability.sh
+    # is here to keep out - and a description of an address is not an address.)
+    #
+    # But a disagreement is worth SAYING rather than silently resolving: BOX_IP
+    # is what Keycloak's issuer and redirect URI were built from, so if it has
+    # drifted, pages load and logins fail. Warning is the only outcome that
+    # points at the actual problem.
+    ts, declared = _tailscale_ip(), _conf("BOX_IP")
+    if ts and declared and ts != declared:
+        print(f"  ! BOX_IP is {declared} but tailscale reports {ts} - using {ts}.\n"
+              f"    Keycloak's issuer is built from BOX_IP, so logins will fail "
+              f"until .env is updated and `just up-auth` is re-run.",
+              file=sys.stderr)
+    return ts or declared or "127.0.0.1"
 
 
 # $BOTHY_BASE outranks all of the above and is a whole ORIGIN, not a host: CI and
@@ -229,8 +254,8 @@ if __name__ == "__main__":
     # look identical from a failing assertion, and this separates them in one
     # command.
     rung = ("$BOTHY_BASE" if _OVERRIDE else
-            "$BOX_IP" if _conf("BOX_IP") else
             "tailscale ip -4" if _tailscale_ip() else
+            "$BOX_IP" if _conf("BOX_IP") else
             "127.0.0.1 fallback")
     print(f"BASE      {BASE}   (from {rung})")
     print(f"SANDBOX   {SANDBOX}")

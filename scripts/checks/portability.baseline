@@ -29,7 +29,3 @@ host/windows/install-portproxy-refresh.cmd	tailnet-ip	1
 host/windows/refresh-portproxy.ps1	tailnet-ip	3
 justfile	tailnet-ip	1
 README.md	tailnet-ip	1
-scripts/backup.sh	home-path	1
-scripts/checks/portability.sh	tailnet-ip	1
-scripts/doctor.sh	home-path	1
-scripts/verify-access.sh	tailnet-ip	1

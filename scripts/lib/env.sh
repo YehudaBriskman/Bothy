@@ -21,10 +21,31 @@ export BOTHY_ROOT
 # so a child process sees it too, which is what the compose files and the python
 # checks expect.
 if [ -f "$BOTHY_ROOT/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091  # path is computed, shellcheck cannot follow it
-  . "$BOTHY_ROOT/.env"
-  set +a
+  # THE ENVIRONMENT WINS OVER THE FILE, which is the opposite of what
+  # `set -a; . .env` does and the reason that is not used here.
+  #
+  # Sourcing overwrites anything already exported, so `BOX_IP=x just verify`
+  # silently did nothing - the file put its own value back. Docker Compose
+  # resolves it the other way (a variable already in the environment beats
+  # .env), and having the shell scripts disagree with the compose files about
+  # the same file is a difference nobody would think to look for.
+  #
+  # Read, do not source: `.` on a file of KEY=value also EXECUTES anything in
+  # it, so a value containing a backtick or $( ) would run. That is a real
+  # hazard for a file this repo tells people to paste secrets into.
+  while IFS= read -r line; do
+    case "$line" in ''|'#'*) continue ;; esac
+    key=${line%%=*}
+    val=${line#*=}
+    case "$key" in *[!A-Za-z0-9_]*|'') continue ;; esac
+    # Strip one layer of surrounding quotes, which .env files commonly carry.
+    case "$val" in
+      \"*\") val=${val#\"}; val=${val%\"} ;;
+      \'*\') val=${val#\'}; val=${val%\'} ;;
+    esac
+    # `:=` only assigns when unset or empty, so the environment keeps its value.
+    eval ": \"\${$key:=\$val}\"" 2>/dev/null && eval "export $key" 2>/dev/null
+  done < "$BOTHY_ROOT/.env"
 fi
 
 # The same names, and the same defaults, that apps/portal-files/compose.yml
