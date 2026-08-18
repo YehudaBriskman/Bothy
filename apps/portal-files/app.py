@@ -303,13 +303,38 @@ def git(root: str, *args: str) -> subprocess.CompletedProcess:
 READONLY_ROOTS = frozenset(safepath.ROOTS) - safepath.WRITABLE_ROOTS
 
 
-def listing(root_key: str) -> tuple[list[dict], bool]:
-    """Every readable file under a root. Returns (files, truncated)."""
+def listing(root_key: str, rel: str = "") -> tuple[list[dict], bool]:
+    """Every readable file under a root, or under one directory inside it.
+
+    `rel` is the SCOPE: "look inside this folder and nothing above it", which is
+    what a reader means by opening a folder and what `cd` means in a shell. It is
+    not a filter applied to a full listing - the walk starts there - so scoping
+    into a directory costs what that directory costs and not what the root does.
+    That difference is the whole point on this box: ~ is 3,200 entries and three
+    seconds, while any one folder inside it is a handful.
+
+    The scope is resolved through safepath like every other client-supplied path,
+    so `..` cannot climb out of the root and a symlinked directory cannot point
+    somewhere else. Paths in the result stay ROOT-relative, because a client that
+    scoped into a folder still has to be able to open what it finds, and every
+    other endpoint speaks root-relative paths.
+    """
     writable_root = root_key not in READONLY_ROOTS
     root = safepath.ROOTS[root_key]
     real = os.path.realpath(root)
+    start = real
+    if rel:
+        # resolve() answers for FILES; a directory has to be checked here, and
+        # the containment proof is the same one: compare the real path against
+        # the real root, after following every link.
+        cand = os.path.realpath(os.path.join(real, rel))
+        if cand != real and not cand.startswith(real + os.sep):
+            raise safepath.PathRefused("that folder is outside the root")
+        if not os.path.isdir(cand):
+            raise safepath.PathRefused("no such folder")
+        start = cand
     out: list[dict] = []
-    for dirpath, dirnames, filenames in os.walk(real, followlinks=False):
+    for dirpath, dirnames, filenames in os.walk(start, followlinks=False):
         # Prune in place so os.walk never descends where policy would refuse.
         # Must go through prune_dirs(), not a bare DENY_COMPONENTS test: the
         # per-root rules (top-level dotfiles, ~/backups) are otherwise applied
@@ -1052,8 +1077,16 @@ class Handler(BaseHTTPRequestHandler):
                 root = q.get("root", "")
                 if root not in safepath.ROOTS:
                     return self._send(400, {"error": f"unknown root {root!r}"})
-                files, truncated = listing(root)
-                return self._send(200, {"root": root, "files": files,
+                # `path` SCOPES the listing to one folder. It was accepted and
+                # silently ignored before, which is the worst of the three
+                # options: a client asking for a subtree got the whole root and
+                # no way to tell.
+                scope = (q.get("path", "") or "").strip("/")
+                try:
+                    files, truncated = listing(root, scope)
+                except safepath.PathRefused as e:
+                    return self._send(403, {"error": str(e)})
+                return self._send(200, {"root": root, "path": scope, "files": files,
                                         "truncated": truncated,
                                         "readOnly": root in READONLY_ROOTS})
 
