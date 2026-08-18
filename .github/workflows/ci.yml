@@ -103,31 +103,62 @@ jobs:
           find scripts apps/*/checks -name '*.sh' -print0 \
             | xargs -0 shellcheck -x -S warning
 
-      # macOS ships bash 3.2 and Bothy claims macOS as a target. `${var,,}` and
-      # friends are bash 4 and fail at PARSE time there, so the script does not
-      # run at all and the error names a line that looks fine - which is exactly
-      # how scripts/verify-access.sh was unrunnable on a Mac without anyone
-      # noticing. Grep, rather than a macOS runner, because this catches the
-      # whole class in a second and a second daemon's quirks catch nothing.
       - name: No bash 4 syntax (macOS ships bash 3.2)
         if: always()
+        run: bash scripts/checks/bash32.sh
+
+  # ── the checks must be able to fail ─────────────────────────────────────────
+  #
+  # Everything above answers "is the tree healthy". This answers the question
+  # underneath it - "would any of those have noticed if it were not" - which is
+  # where this repo's expensive bugs have actually lived. See the header of
+  # scripts/checks/mutants.sh for the five it has already shipped.
+  #
+  # Its own job rather than a step in `tree`, because it needs a CLEAN GIT TREE:
+  # it plants a mutation, runs one check, and reverts with `git checkout --`. A
+  # step running after something that dirtied the tree would refuse to start.
+  #
+  # Runs on every push, not nightly. It is offline and takes about two minutes,
+  # and a decorative check is worth catching in the PR that writes it rather than
+  # the night after it merges.
+  mutants:
+    name: Every check must be able to fail
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/portal-next/web/package-lock.json
+
+      - name: Install portal dependencies
+        working-directory: apps/portal-next/web
+        run: npm ci
+
+      # One row plants an unguarded `cd` and requires shellcheck to catch it.
+      # Without the tool that row SKIPS - out loud, but it still skips, and this
+      # is the job whose whole purpose is that nothing quietly stops running.
+      - name: shellcheck (one mutation needs it)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      # `npm ci` leaves the tree clean, but a cache restore or a generated file
+      # would not, and mutants.sh refuses to run dirty. Failing HERE names the
+      # cause; failing inside the harness looks like the harness is broken.
+      - name: The tree must be clean before planting anything
         run: |
-          set -uo pipefail
-          # In a comment it is documentation; in code it is a parse error. Only
-          # code is checked, so the note explaining the rule does not break it.
-          # -H so the filename is ALWAYS printed. Without it grep omits the
-          # prefix when handed exactly one file, and the comment filter below -
-          # which expects `file:line:` - silently stops working. That is a
-          # self-disabling check: it would keep passing while catching nothing.
-          hits=$(find scripts apps/*/checks -name '*.sh' -print0 \
-            | xargs -0 grep -HnE '\$\{[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?,,\}|\$\{[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\^\^\}|^[^#]*\bdeclare -A|^[^#]*\breadarray\b|^[^#]*\bmapfile\b' \
-            | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)
-          if [ -n "$hits" ]; then
-            echo "bash 4 only, and a SYNTAX ERROR on the bash 3.2 macOS ships:"
-            echo "$hits"
+          set -euo pipefail
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "the checkout is dirty before any mutation was applied:"
+            git status --short
             exit 1
           fi
-          echo "ok - nothing here needs bash 4"
+          echo "ok - clean"
+
+      - name: Plant a mutation, require the check to catch it
+        run: bash scripts/checks/mutants.sh
 
   # ── every compose file still resolves ───────────────────────────────────────
   compose:
