@@ -31,26 +31,14 @@ FORCE=0
 # than beside the generator because preflight consults the list too - it skips
 # these when warning about placeholders, since a placeholder in one of them is
 # about to be replaced rather than reported. See "== secrets ==" below.
-#
-# ONE PER LINE, and that is not only for reading. On a single line this is
-#   SECRET_KEYS="POSTGRES_PASSWORD DEV_LOGIN_PASSWORD ...
-# which is character-for-character the shape of a leaked credential - a name
-# ending in SECRET, an `=`, and a long unbroken run - and it tripped this box's
-# own scanner (`just files-check`) as "contains what looks like a live
-# credential". The scanner was right about the shape and wrong about the file,
-# but a public repository should not ship a line that reads as a secret to every
-# tool that looks. Breaking the value across lines removes the shape and costs
-# nothing: word splitting treats a newline exactly like a space.
-SECRET_KEYS="
-POSTGRES_PASSWORD
-DEV_LOGIN_PASSWORD
-OAUTH2_COOKIE_SECRET
-KEYCLOAK_DB_PASSWORD
-KEYCLOAK_OAUTH2_CLIENT_SECRET
-"
-# A `case` on " $SECRET_KEYS " would silently stop matching now that the
-# separators are newlines rather than spaces - and it would fail OPEN, treating
-# every key as not-a-secret. Iterating splits on any whitespace.
+# The list lives in scripts/lib/secret-keys.sh, because the justfile needs the
+# same one: `up` must unset these before re-invoking just, or compose reads the
+# placeholder that was on disk when just parsed rather than the value generated
+# here. Two copies of this list disagreeing is a silent, specific failure - see
+# that file for what it looks like.
+# shellcheck disable=SC1091
+. scripts/lib/bootstrap-keys.sh
+
 is_secret() { for _k in $SECRET_KEYS; do [ "$_k" = "$1" ] && return 0; done; return 1; }
 
 # Reading and writing one key in .env. Defined up here because PREFLIGHT calls
@@ -168,8 +156,7 @@ esac
 # refuse to start - a failure that looks like a permissions bug in Bothy.
 me_u=$(id -u); me_g=$(id -g)
 if [ "$me_u" != "1000" ] || [ "$me_g" != "1000" ]; then
-  warn "you are ${me_u}:${me_g}, and portal-files/bothy-config/bothy-control run as 1000:1000"
-  say "  set PUID=$me_u and PGID=$me_g in .env once those services read them"
+  say "you are ${me_u}:${me_g}, not 1000:1000 - PUID/PGID will be set below"
 fi
 
 # SKIPPED WHEN BOX_IP IS STILL A PLACEHOLDER, because the secrets phase below is
@@ -335,6 +322,29 @@ case "$box_ip" in
     fi ;;
   *) ok "BOX_IP already set to $box_ip - left alone" ;;
 esac
+
+# ── PUID/PGID: who the three writing services run as ─────────────────────────
+#
+# portal-files, bothy-config and bothy-control write into bind-mounted host
+# directories - the audit logs, and for the editor tier the repositories
+# themselves. Their compose files ran them as a hardcoded `1000:1000`, which
+# made Bothy installable only by somebody who happens to BE uid 1000. That is
+# most single-user Linux boxes and NOBODY on macOS, where the first account is
+# 501; it is also not a GitHub runner, which is 1001.
+#
+# The failure is not a permission error anybody sees. The container starts, its
+# writes fail, and the tier looks broken from the outside - which is why this
+# check has been printing "set PUID=$me_u and PGID=$me_g in .env once those
+# services read them" for months. They read them now, so this sets them.
+#
+# WRITTEN ONLY WHEN ABSENT, like every other value here. Changing PUID on an
+# existing install does not migrate anything: the directories keep the ownership
+# they were created with, and the services stop being able to write to them.
+if [ "$(env_value PUID)" = "" ] && [ "$me_u" != "1000" ]; then
+  env_set PUID "$me_u"; export PUID="$me_u"
+  env_set PGID "$me_g"; export PGID="$me_g"
+  ok "PUID/PGID set to ${me_u}:${me_g} - the writing services will run as you"
+fi
 
 if [ -n "$generated" ]; then
   n=$(set -- $generated; echo $#)
