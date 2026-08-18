@@ -200,13 +200,11 @@ Then open **`http://<this-node's-tailnet-IP>/`** - `just urls` prints every addr
 | `edge/dynamic/` | Watched file-provider routes: `portal-api.yml` (the portal's read-only data plane - the security boundary, read it in full), `portal-files.yml` (the editor tier's three role-gated routers), `auth.yml` (the `sso@file` / `sso-errors@file` middlewares and the host-less `` PathPrefix(`/oauth2/`) `` router), `project.example.yml` (the annotated template, commented out on purpose). |
 | `auth/` | **Keycloak 26.7.1 + oauth2-proxy** - the local identity layer. Keycloak publishes `:8090` and stores its data in the shared Postgres under its own `keycloak` role; oauth2-proxy runs `--provider=oidc` against the `devbox` realm and publishes no port. Enforces on the editor tier; see [Single sign-on](#single-sign-on). |
 | `monitoring/` | Prometheus, Grafana, Loki + Promtail, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds six provisioned dashboards; `rules/` is for Prometheus rules. |
-| `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. In active use - the dev database, Wiki.js and Keycloak all live here. |
+| `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. In active use - the dev database and Keycloak both live here. |
 | `data/redis/`, `data/kafka/` | **Retired** - both measured completely idle (zero keys, zero topics) and removed. The compose files are kept so `just down` and `just nuke` still clean up an older deployment; `just up-data` no longer starts them, and their volumes are gone. |
-| `mgmt/` | Portainer and Dozzle. |
 | `apps/portal-next/` | The live portal on `:80` - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `portal-next-fallback`, the catch-all. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
-| `apps/portal/` | The retired pure-HTML portal, kept as a one-line rollback - **and the owner of `portal-socket-proxy`**, which the live portal still depends on. Do not `compose down` this directory. |
+| `apps/bothy/` | The one compose project over Bothy's three tiers, via `include:`. Also **owns `portal-socket-proxy`** - the read-only Docker socket the portal's `/-/api/docker` data plane goes through. It moved here on 2026-08-18 when `apps/portal/`, which existed only to hold it, was deleted. |
 | `apps/portal-files/` | The editor tier behind Bothy Files - the read/write file API over the stacks repo, `~/claude-notes` and `~/projects`, with full-text search. No published port; reached only through the edge. |
-| `apps/wiki/` | Wiki.js - superseded by Bothy Files; currently stopped, kept because its content lives in a `wiki` database. |
 | `host/` | Copies of the host configuration git cannot see: dnsmasq, `daemon.json`, `wsl.conf`, the systemd units, and the Windows keepalive task. Required to rebuild the box. See [`host/README.md`](host/README.md). |
 | `scripts/` | `backup.sh` and `doctor.sh`. |
 | `justfile` | Every operation. Start here. |
@@ -230,7 +228,7 @@ flowchart TB
   B -->|":80"| T
 
   subgraph box["The dev box"]
-    SVC["Grafana · Prometheus · Loki<br/>Dozzle · cAdvisor · Portainer<br/><i>each on its own published port</i>"]
+    SVC["Grafana · Prometheus · Loki<br/>cAdvisor · node-exporter<br/><i>each on its own published port</i>"]
 
     T["<b>Traefik</b> :80<br/>7 routers, zero Host rules<br/>catch-all (prio 1) + exact Path() / PathPrefix (prio 100)"]
 
@@ -300,13 +298,13 @@ below.
 | `portal-files-download` | `viewer` | `/raw` `/archive`, on the `:8100` sandbox entrypoint only |
 | `portal-files-write` | `editor` | `/write` |
 
-Everything else on the box - Grafana, Prometheus, Portainer, Dozzle - still runs
+Everything else on the box - Grafana and Prometheus - still runs
 its own login on one shared dev credential (`DEV_LOGIN_*` in `.env`). Postgres is
 loopback-only and unrouted. So "SSO is running" does **not** mean "everything is
 behind SSO"; it means the write tier is, and nothing else is yet.
 
 **Why the split.** Attaching auth is the step that can lock you out, and the
-tools you would use to unlock it - the portal, Grafana, Dozzle - are the very
+tools you would use to unlock it - the portal, Grafana - are the very
 things you would have just put behind the broken login. So the middlewares were
 defined first, then proven against the one tier where the cost of being wrong is
 highest (a service holding read-write handles on two git repos), and only then
@@ -356,9 +354,12 @@ needed, with the `:*` all-ports wildcard, because it governs the `?rd=`
 return-to URL and *that* does carry a port.
 
 Until something is actually attached, every dashboard runs its own login with
-one shared dev credential (`DEV_LOGIN_*` in `.env`): Grafana, Portainer, Dozzle,
-and Prometheus (basic auth, carried by its self-scrape and the Grafana datasource
-too). Postgres is loopback-only and unrouted.
+one shared dev credential (`DEV_LOGIN_*` in `.env`): Grafana and Prometheus
+(basic auth, carried by its self-scrape and the Grafana datasource too). Postgres
+is loopback-only and unrouted.
+
+That list got shorter on 2026-08-18 rather than better-defended: Portainer and
+Dozzle were deleted, so two of the four dashboards that needed a login are gone.
 
 > **A general warning that outlived the design it shipped with.** Prometheus'
 > basic-auth credential is injected by a Traefik `customRequestHeaders`
@@ -454,8 +455,7 @@ ssh -L 5432:localhost:5432 <user>@<this-node>.<your-tailnet>.ts.net
 
 `stacks-backup.timer` runs `scripts/backup.sh` at 03:00 daily, keeping the newest
 14 of each: the Postgres dump - which carries Keycloak's realm,
-users and roles as well as the dev database - the Grafana and Portainer
-databases, and `.env`, which is gitignored and exists in exactly one place on
+users and roles as well as the dev database - the Grafana database, and `.env`, which is gitignored and exists in exactly one place on
 earth, so losing it loses every credential on the box. Its Redis step still runs
 and now always reports "redis not running - skipped", because Redis is gone.
 

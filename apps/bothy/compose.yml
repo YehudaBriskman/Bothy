@@ -30,12 +30,23 @@
 # under one set of comments. Merging the PROJECT is what fixes the display;
 # nothing about the isolation needs to change, so nothing here changes it.
 #
-# apps/portal/ is included for its socket-proxy only — its own nginx is retired
-# (traefik.enable=false) and is next to be dropped.
+# The socket-proxy fragment used to live in apps/portal/, a directory that
+# existed only to hold it: the pure-HTML portal it was named after was retired
+# long before, and its own nginx went with it. Moved here and apps/portal/
+# deleted on 2026-08-18. A directory named after a dead service is a standing
+# invitation to `compose down` the thing the live portal depends on - which is
+# exactly why README had to carry a "do not compose down this directory" note.
+#
+# THE CONTAINER IS STILL portal-socket-proxy, deliberately. That name is in
+# bothy-control's self-protection allowlist (guard.py, test_guard.py) and in the
+# SPA's foot-gun guard (lib/actions.ts) - the rule that stops you stopping the
+# container serving the page you are reading. Renaming it is a coordinated
+# change across a security guard and its tests, not a side effect of moving a
+# file.
 
 name: bothy
 
 include:
   - path: ../portal-next/compose.yml
   - path: ../portal-files/compose.yml
-  - path: ../portal/compose.yml
+  - path: ./socket-proxy.yml
