@@ -61,7 +61,7 @@ jobs:
       # The recipe-description check reads `just --list`, so this job needs just
       # too. Same action as install.yml and upgrade.yml - one pin for dependabot
       # to bump rather than a tarball URL that rots quietly.
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
 
       # ONE STEP PER SUITE, not one step running all of them. A single step
       # reports one red X for six suites and hides which; separate steps name the
