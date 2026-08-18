@@ -92,7 +92,7 @@ jobs:
                       /usr/local/share/boost /usr/share/swift || true
           echo "after:"; df -h / | tail -1
 
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@v4
 
       # Node for the portal harness (it compiles modules with a bare `tsc`), and
       # uv for the config tier (its checks need ruamel.yaml, which the system
