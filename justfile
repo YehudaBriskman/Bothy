@@ -50,7 +50,19 @@ network:
     -docker network create filesnet 2>/dev/null || true
 
 # Bring up EVERYTHING
-up: network up-edge up-auth up-monitoring up-data up-mgmt up-apps
+# `bootstrap` first, and that is not decoration: on a fresh clone Prometheus is
+# started with --web.config.file pointing at a gitignored file nothing creates,
+# and three directories the services write to do not exist. README.md's own rule
+# applies - if a rule can be forgotten, it will be, so put it somewhere it
+# cannot be skipped.
+#
+# `up-mgmt` is NOT here any more. Portainer and Dozzle were retired on
+# 2026-08-17; `just urls` and scripts/doctor.sh both already say so and neither
+# expects them. Worse for a newcomer, dozzle cannot start at all without a
+# gitignored users file that nothing generates - so `just up` failed partway
+# through on every fresh clone, at a service the box does not use. `just up-mgmt`
+# still exists for anyone who wants them back.
+up: bootstrap network up-edge up-auth up-monitoring up-data up-apps
     @echo "All stacks up. Run 'just urls' for access."
 
 # Edge: Traefik - the single front door on :80. It no longer routes anything by
@@ -204,6 +216,13 @@ verify mode="":
 # recipe rather than a section of `verify`.
 portability:
     @bash scripts/checks/portability.sh
+
+# Make a fresh clone able to start: check what is missing, create the
+# directories the services write to, and generate the gitignored files that
+# nothing else creates. Idempotent - a second run says so rather than acting.
+# `up` depends on it, because a rule that can be forgotten will be.
+bootstrap *args:
+    @bash scripts/bootstrap.sh {{ args }}
 
 # Checks for the editor tier: path-safety unit tests, per-route role enforcement,
 # a full anonymous-refused / login / write round trip, the undo net, and a scan
