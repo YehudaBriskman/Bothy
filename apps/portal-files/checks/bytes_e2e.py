@@ -14,8 +14,10 @@ def _probe(path: str) -> str:
     return path
 atexit.register(lambda: [os.remove(p) for p in _PROBES if os.path.exists(p)])
 
-BASE = "http://100.117.176.85"
-SANDBOX = "http://100.117.176.85:8100"
+# One resolver for the whole suite - checks/env.py. These were literals in
+# twelve files, which put this node's tailnet address in a public repo and
+# made the suite unrunnable by anyone but its author.
+from env import BASE, NOTES, SANDBOX
 fails = 0
 
 
@@ -110,7 +112,7 @@ for label, hdr in [("multi-range", "bytes=0-10,20-30"),
 # A zero-length file has no "last N bytes". The suffix branch returned before
 # the validation, so it produced (0, -1) -> `206 Content-Range: bytes 0--1/0`,
 # which is not a parseable field value. Any empty file in a repo reaches it.
-empty = _probe("/home/devssh/claude-notes/_empty-probe.md")
+empty = _probe(f"{NOTES}/_empty-probe.md")
 open(empty, "w").close()
 r = s.get(f"{SANDBOX}/-/api/files/raw",
           params={"root": "notes", "path": "_empty-probe.md"},
@@ -147,7 +149,7 @@ print("\n── the new viewers ────────────────
 # makes it safe. checks/sandbox_escape.mjs proves the containment; this only
 # proves the content type is right.
 import tempfile
-probe = _probe("/home/devssh/claude-notes/_viewer-probe.svg")
+probe = _probe(f"{NOTES}/_viewer-probe.svg")
 open(probe, "w").write('<svg xmlns="http://www.w3.org/2000/svg"><text>x</text></svg>')
 r = s.get(f"{SANDBOX}/-/api/files/raw",
           params={"root": "notes", "path": "_viewer-probe.svg"}, timeout=20)
@@ -224,7 +226,7 @@ r = s.post(f"{BASE}/-/api/files/write",
            headers={"Sec-Fetch-Site": "cross-site"}, timeout=15)
 check("a cross-site write is refused", r.status_code == 403, f"got {r.status_code}")
 check("and neither left a file behind",
-      not os.path.exists("/home/devssh/claude-notes/csrf.md"))
+      not os.path.exists(f"{NOTES}/csrf.md"))
 
 print("\n── anonymous ───────────────────────────────────────────────────────")
 a = requests.Session()

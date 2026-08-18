@@ -38,12 +38,16 @@ import time
 
 import requests
 
-BASE = "http://100.117.176.85"
+# One resolver for the whole suite - checks/env.py. These were literals in
+# twelve files, which put this node's tailnet address in a public repo and
+# made the suite unrunnable by anyone but its author.
+from env import BASE, HOME_DIR
+
 API = f"{BASE}/-/api/files"
 # Under $HOME rather than under either repo - see the module docstring. Named so
 # that a leftover from a crashed run is unmistakable and greppable.
 PROBE_REL = "_bothy-links-probe-4c81de"
-PROBE_DIR = f"/home/devssh/{PROBE_REL}"
+PROBE_DIR = f"{HOME_DIR}/{PROBE_REL}"
 
 fails = 0
 

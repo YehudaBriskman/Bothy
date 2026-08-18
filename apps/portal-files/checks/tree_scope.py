@@ -18,7 +18,10 @@ import sys
 
 import requests
 
-BASE = "http://100.117.176.85"
+# One resolver for the whole suite - checks/env.py. These were literals in
+# twelve files, which put this node's tailnet address in a public repo and
+# made the suite unrunnable by anyone but its author.
+from env import BASE
 API = f"{BASE}/-/api/files"
 
 fails = 0
