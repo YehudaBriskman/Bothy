@@ -58,6 +58,11 @@ jobs:
       # box's). Its run.sh builds a venv with uv when it cannot find one.
       - uses: astral-sh/setup-uv@v7
 
+      # The recipe-description check reads `just --list`, so this job needs just
+      # too. Same action as install.yml and upgrade.yml - one pin for dependabot
+      # to bump rather than a tarball URL that rots quietly.
+      - uses: extractions/setup-just@v3
+
       # ONE STEP PER SUITE, not one step running all of them. A single step
       # reports one red X for six suites and hides which; separate steps name the
       # failure in the job summary without opening a log.
@@ -106,6 +111,13 @@ jobs:
       - name: No bash 4 syntax (macOS ships bash 3.2)
         if: always()
         run: bash scripts/checks/bash32.sh
+
+      # `just --list` is the only discovery surface this repo has, and it printed
+      # sentence fragments for 10 of 22 recipes - including `nuke`, which deletes
+      # every data volume and was described as "lines below are now no-ops".
+      - name: Every recipe describes itself
+        if: always()
+        run: bash scripts/checks/recipe-descriptions.sh
 
   # ── the checks must be able to fail ─────────────────────────────────────────
   #

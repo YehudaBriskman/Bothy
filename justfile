@@ -99,6 +99,7 @@ network:
 # list is scripts/lib/bootstrap-keys.sh, shared with bootstrap so the two cannot
 # drift; both failures above were found by `just ci-install`, one after the
 # other, because fixing the first revealed the second.
+# Bring the whole box up, in dependency order. Runs bootstrap first.
 up: bootstrap
     #!/usr/bin/env bash
     set -euo pipefail
@@ -134,6 +135,7 @@ _up-all: network up-edge up-data up-auth up-monitoring up-apps
 # Host header (the name layer was deleted 2026-08-12); what it still owns is the
 # portal's host-less /-/api/* data plane and the catch-all that serves the portal
 # on the bare IP. Must come up before anything that expects to be routed.
+# Edge: Traefik on :80. Must be up before anything that expects routing.
 up-edge: network
     docker compose -f edge/compose.yml up -d
 
@@ -147,6 +149,7 @@ up-edge: network
 #
 # Nothing here enforces anything yet: it defines the `sso@file` middleware,
 # it does not attach it to any router. See edge/dynamic/auth.yml.
+# Identity: Keycloak + oauth2-proxy. Blocks until Keycloak is healthy.
 up-auth: network
     #!/usr/bin/env bash
     set -euo pipefail
@@ -196,6 +199,7 @@ up-monitoring: network
 # went; the point is that the instruction must not promise otherwise.)
 #
 # postgres stays: it is in active use - Keycloak's database lives there.
+# Data: Postgres, bound to loopback only.
 up-data: network
     docker compose -f data/postgres/compose.yml up -d
 
@@ -204,6 +208,7 @@ up-data: network
 # There is nothing else here. Reading and editing the box's markdown is Bothy
 # Files, a route in the portal backed by apps/portal-files, which reads the real
 # file from a bind mount. No second copy, no sync lag, nothing to keep out of git.
+# Apps: Bothy's web, editor and socket tiers, plus the config tier.
 up-apps: network
     docker compose {{BOTHY}} up -d
     # The config tier. Separate from the editor tier on purpose: portal-files
@@ -241,6 +246,7 @@ down:
 # volume that still exists: postgres, prometheus, grafana, loki, portainer.
 # (redis_data and kafka_data were already deleted on 2026-08-12 - those two
 # lines below are now no-ops on this box.)
+# DESTRUCTIVE: delete every data volume. Asks for confirmation; irreversible.
 nuke:
     @printf "This deletes ALL data volumes. Type yes to continue: " && read ans && [ "$ans" = yes ] || (echo aborted; exit 1)
     -docker compose -f auth/compose.yml down -v
@@ -284,6 +290,7 @@ ci-install:
 # Verify the access model still holds - run after ANY edge/routing change.
 # `just verify selftest` additionally proves the template-error probe can fail,
 # by voiding a dynamic file on purpose and cleaning it up again.
+# Prove the edge actually routes - 23 checks against the running stack.
 verify mode="":
     @VERIFY_SELFTEST={{ if mode == "selftest" { "1" } else { "" } }} bash scripts/verify-access.sh
 
@@ -291,6 +298,7 @@ verify mode="":
 # addresses that are baked in, against a baseline that should only ever shrink.
 # Runs against the TREE, so it needs nothing up - which is why it is its own
 # recipe rather than a section of `verify`.
+# Count the paths and addresses baked in that exist on only one machine.
 portability:
     @bash scripts/checks/portability.sh
 
@@ -298,13 +306,14 @@ portability:
 # directories the services write to, and generate the gitignored files that
 # nothing else creates. Idempotent - a second run says so rather than acting.
 # `up` depends on it, because a rule that can be forgotten will be.
+# Make a fresh clone runnable: check prerequisites, create dirs, generate secrets.
 bootstrap *args:
     @bash scripts/bootstrap.sh {{ args }}
 
 # Checks for the editor tier: path-safety unit tests, per-route role enforcement,
 # a full anonymous-refused / login / write round trip, the undo net, and a scan
 # of everything the portal SERVES for anything that looks like a credential.
-# `just files-check offline` runs only the part that needs nothing up; `ci` runs everything except the box-specific credential survey.
+# Checks for the editor tier. `offline` skips what needs the stack up; `ci` skips the box-specific credential survey.
 files-check mode="":
     @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
 
@@ -332,6 +341,7 @@ psql:
 # behalf, so it is GITIGNORED and generated from .env rather than committed.
 # Run this on a fresh clone, and again after changing DEV_LOGIN_*. Traefik
 # watches ./dynamic, so no restart is needed.
+# Regenerate the portal's Prometheus data-plane route.
 portal-prom-route:
     ./scripts/gen-portal-prom-route.sh
 
@@ -341,6 +351,7 @@ portal-prom-route:
 # Traefik Host-name routing is DELETED - not
 # dormant, not waiting on a DNS layer. Zero Host() rules remain in the router
 # table. A new service publishes a port; it does not declare a name.
+# Print every address on this box, and what is deliberately not running.
 urls:
     #!/usr/bin/env bash
     # Identity is read from tailscale at run time and never stored in this repo:
