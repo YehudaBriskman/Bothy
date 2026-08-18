@@ -204,9 +204,22 @@ if r.status_code == 200:
     check("no .env in the archive",
           not any(os.path.basename(n) == ".env" for n in names))
     check("no .git/ in the archive", not any("/.git/" in n for n in names))
-    # content actually survives
-    body = z.read([n for n in names if n.endswith("README.md")][0])
-    check("a member's bytes are intact", len(body) > 100, f"README.md {len(body)} bytes")
+    # Content actually survives. COMPARED AGAINST THE FILE ON DISK, not against a
+    # size threshold: this was `len(body) > 100`, which is a statement about how
+    # long THIS box's notes README happens to be. On a fresh install that file is
+    # the 58-byte one bootstrap writes, so the check failed with "a member's bytes
+    # are intact: README.md 58 bytes" - which reads as corruption when the bytes
+    # were perfectly intact and merely fewer than someone expected.
+    #
+    # Byte equality is also the stronger assertion. A length test passes on a
+    # truncated file, on a re-encoded one, and on the wrong file of the right
+    # size; this one fails on all three.
+    _member = [n for n in names if n.endswith("README.md")][0]
+    body = z.read(_member)
+    with open(f"{NOTES}/{_member.split('/', 1)[1]}", "rb") as _fh:
+        on_disk = _fh.read()
+    check("a member's bytes are intact", body == on_disk,
+          f"{_member} {len(body)} bytes vs {len(on_disk)} on disk")
 
 print("\n── /archive: tar.gz ────────────────────────────────────────────────")
 r = s.get(f"{SANDBOX}/-/api/files/archive",
