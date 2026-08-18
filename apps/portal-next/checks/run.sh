@@ -12,6 +12,15 @@
 # stops being true, that is the moment to add a real runner.
 set -euo pipefail
 
+# `--offline` drops the one section that needs a docker daemon. Everything else
+# here is a truth table over compiled, dependency-free modules and reads only the
+# source tree, which is what lets CI run 290-odd assertions in a job that starts
+# no containers. Without the flag the whole file was unusable there: one `curl`
+# against /var/run/docker.sock at the end failed the run and took every passing
+# check with it.
+OFFLINE=0
+[ "${1:-}" = "--offline" ] && OFFLINE=1
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB="$HERE/../web"
 OUT="$(mktemp -d)"
@@ -67,6 +76,12 @@ node "$OUT/titles-table.mjs"
 
 echo
 echo "── this box, right now ─────────────────────────────────"
+if [ "$OFFLINE" = 1 ]; then
+  # SAID OUT LOUD rather than silently skipped. A suite that quietly drops a
+  # section reads as "everything passed" in a log, which is the failure mode
+  # this repo keeps rediscovering.
+  echo "  SKIPPED (--offline): needs a docker daemon"
+else
 curl -s --unix-socket /var/run/docker.sock "http://localhost/containers/json?all=1" > "$OUT/containers.json"
 node --input-type=module -e "
 import { statusOf } from '$OUT/discover.mjs';
@@ -76,6 +91,7 @@ const n = {};
 for (const c of cs) { const s = statusOf(c); (n[s] ??= []).push(c.Names?.[0]?.replace(/^\//, '')); }
 for (const [k, v] of Object.entries(n)) console.log(\`  \${k.padEnd(9)} \${v.length}  \${v.slice(0, 6).join(', ')}\`);
 "
+fi
 
 echo
 echo "── every theme keeps the palette's contract ────────────"

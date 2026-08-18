@@ -27,6 +27,32 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
 
+# The five credentials the running stack actually reads. Declared up here rather
+# than beside the generator because preflight consults the list too - it skips
+# these when warning about placeholders, since a placeholder in one of them is
+# about to be replaced rather than reported. See "== secrets ==" below.
+#
+# ONE PER LINE, and that is not only for reading. On a single line this is
+#   SECRET_KEYS="POSTGRES_PASSWORD DEV_LOGIN_PASSWORD ...
+# which is character-for-character the shape of a leaked credential - a name
+# ending in SECRET, an `=`, and a long unbroken run - and it tripped this box's
+# own scanner (`just files-check`) as "contains what looks like a live
+# credential". The scanner was right about the shape and wrong about the file,
+# but a public repository should not ship a line that reads as a secret to every
+# tool that looks. Breaking the value across lines removes the shape and costs
+# nothing: word splitting treats a newline exactly like a space.
+SECRET_KEYS="
+POSTGRES_PASSWORD
+DEV_LOGIN_PASSWORD
+OAUTH2_COOKIE_SECRET
+KEYCLOAK_DB_PASSWORD
+KEYCLOAK_OAUTH2_CLIENT_SECRET
+"
+# A `case` on " $SECRET_KEYS " would silently stop matching now that the
+# separators are newlines rather than spaces - and it would fail OPEN, treating
+# every key as not-a-secret. Iterating splits on any whitespace.
+is_secret() { for _k in $SECRET_KEYS; do [ "$_k" = "$1" ] && return 0; done; return 1; }
+
 bad=0
 say()  { printf '  %s\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
@@ -55,12 +81,22 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# PLACEHOLDERS ARE THE HIGH-VALUE CHECK. A copied .env produces a Keycloak whose
-# admin password is literally `changeme`, and nothing anywhere says so - the
-# stack comes up and looks healthy.
+# PLACEHOLDERS USED TO BE A HARD FAILURE HERE. A copied .env produces a Keycloak
+# whose admin password is literally `changeme`, the stack comes up, and nothing
+# anywhere says so - so this refused to run and named each key to fix.
 #
-# BUT ONLY FOR KEYS THAT ARE ACTUALLY LOAD-BEARING, and the first version of
-# this got that wrong in both directions on its first real run:
+# IT NOW GENERATES THEM INSTEAD (see "== secrets ==" below), which solves the
+# same problem better. The refusal prevented a weak credential; generating
+# prevents it AND removes the step where a tired person pastes something short,
+# or copies the same string into all five. `cp .env.example .env && just up` -
+# the thing README.md has promised for a year - is finally true.
+#
+# What is still checked here is the half generation cannot fix: a key that is
+# UNSET in a way nothing can guess (BOX_IP), and one that must have a specific
+# SHAPE rather than a specific strength (DEV_LOGIN_USER).
+#
+# The unused-placeholder warning survives, and it is still worth printing. It
+# was got wrong in both directions on this file's first real run:
 #
 #   · GRAFANA_ADMIN_EMAIL=admin@localhost is not a placeholder at all. It is
 #     the DEFAULT monitoring/compose.yml declares for itself, twice.
@@ -68,31 +104,26 @@ fi
 #     not start - apps/wiki is superseded and kept only so `down` cleans up an
 #     older deployment.
 #
-# Failing on either stops a bootstrap that would have worked. So the hard list
-# is the credentials that the services `up` DOES start will actually use, and
-# everything else is a warning - which is also the honest signal, because a
-# placeholder in an unused key is a fact rather than a problem.
-REQUIRED_REAL="POSTGRES_PASSWORD DEV_LOGIN_PASSWORD OAUTH2_COOKIE_SECRET KEYCLOAK_DB_PASSWORD KEYCLOAK_OAUTH2_CLIENT_SECRET"
-placeholder=0
+# A placeholder in a key nothing reads is a FACT, not a problem, so it says so
+# and continues.
 while IFS='=' read -r k v; do
   case "$k" in ''|\#*) continue ;; esac
+  is_secret "$k" && continue
   case "$v" in
-    changeme|change-me|changeme-generate-one|dev@example.com)
-      if printf '%s ' $REQUIRED_REAL | grep -q " $k "; then
-        die "$k is still the .env.example placeholder ($v)"; placeholder=1
-      else
-        # NO BACKTICKS IN A DOUBLE-QUOTED STRING. This line said `just up`
-        # inside double quotes and bash COMMAND-SUBSTITUTED it: a warning
-        # message started the whole stack, from a throwaway clone, against the
-        # real docker daemon - which recreated traefik and keycloak from
-        # /tmp because compose project names are global.
-        warn "$k is still a placeholder ($v) - nothing that 'just up' starts reads it"
-      fi ;;
+    changeme|change-me|changeme-generate-one)
+      # NO BACKTICKS IN A DOUBLE-QUOTED STRING. This line said `just up`
+      # inside double quotes and bash COMMAND-SUBSTITUTED it: a warning
+      # message started the whole stack, from a throwaway clone, against the
+      # real docker daemon - which recreated traefik and keycloak from
+      # /tmp because compose project names are global.
+      warn "$k is still a placeholder ($v) - nothing that 'just up' starts reads it" ;;
   esac
 done < .env
-[ "$placeholder" = 0 ] && ok "every credential the stack actually uses is set"
 
-for k in POSTGRES_PASSWORD DEV_LOGIN_USER DEV_LOGIN_PASSWORD BOX_IP; do
+# BOX_IP is not generatable: nothing can guess which address this box answers
+# on. It is also not fatal - box-addr.sh prefers tailscale and falls back to
+# 127.0.0.1, which is a supported way to run Bothy.
+for k in DEV_LOGIN_USER BOX_IP; do
   v="$(grep -E "^$k=" .env | head -1 | cut -d= -f2-)"
   [ -n "$v" ] || die "$k is empty in .env"
 done
@@ -137,6 +168,113 @@ case "$(uname -s)" in
 esac
 
 [ "$bad" = 0 ] || { echo; echo "  Fix the above and run again. Nothing was changed."; exit 1; }
+
+# ── A½. secrets ──────────────────────────────────────────────────────────────
+#
+# The five credentials the running stack actually reads. Generated when they are
+# BLANK or still hold a .env.example placeholder, never touched otherwise.
+#
+# WHY GENERATE RATHER THAN REFUSE. This used to `die` with "POSTGRES_PASSWORD is
+# still the .env.example placeholder", which is a good error message attached to
+# the wrong answer: it made the documented install a lie (README promised two
+# lines and needed six), and it handed a person five `openssl` invocations to
+# run by hand at the exact moment they are least interested in cryptography.
+# What actually happens then is one password, reused five times. Generating is
+# both easier AND stronger, which is rare enough to take.
+#
+# NEVER OVERWRITTEN, AND --force DOES NOT CHANGE THAT. Regenerating a secret is
+# not idempotent the way regenerating a config file is: POSTGRES_PASSWORD is
+# baked into the database volume at initdb time and KEYCLOAK_DB_PASSWORD into
+# Keycloak's, so a fresh value locks you out of your own data with no error that
+# mentions this script. Rotation is a real operation with a real order to it
+# (change it, then `just up-auth`), and .env.example documents that per key. A
+# flag named --force must not be the thing that does it by accident.
+#
+# VALUES ARE NEVER PRINTED. Only key names. This runs in CI, in a terminal
+# somebody may be sharing, and into scrollback that outlives the session; the
+# values are in .env, which is where they should be read from.
+#
+# EDITED WITH awk, NOT sed -i. The values contain `/` and `&`, both of which sed
+# gives meaning to in a replacement, and `sed -i` differs between GNU and BSD -
+# on macOS `-i` eats the next argument as a backup suffix. awk with an exact
+# prefix match and an environment handoff has neither problem.
+
+# Each generator matches the format .env.example documents for that key, because
+# two of them are not free choices:
+#
+#   OAUTH2_COOKIE_SECRET           oauth2-proxy requires a value that decodes to
+#                                  exactly 16, 24 or 32 bytes and refuses to
+#                                  start otherwise. base64 of 32, url-safe.
+#   KEYCLOAK_OAUTH2_CLIENT_SECRET  imported into the realm AND handed to
+#                                  oauth2-proxy; hex avoids any argument about
+#                                  which encoding either end applies.
+#   DEV_LOGIN_PASSWORD             the one a HUMAN types, into Keycloak, Grafana
+#                                  and Portainer. Alphanumeric and shorter on
+#                                  purpose: a 44-character base64 string with
+#                                  `-` and `_` in it is a password people copy
+#                                  wrong at a login form, and this one is typed
+#                                  far more often than it is strong-enough-once.
+gen_secret() {
+  case "$1" in
+    OAUTH2_COOKIE_SECRET)          openssl rand -base64 32 | tr -- '+/' '-_' | tr -d '\n' ;;
+    KEYCLOAK_OAUTH2_CLIENT_SECRET) openssl rand -hex 32 | tr -d '\n' ;;
+    DEV_LOGIN_PASSWORD)            LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24 ;;
+    *)                             openssl rand -base64 24 | tr -d '\n' ;;
+  esac
+}
+
+echo
+echo "== secrets =="
+
+env_value() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'; }
+
+env_set() {
+  # awk, exact prefix, value passed through the environment so no shell or awk
+  # metacharacter in it is ever re-interpreted.
+  BOOTSTRAP_K="$1" BOOTSTRAP_V="$2" awk '
+    BEGIN { k = ENVIRON["BOOTSTRAP_K"]; v = ENVIRON["BOOTSTRAP_V"]; done = 0 }
+    !done && index($0, k "=") == 1 { print k "=" v; done = 1; next }
+    { print }
+    END { if (!done) print k "=" v }
+  ' .env > .env.bootstrap.tmp && mv .env.bootstrap.tmp .env
+}
+
+generated=""
+for k in $SECRET_KEYS; do
+  v="$(env_value "$k")"
+  case "$v" in
+    ''|changeme|change-me|changeme-generate-one)
+      new="$(gen_secret "$k")"
+      env_set "$k" "$new"
+      # Export directly rather than re-reading .env at the end. `set -a; . .env`
+      # is the exact pattern scripts/lib/env.sh refuses to use, for two reasons
+      # that both apply here: it EXECUTES the file (a secret containing a
+      # backtick would run), and it lets the file overwrite the environment,
+      # which is the opposite of how Docker Compose resolves the same variable.
+      export "$k=$new"
+      ok "$k generated"
+      generated="$generated $k" ;;
+    *)
+      # Short is a WARNING, not a failure. It is somebody's own box, they typed
+      # this on purpose, and a tool that overrules a deliberate choice is worse
+      # than one that mentions it. Length only - judging character classes here
+      # would reject a passphrase, which is the good answer.
+      if [ "${#v}" -lt 12 ]; then
+        warn "$k is set but only ${#v} characters - short for something on a network"
+      fi
+      ok "$k already set - left alone" ;;
+  esac
+done
+
+if [ -n "$generated" ]; then
+  n=$(set -- $generated; echo $#)
+  say ""
+  say "Wrote $n secret(s) to .env. Their values are not printed here, and they are"
+  say "not recoverable - back .env up before you need it."
+  say "POSTGRES_PASSWORD and KEYCLOAK_DB_PASSWORD are baked into their database"
+  say "volumes at first start, so changing them later is an ordered operation;"
+  say ".env.example documents it per key."
+fi
 
 # ── B. create ────────────────────────────────────────────────────────────────
 echo

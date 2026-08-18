@@ -74,8 +74,15 @@ raw=$(curl -s -m 4 "http://$IP/api/rawdata")
 # Same pipefail trap again, twice over: `head -c 200` also exits early and
 # SIGPIPEs the echo feeding it. Both of these decide whether a CONFIG DUMP is
 # being served, so a false "bad" here is the loudest possible wrong answer.
-head200=${raw:0:200}
-if [[ ${head200,,} == *'<!doctype html'* ]]; then
+# LOWERCASED WITH tr, NOT WITH ${var,,}. That expansion is bash 4 and a SYNTAX
+# ERROR on bash 3.2, which is what macOS still ships - so this whole file failed
+# to parse there, and the failure is at parse time, meaning not one check ran and
+# the message named a line that looks fine. Bothy claims macOS as a target; a
+# verifier that cannot start on it is the worst way to find that out.
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+head200=$(lower "${raw:0:200}")
+if [[ $head200 == *'<!doctype html'* ]]; then
   ok "/api/rawdata now falls through to the SPA (no config dump)"
 elif [ -z "$raw" ]; then
   ok "/api/rawdata returns nothing"
@@ -83,7 +90,7 @@ else
   bad "/api/rawdata STILL returns config: ${raw:0:120}"
 fi
 # The specific thing that was leaking.
-if [[ ${raw,,} == *'"authorization"'* ]]; then
+if [[ $(lower "$raw") == *'"authorization"'* ]]; then
   bad "an Authorization header is STILL exposed via /api/rawdata"
 else
   ok "no Authorization header exposed"
