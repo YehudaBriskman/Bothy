@@ -324,6 +324,10 @@ services:
     environment:
       KC_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
       KC_ADMIN_PASSWORD: ${DEV_LOGIN_PASSWORD:?set DEV_LOGIN_PASSWORD in .env}
+      # The seed identity is the box's one unified dev login, so a fresh
+      # installer has exactly one credential to know rather than two.
+      DEV_LOGIN_USER: ${DEV_LOGIN_USER:?set DEV_LOGIN_USER in .env}
+      DEV_LOGIN_PASSWORD: ${DEV_LOGIN_PASSWORD:?set DEV_LOGIN_PASSWORD in .env}
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
@@ -338,6 +342,64 @@ services:
           --user "$$KC_ADMIN_USER" --password "$$KC_ADMIN_PASSWORD"
         /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE
         echo "master realm: sslRequired=NONE (plain HTTP admin console over the tailnet)"
+
+        # ── the first user ────────────────────────────────────────────────
+        #
+        # WITHOUT THIS A FRESH INSTALL REFUSES EVERYONE. realm-devbox.json
+        # declares four roles and ZERO users, and there is no defaultRole
+        # block, so every gated route - the whole file tier, the config tier,
+        # every action - answers 403 to the only person who has just installed
+        # it. The product looks broken rather than unconfigured.
+        #
+        # HERE AND NOT IN THE REALM FILE, and that is the load-bearing choice.
+        # The realm import runs at FIRST BOOT ONLY: add a user to that JSON on
+        # an existing install and nothing happens, silently, which is the trap
+        # its own volume comment already spends a paragraph on. This service
+        # re-runs on every `just up-auth`, so it is the only place that is
+        # correct on both a new box and an old one. It also keeps a seed
+        # identity out of a file that is public.
+        SEED="$$DEV_LOGIN_USER"
+        # LOOK UP BY EMAIL AS WELL AS USERNAME, and resolve the real username
+        # from whatever is found. Searching only by username was the first
+        # version and it broke on the box that already had an account: the
+        # existing user's USERNAME is a short name and the seed address is its
+        # EMAIL, so the query found nothing, `create` then failed on email
+        # uniqueness, and `set -e` aborted the script before any role was
+        # granted. A seeding step that breaks re-running on a configured box is
+        # worse than one that does nothing there.
+        WHO=$$(/opt/keycloak/bin/kcadm.sh get users -r devbox \
+                 -q email="$$SEED" --fields username --format csv --noquotes | head -1)
+        if [ -z "$$WHO" ]; then
+          WHO=$$(/opt/keycloak/bin/kcadm.sh get users -r devbox \
+                   -q username="$$SEED" --fields username --format csv --noquotes | head -1)
+        fi
+        if [ -z "$$WHO" ]; then
+          /opt/keycloak/bin/kcadm.sh create users -r devbox \
+            -s username="$$SEED" -s email="$$SEED" \
+            -s emailVerified=true -s enabled=true
+          /opt/keycloak/bin/kcadm.sh set-password -r devbox \
+            --username "$$SEED" --new-password "$$DEV_LOGIN_PASSWORD"
+          WHO="$$SEED"
+          echo "devbox realm: created $$WHO"
+        else
+          echo "devbox realm: $$WHO already exists - leaving their password alone"
+        fi
+
+        # ROLES ARE RE-ASSERTED EVERY RUN; the password is not. Granting a role
+        # somebody already holds is a no-op, so re-running restores a role
+        # revoked by accident in the console - the roles are declared in this
+        # repo, not in a console, and that is the property worth having. A
+        # password is the opposite: someone who changed theirs must not have it
+        # reset from under them on the next `just up-auth`, which is why
+        # set-password sits inside the create branch above.
+        #
+        # `shell` is DELIBERATELY NOT GRANTED. realm-devbox.json explains that
+        # the four roles are non-composite precisely so an arbitrary terminal
+        # cannot be reached by holding another one, and seeding it would undo
+        # that in the one place nobody would look.
+        /opt/keycloak/bin/kcadm.sh add-roles -r devbox --uusername "$$WHO" \
+          --rolename viewer --rolename editor --rolename operator
+        echo "devbox realm: $$WHO holds viewer, editor, operator (never shell)"
     deploy:
       resources:
         limits:
