@@ -56,7 +56,7 @@ jobs:
       # The config tier's checks need ruamel.yaml, which the system python
       # deliberately does not have (it is a container's dependency, not the
       # box's). Its run.sh builds a venv with uv when it cannot find one.
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
 
       # ONE STEP PER SUITE, not one step running all of them. A single step
       # reports one red X for six suites and hides which; separate steps name the
