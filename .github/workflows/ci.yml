@@ -119,6 +119,13 @@ jobs:
         if: always()
         run: bash scripts/checks/recipe-descriptions.sh
 
+      # scripts/bothy dispatches most subcommands to a just recipe. Rename a
+      # recipe and nothing complains until somebody runs the CLI - the break is
+      # in one file and surfaces in another.
+      - name: The CLI and the justfile agree
+        if: always()
+        run: bash scripts/checks/cli-commands.sh
+
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
   # Everything above answers "is the tree healthy". This answers the question
