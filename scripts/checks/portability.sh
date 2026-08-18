@@ -41,8 +41,13 @@ TAILNET_RE='\b100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3
 #                   past and rewriting it would defeat the point of keeping it.
 #   .claude         agent worktrees live here and are copies of the repo, so
 #                   every hit inside one is a duplicate of a hit outside it.
-EXCLUDE=':(exclude).cleanup-trash/**' 
+EXCLUDE=':(exclude).cleanup-trash/**'
 EXCLUDE2=':(exclude).claude/**'
+# And this file. It CONTAINS the patterns, so it matches itself - the comment
+# above naming the CGNAT range is a hit by its own rule. Baselining that would
+# be accepting a line of noise forever; excluding it says what is actually true,
+# which is that a description of an address is not an address.
+EXCLUDE3=':(exclude)scripts/checks/portability.*'
 
 hits() {
   # FILE and COUNT, not file:line, and not the matching text.
@@ -59,8 +64,8 @@ hits() {
   # catches a genuinely new occurrence (the count goes up), and it shrinks
   # visibly as the work lands.
   {
-    git grep -cE "$HOME_RE" -- . "$EXCLUDE" "$EXCLUDE2" | sed 's/^\(.*\):\([0-9]*\)$/\1\thome-path\t\2/'
-    git grep -cE "$TAILNET_RE" -- . "$EXCLUDE" "$EXCLUDE2" | sed 's/^\(.*\):\([0-9]*\)$/\1\ttailnet-ip\t\2/'
+    git grep -cE "$HOME_RE" -- . "$EXCLUDE" "$EXCLUDE2" "$EXCLUDE3" | sed 's/^\(.*\):\([0-9]*\)$/\1\thome-path\t\2/'
+    git grep -cE "$TAILNET_RE" -- . "$EXCLUDE" "$EXCLUDE2" "$EXCLUDE3" | sed 's/^\(.*\):\([0-9]*\)$/\1\ttailnet-ip\t\2/'
   } | sort -u
 }
 

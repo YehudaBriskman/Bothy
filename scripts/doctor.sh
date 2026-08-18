@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # One-glance health check of the whole dev environment.
 set -uo pipefail
+# BACKUP_ROOT, POSTGRES_USER and the rest, with defaults. See scripts/lib/env.sh
+# for why they are derived rather than declared here.
+# shellcheck disable=SC1091
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/env.sh"
 green() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 red()   { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 # Neither a pass nor a fault: something deliberately switched off. Without this
@@ -104,7 +108,7 @@ echo "== backups =="
 # check unnoticed, because a failed pg_dumpall still leaves behind a perfectly
 # valid gzip of nothing. Age and size are what separate a backup from a file
 # that is merely named like one.
-latest=$(ls -1t /home/devssh/backups/postgres/*.sql.gz 2>/dev/null | head -1)
+latest=$(ls -1t "$BACKUP_ROOT"/postgres/*.sql.gz 2>/dev/null | head -1)
 if [ -z "$latest" ]; then
   red "no postgres backups yet"
 else
@@ -134,7 +138,7 @@ else
   #
   # backup.sh uses pg_dumpall deliberately for exactly this reason; this check is
   # what would notice if anyone ever narrowed it to a list.
-  live=$(docker exec postgres psql -U dev -tAc \
+  live=$(docker exec postgres psql -U "${POSTGRES_USER:-dev}" -tAc \
     "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres';" 2>/dev/null | tr -d '\r')
   if [ -n "$live" ]; then
     # Read the dump's database list ONCE, then compare in-shell.
