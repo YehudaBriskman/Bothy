@@ -65,8 +65,6 @@ updates:
       - "/auth"
       - "/monitoring"
       - "/data/postgres"
-      - "/data/redis"
-      - "/data/kafka"
       - "/apps/bothy"
       - "/apps/portal-next"
       - "/apps/portal-files"
@@ -74,11 +72,10 @@ updates:
       - "/apps/bothy-control"
       # /apps/docs was still listed after that directory was deleted, which is
       # how a missing-directory warning goes unread for a fortnight. Removed.
-      # /data/redis and /data/kafka stay: those compose files are deliberately
-      # kept on disk, so their images are still worth bumping. /mgmt and
-      # /apps/wiki were DELETED on 2026-08-18 and removed from this list in the
-      # same change - a dependabot entry for a directory that does not exist is
-      # the missing-directory warning this comment already records going unread.
+      # /mgmt, /apps/wiki, /data/redis and /data/kafka were all DELETED on
+      # 2026-08-18 and removed from this list in the same change. A dependabot
+      # entry for a directory that does not exist is exactly the missing-directory
+      # warning this file's own history records going unread for a fortnight.
     schedule:
       interval: weekly
       day: monday

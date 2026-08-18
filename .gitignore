@@ -18,7 +18,6 @@ backups/
 
 # Logs / scratch
 *.log
-mgmt/dozzle-users.yml
 monitoring/prometheus-web.yml
 monitoring/prom-password.txt
 

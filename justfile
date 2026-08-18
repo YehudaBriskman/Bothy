@@ -171,17 +171,17 @@ up-monitoring: network
 
 # Data services: postgres (+ its exporter).
 #
-# redis and kafka were RETIRED 2026-08-12 and are no longer started here. Both
-# were measured completely idle - redis `DBSIZE` = 0, kafka `--list` = zero
-# topics - while together holding ~1,140 MB of the box's 4,678 MB of container
-# memory. Their compose files are still on disk and still referenced by `down`
-# and `nuke` below, so an older deployment gets cleaned up.
+# redis and kafka were RETIRED 2026-08-12 and DELETED on 2026-08-18. Both were
+# measured completely idle - redis `DBSIZE` = 0, kafka `--list` = zero topics -
+# while together holding ~1,140 MB of the box's 4,678 MB of container memory.
+# Their volumes and images went at retirement; the compose files went with the
+# rest of the dead weight.
 #
-# THE apps/wiki PRECEDENT THIS USED TO CITE IS GONE: wiki and mgmt were deleted
-# on 2026-08-18 because Bothy had grown its own replacement for each. These two
-# are a different case and that is why they survived it - nothing here replaces
-# a message queue or a cache, so if either is ever wanted again it will be
-# wanted as itself rather than as a rollback.
+# They outlived wiki and mgmt by an afternoon on the argument that they were
+# idle rather than REPLACED, so if either were wanted again it would be wanted
+# as itself. That argument is what `git revert` is for. A compose file kept on
+# disk for a service nobody starts is not a rollback plan, it is a file every
+# reader has to ask about - and this repo had four of them.
 #
 # THEIR DATA IS GONE. An earlier version of this comment said the volumes were
 # "PRESERVED, not deleted" - that was true for about twenty minutes. The
@@ -233,10 +233,6 @@ down:
     # bring down any more. The `wiki` database they were kept for went with them:
     # its content was superseded by the Files tier, and it is in the nightly dump
     # if that turns out to be wrong.
-    # retired 2026-08-12 (idle: zero topics / zero keys) - no longer in `up-data`,
-    # kept here so an older deployment still gets cleaned up
-    -docker compose -f data/kafka/compose.yml down
-    -docker compose -f data/redis/compose.yml down
     -docker compose -f data/postgres/compose.yml down
     -docker compose -f monitoring/compose.yml down
 
@@ -252,10 +248,6 @@ nuke:
     -docker compose {{BOTHY}} down -v
     -docker compose -f apps/bothy-config/compose.yml down -v
     -docker compose -f apps/bothy-control/compose.yml down -v
-    # retired 2026-08-12 and their volumes already deleted, so `-v` here is a
-    # no-op for them - kept only so an older deployment still gets cleaned up
-    -docker compose -f data/kafka/compose.yml down -v
-    -docker compose -f data/redis/compose.yml down -v
     -docker compose -f data/postgres/compose.yml down -v
     -docker compose -f monitoring/compose.yml down -v
 

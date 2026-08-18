@@ -19,7 +19,11 @@ export function Tooltip({
 }: {
   label: string;
   children: ReactNode;
-  align?: 'center' | 'end';
+  /** `start` and `end` pin the tooltip to the trigger's left or right edge.
+   *  Needed because this has no collision detection: centred on a trigger in
+   *  either corner of the topbar, half the tooltip renders outside the window.
+   *  The brand is the left case and was doing exactly that. */
+  align?: 'center' | 'start' | 'end';
 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -41,7 +45,7 @@ export function Tooltip({
         {children}
       </span>
       {open && (
-        <span className="tip" role="tooltip" id={id} data-align={align === 'end' ? 'end' : undefined}>
+        <span className="tip" role="tooltip" id={id} data-align={align === 'center' ? undefined : align}>
           {label}
         </span>
       )}
