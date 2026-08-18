@@ -17,7 +17,7 @@ atexit.register(lambda: [os.remove(p) for p in _PROBES if os.path.exists(p)])
 # One resolver for the whole suite - checks/env.py. These were literals in
 # twelve files, which put this node's tailnet address in a public repo and
 # made the suite unrunnable by anyone but its author.
-from env import BASE, NOTES, SANDBOX
+from env import BASE, NOTES, PROJECTS, SANDBOX
 fails = 0
 
 
@@ -63,10 +63,30 @@ print("\n── /raw: the guards still hold ────────────
 # Everything else in this table is a BOUNDARY and did not move: traversal, the
 # object store, and a directory where a file is expected. Those are what make the
 # two 200s safe to have here at all.
+# PLANTED, not borrowed. This named a real key inside one of this box's own
+# projects - army/monorepo-inherited/apps/site-relay-app/cert/key.pem - so the
+# row passed here and 403'd on every other machine, including a fresh install
+# where ~/projects is empty. "a private key, now SERVED: got 403" then reads as
+# the policy having changed back, when the truth is that no such file exists.
+#
+# THE CONTENTS ARE PLAIN TEXT, and deliberately not a PEM. The policy decides by
+# NAME - `*.pem` is what [sensitive] matches - so the bytes were never part of
+# the assertion. The first version wrote a real BEGIN PRIVATE KEY header for
+# realism, and this repo's own scanner immediately flagged the check file itself:
+#
+#   FAIL  NEW  stacks:apps/portal-files/checks/bytes_e2e.py - contains a private key block
+#
+# Correct, and the right lesson: a public repository should not carry a literal
+# PEM header for the sake of a test that does not read it. Registered with
+# _probe so the atexit above removes it however this run ends.
+_KEY = _probe(f"{PROJECTS}/_bytes_probe_key.pem")
+os.makedirs(PROJECTS, exist_ok=True)
+with open(_KEY, "w") as _fh:
+    _fh.write("planted by bytes_e2e.py - the policy matches on the .pem NAME, not on these bytes\n")
+
 for label, root, path, want in [
     ("a secret, now SERVED (.env)", "stacks", ".env", 200),
-    ("a private key, now SERVED", "projects",
-     "army/monorepo-inherited/apps/site-relay-app/cert/key.pem", 200),
+    ("a private key, now SERVED", "projects", "_bytes_probe_key.pem", 200),
     ("traversal", "stacks", "../../etc/passwd", 403),
     ("the repo .git", "stacks", ".git/config", 403),
     ("a directory, not a file", "stacks", "docs", 403),
