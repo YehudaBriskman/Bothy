@@ -675,11 +675,14 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .brand-wordmark::after {
   content: '';
   position: absolute;
-  /* 9.6% of the WIDTH, not 25.5% of the height - they are the same circle, but a
-     percentage width resolves against the containing block's WIDTH, and the
-     first version of this said 25.5% and rendered a dot that swallowed the o.
-     144 measured units of green core over a 1504-unit ink box = 9.57%. */
-  width: 9.6%;
+  /* 7% of the WIDTH. The source artwork's dot measures 9.57% (108 units of green
+     over a 1128-unit ink box) and is an ellipse taller than it is wide; this is
+     a smaller circle on purpose, because at 24px tall the artwork's proportion
+     reads as a blob filling the counter rather than as a light inside it.
+     Percentage width, not height: it resolves against the containing block's
+     WIDTH, and the first version of this said 25.5% - the same circle expressed
+     against the height - and rendered a dot two and a half times too big. */
+  width: 7%;
   aspect-ratio: 1;
   left: 33.9%;
   top: 45%;
