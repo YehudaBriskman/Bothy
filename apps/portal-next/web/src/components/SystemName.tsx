@@ -86,19 +86,25 @@ export function SystemName({
   onDrift?: (drift: Drift | null) => void;
 }) {
   const { me, loading: sessionLoading, canAct } = useOperator();
-  const { refresh } = usePortal();
+  const { data, refresh } = usePortal();
 
   // Every container in the system, reduced to the two things the derivation
   // needs. Recomputed when the poll lands, which is what makes the observed side
   // of the drift comparison current rather than a snapshot of page load.
+  // `configRoots` comes from the POLL, not from `nodes`. It is bothy-config's
+  // mount table, and these nodes are one system's - on every page but Bothy's
+  // own, bothy-config is not among them, so deriving it here would leave the
+  // table empty and answer `outside-roots` for a file that is perfectly
+  // writable.
   const target = useMemo<ComposeTarget>(
     () => composeTarget(
       nodes
         .filter((n) => n.container)
         .map((n) => ({ container: n.container!.name, labels: n.container!.labels ?? {} })),
       PROJECT_TITLE_FIELD,
+      data.configRoots,
     ),
-    [nodes],
+    [nodes, data.configRoots],
   );
 
   const file = target.t === 'file' ? target : null;
