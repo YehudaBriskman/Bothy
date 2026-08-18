@@ -57,7 +57,7 @@ mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
-   "$HERE/wikilinks.mjs" "$OUT/"
+   "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -73,6 +73,14 @@ node "$OUT/redirect-table.mjs"
 echo
 echo "── document titles ─────────────────────────────────────"
 node "$OUT/titles-table.mjs"
+
+echo
+echo "── where this repo is, asked of docker not assumed ─────"
+# The two functions that replaced a hardcoded home directory. Every case here is
+# a SECOND MACHINE - a different checkout path, a sibling directory that is a
+# prefix of it, nothing mounted yet - which is precisely what could not be tested
+# while the value was a literal.
+node "$OUT/repo-roots.mjs"
 
 echo
 echo "── this box, right now ─────────────────────────────────"

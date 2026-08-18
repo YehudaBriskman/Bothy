@@ -32,7 +32,6 @@
 // rule and would be true again the moment anyone wrote one. What is gone is the
 // assumption that a host belongs to one specific namespace.
 
-const STACK_ROOT = '/home/devssh/stacks/';
 // 'bothy' is this app itself - web tier, editor tier and socket-proxy, all one
 // compose project since 2026-08-16. It was three ('portal', 'portal-next',
 // 'portal-files'), which made Bothy render as three separate cards in its own
@@ -558,12 +557,137 @@ export function nest(host: string | null): Nesting {
   return host ? { depth: null, parent: null, leaf: host } : NO_NESTING;
 }
 
+// ── Where this repository actually is ───────────────────────────────────────
+//
+// THE PROBLEM THESE REPLACE. Two modules held this repo's absolute path as a
+// string literal - this file as `STACK_ROOT`, config.ts as `ROOT_PATHS`. Both
+// were correct on exactly one machine. Somebody who clones Bothy into
+// ~/src/bothy got a portal that filed every one of its OWN services under
+// "Projects" (nothing starts with the literal) and a config tier that refused
+// every patch (no root matched), with no error anywhere pointing at the cause.
+//
+// THE FIX IS NOT A NEW SETTING. Adding BOTHY_ROOT to .env trades a wrong default
+// for a required one, and a value that has to be kept in step with where the
+// repo actually is goes stale the first time somebody moves it - the same class
+// of bug with a longer fuse.
+//
+// DOCKER ALREADY KNOWS. The compose fragments mount the repo RELATIVELY -
+// `- ../..:/repos/stacks:rw` in apps/portal-files/compose.yml - and compose
+// resolves that against the fragment's own directory when it creates the
+// container, so a running container carries the absolute host path as a fact
+// computed on the machine it is running on:
+//
+//     "Mounts": [{ "Type": "bind",
+//                  "Source": "<wherever this repo is>",   <- derived, not declared
+//                  "Destination": "/repos/stacks" }]
+//
+// /containers/json returns Mounts and the socket-proxy exposes them (this file
+// has read that array for volume sizes for a while), so the value arrives with
+// the poll the portal already makes: no extra request, no variable to set, and
+// nothing to update after a `mv`.
+//
+// `/repos/<name>` IS THE MAPPING. That is the convention every root in this
+// stack is mounted under, so the destination names the root and the source names
+// the host path - exactly the pair ROOT_PATHS used to spell out by hand.
+//
+// WHY THEY LIVE HERE AND NOT IN A repoRoots.ts. checks/run.sh compiles this file
+// with a bare `tsc <file>`, which works only while it imports nothing - the
+// property that whole truth-table harness is built on. A separate module would
+// have been tidier and would have cost the harness. They are also at home here:
+// deriving a whole-list fact from the container array is what projectNames() and
+// declaredOneShots() beside them already do.
+
+// Trailing slash, always, and never a doubled one. Load-bearing for the prefix
+// tests both callers do: without it a sibling checkout whose path merely STARTS
+// with this one - `<root>-old/x.yml` - is filed under this repo, or resolved to
+// the relative path `-old/x.yml` and then refused for a reason that has nothing
+// to do with the mistake that was made.
+const asDir = (p: string): string => (p.endsWith('/') ? p : `${p}/`);
+
+const REPOS_MOUNT = /^\/repos\/([^/]+)$/;
+
+/**
+ * Where the Bothy repository is checked out, or null if nothing says.
+ *
+ * ANY container that binds `/repos/stacks`, not a named service, because this
+ * asks about the REPOSITORY rather than about one tier's policy: the file tier
+ * and the config tier both mount it from the same relative path, so either is an
+ * equally good witness, and demanding a specific one would lose the answer
+ * exactly when that tier is the thing that is down.
+ *
+ * NULL IS A REAL ANSWER - true before the first `just up`, and true again if the
+ * file tier is removed - and classify() handles it rather than substituting a
+ * guess. See the note there for what it decides to do with it.
+ */
+export function stackRootFrom(containers: readonly Container[] = []): string | null {
+  for (const c of containers) {
+    for (const m of c.Mounts || []) {
+      if (m.Type === 'bind' && m.Source && m.Destination === '/repos/stacks') {
+        return asDir(m.Source);
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The host paths behind one compose service's `/repos/<name>` binds:
+ * root name -> host path. This is what config.ts needs, and it is asked of a
+ * NAMED service because a root there is a WRITE TARGET - see the RootPaths
+ * comment in that file for why sharing one table across services is wrong.
+ *
+ * Keyed on `com.docker.compose.service` rather than the container name: the
+ * service key is written in the yaml and is stable, while the container name
+ * carries a project prefix and a replica suffix that both change with how it was
+ * brought up.
+ *
+ * Binds only. A named volume mounted at /repos/x has no host path, and taking
+ * its docker-internal directory would offer a place on this disk that is not the
+ * one anybody means.
+ */
+export function repoRootsOf(
+  containers: readonly Container[] = [],
+  service: string,
+): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const c of containers) {
+    if (c.Labels?.['com.docker.compose.service'] !== service) continue;
+    for (const m of c.Mounts || []) {
+      if (m.Type !== 'bind' || !m.Source) continue;
+      const hit = REPOS_MOUNT.exec(m.Destination || '');
+      if (hit) out[hit[1]] = asDir(m.Source);
+    }
+    // First matching container wins: a service scaled to several replicas has
+    // the same mounts on each, so there is nothing to merge and reading the rest
+    // could only introduce disagreement.
+    if (Object.keys(out).length) break;
+  }
+  return out;
+}
+
 // ── Pure: classification ────────────────────────────────────────────────────
 
 // project vs stack vs infra, from the compose file's location on disk.
 // No hand-maintained list: a project is simply a compose file that doesn't
-// live under ~/stacks.
-export function classify(container?: Container | null): Classification {
+// live under the Bothy repo.
+//
+// `stackRoot` is passed in rather than read from a constant: it is a fact about
+// the machine, derived from what docker reports for the repo's own bind mount
+// (see stackRootFrom below), and it used to be this author's home directory
+// hardcoded here. Threaded as a parameter so this stays a pure function of its inputs -
+// merge() and allPorts() resolve it ONCE from the container list, the same way
+// they already resolve projectNames() and declaredOneShots().
+//
+// NULL MEANS "NOTHING SAYS", and the honest reading of that is not "everything
+// is third-party" - it is that the stack/project split cannot be made. Bothy is
+// still recognised by project name (INFRA_PROJECTS below) so the portal does not
+// misfile ITSELF while its file tier is down; everything else falls to 'stack',
+// the answer that is right for every container on a box where this is the only
+// repo, and wrong only in the direction of under-claiming.
+export function classify(
+  container?: Container | null,
+  stackRoot?: string | null,
+): Classification {
   // No container = an @file host process. It has no compose labels to classify,
   // so the caller substitutes the hostname's own leaf as the group (see
   // makeNode). 'host' survives only as the last resort for a route whose
@@ -574,10 +698,10 @@ export function classify(container?: Container | null): Classification {
   const proj = labels['com.docker.compose.project'];
   // minikube and anything else started outside compose has neither.
   if (!cfg || !proj) return { group: 'unmanaged', groupKind: 'infra' };
+  const kind = INFRA_PROJECTS.has(proj) ? 'infra' : 'stack';
+  if (!stackRoot) return { group: proj, groupKind: kind };
   const first = cfg.split(',')[0];
-  if (first.startsWith(STACK_ROOT)) {
-    return { group: proj, groupKind: INFRA_PROJECTS.has(proj) ? 'infra' : 'stack' };
-  }
+  if (first.startsWith(stackRoot)) return { group: proj, groupKind: kind };
   return { group: proj, groupKind: 'project' };
 }
 
@@ -638,6 +762,7 @@ export function defaultName(
   host: string | null,
   container?: Container | null,
   names: Map<string, string> = new Map(),
+  stackRoot?: string | null,
 ): string {
   const n = nest(host);
   const proj = container?.Labels?.['com.docker.compose.project'];
@@ -665,7 +790,7 @@ export function defaultName(
   if (n.parent) return `${nice(n.parent)} · ${title}`;
   // Unrouted but owned by a project: cvops-postgres-1 -> "CVOps · Postgres",
   // so it can't be confused with the stack's own Postgres in another panel.
-  if (!host && proj && classify(container).groupKind === 'project' && titleCase(proj) !== title) {
+  if (!host && proj && classify(container, stackRoot).groupKind === 'project' && titleCase(proj) !== title) {
     return `${nice(proj)} · ${title}`;
   }
   return title;
@@ -830,8 +955,9 @@ export function merge(
 ): PortalNode[] {
   const svcByKey = new Map(services.map((s) => [s.name, s] as const));
   const names = projectNames(containers);
-  // Whole-list fact, so it is resolved once here rather than re-derived per node.
+  // Whole-list facts, so they are resolved once here rather than re-derived per node.
   const oneShots = declaredOneShots(containers);
+  const stackRoot = stackRootFrom(containers);
 
   // devnet ONLY. Traefik runs --providers.docker.network=devnet so every
   // docker-provider server URL is a devnet IP. Indexing all networks would
@@ -925,6 +1051,7 @@ export function merge(
         container: canonical.container,
         names,
         oneShots,
+        stackRoot,
         kind: canonical.container ? 'routed' : 'orphan-route',
         aliases: rest.map((c) => c.host),
       }),
@@ -956,7 +1083,7 @@ export function merge(
   // visually, so honesty costs less than the blind spot did.
   for (const c of containers) {
     if (claimed.has(c.Id)) continue;
-    nodes.push(makeNode({ route: null, host: null, container: c, names, oneShots, kind: 'unrouted' }));
+    nodes.push(makeNode({ route: null, host: null, container: c, names, oneShots, stackRoot, kind: 'unrouted' }));
   }
 
   return nodes;
@@ -977,6 +1104,13 @@ interface MakeNodeArgs {
    * can. Defaulted so the existing tests and any other caller stay valid.
    */
   oneShots?: Set<string>;
+  /**
+   * Where this repository is checked out on the host, or null if no running
+   * container reports it. The other whole-list fact, resolved once in merge()
+   * for the same reason as `oneShots`: it comes from a bind mount on ONE
+   * container and is then true for every node built from the poll.
+   */
+  stackRoot?: string | null;
 }
 
 function makeNode({
@@ -988,13 +1122,14 @@ function makeNode({
   names = new Map(),
   aliases = [],
   oneShots = new Set(),
+  stackRoot = null,
 }: MakeNodeArgs): PortalNode {
   const n = nest(host);
-  const cls = classify(container);
+  const cls = classify(container, stackRoot);
   const L = container?.Labels || {};
   const pick = <T>(key: string, fallback: T): string | T => L[`dev.portal.${key}`] ?? fallback;
 
-  const name = pick('name', defaultName(host, container, names));
+  const name = pick('name', defaultName(host, container, names, stackRoot));
   const path = pick('path', '');
   const browsable = isBrowsable(host, container);
 
@@ -1110,8 +1245,9 @@ export function allPorts(containers: Container[] = []): PortRow[] {
   // Same map merge() uses, so a port row and a service row can never disagree
   // about what a system is called.
   const names = projectNames(containers);
+  const stackRoot = stackRootFrom(containers);
   for (const c of containers) {
-    const cls = classify(c);
+    const cls = classify(c, stackRoot);
     for (const p of portsOf(c)) {
       rows.push({
         ...p,
