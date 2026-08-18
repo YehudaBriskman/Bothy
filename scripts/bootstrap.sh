@@ -340,10 +340,26 @@ esac
 # WRITTEN ONLY WHEN ABSENT, like every other value here. Changing PUID on an
 # existing install does not migrate anything: the directories keep the ownership
 # they were created with, and the services stop being able to write to them.
+# NEVER 0, and this is a security boundary rather than a preference.
+# bothy-control talks to the docker daemon through two socket proxies, and
+# apps/bothy-control/checks/grants.py asserts it does not run as root - because a
+# root process holding container control is a straight path from "restart a
+# container" to the host. Installing AS root is a thing people do; propagating it
+# into the service is not. The directories are chowned instead, so the services
+# keep uid 1000 and can still write.
 if [ "$(env_value PUID)" = "" ] && [ "$me_u" != "1000" ]; then
-  env_set PUID "$me_u"; export PUID="$me_u"
-  env_set PGID "$me_g"; export PGID="$me_g"
-  ok "PUID/PGID set to ${me_u}:${me_g} - the writing services will run as you"
+  if [ "$me_u" = "0" ]; then
+    warn "installing as root - PUID stays 1000 (bothy-control must not be root)"
+    say "  the directories created above are chowned to 1000:1000 so writes still work"
+    for d in "$STATE_ROOT/bothy/trash" "$STATE_ROOT/bothy/config-trash" \
+             apps/portal-files/audit apps/bothy-config/audit apps/bothy-control/audit; do
+      [ -d "$d" ] && chown -R 1000:1000 "$d" 2>/dev/null
+    done
+  else
+    env_set PUID "$me_u"; export PUID="$me_u"
+    env_set PGID "$me_g"; export PGID="$me_g"
+    ok "PUID/PGID set to ${me_u}:${me_g} - the writing services will run as you"
+  fi
 fi
 
 if [ -n "$generated" ]; then
