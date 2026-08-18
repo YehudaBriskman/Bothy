@@ -38,12 +38,24 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Callable, so the awkward-path runs in elsewhere.yml are THIS job with one
+  # value changed rather than a second copy of it. A copied install job drifts
+  # from the real one and then proves something about a workflow nobody runs.
+  workflow_call:
+    inputs:
+      dir:
+        description: Where to clone and install. The default is the ordinary case.
+        type: string
+        required: false
+        default: /tmp/bothy
 
 permissions:
   contents: read
 
 concurrency:
-  group: install-${{ github.ref }}
+  # The directory is part of the key: two awkward-path runs are different work,
+  # and cancelling one because another started would silently halve the matrix.
+  group: install-${{ github.ref }}-${{ inputs.dir || 'default' }}
   cancel-in-progress: true
 
 jobs:
@@ -51,6 +63,15 @@ jobs:
     name: Clone it, start it, run every suite against it
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # `inputs` is empty on push and pull_request - defaults only apply to
+      # workflow_call and workflow_dispatch - so the fallback is not decoration.
+      # Without it the path is EMPTY on every PR and every step runs in the wrong
+      # place, which is a failure that reads like the install being broken.
+      #
+      # Quoted everywhere it is used below, because the whole point of the
+      # elsewhere matrix is to hand this a path with a space in it.
+      BOTHY_DIR: ${{ inputs.dir || '/tmp/bothy' }}
 
     steps:
       # Checked out only so the workflow has the repo's scripts available for
@@ -106,7 +127,8 @@ jobs:
       - name: Clone into an empty directory
         run: |
           set -euo pipefail
-          git clone --no-hardlinks "$GITHUB_WORKSPACE/workspace" /tmp/bothy
+          mkdir -p "$(dirname "$BOTHY_DIR")"
+          git clone --no-hardlinks "$GITHUB_WORKSPACE/workspace" "$BOTHY_DIR"
           # No `git checkout <sha>` after this. For a pull_request, checkout@v7
           # leaves HEAD DETACHED at the merge commit, and the instinct is to
           # re-checkout that SHA in the clone - where it does not exist, so the
@@ -115,9 +137,9 @@ jobs:
           # detached HEAD correctly on its own; verified against a source repo
           # detached at a commit no branch pointed to.
           want=$(git -C "$GITHUB_WORKSPACE/workspace" rev-parse HEAD)
-          got=$(git -C /tmp/bothy rev-parse HEAD)
+          got=$(git -C "$BOTHY_DIR" rev-parse HEAD)
           [ "$want" = "$got" ] || { echo "FAIL  clone is at $got, workspace at $want"; exit 1; }
-          git -C /tmp/bothy log --oneline -1
+          git -C "$BOTHY_DIR" log --oneline -1
 
       - name: The address a container can also reach
         run: |
@@ -130,7 +152,7 @@ jobs:
       # THE README, VERBATIM. If this ever needs a line the README does not have,
       # the README is wrong and this job is right to fail.
       - name: cp .env.example .env  &&  just up
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: |
           set -euo pipefail
           cp .env.example .env
@@ -138,7 +160,7 @@ jobs:
 
       # ── did the install actually do what it claims? ───────────────────────
       - name: Five secrets, generated, distinct, and the right shape
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: |
           set -euo pipefail
           fail=0
@@ -180,7 +202,7 @@ jobs:
           exit $fail
 
       - name: Running it twice changes nothing
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: |
           set -euo pipefail
           before=$(md5sum .env | cut -d' ' -f1)
@@ -221,12 +243,12 @@ jobs:
       # --strict remains right for a mature box, which is where it is used.
       - name: Health sweep (reported, not gated - see comment)
         if: always()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: just doctor
 
       - name: Access and routing (23 checks)
         if: always()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: just verify
 
       # `ci` = everything except the credential SURVEY. That one check diffs
@@ -238,22 +260,22 @@ jobs:
       # until it stops meaning anything. Every other probe here still runs.
       - name: Editor tier, authenticated end to end
         if: always()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: just files-check ci
 
       - name: Config tier
         if: always()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: bash apps/bothy-config/checks/run.sh
 
       - name: Control tier, including the real-daemon transition
         if: always()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: bash apps/bothy-control/checks/run.sh
 
       - name: Portal truth tables against this box's own containers
         if: always()
-        working-directory: /tmp/bothy/apps/portal-next
+        working-directory: ${{ env.BOTHY_DIR }}/apps/portal-next
         run: |
           set -euo pipefail
           (cd web && npm ci --silent)
@@ -266,7 +288,7 @@ jobs:
       # arbitrary terminal cannot be reached by holding another.
       - name: A fresh install has somebody who can sign in
         if: always()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -303,7 +325,7 @@ jobs:
       # job log is public on a public repo.
       - name: Collect logs
         if: failure()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: |
           set +e
           mkdir -p /tmp/logs
@@ -371,7 +393,7 @@ jobs:
 
       - name: Down leaves nothing behind
         if: always()
-        working-directory: /tmp/bothy
+        working-directory: ${{ env.BOTHY_DIR }}
         run: |
           set -euo pipefail
           just down || true
