@@ -1380,6 +1380,35 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 with os.fdopen(tmpfd, "w", encoding="utf-8") as fh:
                     fh.write(content)
+                # ── THE MODE HAS TO BE PUT BACK ──────────────────────────────
+                #
+                # mkstemp creates 0600 - deliberately, because a temp file's
+                # content is nobody else's business - and os.replace PRESERVES
+                # the temp file's mode. So without this, every save through this
+                # service silently made its file owner-only, INCLUDING files that
+                # were 0644 a moment earlier. Editing a file changed who could
+                # read it, and nothing anywhere said so.
+                #
+                # It stayed invisible because this service reads back as the same
+                # uid it writes as, so every check here passed. It only surfaces
+                # when a DIFFERENT process has to read the file - which is
+                # exactly what a custom theme is: written here, served by nginx.
+                # A theme saved in the editor appeared in the picker (the
+                # directory is listable) and then 403'd when applied, because
+                # nginx could not read 0600. That was the bug report.
+                #
+                # OVERWRITE KEEPS THE FILE'S OWN MODE, so a deliberately
+                # restrictive file stays restrictive - replacing 0600 with 0644
+                # because someone edited it would be the same bug pointing the
+                # other way. A NEW file gets what a plain open() would have given
+                # it, 0666 masked by the process umask, so it matches everything
+                # else in the directory.
+                try:
+                    os.chmod(tmp, stat.S_IMODE(os.stat(res.abspath).st_mode))
+                except FileNotFoundError:
+                    cur = os.umask(0)
+                    os.umask(cur)
+                    os.chmod(tmp, 0o666 & ~cur)
                 os.replace(tmp, res.abspath)
             except BaseException:
                 # Never leave the temp behind - it would be listed and served as

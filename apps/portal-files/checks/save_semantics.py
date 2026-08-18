@@ -107,6 +107,55 @@ r = s.post(f"{API}/write", json={"root": "notes", "path": F,
                                  "content": "# no basemtime\n"}, timeout=20)
 check("write without baseMtime still succeeds", r.status_code == 200, f"got {r.status_code}")
 
+# ── the mode a save leaves behind ───────────────────────────────────────────
+#
+# tempfile.mkstemp() creates 0600 and os.replace PRESERVES the temp file's mode,
+# so the atomic-write path silently made every file it touched owner-only -
+# including files that were world-readable a moment before. Editing a file
+# changed who could read it, and nothing said so.
+#
+# IT PASSED EVERY CHECK HERE FOR AS LONG AS IT EXISTED, because this service
+# reads back as the same uid it writes as. It only surfaces when ANOTHER process
+# has to read the file, which is exactly what a custom theme is: written through
+# this API, served by nginx. A theme saved in the editor showed up in the picker
+# (the directory is listable) and then 403'd when applied.
+#
+# So the assertion is about the MODE, not about readability - a check that only
+# re-reads through this API is the check that missed it in the first place.
+print("\n── a save does not change who can read the file ─────────────────────")
+MODE_F = "_mode-probe.md"
+mode_path = f"{REPO}/{MODE_F}"
+try:
+    r = s.post(f"{API}/write", json={"root": "notes", "path": MODE_F,
+                                     "content": "probe\n"}, timeout=20)
+    got = os.stat(mode_path).st_mode & 0o777 if os.path.exists(mode_path) else 0
+    # What a plain open() would have produced, so it matches its neighbours
+    # rather than a number written out here - the umask is the machine's to set.
+    cur = os.umask(0); os.umask(cur)
+    want = 0o666 & ~cur
+    check("a NEW file gets the ordinary mode, not mkstemp's 0600",
+          got == want, f"got {oct(got)}, want {oct(want)}")
+
+    # The same bug pointing the other way: a deliberately restrictive file must
+    # not be flung open to everyone just because somebody edited it.
+    os.chmod(mode_path, 0o600)
+    mt = int(os.stat(mode_path).st_mtime)
+    s.post(f"{API}/write", json={"root": "notes", "path": MODE_F,
+                                 "content": "probe 2\n", "baseMtime": mt}, timeout=20)
+    got = os.stat(mode_path).st_mode & 0o777
+    check("an OVERWRITE keeps the file's own mode (0600 stays 0600)",
+          got == 0o600, f"got {oct(got)}")
+
+    os.chmod(mode_path, 0o644)
+    mt = int(os.stat(mode_path).st_mtime)
+    s.post(f"{API}/write", json={"root": "notes", "path": MODE_F,
+                                 "content": "probe 3\n", "baseMtime": mt}, timeout=20)
+    got = os.stat(mode_path).st_mode & 0o777
+    check("...and 0644 stays 0644", got == 0o644, f"got {oct(got)}")
+finally:
+    if os.path.exists(mode_path):
+        os.remove(mode_path)
+
 print("\n── cleanup ─────────────────────────────────────────────────────────")
 os.remove(f"{REPO}/{F}")
 check("probe file removed", not os.path.exists(f"{REPO}/{F}"))
