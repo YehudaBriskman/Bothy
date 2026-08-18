@@ -1,0 +1,246 @@
+# Does an upgrade keep your data?
+#
+# The install job proves a FRESH box comes up. Nobody installs Bothy twice; they
+# install it once and then pull. So the interesting question is not "does it
+# start" but "does it start on top of the box you already had, without eating
+# what was in it" - and nothing has ever asked that.
+#
+# The failure this exists for is the worst kind a self-hosted tool has: silent
+# and unrecoverable. A volume renamed in a compose file, a `down -v` that crept
+# into a recipe, a service whose data directory moved - each one comes up green,
+# healthy, and empty. `just verify` passes. The dashboards are gone.
+#
+# ── what it asserts, and why each one ───────────────────────────────────────
+#
+#   1. A ROW WRITTEN BEFORE THE UPGRADE IS READABLE AFTER IT. The end-to-end
+#      claim, in the one place where loss is unrecoverable. Everything else here
+#      is a more specific version of this.
+#
+#   2. THE VOLUMES WERE NOT RECREATED. Stronger than (1) and it catches the near
+#      miss: a volume recreated between the two `up`s would have lost the data
+#      even if this particular row happened to be rewritten by something. Volume
+#      IDs are compared, not names - a recreated volume keeps its name.
+#
+#   3. A SECOND `just up` RECREATES NOTHING. Idempotence at the stack level
+#      rather than at bootstrap's. Measured on the real box before this was
+#      written: 31 compose-managed containers, identical name-to-id set across a
+#      second run. So it is a property that holds today, and a red here is a
+#      regression rather than an aspiration. It is what makes `just up` safe to
+#      run when you are not sure whether you already did.
+#
+#   4. THE BACKUP COVERS EVERY LIVE DATABASE. doctor.sh reports this and cannot
+#      gate on it - it exits 0 no matter what it finds. A dump missing a database
+#      looks exactly like a dump that has it until the day you restore.
+#
+# ── why nightly ────────────────────────────────────────────────────────────
+#
+# It is two full installs back to back, ~15-20 minutes. The property changes when
+# somebody edits a volume declaration, which is rare and always deliberate.
+name: Upgrade
+
+on:
+  schedule:
+    # An hour after Elsewhere, so two 20-minute matrix jobs are not competing for
+    # runners and a failure in one does not look like a symptom of the other.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upgrade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upgrade:
+    name: Install the previous commit, then upgrade onto it
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DIR: /tmp/bothy
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: workspace
+          # The whole history, because this job checks out a PARENT commit. The
+          # default fetch-depth of 1 gives a repo with no parent to go back to,
+          # and the failure is `fatal: bad revision`, four steps in.
+          fetch-depth: 0
+
+      - name: Free disk (the stack pulls ~6 GB of images)
+        run: |
+          set -uo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/share/boost /usr/share/swift || true
+          df -h / | tail -1
+
+      - uses: extractions/setup-just@v3
+
+      - name: Clone, and go back one commit
+        run: |
+          set -euo pipefail
+          git clone --no-hardlinks "$GITHUB_WORKSPACE/workspace" "$DIR"
+          cd "$DIR"
+          # The FIRST PARENT, so a merge commit steps back to the previous state
+          # of main rather than sideways into the branch that was merged. On a
+          # merge, HEAD^2 is the feature branch - which never had the rest of
+          # main in it, and would make this an unrelated install rather than an
+          # upgrade.
+          base=$(git rev-parse HEAD^1)
+          echo "BASE_SHA=$base" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git checkout -q "$base"
+          echo "installing at:"; git log --oneline -1
+
+      - name: The address a container can also reach
+        run: |
+          set -euo pipefail
+          GW=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
+          [ -n "$GW" ] || { echo "no bridge gateway"; exit 1; }
+          echo "BOTHY_BASE_HOST=$GW" >> "$GITHUB_ENV"
+
+      - name: Install the OLD version
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          just up
+
+      # ── plant something that must survive ──────────────────────────────────
+      - name: Write a row, and record the volumes
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          set -a; . ./.env; set +a
+          docker exec postgres psql -U "${POSTGRES_USER:-dev}" -d "${POSTGRES_DB:-dev}" \
+            -v ON_ERROR_STOP=1 -c \
+            "CREATE TABLE upgrade_probe (id int primary key, note text);
+             INSERT INTO upgrade_probe VALUES (1, 'written before the upgrade');"
+          echo "  planted."
+          # IDs, not names: a recreated volume keeps its name, which is exactly
+          # how this failure hides.
+          docker volume ls -q | sort | while read -r v; do
+            printf '%s %s\n' "$v" "$(docker volume inspect "$v" -f '{{.CreatedAt}}')"
+          done > /tmp/volumes-before.txt
+          wc -l < /tmp/volumes-before.txt | xargs echo "  volumes recorded:"
+
+      # ── the upgrade ────────────────────────────────────────────────────────
+      - name: Upgrade to HEAD
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          git checkout -q "$HEAD_SHA"
+          echo "upgrading to:"; git log --oneline -1
+          # Exactly what a person does: pull, then up. No down, no prune, no -v.
+          just up
+
+      - name: The row is still there
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          set -a; . ./.env; set +a
+          got=$(docker exec postgres psql -U "${POSTGRES_USER:-dev}" -d "${POSTGRES_DB:-dev}" \
+                  -tAc "SELECT note FROM upgrade_probe WHERE id = 1")
+          echo "  read back: '$got'"
+          [ "$got" = "written before the upgrade" ] \
+            || { echo "FAIL  the upgrade lost data written before it"; exit 1; }
+
+      - name: No volume was recreated
+        run: |
+          set -uo pipefail
+          docker volume ls -q | sort | while read -r v; do
+            printf '%s %s\n' "$v" "$(docker volume inspect "$v" -f '{{.CreatedAt}}')"
+          done > /tmp/volumes-after.txt
+          # Only volumes that existed BEFORE are compared. The upgrade is allowed
+          # to ADD one - a new service is not a regression - but an existing
+          # volume changing its creation time means it was destroyed and remade.
+          rc=0
+          while read -r name created; do
+            now=$(grep -m1 "^$name " /tmp/volumes-after.txt | cut -d' ' -f2-)
+            if [ -z "$now" ]; then
+              echo "FAIL  volume vanished: $name"; rc=1
+            elif [ "$now" != "$created" ]; then
+              echo "FAIL  volume RECREATED: $name ($created -> $now)"; rc=1
+            fi
+          done < /tmp/volumes-before.txt
+          [ $rc -eq 0 ] && echo "  every pre-existing volume survived, same creation time"
+          exit $rc
+
+      # ── idempotence at the stack level ─────────────────────────────────────
+      - name: Running `just up` again recreates nothing
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          snap() { docker ps -a --filter label=com.docker.compose.project \
+                     --format '{{.Names}} {{.ID}}' | sort; }
+          snap > /tmp/containers-before.txt
+          just up >/dev/null
+          snap > /tmp/containers-after.txt
+          if diff /tmp/containers-before.txt /tmp/containers-after.txt; then
+            echo "  identical name->id set across a second \`just up\` ($(wc -l < /tmp/containers-before.txt) containers)"
+          else
+            echo "FAIL  a second \`just up\` recreated containers - see the diff above"
+            exit 1
+          fi
+
+      # ── the backup nobody can gate on ──────────────────────────────────────
+      - name: The dump covers every live database
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          set -a; . ./.env; set +a
+          # NOT GATED ON `just backup`'s EXIT CODE, deliberately. It reports a
+          # FAILURE when portainer is not running, and `just up` does not start
+          # portainer - it lives in mgmt/, which _up-all does not include. So on
+          # any fresh box, and therefore on every run of this job, backup exits 1
+          # for a service the install never started. Gating on that would make
+          # this red every night for a reason nobody can act on, which is the
+          # cry-wolf this repo keeps paying for - backup.sh's own header
+          # describes the identical bug with redis.
+          #
+          # What this step is actually about is COVERAGE: does the dump contain
+          # every database that exists? That is asserted below, on the artifact,
+          # and it is unaffected by whether some other service was up.
+          just backup || echo "  (backup reported a failure; coverage is asserted below)"
+          latest=$(ls -1t "${HOME}"/backups/postgres/pg-*.sql.gz 2>/dev/null | head -1)
+          [ -n "$latest" ] || { echo "FAIL  backup produced no postgres dump"; exit 1; }
+          live=$(docker exec postgres psql -U "${POSTGRES_USER:-dev}" -tAc \
+                   "SELECT datname FROM pg_database WHERE NOT datistemplate")
+          dumped=$(zcat "$latest" | sed -n 's/^CREATE DATABASE \([a-zA-Z0-9_]*\).*/\1/p')
+          rc=0
+          for db in $live; do
+            # `postgres` itself is never CREATE DATABASE'd in a dumpall - it is
+            # the maintenance database and always exists. Excluding it here rather
+            # than in doctor.sh's copy of this logic, which does not exclude it
+            # because it never had to gate on the answer.
+            [ "$db" = "postgres" ] && continue
+            case " $(echo "$dumped" | tr '\n' ' ') " in
+              *" $db "*) ;;
+              *) echo "FAIL  the dump is missing database: $db"; rc=1 ;;
+            esac
+          done
+          [ $rc -eq 0 ] && echo "  dump covers: $(echo "$live" | tr '\n' ' ')"
+          exit $rc
+
+      - name: Collect logs
+        if: failure()
+        working-directory: ${{ env.DIR }}
+        run: |
+          set +e
+          mkdir -p /tmp/logs
+          for f in edge/compose.yml auth/compose.yml monitoring/compose.yml \
+                   data/postgres/compose.yml apps/bothy/compose.yml; do
+            docker compose -f "$f" logs --no-color --tail 300 \
+              > "/tmp/logs/$(echo "$f" | tr / _).log" 2>&1
+          done
+          docker ps -a > /tmp/logs/ps.txt
+          docker volume ls > /tmp/logs/volumes.txt
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: upgrade-failure-logs
+          path: /tmp/logs
+          retention-days: 7
