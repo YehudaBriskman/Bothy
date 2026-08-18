@@ -58,7 +58,10 @@ services:
       # monitoring/, mgmt/, apps/*). policy.toml is what narrows it from there,
       # and it narrows it hard: .yml and .yaml only, edge/dynamic/ excluded
       # outright, and exactly one field name patchable in any of them.
-      - /home/devssh/stacks:/repos/stacks:rw
+      # Relative for the same reason portal-files' mount is - see the note
+      # there. `../..` is the repo root because a fragment's relative paths
+      # resolve against its own directory.
+      - ../..:/repos/stacks:rw
       # The patch log. Mounted so it outlives a container rebuild - an audit
       # trail that a `docker compose up --build` erases is not an audit trail.
       - ./audit:/audit:rw
@@ -73,7 +76,7 @@ services:
       # uid 1000, so it would be mounted and unwritable. safepath refuses to start
       # in that case rather than running with a net that silently drops
       # everything.
-      - /home/devssh/.local/state/bothy/config-trash:/var/lib/bothy/config-trash:rw
+      - ${STATE_ROOT:-${HOME}/.local/state}/bothy/config-trash:/var/lib/bothy/config-trash:rw
     networks:
       - confignet
     labels:
