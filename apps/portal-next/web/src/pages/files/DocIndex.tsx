@@ -130,7 +130,7 @@ function DocRow({ entry, root, current, onOpen }: {
 }
 
 function RootSection({
-  root, tree, open, onToggle, allFiles, current, currentRoot, onOpen, onRetry,
+  root, tree, open, onToggle, allFiles, current, currentRoot, onOpen, onRetry, onScope,
 }: {
   root: FileRoot;
   tree: RootTree | undefined;
@@ -141,6 +141,9 @@ function RootSection({
   currentRoot: string;
   onOpen: (root: string, path: string) => void;
   onRetry: (root: string) => void;
+  /** Narrow the listing to one folder, the way `cd` narrows what `ls` shows.
+   *  '' is the whole root again. */
+  onScope: (root: string, dir: string) => void;
 }) {
   const entries = tree?.entries ?? [];
   const { folders, total } = useMemo(
@@ -191,9 +194,21 @@ function RootSection({
                     text-overflow can only cut the end. `docs/brand/foundations`
                     and `docs/brand/patterns` are identical for the first
                     eleven characters. */}
-                <p className="rd-folder-h mono" title={`${root.key}/${f.dir}`}>
+                {/* A BUTTON, because it is the "cd into this" control.
+                    Scoping is what makes a big root usable: ~ is 3,200 entries
+                    and 360ms, any one folder inside it is a handful and 9ms, and
+                    the service now walks from the folder rather than filtering a
+                    full listing. The label is unchanged, so nothing moves - it
+                    just became something you can press. */}
+                <button
+                  type="button"
+                  className="rd-folder-h mono"
+                  title={`Only show ${root.key}/${f.dir}`}
+                  onClick={() => onScope(root.key, f.dir)}
+                  disabled={!f.dir}
+                >
                   {tailPath(folderLabel(f.dir, root.key), 32)}
-                </p>
+                </button>
                 <ul className="rd-list">
                   {f.files.map((e) => (
                     <DocRow
@@ -234,7 +249,7 @@ function RootSection({
 
 export function DocIndex({
   roots, trees, openRoots, onToggleRoot, allFiles, onAllFiles,
-  currentRoot, currentPath, onOpen, onRetry,
+  currentRoot, currentPath, onOpen, onRetry, onScope, scope,
 }: {
   roots: FileRoot[];
   trees: Record<string, RootTree | undefined>;
@@ -246,6 +261,13 @@ export function DocIndex({
   currentPath: string;
   onOpen: (root: string, path: string) => void;
   onRetry: (root: string) => void;
+  /** Narrow the listing to one folder, the way `cd` narrows what `ls` shows.
+   *  '' is the whole root again. */
+  onScope: (root: string, dir: string) => void;
+  /** The folder currently scoped into, root-relative, '' for the whole root.
+   *  Only DocIndex needs it - it draws the breadcrumb; RootSection is handed
+   *  the callback and nothing else. */
+  scope: string;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
 
@@ -286,6 +308,32 @@ export function DocIndex({
         </label>
       </div>
 
+      {/* THE WAY BACK. Only rendered while scoped, because a breadcrumb reading
+          just the root name is furniture - and the whole argument of this panel
+          is that the rarer case must not tax the common one.
+
+          Each segment is a step back UP, which is what a breadcrumb means, and
+          the last one is not a link: you are already there. */}
+      {scope && (
+        <nav className="rd-crumbs" aria-label="Folder">
+          <button type="button" onClick={() => onScope(currentRoot, '')}>
+            {currentRoot}
+          </button>
+          {scope.split('/').map((seg: string, i: number, all: string[]) => {
+            const upto = all.slice(0, i + 1).join('/');
+            const here = i === all.length - 1;
+            return (
+              <span key={upto}>
+                <span className="rd-crumb-sep">/</span>
+                {here ? <b>{seg}</b> : (
+                  <button type="button" onClick={() => onScope(currentRoot, upto)}>{seg}</button>
+                )}
+              </span>
+            );
+          })}
+        </nav>
+      )}
+
       {roots.map((r) => (
         <RootSection
           key={r.key}
@@ -298,6 +346,7 @@ export function DocIndex({
           currentRoot={currentRoot}
           onOpen={onOpen}
           onRetry={onRetry}
+          onScope={onScope}
         />
       ))}
     </div>

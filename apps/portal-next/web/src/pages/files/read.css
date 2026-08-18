@@ -357,3 +357,36 @@
   font-size: 10.5px; color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* ── the folder you are inside ───────────────────────────────────────────────
+   Only drawn while scoped. A breadcrumb reading just the root name is furniture,
+   and this panel's whole argument is that the rarer case must not tax the
+   common one. */
+.bothy-files .rd-crumbs {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 2px; padding: 6px 12px 8px;
+  font-size: 11.5px; color: var(--fg-subtle);
+  border-bottom: 1px solid var(--line);
+}
+.bothy-files .rd-crumbs button {
+  padding: 1px 4px; border: 0; background: none; border-radius: var(--r-xs);
+  font: inherit; font-size: 11.5px; color: var(--accent-fg); cursor: pointer;
+}
+.bothy-files .rd-crumbs button:hover { background: var(--accent-bg); }
+.bothy-files .rd-crumbs b { color: var(--fg); font-weight: 700; padding: 0 2px; }
+.bothy-files .rd-crumb-sep { color: var(--fg-subtle); opacity: .6; }
+
+/* The folder heading became the "cd into this" control. It keeps the exact look
+   it had as a <p> - nothing moved, it just became pressable - and only gains an
+   affordance on hover, because a list of folders that all look like buttons is
+   noisier than the list it replaced. */
+.bothy-files .rd-folder-h {
+  display: block; width: 100%; text-align: left;
+  border: 0; background: none; padding: 0; margin: 0 0 4px;
+  font: inherit; font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg-subtle); cursor: pointer; border-radius: var(--r-xs);
+}
+.bothy-files .rd-folder-h:hover:not(:disabled) { color: var(--accent-fg); }
+/* The root's own top level has no folder to descend into. */
+.bothy-files .rd-folder-h:disabled { cursor: default; }
+.bothy-files .rd-folder-h:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
