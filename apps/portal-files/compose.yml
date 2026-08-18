@@ -25,7 +25,17 @@ services:
     restart: unless-stopped
     # Never root, and never able to become root: this process holds a writable
     # handle on two git repositories.
-    user: "1000:1000"
+    # ${PUID:-1000}, NOT a literal 1000. This service writes into bind-mounted
+    # host directories, so its uid has to match whoever owns them - and a
+    # hardcoded 1000 made Bothy installable only by a user who happens to BE
+    # 1000. That is most Linux single-user boxes and NOBODY on macOS, where the
+    # first account is 501. The failure is not a permission message anyone sees:
+    # the container starts, cannot write, and the tier looks broken.
+    #
+    # The default keeps every existing install byte-identical. bootstrap writes
+    # PUID/PGID into .env when the installer is not 1000 - which is the fix its
+    # own warning has been recommending, and not doing, for months.
+    user: "${PUID:-1000}:${PGID:-1000}"
     security_opt:
       - no-new-privileges:true
     read_only: true          # its own filesystem; the roots below are separate

@@ -87,9 +87,19 @@ else
   if [ -z "$targets" ]; then
     red "prometheus returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
   else
-    echo "$targets" | while read -r j h; do
+    # A HERE-STRING, NOT `echo "$targets" | while`. A pipeline runs its right
+    # side in a SUBSHELL, so red()'s `faults=$((faults + 1))` incremented a copy
+    # that was thrown away at the end of the loop - two down targets printed in
+    # red and `--strict` reported "2 fault(s)" when it should have said 4, and
+    # would have exited 0 if these were the only ones. Found on the first fresh
+    # install, where several targets are legitimately down.
+    #
+    # This is the failure mode the counter was put inside red() to avoid, arriving
+    # by a different door: not a call site that forgot to count, but one whose
+    # count could not escape.
+    while read -r j h; do
       [ "$h" = up ] && green "$j" || red "$j ($h)"
-    done
+    done <<< "$targets"
   fi
 fi
 

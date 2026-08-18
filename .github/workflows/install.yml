@@ -1,0 +1,381 @@
+# Download it and run it.
+#
+# The one claim this project makes that had never been executed by a machine.
+# Everything else in CI reads the source; this clones the repo into an empty
+# directory, follows README.md exactly, starts all 26 containers and then runs
+# every suite in the repo against the running stack.
+#
+# WHY IT IS ITS OWN FILE. It is the only job that needs a docker daemon with
+# state, it takes ~15 minutes against ci.yml's ~4, and it is the only one that
+# can fail for reasons that are about THIS BOX rather than about the diff. Mixing
+# it into ci.yml would make a red run ambiguous at exactly the moment you most
+# want to know which half broke.
+#
+# WHY IT CANNOT RUN ON A DEV BOX. Every compose file pins a top-level `name:`
+# (edge, auth, monitoring, bothy …) and compose project names are GLOBAL to the
+# daemon. This repo has already recreated its own Traefik and Keycloak from a
+# /tmp clone once, exactly that way. `just ci-install` reproduces this job
+# locally inside docker-in-docker and refuses to run against a daemon that
+# already has Bothy on it.
+#
+# THE THREE THINGS THAT MAKE IT WORK ON A RUNNER, all learned the hard way:
+#
+#   BOX_IP must be the docker BRIDGE GATEWAY. auth/compose.yml builds Keycloak's
+#   issuer from it, and oauth2-proxy fetches that discovery document from INSIDE
+#   its own container - where 127.0.0.1 means the container. The gateway is the
+#   one address reachable both from the runner and from a container.
+#
+#   $BOTHY_BASE_HOST is the documented way to say so. bootstrap resolves BOX_IP
+#   through box-addr.sh, whose first rung is that variable.
+#
+#   Disk. The stack pulls ~6 GB of images and a runner starts with ~14 GB free.
+#   The preinstalled Android SDK and .NET alone are ~15 GB of that, and they are
+#   not needed here.
+
+name: Install
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: Clone it, start it, run every suite against it
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # Checked out only so the workflow has the repo's scripts available for
+      # the failure artifact. The INSTALL below is a separate clone - see why in
+      # the "clone into an empty directory" step.
+      - uses: actions/checkout@v7
+        with:
+          path: workspace
+
+      - name: Free disk (the stack pulls ~6 GB of images)
+        run: |
+          set -uo pipefail
+          echo "before:"; df -h / | tail -1
+          # Nothing here is used by this job. Deleted rather than pruned because
+          # `docker system prune` on a fresh runner frees nothing - the space is
+          # in preinstalled SDKs, not in images.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/share/boost /usr/share/swift || true
+          echo "after:"; df -h / | tail -1
+
+      - uses: extractions/setup-just@v3
+
+      # Node for the portal harness (it compiles modules with a bare `tsc`), and
+      # uv for the config tier (its checks need ruamel.yaml, which the system
+      # python deliberately does not have).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: workspace/apps/portal-next/web/package-lock.json
+
+      - uses: astral-sh/setup-uv@v6
+
+      # `requests` is the only third-party import in any suite - the authenticated
+      # probes in the editor tier and the login assertion below. Installed once,
+      # here, rather than inside a step that would then be the first to fail for a
+      # reason unrelated to what it tests.
+      #
+      # --break-system-packages: Ubuntu 24.04 marks its python EXTERNALLY-MANAGED
+      # (PEP 668) and plain `pip install` is refused. Correct on a real machine,
+      # meaningless on a runner that is destroyed in fifteen minutes.
+      - name: Python dependency for the authenticated probes
+        run: python3 -m pip install --quiet --break-system-packages requests
+
+      # ── the install, exactly as README.md describes it ────────────────────
+      #
+      # CLONED INTO AN EMPTY DIRECTORY OUTSIDE THE WORKSPACE, and that is a real
+      # assertion rather than tidiness. actions/checkout leaves a configured git
+      # remote, a populated cache and a workspace path the repo has never seen;
+      # cloning fresh into /tmp proves nothing depends on where the repo lives -
+      # which is the property the whole portability baseline exists to protect,
+      # and which was false in two SPA modules until last week.
+      - name: Clone into an empty directory
+        run: |
+          set -euo pipefail
+          git clone --no-hardlinks "$GITHUB_WORKSPACE/workspace" /tmp/bothy
+          # No `git checkout <sha>` after this. For a pull_request, checkout@v7
+          # leaves HEAD DETACHED at the merge commit, and the instinct is to
+          # re-checkout that SHA in the clone - where it does not exist, so the
+          # command fails and, if the failure is tolerated, the job silently
+          # tests whatever the clone landed on instead. A local clone follows a
+          # detached HEAD correctly on its own; verified against a source repo
+          # detached at a commit no branch pointed to.
+          want=$(git -C "$GITHUB_WORKSPACE/workspace" rev-parse HEAD)
+          got=$(git -C /tmp/bothy rev-parse HEAD)
+          [ "$want" = "$got" ] || { echo "FAIL  clone is at $got, workspace at $want"; exit 1; }
+          git -C /tmp/bothy log --oneline -1
+
+      - name: The address a container can also reach
+        run: |
+          set -euo pipefail
+          GW=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
+          [ -n "$GW" ] || { echo "no bridge gateway - cannot continue"; exit 1; }
+          echo "BOTHY_BASE_HOST=$GW" >> "$GITHUB_ENV"
+          echo "bridge gateway: $GW"
+
+      # THE README, VERBATIM. If this ever needs a line the README does not have,
+      # the README is wrong and this job is right to fail.
+      - name: cp .env.example .env  &&  just up
+        working-directory: /tmp/bothy
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          just up
+
+      # ── did the install actually do what it claims? ───────────────────────
+      - name: Five secrets, generated, distinct, and the right shape
+        working-directory: /tmp/bothy
+        run: |
+          set -euo pipefail
+          fail=0
+          val() { grep -E "^$1=" .env | head -1 | cut -d= -f2-; }
+          for k in POSTGRES_PASSWORD DEV_LOGIN_PASSWORD KEYCLOAK_DB_PASSWORD \
+                   OAUTH2_COOKIE_SECRET KEYCLOAK_OAUTH2_CLIENT_SECRET; do
+            v=$(val "$k")
+            ex=$(grep -E "^$k=" .env.example | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//')
+            # Values are compared but never echoed: this log is public.
+            if [ -z "$v" ];        then echo "FAIL  $k is empty";                 fail=1
+            elif [ "$v" = "$ex" ]; then echo "FAIL  $k is still the example value"; fail=1
+            elif [ "${#v}" -lt 24 ]; then echo "FAIL  $k is only ${#v} chars";     fail=1
+            else echo "ok    $k  (${#v} chars)"; fi
+          done
+          # THE FAILURE THIS CATCHES is a generator that runs five times and
+          # writes the same string, which every per-key check above would pass.
+          n=$(for k in POSTGRES_PASSWORD DEV_LOGIN_PASSWORD KEYCLOAK_DB_PASSWORD \
+                       OAUTH2_COOKIE_SECRET KEYCLOAK_OAUTH2_CLIENT_SECRET; do val "$k"; done | sort -u | wc -l)
+          [ "$n" = 5 ] && echo "ok    all five are distinct" || { echo "FAIL  only $n distinct values"; fail=1; }
+          # oauth2-proxy refuses to start unless this decodes to 16, 24 or 32
+          # bytes, and the failure is a container that will not come up.
+          b=$(val OAUTH2_COOKIE_SECRET | tr -- '-_' '+/' | base64 -d 2>/dev/null | wc -c)
+          [ "$b" = 32 ] && echo "ok    cookie secret decodes to 32 bytes" || { echo "FAIL  decodes to $b bytes"; fail=1; }
+          # The placeholder is a CGNAT address that is almost certainly not this
+          # machine, and five references in auth/compose.yml are built from it.
+          ip=$(val BOX_IP)
+          [ "$ip" = "${BOTHY_BASE_HOST}" ] && echo "ok    BOX_IP resolved to $ip" || { echo "FAIL  BOX_IP is $ip, wanted $BOTHY_BASE_HOST"; fail=1; }
+          # A RUNNER IS uid 1001, and three services write into bind-mounted host
+          # directories. They ran as a hardcoded 1000:1000 until now, which made
+          # Bothy installable only by somebody who IS 1000 - not a runner, and not
+          # anyone on macOS, where the first account is 501. This job is the only
+          # place that would ever have noticed, because it is the only one that
+          # installs as a user who is not the author.
+          me=$(id -u)
+          if [ "$me" != 1000 ]; then
+            [ "$(val PUID)" = "$me" ] && echo "ok    PUID set to $me (this runner is not 1000)" \
+              || { echo "FAIL  PUID is '$(val PUID)', wanted $me"; fail=1; }
+          fi
+          exit $fail
+
+      - name: Running it twice changes nothing
+        working-directory: /tmp/bothy
+        run: |
+          set -euo pipefail
+          before=$(md5sum .env | cut -d' ' -f1)
+          just bootstrap
+          [ "$(md5sum .env | cut -d' ' -f1)" = "$before" ] \
+            && echo "ok  .env is byte-identical after a second bootstrap" \
+            || { echo "FAIL  bootstrap rewrote .env on a second run"; exit 1; }
+          # --force regenerates config files. It must NOT regenerate secrets:
+          # POSTGRES_PASSWORD is baked into the database volume at initdb, so a
+          # fresh value locks you out of your own data.
+          just bootstrap --force
+          [ "$(md5sum .env | cut -d' ' -f1)" = "$before" ] \
+            && echo "ok  --force left the secrets alone" \
+            || { echo "FAIL  --force regenerated a secret"; exit 1; }
+          git status --porcelain | grep -v '^?? .env$' | grep . \
+            && { echo "FAIL  bootstrap modified tracked files"; exit 1; } \
+            || echo "ok  no tracked file was touched"
+
+      # ── every suite, against the real thing ───────────────────────────────
+      #
+      # `if: always()` throughout: the point of getting a stack up is to learn
+      # everything it can tell you, and stopping at the first red X wastes fifteen
+      # minutes of runner time to report one line.
+      # PLAIN `doctor`, NOT `doctor strict`, and that is a deliberate downgrade.
+      # --strict was written for this job and then measured against a real fresh
+      # install, where it reports four faults that are all TRUE STATEMENTS ABOUT A
+      # NEW BOX rather than defects:
+      #
+      #   no postgres backups yet      correct; the timer has never run
+      #   kubectl is not installed     optional, and not a Bothy dependency
+      #   docker-daemon target down    needs metrics-addr in /etc/docker/daemon.json,
+      #                                which bootstrap warns about and does not set
+      #   prometheus target down       the self-scrape, moments after first start
+      #
+      # Gating on that would fail every run for reasons the reader cannot act on,
+      # which is the cry-wolf this repo keeps paying for. The report is still
+      # worth having in the log; `verify` and the suites below are the gate.
+      # --strict remains right for a mature box, which is where it is used.
+      - name: Health sweep (reported, not gated - see comment)
+        if: always()
+        working-directory: /tmp/bothy
+        run: just doctor
+
+      - name: Access and routing (23 checks)
+        if: always()
+        working-directory: /tmp/bothy
+        run: just verify
+
+      - name: Editor tier, authenticated end to end
+        if: always()
+        working-directory: /tmp/bothy
+        run: just files-check
+
+      - name: Config tier
+        if: always()
+        working-directory: /tmp/bothy
+        run: bash apps/bothy-config/checks/run.sh
+
+      - name: Control tier, including the real-daemon transition
+        if: always()
+        working-directory: /tmp/bothy
+        run: bash apps/bothy-control/checks/run.sh
+
+      - name: Portal truth tables against this box's own containers
+        if: always()
+        working-directory: /tmp/bothy/apps/portal-next
+        run: |
+          set -euo pipefail
+          (cd web && npm ci --silent)
+          bash checks/run.sh
+
+      # THE STEP THAT PROVES THE GENERATED SECRET REACHED KEYCLOAK. Every check
+      # above would pass if bootstrap wrote .env and nothing read it: this is the
+      # only one that spends the password. It also asserts the seeded user does
+      # NOT hold `shell` - the four roles are non-composite precisely so an
+      # arbitrary terminal cannot be reached by holding another.
+      - name: A fresh install has somebody who can sign in
+        if: always()
+        working-directory: /tmp/bothy
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re, sys, requests
+          env = dict(l.split('=', 1) for l in open('.env').read().splitlines()
+                     if l and not l.startswith('#') and '=' in l)
+          base = f"http://{env['BOX_IP']}"
+          s = requests.Session()
+          r = s.get(f"{base}/oauth2/start", params={"rd": "/"}, allow_redirects=True, timeout=30)
+          m = re.search(r'action="([^"]+)"', r.text)
+          if not m:
+              sys.exit("FAIL  no Keycloak login form - SSO never came up")
+          s.post(m.group(1).replace("&amp;", "&"),
+                 data={"username": env["DEV_LOGIN_USER"], "password": env["DEV_LOGIN_PASSWORD"]},
+                 allow_redirects=True, timeout=30)
+          u = s.get(f"{base}/oauth2/userinfo", timeout=15)
+          if not u.ok:
+              sys.exit(f"FAIL  userinfo returned {u.status_code} - the generated password did not work")
+          got = set(u.json().get("groups", []))
+          want = {"viewer", "editor", "operator"}
+          missing = want - got
+          if missing:
+              sys.exit(f"FAIL  seeded user is missing {sorted(missing)}")
+          if "shell" in got:
+              sys.exit("FAIL  seeded user holds `shell` - it must never be granted")
+          print(f"ok    signed in, holds {sorted(want)}, and not `shell`")
+          PY
+
+      # ── when it fails, say why ────────────────────────────────────────────
+      #
+      # A failed stack with no logs is an unusable signal, and this is the only
+      # place that stack ever existed. Redacted by KEY NAME before upload: the
+      # secrets are generated per run, but an artifact is downloadable and the
+      # job log is public on a public repo.
+      - name: Collect logs
+        if: failure()
+        working-directory: /tmp/bothy
+        run: |
+          set +e
+          mkdir -p /tmp/logs
+          docker ps -a > /tmp/logs/containers.txt 2>&1
+          docker images > /tmp/logs/images.txt 2>&1
+          df -h > /tmp/logs/disk.txt 2>&1
+          for f in edge/compose.yml auth/compose.yml monitoring/compose.yml \
+                   data/postgres/compose.yml apps/bothy/compose.yml; do
+            n=$(echo "$f" | tr '/' '_')
+            docker compose -f "$f" logs --no-color --tail 400 > "/tmp/logs/$n.log" 2>&1
+          done
+          # ONE python pass, not a shell loop building python. The first
+          # version nested three levels of quoting to interpolate a secret into
+          # a heredoc inside an xargs inside a for - which is how a redaction
+          # step silently redacts nothing. This reads .env itself.
+          python3 - <<'PY'
+          import pathlib, re, sys
+          # READ FROM scripts/lib/bootstrap-keys.sh, not repeated here. A fourth
+          # copy of this list is a fourth chance for it to fall behind, and the
+          # way it would fail is a secret shipped in a public artifact.
+          keyfile = pathlib.Path("scripts/lib/bootstrap-keys.sh").read_text()
+          # ANCHORED TO LINE START, multiline. Unanchored, this matched the
+          # COMMENT in that file - which quotes the old one-line form
+          # `SECRET_KEYS="POSTGRES_PASSWORD ...` to explain why it is not written
+          # that way - and returned 37 "keys" of English prose. The length check
+          # below would have passed it.
+          block = re.search(r'^SECRET_KEYS="([^"]*)"', keyfile, re.M)
+          KEYS = block.group(1).split() if block else []
+          # Every entry must look like an env var name, not a word of prose.
+          if len(KEYS) < 5 or not all(re.fullmatch(r'[A-Z][A-Z0-9_]*', k) for k in KEYS):
+              sys.exit(f"REFUSING to upload: could not read the secret key list (got {KEYS})")
+          env = {}
+          for line in open(".env", encoding="utf-8", errors="replace").read().splitlines():
+              if line and not line.startswith("#") and "=" in line:
+                  k, v = line.split("=", 1)
+                  env[k.strip()] = v.strip()
+          # Longest first: one secret can contain another as a substring, and
+          # replacing the short one first leaves a mangled fragment of the long
+          # one behind rather than removing it.
+          secrets = sorted(((k, env[k]) for k in KEYS if env.get(k)),
+                           key=lambda kv: -len(kv[1]))
+          n = 0
+          for path in pathlib.Path("/tmp/logs").rglob("*"):
+              if not path.is_file():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              out = text
+              for k, v in secrets:
+                  out = out.replace(v, f"<{k} redacted>")
+              if out != text:
+                  path.write_text(out, encoding="utf-8")
+                  n += 1
+          print(f"redacted {n} file(s)")
+          # PROVE IT, and refuse to upload otherwise. An artifact is
+          # downloadable and this repo is public; "the redaction ran" and "the
+          # secret is gone" are different claims.
+          leaked = [k for k, v in secrets
+                    for p in pathlib.Path("/tmp/logs").rglob("*")
+                    if p.is_file() and v in p.read_text(encoding="utf-8", errors="replace")]
+          if leaked:
+              print("REFUSING to upload - still present:", sorted(set(leaked)))
+              sys.exit(1)
+          PY
+          echo "redacted, $(find /tmp/logs -type f | wc -l) file(s)"
+
+      - name: Down leaves nothing behind
+        if: always()
+        working-directory: /tmp/bothy
+        run: |
+          set -euo pipefail
+          just down || true
+          left=$(docker ps -aq | wc -l)
+          [ "$left" = 0 ] && echo "ok  no container survives \`just down\`" \
+            || { echo "FAIL  $left container(s) left:"; docker ps -a --format '  {{.Names}} ({{.Status}})'; exit 1; }
+
+      # After `down`, because the logs were already captured to /tmp/logs above.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: install-failure-logs
+          path: /tmp/logs
+          retention-days: 7
