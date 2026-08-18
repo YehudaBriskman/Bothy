@@ -1,3 +1,6 @@
+import { useState, type MouseEvent } from 'react';
+import { Tooltip } from './Tooltip';
+
 // The Bothy mark.
 //
 // A bothy is a small hut in the Scottish hills left unlocked for whoever needs
@@ -51,18 +54,41 @@ export function BothyMark({ size = 20 }: { size?: number }) {
  */
 export function Brand() {
   const where = typeof location !== 'undefined' ? location.hostname : '';
+  const [copied, setCopied] = useState(false);
+
+  // RIGHT-CLICK COPIES THE ADDRESS. The address is the thing people actually
+  // want off this page - it is what you paste into another device's browser or
+  // an ssh command - and it used to sit permanently under the wordmark as a
+  // line of grey mono text, spending topbar width on something read once a day.
+  //
+  // The context menu is the right gesture for "give me this value": it is
+  // already the copy gesture everywhere else, it needs no visible control, and
+  // it cannot be hit by accident. preventDefault suppresses the browser menu,
+  // whose own "Copy link address" would have copied the href - the route, not
+  // the host.
+  //
+  // The tooltip SAYS SO, because a gesture nobody is told about is a gesture
+  // nobody uses. That is the whole reason the hint is in the label rather than
+  // left to be discovered.
+  const copy = (e: MouseEvent) => {
+    e.preventDefault();
+    if (!where) return;
+    // No await: this is fire-and-forget, and a rejected promise here (no
+    // permission, insecure context) must not take the click handler with it.
+    navigator.clipboard?.writeText(where).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 1200); },
+      () => {},
+    );
+  };
+
   return (
-    <>
-      <span className="brand-mark"><BothyMark size={19} /></span>
-      <span className="brand-text">
-        {/* The word is still IN THE DOM. The wordmark is painted by a CSS mask
-            on this element, so the glyphs are hidden visually (font-size: 0) but
-            the text stays for a screen reader, for find-in-page, and for the
-            moment the .svg 404s after a bad deploy - which is the difference
-            between a nameless page and a broken one. */}
-        <b className="brand-wordmark">Bothy</b>
-        <small title={where}>{where}</small>
-      </span>
-    </>
+    <Tooltip align="start" label={copied ? `Copied ${where}` : `${where} - right-click to copy`}>
+      {/* The word is still IN THE DOM. The wordmark is painted by a CSS mask on
+          this element, so the glyphs are hidden visually (font-size: 0) but the
+          text stays for a screen reader, for find-in-page, and for the moment
+          the .svg 404s after a bad deploy - which is the difference between a
+          nameless page and a broken one. */}
+      <b className="brand-wordmark" onContextMenu={copy}>Bothy</b>
+    </Tooltip>
   );
 }
