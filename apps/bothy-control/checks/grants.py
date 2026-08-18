@@ -10,7 +10,7 @@ you want to know is true BEFORE a POST=1 socket proxy starts.
 
 ── why this check exists at all ────────────────────────────────────────────
 
-apps/portal/compose.yml already says the important thing: "deny-by-default is
+apps/bothy/socket-proxy.yml already says the important thing: "deny-by-default is
 the image's behaviour, but a socket proxy is the last place to trust a default
 surviving an image bump. Say it out loud." Saying it out loud is a comment, and
 a comment is not a check. This is the check.
