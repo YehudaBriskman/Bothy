@@ -600,6 +600,32 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .brand-door { fill: var(--accent); }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
 .brand-text b { font-size: 14.5px; font-weight: 700; letter-spacing: -0.015em; }
+/* The wordmark, painted as a MASK rather than embedded as markup or an <img>.
+   Three reasons, and the middle one is the trap:
+
+     · A MASK takes its colour from `background`, so `currentColor` here means
+       the wordmark follows the theme the way the type it replaced did. There
+       are seven themes; a two-tone logo fixed to one of them is unreadable in
+       the other six.
+     · AN <img> WOULD NOT WORK. An SVG loaded through <img> is an isolated
+       document with no parent to inherit from, so `currentColor` inside it
+       resolves to black and the mark goes theme-blind. This cost a render cycle
+       to discover - the fix looked like it had failed when it had not.
+     · INLINING the markup would put 13 KB of path data in the JS bundle on
+       every page. As a mask it is one cached request, 3.6 KB gzipped, and it
+       does not grow the bundle at all.
+
+   The size is the measured aspect ratio, 2.666:1 (getBBox in a real browser,
+   not guessed), at the cap height of the 14.5px type it replaces. */
+.brand-wordmark {
+  display: block;
+  width: 40px;
+  height: 15px;
+  font-size: 0;              /* the glyphs are replaced; the text stays for a11y */
+  background: currentColor;
+  -webkit-mask: url(/wordmark.svg) no-repeat left center / contain;
+  mask: url(/wordmark.svg) no-repeat left center / contain;
+}
 .brand-text small { color: var(--fg-subtle); font-family: var(--mono); font-size: 10px;
   max-width: 15ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

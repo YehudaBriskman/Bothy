@@ -293,7 +293,7 @@ the disk panel.
 
 ### 4. Databases publish on loopback only
 
-`data/postgres`, `data/redis` and `data/kafka` bind their host ports to
+`data/postgres` binds its host port to
 `127.0.0.1` explicitly:
 
 ```yaml

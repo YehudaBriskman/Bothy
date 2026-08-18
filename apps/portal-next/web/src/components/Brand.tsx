@@ -55,7 +55,12 @@ export function Brand() {
     <>
       <span className="brand-mark"><BothyMark size={19} /></span>
       <span className="brand-text">
-        <b>Bothy</b>
+        {/* The word is still IN THE DOM. The wordmark is painted by a CSS mask
+            on this element, so the glyphs are hidden visually (font-size: 0) but
+            the text stays for a screen reader, for find-in-page, and for the
+            moment the .svg 404s after a bad deploy - which is the difference
+            between a nameless page and a broken one. */}
+        <b className="brand-wordmark">Bothy</b>
         <small title={where}>{where}</small>
       </span>
     </>

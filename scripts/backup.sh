@@ -45,10 +45,10 @@ keep_if_real() {  # <file> <min-bytes> <label>
   fi
 }
 
-mkdir -p "$BK"/{postgres,grafana,portainer,env}
+mkdir -p "$BK"/{postgres,grafana,env}
 # The directories too, and on every run: `mkdir -p` leaves an existing directory
 # alone, so the umask above would never reach ones already created 0755.
-chmod 700 "$BK" "$BK"/{postgres,grafana,portainer,env} 2>/dev/null
+chmod 700 "$BK" "$BK"/{postgres,grafana,env} 2>/dev/null
 
 # The timer is Persistent=true, so a schedule missed while the box was off
 # fires at the next boot - exactly when postgres is still initialising. Without
@@ -97,12 +97,20 @@ else
   fail "grafana not running - skipped"
 fi
 
-if running portainer; then
-  docker cp portainer:/data/portainer.db "$BK/portainer/portainer-$ts.db" 2>/dev/null
-  keep_if_real "$BK/portainer/portainer-$ts.db" 1000 portainer
-else
-  fail "portainer not running - skipped"
-fi
+# A portainer step lived here until 2026-08-18, and it went the same way as the
+# redis one above and for the same reason. Portainer was retired on 2026-08-17
+# and deleted the next day, so this could only take the else branch: "portainer
+# not running - skipped", a FAIL, every night, for ever - and it made the whole
+# script exit 1, so the timer's success signal was worthless and `just backup`
+# looked broken to anyone who ran it.
+#
+# THAT IS THE SECOND TIME. The comment above records the identical bug with
+# redis and this repo still shipped it again, which is worth stating plainly:
+# deleting a service means deleting its backup step in the same change, or the
+# nightly report starts lying the following morning.
+#
+# Its old artifacts under $BK/portainer are left on disk untouched. Nothing
+# writes there now, so they are no longer rotated; delete them by hand whenever.
 
 # .env is gitignored and exists nowhere else on earth. Losing it loses every
 # credential on the box, so it belongs in the backup more than anything here.
