@@ -39,7 +39,7 @@ import { FileView } from './FileView';
 import { SearchView } from './Search';
 import { SignInCard } from './SignInCard';
 import { Toc, useHeadings } from './Toc';
-import { filesHref } from './routes';
+import { defaultRoot, filesHref } from './routes';
 import { baseName, dirName, resolveWikiIn } from './tree';
 import { fetchLinks, type LinkIndex } from '../../lib/files';
 
@@ -111,9 +111,10 @@ export function Reader() {
 
   // ── the roots ──────────────────────────────────────────────────────────────
   //
-  // Same fallback as the editor's: a `?root=` naming a root that no longer
-  // exists lands on the first one rather than rendering a 400 as if the service
-  // were broken. `replace`, so Back does not bounce off the dead URL.
+  // Same fallback as the editor's, and now literally the same function: a
+  // `?root=` naming a root that no longer exists lands on `defaultRoot(...)`
+  // rather than rendering a 400 as if the service were broken. `replace`, so
+  // Back does not bounce off the dead URL.
   useEffect(() => {
     const ac = new AbortController();
     listRoots(ac.signal)
@@ -123,18 +124,10 @@ export function Reader() {
         setRootsErr(null);
         if (!r.roots.length) return;
         const known = r.roots.some((x) => x.key === urlRoot);
-        // NOT roots[0]. The service returns them alphabetically, which put
-        // `home` first - the one root that is read-only, holds ~4,000 entries,
-        // and ALIASES every other root, so everything worth reading appeared
-        // twice under a name that cannot be written to. Landing there was an
-        // accident of sort order, and it made the reader open on the worst
-        // possible listing.
-        //
-        // A writable root is the one somebody keeps documents in; `readOnly`
-        // already travels with each root, so this needs nothing new from the
-        // service. Falls back to whatever exists if every root is read-only.
-        const best = r.roots.find((x) => !x.readOnly) ?? r.roots[0];
-        const pick = known ? urlRoot : best.key;
+        // Why this is not roots[0], and why absent `readOnly` means writable,
+        // live with the rule in routes.ts - the reader is one of two callers and
+        // the reasoning is not the reader's.
+        const pick = known ? urlRoot : defaultRoot(r.roots);
         if (!known) {
           const next = new URLSearchParams();
           next.set('root', pick);
