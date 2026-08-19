@@ -149,7 +149,19 @@ for name in sorted(guard.SEVERING):
 # The containers the UI warns about but the service deliberately does NOT refuse.
 # Stopping any of these degrades the interface; the action still completes and
 # reports its own outcome truthfully, which is the line this service draws.
-for name in ("portal-next", "portal-socket-proxy", "portal-files", "bothy-config",
+#
+# BOTH SOCKET-PROXY NAMES (#97). The proxy is being renamed portal-socket-proxy
+# -> bothy-socket-proxy. This is a NEGATIVE list - it asserts guard.severed()
+# stays None - so unlike actions.ts's SELF map nothing fails open here, and the
+# extra name costs nothing while the daemon may still be carrying either. It
+# does earn its place during the rename: it would catch somebody "helpfully"
+# adding the new name to guard.SEVERING, which would be a real regression (the
+# service would start refusing an action it can perform and report truthfully -
+# the exact line guard.py:102-110 draws). This list should mirror actions.ts's
+# SELF map, so drop 'portal-socket-proxy' here in the same change that drops the
+# legacy key there, and not before.
+for name in ("portal-next", "bothy-socket-proxy", "portal-socket-proxy",
+             "portal-files", "bothy-config",
              "keycloak", "oauth2-proxy", "grafana", "postgres"):
     for verb in guard.VERBS:
         ok(guard.severed(name, verb) is None,
