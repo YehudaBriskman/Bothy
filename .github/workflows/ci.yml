@@ -140,6 +140,13 @@ jobs:
         if: always()
         run: bash scripts/checks/cli-commands.sh
 
+      # VERSION is what a tarball download can read; the tag is how git finds it.
+      # Two copies can disagree, and the failure is quiet: `bothy version` naming
+      # a release the box is not running sends a bug report at the wrong code.
+      - name: VERSION agrees with the newest tag
+        if: always()
+        run: bash scripts/checks/version.sh
+
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
   # Everything above answers "is the tree healthy". This answers the question

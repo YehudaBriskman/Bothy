@@ -234,15 +234,21 @@ cmd_upgrade() {
 cmd_version() {
   home=$(find_home) || { say "bothy (no checkout found)"; return 0; }
   cd "$home" || return 0
-  # THERE ARE NO RELEASES YET - `git tag` is empty (see the versioning issue), so
-  # this reports the commit and says so rather than inventing a version number.
-  tag=$(git describe --tags --always 2>/dev/null || echo unknown)
-  say "bothy   $tag"
-  say "repo    $home"
-  if [ -z "$(git tag 2>/dev/null)" ]; then
-    say ""
-    say "This checkout has no release tags, so the above is a commit."
+  # VERSION FIRST, git second. `git describe` needs a checkout with tags, and a
+  # tarball from the Releases page has neither - which is how anyone who is not a
+  # contributor gets Bothy. The file is readable either way.
+  if [ -f VERSION ]; then
+    say "bothy   $(tr -d '[:space:]' < VERSION)"
+  else
+    say "bothy   unknown (no VERSION file)"
   fi
+  # The commit is still worth printing: between releases it is the only thing
+  # that distinguishes two boxes claiming the same version.
+  commit=$(git rev-parse --short HEAD 2>/dev/null || echo '?')
+  dirty=''
+  git diff --quiet 2>/dev/null || dirty=' (modified)'
+  say "commit  ${commit}${dirty}"
+  say "repo    $home"
 }
 
 usage() {
