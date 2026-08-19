@@ -113,8 +113,8 @@ browser reaches anything but the portal. What exists today:
 | Container | Host bind | Status |
 |---|---|---|
 | `traefik` | `0.0.0.0:80` | **The front door for the portal and its data plane**, and nothing else. |
-| `grafana` `prometheus` `dozzle` `kafka-ui` `portainer` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `9090` `8080` `8081` `9000` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. |
-| `postgres` `redis` `kafka` | `127.0.0.1:5432` `6379` `9092` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database - Redis runs with no `requirepass` at all. Reached over an SSH tunnel, or by name over devnet from another container. |
+| `grafana` `prometheus` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `9090` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. `dozzle` (`:8080`), `kafka-ui` (`:8081`) and `portainer` (`:9000`) were here until 2026-08-17; Bothy Control and the service pages replaced them. |
+| `postgres` | `127.0.0.1:5432` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database. Reached over an SSH tunnel, or by name over devnet from another container. `redis` (`:6379`) and `kafka` (`:9092`) sat here under the same rule until they were retired on 2026-08-12 - both idle, zero keys and zero topics. |
 | `portal-next` `portal-files` `oauth2-proxy` `bothy-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
 
 The cost of the port model is real and worth stating: ports are a flat global
@@ -313,7 +313,7 @@ hand-kept target list, so *every* container is covered with no per-service setup
 | Container metrics | `cadvisor` → Prometheus | CPU / memory / network / filesystem, every container. |
 | Host metrics | `node-exporter` | |
 | Docker daemon | `metrics-addr` on `:9323` (optional, in `host/docker/daemon.json`) | **Not scraped.** The `docker-daemon` job was removed on 2026-08-19: nothing in the repo read an `engine_daemon_*` series, and because the setting is opt-in the target sat permanently down on any box that had not been hand-edited. The setting is harmless to keep; `monitoring/prometheus.yml` carries the restore recipe. |
-| App metrics | `postgres-exporter`, `redis-exporter`, `kafka-exporter` | Down while those stacks are down - expected. |
+| App metrics | `postgres-exporter` | The `redis-exporter` and `kafka-exporter` jobs came out of `monitoring/prometheus.yml` on 2026-08-12 with their services. A scrape job for something that no longer runs is not harmless: its target sits permanently down, and "are all targets up?" stops being a question worth asking. |
 | The edge | `traefik` Prometheus metrics on an **internal** entrypoint `:8899` | Request rate, latency and error rate per router / service / entrypoint. No host port - Prometheus reaches it by name over devnet. |
 
 Grafana auto-provisions the Prometheus and Loki datasources, five dashboards, and
@@ -582,21 +582,23 @@ the case for all of these. An `@file` route with no container is honestly
 | Volume | Owner | Holds | In the backup |
 |---|---|---|---|
 | `postgres_postgres_data` | `data/postgres` | The shared dev database | yes - logical dump |
-| `monitoring_prometheus_data` | `monitoring` | TSDB, 15-day retention | no |
+| `monitoring_prometheus_data` | `monitoring` | TSDB. 15-day retention with a 3 GB ceiling - whichever is reached first | no |
 | `monitoring_grafana_data` | `monitoring` | `grafana.db` - users, dashboards, alert state | yes |
 | `monitoring_loki_data` | `monitoring` | Log chunks and index | no |
 | `monitoring_promtail_positions` | `monitoring` | Read offsets. **Not data, but load-bearing:** positions default to `/tmp`, which is empty again after every restart, so promtail re-read every container log from the start and duplicated the whole history into Loki each time it came back. | no |
-| `mgmt_portainer_data` | `mgmt` | `portainer.db` | yes |
 
-`KAFKA_LOG_DIRS` is set explicitly for the same class of reason: without it the
-broker writes to its built-in default, the mounted volume stays empty, and every
-topic dies with the container.
+`mgmt_portainer_data` and `redis_redis_data` were rows here until the services
+that owned them were retired on 2026-08-17 and 2026-08-12. The volumes are
+gone; the old dumps under `~/backups/portainer` and `~/backups/redis` are
+left on disk deliberately, and `backup.sh` says why.
 
 ### What the nightly backup covers
 
 `stacks-backup.timer` fires `scripts/backup.sh` at 03:00 daily and keeps the
-newest **14** of each: the Postgres dump, the Redis snapshot, `grafana.db`,
-`portainer.db`, and `.env`.
+newest **14** of each: the Postgres dump, `grafana.db`, and `.env`. It creates
+exactly those three directories - a Redis step lived here until 2026-08-12 and a
+Portainer one until 2026-08-17, and both came out with their services rather than
+being left to fail nightly for ever.
 
 `.env` is in there because it is gitignored and exists in exactly one place on
 earth. Losing it loses every credential on the box.
