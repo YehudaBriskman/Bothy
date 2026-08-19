@@ -32,17 +32,38 @@
 // rule and would be true again the moment anyone wrote one. What is gone is the
 // assumption that a host belongs to one specific namespace.
 
-// 'bothy' is this app itself - web tier, editor tier and socket-proxy, all one
-// compose project since 2026-08-16. It was three ('portal', 'portal-next',
-// 'portal-files'), which made Bothy render as three separate cards in its own
-// Overview, since a system IS a compose project.
+// Bothy's own tiers are infra, not stack: filed under "Stack" they sit next to
+// the services they exist to describe, and the thing you are looking at reads as
+// one more workload on the box.
 //
-// Bothy is infra, not stack: leaving it out files the thing you are looking at
-// under "Stack", next to the services it is meant to be describing.
+// THIS USED TO BE A LIST OF FIVE PROJECT NAMES and the list had already gone
+// wrong. `bothy-control` and `bothy-config` are Bothy - the action tier and the
+// config tier, split out of the single `bothy` project after the set was written
+// - and because nobody remembered to add two strings they rendered as two
+// separate "Stack" systems beside monitoring and postgres.
 //
-// The old names stay listed. A container from a previous deployment keeps its
-// compose labels until it is recreated, and misfiling it for one poll is a
-// worse outcome than three dead strings.
+// A hand-maintained set of names is also the WRONG SHAPE for the question.
+// Compose project names are global to this docker daemon and belong to whoever
+// claimed them first; this box runs `cvops`, `thales`, `mpeg` and
+// `monorepo-inherited` from ~/projects. A project checked out at
+// ~/projects/portal would have been declared part of Bothy on the strength of
+// its directory name.
+//
+// So ask disk instead, exactly as the stack/project split already does: Bothy's
+// tiers are the compose files under `<stackRoot>apps/`. That is derived, it
+// cannot go stale, and a foreign project named `portal` fails it.
+const INFRA_SUBDIR = 'apps/';
+
+// The name test survives for the two cases the path test cannot answer:
+//
+//   * `edge` is Bothy's edge but lives at `<stackRoot>edge/`, not under apps/;
+//   * with NO stack root known (before the first `just up`, or with the file
+//     tier down) there is no path to test against, and the portal must still
+//     avoid misfiling ITSELF - see the null branch of classify().
+//
+// The dead deployment names stay listed for that second case only. A container
+// from a previous deployment keeps its compose labels until it is recreated, and
+// misfiling it for one poll is worse than three dead strings.
 const INFRA_PROJECTS = new Set(['edge', 'bothy', 'portal', 'portal-next', 'portal-files']);
 
 // ── Wire types (the raw API shapes) ─────────────────────────────────────────
@@ -278,6 +299,24 @@ export interface Nesting {
 }
 
 export interface Classification {
+  /**
+   * WHAT THIS IS, derived and never chosen. The compose project, or the
+   * hostname's own system for a container-less @file process. No label can move
+   * it.
+   *
+   * It exists because `group` was doing three jobs at once - the URL people
+   * bookmark (`/control/systems/:name`), the seed the accent colour is hashed
+   * from, and the panel a service is displayed in - so the moment anybody
+   * regrouped anything for DISPLAY, every bookmark into the systems they touched
+   * 404'd and every accent on the Overview reshuffled. A display preference must
+   * not be able to do that. Identity is the half that stays put.
+   */
+  system: string;
+  /**
+   * WHERE IT IS SHOWN. `system` unless `dev.portal.group` says otherwise. This
+   * is the only field a person is allowed to move, and moving it now costs
+   * nothing but the move.
+   */
   group: string;
   groupKind: string;
 }
@@ -293,6 +332,10 @@ export interface Port {
 export interface PortRow extends Port {
   container: string;
   image?: string;
+  /** Stable identity - see Classification.system. Carried on the row so the
+   *  system page can find its ports by what they ARE rather than by where they
+   *  are currently displayed. */
+  system: string;
   group: string;
   /** The group's display name, same contract as PortalNode.groupTitle - the
    *  Ports table is a third surface that was printing the raw slug. */
@@ -443,6 +486,13 @@ export interface PortalNode {
   path: string;
   url: string | null;
   browsable: boolean;
+  /**
+   * WHAT THIS SERVICE BELONGS TO, derived - see Classification.system. Equal to
+   * `group` unless somebody has set `dev.portal.group`, which is the point: the
+   * URL a person bookmarked and the colour they recognise a system by are keyed
+   * off this, so regrouping for display costs neither.
+   */
+  system: string;
   group: string;
   /** The group's DISPLAY name - what a human should ever see. Resolved here, in
    *  discovery, rather than at each render point, because the alternative is
@@ -684,25 +734,111 @@ export function repoRootsOf(
 // misfile ITSELF while its file tier is down; everything else falls to 'stack',
 // the answer that is right for every container on a box where this is the only
 // repo, and wrong only in the direction of under-claiming.
+//
+// `nesting` is the THIRD input and it is optional, because the two callers know
+// different amounts: merge() has resolved a router's hostname and allPorts() has
+// only a container. It is passed in rather than applied afterwards because
+// applying it afterwards is what shipped, and it is the whole reason
+// `dev.portal.group` worked on the Overview and was ignored by the Ports table -
+// makeNode() layered nesting and the label override on top of this function's
+// answer, and allPorts() printed the answer raw. One rule, one place; a caller
+// that knows less passes less.
 export function classify(
   container?: Container | null,
   stackRoot?: string | null,
+  nesting?: Nesting | null,
 ): Classification {
+  const labels = container?.Labels || {};
+  // Applied to whatever the derivation below lands on, so the override is
+  // honoured identically by every surface. Read once, here, and nowhere else.
+  const decide = (system: string, kind: string): Classification => ({
+    system,
+    group: labels['dev.portal.group'] ?? system,
+    groupKind: labels['dev.portal.groupKind'] ?? kind,
+  });
+
+  // Hostname nesting BEATS config_files: it's what puts cvops-tilt@file (no
+  // container at all) in the CVOps panel, which makes the DNS convention
+  // load-bearing. It is identity, not preference - the route says so - so it
+  // lands in `system` and not merely in `group`.
+  if (nesting?.parent) return decide(nesting.parent, 'project');
+
   // No container = an @file host process. It has no compose labels to classify,
-  // so the caller substitutes the hostname's own leaf as the group (see
-  // makeNode). 'host' survives only as the last resort for a route whose
-  // hostname told us nothing - it must never become a bucket of real services.
-  if (!container) return { group: 'host', groupKind: 'project' };
-  const labels = container.Labels || {};
+  // so its hostname's own leaf IS its system: a depth-1 host process
+  // (tals.<domain>) has no parent, and falling through to the 'host' sentinel
+  // filed Tals' own front-end under a fabricated system, separate from the
+  // api/auth/algo routes beside it. 'host' survives only as the last resort for
+  // a route whose hostname told us nothing - it must never become a bucket of
+  // real services.
+  if (!container) return decide(nesting?.leaf || 'host', 'project');
+
   const cfg = labels['com.docker.compose.project.config_files'];
   const proj = labels['com.docker.compose.project'];
   // minikube and anything else started outside compose has neither.
-  if (!cfg || !proj) return { group: 'unmanaged', groupKind: 'infra' };
-  const kind = INFRA_PROJECTS.has(proj) ? 'infra' : 'stack';
-  if (!stackRoot) return { group: proj, groupKind: kind };
+  if (!cfg || !proj) return decide('unmanaged', 'infra');
   const first = cfg.split(',')[0];
-  if (first.startsWith(stackRoot)) return { group: proj, groupKind: kind };
-  return { group: proj, groupKind: 'project' };
+
+  // No root known: the stack/project split cannot be made at all, so fall back
+  // to the name test for Bothy alone and call everything else 'stack' - wrong
+  // only in the direction of under-claiming. See the block comment above.
+  if (!stackRoot) return decide(proj, INFRA_PROJECTS.has(proj) ? 'infra' : 'stack');
+  if (!first.startsWith(stackRoot)) return decide(proj, 'project');
+  // In the repo. Bothy's own tiers live under `<stackRoot>apps/`; `edge` is the
+  // one that does not, and is named.
+  const own = first.startsWith(stackRoot + INFRA_SUBDIR) || INFRA_PROJECTS.has(proj);
+  return decide(proj, own ? 'infra' : 'stack');
+}
+
+// ── Pure: what a display group inherits from the identities inside it ───────
+//
+// Both of these take the structural minimum - a key and the identities folded
+// under it - rather than the full System from systems.ts. That module imports,
+// so it cannot be compiled by checks/run.sh's bare tsc, and these two rules are
+// precisely the ones a regression would be silent in: nobody notices a card's
+// colour moved until they cannot find it, and nobody notices a bookmark 404s
+// until they open it.
+
+/** A display group, as much of one as these functions need. */
+export interface GroupIdentity {
+  key: string;
+  identities: readonly string[];
+}
+
+/**
+ * Which identity a card's accent is hashed from.
+ *
+ * The key, when the key is itself one of the identities - which is every card on
+ * a box with no `dev.portal.group` labels, so the whole Overview keeps the exact
+ * colours it has today and this change is invisible until somebody asks for it.
+ *
+ * Otherwise the first identity alphabetically. A merged card has to pick one of
+ * its members' colours and cannot keep them all; it picks deterministically
+ * rather than by node order, which would repaint the card whenever docker
+ * returned its container list in a different order.
+ */
+export function primaryIdentity(key: string, identities: readonly string[]): string {
+  return identities.includes(key) ? key : identities[0] ?? key;
+}
+
+/**
+ * Resolve a `/control/systems/:name` param against the current display groups.
+ *
+ * Two lookups, and the second is the entire reason this is a function rather
+ * than a `.find()` at each call site: a URL that named a system before somebody
+ * regrouped it still names something real, and "No such system" is a bad answer
+ * to "the thing you bookmarked is now displayed one level up". Identity outlives
+ * display grouping, so a param that misses every key is tried against them.
+ *
+ * Key first, deliberately. If a display group is named `postgres` AND some other
+ * group still carries `postgres` among its identities, the group somebody
+ * deliberately named is the one they meant.
+ */
+export function findSystem<T extends GroupIdentity>(groups: readonly T[], name: string): T | null {
+  return (
+    groups.find((g) => g.key === name) ??
+    groups.find((g) => g.identities.includes(name)) ??
+    null
+  );
 }
 
 // Groups that are not systems and so cannot be named like one. `unmanaged` is
@@ -1125,7 +1261,7 @@ function makeNode({
   stackRoot = null,
 }: MakeNodeArgs): PortalNode {
   const n = nest(host);
-  const cls = classify(container, stackRoot);
+  const cls = classify(container, stackRoot, n);
   const L = container?.Labels || {};
   const pick = <T>(key: string, fallback: T): string | T => L[`dev.portal.${key}`] ?? fallback;
 
@@ -1136,7 +1272,12 @@ function makeNode({
   // Computed BEFORE the node literal because two fields need it: the slug the
   // app keys everything by, and the name a human reads. Deriving the title at
   // each render point instead is exactly the bug this replaces.
-  const group = pick('group', n.parent || (container ? cls.group : n.leaf || cls.group));
+  //
+  // Both come off classify() now. The nesting rule and the `dev.portal.group`
+  // override used to be re-applied here, on top of classify()'s answer, which is
+  // why allPorts() - which calls classify() and nothing else - disagreed with
+  // this function about which system a labelled container was in.
+  const group = cls.group;
 
   const node: PortalNode = {
     id: route ? route.name : `container:${container?.Id?.slice(0, 12)}`,
@@ -1151,16 +1292,10 @@ function makeNode({
     // truth rather than a guess.
     url: browsable ? containerUrl(container, path) : null,
     browsable,
-    // hostname nesting BEATS config_files: it's what puts cvops-tilt@file (no
-    // container at all) in the CVOps panel. Makes the DNS convention load-bearing.
-    //
-    // A depth-1 host process (tals.the name layer) has no parent, so it used to fall
-    // through to classify()'s 'host' sentinel - which filed Tals' own front-end
-    // under a fabricated system, separate from api/auth/algo.tals.the name layer. Its
-    // leaf IS its system name, so use that.
+    system: cls.system,
     group,
     groupTitle: names.get(group) || RESIDUE_TITLES[group] || titleCase(group),
-    groupKind: pick('groupKind', n.parent ? 'project' : cls.groupKind),
+    groupKind: cls.groupKind,
     parent: n.parent,
     depth: n.depth,
     order: Number(pick('order', 100)) || 100,
@@ -1240,6 +1375,19 @@ export function portsOf(container?: Container | null): Port[] {
 }
 
 // Every published port on the box, flattened - the collision map.
+//
+// It calls classify() and prints what it gets, which is now the same answer
+// makeNode() builds a node from. UNTIL THIS COMMIT IT WAS NOT: makeNode()
+// applied `dev.portal.group` and allPorts() did not, so a container moved into a
+// system by label appeared in that system's service list and its ports did not -
+// and `/control/systems/:name` filters ports with `p.group === name`, so the
+// Ports section of the very page the label exists to build came back empty.
+//
+// makeNode() was the correct one of the two. `dev.portal.group` is a documented,
+// supported override (docs/ARCHITECTURE.md, "Optional polish labels"); a
+// supported override that half the surfaces ignore is worse than no override,
+// because the disagreement reads as a discovery bug rather than a missing
+// feature. The fix is that neither function decides any more.
 export function allPorts(containers: Container[] = []): PortRow[] {
   const rows: PortRow[] = [];
   // Same map merge() uses, so a port row and a service row can never disagree
@@ -1253,6 +1401,7 @@ export function allPorts(containers: Container[] = []): PortRow[] {
         ...p,
         container: (c.Names?.[0] || '').replace(/^\//, ''),
         image: c.Image,
+        system: cls.system,
         group: cls.group,
         groupTitle: names.get(cls.group) || RESIDUE_TITLES[cls.group] || titleCase(cls.group),
         groupKind: cls.groupKind,

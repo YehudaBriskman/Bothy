@@ -122,6 +122,31 @@ mutant "asDir loses its trailing slash" \
   -- "${PORTAL_CHECKS[@]}"
 
 echo
+echo "── identity is not display grouping ────────────────────────────────"
+# A system's derived `system` and its displayed `group` are two fields precisely
+# so that `dev.portal.group` cannot move a bookmarked URL or an accent colour.
+# Collapse them back into one and every symptom is silent: the Overview looks
+# right, and only the person who opens an old /control/systems/ link finds out.
+mutant "a display label moves the identity too" \
+  apps/portal-next/web/src/lib/discover.ts \
+  '  const decide = (system: string, kind: string): Classification => ({
+    system,' \
+  '  const decide = (system: string, kind: string): Classification => ({
+    system: labels['"'"'dev.portal.group'"'"'] ?? system,' \
+  -- "${PORTAL_CHECKS[@]}"
+
+# The other half: makeNode() honoured dev.portal.group and allPorts() ignored it,
+# so a system assembled with that label listed its services and none of its
+# ports. Both read one classify() now; make the ports table read past it again.
+mutant "the ports table stops honouring the label" \
+  apps/portal-next/web/src/lib/discover.ts \
+  '        system: cls.system,
+        group: cls.group,' \
+  '        system: cls.system,
+        group: cls.system,' \
+  -- "${PORTAL_CHECKS[@]}"
+
+echo
 echo "── the palette contract ────────────────────────────────────────────"
 # Every colour must come from a token. A literal in a component is invisible in
 # one theme and wrong in the other four.

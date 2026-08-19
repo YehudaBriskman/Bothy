@@ -630,7 +630,8 @@ compose file lives:
 
 | Config path | Classified as |
 |---|---|
-| Under the stacks root | **stack** (`edge`, `portal`, `portal-next` → **infra**) |
+| Under `<stacks root>/apps/` — Bothy's own tiers | **infra** |
+| Elsewhere under the stacks root | **stack** (`edge` → **infra**, by name: it is not under `apps/`) |
 | Anywhere else | **project** |
 | Missing entirely (e.g. minikube) | **unmanaged / infra** |
 
@@ -639,6 +640,39 @@ container-less `@file` host process into the right project panel.
 
 A route with no container is rendered loudly (rose dot, "no container" badge) -
 a dangling route is exactly what the portal should shout about.
+
+**Infra is a place on disk, not a list of names.** It was a set of five project
+names in `discover.ts` and the set had already gone stale — `bothy-control` and
+`bothy-config` were split out of the `bothy` project after it was written and
+rendered as two more "Stack" systems. A name test is also unsafe: compose project
+names are global to the docker daemon and belong to whoever claimed them first,
+so a checkout at `~/projects/portal` was being declared part of Bothy. The names
+survive only for the case the path test cannot answer — **no stack root known**,
+before the first `just up` or with the file tier down — where the portal must
+still avoid misfiling itself.
+
+### Identity vs display grouping
+
+Every node carries **two** group fields, and the difference is load-bearing:
+
+| Field | Means | Set by |
+|---|---|---|
+| `system` | what this service **is** | derived: hostname nesting → compose project → `unmanaged`/`host`. No label can move it |
+| `group` | where it is **shown** | `dev.portal.group`, falling back to `system` |
+
+They are the same string on a box with no `dev.portal.group` labels, which is why
+regrouping changes nothing until somebody asks for it. `group` used to be one
+field doing three jobs — the panel, the `/control/systems/:name` URL people
+bookmark, and the seed the accent colour is hashed from — so any user-facing
+regroup would have 404'd bookmarks and reshuffled colours. Now:
+
+- `System.identities` lists the `system` values folded into a display group;
+- the accent is hashed from `primaryIdentity()`, so a merged card keeps a
+  member's colour rather than inventing one;
+- `findSystem()` resolves a URL by display key **then** by identity, so a
+  bookmark taken before a regroup still opens.
+
+Truth table: `apps/portal-next/checks/grouping.mjs`.
 
 ### Optional polish labels
 
@@ -651,7 +685,7 @@ be correct, the defaults are wrong.
 | `dev.portal.name` | This service's display name |
 | `dev.portal.icon` | Emoji |
 | `dev.portal.desc` | Card body text |
-| `dev.portal.group` / `.groupKind` | Force which panel it lands in |
+| `dev.portal.group` / `.groupKind` | Force which panel it lands in. Display only — the node's `system` identity, its accent and its old URL are unaffected. Honoured by the Overview, Services **and** the Ports table (until 2026-08-19 the last one ignored it) |
 | `dev.portal.hidden=true` | Drop from Services (still listed in Ports and Routes) |
 | `dev.portal.path` | Deep link, e.g. `/targets` |
 | `dev.portal.order` | Sort order within a panel |

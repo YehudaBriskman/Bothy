@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, HardDrive } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { usePortal, healthOf } from '../lib/data';
-import { groupByType, systemsOf, volumeSize, systemDiskBytes, fmtBytes } from '../lib/systems';
+import { groupByType, systemsOf, findSystem, volumeSize, systemDiskBytes, fmtBytes } from '../lib/systems';
 import { TypeIcon } from '../lib/icons';
 import { ServiceTable } from '../components/ServiceTable';
 import { PortsTab } from '../components/PortsTab';
@@ -26,7 +26,14 @@ export function ProjectDetail() {
 
   // Which half of the Reachability panel is showing. Not persisted: it is a
   // view of one page, not a fact about the box.
-  const [reach, setReach] = useState<'routes' | 'ports'>('routes');
+  //
+  // NULL MEANS "nobody has picked", which is not the same as "Routes". The
+  // initial value was 'routes', and the tab strip only offers a tab that has
+  // rows - so on a system with ports and no routes (postgres, redis, every
+  // exporter) the selected half was one that did not exist, and the panel
+  // rendered its header, a single "Ports 1" tab, and an empty box under it. The
+  // choice is resolved below, once the two counts are known.
+  const [reachPick, setReachPick] = useState<'routes' | 'ports' | null>(null);
 
   // WHETHER THE FILE IS AHEAD OF THE CONTAINER, reported up by the Name panel.
   //
@@ -48,16 +55,36 @@ export function ProjectDetail() {
 
   // The system rollup owns title, kind, accent and volumes - derive it once so
   // the header, chips and data card all agree.
+  // findSystem, not a `.find(s => s.key === name)`: the param is whatever was in
+  // somebody's bookmark, and after a regroup that is an IDENTITY rather than a
+  // display key. See findSystem() for why the fallback is the whole point.
   const system = useMemo(
-    () => systemsOf(data.nodes).find((s) => s.key === name) ?? null,
+    () => findSystem(systemsOf(data.nodes), name),
     [data.nodes, name],
   );
   const nodes = system?.nodes ?? [];
 
   const routerNames = new Set(nodes.filter((n) => n.route).map((n) => n.route!.router));
   const routers = data.routers.filter((r) => routerNames.has(r.name));
-  const ports = data.ports.filter((p) => p.group === name);
+  // Matched on the system rollup, not on the raw param, and on IDENTITY as well
+  // as display key. Filtering `p.group === name` meant this section came back
+  // empty for any system reached by an old URL, and - before allPorts() started
+  // honouring `dev.portal.group` - for any system assembled with that label.
+  const ports = data.ports.filter(
+    (p) => p.group === system?.key || (p.system != null && system?.identities.includes(p.system)),
+  );
   const h = healthOf(nodes);
+
+  // An explicit pick, but only while it still names a tab that is on screen -
+  // this component is reused when only the `:name` param changes, so a choice
+  // made on a routed system would otherwise follow the reader to one with ports
+  // only and blank the panel again.
+  const reach =
+    reachPick && (reachPick === 'routes' ? routers.length : ports.length)
+      ? reachPick
+      : routers.length
+        ? 'routes'
+        : 'ports';
 
   const sections = useMemo(() => groupByType(nodes), [nodes]);
 
@@ -209,7 +236,7 @@ export function ProjectDetail() {
               <Tabs
                 label="How this system is reached"
                 value={reach}
-                onChange={(k) => setReach(k as 'routes' | 'ports')}
+                onChange={(k) => setReachPick(k as 'routes' | 'ports')}
                 tabs={[
                   ...(routers.length ? [{ key: 'routes', label: 'Routes', count: routers.length }] : []),
                   ...(ports.length ? [{ key: 'ports', label: 'Ports', count: ports.length }] : []),

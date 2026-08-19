@@ -14,6 +14,7 @@ import type { PortalNode, Status, ServiceType, VolumeRef } from './discover';
 import { TYPE_META } from './discover';
 import type { SystemDf } from './api';
 import { accentVar } from './accents';
+import { primaryIdentity } from './discover';
 
 export type SystemKind = 'project' | 'stack' | 'infra';
 
@@ -29,7 +30,19 @@ export interface UiLink {
 }
 
 export interface System {
-  key: string; // the compose group, e.g. 'tals' - also the /systems/:name param
+  key: string; // the display group, e.g. 'tals' - also the /systems/:name param
+  /**
+   * The derived identities folded into this card - every distinct `node.system`
+   * among its nodes, sorted. Exactly `[key]` until somebody sets
+   * `dev.portal.group`, and longer the moment they merge two systems into one.
+   *
+   * It is what makes regrouping non-destructive. A bookmark to
+   * /control/systems/postgres still resolves after postgres has been displayed
+   * inside a "Data" group, because findSystem() looks here when the key misses,
+   * and the accent is hashed from here so the colour a person recognises the
+   * card by does not move either.
+   */
+  identities: string[];
   title: string;
   kind: SystemKind;
   accent: string; // css var name, e.g. '--a3'
@@ -85,6 +98,15 @@ function kindOf(nodes: PortalNode[]): SystemKind {
   );
 }
 
+// primaryIdentity() and findSystem() live in discover.ts, next to the identity
+// they resolve, and are re-exported here because every consumer already imports
+// from this module. The reason they are not DEFINED here is mechanical and
+// load-bearing: this module imports things, so `checks/run.sh` cannot compile it
+// with a bare tsc, and the two rules that decide whether a bookmark still opens
+// and whether a card keeps its colour are exactly the rules that need a truth
+// table over them.
+export { primaryIdentity, findSystem } from './discover';
+
 export function uiLinkOf(n: PortalNode): UiLink | null {
   if (!n.browsable || !n.url) return null;
   // Only report a port for links that ARE a port. A routed service is reached by
@@ -132,12 +154,14 @@ export function systemsOf(nodes: PortalNode[]): System[] {
       if (!volSeen.has(v.name)) { volSeen.add(v.name); volumes.push(v); }
     }
     const uiLinks = ns.map(uiLinkOf).filter((x): x is UiLink => x != null);
+    const identities = [...new Set(ns.map((n) => n.system || key))].sort();
 
     systems.push({
       key,
+      identities,
       title: niceTitle(key, ns),
       kind: kindOf(ns),
-      accent: accentVar(`project:${key}`),
+      accent: accentVar(`project:${primaryIdentity(key, identities)}`),
       nodes: ns,
       total: ns.length,
       running: up + starting,
