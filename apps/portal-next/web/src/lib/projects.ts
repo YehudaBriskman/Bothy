@@ -84,6 +84,13 @@ function nodeOf(project: CollectorProject, svc: CollectorService): PortalNode {
     path: '/',
     url,
     browsable: url != null,
+    // A declaration IS the identity - the project wrote its own key down in
+    // project.dev.yml, which is a stronger claim than anything derived from a
+    // compose label. Identity and display grouping are the same here because
+    // there is no label on a declared host process to move it with; they are
+    // still two fields, so a declared service can be regrouped later without
+    // moving its URL, exactly like a discovered one.
+    system: project.key,
     group: project.key,
     // A declared project brings its own display name, so it needs no lookup -
     // which is the point of the field: every node carries the name a human

@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { usePortal } from '../lib/data';
 import { HOST_OVERRIDES, logSourceOf } from '../lib/discover';
 import { LogPanel } from '../components/LogPanel';
-import { systemsOf } from '../lib/systems';
+import { systemsOf, findSystem } from '../lib/systems';
 import { accentVar } from '../lib/accents';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { systemLink, kindLabelOf, unknownReason } from '../lib/links';
@@ -54,7 +54,7 @@ export function ServiceDetail() {
   // The system's display title, not the raw group key - the breadcrumb used to
   // read "monitoring" while the page it links to is titled "Monitoring".
   const systemTitle =
-    systemsOf(data.nodes).find((s) => s.key === node.group)?.title || node.group;
+    findSystem(systemsOf(data.nodes), node.group)?.title || node.group;
   const c = node.container;
   // Null for an @file route with no container and no declaration - there is
   // genuinely nowhere to read logs from, so the panel is omitted rather than

@@ -57,7 +57,7 @@ mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
-   "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$OUT/"
+   "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -81,6 +81,12 @@ echo "── where this repo is, asked of docker not assumed ─────"
 # prefix of it, nothing mounted yet - which is precisely what could not be tested
 # while the value was a literal.
 node "$OUT/repo-roots.mjs"
+
+echo
+echo "── what a system IS vs where it is SHOWN ───────────────"
+# The split between derived identity and display grouping, and the two things
+# keyed off it whose failure is silent: the accent seed and the systems URL.
+node "$OUT/grouping.mjs"
 
 echo
 echo "── this box, right now ─────────────────────────────────"
