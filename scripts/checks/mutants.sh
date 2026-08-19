@@ -146,6 +146,29 @@ mutant "the ports table stops honouring the label" \
         group: cls.system,' \
   -- "${PORTAL_CHECKS[@]}"
 
+# THE THIRD THING KEYED OFF A GROUP, after the accent seed and the bookmarked
+# URL: which groups you collapsed, remembered per browser. Key it on the display
+# name and the first `dev.portal.group` - or the first renamed compose project -
+# silently expands every group somebody had closed and strands a dead entry in
+# localStorage under the old name. Nothing errors, and the person it happens to
+# has no reason to connect the two.
+mutant "collapsed groups are filed under the display name" \
+  apps/portal-next/web/src/lib/discover.ts \
+  'primaryIdentity(group, [...identities].sort())' \
+  'group' \
+  -- "${PORTAL_CHECKS[@]}"
+
+# The prune that keeps stale keys from accumulating for the life of a browser
+# profile, pointed at the wrong moment. The portal polls, and a poll that fails
+# renders zero nodes - which reaches pruneCollapsed() as an empty `live` list and
+# is indistinguishable from "the box has no services". Without the guard, one
+# failed poll erases a layout, and the erase is written straight back to disk.
+mutant "a failed poll prunes every collapsed group" \
+  apps/portal-next/web/src/lib/collapse.ts \
+  'if (live.length === 0) return [...stored];' \
+  'if (live.length < 0) return [...stored];' \
+  -- "${PORTAL_CHECKS[@]}"
+
 echo
 echo "── the palette contract ────────────────────────────────────────────"
 # Every colour must come from a token. A literal in a component is invisible in

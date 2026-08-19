@@ -3,8 +3,9 @@
 # the status classifier and the dependency graph out of discover.ts, the retired
 # URLs out of pages/control/redirects.ts, the two Files URLs out of
 # pages/files/routes.ts, the document titles out of pages/files/titles.ts and the
-# reader's landing surface out of pages/files/start.ts, plus a pass over the
-# box's real container list.
+# reader's landing surface out of pages/files/start.ts and the per-browser
+# collapsed-group state out of lib/collapse.ts, plus a pass over the box's real
+# container list.
 #
 # There is no test runner in this app on purpose - one 13-case truth table did
 # not justify pulling vitest into a static SPA's toolchain. Both modules import
@@ -70,6 +71,9 @@ mv "$OUT/projects.js" "$OUT/projects-mod.mjs"
   --module esnext --target es2022 --moduleResolution bundler \
   --types vite/client --outDir "$OUT" >/dev/null)
 mv "$OUT/actions.js" "$OUT/actions-mod.mjs"
+(cd "$WEB" && npx tsc src/lib/collapse.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/collapse.js" "$OUT/collapse.mjs"
 (cd "$WEB" && npx tsc src/lib/customThemes.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
@@ -84,7 +88,8 @@ mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
-   "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" "$OUT/"
+   "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
+   "$HERE/collapsed-groups.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -131,6 +136,13 @@ echo "── what a system IS vs where it is SHOWN ─────────�
 # The split between derived identity and display grouping, and the two things
 # keyed off it whose failure is silent: the accent seed and the systems URL.
 node "$OUT/grouping.mjs"
+
+echo
+echo "── which group state survives a reload, and under what ─"
+# The key a collapsed group is filed under, and the prune that keeps stale ones
+# from accumulating forever. Both fail silently: a key that moves loses a layout
+# with no error, and a prune given the wrong list eats live state the same way.
+node "$OUT/collapsed-groups.mjs"
 
 echo
 echo "── this box, right now ─────────────────────────────────"

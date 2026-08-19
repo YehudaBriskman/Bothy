@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import { usePortal } from '../lib/data';
 import { panelize } from '../lib/panels';
+import {
+  pruneCollapsed, readCollapsed, setAllCollapsed, toggleCollapsed, writeCollapsed,
+} from '../lib/collapse';
 import { accentVar } from '../lib/accents';
 import type { PortalNode, Status } from '../lib/discover';
 import { systemLink } from '../lib/links';
@@ -42,7 +45,13 @@ export function Services() {
   const [statusFilter, setStatusFilter] = useState<Set<Status>>(new Set());
   const [project, setProject] = useState('all');
   const [kind, setKind] = useState<KindFilter>('all');
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Which groups you collapsed, remembered per browser - lib/collapse.ts owns
+  // the rules and says why localStorage is the right and only home for it.
+  //
+  // A LIST, not a Set, because that is what is stored and what the pure helpers
+  // take. There are a dozen panels on the busiest box this runs on, so the
+  // lookup cost is not a consideration and one shape end to end is.
+  const [collapsed, setCollapsed] = useState<string[]>(readCollapsed);
 
   const setQ = (v: string) => {
     const next = new URLSearchParams(params);
@@ -106,6 +115,27 @@ export function Services() {
   // membership from the filtered set, display names from the full set
   const panels = useMemo(() => panelize(filtered, data.nodes), [filtered, data.nodes]);
 
+  // EVERY group the box has, filters ignored. This is what stale stored keys are
+  // pruned against, and it must not be `panels`: a filtered-out group is not a
+  // deleted one, and pruning against what is on screen would forget your layout
+  // the moment you typed into the search box. pruneCollapsed() also refuses to
+  // prune against an empty list, so a failed poll cannot erase it either.
+  const liveKeys = useMemo(
+    () => panelize(data.nodes).map((p) => p.storeKey),
+    [data.nodes],
+  );
+
+  useEffect(() => {
+    setCollapsed((prev) => {
+      const next = pruneCollapsed(prev, liveKeys);
+      // Same length means nothing was dropped. Returning `prev` unchanged keeps
+      // this effect from writing localStorage on every ten-second poll.
+      return next.length === prev.length ? prev : next;
+    });
+  }, [liveKeys]);
+
+  useEffect(() => { writeCollapsed(collapsed); }, [collapsed]);
+
   const toggleStatus = (s: Status) => {
     setStatusFilter((prev) => {
       const next = new Set(prev);
@@ -113,16 +143,15 @@ export function Services() {
       return next;
     });
   };
-  const toggleCollapse = (key: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
+  const toggleCollapse = (key: string) => setCollapsed((prev) => toggleCollapsed(prev, key));
 
-  const allCollapsed = panels.length > 0 && panels.every((p) => collapsed.has(p.key));
+  const allCollapsed = panels.length > 0 && panels.every((p) => collapsed.includes(p.storeKey));
+  // Acts on the VISIBLE panels only. "Collapse all" under an active filter means
+  // the groups you are looking at; reaching past the filter to close groups that
+  // are not on screen is a change you cannot see happen and cannot undo with the
+  // same button.
   const toggleAll = () =>
-    setCollapsed(allCollapsed ? new Set() : new Set(panels.map((p) => p.key)));
+    setCollapsed((prev) => setAllCollapsed(prev, panels.map((p) => p.storeKey), !allCollapsed));
 
   const activeFilters = statusFilter.size > 0 || project !== 'all' || kind !== 'all' || !!q;
   const clearAll = () => { setStatusFilter(new Set()); setProject('all'); setKind('all'); setQ(''); };
@@ -203,15 +232,31 @@ export function Services() {
       ) : (
         <div className="svc-groups">
             {panels.map((p, gi) => {
-              const isCollapsed = collapsed.has(p.key);
+              const isCollapsed = collapsed.includes(p.storeKey);
+              // Ties the header button to the region it opens, so a screen
+              // reader reading "collapsed" has somewhere to go for what is
+              // inside it. The id is built from the STABLE key for the same
+              // reason the state is stored under it.
+              const bodyId = `svc-group-body-${p.storeKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
               return (
                 <section
                   className="svc-group"
                   key={p.key}
-                  style={{ ['--acc' as string]: `var(${accentVar(p.key)})` } as React.CSSProperties}
+                  // Hashed from the STABLE key, not the display key. It was
+                  // `p.key`, which meant setting `dev.portal.group` repainted
+                  // this page's spines while the Overview - which already hashes
+                  // from primaryIdentity() - kept the old colours, so one system
+                  // was two different colours on two pages. Identical on a box
+                  // with no such label, which is every box today.
+                  style={{ ['--acc' as string]: `var(${accentVar(p.storeKey)})` } as React.CSSProperties}
                 >
                   <div className="svc-group-head-row">
-                    <button className="svc-group-head" onClick={() => toggleCollapse(p.key)} aria-expanded={!isCollapsed}>
+                    <button
+                      className="svc-group-head"
+                      onClick={() => toggleCollapse(p.storeKey)}
+                      aria-expanded={!isCollapsed}
+                      aria-controls={bodyId}
+                    >
                       <ChevronDown size={16} className={`chev ${isCollapsed ? 'closed' : ''}`} />
                       <span className="svc-group-idx">{String(gi + 1).padStart(2, '0')}</span>
                       <span className="svc-group-title">{p.title}</span>
@@ -232,21 +277,28 @@ export function Services() {
                     )}
                   </div>
 
-                  <AnimatePresence initial={false}>
-                    {!isCollapsed && (
-                      <motion.div
-                        className="svc-group-body"
-                        key="body"
-                        initial={reduced ? false : { height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={reduced ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                        transition={{ duration: 0.24, ease: [0.2, 0.7, 0.2, 1] }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <ServiceTable nodes={p.nodes} compact label={`${p.title} services`} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {/* The id lives on a wrapper that is ALWAYS in the DOM, not on
+                      the animated body. The body unmounts when the group is
+                      collapsed, so putting it there leaves `aria-controls`
+                      pointing at nothing in exactly the state where a screen
+                      reader most needs the association to resolve. */}
+                  <div id={bodyId}>
+                    <AnimatePresence initial={false}>
+                      {!isCollapsed && (
+                        <motion.div
+                          className="svc-group-body"
+                          key="body"
+                          initial={reduced ? false : { height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={reduced ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                          transition={{ duration: 0.24, ease: [0.2, 0.7, 0.2, 1] }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <ServiceTable nodes={p.nodes} compact label={`${p.title} services`} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </section>
               );
             })}

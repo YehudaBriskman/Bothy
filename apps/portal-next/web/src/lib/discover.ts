@@ -841,6 +841,41 @@ export function findSystem<T extends GroupIdentity>(groups: readonly T[], name: 
   );
 }
 
+/**
+ * The key a display group's per-browser UI state is stored under.
+ *
+ * The THIRD thing keyed off a group, after the accent seed and the bookmarked
+ * URL, and it fails the same silent way both of those did before the split
+ * above: `key` for a project panel is `project:<group>`, and `group` is
+ * `dev.portal.group ?? system`. Store a collapsed panel under that and the first
+ * person to set `dev.portal.group` - or to rename a compose project - finds
+ * every group they had collapsed silently expanded again, with a dead entry left
+ * in localStorage under the old name. Nothing errors; the layout just forgets.
+ *
+ * So a group that stands for exactly one display group is stored under its
+ * primary IDENTITY instead, which is the same string the accent is hashed from
+ * and therefore moves only when the underlying compose project does.
+ *
+ * `group === null` means the panel is not a display group at all - it is a
+ * structural section (`stack`, `infra`) that aggregates every system of a kind.
+ * There is no identity under it to key on, and its own key is a constant in
+ * panels.ts that no label can reach, so it IS the stable key.
+ */
+export function groupStorageKey(
+  key: string,
+  group: string | null,
+  identities: readonly string[],
+): string {
+  // SORTED HERE, not merely by the caller. primaryIdentity() reads
+  // `identities[0]` and deliberately does not sort - it is documented as taking
+  // a sorted list, and systems.ts and panels.ts both build one. But this key is
+  // written to disk: a caller that ever forgets leaves the key following the
+  // order docker happened to return its containers in, and a stored layout that
+  // moves when a poll comes back reordered is a bug nobody would think to look
+  // for. The cost is a copy of an array with one or two strings in it.
+  return group == null ? key : `project:${primaryIdentity(group, [...identities].sort())}`;
+}
+
 // Groups that are not systems and so cannot be named like one. `unmanaged` is
 // what classify() returns for a container with no compose labels - a `docker run`
 // nobody declared. It is not a system, it is *whatever did not match*, and
