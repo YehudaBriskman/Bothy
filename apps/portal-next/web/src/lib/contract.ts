@@ -137,6 +137,16 @@ export const STRUCTURAL = new Set([
   '--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-full', '--border-w', '--wrap',
   '--scrollbar-w', '--dur-fast', '--dur', '--dur-slow', '--ease', '--font', '--mono',
   '--disabled-opacity', '--rest-opacity',
+  // The reading scale. index.css says out loud that these are STRUCTURAL - "a
+  // theme inherits these unless it opts in - the same treatment radii and motion
+  // get" - and this list did not agree, so all eight were being demanded of every
+  // theme as if they were colours. Nobody saw it because none of the three
+  // shipped themes declares one and the check merged the base palette in before
+  // asking (see checks/theme-contract.mjs). They are lengths and a ratio: a
+  // colour rule cannot measure them and the editor cannot offer a swatch for
+  // them, so "required" was never the right answer.
+  '--read-measure', '--read-fs', '--read-lh', '--read-gap',
+  '--read-h1', '--read-h2', '--read-h3', '--read-h4',
 ]);
 
 /** What a theme owes, derived from the base palette rather than listed: every
@@ -176,6 +186,23 @@ export type EvaluateOptions = {
    *  holds the base palette. Omitted, completeness is simply not asserted: a
    *  caller that does not know the base palette cannot honestly check it. */
   required?: readonly string[];
+  /** What the theme's own file DECLARES, when that is not the same map as the
+   *  one being measured.
+   *
+   *  The two are different questions and conflating them made the completeness
+   *  rule vacuous. checks/theme-contract.mjs measures `merge(BASE, theme)`, and
+   *  it is right to: that models what is actually painted after inheritance, and
+   *  measuring a theme's contrast against tokens it does not paint would be
+   *  measuring a page nobody sees. But `required` is by construction a subset of
+   *  the base palette's own keys, so after that merge every required key is
+   *  present by definition - the assertion could only ever fail in the editor,
+   *  and a theme file could drop a token and stay green forever. That is the
+   *  exact silence #98's "a rule so a new theme cannot forget it" is about.
+   *
+   *  So: measure the merged map, assert declaration against this one. Omitted,
+   *  the two collapse back into `tokens`, which is what the editor wants - there
+   *  the map being edited IS the file. */
+  declared?: Record<string, string>;
   /** The theme's syntax palette (--hl-*), when it carries one. Optional as a
    *  GROUP - a theme may restyle no code at all - but see `syntaxBase` for why
    *  it is not optional token by token. */
@@ -223,14 +250,21 @@ export function evaluateTheme(
     out.push({ id, level: ok ? 'pass' : 'fail', label, detail });
   };
 
-  // 1. completeness
+  // 1. completeness - asserted against what the theme DECLARES, which is not
+  //    always the map the rules below measure. See `declared` above.
   if (options.required) {
-    const missing = options.required.filter((k) => !(k in tokens));
+    const declared = options.declared ?? tokens;
+    const missing = options.required.filter((k) => !(k in declared));
     say('tokens/complete', !missing.length, 'declares every required token',
       missing.length
         ? `missing ${missing.length}: ${missing.slice(0, 6).join(' ')}`
         : `${options.required.length} tokens`);
-    if (missing.length) return out;
+    // Bail only when the value is genuinely absent from what gets measured.
+    // Half-measuring is worse than saying so - but an UNDECLARED token that
+    // inherits a real value can still be measured, and reporting one failure and
+    // hiding twenty findings behind it is how a completeness bug turns into a
+    // blank review page.
+    if (missing.some((k) => !(k in tokens))) return out;
   }
 
   // Nothing below can be measured on a value that is not a colour, and half-

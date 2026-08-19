@@ -10,12 +10,15 @@
 // fails on Bothy's own dark and light themes, the rule is wrong - not the
 // palette - and this file is where that gets found out.
 //
-// WHAT A THEME OWES. Of the 73 custom properties in :root, 16 are DERIVED
+// WHAT A THEME OWES. Of the 81 custom properties in :root, 16 are DERIVED
 // (color-mix over another token, on the same element, so they re-evaluate for
-// free) and 16 are STRUCTURAL (radii, motion, fonts, widths - not colour, and
-// shared by every theme). The remaining 41 are the theme's own, and a theme must
-// declare all of them: a missing token silently inherits the base palette, which
-// is how you get a Gruvbox page with one blue button on it.
+// free) and 24 are STRUCTURAL (radii, motion, fonts, widths, the reading scale -
+// not colour, and shared by every theme). The remaining 41 are the theme's own,
+// and a theme must declare all of them: a missing token silently inherits the
+// base palette, which is how you get a Gruvbox page with one blue button on it.
+//
+// DECLARED IS NOT PAINTED, and the difference is the whole reason the rule above
+// is enforceable at all - see checkTheme() below.
 //
 // THE RULES THEMSELVES ARE NOT IN HERE - they are in web/src/lib/contract.ts,
 // which imports nothing and is compiled by run.sh into the temp dir this file is
@@ -163,7 +166,15 @@ const render = (f) => {
   say(f.level === 'pass', f.label, f.detail);
 };
 
-function checkTheme(name, appearance, toks, hl) {
+/** `toks` is what the theme PAINTS - the base palette with the theme's own
+ *  declarations over it, which is what inheritance actually produces and so what
+ *  every contrast rule must be measured against. `declared` is what the theme's
+ *  FILE says, and it is a separate argument because the merge makes the
+ *  completeness rule vacuous otherwise: REQUIRED is a subset of BASE's keys, so
+ *  after `merge(BASE, ...)` every required key is present no matter what the file
+ *  contains. Until this split, deleting a token from tokyo-night.css left the
+ *  check reporting "declares every required token · 49 tokens" and passing. */
+function checkTheme(name, appearance, toks, hl, declared = toks) {
   console.log(`\n── ${name}  (${appearance}) ─────────────────────────────────`);
   // The set a theme inherits when it declares nothing, which is also the set it
   // must declare in FULL once it declares any of it. Derived from hl.css so a
@@ -171,7 +182,7 @@ function checkTheme(name, appearance, toks, hl) {
   // nothing here to remember to update.
   const syntaxBase = appearance === 'light' ? merge(HL_DARK, HL_LIGHT) : HL_DARK;
   for (const f of evaluateTheme(toks, appearance,
-    { required: REQUIRED, syntax: hl, syntaxBase })) render(f);
+    { required: REQUIRED, declared, syntax: hl, syntaxBase })) render(f);
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────
@@ -242,7 +253,7 @@ if (existsSync(themeDir)) {
         failures++;
         continue;
       }
-      checkTheme(m[1], b.scheme, merge(BASE, b.toks), hl[m[1]] ?? null);
+      checkTheme(m[1], b.scheme, merge(BASE, b.toks), hl[m[1]] ?? null, b.toks);
     }
   }
 }
