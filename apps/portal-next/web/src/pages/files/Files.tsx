@@ -75,7 +75,7 @@ import { SignInCard } from './SignInCard';
 import { SourceControl } from './SourceControl';
 import { decorate, NO_DECORATIONS, type Change } from './gitdeco';
 import { usePanes } from './panes';
-import { filesHref } from './routes';
+import { defaultRoot, filesHref } from './routes';
 import { ancestorsOf, baseName, buildTree, defaultMessage, type Node } from './tree';
 
 import './shell.css';
@@ -338,8 +338,9 @@ export function Files() {
     setRaised((prev) => (prev.some((x) => x.id === p.id) ? prev : [p, ...prev].slice(0, 50)));
   }, []);
 
-  // Roots. The first one is the default, so the page does not hard-code a root
-  // name it may not have any more.
+  // Roots. `defaultRoot` picks the landing root, so the page does not hard-code
+  // a root name it may not have any more - and does not land on `home`, which is
+  // what taking the first of an alphabetical list used to mean here.
   useEffect(() => {
     const ac = new AbortController();
     listRoots(ac.signal)
@@ -348,14 +349,18 @@ export function Files() {
         setNeedsAuth(false);
         if (!r.roots.length) return;
         // No root, or a root that no longer exists (the set widened once and can
-        // widen again, and people bookmark these URLs): fall back to the first
-        // one rather than letting a stale link render a 400 as if the service
-        // were broken. `replace`, so Back does not bounce off the dead URL.
+        // widen again, and people bookmark these URLs): fall back to
+        // `defaultRoot` rather than letting a stale link render a 400 as if the
+        // service were broken. `replace`, so Back does not bounce off the dead
+        // URL. The rule itself - and why it is not `r.roots[0]`, which is what
+        // this was and which opened the IDE on the one root that aliases every
+        // other - is documented with the function in routes.ts.
         if (!urlRoot || !r.roots.some((x) => x.key === urlRoot)) {
+          const pick = defaultRoot(r.roots);
           const nextParams = new URLSearchParams();
-          nextParams.set('root', r.roots[0].key);
+          nextParams.set('root', pick);
           setParams(nextParams, { replace: true });
-          setBrowseRoot(r.roots[0].key);
+          setBrowseRoot(pick);
         }
       })
       .catch((e: unknown) => {

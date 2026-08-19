@@ -17,7 +17,7 @@
 // the old name.
 
 import { LEGACY_PATHS, LIVE_PATHS, legacyTarget } from './redirects.mjs';
-import { EDIT_PATH, READ_PATH, filesHref, filesMode, filesTarget } from './files-routes.mjs';
+import { EDIT_PATH, READ_PATH, defaultRoot, filesHref, filesMode, filesTarget } from './files-routes.mjs';
 
 let bad = 0;
 const check = (label, got, want) => {
@@ -166,6 +166,70 @@ check('a bare /files parses', filesTarget('/files'), { mode: 'read', root: '', p
 // button is a link to the page it is already on.
 check('the two modes differ',
   filesHref('read', 'stacks', 'a.md') !== filesHref('edit', 'stacks', 'a.md'), true);
+
+console.log('\n── a link with no root lands somewhere worth reading ───');
+
+// THE SAME DEFECT ONE MORE TIME: a page that answers 200 and renders a
+// plausible listing that is not the one anybody wanted. `/files` and
+// `/files/edit` both have to choose a root when the URL names none (or names one
+// that no longer exists), and for a year the IDE chose `r.roots[0]`.
+//
+// That is not a neutral choice. The service returns roots ALPHABETICALLY, and on
+// this box `/roots` answers home, notes, projects, stacks - so roots[0] is
+// `home`, the one root that is read-only, holds ~4,000 entries, and carries
+// `aliases = true` in apps/portal-files/policy.toml. Opening the IDE meant
+// seeing every document twice, and the second copy under a root that refuses
+// writes. Nothing on screen says "you are in the aliasing root".
+//
+// Expectations are written longhand and NOT derived from the module.
+
+// The shape this box really returns, verified against the live service. `notes`
+// is the answer: first root that is not read-only, not first root.
+const REAL_ROOTS = [
+  { key: 'home', readOnly: true },
+  { key: 'notes', readOnly: false },
+  { key: 'projects', readOnly: true },
+  { key: 'stacks', readOnly: false },
+];
+check('this box: home,notes,projects,stacks -> notes', defaultRoot(REAL_ROOTS), 'notes');
+// Stated separately, because it is the whole bug: the answer must not be the
+// alphabetically-first root just because the list arrives sorted.
+check('the alphabetically first root is not the answer',
+  defaultRoot(REAL_ROOTS) !== REAL_ROOTS[0].key, true);
+
+// ABSENT `readOnly` MEANS WRITABLE. The field is optional in FileRoot and the
+// service sends it explicitly on every root today - but the declared type and
+// the wire shape have already drifted apart once (`label` and `writableSuffixes`
+// are declared and never sent). If a root ever arrives without the field, it has
+// to read as writable: the alternative spelling would call every root read-only
+// and drop the whole box back on `home`, which is precisely the bug.
+check('a root with no readOnly field is writable',
+  defaultRoot([{ key: 'home', readOnly: true }, { key: 'notes' }]), 'notes');
+check('all fields absent -> the first is fine',
+  defaultRoot([{ key: 'notes' }, { key: 'stacks' }]), 'notes');
+
+// Nothing writable anywhere - a viewer-only mount, or policy.toml with every
+// `writable = false`. A read-only listing beats an empty page, so it falls back
+// to the first root rather than returning undefined and rendering `?root=`
+// with the string "undefined" in it.
+check('every root read-only -> the first one',
+  defaultRoot([{ key: 'home', readOnly: true }, { key: 'projects', readOnly: true }]), 'home');
+
+// One root, and it is writable: no fallback logic gets a say.
+check('a single writable root', defaultRoot([{ key: 'notes', readOnly: false }]), 'notes');
+
+// THE CONTRACT FOR NOTHING AT ALL. `/roots` can answer `{"roots":[]}` - a
+// misconfigured policy.toml, or a mount that is not there yet - and this runs
+// inside a `.then()` whose rejection path is the sign-in card. Throwing would
+// tell a signed-in visitor to sign in, so it returns '' and filesHref renders a
+// bare `/files`, which is the honest empty state.
+check('no roots at all returns the empty string', defaultRoot([]), '');
+check('no roots at all does not throw', (() => {
+  try { defaultRoot([]); return 'no throw'; } catch { return 'threw'; }
+})(), 'no throw');
+// And that empty string has to survive the URL builder as "no root named",
+// rather than becoming `?root=`.
+check('the empty root builds a bare /files', filesHref('read', defaultRoot([])), '/files');
 
 console.log('\n── the router and the redirect table agree ─────────────');
 

@@ -69,3 +69,47 @@ export function filesTarget(
   const q = new URLSearchParams(search.replace(/^\?/, ''));
   return { mode, root: q.get('root') ?? '', path: q.get('path') ?? '' };
 }
+
+/** The minimum a root has to look like to be chosen between. Written out here
+ *  rather than imported from lib/files.ts because THIS MODULE IMPORTS NOTHING
+ *  (see the header): that is what lets checks/run.sh compile it with a bare
+ *  `npx tsc` and run a truth table over it with no bundler and no test runner.
+ *  `FileRoot` carries more fields, and every one of them is irrelevant here. */
+export interface RootChoice {
+  key: string;
+  readOnly?: boolean;
+}
+
+/**
+ * Which root a Files URL with no usable `?root=` should land on. It sets
+ * `?root=`, so it is a URL decision, so it lives beside the other two.
+ *
+ * NOT roots[0]. The service returns them alphabetically, which put `home`
+ * first - the one root that is read-only, holds ~4,000 entries, and ALIASES
+ * every other root (`aliases = true` in apps/portal-files/policy.toml), so
+ * everything worth reading appeared twice under a name that cannot be written
+ * to. Landing there was an accident of sort order, and it opened the reader -
+ * and, until this function existed, the IDE - on the worst possible listing.
+ *
+ * A writable root is the one somebody keeps documents in; `readOnly` already
+ * travels with each root, so this needs nothing new from the service.
+ *
+ * ABSENT `readOnly` MEANS WRITABLE. The field is optional in the type and the
+ * service sends it on every root today, so the two agree - but the gap is real
+ * (`label` and `writableSuffixes` are declared and never sent), and the inverse
+ * spelling, `roots.find((x) => x.writable)`, would read a field the service
+ * stopped sending as "read-only everywhere" and send every visitor back to
+ * `home`. `!x.readOnly` fails the safe way round.
+ *
+ * Falls back to the first root when every root is read-only - a listing of
+ * something beats an empty page - and to `''` when the list is empty, which
+ * `filesHref` already renders as a bare `/files`. It never throws and never
+ * returns undefined: both callers run it inside a `.then()` whose rejection
+ * path is the sign-in-required branch, so a throw here would tell somebody
+ * already signed in to sign in.
+ */
+export function defaultRoot(roots: RootChoice[]): string {
+  if (!roots.length) return '';
+  const best = roots.find((x) => !x.readOnly) ?? roots[0];
+  return best.key;
+}
