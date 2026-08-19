@@ -226,25 +226,20 @@ jobs:
       # `if: always()` throughout: the point of getting a stack up is to learn
       # everything it can tell you, and stopping at the first red X wastes fifteen
       # minutes of runner time to report one line.
-      # PLAIN `doctor`, NOT `doctor strict`, and that is a deliberate downgrade.
-      # --strict was written for this job and then measured against a real fresh
-      # install, where it reports four faults that are all TRUE STATEMENTS ABOUT A
-      # NEW BOX rather than defects:
-      #
-      #   no postgres backups yet      correct; the timer has never run
-      #   kubectl is not installed     optional, and not a Bothy dependency
-      #   docker-daemon target down    needs metrics-addr in /etc/docker/daemon.json,
-      #                                which bootstrap warns about and does not set
-      #   prometheus target down       the self-scrape, moments after first start
-      #
-      # Gating on that would fail every run for reasons the reader cannot act on,
-      # which is the cry-wolf this repo keeps paying for. The report is still
-      # worth having in the log; `verify` and the suites below are the gate.
-      # --strict remains right for a mature box, which is where it is used.
-      - name: Health sweep (reported, not gated - see comment)
+      # `doctor strict` GATES here, which is what it was written for and could
+      # not do until now. It used to run plain `doctor` because --strict reported
+      # four faults on every fresh install that were each a true statement about
+      # a new box rather than a defect, and gating on those would have failed
+      # every run for reasons the reader could not act on. All four are fixed:
+      # kubectl's absence and a not-yet-scraped Prometheus target are dim, a box
+      # too young for the nightly backup timer is dim, the docker-daemon job that
+      # needed an opt-in daemon setting is gone, and a target that is genuinely
+      # down now prints its own lastError. What is left is what a fresh install
+      # ought to be able to pass, so this job is the thing that keeps it passing.
+      - name: Health sweep (gated)
         if: always()
         working-directory: ${{ env.BOTHY_DIR }}
-        run: just doctor
+        run: just doctor strict
 
       - name: Access and routing (23 checks)
         if: always()

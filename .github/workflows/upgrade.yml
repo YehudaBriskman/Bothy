@@ -212,9 +212,16 @@ jobs:
           rc=0
           for db in $live; do
             # `postgres` itself is never CREATE DATABASE'd in a dumpall - it is
-            # the maintenance database and always exists. Excluding it here rather
-            # than in doctor.sh's copy of this logic, which does not exclude it
-            # because it never had to gate on the answer.
+            # the maintenance database and always exists, so a coverage check
+            # that looks for it in the dump reports a missing database on every
+            # healthy backup there has ever been.
+            #
+            # scripts/doctor.sh runs the same comparison and excludes it in SQL
+            # instead (`AND datname <> 'postgres'` in its own query). This
+            # comment used to claim it did not, which was wrong when written or
+            # went stale shortly after; the exclusion is in both, in two
+            # different places, and moving one without the other is how that
+            # divergence comes back.
             [ "$db" = "postgres" ] && continue
             case " $(echo "$dumped" | tr '\n' ' ') " in
               *" $db "*) ;;
