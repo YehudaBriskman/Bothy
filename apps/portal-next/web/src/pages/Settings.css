@@ -8,8 +8,33 @@
    sentence 1300px wide is one nobody finishes - the measure is the point.
    ========================================================================== */
 
-.settings-page { max-width: 820px; display: flex; flex-direction: column; gap: 20px; }
+/* TWO gaps, and the difference between them is the whole design change (#95).
+   The page used to be one flat 20px rhythm over five panels, which said that
+   every panel was equally related to every other one - so the reader had to work
+   out that "Your account" and "Where this session comes from" were one subject
+   and the theme picker between them was not. Groups are 32px apart, panels
+   inside a group 12px, and that ratio is what does the grouping; the headings
+   only name it. Change either number without the other and the page goes back to
+   being a list. */
+.settings-page { max-width: 820px; display: flex; flex-direction: column; gap: 32px; }
 .settings-page .page-head { margin-bottom: 0; }
+.settings-page .set-group { display: flex; flex-direction: column; gap: 12px; }
+
+/* Sizes go 28 / 17 / 14 down the page: h1, group, panel. NOT the small uppercase
+   caption a group label is usually drawn as - that would put an 11px label in
+   charge of the 14px bold panel headings under it, and a container that outranks
+   nothing reads as a caption on the first panel rather than as a heading over
+   all of them. The hairline below it is the other half: it closes the label and
+   opens the group, so the eye is told where the group starts as well as what it
+   is called. */
+.settings-page .set-group-h { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.settings-page .set-group-h h2 { margin: 0; font-size: 17px; font-weight: 700;
+  letter-spacing: -0.01em; color: var(--fg); }
+/* 68ch, not the 820px the panels get. This is the one place on the page with no
+   label column and no card edge to break the line, and a 100-character measure
+   is where a lede stops being read. */
+.settings-page .set-group-lede { margin: 5px 0 0; max-width: 68ch;
+  font-size: 13px; line-height: 1.55; color: var(--fg-muted); }
 
 /* .panel-h is written for a div; these are real headings, because a settings
    page is a document someone navigates by landmark. Only the browser's default
@@ -73,6 +98,25 @@
 .settings-page .store-store { font-size: 11.5px; color: var(--fg-subtle);
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 999px; padding: 1px 9px; }
+/* The answer to "does this follow me to my phone", in a fixed slot so the three
+   answers can be compared without reading three paragraphs. Full --fg while the
+   `why` under it is muted: this is the line the reader came for and the one
+   below is the justification, and that order was invisible while both were the
+   same colour.
+
+   A RUN-IN LABEL, not a flex row with a label column. The flex version was
+   tried and is wrong: the sentence becomes a flex item whose left edge is the
+   end of the label, so every line after the first hangs off that edge, and at
+   700px - where the answers are two and three lines long - a paragraph indented
+   118px reads as centred text. Inline, the label sits on the first line and the
+   wrap comes back to the panel's own margin, which is what a run-in is for. */
+.settings-page .store-follow { margin: 0 0 6px; font-size: 12.5px; line-height: 1.55;
+  color: var(--fg); }
+.settings-page .store-follow-k { margin-right: 8px; font-size: 10px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--fg-subtle);
+  /* Whitespace between two inline spans is a collapsible line-break opportunity,
+     and the label must not end a line on its own. */
+  white-space: nowrap; }
 .settings-page .store-why { margin: 0; font-size: 13px; color: var(--fg-muted); line-height: 1.55; }
 
 @media (max-width: 560px) {
@@ -149,12 +193,48 @@
 .settings-page .theme-card:hover .theme-edit,
 .settings-page .theme-edit:focus-visible { opacity: 1; }
 
-/* The make-a-theme card. Dashed, so it reads as an action rather than as an
-   eighth palette sitting in a list of palettes. */
-.settings-page .theme-new {
+/* ── making one ──────────────────────────────────────────────────────────────
+   Two routes to the same file, side by side. `auto-fit` rather than a fixed two
+   columns: at 820px they sit as a pair, and the moment the panel cannot give
+   each of them 258px they stack - which is what happens on a phone, where two
+   58-character columns would be four words wide.
+
+   This replaced a dashed "New theme" card at the end of the picker grid. That
+   card had to be an eighth palette-shaped thing in a list of palettes, so it
+   both competed with the row being scanned and had no room to say what the
+   editor actually does. */
+.settings-page .make-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+  gap: 10px;
+}
+.settings-page .make {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 14px 13px;
+  border: var(--border-w) solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.settings-page .make-h { display: flex; align-items: center; gap: 7px; margin: 0;
+  font-size: 13px; font-weight: 650; color: var(--fg); }
+.settings-page .make-h svg { flex: none; }
+.settings-page .make-p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--fg-muted); }
+
+/* One of the two is a link and the other is an instruction, and they must not
+   look alike - a card that does nothing when clicked is worse than no card. So
+   the actionable one keeps the dashed "make something" border the old New theme
+   card had, and takes the accent on its heading and on hover; the other stays a
+   plain inset. Shape and colour both, because one of them is unavailable to
+   anyone reading in monochrome. */
+.settings-page a.make {
   border-style: dashed;
   text-decoration: none;
-  justify-content: flex-start;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.settings-page .theme-new:hover { border-color: var(--accent-line); background: var(--accent-bg); }
-.settings-page .theme-new .theme-name { display: inline-flex; align-items: center; gap: 6px; }
+.settings-page a.make .make-h { color: var(--accent-fg); }
+.settings-page a.make:hover { border-color: var(--accent-line); background: var(--accent-bg); }
+
+/* The count of themes that came from the directory, under both cards rather than
+   inside either: it is a fact about the directory, and putting it in the "write
+   the file" card would have implied the editor's output does not land there. */
+.settings-page .make-count { margin-top: 11px; }
