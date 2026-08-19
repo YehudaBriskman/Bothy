@@ -302,6 +302,22 @@ verify mode="":
 portability:
     @bash scripts/checks/portability.sh
 
+# Re-render docs/diagrams/*.mmd to docs/assets/diagrams/*.svg. Only the stale
+# ones; pass `all` to force every one.
+#
+# THE SVGs ARE OUTPUT, NEVER SOURCE. apps/portal-files/policy.toml flags
+# `**/*.svg` as `caution` on write, which is right for an SVG a person might edit
+# and wrong for these seven - they are machine-generated from the .mmd beside
+# them, and scripts/checks/diagrams.sh (CI tier 0) fails the moment the two
+# disagree. Edit the .mmd and run this; never touch the .svg.
+#
+# NOT IN CI, and it cannot be: it drives the headless Chromium under
+# ~/.cache/ms-playwright, which a GitHub runner does not have. That is why the
+# check hashes rather than re-renders.
+# Re-render the architecture diagrams from their mermaid sources.
+diagrams *args:
+    @python3 scripts/gen-diagrams.py {{ if args == "all" { "--all" } else { args } }}
+
 # Make a fresh clone able to start: check what is missing, create the
 # directories the services write to, and generate the gitignored files that
 # nothing else creates. Idempotent - a second run says so rather than acting.

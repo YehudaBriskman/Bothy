@@ -158,6 +158,15 @@ jobs:
         if: always()
         run: bash scripts/checks/version.sh
 
+      # The architecture diagrams are generated from docs/diagrams/*.mmd, and the
+      # picture is what everybody reads. Edit a source, forget `just diagrams`,
+      # and the document shows the OLD architecture while looking perfectly
+      # healthy. This compares a hash rather than re-rendering, because the
+      # renderer is a Playwright Chromium that this runner does not have.
+      - name: The diagrams match their mermaid sources
+        if: always()
+        run: bash scripts/checks/diagrams.sh
+
       # scripts/bothy.sh is what `curl … | sh` runs, and it verifies the clone
       # against a commit id written into itself. That is a third copy of what
       # VERSION and the tag already say: left behind, it installs an old release

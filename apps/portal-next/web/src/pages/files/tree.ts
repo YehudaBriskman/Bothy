@@ -229,8 +229,14 @@ const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'a
 const FRAMED_EXT = new Set(['svg', 'svgz', 'html', 'htm', 'xhtml', 'xml']);
 
 // Formats the browser plays. These need Range to scrub, which /raw now serves.
-const MEDIA_EXT = new Set(['mp4', 'm4v', 'webm', 'ogv', 'mov',
-                           'mp3', 'm4a', 'wav', 'ogg', 'flac']);
+//
+// SPLIT IN TWO because a document embedding one needs to know which ELEMENT to
+// build - an <audio> is a 40-pixel strip of transport controls and a <video> is
+// a picture - and safepath.MEDIA_TYPES, which this mirrors, does not say. The
+// union is what kindOf has always used and is unchanged by the split.
+const VIDEO_EXT = new Set(['mp4', 'm4v', 'webm', 'ogv', 'mov']);
+const AUDIO_EXT = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac']);
+const MEDIA_EXT = new Set([...VIDEO_EXT, ...AUDIO_EXT]);
 
 export type Kind = 'text' | 'image' | 'pdf' | 'framed' | 'media' | 'binary';
 
@@ -241,6 +247,39 @@ export function kindOf(path: string, binary: boolean): Kind {
   if (MEDIA_EXT.has(ext)) return 'media';
   if (FRAMED_EXT.has(ext)) return 'framed';
   return binary ? 'binary' : 'text';
+}
+
+// ── what a DOCUMENT may embed, which is not the same question ───────────────
+//
+// kindOf answers "what can the centre column do with this file when you open
+// it". This answers "what may a markdown document put inline", and the answer is
+// deliberately narrower, because the two have different threat models: opening a
+// file is something the reader chose, and an embed is something the FILE chose.
+//
+// The rule is MEDIA CONTEXTS ONLY. <img>, <video> and <audio> hand bytes to a
+// decoder; there is no document, no script and no further network fetch, whatever
+// the file turns out to contain. A frame is a DOCUMENT context - safe on the
+// sandbox origin, and safe there only because of a response header sent by
+// another service. md.tsx's guarantee is meant to hold by reading md.tsx, so a
+// PDF, an HTML file or an XML file embedded from markdown stays inert and the
+// reader clicks through to the viewer that frames it properly.
+//
+// SVG IS AN IMAGE HERE AND A FRAME THERE, and that is not an inconsistency. The
+// same bytes are a script host as a document and inert as an <img>: an image
+// context refuses scripts and external references outright. That is what makes
+// docs/assets/diagrams/*.svg displayable in a document at all.
+//
+// `.svgz` is NOT included. It is gzip, and /raw serves it as image/svg+xml with
+// no Content-Encoding, so an <img> would get compressed bytes and show a broken
+// image - worse than the inert rendering it gets instead.
+export type Embed = 'image' | 'video' | 'audio';
+
+export function embedAs(path: string): Embed | null {
+  const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+  if (IMAGE_EXT.has(ext) || ext === 'svg') return 'image';
+  if (VIDEO_EXT.has(ext)) return 'video';
+  if (AUDIO_EXT.has(ext)) return 'audio';
+  return null;
 }
 
 /** Framed formats are TEXT underneath, so they get a Source view too.

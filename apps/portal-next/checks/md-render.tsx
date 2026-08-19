@@ -24,6 +24,11 @@
 // sitting in the prose, and raw HTML printed as its own source. None of those
 // were caught by a type error or a failing build. They were caught by a
 // screenshot, once, by luck.
+//
+// The media cases below are the same story a second time. `![clip](x.mp4)` had
+// been emitting `<img src="…mp4">` since images landed - a broken-image icon
+// that no test, type or build could see, because an <img> with any src at all is
+// perfectly valid markup.
 // No @types/node here, and adding it for one call would be a dependency for a
 // type. The two things this file needs from the runtime, declared.
 declare const process: { exit(code: number): never };
@@ -107,6 +112,82 @@ console.log('\n── with no src resolver, an image degrades ──────
   check('the target is still shown to the reader', out.includes('a.png'));
 }
 
+// ── media that is not an image ──────────────────────────────────────────────
+console.log('\n── a clip becomes a <video>, not a broken <img> ────────────');
+{
+  // Before this, mdEmbed had ONE branch: every repo-relative target became an
+  // <img>, so `![clip](x.mp4)` emitted `<img src="…mp4">` and every browser drew
+  // the broken-image icon. The types come from safepath's MEDIA_TYPES, mirrored
+  // in tree.ts, so this is the same list the sandbox origin will actually serve.
+  const out = html('![a screen recording](docs/assets/tour.mp4)', links(''));
+  check('renders a <video>', out.includes('<video') && !out.includes('<img'), out.slice(0, 160));
+  check('src points at the raw-bytes endpoint',
+    out.includes('path=docs%2Fassets%2Ftour.mp4'), out.slice(0, 200));
+  check('it has controls and does not autoplay',
+    out.includes('controls') && !out.includes('autoplay'), out.slice(0, 200));
+  check('only the header is fetched up front',
+    out.includes('preload="metadata"'), out.slice(0, 200));
+  // <video> has no alt attribute, so the author's description has to land
+  // somewhere a screen reader reads.
+  check('the alt text becomes the accessible name',
+    out.includes('aria-label="a screen recording"'), out.slice(0, 200));
+}
+{
+  const out = html('![](docs/assets/tour.webm)', links(''));
+  check('an empty alt falls back to the target rather than naming nothing',
+    out.includes('aria-label="docs/assets/tour.webm"'), out.slice(0, 200));
+}
+
+console.log('\n── a sound becomes an <audio> ─────────────────────────────');
+{
+  // Audio and video are one list in safepath and two elements here: an <audio>
+  // is a strip of transport controls, not a picture, so it must not inherit the
+  // image box.
+  const out = html('![the alert tone](docs/assets/ping.mp3)', links(''));
+  check('renders an <audio>', out.includes('<audio') && !out.includes('<video'), out.slice(0, 160));
+  check('it is not given the image class',
+    !out.includes('md-img'), out.slice(0, 200));
+}
+
+console.log('\n── an SVG is an image here, a frame elsewhere ──────────────');
+{
+  // The generated architecture diagrams are SVG, and this is the ONLY route that
+  // shows them: an SVG in an <img> is an image context - no script, no external
+  // references - whereas the same bytes opened as a document are a script host,
+  // which is why /raw serves them from the sandbox origin and never from :80.
+  const out = html('![the request path](assets/diagrams/request-path.svg)', links('docs'));
+  check('renders an <img>', out.includes('<img') && out.includes('md-img'), out.slice(0, 160));
+  check('resolved against the document directory',
+    out.includes('path=docs%2Fassets%2Fdiagrams%2Frequest-path.svg'), out.slice(0, 200));
+}
+{
+  // .svgz is gzip. /raw labels it image/svg+xml with no Content-Encoding, so an
+  // <img> would be handed compressed bytes and draw the broken-image icon -
+  // strictly worse than saying the file is there and letting the reader open it.
+  const out = html('![z](docs/assets/x.svgz)', links(''));
+  check('.svgz stays inert rather than becoming a broken <img>',
+    !out.includes('<img'), out.slice(0, 200));
+}
+
+console.log('\n── a document type is NOT embedded ────────────────────────');
+{
+  // THE BOUNDARY, asserted. <img>/<video>/<audio> are media contexts: bytes go
+  // to a decoder and nothing becomes a document. A frame is a document context -
+  // safe on the sandbox origin, but safe because of a header sent by another
+  // service rather than because of the element, and md.tsx's guarantee is
+  // supposed to hold by reading md.tsx. So these stay inert and the reader opens
+  // them in the viewer that frames them properly.
+  for (const src of ['![doc](docs/spec.pdf)', '![page](docs/report.html)',
+                     '![feed](docs/data.xml)', '![what](docs/notes)']) {
+    const out = html(src, links(''));
+    check(`no frame or img for: ${src.slice(0, 30)}`,
+      !out.includes('<iframe') && !out.includes('<img') && !out.includes('<object'),
+      out.slice(0, 200));
+    check(`the target is still shown: ${src.slice(0, 26)}`,
+      out.includes('md-reflink'), out.slice(0, 200));
+  }
+}
+
 // ── raw HTML ────────────────────────────────────────────────────────────────
 console.log('\n── an HTML block is named, not printed and not run ─────────');
 {
@@ -153,10 +234,20 @@ console.log('\n── a hostile target never becomes a live link ─────
     '[click](javascript:alert(1))',
     '![x](javascript:alert(1))',
     '[![x](javascript:alert(1))](javascript:alert(2))',
+    // The video and audio branches are new SRC SINKS, so they get the same
+    // assertion the <img> has always had. A scheme is refused by RE_SCHEME
+    // before the type is even looked at, which is why an extension that would
+    // otherwise be embedded changes nothing here.
+    '![x](javascript:alert(1).mp4)',
+    '![x](javascript:alert(1).mp3)',
+    '![x](javascript:alert(1).svg)',
   ]) {
     const out = html(src, links(''));
     check(`no href for: ${src.slice(0, 34)}`, !out.includes('href="javascript:'), out.slice(0, 160));
-    check(`no img src for: ${src.slice(0, 32)}`, !out.includes('src="javascript:'), out.slice(0, 160));
+    check(`no src for: ${src.slice(0, 32)}`, !out.includes('src="javascript:'), out.slice(0, 160));
+    check(`no element at all for: ${src.slice(0, 26)}`,
+      !out.includes('<img') && !out.includes('<video') && !out.includes('<audio'),
+      out.slice(0, 160));
   }
 }
 

@@ -584,6 +584,15 @@
 .bothy-files .fx-read > * { max-width: var(--read-measure); }
 .bothy-files .fx-read > .md-tbl-wrap,
 .bothy-files .fx-read > .md-pre { max-width: 100%; }
+/* A FIGURE IS NOT PROSE EITHER, and it is the third thing that has to be let out
+   of the measure. `![x](y)` on its own line lands inside a .md-p - it is parsed
+   as inline content, so there is no element of its own to target, hence `:has`
+   (already used in explorer.css and shell.css, so no new browser assumption).
+
+   Measured on docs/ARCHITECTURE.md's generated diagrams: capped at 72ch they
+   render at ~0.7 scale, which puts their 15px labels at about 10px. A diagram
+   nobody can read is the failure this whole change set exists to fix. */
+.bothy-files .fx-read > .md-p:has(> .md-img) { max-width: 100%; }
 
 .bothy-files .md { color: var(--fg-muted); font-size: var(--read-fs); line-height: var(--read-lh); }
 .bothy-files .md .md-h { color: var(--fg); letter-spacing: -0.015em; line-height: 1.25; margin: 26px 0 10px; font-weight: 700; }
@@ -621,6 +630,18 @@
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--surface-2);
+}
+/* A CLIP CARRIES .md-img AS WELL AS .md-video and therefore needs no rules of
+   its own: it wants exactly the same box as a picture - block flow, the frame,
+   `max-width: 100%`, and the `:has(> .md-img)` escape from the measure above.
+   The second class is a hook for the day one of those stops being true. */
+/* Audio has no picture, so none of .md-img's framing applies: this is a strip of
+   transport controls, which the browser draws itself. It only needs to be a
+   block with the document's rhythm around it, and a width that does not stretch
+   a 300px-wide widget across the measure. */
+.bothy-files .md .md-audio {
+  display: block; width: 100%; max-width: 420px;
+  margin: var(--read-gap) 0;
 }
 .bothy-files .md .md-list { margin: 0 0 var(--read-gap); padding-left: 22px; }
 .bothy-files .md .md-list li { margin: 3px 0; }

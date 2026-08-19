@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph s_covered["Backed up nightly"]
+        V1["postgres_postgres_data"]
+        V2["redis_redis_data"]
+        V5["monitoring_grafana_data"]
+        V8["mgmt_portainer_data"]
+        ENVF["stacks/.env<br/>gitignored - exists nowhere else"]
+    end
+
+    subgraph s_uncovered["Not backed up - rebuildable or expendable"]
+        V3["kafka_kafka_data"]
+        V4["monitoring_prometheus_data - 15d retention"]
+        V6["monitoring_loki_data"]
+        V7["monitoring_promtail_positions"]
+    end
+
+    BK["scripts/backup.sh<br/>stacks-backup.timer - 03:00 daily - Persistent=true"]
+    OUT[("~/backups<br/>newest 14 of each retained")]
+
+    V1 -->|"pg_dumpall piped through gzip"| BK
+    V2 -->|"redis-cli SAVE then docker cp dump.rdb"| BK
+    V5 -->|"docker cp grafana.db"| BK
+    V8 -->|"docker cp portainer.db"| BK
+    ENVF -->|"install -m 600"| BK
+    BK --> OUT

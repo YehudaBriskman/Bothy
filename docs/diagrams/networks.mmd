@@ -1,0 +1,23 @@
+flowchart TB
+    SOCKET[("/var/run/docker.sock<br/>root-equivalent")]
+
+    subgraph s_socketnet["socketnet - exactly two members"]
+        PROXY["bothy-socket-proxy<br/>CONTAINERS=1 SYSTEM=1 POST=0 EXEC=0<br/>no auth of any kind - no published port"]
+    end
+
+    subgraph s_devnet["devnet - around two dozen containers"]
+        OAUTH["oauth2-proxy"]
+        OBS["monitoring - grafana, prometheus, loki,<br/>promtail, cadvisor, node-exporter"]
+        APPSG["apps - portal-next, portal-files, bothy-socket-proxy"]
+        DATAG["data - postgres plus its exporter - not routed"]
+        PROJ["project containers<br/>e.g. cvops-nginx, cvops-garage"]
+    end
+
+    TRAEFIK["traefik<br/>the only container on BOTH networks"]
+
+    TRAEFIK --> OAUTH
+    TRAEFIK --> OBS
+    TRAEFIK --> APPSG
+    TRAEFIK --> PROJ
+    TRAEFIK -->|"the only path to the proxy"| PROXY
+    PROXY -->|"mounted read-only"| SOCKET
