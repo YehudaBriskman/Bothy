@@ -1,4 +1,4 @@
-// Settings - who you are, and what that lets you do.
+// Settings - who you are, what that lets you do, and how this browser looks.
 //
 // READ-ONLY, and that is the design rather than a stage it is passing through.
 // The page separates three things that the word "settings" usually collapses:
@@ -19,15 +19,42 @@
 // trail and a boundary - see docs/plans/control-and-settings.md §6b. It is worth
 // paying for when there is a preference somebody actually wants kept, and this
 // page exists partly to make that moment obvious when it arrives.
+//
+// ── WHY IT IS GROUPED THE WAY IT IS (2026-08, issue #95) ────────────────────
+// The three paragraphs above were always the page's thesis, but the page did not
+// look like them. It was five panels at one weight in the order the features
+// landed - identity, appearance, session, storage - so the two halves of a
+// SINGLE subject (who you are, and where that identity comes from) sat either
+// side of an unrelated one, and the reader had to do the grouping the page was
+// claiming to have done. Nothing was missing; the structure was.
+//
+// So the page is now grouped by that same separation rather than by arrival
+// order. "You" holds the account, the roles and where the session came from -
+// three panels about one subject that used to have the theme picker sitting in
+// the middle of them. "Appearance" holds the browser's half. "Where these are
+// kept" holds the stores themselves, and the one that deliberately does not
+// exist.
+//
+// Each group is an <h2> and every panel under it an <h3>, which is not
+// decoration: it means the document outline and the visual grouping cannot drift
+// apart, and a reader jumping by heading lands on three subjects rather than on
+// five siblings that look equally important because they are marked up as
+// equally important.
+//
+// The one thing that MOVED rather than being regrouped is where a custom theme
+// comes from. The instruction for writing a theme file used to sit above the
+// picker, where it interrupted the choice with a paragraph about a directory;
+// it is now beside the editor entry, in a panel about making one. Both routes
+// to a new theme end at the same .css file in the same directory, which is the
+// fact the two of them together are there to say.
 
-import { Ban, Circle, CircleCheck, LogIn } from 'lucide-react';
+import { Ban, Circle, CircleCheck, Code2, LogIn, Pencil, Plus } from 'lucide-react';
 import { ROLES, ROLE_MEANING, signInHref, type Me, type Role } from '../lib/me';
 import { useMe } from '../components/UserMenu';
 import { useTheme } from '../lib/theme';
 import { THEME_DIR_HOST } from '../lib/customThemes';
 import { ThemeSwatch } from '../components/ThemeSwatch';
 import { Link } from 'react-router-dom';
-import { Pencil, Plus } from 'lucide-react';
 import { Skeleton } from '../components/states';
 import './Settings.css';
 
@@ -39,11 +66,31 @@ export function Settings() {
       <div className="page-head">
         <div>
           <h1>Settings</h1>
-          <p className="page-sub">Who you are, what that lets you do, and where each of those facts is kept.</p>
+          <p className="page-sub">
+            Who you are, what that lets you do, and how this browser looks. Only the last of those is
+            changed here.
+          </p>
         </div>
       </div>
 
-      {loading ? <Skeleton variant="panels" /> : me ? <You me={me} /> : <SignedOut />}
+      <Group
+        id="set-g-you"
+        title="You"
+        lede={
+          'Read-only on this page, and deliberately so. All of it arrives with the session, follows you '
+          + 'to every browser you sign in on, and is changed in the realm rather than here.'
+        }
+      >
+        {loading ? <Skeleton variant="panels" /> : me ? <You me={me} /> : <SignedOut />}
+
+        {/* A statement about the box rather than about the visitor, so it renders
+            whether or not there is a session to describe. Someone signed out is
+            the reader most likely to want to know where the sign-in they are
+            about to do actually goes - which is why it is inside this group and
+            not in a group of its own: "who you are" and "where that came from"
+            are one subject, and splitting them was the old page's main fault. */}
+        <Session />
+      </Group>
 
       {/* Appearance is the ONE control on this page, and it is here because the
           topbar button stopped being able to express the choice. A cycle button
@@ -55,19 +102,59 @@ export function Settings() {
           SERVER-side preference store - a write path, an audit trail, a
           boundary. This writes one key to localStorage in this browser, which is
           the same thing the topbar button has always done. */}
-      <Appearance />
+      <Group
+        id="set-g-appearance"
+        title="Appearance"
+        lede={
+          'The one thing on this page you change here. Which theme you picked is remembered in this '
+          + 'browser only; a theme you write is a file on the box, and every browser that reaches it '
+          + 'sees the same one.'
+        }
+      >
+        <Theme />
+        <MakeATheme />
+      </Group>
 
-      {/* Both of these are statements about the box, not about the visitor, so
-          they render whether or not there is a session to describe. Someone
-          signed out is the reader most likely to want to know where the sign-in
-          they are about to do actually goes. */}
-      <Session />
-      <Storage />
+      <Group
+        id="set-g-stores"
+        title="Where these are kept"
+        lede={
+          'Three stores hold everything above, and the difference between them is the only one that '
+          + 'matters in practice: whether a change follows you to another device.'
+        }
+      >
+        <Stores />
+        <NoStore />
+      </Group>
     </div>
   );
 }
 
-function Appearance() {
+// A named group of panels.
+//
+// The heading is an <h2> and every panel heading inside it is an <h3>, so the
+// document outline is the same grouping the eye is given. The alternative - a
+// styled div that only LOOKS like a heading - is the version that goes stale:
+// it survives a refactor that moves a panel into the wrong group, because
+// nothing but the eye was ever asserting where the panel belonged.
+function Group({ id, title, lede, children }: {
+  id: string;
+  title: string;
+  lede: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="set-group" aria-labelledby={id}>
+      <header className="set-group-h">
+        <h2 id={id}>{title}</h2>
+        <p className="set-group-lede">{lede}</p>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function Theme() {
   const { selection, theme, themes, setSelection } = useTheme();
   const custom = themes.filter((t) => t.user).length;
 
@@ -76,27 +163,17 @@ function Appearance() {
   // swatch row that would imply it had colours of its own.
   return (
     <section className="panel">
-      <h2 className="panel-h">Appearance</h2>
+      <h3 className="panel-h">Theme</h3>
       <div className="panel-b">
+        {/* The `yours` tag is only explained when there is one on screen to
+            explain. A legend for a mark that is nowhere in the list below reads
+            as a feature the reader has failed to find. */}
         <p className="set-lede">
-          Kept in this browser. The topbar button still toggles dark, light and system;
-          this is where the rest of them live.
-        </p>
-
-        {/* The only instruction on this page, and it earns its place: a theme
-            you add is a FILE, and nothing else on screen would tell you where
-            it goes. Deliberately a host path rather than a container one -
-            the person who needs this sentence is standing in the repo. */}
-        <p className="set-note">
-          Add your own by dropping a <code className="mono">.css</code> file into{' '}
-          <code className="mono">{THEME_DIR_HOST}</code> on the box and reloading.
-          One file is the whole theme, and it survives a rebuild — copy an existing
-          one to start.{' '}
-          {custom === 0
-            ? 'Nothing is there yet.'
-            : custom === 1
-              ? 'One theme below came from there.'
-              : `${custom} of the themes below came from there.`}
+          The topbar button still toggles dark, light and system in one tap; the full list is here.
+          {custom > 0 && (
+            <> A theme tagged <span className="theme-tag">yours</span> came from a file on the box
+            rather than from the app.</>
+          )}
         </p>
 
         <div className="theme-grid" role="radiogroup" aria-label="Theme">
@@ -145,18 +222,58 @@ function Appearance() {
               )}
             </button>
           ))}
-
-          {/* Last, not first: the list is for choosing, and this is for making.
-              Putting it first would push the theme you are looking for down a
-              row every time. */}
-          <Link to="/settings/theme/new" className="theme-card theme-new">
-            <span className="theme-name"><Plus size={14} aria-hidden="true" /> New theme</span>
-            <span className="theme-note">
-              Start from the theme you are using now, change what you want, and watch
-              the page follow. Saves as a file you can keep or send on.
-            </span>
-          </Link>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// Making a theme is not choosing one, and it used to be asked to look like it:
+// an eighth card at the end of a list of palettes, competing with the row the
+// reader was actually scanning, plus a paragraph about a directory wedged above
+// the picker. Both routes now live here, side by side, because the point they
+// make together is that they PRODUCE THE SAME THING - one .css file in one
+// directory. The editor is not a lighter-weight alternative to writing the file;
+// it is a preview attached to the same output.
+function MakeATheme() {
+  const { themes } = useTheme();
+  const custom = themes.filter((t) => t.user).length;
+
+  return (
+    <section className="panel">
+      <h3 className="panel-h">Make your own</h3>
+      <div className="panel-b">
+        <div className="make-grid">
+          <Link to="/settings/theme/new" className="make">
+            <p className="make-h"><Plus size={15} aria-hidden="true" /> In the theme editor</p>
+            <p className="make-p">
+              Starts from the theme you are using now and applies every change to the whole page as you
+              type, so you are judging the real thing rather than a swatch in a corner. The palette rules
+              run live and warn; they never refuse. Saving writes the file, which needs the{' '}
+              <span className="mono">editor</span> role.
+            </p>
+          </Link>
+
+          {/* Deliberately a HOST path rather than a container one - the person
+              who needs this sentence is standing in the repo. */}
+          <div className="make">
+            <p className="make-h"><Code2 size={15} aria-hidden="true" /> Or write the file</p>
+            <p className="make-p">
+              Drop a <code className="mono">.css</code> file into{' '}
+              <code className="mono">{THEME_DIR_HOST}</code> on the box and reload. One file is the whole
+              theme and it survives a rebuild; <code className="mono">README.md</code> in that directory
+              documents the format, and copying an existing theme is the quickest start.
+            </p>
+          </div>
+        </div>
+
+        <p className="set-note make-count">
+          {custom === 0
+            ? 'Nothing is in that directory yet, so every theme in the list above came from the app.'
+            : custom === 1
+              ? 'One theme in the list above came from there.'
+              : `${custom} of the themes in the list above came from there.`}
+        </p>
       </div>
     </section>
   );
@@ -177,7 +294,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function SignedOut() {
   return (
     <section className="panel">
-      <h2 className="panel-h">You are not signed in</h2>
+      <h3 className="panel-h">You are not signed in</h3>
       <div className="panel-b">
         <p className="set-lede">
           Nothing here knows who you are yet. Signing in returns you to this page, which will
@@ -202,7 +319,7 @@ function You({ me }: { me: Me }) {
   return (
     <>
       <section className="panel">
-        <h2 className="panel-h">You</h2>
+        <h3 className="panel-h">Your account</h3>
         <div className="panel-b">
           <div className="kv-list">
             <Field label="Username">{me.preferredUsername}</Field>
@@ -229,12 +346,12 @@ function You({ me }: { me: Me }) {
       </section>
 
       <section className="panel">
-        <h2 className="panel-h">
+        <h3 className="panel-h">
           What you may do
           {/* Not "3 of 4". One of the four is granted to nobody, so a
               denominator would state a total that cannot be reached. */}
           <span className="sub">{me.roles.length} held</span>
-        </h2>
+        </h3>
         <div className="panel-b">
           {/* THE ONE RULE TO CARRY OUT OF THIS FILE: what the interface hides is
               never what the API enforces. This list is a description of a token,
@@ -293,7 +410,7 @@ function Session() {
 
   return (
     <section className="panel">
-      <h2 className="panel-h">Where this session comes from</h2>
+      <h3 className="panel-h">Where this session comes from</h3>
       <div className="panel-b">
         <div className="kv-list">
           <Field label="Issued by">
@@ -325,11 +442,18 @@ function Session() {
   );
 }
 
+// `elsewhere` is the question a reader actually arrives with, and until it was
+// written down the page made them infer it from the store's name: "localStorage"
+// only answers "does this follow me to my phone" if you already know what
+// localStorage is. So each store answers it in a sentence, in the same slot,
+// and the three answers differ - which is the whole reason the three stores are
+// worth telling apart at all.
 const STORES = [
   {
-    what: 'Theme, and the widths of the panes in Files',
+    what: 'Which theme you picked, and the widths of the panes in Files',
     where: 'This browser',
     store: 'localStorage',
+    elsewhere: 'Not there. Another browser, another device or a cleared profile starts from the default.',
     why: 'Per browser is the right home for these, not a limitation. A pane width is a fact about the '
       + 'screen you are sitting at; carrying it to a phone would be the bug. They are changed where '
       + 'they are used - the theme button in the topbar, the panes themselves - rather than here.',
@@ -338,6 +462,8 @@ const STORES = [
     what: 'A theme you wrote yourself',
     where: 'The box, as a file',
     store: THEME_DIR_HOST,
+    elsewhere: 'Offered everywhere. It is one file on the box, so every browser that reaches it lists '
+      + 'the theme - though each of them still has to pick it.',
     why: 'The row above is the CHOICE - one key naming a theme, per browser. The theme itself is a '
       + '.css file on disk, shared by every browser that reaches this box, and it outlives that '
       + 'choice: clearing this browser forgets which theme you picked, not the file you wrote. It is '
@@ -347,22 +473,16 @@ const STORES = [
     what: 'Your username, email, subject id and roles',
     where: 'Your account',
     store: 'Keycloak',
+    elsewhere: 'The same. It is the account, not the browser - it follows you wherever you sign in.',
     why: 'Per user, and read-only here. They arrive with the session and are changed in the realm. '
       + 'This page has no way to write them, which is the point.',
   },
-  {
-    what: 'A default root, a landing page, a list of favourites',
-    where: 'Nowhere',
-    store: 'no store exists',
-    why: 'Deliberately not built. None of these has been asked for yet, and a preference store is a '
-      + 'write path - which needs a threat model, an audit trail and a boundary before it needs a form.',
-  },
 ];
 
-function Storage() {
+function Stores() {
   return (
     <section className="panel">
-      <h2 className="panel-h">What is stored where</h2>
+      <h3 className="panel-h">What is stored where</h3>
       <div className="panel-b">
         <ul className="stores">
           {STORES.map((s) => (
@@ -372,10 +492,40 @@ function Storage() {
                 {s.where}
                 <span className="mono store-store">{s.store}</span>
               </p>
+              <p className="store-follow">
+                <span className="store-follow-k">On another device</span>
+                {s.elsewhere}
+              </p>
               <p className="store-why">{s.why}</p>
             </li>
           ))}
         </ul>
+      </div>
+    </section>
+  );
+}
+
+// The fourth store used to be a fourth row in the list above, which quietly
+// claimed it was the same KIND of thing as the other three. It is not: the other
+// three are places, and this is a decision. Given its own panel it can be read
+// as one - and the panel is also the page's answer to the reasonable question of
+// why nothing here has a Save button.
+function NoStore() {
+  return (
+    <section className="panel">
+      <h3 className="panel-h">And what is not stored at all</h3>
+      <div className="panel-b">
+        <p className="set-lede">
+          A default root, a default landing page, a list of favourites. None of these is kept anywhere,
+          and none of them is on the page wearing a &ldquo;coming soon&rdquo; label.
+        </p>
+        <p className="store-why">
+          A preference store is a write path, and a write path needs a threat model, an audit trail and a
+          boundary before it needs a form - <span className="mono">docs/plans/control-and-settings.md</span>{' '}
+          §6b. That is worth paying for the day somebody asks to keep a preference, and nobody has. Until
+          then a greyed-out control would be a promise this page has no way to keep, which is why there
+          are none on it.
+        </p>
       </div>
     </section>
   );
