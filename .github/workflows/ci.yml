@@ -95,7 +95,21 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          # shellcheck ships ON the GitHub ubuntu images. Installing it anyway cost
+          # a 15-minute hang on 2026-08-18: apt-get stalled, the job sat there
+          # until its timeout, and GitHub reported the result as "cancelled" -
+          # which reads like somebody pressed a button rather than an
+          # infrastructure stall, and sent me looking at the wrong thing.
+          #
+          # So: use what is there, and only reach for apt when it genuinely is
+          # not - under a timeout, so the failure is a failure rather than a
+          # fifteen-minute wait.
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "shellcheck is not on this runner image - installing"
+            timeout 120 sudo apt-get update -qq || { echo "apt-get update stalled"; exit 1; }
+            timeout 120 sudo apt-get install -y -qq shellcheck || { echo "apt-get install stalled"; exit 1; }
+          fi
+          shellcheck --version | sed -n '2p'
           # -x follows `. scripts/lib/env.sh` so sourced definitions are known.
           #
           # WARNINGS ARE FATAL, not just errors. The expected move here was to
@@ -160,8 +174,27 @@ jobs:
       # One row plants an unguarded `cd` and requires shellcheck to catch it.
       # Without the tool that row SKIPS - out loud, but it still skips, and this
       # is the job whose whole purpose is that nothing quietly stops running.
+      # One mutation plants an unguarded `cd` and requires shellcheck to catch
+      # it. Same guard as the tree job - and this is the job the apt-get hang
+      # actually killed.
       - name: shellcheck (one mutation needs it)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+        run: |
+          set -euo pipefail
+          # shellcheck ships ON the GitHub ubuntu images. Installing it anyway cost
+          # a 15-minute hang on 2026-08-18: apt-get stalled, the job sat there
+          # until its timeout, and GitHub reported the result as "cancelled" -
+          # which reads like somebody pressed a button rather than an
+          # infrastructure stall, and sent me looking at the wrong thing.
+          #
+          # So: use what is there, and only reach for apt when it genuinely is
+          # not - under a timeout, so the failure is a failure rather than a
+          # fifteen-minute wait.
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "shellcheck is not on this runner image - installing"
+            timeout 120 sudo apt-get update -qq || { echo "apt-get update stalled"; exit 1; }
+            timeout 120 sudo apt-get install -y -qq shellcheck || { echo "apt-get install stalled"; exit 1; }
+          fi
+          shellcheck --version | sed -n '2p'
 
       # `npm ci` leaves the tree clean, but a cache restore or a generated file
       # would not, and mutants.sh refuses to run dirty. Failing HERE names the
