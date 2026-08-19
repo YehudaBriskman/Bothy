@@ -161,6 +161,27 @@ mutant "a home directory is hardcoded again" \
 export const PROJECT_TITLE_FIELD' \
   -- ./scripts/checks/portability.sh
 
+# The third portability kind, and the one that was added because it had already
+# happened. monitoring/prometheus.yml named the maintainer's email as the
+# username the Prometheus self-scrape authenticates with, while the users map it
+# authenticates against is generated from $DEV_LOGIN_USER - so the self-scrape
+# 401'd on every install but one, and reported itself as a target that was
+# merely DOWN.
+#
+# ASSEMBLED for the same reason as HOME_PREFIX above: written out whole, this
+# payload is a real address in a tracked file, so portability.sh would flag
+# THIS file - and the first draft of this very comment tripped it, by spelling
+# out the shape of an address in prose. The pattern needs the local part, the
+# at-sign and the domain contiguous, so splitting the payload at the at-sign
+# costs nothing at runtime and keeps the check honest about its own source.
+AT_SIGN='@'
+mutant "a person's email is hardcoded in a config" \
+  monitoring/prometheus.yml \
+  '      password_file: /etc/prometheus/prom-password.txt' \
+  '      username: someone'"$AT_SIGN"'realdomain.io
+      password_file: /etc/prometheus/prom-password.txt' \
+  -- ./scripts/checks/portability.sh
+
 echo
 echo "── the path boundary ───────────────────────────────────────────────"
 # THE containment check. Resolve first, compare after. Deleting it is the whole

@@ -391,7 +391,7 @@ hand-kept target list, so *every* container is covered with no per-service setup
 | Logs | `promtail` via `docker_sd_configs` → Loki | Every running container, any stack or project. Labels: `container`, `stack` (compose project), `stream`. |
 | Container metrics | `cadvisor` → Prometheus | CPU / memory / network / filesystem, every container. |
 | Host metrics | `node-exporter` | |
-| Docker daemon | `metrics-addr` on `:9323` (set in `host/docker/daemon.json`) | Scraped as job `docker-daemon`. |
+| Docker daemon | `metrics-addr` on `:9323` (optional, in `host/docker/daemon.json`) | **Not scraped.** The `docker-daemon` job was removed on 2026-08-19: nothing in the repo read an `engine_daemon_*` series, and because the setting is opt-in the target sat permanently down on any box that had not been hand-edited. The setting is harmless to keep; `monitoring/prometheus.yml` carries the restore recipe. |
 | App metrics | `postgres-exporter`, `redis-exporter`, `kafka-exporter` | Down while those stacks are down - expected. |
 | The edge | `traefik` Prometheus metrics on an **internal** entrypoint `:8899` | Request rate, latency and error rate per router / service / entrypoint. No host port - Prometheus reaches it by name over devnet. |
 
@@ -863,7 +863,7 @@ and that git would otherwise never see:
 | Copy | Real location | Why it matters |
 |---|---|---|
 | `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Historical: it held the wildcard the name layer record. **Nothing depends on it as of 2026-08-12** - the name layer is retired. Still worth keeping for `domain-needed`, which makes a dotless lookup `NXDOMAIN` in ~0 ms instead of hanging 40 s (see the traps table). |
-| `docker/daemon.json` | `/etc/docker/daemon.json` | Log rotation (10 MB × 3) and `metrics-addr` on `:9323`. Without it the `docker-daemon` scrape target is permanently down. |
+| `docker/daemon.json` | `/etc/docker/daemon.json` | Log rotation (10 MB × 3) - that is what this file is for. Also `metrics-addr` on `:9323`, optional since the `docker-daemon` scrape job was removed on 2026-08-19; nothing reads it now. |
 | `wsl/wsl.conf` | `/etc/wsl.conf` | `systemd=true` - the reason `docker.service` can be enabled and every stack comes back with the distro. Also `generateResolvConf=false`. |
 | `wsl/wslconfig` | the Windows user profile | Memory, CPU and nested virtualisation for the VM |
 | `wsl/resolv.conf` | `/etc/resolv.conf` | Points the box at its own dnsmasq; held with `chattr +i` |

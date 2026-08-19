@@ -26,13 +26,16 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus-web.yml:/etc/prometheus/web.yml:ro
+      - ./prom-username.txt:/etc/prometheus/prom-username.txt:ro
       - ./prom-password.txt:/etc/prometheus/prom-password.txt:ro
       - ./rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # `extra_hosts: host.docker.internal:host-gateway` was here for the
+    # docker-daemon scrape job and nothing else; both went on 2026-08-19. Grep
+    # before adding it back: prometheus.yml names no host now, and a mapping
+    # kept "just in case" is how the reason for a line gets lost.
     deploy:
       resources:
         limits:
@@ -124,6 +127,44 @@ services:
     container_name: cadvisor
     restart: unless-stopped
     privileged: true
+    # cAdvisor ran with NO command at all, which means every metric family on,
+    # housekeeping every second, and every container label copied onto every
+    # series. Nobody chose that; it is just the default, and it is the single
+    # most expensive misconfiguration on this box. Measured: cAdvisor produces
+    # 4147 series, of which about 407 are reachable from anything in this repo,
+    # and the top five metrics by cardinality in the whole Prometheus head -
+    # container_tasks_state (360), container_memory_failures_total (288),
+    # container_blkio_device_usage_total (124), container_fs_writes_total (113),
+    # container_fs_reads_total (113) - are all cAdvisor families that no
+    # dashboard, alert rule or portal query reads. cadvisor is also the closest
+    # container on this box to its own limit, 213.5 MiB of a 256 MiB cap.
+    #
+    # THE LABEL WHITELIST IS LOAD-BEARING, and this is the line to be careful
+    # with. `--store_container_labels=false` on its own drops
+    # container_label_com_docker_compose_project, which SystemDialog.tsx selects
+    # on for every per-system CPU and memory chart and which nothing else on
+    # this box can produce, plus `_service` and `_project_working_dir`, which
+    # dashboards/cadvisor.json renders as its Service and Working dir columns.
+    # Both would go blank rather than error. A fourth compose label wanted by a
+    # dashboard has to be added here in the same commit.
+    #
+    # --disable_metrics REPLACES cAdvisor's own default ignore list rather than
+    # extending it - MetricSet.Set() clears the set before parsing the value -
+    # so upstream's eleven defaults are repeated here verbatim and dropping one
+    # of them would silently switch that family ON. The five on the end are the
+    # families measured above: percpu, cpuLoad (container_tasks_state), disk and
+    # diskIO (the fs_* and blkio_* series), and perf_event, which needs host
+    # configuration this box does not have. What is kept is what is queried -
+    # cpu, memory, network - plus oom_event, which is one series per container
+    # and the only cheap answer to "why did that container disappear".
+    # container_start_time_seconds is emitted unconditionally and belongs to no
+    # family, so nothing here can take it away.
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service,com.docker.compose.project_working_dir
+      - --disable_metrics=advtcp,cpuLoad,cpu_topology,cpuset,disk,diskIO,hugetlb,memory_numa,percpu,perf_event,process,referenced_memory,resctrl,sched,tcp,udp
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
