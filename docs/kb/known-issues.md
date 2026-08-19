@@ -10,8 +10,8 @@ next session does not mistake them for evidence that names still work.
 
 | Leftover | Detail | Why it was left |
 |---|---|---|
-| **`edge/dynamic/tals.yml` regenerates `*.a service hostname` routers** | `~/projects/army/Tals/manifests/scripts/preflight-ports.sh` rewrites that file on **every run**, and also sets Tals' own `VITE_FRONTEND_URL` / `BETTER_AUTH_URL` to `http://a service hostname`. Both have been broken since 2026-08-08, independently of Traefik. | Fixing it means editing a **private project repo** and changing how Tals addresses itself - out of scope for an infra change. The stale routers reappear after any `tilt up` in that repo. They are **inert**, but they teach the wrong pattern; do not copy them. |
-| **`auth/compose.yml` still carries `Host(a service hostname)`** | oauth2-proxy keeps that router label and a redirect URL pinned to the dead name. The container is **not running**. | It is **being replaced by Keycloak right now** in a separate change. Do not document it as final, and do not "fix" the label - the whole service is in flight. |
+| **`edge/dynamic/tals.yml` regenerates `*.tals.<base-domain>` routers** | `~/projects/army/Tals/manifests/scripts/preflight-ports.sh` rewrites that file on **every run**, and also sets Tals' own `VITE_FRONTEND_URL` / `BETTER_AUTH_URL` to `http://tals.<base-domain>`. Both have been broken since 2026-08-08, independently of Traefik. | Fixing it means editing a **private project repo** and changing how Tals addresses itself - out of scope for an infra change. The stale routers reappear after any `tilt up` in that repo. They are **inert**, but they teach the wrong pattern; do not copy them. |
+| **`auth/compose.yml` still carries `Host(<service>.<base-domain>)`** | oauth2-proxy keeps that router label and a redirect URL pinned to the dead name. The container is **not running**. | It is **being replaced by Keycloak right now** in a separate change. Do not document it as final, and do not "fix" the label - the whole service is in flight. |
 
 ## Open - worth fixing
 
@@ -56,7 +56,7 @@ next session does not mistake them for evidence that names still work.
 
 - dnsmasq keeps answering `address=/test/` even though nothing consumes it off-box -
   it is the box's own resolver and the `.test` entry is harmless. **Do not disable
-  dnsmasq**, and do not read a successful on-box `getent hosts the name layer` as proof
+  dnsmasq**, and do not read a successful on-box `getent hosts <base-domain>` as proof
   that names work (2026-08-12).
 - dnsmasq answers non-`.test` queries for tailnet clients (open resolver, tailnet-scoped) -
   side effect of the upstream config that fixed in-box DNS.

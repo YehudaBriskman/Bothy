@@ -23,7 +23,7 @@ tailnet**. Services are reached at `tailnet-IP:port` (published host ports);
 Traefik on `:80` serves the portal and its read-only data plane.
 
 **The name layer and the SSO in front of it are gone, not dormant** (updated
-2026-08-12). the name layer went dormant on 2026-08-08 when the split-DNS route
+2026-08-12). The name layer went dormant on 2026-08-08 when the split-DNS route
 was removed, and its configuration was **deleted on 2026-08-12**: Traefik holds
 zero `Host()` rules, and the Traefik dashboard router was deleted with them.
 Identity was rebuilt on Keycloak + oauth2-proxy and **now enforces on the tiers
@@ -135,7 +135,7 @@ security change, and should be reviewed as one.
 > widening this section.
 
 **What happened.** The original design was oauth2-proxy against GitHub, with the
-OAuth callback pinned to `http://a service hostname/oauth2/callback`. When the name
+OAuth callback pinned to `http://<service>.<base-domain>/oauth2/callback`. When the name
 layer went dormant on 2026-08-08 the callback stopped resolving and the whole
 flow broke - an authentication layer with a single-point dependency on a DNS
 setting. On 2026-08-12 identity moved to a **local Keycloak** (`auth/compose.yml`,
@@ -148,12 +148,13 @@ host port `8090`) so the callback is an IP:port URL and depends on no name.
   sign-in page in its place, at the URL the user actually asked for.
 
 **Defining a middleware does not enforce it** - that takes a router referencing
-it, which is the distinction this section existed to make while nothing did. Three
-routers do now, all in `edge/dynamic/portal-files.yml`, using `sso-viewer` and
-`sso-editor`: the same `forwardAuth`, differing only in `?allowed_groups=`. The
-auth stack also owns `oauth2-endpoints` (`PathPrefix(/oauth2/)`, priority 100,
-host-less), so the login flow and its callback are reachable at all - oauth2-proxy
-publishes no host port.
+it, which is the distinction this section existed to make while nothing did. Nine
+routers do now, across three files - `edge/dynamic/portal-files.yml` (four),
+`bothy-config.yml` (two) and `bothy-control.yml` (three) - using `sso-viewer`,
+`sso-editor` and `sso-operator`: the same `forwardAuth`, differing only in
+`?allowed_groups=`. The auth stack also owns `oauth2-endpoints`
+(`PathPrefix(/oauth2/)`, priority 100, host-less), so the login flow and its
+callback are reachable at all - oauth2-proxy publishes no host port.
 
 Verified with a role the user does **not** hold: `allowed_groups=editor` → 202,
 `allowed_groups=shell` → 403, `allowed_groups=<junk>` → 403. It fails closed, and
@@ -280,7 +281,7 @@ Rules that follow from this:
   address this box serves; do not mount anything else under it.
 - **Nothing else guards these routes.** This section used to add that the `sso`
   middleware also closed a DNS-rebinding hole, because a rebound request carries
-  the attacker's `Host` and so never receives the `.the name layer`-scoped session
+  the attacker's `Host` and so never receives the `.<base-domain>`-scoped session
   cookie. That reasoning is void as of 2026-08-12: there is no name, no
   name-scoped cookie, and no name left to rebind - only an IP. Nor is the portal's
   data plane role-gated the way the editor tier is: the exact `Path()` rules are

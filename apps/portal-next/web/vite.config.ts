@@ -8,7 +8,7 @@ import react from '@vitejs/plugin-react';
 // THIS POINTED AT the portal UNTIL 2026-08-17, a name whose entire
 // configuration was deleted on 2026-08-12 - so `vite dev` had been proxying to
 // something that does not resolve for two months. It survived a purge of every
-// other the name layer reference because that sweep read prose and this is a config
+// other name-layer reference because that sweep read prose and this is a config
 // value. Grep the deleted thing, not the sentences about it.
 export default defineConfig({
   plugins: [react()],

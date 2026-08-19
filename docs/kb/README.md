@@ -7,7 +7,7 @@ and the machines around it. Built 2026-08-02 from the July audit + the August in
 > and follow the decision tree. Do not start debugging the box before step 0.
 
 > **Access model, current as of 2026-08-12:** `http://100.117.176.85:<port>`.
-> the name layer is **deleted** - do not add `Host()` rules, do not
+> The name layer is **deleted** - do not add `Host()` rules, do not
 > debug `.test` lookups, and do not treat a 200 from `:80` as proof of anything
 > (the portal catch-all answers everything). See [dns.md](dns.md) and
 > [architecture.md](architecture.md).

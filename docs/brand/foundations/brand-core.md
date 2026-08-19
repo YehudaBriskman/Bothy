@@ -49,7 +49,7 @@ Byre (two projects), Dovecote (a PaaS). Bothy, Steading and Undercroft came back
 clean on 2026-08-10; Bothy won on length.
 
 **What it replaced, and why the old one was wrong.** The topbar used to read
-`the name layer / dev box`. That named the product after a DNS name which had been
+`<base-domain> / dev box`. That named the product after a DNS name which had been
 dormant since 2026-08-08, when access moved to pure IP:port. So for every
 current visitor the brand line stated an address that did not resolve. The
 wordmark is now the product's own name, and the line under it is read from
@@ -94,7 +94,7 @@ README correctly say "dev box" throughout and were deliberately not renamed.
 
 ## Dead ends
 
-- **Naming it after the hostname.** the name layer was the name for a year. It broke
+- **Naming it after the hostname.** The name layer was the name for a year. It broke
   the moment the access model changed, which is the general lesson: do not name a
   product after an address, because addresses change and names should not.
   Confirmed the hard way on 2026-08-12, two days after the rename: the name

@@ -512,7 +512,7 @@ export function Overview() {
 
   // Built from location.hostname, so the floor works from the tailnet IP,
   // MagicDNS or localhost - whichever the reader reached the box by. It used to
-  // be a table of the name layer names, which is to say the emergency page offered
+  // be a table of name-layer names, which is to say the emergency page offered
   // addresses that had not resolved since August.
   const floorLinks = KNOWN_SERVICES.map(([name, port]) => ({
     id: name, name, url: `http://${location.hostname}:${port}`,

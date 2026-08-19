@@ -17,7 +17,7 @@ every `tailscale` command. The stale daemon left `tailscale0` **without its IPv4
 - Tunnel-internal checks all passed (disco pong, TSMP pong) → status green.
 - Every kernel-level packet died, both directions (inbound dropped; outbound hung because
   reply SYN-ACKs were dropped coming back).
-- the name layer broke first because `.test` DNS rides the same tunnel ([../dns.md](../dns.md)).
+- The name layer broke first because `.test` DNS rides the same tunnel ([../dns.md](../dns.md)).
 - `sudo tailscale down && up` did **not** help (same broken daemon).
 
 ## Fix

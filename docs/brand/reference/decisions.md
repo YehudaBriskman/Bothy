@@ -185,7 +185,7 @@ the values.
 
 ## 2026-08-10 - Rename the product to Bothy
 
-**Decision.** Replace `the name layer / dev box` in the topbar with a product name and
+**Decision.** Replace `<base-domain> / dev box` in the topbar with a product name and
 a run-time hostname.
 
 **Why.** The old wordmark named the product after a DNS name dormant since
@@ -196,7 +196,7 @@ six were taken.
 everywhere it refers to the machine, and was deliberately not renamed.
 
 **Vindicated 2026-08-12.** The name layer was deleted two days later - its
-Traefik `Host()` rules removed, its split-DNS route already gone. the name layer now
+Traefik `Host()` rules removed, its split-DNS route already gone. The name layer now
 resolves nowhere, so the old wordmark would have been a dead address in the most
 prominent position on the page. The run-time `location.hostname` subtitle needed
 no change at all; it simply prints the bare IP now, because that is what
