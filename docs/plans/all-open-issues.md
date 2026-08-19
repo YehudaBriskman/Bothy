@@ -265,16 +265,39 @@ executor #90 needs.
 
 Last, and treated as a design decision rather than a feature. The pieces are
 already in place *and deliberately disconnected*: the `shell` role is defined,
-described in `ROLE_MEANING`, and gated on **zero routes**; `EXEC=0` on both
-socket proxies; `CONTAINERS=0` on the write proxy. Step-up auth is written but
-unbuilt.
+described in `ROLE_MEANING`, granted to nobody by `keycloak-init`, and gated on
+**zero routes**; `EXEC=0` on **all three** socket proxies, not two — the
+portal's read-only one plus `bothy-control`'s read/write pair; `CONTAINERS=0` on
+the write proxy. Step-up auth is written but unbuilt: the realm carries
+`acr.loa.map` and `auth/compose.yml:257-274` writes out the five steps that
+would enforce it, including the second oauth2-proxy instance it needs.
 
 A shell needs exactly the combination this architecture exists to prevent. That
 is not an argument against it — the user's position is explicit and stands: *"its
 a real devbox tooling, like arch linux — we give instructions and warnings."*
 It is an argument that the change is to the **threat model document first**, and
-the code second. `SECURITY.md` should gain the paragraph before anything gains
-the capability.
+the code second.
+
+**The document half has landed.** `SECURITY.md` now carries *A shell in the
+browser (#90), before it exists* — the current boundary with file:line, what
+each of #90's three shapes would cost, the four-step path from a widened proxy
+to host root, the conditions under which "it grants no new capability to the
+person it is for" is true, and a ten-item mitigation checklist the code PR is
+held to. Three findings from writing it that change the shape of the code work:
+
+- **`guard.SEVERING` cannot survive a real PTY.** #90's requirement that you
+  must not be able to stop the container serving the page you are typing into is
+  met by shape 1 (allowlisted commands) and by no other shape. State that in the
+  issue rather than discovering it in review.
+- **Shape 2 — "a PTY in a throwaway container" — is the most expensive, not the
+  safest.** Creating that container needs `POST=1` *with* `CONTAINERS=1`, which
+  is `/containers/create` with a bind mount of `/`. Prefer shape 1, and if a real
+  terminal is wanted, go straight to shape 3 (host PTY as the operator's own
+  account), which needs no socket grant at all.
+- **Step-up auth is the non-negotiable that the issue does not ask for.** The
+  honest argument for the feature is that the operator already has SSH; the gap
+  is that SSH is a tailnet key and the shell is a browser cookie. Step-up is what
+  closes that gap, and it is the only mitigation here that is real work.
 
 ---
 
