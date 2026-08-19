@@ -114,9 +114,17 @@ else
     # moment it is discovered until the first scrape completes, so seconds after
     # `just up` the self-scrape is `unknown` and the old `= up` test called that
     # a fault. It is not one: it is a target that has not been asked yet, and on
-    # a fresh install it was one of four red ✗ that were every one of them true
+    # a fresh install it is one of four red ✗ that CI wrote off as true
     # statements about a new box. dim() exists for exactly this - see its own
-    # comment at the top of this file. `down` stays red, and now says why.
+    # comment at the top of this file.
+    #
+    # `down` stays red, and now says why - which is the half that mattered.
+    # Three of those four faults were what CI said they were. The fourth, this
+    # one, was NOT: the self-scrape was down on every fresh install because
+    # bootstrap chmod 600'd a password file that Prometheus reads as uid 65534,
+    # and "prometheus (down)" with nothing after it is indistinguishable from a
+    # target nobody has asked yet. It was written off as timing for as long as
+    # that line existed. Printing lastError is what found it.
     while IFS=$'\t' read -r j h err; do
       case "$h" in
         up)      green "$j" ;;
@@ -193,8 +201,9 @@ if [ -z "$latest" ]; then
   # backup.sh runs from a nightly systemd timer at 03:00, so a box younger than
   # one full day may simply never have reached its first run - and reporting
   # that as a fault is how `just doctor strict` came to be unusable on a fresh
-  # install, where it was one of four red ✗ that were each a true statement
-  # about a new box rather than a defect.
+  # install, where it was one of four red ✗ attributed to newness. Three of
+  # the four, this one included, really were that. The fourth was a genuine
+  # bug hiding behind the same excuse - see the note in the target loop above.
   #
   # 86400s, one timer period, deliberately generous: past it the timer has had
   # its chance no matter what hour the box booted, and silence then IS the

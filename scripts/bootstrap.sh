@@ -447,9 +447,36 @@ if [ -f monitoring/prom-password.txt ] && [ "$FORCE" = 0 ]; then
   say "already present  monitoring/prom-password.txt"
 else
   printf '%s\n' "$prom_pass" > monitoring/prom-password.txt
-  chmod 600 monitoring/prom-password.txt
   ok "generated        monitoring/prom-password.txt (the self-scrape password)"
 fi
+# 644, NOT 600, and this is the one permission in this file worth arguing
+# about. Prometheus runs as `nobody` (uid 65534) inside its container and
+# reads this path through a read-only bind mount; the file is owned by
+# whoever ran bootstrap. 600 therefore means the process that needs it
+# cannot open it, and the self-scrape fails with
+#
+#   unable to read basic auth password: ... permission denied
+#
+# which Prometheus reports as a target that is simply DOWN. That is how this
+# survived: .github/workflows/install.yml recorded the down self-scrape as
+# "the self-scrape, moments after first start" and treated it as a fresh-box
+# timing artefact. It was never timing. Every fresh install has had a broken
+# self-scrape for as long as this chmod has been here, and it was found only
+# once doctor.sh started printing the target's own lastError.
+#
+# The narrower fixes do not work: chown 65534 needs root, and a matching
+# group needs a gid the host does not have. Running Prometheus as the host
+# user instead breaks its named data volume. So the choice is world-readable
+# or broken, and this file is a DERIVED COPY of DEV_LOGIN_PASSWORD, which is
+# already in .env beside it - so 644 widens who can read the password on this
+# box from "the owner" to "any local user", on a machine the operator owns
+# and reaches over a tailnet. See SECURITY.md on blast radius.
+#
+# APPLIED OUTSIDE THE BRANCH on purpose: a box installed while this said 600
+# already has an unreadable file, and bootstrap's "already present" path would
+# skip straight past it forever - so the broken self-scrape would survive every
+# `just up` and every `bothy upgrade`. Repairing is idempotent; skipping is not.
+chmod 644 monitoring/prom-password.txt
 
 if [ -f monitoring/prometheus-web.yml ] && [ "$FORCE" = 0 ]; then
   say "already present  monitoring/prometheus-web.yml"

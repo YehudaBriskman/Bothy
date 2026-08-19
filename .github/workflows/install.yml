@@ -228,9 +228,13 @@ jobs:
       # minutes of runner time to report one line.
       # `doctor strict` GATES here, which is what it was written for and could
       # not do until now. It used to run plain `doctor` because --strict reported
-      # four faults on every fresh install that were each a true statement about
-      # a new box rather than a defect, and gating on those would have failed
-      # every run for reasons the reader could not act on. All four are fixed:
+      # four faults on every fresh install, recorded here as each being a true
+      # statement about a new box rather than a defect. THREE OF THEM WERE. The
+      # fourth - the down self-scrape, dismissed in these lines as "moments
+      # after first start" - was a real bug: bootstrap chmod 600'd a password
+      # file Prometheus reads as uid 65534, so it had been broken on every fresh
+      # install for as long as that chmod existed. Nobody looked, because the
+      # excuse was already written down. All four are now fixed:
       # kubectl's absence and a not-yet-scraped Prometheus target are dim, a box
       # too young for the nightly backup timer is dim, the docker-daemon job that
       # needed an opt-in daemon setting is gone, and a target that is genuinely
