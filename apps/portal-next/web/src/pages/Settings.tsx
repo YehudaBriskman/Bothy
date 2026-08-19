@@ -362,6 +362,20 @@ function You({ me }: { me: Me }) {
           <ul className="roles">
             {ROLES.map((r) => <RoleRow key={r} role={r} held={me.roles.includes(r)} />)}
           </ul>
+          {/* A TOKEN CAN BE OUT OF DATE WITH RESPECT TO THE ACCOUNT, and nothing
+              here could tell. Realm roles arrive as a flat `groups` claim from a
+              protocol mapper, which means they are stamped into the token AT
+              SIGN-IN. Grant yourself a role afterwards and this page keeps
+              saying "not held" - correctly, about the token - while Keycloak
+              has already granted it. The 403 that follows is then unexplainable
+              from the one screen that exists to explain it.
+              Observed on this box: `operator` was granted by keycloak-init and
+              the live session, started earlier, did not carry it. */}
+          <p className="set-note">
+            This describes the token this browser is carrying, which was issued when you
+            signed in. A role granted to your account after that is not in it - sign out
+            and back in to pick one up.
+          </p>
         </div>
       </section>
     </>
@@ -429,8 +443,8 @@ function Session() {
             </span>
           </Field>
           <Field label="Enforced by">
-            <span className="mono">sso-viewer</span> and <span className="mono">sso-editor</span>,
-            forwardAuth middlewares at the edge
+            <span className="mono">sso-viewer</span>, <span className="mono">sso-editor</span> and{' '}
+            <span className="mono">sso-operator</span>, forwardAuth middlewares at the edge
             <span className="set-note">
               Not by this page. The list above describes your token; the refusal, when it comes,
               is decided before a request ever reaches an application.
