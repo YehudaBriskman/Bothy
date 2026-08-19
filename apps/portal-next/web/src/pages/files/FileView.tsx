@@ -178,7 +178,7 @@ export function FileView({
         // Nothing on this surface reports a degraded image; the frame it falls
         // back to labels itself.
         onFallback={() => {}}
-        links={onOpen ? { dir, open: onOpen, resolveWiki } : undefined}
+        links={onOpen ? { dir, open: onOpen, resolveWiki, src: (p) => rawUrl(root, p) } : undefined}
       />
     </div>
   );

@@ -33,6 +33,18 @@ export interface MdLinks {
   /** Open a root-relative path in the same root. `frag` is the `#heading` the
    *  link carried, or `''`; the caller decides whether it can honour it. */
   open: (path: string, frag: string) => void;
+  /** Turn a ROOT-RELATIVE path into a URL the browser may load as an image.
+   *
+   *  Supplied by the caller, and for the same reason `resolveWiki` is: answering
+   *  it needs the ROOT, and knowing which root a document came from is exactly
+   *  the knowledge this module is built not to have. Absent, images render inert
+   *  the way an unresolvable link does.
+   *
+   *  The URL it returns points at the SANDBOX ORIGIN (:8100), which is where raw
+   *  bytes live and what the CSP's `img-src` already allows. That is not a
+   *  detail - it is why an image in a document cannot become a script in this
+   *  one. */
+  src?: (path: string) => string | null;
   /** Resolve a WIKILINK target - `[[dns]]`, `[[network/dns]]`, `[[dns#ttl]]` -
    *  to a real path, or null.
    *
@@ -55,6 +67,55 @@ const RE_WEB = /^(https?:\/\/|#|mailto:)/i;
 // opens a file named `javascript:alert(1)`. A scheme this page does not know is
 // not a path; `//host/x` is not one either.
 const RE_SCHEME = /^([a-z][a-z0-9+.-]*:|\/\/)/i;
+
+/**
+ * `![alt](path)`.
+ *
+ * ONLY A REPO-RELATIVE PATH BECOMES AN <img>. Anything carrying a scheme -
+ * `https:`, `data:`, `//` - renders inert with its target visible, and that is a
+ * decision rather than an omission:
+ *
+ *   · The CSP is `img-src 'self' data: blob: http://$host:8100`. A remote image
+ *     is BLOCKED at load, so allowing one here buys a broken-image icon.
+ *   · Widening the CSP to permit it would let any document in any root make the
+ *     reader's browser talk to a third party. On a box reached over a tailnet,
+ *     an <img> is an IP-address beacon.
+ *
+ * The inert form is deliberately the same one an unresolvable link gets: the
+ * text, with the target beside it, because a reader wants to know what was meant
+ * even when it cannot be shown.
+ */
+function mdImage(
+  href: string, alt: string, key: string, links?: MdLinks,
+): ReactNode {
+  // A REMOTE image gets a compact chip, not the inert link treatment. The
+  // difference matters on README.md, which opens with three shields.io badges:
+  // rendering each as "alt" followed by a 90-character URL turns the first
+  // screen of the most-read document into a wall of query strings. The chip says
+  // an image was there and what it was; the URL is in `title` for anyone who
+  // wants it.
+  if (RE_SCHEME.test(href)) {
+    return (
+      <span className="md-img-remote" key={key} title={href}>{alt || 'image'}</span>
+    );
+  }
+  const inert = (
+    <span className="md-reflink" key={key}>{alt || href}<span className="md-reftarget">{href}</span></span>
+  );
+  if (!links || !links.src) return inert;
+  // Relative to the DOCUMENT, not to the page URL - the same rule links follow.
+  const hit = resolveRelative(links.dir, href);
+  if (!hit) return inert;
+  const url = links.src(hit.path);
+  if (!url) return inert;
+  // `alt` is the author's text and lands in an attribute React escapes. loading
+  // and decoding are here because a doc with a dozen screenshots should not
+  // block the render of the prose around them.
+  return (
+    <img className="md-img" key={key} src={url} alt={alt}
+         loading="lazy" decoding="async" />
+  );
+}
 
 function refLink(
   href: string, label: string, key: string, links?: MdLinks, wiki = false,
@@ -107,7 +168,7 @@ function refLink(
 // The wiki alternative comes FIRST and that is load-bearing: `[[dns]]` would
 // otherwise be matched by the inline-link arm as `[` followed by `[dns]`, and
 // the reader would print a stray bracket beside a broken link.
-const INLINE_RE = /(\[\[[^\]\n]+\]\])|(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]\n]*\]\([^)\s]+\))/g;
+const INLINE_RE = /(\[!\[[^\]\n]*\]\([^)\s]+\)\]\([^)\s]+\))|(!\[[^\]\n]*\]\([^)\s]+\))|(\[\[[^\]\n]+\]\])|(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]\n]*\]\([^)\s]+\))/g;
 
 function inlineMd(text: string, k: string, links?: MdLinks): ReactNode[] {
   const out: ReactNode[] = [];
@@ -122,7 +183,24 @@ function inlineMd(text: string, k: string, links?: MdLinks): ReactNode[] {
     // containing a link or a `code span` swallows it whole and prints the
     // markdown source - measured on docs/kb/access.md, whose second line is
     // exactly that shape. Code is terminal by definition: it is literal.
-    if (tok.startsWith('[[')) {
+    if (tok.startsWith('[![')) {
+      // `[![alt](image)](target)` - a badge. Semantically it is a LINK labelled
+      // by the image's alt text, so that is what it renders as: the label, and
+      // the target treated exactly like any other link. Rendering the image
+      // instead would put a remote chip where a link belongs and lose the target
+      // entirely.
+      const shut = tok.indexOf(')](');
+      const alt = tok.slice(3, tok.indexOf(']('));
+      const target = tok.slice(shut + 3, -1);
+      out.push(RE_WEB.test(target)
+        ? <a className="md-link" href={target} target="_blank" rel="noreferrer" key={key}>{alt || target}</a>
+        : refLink(target, alt || target, key, links));
+    } else if (tok.startsWith('![')) {
+      // Before the `[[` and `[` arms: the link pattern would match from the
+      // bracket and leave a stray `!` in the prose.
+      const cut = tok.indexOf('](');
+      out.push(mdImage(tok.slice(cut + 2, -1), tok.slice(2, cut), key, links));
+    } else if (tok.startsWith('[[')) {
       // `[[target]]` or `[[target|label]]`. It resolves through refLink, the
       // SAME path a relative markdown link takes - so a wikilink inherits the
       // property that file records at length: it never becomes an <a href>, and

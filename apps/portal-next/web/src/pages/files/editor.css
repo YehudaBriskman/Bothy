@@ -593,6 +593,35 @@
 .bothy-files .md .md-h3 { font-size: var(--read-h3); }
 .bothy-files .md .md-h4, .bothy-files .md .md-h5, .bothy-files .md .md-h6 { font-size: var(--read-h4); color: var(--fg-muted); }
 .bothy-files .md .md-p { margin: 0 0 var(--read-gap); }
+/* An image in a document, rendered from the sandbox origin (see mdImage in
+   md.tsx for why only repo-relative paths get here).
+
+   `max-width: 100%` is the load-bearing line. README.md's screenshots are
+   1280px wide and the measure is ~660px, so without it the first image blows
+   the column out and every paragraph after it reflows to the image's width -
+   measured exactly that way before this rule existed.
+
+   `height: auto` with the intrinsic size preserved stops the reflow when a slow
+   image finally arrives. The border is there because a screenshot of a dark UI
+   on a dark page has no edge of its own. */
+/* A remote image cannot be shown - the CSP's img-src does not reach third
+   parties, deliberately (see mdImage). This says one was there without pasting
+   its URL into the sentence. */
+.bothy-files .md .md-img-remote {
+  display: inline-block; padding: 0 6px; border-radius: var(--r-sm);
+  border: 1px dashed var(--line-strong); background: var(--surface-2);
+  color: var(--fg-subtle); font-size: 0.85em; line-height: 1.6;
+  vertical-align: baseline; cursor: help;
+}
+.bothy-files .md .md-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--read-gap) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
 .bothy-files .md .md-list { margin: 0 0 var(--read-gap); padding-left: 22px; }
 .bothy-files .md .md-list li { margin: 3px 0; }
 .bothy-files .md .md-list .md-list { margin-bottom: 0; }

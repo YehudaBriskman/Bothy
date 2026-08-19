@@ -153,13 +153,19 @@
      72ch is prose, not a terminal. The measure rule changes reading speed more
      than the typeface does. */
   --read-measure: 72ch;
-  --read-fs: 14.5px;
+  /* 16px, not 14.5px. The measure was already right - 72ch, verified rendering
+     at exactly 72 characters - but the body was set at the app's UI size, and a
+     document is not a dashboard. 14.5px is a good size for a control that sits
+     beside a chart and a tiring one for a page of prose you actually read.
+     The measure is in `ch`, so raising the size keeps the line at 72 characters
+     and simply makes the column physically wider - which is the point. */
+  --read-fs: 16px;
   --read-lh: 1.65;
-  --read-gap: 13px;      /* between blocks */
-  --read-h1: 25px;
-  --read-h2: 19px;
-  --read-h3: 16px;
-  --read-h4: 14px;
+  --read-gap: 15px;      /* between blocks, tracks --read-fs */
+  --read-h1: 27px;
+  --read-h2: 21px;
+  --read-h3: 17.5px;
+  --read-h4: 15px;
 
   /* ── motion ─────────────────────────────────────────────────────────────── */
   --dur-fast: 120ms;   /* hover, colour */

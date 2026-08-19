@@ -39,7 +39,7 @@ import {
   Save, Search, Undo2, X,
 } from 'lucide-react';
 import {
-  fmtBytes, langFor, looksBinary, signInUrl,
+  fmtBytes, langFor, looksBinary, rawUrl, signInUrl,
   type DiffResult, type FileRead, type WriteConflict,
 } from '../../lib/files';
 import { ErrState, Skeleton } from '../../components/states';
@@ -382,7 +382,7 @@ function DocBody({
       // page's own root. The `#fragment` is dropped: this is the editor, where a
       // document arrives at the top and a scroll would fight the caret - the
       // reader is the surface that honours it.
-      links={{ dir: dirName(path), open: (p) => onOpenPath(root, p) }}
+      links={{ dir: dirName(path), open: (p) => onOpenPath(root, p), src: (p) => rawUrl(root, p) }}
     />
   );
 }
