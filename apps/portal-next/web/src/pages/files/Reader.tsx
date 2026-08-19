@@ -24,7 +24,7 @@
 // highlighted `<pre>` and the editor hands it CodeMirror - and the reader never
 // downloads CodeMirror's 332 kB chunk.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, GitCommitHorizontal, Pencil } from 'lucide-react';
 import {
@@ -38,7 +38,9 @@ import { DocIndex, type RootTree } from './DocIndex';
 import { FileView } from './FileView';
 import { SearchView } from './Search';
 import { SignInCard } from './SignInCard';
+import { Start } from './Start';
 import { Toc, useHeadings } from './Toc';
+import { frontPageOf, noteRecent, readRecents, type Recent } from './start';
 import { defaultRoot, filesHref } from './routes';
 import { baseName, dirName, resolveWikiIn } from './tree';
 import { fetchLinks, type LinkIndex } from '../../lib/files';
@@ -93,11 +95,34 @@ export function Reader() {
   const [frag, setFrag] = useState('');
   const [file, setFile] = useState<FileRead | null>(null);
 
+  // ── what this browser has read ────────────────────────────────────────────
+  //
+  // Read once, then kept in state and updated in place, so opening a document
+  // does not re-parse localStorage and Start does not have to know it is backed
+  // by a store at all.
+  //
+  // Recorded from the DOCUMENT'S OWN answer (`f.root`, `f.path`) rather than
+  // from the URL, so a row only lands here for a file the service actually
+  // served: a mistyped `?path=` renders "No such file", reports `null`, and
+  // never becomes a row you can click again. `mergeRecent` drops an entry with
+  // an empty root or path, which is also what makes the field being absent from
+  // some future response a no-op instead of a `/files?root=&path=` row.
+  const [recents, setRecents] = useState<Recent[]>(readRecents);
+  const onFileLoad = useCallback((f: FileRead | null) => {
+    setFile(f);
+    if (f) setRecents(noteRecent(f.root, f.path));
+  }, []);
+
   // Which of the two columns a NARROW screen is showing. On anything wide enough
   // for both this is inert - read.css only acts on it under the breakpoint. It
   // is the list/detail pattern, because the alternative on a 390px screen is an
   // index that occupies the phone and a document nobody can reach.
-  const [pane, setPane] = useState<'index' | 'doc'>(path ? 'doc' : 'index');
+  //
+  // 'doc' EVEN WITH NO PATH, which changed with Start: the main column is now
+  // never empty, so landing a phone on the index would hide the landing surface
+  // behind a tap. Start draws the same `.rd-back` control the document does, so
+  // the index is still one tap away either way.
+  const [pane, setPane] = useState<'index' | 'doc'>('doc');
 
   const docBox = useRef<HTMLDivElement | null>(null);
   const root = urlRoot;
@@ -152,31 +177,30 @@ export function Reader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick]);
 
-  // ── the front page ────────────────────────────────────────────────────────
+  // ── the front page (issue #94) ────────────────────────────────────────────
   //
-  // Arriving at /files with no document used to show "Pick a document" beside
-  // an index, which is a filing cabinet rather than a reader: the page had
-  // nothing to read on it. A ROOT'S README IS ITS FRONT PAGE - ~/claude-notes
-  // opens with a map of the notes, ~/stacks with the repo's own README - so if
-  // the root has one, it is what the reader lands on.
+  // THIS USED TO BE A REDIRECT. Arriving at /files bounced you into the default
+  // root's README, on the argument that a reader whose centre column is empty is
+  // a filing cabinet rather than a reader. The argument was right; the
+  // destination was not. `defaultRoot` picks the first WRITABLE root, which on
+  // this box is `notes` - one person's private notes index - so "open Files"
+  // meant "open somebody else's filing system", which is the complaint #94 was
+  // filed about.
   //
-  // `replace`, so Back leaves the reader instead of bouncing between the empty
-  // state and the document. Only when no path was asked for: a deep link always
-  // wins, and this must never fight one.
-  useEffect(() => {
-    if (path || !root) return;
-    const tree = trees[root];
-    if (!tree || tree.loading || !tree.entries.length) return;
-    const top = tree.entries.filter((e) => !e.path.includes('/'));
-    const landing = ['README.md', 'readme.md', 'index.md', 'README.markdown']
-      .map((n) => top.find((e) => e.path === n))
-      .find(Boolean);
-    if (!landing) return;
-    const next = new URLSearchParams();
-    next.set('root', root);
-    next.set('path', landing.path);
-    setParams(next, { replace: true });
-  }, [path, root, trees, setParams]);
+  // The Start surface answers it instead, and the README survives as an OFFER
+  // rather than a navigation: it is named, by path, in the empty state of the
+  // recents list. `frontPageOf` is that same precedence order, moved into
+  // start.ts where checks/start-table.mjs can assert it - it never was while it
+  // was four lines inside an effect.
+  //
+  // Only the current root's UNSCOPED listing can answer this, which is why a
+  // scoped index simply has no offer to make: `trees[root]` is not fetched while
+  // `?in=` is set (the listing lives under a composite key), and '' renders as
+  // no offer rather than as a broken one.
+  const frontPage = useMemo(
+    () => frontPageOf((trees[root]?.entries ?? []).map((e) => e.path)),
+    [trees, root],
+  );
 
   // ── one listing per opened root ────────────────────────────────────────────
   //
@@ -246,6 +270,18 @@ export function Reader() {
     // index showing a root the document is not in.
     setOpenRoots((prev) => (prev.has(r) ? prev : new Set(prev).add(r)));
   }, [setParams]);
+
+  // Back to Start, keeping the root. The top nav's own Files link already goes
+  // there from anywhere in the app (it points at a bare `/files`); this is the
+  // way back from INSIDE a document, and it is the root segment of the
+  // breadcrumb rather than a new control, because that is what a breadcrumb
+  // already means and the alternative was a fourth thing in a 296px panel.
+  const goStart = useCallback(() => {
+    const next = new URLSearchParams();
+    if (root) next.set('root', root);
+    setParams(next);
+    setPane('doc');
+  }, [root, setParams]);
 
   const toggleRoot = useCallback((k: string) => {
     setOpenRoots((prev) => {
@@ -374,7 +410,20 @@ export function Reader() {
                   </button>
                   <div className="rd-head-row">
                     <p className="rd-crumb mono" title={`${root}/${path}`}>
-                      {root}/{dirName(path)}<b>{baseName(path)}</b>
+                      {/* The root segment leads back to Start - the same thing
+                          the root segment of the index's own breadcrumb does
+                          for a folder scope. It keeps the crumb's exact
+                          typography, so nothing moved; it just became
+                          pressable. */}
+                      <button
+                        type="button"
+                        className="rd-crumb-root"
+                        onClick={goStart}
+                        title="Start - Bothy's own docs, and where you were"
+                      >
+                        {root}
+                      </button>
+                      /{dirName(path)}<b>{baseName(path)}</b>
                     </p>
                     {mayEdit && (
                       <Link className="btn sm rd-edit" to={filesHref('edit', root, path)}>
@@ -423,7 +472,7 @@ export function Reader() {
                     resolveWiki={(t) => resolveWikiIn(
                       (trees[root]?.entries ?? []).map((e) => e.path), t,
                     )}
-                    onLoad={setFile}
+                    onLoad={onFileLoad}
                   />
                   {/* AFTER the document, never beside it. Backlinks are context
                       you want once you have read the thing, and a sidebar of
@@ -436,18 +485,27 @@ export function Reader() {
                 </div>
               </>
             ) : (
-              <div className="rd-empty">
-                <h2>Pick a document</h2>
-                <p>
-                  Everything readable on the box, ordered by what it is for: prose first,
-                  then the rest behind <b>All files</b>. Search reads the bytes of every
-                  root, so a phrase you half-remember is enough.
-                </p>
-                <p className="rd-empty-note">
-                  This view never writes. The editor is at{' '}
-                  <Link to={filesHref('edit', root)}>/files/edit</Link>.
-                </p>
-              </div>
+              <Start
+                roots={roots}
+                root={root}
+                frontPage={frontPage}
+                recents={recents}
+                onOpen={openDoc}
+                onScope={(r, dir) => {
+                  // Same URL shape as the index's own scope control, minus the
+                  // `path` it preserves: there is no open document to keep when
+                  // the shelf is what you pressed.
+                  const next = new URLSearchParams();
+                  next.set('root', r);
+                  if (dir) next.set('in', dir);
+                  setParams(next);
+                  // The narrow screen has to MOVE to see what just happened -
+                  // scoping changes the index, and the index is the other pane.
+                  setPane('index');
+                  setOpenRoots((prev) => (prev.has(r) ? prev : new Set(prev).add(r)));
+                }}
+                onIndex={() => setPane('index')}
+              />
             )}
           </main>
 

@@ -201,14 +201,125 @@
    full-height flex column - so the document, its skeleton and its error states
    all fill this box without a second set of rules. */
 
-.bothy-files .rd-empty {
+/* ── Start ───────────────────────────────────────────────────────────────────
+   What `/files` opens on now (issue #94), where "Pick a document" used to be.
+
+   Wider than the 72ch reading measure on purpose, and it is the one surface here
+   that is allowed to be: 72ch exists so a LINE of prose is comfortable to read,
+   and nothing on this page is a line of prose - it is a shelf of seven cards and
+   a list of eight rows, both of which are scanned. Capping it at the measure put
+   the cards in one column on a 1600px screen with 900px of empty space beside
+   them. */
+.bothy-files .rd-start {
   flex: 1; min-height: 0; overflow: auto;
-  padding: 64px 28px; max-width: 60ch; color: var(--fg-muted);
+  padding: 40px 28px 64px; max-width: 92ch; color: var(--fg-muted);
 }
-.bothy-files .rd-empty h2 { margin: 0 0 10px; font-size: 20px; color: var(--fg); }
-.bothy-files .rd-empty p { margin: 0 0 12px; line-height: 1.6; }
-.bothy-files .rd-empty-note { font-size: 12.5px; color: var(--fg-subtle); }
-.bothy-files .rd-empty a { color: var(--accent-fg); }
+.bothy-files .rd-start-head { margin: 0 0 30px; max-width: 68ch; }
+.bothy-files .rd-start-head h2 { margin: 0 0 8px; font-size: 22px; color: var(--fg); }
+.bothy-files .rd-start-head p { margin: 0; line-height: 1.6; font-size: 13.5px; }
+
+.bothy-files .rd-sec { margin: 0 0 34px; }
+.bothy-files .rd-sec-h {
+  margin: 0 0 2px;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.bothy-files .rd-sec-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--fg-subtle); }
+
+/* auto-fill rather than a fixed column count, so the shelf reflows on its own
+   between the 296px index and the 232px outline instead of needing a breakpoint
+   for every layout the reader already has. 250px is the width at which the
+   longest label and its glyph still share a line. */
+.bothy-files .rd-shelf {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+.bothy-files .rd-shelf li { margin: 0; display: flex; }
+.bothy-files .rd-card {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  display: flex; flex-direction: column; gap: 5px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface-1); color: var(--fg-muted);
+  font: inherit; padding: 11px 13px 10px;
+}
+.bothy-files .rd-card:hover { border-color: var(--accent); background: var(--surface-2); }
+.bothy-files .rd-card:hover .rd-card-ico { color: var(--accent-fg); }
+.bothy-files .rd-card:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .rd-card-top { display: flex; align-items: center; gap: 7px; }
+.bothy-files .rd-card-ico { flex: none; color: var(--fg-subtle); }
+.bothy-files .rd-card-t { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+/* The one card that does not open a document says so. A pill rather than a
+   second sentence, because the blurb already has the sentence. */
+.bothy-files .rd-card-tag {
+  margin-left: auto; flex: none;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .03em;
+  color: var(--fg-subtle); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 0 5px;
+}
+.bothy-files .rd-card-b { font-size: 12px; line-height: 1.45; }
+/* The address, last and quietest. Same decision as the index's folder heading:
+   one piece of filesystem in a panel of titles, typeset as an address. */
+.bothy-files .rd-card-p {
+  font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.bothy-files .rd-recents { list-style: none; margin: 0; padding: 0; }
+.bothy-files .rd-recents li { margin: 0; }
+.bothy-files .rd-recent {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 9px;
+  border: 0; border-bottom: 1px solid var(--line); background: transparent;
+  font: inherit; color: var(--fg-muted); padding: 7px 8px; margin: 0;
+}
+/* The last row keeps no rule under it: the footnote below already draws one,
+   and two lines eight pixels apart read as a mistake. */
+.bothy-files .rd-recents li:last-child .rd-recent { border-bottom: 0; }
+.bothy-files .rd-recent:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .rd-recent:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.bothy-files .rd-recent-ico { flex: none; color: var(--fg-subtle); }
+.bothy-files .rd-recent-text { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 1px; }
+.bothy-files .rd-recent-t {
+  font-size: 13px; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .rd-recent-p {
+  font-size: 10.5px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .rd-recent-at { flex: none; font-size: 11px; color: var(--fg-subtle); }
+.bothy-files .rd-recent-go { flex: none; color: var(--fg-subtle); }
+
+.bothy-files .rd-start-note { margin: 0; font-size: 12.5px; line-height: 1.6; }
+/* A button that has to sit inside a sentence. It keeps the sentence's metrics
+   and only borrows the link colour - an inline element with a border or a
+   background would push the line it is in taller than its neighbours. */
+.bothy-files .rd-inline {
+  appearance: none; border: 0; background: none; padding: 0;
+  font: inherit; font-family: var(--mono); font-size: 11.5px;
+  color: var(--accent-fg); cursor: pointer; text-decoration: underline;
+}
+/* Full width, unlike the lede above it. The rule is a divider for the whole
+   page, and capping it at the reading measure drew a line that stopped two
+   thirds of the way across for no reason a reader could see. The text under it
+   is a two-sentence footnote rather than prose, so it does not need the measure
+   the lede does. */
+.bothy-files .rd-start-foot {
+  margin: 30px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+  font-size: 12px; line-height: 1.6; color: var(--fg-subtle);
+}
+.bothy-files .rd-start-foot a { color: var(--accent-fg); }
+
+/* The root segment of the document's breadcrumb, which leads back to Start.
+   Typography identical to the crumb around it - it is the same text it always
+   was - so the only thing that changes on hover is the colour. */
+.bothy-files .rd-crumb-root {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; color: inherit; cursor: pointer;
+}
+.bothy-files .rd-crumb-root:hover { color: var(--accent-fg); }
+.bothy-files .rd-crumb-root:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ── the outline ─────────────────────────────────────────────────────────── */
 .bothy-files .rd-toc {
@@ -275,7 +386,12 @@
   /* editor.css pads .fx-read at 24px 28px; at this width that is a tenth of the
      line. The 72ch cap is doing nothing here - the viewport is the measure. */
   .bothy-files.bothy-read .fx-read { padding: 16px 16px 40px; }
-  .bothy-files .rd-empty { padding: 32px 16px; }
+  /* Start on one column. The shelf's auto-fill already collapses to a single
+     card per row below 250px + padding, so only the frame needs the breakpoint.
+     Measured at 390px: seven cards and eight rows, all of them tappable. */
+  .bothy-files .rd-start { padding: 12px 16px 48px; }
+  .bothy-files .rd-start-head { margin-bottom: 22px; }
+  .bothy-files .rd-start-head h2 { font-size: 19px; }
 }
 
 /* ── callouts ────────────────────────────────────────────────────────────────
