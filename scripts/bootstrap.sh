@@ -449,6 +449,21 @@ else
   printf '%s\n' "$prom_pass" > monitoring/prom-password.txt
   ok "generated        monitoring/prom-password.txt (the self-scrape password)"
 fi
+# The name the self-scrape authenticates AS. monitoring/prometheus.yml used to
+# carry it as a literal - one person's email address, committed - and
+# prometheus-web.yml's users map is generated below from $DEV_LOGIN_USER. On the
+# box where those two happened to be the same string the self-scrape worked; on
+# every other box it got a 401 and showed up as a target that was simply DOWN.
+# Writing both from the same variable is what stops them drifting.
+if [ -f monitoring/prom-username.txt ] && [ "$FORCE" = 0 ]; then
+  say "already present  monitoring/prom-username.txt"
+else
+  printf '%s\n' "$DEV_LOGIN_USER" > monitoring/prom-username.txt
+  ok "generated        monitoring/prom-username.txt (the self-scrape username)"
+fi
+# Readable by uid 65534 for the same reason the password file is - see below.
+chmod 644 monitoring/prom-username.txt
+
 # 644, NOT 600, and this is the one permission in this file worth arguing
 # about. Prometheus runs as `nobody` (uid 65534) inside its container and
 # reads this path through a read-only bind mount; the file is owned by

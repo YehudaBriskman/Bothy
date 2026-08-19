@@ -26,6 +26,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus-web.yml:/etc/prometheus/web.yml:ro
+      - ./prom-username.txt:/etc/prometheus/prom-username.txt:ro
       - ./prom-password.txt:/etc/prometheus/prom-password.txt:ro
       - ./rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
