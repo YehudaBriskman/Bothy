@@ -3,26 +3,30 @@ flowchart TB
     B["Browser<br/>http://&lt;node-ip&gt;:&lt;port&gt;"]
   end
 
-  B -->|":3000 :9090 :8080 :9000 …"| SVC
+  B -->|":3000 :9090 :3100 :8082 :9100"| SVC
   B -->|":8090"| KC
   B -->|":80"| T
 
   subgraph box["The dev box"]
     SVC["Grafana · Prometheus · Loki<br/>cAdvisor · node-exporter<br/><i>each on its own published port</i>"]
 
-    T["<b>Traefik</b> :80<br/>7 routers, zero Host rules<br/>catch-all (prio 1) + exact Path() / PathPrefix (prio 100)"]
+    T["<b>Traefik</b> :80<br/>14 routers, zero Host rules<br/>catch-all (prio 1) + exact Path() (prio 100)"]
 
-    T -->|"PathPrefix(/) - answers everything"| PORTAL["<b>Portal</b> - React, served static"]
+    T -->|"PathPrefix(/) - answers everything"| PORTAL["<b>Bothy</b> - React, served static"]
     T -->|"exact Path /-/api/traefik/…"| TAPI["Traefik API<br/>api@internal · dashboard OFF"]
-    T -->|"exact Path /-/api/docker/…"| SP["docker-socket-proxy<br/>read-only · no auth · socketnet only"]
+    T -->|"exact Path /-/api/docker/…"| SP["bothy-socket-proxy<br/>read-only · no auth · socketnet only"]
     T -->|"exact Path /-/api/loki, /-/api/prom"| OBS2["Loki · Prometheus"]
     T -->|"PathPrefix(/oauth2/)"| O2P["oauth2-proxy<br/>--provider=oidc · no host port"]
     SP --> SOCK[("/var/run/docker.sock :ro")]
 
+    T -->|"viewer / editor<br/>4 routers"| FILES["<b>Bothy Files</b><br/>read, write, delete, download"]
+    T -->|"viewer / editor<br/>2 routers"| CFG["<b>Bothy Config</b><br/>read, patch"]
+    T -->|"operator<br/>3 routers"| CTL["<b>Bothy Control</b><br/>restart · stop · start<br/><i>no exec, no kill</i>"]
+
     KC["<b>Keycloak</b> :8090<br/>realm devbox · roles viewer/editor/operator/shell"]
     O2P -->|"OIDC - issuer is the :8090 URL, one spelling"| KC
 
-    DATA[("Postgres 17<br/>loopback only, never routed<br/><i>dev · wiki · keycloak</i>")]
+    DATA[("Postgres 17<br/>loopback only, never routed<br/><i>dev · keycloak</i>")]
     KC --> DATA
   end
 
@@ -30,4 +34,4 @@ flowchart TB
   SP -.->|"containers, health, disk"| PORTAL
   OBS2 -.->|"logs, metrics"| PORTAL
 
-  O2P -.->|"sso@file / sso-errors@file exist,<br/>but are attached to NO router"| T
+  O2P -.->|"9 of the 14 routers carry a role.<br/>The bare sso@file is attached to none."| T
