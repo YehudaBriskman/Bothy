@@ -19,10 +19,6 @@ scrape_configs:
     static_configs:
       - targets: ["traefik:8899"]
 
-  - job_name: docker-daemon
-    static_configs:
-      - targets: ["host.docker.internal:9323"]
-
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
@@ -46,3 +42,26 @@ scrape_configs:
   # Restore alongside the service:
   #   - job_name: redis   ->  redis-exporter:9121
   #   - job_name: kafka   ->  kafka-exporter:9308
+
+  # docker-daemon scrape job REMOVED 2026-08-19.
+  #
+  # It scraped the daemon's own `metrics-addr` endpoint on :9323 and NOTHING
+  # read the result: no panel in monitoring/dashboards/, no expression in
+  # rules/, no query in the portal - not one `engine_daemon_*` series is named
+  # anywhere in this repo. It was also the only job in this file with no comment
+  # saying what it was for, which is usually the tell.
+  #
+  # The argument is the one written directly above about redis and kafka, and it
+  # applies harder here: `metrics-addr` is opt-in, bootstrap.sh deliberately did
+  # not set it, so on any install that had not been hand-edited this target sat
+  # permanently DOWN. A target that is always down stops "are all targets up?"
+  # being a question worth asking, and it was one of the four faults that made
+  # `just doctor strict` unusable on a fresh box (#105).
+  #
+  # Restore alongside the setting:
+  #   - job_name: docker-daemon  ->  host.docker.internal:9323
+  # and add `"metrics-addr": "0.0.0.0:9323"` to /etc/docker/daemon.json -
+  # host/docker/daemon.json still carries the line, and is still worth copying
+  # for the log rotation that sits beside it. Prometheus also needs its
+  # `extra_hosts: host.docker.internal:host-gateway` back in compose.yml, which
+  # came out with this job because nothing else in this file uses that name.

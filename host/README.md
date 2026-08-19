@@ -13,7 +13,7 @@ instead of vanishing. After editing a real file, copy it back here.
 | Copy | Real location | Why it exists |
 |---|---|---|
 | `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Wildcard the name layer → this box's tailnet IP. **The name layer was DELETED on 2026-08-12, not parked** - zero `Host()` rules remain in Traefik's router table and access is pure IP:port, so restoring names is a rebuild, not a switch. **dnsmasq itself still runs and still matters** as the box's own resolver: `domain-needed` is what keeps bare dotless hostnames from hanging. See below. |
-| `docker/daemon.json` | `/etc/docker/daemon.json` | Log rotation (10m × 3) and `metrics-addr` on :9323, which `monitoring/prometheus.yml` scrapes as its `docker-daemon` job. Without it that target is permanently down. |
+| `docker/daemon.json` | `/etc/docker/daemon.json` | **Log rotation (10m × 3)** - the reason to copy this file. It also carries `metrics-addr` on :9323, which is now OPTIONAL: the `docker-daemon` scrape job was removed from `monitoring/prometheus.yml` on 2026-08-19 because nothing in the repo read an `engine_daemon_*` series, so the setting exposes an endpoint that Prometheus no longer asks for. Keep it only if you intend to restore that job. |
 | `wsl/wsl.conf` | `/etc/wsl.conf` (in the distro) | `systemd=true` - the reason `docker.service` can be enabled and every stack comes up with the distro. Also `generateResolvConf=false`. |
 | `wsl/wslconfig` | `C:\Users\devssh\.wslconfig` | Memory, CPU and nested virtualisation for the WSL VM. |
 | `wsl/resolv.conf` | `/etc/resolv.conf` | Points the box at its own dnsmasq. Held with `chattr +i` - see below. |

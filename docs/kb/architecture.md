@@ -59,7 +59,8 @@ hostname-nesting logic is retained but is effectively dormant.
   with `pg_isready` wait, empty-artifact discard, non-zero exit on failure. `doctor.sh`
   fails loudly if the newest backup is `< 1000 bytes` or `> 48h` old - **that check is the
   single most important alarm on the box** (backups were silently empty for 6 days once).
-- **Monitoring**: Prometheus (15d retention, 7 targets all up incl. docker-daemon :9323),
+- **Monitoring**: Prometheus (15d retention; the `docker-daemon` :9323 job was removed
+  2026-08-19 - no consumer, and permanently down wherever `metrics-addr` was unset),
   Loki (7-day retention since PR #7), promtail (positions in a volume, not /tmp), Grafana.
 
 ## Traps that are DESIGNED IN (read before "fixing" anything)

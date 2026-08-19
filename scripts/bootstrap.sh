@@ -180,11 +180,16 @@ case "$(env_value BOX_IP)" in
 esac
 
 case "$(uname -s)" in
-  Linux)
-    if [ -f /etc/docker/daemon.json ] && ! grep -q metrics-addr /etc/docker/daemon.json; then
-      warn "/etc/docker/daemon.json has no metrics-addr - the docker-daemon Prometheus target will stay down"
-      say "  see host/docker/daemon.json for the two lines it needs"
-    fi ;;
+  # There was a Linux arm here that warned when /etc/docker/daemon.json had no
+  # `metrics-addr`. It existed for one reason - the `docker-daemon` Prometheus
+  # job - and that job was removed on 2026-08-19 for having no consumers
+  # anywhere in the repo, so the warning described a consequence that can no
+  # longer happen. A first run that opens by naming a problem which is not a
+  # problem is how people learn to skim this output.
+  #
+  # host/docker/daemon.json is still worth copying, for the log rotation it
+  # carries alongside that line; that is documentation, not something an install
+  # has to be warned about.
   Darwin)
     # Docker Desktop only bind-mounts from a shared root, and a clone outside one
     # fails at mount time with an error that never mentions file sharing.
