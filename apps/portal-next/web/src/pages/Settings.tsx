@@ -473,6 +473,18 @@ const STORES = [
       + 'they are used - the theme button in the topbar, the panes themselves - rather than here.',
   },
   {
+    what: 'Which service groups you have collapsed',
+    where: 'This browser',
+    store: 'localStorage',
+    elsewhere: 'Not there. Another browser starts with every group open, which is also what a browser '
+      + 'that has never been told otherwise shows.',
+    why: 'Only the groups you CLOSED are written down, so a group nobody has touched is open because '
+      + 'it is absent rather than because a default was recorded - the Services page looks exactly as '
+      + 'it always has until you collapse something. They are filed under what a system IS, not under '
+      + 'the name it is displayed by, so renaming a project or setting dev.portal.group does not make '
+      + 'the page forget. Groups the box no longer has are dropped rather than kept forever.',
+  },
+  {
     what: 'A theme you wrote yourself',
     where: 'The box, as a file',
     store: THEME_DIR_HOST,
