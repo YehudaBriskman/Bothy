@@ -28,6 +28,12 @@ ship - routing, dashboards, log aggregation. It never provides what projects
 portable. If Traefik is down, `tilt up` in a project still works, and so does
 every service on its own published port; you lose the portal, not the box.
 
+**The diagrams here are generated, not drawn.** Each one is a mermaid source in
+`docs/diagrams/` rendered to an SVG by `just diagrams`; edit the `.mmd`, never
+the `.svg`. They used to be fenced mermaid blocks, which GitHub renders and
+Bothy's own docs reader cannot - so Bothy showed its own architecture as six code
+blocks. `scripts/checks/diagrams.sh` fails if a source and its SVG drift apart.
+
 ---
 
 ## Contents
@@ -47,32 +53,7 @@ every service on its own published port; you lose the portal, not the box.
 
 There are two paths now, and which one a request takes depends only on the port.
 
-```mermaid
-flowchart TB
-    subgraph s_tailnet["Tailnet - WireGuard - nothing on the LAN or the internet"]
-        BROWSER["Browser on a laptop or phone<br/>http://NODE-IP:3000 or http://NODE-IP/"]
-    end
-
-    subgraph s_box["This node - WSL2 - its own tailnet member"]
-        subgraph s_direct["Path A - a published port, no proxy at all"]
-            GRAF["grafana - host port 3000<br/>its own login, DEV_LOGIN credential"]
-        end
-
-        subgraph s_edge["Path B - port 80"]
-            TRAEFIK["Traefik v3.6 - entrypoint web on :80<br/>7 routers, ZERO Host rules"]
-        end
-
-        subgraph s_devnet["devnet - internal bridge network"]
-            PNEXT["portal-next :80<br/>catch-all, priority 1"]
-            APIS["bothy-socket-proxy · loki · prometheus<br/>· api@internal - reached only via exact Path()"]
-        end
-    end
-
-    BROWSER -->|"A - straight to the published port"| GRAF
-    BROWSER -->|"B - GET NODE-IP with any path"| TRAEFIK
-    TRAEFIK -->|"exact Path /-/api/... at priority 100"| APIS
-    TRAEFIK ==>|"everything else - PathPrefix / at priority 1"| PNEXT
-```
+![The two request paths - a published port straight to the service, and Traefik on :80](assets/diagrams/request-path.svg)
 
 ### Step by step
 
@@ -182,31 +163,7 @@ Two consequences of that table:
 
 ## 2. The two networks
 
-```mermaid
-flowchart TB
-    SOCKET[("/var/run/docker.sock<br/>root-equivalent")]
-
-    subgraph s_socketnet["socketnet - exactly two members"]
-        PROXY["bothy-socket-proxy<br/>CONTAINERS=1 SYSTEM=1 POST=0 EXEC=0<br/>no auth of any kind - no published port"]
-    end
-
-    subgraph s_devnet["devnet - around two dozen containers"]
-        OAUTH["oauth2-proxy"]
-        OBS["monitoring - grafana, prometheus, loki,<br/>promtail, cadvisor, node-exporter"]
-        APPSG["apps - portal-next, portal-files, bothy-socket-proxy"]
-        DATAG["data - postgres plus its exporter - not routed"]
-        PROJ["project containers<br/>e.g. cvops-nginx, cvops-garage"]
-    end
-
-    TRAEFIK["traefik<br/>the only container on BOTH networks"]
-
-    TRAEFIK --> OAUTH
-    TRAEFIK --> OBS
-    TRAEFIK --> APPSG
-    TRAEFIK --> PROJ
-    TRAEFIK -->|"the only path to the proxy"| PROXY
-    PROXY -->|"mounted read-only"| SOCKET
-```
+![devnet, socketnet, and traefik as the only container on both](assets/diagrams/networks.svg)
 
 Both networks are **external** - created once by `just network`, then every
 compose file joins them with `external: true`. That is what lets separate compose
@@ -303,49 +260,7 @@ personal tailnet and on nothing wider.
 
 ## 3. The stacks
 
-```mermaid
-flowchart TB
-    subgraph s_edge["edge/ - the single front door"]
-        TRAEFIK["traefik v3.6<br/>publishes :80 - api=true, no dashboard<br/>docker provider + file provider"]
-        DYN["edge/dynamic/<br/>auth · portal-api · portal-prom (generated)<br/>host-services and tals are RETIRED stubs"]
-    end
-
-    subgraph s_auth["auth/ - identity, defined but NOT enforced"]
-        KC["keycloak<br/>local IdP - host port 8090"]
-        OAUTH["oauth2-proxy<br/>callback is an IP:port URL<br/>gates the editor tier by role"]
-    end
-
-    subgraph s_mon["monitoring/ - observability"]
-        PROM["prometheus - 15d retention"]
-        GRAF["grafana - provisioned datasources,<br/>dashboards and alert rules"]
-        LOKI["loki"]
-        PTAIL["promtail - docker service discovery,<br/>every container, zero per-service setup"]
-        CADV["cadvisor - per-container metrics"]
-        NEXP["node-exporter - the host"]
-    end
-
-    subgraph s_data["data/ - dev data services"]
-        PG["postgres 17 + postgres-exporter"]
-    end
-
-    subgraph s_apps["apps/ - what the box itself serves"]
-        PNEXT["portal-next - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
-        PSOCK["bothy-socket-proxy<br/>shipped by apps/bothy/socket-proxy.yml"]
-        PFILES["portal-files - the editor tier.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
-    end
-
-    subgraph s_host["host/ - configuration that is not in any container"]
-        HOSTF["dnsmasq conf · docker daemon.json<br/>wsl.conf · systemd units · WSL keepalive task"]
-    end
-
-    DYN -->|"file provider, watched"| TRAEFIK
-    TRAEFIK -->|"forwardAuth"| OAUTH
-    TRAEFIK -.->|"over socketnet only"| PSOCK
-    PTAIL --> LOKI
-    GRAF --> PROM
-    GRAF --> LOKI
-    PROM -->|"scrapes traefik:8899"| TRAEFIK
-```
+![The six stack directories and what each one runs](assets/diagrams/stacks.svg)
 
 ### What is in each stack
 
@@ -440,20 +355,7 @@ Nothing here is a live instruction. Do not write a `Host()` rule.
 
 ### What it was
 
-```mermaid
-flowchart LR
-    BASE["the name layer - the portal, the base of the namespace"]
-
-    BASE --> TRA["a service hostname"]
-    BASE --> GRA["a service hostname"]
-    BASE --> TIL["a service hostname"]
-
-    BASE --> CVO["a service hostname"]
-    CVO --> CS3["a nested hostname"]
-
-    BASE --> TAL["a service hostname"]
-    TAL --> TAPI["a project API hostname"]
-```
+![The retired name layer - one hostname per service under a shared base](assets/diagrams/naming-retired.svg)
 
 | Shape | Meant |
 |---|---|
@@ -549,37 +451,7 @@ it must never be blank.
 
 ### The join
 
-```mermaid
-flowchart TD
-    subgraph s_apis["Two read-only APIs under /-/api/ - same origin"]
-        TAPI["Traefik API - routers and services<br/>THE SKELETON"]
-        DAPI["Docker API via the socket proxy<br/>containers/json and system/df<br/>THE ENRICHMENT"]
-    end
-
-    R["router<br/>name = grafana@docker<br/>service = grafana"]
-    K["svcKey<br/>append @provider when the service<br/>string has no @ in it"]
-    S["service grafana@docker<br/>loadBalancer.servers"]
-    U["server URL<br/>http://172.18.0.22:3000"]
-    IDX["index of devnet IPs ONLY"]
-    C["container<br/>ports, health, image, compose labels, mounts"]
-    FB["fallback join by router-name label<br/>traefik.http.routers.NAME on the container"]
-    H["extractHost - parse Host from the rule<br/>null when not fully understood"]
-    N["PortalNode<br/>host, aliases, group, status, icon, volumes"]
-
-    TAPI --> R
-    R --> H
-    R --> K
-    K --> S
-    S --> U
-    U --> IDX
-    DAPI --> IDX
-    DAPI --> FB
-    IDX -->|"hit"| C
-    IDX -.->|"miss - stale server IP"| FB
-    FB --> C
-    C --> N
-    H --> N
-```
+![The portal join - compose labels, Traefik routers and container state into one node list](assets/diagrams/discovery-join.svg)
 
 The chain in one line: **router → service → server URL → devnet IP → container**.
 The implementation is `apps/portal-next/web/src/lib/discover.ts`, deliberately
@@ -707,33 +579,7 @@ the case for all of these. An `@file` route with no container is honestly
 
 ## 6. Data and backups
 
-```mermaid
-flowchart LR
-    subgraph s_covered["Backed up nightly"]
-        V1["postgres_postgres_data"]
-        V2["redis_redis_data"]
-        V5["monitoring_grafana_data"]
-        V8["mgmt_portainer_data"]
-        ENVF["stacks/.env<br/>gitignored - exists nowhere else"]
-    end
-
-    subgraph s_uncovered["Not backed up - rebuildable or expendable"]
-        V3["kafka_kafka_data"]
-        V4["monitoring_prometheus_data - 15d retention"]
-        V6["monitoring_loki_data"]
-        V7["monitoring_promtail_positions"]
-    end
-
-    BK["scripts/backup.sh<br/>stacks-backup.timer - 03:00 daily - Persistent=true"]
-    OUT[("~/backups<br/>newest 14 of each retained")]
-
-    V1 -->|"pg_dumpall piped through gzip"| BK
-    V2 -->|"redis-cli SAVE then docker cp dump.rdb"| BK
-    V5 -->|"docker cp grafana.db"| BK
-    V8 -->|"docker cp portainer.db"| BK
-    ENVF -->|"install -m 600"| BK
-    BK --> OUT
-```
+![The volumes that hold state and what the nightly backup covers](assets/diagrams/data-and-backups.svg)
 
 ### The volumes
 

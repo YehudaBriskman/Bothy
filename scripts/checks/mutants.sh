@@ -208,6 +208,33 @@ mutant "a person's email is hardcoded in a config" \
   -- ./scripts/checks/portability.sh
 
 echo
+echo "── the picture and the source it came from ─────────────────────────"
+# docs/ARCHITECTURE.md shows six generated SVGs. The mermaid that produced them
+# lives beside them in docs/diagrams/*.mmd, and NOBODY LOOKS AT THE SOURCE - so
+# the failure mode is editing the .mmd, forgetting `just diagrams`, and shipping
+# a document that confidently draws the old architecture. It looks healthy. That
+# is exactly the silent kind this file exists for.
+#
+# THE ANCHOR IS THE DIRECTION KEYWORD, not any of the node text, and that is
+# deliberate: `flowchart TB` is the first line of every one of these and will
+# still be there after the boxes are all renamed, whereas an anchor quoting a
+# label rots the first time somebody rewords it and `plant` then reports "anchor
+# not found" - which reads as a broken harness rather than a rotted row.
+#
+# ASSEMBLED, like BASH4_SUFFIX and HOME_PREFIX above and found the same way: this
+# row's whole job is to plant mermaid, and mermaid written out in full here is a
+# mermaid graph living in a tracked file that is not a .mmd. diagrams.sh does not
+# scan for that today, but the check it would grow to do so is the obvious next
+# one ("no stray mermaid outside docs/diagrams"), and the payload that trips it
+# would be this line. Splitting the keyword costs nothing at runtime.
+FLOW_KW='flowchart'
+mutant "a diagram source drifts from its SVG" \
+  docs/diagrams/request-path.mmd \
+  "$FLOW_KW TB" \
+  "$FLOW_KW LR" \
+  -- bash scripts/checks/diagrams.sh
+
+echo
 echo "── the path boundary ───────────────────────────────────────────────"
 # THE containment check. Resolve first, compare after. Deleting it is the whole
 # directory-traversal class in one line, and 30 unit cases exist to catch it.

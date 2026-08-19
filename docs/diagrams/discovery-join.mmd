@@ -1,0 +1,29 @@
+flowchart TD
+    subgraph s_apis["Two read-only APIs under /-/api/ - same origin"]
+        TAPI["Traefik API - routers and services<br/>THE SKELETON"]
+        DAPI["Docker API via the socket proxy<br/>containers/json and system/df<br/>THE ENRICHMENT"]
+    end
+
+    R["router<br/>name = grafana@docker<br/>service = grafana"]
+    K["svcKey<br/>append @provider when the service<br/>string has no @ in it"]
+    S["service grafana@docker<br/>loadBalancer.servers"]
+    U["server URL<br/>http://172.18.0.22:3000"]
+    IDX["index of devnet IPs ONLY"]
+    C["container<br/>ports, health, image, compose labels, mounts"]
+    FB["fallback join by router-name label<br/>traefik.http.routers.NAME on the container"]
+    H["extractHost - parse Host from the rule<br/>null when not fully understood"]
+    N["PortalNode<br/>host, aliases, group, status, icon, volumes"]
+
+    TAPI --> R
+    R --> H
+    R --> K
+    K --> S
+    S --> U
+    U --> IDX
+    DAPI --> IDX
+    DAPI --> FB
+    IDX -->|"hit"| C
+    IDX -.->|"miss - stale server IP"| FB
+    FB --> C
+    C --> N
+    H --> N

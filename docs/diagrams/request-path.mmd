@@ -1,0 +1,24 @@
+flowchart TB
+    subgraph s_tailnet["Tailnet - WireGuard - nothing on the LAN or the internet"]
+        BROWSER["Browser on a laptop or phone<br/>http://NODE-IP:3000 or http://NODE-IP/"]
+    end
+
+    subgraph s_box["This node - WSL2 - its own tailnet member"]
+        subgraph s_direct["Path A - a published port, no proxy at all"]
+            GRAF["grafana - host port 3000<br/>its own login, DEV_LOGIN credential"]
+        end
+
+        subgraph s_edge["Path B - port 80"]
+            TRAEFIK["Traefik v3.6 - entrypoint web on :80<br/>7 routers, ZERO Host rules"]
+        end
+
+        subgraph s_devnet["devnet - internal bridge network"]
+            PNEXT["portal-next :80<br/>catch-all, priority 1"]
+            APIS["bothy-socket-proxy · loki · prometheus<br/>· api@internal - reached only via exact Path()"]
+        end
+    end
+
+    BROWSER -->|"A - straight to the published port"| GRAF
+    BROWSER -->|"B - GET NODE-IP with any path"| TRAEFIK
+    TRAEFIK -->|"exact Path /-/api/... at priority 100"| APIS
+    TRAEFIK ==>|"everything else - PathPrefix / at priority 1"| PNEXT

@@ -1,0 +1,41 @@
+flowchart TB
+    subgraph s_edge["edge/ - the single front door"]
+        TRAEFIK["traefik v3.6<br/>publishes :80 - api=true, no dashboard<br/>docker provider + file provider"]
+        DYN["edge/dynamic/<br/>auth · portal-api · portal-prom (generated)<br/>host-services and tals are RETIRED stubs"]
+    end
+
+    subgraph s_auth["auth/ - identity, defined but NOT enforced"]
+        KC["keycloak<br/>local IdP - host port 8090"]
+        OAUTH["oauth2-proxy<br/>callback is an IP:port URL<br/>gates the editor tier by role"]
+    end
+
+    subgraph s_mon["monitoring/ - observability"]
+        PROM["prometheus - 15d retention"]
+        GRAF["grafana - provisioned datasources,<br/>dashboards and alert rules"]
+        LOKI["loki"]
+        PTAIL["promtail - docker service discovery,<br/>every container, zero per-service setup"]
+        CADV["cadvisor - per-container metrics"]
+        NEXP["node-exporter - the host"]
+    end
+
+    subgraph s_data["data/ - dev data services"]
+        PG["postgres 17 + postgres-exporter"]
+    end
+
+    subgraph s_apps["apps/ - what the box itself serves"]
+        PNEXT["portal-next - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
+        PSOCK["bothy-socket-proxy<br/>shipped by apps/bothy/socket-proxy.yml"]
+        PFILES["portal-files - the editor tier.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
+    end
+
+    subgraph s_host["host/ - configuration that is not in any container"]
+        HOSTF["dnsmasq conf · docker daemon.json<br/>wsl.conf · systemd units · WSL keepalive task"]
+    end
+
+    DYN -->|"file provider, watched"| TRAEFIK
+    TRAEFIK -->|"forwardAuth"| OAUTH
+    TRAEFIK -.->|"over socketnet only"| PSOCK
+    PTAIL --> LOKI
+    GRAF --> PROM
+    GRAF --> LOKI
+    PROM -->|"scrapes traefik:8899"| TRAEFIK
