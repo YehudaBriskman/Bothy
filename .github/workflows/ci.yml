@@ -167,6 +167,15 @@ jobs:
         if: always()
         run: bash scripts/checks/diagrams.sh
 
+      # Three screenshots were deleted from docs/assets in 2500aa0 and
+      # ARCHITECTURE.md kept naming all three. A broken image is invisible in a
+      # diff, GitHub draws it as a grey box that reads like a slow load, and the
+      # in-app reader emits an <img> that never resolves - so the doc looked
+      # fine to everyone who did not scroll that far.
+      - name: Every relative link in the docs resolves
+        if: always()
+        run: bash scripts/checks/doc-links.sh
+
       # scripts/bothy.sh is what `curl … | sh` runs, and it verifies the clone
       # against a commit id written into itself. That is a third copy of what
       # VERSION and the tag already say: left behind, it installs an old release

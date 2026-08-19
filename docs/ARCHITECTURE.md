@@ -415,11 +415,7 @@ service that publishes a port but has no router still appears - it is discovered
 from `/containers/json`, not from a route. The route table is no longer the
 skeleton it was; it is closer to a rib.
 
-![The portal overview](assets/portal-overview.png)
-
-![The Services page](assets/portal-services.png)
-
-![The portal topology view](assets/portal-topology.png)
+![The portal overview](assets/overview.png)
 
 It is a Vite + React app built to static files by a multi-stage image (node
 builds, nginx serves `dist/`), routed by the catch-all `PathPrefix(/)` at
