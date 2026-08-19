@@ -20,7 +20,7 @@
 // want to. The rules exist to stop you making a mistake by accident, not to
 // stop you making a decision.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, Check, Code2, Save, Trash2 } from 'lucide-react';
 import { evaluateTheme, type Finding } from '../lib/contract';
@@ -33,10 +33,30 @@ import { deleteFile, isAuthError, readFile, writeFile } from '../lib/files';
 import { hasRole } from '../lib/me';
 import { useMe } from '../components/UserMenu';
 import { useTheme } from '../lib/theme';
+import { CodeBoundary } from '../components/CodeBoundary';
+import type { CodeHandle } from './files/CodeSurface';
+// The five --hl-* syntax tokens, which used to live in the Files shell. The pane
+// below is the second surface in the app that renders code, and it is on a route
+// that must not load that shell - see src/hl.css.
+import '../hl.css';
 import './ThemeEditor.css';
 
 const ROOT = 'stacks';
 const dirOf = (id: string) => `${THEME_DIR_HOST}${id}.css`;
+
+// The same CodeMirror surface the Files editor mounts, behind the same one line.
+// This page is imported EAGERLY by App.tsx - it is a Settings route, not a lazy
+// one - so a static import here would put 332 kB of editor in the entry chunk
+// and charge it to everyone who opens the portal. `npm run build` printing
+// CodeSurface-*.js as its own chunk is the check that it stayed out.
+const CodeSurface = lazy(() => import('./files/CodeSurface'));
+
+// The surface computes a cursor/selection stat on every transaction because the
+// Files editor's status strip reads one. There is no strip here and no room for
+// one beside the form, so this is where that fact is dropped. A module-level
+// no-op rather than an inline arrow: the surface holds callbacks in a ref, and
+// one that never changes identity is one less thing to reason about.
+const NO_STAT = () => {};
 
 export function ThemeEditor() {
   const { id: routeId } = useParams<{ id: string }>();
@@ -52,6 +72,41 @@ export function ThemeEditor() {
   const [notice, setNotice] = useState<{ tone: 'ok' | 'bad' | 'info'; text: string } | null>(null);
   const [showCss, setShowCss] = useState(false);
 
+  // ── the raw-CSS pane's text ───────────────────────────────────────────────
+  //
+  // Null means "show the file derived from the form". A string means somebody is
+  // typing in the pane and THAT text is what the pane shows, whatever toCss()
+  // would have produced from the draft it parsed into.
+  //
+  // WHY THAT IS NEEDED, and what breaks without it. `css` below is derived:
+  // toCss(draft). The pane parses what you type straight back into the draft, so
+  // one keystroke runs the whole loop -
+  //     keystroke -> fromCss -> setDraft -> toCss -> back into the pane
+  // - and `toCss(fromCss(x))` is not x. It re-aligns the value column, re-emits
+  // the group headings, drops any comment you wrote, and throws away a
+  // declaration that has no `;` yet, which is every declaration halfway through
+  // being typed.
+  //
+  // In a <textarea> that cost a caret jump to the end. In CodeMirror it is
+  // worse: the surface REPLACES its whole document whenever an incoming `value`
+  // differs from the last one it emitted (CodeSurface.tsx, the `[value]`
+  // effect), so the half-typed line would disappear and the caret would land at
+  // offset 0 - on every keystroke that normalises anything. That is an editor
+  // that eats what you type.
+  //
+  // So while the pane is being typed in it owns its own text, the surface only
+  // ever sees back exactly what it emitted, and its `[value]` effect stays
+  // asleep. The parse still runs, so the form fields and the live preview follow
+  // along keystroke by keystroke. This drops back to null - and the pane
+  // re-derives - the moment the draft changes from anywhere ELSE, which is a
+  // finite list: `set`, `setToken`, the load effect, and closing the pane. The
+  // reset is written at each of those rather than inferred from a diff, because
+  // "did this draft come from the pane" is not a question a diff can answer.
+  const [typedCss, setTypedCss] = useState<string | null>(null);
+  // A failed chunk load pins the pane to the plain textarea for the rest of the
+  // session rather than re-attempting the import on every render.
+  const [cssPlain, setCssPlain] = useState(false);
+
   const mayWrite = hasRole(me, 'editor');
 
   // ── load ──────────────────────────────────────────────────────────────────
@@ -61,6 +116,7 @@ export function ThemeEditor() {
       // A new theme starts from what is currently on screen. Seeding from a
       // fixed palette would put you on Bothy Dark while the page showed
       // something else, and the first thing you would do is undo that.
+      setTypedCss(null);
       setDraft({
         id: '', name: '', note: '', tokens: activeValues(names),
         appearance: document.documentElement.getAttribute('data-theme') === 'light'
@@ -71,6 +127,7 @@ export function ThemeEditor() {
     readFile(ROOT, dirOf(editing))
       .then((f) => {
         if (!alive) return;
+        setTypedCss(null);
         setDraft(fromCss(editing, f.content));
         // Carried so the save can send it back as baseMtime. Without it, two
         // tabs editing the same theme would silently overwrite each other -
@@ -126,12 +183,17 @@ export function ThemeEditor() {
     { ...draft, id: draft.id || slugify(draft.name) || 'untitled' }, names,
   ) : ''), [draft, names]);
 
+  // Both of these are "the draft changed from the FORM", which is precisely the
+  // case the CSS pane must re-derive for: what it is showing no longer describes
+  // the theme. See `typedCss` above.
   const set = useCallback((patch: Partial<Draft>) => {
     setDraft((d) => (d ? { ...d, ...patch } : d));
+    setTypedCss(null);
     setNotice(null);
   }, []);
   const setToken = useCallback((k: string, v: string) => {
     setDraft((d) => (d ? { ...d, tokens: { ...d.tokens, [k]: v } } : d));
+    setTypedCss(null);
     setNotice(null);
   }, []);
 
@@ -229,7 +291,14 @@ export function ThemeEditor() {
           </p>
         </div>
         <div className="te-actions">
-          <button type="button" className="btn" onClick={() => setShowCss((v) => !v)}>
+          {/* Closing the pane drops what was typed in it, so reopening starts from
+              the canonical file again. The buffer exists to stop the surface
+              fighting a caret mid-word; it is not a second draft. */}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => { setShowCss((v) => !v); setTypedCss(null); }}
+          >
             <Code2 size={15} aria-hidden="true" /> {showCss ? 'Hide' : 'Show'} CSS
           </button>
           {editing && (
@@ -321,13 +390,21 @@ export function ThemeEditor() {
               This is exactly what gets written. Editing it here re-reads the tokens,
               so the form and the file cannot disagree.
             </p>
-            <textarea
-              className="te-css mono"
-              value={css}
-              spellCheck={false}
-              onChange={(e) => {
-                const next = fromCss(id || 'untitled', e.target.value);
-                setDraft((d) => (d ? { ...d, ...next, id: d.id } : d));
+            <CssPane
+              value={typedCss ?? css}
+              plain={cssPlain}
+              onFail={() => {
+                setCssPlain(true);
+                setNotice({
+                  tone: 'info',
+                  text: 'The code editor could not be loaded, so this is a plain text box. '
+                    + 'Everything else on the page is unaffected; a reload usually fixes it.',
+                });
+              }}
+              onChange={(next) => {
+                setTypedCss(next);
+                const parsed = fromCss(id || 'untitled', next);
+                setDraft((d) => (d ? { ...d, ...parsed, id: d.id } : d));
               }}
             />
           </div>
@@ -353,6 +430,70 @@ export function ThemeEditor() {
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+// ── the raw file, in the editor the Files window uses ────────────────────────
+//
+// The one place in this app where somebody types CODE rather than a value, and
+// it was the only code-shaped input still on a bare <textarea>. What it gains is
+// behaviour, not decoration: line numbers, a caret model that can hold more than
+// one range, an undo stack, bracket matching and a find panel over a file whose
+// interesting lines all look alike (`--st-up-fg: #4ade80;` forty times).
+//
+// `lang="css"` is a real answer, not a placeholder: cmlang.ts builds its
+// language out of the RULES table in highlight.tsx, which has a `css` entry, so
+// property names, hex values, at-rules and comments are all tagged. The colours
+// those tags resolve to are the five --hl-* properties, imported at the top of
+// this file.
+function CssPane({ value, plain, onChange, onFail }: {
+  value: string;
+  plain: boolean;
+  onChange: (next: string) => void;
+  onFail: () => void;
+}) {
+  // The surface publishes focus/find/goto through this. Nothing on this page
+  // drives it - the find panel is opened from inside the editor by its own
+  // keymap - but the prop has no default, and a ref that is never read is
+  // cheaper than a component that has to explain a missing one.
+  const handle = useRef<CodeHandle | null>(null);
+
+  // Also the Suspense fallback, so the chunk arriving swaps a working text box
+  // for a working editor rather than a spinner for anything.
+  const fallback = (
+    <>
+      <label className="sr-only" htmlFor="te-css">The theme file, as CSS</label>
+      <textarea
+        id="te-css"
+        className="te-css mono"
+        value={value}
+        spellCheck={false}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </>
+  );
+
+  if (plain) return fallback;
+
+  return (
+    <div className="te-code">
+      <CodeBoundary fallback={fallback} onFail={onFail}>
+        <Suspense fallback={fallback}>
+          <CodeSurface
+            value={value}
+            lang="css"
+            editable
+            onChange={onChange}
+            onStat={NO_STAT}
+            handleRef={handle}
+            // Read by EditorView.contentAttributes as the aria-label on the
+            // contenteditable, which is the only name a screen reader gets for
+            // it - the <h2> above is not associated with it by anything.
+            label="The theme file, as CSS - editable"
+          />
+        </Suspense>
+      </CodeBoundary>
     </div>
   );
 }

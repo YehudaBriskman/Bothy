@@ -32,7 +32,7 @@
 // same reason: it used to `return` before the surfaces were rendered, so opening
 // a diff over a file mid-edit and closing it again cost you your undo stack.
 
-import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CircleCheck, Code2, Columns2, Crosshair, Download, Eye, FileArchive,
   GitCommitVertical, Info, Keyboard, LoaderCircle, Lock, LogIn, Pencil,
@@ -42,6 +42,7 @@ import {
   fmtBytes, langFor, looksBinary, rawUrl, signInUrl,
   type DiffResult, type FileRead, type WriteConflict,
 } from '../../lib/files';
+import { CodeBoundary } from '../../components/CodeBoundary';
 import { ErrState, Skeleton } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
 import { BothyMark } from '../../components/Brand';
@@ -244,24 +245,6 @@ function PlainSurface(p: {
   return p.editing
     ? <EditSurface draft={p.draft} setDraft={p.setDraft} handleRef={p.handleRef} id={p.id} />
     : <Source src={p.src} lang={p.lang} />;
-}
-
-// A failed chunk load is not an exception React can recover from on its own, and
-// the default is a blank centre column - on a page that may be holding unsaved
-// work. This pins the session to the plain surfaces and SAYS which of the two
-// the reader is looking at, because "my editor lost its line highlight" with no
-// explanation is a bug report.
-class CodeBoundary extends Component<
-  { children: React.ReactNode; fallback: React.ReactNode; onFail: () => void },
-  { failed: boolean }
-> {
-  state = { failed: false };
-
-  static getDerivedStateFromError() { return { failed: true }; }
-
-  componentDidCatch() { this.props.onFail(); }
-
-  render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 
 /** True when THIS document's code surface is on screen. Three things in the

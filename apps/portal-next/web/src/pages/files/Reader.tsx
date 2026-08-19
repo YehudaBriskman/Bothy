@@ -48,6 +48,10 @@ import { fetchLinks, type LinkIndex } from '../../lib/files';
 // and every `.md-*` rule - both of which belong to the RENDERED DOCUMENT rather
 // than to the editor, which is why the reader gets them by importing rather than
 // by copying. explorer.css is here for `.fx-filter`, the search box's frame.
+// The syntax palette the five .hl-* classes in shell.css read, and the one
+// cmtheme.ts hands to CodeMirror. Its own file since the theme editor's CSS
+// pane started rendering code too - see src/hl.css.
+import '../../hl.css';
 import './shell.css';
 import './editor.css';
 import './explorer.css';

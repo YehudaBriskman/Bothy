@@ -103,7 +103,7 @@ fi
 
 echo
 echo "── every theme keeps the palette's contract ────────────"
-# Reads index.css, shell.css and src/themes/*.css directly. Runs against the two
+# Reads index.css, hl.css and src/themes/*.css directly. Runs against the two
 # SHIPPED palettes as well as the named themes, on purpose: a rule that fails on
 # Bothy's own colours is a wrong rule, and this is where that gets found out.
 #

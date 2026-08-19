@@ -1,0 +1,54 @@
+/* ── the syntax palette ──────────────────────────────────────────────────────
+   Five token classes, which is all a viewer needs: comment, string, keyword,
+   number, key/variable.
+
+   WHY THIS IS ITS OWN FILE. It lived in pages/files/shell.css while the Files
+   window was the only place in the app that rendered code. The theme editor's
+   raw-CSS pane is the second, and it is on a route that must not load the Files
+   shell - so the choice was a second copy of these eight hexes or a file both
+   can import. A second copy is the exact bug stray-colour.mjs exists to catch:
+   two palettes that agree today and diverge the first time one is tuned.
+
+   Both consumers name themselves in the selectors below rather than the rules
+   being written twice, and `cmtheme.ts` maps CodeMirror's generated classes onto
+   the same five properties - so there is still exactly one place a code colour
+   is decided.
+
+   Chosen to stay OUT of the status hues. --st-up is green, --st-warn amber,
+   --st-down rose, and the standing rule is that those colours mean state and
+   nothing else - so a highlighter built on the usual red-keyword/green-string
+   scheme would put two status colours on every screen of code and spend the
+   page's alarm budget on a `const`. Violet, sky, pink and indigo are all outside
+   that set, and none of them appears anywhere else in the app as a
+   meaning-bearing colour.
+
+   Base values are the DARK ones, matching index.css's dark-first model
+   (`:root` is dark, `:root[data-theme='light']` overrides). lib/theme.tsx always
+   stamps a concrete data-theme, so both branches are always reachable, and no
+   colour here exists in only one of them. Every value clears 4.5:1 on the
+   surface it is painted on (--bg-2 in each theme).
+
+   The doubled `.bothy-files.bothy-files` is load-bearing and predates this file:
+   a theme overrides these under `:root[data-bothy-theme='x'] .bothy-files
+   .bothy-files`, and the base set has to lose that tie. `.theme-editor .fx-cm`
+   carries the same (0,2,0) weight and can never match inside the Files window,
+   so the two selectors cannot collide on one element. What a THEME's own syntax
+   colours do not reach is the theme editor's pane - those overrides name
+   `.bothy-files` and nothing else - so the pane paints code in the base set
+   above whichever theme is live. That is a wart, not a bug: it is the palette
+   the file you are editing cannot change. */
+.bothy-files.bothy-files,
+.theme-editor .fx-cm {
+  --hl-com: var(--fg-subtle);
+  --hl-kw:  #c4b5fd;   /* violet-300  ·  9.6 on #0b0b0d */
+  --hl-str: #7dd3fc;   /* sky-300     ·  11.1 */
+  --hl-num: #f9a8d4;   /* pink-300    ·  10.2 */
+  --hl-key: #a5b4fc;   /* indigo-300  ·  8.9  */
+}
+:root[data-theme='light'] .bothy-files.bothy-files,
+:root[data-theme='light'] .theme-editor .fx-cm {
+  --hl-kw:  #6d28d9;   /* violet-700  ·  7.9 on #f4f4f5 */
+  --hl-str: #0369a1;   /* sky-700     ·  6.4 */
+  --hl-num: #a21caf;   /* fuchsia-700 ·  6.6 */
+  --hl-key: #4338ca;   /* indigo-700  ·  8.0 */
+}
