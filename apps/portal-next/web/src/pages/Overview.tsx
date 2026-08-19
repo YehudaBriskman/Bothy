@@ -388,6 +388,13 @@ function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof us
     return { rows, orphanRows: orphans };
   }, [systems, df]);
 
+  // "None" and "could not read" are DIFFERENT ANSWERS and this said the first
+  // when it meant the second. diskVolumes() returns [] for a null df, so a
+  // timed-out /system/df rendered "No persistent volumes." on a box with
+  // fourteen of them holding 2.1 GB - a confident statement of something the
+  // page did not know. Observed: it happened while an image was building, which
+  // is exactly when df is slowest.
+  if (!df) return <p className="ov-uicol-empty">Volume sizes could not be read - the daemon did not answer in time.</p>;
   if (!rows.length && !orphanRows.length) return <p className="ov-uicol-empty">No persistent volumes.</p>;
   // one scale across BOTH sections, so an orphan bar is comparable to a system's
   const max = Math.max(1, ...rows.map((r) => r.value), ...orphanRows.map((r) => r.value));
