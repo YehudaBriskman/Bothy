@@ -407,3 +407,162 @@ jobs:
           name: install-failure-logs
           path: /tmp/logs
           retention-days: 7
+
+  # ── the OTHER way in ────────────────────────────────────────────────────────
+  #
+  # The job above proves `git clone && cp .env.example .env && just up`. That is
+  # the path for somebody who already knows this repository exists and already
+  # has `just`. scripts/bothy.sh is the path for somebody who has only a URL, and
+  # until now nothing executed it at all - which for a file whose entire purpose
+  # is to be piped into a shell is the least acceptable place to have no
+  # coverage.
+  #
+  # NO DAEMON, NO CONTAINERS, ABOUT A MINUTE. That is not a gap in the test: the
+  # installer deliberately STOPS before `bothy init`, so "it started nothing" is
+  # one of the things worth asserting rather than something this job fails to
+  # reach. `just up` is proven above; what was unproven is the clone, the commit
+  # verification, and the blast radius.
+  #
+  # IT IGNORES `inputs.dir`. The awkward-path matrix in elsewhere.yml varies
+  # where the STACK is installed; the curl path has one directory shape by
+  # design ($HOME/bothy), and the property that matters here - a path with a
+  # space in it - is exercised unconditionally by the fake HOME below, on every
+  # PR rather than nightly.
+  installer:
+    name: curl | sh - clone, verify, and stop
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # fetch-depth: 0 because the installer resolves a TAG in whatever it
+      # clones, and a shallow checkout has none - the installer would fail with
+      # "is not a tag", which reads like a broken installer rather than a
+      # workspace missing its tags.
+      - uses: actions/checkout@v7
+        with:
+          path: workspace
+          fetch-depth: 0
+
+      # A HOME THE INSTALLER MUST STAY INSIDE, with a space in its path. The
+      # installer writes three paths, all derived from $HOME, and an unquoted
+      # one of them splits into two arguments the first time somebody's home
+      # directory has a space in it - which on macOS is not exotic. Pointing
+      # HOME at a temp directory also makes "did it write outside $HOME"
+      # answerable, by looking at the runner's real home afterwards.
+      - name: A home that is not the runner's, with a space in it
+        run: |
+          set -euo pipefail
+          fake="$RUNNER_TEMP/home with a space"
+          mkdir -p "$fake"
+          echo "FAKE_HOME=$fake" >> "$GITHUB_ENV"
+          echo "SRC=$GITHUB_WORKSPACE/workspace" >> "$GITHUB_ENV"
+
+      - name: A dry run touches nothing
+        run: |
+          set -euo pipefail
+          HOME="$FAKE_HOME" BOTHY_REPO_URL="$SRC" sh workspace/scripts/bothy.sh --dry-run
+          n=$(find "$FAKE_HOME" -mindepth 1 | wc -l)
+          [ "$n" = 0 ] && echo "ok  a dry run wrote nothing" \
+            || { echo "FAIL  a dry run left $n path(s) behind"; find "$FAKE_HOME" -mindepth 1; exit 1; }
+
+      # THE VERIFICATION MUST BE ABLE TO FAIL. Same argument as
+      # scripts/checks/mutants.sh: a verify step that cannot refuse is
+      # indistinguishable from one that always passes, and it is the only thing
+      # standing between a `curl | sh` and a tree nobody pinned.
+      - name: A commit that is not the pinned one is refused
+        run: |
+          set -uo pipefail
+          out=$(HOME="$FAKE_HOME" BOTHY_REPO_URL="$SRC" \
+                BOTHY_SHA=0000000000000000000000000000000000000000 \
+                sh workspace/scripts/bothy.sh 2>&1); rc=$?
+          echo "$out" | tail -8
+          [ "$rc" != 0 ] || { echo "FAIL  a wrong sha installed anyway"; exit 1; }
+          echo "$out" | grep -q 'VERIFICATION FAILED' \
+            || { echo "FAIL  it exited non-zero without saying why"; exit 1; }
+          # The clone it made is untrusted, so it must not survive the refusal.
+          n=$(find "$FAKE_HOME" -mindepth 1 -maxdepth 1 | wc -l)
+          [ "$n" = 0 ] && echo "ok  refused, and left nothing behind" \
+            || { echo "FAIL  $n path(s) survived a failed verification"; exit 1; }
+
+      - name: sh bothy.sh
+        run: |
+          set -euo pipefail
+          HOME="$FAKE_HOME" BOTHY_REPO_URL="$SRC" sh workspace/scripts/bothy.sh
+
+      - name: It installed exactly what it said
+        run: |
+          set -euo pipefail
+          fail=0
+          pin_v=$(sed -n 's/^BOTHY_PIN_VERSION="\(.*\)"$/\1/p' workspace/scripts/bothy.sh)
+          pin_sha=$(sed -n 's/^BOTHY_PIN_SHA="\(.*\)"$/\1/p' workspace/scripts/bothy.sh)
+          echo "pin: $pin_v $pin_sha"
+
+          [ -x "$FAKE_HOME/.local/bin/bothy" ] && echo "ok    ~/.local/bin/bothy is executable" \
+            || { echo "FAIL  no executable CLI at ~/.local/bin/bothy"; fail=1; }
+
+          # BYTE-IDENTICAL TO THE RELEASE, not merely present. A copy step that
+          # truncated, or that copied the wrong file, would pass every other
+          # assertion here.
+          if git -C workspace show "$pin_v:scripts/bothy" | cmp -s - "$FAKE_HOME/.local/bin/bothy"; then
+            echo "ok    the CLI is scripts/bothy from $pin_v, byte for byte"
+          else
+            echo "FAIL  ~/.local/bin/bothy is not scripts/bothy at $pin_v"; fail=1
+          fi
+
+          got=$(git -C "$FAKE_HOME/bothy" rev-parse HEAD)
+          [ "$got" = "$pin_sha" ] && echo "ok    the checkout is at $pin_sha" \
+            || { echo "FAIL  the checkout is at $got, not the pinned $pin_sha"; fail=1; }
+
+          # On a branch, not detached: `bothy upgrade` runs `git pull --ff-only`,
+          # which on a detached HEAD fails with a message about local changes
+          # that names the wrong cause entirely.
+          br=$(git -C "$FAKE_HOME/bothy" symbolic-ref --quiet --short HEAD || true)
+          [ -n "$br" ] && echo "ok    the checkout is on a branch ($br), not detached" \
+            || { echo "FAIL  the checkout has a detached HEAD - bothy upgrade would fail"; fail=1; }
+
+          want="BOTHY_HOME=$FAKE_HOME/bothy"
+          got_cfg=$(cat "$FAKE_HOME/.config/bothy/config")
+          [ "$got_cfg" = "$want" ] && echo "ok    ~/.config/bothy/config points at the checkout" \
+            || { echo "FAIL  config says '$got_cfg', wanted '$want'"; fail=1; }
+
+          # The CLI has to work from a directory that is not the checkout - that
+          # is what the config file is for.
+          v=$(cd /tmp && HOME="$FAKE_HOME" "$FAKE_HOME/.local/bin/bothy" version)
+          echo "$v" | sed 's/^/      | /'
+          echo "$v" | grep -q "${pin_v#v}" \
+            && echo "ok    bothy version reports ${pin_v#v} from outside the checkout" \
+            || { echo "FAIL  bothy version did not report ${pin_v#v}"; fail=1; }
+          exit $fail
+
+      # ── the blast radius it claims ────────────────────────────────────────
+      #
+      # SECURITY.md's whole argument for this repo is what a thing can reach.
+      # The installer's claim is: three paths under $HOME, no sudo, nothing
+      # started. Every one of those is checkable, and none of them stays true by
+      # itself once somebody "simplifies" the script six months from now.
+      - name: It stayed inside HOME, and started nothing
+        run: |
+          set -euo pipefail
+          fail=0
+          n=$(docker ps -aq | wc -l)
+          [ "$n" = 0 ] && echo "ok    no container was created" \
+            || { echo "FAIL  $n container(s) exist - the installer started the box"; fail=1; }
+
+          [ -e "$FAKE_HOME/bothy/.env" ] \
+            && { echo "FAIL  it wrote a .env - that is bootstrap's job, on purpose"; fail=1; } \
+            || echo "ok    no .env was generated"
+
+          [ -e "$FAKE_HOME/.local/bin/just" ] \
+            && { echo "FAIL  it installed just - bothy init does that, deliberately later"; fail=1; } \
+            || echo "ok    it did not install just"
+
+          # $HOME/.local/bin, $HOME/.config/bothy and $HOME/bothy, and nothing
+          # else. Anything new at the top level of the fake home is a path this
+          # script's own header does not admit to writing.
+          unexpected=$(cd "$FAKE_HOME" && ls -A | grep -vxE '\.local|\.config|bothy' || true)
+          [ -z "$unexpected" ] && echo "ok    only .local, .config and bothy exist in the fake HOME" \
+            || { echo "FAIL  unexpected in the fake HOME: $unexpected"; fail=1; }
+
+          [ -e "$HOME/.local/bin/bothy" ] \
+            && { echo "FAIL  it wrote into the runner's real home, not the fake one"; fail=1; } \
+            || echo "ok    the runner's own home was untouched"
+          exit $fail
