@@ -78,6 +78,10 @@ import { usePanes } from './panes';
 import { filesHref } from './routes';
 import { ancestorsOf, baseName, buildTree, defaultMessage, type Node } from './tree';
 
+// The syntax palette the five .hl-* classes in shell.css read, and the one
+// cmtheme.ts hands to CodeMirror. Its own file since the theme editor's CSS
+// pane started rendering code too - see src/hl.css.
+import '../../hl.css';
 import './shell.css';
 import './explorer.css';
 import './editor.css';

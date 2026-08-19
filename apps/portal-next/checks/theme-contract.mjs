@@ -103,7 +103,7 @@ function blocks(css) {
 }
 
 const indexCss = readFileSync(join(SRC, 'index.css'), 'utf8');
-const shellCss = readFileSync(join(SRC, 'pages', 'files', 'shell.css'), 'utf8');
+const hlCss = readFileSync(join(SRC, 'hl.css'), 'utf8');
 const idx = blocks(indexCss);
 
 const merge = (...sets) => Object.assign({}, ...sets);
@@ -112,11 +112,16 @@ const pick = (pred) => merge(...idx.filter((b) => pred(b.sel)).map((b) => b.toks
 const BASE = pick((s) => s === ':root');
 const LIGHT = pick((s) => /^:root\[data-theme=['"]?light/.test(s));
 
-// The syntax palette lives beside the editor it serves rather than in index.css.
-// A theme that restyles everything except code is not a theme, so it is part of
-// the contract - but as an OPTIONAL group, because a theme that omits it falls
-// back to a set that is already contrast-checked for its appearance.
-const hlBlocks = blocks(shellCss).filter((b) => b.sel.includes('bothy-files'));
+// The syntax palette has its own file rather than sitting in index.css: two
+// surfaces render code now - the Files window and the theme editor's CSS pane -
+// and only one of them loads the Files shell. A theme that restyles everything
+// except code is not a theme, so it is part of the contract - but as an OPTIONAL
+// group, because a theme that omits it falls back to a set that is already
+// contrast-checked for its appearance.
+//
+// Still filtered on `bothy-files`: a theme's own override names that scope, so
+// that is the selector this file has to agree with.
+const hlBlocks = blocks(hlCss).filter((b) => b.sel.includes('bothy-files'));
 
 // THE SYNTAX PALETTE IS THE `--hl-*` TOKENS, NOT THE WHOLE BLOCK. Those blocks
 // also carry the editor's LAYOUT - --rail-l, --rail-r, --panel-h, --code-fs,
@@ -125,7 +130,7 @@ const hlBlocks = blocks(shellCss).filter((b) => b.sel.includes('bothy-files'));
 // Tokyo Night declare a rail width, which it should never do.
 //
 // The prefix IS the group's definition here rather than a list to maintain: a
-// sixth --hl-* token added to shell.css becomes required of every theme
+// sixth --hl-* token added to hl.css becomes required of every theme
 // automatically, and a new structural token stays out without anyone deciding.
 const syntaxOnly = (t) => Object.fromEntries(
   Object.entries(t).filter(([k]) => k.startsWith('--hl-')));
@@ -161,7 +166,7 @@ const render = (f) => {
 function checkTheme(name, appearance, toks, hl) {
   console.log(`\n── ${name}  (${appearance}) ─────────────────────────────────`);
   // The set a theme inherits when it declares nothing, which is also the set it
-  // must declare in FULL once it declares any of it. Derived from shell.css so a
+  // must declare in FULL once it declares any of it. Derived from hl.css so a
   // sixth syntax token becomes required everywhere the moment it is added, with
   // nothing here to remember to update.
   const syntaxBase = appearance === 'light' ? merge(HL_DARK, HL_LIGHT) : HL_DARK;

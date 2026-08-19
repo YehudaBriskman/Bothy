@@ -96,36 +96,12 @@
 .bothy-files .fx-seg button:focus-visible { border-radius: var(--r-xs); }
 
 /* ── syntax palette ──────────────────────────────────────────────────────────
-   Five token classes, which is all a viewer needs: comment, string, keyword,
-   number, key/variable. Lives here rather than in editor.css because the JSON
-   tree in the centre and the code in a markdown fence both use it.
-
-   Chosen to stay OUT of the status hues. --st-up is green, --st-warn amber,
-   --st-down rose, and the standing rule is that those colours mean state and
-   nothing else - so a highlighter built on the usual red-keyword/green-string
-   scheme would put two status colours on every screen of code and spend the
-   page's alarm budget on a `const`. Violet, sky, pink and indigo are all outside
-   that set, and none of them appears anywhere else in the app as a
-   meaning-bearing colour.
-
-   Base values are the DARK ones, matching index.css's dark-first model
-   (`:root` is dark, `:root[data-theme='light']` overrides). lib/theme.tsx always
-   stamps a concrete data-theme, so both branches are always reachable, and no
-   colour here exists in only one of them. Every value clears 4.5:1 on the
-   surface it is painted on (--bg-2 in each theme). */
-.bothy-files.bothy-files {
-  --hl-com: var(--fg-subtle);
-  --hl-kw:  #c4b5fd;   /* violet-300  ·  9.6 on #0b0b0d */
-  --hl-str: #7dd3fc;   /* sky-300     ·  11.1 */
-  --hl-num: #f9a8d4;   /* pink-300    ·  10.2 */
-  --hl-key: #a5b4fc;   /* indigo-300  ·  8.9  */
-}
-:root[data-theme='light'] .bothy-files.bothy-files {
-  --hl-kw:  #6d28d9;   /* violet-700  ·  7.9 on #f4f4f5 */
-  --hl-str: #0369a1;   /* sky-700     ·  6.4 */
-  --hl-num: #a21caf;   /* fuchsia-700 ·  6.6 */
-  --hl-key: #4338ca;   /* indigo-700  ·  8.0 */
-}
+   The five --hl-* properties MOVED to src/hl.css, and the classes that read
+   them stayed here. The split is not tidiness: the theme editor's raw-CSS pane
+   is a second surface that renders code, on a route that must not pull in this
+   shell, so the values had to become importable without it. The JSON tree in
+   the centre and the code in a markdown fence still use these classes, which is
+   why they live here rather than in editor.css. */
 .bothy-files .hl-com { color: var(--hl-com); font-style: italic; }
 .bothy-files .hl-kw  { color: var(--hl-kw); }
 .bothy-files .hl-str { color: var(--hl-str); }

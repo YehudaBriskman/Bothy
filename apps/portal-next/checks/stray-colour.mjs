@@ -42,9 +42,12 @@ const SRC = join(HERE, '..', 'web', 'src');
 const EXEMPT = new Map([
   ['index.css',
     'defines the tokens. This is the palette; it is where the literals live.'],
-  ['pages/files/shell.css',
+  ['hl.css',
     'defines the five --hl-* syntax tokens for both themes. Same job as '
-    + 'index.css, kept beside the editor it serves.'],
+    + 'index.css. Its own file rather than part of the Files shell because a '
+    + 'second surface - the theme editor CSS pane - renders code on a route '
+    + 'that must not load that shell, and the alternative was a second copy of '
+    + 'these eight hexes, which is the bug this check exists to catch.'],
   ['components/three/webgl.ts',
     'the ScenePalette and the STATUS_HEX mirror. The 3D scene paints with real '
     + 'materials and cannot resolve a CSS variable into a mesh colour, so its '

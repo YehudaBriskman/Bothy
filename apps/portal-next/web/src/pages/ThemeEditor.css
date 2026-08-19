@@ -97,14 +97,177 @@
 }
 .theme-editor .te-more:hover { text-decoration: underline; }
 
-/* ── the file ─────────────────────────────────────────────────────────────── */
+/* ── the file ────────────────────────────────────────────────────────────────
+   Two surfaces, one look. `.te-css` is the plain textarea, which is still what
+   renders while CodeMirror's chunk is in flight and what the page falls back to
+   for good if that chunk never arrives; `.te-code` is the frame around the real
+   editor. They are sized the same on purpose - the swap happens under a reader
+   who is already looking at the box, and a box that jumps 40px as it upgrades
+   reads as a bug. */
 .theme-editor .te-css {
   width: 100%; min-height: 320px; margin-top: 10px; padding: 10px 12px;
   font-size: 12.5px; line-height: 1.55;
-  color: var(--fg); background: var(--bg);
+  color: var(--fg); background: var(--bg-2);
   border: 1px solid var(--line); border-radius: var(--r-sm);
   resize: vertical; white-space: pre;
 }
+
+/* ── the code surface ────────────────────────────────────────────────────────
+   CodeMirror 6, styled from out here, exactly as pages/files/editor.css does it
+   and for the same two reasons: style-mod inserts CodeMirror's own <style> as
+   the FIRST child of <head>, so this sheet always comes later and wins every
+   specificity tie, and every rule below is `.theme-editor .cm-*` - (0,2,0)
+   against CodeMirror's own (0,2,0). Nothing here needs `!important`.
+
+   THIS IS NOT editor.css RE-IMPORTED, and must not become it. That file styles
+   an IDE: four regions, a flex column that fills the viewport, indent guides, a
+   hover band, a status strip. This is one pane in a form, with a fixed height
+   somebody can drag. The overlap is the parts CodeMirror insists on having an
+   opinion about - the gutter, the caret, the selection, the find panel - and
+   those are written against the same tokens, so a theme repaints both.
+
+   COLOURS. Every value is a token or a colour-mix of one, including the --hl-*
+   set imported by ThemeEditor.tsx. There is no second palette here. */
+.theme-editor .te-code {
+  margin-top: 10px; height: 420px; min-height: 180px;
+  /* `resize` needs a non-visible overflow to do anything, and the rounded
+     corners need it anyway or the gutter paints over them. */
+  overflow: hidden; resize: vertical;
+  /* --bg-2, not --bg, and it is not a taste call: the contract check asserts
+     every --hl-* value clears 4.5:1 ON --bg-2, because that is the ground the
+     Files editor paints code on. Painting this pane on anything else would put
+     the syntax palette on a surface nothing measured. */
+  background: var(--bg-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+/* The Suspense fallback renders INSIDE this frame while the chunk is in flight,
+   so it drops its own frame and fills this one instead - otherwise there is a
+   border inside a border, and a box that visibly re-draws when the editor
+   arrives. (The permanent fallback, when the chunk never loads at all, is
+   rendered without this wrapper and keeps its own frame.) */
+.theme-editor .te-code > .te-css {
+  height: 100%; min-height: 0; margin: 0;
+  border: 0; border-radius: 0; resize: none;
+}
+
+/* The height has to be handed down explicitly: CodeMirror sizes itself to its
+   content unless something above it is definite, and an editor that grows with
+   the file would push the whole form off the page as you type. */
+.theme-editor .fx-cm, .theme-editor .fx-cm > .cm-editor { height: 100%; }
+.theme-editor .cm-editor {
+  background: var(--bg-2); color: var(--fg);
+  font-family: var(--mono); font-size: 12.5px;
+}
+/* NO focus ring, for the reason editor.css states at length: `.cm-focused` is
+   set on a plain mouse click, so a ring here draws a rectangle around the whole
+   pane the instant anyone clicks into it. `outline: none` rather than no rule at
+   all - CodeMirror's baseTheme ships `&.cm-focused { outline: 1px dotted
+   #212121 }`, so deleting this would swap our ring for a hardcoded grey one.
+   The caret and the active-line underline are the focus indicator. */
+.theme-editor .cm-editor.cm-focused { outline: none; }
+/* And the contenteditable inside it, which is the element that actually takes
+   focus and would otherwise pick up index.css's page-wide `*:focus-visible`
+   ring one box further in. */
+.theme-editor .cm-content:focus-visible { outline: none; }
+.theme-editor .cm-scroller { font-family: var(--mono); line-height: 1.55; overflow: auto; }
+.theme-editor .cm-content {
+  padding: 10px 0 22px; caret-color: var(--accent-fg);
+  /* Alignment is meaning in a token table: toCss() pads the value column so the
+     hexes line up, and wrapping would throw that away on the first long
+     shadow recipe. */
+  white-space: pre;
+}
+.theme-editor .cm-line { padding: 0 14px 0 6px; }
+
+.theme-editor .cm-gutters {
+  background: var(--bg-2); color: var(--fg-subtle);
+  border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.theme-editor .cm-lineNumbers .cm-gutterElement { padding: 0 8px 0 12px; opacity: .65; }
+.theme-editor .cm-gutters .cm-activeLineGutter {
+  background: transparent; color: var(--fg); opacity: 1; font-weight: 600;
+}
+
+/* The active line is an underline rather than a filled band, and an inset shadow
+   rather than a border: a border changes the line's height, so every line below
+   the caret would shift a pixel as you move and the file would jitter. */
+.theme-editor .cm-activeLine {
+  background: transparent;
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--accent) 55%, transparent);
+}
+.theme-editor .cm-editor.cm-focused .cm-activeLine { box-shadow: inset 0 -1px 0 var(--accent); }
+
+.theme-editor .cm-selectionBackground,
+.theme-editor .cm-content ::selection { background: color-mix(in oklab, var(--accent) 30%, transparent); }
+.theme-editor .cm-focused .cm-selectionBackground { background: color-mix(in oklab, var(--accent) 38%, transparent); }
+.theme-editor .cm-cursor, .theme-editor .cm-dropCursor {
+  border-left-color: var(--accent-fg); border-left-width: 2px;
+}
+/* Every other occurrence of the selection or the word under the caret - which on
+   this file is how you find the other three places a colour is used. Outlined
+   rather than filled: a fill at this frequency turns the pane into highlighter. */
+.theme-editor .cm-selectionMatch {
+  background: color-mix(in oklab, var(--hl-kw) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--hl-kw) 45%, transparent);
+  border-radius: var(--r-xs);
+}
+.theme-editor .cm-matchingBracket, .theme-editor .cm-focused .cm-matchingBracket {
+  background: color-mix(in oklab, var(--hl-num) 22%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--hl-num) 70%, transparent);
+  color: var(--fg);
+}
+.theme-editor .cm-nonmatchingBracket, .theme-editor .cm-focused .cm-nonmatchingBracket {
+  background: var(--st-down-bg); color: var(--st-down-fg);
+}
+.theme-editor .cm-searchMatch {
+  background: color-mix(in oklab, var(--hl-num) 22%, transparent); border-radius: var(--r-xs);
+}
+.theme-editor .cm-searchMatch-selected {
+  background: color-mix(in oklab, var(--hl-num) 55%, transparent);
+  outline: 1px solid var(--hl-num);
+}
+
+/* The find panel is CodeMirror's own, restyled onto the tokens. It arrives with
+   Ctrl-F because searchKeymap is installed in the surface, and it is the reason
+   this pane is worth having on a 60-line file: `--st-` finds every status token
+   in one keystroke. */
+.theme-editor .cm-panels {
+  background: var(--surface-2); color: var(--fg-muted);
+  border-bottom: 1px solid var(--line); font-size: 11.5px;
+}
+.theme-editor .cm-panels.cm-panels-bottom { border-top: 1px solid var(--line); border-bottom: 0; }
+.theme-editor .cm-panel.cm-search {
+  padding: 7px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.theme-editor .cm-panel.cm-search br { display: none; }
+.theme-editor .cm-panel.cm-search label {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--fg-subtle);
+}
+.theme-editor .cm-panel.cm-search input.cm-textfield {
+  font-family: var(--mono); font-size: 11.5px; padding: 3px 7px; min-width: 160px;
+  background: var(--bg-2); color: var(--fg);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.theme-editor .cm-panel.cm-search input.cm-textfield:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: -1px; border-color: var(--accent);
+}
+.theme-editor .cm-panel.cm-search button:not([name='close']) {
+  font: inherit; cursor: pointer; padding: 3px 9px;
+  background: var(--surface-1); color: var(--fg-muted);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background-image: none;
+}
+.theme-editor .cm-panel.cm-search button:not([name='close']):hover {
+  background: var(--surface-3); color: var(--fg);
+}
+.theme-editor .cm-panel.cm-search button[name='close'] {
+  position: absolute; top: 4px; right: 8px;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--fg-subtle); font-size: 16px; padding: 0 4px;
+}
+.theme-editor .cm-panel.cm-search button[name='close']:hover { color: var(--fg); }
+.theme-editor .cm-specialChar { color: var(--st-warn-fg); }
 
 /* The section notes. `.set-note` is scoped to `.settings-page` next door, so
    this page - which is a sibling route, not inside it - was rendering them at
