@@ -1,0 +1,43 @@
+<!doctype html><meta charset=utf-8>
+<!--
+  The GitHub social preview card - the 1280x640 image shown wherever this repo is
+  linked. GitHub has NO API for it: it is uploaded by hand at
+  Settings -> Social preview, which is why the rendered PNG is committed beside
+  this file rather than generated in CI.
+
+  To regenerate after a brand change:
+      cd docs/brand && python3 -m http.server 8080
+      # open http://127.0.0.1:8080/social-preview.html at exactly 1280x640
+      # and screenshot it to social-preview.png
+
+  It uses wordmark-dark.svg from this directory, so the dot and the letterforms
+  can never drift from the mark the app ships.
+-->
+<style>
+  @font-face{font-family:x;src:local("Inter"),local("Segoe UI"),local("Helvetica")}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:1280px;height:640px;background:#0d1117;color:#e6edf3;
+       font:400 22px/1.5 Inter,"Segoe UI",system-ui,sans-serif;overflow:hidden;
+       display:flex;flex-direction:column;justify-content:center;padding:0 96px;position:relative}
+  /* a soft accent wash, the same idea as the app's --bg-glow */
+  body::before{content:'';position:absolute;inset:0;
+    background:radial-gradient(900px 420px at 78% 18%, rgba(96,165,250,.16), transparent 70%);}
+  .wm{width:360px;position:relative;z-index:1}
+  h1{position:relative;z-index:1;margin:30px 0 14px;font-size:40px;line-height:1.15;
+     font-weight:700;letter-spacing:-.02em;max-width:20ch}
+  p{position:relative;z-index:1;color:#8b949e;font-size:23px;max-width:44ch}
+  .row{position:relative;z-index:1;display:flex;gap:10px;margin-top:34px;flex-wrap:wrap}
+  .chip{border:1px solid #30363d;border-radius:999px;padding:6px 16px;font-size:17px;color:#c9d1d9}
+  .dot{width:9px;height:9px;border-radius:50%;background:#3fb950;display:inline-block;
+       margin-right:9px;vertical-align:middle}
+</style>
+<body>
+  <img class="wm" src="wordmark-dark.svg" alt="">
+  <h1>A self-discovering console for one machine.</h1>
+  <p>It shows you what is running by asking Docker — never by reading a list somebody remembered to update.</p>
+  <div class="row">
+    <span class="chip"><span class="dot"></span>cp .env.example .env &amp;&amp; just up</span>
+    <span class="chip">Traefik · Keycloak · Grafana</span>
+    <span class="chip">MIT</span>
+  </div>
+</body>

@@ -1,4 +1,8 @@
-# Bothy
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/wordmark-dark.svg">
+  <img alt="Bothy" src="docs/brand/wordmark-light.svg" width="260">
+</picture>
+
 
 **A self-discovering console for one machine.** A bothy is a small stone hut in
 the Scottish hills, left unlocked, that anyone can shelter in - which is what
@@ -27,7 +31,7 @@ by reading a list somebody remembered to update.
 
 _Every card on that page was discovered by asking Docker. Nothing about it is a list._
 
-![Bothy Files: a file tree of the stacks repo on the left, this README rendered in the centre, and the file's git history on the right.](docs/assets/files.png)
+![Bothy Files: the document tree on the left, this README rendered in the centre with its screenshots inline, and the page outline on the right.](docs/assets/files.png)
 
 _Bothy Files, reading this README off the disk it lives on - with search, git history and an editor._
 
@@ -520,7 +524,7 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
 
 ## Deeper docs
 
-- **Bothy Files** - <http://100.117.176.85/#/files>. Every markdown file on the
+- **Bothy Files** - `http://<node-ip>/#/files`. Every markdown file on the
   box, rendered, searchable and editable, read straight from disk.
 - [`docs/kb/`](docs/kb/README.md) - the operational knowledge base: topology,
   access paths, runbooks, incident files and the lessons they paid for.

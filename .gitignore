@@ -65,3 +65,11 @@ __pycache__/
 # and `git add -A` then swept the untracked file it had been protecting. The
 # directory is gone; the rule stays until the file does.
 mgmt/dozzle-users.yml
+
+# Build output that lands NEXT TO its source. `checks/run.sh` compiles TypeScript
+# to run it in node, and a mis-aimed --outDir once left files.js, md.js, tree.js
+# and highlight.js sitting beside their own .ts sources - four files that look
+# like source, are stale the moment anything changes, and that Vite would happily
+# resolve over the real thing.
+apps/portal-next/web/src/**/*.js
+apps/portal-next/web/.mdcheck-tmp/

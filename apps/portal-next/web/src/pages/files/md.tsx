@@ -234,6 +234,11 @@ function inlineMd(text: string, k: string, links?: MdLinks): ReactNode[] {
 const RE_FENCE = /^```(\S*)\s*$/;
 const RE_HEAD = /^(#{1,6})\s+(.*)$/;
 const RE_RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+// A raw HTML block - a line that STARTS with a tag. Markdown allows it and this
+// renderer has never understood it, so until now it printed the source: after
+// README.md grew a <picture> for its light/dark wordmark, the first thing in the
+// most-read document on the box was three lines of markup.
+const RE_HTML = /^\s*<([a-zA-Z][a-zA-Z0-9-]*)(\s|>|\/)/;
 const RE_QUOTE = /^>\s?/;
 const RE_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 
@@ -343,6 +348,30 @@ export function renderMd(src: string, k = 'b', links?: MdLinks): ReactNode[] {
     }
 
     if (RE_RULE.test(line)) { out.push(<hr className="md-hr" key={key()} />); i++; continue; }
+
+    // ── a raw HTML block ────────────────────────────────────────────────────
+    //
+    // Consumed to the next blank line and rendered as a CHIP naming the tag -
+    // the same treatment a remote image gets, and for the same reason: saying
+    // "something was here, and what" beats printing its source, and beats
+    // silently dropping it.
+    //
+    // It is emphatically NOT rendered. Interpreting it would mean turning file
+    // content into markup, which is the one thing this renderer is built never
+    // to do - and the reason it needs no sanitiser.
+    const htm = line.match(RE_HTML);
+    if (htm) {
+      const from = i;
+      while (i < lines.length && lines[i].trim() !== '') i++;
+      out.push(
+        <p className="md-p" key={key()}>
+          <span className="md-img-remote" title={lines.slice(from, i).join('\n')}>
+            {`<${htm[1]}> block`}
+          </span>
+        </p>,
+      );
+      continue;
+    }
 
     if (RE_QUOTE.test(line)) {
       const buf: string[] = [];
