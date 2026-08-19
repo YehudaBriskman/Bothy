@@ -42,6 +42,25 @@ export const POLL_OK = 10_000;
 export const POLL_FAIL = 60_000;
 export const MAX_BACKOFF = 3;
 const FETCH_TIMEOUT = 5000;
+// /system/df GETS ITS OWN, LONGER BUDGET, and it is the only call that needs
+// one. Measured on this box: containers/json answers in 85ms, /system/df in
+// 1.7s - twenty times slower, because it walks every image layer, container and
+// volume rather than reading a list. That cost grows with the box and spikes
+// while an image is building, and all five requests used to share one 5s
+// AbortController - so the most expensive call was policed by a budget sized
+// for the cheap ones, and lost the race first.
+//
+// Its failure is nearly silent by design (see loadAll), which is what let this
+// go unnoticed: the page kept working and the disk panel just stopped knowing
+// anything.
+//
+// 8s, NOT something generous. allSettled waits for all five, and `data` starts
+// empty, so this call gates FIRST PAINT - a long budget here would mean the
+// whole page waits on the one request the comment below calls least critical.
+// 8s is ~4.7x the measured cost and still under POLL_OK, so a slow df can never
+// become the thing you are waiting for. If it does time out the panel now says
+// so in words instead of claiming the box has no volumes.
+const DF_TIMEOUT = 8000;
 
 export interface LoadError {
   src: string;
@@ -112,6 +131,8 @@ export interface LoadResult {
 export async function loadAll(): Promise<LoadResult> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT);
+  const dfAc = new AbortController();
+  const dfT = setTimeout(() => dfAc.abort(), DF_TIMEOUT);
   try {
     // allSettled, not all: partial results are first-class. Traefik is the
     // skeleton, docker is enrichment - either can die alone. df is the LEAST
@@ -133,7 +154,7 @@ export async function loadAll(): Promise<LoadResult> {
       // The socket proxy's CONTAINERS=1 already covers this endpoint, and POST=0
       // still blocks every mutating call.
       getJSON<Container[]>('/-/api/docker/containers/json?all=1', ac.signal),
-      getJSON<SystemDf>('/-/api/docker/system/df', ac.signal),
+      getJSON<SystemDf>('/-/api/docker/system/df', dfAc.signal),
       // Static file written by the host-side collector and bind-mounted into
       // this container - NOT an /-/api/* route, so it needs no edge config and
       // its absence (collector not installed yet) is a normal, silent no-op.
@@ -167,6 +188,7 @@ export async function loadAll(): Promise<LoadResult> {
     };
   } finally {
     clearTimeout(t);
+    clearTimeout(dfT);
   }
 }
 
