@@ -231,6 +231,50 @@ cmd_upgrade() {
   just up
 }
 
+cmd_self_update() {
+  # THE CLI ON $PATH IS A COPY, and `upgrade` does not touch it. `bothy.sh`
+  # installs scripts/bothy to ~/.local/bin/bothy; `upgrade` pulls the checkout.
+  # So after an upgrade the repository has a new CLI and the one you are running
+  # is whatever was current the day you installed - which is exactly the drift
+  # that makes a dispatcher dangerous, because it resolves subcommands against a
+  # justfile it may no longer match. scripts/checks/cli-commands.sh catches that
+  # inside a checkout; nothing catches it for the copy on your PATH.
+  home=$(require_home) || exit 1
+  src="$home/scripts/bothy"
+  [ -f "$src" ] || die "no scripts/bothy in $home - is that really a Bothy checkout?"
+
+  # Where THIS process was started from, resolved through symlinks, rather than
+  # an assumed ~/.local/bin: somebody may have put it elsewhere, and overwriting
+  # a path they did not choose is worse than refusing.
+  self=$0
+  case "$self" in
+    */*) ;;
+    *) self=$(command -v bothy 2>/dev/null) || die "cannot tell where this bothy is - run it by path" ;;
+  esac
+  while [ -L "$self" ]; do self=$(readlink "$self"); done
+  self=$(cd "$(dirname "$self")" && pwd)/$(basename "$self")
+
+  if [ "$self" = "$src" ]; then
+    say "this IS $src - nothing to copy"
+    return 0
+  fi
+  if cmp -s "$src" "$self"; then
+    say "already current  $self"
+    return 0
+  fi
+
+  # Written to a neighbouring temp file and moved into place, never edited where
+  # it sits. A partial write here leaves a truncated interpreter script that
+  # cannot fix itself, and `bothy self-update` is the one command whose failure
+  # takes away the tool you would repair it with.
+  tmp="$self.new.$$"
+  cp "$src" "$tmp" || die "could not write beside $self - check the directory is yours"
+  chmod +x "$tmp"
+  mv "$tmp" "$self" || { rm -f "$tmp"; die "could not replace $self"; }
+  say "updated  $self"
+  say "  from   $src"
+}
+
 cmd_version() {
   home=$(find_home) || { say "bothy (no checkout found)"; return 0; }
   cd "$home" || return 0
@@ -260,6 +304,8 @@ bothy - install and run a Bothy box
   bothy download        pre-fetch every image and dependency, so a later
                         `up` needs no network
   bothy upgrade         pull and apply, preserving your data
+  bothy self-update     replace the bothy on your PATH with the checkout's
+                        copy - `upgrade` updates the box, not this file
   bothy version         what this checkout is
 
 Everything else is handed to the box's own justfile:
@@ -281,6 +327,7 @@ main() {
     init)      cmd_init "$@" ;;
     download)  cmd_download "$@" ;;
     upgrade)   cmd_upgrade "$@" ;;
+    self-update) cmd_self_update "$@" ;;
     version|--version|-v) cmd_version ;;
     help|--help|-h) usage ;;
     doctor)
