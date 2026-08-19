@@ -14,9 +14,10 @@ name: auth
 # github.com. It also survives the box being offline from the internet.
 #
 # WHAT IS ENFORCED, AND WHAT IS NOT. This said "NOTHING IS ENFORCED YET" long
-# after it stopped being true. Six routers now carry a role requirement: the
-# editor tier's three (`sso-viewer` on reads and downloads, `sso-editor` on
-# writes), the config tier's, and the action tier's (`sso-operator`).
+# after it stopped being true. Nine routers now carry a role requirement: the
+# editor tier's four (`sso-viewer` on reads and downloads, `sso-editor` on
+# writes and deletes), the config tier's two, and the action tier's three
+# (`sso-operator`, one per verb).
 #
 # The dashboards - Grafana, Prometheus, Portainer, Dozzle - are still on their
 # own logins and are NOT behind the edge. That is the remaining work, and it is

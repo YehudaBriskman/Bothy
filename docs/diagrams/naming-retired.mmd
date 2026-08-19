@@ -1,12 +1,12 @@
 flowchart LR
-    BASE["the name layer - the portal, the base of the namespace"]
+    BASE["BASE-DOMAIN - the portal, the base of the namespace"]
 
-    BASE --> TRA["a service hostname"]
-    BASE --> GRA["a service hostname"]
-    BASE --> TIL["a service hostname"]
+    BASE --> TRA["traefik.BASE-DOMAIN"]
+    BASE --> GRA["grafana.BASE-DOMAIN"]
+    BASE --> TIL["tilt.BASE-DOMAIN"]
 
-    BASE --> CVO["a service hostname"]
-    CVO --> CS3["a nested hostname"]
+    BASE --> CVO["cvops.BASE-DOMAIN"]
+    CVO --> CS3["s3.cvops.BASE-DOMAIN"]
 
-    BASE --> TAL["a service hostname"]
-    TAL --> TAPI["a project API hostname"]
+    BASE --> TAL["tals.BASE-DOMAIN"]
+    TAL --> TAPI["api.tals.BASE-DOMAIN"]

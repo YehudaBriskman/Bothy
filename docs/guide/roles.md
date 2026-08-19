@@ -195,10 +195,11 @@ omitting `portal-files-delete`, omitting `/links` from the read router's paths,
 and omitting the config and control tiers entirely. The prose beside it says
 "three routers require a role today". Nine do.
 
-`SECURITY.md` disagrees with itself in the same way and in one section: the
-status blockquote at the top of § 1 correctly says *nine role-gated routers in
-three files*, and four paragraphs later the same section still says *"Three
-routers do now, all in `edge/dynamic/portal-files.yml`"*.
+`SECURITY.md` disagreed with itself in the same way and in one section: the
+status blockquote at the top of § 1 said *nine role-gated routers in three
+files*, and four paragraphs later the same section still said *"Three routers
+do now, all in `edge/dynamic/portal-files.yml`"*. Corrected 2026-08-19 - the
+blockquote was the half that matched the router table.
 
 The router table is the one that is true, because it is the one that runs. It
 is live at `http://<node-ip>/-/api/traefik/http/routers`, and there is no

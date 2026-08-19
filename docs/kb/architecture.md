@@ -11,7 +11,7 @@ Primary access is **published ports on the tailnet IP** (table in [access.md](ac
 the old `portal` container is `traefik.enable=false`) via its prio-1 fallback router,
 plus the prio-100 Host-less `Path()` routers for `/-/api/{traefik,docker,loki,prom}/*`.
 
-**The the name layer Host routers were deleted on 2026-08-12**, having been dormant
+**The name layer's Host routers were deleted on 2026-08-12**, having been dormant
 since 2026-08-08. Measured: the router table went **22 → 6**, and **zero `Host()`
 rules remain**. Nothing became unreachable - every browser-facing service already
 published a host port - and a 20-check verification harness passed 20/20 after the

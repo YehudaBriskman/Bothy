@@ -10,9 +10,9 @@
 
 // ── The name layer is GONE, and so is the code that served it ───────────────
 //
-// Until 2026-08-17 this file opened with `BASE = 'the name layer'` and a HOST_PORTS
-// table mapping `a service hostname -> 3000`, `wiki.the name layer -> 3001` and so on,
-// plus a `hostUrl()` that looked a hostname up in it.
+// Until 2026-08-17 this file opened with `BASE = '<base-domain>'` and a HOST_PORTS
+// table mapping thirteen `<service>.<base-domain>` names to ports, plus a
+// `hostUrl()` that looked a hostname up in it.
 //
 // Every one of those entries was unreachable. A node only carries a `host` when
 // a router's rule contains `Host(...)`, and the router table has held ZERO
@@ -977,7 +977,7 @@ export function containerUrl(container?: Container | null, path = ''): string | 
 /**
  * Can a browser open this?
  *
- * REWRITTEN 2026-08-12, when the `the name layer` name layer was retired. This used
+ * REWRITTEN 2026-08-12, when the name layer was retired. This used
  * to be `if (!host) return false` - browsability was a property of having a
  * Traefik hostname. Deleting the routers therefore made every service on the box
  * unbrowsable at once: the portal still listed them, but every "open" link
@@ -1287,7 +1287,7 @@ function makeNode({
     aliases,
     path,
     // The container's own published port, and nothing else. The old fallback
-    // looked the hostname up in a table of the name layer names; with that table
+    // looked the hostname up in a table of name-layer names; with that table
     // gone, a browsable node with no published port has no URL, which is the
     // truth rather than a guess.
     url: browsable ? containerUrl(container, path) : null,
@@ -1427,7 +1427,7 @@ export const HOST_OVERRIDES: Record<string, { icon: string; desc: string }> = {
 // The last-resort floor: shown only when BOTH APIs are unreachable, which is to
 // say on the page you open when the box is broken.
 //
-// IT LINKED TO NINE the name layer NAMES UNTIL 2026-08-17. That is the worst place
+// IT LINKED TO NINE NAME-LAYER NAMES UNTIL 2026-08-17. That is the worst place
 // on the box for a dead link - the one screen whose entire job is to work when
 // nothing else does was offering nine addresses that have not resolved since
 // August, two of them (Kafka UI, Wiki.js) for services that no longer exist.

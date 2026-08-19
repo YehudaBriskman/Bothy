@@ -10,7 +10,7 @@ running ~20 containers, reachable from any device on the tailnet, driven by
 > from `tailscale` at run time, because this repository is public.
 > Start at `http://<node-ip>/`, which is the portal.
 
-**the name layer is retired, not dormant.** It went dormant on
+**The name layer is retired, not dormant.** It went dormant on
 2026-08-08 when the Tailscale split-DNS route was removed, and its configuration
 was **deleted on 2026-08-12**. Traefik holds **zero `Host()` rules**. Sections
 below that describe names describe history and say so; nothing in this document
@@ -81,7 +81,7 @@ not the box (see [kb/runbook-cant-reach.md](kb/runbook-cant-reach.md)).
 ### Identity: being rebuilt, not yet enforced
 
 Recorded 2026-08-12. The previous SSO was oauth2-proxy against GitHub, with the
-OAuth callback pinned to `a service hostname`. Deleting the name layer broke the
+OAuth callback pinned to `<service>.<base-domain>`. Deleting the name layer broke the
 callback, so it was parked on 2026-08-08 and each dashboard's own login with the
 shared `DEV_LOGIN_*` credential became the interim control.
 
@@ -243,7 +243,7 @@ every container's `Env` is on the tailnet.
 
 **Nothing else guards this.** The old note here said the `sso` middleware also
 closed a DNS-rebinding hole, because a rebound request carries the attacker's
-`Host` and so never receives the `.the name layer`-scoped session cookie. That
+`Host` and so never receives the `.<base-domain>`-scoped session cookie. That
 reasoning died with the name layer on 2026-08-12: there is no name and no
 name-scoped cookie. DNS rebinding is also no longer the relevant attack - there is
 no name to rebind, only an IP. This data plane is not role-gated the way the
@@ -344,7 +344,7 @@ routed, and `auth` must exist before the routers that reference its middleware.
 
 ## 4. The naming convention (retired)
 
-**Retired 2026-08-12.** The the name layer no longer exists: the
+**Retired 2026-08-12.** The name layer no longer exists: the
 Tailscale split-DNS route was removed on 2026-08-08, dnsmasq answers nothing for
 the box any more, every `Host()` router rule was deleted, and access is
 `http://<node-ip>:<port>`. This section is kept because the argument that
@@ -359,13 +359,13 @@ Nothing here is a live instruction. Do not write a `Host()` rule.
 
 | Shape | Meant |
 |---|---|
-| the name layer | The portal. The base of the namespace. |
-| `<service>.the name layer` | A shared stack service. |
-| `<project>.the name layer` | One branch per project. |
-| `<sub>.<project>.the name layer` | A piece belonging to that project. |
+| `<base-domain>` | The portal. The base of the namespace. |
+| `<service>.<base-domain>` | A shared stack service. |
+| `<project>.<base-domain>` | One branch per project. |
+| `<sub>.<project>.<base-domain>` | A piece belonging to that project. |
 
 A project's own pieces nested under the **project**, not at the top level:
-`a nested hostname`, never `s3.the name layer`. A flat name could only ever mean one
+`s3.<project>.<base-domain>`, never `s3.<base-domain>`. A flat name could only ever mean one
 project's piece, which re-creates the port-collision problem one layer up.
 
 Adding a service was two Traefik labels and a hostname - no DNS entry, no port
@@ -388,8 +388,8 @@ allocation, nothing restarted. That is the property the current model lost.
 
 | Old rule | Why it no longer applies |
 |---|---|
-| Everything must stay under `.the name layer`, never a sibling like `tilt.test`, because the oauth2-proxy cookie was scoped to `.the name layer` | There is no name-scoped cookie. Identity is being rebuilt on Keycloak with an IP:port callback precisely so it depends on no DNS name |
-| `a service hostname` is deliberately flat, with `a nested host process` as an alias | Tilt is reached at `<node-ip>:10350`. The name never distinguished projects anyway - Tilt binds one fixed port and only one project can hold it, so it always meant "whoever last ran `tilt up`". `edge/dynamic/host-services.yml` is now a comments-only stub recording this |
+| Everything must stay under `.<base-domain>`, never a sibling alongside it, because the oauth2-proxy cookie was scoped to `.<base-domain>` | There is no name-scoped cookie. Identity is being rebuilt on Keycloak with an IP:port callback precisely so it depends on no DNS name |
+| `tilt.<base-domain>` is deliberately flat, with `tilt.<project>.<base-domain>` as an alias | Tilt is reached at `<node-ip>:10350`. The name never distinguished projects anyway - Tilt binds one fixed port and only one project can hold it, so it always meant "whoever last ran `tilt up`". `edge/dynamic/host-services.yml` is now a comments-only stub recording this |
 | A device not on the tailnet gets `NXDOMAIN` | It gets no route to the IP at all. Same outcome, different layer |
 
 ### The dead end worth recording
@@ -419,7 +419,7 @@ skeleton it was; it is closer to a rib.
 
 It is a Vite + React app built to static files by a multi-stage image (node
 builds, nginx serves `dist/`), routed by the catch-all `PathPrefix(/)` at
-priority 1 and nothing else - the `Host(the name layer)` router it also carried was
+priority 1 and nothing else - the `Host(<base-domain>)` router it also carried was
 deleted on 2026-08-12. Like everything else on the box today it sits behind no
 authentication. Deep links use `HashRouter` so static nginx needs no rewrite
 rules.
@@ -486,7 +486,7 @@ Two more behaviours worth knowing:
   resolved service key, keeps the **shallowest** hostname as canonical and the
   rest as `node.aliases`. Emitting both would double-count one process in every
   total and force a guess about which project owns it. The case that paid for
-  this was `a service hostname` and `a nested host process`, two routers on one
+  this was `tilt.<base-domain>` and `tilt.<project>.<base-domain>`, two routers on one
   `tilt@file` → `host.docker.internal:10350`. **Dormant since 2026-08-12** -
   with no `Host()` rules there are no aliases to collapse, and the code is kept
   because the situation recurs the moment two routes ever share a service again.
@@ -744,7 +744,7 @@ and that git would otherwise never see:
 
 | Copy | Real location | Why it matters |
 |---|---|---|
-| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Historical: it held the wildcard the name layer record. **Nothing depends on it as of 2026-08-12** - the name layer is retired. Still worth keeping for `domain-needed`, which makes a dotless lookup `NXDOMAIN` in ~0 ms instead of hanging 40 s (see the traps table). |
+| `dnsmasq/dev.conf` | `/etc/dnsmasq.d/dev.conf` | Historical: it held the wildcard record the name layer resolved through. **Nothing depends on it as of 2026-08-12** - the name layer is retired. Still worth keeping for `domain-needed`, which makes a dotless lookup `NXDOMAIN` in ~0 ms instead of hanging 40 s (see the traps table). |
 | `docker/daemon.json` | `/etc/docker/daemon.json` | Log rotation (10 MB × 3) - that is what this file is for. Also `metrics-addr` on `:9323`, optional since the `docker-daemon` scrape job was removed on 2026-08-19; nothing reads it now. |
 | `wsl/wsl.conf` | `/etc/wsl.conf` | `systemd=true` - the reason `docker.service` can be enabled and every stack comes back with the distro. Also `generateResolvConf=false`. |
 | `wsl/wslconfig` | the Windows user profile | Memory, CPU and nested virtualisation for the VM |

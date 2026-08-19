@@ -66,17 +66,17 @@ elevated `schtasks /run /TN "DevBox-WSL-Keepalive"`, or log in as devssh once.
 - `ssh yr055@…` → "unknown user"; only `devssh@` exists on the dev box.
 - SSH prints `# To authenticate, visit: https://login.tailscale.com/a/…` and waits -
   that's Tailscale SSH **check-mode** (new since 08-08), not a fault. Click the link.
-- `Invoke-WebRequest` timing out - .NET quirk; use `curl.exe`. (It bit on the name layer
+- `Invoke-WebRequest` timing out - .NET quirk; use `curl.exe`. (It bit on the name-layer
   names; the rule survives them.)
-- **the name layer NXDOMAIN from any device - that is the expected state since
-  2026-08-08/08-12, not a fault.** Use `http://100.117.176.85:<port>`.
+- **A name-layer lookup is NXDOMAIN from any device - that is the expected state
+  since 2026-08-08/08-12, not a fault.** Use `http://100.117.176.85:<port>`.
 - A 200 from a weird hostname or a nonsense path - `portal-next-fallback` answers
   everything on `:80`; proves nothing. Since 2026-08-12 it is the only non-API router,
   so this is now the *normal* response rather than an edge case.
-- **`a service hostname` / the Traefik dashboard is 404/gone** - deleted deliberately
+- **The Traefik dashboard is 404/gone** - deleted deliberately
   2026-08-12 ([lessons.md](lessons.md)). Router table:
   `http://100.117.176.85/-/api/traefik/http/routers`.
-- **`*.a service hostname` routers reappearing in the router table** - a Tals preflight
+- **`*.tals.<base-domain>` routers reappearing in the router table** - a Tals preflight
   script regenerates them; inert, known ([known-issues.md](known-issues.md)).
 - SSH hangs to the dev box for a minute after long idle - hairpin port rotation; retry.
 - Checker says `TASK MISSING` / probes `000` on the old IP - run elevated; stale `.57` IP

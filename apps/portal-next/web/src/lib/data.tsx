@@ -60,7 +60,7 @@ export const expectedUp = (c: HealthCounts) => c.total - c.stopped;
 //   1. every stopped container, because statusOf() collapsed exited(0) into
 //      'down' (fixed at the source in discover.ts), and
 //   2. orphan routes belonging to a system that is entirely switched off - the
-//      four tals.the name layer file-routes point at host processes, so stopping Tals
+//      four `tals.<base-domain>` file-routes point at host processes, so stopping Tals
 //      "orphaned" all four at once and each one shouted.
 // An orphan route still matters when the rest of its system is up (that IS the
 // route-with-no-backend case portal.md wants shouted about), so the rule is
