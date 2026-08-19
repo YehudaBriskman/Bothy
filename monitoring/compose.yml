@@ -11,6 +11,24 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
+      # A CEILING AS WELL AS A CLOCK. retention.time alone means the volume grows
+      # as `cardinality x 15 days`, so it is bounded by how much anything happens
+      # to emit rather than by anything anyone chose - and the box learned what
+      # that costs: cAdvisor ran with no flags and produced 4147 series, of which
+      # ~400 were reachable, which is most of why this volume reached 1.8 GB.
+      #
+      # Measured 2026-08-19, and retention.time was working correctly the whole
+      # time: 24 blocks, oldest 14 days old, dropping on schedule. The defect was
+      # never that old data stayed - it was that nothing capped how big 15 days
+      # could BE.
+      #
+      # 3GB is ~4-6x the expected steady state now that cAdvisor emits 1036
+      # series rather than 4147, so it should never bite in normal operation.
+      # When it does bite, it means something started emitting far more than
+      # before, and losing the oldest hours is the right answer - Vitals only
+      # ever looks back 24h and no dashboard here reads past that. Prometheus
+      # honours whichever limit is reached first.
+      - --storage.tsdb.retention.size=3GB
       - --web.enable-lifecycle
       # Basic auth on all endpoints (2026-08-08, replaces parked SSO). The web
       # config + password file are gitignored; see their headers to regenerate.
