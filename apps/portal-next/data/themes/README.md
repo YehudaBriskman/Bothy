@@ -55,19 +55,25 @@ file, change the id in both selectors, and start editing colours.
 
 ## What a complete theme declares
 
-**41 tokens.** Of the 73 custom properties Bothy defines, 16 are *derived*
-(computed from the ones you set, so they follow along for free) and 16 are
-*structural* (radii, motion, fonts — the product's shape, not its palette). You
-own the remaining 41: surfaces, foregrounds, lines, accent, five chart slots,
-five statuses with their text variants, five panel accents, shadows.
+**42 tokens.** Of the 81 custom properties Bothy defines, 16 are *derived*
+(computed from the ones you set, so they follow along for free) and 24 are
+*structural* (radii, motion, fonts, the reading scale — the product's shape, not
+its palette). You own the remaining 42: surfaces, foregrounds, lines, accent,
+the brand mark, five chart slots, five statuses with their text variants, five
+panel accents, shadows.
 
 A partial theme works — anything you leave out falls back to the base palette —
 but the result is usually a page that is *nearly* your theme with a few
 stubbornly blue buttons, so it is better to start from a complete file.
 
-## Two rules worth knowing before you pick colours
+> `--brand` joined that list on 2026-08-19, so a theme written before then is
+> reported as incomplete when you open it in the editor. It still **renders**
+> correctly — the mark inherits Bothy's green — and saving the file once from the
+> editor adds the token and clears the warning.
 
-They are not enforced on your files, and both exist because breaking them
+## Three rules worth knowing before you pick colours
+
+They are not enforced on your files, and each exists because breaking it
 produced a real bug:
 
 1. **The five status colours are reserved.** `--st-up`, `--st-warn`,
@@ -78,6 +84,12 @@ produced a real bug:
    must stay clearly distinct from the status hues — Bothy's own themes keep at
    least 45° of hue between them — or the first rule stops being true in
    practice.
+3. **`--brand` is the exception to rule 2, deliberately.** It paints one thing:
+   the dot in the wordmark. That is identity, not chrome and not state, so it is
+   allowed to sit on a status hue — Bothy's green is 17° from `--st-up` — because
+   the mark never changes with state and is never beside a status glyph. It does
+   have to stay *visible*: at least 3:1 against `--surface-1` and `--surface-2`.
+   A light theme almost certainly needs a darker green than a dark one.
 
 Text also needs to stay readable: Bothy holds its own foregrounds at 4.5:1
 against every surface they are painted on. If you want the same assurance for
