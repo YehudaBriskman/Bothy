@@ -6,10 +6,20 @@
 # sentence true. Two things stand in the way, and both are invisible to every
 # other check because they are correct on THIS box:
 #
-#   · absolute paths under one person's home directory, and
-#   · this node's tailnet address, written into files a stranger would clone.
+#   · absolute paths under one person's home directory,
+#   · this node's tailnet address, written into files a stranger would clone, and
+#   · an email address belonging to a person, in a file a service reads.
 #
-# The second is also a small privacy matter: this repository is public.
+# The second and third are also a small privacy matter: this repository is public.
+#
+# The third was added after it broke something rather than in anticipation.
+# monitoring/prometheus.yml carried the maintainer's email as the username the
+# Prometheus self-scrape authenticates with, while the users map it authenticates
+# AGAINST is generated from $DEV_LOGIN_USER. Equal on one box, different on every
+# other, so the self-scrape 401'd on every fresh install and reported itself as a
+# target that was merely DOWN. Two other checks looked straight at that line and
+# saw nothing wrong with it, because there is nothing wrong with an email address
+# - only with THAT one being in THAT file.
 #
 # WHY A BASELINE AND NOT FAIL-ON-ANY-HIT. There are ~107 of them today. A check
 # that reports 107 problems is a check nobody reads, and the repo already learned
@@ -34,6 +44,16 @@ HOME_RE='/home/[a-z][a-z0-9_-]*/'
 # The CGNAT range tailscale allocates from, 100.64.0.0/10. Written out rather
 # than as a CIDR because grep is matching text, not addresses.
 TAILNET_RE='\b100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'
+
+# An email address that names a person. The reserved example domains are the
+# whole difficulty here: .env.example, the two API test suites and the KB are
+# supposed to contain addresses, and a check that flags dev@example.com is a
+# check that gets a baseline entry per placeholder and then gets ignored. So the
+# pattern matches an address and the filter below drops the ones that are, by
+# RFC 2606, guaranteed to belong to nobody. What survives is an address that
+# resolves to a real mailbox, which in a config file is the bug.
+EMAIL_RE='[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}'
+PLACEHOLDER_RE='@(example\.(com|org|net|test)|localhost)'
 
 # Paths that are not this repository's business.
 #
@@ -66,6 +86,12 @@ hits() {
   {
     git grep -cE "$HOME_RE" -- . "$EXCLUDE" "$EXCLUDE2" "$EXCLUDE3" | sed 's/^\(.*\):\([0-9]*\)$/\1\thome-path\t\2/'
     git grep -cE "$TAILNET_RE" -- . "$EXCLUDE" "$EXCLUDE2" "$EXCLUDE3" | sed 's/^\(.*\):\([0-9]*\)$/\1\ttailnet-ip\t\2/'
+    # -o and count in awk rather than `grep -c`, because the placeholders have to
+    # be dropped BEFORE the counting - a per-file count cannot be filtered after
+    # the fact, and .env.example would otherwise report one hit forever.
+    git grep -oE "$EMAIL_RE" -- . "$EXCLUDE" "$EXCLUDE2" "$EXCLUDE3" \
+      | grep -vE "$PLACEHOLDER_RE" \
+      | awk -F: '{ c[$1]++ } END { for (f in c) printf "%s\tperson-email\t%d\n", f, c[f] }'
   } | sort -u
 }
 

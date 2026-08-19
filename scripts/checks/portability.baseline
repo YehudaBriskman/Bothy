@@ -34,3 +34,10 @@ host/systemd/stacks-backup.service	home-path	1
 host/windows/install-portproxy-refresh.cmd	tailnet-ip	1
 host/windows/refresh-portproxy.ps1	tailnet-ip	3
 justfile	tailnet-ip	1
+# `devssh@yehuda-wsl.tail` - a tailnet SSH target, in the knowledge base, which
+# is the one tree in this repo that is DELIBERATELY about this specific machine
+# (see docs/kb's own header). An address here is documentation of a host, not a
+# credential a service reads, and parameterising it would make the runbook
+# useless for the only thing it is for. Contrast monitoring/prometheus.yml,
+# which is what this rule was written for: there the address was configuration.
+docs/kb/access.md	person-email	1
