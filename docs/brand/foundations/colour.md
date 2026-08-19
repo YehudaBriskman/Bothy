@@ -6,7 +6,7 @@ What colours exist, what each one is for, and how you prove they are legal.
 
 ## The rule
 
-Colour in an interface does four separate jobs, and mixing them is the single
+Colour in an interface does five separate jobs, and mixing them is the single
 most common way a design system rots.
 
 | Job | What it is | Rule |
@@ -15,6 +15,30 @@ most common way a design system rots.
 | **Status** | State: up, warn, down, unknown, off | Reserved. Never decoration. See [principles](principles.md). |
 | **Chrome accent** | Telling panels apart | Decoration. Never encodes state. |
 | **Chart series** | Identity in a graph | A validated categorical palette, assigned by fixed slot order. |
+| **Brand** | The product's own mark | Identity. Not chrome, not state, and not the accent. |
+
+### Brand is its own job, and the mistake is subtle
+
+The brand mark is the easiest of the five to get wrong, because pointing it at
+the accent looks like good token hygiene. It is not: the accent's job is "this is
+interactive", and every theme is entitled to repaint it. Point the mark at it and
+the one element on the page whose whole purpose is to say *which product this
+is* restates whichever hue the current theme picked for its buttons. Bothy's
+wordmark dot did exactly that until 2026-08-19 - it was blue on the default
+theme, blue-grey on Gruvbox, and lavender on Catppuccin.
+
+Two properties fall out of it being identity rather than chrome:
+
+- **A brand colour is theme-tunable, not fixed.** It has to remain visible on
+  every palette, and no single value does that across light and dark grounds. So
+  a theme may override it - and the contrast rule measures whatever it resolves
+  to, per theme, rather than blessing one hex.
+- **A brand colour is exempt from the status hue-separation rule, and must be.**
+  Chrome is kept 45° away from any chromatic status hue so that a coloured
+  control cannot be misread as a state. A mark is never adjacent to a status
+  glyph, never changes with state, and encodes nothing - so the rule protects
+  nothing here, and applying it would only forbid a brand from being green.
+  Write the exemption down where the rule lives, or someone will "fix" it.
 
 ### The elevation ladder
 
@@ -110,6 +134,15 @@ stopped). That is safe only because they are large solid areas beside a track,
 never a small glyph or a 1px border, and because status is never encoded by
 colour alone. This is written down so that if one of them is ever used for a
 glyph, the exemption is visibly void.
+
+**The wordmark's dot is `--brand`, not `--accent`.** Split out on 2026-08-19: it
+is the only piece of pure identity in the chrome, and following the accent meant
+it changed colour with every theme. Green `#3fb950` on dark (7.48:1 on
+`--surface-1`), stepped to `#238636` on light, where the dark green measures
+2.54:1 and the dot is simply not there. The floor is 3:1 rather than 4.5:1
+because it is a 4.5px filled circle - a mark, not text - and the check measures
+it on `--surface-1` **and** `--surface-2`, because the header and the card are
+different grounds.
 
 **Tints come from two percentages**, declared once, replacing 53 ad-hoc mixes
 that had drifted to five different fill strengths. Mixing happens in a

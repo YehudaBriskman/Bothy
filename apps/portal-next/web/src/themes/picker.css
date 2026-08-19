@@ -34,7 +34,7 @@
 
    A theme FILE solves this by declaring both selectors (see src/themes/*.css).
    The built-ins cannot: their palettes are the :root blocks at the top of this
-   file, and repeating 41 tokens twice to make them subtree-applicable would be
+   file, and repeating 42 tokens twice to make them subtree-applicable would be
    the duplication the token model exists to prevent.
 
    So this repeats FIVE values, and checks/theme-contract.mjs asserts each one

@@ -58,6 +58,24 @@
   --accent-line: color-mix(in oklab, var(--accent) 32%, transparent);
   --ring:        var(--accent);
 
+  /* ── brand (identity, not chrome and not state) ──────────────────────────
+     The dot in the wordmark, and nothing else in the app. It was var(--accent)
+     until 2026-08-19, which meant the one mark that is supposed to say "this is
+     Bothy" restated whatever a theme had chosen for its buttons - the mark
+     turned blue, green or mauve with the chrome and stopped identifying
+     anything. So it is its own token: a fifth colour JOB beside surface, status,
+     chrome and chart.
+
+     Theme-tunable rather than fixed. A theme MAY override it - a light palette
+     has to, see below - because the contract measures whatever it resolves to
+     and a value that cannot be seen is not identity either.
+
+     7.48:1 on --surface-1, 7.04:1 on --surface-2. The floor is 3:1, not 4.5:1:
+     this is a 4.5px filled circle, a mark on chrome, never text.
+
+     IT IS DELIBERATELY EXEMPT FROM THE ACCENT HUE RULE - see contract.ts. */
+  --brand:       #3fb950;
+
   /* ── chart series (chrome, never state) ──────────────────────────────────
      Used ONLY by the metrics graphs; a series colour says "this is the CPU
      line", never "this is bad". Status keeps its own reserved palette above.
@@ -244,6 +262,13 @@
   --accent:    #2563eb;
   --accent-2:  #1d4ed8;
   --accent-fg: #1d4ed8;   /* 7.06 - #2563eb as text was 5.17, kept darker */
+
+  /* The dark green measures 2.54 on white, so it is not merely dimmer here, it
+     is below the 3:1 floor and the dot disappears. Stepped down two rungs of the
+     same ramp instead of tinted: 4.63 on --surface-1, 4.44 on --surface-2.
+     This is what "theme-tunable" is FOR - one brand green that survives every
+     ground would have to be a compromise on both. */
+  --brand:     #238636;
 
   /* The same five entities in the same slot order - a series must not change
      hue with the theme - re-stepped for a white ground and re-validated there
@@ -647,7 +672,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    and this needs two colours:
 
      ::before  the letterforms, masked from wordmark.svg, in currentColor
-     ::after   the dot, a plain circle, in var(--accent)
+     ::after   the dot, a plain circle, in var(--brand)
 
    The mask lives on ::before rather than on the element, because a mask set on
    the element would clip ::after away with everything else.
@@ -694,7 +719,10 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   top: 45%;
   translate: -50% -50%;
   border-radius: 50%;
-  background: var(--accent);
+  /* --brand, not --accent. The dot is the one piece of identity on the page; on
+     --accent it repainted itself in every theme's button colour and stopped
+     being a mark at all. The geometry above is unaffected - do not retune it. */
+  background: var(--brand);
 }
 
 

@@ -54,6 +54,11 @@
   --accent-2:    #6a9bbd;
   --accent-fg:   #9cc6e2;
 
+  /* The wordmark's dot - identity, so it stays Bothy's green rather than being
+     remapped to one of Gruvbox's. Measured on this palette's warm greys:
+     5.17 on surface-1, 4.56 on surface-2, floor 3:1. */
+  --brand:       #3fb950;
+
   --chart-1: #4f8fbd;
   --chart-2: #2f8f8a;
   --chart-3: #c1702f;

@@ -112,6 +112,7 @@ export const CHARTS = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--ch
 export const AA = 4.5;              // text
 export const ACCENT_ON_SURFACE = 4.6; // --a1..--a5 are painted as 12px bold text
 export const CHART_VS_CARD = 3.0;
+export const BRAND_ON_SURFACE = 3.0; // the wordmark dot is a mark, not text
 export const CHROMATIC_C = 0.06;    // a status at or above this is "chromatic"
 export const HUE_SEPARATION = 45;   // degrees, against a chromatic status
 export const CHROMA_MARGIN = 0.06;  // against a near-grey status
@@ -232,6 +233,7 @@ const MEASURED = [
   '--bg-glow',
   '--fg', '--fg-muted', '--fg-subtle',
   '--accent', '--accent-fg', '--on-accent',
+  '--brand',
   ...STATUSES.map((s) => `--st-${s}`),
   ...STATUSES.map((s) => `--st-${s}-fg`),
   ...ACCENTS,
@@ -371,7 +373,36 @@ export function evaluateTheme(
       `${k} >= ${ACCENT_ON_SURFACE}:1 on surface-2 (12px bold text)`, v.toFixed(2));
   }
 
-  // 6. charts - band, and separation against the card. Slot ORDER is part of
+  // 6. brand - the wordmark's dot, on both grounds the header can sit on.
+  //
+  //    3:1 and not 4.5:1 because it is a 4.5px filled circle: a mark on chrome,
+  //    never text. Both surfaces and not just one, because the header is
+  //    --surface-2 and the mark also appears on --surface-1 cards; a green that
+  //    passes on the card and vanishes in the header is the failure this catches.
+  //
+  //    IT IS DELIBERATELY NOT SUBJECT TO THE ACCENT RULE IN 5 ABOVE, and this is
+  //    the paragraph to read before "fixing" that. The accent rule forbids chrome
+  //    within 45 degrees of a chromatic status because a coloured control that
+  //    shares a hue with --st-up starts reading as a state - the user cannot tell
+  //    "interactive" from "healthy". Bothy's brand green sits at H 146, and
+  //    --st-up is at H 163, a gap of 17 degrees: the mark would fail rule 5
+  //    outright. It is exempt because it does not encode anything. The dot is the
+  //    same dot on a page reporting five containers down; it never changes with
+  //    state, it is not adjacent to a status glyph, and nothing in the app reads
+  //    it as one. Applying rule 5 here would not prevent a confusion - it would
+  //    only forbid the brand from being green, which is a design decision the
+  //    contract has no business making.
+  {
+    const b = C('--brand');
+    for (const [n, g] of [['surface-1', s1], ['surface-2', s2]] as [string, RGBA][]) {
+      const v = on(b, g);
+      say(`contrast/--brand-vs-${n}`, v >= BRAND_ON_SURFACE,
+        `--brand >= ${BRAND_ON_SURFACE}:1 on ${n} (the wordmark dot, a mark not text)`,
+        v.toFixed(2));
+    }
+  }
+
+  // 7. charts - band, and separation against the card. Slot ORDER is part of
   //    what was validated upstream, so the check reads them in order and never
   //    sorts them.
   const [lo, hi] = BAND[appearance];
@@ -385,7 +416,7 @@ export function evaluateTheme(
     say(`contrast/${k}-vs-card`, v >= CHART_VS_CARD, `${k} >= 3:1 on surface-1`, v.toFixed(2));
   }
 
-  // 7. the syntax palette, when the theme carries one
+  // 8. the syntax palette, when the theme carries one
   //
   // ALL OR NOTHING, and the reason is not tidiness. A theme declaring no
   // --hl-* is fine: code renders in shell.css's set, which was chosen for this
