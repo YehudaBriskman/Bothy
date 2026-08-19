@@ -351,6 +351,24 @@ portal-prom-route:
 # Traefik Host-name routing is DELETED - not
 # dormant, not waiting on a DNS layer. Zero Host() rules remain in the router
 # table. A new service publishes a port; it does not declare a name.
+# The order is the point. VERSION is edited and COMMITTED first, by hand, in its
+# own change - then this tags what is already on main. Tagging first and editing
+# after leaves a tag pointing at a commit that claims the wrong version, which is
+# the exact disagreement scripts/checks/version.sh exists to catch.
+#
+# Tag the current main as the release named in VERSION. Does not push.
+release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    v=$(tr -d '[:space:]' < VERSION)
+    bash scripts/checks/version.sh || {
+      echo "Fix VERSION before tagging - see above."; exit 1; }
+    git diff --quiet || { echo "working tree is dirty - commit first"; exit 1; }
+    [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || {
+      echo "releases are cut from main"; exit 1; }
+    git tag -a "v$v" -m "Bothy v$v"
+    echo "tagged v$v - push it with:  git push origin v$v"
+
 # Print every address on this box, and what is deliberately not running.
 urls:
     #!/usr/bin/env bash
