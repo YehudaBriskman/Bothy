@@ -127,7 +127,10 @@ jobs:
           # silent and every check below then runs against whatever directory the
           # caller was in. Three real fixes is a cheaper price than a gate that
           # starts lenient, since a threshold nobody ever raises is the threshold.
-          find scripts apps/*/checks -name '*.sh' -print0 \
+          # Selected by SHEBANG, not by suffix - see scripts/checks/bash32.sh,
+          # which had the same hole. `scripts/bothy` has no extension, so the
+          # CLI itself was never linted here.
+          find scripts apps/*/checks -type f \( -name '*.sh' -o -exec sh -c 'head -1 "$1" | grep -qE "^#!.*(ba)?sh"' _ {} \; \) -print0 \
             | xargs -0 shellcheck -x -S warning
 
       - name: No bash 4 syntax (macOS ships bash 3.2)

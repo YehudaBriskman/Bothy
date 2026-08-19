@@ -212,6 +212,23 @@ mutant "bash 4 syntax creeps back in" \
 mutant_lower="${PATH'"$BASH4_SUFFIX"'}"' \
   -- bash scripts/checks/bash32.sh
 
+# THE SAME RULE, IN THE FILE THAT HAD NO EXTENSION. The row above plants in
+# scripts/doctor.sh, which is a *.sh file and was therefore always scanned - so
+# it passes whether the finder selects by suffix or by shebang, and it could not
+# have caught what was actually wrong: `find ... -name '*.sh'` walked straight
+# past scripts/bothy, the CLI, which is bash and is the file where a bash 4
+# construct hurts most (macOS ships 3.2, and ${x,,} is a PARSE error there, so
+# the script does not run at all and the message names a line that looks fine).
+#
+# This row is what stops that hole reopening: revert the finder to a suffix glob
+# and this goes red while the row above stays green.
+mutant "bash 4 syntax creeps into the extensionless CLI" \
+  scripts/bothy \
+  'set -uo pipefail' \
+  'set -uo pipefail
+mutant_lower="${PATH'"$BASH4_SUFFIX"'}"' \
+  -- bash scripts/checks/bash32.sh
+
 echo
 echo "── what \`curl | sh\` would actually install ─────────────────────────"
 # scripts/bothy.sh clones a release and refuses to go on unless the tag resolves
