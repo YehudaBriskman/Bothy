@@ -83,6 +83,16 @@ BOTHY_PIN_SHA="25d6ef4fcdac878fcadd497097d30e2d7f75cab8"
 REPO_URL="${BOTHY_REPO_URL:-https://github.com/YehudaBriskman/Bothy.git}"
 DIR="${BOTHY_DIR:-$HOME/bothy}"
 BIN_DIR="$HOME/.local/bin"
+# THE SAME EXPRESSION scripts/bothy uses to READ this file, character for
+# character, and that matters more than tidiness: a writer and a reader that
+# disagree about where the config lives produce "No Bothy checkout found" one
+# second after a successful install, with the file sitting right there.
+#
+# It is also the one path here that $XDG_CONFIG_HOME can push outside $HOME -
+# which is somebody's own configuration saying where their config goes, not this
+# script choosing. The summary at the end prints the path it actually used, so
+# what was written is never a guess. (A GitHub runner sets this variable, which
+# is how it was noticed rather than shipped.)
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/bothy/config"
 
 DRY_RUN=0
@@ -110,8 +120,10 @@ bothy.sh - install the `bothy` CLI from a pinned release
   sh bothy.sh --dry-run    say exactly what that would do, and touch nothing
   sh bothy.sh --help       this
 
-It never uses sudo, never writes outside $HOME, and never starts anything -
-it prints the `bothy init` command instead of running it.
+It never uses sudo, never starts anything, and writes three paths only -
+~/.local/bin/bothy, ~/bothy, and the CLI's config file (under
+$XDG_CONFIG_HOME if you have set one, otherwise ~/.config). It prints the
+`bothy init` command rather than running it.
 
   BOTHY_VERSION   install another release tag (the commit is then unverified
                   unless BOTHY_SHA is given too)

@@ -455,6 +455,14 @@ jobs:
           mkdir -p "$fake"
           echo "FAKE_HOME=$fake" >> "$GITHUB_ENV"
           echo "SRC=$GITHUB_WORKSPACE/workspace" >> "$GITHUB_ENV"
+          # THE RUNNER IMAGE SETS $XDG_CONFIG_HOME, and the installer honours it
+          # for the CLI's config file - deliberately, because scripts/bothy READS
+          # that same variable, and a writer and reader that disagree produce "No
+          # Bothy checkout found" with the file sitting right there. Left alone,
+          # the config would land in the runner's real home while HOME says
+          # otherwise, which is a confusing way to learn this. Pinned here so the
+          # job tests one defined behaviour instead of the image's environment.
+          echo "XDG_CONFIG_HOME=$fake/.config" >> "$GITHUB_ENV"
 
       - name: A dry run touches nothing
         run: |
@@ -471,9 +479,14 @@ jobs:
       - name: A commit that is not the pinned one is refused
         run: |
           set -uo pipefail
+          # `&& rc=0 || rc=$?`, not `; rc=$?`. GitHub runs every step under
+          # `bash -e`, and `set -uo pipefail` does not turn that off - so a plain
+          # capture of a command EXPECTED to fail kills the step before the next
+          # line runs, and the step reports "exit code 1" with no output at all.
+          # It looked exactly like the installer crashing.
           out=$(HOME="$FAKE_HOME" BOTHY_REPO_URL="$SRC" \
                 BOTHY_SHA=0000000000000000000000000000000000000000 \
-                sh workspace/scripts/bothy.sh 2>&1); rc=$?
+                sh workspace/scripts/bothy.sh 2>&1) && rc=0 || rc=$?
           echo "$out" | tail -8
           [ "$rc" != 0 ] || { echo "FAIL  a wrong sha installed anyway"; exit 1; }
           echo "$out" | grep -q 'VERIFICATION FAILED' \
@@ -520,13 +533,16 @@ jobs:
             || { echo "FAIL  the checkout has a detached HEAD - bothy upgrade would fail"; fail=1; }
 
           want="BOTHY_HOME=$FAKE_HOME/bothy"
-          got_cfg=$(cat "$FAKE_HOME/.config/bothy/config")
-          [ "$got_cfg" = "$want" ] && echo "ok    ~/.config/bothy/config points at the checkout" \
+          # `|| true` on both reads below: a missing file or a CLI that will not
+          # run is a FAIL line worth printing, not a step that dies under `-e`
+          # with no indication of which assertion was being made.
+          got_cfg=$(cat "$XDG_CONFIG_HOME/bothy/config" 2>/dev/null || true)
+          [ "$got_cfg" = "$want" ] && echo "ok    the CLI config points at the checkout" \
             || { echo "FAIL  config says '$got_cfg', wanted '$want'"; fail=1; }
 
           # The CLI has to work from a directory that is not the checkout - that
           # is what the config file is for.
-          v=$(cd /tmp && HOME="$FAKE_HOME" "$FAKE_HOME/.local/bin/bothy" version)
+          v=$(cd /tmp && HOME="$FAKE_HOME" "$FAKE_HOME/.local/bin/bothy" version || true)
           echo "$v" | sed 's/^/      | /'
           echo "$v" | grep -q "${pin_v#v}" \
             && echo "ok    bothy version reports ${pin_v#v} from outside the checkout" \
@@ -562,7 +578,7 @@ jobs:
           [ -z "$unexpected" ] && echo "ok    only .local, .config and bothy exist in the fake HOME" \
             || { echo "FAIL  unexpected in the fake HOME: $unexpected"; fail=1; }
 
-          [ -e "$HOME/.local/bin/bothy" ] \
+          [ -e "$HOME/.local/bin/bothy" ] || [ -e "$HOME/.config/bothy" ] \
             && { echo "FAIL  it wrote into the runner's real home, not the fake one"; fail=1; } \
             || echo "ok    the runner's own home was untouched"
           exit $fail
