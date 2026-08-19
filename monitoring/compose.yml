@@ -139,6 +139,17 @@ services:
     # dashboard, alert rule or portal query reads. cadvisor is also the closest
     # container on this box to its own limit, 213.5 MiB of a 256 MiB cap.
     #
+    # MEASURED AFTER, on the same box, so the claim above is not left as a
+    # prediction: 4147 series -> 1036, and 213.5 MiB -> 25.8 MiB (83% of the cap
+    # to 10%). The three biggest producers went to zero - container_tasks_state
+    # 360, container_blkio_device_usage_total 124, container_fs_reads_total 113.
+    # Everything queried survived intact, and the query SystemDialog.tsx actually
+    # runs still returns its six series grouped by compose project.
+    #
+    # 1036 rather than the ~407 that is "reachable": container_memory_failures_total
+    # keeps 84 series because it is gated by MemoryUsageMetrics, so dropping it
+    # would take container_memory_working_set_bytes with it. That is the floor.
+    #
     # THE LABEL WHITELIST IS LOAD-BEARING, and this is the line to be careful
     # with. `--store_container_labels=false` on its own drops
     # container_label_com_docker_compose_project, which SystemDialog.tsx selects
