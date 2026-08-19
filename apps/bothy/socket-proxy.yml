@@ -17,9 +17,12 @@
 #   · It held ten references to the dead namespace, in a file nobody
 #     read because nobody served it.
 #
-# The directory keeps its name because the container it still owns is called
-# `portal-socket-proxy`, and renaming that means recreating the one container
-# the live portal cannot render without.
+# The container was called `portal-socket-proxy` until 2026-08-19 - named after
+# that same dead nginx portal, and the last thing in the repo still pointing at
+# it. Renamed to `bothy-socket-proxy` in #97. `container_name` is IMMUTABLE on a
+# running container, so this file and the daemon disagree until somebody runs
+# `docker compose up -d --force-recreate socket-proxy` in project `bothy`; every
+# consumer of the name accepts both while that is true.
 
 
 services:
@@ -60,7 +63,19 @@ services:
   #    routed; nothing else under /system is reachable from the tailnet.
   socket-proxy:
     image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
-    container_name: portal-socket-proxy
+    # THIS NAME IS AN API, not a label. Three things match on it by string and
+    # none of them can be discovered from here:
+    #   · edge/dynamic/portal-api.yml dials `http://bothy-socket-proxy:2375`
+    #     over socketnet by Docker DNS. Change one without the other and
+    #     /-/api/docker/containers/json 502s and every Overview enrichment goes
+    #     blank.
+    #   · apps/portal-next/web/src/lib/actions.ts's SELF map keys the foot-gun
+    #     warning on it, and a miss there fails OPEN - the warning vanishes
+    #     silently rather than erroring.
+    #   · scripts/doctor.sh checks it by name.
+    # It is NOT in bothy-control's guard.SEVERING and never was; see the comment
+    # in apps/bothy/compose.yml for why that list is deliberately narrower.
+    container_name: bothy-socket-proxy
     restart: unless-stopped
     environment:
       # The grants: container list (enrichment) + disk usage (Data & disk card).

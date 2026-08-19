@@ -37,12 +37,27 @@
 # invitation to `compose down` the thing the live portal depends on - which is
 # exactly why README had to carry a "do not compose down this directory" note.
 #
-# THE CONTAINER IS STILL portal-socket-proxy, deliberately. That name is in
-# bothy-control's self-protection allowlist (guard.py, test_guard.py) and in the
-# SPA's foot-gun guard (lib/actions.ts) - the rule that stops you stopping the
-# container serving the page you are reading. Renaming it is a coordinated
-# change across a security guard and its tests, not a side effect of moving a
-# file.
+# THE CONTAINER IS bothy-socket-proxy as of 2026-08-19 (#97). It was
+# portal-socket-proxy - named after the nginx portal that was retired long
+# before the directory move, and the last reference in the repo to a service
+# that no longer exists.
+#
+# CORRECTING WHAT THIS COMMENT USED TO SAY: it claimed the name was in
+# bothy-control's self-protection allowlist, `guard.py`. It was not, and never
+# has been. guard.SEVERING holds exactly four names - traefik, bothy-control and
+# its two socket proxies - and checks/grants.py asserts that count, so the claim
+# was checkable and false. guard.py:102-110 explains at length WHY that list is
+# deliberately narrower than the UI's: stopping the socket proxy degrades the
+# interface but the action still completes and bothy-control reports it
+# truthfully, and a truthful report of a deliberate decision is not the
+# service's business to override. The only Python reference is a NEGATIVE
+# assertion in checks/test_guard.py listing what is deliberately not refused.
+#
+# What the name is actually load-bearing in: the SPA's foot-gun guard
+# (portal-next/web/src/lib/actions.ts, where a miss fails OPEN), the Traefik
+# service that dials it by Docker DNS (edge/dynamic/portal-api.yml), and
+# scripts/doctor.sh. socket-proxy.yml spells out the coupling next to the
+# `container_name:` line itself.
 
 name: bothy
 

@@ -481,7 +481,7 @@ export function Overview() {
   // inventory and goes in a line beneath it.
   //
   // The argument is not aesthetic. You are reading this page THROUGH portal-next,
-  // served BY traefik, enriched BY portal-socket-proxy - so for two of Bothy's
+  // served BY traefik, enriched BY bothy-socket-proxy - so for two of Bothy's
   // three containers the cell can only ever say `up`, because if they were not,
   // there would be no page to read the cell on. A card that cannot report a
   // problem is a card carrying no information, and by the footprint rule it

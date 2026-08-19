@@ -213,10 +213,15 @@ Then rebuild and check it in a real browser:
 docker compose -f apps/portal-next/compose.yml up -d --build
 ```
 
-**Do not `docker compose down` `apps/portal`.** That compose file still owns
-`portal-socket-proxy`, which the new portal needs for `/-/api/docker`. The old
-pure-HTML nginx in there is retired via `traefik.enable=false`, kept as a
-one-line rollback.
+**Do not `docker compose down` the `bothy` project to restart the portal.** That
+project also owns `bothy-socket-proxy`, the read-only Docker socket the portal
+needs for `/-/api/docker`; take it down and the Overview enrichment goes blank
+even after portal-next comes back. Act on the one service, as above.
+
+(This paragraph used to warn about `apps/portal/`. That directory existed only
+to hold the socket proxy and was deleted on 2026-08-18 - the fragment now lives
+in `apps/bothy/socket-proxy.yml`. The retired pure-HTML nginx portal it also
+described went on 2026-08-17.)
 
 **A headless DOM cannot review a page.** jsdom has no layout, so "blank" and
 "perfect" look identical to it. This repo has shipped a near-blank portal twice

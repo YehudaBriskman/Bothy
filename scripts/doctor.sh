@@ -29,7 +29,7 @@ red()   { faults=$((faults + 1)); printf '  \033[31m✗\033[0m %s\n' "$*"; }
 dim()   { printf '  \033[2m·\033[0m %s\n' "$*"; }
 
 echo "== containers =="
-# traefik, oauth2-proxy and portal-socket-proxy are the front door and the login
+# traefik, oauth2-proxy and bothy-socket-proxy are the front door and the login
 # for everything else, and were missing from this list entirely.
 #
 # `wiki` was retired and replaced by Bothy Files - it sat here reporting a

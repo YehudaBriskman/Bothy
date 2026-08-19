@@ -206,7 +206,7 @@ Then open **`http://<this-node's-tailnet-IP>/`** - `just urls` prints every addr
 | `monitoring/` | Prometheus, Grafana, Loki + Promtail, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds four provisioned dashboards; `rules/` is for Prometheus rules. |
 | `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. In active use - the dev database and Keycloak both live here. |
 | `apps/portal-next/` | The live portal on `:80` - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `portal-next-fallback`, the catch-all. Pages: Overview, Services, Ports, Routes, Topology (a lazy-loaded react-three-fiber 3D rack view). |
-| `apps/bothy/` | The one compose project over Bothy's three tiers, via `include:`. Also **owns `portal-socket-proxy`** - the read-only Docker socket the portal's `/-/api/docker` data plane goes through. It moved here on 2026-08-18 when `apps/portal/`, which existed only to hold it, was deleted. |
+| `apps/bothy/` | The one compose project over Bothy's three tiers, via `include:`. Also **owns `bothy-socket-proxy`** - the read-only Docker socket the portal's `/-/api/docker` data plane goes through. It moved here on 2026-08-18 when `apps/portal/`, which existed only to hold it, was deleted. |
 | `apps/portal-files/` | The editor tier behind Bothy Files - the read/write file API over the stacks repo, `~/claude-notes` and `~/projects`, with full-text search. No published port; reached only through the edge. |
 | `host/` | Copies of the host configuration git cannot see: dnsmasq, `daemon.json`, `wsl.conf`, the systemd units, and the Windows keepalive task. Required to rebuild the box. See [`host/README.md`](host/README.md). |
 | `scripts/` | `backup.sh` and `doctor.sh`. |
@@ -270,7 +270,7 @@ thing worth protecting:
   discovery to it (`--providers.docker.network=devnet`) so it can never pick the
   wrong container IP from a project-local network.
 - **`socketnet`** - holds exactly two containers, Traefik and
-  `portal-socket-proxy`. The proxy has no authentication, so keeping the blast
+  `bothy-socket-proxy`. The proxy has no authentication, so keeping the blast
   radius at two members is the control.
 - **`filesnet`** - holds exactly two, Traefik and `portal-files`. That service has
   read-write handles on two git repositories and no auth of its own, so the same

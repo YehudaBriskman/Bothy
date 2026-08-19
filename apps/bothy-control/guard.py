@@ -101,7 +101,7 @@ class Refused(Exception):
 #
 # WHY THIS IS NARROWER THAN THE UI'S WARNING LIST. `consequenceOf` in
 # apps/portal-next/web/src/lib/actions.ts warns about seven containers, and the
-# other three - portal-next, portal-socket-proxy, portal-files, bothy-config,
+# other six - portal-next, bothy-socket-proxy, portal-files, bothy-config,
 # keycloak, oauth2-proxy - are deliberately NOT refused here. Stopping any of
 # them degrades the interface, sometimes badly (stopping oauth2-proxy locks
 # every gated tier until somebody opens a terminal), but the action completes
