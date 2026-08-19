@@ -234,6 +234,15 @@ mutant "a diagram source drifts from its SVG" \
   "$FLOW_KW LR" \
   -- bash scripts/checks/diagrams.sh
 
+# The regression this was written for, replayed: point a doc at a screenshot
+# that was deleted two commits ago. `overview.png` exists, `portal-overview.png`
+# is one of three that went in 2500aa0 while ARCHITECTURE.md kept naming them.
+mutant "a doc points at a file that was deleted" \
+  docs/ARCHITECTURE.md \
+  'assets/overview.png' \
+  'assets/portal-overview.png' \
+  -- bash scripts/checks/doc-links.sh
+
 echo
 echo "── the path boundary ───────────────────────────────────────────────"
 # THE containment check. Resolve first, compare after. Deleting it is the whole
