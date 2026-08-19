@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+# The Bothy CLI.
+#
+# ── what this is, and deliberately is not ───────────────────────────────────
+#
+# Bothy already had a CLI: `just`. up, down, doctor, verify, backup, logs, ps,
+# urls, psql, ci-install - all of it, with the reasoning for each decision in
+# the comments above the recipe. Rewriting that here would create a second copy
+# of every operation, and this repository has paid for that mistake enough times
+# to name it: four dead compose files, dependabot entries for directories that no
+# longer existed, docs describing services that had been deleted.
+#
+# So this is TWO things and not a third:
+#
+#   1. NATIVE COMMANDS - the genuine gap. `init`, `download`, `upgrade`,
+#      `version`. These cannot be `just` recipes because they run BEFORE there
+#      is a repository to run `just` in. That chicken-and-egg is the whole
+#      reason this file exists.
+#
+#   2. A DISPATCHER - everything else is one line in `resolve()` below, and
+#      execs the thing that already does the work.
+#
+# It is NOT a reimplementation. If you find yourself writing stack logic in this
+# file, it belongs in scripts/ and both front ends should call it.
+#
+# ── the seam, and why it is shaped this way ─────────────────────────────────
+#
+# The intent is that `just` becomes optional later. `resolve()` maps a
+# subcommand to EITHER a just recipe or a shell function, so moving one command
+# off `just` is editing one line - not a migration. Nothing has moved yet;
+# `scripts/lib/ops.sh` is where it goes when it does, and when everything has
+# moved the justfile can be deleted without touching this file.
+#
+# scripts/checks/cli-commands.sh asserts every subcommand resolves to something
+# that exists. A renamed recipe then fails CI instead of failing a person.
+#
+# ── bash 3.2 ────────────────────────────────────────────────────────────────
+#
+# macOS ships bash 3.2 and Bothy claims macOS. No associative arrays, no `${x,,}`,
+# no `mapfile` - those are bash 4 and fail at PARSE time there, so the script does
+# not run at all and the error names a line that looks fine.
+# scripts/checks/bash32.sh enforces it.
+set -uo pipefail
+
+BOTHY_REPO_URL="${BOTHY_REPO_URL:-https://github.com/YehudaBriskman/Bothy.git}"
+BOTHY_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/bothy/config"
+DEFAULT_DIR="$HOME/bothy"
+
+red()  { printf '\033[31m%s\033[0m\n' "$*" >&2; }
+say()  { printf '%s\n' "$*"; }
+die()  { red "$*"; exit 1; }
+
+# ── where is the box ────────────────────────────────────────────────────────
+#
+# Order matters and each step is here for a reason:
+#   1. $BOTHY_HOME     an explicit override, for a second checkout or CI.
+#   2. the config file what `init` wrote. The normal answer.
+#   3. the cwd         so running it inside a clone works before `init` ever ran,
+#                      which is how a contributor will meet this script.
+# A directory only counts if it looks like Bothy - a justfile AND the apps/bothy
+# compose file. Either alone matches too many repositories.
+looks_like_bothy() {
+  [ -f "$1/justfile" ] && [ -f "$1/apps/bothy/compose.yml" ]
+}
+
+find_home() {
+  if [ -n "${BOTHY_HOME:-}" ]; then
+    looks_like_bothy "$BOTHY_HOME" || die "BOTHY_HOME=$BOTHY_HOME is not a Bothy checkout"
+    printf '%s\n' "$BOTHY_HOME"; return 0
+  fi
+  if [ -f "$BOTHY_CONFIG" ]; then
+    # Read, never execute: this file is data. `.` on it would run whatever is in
+    # it, which is a lot of trust for a path.
+    home=$(sed -n 's/^BOTHY_HOME=//p' "$BOTHY_CONFIG" | head -1)
+    if [ -n "$home" ] && looks_like_bothy "$home"; then printf '%s\n' "$home"; return 0; fi
+  fi
+  here=$(pwd)
+  while [ "$here" != "/" ]; do
+    if looks_like_bothy "$here"; then printf '%s\n' "$here"; return 0; fi
+    here=$(dirname "$here")
+  done
+  return 1
+}
+
+require_home() {
+  home=$(find_home) || die "No Bothy checkout found. Run \`bothy init\` first, or set BOTHY_HOME."
+  printf '%s\n' "$home"
+}
+
+# ── prerequisites ───────────────────────────────────────────────────────────
+#
+# Checked BEFORE cloning anything. A half-finished install that fails on a
+# missing tool three minutes in is worse than one that never started.
+#
+# `just` is deliberately not in this list: `init` installs it, because being the
+# thing that removes that requirement is a large part of why this CLI exists.
+check_prereqs() {
+  missing=""
+  for c in docker git curl python3 openssl; do
+    command -v "$c" >/dev/null 2>&1 || missing="$missing $c"
+  done
+  if ! docker compose version >/dev/null 2>&1; then
+    missing="$missing docker-compose-v2"
+  fi
+  if [ -n "$missing" ]; then
+    red "missing:$missing"
+    say "Bothy needs docker (with the compose plugin), git, curl, python3 and openssl."
+    return 1
+  fi
+  say "ok - docker, git, curl, python3, openssl all present"
+  return 0
+}
+
+ensure_just() {
+  command -v just >/dev/null 2>&1 && return 0
+  say "just is not installed - fetching it into ~/.local/bin"
+  mkdir -p "$HOME/.local/bin"
+  # The official installer, pinned to a directory rather than run as root.
+  curl -fsSL https://just.systems/install.sh \
+    | bash -s -- --to "$HOME/.local/bin" >/dev/null 2>&1 \
+    || die "could not install just - install it yourself and re-run"
+  PATH="$HOME/.local/bin:$PATH"; export PATH
+  command -v just >/dev/null 2>&1 || die "installed just but it is not on PATH"
+  say "  installed. Add ~/.local/bin to your PATH to keep it."
+}
+
+# ── the dispatch table ──────────────────────────────────────────────────────
+#
+# ONE LINE PER SUBCOMMAND. Today every one of them names a just recipe; later
+# any of them can name a shell function in scripts/lib/ops.sh instead, and that
+# is the only edit required to move a command off `just`.
+#
+# A `case` rather than an associative array: bash 3.2 has no `declare -A`.
+resolve() {
+  case "$1" in
+    up|down|doctor|verify|backup|logs|ps|urls|psql|nuke) printf 'just:%s\n' "$1" ;;
+    status)        printf 'just:ps\n' ;;
+    diagnostics)   printf 'just:doctor\n' ;;
+    check)         printf 'just:verify\n' ;;
+    files-check)   printf 'just:files-check\n' ;;
+    portability)   printf 'just:portability\n' ;;
+    bootstrap)     printf 'just:bootstrap\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+dispatch() {
+  sub="$1"; shift
+  target=$(resolve "$sub") || return 1
+  recipe=${target#just:}
+  home=$(require_home) || exit 1
+  cd "$home" || die "cannot enter $home"
+  command -v just >/dev/null 2>&1 || die "just is not installed. \`bothy init\` installs it."
+  exec just "$recipe" "$@"
+}
+
+# ── native commands ─────────────────────────────────────────────────────────
+
+cmd_init() {
+  dir="${1:-$DEFAULT_DIR}"
+  say "== preflight =="
+  check_prereqs || exit 1
+
+  if looks_like_bothy "$dir"; then
+    say "== already a Bothy checkout at $dir - reusing it =="
+  elif [ -e "$dir" ] && [ -n "$(ls -A "$dir" 2>/dev/null)" ]; then
+    die "$dir exists and is not empty. Pass another directory."
+  else
+    say "== clone =="
+    git clone --quiet "$BOTHY_REPO_URL" "$dir" || die "clone failed"
+    say "  cloned into $dir"
+  fi
+
+  ensure_just
+  mkdir -p "$(dirname "$BOTHY_CONFIG")"
+  printf 'BOTHY_HOME=%s\n' "$dir" > "$BOTHY_CONFIG"
+  say "  recorded in $BOTHY_CONFIG"
+
+  cd "$dir" || die "cannot enter $dir"
+  # .env is what bootstrap generates the secrets INTO, so it has to exist first.
+  # Copied rather than generated here: .env.example is the documented starting
+  # point and `just up` runs bootstrap, which fills in what is missing.
+  [ -f .env ] || cp .env.example .env
+  say ""
+  say "== bringing it up =="
+  just up || die "\`just up\` failed - the box is half-started; \`bothy logs <service>\` will say why"
+  say ""
+  just urls
+}
+
+cmd_download() {
+  home=$(require_home) || exit 1
+  cd "$home" || exit 1
+  say "== pre-fetching every image =="
+  # Every compose file, not just the ones `up` starts: the point of this command
+  # is that a later `up` needs no network, and that includes the ones you may
+  # start by hand.
+  found=0
+  for f in $(find . -name 'compose*.yml' -not -path '*/node_modules/*' | sort); do
+    found=$((found + 1))
+    printf '  %s\n' "$f"
+    docker compose -f "$f" --env-file .env pull --quiet 2>/dev/null \
+      || printf '    (some images could not be pulled - see `docker compose -f %s pull`)\n' "$f"
+  done
+  say "  $found compose file(s)"
+  if [ -d apps/portal-next/web ]; then
+    say "== portal dependencies =="
+    ( cd apps/portal-next/web && npm ci --silent 2>/dev/null ) \
+      && say "  npm ci done" || say "  (npm ci failed or npm is absent - the image build does not need it)"
+  fi
+  say ""
+  say "Done. \`bothy up\` should now need no network."
+}
+
+cmd_upgrade() {
+  home=$(require_home) || exit 1
+  cd "$home" || exit 1
+  before=$(git rev-parse --short HEAD)
+  say "== pulling =="
+  git pull --ff-only || die "pull failed - the checkout has local changes or has diverged"
+  after=$(git rev-parse --short HEAD)
+  if [ "$before" = "$after" ]; then
+    say "  already at $after - nothing to do"
+    return 0
+  fi
+  say "  $before -> $after"
+  say ""
+  say "== applying =="
+  # No `down`, no `-v`. The Upgrade CI tier asserts that this preserves data and
+  # does not recreate volumes; adding a `down` here would quietly break that.
+  just up
+}
+
+cmd_version() {
+  home=$(find_home) || { say "bothy (no checkout found)"; return 0; }
+  cd "$home" || return 0
+  # THERE ARE NO RELEASES YET - `git tag` is empty (see the versioning issue), so
+  # this reports the commit and says so rather than inventing a version number.
+  tag=$(git describe --tags --always 2>/dev/null || echo unknown)
+  say "bothy   $tag"
+  say "repo    $home"
+  if [ -z "$(git tag 2>/dev/null)" ]; then
+    say ""
+    say "This checkout has no release tags, so the above is a commit."
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+bothy - install and run a Bothy box
+
+  bothy init [dir]      clone, install prerequisites, and bring it up
+                        (default ~/bothy)
+  bothy download        pre-fetch every image and dependency, so a later
+                        `up` needs no network
+  bothy upgrade         pull and apply, preserving your data
+  bothy version         what this checkout is
+
+Everything else is handed to the box's own justfile:
+
+  bothy up | down | doctor | verify | backup | logs <svc> | ps | urls | psql
+  bothy files-check | portability | bootstrap | nuke
+
+  bothy doctor --pre    check prerequisites before a checkout exists
+
+The checkout is found via $BOTHY_HOME, then the path recorded by `init`, then
+by walking up from the current directory.
+EOF
+}
+
+main() {
+  [ $# -eq 0 ] && { usage; exit 0; }
+  sub="$1"; shift
+  case "$sub" in
+    init)      cmd_init "$@" ;;
+    download)  cmd_download "$@" ;;
+    upgrade)   cmd_upgrade "$@" ;;
+    version|--version|-v) cmd_version ;;
+    help|--help|-h) usage ;;
+    doctor)
+      # `doctor --pre` is the one that must work with no checkout at all.
+      if [ "${1:-}" = "--pre" ]; then check_prereqs; exit $?; fi
+      dispatch doctor "$@" ;;
+    *)
+      dispatch "$sub" "$@" || { red "unknown command: $sub"; say ""; usage; exit 1; } ;;
+  esac
+}
+
+main "$@"
