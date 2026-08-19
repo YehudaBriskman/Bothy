@@ -2,8 +2,9 @@
 # Compile the dependency-free modules and run their truth tables against them:
 # the status classifier and the dependency graph out of discover.ts, the retired
 # URLs out of pages/control/redirects.ts, the two Files URLs out of
-# pages/files/routes.ts and the document titles out of pages/files/titles.ts,
-# plus a pass over the box's real container list.
+# pages/files/routes.ts, the document titles out of pages/files/titles.ts and the
+# reader's landing surface out of pages/files/start.ts, plus a pass over the
+# box's real container list.
 #
 # There is no test runner in this app on purpose - one 13-case truth table did
 # not justify pulling vitest into a static SPA's toolchain. Both modules import
@@ -41,6 +42,9 @@ mv "$OUT/routes.js" "$OUT/files-routes.mjs"
 (cd "$WEB" && npx tsc src/pages/files/titles.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/titles.js" "$OUT/titles.mjs"
+(cd "$WEB" && npx tsc src/pages/files/start.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/start.js" "$OUT/start-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/contract.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/contract.js" "$OUT/contract.mjs"
@@ -57,7 +61,8 @@ mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
-   "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" "$OUT/"
+   "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
+   "$HERE/start-table.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -73,6 +78,14 @@ node "$OUT/redirect-table.mjs"
 echo
 echo "── document titles ─────────────────────────────────────"
 node "$OUT/titles-table.mjs"
+
+echo
+echo "── what /files opens on ────────────────────────────────"
+# The Start surface: the shelf of Bothy's own docs, the root front page and the
+# recents list. Told where the repository is, because the first section asserts
+# that every path the shelf names is still on disk - the check that turns a
+# renamed document from "a card that opens No such file" into a red line here.
+node "$OUT/start-table.mjs" "$WEB/../../.."
 
 echo
 echo "── where this repo is, asked of docker not assumed ─────"
