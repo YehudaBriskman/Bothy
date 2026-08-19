@@ -335,6 +335,15 @@ const STORES = [
       + 'they are used - the theme button in the topbar, the panes themselves - rather than here.',
   },
   {
+    what: 'A theme you wrote yourself',
+    where: 'The box, as a file',
+    store: THEME_DIR_HOST,
+    why: 'The row above is the CHOICE - one key naming a theme, per browser. The theme itself is a '
+      + '.css file on disk, shared by every browser that reaches this box, and it outlives that '
+      + 'choice: clearing this browser forgets which theme you picked, not the file you wrote. It is '
+      + 'also the only thing on this page you change with an editor rather than with the page.',
+  },
+  {
     what: 'Your username, email, subject id and roles',
     where: 'Your account',
     store: 'Keycloak',

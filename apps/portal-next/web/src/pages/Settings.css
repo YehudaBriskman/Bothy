@@ -122,11 +122,6 @@
      never truncated to one line - the row heights vary and that is correct. */
 }
 
-/* The swatch row carries the theme's OWN tokens (the element sets
-   data-bothy-theme), so these rules must not paint any colour themselves. */
-
-
-
 /* A theme that came from the box rather than from the bundle. Quiet: it answers
    "where did this come from" for someone who is looking, and says nothing to
    anyone who is not. */
