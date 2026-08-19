@@ -1,0 +1,29 @@
+{
+  "//": [
+    "Only for checks/md-render.tsx, which is the one check that cannot be built",
+    "with a bare `tsc <file>`: it imports React and renders real elements.",
+    "",
+    "node_modules lives under web/, and this file does not, so TypeScript walking",
+    "up from checks/ never finds it. The paths mapping points bare specifiers at",
+    "it (baseUrl is gone in TS6, so the mapping is relative to this file).",
+    "Without it the build emits correct JS and prints two resolution errors",
+    "anyway - noise in a check's output is how a real failure gets missed."
+  ],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "target": "es2022",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "strict": true,
+    "rootDir": "..",
+    "typeRoots": ["../web/node_modules/@types"],
+    "paths": {
+      "react": ["../web/node_modules/@types/react"],
+      "react/jsx-runtime": ["../web/node_modules/@types/react/jsx-runtime"],
+      "react-dom/server": ["../web/node_modules/@types/react-dom/server"],
+      "*": ["../web/node_modules/*"]
+    }
+  },
+  "files": ["md-render.tsx"]
+}

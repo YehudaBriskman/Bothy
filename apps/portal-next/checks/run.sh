@@ -135,6 +135,29 @@ echo "── every colour comes from a token ───────────�
 node "$HERE/stray-colour.mjs"
 
 echo
+echo "── what the markdown reader actually renders ───────────"
+# THE ONE CHECK THAT CANNOT USE THE BARE-tsc TRICK. Every module above imports
+# nothing, which is what makes a one-line compile possible. md.tsx imports React,
+# lucide, the highlighter and the path resolver, and returns ELEMENTS - so this
+# renders it for real with react-dom/server and asserts on the HTML string.
+#
+# Built with its own tsconfig because node_modules lives under web/ and this file
+# does not, and INTO the project rather than /tmp, because node resolves `react`
+# by walking up from the output. Then .js -> .mjs with relative specifiers
+# rewritten, since node needs the extension and tsc does not emit it.
+#
+# No new dependency: react-dom is already here. The rule this repo set - "one
+# 13-case truth table did not justify pulling vitest into a static SPA" - still
+# holds; this is what it looks like to honour it and still test a component.
+MDOUT="$WEB/.mdcheck-tmp"
+rm -rf "$MDOUT"
+(cd "$WEB" && npx tsc -p ../checks/tsconfig.md-render.json --outDir .mdcheck-tmp >/dev/null)
+find "$MDOUT" -name '*.js' -exec bash -c 'mv "$1" "${1%.js}.mjs"' _ {} \;
+find "$MDOUT" -name '*.mjs' -exec sed -i "s|from '\(\.\{1,2\}/[^']*\)'|from '\1.mjs'|g" {} \;
+node "$MDOUT/checks/md-render.mjs"
+rm -rf "$MDOUT"
+
+echo
 echo "── a brand asset is small, vector, and follows the theme ─"
 # Reads web/public directly, so it needs no build. The logo that prompted this
 # was 1467 KB of baked bitmap in an SVG wrapper, and half of it was hard white -
