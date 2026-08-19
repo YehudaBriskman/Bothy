@@ -35,6 +35,24 @@ file only accepts the second.
   socket         mounted :ro on both, and NOT mounted into bothy-control at all
   ports          no proxy publishes a host port
   names          compose's container_name values and guard.SEVERING agree
+  the repo       EVERY socket proxy in EVERY compose file here, not just these
+                 two - see below for why that is a different question
+
+── the sweep, and the issue that asked for it ──────────────────────────────
+
+Issue #91 wants the console to start a service from a compose file it has never
+run. Starting a container that EXISTS is /containers/<name>/start and needs
+nothing new. Starting one that does not exist is /containers/create, and the
+cheap way to reach that is one character: CONTAINERS: 0 -> 1 on the write proxy.
+Nothing would look different. Worse, done on a THIRD proxy in another file,
+every assertion above would still pass - they all name `socket-read` and
+`socket-write` - and the box would be one bind mount of / away from root.
+
+So the last section stops asking about those two by name and asks about every
+service in the repository that runs the socket-proxy image: does any of them
+hold POST=1 and CONTAINERS=1 together, and does any of them grant EXEC. Those
+questions have an answer for a proxy nobody has written yet, which is the only
+kind this file could not otherwise see.
 """
 import os
 import re
@@ -60,7 +78,7 @@ def ok(cond: bool, label: str) -> None:
 # also uses. Sharing the reader is deliberate: this file asserts what the grants
 # ARE and transition.py starts real proxies with those grants and asserts what
 # they DO, so the two must be looking at the same bytes read the same way.
-from composeenv import block, container_name, env  # noqa: E402
+from composeenv import Compose, block, container_name, env  # noqa: E402
 
 READ, WRITE, SVC_NAME = "socket-read", "socket-write", "bothy-control"
 
@@ -178,6 +196,80 @@ ok("kill" not in guard.VERBS,
    "kill is NOT in guard.VERBS - the proxy would pass it; this is the only gate")
 ok(set(guard.VERBS) == {"restart", "stop", "start"},
    f"guard.VERBS is exactly the three: {guard.VERBS}")
+
+print()
+print("── every socket proxy in this repository, by image ─────────────")
+#
+# NOT by service name and NOT by directory. The two proxies above are found by
+# the names this file already knows; a third one added anywhere in the tree is
+# found by the only thing it cannot avoid having, which is its image line. That
+# is what makes this section able to fail on code nobody has written yet.
+#
+# `.git` and `node_modules` are skipped: the first holds packed objects that are
+# not YAML, the second is somebody else's dependency tree. Neither can define a
+# container this box runs.
+SOCKET_IMAGE = "tecnativa/docker-socket-proxy"
+REPO = os.path.dirname(os.path.dirname(SVC))
+SKIP_DIRS = {".git", "node_modules", "dist", ".venv"}
+
+found: list[tuple[str, str, dict[str, str], str]] = []
+for walk_root, walk_dirs, walk_files in os.walk(REPO):
+    walk_dirs[:] = [d for d in walk_dirs if d not in SKIP_DIRS]
+    for fn in sorted(walk_files):
+        if not fn.endswith((".yml", ".yaml")):
+            continue
+        path = os.path.join(walk_root, fn)
+        try:
+            cf = Compose(path)
+        except OSError:
+            continue
+        # The image name appears in prose in three other files - dependabot's
+        # comment, portal-api.yml's, this one's - so the text match only decides
+        # whether the file is worth parsing. What SELECTS a service is its own
+        # `image:` line.
+        if SOCKET_IMAGE not in cf.text:
+            continue
+        for service in cf.services():
+            if not cf.image(service).startswith(SOCKET_IMAGE):
+                continue
+            found.append((os.path.relpath(path, REPO), service, cf.env(service),
+                          cf.block(service)))
+
+# A sweep that finds nothing reports "all clear", which is the silent pass this
+# repo keeps rediscovering. The floor is the three proxies that exist today: the
+# portal's read-only one and this service's pair. Fewer than three means the
+# walk, the extension filter or the image match stopped working - not that the
+# box got safer.
+ok(len(found) >= 3,
+   f"the sweep finds the socket proxies it is meant to find "
+   f"({len(found)}: {', '.join(f'{f}:{sv}' for f, sv, _, _ in found)})")
+
+for rel, service, e, blk in found:
+    where = f"{rel}:{service}"
+    # THE PAIR. Either flag alone is a proxy this repo already ships and trusts:
+    # POST=1 with CONTAINERS=0 is four verb paths, CONTAINERS=1 with POST=0 is a
+    # read-only inspect. TOGETHER they are every POST under /containers, because
+    # the granular ALLOW_* lines are `allow` rules and the broad `^/containers`
+    # rule sits below them with no deny in between - so /containers/create is
+    # permitted, and a create with a bind mount of / is root on this box.
+    ok(not (e.get("POST") == "1" and e.get("CONTAINERS") == "1"),
+       f"{where} does not hold POST=1 and CONTAINERS=1 together - that pair "
+       f"grants /containers/create (POST={e.get('POST')!r}, "
+       f"CONTAINERS={e.get('CONTAINERS')!r})")
+    # A proxy that says nothing about POST leaves its mutation surface to an
+    # image default, which is the one thing this whole file refuses to accept.
+    ok("POST" in e, f"{where} states POST explicitly")
+    # CONTAINERS is 0 by default in the image, but "we did not enable it" and
+    # "it is off" are different statements - and this is the flag whose absence
+    # would make the pair check above pass for the wrong reason.
+    ok("CONTAINERS" in e, f"{where} states CONTAINERS explicitly")
+    ok(e.get("EXEC") == "0",
+       f"{where} EXEC=0 - an exec into a container holding the docker socket is "
+       f"a host root shell, and every proxy here holds it")
+    ok("/var/run/docker.sock:/var/run/docker.sock:ro" in blk,
+       f"{where} mounts the docker socket READ-ONLY")
+    ok(not re.search(r"^    ports:", blk, re.M),
+       f"{where} publishes NO host port - reachability IS authorisation")
 
 print()
 if fails:

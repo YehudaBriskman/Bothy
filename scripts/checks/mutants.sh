@@ -244,6 +244,87 @@ mutant "a doc points at a file that was deleted" \
   -- bash scripts/checks/doc-links.sh
 
 echo
+echo "── the grant that would make a browser root ────────────────────────"
+# THE most dangerous single character in this repository. The socket-proxy
+# image's granular ALLOW_* lines are `allow` rules with a broad `^/containers`
+# rule below them and no deny in between, so POST=1 together with CONTAINERS=1
+# permits every POST under /containers - /containers/create included, and a
+# create with a bind mount of / is root on this box. apps/bothy-control runs two
+# proxies precisely so that neither one holds both flags.
+#
+# This row plants the pair on the WRITE proxy: the exact edit somebody reaching
+# for "start a service from a compose file" (#91) would make, because it is the
+# one that would appear to work.
+mutant "the write socket proxy is granted CONTAINERS" \
+  apps/bothy-control/compose.yml \
+  'CONTAINERS:     0' \
+  'CONTAINERS:     1' \
+  -- bash apps/bothy-control/checks/run.sh --offline
+
+# THE SAME PAIR, ON A PROXY THAT DOES NOT EXIST YET - and this is the row the
+# one above cannot stand in for. Every named assertion in grants.py asks about
+# `socket-read` and `socket-write`; a THIRD proxy added in another file walks
+# past all of them, which is why that check now sweeps every compose file in the
+# tree by image rather than by service name.
+#
+# The mutation plants a fourth proxy holding POST=1 and CONTAINERS=1 into the
+# portal's socket-proxy file. Revert the sweep to the two named services and this
+# row goes red while the row above stays green.
+mutant "a fourth socket proxy appears with both flags" \
+  apps/bothy/socket-proxy.yml \
+  '
+services:
+' \
+  '
+services:
+  socket-proxy-run:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      POST:       1
+      CONTAINERS: 1
+      EXEC:       0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [socketnet]
+' \
+  -- bash apps/bothy-control/checks/run.sh --offline
+
+# EXEC on the portal's read-only proxy. An exec into a container that holds
+# /var/run/docker.sock is a host root shell, and all three proxies hold it - so
+# EXEC=0 is written out on every one of them. Only the repo-wide sweep asserts
+# it on THIS file; the named assertions cover bothy-control's pair alone.
+mutant "exec creeps on to the portal socket proxy" \
+  apps/bothy/socket-proxy.yml \
+  'EXEC:         0   # container exec == root on this box' \
+  'EXEC:         1   # container exec == root on this box' \
+  -- bash apps/bothy-control/checks/run.sh --offline
+
+echo
+echo "── a declared project can still be acted on ────────────────────────"
+# The regression this shipped with: `withDeclared` drops the discovered node for
+# every container a project declares, so a declared node carrying `container:
+# null` DELETES the restart/stop/start control from its own containers - and a
+# stopped one then has no way back. Nothing errors; the cell is simply empty.
+mutant "a declared service loses its container" \
+  apps/portal-next/web/src/lib/projects.ts \
+  'container: liveContainer(svc, live),' \
+  'container: null,' \
+  -- "${PORTAL_CHECKS[@]}"
+
+# The inverse, and the one with teeth: resolving a declared NAME to whatever
+# container looks close enough. Compose numbers its containers (`cvops-api-1`),
+# so a loose match would aim a verb at a container nobody named - and a name that
+# matches nothing must resolve to nothing, because the only way to start a
+# container that does not exist is /containers/create.
+mutant "a declared name is matched loosely" \
+  apps/portal-next/web/src/lib/projects.ts \
+  'return svc.container ? live.get(svc.container) ?? null : null;' \
+  'if (!svc.container) return null;
+  const want = svc.container;
+  return live.get(want) ?? [...live.entries()].find(([k]) => k.startsWith(want))?.[1] ?? null;' \
+  -- "${PORTAL_CHECKS[@]}"
+
+echo
 echo "── the path boundary ───────────────────────────────────────────────"
 # THE containment check. Resolve first, compare after. Deleting it is the whole
 # directory-traversal class in one line, and 30 unit cases exist to catch it.

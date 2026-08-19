@@ -187,3 +187,15 @@
 /* In a header there is no row to hover, so the reveal that the table relies on
    never fires. It is simply visible here. */
 .detail-head-actions .svc-act-btn { opacity: 1; width: 30px; height: 30px; }
+
+/* ── starting what has never been started ──────────────────────────────────
+   The panel that says which declared services Bothy cannot start and prints the
+   command that can. Text and one code block, no controls: there is deliberately
+   nothing here to press, because pressing it would mean /containers/create. */
+.detail .start-why, .detail .start-run, .detail .start-where, .detail .start-warn {
+  margin: 0; max-width: 74ch; font-size: 13.5px; line-height: 1.6; color: var(--fg-muted); }
+.detail .start-run { margin-top: 14px; color: var(--fg); }
+.detail .start-cmd { display: block; margin: 8px 0; padding: 10px 13px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
+  color: var(--fg); font-size: 13px; overflow-x: auto; white-space: pre; }
+.detail .start-warn { margin-top: 14px; color: var(--st-warn); }

@@ -249,6 +249,23 @@ arbitrary command, *the one the declaration names*. Same shape as §5: `operator
 role, audit log, bounded verbs. The declaration is the allowlist, which is the
 elegant part: a project opts in by declaring, and nothing else is runnable.
 
+> **2026-08-19, from #91: this is not the same shape as §5, and the difference
+> is the whole cost.** §5 acts on a container through a socket proxy. A declared
+> `start` is a HOST SHELL COMMAND - `just up`, `tilt up` - so running it needs a
+> process on the host that executes strings, which is
+> [`SECURITY.md`](../../SECURITY.md)'s shape 3: no socket grant moves, and the
+> boundary that does move is "the portal cannot run code". Routing it through
+> Docker instead is worse, not better: creating a container is
+> `/containers/create`, and `POST=1` with `CONTAINERS=1` is the pair
+> `apps/bothy-control` was split into two proxies to avoid.
+>
+> What shipped from #91 is the part that needs neither: a declared service whose
+> container EXISTS gets the three verbs it was already entitled to (that is
+> `/containers/<name>/start`, already in `guard.VERBS`), and a declared service
+> with no container says so and prints the command instead of running it. Layer
+> 2 as written above remains undone, and it is a host-executor decision rather
+> than a UI one.
+
 **Layer 3 - Change (dangerous, decide separately).** Editing values. If it
 happens: field-level allowlist declared in the project file (not "any key"), a
 diff-and-confirm before writing, an audit entry, and a written threat model
