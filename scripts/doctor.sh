@@ -29,7 +29,7 @@ red()   { faults=$((faults + 1)); printf '  \033[31m✗\033[0m %s\n' "$*"; }
 dim()   { printf '  \033[2m·\033[0m %s\n' "$*"; }
 
 echo "== containers =="
-# traefik, oauth2-proxy and portal-socket-proxy are the front door and the login
+# traefik, oauth2-proxy and bothy-socket-proxy are the front door and the login
 # for everything else, and were missing from this list entirely.
 #
 # `wiki` was retired and replaced by Bothy Files - it sat here reporting a
@@ -44,18 +44,45 @@ echo "== containers =="
 # here, because a health check that does not know about a service you rely on is
 # worse than one that reports it missing. `portal-files` took its slot: it is
 # the editor tier, it has no published port, and a health sweep that cannot see
-# the one service that can WRITE to the repos is missing the thing worth watching. `portal-next` is the LIVE portal;
-# `portal` is the retired nginx one, kept only because its compose file also owns
-# portal-socket-proxy. Both run, so both are expected.
+# the one service that can WRITE to the repos is missing the thing worth watching. `portal-next` is the LIVE portal
+# and the only one - the retired nginx `portal` was deleted on 2026-08-17, and
+# the socket proxy it used to own moved to apps/bothy/ on 2026-08-18. The proxy
+# is not in this list at all; it is checked below, for the reason given there.
 # redis/redis-exporter/kafka/kafka-ui/kafka-exporter removed 2026-08-12 - retired
 # as idle. Leaving them here made `just doctor` report five phantom absences,
 # which is the fastest way to teach someone to ignore the health check.
 # keycloak/oauth2-proxy are the identity layer added the same day.
-expected="traefik oauth2-proxy keycloak portal-socket-proxy prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portal-next portal-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
+expected="traefik oauth2-proxy keycloak prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portal-next portal-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"
 done
+
+# THE SOCKET PROXY IS CHECKED SEPARATELY, because it is mid-rename (#97) and the
+# loop above cannot express "either of these". That loop reds every name it is
+# given that is not running, so listing both names guarantees one permanent red
+# every sweep, and listing one guarantees a red on whichever side of the
+# recreate you happen to be standing. Neither is a health signal; both are the
+# cry-wolf failure this list has already been trimmed twice to avoid.
+#
+# The window is real rather than theoretical: `container_name` is IMMUTABLE on a
+# running container, so apps/bothy/socket-proxy.yml says bothy-socket-proxy from
+# the moment the rename merges while the daemon keeps answering to
+# portal-socket-proxy until `docker compose up -d --force-recreate socket-proxy`
+# runs. Accept EITHER and print which one answered, so the sweep reports where
+# the rename actually got to instead of hiding it behind a generic ✓.
+#
+# Delete the legacy name and fold this back into `expected` once the container
+# has been recreated.
+sock=""
+for c in bothy-socket-proxy portal-socket-proxy; do
+  if [ "$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null)" = running ]; then
+    sock=$c
+    break
+  fi
+done
+[ -n "$sock" ] && green "$sock" \
+  || red "socket proxy (missing - neither bothy-socket-proxy nor portal-socket-proxy is running)"
 
 echo "== prometheus targets =="
 # Without this guard a missing jq piped its failure into a loop that never

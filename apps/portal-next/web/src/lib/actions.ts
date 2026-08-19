@@ -168,12 +168,29 @@ export interface Consequence {
 }
 
 // The portal is served THROUGH traefik, BY portal-next, and reads Docker through
-// portal-socket-proxy. Stopping any of those from a page they serve is a foot-gun
+// the socket proxy. Stopping any of those from a page they serve is a foot-gun
 // that deserves a sentence rather than a toast afterwards - you would lose the
 // interface that could put it back.
+//
+// THIS MAP FAILS OPEN. `consequenceOf` is an exact-match lookup on the LIVE
+// Docker container name, and a miss returns `{selfAffecting: false}` - no
+// warning, no error, just a missing sentence. So a key that stops matching does
+// not break loudly; it deletes the guard.
+//
+// WHY THE SOCKET PROXY HAS TWO KEYS (#97). It is being renamed
+// portal-socket-proxy -> bothy-socket-proxy, and this SPA is a BUILT ARTIFACT.
+// `container_name` is immutable on a running container, so the daemon carries
+// the old name until somebody force-recreates it, and a browser carries the
+// previously-built bundle until it reloads. Those two clocks are independent,
+// which means either single key leaves a window where the live name is not the
+// key and the warning silently vanishes - before the one action that blinds
+// every page in the product. Both keys cost a line and close the window in both
+// directions. Drop 'portal-socket-proxy' once a rebuilt portal-next image has
+// shipped AND the container has been recreated.
 const SELF: Record<string, string> = {
   traefik: 'Bothy is served through Traefik. Stopping it takes this page down, and the way back is a terminal.',
   'portal-next': 'This page is served by portal-next. Stopping it takes this page down.',
+  'bothy-socket-proxy': 'Bothy reads Docker through this. Stopping it blinds every page that shows what is running.',
   'portal-socket-proxy': 'Bothy reads Docker through this. Stopping it blinds every page that shows what is running.',
   'portal-files': 'Bothy Files reads and writes through this. Stopping it leaves the editor unable to load or save.',
   'bothy-config': 'Settings writes configuration through this.',

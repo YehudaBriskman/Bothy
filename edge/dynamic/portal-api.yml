@@ -72,7 +72,7 @@ http:
       # GET this. What it gets is bounded solely by the Path() rule above, which
       # is why the rule is the boundary and the comment is not decoration.
       middlewares: [portal-api-docker-rewrite]
-      service: portal-socket-proxy
+      service: bothy-socket-proxy
 
     # Loki reads, for the portal's per-service log view.
     #
@@ -145,10 +145,10 @@ http:
     # Reached by Docker DNS over socketnet. The docker provider can't see this
     # container (it's not on devnet, by design), which is exactly why it's
     # declared here in the file provider rather than via labels.
-    portal-socket-proxy:
+    bothy-socket-proxy:
       loadBalancer:
         servers:
-          - url: "http://portal-socket-proxy:2375"
+          - url: "http://bothy-socket-proxy:2375"
 
     # Loki is on devnet, so this could have been a label on the loki container -
     # but it is declared here to keep the whole /-/api/* surface readable in one

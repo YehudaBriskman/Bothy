@@ -38,7 +38,7 @@ network:
     # another. Each holds exactly two members.
     -docker network create controlnet 2>/dev/null || true
     -docker network create controlsocknet 2>/dev/null || true
-    # socketnet holds exactly two containers: traefik + portal-socket-proxy.
+    # socketnet holds exactly two containers: traefik + bothy-socket-proxy.
     # docker-socket-proxy has NO auth, so network reachability IS authorisation -
     # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
     # read the docker socket through it. Keep the blast radius at two.

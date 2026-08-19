@@ -64,7 +64,7 @@ flowchart TB
 
         subgraph s_devnet["devnet - internal bridge network"]
             PNEXT["portal-next :80<br/>catch-all, priority 1"]
-            APIS["portal-socket-proxy · loki · prometheus<br/>· api@internal - reached only via exact Path()"]
+            APIS["bothy-socket-proxy · loki · prometheus<br/>· api@internal - reached only via exact Path()"]
         end
     end
 
@@ -134,7 +134,7 @@ browser reaches anything but the portal. What exists today:
 | `traefik` | `0.0.0.0:80` | **The front door for the portal and its data plane**, and nothing else. |
 | `grafana` `prometheus` `dozzle` `kafka-ui` `portainer` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `9090` `8080` `8081` `9000` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. |
 | `postgres` `redis` `kafka` | `127.0.0.1:5432` `6379` `9092` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database - Redis runs with no `requirepass` at all. Reached over an SSH tunnel, or by name over devnet from another container. |
-| `portal-next` `portal-files` `oauth2-proxy` `portal-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
+| `portal-next` `portal-files` `oauth2-proxy` `bothy-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
 
 The cost of the port model is real and worth stating: ports are a flat global
 namespace with no allocator, so every new service is a manual collision check
@@ -187,13 +187,13 @@ flowchart TB
     SOCKET[("/var/run/docker.sock<br/>root-equivalent")]
 
     subgraph s_socketnet["socketnet - exactly two members"]
-        PROXY["portal-socket-proxy<br/>CONTAINERS=1 SYSTEM=1 POST=0 EXEC=0<br/>no auth of any kind - no published port"]
+        PROXY["bothy-socket-proxy<br/>CONTAINERS=1 SYSTEM=1 POST=0 EXEC=0<br/>no auth of any kind - no published port"]
     end
 
     subgraph s_devnet["devnet - around two dozen containers"]
         OAUTH["oauth2-proxy"]
         OBS["monitoring - grafana, prometheus, loki,<br/>promtail, cadvisor, node-exporter"]
-        APPSG["apps - portal-next, portal-files, portal-socket-proxy"]
+        APPSG["apps - portal-next, portal-files, bothy-socket-proxy"]
         DATAG["data - postgres plus its exporter - not routed"]
         PROJ["project containers<br/>e.g. cvops-nginx, cvops-garage"]
     end
@@ -215,7 +215,7 @@ projects (and separate project repos under `~/projects`) share one edge.
 | Network | Members | Purpose |
 |---|---|---|
 | `devnet` | ~24 containers: the whole stack plus any project container that opts in | The shared bus. Traefik discovers here (`--providers.docker.network=devnet`), Prometheus scrapes here, containers resolve each other by service name here. |
-| `socketnet` | **Exactly two**: `traefik` and `portal-socket-proxy` | Isolation for the Docker socket proxy. |
+| `socketnet` | **Exactly two**: `traefik` and `bothy-socket-proxy` | Isolation for the Docker socket proxy. |
 
 ### Why `socketnet` exists
 
@@ -330,7 +330,7 @@ flowchart TB
 
     subgraph s_apps["apps/ - what the box itself serves"]
         PNEXT["portal-next - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
-        PSOCK["portal-socket-proxy<br/>still shipped by apps/portal"]
+        PSOCK["bothy-socket-proxy<br/>shipped by apps/bothy/socket-proxy.yml"]
         PFILES["portal-files - the editor tier.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
     end
 
@@ -358,7 +358,7 @@ numbers below are repeated here only so this table is readable on its own.
 | `auth/` | `auth` | `keycloak` `oauth2-proxy` | Keycloak `:8090`; oauth2-proxy only via `/oauth2/` on `:80` | n/a - it *is* the identity layer, and it guards nothing yet |
 | `monitoring/` | `monitoring` | `prometheus` `grafana` `loki` `promtail` `cadvisor` `node-exporter` | `:9090` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and Prometheus use the shared `DEV_LOGIN_*` credential. Prometheus runs `--web.enable-lifecycle`, so an unauthenticated `POST /-/quit` would stop it - its login is the only thing preventing that |
 | `data/postgres` | `postgres` | `postgres` `postgres-exporter` | `127.0.0.1:5432` | Postgres' own |
-| `apps/bothy` | `bothy` | `portal-socket-proxy` (the read-only Docker socket the portal's data plane goes through) | none - socketnet only | n/a |
+| `apps/bothy` | `bothy` | `bothy-socket-proxy` (the read-only Docker socket the portal's data plane goes through) | none - socketnet only | n/a |
 | `apps/portal-next` | `portal-next` | `portal-next` | the `:80` catch-all | **none** |
 | `apps/portal-files` | `bothy` | `portal-files` | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
 | `host/` | - | none | - | - |
@@ -369,10 +369,16 @@ authenticating. That is the current, accepted state, not an oversight - see
 
 Notes on `apps/`:
 
-- **`portal-next` is the portal.** The original pure-HTML `apps/portal` nginx is
-  retired but kept as a one-line rollback (`traefik.enable=true`).
-  **Do not `docker compose down apps/portal`** - that compose file still owns
-  `portal-socket-proxy`, which the live portal depends on for `/-/api/docker`.
+- **`portal-next` is the portal, and the only one.** The original pure-HTML
+  `apps/portal` nginx was retired behind `traefik.enable=false` and kept as a
+  one-line rollback until 2026-08-17, when it was deleted - the rollback was a
+  fiction, because the HTML it served linked to hostnames that stopped resolving
+  when the name layer was retired on 2026-08-12. `apps/portal/` itself went on
+  2026-08-18; the socket-proxy fragment that was its only remaining reason to
+  exist moved to `apps/bothy/socket-proxy.yml`.
+  **Do not `docker compose down` the `bothy` project to restart the portal** -
+  that project also owns `bothy-socket-proxy`, which the live portal depends on
+  for `/-/api/docker`. Act on the one service.
 - **Bothy Files replaced every markdown viewer this box has had.** It is a route
   in the portal (`/#/files`) backed by `apps/portal-files`, and it reads the real
   file from a bind mount rather than a mirror of it - so there is no sync lag, no
@@ -530,8 +536,8 @@ prefix on every vhost on this box.
 |---|---|---|
 | `/-/api/traefik/http/routers` | `api@internal` | Every route, including host processes (`@file`) - **the skeleton** |
 | `/-/api/traefik/http/services` | `api@internal` | Server targets, for the join |
-| `/-/api/docker/containers/json` | `portal-socket-proxy` | Ports, health, images, compose labels, `Mounts` - **the enrichment** |
-| `/-/api/docker/system/df` | `portal-socket-proxy` | Per-volume / image / container disk sizes |
+| `/-/api/docker/containers/json` | `bothy-socket-proxy` | Ports, health, images, compose labels, `Mounts` - **the enrichment** |
+| `/-/api/docker/system/df` | `bothy-socket-proxy` | Per-volume / image / container disk sizes |
 
 **Traefik is the skeleton; Docker is enrichment. Either can die and the page still
 renders** - the loader uses `Promise.allSettled`, never `all`, and partial results
@@ -788,7 +794,7 @@ Then, in order:
 
 Publish nothing. Join `devnet` and let other containers reach it by service
 name. This is still the correct default for exporters, sidecars and proxies -
-`portal-socket-proxy`, `oauth2-proxy`, `portal-files` and every `*-exporter` do it.
+`bothy-socket-proxy`, `oauth2-proxy`, `portal-files` and every `*-exporter` do it.
 
 ### A host process
 

@@ -43,7 +43,7 @@ treat `auth/` as in flight rather than as the final shape.
 ## The portal
 
 Live-discovery page: polls the Traefik API + docker container list every 10s
-through `portal-socket-proxy` (tecnativa docker-socket-proxy, `CONTAINERS=1` +
+through `bothy-socket-proxy` (tecnativa docker-socket-proxy, `CONTAINERS=1` +
 `SYSTEM=1`, read-only socket, `POST=0`, no published port). Health display fixed in
 PR #11 (`container.Health?.Status` - Health is an object, not a string).
 

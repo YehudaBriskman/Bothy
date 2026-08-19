@@ -1067,7 +1067,7 @@ export function merge(
   // That reasoning died with the name layer on 2026-08-12. With no routers left,
   // "route OR port" collapsed to "port", and TEN running containers went
   // invisible at once - promtail, postgres-exporter, oauth2-proxy,
-  // portal-socket-proxy, and `portal-next` ITSELF. The page could not see the
+  // bothy-socket-proxy, and `portal-next` ITSELF. The page could not see the
   // container serving it. It showed 16 services while 21 were running.
   //
   // The deeper mistake is conflating two different questions. "Can I open this?"

@@ -156,7 +156,7 @@ services:
       resources:
         limits:
           memory: 128m
-    # socketnet: reaches portal-socket-proxy for the portal's read-only Docker
+    # socketnet: reaches bothy-socket-proxy for the portal's read-only Docker
     # API (see edge/dynamic/portal-api.yml). Traefik and the proxy are the only
     # two members - the proxy has no auth, so reachability is authorisation.
     # filesnet added 2026-08-12 with the editor tier: it holds exactly two
