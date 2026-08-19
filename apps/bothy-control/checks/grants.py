@@ -210,7 +210,14 @@ print("── every socket proxy in this repository, by image ──────
 # container this box runs.
 SOCKET_IMAGE = "tecnativa/docker-socket-proxy"
 REPO = os.path.dirname(os.path.dirname(SVC))
-SKIP_DIRS = {".git", "node_modules", "dist", ".venv"}
+# .claude holds AGENT WORKTREES - full copies of this repository - and
+# .cleanup-trash is a quarantine of things already removed. Both contain compose
+# files that define no container this box runs, and both would be swept: on a
+# machine with seven worktrees this walk found 24 proxies instead of 3, so the
+# assertion below printed a paragraph and a rogue definition in a throwaway copy
+# would have failed CI for a file that is not part of the repository. Same two
+# exclusions, for the same reason, as scripts/checks/portability.sh.
+SKIP_DIRS = {".git", "node_modules", "dist", ".venv", ".claude", ".cleanup-trash"}
 
 found: list[tuple[str, str, dict[str, str], str]] = []
 for walk_root, walk_dirs, walk_files in os.walk(REPO):
