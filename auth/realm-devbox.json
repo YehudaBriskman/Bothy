@@ -20,17 +20,17 @@
     "realm": [
       {
         "name": "viewer",
-        "description": "Read-only: dashboards, logs, metrics, docs.",
+        "description": "Read the box: browse files, search their contents, download bytes, and read the config a service declares. Gates 3 routers (portal-files read + download, bothy-config read).",
         "composite": false
       },
       {
         "name": "editor",
-        "description": "Can change content - wiki/docs pages, dashboards.",
+        "description": "Change a file on disk, and patch a declared config field. Saves write straight to the working tree. Gates 3 routers (portal-files write + delete, bothy-config patch).",
         "composite": false
       },
       {
         "name": "operator",
-        "description": "Can act on the stack - restart containers, silence alerts.",
+        "description": "Act on what is running - restart, stop and start a service. Gates 3 routers, one per verb (bothy-control). There is no exec and no kill.",
         "composite": false
       },
       {
