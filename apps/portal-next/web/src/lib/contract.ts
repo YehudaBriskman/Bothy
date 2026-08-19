@@ -112,6 +112,7 @@ export const CHARTS = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--ch
 export const AA = 4.5;              // text
 export const ACCENT_ON_SURFACE = 4.6; // --a1..--a5 are painted as 12px bold text
 export const CHART_VS_CARD = 3.0;
+export const BRAND_ON_SURFACE = 3.0; // the wordmark dot is a mark, not text
 export const CHROMATIC_C = 0.06;    // a status at or above this is "chromatic"
 export const HUE_SEPARATION = 45;   // degrees, against a chromatic status
 export const CHROMA_MARGIN = 0.06;  // against a near-grey status
@@ -137,6 +138,16 @@ export const STRUCTURAL = new Set([
   '--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-full', '--border-w', '--wrap',
   '--scrollbar-w', '--dur-fast', '--dur', '--dur-slow', '--ease', '--font', '--mono',
   '--disabled-opacity', '--rest-opacity',
+  // The reading scale. index.css says out loud that these are STRUCTURAL - "a
+  // theme inherits these unless it opts in - the same treatment radii and motion
+  // get" - and this list did not agree, so all eight were being demanded of every
+  // theme as if they were colours. Nobody saw it because none of the three
+  // shipped themes declares one and the check merged the base palette in before
+  // asking (see checks/theme-contract.mjs). They are lengths and a ratio: a
+  // colour rule cannot measure them and the editor cannot offer a swatch for
+  // them, so "required" was never the right answer.
+  '--read-measure', '--read-fs', '--read-lh', '--read-gap',
+  '--read-h1', '--read-h2', '--read-h3', '--read-h4',
 ]);
 
 /** What a theme owes, derived from the base palette rather than listed: every
@@ -176,6 +187,23 @@ export type EvaluateOptions = {
    *  holds the base palette. Omitted, completeness is simply not asserted: a
    *  caller that does not know the base palette cannot honestly check it. */
   required?: readonly string[];
+  /** What the theme's own file DECLARES, when that is not the same map as the
+   *  one being measured.
+   *
+   *  The two are different questions and conflating them made the completeness
+   *  rule vacuous. checks/theme-contract.mjs measures `merge(BASE, theme)`, and
+   *  it is right to: that models what is actually painted after inheritance, and
+   *  measuring a theme's contrast against tokens it does not paint would be
+   *  measuring a page nobody sees. But `required` is by construction a subset of
+   *  the base palette's own keys, so after that merge every required key is
+   *  present by definition - the assertion could only ever fail in the editor,
+   *  and a theme file could drop a token and stay green forever. That is the
+   *  exact silence #98's "a rule so a new theme cannot forget it" is about.
+   *
+   *  So: measure the merged map, assert declaration against this one. Omitted,
+   *  the two collapse back into `tokens`, which is what the editor wants - there
+   *  the map being edited IS the file. */
+  declared?: Record<string, string>;
   /** The theme's syntax palette (--hl-*), when it carries one. Optional as a
    *  GROUP - a theme may restyle no code at all - but see `syntaxBase` for why
    *  it is not optional token by token. */
@@ -205,6 +233,7 @@ const MEASURED = [
   '--bg-glow',
   '--fg', '--fg-muted', '--fg-subtle',
   '--accent', '--accent-fg', '--on-accent',
+  '--brand',
   ...STATUSES.map((s) => `--st-${s}`),
   ...STATUSES.map((s) => `--st-${s}-fg`),
   ...ACCENTS,
@@ -223,14 +252,21 @@ export function evaluateTheme(
     out.push({ id, level: ok ? 'pass' : 'fail', label, detail });
   };
 
-  // 1. completeness
+  // 1. completeness - asserted against what the theme DECLARES, which is not
+  //    always the map the rules below measure. See `declared` above.
   if (options.required) {
-    const missing = options.required.filter((k) => !(k in tokens));
+    const declared = options.declared ?? tokens;
+    const missing = options.required.filter((k) => !(k in declared));
     say('tokens/complete', !missing.length, 'declares every required token',
       missing.length
         ? `missing ${missing.length}: ${missing.slice(0, 6).join(' ')}`
         : `${options.required.length} tokens`);
-    if (missing.length) return out;
+    // Bail only when the value is genuinely absent from what gets measured.
+    // Half-measuring is worse than saying so - but an UNDECLARED token that
+    // inherits a real value can still be measured, and reporting one failure and
+    // hiding twenty findings behind it is how a completeness bug turns into a
+    // blank review page.
+    if (missing.some((k) => !(k in tokens))) return out;
   }
 
   // Nothing below can be measured on a value that is not a colour, and half-
@@ -337,7 +373,36 @@ export function evaluateTheme(
       `${k} >= ${ACCENT_ON_SURFACE}:1 on surface-2 (12px bold text)`, v.toFixed(2));
   }
 
-  // 6. charts - band, and separation against the card. Slot ORDER is part of
+  // 6. brand - the wordmark's dot, on both grounds the header can sit on.
+  //
+  //    3:1 and not 4.5:1 because it is a 4.5px filled circle: a mark on chrome,
+  //    never text. Both surfaces and not just one, because the header is
+  //    --surface-2 and the mark also appears on --surface-1 cards; a green that
+  //    passes on the card and vanishes in the header is the failure this catches.
+  //
+  //    IT IS DELIBERATELY NOT SUBJECT TO THE ACCENT RULE IN 5 ABOVE, and this is
+  //    the paragraph to read before "fixing" that. The accent rule forbids chrome
+  //    within 45 degrees of a chromatic status because a coloured control that
+  //    shares a hue with --st-up starts reading as a state - the user cannot tell
+  //    "interactive" from "healthy". Bothy's brand green sits at H 146, and
+  //    --st-up is at H 163, a gap of 17 degrees: the mark would fail rule 5
+  //    outright. It is exempt because it does not encode anything. The dot is the
+  //    same dot on a page reporting five containers down; it never changes with
+  //    state, it is not adjacent to a status glyph, and nothing in the app reads
+  //    it as one. Applying rule 5 here would not prevent a confusion - it would
+  //    only forbid the brand from being green, which is a design decision the
+  //    contract has no business making.
+  {
+    const b = C('--brand');
+    for (const [n, g] of [['surface-1', s1], ['surface-2', s2]] as [string, RGBA][]) {
+      const v = on(b, g);
+      say(`contrast/--brand-vs-${n}`, v >= BRAND_ON_SURFACE,
+        `--brand >= ${BRAND_ON_SURFACE}:1 on ${n} (the wordmark dot, a mark not text)`,
+        v.toFixed(2));
+    }
+  }
+
+  // 7. charts - band, and separation against the card. Slot ORDER is part of
   //    what was validated upstream, so the check reads them in order and never
   //    sorts them.
   const [lo, hi] = BAND[appearance];
@@ -351,7 +416,7 @@ export function evaluateTheme(
     say(`contrast/${k}-vs-card`, v >= CHART_VS_CARD, `${k} >= 3:1 on surface-1`, v.toFixed(2));
   }
 
-  // 7. the syntax palette, when the theme carries one
+  // 8. the syntax palette, when the theme carries one
   //
   // ALL OR NOTHING, and the reason is not tidiness. A theme declaring no
   // --hl-* is fine: code renders in shell.css's set, which was chosen for this

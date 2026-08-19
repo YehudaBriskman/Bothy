@@ -54,6 +54,19 @@ at.
 | `--accent-line` | 32% mix | 32% mix | Border |
 | `--ring` | `--accent` | `--accent` | Focus ring |
 
+## Brand - identity, never chrome and never state
+
+| Token | Dark | Light | Role |
+|---|---|---|---|
+| `--brand` | `#3fb950` | `#238636` | The wordmark's dot, and nothing else |
+
+The one token a theme has a reason to leave alone, and the one it is still
+required to declare. Measured at **3:1** against both `--surface-1` and
+`--surface-2` - it is a 4.5px mark, not text - and deliberately **exempt** from
+the accent hue-separation rule, because a mark never encodes state. Both are
+enforced by `checks/theme-contract.mjs`; see
+[foundations/colour](../foundations/colour.md#brand-is-its-own-job-and-the-mistake-is-subtle).
+
 ## Status - reserved, never chrome
 
 | Token | Dark | Light | Means |

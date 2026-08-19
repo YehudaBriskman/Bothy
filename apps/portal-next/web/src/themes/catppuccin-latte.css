@@ -49,6 +49,12 @@
   --accent-2:    #1552d0;
   --accent-fg:   #1a56c9;
 
+  /* The wordmark's dot. Latte is a light palette, so it takes the darker rung of
+     the brand ramp for the same reason Bothy Light does: #3fb950 measures 2.54
+     on white and the dot simply is not there. 4.63 on surface-1, 4.36 on
+     surface-2, floor 3:1. */
+  --brand:       #238636;
+
   --chart-1: #1e66f5;
   --chart-2: #179299;
   --chart-3: #d1730a;

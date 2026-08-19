@@ -4,16 +4,16 @@
    THE REFERENCE IMPLEMENTATION OF THE THEME FORMAT. Read this before writing
    another one; everything the format requires is visible here, in order.
 
-   A theme declares all 41 of its own tokens and nothing else:
+   A theme declares all 42 of its own tokens and nothing else:
 
      · NOT the 16 DERIVED tokens (--accent-bg, --st-*-bg, --st-*-line, --ring,
        --track, the scrollbar thumbs). Those are color-mix() over the tokens
        below, defined once in index.css and evaluated on the SAME element, so
        they re-compute against whatever this file sets. Redeclaring one here
        would be a copy that stops following its source.
-     · NOT the 16 STRUCTURAL tokens (radii, motion, fonts, widths). Those are
-       the product's shape, not its palette, and a theme that changed them would
-       be a different application wearing the same name.
+     · NOT the 24 STRUCTURAL tokens (radii, motion, fonts, widths, the reading
+       scale). Those are the product's shape, not its palette, and a theme that
+       changed them would be a different application wearing the same name.
 
    The doubled attribute selector is not a typo. `:root[data-bothy-theme='x']`
    ties with `:root[data-theme='light']` at 0,2,0, so which wins would depend on
@@ -92,6 +92,19 @@
   --accent:      #7aa2f7;
   --accent-2:    #5d80e6;
   --accent-fg:   #9eb8ff;
+
+  /* ── brand ───────────────────────────────────────────────────────────────
+     The wordmark's dot. Kept at Bothy's own green rather than remapped to one of
+     Tokyo Night's: the mark identifies the application, so it is the one colour
+     on the page a theme has no reason to restyle. Declared anyway, because the
+     contract requires it declared and measures it here - 6.19 on surface-1,
+     5.73 on surface-2, against a 3:1 floor.
+
+     Not Tokyo Night's #9ece6a in particular: that is --st-up in this file, and
+     while the contract deliberately exempts --brand from the status hue rule
+     (the dot never encodes a state), spending the palette's reserved green on it
+     would make the two hard to tell apart by eye for no gain. */
+  --brand:       #3fb950;
 
   /* ── chart series (chrome, never state) ──────────────────────────────────
      Slot ORDER is part of what the contract validates - series are assigned

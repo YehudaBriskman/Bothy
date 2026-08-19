@@ -97,6 +97,15 @@ export function slugify(s: string): string {
 // decided. Grouped by what they DO rather than alphabetically, because someone
 // picking colours thinks "the surfaces are too light", never "the tokens
 // beginning with s are too light".
+//
+// EVERY REQUIRED TOKEN MUST APPEAR IN EXACTLY ONE GROUP HERE. ThemeEditor.tsx
+// renders a field only for tokens a group names, but `requiredNames()` derives
+// what a theme owes from the live :root - so a required token in no group is a
+// token the editor demands and gives you nowhere to type. It is not a cosmetic
+// gap: `evaluateTheme` reports tokens/complete FAIL and RETURNS EARLY, so the
+// page shows one failure, none of the other findings, and no field that would
+// clear it. The reading scale spent a release in that state before it was
+// classified STRUCTURAL, where it belonged.
 export const GROUPS: { title: string; note: string; tokens: string[] }[] = [
   {
     title: 'Surfaces',
@@ -117,6 +126,11 @@ export const GROUPS: { title: string; note: string; tokens: string[] }[] = [
     title: 'Accent',
     note: 'Chrome only - it never means a service is in some state. --accent-fg is the accent used as TEXT and needs more contrast than the fill does.',
     tokens: ['--accent', '--accent-2', '--accent-fg'],
+  },
+  {
+    title: 'Brand',
+    note: 'Bothy\'s own mark - the dot in the wordmark, and nothing else. Not chrome and not a status: the accent says "this is interactive", brand says "this is Bothy", so a theme that recolours every control may still want the mark to stay itself.',
+    tokens: ['--brand'],
   },
   {
     title: 'Status',

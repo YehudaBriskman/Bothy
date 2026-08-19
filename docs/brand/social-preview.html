@@ -5,10 +5,22 @@
   Settings -> Social preview, which is why the rendered PNG is committed beside
   this file rather than generated in CI.
 
-  To regenerate after a brand change:
-      cd docs/brand && python3 -m http.server 8080
-      # open http://127.0.0.1:8080/social-preview.html at exactly 1280x640
-      # and screenshot it to social-preview.png
+  To regenerate after a brand change, headless and with no server - the same
+  Chromium scripts/gen-icons.py uses, driven the same way (newest cached build,
+  never a fresh download):
+
+      CHROME=$(ls -d ~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome | tail -1)
+      "$CHROME" --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+        --force-device-scale-factor=1 --window-size=1280,640 \
+        --allow-file-access-from-files \
+        --screenshot="$PWD/docs/brand/social-preview.png" \
+        "file://$PWD/docs/brand/social-preview.html"
+
+  --force-device-scale-factor=1 is not optional: a HiDPI default silently
+  doubles the output and leaves a 2560x1280 file that GitHub re-scales.
+  --allow-file-access-from-files is what lets the page load wordmark-dark.svg
+  from beside it; without it the mark renders as a missing image and the card
+  looks fine at a glance because the rest of the layout is intact.
 
   It uses wordmark-dark.svg from this directory, so the dot and the letterforms
   can never drift from the mark the app ships.
