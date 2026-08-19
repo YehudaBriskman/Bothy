@@ -38,7 +38,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # fetch-depth: 0 for the TAGS, which the default shallow checkout does not
+      # fetch. Two checks in this job compare something in the tree against a
+      # release tag - version.sh and installer-pin.sh - and with no tags present
+      # both take their "nothing to compare against" branch and pass on a repo
+      # that has already released. A check that cannot see the thing it checks
+      # is the silent pass this repo has a whole file (mutants.sh) about.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -147,6 +155,14 @@ jobs:
         if: always()
         run: bash scripts/checks/version.sh
 
+      # scripts/bothy.sh is what `curl … | sh` runs, and it verifies the clone
+      # against a commit id written into itself. That is a third copy of what
+      # VERSION and the tag already say: left behind, it installs an old release
+      # and every install still succeeds, which is drift nothing else notices.
+      - name: The installer serves this release
+        if: always()
+        run: bash scripts/checks/installer-pin.sh
+
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
   # Everything above answers "is the tree healthy". This answers the question
@@ -166,7 +182,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Tags, for the same reason as the tree job: the installer-pin row plants a
+      # broken commit id, and without tags the check would catch it on the SHAPE
+      # rule alone - the row would pass while the comparison it is really about
+      # never ran.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:

@@ -213,6 +213,29 @@ mutant_lower="${PATH'"$BASH4_SUFFIX"'}"' \
   -- bash scripts/checks/bash32.sh
 
 echo
+echo "── what \`curl | sh\` would actually install ─────────────────────────"
+# scripts/bothy.sh clones a release and refuses to go on unless the tag resolves
+# to a commit id written into the installer. That id is a THIRD copy of what
+# VERSION and the git tag already say, and the way it goes wrong is a stale or
+# mistyped constant that nothing in the tree looks wrong next to: every install
+# then fails at the verify step and blames the repository, or - worse - the pin
+# is left behind at an old release and every install silently succeeds with the
+# wrong code.
+#
+# ANCHORED ON THE ASSIGNMENT, NOT ON THE VALUE, and that is the whole reason
+# this row does not need editing at every release. A mutation whose anchor is
+# `…="25d6ef4…"` stops applying the day the pin is bumped, and `plant` then
+# reports "anchor not found" - which reads as the harness being broken rather
+# than as a row that has rotted. Prefixing a digit models the realistic slip
+# (one character in a forty-character constant) and applies to whatever the pin
+# happens to be.
+mutant "the installer's pinned sha drifts" \
+  scripts/bothy.sh \
+  'BOTHY_PIN_SHA="' \
+  'BOTHY_PIN_SHA="0' \
+  -- bash scripts/checks/installer-pin.sh
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is
