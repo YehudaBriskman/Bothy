@@ -48,6 +48,28 @@ mv "$OUT/start.js" "$OUT/start-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/contract.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/contract.js" "$OUT/contract.mjs"
+# projects.ts and actions.ts, compiled for the declared-actions check: it asserts
+# a property the two produce JOINTLY - which declared nodes carry a container, and
+# therefore which verbs a row offers - and neither file can be asked that alone.
+#
+# projects.ts carries a TYPE-only import from discover.ts. tsc erases it from the
+# output, so the .mjs really does import nothing at runtime, but it still COMPILES
+# discover.ts alongside and drops a second discover.js here. Nothing imports it -
+# the copy the checks use was renamed to discover.mjs four lines up - but it is
+# worth knowing about before somebody reads this directory and wonders which of
+# the two is live.
+(cd "$WEB" && npx tsc src/lib/projects.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/projects.js" "$OUT/projects-mod.mjs"
+# `--types vite/client` for THIS one only. actions.ts reads `import.meta.env.DEV`
+# to keep a dev tab from acting on the live daemon, and without vite's ambient
+# types a bare tsc fails with TS2339 on `env` - which under `set -e` and the
+# >/dev/null above is an empty log and an exit 2. It types the compile; it changes
+# nothing about the emitted module, and the check below never calls act().
+(cd "$WEB" && npx tsc src/lib/actions.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler \
+  --types vite/client --outDir "$OUT" >/dev/null)
+mv "$OUT/actions.js" "$OUT/actions-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/customThemes.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
@@ -62,7 +84,7 @@ mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
-   "$HERE/start-table.mjs" "$OUT/"
+   "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -94,6 +116,15 @@ echo "── where this repo is, asked of docker not assumed ─────"
 # prefix of it, nothing mounted yet - which is precisely what could not be tested
 # while the value was a literal.
 node "$OUT/repo-roots.mjs"
+
+echo
+echo "── what a declared project can be acted on ─────────────"
+# The two modules that decide, between them, whether a stopped project can be
+# started from the console - and the line they must hold: a verb is only ever
+# offered on a container docker has actually reported. A declared name docker
+# does not know would have to be CREATED, and /containers/create is the one call
+# apps/bothy-control's two-proxy split exists to refuse.
+node "$OUT/declared-actions.mjs"
 
 echo
 echo "── what a system IS vs where it is SHOWN ───────────────"

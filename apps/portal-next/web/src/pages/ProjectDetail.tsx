@@ -88,6 +88,40 @@ export function ProjectDetail() {
 
   const sections = useMemo(() => groupByType(nodes), [nodes]);
 
+  // WHAT BOTHY CANNOT START, and the command that can.
+  //
+  // The action tier acts on CONTAINERS: a declared service whose container
+  // exists is one POST away from running, and its row carries the control that
+  // does it. A declared service with no container is a different thing entirely -
+  // starting it means CREATING it, which is /containers/create, which the write
+  // socket proxy refuses by holding CONTAINERS=0 so that a compromise of the
+  // console cannot build a privileged container (apps/bothy-control/compose.yml).
+  //
+  // So the page says so, and prints the command the project declared for itself.
+  // The alternative shapes were both worse: a Start button that 403s teaches
+  // people to distrust the buttons, and silence leaves the reader to work out
+  // why some rows have a control and others do not.
+  const declaredProject = useMemo(
+    () => data.projects.find(
+      (p) => p.key === system?.key || (system?.identities ?? []).includes(p.key),
+    ),
+    // `system` rather than its two fields: identities is a fresh array on every
+    // poll, so listing it here would recompute this on every render anyway while
+    // reading as though it did not.
+    [data.projects, system],
+  );
+  // Only services this page cannot act on AND that are not already running. A
+  // declared host process (a `just dev` harness) has no container either and
+  // belongs here for the same reason: it is started by the same command.
+  //
+  // The `declared:` prefix is the id nodeOf() builds in lib/projects.ts - it is
+  // what separates a declared service from a discovered container that happens
+  // to be filed under the same system.
+  const unstartable = nodes.filter(
+    (n) => n.id.startsWith('declared:') && !n.container
+      && n.status !== 'up' && n.status !== 'starting',
+  );
+
   const rise = (i: number) =>
     reduce
       ? {}
@@ -250,6 +284,52 @@ export function ProjectDetail() {
               <TabPanel tabKey="ports" active={reach === 'ports' && ports.length > 0}>
                 <PortsTab ports={ports} query="" compact />
               </TabPanel>
+            </div>
+          </motion.section>
+        )}
+
+        {/* Starting what has never been started - the honest half of #91.
+            Only when there is something here Bothy genuinely cannot start; a
+            project whose containers all exist has nothing to read and gets no
+            panel. */}
+        {declaredProject?.start && unstartable.length > 0 && (
+          <motion.section className="panel span-12" {...rise(panel++)}>
+            <div className="panel-h">
+              Starting this project
+              <span className="sub">
+                {unstartable.length} {unstartable.length === 1 ? 'service' : 'services'} Bothy cannot start
+              </span>
+            </div>
+            <div className="panel-b">
+              <p className="start-why">
+                {/* Mono, so a sentence that opens on a list of service names
+                    reads as identifiers rather than as a lowercase mistake. */}
+                <span className="mono">{unstartable.map((n) => n.name).join(', ')}</span>{' '}
+                {unstartable.length === 1 ? 'has' : 'have'} no container for Docker to start - starting
+                {unstartable.length === 1 ? ' it' : ' them'} means creating one, and Bothy deliberately
+                cannot create containers. The socket proxy behind Restart, Stop and Start is granted four
+                container paths and nothing else, so a create never reaches the daemon even if this page
+                asked for one.
+              </p>
+              <p className="start-run">Run this yourself:</p>
+              {/* The declaration's own command, verbatim. Not composed here, and
+                  not a form: `project.dev.yml` is the allowlist, and a project
+                  opts in by declaring one. */}
+              <code className="mono start-cmd">{declaredProject.start}</code>
+              {declaredProject.root && (
+                <p className="start-where">
+                  in <span className="mono">{declaredProject.root}</span>, over Tailscale SSH.
+                </p>
+              )}
+              {/* #91's own warning, and it is not theoretical: a clone in /tmp
+                  ran `just up` once and ADOPTED this box's running stack, because
+                  compose project names are global to the daemon. The directory is
+                  half of what decides that name, which is why it is printed. */}
+              <p className="start-warn">
+                Compose project names are global to the daemon, so running this from a different checkout
+                of the same repository can adopt and recreate containers that are already up. The path
+                above is the one this project declared.
+              </p>
             </div>
           </motion.section>
         )}
