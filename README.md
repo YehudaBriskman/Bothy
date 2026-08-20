@@ -142,17 +142,30 @@ done.
 
 ## The guide
 
-Seven pages, written for somebody who has **not** read the source. Everything
-below this line in the README is reference material for somebody who has.
+Written for somebody who has **not** read the source. Everything below this line
+in the README is reference material for somebody who has.
+
+No count here on purpose - the guide grows, and a number in this sentence is the
+fastest-rotting thing on the page. [The guide index](docs/guide/index.md) is the
+list, and `apps/portal-next/checks/start-table.mjs` asserts that it and the
+folder on disk still describe each other.
 
 | If you want to | Read |
 |---|---|
 | get it running on a machine that has never had it | [Installing Bothy](docs/guide/installing.md) |
+| know what `bothy up` does, and where it looks for your checkout | [The `bothy` command](docs/guide/the-cli.md) |
 | know which YAML is load-bearing, and what happens when you save it | [The files you will actually edit](docs/guide/configuring.md) |
 | use the thing - Overview, Control, the three verbs | [Operating it from the console](docs/guide/the-console.md) |
 | read, search and edit the box's own files from a browser | [Bothy Files](docs/guide/files.md) |
+| know why Settings mostly does not change anything | [Settings](docs/guide/settings.md) |
 | understand `viewer`, `editor`, `operator` and the role nobody holds | [Roles](docs/guide/roles.md) |
 | pick a theme, or write one | [Themes](docs/guide/themes.md) |
+| add a container this repository runs | [Adding a service to the stack](docs/guide/services.md) |
+| make a project of your own visible, including while it is off | [Declaring a project](docs/guide/projects.md) |
+| know what is scraped, and for how long it is kept | [Monitoring](docs/guide/monitoring.md) |
+| know what is backed up, what is not, and how to restore it | [Backups](docs/guide/backups.md) |
+| move to a newer version without losing data | [Upgrading](docs/guide/upgrading.md) |
+| work out why something is broken | [When something is wrong](docs/guide/troubleshooting.md) |
 | all of it, in order | [the guide index](docs/guide/index.md) |
 
 ![Bothy Files: the document tree on the left, this README rendered in the centre with its screenshots inline, and the page outline on the right.](docs/assets/files.png)

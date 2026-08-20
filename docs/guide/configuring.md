@@ -246,4 +246,5 @@ just doctor     # containers, Prometheus targets, disk, backup freshness
 ## Next
 
 - [Operating it from the console](the-console.md)
+- [Adding a service to the stack](services.md) - the checklist for a new container
 - [Roles](roles.md)

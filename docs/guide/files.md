@@ -254,4 +254,6 @@ honest reason to build one. See [Roles](roles.md).
 
 - [Themes](themes.md) - the theme editor writes its file through this tier
 - [The files you will actually edit](configuring.md) - what those cautions are warning about
+- [Settings](settings.md) - the reading size, and where this browser's other preferences live
+- [When something is wrong](troubleshooting.md) - the repair paths when an edit breaks something
 - [`apps/portal-files/policy.toml`](../../apps/portal-files/policy.toml) - the policy itself, which is the reference for all of the above

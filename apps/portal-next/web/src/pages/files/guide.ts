@@ -22,13 +22,25 @@
  *  Basenames rather than paths: the folder is GUIDE_DIR (routes.ts) and writing
  *  it out seven times would be seven copies of one fact. */
 export const GUIDE_ORDER: readonly string[] = [
+  // Getting it running.
   'index.md',
   'installing.md',
+  'the-cli.md',
   'configuring.md',
+  // Using it.
   'the-console.md',
-  'roles.md',
   'files.md',
+  'settings.md',
+  'roles.md',
   'themes.md',
+  // Putting your own things on it.
+  'services.md',
+  'projects.md',
+  // Keeping it running.
+  'monitoring.md',
+  'backups.md',
+  'upgrading.md',
+  'troubleshooting.md',
 ];
 
 /** Where `path` sits in the reading order. `Infinity` for anything the list does

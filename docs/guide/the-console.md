@@ -183,5 +183,7 @@ request; it explains, in advance, the 403 that would have come back.
 
 ## Next
 
-- [Roles](roles.md) - who may do which of the above
 - [Bothy Files](files.md) - the reading and editing tier
+- [Settings](settings.md) - and why most of it is read-only
+- [Roles](roles.md) - who may do which of the above
+- [Declaring a project](projects.md) - how a project of yours gets a card here

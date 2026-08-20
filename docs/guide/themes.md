@@ -181,3 +181,4 @@ reclassified as structural, where they belonged.
 - [`docs/brand/reference/tokens.md`](../brand/reference/tokens.md) - the token reference
 - [`docs/brand/foundations/colour.md`](../brand/foundations/colour.md) - the palette, and what each colour job is for
 - [Bothy Files](files.md) - the tier the theme editor saves through
+- [Settings](settings.md) - the picker's home, and what else lives in this browser
