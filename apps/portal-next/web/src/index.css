@@ -171,6 +171,18 @@
      72ch is prose, not a terminal. The measure rule changes reading speed more
      than the typeface does. */
   --read-measure: 72ch;
+  /* The OTHER width, and the reason there are exactly two.
+     A table, a code fence and a figure are not prose and must be let out of the
+     measure - a generated diagram capped at 72ch renders its 15px labels at
+     about 10px (#103), which is unreadable. They used to be let out to
+     `max-width: 100%`, and that is not a width at all: it means "however wide
+     the window happens to be", so on a 1440px screen the prose was ~660px and
+     the table above it ~1100px and the document changed width every few blocks.
+     Bounding the COLUMN is what fixes that - `.fx-read` is capped at this, so
+     `100%` on the escapes now means "the full column" and the widest block on
+     any page is a known quantity. A genuinely wider table scrolls inside its own
+     frame, which is what `.md-tbl-wrap`'s `overflow: auto` was always for. */
+  --read-wide: 96ch;
   /* 16px, not 14.5px. The measure was already right - 72ch, verified rendering
      at exactly 72 characters - but the body was set at the app's UI size, and a
      document is not a dashboard. 14.5px is a good size for a control that sits

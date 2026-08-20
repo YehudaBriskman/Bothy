@@ -577,10 +577,19 @@
    for a control that no longer exists. */
 
 /* ── read view (markdown) ────────────────────────────────────────────────── */
-.bothy-files .fx-read { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px; }
+/* `max-width` on the SCROLLER, and it is the load-bearing half of the two-width
+   rule (--read-wide in index.css, where the reasoning is). It bounds the column,
+   which is what makes the `100%` escapes below mean "the full column" rather
+   than "the full window" - the difference between a document with two related
+   widths and one that changes width every few blocks. */
+.bothy-files .fx-read {
+  flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px;
+  max-width: var(--read-wide);
+}
 .bothy-files .fx-read:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 /* The measure comes from --read-measure (index.css, where the reasoning is).
-   Full-bleed for the two things that are not prose. */
+   Full-bleed for the two things that are not prose - and "full" is now the
+   column, not the viewport. */
 .bothy-files .fx-read > * { max-width: var(--read-measure); }
 .bothy-files .fx-read > .md-tbl-wrap,
 .bothy-files .fx-read > .md-pre { max-width: 100%; }
