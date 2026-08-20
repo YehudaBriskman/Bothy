@@ -85,7 +85,7 @@ function Marked({ text, col, len }: { text: string; col: number; len: number }) 
 }
 
 export function SearchView({
-  roots, root, onOpen, onNeedsAuth, idle,
+  roots, root, onOpen, onNeedsAuth, idle, controls = 'full', within = '',
 }: {
   roots: FileRoot[];
   /** The root the EXPLORER is browsing. The search starts scoped to it, because
@@ -105,6 +105,24 @@ export function SearchView({
    *  panel two scrollbars. This is the one line that lets one component be both,
    *  and it is why the reader does not fork this file. */
   idle?: React.ReactNode;
+  /** How much of the options row to draw (#151).
+   *
+   *  'full' is the IDE's: the root select, the glob box and the case toggle.
+   *  'minimal' is the search box and the case toggle, side by side, and nothing
+   *  else - which is what the GUIDE panel gets. Those two controls are not
+   *  hidden there to save space; they have no question to answer. "every root"
+   *  is meaningless where there is one folder, and a hand-typed fnmatch pattern
+   *  cannot narrow seven documents usefully.
+   *
+   *  A PROP AND NOT A FORK. The debounce in this file is the fix for a
+   *  self-sustaining search loop (see `runRef` below), it is invisible from the
+   *  outside, and it would have to be got right twice. */
+  controls?: 'full' | 'minimal';
+  /** Confine every search to one folder inside `root`, root-relative. The
+   *  service already walks from a folder rather than filtering a full listing
+   *  (`/search?path=`, app.py), so this is a scope and not a filter - a document
+   *  outside it is not searched rather than searched and dropped. */
+  within?: string;
 }) {
   const [q, setQ] = useState('');
   const [scope, setScope] = useState<string>(root);
@@ -130,7 +148,11 @@ export function SearchView({
     inFlight.current = ac;
     setBusy(true);
     setErr(null);
-    searchFiles(scope, query.trim(), { glob: glob.trim() || undefined, caseSensitive }, ac.signal)
+    searchFiles(
+      scope, query.trim(),
+      { path: within || undefined, glob: glob.trim() || undefined, caseSensitive },
+      ac.signal,
+    )
       .then((r) => { if (!ac.signal.aborted) { setRes(r); setBusy(false); } })
       .catch((e) => {
         if (ac.signal.aborted) return;
@@ -138,7 +160,7 @@ export function SearchView({
         if (isAuthError(e)) { onNeedsAuth(); return; }
         setErr(e instanceof Error ? e.message : 'the search did not answer');
       });
-  }, [scope, glob, caseSensitive, onNeedsAuth]);
+  }, [scope, within, glob, caseSensitive, onNeedsAuth]);
 
   // `run` reaches the timer through a REF, and it is not in the dependency list.
   //
@@ -165,7 +187,7 @@ export function SearchView({
     const t = setTimeout(() => runRef.current(q), DEBOUNCE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, scope, glob, caseSensitive]);
+  }, [q, scope, within, glob, caseSensitive]);
 
   useEffect(() => () => inFlight.current?.abort(), []);
 
@@ -174,16 +196,36 @@ export function SearchView({
 
   const short = q.trim().length > 0 && q.trim().length < MIN_CHARS;
 
+  // One control, two placements. In the guide it rides INSIDE the search box,
+  // beside the input, because it is the only option left and a 24px toggle alone
+  // on a row of its own is a row of empty rail. Written once so the two cannot
+  // drift into different buttons.
+  const caseToggle = (
+    <Tooltip label={caseSensitive ? 'Matching case' : 'Ignoring case'} align="end">
+      <button
+        type="button"
+        className={`fx-sr-toggle ${caseSensitive ? 'on' : ''}`}
+        aria-pressed={caseSensitive}
+        aria-label="Match case"
+        onClick={() => setCaseSensitive((v) => !v)}
+      >
+        <CaseSensitive size={14} />
+      </button>
+    </Tooltip>
+  );
+
   return (
     <div className="fx-sr">
-      <div className="fx-filter">
+      <div className={`fx-filter${controls === 'minimal' ? ' fx-filter-min' : ''}`}>
         <SearchIcon size={13} aria-hidden />
         <input
           ref={boxRef}
           type="search"
           value={q}
-          placeholder={`Search file contents (${MIN_CHARS}+ characters)`}
-          aria-label="Search file contents"
+          placeholder={controls === 'minimal'
+            ? `Search the guide (${MIN_CHARS}+ characters)`
+            : `Search file contents (${MIN_CHARS}+ characters)`}
+          aria-label={controls === 'minimal' ? 'Search the guide' : 'Search file contents'}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') run(q); }}
         />
@@ -193,8 +235,10 @@ export function SearchView({
             <X size={13} />
           </button>
         )}
+        {controls === 'minimal' && caseToggle}
       </div>
 
+      {controls === 'full' && (
       <div className="fx-sr-opts">
         <label className="fx-sr-scope">
           <span className="fx-sr-lbl">in</span>
@@ -214,18 +258,9 @@ export function SearchView({
             onChange={(e) => setGlob(e.target.value)}
           />
         </div>
-        <Tooltip label={caseSensitive ? 'Matching case' : 'Ignoring case'}>
-          <button
-            type="button"
-            className={`fx-sr-toggle ${caseSensitive ? 'on' : ''}`}
-            aria-pressed={caseSensitive}
-            aria-label="Match case"
-            onClick={() => setCaseSensitive((v) => !v)}
-          >
-            <CaseSensitive size={14} />
-          </button>
-        </Tooltip>
+        {caseToggle}
       </div>
+      )}
 
       <div className="fx-sr-status" aria-live="polite">
         {busy ? 'Searching…'

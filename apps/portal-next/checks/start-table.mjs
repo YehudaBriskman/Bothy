@@ -28,6 +28,8 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DOCS_ROOT, DOC_SHELF, frontPageOf, mergeRecent, parseRecents, RECENTS_MAX, titlePathOf } from './start-mod.mjs';
 import { titleOf } from './titles.mjs';
+import { GUIDE_DIR, GUIDE_ROOT } from './files-routes.mjs';
+import { GUIDE_ORDER, guideRank, sortGuide } from './guide-mod.mjs';
 
 // TOLD where the repository is, not inferred from this file's own location.
 // run.sh copies the checks into a temp directory beside the compiled modules, so
@@ -209,4 +211,58 @@ check(
 );
 
 console.log(bad ? `\n${bad} FAILED` : '\nall good');
+
+// ── 4. THE GUIDE'S ORDER AND THE GUIDE'S FOLDER DESCRIBE EACH OTHER ─────────
+//
+// GUIDE_ORDER is the reading order of docs/guide - the fourth copy of a list
+// that already existed in docs/guide/index.md, README.md and each page's
+// `## Next` footer, and the only one a program can check. It has two failure
+// modes and both are silent in the browser:
+//
+//   · a page NAMED here that is not on disk       - a row that opens "No such
+//                                                   file", exactly like §1
+//   · a page ON DISK that is not named here       - it still renders, at the
+//                                                   BOTTOM, alphabetically,
+//                                                   after everything ordered.
+//                                                   Nothing is missing, so
+//                                                   nobody notices it is last.
+//
+// So the check runs in BOTH directions. The second is the one worth having: it
+// is what turns "somebody added a guide page and forgot the manifest" into a
+// red line rather than a page quietly filed at the end.
+console.log('');
+console.log('── the guide, ordered ──────────────────────────────────');
+
+check('GUIDE_ROOT is the root the shelf uses', GUIDE_ROOT, DOCS_ROOT);
+
+const guideDir = join(REPO, GUIDE_DIR);
+if (!existsSync(guideDir)) {
+  check(`${GUIDE_DIR} exists`, false, true);
+} else {
+  const onDisk = readdirSync(guideDir).filter((f) => f.endsWith('.md')).sort();
+  for (const name of GUIDE_ORDER) {
+    check(`GUIDE_ORDER names a file that exists: ${name}`, existsSync(join(guideDir, name)), true);
+  }
+  const missing = onDisk.filter((f) => !GUIDE_ORDER.includes(f));
+  check(`every .md in ${GUIDE_DIR} is in GUIDE_ORDER`, missing, []);
+  check('GUIDE_ORDER has no duplicates', GUIDE_ORDER.length, new Set(GUIDE_ORDER).size);
+  check('the guide opens on its index', GUIDE_ORDER[0], 'index.md');
+}
+
+// An unranked page sorts LAST, not first. `Infinity` is what does that, and the
+// spelling matters: -1 from indexOf would have sorted it to the front, ahead of
+// the index page.
+check('an unlisted page ranks last', guideRank('docs/guide/zzz.md') === Infinity, true);
+check('rank is read from the basename, not the path',
+  guideRank('anything/at/all/installing.md'), GUIDE_ORDER.indexOf('installing.md'));
+// The argument is never sorted in place: the listing handed in is the same array
+// the panel renders from, and reordering a caller's state behind its back is the
+// kind of bug that only shows up as a list that scrambles on re-render.
+const src = [{ p: 'docs/guide/themes.md' }, { p: 'docs/guide/index.md' }];
+const sorted = sortGuide(src, (x) => x.p);
+check('sortGuide puts the index first', sorted.map((x) => x.p),
+  ['docs/guide/index.md', 'docs/guide/themes.md']);
+check('sortGuide does not sort its argument', src.map((x) => x.p),
+  ['docs/guide/themes.md', 'docs/guide/index.md']);
+
 process.exit(bad ? 1 : 0);

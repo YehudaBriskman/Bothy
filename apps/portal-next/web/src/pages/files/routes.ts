@@ -1,14 +1,19 @@
-// ── the two Files URLs, in one place ─────────────────────────────────────────
+// ── the three Files URLs, in one place ───────────────────────────────────────
 //
-// Files is one nav entry and two destinations (docs/plans/reading-first.md §2):
+// Files is one nav entry and three destinations (docs/plans/reading-first.md §2,
+// docs/plans/the-guide-and-the-reader.md §1):
 //
-//   /files        READ  the default. A document, and how to find one.
+//   /files/guide  GUIDE Bothy's own manual. What a bare /files redirects to.
+//   /files        READ  the reader, over any root. Every deep link still lands.
 //   /files/edit   WORK  the IDE, unchanged, at a route.
 //
-// Both carry the SAME `?root=&path=`, which is the whole reason every deep link
-// written before the split still resolves - and the reason this file exists.
-// Three places now build one of those URLs (the reader's Edit button, the
-// editor's way back, and the router itself), and a builder that drops `path` is
+// READ and WORK carry the SAME `?root=&path=`, which is the whole reason every
+// deep link written before the split still resolves - and the reason this file
+// exists. GUIDE carries `?path=` alone, because its root is the route's; that is
+// the one asymmetry here and filesHref says why at the line that makes it.
+// Several places now build one of these URLs (the reader's Edit button, the
+// editor's way back, the guide's way out, and the router itself), and a builder
+// that drops `path` is
 // the same defect the redirect table was written to prevent: a link that answers
 // 200, renders a plausible page, and quietly goes somewhere else. Nobody reports
 // that. So the builder and the parser are ONE module with a truth table over it
@@ -21,18 +26,34 @@
 
 export const READ_PATH = '/files';
 export const EDIT_PATH = '/files/edit';
+export const GUIDE_PATH = '/files/guide';
 
-/** Which of the two the reader is in. */
-export type FilesMode = 'read' | 'edit';
+/** The root Bothy's own repository is mounted as, and the folder its manual
+ *  lives in. They are HERE, in the module that owns Files URLs, because in guide
+ *  mode they ARE the URL: `/files/guide?path=x` carries no `?root=` and no
+ *  `?in=` precisely because both are implied, and a builder that implied one
+ *  value while the page assumed another is the class of defect this module's
+ *  truth table exists to catch.
+ *
+ *  `GUIDE_ROOT` must equal `DOCS_ROOT` in start.ts, which names the same mount
+ *  for the shelf. checks/start-table.mjs asserts that, and asserts that
+ *  GUIDE_ORDER and the folder on disk still describe each other. */
+export const GUIDE_ROOT = 'stacks';
+export const GUIDE_DIR = 'docs/guide';
 
-/** `null` for a path that is not one of ours at all. Note that `/files/edit` has
- *  to be tested BEFORE `/files`, which is why this is a function rather than a
- *  map: `/files` is a prefix of `/files/edit`. */
+/** Which of the three the section is in. */
+export type FilesMode = 'read' | 'edit' | 'guide';
+
+/** `null` for a path that is not one of ours at all. Every comparison is EXACT
+ *  and the two sub-paths are tested first, which is why this is a function
+ *  rather than a prefix match: `/files` is a prefix of both `/files/edit` and
+ *  `/files/guide`, and a prefix match would answer 'read' for all three. */
 export function filesMode(pathname: string): FilesMode | null {
   // A trailing slash is the same page; a pasted link often carries one. Same
   // normalisation as pages/control/redirects.ts, for the same reason.
   const p = pathname.replace(/\/+$/, '') || '/';
   if (p === EDIT_PATH) return 'edit';
+  if (p === GUIDE_PATH) return 'guide';
   if (p === READ_PATH) return 'read';
   return null;
 }
@@ -49,10 +70,16 @@ export function filesMode(pathname: string): FilesMode | null {
  */
 export function filesHref(mode: FilesMode, root: string, path = ''): string {
   const q = new URLSearchParams();
-  if (root) q.set('root', root);
+  // GUIDE MODE CARRIES NO `?root=`. There is one root it can be about and the
+  // route says which; writing it out would invite a `/files/guide?root=notes`
+  // that the page has to ignore, and a URL with a parameter the page ignores is
+  // a URL that lies. `root` is still in the signature so all three modes have
+  // one builder - the alternative was a second function and a caller deciding
+  // which to use, which is how a `path` gets dropped.
+  if (root && mode !== 'guide') q.set('root', root);
   if (path) q.set('path', path);
   const s = q.toString();
-  const base = mode === 'edit' ? EDIT_PATH : READ_PATH;
+  const base = mode === 'edit' ? EDIT_PATH : mode === 'guide' ? GUIDE_PATH : READ_PATH;
   return s ? `${base}?${s}` : base;
 }
 
@@ -67,7 +94,11 @@ export function filesTarget(
   const mode = filesMode(pathname);
   if (!mode) return null;
   const q = new URLSearchParams(search.replace(/^\?/, ''));
-  return { mode, root: q.get('root') ?? '', path: q.get('path') ?? '' };
+  // The guide's root is the route's, not the query's - see filesHref. Reading it
+  // from `?root=` here would let a hand-typed one through and make the two
+  // halves of the same module disagree about what /files/guide is.
+  const root = mode === 'guide' ? GUIDE_ROOT : (q.get('root') ?? '');
+  return { mode, root, path: q.get('path') ?? '' };
 }
 
 /** The minimum a root has to look like to be chosen between. Written out here

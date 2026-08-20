@@ -49,7 +49,11 @@
 .bothy-files.bothy-read .fx-sr-no { display: none; }
 .bothy-files.bothy-read .fx-sr-line { padding-left: 26px; }
 
-.bothy-files .rd-index { padding: 0 0 14px; }
+/* ONE GUTTER FOR THE RAIL (#151). Every row in this panel used to pick its own
+   horizontal padding - 10px here, 12px there, 8px on the document row - and
+   with ellipsised text that put the last legible character of a long title four
+   pixels from a border. One value, and the rows share a left edge. */
+.bothy-files .rd-index { --rd-gut: 12px; padding: 0 0 14px; }
 /* Sticky, because the index lives inside the search view's scrolling result
    area (that is what puts search at the TOP of the panel rather than behind an
    icon) - and without this the All files switch scrolls away after ten rows,
@@ -57,7 +61,7 @@
 .bothy-files .rd-index-h {
   position: sticky; top: 0; z-index: 2;
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 10px 7px; border-bottom: 1px solid var(--line);
+  padding: 6px var(--rd-gut) 7px; border-bottom: 1px solid var(--line);
   background: var(--bg-2);
 }
 .bothy-files .rd-index-title {
@@ -88,7 +92,7 @@
   appearance: none; cursor: pointer; width: 100%; text-align: left;
   display: flex; align-items: center; gap: 6px;
   border: 0; background: transparent; font: inherit; color: var(--fg);
-  padding: 0 10px; height: 28px;
+  padding: 0 var(--rd-gut); height: 28px;
 }
 .bothy-files .rd-root-btn:hover { background: var(--surface-2); }
 .bothy-files .rd-root-name { font-size: 11.5px; font-weight: 700; }
@@ -102,14 +106,33 @@
   .bothy-files .rd-chev { transition: none; }
 }
 
-.bothy-files .rd-folder { padding-bottom: 4px; }
-/* The folder, in mono, small and quiet. It is an ADDRESS - the one piece of
-   filesystem left in a panel of titles - so it is typeset as one rather than as
-   a heading competing with the documents under it. */
-.bothy-files .rd-folder-h {
-  margin: 8px 0 2px; padding: 0 10px;
-  font-size: 10.5px; color: var(--fg-subtle);
+/* ── a folder in the tree (#150) ─────────────────────────────────────────────
+   The flat list's mono `.rd-folder-h` heading is GONE with the list it headed.
+   It was an address, typeset as one, because in a flat list a folder was a
+   label. In a tree it is a CONTROL - the thing you press to see inside - so it
+   is a row like the documents under it, at the same rhythm and the same indent
+   step, and the chevron is what says it opens.
+
+   The indent itself is inline (`paddingLeft` in DocIndex) and not a class per
+   level: the depth is data, and a stylesheet cannot hold an unbounded number of
+   them. `--rd-gut` is its base, so the tree starts on the rail's own left edge
+   like everything else. */
+.bothy-files .rd-dir {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 6px;
+  border: 0; background: transparent; font: inherit; color: var(--fg-muted);
+  padding: 2px var(--rd-gut) 2px 8px; min-height: 24px; min-width: 0;
+}
+.bothy-files .rd-dir:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .rd-dir-ico { flex: none; color: var(--fg-subtle); }
+.bothy-files .rd-dir-name {
+  font-size: 12px; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The count is the one number worth carrying: it is what tells you whether a
+   closed folder is worth opening. Quiet, and last. */
+.bothy-files .rd-dir-n {
+  margin-left: auto; flex: none; font-size: 10px; color: var(--fg-subtle);
 }
 .bothy-files .rd-list { list-style: none; margin: 0; padding: 0; }
 .bothy-files .rd-li { margin: 0; }
@@ -121,7 +144,7 @@
   display: flex; align-items: center; gap: 8px;
   border: 0; border-left: 2px solid transparent; background: transparent;
   font: inherit; color: var(--fg-muted);
-  padding: 3px 10px 3px 8px; min-height: 26px; min-width: 0;
+  padding: 3px var(--rd-gut) 3px 8px; min-height: 26px; min-width: 0;
 }
 .bothy-files .rd-doc:hover { background: var(--surface-2); color: var(--fg); }
 .bothy-files .rd-doc-ico { flex: none; color: var(--fg-subtle); }
@@ -156,6 +179,23 @@
 .bothy-files .rd-more.warn { color: var(--st-warn-fg); }
 .bothy-files .rd-skel { display: grid; gap: 6px; padding: 8px 10px 12px; }
 .bothy-files .rd-skel .skel { height: 16px; }
+
+/* ── the one control that changes mode ───────────────────────────────────────
+   A DESTINATION, not a picker - the same shape as the reader's Edit control.
+   It sits above the search box because it changes what everything below it is
+   about, which is the same argument the "All files" toggle wins on. */
+.bothy-files .rd-mode {
+  flex: none; padding: 8px 12px 6px; border-bottom: 1px solid var(--line);
+}
+.bothy-files .rd-mode-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 600; color: var(--accent-fg);
+  text-decoration: none; border-radius: var(--r-xs); padding: 2px 5px; margin-left: -5px;
+}
+.bothy-files .rd-mode-btn:hover { background: var(--accent-bg); }
+.bothy-files .rd-mode-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.bothy-files .rd-mode-btn svg { flex: none; color: var(--fg-subtle); }
+.bothy-files .rd-mode-btn:hover svg { color: var(--accent-fg); }
 
 /* ── the document ────────────────────────────────────────────────────────── */
 .bothy-files .rd-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
@@ -491,7 +531,7 @@
    common one. */
 .bothy-files .rd-crumbs {
   display: flex; flex-wrap: wrap; align-items: center;
-  gap: 2px; padding: 6px 12px 8px;
+  gap: 2px; padding: 6px var(--rd-gut) 8px;
   font-size: 11.5px; color: var(--fg-subtle);
   border-bottom: 1px solid var(--line);
 }
@@ -503,17 +543,8 @@
 .bothy-files .rd-crumbs b { color: var(--fg); font-weight: 700; padding: 0 2px; }
 .bothy-files .rd-crumb-sep { color: var(--fg-subtle); opacity: .6; }
 
-/* The folder heading became the "cd into this" control. It keeps the exact look
-   it had as a <p> - nothing moved, it just became pressable - and only gains an
-   affordance on hover, because a list of folders that all look like buttons is
-   noisier than the list it replaced. */
-.bothy-files .rd-folder-h {
-  display: block; width: 100%; text-align: left;
-  border: 0; background: none; padding: 0; margin: 0 0 4px;
-  font: inherit; font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--fg-subtle); cursor: pointer; border-radius: var(--r-xs);
-}
-.bothy-files .rd-folder-h:hover:not(:disabled) { color: var(--accent-fg); }
-/* The root's own top level has no folder to descend into. */
-.bothy-files .rd-folder-h:disabled { cursor: default; }
-.bothy-files .rd-folder-h:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+/* The `.rd-folder-h` "cd into this" control is GONE. It existed because the flat
+   list had no other way into a folder; a tree's folder row IS that way in, and
+   two controls meaning "look inside this" one pixel apart is worse than either.
+   Scoping survives - Start's plans card writes `?in=`, and the breadcrumb above
+   is still the way back out. */
