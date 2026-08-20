@@ -18,7 +18,7 @@
 // ~/projects - so a signed-out visitor gets the invitation the rest of the page
 // gives them, not a red box.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ApiError, isAuthError, langFor, looksBinary, openDownload, rawUrl, readFile,
   type FileRead,
@@ -37,7 +37,7 @@ type State =
   | { at: 'error'; why: string };
 
 export function FileView({
-  root, path, view = 'preview', frag = '', onOpen, onLoad, resolveWiki,
+  root, path, view = 'preview', frag = '', onOpen, onLoad, resolveWiki, footer,
 }: {
   root: string;
   path: string;
@@ -61,6 +61,11 @@ export function FileView({
    *  the alternative is the page fetching the file a second time to learn what
    *  this component already knows. */
   onLoad?: (file: FileRead | null) => void;
+  /** The last block of the rendered document - passed straight through to
+   *  FileContent, which is where the reasoning for it is written down. Note
+   *  that it renders only for a rendered markdown document, so a caller must
+   *  not put anything load-bearing in it. */
+  footer?: ReactNode;
 }) {
   const [state, setState] = useState<State>({ at: 'loading' });
   const [tick, setTick] = useState(0);
@@ -179,6 +184,7 @@ export function FileView({
         // back to labels itself.
         onFallback={() => {}}
         links={onOpen ? { dir, open: onOpen, resolveWiki, src: (p) => rawUrl(root, p) } : undefined}
+        footer={footer}
       />
     </div>
   );

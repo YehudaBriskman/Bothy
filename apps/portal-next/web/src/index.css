@@ -170,7 +170,26 @@
 
      72ch is prose, not a terminal. The measure rule changes reading speed more
      than the typeface does. */
-  --read-measure: 72ch;
+  /* ONE width, and it STRETCHES. Every top-level block in a rendered document
+     gets this and nothing gets an exception - prose, tables, code fences,
+     figures, callouts, backlinks.
+
+     It was 72ch, with tables, code and figures let out to `max-width: 100%`.
+     Two widths, and on a 1440px screen that was prose at ~660px next to a table
+     at ~1100px: a block 1.7x the width of the paragraph above it reads as a
+     different document, and the page changed width every few blocks.
+
+     The fix that did NOT work was capping the column - putting a `max-width` on
+     `.fx-read`. `.fx-read` is the element with `overflow: auto`, so capping it
+     moves the SCROLLBAR off the edge of the pane and into the middle of the
+     page. A scroll container is the wrong thing to size.
+
+     So the one width is the one the pane already gives, and the blocks fill it.
+     Long lines on a very wide screen are the cost, and it is paid knowingly:
+     the alternative on this surface was two widths that did not agree.
+
+     Still a token, so a theme that wants a measure back sets one value. */
+  --read-measure: 100%;
   /* 16px, not 14.5px. The measure was already right - 72ch, verified rendering
      at exactly 72 characters - but the body was set at the app's UI size, and a
      document is not a dashboard. 14.5px is a good size for a control that sits

@@ -577,22 +577,26 @@
    for a control that no longer exists. */
 
 /* ── read view (markdown) ────────────────────────────────────────────────── */
+/* NO `max-width` HERE, ever. This is the element with `overflow: auto`, so a
+   max-width on it puts the SCROLLBAR wherever the cap lands - in the middle of
+   the page rather than at the edge of the pane. Sizing a scroll container is
+   how you move a scrollbar; it is not how you size a document. The blocks are
+   sized instead, one rule below. */
 .bothy-files .fx-read { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 24px 28px 44px; }
 .bothy-files .fx-read:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-/* The measure comes from --read-measure (index.css, where the reasoning is).
-   Full-bleed for the two things that are not prose. */
+/* ONE width for every block, from --read-measure (index.css, where the
+   reasoning is), which is now a stretch. There is deliberately no exception
+   under this line: a rule that lets one kind of block out is the thing that
+   made a table 1.7x the width of the paragraph above it. */
 .bothy-files .fx-read > * { max-width: var(--read-measure); }
-.bothy-files .fx-read > .md-tbl-wrap,
-.bothy-files .fx-read > .md-pre { max-width: 100%; }
-/* A FIGURE IS NOT PROSE EITHER, and it is the third thing that has to be let out
-   of the measure. `![x](y)` on its own line lands inside a .md-p - it is parsed
-   as inline content, so there is no element of its own to target, hence `:has`
-   (already used in explorer.css and shell.css, so no new browser assumption).
-
-   Measured on docs/ARCHITECTURE.md's generated diagrams: capped at 72ch they
-   render at ~0.7 scale, which puts their 15px labels at about 10px. A diagram
-   nobody can read is the failure this whole change set exists to fix. */
-.bothy-files .fx-read > .md-p:has(> .md-img) { max-width: 100%; }
+/* The `:has(> .md-img)` escape that used to be here is GONE, and its argument
+   went with the measure rather than being overruled: it existed so a figure
+   could break out of 72ch, because a diagram capped at 72ch rendered its 15px
+   labels at about 10px (#103). With one stretching width there is nothing left
+   to break out of - a figure gets the same full width every other block gets,
+   which is more than the escape ever gave it. `.md-img` keeps its own
+   `max-width: 100%`, which is what stops a 1280px screenshot widening the
+   column it sits in. */
 
 .bothy-files .md { color: var(--fg-muted); font-size: var(--read-fs); line-height: var(--read-lh); }
 .bothy-files .md .md-h { color: var(--fg); letter-spacing: -0.015em; line-height: 1.25; margin: 26px 0 10px; font-weight: 700; }
@@ -633,7 +637,7 @@
 }
 /* A CLIP CARRIES .md-img AS WELL AS .md-video and therefore needs no rules of
    its own: it wants exactly the same box as a picture - block flow, the frame,
-   `max-width: 100%`, and the `:has(> .md-img)` escape from the measure above.
+   `max-width: 100%`, and the one stretching width every block above gets.
    The second class is a hook for the day one of those stops being true. */
 /* Audio has no picture, so none of .md-img's framing applies: this is a strip of
    transport controls, which the browser draws itself. It only needs to be a

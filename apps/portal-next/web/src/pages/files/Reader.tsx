@@ -32,6 +32,7 @@ import {
   type FileRead, type FileRoot,
 } from '../../lib/files';
 import { ErrState } from '../../components/states';
+import { Tooltip } from '../../components/Tooltip';
 import { useMe } from '../../components/UserMenu';
 import { hasRole } from '../../lib/me';
 import { DocIndex, type RootTree } from './DocIndex';
@@ -425,10 +426,29 @@ export function Reader() {
                       </button>
                       /{dirName(path)}<b>{baseName(path)}</b>
                     </p>
+                    {/* A GLYPH, not a word. Editor.tsx:704 states the rule
+                        where it is enforced - "chrome that spells itself out in
+                        words is chrome that keeps taking width from the file" -
+                        and the editor's own Edit control, one click away, is
+                        this exact button with this exact icon. Two treatments
+                        for one action was the only thing between them.
+
+                        Still a <Link>, and `.fx-hbtn` is a class rather than an
+                        element rule so it dresses an anchor unchanged. The
+                        destination, the role gate and the `writable` check are
+                        untouched; `aria-label` keeps the control named for
+                        anyone not reading pixels, which the word did
+                        implicitly. */}
                     {mayEdit && (
-                      <Link className="btn sm rd-edit" to={filesHref('edit', root, path)}>
-                        <Pencil size={13} aria-hidden="true" /> Edit
-                      </Link>
+                      <Tooltip label="Edit this file" align="end">
+                        <Link
+                          className="fx-hbtn rd-edit"
+                          to={filesHref('edit', root, path)}
+                          aria-label="Edit this file"
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                        </Link>
+                      </Tooltip>
                     )}
                   </div>
                   {/* One provenance line, not the inspector's eleven facts. The
@@ -473,14 +493,24 @@ export function Reader() {
                       (trees[root]?.entries ?? []).map((e) => e.path), t,
                     )}
                     onLoad={onFileLoad}
-                  />
-                  {/* AFTER the document, never beside it. Backlinks are context
-                      you want once you have read the thing, and a sidebar of
-                      them competes with the outline for the same glance. */}
-                  <Backlinks
-                    index={graph[root] ?? null}
-                    path={path}
-                    onOpen={(p) => openDoc(root, p, undefined)}
+                    // AFTER the document, never beside it. Backlinks are context
+                    // you want once you have read the thing, and a sidebar of
+                    // them competes with the outline for the same glance.
+                    //
+                    // A PROP AND NOT A SIBLING, which is the whole of #153: as a
+                    // sibling it landed below `.fx-read`, and `.fx-read` is the
+                    // element that scrolls - so the panel was docked to the
+                    // bottom of the pane, in view at every scroll position, on
+                    // every document. "After the document" and "below the
+                    // document" are different places and the difference is
+                    // invisible until you scroll.
+                    footer={(
+                      <Backlinks
+                        index={graph[root] ?? null}
+                        path={path}
+                        onOpen={(p) => openDoc(root, p, undefined)}
+                      />
+                    )}
                   />
                 </div>
               </>
