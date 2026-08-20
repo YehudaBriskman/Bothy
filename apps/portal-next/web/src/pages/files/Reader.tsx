@@ -43,6 +43,8 @@ import { Start } from './Start';
 import { Toc, useHeadings } from './Toc';
 import { frontPageOf, noteRecent, readRecents, type Recent } from './start';
 import { GUIDE_DIR, GUIDE_ROOT, defaultRoot, filesHref, type FilesMode } from './routes';
+import { readingVars, useReading } from './reading';
+import { ScopePicker } from './ScopePicker';
 import { baseName, dirName, resolveWikiIn } from './tree';
 import { fetchLinks, type LinkIndex } from '../../lib/files';
 
@@ -86,6 +88,10 @@ export function Reader({ mode = 'read' }: {
   // of a folder the way it stepped in.
   const scope = guide ? GUIDE_DIR : (params.get('in') || '').replace(/^\/+|\/+$/g, '');
   const { me } = useMe();
+  // The two font sizes, per browser (#156). On THIS element and not on :root -
+  // see readingVars. Read-only here: the controls that change it live in
+  // Settings, beside the rest of what this browser remembers.
+  const [reading] = useReading();
 
   const [roots, setRoots] = useState<FileRoot[]>([]);
   const [needsAuth, setNeedsAuth] = useState(false);
@@ -443,7 +449,7 @@ export function Reader({ mode = 'read' }: {
   );
 
   return (
-    <div className="bothy-files bothy-read" data-pane={pane}>
+    <div className="bothy-files bothy-read" data-pane={pane} style={readingVars(reading)}>
       {needsAuth ? (
         <div className="fx-gate"><SignInCard what="read the box" onRetry={() => setTick((t) => t + 1)} /></div>
       ) : rootsErr ? (
@@ -474,9 +480,35 @@ export function Reader({ mode = 'read' }: {
                   <FolderTree size={13} aria-hidden="true" /> Browse all files
                 </Link>
               ) : (
-                <Link className="rd-mode-btn" to={filesHref('guide', '')}>
-                  <BookOpen size={13} aria-hidden="true" /> The Bothy guide
-                </Link>
+                <>
+                  <Link className="rd-mode-btn" to={filesHref('guide', '')}>
+                    <BookOpen size={13} aria-hidden="true" /> The Bothy guide
+                  </Link>
+                  {/* WHERE YOU ARE LOOKING (#152). Browse mode only - the guide
+                      is one folder of one root by design, and a scope picker on
+                      it would be the root selector this mode exists to not
+                      have. Fed the open root's listing for completions, which is
+                      the array the tree beside it is already built from: no
+                      request, no endpoint, no index. */}
+                  <ScopePicker
+                    roots={roots}
+                    root={root}
+                    scope={scope}
+                    entries={(scope ? trees[`${root}\u0000${scope}`] : trees[root])?.entries ?? []}
+                    onGo={(r, dir) => {
+                      const next = new URLSearchParams();
+                      next.set('root', r);
+                      if (dir) next.set('in', dir);
+                      // The open document is kept when it is still in the root
+                      // you are scoping - narrowing the index is a change to
+                      // what you are BROWSING, not to what you are reading.
+                      if (path && r === root) next.set('path', path);
+                      setParams(next);
+                      setOpenRoots((prev) => (prev.has(r) ? prev : new Set(prev).add(r)));
+                      setPane('index');
+                    }}
+                  />
+                </>
               )}
             </div>
             <SearchView

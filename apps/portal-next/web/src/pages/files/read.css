@@ -65,7 +65,7 @@
   background: var(--bg-2);
 }
 .bothy-files .rd-index-title {
-  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  font-size: calc(var(--rd-ui-fs) * 0.88); font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   color: var(--fg-subtle);
 }
 /* The toggle that changes what the list CLAIMS to be. Left visible rather than
@@ -73,7 +73,7 @@
    reader has to be able to see which one they are looking at. */
 .bothy-files .rd-all {
   margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; color: var(--fg-muted); cursor: pointer; user-select: none;
+  font-size: calc(var(--rd-ui-fs) * 0.88); color: var(--fg-muted); cursor: pointer; user-select: none;
 }
 .bothy-files .rd-all input { margin: 0; accent-color: var(--accent); }
 .bothy-files .rd-all svg { color: var(--fg-subtle); }
@@ -95,10 +95,10 @@
   padding: 0 var(--rd-gut); height: 28px;
 }
 .bothy-files .rd-root-btn:hover { background: var(--surface-2); }
-.bothy-files .rd-root-name { font-size: 11.5px; font-weight: 700; }
+.bothy-files .rd-root-name { font-size: calc(var(--rd-ui-fs) * 0.92); font-weight: 700; }
 .bothy-files .rd-root-ro { color: var(--st-off-fg); }
 .bothy-files .rd-root-n {
-  margin-left: auto; font-size: 10px; font-family: var(--mono); color: var(--fg-subtle);
+  margin-left: auto; font-size: calc(var(--rd-ui-fs) * 0.8); font-family: var(--mono); color: var(--fg-subtle);
 }
 .bothy-files .rd-chev { flex: none; color: var(--fg-subtle); transition: transform .12s ease; }
 .bothy-files .rd-chev.open { transform: rotate(90deg); }
@@ -126,13 +126,13 @@
 .bothy-files .rd-dir:hover { background: var(--surface-2); color: var(--fg); }
 .bothy-files .rd-dir-ico { flex: none; color: var(--fg-subtle); }
 .bothy-files .rd-dir-name {
-  font-size: 12px; min-width: 0;
+  font-size: calc(var(--rd-ui-fs) * 0.96); min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The count is the one number worth carrying: it is what tells you whether a
    closed folder is worth opening. Quiet, and last. */
 .bothy-files .rd-dir-n {
-  margin-left: auto; flex: none; font-size: 10px; color: var(--fg-subtle);
+  margin-left: auto; flex: none; font-size: calc(var(--rd-ui-fs) * 0.8); color: var(--fg-subtle);
 }
 .bothy-files .rd-list { list-style: none; margin: 0; padding: 0; }
 .bothy-files .rd-li { margin: 0; }
@@ -150,13 +150,13 @@
 .bothy-files .rd-doc-ico { flex: none; color: var(--fg-subtle); }
 .bothy-files .rd-doc-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .bothy-files .rd-doc-title {
-  font-size: 12.5px; line-height: 1.25;
+  font-size: var(--rd-ui-fs); line-height: 1.25;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The filename under the title, for anyone who arrived knowing the path. Only
    rendered when it differs from the title, so most rows are one line. */
 .bothy-files .rd-doc-name {
-  font-family: var(--mono); font-size: 10px; color: var(--fg-subtle);
+  font-family: var(--mono); font-size: calc(var(--rd-ui-fs) * 0.8); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The open document. A left BAR and a background, never colour alone -
@@ -186,16 +186,82 @@
    about, which is the same argument the "All files" toggle wins on. */
 .bothy-files .rd-mode {
   flex: none; padding: 8px 12px 6px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .bothy-files .rd-mode-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11.5px; font-weight: 600; color: var(--accent-fg);
+  font-size: calc(var(--rd-ui-fs) * 0.92); font-weight: 600; color: var(--accent-fg);
   text-decoration: none; border-radius: var(--r-xs); padding: 2px 5px; margin-left: -5px;
 }
 .bothy-files .rd-mode-btn:hover { background: var(--accent-bg); }
 .bothy-files .rd-mode-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .bothy-files .rd-mode-btn svg { flex: none; color: var(--fg-subtle); }
 .bothy-files .rd-mode-btn:hover svg { color: var(--accent-fg); }
+
+/* ── where you are looking (#152) ────────────────────────────────────────────
+   A chip that reads the current location and opens a popover. It sits in the
+   header because that is where "what is this panel about" belongs - the roots
+   used to be section headings interleaved with their own contents, so choosing
+   one meant scrolling past the last one's files. */
+.bothy-files .rd-scope { position: relative; margin-left: auto; }
+.bothy-files .rd-scope-btn {
+  appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  max-width: 190px; padding: 2px 5px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--fg-muted);
+  font: inherit; font-size: calc(var(--rd-ui-fs) * 0.84);
+}
+.bothy-files .rd-scope-btn:hover { border-color: var(--line-strong); color: var(--fg); }
+.bothy-files .rd-scope-btn[aria-expanded='true'] {
+  border-color: var(--accent); color: var(--fg); background: var(--accent-bg);
+}
+.bothy-files .rd-scope-btn svg { flex: none; color: var(--fg-subtle); }
+/* Truncated at the FRONT, so `docs/brand/foundations` keeps the segment that
+   distinguishes it - the same reason tailPath() exists for the search hits.
+   `direction: rtl` with the text isolated is the CSS-only way to move an
+   ellipsis to the left edge; `bdi` would need a wrapper element for one line. */
+.bothy-files .rd-scope-lbl {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  direction: rtl; text-align: left;
+}
+.bothy-files .rd-scope-chev { margin-left: auto; }
+
+.bothy-files .rd-scope-pop {
+  position: absolute; top: calc(100% + 5px); right: 0; z-index: 30;
+  width: 274px; max-height: 60vh; overflow: auto;
+  padding: 9px 10px 10px;
+  background: var(--surface-1); border: 1px solid var(--line-strong);
+  border-radius: var(--r-md); box-shadow: var(--shadow-md);
+}
+.bothy-files .rd-scope-h {
+  margin: 0 0 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.bothy-files .rd-scope-pop .fx-roots { margin: 0 0 12px; }
+.bothy-files .rd-scope-path { margin: 0; }
+.bothy-files .rd-scope-path input { font-family: var(--mono); font-size: 11.5px; }
+.bothy-files .rd-scope-go {
+  appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
+  width: 20px; height: 20px; border: 0; border-radius: var(--r-xs);
+  background: transparent; color: var(--fg-subtle);
+}
+.bothy-files .rd-scope-go:hover { color: var(--accent-fg); background: var(--surface-3); }
+
+.bothy-files .rd-scope-hints { list-style: none; margin: 8px 0 0; padding: 0; }
+.bothy-files .rd-scope-hints li { margin: 0; }
+.bothy-files .rd-scope-hints button {
+  appearance: none; cursor: pointer; width: 100%; text-align: left;
+  border: 0; background: transparent; border-radius: var(--r-xs);
+  font: inherit; font-family: var(--mono); font-size: 11px; color: var(--fg-muted);
+  padding: 3px 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bothy-files .rd-scope-hints button:hover { background: var(--surface-2); color: var(--fg); }
+.bothy-files .rd-scope-none {
+  margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--fg-subtle);
+}
+.bothy-files .rd-scope-all { margin-top: 10px; width: 100%; }
 
 /* ── the document ────────────────────────────────────────────────────────── */
 .bothy-files .rd-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
@@ -367,6 +433,19 @@
 .bothy-files .rd-crumb-root:hover { color: var(--accent-fg); }
 .bothy-files .rd-crumb-root:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
+/* ── the panels' own scale ───────────────────────────────────────────────────
+   Every font-size in this file above and below is a RATIO of --rd-ui-fs
+   (index.css), not a literal. That is what makes the size settable at all: it
+   was thirty separate numbers, so "make the index bigger" had thirty edits and
+   no single thing to change. The ratios are the sizes that were there, divided
+   by 12.5 - the base is the document ROW, because every other panel rule was
+   already below it and a base picked from the smallest would need ratios above
+   one to say "this one is bigger".
+
+   The reader's root element carries the value (readingVars in reading.ts), NOT
+   `:root` - a document scale written globally would resize the Settings page
+   that changes it. */
+
 /* ── the outline ─────────────────────────────────────────────────────────── */
 .bothy-files .rd-toc {
   min-width: 0; min-height: 0; overflow: auto;
@@ -374,7 +453,7 @@
 }
 .bothy-files .rd-toc-h {
   margin: 0 0 8px 10px;
-  font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  font-size: calc(var(--rd-ui-fs) * 0.84); font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
   color: var(--fg-subtle);
 }
 .bothy-files .rd-toc-list { list-style: none; margin: 0; padding: 0; }
@@ -382,7 +461,7 @@
 .bothy-files .rd-toc-a {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
   border: 0; border-left: 2px solid var(--line); background: transparent;
-  font: inherit; font-size: 11.5px; line-height: 1.35; color: var(--fg-subtle);
+  font: inherit; font-size: calc(var(--rd-ui-fs) * 0.92); line-height: 1.35; color: var(--fg-subtle);
   padding: 4px 6px 4px 10px;
   display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -532,12 +611,12 @@
 .bothy-files .rd-crumbs {
   display: flex; flex-wrap: wrap; align-items: center;
   gap: 2px; padding: 6px var(--rd-gut) 8px;
-  font-size: 11.5px; color: var(--fg-subtle);
+  font-size: calc(var(--rd-ui-fs) * 0.92); color: var(--fg-subtle);
   border-bottom: 1px solid var(--line);
 }
 .bothy-files .rd-crumbs button {
   padding: 1px 4px; border: 0; background: none; border-radius: var(--r-xs);
-  font: inherit; font-size: 11.5px; color: var(--accent-fg); cursor: pointer;
+  font: inherit; font-size: calc(var(--rd-ui-fs) * 0.92); color: var(--accent-fg); cursor: pointer;
 }
 .bothy-files .rd-crumbs button:hover { background: var(--accent-bg); }
 .bothy-files .rd-crumbs b { color: var(--fg); font-weight: 700; padding: 0 2px; }

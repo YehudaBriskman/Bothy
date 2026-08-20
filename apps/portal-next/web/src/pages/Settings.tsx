@@ -48,7 +48,7 @@
 // to a new theme end at the same .css file in the same directory, which is the
 // fact the two of them together are there to say.
 
-import { Ban, Circle, CircleCheck, Code2, LogIn, Pencil, Plus } from 'lucide-react';
+import { Ban, Circle, CircleCheck, Code2, LogIn, Minus, Pencil, Plus } from 'lucide-react';
 import { ROLES, ROLE_MEANING, signInHref, type Me, type Role } from '../lib/me';
 import { useMe } from '../components/UserMenu';
 import { useTheme } from '../lib/theme';
@@ -57,6 +57,9 @@ import { ThemeSwatch } from '../components/ThemeSwatch';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '../components/states';
 import './Settings.css';
+import {
+  READING_DEFAULT, READING_LIMITS, READING_STEP, useReading, type Reading,
+} from './files/reading';
 
 export function Settings() {
   const { me, loading } = useMe();
@@ -113,6 +116,7 @@ export function Settings() {
       >
         <Theme />
         <MakeATheme />
+        <Reading />
       </Group>
 
       <Group
@@ -150,6 +154,97 @@ function Group({ id, title, lede, children }: {
         <p className="set-group-lede">{lede}</p>
       </header>
       {children}
+    </section>
+  );
+}
+
+/**
+ * How big a document is, and how big the panels around it are (#156).
+ *
+ * TWO numbers, because they answer different questions. Raising the document
+ * widens the reading column (`--read-measure` is `100%`, but the type inside it
+ * grows) and does nothing to the rails; raising the panels makes the index and
+ * the outline legible without reflowing a word of prose. One control would tie
+ * them together and neither would land where anyone wanted it.
+ *
+ * IT IS HERE FOR THE SAME REASON THE THEME IS, and it is the same kind of thing:
+ * one key in localStorage in this browser, no server, no write path, no audit
+ * trail. The read-only rule this page states is about a SERVER-side preference
+ * store, which is still #157's open question - not about the browser remembering
+ * how big you like your type. The Stores table below says out loud that it does
+ * not follow you to another device.
+ *
+ * The sample is not decoration. These are two numbers with no unit anybody
+ * thinks in, and "12.5px" means nothing until you have seen a row at it - so the
+ * control shows the thing it changes, at the size it will be.
+ */
+function Reading() {
+  const [reading, setReading] = useReading();
+  const rows: { key: keyof Reading; label: string; hint: string }[] = [
+    { key: 'doc', label: 'Document text', hint: 'The rendered page in Files - prose, tables and code.' },
+    { key: 'ui', label: 'Panel text', hint: 'The document index on the left and the outline on the right.' },
+  ];
+
+  return (
+    <section className="panel">
+      <h3>Reading size</h3>
+      <p className="set-lede">
+        The type in Files. A document is not a dashboard, and the size that suits a
+        14-inch laptop is not the one that suits a 27-inch monitor - so this is a
+        setting rather than a number somebody picked once.
+      </p>
+      <div className="set-reading">
+        {rows.map(({ key, label, hint }) => {
+          const v = reading[key];
+          const { min, max } = READING_LIMITS[key];
+          const step = READING_STEP[key];
+          return (
+            <div className="set-read-row" key={key}>
+              <div className="set-read-lbl">
+                <span className="set-read-name">{label}</span>
+                <span className="set-read-hint">{hint}</span>
+              </div>
+              <div className="set-read-ctl" role="group" aria-label={label}>
+                <button
+                  type="button"
+                  className="icon-btn set-read-btn"
+                  onClick={() => setReading({ [key]: v - step })}
+                  disabled={v <= min}
+                  aria-label={`Smaller ${label.toLowerCase()}`}
+                >
+                  <Minus size={14} />
+                </button>
+                {/* `aria-live` so a screen reader hears the new size, which is
+                    the only feedback a non-visual user gets from a control whose
+                    whole effect is visual. */}
+                <span className="set-read-v tnum" aria-live="polite">{v}px</span>
+                <button
+                  type="button"
+                  className="icon-btn set-read-btn"
+                  onClick={() => setReading({ [key]: v + step })}
+                  disabled={v >= max}
+                  aria-label={`Larger ${label.toLowerCase()}`}
+                >
+                  <Plus size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost sm"
+                  onClick={() => setReading({ [key]: READING_DEFAULT[key] })}
+                  disabled={v === READING_DEFAULT[key]}
+                >
+                  Reset
+                </button>
+              </div>
+              <p className="set-read-sample" style={{ fontSize: `${v}px` }}>
+                {key === 'doc'
+                  ? 'The quick brown fox jumps over the lazy dog.'
+                  : 'Tailnet troubleshooting'}
+              </p>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -471,6 +566,18 @@ const STORES = [
     why: 'Per browser is the right home for these, not a limitation. A pane width is a fact about the '
       + 'screen you are sitting at; carrying it to a phone would be the bug. They are changed where '
       + 'they are used - the theme button in the topbar, the panes themselves - rather than here.',
+  },
+  {
+    what: 'How big the type in Files is - the document, and the panels beside it',
+    where: 'This browser',
+    store: 'localStorage',
+    elsewhere: 'Not there. Another browser, another device or a cleared profile reads at the default '
+      + 'sizes, which are the ones this box shipped with.',
+    why: 'The right size for a page of prose depends on the screen you are sitting at, not on who you '
+      + 'are - a 14-inch laptop and a 27-inch monitor want different numbers from the same person. '
+      + 'That is the same test the theme and the pane widths pass, so it is kept in the same place '
+      + 'and admitted to in the same sentence. If a per-user store is ever built, this is one of the '
+      + 'first things that would move into it.',
   },
   {
     what: 'Which service groups you have collapsed',
