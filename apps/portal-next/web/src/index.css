@@ -197,6 +197,15 @@
      The measure is in `ch`, so raising the size keeps the line at 72 characters
      and simply makes the column physically wider - which is the point. */
   --read-fs: 16px;
+  /* The PANELS beside the document - index rows, outline entries, breadcrumbs.
+     They were ~30 literal values in read.css set at the app's CONTROL size, on a
+     surface whose whole argument is that a document is not a dashboard, and
+     every one of them is now a ratio of this.
+     Two tokens rather than one because they answer different questions: raising
+     --read-fs widens the column (the measure is in `ch`) and does nothing to the
+     rails; raising this makes the index legible without reflowing a word of
+     prose. Both are settable per browser - see pages/files/reading.ts. */
+  --rd-ui-fs: 12.5px;
   --read-lh: 1.65;
   --read-gap: 15px;      /* between blocks, tracks --read-fs */
   --read-h1: 27px;
