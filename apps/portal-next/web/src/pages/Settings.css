@@ -238,3 +238,48 @@
    inside either: it is a fact about the directory, and putting it in the "write
    the file" card would have implied the editor's output does not land there. */
 .settings-page .make-count { margin-top: 11px; }
+
+/* ── reading size (#156) ─────────────────────────────────────────────────────
+   Two rows, each: what it is, the control, and a SAMPLE at the size the control
+   is currently set to. The sample is not decoration - "12.5px" is a number
+   nobody thinks in, and the only honest way to show what a size does is to
+   render something at it. */
+.set-reading { display: grid; gap: 18px; margin-top: 14px; }
+.set-read-row {
+  display: grid; gap: 8px 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.set-read-lbl { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-read-name { font-size: 13px; font-weight: 600; color: var(--fg); }
+.set-read-hint { font-size: 12px; line-height: 1.45; color: var(--fg-subtle); }
+.set-read-ctl { display: flex; align-items: center; gap: 4px; }
+/* A box rather than a bare glyph: these two sit next to a Reset that has one,
+   and three controls in a row with only one border reads as two of them being
+   decoration. */
+.set-read-btn {
+  width: 26px; height: 26px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--fg-muted);
+}
+.set-read-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--fg); }
+.set-read-btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
+/* Fixed width, tabular figures. Without both, the row shifts sideways every time
+   the number gains a digit or a decimal - which is on every other press. */
+.set-read-v {
+  min-width: 52px; text-align: center;
+  font-size: 12.5px; font-weight: 600; color: var(--fg);
+}
+/* Full width, under both columns, so the sample has room to be a sentence at
+   24px rather than four words and an ellipsis. */
+.set-read-sample {
+  grid-column: 1 / -1; margin: 0;
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface-1); color: var(--fg-muted); line-height: 1.5;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  /* The control drops under the label rather than squeezing it: at this width
+     the label is the half that has to stay readable. */
+  .set-read-row { grid-template-columns: minmax(0, 1fr); }
+}

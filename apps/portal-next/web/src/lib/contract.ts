@@ -148,6 +148,10 @@ export const STRUCTURAL = new Set([
   // them, so "required" was never the right answer.
   '--read-measure', '--read-fs', '--read-lh', '--read-gap',
   '--read-h1', '--read-h2', '--read-h3', '--read-h4',
+  // The panels beside the document. Same family, same argument: it is a LENGTH,
+  // a colour rule cannot measure it and the theme editor cannot offer a swatch
+  // for it, so demanding it of every theme was never the right answer.
+  '--rd-ui-fs',
 ]);
 
 /** What a theme owes, derived from the base palette rather than listed: every
