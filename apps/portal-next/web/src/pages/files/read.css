@@ -15,9 +15,10 @@
    argues for in the IDE and for the same reason - a fixed centre plus a
    remainder rail is a reconciliation bug waiting for a resize.
 
-   The document is NOT stretched to the column: `.fx-read > *` is already capped
-   at 72ch (editor.css), which is the measure this whole page exists to give
-   back. The extra width becomes margin, which is what a wide screen is for. */
+   The document STRETCHES to the column - one width for every block in it, from
+   --read-measure (editor.css applies it, index.css argues for it). It used to
+   be capped at 72ch with tables and code let out to `100%`, which is how the
+   same page came to have two widths that did not agree. */
 .bothy-files.bothy-read .rd-grid {
   flex: 1; min-height: 0;
   display: grid;

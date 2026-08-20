@@ -146,7 +146,7 @@ export const STRUCTURAL = new Set([
   // asking (see checks/theme-contract.mjs). They are lengths and a ratio: a
   // colour rule cannot measure them and the editor cannot offer a swatch for
   // them, so "required" was never the right answer.
-  '--read-measure', '--read-wide', '--read-fs', '--read-lh', '--read-gap',
+  '--read-measure', '--read-fs', '--read-lh', '--read-gap',
   '--read-h1', '--read-h2', '--read-h3', '--read-h4',
 ]);
 
