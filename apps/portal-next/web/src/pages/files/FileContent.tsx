@@ -186,6 +186,7 @@ export function Source({ src, lang }: { src: string; lang: string }) {
 
 export function FileContent({
   root, path, content, size, lang, kind, view, source, onDownload, canDownload, onFallback, links,
+  footer,
 }: {
   /** The root key, for the sandbox-origin URL. Building a string is not I/O. */
   root: string;
@@ -215,6 +216,21 @@ export function FileContent({
    *  go. Absent means the reader has no navigation to offer, and those links
    *  keep rendering as inert text - see md.tsx. */
   links?: MdLinks;
+  /** Rendered as the last block INSIDE the rendered document, after the markdown.
+   *
+   *  It exists because "after the document" and "below the document" are not the
+   *  same place and the difference is invisible until you scroll. `.fx-read` is
+   *  the element with `overflow: auto`, so anything rendered as a SIBLING of it
+   *  is laid out below the scroll container - permanently in view, docked to the
+   *  bottom of the pane, taking height from every page. That is where the
+   *  reader's backlinks panel was, and its own comment said it meant to be
+   *  "AFTER the document". A prop is the smaller fix than moving the scroller,
+   *  and it keeps Toc's `scrollerOf()` walk resolving to the same element.
+   *
+   *  Only the RENDERED MARKDOWN branch takes one, and that is honest rather than
+   *  an omission: an image, a PDF and a download card are not documents, they
+   *  have no end to be after, and there is no `.fx-read` to be inside. */
+  footer?: ReactNode;
 }) {
   if (kind === 'image') {
     return <RawPreview src={rawUrl(root, path)} name={baseName(path)} onFallback={onFallback} />;
@@ -240,6 +256,7 @@ export function FileContent({
         aria-label={`${baseName(path)} - rendered`}
       >
         {renderMd(content, 'b', links)}
+        {footer}
       </article>
     );
   }

@@ -172,7 +172,12 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .rd-crumb b { color: var(--fg); font-weight: 700; }
-.bothy-files .rd-edit { flex: none; text-decoration: none; gap: 6px; }
+/* Edit is a `.fx-hbtn` now (#154), which already brings the box, the hover and
+   the 24px square. All an anchor wearing it needs from here is the underline
+   removed - and its Tooltip wrapper needs `flex: none`, or a long crumb shrinks
+   the button instead of ellipsising itself. */
+.bothy-files .rd-edit { text-decoration: none; }
+.bothy-files .rd-head-row > .tip-wrap { flex: none; }
 
 .bothy-files .rd-prov {
   display: flex; align-items: baseline; gap: 7px; margin: 7px 0 0;
@@ -442,8 +447,13 @@
    Under the document, separated by a rule rather than boxed: it is a footnote
    to the page, not a second panel competing with it. Renders nothing at all
    when a document has no inbound links - see the component. */
+/* NO max-width of its own. It is rendered INSIDE `.fx-read` now (#153 - as a
+   sibling it sat below the scroll container and was docked to the bottom of the
+   pane), so `.fx-read > * { max-width: var(--read-measure) }` already gives it
+   the document's measure. Restating it here would be a second copy of a number
+   that has to agree, which is how the reading widths drifted in the first
+   place. */
 .bothy-files .rd-backlinks {
-  max-width: var(--read-measure);
   margin: 34px 0 8px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
