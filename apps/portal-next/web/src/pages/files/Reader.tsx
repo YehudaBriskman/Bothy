@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, GitCommitHorizontal, Pencil } from 'lucide-react';
+import { BookOpen, ChevronLeft, FolderTree, GitCommitHorizontal, Pencil } from 'lucide-react';
 import {
   isAuthError, listRoots, listTree, relDate,
   type FileRead, type FileRoot,
@@ -35,14 +35,14 @@ import { ErrState } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
 import { useMe } from '../../components/UserMenu';
 import { hasRole } from '../../lib/me';
-import { DocIndex, type RootTree } from './DocIndex';
+import { DocIndex, openTo, type RootTree } from './DocIndex';
 import { FileView } from './FileView';
 import { SearchView } from './Search';
 import { SignInCard } from './SignInCard';
 import { Start } from './Start';
 import { Toc, useHeadings } from './Toc';
 import { frontPageOf, noteRecent, readRecents, type Recent } from './start';
-import { defaultRoot, filesHref } from './routes';
+import { GUIDE_DIR, GUIDE_ROOT, defaultRoot, filesHref, type FilesMode } from './routes';
 import { baseName, dirName, resolveWikiIn } from './tree';
 import { fetchLinks, type LinkIndex } from '../../lib/files';
 
@@ -63,14 +63,28 @@ import './read.css';
 
 const LOADING: RootTree = { entries: [], truncated: false, loading: true, err: null };
 
-export function Reader() {
+export function Reader({ mode = 'read' }: {
+  /** Which of the section's two reading destinations this is (routes.ts).
+   *
+   *  'guide' is Bothy's own manual: one root, one folder, and no control that
+   *  offers to leave either. It is a MODE and not a second page - same Reader,
+   *  same FileView, same renderer, same outline. What changes is what the side
+   *  panel is pointed at, which is the whole of docs/plans/the-guide-and-the-
+   *  reader.md §1: a manual carrying a root selector is a filesystem browser
+   *  that happens to be showing a manual. */
+  mode?: Extract<FilesMode, 'read' | 'guide'>;
+} = {}) {
   const [params, setParams] = useSearchParams();
-  const urlRoot = params.get('root') || '';
+  const guide = mode === 'guide';
+  // In guide mode both of these come from the ROUTE, not the query - filesHref
+  // does not write them and filesTarget does not read them, so a hand-typed
+  // `?root=notes` on /files/guide is ignored rather than half-honoured.
+  const urlRoot = guide ? GUIDE_ROOT : (params.get('root') || '');
   const path = params.get('path') || '';
   // The folder the index is narrowed to. In the URL rather than in state so
   // that a scoped view is a thing you can send someone, and so Back steps out
   // of a folder the way it stepped in.
-  const scope = (params.get('in') || '').replace(/^\/+|\/+$/g, '');
+  const scope = guide ? GUIDE_DIR : (params.get('in') || '').replace(/^\/+|\/+$/g, '');
   const { me } = useMe();
 
   const [roots, setRoots] = useState<FileRoot[]>([]);
@@ -89,6 +103,25 @@ export function Reader() {
   const [openRoots, setOpenRoots] = useState<Set<string>>(new Set());
   const [allFiles, setAllFiles] = useState(false);
   const [tick, setTick] = useState(0);
+
+  // ── which folders are expanded (#150) ─────────────────────────────────────
+  //
+  // Here rather than in DocIndex, because the event that has to open one is the
+  // READER's: following a cross-document link three folders deep must reveal the
+  // route down to the new file, and the panel does not know a link was followed.
+  //
+  // NOT persisted. Pane widths and collapsed service groups are, and the
+  // difference is that those are a layout you arranged; this is where you
+  // happen to be in a tree, and restoring it a day later would reopen folders
+  // for a document you are no longer reading.
+  const [dirs, setDirs] = useState<Set<string>>(new Set());
+  const toggleDir = useCallback((key: string) => {
+    setDirs((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
 
   // The `#heading` of a followed cross-document link. State and NOT the URL:
   // main.tsx mounts a HashRouter, so the whole route already lives after a `#`
@@ -128,6 +161,22 @@ export function Reader() {
   const docBox = useRef<HTMLDivElement | null>(null);
   const root = urlRoot;
 
+  // ── the guide opens on the guide, without exception (#149) ────────────────
+  //
+  // `/files/guide` with no `?path=` lands on the manual's own front page rather
+  // than on an interstitial. There is no Start surface in this mode on purpose:
+  // docs/guide/index.md IS an index, and a landing page in front of an index
+  // page is a chooser in front of a chooser.
+  //
+  // `replace`, so Back leaves the guide instead of bouncing off the bare URL -
+  // the same treatment the default-root write already gets.
+  useEffect(() => {
+    if (!guide || path) return;
+    const next = new URLSearchParams();
+    next.set('path', `${GUIDE_DIR}/index.md`);
+    setParams(next, { replace: true });
+  }, [guide, path, setParams]);
+
   useEffect(() => {
     if (!root || root in graph) return;
     const ac = new AbortController();
@@ -153,6 +202,11 @@ export function Reader() {
         setNeedsAuth(false);
         setRootsErr(null);
         if (!r.roots.length) return;
+        // GUIDE MODE NEVER REWRITES THE URL. Its root is the route's, and
+        // `defaultRoot` exists to answer "no usable ?root=" - a question
+        // /files/guide does not ask. Left in, it would write `?root=notes` onto
+        // the guide's URL on every arrival.
+        if (guide) { setOpenRoots((prev) => (prev.size ? prev : new Set([GUIDE_ROOT]))); return; }
         const known = r.roots.some((x) => x.key === urlRoot);
         // Why this is not roots[0], and why absent `readOnly` means writable,
         // live with the rule in routes.ts - the reader is one of two callers and
@@ -176,7 +230,7 @@ export function Reader() {
     // `urlRoot` is read but is deliberately not a dependency: the default-root
     // write is a one-shot that would otherwise re-fire on its own result.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick]);
+  }, [tick, guide]);
 
   // ── the front page (issue #94) ────────────────────────────────────────────
   //
@@ -261,8 +315,18 @@ export function Reader() {
 
   const openDoc = useCallback((r: string, p: string, at = '') => {
     const next = new URLSearchParams();
-    next.set('root', r);
+    // Guide URLs carry no `?root=` - filesHref makes that decision and this has
+    // to make the same one, or opening a document would rewrite /files/guide
+    // into a URL the route does not recognise.
+    if (!guide) next.set('root', r);
     if (p) next.set('path', p);
+    // THE FOLDER SCOPE SURVIVES OPENING A FILE (#152). It did not: this built a
+    // fresh URLSearchParams and dropped `?in=`, so narrowing the index to a
+    // folder and then clicking anything in it snapped the index back to the
+    // whole root. `onScope` already preserves `path` for the symmetric reason -
+    // narrowing the index changes what you are BROWSING, not what you are
+    // reading - and the same reasoning was never applied the other way.
+    if (!guide && scope && r === root) next.set('in', scope);
     setParams(next);
     setFrag(at);
     setPane('doc');
@@ -270,7 +334,7 @@ export function Reader() {
     // opens too - otherwise following a search result into `notes` leaves the
     // index showing a root the document is not in.
     setOpenRoots((prev) => (prev.has(r) ? prev : new Set(prev).add(r)));
-  }, [setParams]);
+  }, [setParams, guide, scope, root]);
 
   // Back to Start, keeping the root. The top nav's own Files link already goes
   // there from anywhere in the app (it points at a bare `/files`); this is the
@@ -301,6 +365,28 @@ export function Reader() {
     });
   }, []);
 
+  // ── reveal the route down to the open document (#150) ─────────────────────
+  //
+  // On the PATH, not on the click. Doing it inside openDoc covered following a
+  // link and missed the case that matters more: ARRIVING on a deep link, where
+  // the folders are all shut and the open document has no row in the index at
+  // all - `?path=docs/ARCHITECTURE.md` marked nothing, because `docs` was
+  // closed. Measured exactly that way.
+  //
+  // Additive, never subtractive: a folder you opened by hand stays open when you
+  // move to a document somewhere else, because collapsing the tree under
+  // somebody as they navigate is the index taking the page back.
+  useEffect(() => {
+    if (!root || !path) return;
+    setDirs((prev) => {
+      const want = openTo(root, path);
+      if (want.every((k) => prev.has(k))) return prev;
+      const next = new Set(prev);
+      for (const k of want) next.add(k);
+      return next;
+    });
+  }, [root, path]);
+
   const headings = useHeadings(docBox, `${root}\0${path}`);
   const last = file?.history?.[0] ?? null;
 
@@ -326,6 +412,9 @@ export function Reader() {
   const index = (
     <DocIndex
       roots={roots}
+      // The scoped listing lives under a composite key, which is this page's
+      // business and not the panel's - so it is resolved into the plain root key
+      // before it crosses the boundary.
       trees={scope ? { ...trees, [root]: trees[`${root}\u0000${scope}`] } : trees}
       openRoots={openRoots}
       onToggleRoot={toggleRoot}
@@ -335,8 +424,11 @@ export function Reader() {
       currentPath={path}
       onOpen={openDoc}
       onRetry={retryRoot}
-      scope={scope}
-      onScope={(r, dir) => {
+      dirs={dirs}
+      onToggleDir={toggleDir}
+      guide={guide ? { root: GUIDE_ROOT, dir: GUIDE_DIR } : undefined}
+      scope={guide ? '' : scope}
+      onScope={guide ? undefined : (r, dir) => {
         // The scope goes in the URL, and the open document is kept: narrowing
         // the index is a change to what you are BROWSING, not to what you are
         // reading, and closing the document because you opened a folder would
@@ -369,13 +461,34 @@ export function Reader() {
               own SearchView rather than a second one. The index rides in its
               `idle` slot, so the two share one scroll container and results
               replace the index instead of pushing it off the screen. */}
-          <aside className="rd-side" aria-label="Documents">
+          <aside className="rd-side" aria-label={guide ? 'The guide' : 'Documents'}>
+            {/* ── the one control that changes mode ────────────────────────
+                Guide mode has no root picker (the-guide-and-the-reader.md §1),
+                and this is not one: it is a DESTINATION, the same shape as the
+                reader's Edit button. One link out of the manual, one link back
+                into it, and nothing in either panel that half-offers the other
+                mode's roots. */}
+            <div className="rd-mode">
+              {guide ? (
+                <Link className="rd-mode-btn" to={filesHref('read', GUIDE_ROOT)}>
+                  <FolderTree size={13} aria-hidden="true" /> Browse all files
+                </Link>
+              ) : (
+                <Link className="rd-mode-btn" to={filesHref('guide', '')}>
+                  <BookOpen size={13} aria-hidden="true" /> The Bothy guide
+                </Link>
+              )}
+            </div>
             <SearchView
               roots={roots}
-              // '*' - every root that does not alias another, which is the
-              // service's own token. A reader looking for a sentence does not
-              // know which root it is in; that is the question search answers.
-              root="*"
+              // In the guide, the one root the guide is in - paired with
+              // `within`, which confines the walk to its folder. Everywhere
+              // else '*': every root that does not alias another, the service's
+              // own token. A reader looking for a sentence does not know which
+              // root it is in; that is the question search answers.
+              root={guide ? GUIDE_ROOT : '*'}
+              within={guide ? GUIDE_DIR : ''}
+              controls={guide ? 'minimal' : 'full'}
               onOpen={(r, p) => openDoc(r, p)}
               onNeedsAuth={() => setTick((t) => t + 1)}
               idle={index}
@@ -514,6 +627,10 @@ export function Reader() {
                   />
                 </div>
               </>
+            ) : guide ? (
+              // One frame, at most: the effect above has already asked for the
+              // front page. A skeleton here would flash on every arrival.
+              null
             ) : (
               <Start
                 roots={roots}

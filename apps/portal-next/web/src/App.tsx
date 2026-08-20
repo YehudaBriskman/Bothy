@@ -13,6 +13,7 @@ import { Reader } from './pages/files/Reader';
 import { ControlShell } from './pages/control/ControlShell';
 import { Control } from './pages/control/Control';
 import { LEGACY_PATHS, legacyTarget } from './pages/control/redirects';
+import { GUIDE_PATH } from './pages/files/routes';
 
 // Multi-page, one shared poll (lifted into <DataProvider> in main.tsx). The
 // AppShell is the persistent layout (one topbar - the global sidebar was
@@ -60,7 +61,14 @@ export function App() {
             route paths and the two link builders live in pages/files/routes.ts
             with a truth table over them, because a builder that drops `path` is
             a link that answers 200 and quietly goes somewhere else. */}
-        <Route path="files" element={<Reader />} />
+        {/* GUIDE is a third destination, not a third page - same Reader, one
+            prop (#149). A BARE /files redirects into it, and a /files that
+            carries `?root=` or `?path=` does not: every deep link written before
+            this, every recents row and every Edit round trip still lands where
+            it always did. `FilesLanding` is that one rule, and it is one rule
+            precisely so nobody has to remember it twice. */}
+        <Route path="files" element={<FilesLanding />} />
+        <Route path="files/guide" element={<Reader mode="guide" />} />
         <Route path="files/edit" element={<Files />} />
 
         {/* The retired URLs. Built from the table rather than listed again here,
@@ -108,4 +116,30 @@ function NotFound() {
       </div>
     </div>
   );
+}
+
+/**
+ * What a bare `/files` is (#149).
+ *
+ * The nav's Files entry points at `/files` with no query, and that now means
+ * "the manual" - opening the section on somebody's private notes root was the
+ * complaint #94 was filed about and Start only softened it. A REDIRECT rather
+ * than rendering the guide at this path, so there is one URL per destination
+ * and the address bar always says which one you are in.
+ *
+ * THE QUERY IS THE TEST, and it is the whole of the rule: `/files?root=notes` or
+ * `/files?path=x` is a link somebody already holds - a bookmark, a recents row,
+ * the editor's way back - and redirecting it into the guide would break every
+ * one of them while still answering 200. `?in=` counts too: a scoped index is a
+ * URL the shelf writes. Anything else on the query is not ours, and a bare
+ * `?utm_source=` should not be what keeps somebody out of the guide, so only
+ * these three are consulted.
+ *
+ * `replace`, so Back leaves the section rather than bouncing off `/files`.
+ */
+function FilesLanding() {
+  const { search } = useLocation();
+  const q = new URLSearchParams(search);
+  const asked = q.get('root') || q.get('path') || q.get('in');
+  return asked ? <Reader /> : <Navigate to={GUIDE_PATH} replace />;
 }

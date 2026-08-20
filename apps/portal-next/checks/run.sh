@@ -46,6 +46,9 @@ mv "$OUT/titles.js" "$OUT/titles.mjs"
 (cd "$WEB" && npx tsc src/pages/files/start.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/start.js" "$OUT/start-mod.mjs"
+(cd "$WEB" && npx tsc src/pages/files/guide.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/guide.js" "$OUT/guide-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/contract.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/contract.js" "$OUT/contract.mjs"

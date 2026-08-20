@@ -15,6 +15,14 @@
 .bothy-files .fx-sr-opts {
   flex: none; display: flex; align-items: center; gap: 6px; margin: 0 8px 6px;
 }
+/* THE GUIDE'S SEARCH BOX (#151). The options ROW is not rendered at all there -
+   "every root" has nothing to choose between in one folder and a hand-typed
+   fnmatch cannot narrow seven documents - so the case toggle rides inside the
+   box beside the input, which is the "side by side" the row never achieved at
+   296px. The toggle keeps its own rule; only the padding around it changes, so
+   the button does not sit on the frame. */
+.bothy-files .fx-filter-min { padding-right: 3px; }
+.bothy-files .fx-filter-min .fx-sr-toggle { margin-left: 2px; }
 .bothy-files .fx-sr-scope {
   display: inline-flex; align-items: center; gap: 5px; min-width: 0;
 }
