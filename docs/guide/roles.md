@@ -210,4 +210,5 @@ credential.
 
 - [Operating it from the console](the-console.md) - what `operator` unlocks
 - [Bothy Files](files.md) - what `viewer` and `editor` unlock
+- [Settings](settings.md) - where your roles are shown, and why that panel changes nothing
 - [`SECURITY.md`](../../SECURITY.md) - the threat model, and the case for and against a `shell` role that does something

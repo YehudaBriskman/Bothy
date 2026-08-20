@@ -276,5 +276,6 @@ list.
 
 ## Next
 
+- [The `bothy` command](the-cli.md) - what `init` did, and what the CLI does after it
 - [The files you will actually edit](configuring.md)
 - [Operating it from the console](the-console.md)

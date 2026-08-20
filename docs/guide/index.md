@@ -13,14 +13,42 @@ a fact lives in a file, these pages name the file.
 
 ## Where to start
 
+The pages are in reading order. Nobody needs all of them; the four groups are
+the four reasons somebody opens this directory.
+
+### Getting it running
+
 | If you want to | Read |
 |---|---|
 | get it running on a machine that has never had it | [Installing Bothy](installing.md) |
+| know what `bothy up` actually does, and where it looks for your checkout | [The `bothy` command](the-cli.md) |
 | know which YAML is load-bearing, and what happens when you save it | [The files you will actually edit](configuring.md) |
+
+### Using it
+
+| If you want to | Read |
+|---|---|
 | use the thing - Overview, Control, the three verbs | [Operating it from the console](the-console.md) |
 | read, search and edit the box's own files from a browser | [Bothy Files](files.md) |
+| know why Settings mostly does not change anything | [Settings](settings.md) |
 | understand `viewer`, `editor`, `operator` and the role nobody holds | [Roles](roles.md) |
 | pick a theme, or write one | [Themes](themes.md) |
+
+### Putting your own things on it
+
+| If you want to | Read |
+|---|---|
+| add a container this repository runs | [Adding a service to the stack](services.md) |
+| make a project of your own visible, including while it is off | [Declaring a project](projects.md) |
+
+### Keeping it running
+
+| If you want to | Read |
+|---|---|
+| know what is scraped, what is kept, and for how long | [Monitoring](monitoring.md) |
+| know what is backed up, what is not, and how to restore it | [Backups](backups.md) |
+| move to a newer version without losing data | [Upgrading](upgrading.md) |
+| work out why something is broken | [When something is wrong](troubleshooting.md) |
 
 ## What is documented elsewhere, and why it stays there
 
