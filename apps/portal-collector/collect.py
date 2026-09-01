@@ -704,6 +704,154 @@ def collect_project(decl_path: Path, truth: HostTruth) -> dict[str, Any] | None:
     }
 
 
+# ---------------------------------------------------------------------------
+# Kubernetes / minikube — the FOURTH discovery source.
+#
+# Docker discovery sees a minikube cluster as ONE container (the node), and
+# Traefik sees nothing at all, so everything running inside was invisible: a
+# Thales deployment across three namespaces showed up as a single unnamed box.
+#
+# This asks the cluster itself rather than taking a declaration, because the
+# portal's rule is that it discovers what is running and must never become a
+# hand-written list. Nothing here is configured per-project: any namespace that
+# is not a Kubernetes system namespace is reported, with its Deployments as
+# services and its Routes/Ingresses as browsable URLs.
+#
+# Entirely best-effort. No cluster, no kubectl, a stopped minikube or a slow API
+# server all end the same way - an empty list and no project entry - because the
+# portal must render whether or not this box happens to be running a cluster.
+K8S_SKIP_NS = {
+    "kube-system", "kube-public", "kube-node-lease", "local-path-storage",
+    "ingress-nginx", "kubernetes-dashboard", "gcp-auth", "kyverno",
+}
+K8S_TIMEOUT = float(os.environ.get("PORTAL_COLLECTOR_K8S_TIMEOUT", "4"))
+
+
+def kubectl_json(args: list[str]) -> dict[str, Any] | None:
+    try:
+        out = subprocess.run(
+            ["kubectl", *args, "-o", "json"],
+            capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    try:
+        return json.loads(out.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def k8s_projects() -> list[dict[str, Any]]:
+    """One portal project per non-system namespace that holds a Deployment."""
+    ns_doc = kubectl_json(["get", "namespaces"])
+    if not ns_doc:
+        return []
+
+    ctx = subprocess.run(
+        ["kubectl", "config", "current-context"],
+        capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False,
+    )
+    cluster = (ctx.stdout or "").strip() or "kubernetes"
+
+    deploys = kubectl_json(["get", "deployments", "--all-namespaces"]) or {"items": []}
+    svcs = kubectl_json(["get", "services", "--all-namespaces"]) or {"items": []}
+    # Routes are an OpenShift kind. On a plain cluster the CRD may not exist,
+    # which is a None here rather than an error - Ingress covers that case.
+    routes = kubectl_json(["get", "routes.route.openshift.io", "--all-namespaces"]) or {"items": []}
+    ingresses = kubectl_json(["get", "ingresses", "--all-namespaces"]) or {"items": []}
+
+    by_ns: dict[str, list[dict[str, Any]]] = {}
+    for d in deploys.get("items", []):
+        meta, status = d.get("metadata", {}), d.get("status", {})
+        ns = meta.get("namespace")
+        if not ns or ns in K8S_SKIP_NS:
+            continue
+        want = (d.get("spec", {}) or {}).get("replicas", 0) or 0
+        ready = status.get("readyReplicas", 0) or 0
+        # The portal's OWN vocabulary - up / starting / stuck / stopped. rollup()
+        # states plainly that it must never meet a word it does not know, and it
+        # falls through to `unknown` when it does: my first version emitted
+        # "running"/"down" and every namespace rolled up as unknown while each
+        # service underneath read fine.
+        if want == 0:
+            state, detail = "stopped", "scaled to zero"
+        elif ready >= want:
+            state, detail = "up", f"{ready}/{want} replicas ready"
+        elif ready == 0:
+            state, detail = "stuck", f"0/{want} replicas ready"
+        else:
+            state, detail = "starting", f"{ready}/{want} replicas ready"
+
+        name = meta.get("name", "?")
+        # The host a browser would actually use, if this workload is published.
+        url = None
+        for r in routes.get("items", []):
+            rm = r.get("metadata", {})
+            if rm.get("namespace") != ns:
+                continue
+            to = ((r.get("spec", {}) or {}).get("to", {}) or {}).get("name")
+            if to == name:
+                host = (r.get("spec", {}) or {}).get("host")
+                if host:
+                    scheme = "https" if (r.get("spec", {}) or {}).get("tls") else "http"
+                    url = f"{scheme}://{host}"
+        for i in ingresses.get("items", []):
+            if url or i.get("metadata", {}).get("namespace") != ns:
+                continue
+            for rule in (i.get("spec", {}) or {}).get("rules", []) or []:
+                for path in ((rule.get("http") or {}).get("paths") or []):
+                    svc = (((path.get("backend") or {}).get("service") or {}).get("name"))
+                    if svc == name and rule.get("host"):
+                        url = f"http://{rule['host']}"
+
+        # The in-cluster port, for the detail line. Not a host port - nothing
+        # here is reachable from this box without a port-forward, and saying so
+        # is better than printing a number that does not answer.
+        port = None
+        for sv in svcs.get("items", []):
+            sm = sv.get("metadata", {})
+            if sm.get("namespace") == ns and sm.get("name") == name:
+                ports = (sv.get("spec", {}) or {}).get("ports") or []
+                if ports:
+                    port = ports[0].get("port")
+
+        by_ns.setdefault(ns, []).append({
+            "name": name,
+            "description": (
+                f"{ns}/{name} — in-cluster :{port}" if port else f"{ns}/{name}"
+            ) + ("" if url else "  (no Route; reach it with kubectl port-forward)"),
+            "type": "runtime",
+            "ui": bool(url),
+            "container": None,
+            "port": None,          # deliberately not `port`: it is not a HOST port
+            "state": state,
+            "detail": detail,
+            "collision": None,
+            "url": url,
+        })
+
+    out = []
+    for ns, services in sorted(by_ns.items()):
+        services.sort(key=lambda x: x["name"])
+        out.append({
+            "key": f"k8s-{norm(cluster)}-{norm(ns)}",
+            "name": f"{ns} ({cluster})",
+            "kind": "cluster",
+            "description": (
+                f"Kubernetes namespace `{ns}` on `{cluster}`. Discovered from the "
+                f"cluster API, not declared. Workloads are in-cluster only unless "
+                f"a Route or Ingress gives them a host."
+            ),
+            "root": None,
+            "start": f"minikube start --profile {cluster}",
+            "state": rollup(services),
+            "services": services,
+        })
+    return out
+
+
 def main() -> int:
     containers, port_containers, docker_ok = docker_state()
     truth = HostTruth(
@@ -717,6 +865,9 @@ def main() -> int:
         got = collect_project(decl, truth)
         if got:
             projects.append(got)
+    # Cluster namespaces join the declared projects as ordinary entries, so
+    # every existing portal surface renders them with no special case.
+    projects.extend(k8s_projects())
     projects.sort(key=lambda p: p["name"].lower())
 
     payload = {
