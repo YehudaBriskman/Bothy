@@ -726,11 +726,59 @@ K8S_SKIP_NS = {
 }
 K8S_TIMEOUT = float(os.environ.get("PORTAL_COLLECTOR_K8S_TIMEOUT", "4"))
 
+# Cluster workloads that a HOST port forwards to, so the portal can offer a link
+# that actually opens. Keyed (namespace, deployment) -> host port.
+#
+# Only thales-dev is listed, and that is a decision rather than an omission: it
+# is the namespace carrying the seed fixture and a working Keycloak login.
+# `thales` and `thales-pre-prod` are the production shape - AUTH_MODE=saml
+# against an AD-FS that does not exist on this side of the air gap - so they
+# refuse password login BY DESIGN. Linking them would invite someone to click
+# into a login that cannot succeed and read the refusal as a fault.
+#
+# The port is held open by the user unit `thales-portal-forward.service`, and is
+# emitted only when something is genuinely listening on it (checked below). A
+# link to a dead forward is worse than no link: it reports the cluster as broken
+# when what is actually broken is a helper process on this box.
+K8S_HOST_FORWARDS = {
+    ("thales-dev", "frontend"): 5179,
+}
+
+
+def _find_kubectl() -> str | None:
+    """Where kubectl actually is, rather than where PATH happens to point.
+
+    This ran as a systemd USER timer with no PATH of its own, so it inherited
+    the systemd default (/usr/local/bin:/usr/bin:/bin) - which does not contain
+    mise's shims. kubectl was therefore never found, kubectl_json swallowed the
+    FileNotFoundError, k8s_projects returned [], and the portal showed no
+    clusters at all while `kubectl get ns` worked perfectly in any shell. The
+    discovery looked like it had never been written rather than like it was
+    misconfigured, because "absent" and "empty" produced the same output.
+    """
+    from shutil import which
+    found = which("kubectl")
+    if found:
+        return found
+    for cand in (
+        Path.home() / ".local/share/mise/installs/kubectl/latest/kubectl",
+        Path.home() / ".local/bin/kubectl",
+        Path("/usr/local/bin/kubectl"),
+    ):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
+
+
+KUBECTL = _find_kubectl()
+
 
 def kubectl_json(args: list[str]) -> dict[str, Any] | None:
+    if not KUBECTL:
+        return None
     try:
         out = subprocess.run(
-            ["kubectl", *args, "-o", "json"],
+            [KUBECTL, *args, "-o", "json"],
             capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
@@ -743,14 +791,21 @@ def kubectl_json(args: list[str]) -> dict[str, Any] | None:
         return None
 
 
-def k8s_projects() -> list[dict[str, Any]]:
+def k8s_projects(
+    listeners: dict[int, list[dict[str, Any]]] | None = None,
+) -> list[dict[str, Any]]:
     """One portal project per non-system namespace that holds a Deployment."""
     ns_doc = kubectl_json(["get", "namespaces"])
     if not ns_doc:
+        # Say WHICH of the two it is. journalctl carries this; a portal with no
+        # cluster section is otherwise indistinguishable from a box with no
+        # cluster, which is how the PATH problem above went unnoticed.
+        if not KUBECTL:
+            print("kubectl not found - cluster discovery skipped", file=sys.stderr)
         return []
 
     ctx = subprocess.run(
-        ["kubectl", "config", "current-context"],
+        [KUBECTL, "config", "current-context"],
         capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False,
     )
     cluster = (ctx.stdout or "").strip() or "kubernetes"
@@ -817,15 +872,29 @@ def k8s_projects() -> list[dict[str, Any]]:
                 if ports:
                     port = ports[0].get("port")
 
+        # A declared forward counts only if it is really listening. The unit can
+        # be stopped, and an unbacked number would render as a broken app.
+        host_port = K8S_HOST_FORWARDS.get((ns, name))
+        if host_port is not None and listeners is not None and host_port not in listeners:
+            host_port = None
+
         by_ns.setdefault(ns, []).append({
             "name": name,
             "description": (
                 f"{ns}/{name} — in-cluster :{port}" if port else f"{ns}/{name}"
-            ) + ("" if url else "  (no Route; reach it with kubectl port-forward)"),
+            ) + (
+                f"  ·  forwarded to this box on :{host_port}" if host_port
+                else "" if url
+                else "  (no Route; reach it with kubectl port-forward)"
+            ),
             "type": "runtime",
-            "ui": bool(url),
+            # projects.ts builds the link from ui + port + state == "up", not
+            # from `url` below, so a forwarded workload must declare ui here.
+            "ui": bool(url) or host_port is not None,
             "container": None,
-            "port": None,          # deliberately not `port`: it is not a HOST port
+            # A HOST port, and only when one is forwarded. An in-cluster port
+            # is not reachable from this box and must never be emitted here.
+            "port": host_port,
             "state": state,
             "detail": detail,
             "collision": None,
@@ -867,7 +936,7 @@ def main() -> int:
             projects.append(got)
     # Cluster namespaces join the declared projects as ordinary entries, so
     # every existing portal surface renders them with no special case.
-    projects.extend(k8s_projects())
+    projects.extend(k8s_projects(truth.listeners))
     projects.sort(key=lambda p: p["name"].lower())
 
     payload = {
