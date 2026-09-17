@@ -34,6 +34,10 @@ services:
       # without it the context would carry bothy-web's node_modules.
       context: ..
       dockerfile: bothy-ops/Dockerfile
+      # run-template's Job files, which live beside the RBAC in k8s/ rather than
+      # in apps/ (whose .dockerignore allowlist keeps the token out of the build).
+      additional_contexts:
+        jobtemplates: ../../k8s/job-templates
     container_name: bothy-ops      # guard.SEVERING names this. Keep in sync.
     restart: unless-stopped
     # Never root, and never able to become root. No docker socket is mounted -

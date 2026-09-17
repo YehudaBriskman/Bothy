@@ -19,6 +19,14 @@ WORKDIR /app
 COPY bothy-common/bothy_common ./bothy_common
 COPY bothy-ops/guard.py bothy-ops/control.py bothy-ops/kube.py bothy-ops/app.py bothy-ops/catalog.toml ./
 
+# The Jobs run-template may create, from the `jobtemplates` build context
+# (compose.yml: additional_contexts -> ../../k8s/job-templates). BAKED IN, not
+# mounted: a template is part of what was reviewed and built, and a request can
+# only NAME one. kube.load() refuses to start if a catalog template is missing.
+# A bare `docker build` needs: --build-context jobtemplates=k8s/job-templates
+COPY --from=jobtemplates thales-dev/*.yaml ./job-templates/thales-dev/
+COPY --from=jobtemplates thales-pre-prod/*.yaml ./job-templates/thales-pre-prod/
+
 # Non-root, never able to become root (compose adds no-new-privileges and drops
 # every capability). uid 1000 so the audit log and the 600-mode token files are
 # owned by the human who owns the checkout.
