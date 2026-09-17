@@ -73,7 +73,7 @@ function Sets({ d }: { d: BackupsResult }) {
           <tbody>
             {managed.map(row)}
             {other.length > 0 && (
-              <tr className="set-tbl-sep"><td colSpan={5}>Not written by the nightly backup - kept by hand, never rotated</td></tr>
+              <tr className="set-tbl-sep"><td colSpan={5}>Not written by today’s backup script, so nothing rotates them</td></tr>
             )}
             {other.map(row)}
           </tbody>
