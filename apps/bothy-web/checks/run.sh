@@ -79,6 +79,14 @@ mv "$OUT/actions.js" "$OUT/actions-mod.mjs"
   --module esnext --target es2022 --moduleResolution bundler \
   --types vite/client --outDir "$OUT" >/dev/null)
 mv "$OUT/kube-actions.js" "$OUT/kube-actions-mod.mjs"
+# actions.ts and kube-actions.ts import lib/http.ts (the shared apiFetch, 2026-09),
+# which imports nothing. tsc emits it next to them as http.js, but keeps the
+# source's extensionless specifier './http', which the bundler resolves and node
+# does not - so the specifier is pointed at the renamed module here. The checks
+# never call apiFetch; this only lets the modules that import it load.
+mv "$OUT/http.js" "$OUT/http.mjs"
+sed -i.bak "s#from './http';#from './http.mjs';#" "$OUT/actions-mod.mjs" "$OUT/kube-actions-mod.mjs"
+rm -f "$OUT/actions-mod.mjs.bak" "$OUT/kube-actions-mod.mjs.bak"
 (cd "$WEB" && npx tsc src/lib/collapse.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/collapse.js" "$OUT/collapse.mjs"
@@ -136,7 +144,7 @@ echo "── what a declared project can be acted on ─────────
 # started from the console - and the line they must hold: a verb is only ever
 # offered on a container docker has actually reported. A declared name docker
 # does not know would have to be CREATED, and /containers/create is the one call
-# apps/bothy-control's two-proxy split exists to refuse.
+# the two-proxy split in apps/bothy/socket-proxy.yml exists to refuse.
 node "$OUT/declared-actions.mjs"
 
 echo

@@ -1,8 +1,9 @@
 // Acting on cluster workloads: rollout restart, scale, events, logs, and
-// deleting completed pods. The client half of apps/bothy-kube.
+// deleting completed pods. The client half of the kube verbs in apps/bothy-ops
+// (bothy-kube until it merged with the container tier, 2026-09).
 //
 // THE CATALOG IS MIRRORED, NOT FETCHED. KUBE_CATALOG below is a copy of
-// apps/bothy-kube/catalog.toml, and apps/bothy-kube/checks/wiring.py fails when
+// apps/bothy-ops/catalog.toml, and apps/bothy-ops/checks/wiring.py fails when
 // the two disagree on an id, a role or a confirm level. Fetching it would add a
 // sixth route to the edge for something that changes only in a reviewed commit.
 //
@@ -11,9 +12,11 @@
 // confirmation again by the service, and the verbs a third time by the cluster's
 // RBAC. Everything here is a courtesy that explains a refusal before the click.
 //
-// THIS MODULE IMPORTS NOTHING, on lib/actions.ts's reasoning: checks/run.sh can
-// only compile and exercise an import-free file, and the rules below are cheap
-// to get wrong and cheap to check.
+// THIS MODULE IMPORTS ONLY lib/http.ts, which imports nothing, on lib/actions.ts's
+// reasoning: checks/run.sh compiles and exercises it in node, and the rules below
+// are cheap to get wrong and cheap to check.
+
+import { apiFetch, refusalOf as httpRefusalOf, statusOf } from './http';
 
 export type KubeActionId = 'rollout-restart' | 'scale' | 'events' | 'logs' | 'delete-completed-pods';
 export type KubeRole = 'viewer' | 'operator';
@@ -39,7 +42,7 @@ export const KUBE_CATALOG: readonly KubeActionSpec[] = [
   { id: 'delete-completed-pods', title: 'Delete completed pods', role: 'operator', confirm: 'click', target: 'namespace', stream: false, meaning: 'Remove pods that finished successfully. Running pods are never touched.' },
 ];
 
-/** The two namespaces bothy-kube acts on. Mirrors guard.NAMESPACES. */
+/** The two namespaces bothy-ops' kube verbs act on. Mirrors guard.NAMESPACES. */
 export const KUBE_NAMESPACES: readonly string[] = ['thales-dev', 'thales-pre-prod'];
 
 export const SCALE_MIN = 0;
@@ -60,7 +63,7 @@ export function specOf(id: KubeActionId): KubeActionSpec {
 }
 
 /**
- * The cluster target of a node, or null when there is nothing bothy-kube may act
+ * The cluster target of a node, or null when there is nothing bothy-ops may act
  * on. Out-of-scope namespaces return null rather than a disabled control: the
  * service would refuse every action on them, and a button whose only outcome is
  * a refusal is worse than no button (the same call ActionCell makes for a node
@@ -92,10 +95,11 @@ export interface KubeRefusal {
 }
 
 export function kubeRefusalOf(e: unknown, spec: KubeActionSpec, what: string): KubeRefusal {
-  const status = typeof (e as { status?: unknown })?.status === 'number' ? (e as { status: number }).status : 0;
+  const status = statusOf(e);
+  const kind = httpRefusalOf(status);
   const said = status > 0 && e instanceof Error ? e.message : '';
   const verb = spec.title.toLowerCase();
-  if (status === 401 || status === 403) {
+  if (kind === 'sign-in' || kind === 'role') {
     // A 403 from the SERVICE carries its own reason (an out-of-scope namespace,
     // a cross-site request). A 403 from the edge carries none - that one is the role.
     if (said && !said.includes('refused (')) {
@@ -109,19 +113,29 @@ export function kubeRefusalOf(e: unknown, spec: KubeActionSpec, what: string): K
       needsRole: true,
     };
   }
-  if (status === 400 || status === 404 || status === 405 || status === 409 || status === 429) {
+  if (kind === 'unavailable') {
+    // 503 from bothy-ops' kube half: the service is up and the CLUSTER is not -
+    // minikube stopped, the thales-scc overlay not applied, or no token yet.
+    // Container actions are unaffected, which is the point of saying so.
+    return {
+      title: 'The cluster is not available.',
+      detail: (said ? `${said}. ` : '') + 'Nothing was changed. Container actions still work; cluster actions return when the cluster does.',
+      needsRole: false,
+    };
+  }
+  if (kind === 'conflict' || status === 400 || status === 404 || status === 405 || status === 429) {
     return { title: `The cluster tier would not ${verb} ${what}.`, detail: said ? `${said} Nothing was changed.` : 'Nothing was changed.', needsRole: false };
   }
   if (status >= 500) {
     return {
       title: `Could not ${verb} ${what}.`,
-      detail: (said ? `${said} ` : '') + 'bothy-kube or the cluster answered with a fault. Its audit log says what happened.',
+      detail: (said ? `${said} ` : '') + 'bothy-ops or the cluster answered with a fault. Its audit log says what happened.',
       needsRole: false,
     };
   }
   return {
     title: 'The cluster tier did not answer.',
-    detail: 'Nothing that understands this request replied, so nothing was changed. bothy-kube is not running or not reachable from here.',
+    detail: 'Nothing that understands this request replied, so nothing was changed. bothy-ops is not running or not reachable from here.',
     needsRole: false,
   };
 }
@@ -147,6 +161,9 @@ export interface LogStreamHandlers {
 
 const BASE = '/-/api/kube';
 
+const refused = (id: KubeActionId) => (status: number) => `${id} refused (${status})`;
+const notService = (id: KubeActionId) => `${id} was answered by something that is not bothy-ops`;
+
 async function post<T>(id: KubeActionId, body: Record<string, unknown>): Promise<T> {
   // DEV NEVER TOUCHES THE REAL CLUSTER. `vite dev` proxies /-/api/* at the live
   // box, so a real call from a dev tab would restart real pods. `import.meta.env.DEV`
@@ -155,11 +172,9 @@ async function post<T>(id: KubeActionId, body: Record<string, unknown>): Promise
     const { kubeMock } = await import('./kube-actions.dev');
     return kubeMock(id, body) as Promise<T>;
   }
-  return answer<T>(await fetch(`${BASE}/${id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-  }), id);
+  // The portal catch-all answers any unrouted path with HTML and a 200, so
+  // apiFetch checks the content type before it believes the body (lib/http.ts).
+  return apiFetch<T>(`${BASE}/${id}`, { body, refused: refused(id), notService: notService(id) });
 }
 
 async function get<T>(id: KubeActionId, q: Record<string, string>): Promise<T> {
@@ -167,24 +182,7 @@ async function get<T>(id: KubeActionId, q: Record<string, string>): Promise<T> {
     const { kubeMock } = await import('./kube-actions.dev');
     return kubeMock(id, q) as Promise<T>;
   }
-  return answer<T>(await fetch(`${BASE}/${id}?${new URLSearchParams(q)}`, { headers: { Accept: 'application/json' } }), id);
-}
-
-async function answer<T>(r: Response, id: KubeActionId): Promise<T> {
-  if (!r.ok) {
-    const body = (await r.json().catch(() => ({}))) as { error?: string };
-    const err = new Error(body.error ?? `${id} refused (${r.status})`) as Error & { status: number };
-    err.status = r.status;
-    throw err;
-  }
-  // The portal catch-all answers any unrouted path with HTML and a 200, so the
-  // content type is checked before the body is believed (see lib/actions.ts).
-  if (!(r.headers.get('content-type') ?? '').includes('json')) {
-    const err = new Error(`${id} was answered by something that is not bothy-kube`) as Error & { status: number };
-    err.status = 0;
-    throw err;
-  }
-  return (await r.json()) as T;
+  return apiFetch<T>(`${BASE}/${id}?${new URLSearchParams(q)}`, { refused: refused(id), notService: notService(id) });
 }
 
 export const rolloutRestart = (t: KubeTarget) =>

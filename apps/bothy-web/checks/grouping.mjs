@@ -102,7 +102,9 @@ eq('a container with no compose labels',         classify({ Labels: {} }, ROOT).
 //
 // It WAS a list of five names and the list had already gone stale: bothy-control
 // and bothy-config are Bothy, were split out of the `bothy` project after the set
-// was written, and rendered as two more "Stack" systems beside monitoring.
+// was written, and rendered as two more "Stack" systems beside monitoring. (Both
+// merged back in 2026-09, as bothy-ops and bothy-files - the cases below keep the
+// old project names because the rule is about the place on disk, not the name.)
 //
 // A name list is also the wrong shape for the question. Compose project names are
 // global to the docker daemon and belong to whoever claimed them first, and this
@@ -113,6 +115,8 @@ const kindOf = (proj, cfg, root = ROOT) => classify(ctr(proj, cfg), root).groupK
 
 eq('bothy itself',            kindOf('bothy', `${ROOT}apps/bothy/compose.yml`), 'infra');
 eq('the action tier, unnamed anywhere',
+  kindOf('bothy-ops', `${ROOT}apps/bothy-ops/compose.yml`), 'infra');
+eq('a pre-2026-09 tier still running from its old directory',
   kindOf('bothy-control', `${ROOT}apps/bothy-control/compose.yml`), 'infra');
 eq('the config tier, unnamed anywhere',
   kindOf('bothy-config', `${ROOT}apps/bothy-config/compose.yml`), 'infra');

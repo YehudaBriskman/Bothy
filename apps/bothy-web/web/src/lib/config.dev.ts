@@ -1,4 +1,4 @@
-// The stand-in for bothy-config, used by `vite dev` and by nothing else.
+// The stand-in for the config forms (bothy-files; bothy-config before 2026-09), used by `vite dev` and by nothing else.
 //
 // WHY IT EXISTS, and why the READ is mocked as well as the write. `vite dev`
 // proxies /-/api/* straight at the live box, which means a real client here

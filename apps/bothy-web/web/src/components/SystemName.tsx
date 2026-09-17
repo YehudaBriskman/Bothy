@@ -91,9 +91,9 @@ export function SystemName({
   // Every container in the system, reduced to the two things the derivation
   // needs. Recomputed when the poll lands, which is what makes the observed side
   // of the drift comparison current rather than a snapshot of page load.
-  // `configRoots` comes from the POLL, not from `nodes`. It is bothy-config's
+  // `configRoots` comes from the POLL, not from `nodes`. It is the config forms'
   // mount table, and these nodes are one system's - on every page but Bothy's
-  // own, bothy-config is not among them, so deriving it here would leave the
+  // own, bothy-files is not among them, so deriving it here would leave the
   // table empty and answer `outside-roots` for a file that is perfectly
   // writable.
   const target = useMemo<ComposeTarget>(

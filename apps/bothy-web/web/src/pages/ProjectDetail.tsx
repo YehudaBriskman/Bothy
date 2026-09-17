@@ -95,7 +95,7 @@ export function ProjectDetail() {
   // does it. A declared service with no container is a different thing entirely -
   // starting it means CREATING it, which is /containers/create, which the write
   // socket proxy refuses by holding CONTAINERS=0 so that a compromise of the
-  // console cannot build a privileged container (apps/bothy-control/compose.yml).
+  // console cannot build a privileged container (apps/bothy/socket-proxy.yml).
   //
   // So the page says so, and prints the command the project declared for itself.
   // The alternative shapes were both worse: a Start button that 403s teaches

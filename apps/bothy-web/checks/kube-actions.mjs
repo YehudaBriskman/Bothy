@@ -4,7 +4,7 @@
 // and lib/kube-actions.ts decides whether that identity is in scope and which
 // confirm step each action needs. Both fail silently: a lost `kube` field is a
 // row with no control, and a widened scope is a control for a namespace the
-// service will refuse. apps/bothy-kube/checks/wiring.py asserts the catalog copy
+// service will refuse. apps/bothy-ops/checks/wiring.py asserts the catalog copy
 // matches catalog.toml; this asserts the behaviour built on it.
 
 import { withDeclared } from './projects-mod.mjs';
@@ -60,6 +60,8 @@ check('edge 403 is the role', kubeRefusalOf(err(403, 'scale refused (403)'), spe
 check('service 403 is the scope, not the role',
   kubeRefusalOf(err(403, "namespace 'kube-system' is out of scope"), specOf('logs'), 'x').needsRole, false);
 check('5xx is a fault', kubeRefusalOf(err(502, 'the cluster refused'), specOf('scale'), 'x').title.startsWith('Could not'), true);
+check('503 is the cluster, not a fault', kubeRefusalOf(err(503, 'cluster unavailable - cannot reach the apiserver (ConnectionRefusedError)'), specOf('events'), 'x').title, 'The cluster is not available.');
+check('503 says container actions still work', /Container actions still work/.test(kubeRefusalOf(err(503, 'cluster unavailable'), specOf('scale'), 'x').detail), true);
 check('status 0 is silence', kubeRefusalOf(err(0, 'x'), specOf('events'), 'x').title, 'The cluster tier did not answer.');
 
 // ── the follow URL stays in bounds ───────────────────────────────────────────

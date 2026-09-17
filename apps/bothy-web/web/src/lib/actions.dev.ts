@@ -1,4 +1,4 @@
-// The stand-in for bothy-control, used by `vite dev` and by nothing else.
+// The stand-in for bothy-ops' container verbs, used by `vite dev` and by nothing else.
 //
 // WHY IT EXISTS AT ALL. The interface and the service were written in parallel
 // against lib/actions.ts, so there was no backend to develop against - and even

@@ -37,7 +37,7 @@
 // one more workload on the box.
 //
 // THIS USED TO BE A LIST OF FIVE PROJECT NAMES and the list had already gone
-// wrong. `bothy-control` and `bothy-config` are Bothy - the action tier and the
+// wrong. `bothy-control` and `bothy-config` (bothy-ops and bothy-files since 2026-09) are Bothy - the action tier and the
 // config tier, split out of the single `bothy` project after the set was written
 // - and because nobody remembered to add two strings they rendered as two
 // separate "Stack" systems beside monitoring and postgres.
@@ -735,6 +735,25 @@ export function repoRootsOf(
   return out;
 }
 
+/**
+ * The roots the CONFIG FORMS may patch, as host paths: bothy-files' `/repos/<name>`
+ * binds narrowed to CONFIG_ROOT_NAMES.
+ *
+ * The forms were their own service (bothy-config) until 2026-09, mounting exactly
+ * the one root they accept, so repoRootsOf(C, 'bothy-config') WAS the answer.
+ * They are served by bothy-files now, which mounts four roots, and a root that
+ * bothy-files can read but the forms refuse must not be offered as a patch
+ * target - that would collect a 403 per click.
+ */
+export const CONFIG_ROOT_NAMES: readonly string[] = ['stacks']; // mirrors [config].roots in apps/bothy-files/policy.toml
+
+export function configRootsOf(containers: readonly Container[] = []): Readonly<Record<string, string>> {
+  const all = repoRootsOf(containers, 'bothy-files');
+  const out: Record<string, string> = {};
+  for (const name of CONFIG_ROOT_NAMES) if (all[name]) out[name] = all[name];
+  return out;
+}
+
 // ── Pure: placement - which section and subgroup a group is SHOWN in ────────
 //
 // Two fixed levels (project | stack | infra) could not say "keycloak is part of
@@ -1415,7 +1434,7 @@ export function merge(
   // That reasoning died with the name layer on 2026-08-12. With no routers left,
   // "route OR port" collapsed to "port", and TEN running containers went
   // invisible at once - promtail, postgres-exporter, oauth2-proxy,
-  // bothy-socket-proxy, and `bothy-web` ITSELF. The page could not see the
+  // bothy-socket-proxy (bothy-socket-read since 2026-09), and `bothy-web` ITSELF. The page could not see the
   // container serving it. It showed 16 services while 21 were running.
   //
   // The deeper mistake is conflating two different questions. "Can I open this?"

@@ -44,7 +44,7 @@ import './control.css';
 //   · "what should I act on" is the landing page's entire job, and it already
 //     answers it with three fault classes and a link into whichever entry owns
 //     each one. A second triage list in the same section would compete with it;
-//   · "what can I act on" would need the allowlist bothy-control holds, and the
+//   · "what can I act on" would need the allowlist bothy-ops holds, and the
 //     contract in lib/actions.ts exposes no route that reports it. Inventing one
 //     would break the thing that made writing the contract first worth doing;
 //   · "what have I done" - ActionResult carries from/to/tookMs, and the contract
@@ -53,7 +53,7 @@ import './control.css';
 //     reload, so it would be silent about an action taken from a terminal, from
 //     another tab, or five minutes before the page was opened. A log that is
 //     wrong by omission is worse than no log, and the real one belongs wherever
-//     bothy-control writes its own.
+//     bothy-ops writes its own.
 //
 // So the verbs live on the row you are looking at (components/ServiceActions.tsx)
 // and nowhere else. A sidebar entry leading to a worse version of the Services
@@ -67,6 +67,8 @@ const NAV = [
 
 // Versioned like panes.ts's key, for the same reason: a shape change should be a
 // reset rather than a crash on somebody's three-week-old localStorage.
+// Keeps its pre-2026-09 name on purpose: it is a per-browser localStorage key,
+// and renaming it with the service would silently reset everyone's nav state.
 const KEY = 'bothy-control-nav-v1';
 
 function useCollapsed(): [boolean, () => void] {
