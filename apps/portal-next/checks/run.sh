@@ -92,7 +92,7 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
-   "$HERE/collapsed-groups.mjs" "$OUT/"
+   "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -139,6 +139,12 @@ echo "── what a system IS vs where it is SHOWN ─────────�
 # The split between derived identity and display grouping, and the two things
 # keyed off it whose failure is silent: the accent seed and the systems URL.
 node "$OUT/grouping.mjs"
+
+echo
+echo "── which section and subgroup a group is shown in ──────"
+# placement.yml > dev.portal.section/.subgroup labels > the default from the
+# kind. A wrong answer is a card under the wrong heading, which nothing reports.
+node "$OUT/placement.mjs"
 
 echo
 echo "── which group state survives a reload, and under what ─"

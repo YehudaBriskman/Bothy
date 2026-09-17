@@ -10,7 +10,7 @@
 // Everything here is derived from the already-joined PortalNode[] + /system/df.
 // No new fetch, no DOM - pure functions the pages compose.
 
-import type { PortalNode, Status, ServiceType, VolumeRef } from './discover';
+import type { PortalNode, Status, ServiceType, VolumeRef, PlacementSource } from './discover';
 import { TYPE_META } from './discover';
 import type { SystemDf } from './api';
 import { accentVar } from './accents';
@@ -45,6 +45,12 @@ export interface System {
   identities: string[];
   title: string;
   kind: SystemKind;
+  /** Overview section (`bothy`, `projects`, ...), by majority of its nodes. */
+  section: string;
+  /** Subgroup within the section, or null. Majority of the nodes in `section`. */
+  subgroup: string | null;
+  /** Who decided the placement - file, label or default - for the winning vote. */
+  placedBy: PlacementSource;
   accent: string; // css var name, e.g. '--a3'
   nodes: PortalNode[];
   total: number;
@@ -96,6 +102,29 @@ function kindOf(nodes: PortalNode[]): SystemKind {
   return (['project', 'stack', 'infra'] as SystemKind[]).reduce((best, k) =>
     tally[k] > tally[best] ? k : best,
   );
+}
+
+// Same majority rule for placement. A system's nodes normally agree, but a
+// container-name rule in placement.yml can move one member without its siblings,
+// and the card has to land somewhere deterministic. Ties go to the first value
+// in sort order, never to node order. The subgroup and source are voted among
+// the nodes of the winning section only, so a stray member cannot give a card a
+// subgroup that belongs to a different section.
+const SOURCE_RANK: Record<PlacementSource, number> = { file: 0, label: 1, default: 2 };
+function majority<T extends string>(vals: T[]): T | undefined {
+  const tally = new Map<T, number>();
+  for (const v of vals) tally.set(v, (tally.get(v) ?? 0) + 1);
+  return [...tally.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))[0]?.[0];
+}
+export function placementOf(nodes: Pick<PortalNode, 'section' | 'subgroup' | 'placedBy'>[]): {
+  section: string; subgroup: string | null; placedBy: PlacementSource;
+} {
+  const section = majority(nodes.map((n) => n.section)) ?? 'projects';
+  const inSection = nodes.filter((n) => n.section === section);
+  const sub = majority(inSection.map((n) => n.subgroup ?? ''));
+  const bySub = inSection.filter((n) => (n.subgroup ?? '') === (sub ?? ''));
+  const placedBy = bySub.map((n) => n.placedBy).sort((a, b) => SOURCE_RANK[a] - SOURCE_RANK[b])[0] ?? 'default';
+  return { section, subgroup: sub || null, placedBy };
 }
 
 // primaryIdentity() and findSystem() live in discover.ts, next to the identity
@@ -161,6 +190,7 @@ export function systemsOf(nodes: PortalNode[]): System[] {
       identities,
       title: niceTitle(key, ns),
       kind: kindOf(ns),
+      ...placementOf(ns),
       accent: accentVar(`project:${primaryIdentity(key, identities)}`),
       nodes: ns,
       total: ns.length,
@@ -188,6 +218,64 @@ export function systemsOf(nodes: PortalNode[]): System[] {
       a.title.localeCompare(b.title),
   );
   return systems;
+}
+
+// ── Sections and subgroups (the Overview's two display levels) ──────────────
+//
+// Keys are free strings - placement.yml or a label can invent a section - so
+// the two that exist by default get a title and an order, and anything else is
+// title-cased and sorted after them alphabetically. Change the order here, in
+// one place.
+const SECTION_META: Record<string, { title: string; order: number }> = {
+  bothy: { title: 'Bothy', order: 0 },
+  projects: { title: 'Projects', order: 1 },
+};
+const SUBGROUP_META: Record<string, { title: string; order: number }> = {
+  core: { title: 'Core', order: 0 },
+  helpers: { title: 'Helpers', order: 1 },
+};
+const titled = (k: string) => k.replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+export const sectionTitle = (k: string) => SECTION_META[k]?.title ?? titled(k);
+export const subgroupTitle = (k: string) => SUBGROUP_META[k]?.title ?? titled(k);
+const metaOrder = (meta: Record<string, { order: number }>, a: string, b: string) =>
+  (meta[a]?.order ?? 99) - (meta[b]?.order ?? 99) || a.localeCompare(b);
+
+/** Plain words for who placed a system, for the dialog and the chip tooltip. */
+export const PLACED_BY_LABEL: Record<PlacementSource, string> = {
+  file: 'placement.yml',
+  label: 'container label',
+  default: 'default for its kind',
+};
+
+export interface SubgroupOf {
+  /** null = systems in the section that name no subgroup. */
+  key: string | null;
+  title: string | null;
+  systems: System[];
+}
+export interface SectionOf {
+  key: string;
+  title: string;
+  subgroups: SubgroupOf[];
+}
+
+/** section -> subgroup -> systems. Ungrouped systems come first in a section. */
+export function sectionsOf(systems: System[]): SectionOf[] {
+  const bySection = new Map<string, Map<string | null, System[]>>();
+  for (const s of systems) {
+    const subs = bySection.get(s.section) ?? bySection.set(s.section, new Map()).get(s.section)!;
+    (subs.get(s.subgroup) ?? subs.set(s.subgroup, []).get(s.subgroup)!).push(s);
+  }
+  return [...bySection.keys()].sort((a, b) => metaOrder(SECTION_META, a, b)).map((key) => {
+    const subs = bySection.get(key)!;
+    const keys = [...subs.keys()].sort((a, b) =>
+      a === null ? -1 : b === null ? 1 : metaOrder(SUBGROUP_META, a, b));
+    return {
+      key,
+      title: sectionTitle(key),
+      subgroups: keys.map((k) => ({ key: k, title: k === null ? null : subgroupTitle(k), systems: subs.get(k)! })),
+    };
+  });
 }
 
 // A system is "clean" only when nothing is down AND nothing is unconfirmed.

@@ -9,7 +9,7 @@
 // Docker is enrichment. allSettled, never all - partial results are first-class.
 
 import { useEffect, useRef, useState } from 'react';
-import { allPorts, merge, repoRootsOf, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
+import { allPorts, merge, placeOf, repoRootsOf, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
 import { withDeclared, type CollectorPayload, type CollectorProject } from './projects';
 import type { RootPaths } from './config';
 
@@ -176,8 +176,11 @@ export async function loadAll(): Promise<LoadResult> {
     if (!R.length && !C.length) throw new Error('both APIs unreachable');
     return {
       routers: R,
-      nodes: withDeclared(merge(R, S, C), P?.projects ?? []),
-      ports: allPorts(C),
+      // The placement file rides in projects.json; null when the collector has
+      // none, which leaves every group exactly where the defaults put it.
+      nodes: withDeclared(merge(R, S, C, P?.placement ?? null), P?.projects ?? [],
+        (subject, kind, system) => placeOf(P?.placement ?? null, subject, {}, kind, system)),
+      ports: allPorts(C, P?.placement ?? null),
       // The service key in apps/bothy-config/compose.yml. Named rather than
       // matched loosely on purpose - see the RootPaths comment in config.ts.
       configRoots: repoRootsOf(C, 'bothy-config'),

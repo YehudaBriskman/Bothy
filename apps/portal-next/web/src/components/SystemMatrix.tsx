@@ -1,4 +1,5 @@
-import type { System } from '../lib/systems';
+import type { System, SectionOf } from '../lib/systems';
+import { PLACED_BY_LABEL, sectionTitle, subgroupTitle } from '../lib/systems';
 import type { Status } from '../lib/discover';
 import './SystemMatrix.css';
 
@@ -82,10 +83,18 @@ function SystemChip({
     .map((x) => `${x.n} ${LABEL[x.s]}`)
     .join(', ');
 
+  // Where the card sits and WHO put it there. A card that moved because of a
+  // line in placement.yml looks exactly like one that moved by default, so the
+  // tooltip says which - the dialog behind the click says it in full.
+  const where = [sectionTitle(system.section), system.subgroup && subgroupTitle(system.subgroup)]
+    .filter(Boolean).join(' › ');
+  const placed = `${where} · placed by ${PLACED_BY_LABEL[system.placedBy]}`;
+
   return (
     <button
       type="button"
       onClick={() => onOpen(system)}
+      title={placed}
       className={`sm-chip ${issues ? 'is-bad' : ''} ${system.isOff ? 'is-off' : ''}`}
       style={{ ['--acc' as string]: `var(${system.accent})` } as React.CSSProperties}
       aria-haspopup="dialog"
@@ -106,42 +115,61 @@ function SystemChip({
   );
 }
 
-export interface MatrixGroup {
-  key: string;
-  title: string;
-  systems: System[];
-}
+/** A section of the matrix: `Bothy` › `Core` / `Helpers`, `Projects`, ... */
+export type MatrixGroup = SectionOf;
 
+// TWO LEVELS NOW, section over subgroup. A section is a full-width heading with
+// its own count and "needs a look"; each subgroup is one labelled row beneath
+// it, keeping the label-column layout the single-level matrix was measured
+// into. A section with no subgroups (Projects, by default) is one row with an
+// empty label cell, so its chips line up with the subgroup rows above.
 export function SystemMatrix({
   groups, attentionIds, onOpen,
 }: { groups: MatrixGroup[]; attentionIds: Set<string>; onOpen: (s: System) => void }) {
   return (
     <section className="sm" aria-label="Systems">
-      {groups.map((g) => {
-        const sorted = [...g.systems].sort(bySeverity(attentionIds));
-        const bad = sorted.filter((s) => isBad(s, attentionIds)).length;
+      {groups.map((sec) => {
+        const all = sec.subgroups.flatMap((g) => g.systems);
+        const secBad = all.filter((s) => isBad(s, attentionIds)).length;
         return (
-          <div className="sm-group" key={g.key}>
-            {/* The heading is a ROW LABEL, not a line of its own.
-                Measured before this change: three stacked headings above three
-                wrapping rows made six lines of layout for thirteen items, and
-                the rows were only 41%, 53% and 28% full - so more than half of
-                a 209px block was empty space beside the chips. Moving the label
-                into a fixed first column uses that space and halves the height,
-                with nothing removed. */}
-            <h2 className="sm-group-h">
-              <span className="sm-group-t">{g.title}</span>
-              <span className="sm-group-n">{g.systems.length}</span>
-              {/* Only said when it is true. A per-group "all clear" on every
-                  group is three reassurances nobody reads, which is how the real
-                  one stops being noticed. */}
-              {bad > 0 && <span className="sm-group-bad">{bad} need{bad === 1 ? 's' : ''} a look</span>}
+          <div className="sm-section" key={sec.key}>
+            <h2 className="sm-section-h">
+              <span className="sm-section-t">{sec.title}</span>
+              <span className="sm-group-n">{all.length}</span>
+              {secBad > 0 && <span className="sm-group-bad">{secBad} need{secBad === 1 ? 's' : ''} a look</span>}
             </h2>
-            <div className="sm-row">
-              {sorted.map((s) => (
-                <SystemChip key={s.key} system={s} issues={isBad(s, attentionIds)} onOpen={onOpen} />
-              ))}
-            </div>
+            {sec.subgroups.map((g) => {
+              const sorted = [...g.systems].sort(bySeverity(attentionIds));
+              const bad = sorted.filter((s) => isBad(s, attentionIds)).length;
+              return (
+                <div className="sm-group" key={g.key ?? '-'}>
+                  {/* The heading is a ROW LABEL, not a line of its own.
+                      Measured before this change: three stacked headings above
+                      three wrapping rows made six lines of layout for thirteen
+                      items, and the rows were only 41%, 53% and 28% full - so
+                      more than half of a 209px block was empty space beside the
+                      chips. Moving the label into a fixed first column uses that
+                      space and halves the height, with nothing removed. */}
+                  {g.title ? (
+                    <h3 className="sm-group-h">
+                      <span className="sm-group-t">{g.title}</span>
+                      <span className="sm-group-n">{g.systems.length}</span>
+                      {/* Only said when it is true. A per-group "all clear" on
+                          every group is reassurance nobody reads, which is how
+                          the real one stops being noticed. */}
+                      {bad > 0 && <span className="sm-group-bad">{bad} need{bad === 1 ? 's' : ''} a look</span>}
+                    </h3>
+                  ) : (
+                    <span className="sm-group-h is-empty" aria-hidden="true" />
+                  )}
+                  <div className="sm-row">
+                    {sorted.map((s) => (
+                      <SystemChip key={s.key} system={s} issues={isBad(s, attentionIds)} onOpen={onOpen} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         );
       })}

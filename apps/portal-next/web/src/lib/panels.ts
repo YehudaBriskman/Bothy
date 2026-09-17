@@ -1,12 +1,13 @@
-import { groupStorageKey } from './discover';
+import { groupStorageKey, SECTION_BOTHY, SECTION_PROJECTS } from './discover';
 import type { PortalNode } from './discover';
+import { sectionTitle, subgroupTitle } from './systems';
 
 export interface Panel {
   key: string;
   title: string;
   sub: string;
   // The compose group this panel represents, when it represents exactly one
-  // (project panels do; the aggregated Stack/Infrastructure panels do not).
+  // (project panels do; the aggregated section/subgroup panels do not).
   group: string | null;
   /**
    * Every derived `node.system` folded into this panel, sorted - the same field
@@ -24,9 +25,9 @@ export interface Panel {
   nodes: PortalNode[];
 }
 
-// Projects get one panel each. The stack collapses into ONE panel: each stack
-// service is its own compose project (monitoring, mgmt, kafka, wiki, postgres,
-// redis), which would otherwise render six near-empty panels for no gain.
+// Projects get one panel each. Every other section/subgroup collapses into ONE
+// panel: each stack service is its own compose project (monitoring, postgres,
+// auth), which would otherwise render near-empty panels for no gain.
 //
 // `allNodes` supplies the DISPLAY NAMES and defaults to `nodes`. Names must come
 // from the unfiltered set: the label that spells "CVOps" lives on one container,
@@ -65,7 +66,10 @@ export function panelize(nodes: PortalNode[], allNodes: PortalNode[] = nodes): P
     (a.depth ?? 9) - (b.depth ?? 9) || a.order - b.order || a.name.localeCompare(b.name);
 
   const panels: Panel[] = [];
-  const projects = [...new Set(vis.filter((n) => n.groupKind === 'project').map((n) => n.group))].sort();
+  // One panel per project in the Projects section - the section's members ARE
+  // projects, and each already had its own panel under a stable key.
+  const inProjects = (n: PortalNode) => n.section === SECTION_PROJECTS && !n.subgroup;
+  const projects = [...new Set(vis.filter(inProjects).map((n) => n.group))].sort();
   for (const g of projects) {
     const identities = identsOfGroup.get(g) ?? [g];
     panels.push({
@@ -75,37 +79,41 @@ export function panelize(nodes: PortalNode[], allNodes: PortalNode[] = nodes): P
       group: g,
       identities,
       storeKey: groupStorageKey(`project:${g}`, g, identities),
-      nodes: vis.filter((n) => n.group === g).sort(byOrder),
+      nodes: vis.filter((n) => inProjects(n) && n.group === g).sort(byOrder),
     });
   }
 
-  const stack = vis
-    .filter((n) => n.groupKind === 'stack')
-    .sort((a, b) => a.group.localeCompare(b.group) || byOrder(a, b));
-  if (stack.length) {
+  // Everything else: one aggregated panel per section/subgroup.
+  //
+  // Bothy › Helpers and Bothy › Core keep the keys the old Stack and
+  // Infrastructure panels had, `stack` and `infra`. They are the same idea under
+  // a better name, so a group somebody collapsed stays collapsed, and the 3D
+  // Topology still finds its edge under `infra`.
+  const LEGACY: Record<string, { key: string; sub: string }> = {
+    [`${SECTION_BOTHY}/helpers`]: { key: 'stack', sub: 'shared dev services' },
+    [`${SECTION_BOTHY}/core`]: { key: 'infra', sub: 'the edge, sign-in and Bothy itself' },
+  };
+  const slot = (n: PortalNode) => `${n.section}/${n.subgroup ?? ''}`;
+  const slots = [...new Set(vis.filter((n) => !inProjects(n)).map(slot))];
+  const rank = (k: string) => (LEGACY[k] ? (LEGACY[k].key === 'stack' ? 1 : 2) : 0);
+  slots.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  for (const k of slots) {
+    const [section, subgroup] = k.split('/');
+    const ns = vis
+      .filter((n) => slot(n) === k)
+      .sort((a, b) => a.group.localeCompare(b.group) || byOrder(a, b));
+    const legacy = LEGACY[k];
+    const key = legacy?.key ?? `section:${k}`;
     panels.push({
-      key: 'stack',
-      title: 'Stack',
-      sub: 'shared dev services · ' + [...new Set(stack.map((n) => n.group))].join(' · '),
+      key,
+      title: [sectionTitle(section), subgroup && subgroupTitle(subgroup)].filter(Boolean).join(' · '),
+      sub: [legacy?.sub, ...new Set(ns.map((n) => n.group))].filter(Boolean).join(' · '),
       group: null,
-      identities: idents(allNodes.filter((n) => n.groupKind === 'stack')),
+      identities: idents(allNodes.filter((n) => slot(n) === k)),
       // A structural section, not a display group: no label reaches this string,
       // so it is already the stable key.
-      storeKey: groupStorageKey('stack', null, []),
-      nodes: stack,
-    });
-  }
-
-  const infra = vis.filter((n) => n.groupKind === 'infra').sort(byOrder);
-  if (infra.length) {
-    panels.push({
-      key: 'infra',
-      title: 'Infrastructure',
-      sub: 'the edge itself · usually you can ignore this',
-      group: null,
-      identities: idents(allNodes.filter((n) => n.groupKind === 'infra')),
-      storeKey: groupStorageKey('infra', null, []),
-      nodes: infra,
+      storeKey: groupStorageKey(key, null, []),
+      nodes: ns,
     });
   }
   return panels;

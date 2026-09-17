@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { usePortal, needsAttention, healthOf, expectedUp } from '../lib/data';
 import {
-  systemsOf, uiPorts, diskVolumes, fmtBytes,
+  systemsOf, sectionsOf, uiPorts, diskVolumes, fmtBytes,
   type System, type UiLink,
 } from '../lib/systems';
 import { SystemMatrix, type MatrixGroup } from '../components/SystemMatrix';
@@ -151,47 +151,6 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
         </a>
       ))}
     </nav>
-  );
-}
-
-// ── Bothy, describing itself ─────────────────────────────────────────────────
-//
-// One line under the inventory rather than a chip inside it. See the comment on
-// `groups` for why: most of what this reports cannot fail in a way you could
-// read here, so it does not get a peer slot - but `portal-files` genuinely can,
-// so it is reported rather than hidden.
-//
-// The wording is deliberately first-person about the limit. "You are reading
-// this through it" is the whole reason the row is quiet, and a reader who knows
-// that will not wonder why Bothy is not in the list above.
-function SelfLine({ system, onOpen }: { system: System; onOpen: () => void }) {
-  const parts = [...system.nodes]
-    .filter((n) => !n.hidden)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const bad = parts.filter((n) => n.status === 'down' || n.status === 'unknown');
-
-  return (
-    <p className="ov-self">
-      <button type="button" className="ov-self-open" onClick={onOpen}>
-        {system.title}
-      </button>
-      <span className="ov-self-sep" aria-hidden="true">·</span>
-      <span className="ov-self-what">
-        {parts.length} {parts.length === 1 ? 'part' : 'parts'}
-      </span>
-      <span className="ov-self-sep" aria-hidden="true">·</span>
-      {bad.length === 0 ? (
-        // Not "all up" - that would claim more than this row can know.
-        <span className="ov-self-note">
-          you are reading this through it
-        </span>
-      ) : (
-        <span className="ov-self-bad">
-          <StatusIcon status="down" size={13} />
-          {bad.map((n) => n.name).join(', ')} {bad.length === 1 ? 'is' : 'are'} not running
-        </span>
-      )}
-    </p>
   );
 }
 
@@ -481,34 +440,17 @@ export function Overview() {
     [data.errors],
   );
 
-  // Grouping survives - projects, the shared stack and the plumbing really are
-  // three different kinds of thing - but as headings over one flow of chips,
-  // not as three cards with independent open/closed state.
-  // BOTHY IS NOT A PEER OF THE THINGS IT DESCRIBES, so it comes out of the
-  // inventory and goes in a line beneath it.
+  // Two display levels: section (Bothy, Projects) over subgroup (Core,
+  // Helpers). Each system's placement is decided in discovery - placement.yml,
+  // then its labels, then a default from its kind - so this page only arranges.
   //
-  // The argument is not aesthetic. You are reading this page THROUGH portal-next,
-  // served BY traefik, enriched BY bothy-socket-proxy - so for two of Bothy's
-  // three containers the cell can only ever say `up`, because if they were not,
-  // there would be no page to read the cell on. A card that cannot report a
-  // problem is a card carrying no information, and by the footprint rule it
-  // should not hold a slot beside `Edge · Traefik`, which can.
-  //
-  // It is NOT wholly uninformative, and that is why this is a demotion rather
-  // than a deletion: `portal-files` can be down while this page renders
-  // perfectly - you would simply lose the Files page. So the line below still
-  // reports its parts. Removing the card entirely would have thrown that away to
-  // win an argument.
-  const self = useMemo(() => systems.find((s) => s.key === 'bothy') ?? null, [systems]);
-
-  const groups = useMemo<MatrixGroup[]>(() => {
-    const of = (k: System['kind']) => systems.filter((s) => s.kind === k && s.key !== 'bothy');
-    return [
-      { key: 'project', title: 'Projects', systems: of('project') },
-      { key: 'stack', title: 'Stack', systems: of('stack') },
-      { key: 'infra', title: 'Infrastructure', systems: of('infra') },
-    ].filter((g) => g.systems.length > 0);
-  }, [systems]);
+  // Bothy used to be pulled out of the inventory here (`s.key !== 'bothy'`) and
+  // demoted to a line beneath it, on the argument that the page you are reading
+  // cannot report its own server down. That still holds for portal-next, but
+  // Bothy is now a whole section - its edge, auth, file tier and control tier -
+  // and most of those CAN fail while this page renders, so they are shown like
+  // everything else, under their own heading.
+  const groups = useMemo<MatrixGroup[]>(() => sectionsOf(systems), [systems]);
 
   // Built from location.hostname, so the floor works from the tailnet IP,
   // MagicDNS or localhost - whichever the reader reached the box by. It used to
@@ -569,8 +511,6 @@ export function Overview() {
               attentionIds={attentionIds}
               onOpen={(s) => setOpenKey(s.key)}
             />
-
-            {self && <SelfLine system={self} onOpen={() => setOpenKey(self.key)} />}
 
             {/* The graphs. Deliberately BELOW the health answer: "is anything
                 broken" is the question this page exists for, and a row of charts
