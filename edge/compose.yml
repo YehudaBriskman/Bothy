@@ -170,20 +170,19 @@ services:
       resources:
         limits:
           memory: 128m
-    # socketnet: reaches bothy-socket-proxy for the portal's read-only Docker
-    # API (see edge/dynamic/bothy-api.yml). Traefik and the proxy are the only
-    # two members - the proxy has no auth, so reachability is authorisation.
-    # filesnet added 2026-08-12 with the editor tier: it holds exactly two
-    # containers, traefik and bothy-files, so that a service with no auth of
-    # its own is reachable only from the edge that authorises it.
-    # confignet joins the same family as socketnet and filesnet: one network per
-    # thing that authenticates nobody, holding traefik and that thing only. The
-    # config tier can rewrite compose files and edge routes, so it is the highest
-    # stake of the three.
-    # controlnet, and deliberately NOT controlsocknet: the edge reaches the
-    # action SERVICE, never the proxies that can mutate containers.
-    # kubenet: reaches bothy-kube only - deliberately NOT minikube's thales-scc.
-    networks: [devnet, socketnet, filesnet, confignet, controlnet, kubenet]
+    # One network per thing that authenticates nobody, holding traefik and that
+    # thing only:
+    #
+    # socketnet: bothy-socket-read, the portal's read-only Docker API (see
+    # edge/dynamic/bothy-api.yml). The proxy has no auth, so reachability is
+    # authorisation - and it is POST=0, so nothing reaching it can mutate.
+    # filesnet: bothy-files - the editor tier and, since 2026-09, the config
+    # forms (confignet went with bothy-config).
+    # opsnet: bothy-ops - container actions and cluster actions (controlnet and
+    # kubenet went with bothy-control and bothy-kube, 2026-09). Deliberately NOT
+    # controlsocknet: the edge reaches the action SERVICE, never the proxy that
+    # can stop a container. And NOT minikube's thales-scc.
+    networks: [devnet, socketnet, filesnet, opsnet]
 
 networks:
   devnet:
@@ -192,9 +191,5 @@ networks:
     external: true
   filesnet:
     external: true
-  confignet:
-    external: true
-  controlnet:
-    external: true
-  kubenet:
+  opsnet:
     external: true

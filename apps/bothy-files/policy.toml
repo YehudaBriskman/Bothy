@@ -312,3 +312,93 @@ note = """A document some OTHER application may serve. If it does, a script \
 inside it runs in THAT application's origin, with whatever session the reader \
 has there. Bothy serves raw bytes only from the sandbox origin on :8100, which \
 is why it is safe HERE and not necessarily safe there."""
+
+# ══ config: what a FORM may patch ═══════════════════════════════════════════
+#
+# The config patcher (/-/api/config/{fields,patch}) was its own service,
+# bothy-config, with its own policy.toml, until 2026-09. It is a module of this
+# service now, and its rules are this section. They NARROW everything above and
+# widen nothing: safepath.resolve_config() runs resolve() first - the same
+# containment, [deny] and per-root rules a file read gets - and then applies
+# these on top.
+#
+# It fails CLOSED like the rest of this file: a missing [config], an empty
+# [config.fields], a root name that is not declared above, or an unwritable
+# config-trash stops the service from starting.
+#
+# `.toml` is deliberately absent from `suffixes`, so the file that declares what
+# a form may write cannot be rewritten through the form it governs. (It IS
+# writable through the editor - see rule 3 at the top - which is a different
+# path, with a human reading the whole file.)
+
+[config]
+# ONE root, and that is the design rather than a starting point. A file explorer
+# is only useful over everything; a config patcher is useful over exactly the
+# files that declare THIS box, and every one of those is in the stack repo.
+# Nothing in ~/projects is here on purpose: those repos have their own review and
+# CI, and a form that edited them would bypass both.
+roots = ["stacks"]
+
+# YAML only, because a YAML parser is the only thing yamlpatch knows how to
+# splice safely. A blast-radius limit, not a parsing convenience.
+suffixes = [".yml", ".yaml"]
+
+# Nothing under these is patched OR READ through /config/fields.
+#
+# `edge/dynamic/` is CLASS C in docs/plans/editing-model.md, and it is the one
+# place on this box where a plausible edit takes everything down quietly. Traefik
+# renders that directory as a Go template BEFORE parsing the YAML, and does not
+# skip comments - so a doubled brace anywhere voids the whole file while it looks
+# perfect on disk. It is also the corpus where a naive YAML round-trip does its
+# worst damage - see yamlpatch.py's header.
+deny_prefixes = [
+  "edge/dynamic/",
+]
+
+# Excluded by exact path even though suffix and directory allow them.
+# `monitoring/prometheus-web.yml` carries a bcrypt hash - a credential file whose
+# name matches none of the [sensitive] patterns. The field allowlist already
+# makes it unreachable (it carries no dev.portal.* label), so this is the second,
+# independent control.
+deny_relpaths = [
+  "monitoring/prometheus-web.yml",
+]
+
+# A ceiling on any value, whatever its field's own limit says.
+max_length = 500
+
+# A credential-shaped FILENAME ([sensitive].file_patterns above) is REFUSED for a
+# form, where the editor only labels it: there is no reader looking at the file,
+# so there is nobody to warn.
+
+# ── the fields ──────────────────────────────────────────────────────────────
+#
+# ONE LINE PER FIELD. `kind` names a locator in yamlpatch.LOCATORS; a new kind is
+# a new function there as well as a line here, and that is the right friction -
+# a new shape is a new set of ways to be wrong about where a value ends, and
+# being wrong about that corrupts a file rather than rejecting a request.
+#
+# `dev.portal.project` is the card title Bothy shows. The worst outcome of a
+# wrong value is a card with the wrong title, which made it the right field to
+# prove the chain on. What must NOT appear here, at any point, is class C:
+# `volumes`, `privileged`, `cap_add`, `command`, `entrypoint`, `network_mode`,
+# anything mounting a socket.
+[config.fields]
+"dev.portal.project" = { kind = "compose-label", max_length = 80 }
+
+# ── the config undo net ─────────────────────────────────────────────────────
+#
+# A SEPARATE directory from [snapshots] above, and it stays separate after the
+# merge: two write paths pruning one tree under different limits is two nets
+# where the loser is whichever path's snapshots the other evicted. It matters
+# more for a form than for the editor - a person typing into a form cannot see
+# the file at all, so this copy is the only evidence a patch landed somewhere
+# unintended.
+#
+# CREATE IT BEFORE FIRST RUN - `mkdir -p ~/.local/state/bothy/config-trash`
+# (bootstrap does). A missing bind source is created root-owned, and the loader
+# refuses to start rather than run with a net that silently drops everything.
+[config.snapshots]
+path = "/var/lib/bothy/config-trash"
+keep = 20
+max_age_days = 30

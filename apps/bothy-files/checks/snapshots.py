@@ -128,8 +128,8 @@ try:
     probe = subprocess.run(
         ["docker", "exec", "bothy-files", "sh", "-c",
          "sed 's|^path = \"/var/lib/bothy/trash\"|path = \"/var/lib/bothy/nope\"|' "
-         "/app/policy.toml > /tmp/bad.toml && "
-         "POLICY_FILE=/tmp/bad.toml python3 -c 'import safepath' 2>&1"],
+         "/app/policy.toml > /tmp/bad.toml && cd /app && "
+         "POLICY_FILE=/tmp/bad.toml python3 -c 'from bothy_common import safepath' 2>&1"],
         capture_output=True, text=True)
     check("an unmounted trash refuses to start", probe.returncode != 0,
           f"exit {probe.returncode}")

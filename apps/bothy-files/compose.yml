@@ -15,12 +15,25 @@ name: bothy-files
 #
 # The write path is: browser -> Traefik (exact Path + forwardAuth requiring the
 # `editor` role) -> here. See edge/dynamic/bothy-files.yml.
+#
+# ── the config forms live here too (2026-09) ────────────────────────────────
+#
+# /-/api/config/{fields,patch} were a separate service, bothy-config, on its own
+# network `confignet`, carrying the one third-party dependency (ruamel.yaml) so
+# this container would not. They are a module of this service now: one fewer
+# container and network, one safepath instead of a drifting copy, and ruamel is
+# this image's only pip install. The routes still come from their own edge file
+# (edge/dynamic/bothy-config.yml, retargeted here) with their own role gates,
+# and the patcher's scope is still one root, YAML only, one declared field.
 
 services:
   bothy-files:
     build:
-      context: .
-      dockerfile: Dockerfile
+      # apps/, not this directory, so the image can COPY apps/bothy-common in.
+      # apps/.dockerignore is an allowlist: without it the context would carry
+      # bothy-web's node_modules.
+      context: ..
+      dockerfile: bothy-files/Dockerfile
     container_name: bothy-files
     restart: unless-stopped
     # Never root, and never able to become root: this process holds a writable
@@ -44,6 +57,10 @@ services:
     environment:
       PORT: 8099
       AUDIT_LOG: /audit/writes.log
+      # The config forms' log (bothy-config's patches.log until 2026-09). Its
+      # own file because its lines carry old -> new values, which the editor's
+      # log does not.
+      CONFIG_AUDIT_LOG: /audit/patches.log
       # git writes config into $HOME; without this it lands on a read-only FS.
       HOME: /tmp
     volumes:
@@ -112,6 +129,11 @@ services:
       # start in that case rather than running with a net that silently drops
       # everything.
       - ${STATE_ROOT:-${HOME}/.local/state}/bothy/trash:/var/lib/bothy/trash:rw
+      # The config forms' undo net - a SEPARATE directory, on purpose; see
+      # [config.snapshots] in policy.toml. Same create-before-first-run rule:
+      # `mkdir -p ~/.local/state/bothy/config-trash` (bootstrap and `just
+      # up-apps` both do), or the loader refuses to start.
+      - ${STATE_ROOT:-${HOME}/.local/state}/bothy/config-trash:/var/lib/bothy/config-trash:rw
     networks:
       - filesnet
     labels:

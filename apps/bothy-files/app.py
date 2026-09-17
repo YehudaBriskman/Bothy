@@ -4,10 +4,18 @@
 This is the first service on this box that can CHANGE anything, so a few
 decisions are deliberate and worth stating rather than discovering later.
 
-**No third-party dependencies.** stdlib http.server only. A framework would be
-more comfortable, but this container holds read-write bind mounts on two git
+**One third-party dependency, and only one, on purpose.** stdlib http.server and
+bothy_common (also stdlib-only) for everything this file does. A framework would
+be more comfortable, but this container holds read-write bind mounts on two git
 repositories, and every dependency is something that can ship a vulnerability
-into that position. There is not enough here to justify the surface.
+into that position.
+
+The exception is ruamel.yaml, imported by yamlpatch.py for the config forms
+(/config/fields, /config/patch - see config_api.py). Those were a separate
+service, bothy-config, precisely to keep this file dependency-free; merging them
+in (2026-09) relaxed that doctrine deliberately, and SECURITY.md records the
+trade. The pin is exact, the package is pure Python, and config_api only ever
+hands it a file resolve_config() allowed a form to change.
 
 **It does not authenticate or authorise anybody.** That happens at the edge:
 Traefik's forwardAuth asks oauth2-proxy `/oauth2/auth?allowed_groups=editor`, and
@@ -64,7 +72,6 @@ from __future__ import annotations
 
 import fnmatch
 import io
-import json
 import os
 import re
 import stat
@@ -75,10 +82,18 @@ import tempfile
 import threading
 import time
 import zipfile
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-import safepath
+try:
+    import bothy_common  # noqa: F401  (in the image it sits beside this file)
+except ImportError:  # a checkout: apps/bothy-common is the package's parent
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    os.pardir, "bothy-common"))
+
+import config_api  # noqa: E402
+from bothy_common import safepath  # noqa: E402
+from bothy_common.audit import AuditLog, flat  # noqa: E402
+from bothy_common.http import JsonHandler, Refused, serve  # noqa: E402
 
 PORT = int(os.environ.get("PORT", "8099"))
 
@@ -157,9 +172,7 @@ BYTE_HEADERS = {
 
 # Where the write log lands. A mounted path so it survives a container rebuild;
 # stderr as well, so it shows up in `docker logs` without a second lookup.
-AUDIT_PATH = os.environ.get("AUDIT_LOG", "/audit/writes.log")
-
-_AUDIT_LOCK = threading.Lock()
+LOG = AuditLog(os.environ.get("AUDIT_LOG", "/audit/writes.log"))
 
 
 def audit(who: str, action: str, res, size: int | None = None,
@@ -178,33 +191,14 @@ def audit(who: str, action: str, res, size: int | None = None,
     legitimate save because the log is full is worse - so this swallows its own
     errors and reports them to stderr.
     """
-    # Every field is flattened to one line before it is written.
-    #
-    # The log is tab-separated and one record per line, so a newline in ANY field
-    # forges a record. `extra` carries the client's commit message and git accepts
-    # multi-line messages, so a message containing
-    #   "\n<timestamp>\tsomeone@else\tDISCARDED\tstacks/compose.yml"
-    # produced a syntactically perfect entry attributing a destructive action to
-    # another user. `relpath` is the same vector - newlines are legal in Linux
-    # filenames.
-    #
-    # The point of this log is that a change is always attributable; a record
-    # anyone can forge attributes nothing.
-    def flat(v: object) -> str:
-        return re.sub(r"[\r\n\t]+", " ", str(v)).strip()
-
-    line = (f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{flat(who)}\t"
-            f"{flat(action)}\t{flat(res.root_key)}/{flat(res.relpath)}"
-            f"{f'   {int(size)} bytes' if size is not None else ''}"
-            f"{f'   {flat(extra)}' if extra else ''}")
-    sys.stderr.write(line + "\n")
-    try:
-        with _AUDIT_LOCK:
-            os.makedirs(os.path.dirname(AUDIT_PATH), exist_ok=True)
-            with open(AUDIT_PATH, "a", encoding="utf-8") as fh:
-                fh.write(line + "\n")
-    except OSError as e:
-        sys.stderr.write(f"AUDIT LOG UNWRITABLE ({e}) - the write itself was fine\n")
+    # Every field is flattened by bothy_common.audit - a newline in `relpath`
+    # (legal in a Linux filename) or in `extra` would otherwise forge a record.
+    # The size and extra ride in the suffix with three spaces rather than a tab:
+    # that is this log's historical shape, and a log whose format changes in the
+    # middle is two formats for everyone who reads it.
+    LOG.write(who, action, f"{flat(res.root_key)}/{flat(res.relpath)}",
+              suffix=(f"   {int(size)} bytes" if size is not None else "")
+              + (f"   {flat(extra)}" if extra else ""))
 
 
 # userinfo in a URL: scheme://<anything>@host. The token lives in that group.
@@ -1016,20 +1010,8 @@ def status(root_key: str, rel: str = "") -> dict:
             "branch": branch, "files": out}
 
 
-class Handler(BaseHTTPRequestHandler):
+class Handler(JsonHandler):
     server_version = "bothy-files"
-
-    def _send(self, code: int, payload: dict) -> None:
-        body = json.dumps(payload).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        # This API is same-origin behind Traefik and must never be usable
-        # cross-origin: a page on another site could otherwise ride the user's
-        # session cookie and commit on their behalf.
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.end_headers()
-        self.wfile.write(body)
 
     def _send_bytes_headers(self, code: int, extra: dict) -> None:
         """Write headers for a byte response, refusing to emit CR/LF in a value.
@@ -1054,16 +1036,20 @@ class Handler(BaseHTTPRequestHandler):
     def _query(self) -> dict:
         return {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
 
-    def log_message(self, fmt, *args):  # noqa: A003
-        sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
-
     # ── read ────────────────────────────────────────────────────────────────
     def do_GET(self) -> None:  # noqa: N802
-        route = urlparse(self.path).path
+        route = self.route
         q = self._query()
         try:
             if route == "/healthz":
-                return self._send(200, {"ok": True, "roots": sorted(safepath.ROOTS)})
+                return self._send(200, {"ok": True, "roots": sorted(safepath.ROOTS),
+                                        "fields": sorted(safepath.CONFIG_FIELDS)})
+
+            # The config forms' read. Reached at the edge as /-/api/config/fields
+            # (edge/dynamic/bothy-config.yml strips `/-/api`), behind sso-viewer.
+            # Its rules are resolve_config(), not resolve() - see config_api.py.
+            if route == "/config/fields":
+                return config_api.handle_get(self, q)
 
             if route == "/roots":
                 return self._send(200, {"roots": [
@@ -1221,7 +1207,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── write and delete ────────────────────────────────────────────────────
     def do_POST(self) -> None:  # noqa: N802
-        route = urlparse(self.path).path
+        route = self.route
         # Every mutating endpoint goes through the same guard below. Adding one
         # that skips it is the failure mode this shape exists to prevent, so the
         # list is here rather than each handler remembering.
@@ -1246,6 +1232,16 @@ class Handler(BaseHTTPRequestHandler):
         # licence for it: discard destroyed content that had never been anywhere
         # else, while a delete here refuses unless the snapshot trash took a copy
         # first. Removal is offered because the net exists, not despite it.
+        #
+        # /config/patch is the third, since bothy-config merged in (2026-09). It
+        # goes through the SAME bothy_common CSRF gate, from inside
+        # config_api.handle_post, before it reads a byte of the body.
+        if route == "/config/patch":
+            try:
+                return config_api.handle_post(self)
+            except Exception as e:  # noqa: BLE001
+                sys.stderr.write(f"ERROR {route}: {type(e).__name__}: {e}\n")
+                return self._send(500, {"error": "internal error"})
         if route not in ("/write", "/delete"):
             return self._send(404, {"error": "no such endpoint"})
         # ── CSRF, and why it is needed HERE and not before ──────────────────
@@ -1267,22 +1263,12 @@ class Handler(BaseHTTPRequestHandler):
         # preflight entirely - would otherwise be accepted. Demanding
         # application/json forces a preflight cross-origin, and the preflight
         # fails because this service sends no CORS headers at all.
-        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-        if ctype != "application/json":
-            return self._send(415, {
-                "error": "Content-Type must be application/json"})
-        # Belt and braces for browsers that send it: an explicit statement that
-        # the request did not come from another origin.
-        site = self.headers.get("Sec-Fetch-Site")
-        if site and site not in ("same-origin", "none"):
-            return self._send(403, {
-                "error": f"cross-origin writes are refused (Sec-Fetch-Site: {site})"})
-
+        #
+        # Plus Sec-Fetch-Site, for browsers that send it. Both halves are
+        # bothy_common.http.csrf_refusal - the same function bothy-ops runs.
         try:
-            length = int(self.headers.get("Content-Length") or 0)
-            if length <= 0 or length > safepath.MAX_BYTES:
-                return self._send(413, {"error": "body missing or too large"})
-            body = json.loads(self.rfile.read(length))
+            self.check_csrf("POST")
+            body = self.read_json_object(safepath.MAX_BYTES)
 
             # Dispatched AFTER the guards above, never before them. _delete does
             # its own resolve() because a delete has no `content` and no temp
@@ -1308,8 +1294,7 @@ class Handler(BaseHTTPRequestHandler):
             # Attribution only - see the module docstring. Falls back rather than
             # failing: a missing header means a misconfigured edge, and losing the
             # author name is not a reason to refuse a legitimate edit.
-            who = (self.headers.get("X-Auth-Request-Email")
-                   or self.headers.get("X-Auth-Request-User") or "unknown")
+            who = self.actor()
 
             # ── THE CONFLICT CHECK ───────────────────────────────────────────
             #
@@ -1446,10 +1431,10 @@ class Handler(BaseHTTPRequestHandler):
                 "versioned": res.git_root is not None,
                 "history": history(res),
             })
+        except Refused as e:
+            return self._send(e.status, {"error": str(e)})
         except safepath.PathRefused as e:
             return self._send(403, {"error": str(e)})
-        except json.JSONDecodeError:
-            return self._send(400, {"error": "body must be JSON"})
         except Exception as e:  # noqa: BLE001
             # The ROUTE, not a hardcoded "/write". Two verbs share this handler
             # now, and a 500 attributed to the wrong one sends whoever reads the
@@ -1513,8 +1498,7 @@ class Handler(BaseHTTPRequestHandler):
         # Attribution only, same header and same fallback as /write - see the
         # module docstring. A missing header means a misconfigured edge, and
         # losing the name is not a reason to refuse a legitimate action.
-        who = (self.headers.get("X-Auth-Request-Email")
-               or self.headers.get("X-Auth-Request-User") or "unknown")
+        who = self.actor()
 
         # ── THE CONFLICT CHECK, for the reason /write has one ────────────────
         #
@@ -1812,5 +1796,6 @@ if __name__ == "__main__":
     if missing:
         sys.stderr.write(f"FATAL: roots not mounted: {missing}\n")
         sys.exit(1)
-    sys.stderr.write(f"bothy-files on :{PORT} roots={sorted(safepath.ROOTS)}\n")
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    serve(PORT, Handler,
+          f"bothy-files on :{PORT} roots={sorted(safepath.ROOTS)} "
+          f"config fields={sorted(safepath.CONFIG_FIELDS)} on {sorted(safepath.CONFIG_ROOTS)}")

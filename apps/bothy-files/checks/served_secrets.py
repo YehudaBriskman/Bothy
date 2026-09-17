@@ -42,7 +42,7 @@ CONTAINER = "bothy-files"
 # real gate, so "served" here means what /read would actually hand over.
 PROBE = r'''
 import json, os, sys
-import safepath
+from bothy_common import safepath
 
 MAX = 512 * 1024
 found = []

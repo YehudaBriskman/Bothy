@@ -1,0 +1,150 @@
+# Routes for bothy-ops - everything that acts on something RUNNING: three verbs
+# on a container, and five actions on two cluster namespaces.
+#
+# WARNING - this directory is rendered as a Go template. A doubled brace
+# anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. Traefik then keeps
+# serving its last-good config, so nothing looks wrong until the next restart,
+# when every @file router disappears at once. `just verify` check 5b catches it.
+#
+# Replaces bothy-control.yml and bothy-kube.yml (2026-09), when the two services
+# became one. The routers did not merge: every verb and every action is still
+# its own router, with its own role.
+#
+# ── one exact Path per verb and per action, never a prefix, never a Host ────
+#
+# Eight routers would collapse tidily into two PathPrefix rules and that is
+# precisely the mistake. A prefix covers every endpoint the service grows LATER,
+# including one nobody meant to expose; with exact paths a new verb or catalog
+# action is unreachable until somebody edits this file - the right default for
+# the one service on this box that can stop a database. No Host() rules: the name
+# layer is retired (notes rule 1).
+#
+# Separate routers rather than one rule with several Path() alternatives, because
+# they are not one permission: the day `stop` needs a tier above `restart`, that
+# is one word in one router instead of a rule split under pressure.
+#
+# apps/bothy-ops/checks/wiring.py asserts the kube routers are exactly the ids in
+# apps/bothy-ops/catalog.toml, each with the role the catalog declares.
+#
+# ── gates are BORROWED, and from one place ──────────────────────────────────
+#
+#   sso-viewer, sso-operator   edge/dynamic/bothy-gates.yml
+#   sso-errors                 edge/dynamic/auth.yml
+#
+# Never redefined here: two definitions of one name in one provider is a
+# collision whose winner this file cannot decide. wiring.py asserts that too.
+#
+# sso-errors on these routes is consistency, not effect: every caller is a
+# fetch() from lib/http.ts, so the sign-in page it substitutes for a 401 is bytes
+# nobody renders - Traefik preserves the status, and the client reads that.
+
+http:
+  routers:
+    # ══ containers: operator ═══════════════════════════════════════════════
+    bothy-ops-control-restart:
+      rule: "Path(`/-/api/control/restart`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-operator, sso-errors]
+
+    bothy-ops-control-stop:
+      rule: "Path(`/-/api/control/stop`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-operator, sso-errors]
+
+    bothy-ops-control-start:
+      rule: "Path(`/-/api/control/start`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-operator, sso-errors]
+
+    # NO read router for containers. What is running is already served by the
+    # portal's read-only Docker API (bothy-api.yml), and a second source of truth
+    # for container state would be two things to keep agreeing.
+
+    # ══ cluster changes: operator ══════════════════════════════════════════
+    bothy-ops-kube-rollout-restart:
+      rule: "Path(`/-/api/kube/rollout-restart`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-operator, sso-errors]
+
+    bothy-ops-kube-scale:
+      rule: "Path(`/-/api/kube/scale`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-operator, sso-errors]
+
+    bothy-ops-kube-delete-completed-pods:
+      rule: "Path(`/-/api/kube/delete-completed-pods`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-operator, sso-errors]
+
+    # ══ cluster reads: viewer ══════════════════════════════════════════════
+    bothy-ops-kube-events:
+      rule: "Path(`/-/api/kube/events`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-viewer, sso-errors]
+
+    # Log follow is text/event-stream. Traefik flushes that content type
+    # immediately, so no flushInterval is needed; the service bounds each stream
+    # to at most 300 seconds.
+    bothy-ops-kube-logs:
+      rule: "Path(`/-/api/kube/logs`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-ops
+      middlewares: [bothy-ops-strip, ops-deidentify, sso-viewer, sso-errors]
+
+    # NO router for /healthz. It is the container's own HEALTHCHECK on 127.0.0.1;
+    # publishing it would put the verb list, the deny list and the namespace scope
+    # on the tailnet for nothing.
+
+  middlewares:
+    # /-/api/control/stop -> /control/stop, /-/api/kube/scale -> /kube/scale. The
+    # service answers only its own paths, so it cannot accidentally be correct
+    # about a path nobody routed. `/-/api`, not the longer prefix, because the
+    # service's routes already carry /control/ and /kube/.
+    bothy-ops-strip:
+      stripPrefix:
+        prefixes: ["/-/api"]
+
+    # Delete any X-Auth-Request-* the CLIENT sent, before forwardAuth runs, so
+    # the only identity that reaches the audit log is oauth2-proxy's. An empty
+    # value in customRequestHeaders removes the header outright; relying on "the
+    # auth response wins" would be relying on an ordering, not a guarantee.
+    #
+    # The blast radius if it were missing is a forged NAME in the action log, not
+    # an unauthorised action - the gate reads a signed session cookie, never a
+    # header. It matters more here than for a file write: a forged `stop
+    # postgres` is over before anyone reads anything, and the log is the only
+    # record it happened.
+    ops-deidentify:
+      headers:
+        customRequestHeaders:
+          X-Auth-Request-User: ""
+          X-Auth-Request-Email: ""
+          X-Auth-Request-Groups: ""
+          X-Auth-Request-Preferred-Username: ""
+          X-Forwarded-User: ""
+          X-Forwarded-Email: ""
+
+  services:
+    bothy-ops:
+      loadBalancer:
+        servers:
+          # opsnet holds exactly two containers: traefik and bothy-ops. The
+          # service publishes no host port and authenticates nobody, so
+          # reachability IS authorisation. Traefik is deliberately NOT on
+          # controlsocknet (the proxies) or thales-scc (the apiserver).
+          - url: "http://bothy-ops:8097"
