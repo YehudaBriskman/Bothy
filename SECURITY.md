@@ -415,22 +415,53 @@ then rewrite history. Removing it in a follow-up commit is not a fix.
 ### 6. The cluster tier (in `bothy-ops`) is three locks, and the innermost is the cluster's
 
 `apps/bothy-ops` (the `kube.py` half; `bothy-kube` was its own container until
-2026-09) gives the web UI five OpenShift-console verbs on the local
-Kubernetes cluster: `rollout-restart`, `scale` (0..3), `events`, `logs` (tail
-<= 500, SSE follow <= 300 s) and `delete-completed-pods`. Only in the namespaces
-`thales-dev` and `thales-pre-prod`. It is built so that any one lock failing
-still leaves the other two:
+2026-09) gives the web UI an OpenShift-console subset on the local Kubernetes
+cluster, only in the namespaces `thales-dev` and `thales-pre-prod`, and backs the
+Cluster page (`/control/cluster`). Since 2026-09-17 that is 29 actions:
+
+| Group | Reads (`viewer`) | Changes (`operator`, confirm) |
+|---|---|---|
+| Deployments | `deployments`, `rollout-status`, `rollout-history`, `events`, `logs` (tail <= 500, `previous`, `container`, SSE follow <= 300 s) | `rollout-restart` (click), `pause`/`resume` (click), `scale` 0..3 (type-name), `set-image` (type-name), `rollback-to-revision` (type-name) |
+| Pods | `pods` (namespace or one deployment) | `delete-pod` (click), `delete-completed-pods` (click) |
+| Jobs | `jobs`, `job-logs` | `delete-job` (click), `run-template` (type-name) |
+| ConfigMap `thales` | `configmap` | `patch-key`, `patch-key-and-restart` (type the KEY) |
+| Views | `services`, `routes`, `ingresses`, `persistentvolumeclaims`, `networkpolicies`, `resourcequotas`, `limitranges`, `namespace-events` (polled) | - |
+
+It is built so that any one lock failing still leaves the other two:
 
 | Lock | What it enforces | Where |
 |---|---|---|
-| **Edge** | One exact `Path()` per action - no `PathPrefix`, no `Host()`. Reads behind `sso-viewer`, changes behind `sso-operator` (both defined in `bothy-gates.yml`). Client `X-Auth-Request-*` stripped. | `edge/dynamic/bothy-ops.yml` (`bothy-ops-kube-*`) |
-| **Service** | Catalog ids must map 1:1 to hard-coded handlers or the service **refuses to start**. Namespace enum, RFC 1123 label names (`fullmatch`, no dots, no slashes), declared params with bounds, `type-name` confirmation checked server-side, JSON-only POST, cross-site `Sec-Fetch-Site` refused, one TSV audit line per request, including refusals, in `apps/bothy-ops/audit/actions.log`. | `apps/bothy-ops/{guard.py,catalog.toml,kube.py}`, `apps/bothy-common/bothy_common/{http,names,audit}.py` |
-| **Cluster** | ServiceAccount `bothy/bothy-kube` with a Role in **each target namespace only**: deployments get/list/patch, deployments/scale get/patch, pods get/list/delete, pods/log get, events list. **No** pods/exec, pods/attach, pods/portforward, secrets, configmaps, watch, create, or ClusterRole. | `k8s/rbac/bothy-kube.yaml` |
+| **Edge** | One exact `Path()` per action plus one for `GET /-/api/kube/catalog` - no `PathPrefix`, no `Host()`. Reads behind `sso-viewer`, changes behind `sso-operator` (both defined in `bothy-gates.yml`). Client `X-Auth-Request-*` stripped. | `edge/dynamic/bothy-ops.yml` (`bothy-ops-kube-*`, generated) |
+| **Service** | Catalog ids must map 1:1 to hard-coded handlers, and every catalog job template must be in the image, or the service **refuses to start**. Namespace enum; RFC 1123 names (`fullmatch`, no dots, no slashes); declared params with bounds; `image` params must be an OCI reference with a tag or digest **and** start with `thales/` or `localhost:5000/thales/` (a rollback may not restore what set-image would refuse); ConfigMap actions name only `thales`, change only `LOG_LEVEL`, `DB_POOL_MAX`, `JOB_MAX_WORKERS`, each value fullmatching its own pattern; `run-template` names one of `migrate`, `seed-identity`, `seed-reference` and the Job body is a file baked into the image - a request that carries a body or an image is refused; `delete-pod` only deletes a pod whose controller chain (walked on the apiserver, by uid) ends at a Deployment or a Job; `type-name` checked server-side; JSON-only POST; cross-site `Sec-Fetch-Site` refused; one TSV audit line per request, including refusals. | `apps/bothy-ops/{guard.py,catalog.toml,kube.py}`, `k8s/job-templates/`, `apps/bothy-common/bothy_common/{http,names,audit}.py` |
+| **Cluster** | ServiceAccount `bothy/bothy-kube` with a Role in **each target namespace only**, **generated** from the `rbac` each action declares: deployments get/list/patch, deployments/scale get/patch, replicasets get/list, pods get/list/delete, pods/log get, jobs get/list/create/delete, configmaps get/patch **by resourceNames `thales` only**, and list on events, services, routes, ingresses, persistentvolumeclaims, networkpolicies, resourcequotas, limitranges. **No** pods/exec, pods/attach, pods/portforward, secrets, watch, update, deletecollection, escalate, bind, impersonate, wildcard, namespace, or ClusterRole. | `k8s/rbac/bothy-kube.yaml` |
 
-`apps/bothy-ops/checks/wiring.py` asserts that the catalog, the edge routers, the
-UI's copy and the Role all agree. `checks/api_kube.py` drives the real handler
-against a stand-in apiserver over real TLS that counts requests, so every refusal
-is shown to reach nothing.
+**One hand-written file.** `apps/bothy-ops/catalog.toml` is the only place the
+actions, their roles, their params, the allowlists and the grants are written.
+`scripts/gen-ops-wiring.py` (`just ops-wiring`) generates the edge routers, the
+Role, the `just kube-token` can-i rows and the UI's dev catalog from it, and
+`guard.load_catalog` refuses - before anything is generated - an `rbac`
+declaration of secrets, exec, attach, portforward, watch, escalate, bind,
+impersonate, a wildcard, a namespace, `create` on anything but jobs, `delete` on
+anything but pods and jobs, or `patch` on anything but deployments(/scale) and
+configmaps. `checks/wiring.py` re-runs the generator and fails on drift, and
+asserts the same refusals on the generated Role itself; CI runs `--check`. The UI
+no longer carries a copy: it reads `GET /-/api/kube/catalog`.
+`checks/api_kube.py` drives the real handlers against a stand-in apiserver over
+real TLS that counts requests, so every refusal is shown to reach nothing.
+
+**What lock 3 alone leaves, stated plainly.** Before 2026-09-17 a total
+compromise of this process yielded restart, scale and logs. It now yields: patch
+any deployment's pod template (image included) and create Jobs, in two dev
+namespaces. **That is the power to run code there**, with whatever those
+namespaces' pods can reach - including the `thales` Secret, which the Thales pods
+and the templated Jobs mount as files. The registry, key and template allowlists
+are lock 2 only; the Role cannot express "only this image". What lock 3 still
+guarantees: no shell from a browser (no exec, attach, portforward), no Secret
+value through the API (no secrets verb at all, and the Job pods get no
+service-account token), no ConfigMap but `thales`, no RBAC change, nothing
+outside the two namespaces and nothing cluster-scoped. `deployments: patch` was
+already granted before (rollout-restart), so the widening is `jobs: create`,
+`configmaps: patch` and what the service now chooses to send.
 
 **The cluster is optional, and its absence is a 503, not an outage.** minikube's
 `thales-scc` network and the token mount live in
@@ -440,7 +471,8 @@ missing external network would fail the whole `bothy` project - the file editor
 and container actions with it. Without the overlay, or with the apiserver down or
 the token absent, every kube verb answers **503 "cluster unavailable"**; no
 request is sent anywhere, `/healthz` never calls the apiserver, and the container
-half is unaffected. A TLS verification failure is deliberately NOT folded into
+half is unaffected. (`GET /-/api/kube/catalog` still answers: it is static data
+from the image.) A TLS verification failure is deliberately NOT folded into
 that 503: something answered that is not the apiserver the token was issued for,
 and that is a 502.
 
@@ -463,24 +495,41 @@ minikube's own network (the way out, to `https://192.168.49.2:8443`, TLS verifie
 against the cluster CA). Traefik is **not** on `thales-scc`, nor on
 `controlsocknet`. There is no published port.
 
-**`pods: delete` is the widest verb.** It can delete a running pod. The handler
+**The deletes.** `pods: delete` can delete a running pod. `delete-completed-pods`
 only deletes pods the apiserver lists with `status.phase=Succeeded`, re-checks
-the phase per pod, and sends a UID precondition. A Deployment would recreate a
-deleted running pod anyway, so the worst case is a restart, not data loss.
+the phase per pod, and sends a UID precondition. `delete-pod` deletes one pod
+only after walking pod -> ReplicaSet -> Deployment (or pod -> Job) on the
+apiserver and matching uids at each step, with a UID precondition - a bare pod,
+a StatefulSet's pod, or a pod whose owner reference lies is refused. A controller
+recreates what either deletes, so the worst case is a restart. `delete-job` uses
+`propagationPolicy: Background` and a UID precondition.
 
-**Verified against the live cluster, 2026-09-17:** with the real token, the
-apiserver answered 403 to listing secrets in `thales-dev`, reading the token's
-own Secret, `pods/exec`, `pods/portforward`, listing pods in `kube-system`,
-deployments in `thales` and nodes. `kubectl auth can-i
---as=system:serviceaccount:bothy:bothy-kube create pods/exec -n thales-dev`
-prints `no`. Through the service, `kube-system`, an action named `secrets`,
-`exec`, a traversal in a name and cross-site POSTs were all refused before
-reaching the cluster.
+**Verified against the live cluster, 2026-09-17** (the generated Role applied,
+a throwaway bothy-ops built from the branch on `thales-scc` with the live token,
+driven from a second throwaway container): rollout-history, rollback of
+`thales-dev/frontend` to the previous revision and back (pods Ready each time),
+pause/resume, set-image to the same image, delete-pod on the frontend pod (a new
+Ready pod in 8 s), run-template `migrate` (Complete, its logs, then delete-job),
+patch-key `LOG_LEVEL` to its current value, and every view. Refused before
+reaching the cluster: `kube-system`, an action named `secrets`, ConfigMaps other
+than `thales`, the key `DEMO_LOGINS`, `LOG_LEVEL=trace`, an image from
+`docker.io`, a template named `../migrate` or `seed-scenario`, and `exec`. The
+can-i table (101 rows) matched: every granted verb yes; exec, attach and
+portforward (as real `--subresource` probes), secrets, watch, `create namespaces`,
+escalate, bind and impersonate no.
 
-To repeat it: `just kube-token` prints the can-i table (it exits non-zero if any
-row is unexpected), and `apps/bothy-ops/checks/run.sh --offline` (`just
-ops-check offline`) runs the offline suite. The live verification above predates
-the 2026-09 merge; the handlers and guard were moved, not rewritten.
+**A trap in the verification itself.** `kubectl auth can-i get pods/exec` does
+NOT ask about the exec subresource: it reads `TYPE/NAME` and asks about a pod
+*named* `exec`, so it answers `yes` for any account that may get pods. The old
+hand-written rows (`create pods/exec`, `get pods/log`, `patch
+deployments.apps/scale`) passed without asking what they printed. The generated
+rows pass `--subresource`; `scripts/gen-headlamp-token.sh` had the same bug and
+was fixed with it.
+
+To repeat it: `just kube-token` applies the Role and prints the can-i table (it
+exits non-zero if any row is unexpected), `just ops-wiring check` proves the
+generated files match the catalog, and `apps/bothy-ops/checks/run.sh --offline`
+(`just ops-check offline`) runs the offline suite.
 
 ---
 
