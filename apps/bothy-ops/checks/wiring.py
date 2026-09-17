@@ -308,6 +308,11 @@ ts = open(ts_path, encoding="utf-8").read()
 ok(re.search(r"\{\s*id:\s*'rollout-restart'", ts) is None and "KUBE_CATALOG: readonly" not in ts,
    "kube-actions.ts carries no hand-copied catalog entries")
 ok("/-/api/kube" in ts, "kube-actions.ts talks to /-/api/kube")
+# The one literal the UI keeps: the Services-table row button is drawn without
+# fetching the catalog, so it needs the scope synchronously.
+m = re.search(r"KUBE_NAMESPACES: readonly string\[\] = \[([^\]]*)\]", ts)
+ok(m is not None and tuple(re.findall(r"'([^']+)'", m.group(1))) == guard.NAMESPACES,
+   "KUBE_NAMESPACES == guard.NAMESPACES")
 
 print()
 if fails:

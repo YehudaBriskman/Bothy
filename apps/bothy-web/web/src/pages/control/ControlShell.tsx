@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Boxes, Gauge, PanelLeftClose, PanelLeftOpen, Plug, Share2, Waypoints } from 'lucide-react';
+import { Boxes, Gauge, PanelLeftClose, PanelLeftOpen, Plug, Share2, ShipWheel, Waypoints } from 'lucide-react';
 import './control.css';
 
 // Ports before Routes, which reverses the old tab order. The tabs defaulted to
@@ -63,6 +63,10 @@ const NAV = [
   { to: '/control/ports', label: 'Ports', Icon: Plug },
   { to: '/control/routes', label: 'Routes', Icon: Waypoints },
   { to: '/control/topology', label: 'Topology', Icon: Share2 },
+  // The cluster namespaces bothy-ops acts on (pages/control/Cluster.tsx). Last,
+  // and separate from Topology: that one is the box's containers, this one is
+  // what runs inside minikube, and the two have different sources and verbs.
+  { to: '/control/cluster', label: 'Cluster', Icon: ShipWheel },
 ];
 
 // Versioned like panes.ts's key, for the same reason: a shape change should be a

@@ -1,16 +1,19 @@
-// Acting on cluster workloads: rollout restart, scale, events, logs, and
-// deleting completed pods. The client half of the kube verbs in apps/bothy-ops
-// (bothy-kube until it merged with the container tier, 2026-09).
+// Acting on cluster workloads - the client half of bothy-ops' kube verbs.
 //
-// THE CATALOG IS MIRRORED, NOT FETCHED. KUBE_CATALOG below is a copy of
-// apps/bothy-ops/catalog.toml, and apps/bothy-ops/checks/wiring.py fails when
-// the two disagree on an id, a role or a confirm level. Fetching it would add a
-// sixth route to the edge for something that changes only in a reviewed commit.
+// THE CATALOG IS FETCHED, NOT MIRRORED (2026-09). Until then KUBE_CATALOG was a
+// hand-copied literal of apps/bothy-ops/catalog.toml that checks/wiring.py held
+// in step. With ~30 actions a copy is a second thing to edit per action, so the
+// service now serves its own catalog at GET /-/api/kube/catalog (viewer, one
+// exact Path() like every other action) and the interface draws from that.
+// catalog.toml stays the only hand-written wiring; scripts/gen-ops-wiring.py
+// generates the edge routers, the RBAC and the dev fixture
+// (lib/kube-catalog.dev.json) from it.
 //
 // WHAT THE INTERFACE HIDES IS NEVER WHAT THE API ENFORCES. Roles are checked at
-// the edge (sso-viewer, sso-operator), the namespace enum and the `type-name`
-// confirmation again by the service, and the verbs a third time by the cluster's
-// RBAC. Everything here is a courtesy that explains a refusal before the click.
+// the edge (sso-viewer, sso-operator), the namespace enum, the allowlists and the
+// `type-name` confirmation again by the service, and the verbs a third time by
+// the cluster's RBAC. Everything here is a courtesy that explains a refusal
+// before the click.
 //
 // THIS MODULE IMPORTS ONLY lib/http.ts, which imports nothing, on lib/actions.ts's
 // reasoning: checks/run.sh compiles and exercises it in node, and the rules below
@@ -18,35 +21,52 @@
 
 import { apiFetch, refusalOf as httpRefusalOf, statusOf } from './http';
 
-export type KubeActionId = 'rollout-restart' | 'scale' | 'events' | 'logs' | 'delete-completed-pods';
+export type KubeActionId = string;
 export type KubeRole = 'viewer' | 'operator';
 export type ConfirmLevel = 'none' | 'click' | 'type-name';
+export type KubeTargetKind = 'namespace' | 'deployment' | 'pod' | 'job' | 'template' | 'configmap';
+
+export interface KubeParamSpec {
+  type: 'int' | 'bool' | 'name' | 'image' | 'configmap-key' | 'configmap-value';
+  required?: boolean;
+  default?: number | boolean | null;
+  min?: number | null;
+  max?: number | null;
+}
 
 export interface KubeActionSpec {
   id: KubeActionId;
   title: string;
-  role: KubeRole;
-  confirm: ConfirmLevel;
-  target: 'deployment' | 'namespace';
-  stream: boolean;
   /** One sentence: what it does, in the reader's terms. */
   meaning: string;
+  target: KubeTargetKind;
+  method: 'GET' | 'POST';
+  role: KubeRole;
+  confirm: ConfirmLevel;
+  stream: boolean;
+  params: Record<string, KubeParamSpec>;
 }
 
-// Kept one entry per line with `id:` first - wiring.py reads this literal.
-export const KUBE_CATALOG: readonly KubeActionSpec[] = [
-  { id: 'rollout-restart', title: 'Restart rollout', role: 'operator', confirm: 'click', target: 'deployment', stream: false, meaning: 'Replace every pod of this deployment, one at a time. Configuration is unchanged.' },
-  { id: 'scale', title: 'Scale', role: 'operator', confirm: 'type-name', target: 'deployment', stream: false, meaning: 'Set how many pods run, from 0 to 3. Scaling to 0 stops the workload.' },
-  { id: 'events', title: 'Events', role: 'viewer', confirm: 'none', target: 'deployment', stream: false, meaning: 'What the cluster recently said about this deployment and its pods.' },
-  { id: 'logs', title: 'Logs', role: 'viewer', confirm: 'none', target: 'deployment', stream: true, meaning: 'The last lines a pod wrote, or follow them live for up to two minutes.' },
-  { id: 'delete-completed-pods', title: 'Delete completed pods', role: 'operator', confirm: 'click', target: 'namespace', stream: false, meaning: 'Remove pods that finished successfully. Running pods are never touched.' },
-];
+export interface KubeCatalog {
+  namespaces: string[];
+  actions: KubeActionSpec[];
+  configmaps: string[];
+  configmapKeys: Record<string, { pattern: string; meaning: string }>;
+  imageRegistries: string[];
+  jobTemplates: string[];
+}
 
-/** The two namespaces bothy-ops' kube verbs act on. Mirrors guard.NAMESPACES. */
+/**
+ * The namespaces a ROW CONTROL is drawn for, before any catalog has loaded.
+ *
+ * This one list stays a literal, and it is not the catalog: it decides whether a
+ * Services-table row gets a cluster button at all, on a page that has no reason
+ * to fetch the catalog for rows it will never offer one on. It mirrors
+ * guard.NAMESPACES and checks/wiring.py asserts the two agree. The page and the
+ * dialog use the catalog's own `namespaces`.
+ */
 export const KUBE_NAMESPACES: readonly string[] = ['thales-dev', 'thales-pre-prod'];
 
-export const SCALE_MIN = 0;
-export const SCALE_MAX = 3;
 export const LOG_TAIL_MAX = 500;
 export const FOLLOW_SECONDS = 120;
 
@@ -55,11 +75,38 @@ export interface KubeTarget {
   deployment: string;
 }
 
-/** The action spec by id. Throws on an unknown id, which is a programming error. */
-export function specOf(id: KubeActionId): KubeActionSpec {
-  const s = KUBE_CATALOG.find((a) => a.id === id);
+/** The action spec by id, or null. */
+export function findSpec(catalog: KubeCatalog | null | undefined, id: KubeActionId): KubeActionSpec | null {
+  return catalog?.actions.find((a) => a.id === id) ?? null;
+}
+
+/** The action spec by id. Throws on an unknown id - the catalog and the caller disagree. */
+export function specOf(catalog: KubeCatalog, id: KubeActionId): KubeActionSpec {
+  const s = findSpec(catalog, id);
   if (!s) throw new Error(`unknown kube action ${id}`);
   return s;
+}
+
+/** An int parameter's bounds, as the catalog declares them. */
+export function boundsOf(spec: KubeActionSpec, param: string): { min: number; max: number } {
+  const p = spec.params[param];
+  return { min: p?.min ?? 0, max: p?.max ?? 0 };
+}
+
+/** The request field a target kind is named by. Null for a namespace action. */
+export function targetField(kind: KubeTargetKind): string | null {
+  return kind === 'namespace' ? null : kind;
+}
+
+/**
+ * What `type-name` asks the person to type - the SERVICE checks the same
+ * string: the target's name, except a configmap action that takes a `key`,
+ * where it is the key (typing `thales` for every key would confirm nothing).
+ */
+export function confirmNameOf(spec: KubeActionSpec, req: Record<string, unknown>): string {
+  if (spec.target === 'configmap' && 'key' in spec.params) return String(req.key ?? '');
+  const f = targetField(spec.target);
+  return String(f ? req[f] ?? '' : req.namespace ?? '');
 }
 
 /**
@@ -78,12 +125,12 @@ export function kubeTargetOf(node: { kube?: { namespace?: string | null; deploym
 
 /** Whether the confirm step has been satisfied for this level. */
 export function confirmSatisfied(level: ConfirmLevel, typed: string, name: string): boolean {
-  if (level === 'type-name') return typed === name;
+  if (level === 'type-name') return name !== '' && typed === name;
   return true;
 }
 
 /** The actions a session may run, given its roles. Viewer reads; operator changes and reads. */
-export function allowedFor(roles: readonly string[], spec: KubeActionSpec): boolean {
+export function allowedFor(roles: readonly string[], spec: Pick<KubeActionSpec, 'role'>): boolean {
   if (spec.role === 'viewer') return roles.includes('viewer') || roles.includes('operator');
   return roles.includes('operator');
 }
@@ -94,7 +141,7 @@ export interface KubeRefusal {
   needsRole: boolean;
 }
 
-export function kubeRefusalOf(e: unknown, spec: KubeActionSpec, what: string): KubeRefusal {
+export function kubeRefusalOf(e: unknown, spec: Pick<KubeActionSpec, 'title' | 'role'>, what: string): KubeRefusal {
   const status = statusOf(e);
   const kind = httpRefusalOf(status);
   const said = status > 0 && e instanceof Error ? e.message : '';
@@ -142,13 +189,64 @@ export function kubeRefusalOf(e: unknown, spec: KubeActionSpec, what: string): K
 
 // ── results ─────────────────────────────────────────────────────────────────
 
-interface Base { ok: boolean; namespace: string; target: string; tookMs: number }
-export interface RestartResult extends Base { restartedAt: string; fromGeneration?: number; toGeneration?: number; replicas?: number }
-export interface ScaleResult extends Base { from: number; to: number }
+export interface KubeBase { ok: boolean; action?: string; namespace: string; target: string; tookMs: number }
+export interface ImageRef { container: string; image: string }
+export interface RestartResult extends KubeBase { restartedAt: string; fromGeneration?: number; toGeneration?: number; replicas?: number }
+export interface ScaleResult extends KubeBase { from: number; to: number }
 export interface KubeEvent { type: string; reason: string; message: string; object: string; count: number; lastSeen: string }
-export interface EventsResult extends Base { events: KubeEvent[] }
-export interface LogsResult extends Base { pod: string; container: string; pods: string[]; containers: string[]; lines: string[] }
-export interface DeleteCompletedResult extends Base { deleted: string[]; skipped: string[] }
+export interface EventsResult extends KubeBase { events: KubeEvent[] }
+export interface LogsResult extends KubeBase { pod: string; container: string; pods: string[]; containers: string[]; lines: string[]; previous?: boolean }
+export interface DeleteCompletedResult extends KubeBase { deleted: string[]; skipped: string[] }
+export interface Condition { type: string; status: string; reason?: string; message?: string }
+export interface DeploymentRow {
+  name: string; replicas: number; readyReplicas: number; updatedReplicas: number; availableReplicas: number;
+  paused: boolean; generation: number; observedGeneration: number; revision: number | null;
+  images: ImageRef[]; selector: Record<string, string>; templateLabels: Record<string, string>;
+  configmaps: string[]; createdAt: string; conditions: Condition[];
+}
+export interface DeploymentsResult extends KubeBase { deployments: DeploymentRow[] }
+export interface RolloutStatusResult extends KubeBase {
+  done: boolean; message: string; replicas: number; updatedReplicas: number; readyReplicas: number;
+  availableReplicas: number; paused: boolean; generation: number; observedGeneration: number; revision: number | null;
+}
+export interface RevisionRow { revision: number; replicaset: string; images: ImageRef[]; replicas: number; readyReplicas: number; createdAt: string; current: boolean }
+export interface HistoryResult extends KubeBase { current: number | null; revisions: RevisionRow[] }
+export interface RollbackResult extends KubeBase { fromRevision: number | null; toRevision: number; images: ImageRef[]; skipped: boolean }
+export interface PauseResult extends KubeBase { from: boolean; to: boolean }
+export interface SetImageResult extends KubeBase { container: string; from: string; to: string }
+export interface PodContainer { name: string; image: string; ready: boolean; restartCount: number; state: string; reason?: string | null }
+export interface PodRow {
+  name: string; phase: string; status: string; readyContainers: number; totalContainers: number; restarts: number;
+  owner: { kind: string; name: string } | null; deletable: boolean; containers: PodContainer[]; createdAt: string; node?: string | null;
+}
+export interface PodsResult extends KubeBase { pods: PodRow[] }
+export interface DeletePodResult extends KubeBase { deleted: string; owner: { kind: string; name: string } | null }
+export interface JobRow {
+  name: string; template: string | null; status: 'Running' | 'Complete' | 'Failed' | string;
+  active: number; succeeded: number; failed: number; startTime: string | null; completionTime: string | null;
+  createdAt: string; images: ImageRef[];
+}
+export interface JobsResult extends KubeBase { jobs: JobRow[] }
+export interface JobLogsResult extends KubeBase { job: string; pod: string; container: string; pods: string[]; containers: string[]; previous: boolean; lines: string[] }
+export interface DeleteJobResult extends KubeBase { deleted: string; propagationPolicy: string }
+export interface RunTemplateResult extends KubeBase { job: string; template: string; image: string }
+export interface ConfigEntry { key: string; value: string; editable: boolean; pattern?: string; meaning?: string }
+export interface ConfigMapResult extends KubeBase { configmap: string; resourceVersion: string; data: ConfigEntry[] }
+export interface PatchKeyResult extends KubeBase { key: string; from: string | null; to: string; restarted?: string[]; restartedAt?: string }
+export interface ServiceRow { name: string; type: string; clusterIP: string; ports: { name?: string | null; port: number; targetPort: string | number; protocol: string; nodePort?: number | null }[]; selector: Record<string, string> }
+export interface ServicesResult extends KubeBase { services: ServiceRow[] }
+export interface RouteRow { name: string; host: string; path?: string | null; service: string; targetPort?: string | number | null; tls: string | null; admitted: boolean | null }
+export interface RoutesResult extends KubeBase { routes: RouteRow[] }
+export interface IngressRow { name: string; className?: string | null; rules: { host?: string | null; path?: string | null; service: string; port?: string | number | null }[]; tlsHosts: string[] }
+export interface IngressesResult extends KubeBase { ingresses: IngressRow[] }
+export interface ClaimRow { name: string; phase: string; requested?: string | null; capacity?: string | null; accessModes: string[]; storageClass?: string | null; volume?: string | null }
+export interface ClaimsResult extends KubeBase { claims: ClaimRow[] }
+export interface PolicyRow { name: string; podSelector: Record<string, string>; policyTypes: string[]; ingress: string[]; egress: string[] }
+export interface PoliciesResult extends KubeBase { policies: PolicyRow[] }
+export interface QuotaRow { name: string; hard: Record<string, string>; used: Record<string, string> }
+export interface QuotasResult extends KubeBase { quotas: QuotaRow[] }
+export interface LimitRangeRow { name: string; limits: { type: string; default?: Record<string, string>; defaultRequest?: Record<string, string>; max?: Record<string, string>; min?: Record<string, string> }[] }
+export interface LimitRangesResult extends KubeBase { limitRanges: LimitRangeRow[] }
 
 export interface LogStreamHandlers {
   onMeta?: (m: { pod: string; container: string; seconds: number }) => void;
@@ -164,7 +262,37 @@ const BASE = '/-/api/kube';
 const refused = (id: KubeActionId) => (status: number) => `${id} refused (${status})`;
 const notService = (id: KubeActionId) => `${id} was answered by something that is not bothy-ops`;
 
-async function post<T>(id: KubeActionId, body: Record<string, unknown>): Promise<T> {
+let catalogPromise: Promise<KubeCatalog> | null = null;
+
+/**
+ * The catalog, fetched once per tab. A rejection is not cached - a blip on the
+ * first open must not make the page believe there are no actions until reload.
+ */
+export function loadCatalog(): Promise<KubeCatalog> {
+  if (!catalogPromise) {
+    catalogPromise = (async () => {
+      if (import.meta.env.DEV) {
+        const { catalogMock } = await import('./kube-actions.dev');
+        return catalogMock();
+      }
+      return apiFetch<KubeCatalog>(`${BASE}/catalog`, { refused: refused('catalog'), notService: notService('catalog') });
+    })().catch((e) => { catalogPromise = null; throw e; });
+  }
+  return catalogPromise;
+}
+
+/** Query-string form of a GET request. Undefined and null values are left out. */
+export function queryOf(req: Record<string, unknown>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(req)) {
+    if (v === undefined || v === null || v === '') continue;
+    q.set(k, String(v));
+  }
+  return q.toString();
+}
+
+/** POST a change. */
+export async function kubePost<T>(id: KubeActionId, body: Record<string, unknown>): Promise<T> {
   // DEV NEVER TOUCHES THE REAL CLUSTER. `vite dev` proxies /-/api/* at the live
   // box, so a real call from a dev tab would restart real pods. `import.meta.env.DEV`
   // is a literal false in a build, so the mock is not in the bundle.
@@ -177,39 +305,48 @@ async function post<T>(id: KubeActionId, body: Record<string, unknown>): Promise
   return apiFetch<T>(`${BASE}/${id}`, { body, refused: refused(id), notService: notService(id) });
 }
 
-async function get<T>(id: KubeActionId, q: Record<string, string>): Promise<T> {
+/** GET a read. */
+export async function kubeGet<T>(id: KubeActionId, q: Record<string, unknown>): Promise<T> {
   if (import.meta.env.DEV) {
     const { kubeMock } = await import('./kube-actions.dev');
     return kubeMock(id, q) as Promise<T>;
   }
-  return apiFetch<T>(`${BASE}/${id}?${new URLSearchParams(q)}`, { refused: refused(id), notService: notService(id) });
+  return apiFetch<T>(`${BASE}/${id}?${queryOf(q)}`, { refused: refused(id), notService: notService(id) });
+}
+
+/** Run any catalog action by its declared method. */
+export function kubeCall<T>(spec: Pick<KubeActionSpec, 'id' | 'method'>, req: Record<string, unknown>): Promise<T> {
+  return spec.method === 'POST' ? kubePost<T>(spec.id, req) : kubeGet<T>(spec.id, req);
 }
 
 export const rolloutRestart = (t: KubeTarget) =>
-  post<RestartResult>('rollout-restart', { namespace: t.namespace, deployment: t.deployment });
+  kubePost<RestartResult>('rollout-restart', { namespace: t.namespace, deployment: t.deployment });
 
 /** `confirm` must be the deployment's name - the service checks it too. */
 export const scale = (t: KubeTarget, replicas: number, confirm: string) =>
-  post<ScaleResult>('scale', { namespace: t.namespace, deployment: t.deployment, replicas, confirm });
+  kubePost<ScaleResult>('scale', { namespace: t.namespace, deployment: t.deployment, replicas, confirm });
 
 export const deleteCompletedPods = (namespace: string) =>
-  post<DeleteCompletedResult>('delete-completed-pods', { namespace });
+  kubePost<DeleteCompletedResult>('delete-completed-pods', { namespace });
 
 export const kubeEvents = (t: KubeTarget, limit = 50) =>
-  get<EventsResult>('events', { namespace: t.namespace, deployment: t.deployment, limit: String(limit) });
+  kubeGet<EventsResult>('events', { namespace: t.namespace, deployment: t.deployment, limit });
 
-export const kubeLogs = (t: KubeTarget, tail = 200, pod?: string) =>
-  get<LogsResult>('logs', {
-    namespace: t.namespace, deployment: t.deployment, tail: String(Math.min(tail, LOG_TAIL_MAX)),
-    ...(pod ? { pod } : {}),
+export interface LogOptions { pod?: string; container?: string; previous?: boolean }
+
+export const kubeLogs = (t: KubeTarget, tail = 200, o: LogOptions = {}) =>
+  kubeGet<LogsResult>('logs', {
+    namespace: t.namespace, deployment: t.deployment, tail: Math.min(tail, LOG_TAIL_MAX),
+    pod: o.pod, container: o.container, previous: o.previous ? 'true' : undefined,
   });
 
 /** The follow URL. Exported for the check; the component uses followLogs(). */
-export function followUrl(t: KubeTarget, tail: number, seconds: number, pod?: string): string {
+export function followUrl(t: KubeTarget, tail: number, seconds: number, pod?: string, container?: string): string {
   const q = new URLSearchParams({
     namespace: t.namespace, deployment: t.deployment, tail: String(Math.min(tail, LOG_TAIL_MAX)),
     follow: 'true', seconds: String(Math.max(5, Math.min(seconds, 300))),
     ...(pod ? { pod } : {}),
+    ...(container ? { container } : {}),
   });
   return `${BASE}/logs?${q}`;
 }
@@ -222,7 +359,7 @@ export function followUrl(t: KubeTarget, tail: number, seconds: number, pod?: st
  * source here or the browser would reopen the stream forever - which is the
  * exact unbounded follow the deadline exists to prevent.
  */
-export function followLogs(t: KubeTarget, tail: number, seconds: number, h: LogStreamHandlers, pod?: string): () => void {
+export function followLogs(t: KubeTarget, tail: number, seconds: number, h: LogStreamHandlers, pod?: string, container?: string): () => void {
   if (import.meta.env.DEV) {
     let stop: () => void = () => {};
     let stopped = false;
@@ -231,7 +368,7 @@ export function followLogs(t: KubeTarget, tail: number, seconds: number, h: LogS
     });
     return () => { stopped = true; stop(); };
   }
-  const es = new EventSource(followUrl(t, tail, seconds, pod));
+  const es = new EventSource(followUrl(t, tail, seconds, pod, container));
   let done = false;
   const finish = () => { done = true; es.close(); };
   es.addEventListener('meta', (e) => {
