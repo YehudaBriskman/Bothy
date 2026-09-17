@@ -3,7 +3,7 @@
 # BUILT FROM apps/ (compose: `context: ..`), so bothy_common can be copied in.
 # apps/.dockerignore is an allowlist; a file not named there is not in the
 # context, so a new module must be added to it as well as to a COPY below.
-FROM python:3.13-alpine
+FROM python:3.13-alpine@sha256:7415fbc3c9e4979cc717d92377ab2bc7b2b4a2af1ac03cc52b5f3f88efedaf3a
 
 # git is how /history, /repos, /status and /git/diff read the repositories. This
 # service changes no repository's history or index; see app.py's header.
@@ -33,6 +33,9 @@ RUN adduser -D -u 1000 app
 USER app
 
 ENV PORT=8099
+# Explicit, not left to safepath's default: the policy is the access model, and
+# "which file did it load" should be readable in `docker inspect`.
+ENV POLICY_FILE=/app/policy.toml
 EXPOSE 8099
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

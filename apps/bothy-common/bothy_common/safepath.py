@@ -57,8 +57,15 @@ from dataclasses import dataclass
 # to a built-in default, because the only safe default is "serve nothing", and a
 # service that serves nothing looks broken in a way people work around by
 # disabling the check.
+#
+# The default is policy.toml BESIDE THE PACKAGE (/app/policy.toml in the image,
+# where bothy_common/ is /app/bothy_common). It used to be dirname(__file__),
+# which was right while this module lived next to app.py and pointed INSIDE the
+# package once it moved - a throwaway run of the first merged image refused to
+# start on exactly that. The Dockerfile also sets POLICY_FILE explicitly.
 POLICY_PATH = os.environ.get("POLICY_FILE",
-                             os.path.join(os.path.dirname(__file__), "policy.toml"))
+                             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                          "policy.toml"))
 
 
 class PolicyError(Exception):
