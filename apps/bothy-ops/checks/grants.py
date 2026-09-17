@@ -168,8 +168,9 @@ ok("docker.sock" not in svc,
 ok(not re.search(r"^    ports:", svc, re.M),
    "bothy-ops publishes NO host port - reachability IS authorisation")
 ok("no-new-privileges:true" in svc, "bothy-ops cannot gain privileges")
-_ops_nets = re.findall(r"^      - (\S+)", svc.split("    networks:")[1].split("    depends_on:")[0], re.M) \
-    if "    networks:" in svc else []
+# The `networks:` block only: from its key to the next 4-space key.
+_m = re.search(r"^    networks:\n((?:      .*\n|\s*#.*\n)+)", svc, re.M)
+_ops_nets = re.findall(r"^      - (\S+)", _m.group(1), re.M) if _m else []
 ok(sorted(_ops_nets) == ["controlsocknet", "opsnet"],
    f"bothy-ops is on exactly opsnet (in) + controlsocknet (out); thales-scc only via "
    f"the overlay ({_ops_nets})")
