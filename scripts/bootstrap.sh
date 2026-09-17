@@ -330,9 +330,9 @@ case "$box_ip" in
   *) ok "BOX_IP already set to $box_ip - left alone" ;;
 esac
 
-# ── PUID/PGID: who the three writing services run as ─────────────────────────
+# ── PUID/PGID: who the two writing services run as ─────────────────────────
 #
-# bothy-files, bothy-config and bothy-control write into bind-mounted host
+# bothy-files and bothy-ops write into bind-mounted host
 # directories - the audit logs, and for the editor tier the repositories
 # themselves. Their compose files ran them as a hardcoded `1000:1000`, which
 # made Bothy installable only by somebody who happens to BE uid 1000. That is
@@ -348,18 +348,18 @@ esac
 # existing install does not migrate anything: the directories keep the ownership
 # they were created with, and the services stop being able to write to them.
 # NEVER 0, and this is a security boundary rather than a preference.
-# bothy-control talks to the docker daemon through two socket proxies, and
-# apps/bothy-control/checks/grants.py asserts it does not run as root - because a
+# bothy-ops talks to the docker daemon through two socket proxies, and
+# apps/bothy-ops/checks/grants.py asserts it does not run as root - because a
 # root process holding container control is a straight path from "restart a
 # container" to the host. Installing AS root is a thing people do; propagating it
 # into the service is not. The directories are chowned instead, so the services
 # keep uid 1000 and can still write.
 if [ "$(env_value PUID)" = "" ] && [ "$me_u" != "1000" ]; then
   if [ "$me_u" = "0" ]; then
-    warn "installing as root - PUID stays 1000 (bothy-control must not be root)"
+    warn "installing as root - PUID stays 1000 (bothy-ops must not be root)"
     say "  the directories created above are chowned to 1000:1000 so writes still work"
     for d in "$STATE_ROOT/bothy/trash" "$STATE_ROOT/bothy/config-trash" \
-             apps/bothy-files/audit apps/bothy-config/audit apps/bothy-control/audit; do
+             apps/bothy-files/audit apps/bothy-ops/audit; do
       [ -d "$d" ] && chown -R 1000:1000 "$d" 2>/dev/null
     done
   else
@@ -402,7 +402,7 @@ mk "$STATE_ROOT/devbox-logs"
 mk "$BACKUP_ROOT/postgres"
 mk "$PROJECTS_ROOT"
 mk apps/bothy-files/audit
-mk apps/bothy-control/audit
+mk apps/bothy-ops/audit
 
 # The notes root is a git REPO, not just a directory: bothy-files mounts it
 # read-write and policy.toml declares it, and the service fails closed without

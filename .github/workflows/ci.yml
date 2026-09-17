@@ -86,15 +86,14 @@ jobs:
         if: always()
         run: bash apps/bothy-web/checks/run.sh --offline
 
-      - name: Config tier - the patch boundary
+      # bothy-ops: container + cluster actions (bothy-control and bothy-kube until
+      # 2026-09 - bothy-kube's checks never ran in CI before this).
+      - name: Ops tier - the guard, the socket grants, both HTTP surfaces, the wiring
         if: always()
-        run: bash apps/bothy-config/checks/run.sh
+        run: bash apps/bothy-ops/checks/run.sh --offline
 
-      - name: Control tier - the verb allowlist and the socket grants
-        if: always()
-        run: bash apps/bothy-control/checks/run.sh --offline
-
-      - name: Editor tier - path safety, with real planted symlinks
+      # bothy-files: the editor AND the config forms (bothy-config until 2026-09).
+      - name: Files tier - path safety with real symlinks, and the config patch boundary
         if: always()
         working-directory: apps/bothy-files
         run: bash checks/run.sh --offline
@@ -300,7 +299,16 @@ jobs:
             # `config -q` resolves and validates only. It does not contact the
             # daemon for the external `devnet`/`socketnet` networks, so it passes
             # on a runner where those do not exist.
-            if docker compose -f "$f" --env-file .env config -q; then
+            # An OVERLAY (compose.<name>.yml, e.g. compose.cluster.yml) is not a
+            # project on its own - it adds a network or a mount to a service
+            # defined elsewhere - so it is validated ON TOP OF the compose.yml
+            # beside it, which is how `just up-apps` / `up-monitoring` use it.
+            args=(-f "$f")
+            case "$(basename "$f")" in
+              compose.yml) ;;
+              compose.*.yml) args=(-f "$(dirname "$f")/compose.yml" -f "$f") ;;
+            esac
+            if docker compose "${args[@]}" --env-file .env config -q; then
               echo "ok    $f"
             else
               echo "FAIL  $f"
@@ -359,7 +367,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [bothy-web, bothy-files, bothy-config, bothy-control]
+        app: [bothy-web, bothy-files, bothy-ops]
+        # bothy-files and bothy-ops build from apps/ so they can COPY
+        # apps/bothy-common in (apps/.dockerignore is their allowlist); bothy-web
+        # still builds from its own directory.
+        include:
+          - app: bothy-web
+            context: apps/bothy-web
+            file: apps/bothy-web/Dockerfile
+          - app: bothy-files
+            context: apps
+            file: apps/bothy-files/Dockerfile
+          - app: bothy-ops
+            context: apps
+            file: apps/bothy-ops/Dockerfile
     steps:
       - uses: actions/checkout@v7
 
@@ -371,7 +392,8 @@ jobs:
       # building what it points at.
       - uses: docker/build-push-action@v7
         with:
-          context: apps/${{ matrix.app }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: false
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}

@@ -82,9 +82,12 @@ services:
     networks:
       - opsnet             # in, from traefik
       - controlsocknet     # out, to the proxies
-    depends_on:
-      - socket-read
-      - socket-write
+    # NO depends_on the proxies, although it had one when they shared a file.
+    # They live in apps/bothy/socket-proxy.yml now, and a depends_on naming a
+    # service from another include fragment makes THIS file invalid on its own
+    # (CI validates every compose file by itself). Nothing is lost: bothy-ops
+    # dials a proxy per request, so a proxy that is not up yet is a 502 on one
+    # click, never a failed start.
     labels:
       # No traefik.* router labels ON PURPOSE. The docker provider would give
       # this a router derived from the container name; an auto-generated router

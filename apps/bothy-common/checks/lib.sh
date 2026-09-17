@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# PY, YPY, fail and BOTHY_COMMON are set here for the sourcing run.sh to read.
+# shellcheck disable=SC2034
 # Shared by apps/bothy-files/checks/run.sh and apps/bothy-ops/checks/run.sh.
 # SOURCED, never run. bash 3.2-safe (scripts/checks/bash32.sh): no associative
 # arrays, no ${x,,}, no mapfile.

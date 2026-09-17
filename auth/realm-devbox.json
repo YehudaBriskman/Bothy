@@ -20,17 +20,17 @@
     "realm": [
       {
         "name": "viewer",
-        "description": "Read the box: browse files, search their contents, download bytes, and read the config a service declares. Gates 3 routers (bothy-files read + download, bothy-config read).",
+        "description": "Read the box: browse files, search their contents, download bytes, read the config a service declares, and read cluster events and logs. Gates 5 routers (bothy-files read + download, bothy-config read, bothy-ops kube events + logs).",
         "composite": false
       },
       {
         "name": "editor",
-        "description": "Change a file on disk, and patch a declared config field. Saves write straight to the working tree. Gates 3 routers (bothy-files write + delete, bothy-config patch).",
+        "description": "Change a file on disk, and patch a declared config field. Saves write straight to the working tree. Gates 3 routers (bothy-files write + delete, bothy-config patch - all served by bothy-files).",
         "composite": false
       },
       {
         "name": "operator",
-        "description": "Act on what is running - restart, stop and start a service. Gates 3 routers, one per verb (bothy-control). There is no exec and no kill.",
+        "description": "Act on what is running - restart, stop and start a service; restart, scale or clean up a cluster workload. Gates 6 routers, one per verb or action (bothy-ops). There is no exec and no kill.",
         "composite": false
       },
       {
