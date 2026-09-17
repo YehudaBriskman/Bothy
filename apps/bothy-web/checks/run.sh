@@ -74,6 +74,11 @@ mv "$OUT/projects.js" "$OUT/projects-mod.mjs"
   --module esnext --target es2022 --moduleResolution bundler \
   --types vite/client --outDir "$OUT" >/dev/null)
 mv "$OUT/actions.js" "$OUT/actions-mod.mjs"
+# kube-actions.ts, for the cluster-tier check. Same vite/client note as actions.ts.
+(cd "$WEB" && npx tsc src/lib/kube-actions.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler \
+  --types vite/client --outDir "$OUT" >/dev/null)
+mv "$OUT/kube-actions.js" "$OUT/kube-actions-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/collapse.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/collapse.js" "$OUT/collapse.mjs"
@@ -92,7 +97,7 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
-   "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$OUT/"
+   "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -133,6 +138,12 @@ echo "── what a declared project can be acted on ─────────
 # does not know would have to be CREATED, and /containers/create is the one call
 # apps/bothy-control's two-proxy split exists to refuse.
 node "$OUT/declared-actions.mjs"
+
+echo
+echo "── what a cluster workload can be acted on ─────────────"
+# lib/kube-actions.ts + lib/projects.ts: the namespace scope, the confirm levels,
+# and the collector's namespace/deployment surviving into the node.
+node "$OUT/kube-actions.mjs"
 
 echo
 echo "── what a system IS vs where it is SHOWN ───────────────"

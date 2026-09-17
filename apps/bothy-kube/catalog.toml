@@ -1,0 +1,106 @@
+# What bothy-kube may be asked to do. DATA, not capability.
+#
+# Every id here must have a hand-written handler in app.py (HANDLERS), and every
+# handler must be declared here - the service refuses to start otherwise
+# (guard.check_handlers). Adding a table below does nothing on its own.
+#
+# Keys, all REQUIRED (guard.load_catalog has no defaults to fall back on):
+#
+#   title     what the interface calls it
+#   target    "deployment" (needs namespace + deployment) or "namespace"
+#   method    GET for a read, POST for a change - enforced against `role`
+#   role      "viewer" (sso-viewer at the edge) or "operator" (sso-operator)
+#   confirm   "none" | "click" | "type-name". An operator action may not be
+#             "none". "type-name" is checked by the SERVICE too: the request body
+#             must carry confirm = <the target's name>.
+#   stream    true when the action can answer as text/event-stream
+#
+# params.<name>: type = "int" | "bool" | "name"; ints need min and max.
+#
+# THE SAME IDS appear three more times, and checks/ asserts all four agree:
+#   edge/dynamic/bothy-kube.yml     one exact Path() router per id, with the
+#                                   middleware matching `role`
+#   k8s/rbac/bothy-kube.yaml        the verbs the handlers actually need
+#   web/src/lib/kube-actions.ts     KUBE_CATALOG, what the dialog offers
+
+[actions.rollout-restart]
+title = "Restart rollout"
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false
+
+[actions.scale]
+title = "Scale"
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "type-name"
+stream = false
+
+[actions.scale.params.replicas]
+type = "int"
+required = true
+min = 0
+# 3, not "whatever the node fits". This is a single-node minikube shared with the
+# rest of the box; a replica count above three is a capacity decision, and that
+# belongs in the manifests, not behind a button.
+max = 3
+
+[actions.events]
+title = "Events"
+target = "deployment"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+
+[actions.events.params.limit]
+type = "int"
+min = 1
+max = 200
+default = 50
+
+[actions.logs]
+title = "Logs"
+target = "deployment"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = true
+
+[actions.logs.params.tail]
+type = "int"
+min = 1
+max = 500
+default = 200
+
+[actions.logs.params.follow]
+type = "bool"
+default = false
+
+# How long a follow may stay open. Bounded because a browser tab left open would
+# otherwise hold an apiserver watch and a service thread forever.
+[actions.logs.params.seconds]
+type = "int"
+min = 5
+max = 300
+default = 120
+
+# Optional: a specific pod of the deployment (checked against its selector), and
+# a specific container of that pod. Without them: the newest running pod, its
+# first container.
+[actions.logs.params.pod]
+type = "name"
+
+[actions.logs.params.container]
+type = "name"
+
+[actions.delete-completed-pods]
+title = "Delete completed pods"
+target = "namespace"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false

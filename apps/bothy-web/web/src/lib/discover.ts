@@ -565,6 +565,9 @@ export interface PortalNode {
   // collector knows whether a project tees to a host log file); left undefined
   // for discovered ones, where logSourceOf() derives it from the container name.
   logs?: { kind: 'container' | 'host'; selector: string; filter?: string | null } | null;
+  // The cluster identity of a Kubernetes workload, from the collector. What
+  // components/KubeActions.tsx acts on; absent on everything else.
+  kube?: { namespace: string; deployment: string } | null;
 }
 
 // The one place that answers "can I read this service's logs, and how".

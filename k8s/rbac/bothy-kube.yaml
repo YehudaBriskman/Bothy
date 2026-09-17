@@ -1,0 +1,145 @@
+# bothy-kube's identity in the cluster, and the whole of what it may do.
+#
+#   kubectl --context thales-scc apply -f k8s/rbac/bothy-kube.yaml
+#
+# Additive and namespaced: one Namespace (`bothy`) that holds the ServiceAccount
+# and its token Secret and runs no pods, plus a Role and a RoleBinding in EACH
+# target namespace. There is no ClusterRole and no ClusterRoleBinding, so the
+# account has no rights at all outside thales-dev and thales-pre-prod - not even
+# in its own namespace.
+#
+# ── the grant, verb by verb, against the handler that needs it ─────────────
+#
+#   deployments          get, list, patch   rollout-restart (patch the template
+#                                           annotation), events/logs (read the
+#                                           selector)
+#   deployments/scale    get, patch         scale - the subresource, so scale
+#                                           cannot also rewrite the pod spec
+#   pods                 get, list, delete  logs (find the pods), delete-completed-pods
+#   pods/log             get                logs
+#   events               list               events
+#
+# ── what is NOT here, on purpose ────────────────────────────────────────────
+#
+#   pods/exec, pods/attach   a shell in a workload. Never from a browser.
+#   pods/portforward         a tunnel into the cluster network.
+#   secrets, configmaps      credentials. The Thales pods mount theirs as files
+#                            (Kyverno thales-secret-handling), and this account
+#                            reads none of them.
+#   create/update on anything, watch, deletecollection, escalate, bind, impersonate
+#   anything cluster-scoped
+#
+# `pods: delete` is the widest verb granted - it can delete a RUNNING pod. The
+# service only issues it for pods whose phase is Succeeded, re-checked per pod,
+# with a UID precondition; a Deployment would recreate a deleted running pod in
+# any case. checks/rbac.py asserts this file grants exactly the table above.
+#
+# ── Kyverno and PSA ─────────────────────────────────────────────────────────
+#
+# Both target namespaces enforce PSA `restricted` and Kyverno's OpenShift-SCC
+# emulation. Every one of those policies matches kind Pod only (checked
+# 2026-09-17: openshift-scc-restrictions, openshift-scc-uid-allocation,
+# thales-secret-handling), so none of these objects is subject to them. The
+# `bothy` namespace is labelled restricted anyway: it should never run a pod,
+# and if one appears there it should meet the strictest profile.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bothy
+  labels:
+    app.kubernetes.io/part-of: bothy
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bothy-kube
+  namespace: bothy
+  labels:
+    app.kubernetes.io/part-of: bothy
+# The token is not projected into any pod - nothing in the cluster runs as this
+# account. It is used from OUTSIDE, by the bothy-kube container.
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: bothy-kube
+  namespace: thales-dev
+  labels:
+    app.kubernetes.io/part-of: bothy
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bothy-kube
+  namespace: thales-dev
+  labels:
+    app.kubernetes.io/part-of: bothy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: bothy-kube
+subjects:
+  - kind: ServiceAccount
+    name: bothy-kube
+    namespace: bothy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: bothy-kube
+  namespace: thales-pre-prod
+  labels:
+    app.kubernetes.io/part-of: bothy
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bothy-kube
+  namespace: thales-pre-prod
+  labels:
+    app.kubernetes.io/part-of: bothy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: bothy-kube
+subjects:
+  - kind: ServiceAccount
+    name: bothy-kube
+    namespace: bothy

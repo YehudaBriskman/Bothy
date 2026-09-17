@@ -960,6 +960,9 @@ def k8s_projects(
             "detail": detail,
             "collision": None,
             "url": url,
+            # The cluster identity bothy-kube acts on (lib/kube-actions.ts).
+            "namespace": ns,
+            "deployment": name,
         })
 
     out = []

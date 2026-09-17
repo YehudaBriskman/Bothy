@@ -1,0 +1,75 @@
+/* ============================================================================
+   Cluster workload actions. Deltas only: the row trigger, verb list, confirm
+   warning, spinner and outcome block are ServiceActions.css's .svc-act-btn and
+   .sa-* classes, reused so the two tiers read as one product. Every colour is a
+   token; the status palette appears only on things that ARE state (a Warning
+   event, the live dot), never on a button.
+   ========================================================================== */
+
+.ka-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ka-panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ka-stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.ka-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ka-row-between { justify-content: space-between; }
+/* Scoped to .ka-body on purpose: index.css has an earlier `.btn.ghost` rule
+   with `font: inherit`, which outranks a single class and rendered every ghost
+   button in this dialog at body size - measured on the first screenshot. */
+.ka-body .btn { font-size: 13px; }
+.ka-body .btn.ka-small { font-size: 12.5px; padding: 5px 11px; gap: 6px; display: inline-flex; align-items: center; }
+
+.ka-flag {
+  display: inline-flex; align-items: center;
+  font-size: 11px; font-weight: 600; letter-spacing: .01em;
+  color: var(--fg-muted); background: var(--surface-3);
+  border: 1px solid var(--line); border-radius: var(--r-full);
+  padding: 1px 8px;
+}
+
+/* ── confirm ────────────────────────────────────────────────────────────────*/
+.ka-confirm { display: flex; flex-direction: column; gap: 12px; }
+.ka-field { display: flex; flex-direction: column; gap: 6px; }
+.ka-label { font-size: 13px; font-weight: 600; }
+.ka-hint { font-size: 12px; color: var(--fg-subtle); }
+.ka-input {
+  font: inherit; font-size: 13.5px; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  padding: 7px 10px; max-width: 320px;
+}
+.ka-input:focus-visible { border-color: var(--accent-line); }
+.ka-input[aria-invalid='true'] { border-color: var(--st-down-line); }
+
+/* ── events ─────────────────────────────────────────────────────────────────*/
+.ka-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ka-event {
+  display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 10px; align-items: baseline;
+  padding: 9px 2px; border-top: 1px solid var(--line); font-size: 13px;
+}
+.ka-event:first-child { border-top: 0; }
+.ka-ev-type { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+.ka-event[data-type='warn'] .ka-ev-type { color: var(--st-warn-fg); font-weight: 600; }
+.ka-ev-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ka-ev-head { overflow-wrap: anywhere; }
+.ka-ev-msg { color: var(--fg-muted); line-height: 1.5; overflow-wrap: anywhere; }
+.ka-ev-time { font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── logs ───────────────────────────────────────────────────────────────────*/
+.ka-log {
+  margin: 0; min-height: 180px; max-height: 46vh; overflow: auto;
+  padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line);
+  font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+  color: var(--fg);
+}
+.ka-live {
+  display: inline-block; width: 8px; height: 8px; margin-right: 4px; vertical-align: 1px;
+  border-radius: var(--r-full); background: var(--st-up);
+  animation: ka-pulse 1.4s var(--ease) infinite;
+}
+@keyframes ka-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .ka-live { animation: none; } }
+
+@media (max-width: 560px) {
+  .ka-event { grid-template-columns: minmax(0, 1fr) auto; }
+  .ka-ev-type { grid-column: 1 / -1; }
+}

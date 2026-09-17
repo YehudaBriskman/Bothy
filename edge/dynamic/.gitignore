@@ -38,3 +38,8 @@
 # `*` above - it carries a basic-auth credential). Comments only: a live example
 # in this directory overwrites the real router, see the file's own header.
 !bothy-prom.example.yml
+# The kube-tier routes (bothy-kube). Tracked for the reason above: they carry the
+# viewer/operator gates on a service holding a live cluster credential. It was
+# written in a worktree and IGNORED by the `*` above, so it missed its first
+# merge (2026-09-17) - the failure this list keeps recording.
+!bothy-kube.yml
