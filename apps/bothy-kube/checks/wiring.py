@@ -171,9 +171,6 @@ ok(re.search(r"^apps/bothy-kube/secrets/$", open(os.path.join(REPO, ".gitignore"
 print()
 print("── UI: the client's catalog copy matches ────────────────────────")
 ts_path = os.path.join(REPO, "apps/bothy-web/web/src/lib/kube-actions.ts")
-if not os.path.exists(ts_path):
-    # The web app is being renamed portal-next -> bothy-web; follow it.
-    ts_path = os.path.join(REPO, "apps/bothy-web/web/src/lib/kube-actions.ts")
 ts = open(ts_path, encoding="utf-8").read()
 entries = re.findall(r"\{ id: '([a-z-]+)', title: '[^']*', role: '(\w+)', confirm: '([\w-]+)', "
                      r"target: '(\w+)', stream: (true|false)", ts)
