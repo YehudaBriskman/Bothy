@@ -531,6 +531,44 @@ exits non-zero if any row is unexpected), `just ops-wiring check` proves the
 generated files match the catalog, and `apps/bothy-ops/checks/run.sh --offline`
 (`just ops-check offline`) runs the offline suite.
 
+### 7. The Settings admin reads (in `bothy-ops`) disclose metadata, never a secret
+
+Added 2026-09-17 with Settings v2 (`docs/plans/settings-v2.md`). Four exact
+`Path() && Method(GET)` routers in the hand-written `edge/dynamic/bothy-admin.yml`,
+all behind `sso-operator` - not `viewer`, because each says more than reading the
+box needs: `/-/api/admin/users`, `/credentials`, `/backups` and `/audit`. Every
+request, refusals included, is a line in `apps/bothy-ops/audit/admin.log`.
+
+- **Users** come from Keycloak's admin REST API through the confidential client
+  `bothy-admin` (`scripts/keycloak-admin-client.sh`, `just admin-client`), whose
+  service account holds realm-management **`view-users` only** - the script removes
+  any other realm-management role it finds. Not `view-clients`: that can read every
+  client secret in the realm. Not `manage-users`: there are no user writes. Its
+  secret is a file in `apps/bothy-ops/secrets/` (denied to Files), mounted only by
+  `apps/bothy-ops/compose.admin.yml`. Keycloak is reached at `http://BOX_IP:8090`,
+  the address oauth2-proxy already uses, because Keycloak lives on `devnet` and
+  bothy-ops must not (rule 2). Every field is copied into an allow-listed shape;
+  credential entries keep `type` and `createdDate` only. Verified live: the token
+  gets 200 on `/users` and 403 on `/clients`, `/roles` and `POST /users`.
+- **Credentials and backups are computed on the host**, not in the container.
+  `apps/bothy-ops/inventory.py` (a systemd timer, `host/systemd/bothy-inventory.*`)
+  reads `.env` to learn only key names, "is it set" and "is it a public
+  placeholder", stats the credential files and `~/backups`, and writes
+  metadata-only JSON, mode 600, to `~/.local/state/bothy/inventory/`. bothy-ops
+  mounts that directory read-only and re-filters every row to an allow-list. `.env`
+  and `~/backups` are never mounted into a container, so bothy-ops - which can
+  already stop the databases - does not also hold every password.
+  `checks/test_inventory.py` feeds a `.env` of sentinel values and asserts no
+  8-byte piece of one reaches the file or the response, including after a
+  generator adds a `value` field. Verified live against the real `.env`: zero hits
+  for every credential value in all six responses.
+- **Audit** reads bothy-files' `writes.log` and `patches.log` from a read-only
+  mount; bothy-files stays their only writer.
+
+Rotation from the interface is not built: the page shows the command. User writes
+(role grants, password resets) are not built either; they need their own
+operator routes, a type-the-name confirmation and a `manage-users` client first.
+
 ---
 
 ## Accepted risks
