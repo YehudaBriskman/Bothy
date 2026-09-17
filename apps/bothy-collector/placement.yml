@@ -41,3 +41,16 @@ rules:
     subgroup: helpers
     group: sonarqube
     title: SonarQube
+
+  # Stack components that live INSIDE the minikube cluster rather than in compose:
+  # kube-state-metrics + the pod-log shipper (namespace `monitoring`) feed the
+  # stack's Prometheus/Loki, and `bothy` holds bothy-kube's ServiceAccount. They
+  # are Bothy's, not a project's, even though discovery finds them as namespaces.
+  - match: [k8s:monitoring]
+    section: bothy
+    subgroup: helpers
+    title: Cluster monitoring
+  - match: [k8s:bothy]
+    section: bothy
+    subgroup: core
+    title: Bothy Kube
