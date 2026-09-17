@@ -40,9 +40,14 @@ YAML, not another container.
 | `bothy-files-delete` | `editor` | delete |
 | `bothy-config-read` | `viewer` | config fields |
 | `bothy-config-write` | `editor` | config patch |
-| `bothy-control-restart` | `operator` | restart |
-| `bothy-control-stop` | `operator` | stop |
-| `bothy-control-start` | `operator` | start |
+| `bothy-ops-control-restart` | `operator` | container restart |
+| `bothy-ops-control-stop` | `operator` | container stop |
+| `bothy-ops-control-start` | `operator` | container start |
+| `bothy-ops-kube-rollout-restart` | `operator` | cluster rollout restart |
+| `bothy-ops-kube-scale` | `operator` | cluster scale (type the name) |
+| `bothy-ops-kube-delete-completed-pods` | `operator` | cluster clean-up |
+| `bothy-ops-kube-events` | `viewer` | cluster events |
+| `bothy-ops-kube-logs` | `viewer` | cluster logs |
 
 Two structural choices in that table are worth reading rather than skimming.
 
@@ -58,27 +63,34 @@ alternatives, for the same reason. The day `stop` needs a tier above `restart`,
 that is an edit to one router instead of a rule that has to be split first,
 under pressure.
 
-The middlewares themselves are defined next to what they gate, and that
-placement is itself an argument:
+The middlewares themselves live in one place, and that placement is itself an
+argument:
 
-- `sso-viewer` and `sso-editor` live in `edge/dynamic/bothy-files.yml`;
-- `sso-operator` lives in `edge/dynamic/bothy-control.yml`;
+- `sso-viewer`, `sso-editor` and `sso-operator` are defined in
+  `edge/dynamic/bothy-gates.yml`, and in no router file;
 - `sso-errors` - which turns a bare 401 into a sign-in page - lives in
   `edge/dynamic/auth.yml` and is borrowed by everything.
 
-The config tier borrows `sso-viewer` and `sso-editor` rather than defining its
-own copies. Traefik's file provider merges every file in the directory into one
+Every router file references the gates by bare name rather than defining its own
+copies. Traefik's file provider merges every file in the directory into one
 namespace, so two definitions of a middleware named `sso-editor` is a collision
 whose winner no single file can decide - and the two would then drift
 invisibly, with both routers still answering and one of them against the wrong
-role. The cost is real and is stated in the file: deleting `bothy-files.yml`
-would silently unauthenticate the config tier's routers.
+role.
+
+Until 2026-09 each gate was defined in the first tier file that needed it
+(`sso-viewer`/`sso-editor` in `bothy-files.yml`, `sso-operator` in
+`bothy-control.yml`) and borrowed by the others, so deleting one tier's file
+would have errored another tier's routers. That coupling is why the gates got a
+file of their own when the tiers were consolidated.
 
 `sso-operator` was deleted once, on 2026-08-15, along with the routes it gated,
 for a reason worth keeping: *a middleware nothing references is a loaded gun
 with no trigger - it looks like protection while protecting nothing, and the
 next router to want a gate might pick it up believing it is already proven in
-use.* It came back with the control tier, in the file that uses it.
+use.* It came back with the control tier. A gate in `bothy-gates.yml` that no
+router references would be exactly that gun again - `apps/bothy-ops/checks/wiring.py`
+asserts all three gates are defined there; keep each one in use.
 
 One more, for completeness: the plain `sso` middleware in `auth.yml` - the one
 that checks for *any* session rather than a role - is attached to **no router at

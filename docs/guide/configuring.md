@@ -98,9 +98,10 @@ What is committed:
 |---|---|
 | `bothy-api.yml` | the portal's read-only data plane. The security boundary - read it in full before touching it |
 | `auth.yml` | the `sso` and `sso-errors` middlewares, and the host-less `/oauth2/` router that makes the login flow reachable at all |
-| `bothy-files.yml` | four role-gated routers for the file tier, and the `sso-viewer` / `sso-editor` middlewares |
-| `bothy-config.yml` | two role-gated routers for the config tier. It **borrows** the middlewares above |
-| `bothy-control.yml` | three role-gated routers, one per verb, and `sso-operator` |
+| `bothy-gates.yml` | the ONLY definitions of the `sso-viewer`, `sso-editor` and `sso-operator` role gates. Every router file borrows them; deleting this file errors every gated router |
+| `bothy-files.yml` | four role-gated routers for the file tier |
+| `bothy-config.yml` | two role-gated routers for the config forms, served by `bothy-files` |
+| `bothy-ops.yml` | eight role-gated routers on `bothy-ops`: one per container verb (`operator`) and one per cluster action (`operator` for changes, `viewer` for events and logs) |
 | `project.example.yml` | the annotated template, entirely commented out |
 | `bothy-prom.example.yml` | the template for the generated Prometheus route |
 
@@ -219,7 +220,8 @@ explorer, and marked `critical` for the reason above - a bad edit here does not
 produce a permissive service, it produces one that will not come back until
 somebody repairs it from a shell on the box. See [Bothy Files](files.md).
 
-**`apps/bothy-config/policy.toml`** governs the settings forms: one root, YAML
+**The `[config]` section of `apps/bothy-files/policy.toml`** governs the settings
+forms (a separate `apps/bothy-config/policy.toml` until 2026-09): one root, YAML
 files only, and a named allowlist of fields a form may patch. `.toml` is
 deliberately absent from its suffixes, so the file declaring what may be written
 cannot be rewritten through the API it declares. It is a much smaller surface

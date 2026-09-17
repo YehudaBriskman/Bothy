@@ -214,7 +214,7 @@ docker compose -f apps/bothy-web/compose.yml up -d --build
 ```
 
 **Do not `docker compose down` the `bothy` project to restart the portal.** That
-project also owns `bothy-socket-proxy`, the read-only Docker socket the portal
+project also owns `bothy-socket-read`, the read-only Docker socket the portal
 needs for `/-/api/docker`; take it down and the Overview enrichment goes blank
 even after bothy-web comes back. Act on the one service, as above.
 

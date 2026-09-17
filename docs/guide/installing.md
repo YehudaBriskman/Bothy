@@ -242,7 +242,7 @@ rather than as a tested guarantee. Three things are handled explicitly:
 If you install as root, `PUID` deliberately stays 1000 and the bind-mounted
 directories are chowned instead. A root process holding container control is a
 straight path from "restart a container" to the host, and
-`apps/bothy-control/checks/grants.py` asserts that service is not root.
+`apps/bothy-ops/checks/grants.py` asserts that service is not root.
 
 ## Living with it
 
