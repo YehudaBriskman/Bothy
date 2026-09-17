@@ -13,6 +13,20 @@
   column-gap: 12px; row-gap: 8px; align-items: start;
 }
 .sm-group { display: contents; }
+/* The section level (Bothy, Projects) dissolves into the same grid, so its
+   subgroup labels share ONE label column with every other section's. Its own
+   heading spans both columns - a divider with a name, not a row label. */
+.sm-section { display: contents; }
+.sm-section-h {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0;
+  padding-bottom: 5px; border-bottom: 1px solid var(--line);
+  font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  color: var(--fg-muted);
+}
+.sm-section + .sm-section .sm-section-h { margin-top: 8px; }
+.sm-section-t { white-space: nowrap; }
+.sm-section-h .sm-group-bad { flex-basis: auto; }
 
 .sm-group-h {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0;
@@ -101,6 +115,8 @@
   .sm-group-h { padding-top: 6px; }
   /* Each group is still label-then-row; only the axis changed. */
   .sm-group + .sm-group .sm-group-h { padding-top: 10px; }
+  /* A row with no label costs no line at all once labels sit above rows. */
+  .sm-group-h.is-empty { display: none; }
 }
 
 @media (max-width: 640px) {

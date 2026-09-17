@@ -1,0 +1,43 @@
+# Where groups are SHOWN on the Bothy Overview - section, subgroup, title.
+#
+# Precedence, per field: this file > the container's own `dev.portal.section` /
+# `dev.portal.subgroup` labels > the default derived from where its compose file
+# lives (Bothy's own tiers -> bothy/core, the shared stack -> bothy/helpers,
+# everything else -> projects).
+#
+# Only write a rule where the default is wrong. Deleting this file changes
+# nothing but the placements listed here.
+#
+# match: one or more of
+#   container:<name>      a container name, exact
+#   project:<name>        a compose project, or a project.dev.yml key
+#   k8s:<namespace>       a Kubernetes namespace the collector discovered
+# The most specific match wins (container > project > k8s); within one kind, the
+# first rule in this file wins.
+#
+# section / subgroup: free strings. `bothy` and `projects`, `core` and `helpers`
+#   have titles and a fixed order; anything else is title-cased and sorted after.
+# title: display name for the group the matched services are shown in.
+# group: display group to move the matched services into (like
+#   `dev.portal.group`). Identity, bookmarks and accent colours do not move.
+#
+# Read by collect.py, which ships it to the browser as `placement` in
+# projects.json. Applied in apps/bothy-web/web/src/lib/discover.ts.
+
+rules:
+  # Sign-in is part of Bothy's front door, not a helper: oauth2-proxy and
+  # keycloak gate the dashboards. Its compose file is stacks/auth/, which the
+  # default would call a shared stack service.
+  - match: [project:auth]
+    section: bothy
+    subgroup: core
+
+  # SonarQube is started from the Tals repo (manifests/compose.yml, compose
+  # project `manifests`) but serves the whole box. Matched by CONTAINER, so the
+  # other `manifests` containers (thales-postgres-local, ...) stay with Tals,
+  # where Tals/project.dev.yml declares them.
+  - match: [container:thales-sonarqube, container:thales-sonarqube-db]
+    section: bothy
+    subgroup: helpers
+    group: sonarqube
+    title: SonarQube

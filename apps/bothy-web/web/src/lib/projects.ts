@@ -18,7 +18,9 @@
 // app (systems rollup, Overview, Services, Topology) needs no special case: a
 // declared service is just another node with a group.
 
-import type { PortalNode, Status, ServiceType, NodeContainer } from './discover';
+import type {
+  PortalNode, Status, ServiceType, NodeContainer, Placement, PlacementSource, PlacementSubject,
+} from './discover';
 
 // ALL SEVEN THE COLLECTOR CAN EMIT. `collision` and `unverified` were missing
 // here while collect.py has emitted both since the port probe learned to identify
@@ -49,6 +51,8 @@ export interface CollectorProject {
   state: 'live' | 'degraded' | 'stopped' | 'stuck' | 'unknown';
   services: CollectorService[];
   error?: string | null;
+  /** Set on `kind: cluster` entries only - what a `k8s:<namespace>` rule matches. */
+  namespace?: string | null;
 }
 
 export interface CollectorPayload {
@@ -56,7 +60,31 @@ export interface CollectorPayload {
   source: string;
   dockerReachable: boolean;
   projects: CollectorProject[];
+  /** apps/portal-collector/placement.yml, normalised. Absent = no file. */
+  placement?: Placement | null;
 }
+
+/**
+ * How a declared service is placed. Passed IN rather than imported, because this
+ * module must stay import-free at runtime for checks/run.sh: api.ts binds
+ * discover.ts's placeOf() to the poll's placement file and hands it over.
+ */
+export type PlaceFn = (
+  subject: PlacementSubject,
+  groupKind: string,
+  system: string,
+) => { section: string; subgroup: string | null; placedBy: PlacementSource; title: string | null; group: string | null };
+
+// Used only when no PlaceFn is passed (the checks that predate placement). It is
+// defaultPlacement() in discover.ts with no file and no labels, and
+// checks/placement.mjs asserts the two agree for every kind.
+const fallbackPlace: PlaceFn = (_s, kind) => ({
+  section: kind === 'infra' || kind === 'stack' ? 'bothy' : 'projects',
+  subgroup: kind === 'infra' ? 'core' : kind === 'stack' ? 'helpers' : null,
+  placedBy: 'default',
+  title: null,
+  group: null,
+});
 
 // The collector says `stuck` where the portal says `down`; both mean "meant to
 // be up, isn't". Everything else is 1:1.
@@ -125,7 +153,17 @@ function nodeOf(
   project: CollectorProject,
   svc: CollectorService,
   live: ReadonlyMap<string, NodeContainer>,
+  place: PlaceFn = fallbackPlace,
 ): PortalNode {
+  const groupKind = project.kind === 'stack' || project.kind === 'infra' ? project.kind : 'project';
+  // A declared service has no labels, so only the file and the default apply.
+  // It is matched by its container (when it names one), by the project's own
+  // key, and - for a cluster entry - by namespace.
+  const placed = place(
+    { container: svc.container ?? null, project: project.key, namespace: project.namespace ?? null },
+    groupKind,
+    project.key,
+  );
   const status = STATE_TO_STATUS[svc.state] ?? 'unknown';
   // Only offer a link to something actually listening - a link to a stopped
   // port is a browser error page dressed up as a feature.
@@ -146,12 +184,15 @@ function nodeOf(
     // still two fields, so a declared service can be regrouped later without
     // moving its URL, exactly like a discovered one.
     system: project.key,
-    group: project.key,
+    group: placed.group ?? project.key,
     // A declared project brings its own display name, so it needs no lookup -
     // which is the point of the field: every node carries the name a human
     // should see, however that node came into existence.
-    groupTitle: project.name || project.key,
-    groupKind: project.kind === 'stack' || project.kind === 'infra' ? project.kind : 'project',
+    groupTitle: placed.title || project.name || project.key,
+    groupKind,
+    section: placed.section,
+    subgroup: placed.subgroup,
+    placedBy: placed.placedBy,
     parent: null,
     depth: null,
     order: 0,
@@ -219,7 +260,11 @@ function nodeOf(
  * with the node, and declaring a project silently disabled the one tier that can
  * act on it.
  */
-export function withDeclared(nodes: PortalNode[], projects: CollectorProject[]): PortalNode[] {
+export function withDeclared(
+  nodes: PortalNode[],
+  projects: CollectorProject[],
+  place: PlaceFn = fallbackPlace,
+): PortalNode[] {
   if (!projects.length) return nodes;
 
   const claimed = new Set<string>();
@@ -235,6 +280,6 @@ export function withDeclared(nodes: PortalNode[], projects: CollectorProject[]):
   for (const n of nodes) if (n.container?.name) live.set(n.container.name, n.container);
 
   const kept = nodes.filter((n) => !(n.container?.name && claimed.has(n.container.name)));
-  const declared = projects.flatMap((p) => p.services.map((s) => nodeOf(p, s, live)));
+  const declared = projects.flatMap((p) => p.services.map((s) => nodeOf(p, s, live, place)));
   return [...kept, ...declared];
 }

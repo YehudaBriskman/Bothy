@@ -320,6 +320,18 @@ export interface Classification {
    */
   group: string;
   groupKind: string;
+  /**
+   * WHICH TOP-LEVEL SECTION of the Overview this is shown in - `bothy`,
+   * `projects`, or any string somebody writes. A display preference like
+   * `group`, never identity. See resolvePlacement() for who decides it.
+   */
+  section: string;
+  /** The subgroup inside the section (`core`, `helpers`), or null for none. */
+  subgroup: string | null;
+  /** Which source decided section/subgroup - shown in the UI, not guessed at. */
+  placedBy: PlacementSource;
+  /** A display name the placement file chose for the group, or null. */
+  placedTitle: string | null;
 }
 
 export interface Port {
@@ -505,6 +517,10 @@ export interface PortalNode {
    *  and never needs a label to be correct. */
   groupTitle: string;
   groupKind: string;
+  /** Overview section / subgroup and who decided them - see Classification. */
+  section: string;
+  subgroup: string | null;
+  placedBy: PlacementSource;
   parent: string | null;
   depth: number | null;
   order: number;
@@ -716,6 +732,141 @@ export function repoRootsOf(
   return out;
 }
 
+// ── Pure: placement - which section and subgroup a group is SHOWN in ────────
+//
+// Two fixed levels (project | stack | infra) could not say "keycloak is part of
+// Bothy" or "SonarQube is a helper, not a Tals workload": `auth` is a stack
+// service by where its compose file lives, and the SonarQube pair is started from
+// the Tals repo. So a group now also carries a free-string `section` and an
+// optional `subgroup`, decided by three sources in a fixed order:
+//
+//   1. the central placement file (apps/portal-collector/placement.yml, shipped
+//      to the browser by the collector as `placement` in projects.json);
+//   2. the container's own `dev.portal.section` / `dev.portal.subgroup` labels;
+//   3. a default derived from groupKind - infra -> bothy/core,
+//      stack -> bothy/helpers, anything else -> projects.
+//
+// The file beats the label because it is the one place somebody can see and
+// change every placement at once, including for containers whose compose file
+// lives in someone else's repo and cannot carry a label. `groupKind` is left
+// exactly as it was, so everything still keyed on it keeps working.
+//
+// A MISSING FILE CHANGES NOTHING: no rules means tier 1 never fires.
+
+export type PlacementSource = 'file' | 'label' | 'default';
+
+export interface PlacementRule {
+  /** `container:<name>`, `project:<compose project or declared key>`, `k8s:<namespace>`. */
+  match: string[];
+  section?: string | null;
+  subgroup?: string | null;
+  /** Display name for the group the matched services are shown in. */
+  title?: string | null;
+  /** Display group to move the matched services into (like `dev.portal.group`). */
+  group?: string | null;
+}
+
+export interface Placement {
+  rules: PlacementRule[];
+  source?: string;
+}
+
+/** What a rule can be matched against. Any field may be unknown. */
+export interface PlacementSubject {
+  container?: string | null;
+  project?: string | null;
+  namespace?: string | null;
+}
+
+export interface PlacementTier {
+  section?: string | null;
+  subgroup?: string | null;
+}
+
+export const SECTION_BOTHY = 'bothy';
+export const SECTION_PROJECTS = 'projects';
+
+/**
+ * The file rule for a subject, or null. Most specific match wins - a container
+ * name beats its compose project, which beats a namespace - and within one kind
+ * the first rule in the file wins, so the file reads top to bottom.
+ */
+export function findPlacementRule(
+  placement: Placement | null | undefined,
+  subject: PlacementSubject,
+): PlacementRule | null {
+  const rules = placement?.rules ?? [];
+  const keys = [
+    subject.container && `container:${subject.container}`,
+    subject.project && `project:${subject.project}`,
+    subject.namespace && `k8s:${subject.namespace}`,
+  ];
+  for (const k of keys) {
+    if (!k) continue;
+    const hit = rules.find((r) => Array.isArray(r.match) && r.match.includes(k));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
+ * The derived default. Residue (`unmanaged`, `host`) is NOT Bothy even though
+ * classify() calls it infra: a `docker run` nobody declared, or minikube, is
+ * "everything else", and that is what the Projects section is.
+ */
+export function defaultPlacement(groupKind: string, system?: string | null): Required<PlacementTier> {
+  if (system && system in RESIDUE_TITLES) return { section: SECTION_PROJECTS, subgroup: null };
+  if (groupKind === 'infra') return { section: SECTION_BOTHY, subgroup: 'core' };
+  if (groupKind === 'stack') return { section: SECTION_BOTHY, subgroup: 'helpers' };
+  return { section: SECTION_PROJECTS, subgroup: null };
+}
+
+/**
+ * file > label > default, decided per field:
+ *
+ *   * `section` comes from the highest tier that sets one (default always does);
+ *   * `subgroup` comes from the highest tier that sets one AND is either at or
+ *     above the tier that chose the section, or names that same section. A
+ *     lower tier's subgroup for a DIFFERENT section is meaningless in this one -
+ *     a label saying `core` must not survive the file moving the group to
+ *     `projects`;
+ *   * `placedBy` is the highest tier that contributed either field.
+ */
+export function resolvePlacement(
+  file: PlacementTier | null | undefined,
+  label: PlacementTier | null | undefined,
+  def: PlacementTier,
+): { section: string; subgroup: string | null; placedBy: PlacementSource } {
+  const tiers: [PlacementSource, PlacementTier | null | undefined][] = [
+    ['file', file], ['label', label], ['default', def],
+  ];
+  let at = tiers.findIndex(([, t]) => !!t?.section);
+  if (at < 0) at = 2;
+  const section = tiers[at][1]?.section || SECTION_PROJECTS;
+  let subgroup: string | null = null;
+  let subAt = -1;
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i][1];
+    if (t?.subgroup && (i <= at || t.section === section)) { subgroup = t.subgroup; subAt = i; break; }
+  }
+  const placedBy = tiers[subAt >= 0 ? Math.min(at, subAt) : at][0];
+  return { section, subgroup, placedBy };
+}
+
+/** Everything the three tiers decide, for one subject. Pure. */
+export function placeOf(
+  placement: Placement | null | undefined,
+  subject: PlacementSubject,
+  labels: Readonly<Record<string, string | undefined>>,
+  groupKind: string,
+  system?: string | null,
+): { section: string; subgroup: string | null; placedBy: PlacementSource; title: string | null; group: string | null } {
+  const rule = findPlacementRule(placement, subject);
+  const label = { section: labels['dev.portal.section'], subgroup: labels['dev.portal.subgroup'] };
+  const r = resolvePlacement(rule, label, defaultPlacement(groupKind, system));
+  return { ...r, title: rule?.title || null, group: rule?.group || null };
+}
+
 // ── Pure: classification ────────────────────────────────────────────────────
 
 // project vs stack vs infra, from the compose file's location on disk.
@@ -748,15 +899,35 @@ export function classify(
   container?: Container | null,
   stackRoot?: string | null,
   nesting?: Nesting | null,
+  placement?: Placement | null,
 ): Classification {
   const labels = container?.Labels || {};
   // Applied to whatever the derivation below lands on, so the override is
   // honoured identically by every surface. Read once, here, and nowhere else.
-  const decide = (system: string, kind: string): Classification => ({
-    system,
-    group: labels['dev.portal.group'] ?? system,
-    groupKind: labels['dev.portal.groupKind'] ?? kind,
-  });
+  // Placement rides the same path, so the file is applied in exactly one place
+  // too - merge() and allPorts() both pass what the collector shipped.
+  const decide = (system: string, kind: string): Classification => {
+    const groupKind = labels['dev.portal.groupKind'] ?? kind;
+    const p = placeOf(
+      placement,
+      {
+        container: (container?.Names?.[0] || '').replace(/^\//, '') || null,
+        project: labels['com.docker.compose.project'] ?? null,
+      },
+      labels,
+      groupKind,
+      system,
+    );
+    return {
+      system,
+      group: p.group ?? labels['dev.portal.group'] ?? system,
+      groupKind,
+      section: p.section,
+      subgroup: p.subgroup,
+      placedBy: p.placedBy,
+      placedTitle: p.title,
+    };
+  };
 
   // Hostname nesting BEATS config_files: it's what puts cvops-tilt@file (no
   // container at all) in the CVOps panel, which makes the DNS convention
@@ -1124,6 +1295,7 @@ export function merge(
   routers: Router[] = [],
   services: Service[] = [],
   containers: Container[] = [],
+  placement: Placement | null = null,
 ): PortalNode[] {
   const svcByKey = new Map(services.map((s) => [s.name, s] as const));
   const names = projectNames(containers);
@@ -1224,6 +1396,7 @@ export function merge(
         names,
         oneShots,
         stackRoot,
+        placement,
         kind: canonical.container ? 'routed' : 'orphan-route',
         aliases: rest.map((c) => c.host),
       }),
@@ -1255,7 +1428,7 @@ export function merge(
   // visually, so honesty costs less than the blind spot did.
   for (const c of containers) {
     if (claimed.has(c.Id)) continue;
-    nodes.push(makeNode({ route: null, host: null, container: c, names, oneShots, stackRoot, kind: 'unrouted' }));
+    nodes.push(makeNode({ route: null, host: null, container: c, names, oneShots, stackRoot, placement, kind: 'unrouted' }));
   }
 
   return nodes;
@@ -1283,6 +1456,8 @@ interface MakeNodeArgs {
    * container and is then true for every node built from the poll.
    */
   stackRoot?: string | null;
+  /** The placement file as the collector shipped it, or null. Whole-poll fact. */
+  placement?: Placement | null;
 }
 
 function makeNode({
@@ -1295,9 +1470,10 @@ function makeNode({
   aliases = [],
   oneShots = new Set(),
   stackRoot = null,
+  placement = null,
 }: MakeNodeArgs): PortalNode {
   const n = nest(host);
-  const cls = classify(container, stackRoot, n);
+  const cls = classify(container, stackRoot, n, placement);
   const L = container?.Labels || {};
   const pick = <T>(key: string, fallback: T): string | T => L[`dev.portal.${key}`] ?? fallback;
 
@@ -1330,8 +1506,11 @@ function makeNode({
     browsable,
     system: cls.system,
     group,
-    groupTitle: names.get(group) || RESIDUE_TITLES[group] || titleCase(group),
+    groupTitle: cls.placedTitle || names.get(group) || RESIDUE_TITLES[group] || titleCase(group),
     groupKind: cls.groupKind,
+    section: cls.section,
+    subgroup: cls.subgroup,
+    placedBy: cls.placedBy,
     parent: n.parent,
     depth: n.depth,
     order: Number(pick('order', 100)) || 100,
@@ -1424,14 +1603,14 @@ export function portsOf(container?: Container | null): Port[] {
 // supported override that half the surfaces ignore is worse than no override,
 // because the disagreement reads as a discovery bug rather than a missing
 // feature. The fix is that neither function decides any more.
-export function allPorts(containers: Container[] = []): PortRow[] {
+export function allPorts(containers: Container[] = [], placement: Placement | null = null): PortRow[] {
   const rows: PortRow[] = [];
   // Same map merge() uses, so a port row and a service row can never disagree
   // about what a system is called.
   const names = projectNames(containers);
   const stackRoot = stackRootFrom(containers);
   for (const c of containers) {
-    const cls = classify(c, stackRoot);
+    const cls = classify(c, stackRoot, null, placement);
     for (const p of portsOf(c)) {
       rows.push({
         ...p,
@@ -1439,7 +1618,7 @@ export function allPorts(containers: Container[] = []): PortRow[] {
         image: c.Image,
         system: cls.system,
         group: cls.group,
-        groupTitle: names.get(cls.group) || RESIDUE_TITLES[cls.group] || titleCase(cls.group),
+        groupTitle: cls.placedTitle || names.get(cls.group) || RESIDUE_TITLES[cls.group] || titleCase(cls.group),
         groupKind: cls.groupKind,
       });
     }

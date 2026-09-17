@@ -13,6 +13,12 @@
   color: var(--fg-subtle);
 }
 .sd-h:first-child { margin-top: 0; }
+/* Placement: one quiet line above the first heading, so it replaces that
+   heading's top margin rather than adding a second gap. */
+.sd-place { margin: 0 0 4px; font-size: 12px; color: var(--fg-muted); }
+.sd-place b { font-weight: 600; color: var(--fg); }
+.sd-place-by { color: var(--fg-subtle); }
+.sd-place + .sd-h { margin-top: 10px; }
 .sd-h svg { color: var(--fg-subtle); }
 .sd-n {
   letter-spacing: 0; font-family: var(--mono); font-size: 10px;

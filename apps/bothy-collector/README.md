@@ -182,6 +182,18 @@ A declaration **wins over discovery** for the same container: `mpeg-redis` and
 files them under `unmanaged` infra. The declaration knows better, and keeping
 both copies would double-count them in every total.
 
+## Placement
+
+`placement.yml`, beside `collect.py`, says which Overview **section** and
+**subgroup** a group is shown under, and can give it a title. The collector
+validates it and ships it as a top-level `placement` key in `projects.json`; the
+portal applies it in `discover.ts`. Precedence: this file > the container's
+`dev.portal.section`/`dev.portal.subgroup` labels > the default from where the
+compose file lives. Rules match `container:<name>`, `project:<name>` or
+`k8s:<namespace>`. A missing file adds no key and changes nothing; a bad rule is
+skipped with a warning on stderr. Override the path with
+`BOTHY_COLLECTOR_PLACEMENT`. The truth table is `apps/bothy-web/checks/placement.mjs`.
+
 ## Notes
 
 - A missing `projects.json` is a supported state, not an error - the portal

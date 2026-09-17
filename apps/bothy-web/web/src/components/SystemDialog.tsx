@@ -16,7 +16,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Cpu, ExternalLink, HardDrive, MemoryStick, Workflow } from 'lucide-react';
 import { conditionLabel, resolveEdges, sharedNamespace } from '../lib/discover';
 import type { System } from '../lib/systems';
-import { fmtBytes, fmtUptime } from '../lib/systems';
+import { fmtBytes, fmtUptime, PLACED_BY_LABEL, sectionTitle, subgroupTitle } from '../lib/systems';
 import { serviceLink, systemLink } from '../lib/links';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { promQuote, fmtCores, useMetrics } from '../lib/metrics';
@@ -136,6 +136,13 @@ export function SystemDialog({
         </Link>
       }
     >
+      {/* Where this card sits on the Overview and which source put it there -
+          placement.yml, a container label, or the default for its kind. Said
+          in words because the three look identical on the matrix itself. */}
+      <p className="sd-place">
+        Shown under <b>{[sectionTitle(system.section), system.subgroup && subgroupTitle(system.subgroup)].filter(Boolean).join(' › ')}</b>
+        <span className="sd-place-by"> · placed by {PLACED_BY_LABEL[system.placedBy]}</span>
+      </p>
       <h4 className="sd-h">Services <span className="sd-n">{system.nodes.length}</span></h4>
       <ul className="sd-list">
         {system.nodes.map((n) => (

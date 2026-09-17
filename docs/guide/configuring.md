@@ -188,6 +188,7 @@ a label to be correct, the defaults are wrong. The labels are polish, read in
 | `dev.portal.icon` | an emoji |
 | `dev.portal.desc` | the card's body text |
 | `dev.portal.group`, `dev.portal.groupKind` | force which panel it lands in. Display only - what a service **is** cannot be moved by a label, so its accent colour and its old URL are unaffected |
+| `dev.portal.section`, `dev.portal.subgroup` | which Overview section (`bothy`, `projects`, or any name) and subgroup (`core`, `helpers`, ...) the system is shown under. `apps/portal-collector/placement.yml` overrides these; with neither, Bothy's own tiers go to Bothy › Core, shared stack services to Bothy › Helpers, everything else to Projects |
 | `dev.portal.hidden=true` | drop it from Services. Still listed under Ports and Routes |
 | `dev.portal.path` | a deep link, such as `/targets` |
 | `dev.portal.order` | sort order within a panel |

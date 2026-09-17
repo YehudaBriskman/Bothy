@@ -107,6 +107,64 @@ OUT = Path(
 
 PROBE_TIMEOUT = float(os.environ.get("BOTHY_COLLECTOR_PROBE_TIMEOUT") or os.environ.get("PORTAL_COLLECTOR_PROBE_TIMEOUT", "0.35"))
 
+# Where groups are shown on the Overview - see placement.yml beside this file.
+# Beside the SCRIPT, not under ~/stacks, so a checkout anywhere reads its own.
+PLACEMENT = Path(
+    os.environ.get("BOTHY_COLLECTOR_PLACEMENT")
+    or os.environ.get(
+        "PORTAL_COLLECTOR_PLACEMENT",
+        str(Path(__file__).resolve().parent / "placement.yml"),
+    )
+)
+PLACEMENT_KINDS = ("container:", "project:", "k8s:")
+
+# ── placement ────────────────────────────────────────────────────────────────
+
+
+def load_placement(path: Path = PLACEMENT) -> dict[str, Any] | None:
+    """placement.yml, validated and normalised for the portal, or None.
+
+    None when the file is absent - the portal then places everything by label and
+    default, exactly as before the file existed. A rule that cannot be understood
+    is DROPPED with a warning rather than failing the run: one typo must not take
+    projects.json down with it, and a half-applied file is still better than
+    none because every rule is independent.
+    """
+    if not path.is_file():
+        return None
+    try:
+        raw = yaml.safe_load(path.read_text()) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"placement: cannot read {path}: {e}", file=sys.stderr)
+        return None
+    rules = []
+    for i, r in enumerate(raw.get("rules") or [] if isinstance(raw, dict) else []):
+        if not isinstance(r, dict):
+            print(f"placement: rule {i} is not a mapping - skipped", file=sys.stderr)
+            continue
+        match = r.get("match")
+        match = [match] if isinstance(match, str) else match if isinstance(match, list) else []
+        good = [m for m in match if isinstance(m, str) and m.startswith(PLACEMENT_KINDS)
+                and m.split(":", 1)[1]]
+        if not good or len(good) != len(match):
+            print(f"placement: rule {i} has a bad `match` {match!r} - skipped "
+                  f"(want {', '.join(k + '<name>' for k in PLACEMENT_KINDS)})", file=sys.stderr)
+            continue
+        out: dict[str, Any] = {"match": good}
+        for key in ("section", "subgroup", "title", "group"):
+            v = r.get(key)
+            if v is not None and not (isinstance(v, str) and v.strip()):
+                print(f"placement: rule {i} `{key}` must be a non-empty string - ignored", file=sys.stderr)
+                continue
+            if v is not None:
+                out[key] = v.strip()
+        if len(out) == 1:
+            print(f"placement: rule {i} sets nothing - skipped", file=sys.stderr)
+            continue
+        rules.append(out)
+    return {"source": path.name, "rules": rules}
+
+
 # ── host truth ───────────────────────────────────────────────────────────────
 
 
@@ -911,6 +969,9 @@ def k8s_projects(
             "key": f"k8s-{norm(cluster)}-{norm(ns)}",
             "name": f"{ns} ({cluster})",
             "kind": "cluster",
+            # What a `k8s:<namespace>` placement rule matches. The key above
+            # folds cluster and namespace together and cannot be split back.
+            "namespace": ns,
             "description": (
                 f"Kubernetes namespace `{ns}` on `{cluster}`. Discovered from the "
                 f"cluster API, not declared. Workloads are in-cluster only unless "
@@ -948,6 +1009,11 @@ def main() -> int:
         "dockerReachable": docker_ok,
         "projects": projects,
     }
+    # Absent file -> absent key, so a box without one serves byte-for-byte the
+    # payload it served before placement existed.
+    placement = load_placement()
+    if placement is not None:
+        payload["placement"] = placement
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     # Atomic: the portal polls this file and must never read a half-written one.
