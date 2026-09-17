@@ -113,9 +113,9 @@ browser reaches anything but the portal. What exists today:
 | Container | Host bind | Status |
 |---|---|---|
 | `traefik` | `0.0.0.0:80` | **The front door for the portal and its data plane**, and nothing else. |
-| `grafana` `prometheus` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `9090` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. `dozzle` (`:8080`), `kafka-ui` (`:8081`) and `portainer` (`:9000`) were here until 2026-08-17; Bothy Control and the service pages replaced them. |
+| `grafana` `victoriametrics` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `8428` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. `dozzle` (`:8080`), `kafka-ui` (`:8081`) and `portainer` (`:9000`) were here until 2026-08-17; Bothy Control and the service pages replaced them. |
 | `postgres` | `127.0.0.1:5432` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database. Reached over an SSH tunnel, or by name over devnet from another container. `redis` (`:6379`) and `kafka` (`:9092`) sat here under the same rule until they were retired on 2026-08-12 - both idle, zero keys and zero topics. |
-| `bothy-web` `bothy-files` `oauth2-proxy` `bothy-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
+| `bothy-web` `bothy-files` `oauth2-proxy` `bothy-socket-proxy` `alloy` and every exporter | none | Nothing needs to reach these except Traefik or VictoriaMetrics, over `devnet`. |
 
 The cost of the port model is real and worth stating: ports are a flat global
 namespace with no allocator, so every new service is a manual collision check
@@ -272,7 +272,7 @@ numbers below are repeated here only so this table is readable on its own.
 |---|---|---|---|---|
 | `edge/` | `edge` | `traefik` | `:80` - portal + `/-/api/*` only | none, and none needed: no dashboard router exists any more |
 | `auth/` | `auth` | `keycloak` `oauth2-proxy` | Keycloak `:8090`; oauth2-proxy only via `/oauth2/` on `:80` | n/a - it *is* the identity layer, and it guards nothing yet |
-| `monitoring/` | `monitoring` | `prometheus` `grafana` `loki` `promtail` `cadvisor` `node-exporter` | `:9090` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and Prometheus use the shared `DEV_LOGIN_*` credential. Prometheus runs `--web.enable-lifecycle`, so an unauthenticated `POST /-/quit` would stop it - its login is the only thing preventing that |
+| `monitoring/` | `monitoring` | `victoriametrics` `grafana` `loki` `alloy` `cadvisor` `node-exporter` (legacy `prometheus` / `promtail` under compose profiles, stopped) | `:8428` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and VictoriaMetrics use the shared `DEV_LOGIN_*` credential. VictoriaMetrics accepts writes (`/api/v1/import`) and deletes on the same port - its login is the only thing preventing that |
 | `data/postgres` | `postgres` | `postgres` `postgres-exporter` | `127.0.0.1:5432` | Postgres' own |
 | `apps/bothy` | `bothy` | `bothy-socket-proxy` (the read-only Docker socket the portal's data plane goes through) | none - socketnet only | n/a |
 | `apps/bothy-web` | `bothy` | `bothy-web` | the `:80` catch-all | **none** |
@@ -310,8 +310,8 @@ hand-kept target list, so *every* container is covered with no per-service setup
 
 | Signal | Collector | Coverage |
 |---|---|---|
-| Logs | `promtail` via `docker_sd_configs` → Loki | Every running container, any stack or project. Labels: `container`, `stack` (compose project), `stream`. |
-| Container metrics | `cadvisor` → Prometheus | CPU / memory / network / filesystem, every container. |
+| Logs | `alloy` (`discovery.docker` + `loki.source.docker`) → Loki | Every running container, any stack or project. Labels: `container`, `stack` (compose project), `stream`. |
+| Container metrics | `cadvisor` → VictoriaMetrics | CPU / memory / network / filesystem, every container. |
 | Host metrics | `node-exporter` | |
 | Docker daemon | `metrics-addr` on `:9323` (optional, in `host/docker/daemon.json`) | **Not scraped.** The `docker-daemon` job was removed on 2026-08-19: nothing in the repo read an `engine_daemon_*` series, and because the setting is opt-in the target sat permanently down on any box that had not been hand-edited. The setting is harmless to keep; `monitoring/prometheus.yml` carries the restore recipe. |
 | App metrics | `postgres-exporter` | The `redis-exporter` and `kafka-exporter` jobs came out of `monitoring/prometheus.yml` on 2026-08-12 with their services. A scrape job for something that no longer runs is not harmless: its target sits permanently down, and "are all targets up?" stops being a question worth asking. |
@@ -583,10 +583,12 @@ the case for all of these. An `@file` route with no container is honestly
 | Volume | Owner | Holds | In the backup |
 |---|---|---|---|
 | `postgres_postgres_data` | `data/postgres` | The shared dev database | yes - logical dump |
-| `monitoring_prometheus_data` | `monitoring` | TSDB. 15-day retention with a 3 GB ceiling - whichever is reached first | no |
+| `monitoring_victoriametrics_data` | `monitoring` | Metrics, 15-day retention (`-retentionPeriod`; no size ceiling - VM drops whole parts once outside the window) | no |
+| `monitoring_prometheus_data` | `monitoring` | The retired Prometheus TSDB, kept for the `legacy-prometheus` rollback; history was imported into VictoriaMetrics with `vmctl` | no |
+| `monitoring_alloy_data` | `monitoring` | Alloy's read positions - same load-bearing role as promtail's below | no |
 | `monitoring_grafana_data` | `monitoring` | `grafana.db` - users, dashboards, alert state | yes |
 | `monitoring_loki_data` | `monitoring` | Log chunks and index | no |
-| `monitoring_promtail_positions` | `monitoring` | Read offsets. **Not data, but load-bearing:** positions default to `/tmp`, which is empty again after every restart, so promtail re-read every container log from the start and duplicated the whole history into Loki each time it came back. | no |
+| `monitoring_promtail_positions` | `monitoring` | Legacy promtail read offsets (Alloy imports the host-log ones once). **Not data, but load-bearing:** positions default to `/tmp`, which is empty again after every restart, so promtail re-read every container log from the start and duplicated the whole history into Loki each time it came back. | no |
 
 `mgmt_portainer_data` and `redis_redis_data` were rows here until the services
 that owned them were retired on 2026-08-17 and 2026-08-12. The volumes are
@@ -725,7 +727,7 @@ The ones that fail *silently*. Each has cost real debugging time here.
 | Trap | Symptom | Fix |
 |---|---|---|
 | **Traefik's `edge/dynamic` bind mount goes stale after `git checkout`** | Every edit to `edge/dynamic/` has no effect; `--providers.file.watch=true` stops meaning anything. A bind mount pins the host inode at container-creation time, and checkout deletes and recreates directories. Ran that way for five days once. | `docker compose -f edge/compose.yml up -d --force-recreate` after any branch switch |
-| **Editing a bind-mounted config *file* replaces its inode** | `prometheus.yml`, `promtail.yml`, `loki-config.yml` keep serving the old content. A plain `restart` reads the stale inode. | `docker compose -f monitoring/compose.yml up -d --force-recreate <svc>` |
+| **Editing a bind-mounted config *file* replaces its inode** | `prometheus.yml`, `loki-config.yml` keep serving the old content (`alloy/` is a directory mount and is exempt). A plain `restart` reads the stale inode. | `docker compose -f monitoring/compose.yml up -d --force-recreate <svc>` |
 | **Traefik below v3.6 on Docker 29** | *Every* request 404s while Traefik looks perfectly healthy - older builds hardcode Docker API v1.24, ignore `DOCKER_API_VERSION`, and the provider loads zero routes | Keep Traefik ≥ v3.6 and `DOCKER_API_VERSION: "1.44"` |
 | **Listing `networks:` drops the compose default network** | A service mysteriously cannot reach its own database | Always `[default, devnet]` |
 | **A dotless hostname in a *host* process** | Looked like a database fault: `getaddrinfo` hung 40 s per lookup, starving libuv's four-thread pool, so unrelated DB connections timed out with no TCP socket ever opened. Bare compose names (`tempo`, `redis`) only resolve inside Docker. | dnsmasq now runs `domain-needed`, so dotless names `NXDOMAIN` in ~0 ms. If you genuinely need one, add an explicit `address=/name/<ip>` rather than removing the flag. |

@@ -60,9 +60,13 @@ hostname-nesting logic is retained but is effectively dormant.
   with `pg_isready` wait, empty-artifact discard, non-zero exit on failure. `doctor.sh`
   fails loudly if the newest backup is `< 1000 bytes` or `> 48h` old - **that check is the
   single most important alarm on the box** (backups were silently empty for 6 days once).
-- **Monitoring**: Prometheus (15d retention; the `docker-daemon` :9323 job was removed
-  2026-08-19 - no consumer, and permanently down wherever `metrics-addr` was unset),
-  Loki (7-day retention since PR #7), promtail (positions in a volume, not /tmp), Grafana.
+- **Monitoring**: VictoriaMetrics `:8428` (15d retention; replaced Prometheus 2026-09-17,
+  history imported with `vmctl`, Prometheus kept as compose profile `legacy-prometheus`;
+  the `docker-daemon` :9323 job was removed 2026-08-19 - no consumer, and permanently
+  down wherever `metrics-addr` was unset), Loki (7-day retention since PR #7), Alloy
+  (replaced promtail 2026-09-17, same labels; positions in a volume, not /tmp), Grafana.
+  The minikube cluster is scraped from outside (`monitoring/scrape.d/`) and ships pod
+  logs with an Alloy DaemonSet - `k8s/monitoring/README.md`.
 
 ## Traps that are DESIGNED IN (read before "fixing" anything)
 
