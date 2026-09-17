@@ -168,9 +168,22 @@ up-auth: network
     echo "  redirect loop, not an error. Check it after changing BOX_IP:"
     echo "    curl -s http://$IP:8090/realms/devbox/.well-known/openid-configuration | jq -r .issuer"
 
-# Observability: grafana, prometheus, loki, cadvisor, node-exporter
+# compose.cluster.yml is added ONLY when the docker network `thales-scc` exists
+# (the minikube cluster). It joins prometheus to that network so it can scrape
+# the node; as an `external` network in compose.yml itself it would make this
+# recipe fail on every box without the cluster. See that file's header.
+# Observability: grafana, prometheus, loki, cadvisor, node-exporter (+ the cluster, if present)
 up-monitoring: network
-    docker compose -f monitoring/compose.yml up -d
+    #!/usr/bin/env bash
+    set -euo pipefail
+    files=(-f monitoring/compose.yml)
+    if docker network inspect thales-scc >/dev/null 2>&1; then
+      files+=(-f monitoring/compose.cluster.yml)
+      # The mount source must be a directory before compose creates it as root.
+      mkdir -p monitoring/kube-auth
+      [ -f monitoring/kube-auth/token ] || echo "note: no monitoring/kube-auth/token - run 'just k8s-monitoring' (kubelet jobs stay DOWN until then)"
+    fi
+    docker compose "${files[@]}" up -d
 
 # Data services: postgres (+ its exporter).
 #
@@ -360,6 +373,23 @@ psql:
 # Regenerate the portal's Prometheus data-plane route.
 bothy-prom-route:
     ./scripts/gen-bothy-prom-route.sh
+
+# (Re)apply the cluster side of monitoring into minikube thales-scc: namespace
+# `monitoring`, kube-state-metrics (pinned helm chart, NodePort 30808), the
+# kubelet scrape identity, the promtail DaemonSet shipping pod logs to Loki, and
+# the metrics-server addon - then refresh Prometheus' kubelet token. Idempotent.
+# See k8s/monitoring/README.md. The compose side is `just up-monitoring`.
+# Apply cluster monitoring (KSM, promtail, RBAC) into thales-scc and refresh the token.
+k8s-monitoring:
+    ./scripts/k8s-monitoring.sh
+
+# Rewrite monitoring/kube-auth/token from the cluster's prometheus-scraper-token
+# Secret. GITIGNORED (a credential), mode 600 owned by uid 65534 so the
+# container's `nobody` can read it. No restart needed: Prometheus re-reads it
+# on every scrape.
+# Regenerate the kubelet bearer token Prometheus scrapes thales-scc with.
+kube-prom-token:
+    ./scripts/gen-kube-prom-token.sh
 
 # Print access URLs. Pure-IP-over-tailscale model: every service has a published
 # host port on this node's tailnet IP.

@@ -1,0 +1,28 @@
+# helm upgrade --install kube-state-metrics prometheus-community/kube-state-metrics \
+#   --version 8.5.0 -n monitoring -f k8s/monitoring/kube-state-metrics.values.yaml
+# (`just k8s-monitoring` runs exactly this - the version is pinned in the script.)
+#
+# NodePort, FIXED at 30808, because the scraper is not in the cluster: it is the
+# compose `prometheus`, which reaches the node at 192.168.49.2 over the docker
+# network `thales-scc` (see monitoring/compose.cluster.yml). A random nodePort
+# would change on reinstall and silently break monitoring/scrape.d/kubernetes.yml.
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30808
+
+# No in-cluster Prometheus here to read these annotations; leaving them on would
+# only suggest one exists.
+prometheusScrape: false
+
+# The chart ships no requests/limits "as a conscious choice". This is the
+# choice: a one-node cluster with a few dozen objects.
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+# Labels on k8s objects are per-cluster opt-in in KSM (metricLabelsAllowlist) -
+# left empty so series cardinality stays proportional to object count.

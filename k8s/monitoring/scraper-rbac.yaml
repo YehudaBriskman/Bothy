@@ -1,0 +1,55 @@
+# The identity the compose `prometheus` uses to scrape the kubelet
+# (https://192.168.49.2:10250/metrics and /metrics/cadvisor).
+#
+# ONE VERB ON ONE SUBRESOURCE: get nodes/metrics. The kubelet authorizes
+# /metrics and /metrics/* as nodes/metrics, so that is all a metrics scrape needs.
+#
+# nodes/proxy is deliberately NOT granted, although most guides include it.
+# The kubelet maps every path it does not special-case - /exec, /run, /attach,
+# /portForward among them - to nodes/proxy, and the exec endpoints are
+# websocket upgrades that begin life as a GET. So `get nodes/proxy` is quietly
+# "run commands in any pod on the node", which for a token sitting in a file on
+# the host is far more than scraping calls for. Add it only for a path that
+# genuinely needs it, and write the path down here.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-scraper
+  namespace: monitoring
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-kubelet-metrics-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: monitoring-kubelet-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: monitoring-kubelet-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: prometheus-scraper
+    namespace: monitoring
+---
+# A long-lived, Secret-backed token rather than `kubectl create token`: a bound
+# token has an expiry, and an expired scrape token does not error anywhere
+# anyone looks - the kubelet jobs just go DOWN a year later. This one lives until
+# the Secret is deleted, which is also how to revoke it.
+# scripts/gen-kube-prom-token.sh copies it into monitoring/kube-auth/token.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: prometheus-scraper-token
+  namespace: monitoring
+  annotations:
+    kubernetes.io/service-account.name: prometheus-scraper
+type: kubernetes.io/service-account-token
