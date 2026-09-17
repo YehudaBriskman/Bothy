@@ -39,7 +39,7 @@ with open(_POLICY, "w") as _f:
     _f.write(
         f'[roots.docs]\npath = "{_BOOT}"\nwritable = true\n'
         f'[deny]\n'
-        f'components = [".git", ".ssh", ".gnupg", "node_modules", ".venv", "venv",'
+        f'components = [".git", ".ssh", ".gnupg", "secrets", "node_modules", ".venv", "venv",'
         f' "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",'
         f' ".next", ".turbo", ".cache", "target"]\n'
         f'[sensitive]\n'
@@ -326,6 +326,11 @@ check("home: another top-level dotfile", H(".bashrc"),            expect_refused
 check("home: a top-level dot DIR",       H(".ssh/id_ed25519"),    expect_refused=True)
 check("home: the backups directory",     H("backups/env/env-1"),  expect_refused=True)
 check("home: ordinary project files",    H("projects/app/README.md"), expect_refused=False)
+# Service credentials: a container's token dir, at any depth, in any root
+# (2026-09-17 - apps/bothy-ops/secrets held the operator cluster token).
+os.makedirs(os.path.join(home, "stacks", "apps", "ops", "secrets"))
+open(os.path.join(home, "stacks", "apps", "ops", "secrets", "token"), "w").write("eyJ.live\n")
+check("home: a nested secrets/ dir",     H("stacks/apps/ops/secrets/token"), expect_refused=True)
 
 # ...and the SAME shapes must still be served from a repo root, or the explorer
 # becomes useless for the thing it is mostly used on.

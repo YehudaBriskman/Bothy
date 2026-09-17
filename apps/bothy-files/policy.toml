@@ -92,8 +92,16 @@ deny_toplevel = ["backups"]
 # carry a credential. The rest are volume: they are tens of thousands of files
 # nobody browses, and including them makes the explorer useless and the listing
 # slow. Both reasons matter; do not split the list by motive.
+#
+# `secrets` (2026-09-17) is the one entry that is NOT "the owner's own files":
+# apps/bothy-ops/secrets (the operator cluster token) and apps/headlamp/secrets
+# (the read-only kubeconfig) are SERVICE credentials, written mode 600 by
+# gen-kube-token.sh / gen-headlamp-token.sh. The [sensitive] reasoning below -
+# mark, don't hide - is about files a person keeps; a token minted for a
+# container is not one, and serving it would hand `viewer` the operator's
+# cluster verbs. Hidden at any depth, so a project's `secrets/` dir goes too.
 components = [
-  ".git", ".ssh", ".gnupg", "node_modules", ".venv", "venv",
+  ".git", ".ssh", ".gnupg", "secrets", "node_modules", ".venv", "venv",
   "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",
   ".next", ".turbo", ".cache", "target",
 ]
