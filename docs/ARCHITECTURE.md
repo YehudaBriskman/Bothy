@@ -135,7 +135,7 @@ ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 <user>@
 kept), but *valid* YAML with a wrong priority shadows real routes instantly, with
 no restart to catch it.
 
-The whole table, as of 2026-08-12 - seven routers, **zero `Host()` rules**:
+The whole table, as of 2026-08-12 plus `ping@internal` (2026-09-17) - eight routers, **zero `Host()` rules**:
 
 | Router | Rule | Priority | Notes |
 |---|---|---|---|
@@ -146,6 +146,7 @@ The whole table, as of 2026-08-12 - seven routers, **zero `Host()` rules**:
 | `oauth2-endpoints@file` | `PathPrefix(/oauth2/)` | 100 | The login flow. Host-less so the post-login redirect lands wherever the user was |
 | `portal-next-fallback@docker` | `PathPrefix(/)` | 1 | Catch-all: **every** unmatched path on `:80` gets the portal SPA, 200 `text/html` |
 | `prometheus@internal` | `PathPrefix(/metrics)` | max | Traefik's own metrics, on the internal `:8899` entrypoint only |
+| `ping@internal` | `PathPrefix(/ping)` | max | Added 2026-09-17 for the container healthcheck. Same internal `:8899` entrypoint, never `web` |
 
 Two consequences of that table:
 

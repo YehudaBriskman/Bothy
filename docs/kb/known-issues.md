@@ -61,6 +61,9 @@ next session does not mistake them for evidence that names still work.
 - dnsmasq answers non-`.test` queries for tailnet clients (open resolver, tailnet-scoped) -
   side effect of the upstream config that fixed in-box DNS.
 - oauth2-proxy container has no healthcheck (distroless image - a check can never pass).
+- loki has no healthcheck for the same reason (distroless: no shell, no wget, no health
+  flag in the binary). So grafana's `depends_on` waits for prometheus to be *healthy*
+  but for loki only to be *started* (2026-09-17).
 - Portal-API routers have no `Host()` rule. Since 2026-08-12 that is not a tradeoff,
   it is **the only supported routing shape** - see [architecture.md](architecture.md).
 - prio-1 `portal-next-fallback` catches every unrouted request (that's its job) - which

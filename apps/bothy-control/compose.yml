@@ -237,6 +237,15 @@ services:
     networks: [controlsocknet]
     labels:
       - traefik.enable=false
+    # haproxy answering is the pass - PING=0 makes /_ping a 403, and any HTTP
+    # status line beats a refused connection. Same probe and reasoning as
+    # apps/bothy/socket-proxy.yml; no endpoint is granted just for the check.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:2375/_ping 2>&1 | grep -q 'HTTP/'"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:
@@ -304,6 +313,15 @@ services:
     networks: [controlsocknet]
     labels:
       - traefik.enable=false
+    # haproxy answering is the pass - PING=0 makes /_ping a 403, and any HTTP
+    # status line beats a refused connection. Same probe and reasoning as
+    # apps/bothy/socket-proxy.yml; no endpoint is granted just for the check.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:2375/_ping 2>&1 | grep -q 'HTTP/'"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:

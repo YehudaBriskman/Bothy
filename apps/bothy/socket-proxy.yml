@@ -111,6 +111,17 @@ services:
     # NO ports: - must never be reachable from the host network.
     # NOT on devnet - see the security note above.
     networks: [socketnet]
+    # Proves haproxy answers, and nothing more. PING=0 means /_ping is DENIED,
+    # so the 403 is the pass: grep for any HTTP status line, which a refused
+    # connection never prints. Probing an ALLOWED path instead would mean
+    # granting a new endpoint just for the check - the wrong trade on a socket
+    # holder. Costs one 403 line in this container's log per interval.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:2375/_ping 2>&1 | grep -q 'HTTP/'"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:

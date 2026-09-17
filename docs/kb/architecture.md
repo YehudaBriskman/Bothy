@@ -28,6 +28,7 @@ The router table, verified 2026-08-12:
 | `portal-api-traefik@file` | 4 exact `Path()`s under `/-/api/traefik/` | 100 |
 | `portal-next-fallback@docker` | `PathPrefix(/)` - the catch-all | 1 |
 | `prometheus@internal` | `PathPrefix(/metrics)` on the internal `:8899` entrypoint | - |
+| `ping@internal` | `PathPrefix(/ping)` on the same `:8899` entrypoint (healthcheck, 2026-09-17) | - |
 
 **The Traefik dashboard was deleted in the same change** because it was leaking a
 credential: `--api.dashboard=true` became `--api=true`. The API must stay on - the

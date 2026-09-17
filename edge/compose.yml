@@ -106,6 +106,20 @@ services:
       - --metrics.prometheus.addEntryPointsLabels=true
       - --metrics.prometheus.addServicesLabels=true
       - --metrics.prometheus.addRoutersLabels=true
+      # /ping for the healthcheck below, pinned to the internal metrics
+      # entrypoint. Left to its default it would open an implicit `traefik`
+      # entrypoint on :8080; on `web` the tailnet could reach it. On :8899 it is
+      # as private as /metrics already is: no host port, devnet only.
+      - --ping=true
+      - --ping.entrypoint=metrics
+    # `traefik healthcheck` does not read the server's flags, it takes its own -
+    # these three must match the ping/entrypoint flags above.
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping=true", "--ping.entrypoint=metrics", "--entrypoints.metrics.address=:8899"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     environment:
       # Traefik's bundled Docker SDK falls back to API v1.24 when it doesn't
       # negotiate, and this daemon (29.6.1, API 1.55) rejects anything below

@@ -38,6 +38,14 @@ services:
       - traefik.http.routers.portal-next-fallback.priority=1
       - traefik.http.routers.portal-next-fallback.entrypoints=web
       - traefik.http.routers.portal-next-fallback.service=portal-next
+    # Straight at nginx, not through :80 on the host - via Traefik, the
+    # catch-all would answer 200 whether or not this container was up.
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "-T", "3", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:

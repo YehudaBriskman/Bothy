@@ -45,6 +45,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # The landing page, not /metrics: /metrics queries postgres, and a DB
+      # outage is pg_up=0, not a broken exporter.
+      test: ["CMD", "wget", "-qO", "/dev/null", "-T", "3", "http://127.0.0.1:9187/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:
