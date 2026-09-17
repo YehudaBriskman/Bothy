@@ -44,7 +44,7 @@ rules:
 
   # Stack components that live INSIDE the minikube cluster rather than in compose:
   # kube-state-metrics + the pod-log shipper (namespace `monitoring`) feed the
-  # stack's Prometheus/Loki, and `bothy` holds bothy-kube's ServiceAccount. They
+  # stack's Prometheus/Loki, and `bothy` holds the bothy-kube ServiceAccount (bothy-ops' cluster identity). They
   # are Bothy's, not a project's, even though discovery finds them as namespaces.
   - match: [k8s:monitoring]
     section: bothy

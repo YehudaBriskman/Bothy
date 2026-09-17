@@ -1,7 +1,9 @@
 // Changing one declared value in one file - the client for /-/api/config.
 //
 // THE CONTRACT AND THE RULES ONLY, on the lib/actions.ts pattern and for the
-// same reason: THIS MODULE IMPORTS NOTHING. Everything a form over a compose
+// same reason: THIS MODULE IMPORTS ONLY lib/http.ts, which imports nothing.
+// The service behind it is bothy-files (the config forms were their own service,
+// bothy-config, until 2026-09). Everything a form over a compose
 // file has to get right is a derivation rather than a render - where a system's
 // file is, whether the file is now ahead of the container, how each refusal is
 // worded - and a module with no imports is one that can be compiled and
@@ -36,6 +38,8 @@
 // the file, and when they disagree the answer is "they disagree", never a
 // spinner and never a quiet substitution.
 
+import { ApiRefused, apiFetch, refusalOf as httpRefusalOf, statusOf } from './http';
+
 // ── the field ───────────────────────────────────────────────────────────────
 
 /** The one field the policy declares patchable today: a system's display name.
@@ -46,11 +50,12 @@
  *  three chances to typo something that fails as "not declared in this file". */
 export const PROJECT_TITLE_FIELD = 'dev.portal.project';
 
-/** Where each of bothy-config's roots lives on the host: root name -> host path.
+/** Where each of the config forms' roots lives on the host: root name -> host path.
  *
  *  The service answers in `{root, path}` pairs and a container tells us an
  *  ABSOLUTE host path, so somebody has to hold the mapping between them. It is
- *  policy - apps/bothy-config/policy.toml declares exactly one root, `stacks`,
+ *  policy - [config].roots in apps/bothy-files/policy.toml declares exactly one
+ *  root, `stacks`,
  *  mounted at /repos/stacks - and the browser cannot ask the service for it:
  *  /healthz lists the root NAMES and is deliberately not routed, precisely so
  *  the field allowlist is not on the tailnet.
@@ -64,13 +69,13 @@ export const PROJECT_TITLE_FIELD = 'dev.portal.project';
  *  container's bind mounts and threaded in from the poll; see repoRoots.ts for
  *  why the mount table is the honest source.
  *
- *  DERIVED FROM bothy-config's MOUNTS SPECIFICALLY, not from any container that
- *  happens to bind /repos/<name>. The file tier mounts four roots and this
- *  service accepts one, so a shared table would offer `notes` and `projects` as
- *  patch targets and collect a 400 from the service for each. A root exists here
- *  only if the service that must open it is the one that mounted it.
+ *  DERIVED FROM bothy-files' MOUNTS, NARROWED TO [config].roots - see
+ *  configRootsOf() in discover.ts. bothy-files mounts four roots and the config
+ *  forms accept one, so the full table would offer `notes` and `projects` as
+ *  patch targets and collect a 403 from the service for each. (Until 2026-09 the
+ *  forms had their own container, whose mounts WERE the answer.)
  *
- *  Empty is a real value and is handled: it means bothy-config is not running,
+ *  Empty is a real value and is handled: it means bothy-files is not running,
  *  in which case there is nothing to patch anyway and `outside-roots` - "this
  *  file is not somewhere Bothy can write" - is the true answer. */
 export type RootPaths = Readonly<Record<string, string>>;
@@ -257,7 +262,7 @@ export function driftOf(
  * A RESTART DOES NOT DO IT, and the interface has to say so rather than offer a
  * button that looks like it does. `docker restart` stops and starts the container
  * it already has; labels are fixed on a container when it is created and are not
- * re-read from the file afterwards. bothy-control's three verbs are restart, stop
+ * re-read from the file afterwards. bothy-ops' three container verbs are restart, stop
  * and start, deliberately and permanently - `create` is the thing the write
  * socket proxy is configured to make impossible - so the tier that can apply this
  * is `docker compose up -d`, on the box.
@@ -334,9 +339,9 @@ export interface Conflict {
 
 /** A refusal that carries what the wire said about it.
  *
- *  `fromService` separates "bothy-config answered and said no" from "the edge
- *  never let this through", which is the difference between a policy message
- *  worth showing verbatim and a session problem. See parseFailure. */
+ *  `fromService` separates "the config service answered and said no" from "the
+ *  edge never let this through", which is the difference between a policy
+ *  message worth showing verbatim and a session problem. See asConfigRefused. */
 export class ConfigRefused extends Error {
   status: number;
   fromService: boolean;
@@ -351,31 +356,29 @@ export class ConfigRefused extends Error {
   }
 }
 
-const isJson = (r: Response): boolean =>
-  (r.headers.get('content-type') ?? '').includes('json');
-
 /**
- * Turn a non-2xx into a ConfigRefused, and decide who said no.
+ * Rethrow a transport refusal as a ConfigRefused, and decide who said no.
  *
  * THE CONTENT TYPE IS THE TELL, not the status code, and this is the one piece
- * of protocol knowledge the whole module rests on. bothy-config answers every
- * refusal as JSON `{"error": "..."}` with a message written for a person to
- * read. The edge answers in neither: a missing session is a 401 whose body
- * Traefik's `sso-errors` middleware replaces with oauth2-proxy's sign-in page,
- * and a session without the role is oauth2-proxy's own plain-text 403.
+ * of protocol knowledge the whole module rests on. The config forms answer every
+ * refusal as JSON `{"error": "..."}` with a message written for a person to read.
+ * The edge answers in neither: a missing session is a 401 whose body Traefik's
+ * `sso-errors` middleware replaces with oauth2-proxy's sign-in page, and a
+ * session without the role is oauth2-proxy's own plain-text 403.
  *
  * So a 403 with JSON is the policy talking - "value must not contain ' #'" -
- * and a 403 without JSON is the role. Branching on the status alone would print
- * a sign-in prompt at somebody who typed a hash in a project name.
+ * and a 403 without JSON is the role. lib/http.ts records which it was as
+ * `fromService`; branching on the status alone would print a sign-in prompt at
+ * somebody who typed a hash in a project name.
+ *
+ * A 200 that is not JSON (the portal catch-all's HTML for an unrouted path)
+ * arrives here as status 0, not from the service: nothing answered.
  */
-async function parseFailure(r: Response): Promise<ConfigRefused> {
-  if (!isJson(r)) {
-    return new ConfigRefused(r.status, `refused with ${r.status}`, false);
-  }
-  const body = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-  const message = typeof body.error === 'string' ? body.error : `refused with ${r.status}`;
+function asConfigRefused(e: unknown): unknown {
+  if (!(e instanceof ApiRefused)) return e;
+  const body = e.body;
   const conflict =
-    r.status === 409 && Array.isArray(body.theirs)
+    e.status === 409 && Array.isArray(body.theirs)
       ? ({
           path: String(body.path ?? ''),
           baseMtime: Number(body.baseMtime ?? 0),
@@ -384,22 +387,13 @@ async function parseFailure(r: Response): Promise<ConfigRefused> {
           theirs: body.theirs as Conflict['theirs'],
         } satisfies Conflict)
       : undefined;
-  return new ConfigRefused(r.status, message, true, conflict);
+  return new ConfigRefused(e.status, e.message, e.fromService, conflict);
 }
 
-/** A 200 IS NOT PROOF THAT THIS ROUTE EXISTS.
- *
- *  The portal is a catch-all on :80 at priority 1, so any path Traefik has no
- *  rule for is answered by the portal itself - HTML, status 200, from the bare
- *  IP and from any hostname. A JSON.parse failure on that body would surface as
- *  "Unexpected token <", which is true about the bytes and useless to a reader.
- *  Anything that is not JSON is treated as nothing having answered, because that
- *  is what it is. */
-function mustBeJson(r: Response): void {
-  if (!isJson(r)) {
-    throw new ConfigRefused(0, 'answered by something that is not Bothy Config', false);
-  }
-}
+const WIRE = {
+  refused: (status: number) => `refused with ${status}`,
+  notService: 'answered by something that is not Bothy Config',
+};
 
 /** What this file declares that a form may change, and what it says now. */
 export async function loadFields(
@@ -421,10 +415,9 @@ export async function loadFields(
   }
 
   const q = `root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`;
-  const r = await fetch(`${BASE}/fields?${q}`, { signal, headers: { Accept: 'application/json' } });
-  if (!r.ok) throw await parseFailure(r);
-  mustBeJson(r);
-  return (await r.json()) as FieldsResult;
+  return apiFetch<FieldsResult>(`${BASE}/fields?${q}`, { signal, ...WIRE }).catch((e) => {
+    throw asConfigRefused(e);
+  });
 }
 
 export interface PatchRequest {
@@ -466,18 +459,11 @@ export async function patchField(req: PatchRequest): Promise<PatchResult> {
     return patchFieldMock(req);
   }
 
-  const r = await fetch(`${BASE}/patch`, {
-    method: 'POST',
-    // application/json is not decoration. The service refuses anything else with
-    // a 415, because a text/plain POST is a CORS-simple request that skips the
-    // preflight - and the session cookie is sent to every port on this host, so
-    // a page on the sandbox origin is same-site with this one.
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(req),
+  // Sent as application/json by apiFetch, which is not decoration: the service
+  // refuses anything else with a 415 (lib/http.ts).
+  return apiFetch<PatchResult>(`${BASE}/patch`, { body: req, ...WIRE }).catch((e) => {
+    throw asConfigRefused(e);
   });
-  if (!r.ok) throw await parseFailure(r);
-  mustBeJson(r);
-  return (await r.json()) as PatchResult;
 }
 
 // ── refusals, in the interface's own words ──────────────────────────────────
@@ -513,15 +499,16 @@ export function refusalOf(e: unknown, act: 'read' | 'write'): Refusal {
   // quietly answered "nothing replied" to every mocked refusal would make the
   // whole dev path a happy path.
   const r = e as { status?: unknown; fromService?: unknown; message?: unknown; conflict?: unknown } | null;
-  const status = typeof r?.status === 'number' ? r.status : 0;
+  const status = statusOf(e);
+  const kind = httpRefusalOf(status);
   const fromService = r?.fromService === true;
   const conflict = (r?.conflict ?? undefined) as Conflict | undefined;
-  // Only trusted when bothy-config itself answered in its own format. Everything
+  // Only trusted when the config service itself answered in its own format. Everything
   // else that lands here - a sign-in page, a plain-text 403, the portal
   // catch-all - has a body that is about HTTP rather than about this field.
   const said = fromService && typeof r?.message === 'string' ? r.message : '';
 
-  if (status === 401) {
+  if (kind === 'sign-in') {
     return {
       title: 'Sign in to change this.',
       detail:
@@ -530,7 +517,7 @@ export function refusalOf(e: unknown, act: 'read' | 'write'): Refusal {
       needs: 'sign-in',
     };
   }
-  if (status === 403 && !fromService) {
+  if (kind === 'role' && !fromService) {
     return act === 'read'
       ? {
           title: 'You may not read this system’s configuration.',
@@ -549,7 +536,7 @@ export function refusalOf(e: unknown, act: 'read' | 'write'): Refusal {
           needs: 'editor',
         };
   }
-  if (status === 409 && conflict) {
+  if (kind === 'conflict' && conflict) {
     return {
       title: 'This file changed while the form was open.',
       detail:
@@ -561,7 +548,7 @@ export function refusalOf(e: unknown, act: 'read' | 'write'): Refusal {
       conflict,
     };
   }
-  if (status === 409) {
+  if (kind === 'conflict') {
     // The other 409 the service returns: one field declared on several services
     // in one file. It names the services in its message, and that message is the
     // whole of what is worth saying.
@@ -606,7 +593,7 @@ export function refusalOf(e: unknown, act: 'read' | 'write'): Refusal {
       needs: null,
     };
   }
-  if (status >= 500) {
+  if (kind === 'fault' || kind === 'unavailable') {
     return {
       title: 'Bothy Config faulted.',
       detail: (said ? `${capitalise(said)}. ` : '')
@@ -635,7 +622,7 @@ function capitalise(s: string): string {
 /**
  * The same rules the service applies, applied before the round trip.
  *
- * THIS IS NOT THE BOUNDARY AND MUST NEVER BE MISTAKEN FOR IT. bothy-config
+ * THIS IS NOT THE BOUNDARY AND MUST NEVER BE MISTAKEN FOR IT. bothy-files
  * validates every one of these again and would refuse a hand-written curl
  * identically; what this buys is that the reason arrives while somebody is
  * typing rather than after they press save. The wording is the service's own

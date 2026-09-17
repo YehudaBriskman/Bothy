@@ -272,17 +272,17 @@ echo "── the grant that would make a browser root ────────�
 # image's granular ALLOW_* lines are `allow` rules with a broad `^/containers`
 # rule below them and no deny in between, so POST=1 together with CONTAINERS=1
 # permits every POST under /containers - /containers/create included, and a
-# create with a bind mount of / is root on this box. apps/bothy-control runs two
-# proxies precisely so that neither one holds both flags.
+# create with a bind mount of / is root on this box. Bothy runs two proxies
+# (apps/bothy/socket-proxy.yml) precisely so that neither one holds both flags.
 #
 # This row plants the pair on the WRITE proxy: the exact edit somebody reaching
 # for "start a service from a compose file" (#91) would make, because it is the
 # one that would appear to work.
 mutant "the write socket proxy is granted CONTAINERS" \
-  apps/bothy-control/compose.yml \
+  apps/bothy/socket-proxy.yml \
   'CONTAINERS:     0' \
   'CONTAINERS:     1' \
-  -- bash apps/bothy-control/checks/run.sh --offline
+  -- bash apps/bothy-ops/checks/run.sh --offline
 
 # THE SAME PAIR, ON A PROXY THAT DOES NOT EXIST YET - and this is the row the
 # one above cannot stand in for. Every named assertion in grants.py asks about
@@ -310,17 +310,19 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks: [socketnet]
 ' \
-  -- bash apps/bothy-control/checks/run.sh --offline
+  -- bash apps/bothy-ops/checks/run.sh --offline
 
-# EXEC on the portal's read-only proxy. An exec into a container that holds
-# /var/run/docker.sock is a host root shell, and all three proxies hold it - so
-# EXEC=0 is written out on every one of them. Only the repo-wide sweep asserts
-# it on THIS file; the named assertions cover bothy-control's pair alone.
-mutant "exec creeps on to the portal socket proxy" \
+# EXEC on the read-only proxy - the one Traefik can reach. An exec into a
+# container that holds /var/run/docker.sock is a host root shell, and both
+# proxies hold it - so EXEC=0 is written out on each. The first occurrence in
+# the file is bothy-socket-read's (the portal's proxy until 2026-09 merged it
+# with the control read proxy), which both the named assertions and the
+# repo-wide sweep must catch.
+mutant "exec creeps on to the read socket proxy" \
   apps/bothy/socket-proxy.yml \
-  'EXEC:         0   # container exec == root on this box' \
-  'EXEC:         1   # container exec == root on this box' \
-  -- bash apps/bothy-control/checks/run.sh --offline
+  'EXEC:           0   # container exec == root on this box' \
+  'EXEC:           1   # container exec == root on this box' \
+  -- bash apps/bothy-ops/checks/run.sh --offline
 
 echo
 echo "── a declared project can still be acted on ────────────────────────"

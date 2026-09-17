@@ -1,8 +1,9 @@
 // Acting on what is running: restart, stop, start.
 //
-// THE CONTRACT ONLY. The service behind this is `bothy-control`; this file is
-// written first so the interface and the backend can be built against the same
-// shape rather than against each other's guesses.
+// THE CONTRACT. The service behind this is `bothy-ops` (bothy-control until it
+// merged with the cluster tier, 2026-09); this file was written first so the
+// interface and the backend could be built against the same shape rather than
+// against each other's guesses.
 //
 // THREE VERBS, AND NO MORE. Not `exec` - that is root on this box. Not `create`,
 // not `rm`, not image pulls, not volume operations. Those are `just` recipes and
@@ -15,11 +16,14 @@
 // exposes about roles is for the interface - showing a disabled button and a
 // reason beats a 403 after a click - and it is never the boundary.
 
-// THIS MODULE IMPORTS NOTHING, and that is worth keeping. checks/run.sh can only
-// compile and exercise a file that has no imports, and every rule below - which
+// THIS MODULE IMPORTS ONLY lib/http.ts, which imports nothing, and that is worth
+// keeping. checks/run.sh compiles and exercises this file in node, and every rule
+// below - which
 // verbs a state deserves, how a refusal is worded - is the kind of thing that is
 // cheap to get wrong and cheap to check. `verbsFor` therefore takes the status as
 // a plain string rather than importing discover.ts's `Status` union.
+
+import { apiFetch, refusalOf as httpRefusalOf, statusOf } from './http';
 
 export type Verb = 'restart' | 'stop' | 'start';
 
@@ -114,15 +118,14 @@ export interface Refusal {
 }
 
 export function refusalOf(e: unknown, verb: Verb, container: string): Refusal {
-  const status = typeof (e as { status?: unknown })?.status === 'number'
-    ? (e as { status: number }).status
-    : 0;
+  const status = statusOf(e);
+  const kind = httpRefusalOf(status);
   // Only trusted when the service answered in its own format. A 200 of HTML from
   // the portal catch-all also lands in here, and its "message" would be a JSON
   // parse error - which is true about the bytes and useless to a reader.
   const said = status > 0 && e instanceof Error ? e.message : '';
 
-  if (status === 401 || status === 403) {
+  if (kind === 'sign-in' || kind === 'role') {
     return {
       title: `You may not ${verb} ${container}.`,
       detail: 'Acting on what is running needs the operator role, and this session does not hold it. '
@@ -130,7 +133,7 @@ export function refusalOf(e: unknown, verb: Verb, container: string): Refusal {
       needsRole: true,
     };
   }
-  if (status === 409) {
+  if (kind === 'conflict') {
     return {
       title: `Docker would not ${verb} ${container}.`,
       // When the daemon gave a reason, that reason IS the explanation and
@@ -142,7 +145,7 @@ export function refusalOf(e: unknown, verb: Verb, container: string): Refusal {
       needsRole: false,
     };
   }
-  if (status >= 500) {
+  if (kind === 'fault' || kind === 'unavailable') {
     return {
       title: `Bothy Control could not ${verb} ${container}.`,
       detail: (said ? `${said} ` : '')
@@ -190,6 +193,14 @@ export interface Consequence {
 //
 // THE SAME TWO-CLOCK WINDOW, AGAIN (2026-09): portal-next -> bothy-web and
 // portal-files -> bothy-files. Same reasoning, same cost, same drop condition.
+//
+// AND AGAIN, the consolidation (2026-09): bothy-control + bothy-kube became
+// bothy-ops, bothy-config merged into bothy-files, and bothy-socket-proxy +
+// bothy-control-socket-read became bothy-socket-read. The old keys stay for the
+// same window - a not-yet-migrated box still runs those containers - and are
+// dropped once the new images have shipped and the old containers are removed.
+// Stopping the ACTION tier or its proxies is also refused outright by
+// bothy-ops' guard.SEVERING; the sentence here is what the operator reads first.
 // checks/declared-actions.mjs asserts every key below still warns.
 const SELF: Record<string, string> = {
   traefik: 'Bothy is served through Traefik. Stopping it takes this page down, and the way back is a terminal.',
@@ -200,6 +211,13 @@ const SELF: Record<string, string> = {
   'bothy-files': 'Bothy Files reads and writes through this. Stopping it leaves the editor unable to load or save.',
   'portal-files': 'Bothy Files reads and writes through this. Stopping it leaves the editor unable to load or save.',
   'bothy-config': 'Settings writes configuration through this.',
+  'bothy-socket-read': 'Bothy reads Docker through this, and every action begins by inspecting through it. Stopping it blinds every page that shows what is running.',
+  'bothy-socket-write': 'Every container action goes through this. Stopping it leaves Bothy unable to start anything again, including this.',
+  'bothy-ops': 'Container and cluster actions run through this. Stopping it removes every action button, including the one that would start it again.',
+  'bothy-control': 'Container actions run through this. Stopping it removes every action button, including the one that would start it again.',
+  'bothy-control-socket-read': 'Every action begins by inspecting through this. Stopping it leaves actions unable to answer.',
+  'bothy-control-socket-write': 'Every container action goes through this. Stopping it leaves Bothy unable to start anything again, including this.',
+  'bothy-kube': 'Cluster actions run through this. Stopping it removes every cluster action button.',
   keycloak: 'Keycloak issues the session you are using. Stopping it means nobody can sign in again, including you.',
   'oauth2-proxy': 'Every role check goes through oauth2-proxy. Stopping it locks the editor and settings tiers.',
 };
@@ -236,7 +254,7 @@ const BASE = '/-/api/control';
 export async function act(container: string, verb: Verb): Promise<ActionResult> {
   // DEV NEVER TOUCHES THE REAL DAEMON, and that is a safety property rather than
   // a stub waiting to be removed. `vite dev` proxies /-/api/* straight at the
-  // live box (vite.config.ts), so the day bothy-control ships, a stray click in
+  // live box (vite.config.ts), so with bothy-ops deployed, a stray click in
   // a dev tab would stop the edge on the machine somebody is working on. The
   // check is `import.meta.env.DEV`, which vite replaces with a literal `false`
   // in a build, so the import below is not in the shipped bundle at all.
@@ -245,31 +263,13 @@ export async function act(container: string, verb: Verb): Promise<ActionResult> 
     return actMock(container, verb);
   }
 
-  const r = await fetch(`${BASE}/${verb}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ container }),
+  // apiFetch refuses to believe a 200 that is not JSON: the portal catch-all
+  // answers any unrouted path with HTML, so a missing route reads as nothing
+  // having answered (status 0) rather than as a page of HTML handed back as an
+  // ActionResult. See lib/http.ts.
+  return apiFetch<ActionResult>(`${BASE}/${verb}`, {
+    body: { container },
+    refused: (status) => `${verb} refused (${status})`,
+    notService: `${verb} was answered by something that is not Bothy Control`,
   });
-  if (!r.ok) {
-    const body = (await r.json().catch(() => ({}))) as Partial<ActionRefusal>;
-    const err = new Error(body.error ?? `${verb} refused (${r.status})`) as Error & { status: number };
-    err.status = r.status;
-    throw err;
-  }
-  // A 200 IS NOT PROOF THAT THIS ROUTE EXISTS. The portal is a catch-all on :80
-  // at priority 1, so any path Traefik has no rule for is answered by the portal
-  // itself - HTML, status 200, from the bare IP and from any hostname. Measured
-  // against the live box today, POST /-/api/control/restart returns 405 with an
-  // HTML body, which at least fails; a GET-shaped route would return 200 and
-  // this function would hand a page of HTML back as an ActionResult.
-  //
-  // So the content type is checked before the body is believed. Anything that is
-  // not JSON is the same outcome as nothing answering, because that is what it
-  // is: the request never reached a service that understood it.
-  if (!(r.headers.get('content-type') ?? '').includes('json')) {
-    const err = new Error(`${verb} was answered by something that is not Bothy Control`) as Error & { status: number };
-    err.status = 0;
-    throw err;
-  }
-  return (await r.json()) as ActionResult;
 }

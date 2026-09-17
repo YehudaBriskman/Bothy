@@ -82,7 +82,7 @@ type Phase =
  *  affordance that could only ever fail is worse than an empty cell. */
 export function ActionCell({ node }: { node: PortalNode }) {
   const [open, setOpen] = useState(false);
-  // A cluster workload has no container but may have a deployment bothy-kube acts on.
+  // A cluster workload has no container but may have a deployment bothy-ops acts on.
   if (!node.container) return node.kube ? <KubeActionCell node={node} /> : null;
 
   const name = node.container.name;

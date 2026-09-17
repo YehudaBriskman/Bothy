@@ -20,7 +20,7 @@ but it is not how the box works today.
 
 Traefik still owns `:80`, and still matters, but for a smaller job than before:
 it serves the portal's catch-all and the portal's read-only `/-/api/*` data
-plane, all on host-less exact `Path()` rules. Seven routers exist in total.
+plane, all on host-less exact `Path()` rules - and the role-gated routes of Bothy's two backends. Nineteen committed routers exist in total (fourteen of them role-gated, counted 2026-09), plus the generated Prometheus route.
 
 **The stack is a helper, not a platform.** It provides what projects *don't*
 ship - routing, dashboards, log aggregation. It never provides what projects
@@ -115,7 +115,7 @@ browser reaches anything but the portal. What exists today:
 | `traefik` | `0.0.0.0:80` | **The front door for the portal and its data plane**, and nothing else. |
 | `grafana` `victoriametrics` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `8428` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. `dozzle` (`:8080`), `kafka-ui` (`:8081`) and `portainer` (`:9000`) were here until 2026-08-17; Bothy Control and the service pages replaced them. |
 | `postgres` | `127.0.0.1:5432` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database. Reached over an SSH tunnel, or by name over devnet from another container. `redis` (`:6379`) and `kafka` (`:9092`) sat here under the same rule until they were retired on 2026-08-12 - both idle, zero keys and zero topics. |
-| `bothy-web` `bothy-files` `oauth2-proxy` `bothy-socket-proxy` `alloy` and every exporter | none | Nothing needs to reach these except Traefik or VictoriaMetrics, over `devnet`. |
+| `bothy-web` `bothy-files` `bothy-ops` `oauth2-proxy` `bothy-socket-read` `bothy-socket-write` `alloy` and every exporter | none | Nothing needs to reach these except Traefik or VictoriaMetrics, over `devnet`. |
 
 The cost of the port model is real and worth stating: ports are a flat global
 namespace with no allocator, so every new service is a manual collision check
@@ -173,7 +173,17 @@ projects (and separate project repos under `~/projects`) share one edge.
 | Network | Members | Purpose |
 |---|---|---|
 | `devnet` | ~24 containers: the whole stack plus any project container that opts in | The shared bus. Traefik discovers here (`--providers.docker.network=devnet`), Prometheus scrapes here, containers resolve each other by service name here. |
-| `socketnet` | **Exactly two**: `traefik` and `bothy-socket-proxy` | Isolation for the Docker socket proxy. |
+| `socketnet` | **Exactly two**: `traefik` and `bothy-socket-read` | Isolation for the read-only Docker socket proxy. |
+| `filesnet` | **Exactly two**: `traefik` and `bothy-files` | The only way into the file editor and the config forms. |
+| `opsnet` | **Exactly two**: `traefik` and `bothy-ops` | The only way into container and cluster actions. |
+| `controlsocknet` | `bothy-ops`, `bothy-socket-read`, `bothy-socket-write` - **not** traefik | bothy-ops' way out to the daemon; the edge cannot reach the write proxy. |
+| `thales-scc` | minikube's own network; `bothy-ops` joins it only through `apps/bothy-ops/compose.cluster.yml` | bothy-ops' way out to the apiserver. Traefik is not on it. |
+
+The heading says two because `devnet` and `socketnet` are the two every stack
+shares; the other three are one-per-service isolation networks for Bothy's
+backends, which authenticate nobody. `confignet`, `controlnet` and `kubenet`
+existed until the 2026-09 consolidation (eight Bothy containers to five) and are
+retired.
 
 ### Why `socketnet` exists
 
@@ -274,9 +284,11 @@ numbers below are repeated here only so this table is readable on its own.
 | `auth/` | `auth` | `keycloak` `oauth2-proxy` | Keycloak `:8090`; oauth2-proxy only via `/oauth2/` on `:80` | n/a - it *is* the identity layer, and it guards nothing yet |
 | `monitoring/` | `monitoring` | `victoriametrics` `grafana` `loki` `alloy` `cadvisor` `node-exporter` (legacy `prometheus` / `promtail` under compose profiles, stopped) | `:8428` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and VictoriaMetrics use the shared `DEV_LOGIN_*` credential. VictoriaMetrics accepts writes (`/api/v1/import`) and deletes on the same port - its login is the only thing preventing that |
 | `data/postgres` | `postgres` | `postgres` `postgres-exporter` | `127.0.0.1:5432` | Postgres' own |
-| `apps/bothy` | `bothy` | `bothy-socket-proxy` (the read-only Docker socket the portal's data plane goes through) | none - socketnet only | n/a |
+| `apps/bothy` | `bothy` | `bothy-socket-read` (the read-only Docker socket the portal's data plane and bothy-ops' inspects go through) and `bothy-socket-write` (three verbs, bothy-ops only) | none - socketnet / controlsocknet only | n/a |
 | `apps/bothy-web` | `bothy` | `bothy-web` | the `:80` catch-all | **none** |
-| `apps/bothy-files` | `bothy` | `bothy-files` | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
+| `apps/bothy-files` | `bothy` | `bothy-files` (the file editor and, since 2026-09, the config forms) | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
+| `apps/bothy-ops` | `bothy` | `bothy-ops` (container restart/stop/start and five cluster actions) | none - opsnet only | `operator` to act, `viewer` for cluster events and logs, enforced at the edge |
+| `apps/bothy-common` | - | none - the library both backends COPY in (audit, http/CSRF, names, safepath) | - | - |
 | `host/` | - | none | - | - |
 
 Every "none" in that last column is reachable by anything on the tailnet without
@@ -293,7 +305,7 @@ Notes on `apps/`:
   2026-08-18; the socket-proxy fragment that was its only remaining reason to
   exist moved to `apps/bothy/socket-proxy.yml`.
   **Do not `docker compose down` the `bothy` project to restart the portal** -
-  that project also owns `bothy-socket-proxy`, which the live portal depends on
+  that project also owns `bothy-socket-read`, which the live portal depends on
   for `/-/api/docker`. Act on the one service.
 - **Bothy Files replaced every markdown viewer this box has had.** It is a route
   in the portal (`/#/files`) backed by `apps/bothy-files`, and it reads the real
@@ -329,7 +341,7 @@ defaults or aborts on a required variable - so **always use `just`**.
 
 | Recipe | Effect |
 |---|---|
-| `just network` | Create `devnet` and `socketnet` (idempotent) |
+| `just network` | Create `devnet`, `socketnet`, `filesnet`, `opsnet` and `controlsocknet` (idempotent) |
 | `just up` | `network` → `up-edge` → `up-auth` → `up-monitoring` → `up-data` → `up-mgmt` → `up-apps`, in that order |
 | `just up-edge` / `up-auth` / `up-monitoring` / `up-data` / `up-mgmt` / `up-apps` | One group |
 | `just doctor` | Containers, Prometheus targets, k8s node, disk/memory, backup **age and size** |
@@ -435,8 +447,8 @@ prefix on every vhost on this box.
 |---|---|---|
 | `/-/api/traefik/http/routers` | `api@internal` | Every route, including host processes (`@file`) - **the skeleton** |
 | `/-/api/traefik/http/services` | `api@internal` | Server targets, for the join |
-| `/-/api/docker/containers/json` | `bothy-socket-proxy` | Ports, health, images, compose labels, `Mounts` - **the enrichment** |
-| `/-/api/docker/system/df` | `bothy-socket-proxy` | Per-volume / image / container disk sizes |
+| `/-/api/docker/containers/json` | `bothy-socket-read` | Ports, health, images, compose labels, `Mounts` - **the enrichment** |
+| `/-/api/docker/system/df` | `bothy-socket-read` | Per-volume / image / container disk sizes |
 
 **Traefik is the skeleton; Docker is enrichment. Either can die and the page still
 renders** - the loader uses `Promise.allSettled`, never `all`, and partial results
@@ -512,7 +524,7 @@ a dangling route is exactly what the portal should shout about.
 
 **Infra is a place on disk, not a list of names.** It was a set of five project
 names in `discover.ts` and the set had already gone stale — `bothy-control` and
-`bothy-config` were split out of the `bothy` project after it was written and
+`bothy-config` were split out of the `bothy` project after it was written (and merged back into `bothy-files`/`bothy-ops` in 2026-09) and
 rendered as two more "Stack" systems. A name test is also unsafe: compose project
 names are global to the docker daemon and belong to whoever claimed them first,
 so a checkout at `~/projects/portal` was being declared part of Bothy. The names
@@ -675,7 +687,7 @@ Then, in order:
 
 Publish nothing. Join `devnet` and let other containers reach it by service
 name. This is still the correct default for exporters, sidecars and proxies -
-`bothy-socket-proxy`, `oauth2-proxy`, `bothy-files` and every `*-exporter` do it.
+`bothy-socket-read`, `bothy-socket-write`, `oauth2-proxy`, `bothy-files`, `bothy-ops` and every `*-exporter` do it.
 
 ### A host process
 

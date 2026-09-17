@@ -19,7 +19,10 @@ import shutil
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_SVC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_COMMON = os.path.join(os.path.dirname(_SVC), "bothy-common")
+sys.path.insert(0, _SVC)
+sys.path.insert(0, _COMMON)
 
 # The policy is loaded at import and validates that every root is a real
 # directory - so importing safepath on the HOST, where /repos/* does not exist,
@@ -55,10 +58,17 @@ with open(_POLICY, "w") as _f:
         f'level = "critical"\nnote = "go templates"\n'
         f'[[write.caution]]\nmatch = ["**/*.yml"]\n'
         f'level = "caution"\nnote = "service config"\n'
-        f'[snapshots]\npath = "{_BOOT}"\n')
+        f'[snapshots]\npath = "{_BOOT}"\n'
+        # The config patcher's section (bothy-config merged in, 2026-09). Its
+        # truth table is the last section of this file; this only has to load.
+        f'[config]\nroots = ["docs"]\nsuffixes = [".yml", ".yaml"]\n'
+        f'deny_prefixes = ["edge/dynamic/"]\n'
+        f'deny_relpaths = ["monitoring/prometheus-web.yml"]\n'
+        f'[config.fields]\n"dev.portal.project" = {{ kind = "compose-label" }}\n'
+        f'[config.snapshots]\npath = "{_BOOT}"\n')
 os.environ.setdefault("POLICY_FILE", _POLICY)
 
-import safepath  # noqa: E402
+from bothy_common import safepath  # noqa: E402
 
 bad = 0
 def check(label, fn, *, expect_refused):
@@ -411,7 +421,8 @@ def _load(policy_text, label, want_fail):
     with _tf.NamedTemporaryFile("w", suffix=".toml", delete=False) as f:
         f.write(policy_text)
         p = f.name
-    r = _sp.run([sys.executable, "-c", "import sys; sys.path.insert(0, %r); import safepath" % _HERE],
+    r = _sp.run([sys.executable, "-c",
+                 "import sys; sys.path.insert(0, %r); from bothy_common import safepath" % _COMMON],
                 env={**os.environ, "POLICY_FILE": p}, capture_output=True, text=True)
     failed = r.returncode != 0
     ok = failed == want_fail
@@ -426,6 +437,10 @@ def _load(policy_text, label, want_fail):
 # "serve nothing", which looks broken and gets worked around.
 _DENY = '[deny]\ncomponents=[]\n'
 _SENS = '[sensitive]\nfile_patterns=[]\n'
+# The smallest [config] that loads. Appended to every policy below that is meant
+# to LOAD, so each "refused" case is refused for the reason its label names.
+_CFG = ('[config]\nroots=["x"]\nsuffixes=[".yml"]\ndeny_prefixes=[]\ndeny_relpaths=[]\n'
+        '[config.fields]\n"f"={kind="compose-label"}\n[config.snapshots]\npath="/tmp"\n')
 _load("this is not toml [[[", "malformed policy is refused", True)
 _load(_DENY + _SENS, "a policy with no roots is refused", True)
 _load('[roots.x]\npath="/nope/not/here"\n' + _DENY + _SENS,
@@ -434,19 +449,30 @@ _load('[roots.x]\npath="/nope/not/here"\n' + _DENY + _SENS,
 # no cautions is a policy that warns about nothing, not one that permits nothing.
 # [sensitive] is the one that must be present, because a missing marker list
 # would silently stop labelling credentials.
-_load('[roots.x]\npath="/tmp"\n' + _DENY + '[snapshots]\npath="/tmp"\n',
+_load('[roots.x]\npath="/tmp"\n' + _DENY + '[snapshots]\npath="/tmp"\n' + _CFG,
       "a policy missing [sensitive] is refused", True)
-_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/tmp"\n',
+_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/tmp"\n' + _CFG,
       "a policy with no [write] LOADS - cautions are optional", False)
 # The undo net is checked like a root: declared but not mounted stops the
 # service. A net that is silently absent is discovered on the day it was needed.
 _load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS,
       "a policy with no [snapshots] is refused", True)
-_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/nope/not/here"\n',
+_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/nope/not/here"\n' + _CFG,
       "an unmounted snapshot directory is refused", True)
-# ...and a valid one loads, or the five above would pass for the wrong reason.
-_load('[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/tmp"\n',
-      "a valid policy loads", False)
+# The config patcher's section fails closed exactly as bothy-config's own policy
+# did before the merge. A merge is not a reason to relax a loader.
+_BASE = '[roots.x]\npath="/tmp"\n' + _DENY + _SENS + '[snapshots]\npath="/tmp"\n'
+_load(_BASE, "a policy with no [config] is refused", True)
+_load(_BASE + _CFG.replace('"f"={kind="compose-label"}\n', ''),
+      "a [config] with no fields is refused (nothing patchable)", True)
+_load(_BASE + _CFG.replace('"f"={kind="compose-label"}', '"f"={max_length=3}'),
+      "a config field with no kind is refused", True)
+_load(_BASE + _CFG.replace('roots=["x"]', 'roots=["nowhere"]'),
+      "[config].roots naming an undeclared root is refused", True)
+_load(_BASE + _CFG.replace('[config.snapshots]\npath="/tmp"', '[config.snapshots]\npath="/nope/not/here"'),
+      "an unmounted config-trash is refused", True)
+# ...and a valid one loads, or the cases above would pass for the wrong reason.
+_load(_BASE + _CFG, "a valid policy loads", False)
 
 # The shipped policy must still say what the boundary needs it to say.
 _ship = {}
@@ -553,6 +579,119 @@ check("null byte",                       R("index.md\x00.txt"), expect_refused=T
 check("unknown root",
       lambda: safepath.resolve("nope", "index.md"),             expect_refused=True)
 
+print("\n── the shipped [config]: what a FORM may reach ─────────────────────")
+_cfg = _ship.get("config", {})
+for label, cond, got in [
+    ("config patches exactly one root: stacks", _cfg.get("roots") == ["stacks"], _cfg.get("roots")),
+    ("config patches YAML only", sorted(_cfg.get("suffixes", [])) == [".yaml", ".yml"],
+     _cfg.get("suffixes")),
+    ("edge/dynamic/ is unreachable to a form", "edge/dynamic/" in _cfg.get("deny_prefixes", []),
+     _cfg.get("deny_prefixes")),
+    ("the bcrypt file is excluded by path",
+     "monitoring/prometheus-web.yml" in _cfg.get("deny_relpaths", []), _cfg.get("deny_relpaths")),
+    ("exactly one patchable field", sorted(_cfg.get("fields", {})) == ["dev.portal.project"],
+     sorted(_cfg.get("fields", {}))),
+    ("config-trash is a DIFFERENT net from the editor's",
+     _cfg.get("snapshots", {}).get("path") not in (None, _ship["snapshots"]["path"]),
+     _cfg.get("snapshots", {}).get("path")),
+]:
+    bad += 0 if cond else 1
+    print(f"{'PASS' if cond else 'FAIL'}  {label:<52} {got}")
+
+# ══ the config patcher's truth table ════════════════════════════════════════
+#
+# Formerly apps/bothy-config/checks/test_safepath.py, which ran against that
+# service's COPY of safepath.py and existed to notice the copy drifting. There is
+# no copy any more: resolve_config() calls resolve() and narrows it. Every case
+# that file asserted is here, against the real function, so a hole closed in
+# resolve() is closed for forms in the same edit.
+print("\n══ config: resolve_config() ═════════════════════════════════════════")
+
+ctmp = tempfile.mkdtemp(prefix="bothy-config-")
+croot = os.path.join(ctmp, "stacks")
+coutside = os.path.join(ctmp, "outside")
+for d in (croot, coutside,
+          os.path.join(croot, "edge", "dynamic"),
+          os.path.join(croot, "monitoring"),
+          os.path.join(croot, ".git")):
+    os.makedirs(d, exist_ok=True)
+open(os.path.join(croot, "compose.yml"), "w").write("services: {}\n")
+open(os.path.join(croot, "edge", "dynamic", "bothy-files.yml"), "w").write("http: {}\n")
+open(os.path.join(croot, "monitoring", "prometheus-web.yml"), "w").write("basic_auth_users: {}\n")
+open(os.path.join(croot, ".git", "config.yml"), "w").write("x: 1\n")
+open(os.path.join(croot, "notes.md"), "w").write("# not yaml\n")
+open(os.path.join(croot, "db-password.yml"), "w").write("x: 1\n")
+open(os.path.join(coutside, "compose.yml"), "w").write("services: {}\n")
+# REAL symlinks, because the whole point is that a string check cannot see them.
+os.symlink(coutside, os.path.join(croot, "link-out"))
+os.symlink(os.path.join(coutside, "compose.yml"), os.path.join(croot, "innocent.yml"))
+os.symlink(os.path.join(croot, "edge", "dynamic", "bothy-files.yml"),
+           os.path.join(croot, "shortcut.yml"))
+
+safepath.ROOTS["stacks"] = croot
+safepath.ROOTS["readonly"] = croot
+safepath.GIT_ROOTS["stacks"] = croot
+safepath.WRITABLE_ROOTS = frozenset({"stacks"})
+safepath.CONFIG_ROOTS = frozenset({"stacks", "readonly"})
+C = lambda p, w=True, r="stacks": (lambda: safepath.resolve_config(r, p, for_write=w))  # noqa: E731
+
+print("── the ordinary case ──────────────────────────────────────────────")
+check("config: a compose file in the root",   C("compose.yml"),   expect_refused=False)
+check("config: the same file, ./-prefixed",   C("./compose.yml"), expect_refused=False)
+
+print("── climbing out ───────────────────────────────────────────────────")
+check("config: dot-dot to the parent",        C("../outside/compose.yml"), expect_refused=True)
+check("config: dot-dot after a legit prefix", C("edge/../../outside/compose.yml"), expect_refused=True)
+check("config: an absolute path",             C("/etc/passwd"), expect_refused=True)
+check("config: an absolute path to real yaml", C(os.path.join(coutside, "compose.yml")),
+      expect_refused=True)
+check("config: a null byte",                  C("compose.yml\x00.md"), expect_refused=True)
+check("config: an empty path",                C(""), expect_refused=True)
+check("config: an unknown root",              C("compose.yml", r="nowhere"), expect_refused=True)
+# The one case the merge ADDED: a root the editor may open and a form may not.
+safepath.ROOTS["notes"] = croot
+check("config: a real root that is not a config root", C("compose.yml", r="notes"),
+      expect_refused=True)
+
+print("── symlinks: refused for where they POINT ─────────────────────────")
+check("config: a symlinked DIRECTORY out",    C("link-out/compose.yml"), expect_refused=True)
+check("config: a symlinked FILE out",         C("innocent.yml"), expect_refused=True)
+check("config: a symlink INTO a denied dir",  C("shortcut.yml"), expect_refused=True)
+check("config: ...and READING through it",    C("shortcut.yml", w=False), expect_refused=True)
+
+print("── policy: what may be patched at all ─────────────────────────────")
+check("config: a markdown file",              C("notes.md"), expect_refused=True)
+check("config: anything under edge/dynamic",  C("edge/dynamic/bothy-files.yml"), expect_refused=True)
+check("config: a file denied by exact path",  C("monitoring/prometheus-web.yml"), expect_refused=True)
+check("config: a secret-shaped filename",     C("db-password.yml"), expect_refused=True)
+check("config: ...even for a READ",           C("db-password.yml", w=False), expect_refused=True)
+check("config: anything inside .git",         C(".git/config.yml"), expect_refused=True)
+check("config: a read-only root",             C("compose.yml", r="readonly"), expect_refused=True)
+check("config: ...which is still READABLE",   C("compose.yml", w=False, r="readonly"),
+      expect_refused=False)
+
+print("── the prefix trap ────────────────────────────────────────────────")
+os.makedirs(croot + "-secret", exist_ok=True)
+open(os.path.join(croot + "-secret", "compose.yml"), "w").write("services: {}\n")
+check("config: a sibling sharing the root's name prefix", C("../stacks-secret/compose.yml"),
+      expect_refused=True)
+
+print("── the config undo net is its own ─────────────────────────────────")
+ctrash = os.path.join(ctmp, "config-trash")
+os.makedirs(ctrash)
+_net = safepath.SnapshotNet(dir=ctrash, keep=20, max_age=86400, max_bytes=1024)
+_kept = safepath.snapshot("stacks", "compose.yml", os.path.join(croot, "compose.yml"),
+                          b"services: {x: 1}\n", net=_net)
+ok = bool(_kept) and _kept.startswith(os.path.realpath(ctrash) + os.sep)
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'a config snapshot lands in config-trash':<52} {_kept}")
+open(os.path.join(croot, "big.yml"), "w").write("x" * 2048)
+_big = safepath.snapshot("stacks", "big.yml", os.path.join(croot, "big.yml"), b"y", net=_net)
+ok = _big is None
+bad += 0 if ok else 1
+print(f"{'PASS' if ok else 'FAIL'}  {'...and honours that net own size ceiling':<52} {_big}")
+
+shutil.rmtree(ctmp, ignore_errors=True)
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{bad} FAILED" if bad else "\nall pass")
 sys.exit(1 if bad else 0)

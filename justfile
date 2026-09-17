@@ -1,7 +1,9 @@
 set dotenv-load := true
 
-# Bothy - the web app on :80, its editor tier, and the socket proxy its Docker
-# API reads through. ONE compose project on purpose (2026-08-16).
+# Bothy - five containers, ONE compose project on purpose (2026-08-16): the web
+# app on :80, bothy-files (editor + config forms), bothy-ops (container + cluster
+# actions) and the two socket proxies. Eight containers in four projects until
+# 2026-09; see apps/bothy/compose.yml for what merged and what did not.
 #
 # It used to be three: `portal`, `portal-next` and `portal-files`. Bothy groups
 # systems by com.docker.compose.project, so it rendered ITSELF as three separate
@@ -26,26 +28,24 @@ default:
 # Create the shared docker networks (idempotent)
 network:
     -docker network create devnet 2>/dev/null || true
-    # confignet: traefik + bothy-config, and nothing else. That service can
-    # REWRITE compose files and edge routes, so the same rule the socket proxy
-    # taught applies with a higher stake - it authenticates nobody, and the
-    # network is what stands in for that.
-    -docker network create confignet 2>/dev/null || true
-    # controlnet / controlsocknet: the action tier, and the reason it is TWO
-    # networks rather than one holding three. traefik must not be ABLE to reach a
-    # proxy that can mutate containers - only bothy-control may - so the edge
-    # meets the service on one network and the service meets its proxies on
-    # another. Each holds exactly two members.
-    -docker network create controlnet 2>/dev/null || true
+    # opsnet / controlsocknet: the action tier, and the reason it is TWO networks
+    # rather than one. opsnet is traefik + bothy-ops and nothing else - bothy-ops
+    # can stop containers and scale cluster workloads and authenticates nobody, so
+    # the network IS the boundary. controlsocknet is bothy-ops + the two socket
+    # proxies: traefik must not be ABLE to reach a proxy that can mutate
+    # containers, so the edge meets the service on one network and the service
+    # meets its proxies on another. bothy-ops' way out to the cluster is
+    # minikube's own network, added by apps/bothy-ops/compose.cluster.yml.
+    #
+    # controlnet, kubenet and confignet were retired 2026-09 with bothy-control,
+    # bothy-kube and bothy-config. They are no longer created; remove the old ones
+    # by hand once nothing is attached (`docker network rm ...`).
+    -docker network create opsnet 2>/dev/null || true
     -docker network create controlsocknet 2>/dev/null || true
-    # kubenet: traefik + bothy-kube, and nothing else. bothy-kube holds a token
-    # that can restart and scale cluster workloads and authenticates nobody, so
-    # the network is the boundary. Its way OUT is minikube's own network.
-    -docker network create kubenet 2>/dev/null || true
-    # socketnet holds exactly two containers: traefik + bothy-socket-proxy.
-    # docker-socket-proxy has NO auth, so network reachability IS authorisation -
-    # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
-    # read the docker socket through it. Keep the blast radius at two.
+    # socketnet: traefik + bothy-socket-read. docker-socket-proxy has NO auth, so
+    # network reachability IS authorisation - on devnet, any of ~20 containers
+    # could read the docker socket through it. That proxy is POST=0, so nothing on
+    # socketnet can mutate a container through it.
     -docker network create socketnet 2>/dev/null || true
     # filesnet: traefik + bothy-files, and nothing else. bothy-files holds
     # read-write bind mounts on two git repos and has no auth of its own, so the
@@ -222,37 +222,42 @@ up-monitoring: network
 up-data: network
     docker compose -f data/postgres/compose.yml up -d
 
-# Apps: Bothy - the web tier, the editor tier and the socket proxy, one project.
+# Apps: Bothy - one project, five containers (apps/bothy/compose.yml).
 #
-# There is nothing else here. Reading and editing the box's markdown is Bothy
-# Files, a route in the portal backed by apps/bothy-files, which reads the real
-# file from a bind mount. No second copy, no sync lag, nothing to keep out of git.
-# Apps: Bothy's web, editor and socket tiers, plus the config tier.
+# compose.cluster.yml is added ONLY when the docker network `thales-scc` exists
+# (the minikube cluster). It joins bothy-ops to that network and mounts its
+# token; as an `external` network in compose.yml itself it would fail this
+# recipe - and with it the file editor and container actions - on every box
+# without the cluster. Without it the kube verbs answer 503 "cluster
+# unavailable" and nothing else changes. This replaces `just up-kube` (2026-09).
+#
+# Both undo nets must exist before bothy-files starts: policy.toml declares them
+# and the service refuses to boot without them - a safety net nobody notices is
+# missing is worse than none. Docker would create them root-owned otherwise.
+#
+# Apps: Bothy's five containers, plus the cluster overlay when thales-scc exists.
 up-apps: network
-    docker compose {{BOTHY}} up -d
-    # The config tier. Separate from the editor tier on purpose: bothy-files
-    # states it carries no third-party dependencies because it holds read-write
-    # handles on two repositories, and a YAML parser is a dependency. This one
-    # carries it, and mounts far less.
-    #
-    # The snapshot directory must exist before it starts - policy.toml declares
-    # it and the service refuses to boot without it, on the same reasoning as the
-    # editor tier's undo net: a safety net nobody notices is missing is worse
-    # than none at all.
-    mkdir -p ~/.local/state/bothy/config-trash
-    docker compose -f apps/bothy-config/compose.yml up -d
-    # The action tier. Its routes require the `operator` role, and oauth2-proxy
-    # fails CLOSED on a group nobody holds - so shipping this before the role
-    # exists refuses everybody rather than admitting everybody.
-    docker compose -f apps/bothy-control/compose.yml up -d
+    #!/usr/bin/env bash
+    set -euo pipefail
+    state="${STATE_ROOT:-$HOME/.local/state}"
+    mkdir -p "$state/bothy/trash" "$state/bothy/config-trash"
+    files=({{BOTHY}})
+    if docker network inspect thales-scc >/dev/null 2>&1; then
+      if [ -d apps/bothy-ops/secrets ]; then
+        files+=(-f apps/bothy-ops/compose.cluster.yml)
+      else
+        echo "note: thales-scc exists but apps/bothy-ops/secrets does not - run 'just kube-token', then 'just up-apps' again (kube verbs answer 503 until then)"
+      fi
+    fi
+    # --remove-orphans: a service dropped from the project (socket-proxy became
+    # socket-read in 2026-09) must not keep running under its old definition.
+    docker compose "${files[@]}" up -d --remove-orphans
 
 # Stop everything (keeps volumes/data)
 down:
     -docker compose -f auth/compose.yml down
     -docker compose -f edge/compose.yml down
     -docker compose {{BOTHY}} down
-    -docker compose -f apps/bothy-config/compose.yml down
-    -docker compose -f apps/bothy-control/compose.yml down
     # apps/wiki and mgmt/ were DELETED on 2026-08-18, so there is nothing here to
     # bring down any more. The `wiki` database they were kept for went with them:
     # its content was superseded by the Files tier, and it is in the nightly dump
@@ -271,8 +276,6 @@ nuke:
     -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
     -docker compose {{BOTHY}} down -v
-    -docker compose -f apps/bothy-config/compose.yml down -v
-    -docker compose -f apps/bothy-control/compose.yml down -v
     -docker compose -f data/postgres/compose.yml down -v
     -docker compose -f monitoring/compose.yml down -v
 
@@ -352,6 +355,14 @@ bootstrap *args:
 files-check mode="":
     @bash apps/bothy-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
 
+# Checks for bothy-ops: the guard as a pure unit, the socket-proxy grants, both
+# HTTP surfaces against stand-ins (a counting fake daemon, a TLS fake apiserver),
+# the edge/RBAC/compose wiring, and - unless `offline` - a real container
+# transition through real throwaway proxies.
+# Checks for bothy-ops (container + cluster actions). `offline` skips the one that needs docker.
+ops-check mode="":
+    @bash apps/bothy-ops/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
+
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
     @bash scripts/backup.sh
@@ -399,19 +410,15 @@ k8s-monitoring:
 kube-prom-token:
     ./scripts/gen-kube-prom-token.sh
 
-# bothy-kube's cluster credential: applies k8s/rbac/bothy-kube.yaml, then writes
-# apps/bothy-kube/secrets/{token,ca.crt} (mode 600, gitignored) and prints what
+# bothy-ops' cluster credential: applies k8s/rbac/bothy-kube.yaml, then writes
+# apps/bothy-ops/secrets/{token,ca.crt} (mode 600, gitignored) and prints what
 # the account can and cannot do. `--rotate` revokes and reissues; `--revoke` stops.
-# Issue (or rotate/revoke) bothy-kube's ServiceAccount token.
+#
+# `just up-kube` is GONE (2026-09): bothy-kube merged into bothy-ops, and
+# `just up-apps` adds the cluster overlay by itself when thales-scc exists.
+# Issue (or rotate/revoke) bothy-ops' ServiceAccount token for the cluster.
 kube-token *args:
     ./scripts/gen-kube-token.sh {{args}}
-
-# The cluster tier. NOT part of `up-apps`: it joins minikube's `thales-scc`
-# network, which exists only while that cluster does, and a box with no cluster
-# must still come up with `just up`.
-# Start bothy-kube (needs the thales-scc cluster and `just kube-token`).
-up-kube: network
-    docker compose -f apps/bothy-kube/compose.yml up -d --build
 
 # Headlamp's cluster credential: applies k8s/rbac/bothy-browse.yaml (the built-in
 # `view` ClusterRole - no secrets, exec or port-forward), then writes

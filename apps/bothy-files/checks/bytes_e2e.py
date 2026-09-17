@@ -247,7 +247,7 @@ print("\n── /archive: caps ────────────────�
 # reason. The subtree is small and separate, because the claim is that scoping
 # gets you UNDER the cap the whole root exceeds.
 _cap = int(re.search(r"^ARCHIVE_MAX_ENTRIES\s*=\s*([\d_]+)",
-                     open(f"{HERE}/../safepath.py").read(), re.M).group(1).replace("_", ""))
+                     open(f"{HERE}/../../bothy-common/bothy_common/safepath.py").read(), re.M).group(1).replace("_", ""))
 _over = f"{PROJECTS}/_archive_cap_probe"
 _sub = f"{PROJECTS}/_archive_sub_probe"
 shutil.rmtree(_over, ignore_errors=True); shutil.rmtree(_sub, ignore_errors=True)

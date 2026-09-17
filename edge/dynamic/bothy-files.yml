@@ -180,26 +180,10 @@ http:
           X-Forwarded-User: ""
           X-Forwarded-Email: ""
 
-    # The two role gates. They are IDENTICAL except for one word in the URL,
-    # which is exactly the property that makes this design worth having: adding
-    # the `operator` tier later is another four lines, not another container.
-    sso-viewer:
-      forwardAuth:
-        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=viewer"
-        trustForwardHeader: true
-        authResponseHeaders:
-          - X-Auth-Request-User
-          - X-Auth-Request-Email
-          - X-Auth-Request-Preferred-Username
-
-    sso-editor:
-      forwardAuth:
-        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=editor"
-        trustForwardHeader: true
-        authResponseHeaders:
-          - X-Auth-Request-User
-          - X-Auth-Request-Email
-          - X-Auth-Request-Preferred-Username
+    # The role gates sso-viewer and sso-editor USED to be defined here, and the
+    # config and control tiers borrowed them - so deleting this file would have
+    # ungated routers in two other files. They live in edge/dynamic/bothy-gates.yml
+    # now (2026-09), the one file every tier references and none defines.
 
   services:
     bothy-files:

@@ -23,10 +23,10 @@
 //
 // A declaration is a statement of intent - `project.dev.yml` names the container
 // a project WOULD create. Starting a container that exists is
-// /containers/<name>/start, which bothy-control performs and guard.VERBS allows.
+// /containers/<name>/start, which bothy-ops performs and guard.VERBS allows.
 // Creating one that does not exist is /containers/create, which the write socket
 // proxy refuses by holding CONTAINERS=0, because a create with a bind mount of /
-// is root on this box (apps/bothy-control/compose.yml). So a declared name that
+// is root on this box (apps/bothy/socket-proxy.yml). So a declared name that
 // docker does not report must resolve to NOTHING, and the cases below assert
 // that from three directions: docker silent, name absent, name merely similar.
 //
@@ -259,10 +259,15 @@ console.log('\n── the self-affecting warning survives the rename ───�
 
 // consequenceOf() is an exact-match lookup on the LIVE container name and a miss
 // FAILS OPEN - no warning, no error. The 2026-09 rename (portal-next -> bothy-web,
-// portal-files -> bothy-files) changed exactly those keys, so assert both the new
-// names and the legacy ones a not-yet-recreated container may still carry.
-for (const name of ['bothy-web', 'bothy-files', 'portal-next', 'portal-files',
-                    'bothy-socket-proxy', 'portal-socket-proxy', 'traefik']) {
+// portal-files -> bothy-files) changed exactly those keys, and so did the
+// consolidation (bothy-control/bothy-kube -> bothy-ops, bothy-config -> bothy-files,
+// bothy-socket-proxy/bothy-control-socket-read -> bothy-socket-read). Assert the
+// new names and the legacy ones a not-yet-migrated box may still carry.
+for (const name of ['bothy-web', 'bothy-files', 'bothy-ops', 'bothy-socket-read',
+                    'bothy-socket-write', 'traefik',
+                    'portal-next', 'portal-files', 'bothy-socket-proxy', 'portal-socket-proxy',
+                    'bothy-control', 'bothy-control-socket-read', 'bothy-control-socket-write',
+                    'bothy-kube', 'bothy-config']) {
   check(`stop ${name} warns before it takes the page down`,
     consequenceOf(name, 'stop').selfAffecting, true);
   check(`restart ${name} warns too`, consequenceOf(name, 'restart').selfAffecting, true);

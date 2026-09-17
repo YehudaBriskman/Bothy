@@ -1,0 +1,48 @@
+# Overlay: give bothy-ops the minikube cluster `thales-scc` - its network and
+# its token.
+#
+#   docker compose -f apps/bothy/compose.yml -f apps/bothy-ops/compose.cluster.yml up -d
+#
+# `just up-apps` adds this file by itself when the docker network `thales-scc`
+# exists, exactly as `just up-monitoring` adds monitoring/compose.cluster.yml.
+# USE THE RECIPE: a plain `docker compose -f apps/bothy/compose.yml up -d`
+# recreates bothy-ops WITHOUT the network and the mount below, and every kube
+# verb answers 503 "cluster unavailable" until the recipe runs again. Nothing
+# else breaks - that is the point of the split - but it is a silent downgrade.
+#
+# WHY AN OVERLAY AND NOT compose.yml ITSELF. An `external: true` network that
+# does not exist is a hard error for the WHOLE project. In compose.yml it would
+# make `just up` fail on every box without this cluster - fresh clones and
+# `just ci-install` included - and take the file editor and container actions
+# down with it. Before 2026-09 the kube tier dodged this by being its own
+# project with its own `just up-kube`; merging it into bothy-ops is what makes
+# this overlay necessary.
+#
+# PATHS. With repeated -f, compose resolves every relative path against the
+# FIRST file's directory (apps/bothy/), not this file's. `../bothy-ops/secrets`
+# is written so it names the same directory from apps/bothy/ AND from
+# apps/bothy-ops/, which is the only spelling that is right both ways.
+#
+# If the cluster is ever deleted, `minikube delete` cannot remove the network
+# while bothy-ops is attached - run `just up-apps` after the network is gone (it
+# recreates bothy-ops without this file) or detach it first.
+services:
+  bothy-ops:
+    volumes:
+      # A ServiceAccount token and the cluster CA, written by `just kube-token`
+      # (scripts/gen-kube-token.sh), gitignored, mode 600. READ-ONLY, and never
+      # auto-created: a missing directory fails `up` loudly instead of docker
+      # creating an empty root-owned one. `just up-apps` checks for it first and
+      # says what to run. Directory, not files: the token is replaced by rename,
+      # and kube.py re-reads it on every request, so a rotation needs no restart.
+      - type: bind
+        source: ../bothy-ops/secrets
+        target: /secrets
+        read_only: true
+        bind:
+          create_host_path: false
+    networks: [opsnet, controlsocknet, thales-scc]
+
+networks:
+  thales-scc:
+    external: true

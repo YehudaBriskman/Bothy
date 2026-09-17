@@ -11,7 +11,8 @@ like style and are actually the security boundary - a well-meaning
 leak or a remote root shell. Those are listed under
 [Load-bearing design rules](#load-bearing-design-rules). Read that section before
 touching `edge/dynamic/bothy-api.yml`, `edge/dynamic/bothy-prom.yml`,
-`apps/bothy/socket-proxy.yml`, `apps/bothy-control/compose.yml`,
+`apps/bothy/socket-proxy.yml`, `apps/bothy-ops/compose.yml`,
+`edge/dynamic/bothy-gates.yml`,
 `edge/dynamic/auth.yml` or `auth/`.
 
 ---
@@ -27,9 +28,10 @@ Traefik on `:80` serves the portal and its read-only data plane.
 was removed, and its configuration was **deleted on 2026-08-12**: Traefik holds
 zero `Host()` rules, and the Traefik dashboard router was deleted with them.
 Identity was rebuilt on Keycloak + oauth2-proxy and **now enforces on the tiers
-that can change things**: nine routers across three files carry a role
+that can change things**: fourteen routers across three files carry a role
 requirement - `viewer` to read a file or a config field, `editor` to write one,
-`operator` to restart, stop or start a service. Everything else is still reached
+`operator` to restart, stop or start a service or change a cluster workload.
+Everything else is still reached
 without passing an edge auth boundary, so "SSO is running" must not be read as
 "everything is behind SSO".
 
@@ -46,7 +48,7 @@ device and the box, and edge auth covers only the last of them:
 |---|---|
 | The tailnet itself | Everything. It is the outer perimeter and, today, very nearly the only one |
 | Each service's own login, using the shared `DEV_LOGIN_*` credential | Grafana, Prometheus |
-| Keycloak roles at the edge (`forwardAuth`) | The tiers that change things: `viewer`/`editor` on the file and config tiers (`edge/dynamic/bothy-files.yml`, `bothy-config.yml`), `operator` on the control tier (`bothy-control.yml`). The only places a role is enforced today. `shell` is defined and gated on nothing |
+| Keycloak roles at the edge (`forwardAuth`) | The tiers that change things: `viewer`/`editor` on the file and config routes (`edge/dynamic/bothy-files.yml`, `bothy-config.yml`), `operator`/`viewer` on container and cluster actions (`bothy-ops.yml`); the gates are defined in `bothy-gates.yml`. The only places a role is enforced today. `shell` is defined and gated on nothing |
 | A dedicated `oauth2-proxy-headlamp` (Keycloak client `headlamp`, `--allowed-group=viewer`), in front of a ServiceAccount bound to the built-in `view` ClusterRole | Headlamp, the read-only cluster console on `:8110` (`apps/headlamp/compose.yml`). The proxy is the only published port; Headlamp itself has none. Every viewer is the same cluster identity, `bothy/bothy-browse`, which cannot read Secrets, exec, attach, port-forward or write anything (`k8s/rbac/bothy-browse.yaml`; `just headlamp-token` prints the can-i table). Verified live 2026-09-17: through a real login, Secrets, a dry-run ConfigMap create, `pods/exec` and `pods/portforward` all answered 403 from the apiserver |
 | The exact `Path()` rules in `edge/dynamic/bothy-api.yml` and `bothy-prom.yml` | The portal's data plane - the only reachable slice of the Docker socket, Loki, Prometheus and the Traefik API |
 
@@ -124,10 +126,14 @@ security change, and should be reviewed as one.
 
 ### 1. SSO enforces on the tiers that change things, and nowhere else yet
 
-> **Status: ENFORCED, narrowly.** Nine role-gated routers, in three files:
-> `edge/dynamic/bothy-files.yml` (`viewer` for reads and downloads, `editor`
-> for writes and deletes), `bothy-config.yml` (the same pair over config fields)
-> and `bothy-control.yml` (`operator`, one router per verb). The fourth role,
+> **Status: ENFORCED, narrowly.** Fourteen role-gated routers, in three files
+> (counted 2026-09 from `edge/dynamic/*.yml`):
+> `edge/dynamic/bothy-files.yml` (four: `viewer` for reads and downloads,
+> `editor` for writes and deletes), `bothy-config.yml` (two: the same pair over
+> config fields) and `bothy-ops.yml` (eight: `operator` on the three container
+> verbs and the three cluster changes, `viewer` on cluster events and logs). The
+> gates themselves - `sso-viewer`, `sso-editor`, `sso-operator` - are defined
+> once, in `edge/dynamic/bothy-gates.yml`, and in no router file. The fourth role,
 > `shell`, is defined in the realm and referenced by no router at all - see
 > [A shell in the browser](#a-shell-in-the-browser-90-before-it-exists).
 > Every *other* service is still reachable from the tailnet without passing an
@@ -149,11 +155,16 @@ host port `8090`) so the callback is an IP:port URL and depends on no name.
   sign-in page in its place, at the URL the user actually asked for.
 
 **Defining a middleware does not enforce it** - that takes a router referencing
-it, which is the distinction this section existed to make while nothing did. Nine
-routers do now, across three files - `edge/dynamic/bothy-files.yml` (four),
-`bothy-config.yml` (two) and `bothy-control.yml` (three) - using `sso-viewer`,
-`sso-editor` and `sso-operator`: the same `forwardAuth`, differing only in
-`?allowed_groups=`. The auth stack also owns `oauth2-endpoints`
+it, which is the distinction this section existed to make while nothing did.
+Fourteen routers do now, across three files - `edge/dynamic/bothy-files.yml`
+(four), `bothy-config.yml` (two) and `bothy-ops.yml` (eight) - using
+`sso-viewer`, `sso-editor` and `sso-operator`: the same `forwardAuth`, differing
+only in `?allowed_groups=`. (The statement this replaces said "nine routers
+across three files" and went stale the day the cluster tier added five more in a
+fourth file.) Since 2026-09 all three gates live in
+`edge/dynamic/bothy-gates.yml`: before that each was defined inside the first
+tier file that needed it and borrowed by the others, so deleting one tier file
+would have errored another tier's routers. The auth stack also owns `oauth2-endpoints`
 (`PathPrefix(/oauth2/)`, priority 100, host-less), so the login flow and its
 callback are reachable at all - oauth2-proxy publishes no host port.
 
@@ -194,25 +205,36 @@ middlewares, while the file on disk looks perfect. Keep doubled braces out of
 
 ### 2. docker-socket-proxy: network reachability *is* authorisation
 
-`apps/bothy/socket-proxy.yml` runs `tecnativa/docker-socket-proxy` so that nginx
-never has to touch `/var/run/docker.sock` - which is root-equivalent on this
-box. Four properties keep that safe, and all four are load-bearing:
+`apps/bothy/socket-proxy.yml` runs `tecnativa/docker-socket-proxy` twice so that
+nothing else - not nginx, not bothy-ops - ever touches `/var/run/docker.sock`,
+which is root-equivalent on this box. **Only the proxies hold the socket, and
+read and write are split:** `bothy-socket-read` (`CONTAINERS=1 SYSTEM=1
+POST=0`) and `bothy-socket-write` (`CONTAINERS=0 POST=1`, only restart/start/stop
+via `ALLOW_*`). No proxy may hold `POST=1` with `CONTAINERS=1` - that pair grants
+`/containers/create`. Five properties keep this safe, and all are load-bearing:
 
-- **It has no authentication of any kind.** There is no token, no password.
-  Anything that can open a TCP connection to it gets whatever the proxy permits.
+- **They have no authentication of any kind.** There is no token, no password.
+  Anything that can open a TCP connection to one gets whatever it permits.
   Therefore:
-- **It lives on `socketnet`, not `devnet`.** `socketnet` holds exactly two
-  containers - Traefik and the socket proxy. `devnet` holds around twenty,
+- **Neither lives on `devnet`.** `socketnet` holds exactly two containers -
+  Traefik and `bothy-socket-read`. `controlsocknet` holds `bothy-ops` and both
+  proxies, and Traefik is not on it, so the edge cannot reach the write proxy.
+  `devnet` holds around twenty,
   including third-party images (Keycloak, Grafana, project images) that could
-  simply `curl` it. The network *is* the access-control list; keep
-  the blast radius at two. (`just network` creates both, with that reasoning
-  inline.)
-- **`POST: 0`.** Without it, `CONTAINERS=1` also grants
+  simply `curl` it. The network *is* the access-control list. (`just network`
+  creates them, with that reasoning inline.)
+- **`POST: 0` on the read proxy.** Without it, `CONTAINERS=1` also grants
   `/containers/{id}/kill|stop|restart`, and `SYSTEM=1` would grant every
   mutating `/system` call. Every other endpoint family is explicitly `0` - the
   image denies by default, but a socket proxy is the last place to trust a
   default surviving an image bump, so each one is written out. `EXEC: 0` in
   particular: container exec is root on this box.
+- **`CONTAINERS: 0` on the write proxy.** With `POST=1`, that is the only thing
+  refusing `/containers/create`; the three verbs pass on their own `ALLOW_*`
+  rules. `kill` rides in on `ALLOW_RESTARTS` and is refused by
+  `apps/bothy-ops/guard.py`'s `VERBS`. `apps/bothy-ops/checks/grants.py` asserts
+  all of this statically and sweeps every compose file in the repo for the
+  dangerous pair.
 - **The image is pinned to an exact tag, never `:latest`,** and it publishes
   **no `ports:`** - ever. It must not be reachable from the host network.
 
@@ -222,7 +244,35 @@ thing standing between the tailnet and root.
 
 Because the proxy is not on `devnet`, Traefik's Docker provider cannot see it -
 which is exactly why its service is declared in the file provider
-(`edge/dynamic/bothy-api.yml`) rather than by container labels.
+(`edge/dynamic/bothy-api.yml`, `http://bothy-socket-read:2375`) rather than by
+container labels.
+
+**The same rule for every Bothy backend, and the table it produces.** None of
+the services authenticates anybody - authorisation is the role gate at the edge
+- so each one's inbound network holds Traefik and that service only.
+Consolidated from eight containers to five on 2026-09; the boundaries above were
+kept, not merged away:
+
+| Container | Inbound (who can reach it) | Outbound | Power |
+|---|---|---|---|
+| `bothy-web` | `devnet` (Traefik's catch-all) | - | none: static nginx |
+| `bothy-files` | `filesnet` (Traefik only) | - | read-write on the stack repo and the notes, read-only on `$HOME` and `~/projects`; the config forms (`/-/api/config/*`) since 2026-09 |
+| `bothy-ops` | `opsnet` (Traefik only) | `controlsocknet`; `thales-scc` only via `apps/bothy-ops/compose.cluster.yml` | container restart/stop/start through the proxies; five cluster actions with a namespaced token |
+| `bothy-socket-read` | `socketnet` (Traefik), `controlsocknet` (bothy-ops) | the docker socket, `:ro` | `CONTAINERS=1 SYSTEM=1 POST=0` |
+| `bothy-socket-write` | `controlsocknet` (bothy-ops only) | the docker socket, `:ro` | `CONTAINERS=0 POST=1`, three verbs (plus `kill`, refused in code) |
+
+**The dependency doctrine, relaxed once and on purpose.** Every backend was
+standard-library-only, on the argument that a process holding write mounts, a
+socket path or a token should not import code that can ship a vulnerability into
+that position. `bothy-ops` and `apps/bothy-common` still are. **`bothy-files` is
+not, since 2026-09:** merging the config forms in brought `ruamel.yaml` with them
+(`apps/bothy-files/requirements.txt`) - pinned exactly, pure Python with no C
+accelerator, installed `--only-binary`, and imported only by `yamlpatch.py` on the
+config-form path, which `safepath.resolve_config()` narrows to YAML files in one
+root. The trade was one container, one network and one copy of `safepath.py`
+instead of a drifting derivative; it is a deliberate relaxation, and the next
+dependency proposed for `bothy-files` has to make its own case rather than cite
+this one.
 
 ### 3. The `/-/api/*` routers use exact `Path()`. Never `PathPrefix()`. This is THE control.
 
@@ -362,9 +412,10 @@ No database is routed through Traefik and none should be. Traefik owns HTTP on
 If a credential is ever committed, treat it as compromised: rotate it first,
 then rewrite history. Removing it in a follow-up commit is not a fix.
 
-### 6. The cluster tier (`bothy-kube`) is three locks, and the innermost is the cluster's
+### 6. The cluster tier (in `bothy-ops`) is three locks, and the innermost is the cluster's
 
-`apps/bothy-kube` gives the web UI five OpenShift-console verbs on the local
+`apps/bothy-ops` (the `kube.py` half; `bothy-kube` was its own container until
+2026-09) gives the web UI five OpenShift-console verbs on the local
 Kubernetes cluster: `rollout-restart`, `scale` (0..3), `events`, `logs` (tail
 <= 500, SSE follow <= 300 s) and `delete-completed-pods`. Only in the namespaces
 `thales-dev` and `thales-pre-prod`. It is built so that any one lock failing
@@ -372,29 +423,45 @@ still leaves the other two:
 
 | Lock | What it enforces | Where |
 |---|---|---|
-| **Edge** | One exact `Path()` per action - no `PathPrefix`, no `Host()`. Reads behind `sso-viewer`, changes behind `sso-operator`. Client `X-Auth-Request-*` stripped. | `edge/dynamic/bothy-kube.yml` |
-| **Service** | Catalog ids must map 1:1 to hard-coded handlers or the service **refuses to start**. Namespace enum, RFC 1123 label names (`fullmatch`, no dots, no slashes), declared params with bounds, `type-name` confirmation checked server-side, JSON-only POST, cross-site `Sec-Fetch-Site` refused, one TSV audit line per request, including refusals. | `apps/bothy-kube/{guard.py,catalog.toml,app.py}` |
+| **Edge** | One exact `Path()` per action - no `PathPrefix`, no `Host()`. Reads behind `sso-viewer`, changes behind `sso-operator` (both defined in `bothy-gates.yml`). Client `X-Auth-Request-*` stripped. | `edge/dynamic/bothy-ops.yml` (`bothy-ops-kube-*`) |
+| **Service** | Catalog ids must map 1:1 to hard-coded handlers or the service **refuses to start**. Namespace enum, RFC 1123 label names (`fullmatch`, no dots, no slashes), declared params with bounds, `type-name` confirmation checked server-side, JSON-only POST, cross-site `Sec-Fetch-Site` refused, one TSV audit line per request, including refusals, in `apps/bothy-ops/audit/actions.log`. | `apps/bothy-ops/{guard.py,catalog.toml,kube.py}`, `apps/bothy-common/bothy_common/{http,names,audit}.py` |
 | **Cluster** | ServiceAccount `bothy/bothy-kube` with a Role in **each target namespace only**: deployments get/list/patch, deployments/scale get/patch, pods get/list/delete, pods/log get, events list. **No** pods/exec, pods/attach, pods/portforward, secrets, configmaps, watch, create, or ClusterRole. | `k8s/rbac/bothy-kube.yaml` |
 
-`checks/wiring.py` asserts that the catalog, the edge routers, the UI's copy and
-the Role all agree. `checks/api.py` drives the real handler against a stand-in
-apiserver over real TLS that counts requests, so every refusal is shown to reach
-nothing.
+`apps/bothy-ops/checks/wiring.py` asserts that the catalog, the edge routers, the
+UI's copy and the Role all agree. `checks/api_kube.py` drives the real handler
+against a stand-in apiserver over real TLS that counts requests, so every refusal
+is shown to reach nothing.
+
+**The cluster is optional, and its absence is a 503, not an outage.** minikube's
+`thales-scc` network and the token mount live in
+`apps/bothy-ops/compose.cluster.yml`, which `just up-apps` adds only when that
+network exists (`just up-kube` is gone). Declared in `compose.yml` itself, a
+missing external network would fail the whole `bothy` project - the file editor
+and container actions with it. Without the overlay, or with the apiserver down or
+the token absent, every kube verb answers **503 "cluster unavailable"**; no
+request is sent anywhere, `/healthz` never calls the apiserver, and the container
+half is unaffected. A TLS verification failure is deliberately NOT folded into
+that 503: something answered that is not the apiserver the token was issued for,
+and that is a 502.
 
 **The credential.** A long-lived ServiceAccount token Secret
 (`bothy/bothy-kube-token`), written by `just kube-token` to
-`apps/bothy-kube/secrets/` (mode 600 inside a 700 directory, gitignored) and
-mounted read-only. It is long-lived rather than a bound `kubectl create token
+`apps/bothy-ops/secrets/` (mode 600 inside a 700 directory, gitignored, and
+outside the image build context by `apps/.dockerignore`'s allowlist) and mounted
+read-only by the overlay. The in-cluster identity keeps the name
+`bothy/bothy-kube`: renaming it with the container would have revoked a live
+token to re-issue identical grants under a new name. It is long-lived rather than a bound `kubectl create token
 --duration` token because this box runs unattended: an expiry nobody is watching
 fails silently, and a Secret token can be revoked exactly and at once
 (`just kube-token --revoke`, or `--rotate`). The trade is that a leaked copy
 stays valid until someone rotates it. What it can do is bounded by the Role, not
 by its lifetime.
 
-**The networks.** `kubenet` holds traefik and bothy-kube and nothing else (the
-way in). `thales-scc` is minikube's own network (the way out, to
-`https://192.168.49.2:8443`, TLS verified against the cluster CA). Traefik is
-**not** on `thales-scc`. There is no published port.
+**The networks.** `opsnet` holds traefik and bothy-ops and nothing else (the
+way in; it replaced `kubenet` and `controlnet` in 2026-09). `thales-scc` is
+minikube's own network (the way out, to `https://192.168.49.2:8443`, TLS verified
+against the cluster CA). Traefik is **not** on `thales-scc`, nor on
+`controlsocknet`. There is no published port.
 
 **`pods: delete` is the widest verb.** It can delete a running pod. The handler
 only deletes pods the apiserver lists with `status.phase=Succeeded`, re-checks
@@ -411,7 +478,9 @@ prints `no`. Through the service, `kube-system`, an action named `secrets`,
 reaching the cluster.
 
 To repeat it: `just kube-token` prints the can-i table (it exits non-zero if any
-row is unexpected), and `apps/bothy-kube/checks/run.sh` runs the offline suite.
+row is unexpected), and `apps/bothy-ops/checks/run.sh --offline` (`just
+ops-check offline`) runs the offline suite. The live verification above predates
+the 2026-09 merge; the handlers and guard were moved, not rewritten.
 
 ---
 
@@ -467,32 +536,41 @@ the ordering `docs/plans/all-open-issues.md` §C3 asks for.
 
 ### What the boundary is today
 
-Three socket proxies run here, not two, and none of them can exec:
+Two socket proxies run here (three until 2026-09, when the portal's read-only
+proxy and bothy-control's read proxy merged into `bothy-socket-read`), both in
+`apps/bothy/socket-proxy.yml`, and neither can exec:
 
 | Proxy | Grants | Refuses |
 |---|---|---|
-| `bothy-socket-proxy` (`apps/bothy/socket-proxy.yml:78`) | `CONTAINERS: 1` (`:82`), `SYSTEM: 1` (`:83`) | `POST: 0` (`:86`), `EXEC: 0` (`:87`), and every other family written out as `0` |
-| `bothy-control-socket-read` (`apps/bothy-control/compose.yml:196`) | `CONTAINERS: 1` (`:199`) | `POST: 0` (`:205`), `EXEC: 0` (`:206`) |
-| `bothy-control-socket-write` (`apps/bothy-control/compose.yml:266`) | `POST: 1` (`:269`), `ALLOW_RESTARTS`/`ALLOW_START`/`ALLOW_STOP` `1` (`:270-272`) | `CONTAINERS: 0` (`:276`), `EXEC: 0` (`:277`) |
+| `bothy-socket-read` (`:104`) | `CONTAINERS: 1` (`:107`), `SYSTEM: 1` (`:108`) | `POST: 0` (`:113`), `EXEC: 0` (`:114`), and every other family written out as `0` |
+| `bothy-socket-write` (`:162`) | `POST: 1` (`:165`), `ALLOW_RESTARTS`/`ALLOW_START`/`ALLOW_STOP` `1` | `CONTAINERS: 0` (`:172`), `EXEC: 0` (`:173`) |
 
-`EXEC: 0` appears on all three, stated rather than left to a default, and each
-line carries the same comment: *"container exec == root on this box"*.
-`apps/bothy-control/checks/grants.py:98-99` asserts both halves of that - that
-the variable is written down at all, and that its value is `0`.
-`apps/bothy-control/compose.yml:65-76` lists exec first under *"explicitly out
-of scope, and it stays out"*, and names the replacement: *"`docker exec` over
-Tailscale SSH"*. `just urls` prints the same sentence to whoever runs it
-(`justfile:405-407`).
+The read/write split is the one the merge deliberately kept: no proxy holds
+`POST: 1` with `CONTAINERS: 1`. `EXEC: 0` appears on both, stated rather than left
+to a default, each with the comment *"container exec == root on this box"*.
+`apps/bothy-ops/checks/grants.py` asserts that the variable is written down at
+all and that its value is `0`, and sweeps every compose file in the repo for a
+proxy holding the dangerous pair. `apps/bothy-ops/control.py`'s header lists exec
+first among what it *"deliberately cannot do"*, and names the replacement:
+*"`docker exec` over Tailscale SSH"*. `just urls` prints the same sentence.
 
 Above the proxies, the verb set is a three-element tuple:
-`apps/bothy-control/guard.py:39` - `VERBS = ("restart", "stop", "start")`.
-`kill` is absent, and `checks/grants.py:177-180` asserts it stays absent,
-because the write proxy's `ALLOW_RESTARTS` regex grants `kill` alongside `stop`
-and `restart` and no configuration can separate them. `guard.SEVERING`
-(`guard.py:133`) refuses those verbs by container *name* for the four containers
-on the request path - Traefik, `bothy-control`, and its two proxies - and
-`checks/grants.py:166-167` asserts `len(guard.SEVERING) == 4`, so that list
-cannot quietly grow or shrink.
+`apps/bothy-ops/guard.py:61` - `VERBS = ("restart", "stop", "start")`.
+`kill` is absent, and `checks/grants.py:218` asserts it stays absent, because
+the write proxy's `ALLOW_RESTARTS` regex grants `kill` alongside `stop` and
+`restart` and no configuration can separate them. `guard.SEVERING`
+(`guard.py:119`) refuses those verbs by container *name* for the four containers
+on the request path - Traefik, `bothy-ops`, `bothy-socket-read` and
+`bothy-socket-write` - and `checks/grants.py:207` asserts
+`len(guard.SEVERING) == 4`, so that list cannot quietly grow or shrink.
+
+Container names are checked with `fullmatch` (`apps/bothy-common/bothy_common/names.py`).
+Until 2026-09 `bothy-control`'s guard used `^...$` with `.match()`, and Python's
+`$` matches before a trailing newline, so `"grafana\n"` passed the name rule. The
+audit writer flattened it and the daemon would 404 on it, so nothing was
+reachable through it - but a name rule that accepts a newline is not the rule it
+claims to be. Both guards now share one `fullmatch` helper, and
+`checks/test_guard_control.py` carries `"grafana\n"` as a case.
 
 And the `shell` role, which is the thing #90 would spend:
 
@@ -507,12 +585,11 @@ And the `shell` role, which is the thing #90 would spend:
   says why it stops there - *"`shell` is DELIBERATELY NOT GRANTED"*,
   `auth/compose.yml:428-434`;
 - **no router references it.** There are three `allowed_groups=` values in
-  `edge/dynamic/` and none is `shell`: `viewer` and `editor`
-  (`bothy-files.yml:188,197`, referenced again by the config tier at
-  `bothy-config.yml:61,69`) and `operator` (`bothy-control.yml:169`). The only
-  occurrences of the word in that directory are two comments using it as the
-  negative control of an authorisation probe - `allowed_groups=shell -> 403
-  (nobody has it)` (`bothy-files.yml:40`, `bothy-control.yml:49`) - which
+  `edge/dynamic/`, all in `bothy-gates.yml`, and none is `shell`: `viewer`
+  (`:60`), `editor` (`:70`) and `operator` (`:81`). The only occurrences of the
+  word in that directory are two comments using it as the negative control of an
+  authorisation probe - `allowed_groups=shell -> 403 (nobody has it)`
+  (`bothy-files.yml:40`, `bothy-gates.yml:37`) - which
   `apps/bothy-files/checks/authz_probe.py:84` re-runs against the live edge.
 
 So the role is a **name with no route and no holder**, and that is exactly what
@@ -548,23 +625,23 @@ option and costs the most:
   hold `/var/run/docker.sock` - is a host root shell. Two compose files say so
   on three lines, in the same six words.
 - **Creating the throwaway container instead is worse, not better.**
-  `apps/bothy-control/compose.yml:20-26` reads the haproxy rule text out of
+  `apps/bothy/socket-proxy.yml`'s header reads the haproxy rule text out of
   `tecnativa/docker-socket-proxy:0.3.0`: the granular `ALLOW_*` lines are
   `allow` rules, the broad `^/containers` line sits below them, and there is
   **no deny in between** - so `POST=1` with `CONTAINERS=1` permits every POST
   under `/containers`, `/containers/create` included, and *"`/containers/create`
   with a bind mount of `/` is root on this box"*. `CONTAINERS: 0` on the write
-  proxy (`:276`) is the only thing refusing that today, and its own comment says
+  proxy (`:172`) is the only thing refusing that today, and its own comment says
   setting it to `1` *"would silently grant `/containers/create` … and nothing
   would look different"*.
 
 Shape 2 therefore does not need one new grant; it needs precisely the pair that
-`apps/bothy-control/compose.yml` was split into two containers to avoid. Putting
-it on a **fourth, dedicated proxy** does not fix that, it relocates it: the
-dedicated proxy would itself be a create-a-privileged-container endpoint
-defended only by the Python in front of it, which is the design the split
-rejected - *"a total compromise of bothy-control still cannot create a
-privileged container"* (`:52-56`).
+the proxies were split into two containers to avoid, and that the 2026-09
+consolidation kept split on purpose. Putting it on a **third, dedicated proxy**
+does not fix that, it relocates it: the dedicated proxy would itself be a
+create-a-privileged-container endpoint defended only by the Python in front of
+it, which is the design the split rejected - *"a total compromise of bothy-ops
+still cannot create a privileged container"* (`apps/bothy/socket-proxy.yml`).
 
 Shape 3 is the honest one about what it gives away: everything the operator's
 own account can already do on the host, and no socket grant at all. Shape 1
@@ -599,11 +676,12 @@ The two-member networks are what keep that unreachable today, and a shell adds
 members. `socketnet` holds exactly Traefik and the socket proxy because *"the
 proxy has no authentication, so keeping the blast radius at two members is the
 control"* (`README.md:272-274`, `justfile:41-45`,
-`apps/bothy/socket-proxy.yml:47-48`). `controlsocknet` holds `bothy-control` and
-its two proxies, and Traefik is deliberately **not** on it: *"it never routes to
-one - but 'it is not configured to' is a weaker statement than 'it cannot', and
-the second one costs one `docker network create`"*
-(`apps/bothy-control/compose.yml:86-92`). A shell service needs its own pair on
+`apps/bothy/socket-proxy.yml`). `controlsocknet` holds `bothy-ops` and the two
+proxies, and Traefik is deliberately **not** on it: *"'It is not configured to'
+is weaker than 'it cannot', and the network is what makes it the second"*
+(`apps/bothy/socket-proxy.yml`). Since 2026-09 `bothy-socket-read` sits on both
+`socketnet` and `controlsocknet`; that adjacency is safe only because it is
+`POST: 0`. A shell service needs its own pair on
 that precedent, never a seat on an existing one, and never `devnet`.
 
 One more thing the evidence forces, and #90 should hear it plainly.
@@ -667,9 +745,9 @@ those without which the argument in the previous section does not hold.
 
 1. **Non-negotiable - no new socket grant.** `EXEC` stays `0` on every proxy,
    and no proxy holds `POST: 1` and `CONTAINERS: 1` at once.
-   `apps/bothy-control/checks/grants.py` already asserts the first for two
-   proxies; extend it to assert both, for every proxy declared anywhere in the
-   repository, so a fourth one cannot be added without meeting the rule.
+   `apps/bothy-ops/checks/grants.py` asserts both, for every proxy declared
+   anywhere in the repository, so a third one cannot be added without meeting
+   the rule.
 2. **Non-negotiable - the route is an exact `` Path() ``, never `PathPrefix`,**
    under [rule 3](#3-the--api-routers-use-exact-path-never-pathprefix-this-is-the-control).
    A websocket upgrade is still a path.
@@ -682,14 +760,15 @@ those without which the argument in the previous section does not hold.
    shell service; a second network for any privileged leg. Never `devnet`, where
    about twenty containers including third-party images would inherit the reach.
 5. **Non-negotiable - an audit line per session, and per command where the shape
-   permits one.** `apps/bothy-control/app.py:145-161` is the model, and its
+   permits one.** `apps/bothy-common/bothy_common/audit.py` (every tier's writer
+   since 2026-09) is the model, and its
    properties are the requirement: append-only, one tab-separated line, recording
    what was *asked* rather than only what succeeded so refusals are logged too,
    bind-mounted so it survives `up --build`, and swallowing its own errors so a
    full disk cannot block a legitimate action. A log recording only that a
    session opened is not an audit trail.
 6. **Non-negotiable - strip client-supplied `X-Auth-Request-*`.** Copy
-   `control-deidentify` (`edge/dynamic/bothy-control.yml:127-157`). Its own
+   `ops-deidentify` (`edge/dynamic/bothy-ops.yml:132`). Its own
    reasoning applies with more force here: a forged name on a file write leaves a
    diff somebody can read; a forged name on a shell session leaves a log that is
    worse than none.

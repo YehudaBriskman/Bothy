@@ -23,21 +23,26 @@
 #
 # ── the middlewares are borrowed, and that is a real coupling ───────────────
 #
-# `sso-viewer`, `sso-editor` and `sso-errors` are NOT defined in this file. They
-# are defined in edge/dynamic/bothy-files.yml and edge/dynamic/auth.yml, and
-# Traefik's file provider merges every .yml in this directory into one namespace,
-# so referencing them by bare name resolves.
+# `sso-viewer`, `sso-editor` and `sso-errors` are NOT defined in this file. The
+# gates are in edge/dynamic/bothy-gates.yml and sso-errors in auth.yml; Traefik's
+# file provider merges every .yml in this directory into one namespace, so bare
+# names resolve.
 #
-# Defining a second copy here would be the worse option and it is worth saying
-# why, because copying them looks tidier: two definitions of a middleware named
-# `sso-editor` in one provider is a collision, and the one that wins is not
-# something this file can decide. The two would then drift, and the drift would
-# be invisible - both routers would still answer, one of them against the wrong
-# role.
+# Defining a second copy here would be the worse option: two definitions of a
+# middleware named `sso-editor` in one provider is a collision whose winner this
+# file cannot decide, and the drift would be invisible - both routers would still
+# answer, one of them against the wrong role.
 #
-# The cost is that deleting bothy-files.yml silently unauthenticates this file's
-# routers. That is a genuine hazard and the mitigation is this paragraph plus
-# checks/authz_probe-style verification at the edge, not a duplicate definition.
+# Until 2026-09 the gates lived in bothy-files.yml, so deleting THAT file would
+# have ungated these routers. bothy-gates.yml exists to end that coupling.
+#
+# ── the backend is bothy-files (2026-09) ────────────────────────────────────
+#
+# The config patcher was its own service, bothy-config, on confignet. It is a
+# module of bothy-files now, so the service below points at bothy-files:8099
+# over filesnet. These routes keep their OWN file and their own gates on
+# purpose: they are a different permission from /-/api/files/*, and merging the
+# containers is not a reason to merge the rules.
 
 http:
   routers:
@@ -114,11 +119,14 @@ http:
           X-Forwarded-Email: ""
 
   services:
+    # Still named bothy-config - it is the config FORMS' backend, whichever
+    # container serves them - and deliberately its own service rather than a
+    # reference to bothy-files.yml's, so neither edge file depends on the other.
     bothy-config:
       loadBalancer:
         servers:
-          # confignet holds exactly two containers: traefik and this. The service
-          # publishes no host port and has no auth of its own, so reachability IS
-          # authorisation - the same rule the socket-proxy and the file tier are
-          # both built on.
-          - url: "http://bothy-config:8098"
+          # bothy-files, over filesnet: traefik and bothy-files, nothing else. The
+          # service publishes no host port and has no auth of its own, so
+          # reachability IS authorisation. (confignet, this route's network until
+          # 2026-09, is gone.)
+          - url: "http://bothy-files:8099"

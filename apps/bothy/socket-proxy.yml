@@ -1,121 +1,204 @@
-
-# WHAT THIS FILE IS NOW: the socket proxy, and nothing else.
+# The two docker socket proxies, and NOTHING ELSE holds the docker socket.
 #
-# It used to also run the original pure-HTML portal on nginx, kept as a one-line
-# rollback after apps/bothy-web replaced it (`traefik.enable=false`, roll back
-# by flipping it to true). That rollback was deleted on 2026-08-17 and the
-# reasoning is worth keeping, because "keep it, it costs nothing" is how it
-# survived this long:
+# There were three until 2026-09: bothy-socket-proxy (the portal's read-only
+# Docker API) in this file, and bothy-control-socket-read / -write in
+# apps/bothy-control/compose.yml. The two READ proxies had the same grant model
+# (POST=0) and differed by one flag, SYSTEM, so they are one container now:
 #
-#   · It cost 64 MB and a running container to serve nothing. Traefik has not
-#     routed to it since bothy-web took the catch-all.
-#   · The rollback was a fiction. The HTML it served was written against
-#     hostnames that no longer resolve, and its
-#     portal.js carried its own copy of the name tables. Flipping the label
-#     would have restored a portal whose every link was dead, so the thing being
-#     "kept for safety" could not have been safely used.
-#   · It held ten references to the dead namespace, in a file nobody
-#     read because nobody served it.
+#   bothy-socket-read    CONTAINERS=1 SYSTEM=1 POST=0   traefik (socketnet) and
+#                                                        bothy-ops (controlsocknet)
+#   bothy-socket-write   CONTAINERS=0 POST=1            bothy-ops only
+#                        ALLOW_RESTARTS/START/STOP=1
 #
-# The container was called `portal-socket-proxy` until 2026-08-19 - named after
-# that same dead nginx portal, and the last thing in the repo still pointing at
-# it. Renamed to `bothy-socket-proxy` in #97. `container_name` is IMMUTABLE on a
-# running container, so this file and the daemon disagree until somebody runs
-# `docker compose up -d --force-recreate socket-proxy` in project `bothy`; every
-# consumer of the name accepts both while that is true.
-
+# The WRITE proxy is unchanged and stays its own container. That split is the
+# load-bearing one, and the next section is why.
+#
+# ── the constraint this file exists to satisfy ──────────────────────────────
+#
+# NEVER set POST=1 on a proxy with CONTAINERS=1. The image is
+# tecnativa/docker-socket-proxy, whose haproxy rules are, in order:
+#
+#     http-request deny unless METH_GET || { env(POST) -m bool }
+#     http-request allow if { path ~ /containers/<name>/(stop|restart|kill) } { env(ALLOW_RESTARTS) }
+#     http-request allow if { path ~ /containers/<name>/start }              { env(ALLOW_START) }
+#     http-request allow if { path ~ /containers/<name>/stop }               { env(ALLOW_STOP) }
+#     ... one line per endpoint family ...
+#     http-request allow if { path ~ ^/containers }                          { env(CONTAINERS) }
+#     http-request deny
+#
+# The granular ALLOW_* rules are ADDITIVE - `allow` lines, with the broad
+# `^/containers` line below them and no deny in between. So POST=1 together
+# with CONTAINERS=1 permits every POST under /containers, /containers/create
+# included, and a create with a bind mount of / is root on this box. That is the
+# rule text, read out of tecnativa/docker-socket-proxy:0.3.0.
+#
+# So neither proxy can do the dangerous thing:
+#
+#   read    POST=0 denies every non-GET on the FIRST line, before any allow rule
+#           runs. It can inspect; it cannot mutate anything.
+#   write   CONTAINERS=0, so with POST=1 the only allow rules that can match are
+#           the three verb regexes. It cannot create, cannot inspect, cannot
+#           list, cannot read an Env. It is not a docker API; it is four buttons.
+#
+# A total compromise of bothy-ops still cannot create a privileged container,
+# because the PROXY refuses /containers/create - not bothy-ops' Python.
+#
+# The one gap, named rather than hidden: ALLOW_RESTARTS grants `kill` alongside
+# `stop` and `restart` (one regex, no way to split them). `kill` is refused by
+# guard.VERBS in apps/bothy-ops, the one grant on this box bounded by code
+# rather than by an environment variable. apps/bothy-ops/checks/grants.py
+# asserts both halves of that sentence, and sweeps EVERY compose file in the
+# repo for a proxy holding POST=1 and CONTAINERS=1 together.
+#
+# ── networks: nothing that can reach the write proxy can reach Traefik ──────
+#
+#   socketnet        traefik + bothy-socket-read
+#   controlsocknet   bothy-ops + bothy-socket-read + bothy-socket-write
+#
+# bothy-socket-read sits on both, and that is the one new adjacency the merge
+# created. It is safe for the reason every other one is: that proxy has POST=0,
+# so nothing that reaches it - Traefik, bothy-ops - can mutate anything through
+# it. What must stay true, and does: Traefik is NOT on controlsocknet, so the
+# edge cannot reach a proxy that can stop a container. "It is not configured to"
+# is weaker than "it cannot", and the network is what makes it the second.
+#
+#   DO NOT put either proxy on devnet. ~20 containers live there, including
+#   third-party images; every one would get the socket. Nothing would warn you.
+#
+# ── what the READ proxy exposes to the tailnet, via Traefik ─────────────────
+#
+# Only what edge/dynamic/bothy-api.yml routes, and that is TWO exact Path()
+# rules: /containers/json and /system/df. CONTAINERS=1 does NOT mean "only
+# /containers/json" - the proxy gates by endpoint FAMILY, so it also permits
+# /containers/{id}/json, whose body includes Env (POSTGRES_PASSWORD, the Grafana
+# admin password). The exact Path() at the edge is the whole control there;
+# never widen it to PathPrefix.
+#
+# What those two expose: container names, images, ports, health, labels, Mounts
+# (host paths), Command (argv), and per-volume/image disk sizes. NOT Env. A
+# home-dir-layout disclosure - acceptable on a personal tailnet, NOT if this box
+# ever reaches beyond it.
+#
+# SYSTEM=1 grants the /system family so the portal can read /system/df (the
+# Data & disk card). /system/df returns the SAME categories /containers/json
+# already exposes plus SIZE numbers - no Env, no new secret-bearing field - and
+# POST=0 blocks every mutating /system call. bothy-ops gained the ability to read
+# /system/df by sharing this proxy; it never asks, and there is nothing in it it
+# could not already read through /containers.
+#
+# ── THESE NAMES ARE AN API, not labels ──────────────────────────────────────
+#
+#   · edge/dynamic/bothy-api.yml dials http://bothy-socket-read:2375 by Docker
+#     DNS. Change one without the other and every Overview enrichment goes blank.
+#   · apps/bothy-ops/compose.yml sets DOCKER_READ / DOCKER_WRITE to these names.
+#   · apps/bothy-ops/guard.py's SEVERING refuses stop/restart on both, and
+#     checks/grants.py asserts the names there and here agree.
+#   · apps/bothy-web/web/src/lib/actions.ts's SELF map warns on both, and a miss
+#     there fails OPEN.
+#   · scripts/doctor.sh checks both by name.
 
 services:
 
-  # ── The portal's read-only view of Docker ────────────────────────────────
-  # The portal page discovers what's running (ports, health, projects) instead
-  # of being a hand-written list. Traefik's API knows routes but not ports or
-  # health - only Docker does. nginx must NEVER touch the socket (it's
-  # root-equivalent), so this proxy stands in front of it.
-  #
-  # SECURITY - read this before changing anything here:
-  #
-  #  • CONTAINERS=1 does NOT mean "only /containers/json". docker-socket-proxy
-  #    gates by endpoint FAMILY, so it also permits /containers/{id}/json -
-  #    whose response includes Env, i.e. POSTGRES_PASSWORD and the Grafana admin
-  #    password. The actual boundary is the exact Path() rule in
-  #    ../../edge/dynamic/bothy-api.yml. Never widen that to PathPrefix.
-  #
-  #  • POST=0 is load-bearing. Without it, CONTAINERS=1 also grants
-  #    /containers/{id}/kill|stop|restart to anyone who can reach this.
-  #
-  #  • This is on socketnet, NOT devnet, and publishes no port. It has no auth
-  #    of any kind, so reachability IS authorisation.
-  #
-  # What this exposes to the tailnet via /containers/json: container names,
-  # images, ports, health, labels, Mounts (host paths) and Command (argv).
-  # NOT Env. That's a home-dir-layout disclosure - acceptable on a personal
-  # tailnet, NOT acceptable if this box ever reaches beyond it.
-  #
-  #  • SYSTEM=1 grants the /system family so the portal can read /system/df
-  #    (per-image / per-container / per-volume disk usage - the "Data & disk"
-  #    card). WHY THIS IS SAFE: /system/df returns the SAME categories already
-  #    exposed by /containers/json (names, images, labels, command, mounts) plus
-  #    SIZE numbers - it carries NO Env and no new secret-bearing field. It is
-  #    also read-only (POST=0 still blocks every mutating /system endpoint). As
-  #    with CONTAINERS, the real boundary is the exact Path() rule in
-  #    ../../edge/dynamic/bothy-api.yml - only /-/api/docker/system/df is
-  #    routed; nothing else under /system is reachable from the tailnet.
-  socket-proxy:
+  socket-read:
     image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
-    # THIS NAME IS AN API, not a label. Three things match on it by string and
-    # none of them can be discovered from here:
-    #   · edge/dynamic/bothy-api.yml dials `http://bothy-socket-proxy:2375`
-    #     over socketnet by Docker DNS. Change one without the other and
-    #     /-/api/docker/containers/json 502s and every Overview enrichment goes
-    #     blank.
-    #   · apps/bothy-web/web/src/lib/actions.ts's SELF map keys the foot-gun
-    #     warning on it, and a miss there fails OPEN - the warning vanishes
-    #     silently rather than erroring.
-    #   · scripts/doctor.sh checks it by name.
-    # It is NOT in bothy-control's guard.SEVERING and never was; see the comment
-    # in apps/bothy/compose.yml for why that list is deliberately narrower.
-    container_name: bothy-socket-proxy
+    container_name: bothy-socket-read            # guard.SEVERING names this. Keep in sync.
     restart: unless-stopped
     environment:
-      # The grants: container list (enrichment) + disk usage (Data & disk card).
-      CONTAINERS: 1
-      SYSTEM:    1   # /system/df only (POST=0 blocks every mutating /system call)
+      CONTAINERS:     1   # the portal's container list; bothy-ops' inspects
+      SYSTEM:         1   # /system/df only - see the header
       # Deny-by-default is the image's behaviour, but a socket proxy is the last
-      # place to trust a default surviving an image bump. Say it out loud.
-      POST:         0   # no mutation, ever
-      EXEC:         0   # container exec == root on this box
-      EVENTS:       0   # we poll; shrink the surface
-      PING:         0
-      VERSION:      0
-      AUTH:         0
-      SECRETS:      0
-      CONFIGS:      0
-      IMAGES:       0
-      INFO:         0
-      NETWORKS:     0
-      NODES:        0
-      PLUGINS:      0
-      SERVICES:     0
-      SESSION:      0
-      SWARM:        0
-      TASKS:        0
-      VOLUMES:      0
-      DISTRIBUTION: 0
-      BUILD:        0
-      COMMIT:       0
+      # place to trust a default surviving an image bump. Say it out loud - and
+      # note three of these are NOT the image's defaults: EVENTS, PING and
+      # VERSION ship as 1 in 0.3.0. checks/grants.py asserts every one.
+      POST:           0   # no mutation, ever. The first rule, above all others.
+      EXEC:           0   # container exec == root on this box
+      ALLOW_RESTARTS: 0   # inert with POST=0; stated so it stays inert
+      ALLOW_START:    0
+      ALLOW_STOP:     0
+      EVENTS:         0   # image default is 1 - we poll; shrink the surface
+      PING:           0   # image default is 1
+      VERSION:        0   # image default is 1
+      AUTH:           0
+      SECRETS:        0
+      CONFIGS:        0
+      IMAGES:         0
+      INFO:           0
+      NETWORKS:       0
+      NODES:          0
+      PLUGINS:        0
+      SERVICES:       0
+      SESSION:        0
+      SWARM:          0
+      TASKS:          0
+      VOLUMES:        0
+      DISTRIBUTION:   0
+      BUILD:          0
+      COMMIT:         0
+      GRPC:           0
     volumes:
       # :ro is the second lock. The proxy is the real boundary, but a writable
-      # socket would leave POST=0 as the ONLY thing between the tailnet and root.
+      # socket would leave POST=0 as the ONLY thing between these networks and root.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     # NO ports: - must never be reachable from the host network.
-    # NOT on devnet - see the security note above.
-    networks: [socketnet]
-    # Proves haproxy answers, and nothing more. PING=0 means /_ping is DENIED,
-    # so the 403 is the pass: grep for any HTTP status line, which a refused
-    # connection never prints. Probing an ALLOWED path instead would mean
-    # granting a new endpoint just for the check - the wrong trade on a socket
-    # holder. Costs one 403 line in this container's log per interval.
+    networks: [socketnet, controlsocknet]
+    labels:
+      - traefik.enable=false
+    # Proves haproxy answers, and nothing more. PING=0 makes /_ping a 403, so any
+    # HTTP status line is the pass - a refused connection never prints one.
+    # Probing an ALLOWED path would mean granting an endpoint just for the check.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:2375/_ping 2>&1 | grep -q 'HTTP/'"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 32m
+
+  socket-write:
+    image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
+    container_name: bothy-socket-write           # guard.SEVERING names this. Keep in sync.
+    restart: unless-stopped
+    environment:
+      POST:           1   # the only POST=1 socket proxy on this box
+      ALLOW_RESTARTS: 1   # /containers/<name>/(stop|restart|kill)
+      ALLOW_START:    1   # /containers/<name>/start
+      ALLOW_STOP:     1   # /containers/<name>/stop
+      # CONTAINERS=0 is what makes POST=1 safe here. It is not a leftover.
+      # Setting it to 1 would silently grant /containers/create - a bind mount
+      # of / and this box is owned - and nothing would look different.
+      CONTAINERS:     0
+      EXEC:           0   # container exec == root on this box
+      EVENTS:         0   # image default is 1
+      PING:           0   # image default is 1
+      VERSION:        0   # image default is 1
+      AUTH:           0
+      SECRETS:        0
+      CONFIGS:        0
+      IMAGES:         0
+      INFO:           0
+      NETWORKS:       0
+      NODES:          0
+      PLUGINS:        0
+      SERVICES:       0
+      SESSION:        0
+      SWARM:          0
+      SYSTEM:         0
+      TASKS:          0
+      VOLUMES:        0
+      DISTRIBUTION:   0
+      BUILD:          0
+      COMMIT:         0
+      GRPC:           0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # NO ports: - never reachable from the host network. The only thing that may
+    # reach it is bothy-ops, and controlsocknet is what says so.
+    networks: [controlsocknet]
+    labels:
+      - traefik.enable=false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null -T 3 http://127.0.0.1:2375/_ping 2>&1 | grep -q 'HTTP/'"]
       interval: 30s
@@ -128,7 +211,8 @@ services:
           memory: 32m
 
 networks:
-  devnet:
-    external: true
   socketnet:
+    external: true
+  controlsocknet:
+    name: controlsocknet
     external: true

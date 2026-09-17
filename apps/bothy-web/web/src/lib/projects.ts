@@ -129,12 +129,12 @@ const serviceTypeOf = (t?: string | null): ServiceType =>
  * answers lead to two different products:
  *
  *   · the container EXISTS and is stopped -> `/containers/<name>/start`, which
- *     `bothy-control` already performs and `guard.VERBS` already allows. No new
+ *     `bothy-ops` already performs and `guard.VERBS` already allows. No new
  *     grant, no new verb, no new route. The affordance is the only thing missing.
  *   · the container DOES NOT EXIST -> creating it is `/containers/create`, which
  *     the write socket proxy refuses by holding CONTAINERS=0, on the grounds that
  *     a create with a bind mount of `/` is root on this box
- *     (apps/bothy-control/compose.yml). Bothy cannot do it and must not learn to.
+ *     (apps/bothy/socket-proxy.yml). Bothy cannot do it and must not learn to.
  *
  * So this returns null in the second case, `nodeOf` leaves `container` null, and
  * ActionCell draws nothing - which is the honest answer rather than a button

@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 audit/
+# Built by checks/run.sh (bothy-common/checks/lib.sh) when no interpreter on the
+# host has ruamel.yaml - the config forms' one dependency. A cache of
+# requirements.txt, never a source of truth.
+.venv/

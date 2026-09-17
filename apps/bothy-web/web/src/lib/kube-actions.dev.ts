@@ -1,4 +1,4 @@
-// The stand-in for bothy-kube, used by `vite dev` and by nothing else.
+// The stand-in for bothy-ops' kube verbs, used by `vite dev` and by nothing else.
 //
 // Same reason as actions.dev.ts: the dev server proxies /-/api/* at the live
 // box, so a real client in a dev tab would restart real pods. lib/kube-actions.ts
@@ -42,8 +42,8 @@ export async function kubeMock(id: KubeActionId, body: Record<string, unknown>):
   await new Promise((r) => setTimeout(r, TAKES[id]));
   const forced = read(OUTCOME_KEY);
   if (forced === 'role') refuse(403, `${id} refused (403)`);
-  if (forced === 'scope') refuse(403, `namespace 'kube-system' is out of scope - bothy-kube acts on thales-dev and thales-pre-prod only`);
-  if (forced === 'fault') refuse(502, 'the cluster refused bothy-kube (403): forbidden - its token or its Role has diverged from the catalog');
+  if (forced === 'scope') refuse(403, `namespace 'kube-system' is out of scope - bothy-ops acts on thales-dev and thales-pre-prod only`);
+  if (forced === 'fault') refuse(502, 'the cluster refused bothy-ops (403): forbidden - its token or its Role has diverged from the catalog');
   if (forced === 'silence') refuse(0, 'no answer');
 
   const namespace = String(body.namespace ?? '');

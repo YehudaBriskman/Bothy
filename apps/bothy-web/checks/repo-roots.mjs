@@ -15,7 +15,7 @@
 //   * a service that mounts four roots vs one that mounts one
 //
 // Run from checks/run.sh, which compiles discover.ts next door.
-import { stackRootFrom, repoRootsOf, classify } from './discover.mjs';
+import { stackRootFrom, repoRootsOf, configRootsOf, classify } from './discover.mjs';
 
 let fails = 0;
 const eq = (label, got, want) => {
@@ -41,7 +41,7 @@ eq('a trailing slash is added, never doubled',
   '/srv/bothy/');
 
 eq('the config tier is an equally good witness',
-  stackRootFrom([svc('bothy-config', [bind('/opt/bothy', '/repos/stacks')])]),
+  stackRootFrom([svc('bothy-files', [bind('/opt/bothy', '/repos/stacks')])]),
   '/opt/bothy/');
 
 // The whole reason the value is not just "any bind mount": /repos/notes and
@@ -111,18 +111,21 @@ const BOX = [
     bind('/home/ada/claude-notes', '/repos/notes'),
     bind('/home/ada/projects', '/repos/projects'),
     bind('/home/ada', '/repos/home'),
+    bind('/home/ada/stacks/apps/bothy-files/audit', '/audit'),
   ]),
-  svc('bothy-config', [
-    bind('/home/ada/stacks', '/repos/stacks'),
-    bind('/home/ada/stacks/apps/bothy-config/audit', '/audit'),
+  // A service that is NOT the forms' backend, mounting the same repo. Before
+  // 2026-09 the forms had their own container (bothy-config); now they are served
+  // by bothy-files, and nothing else's mounts may speak for them.
+  svc('bothy-ops', [
+    bind('/home/ada/stacks', '/repos/stacks-elsewhere'),
   ]),
 ];
 
-// THE POINT OF NAMING A SERVICE. bothy-config accepts exactly one root; the file
-// tier mounts four. A shared table would offer `notes` and `projects` as patch
-// targets and collect a 400 from the service for each.
-eq('bothy-config declares only what IT mounts',
-  repoRootsOf(BOX, 'bothy-config'), { stacks: '/home/ada/stacks/' });
+// THE POINT OF NARROWING. The config forms accept exactly one root; bothy-files
+// mounts four. The full table would offer `notes` and `projects` as patch
+// targets and collect a 403 from the service for each.
+eq('the config forms get only [config].roots of bothy-files',
+  configRootsOf(BOX), { stacks: '/home/ada/stacks/' });
 
 eq('the file tier declares all four',
   repoRootsOf(BOX, 'bothy-files'), {
@@ -133,15 +136,18 @@ eq('the file tier declares all four',
   });
 
 eq('a mount outside /repos is not a root',
-  Object.keys(repoRootsOf(BOX, 'bothy-config')).includes('audit'), false);
+  Object.keys(repoRootsOf(BOX, 'bothy-files')).includes('audit'), false);
+eq('another service mounting the repo does not speak for the forms',
+  configRootsOf([BOX[1]]), {});
 
 eq('a NESTED path under /repos is not a root name',
   repoRootsOf([svc('x', [bind('/a', '/repos/stacks/docs')])], 'x'), {});
 
 eq('the service is not running -> empty, and that is handled',
-  repoRootsOf(BOX, 'bothy-config-that-is-off'), {});
+  repoRootsOf(BOX, 'bothy-files-that-is-off'), {});
 
-eq('no containers -> empty',              repoRootsOf([], 'bothy-config'), {});
+eq('no containers -> empty',              repoRootsOf([], 'bothy-files'), {});
+eq('no bothy-files -> no config roots',   configRootsOf([]), {});
 
 console.log();
 console.log(fails ? `${fails} check(s) FAILED` : 'all pass');

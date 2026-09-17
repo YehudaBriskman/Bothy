@@ -68,8 +68,7 @@ updates:
       - "/apps/bothy"
       - "/apps/bothy-web"
       - "/apps/bothy-files"
-      - "/apps/bothy-config"
-      - "/apps/bothy-control"
+      - "/apps/bothy-ops"
       # /apps/docs was still listed after that directory was deleted, which is
       # how a missing-directory warning goes unread for a fortnight. Removed.
       # /mgmt, /apps/wiki, /data/redis and /data/kafka were all DELETED on

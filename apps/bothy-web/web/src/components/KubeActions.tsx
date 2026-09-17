@@ -1,8 +1,8 @@
 // Cluster workload actions - the row control and the dialog it opens.
 //
 // The cluster twin of ServiceActions.tsx: a node discovered from Kubernetes has
-// no container for bothy-control to act on, but it has a namespace and a
-// deployment, and bothy-kube acts on those. ActionCell hands such a node here,
+// no container for bothy-ops' container verbs to act on, but it has a namespace and a
+// deployment, and bothy-ops' kube verbs act on those. ActionCell hands such a node here,
 // so every surface that already draws the container control (the Services
 // table, a service's detail header) draws this one for cluster workloads with
 // no edit of its own.
@@ -53,7 +53,7 @@ function useKubeRoles(): { roles: string[]; loading: boolean; me: Me | null } {
   return { roles: me?.roles ?? [], loading, me };
 }
 
-/** The row cell for a cluster workload. Nothing at all outside bothy-kube's scope. */
+/** The row cell for a cluster workload. Nothing at all outside bothy-ops' kube scope. */
 export function KubeActionCell({ node }: { node: PortalNode }) {
   const [open, setOpen] = useState(false);
   const target = kubeTargetOf(node);

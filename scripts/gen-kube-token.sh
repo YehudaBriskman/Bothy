@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Issue bothy-kube's cluster credential: apps/bothy-kube/secrets/{token,ca.crt}.
+# Issue bothy-ops' cluster credential: apps/bothy-ops/secrets/{token,ca.crt}.
+#
+# The in-cluster identity is still the ServiceAccount bothy/bothy-kube (and its
+# token Secret bothy-kube-token). The CONTAINER was renamed when bothy-kube merged
+# into bothy-ops (2026-09); the cluster identity deliberately was not - renaming
+# it would revoke the live token and re-issue the same grants under a new name.
 #
 #   just kube-token            apply the RBAC, create the token if absent, write files
 #   just kube-token --rotate   delete the token Secret first (revokes the old one)
@@ -13,7 +18,7 @@
 #   · This box runs unattended (the Windows keepalive task, cold boots). A bound
 #     token expires on a schedule nobody is watching, and the failure is not an
 #     alert - it is every button in the cluster panel answering "the cluster
-#     refused bothy-kube" some morning months from now. The apiserver may also
+#     refused bothy-ops" some morning months from now. The apiserver may also
 #     cap the duration (--service-account-max-token-expiration), so "8760h" is a
 #     request, not a promise.
 #   · Revocation is exact and immediate: delete the Secret and the token stops
@@ -30,7 +35,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ctx="${KUBE_CONTEXT:-thales-scc}"
-out="$root/apps/bothy-kube/secrets"
+out="$root/apps/bothy-ops/secrets"
 sa="system:serviceaccount:bothy:bothy-kube"
 kc=(kubectl --context "$ctx")
 
@@ -41,7 +46,7 @@ command -v kubectl >/dev/null || { echo "kubectl not found" >&2; exit 1; }
 if [ "${1:-}" = "--revoke" ]; then
   "${kc[@]}" -n bothy delete secret bothy-kube-token --ignore-not-found
   rm -f "$out/token" "$out/ca.crt"
-  echo "revoked: the Secret is deleted and the local copy removed. bothy-kube now answers 503."
+  echo "revoked: the Secret is deleted and the local copy removed. bothy-ops' kube verbs now answer 503."
   exit 0
 fi
 
@@ -87,6 +92,8 @@ mv -f "$out/ca.crt.tmp" "$out/ca.crt"
 
 echo
 echo "wrote $out/token and $out/ca.crt (mode 600)"
+echo "bothy-ops re-reads the token on every request. If bothy-ops was started"
+echo "without the cluster overlay (no thales-scc then), run: just up-apps"
 echo
 echo "what $sa may do (must match k8s/rbac/bothy-kube.yaml):"
 fail=0

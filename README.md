@@ -195,7 +195,7 @@ And it is not a production platform, nor a template to deploy anywhere public:
   silently defaulting - the fallback was removed after the superuser password on
   the live box was found to still be the published placeholder.
 - **Single node, single user.** Access control is tailnet membership, plus one
-  shared dev login on the dashboards, plus Keycloak roles on the three tiers that
+  shared dev login on the dashboards, plus Keycloak roles on the routes that
   can change something. No HA, no TLS, no multi-tenancy, and backups sit on the
   disk they protect.
 - **A helper, not a dependency.** A project keeps its own Postgres so it stays
@@ -233,17 +233,16 @@ seconds, with no edit to Bothy.** Stop it and its dot goes red just as fast.
 ### 2. A service with no auth of its own is protected by exactly one thing: who can reach it
 
 The socket proxy taught this and every tier since is built on it. `bothy-files`
-holds read-write bind mounts on two git repositories and authenticates nobody.
-`bothy-config` can rewrite this box's compose files and edge routes, and
-authenticates nobody. `bothy-control` can stop a running container, and
-authenticates nobody. None of them publishes a host port, and each sits on a
-network holding exactly two members - itself and the one thing allowed to talk to
-it. Authorisation happens at the edge, in a `forwardAuth` middleware; anything
+holds read-write bind mounts on two git repositories, patches this box's compose
+files through the config forms, and authenticates nobody. `bothy-ops` can stop a
+running container and scale a cluster workload, and authenticates nobody.
+Neither publishes a host port, and each sits on a network holding exactly two
+members - itself and Traefik (`filesnet`, `opsnet`). Authorisation happens at the edge, in a `forwardAuth` middleware; anything
 that can reach the service directly has already bypassed it.
 
 Put any of them on `devnet` and about twenty containers - including third-party
 images - inherit the capability. Nothing would warn you; the service would work
-perfectly. That single sentence is why there are six networks rather than one.
+perfectly. That single sentence is why there are five networks rather than one.
 
 ### 3. Make one function own the walk, so the security check is not something a caller has to remember
 
@@ -269,15 +268,15 @@ cannot be skipped, then write the test that proves it was not.**
 | Path | What lives there |
 |---|---|
 | `edge/` | **Traefik v3.7** on `:80`, plus the `:8100` sandbox entrypoint that serves raw file bytes from a different origin. No Host-name routing and no dashboard (`--api=true`, never `--api.dashboard=true` - it served the merged config, credentials included). Exports Prometheus metrics on an internal entrypoint with no host port. Traefik must be **≥ v3.6**: older builds hardcode Docker API v1.24 and silently load zero routes against a modern daemon. |
-| `edge/dynamic/` | Seven watched file-provider files. `bothy-api.yml` is the security boundary and is worth reading in full; `bothy-files.yml`, `bothy-config.yml` and `bothy-control.yml` carry the role-gated routers and the middlewares that gate them; `auth.yml` holds `sso` / `sso-errors` and the host-less `` PathPrefix(`/oauth2/`) `` router; `project.example.yml` and `bothy-prom.example.yml` are annotated templates. |
+| `edge/dynamic/` | Eight watched file-provider files. `bothy-api.yml` is the security boundary and is worth reading in full; `bothy-files.yml`, `bothy-config.yml` and `bothy-ops.yml` carry the role-gated routers, and `bothy-gates.yml` is the only definition of the gates they use; `auth.yml` holds `sso` / `sso-errors` and the host-less `` PathPrefix(`/oauth2/`) `` router; `project.example.yml` and `bothy-prom.example.yml` are annotated templates. |
 | `auth/` | **Keycloak 26.7.1 + oauth2-proxy 7.15.3** - the local identity layer. Keycloak publishes `:8090` and stores its data in the shared Postgres under its own `keycloak` role; oauth2-proxy runs `--provider=oidc` and publishes no port. This compose file also carries the OIDC reasoning that could not live inside `auth/realm-devbox.json`. |
 | `monitoring/` | VictoriaMetrics, Grafana, Loki + Alloy, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds the provisioned dashboards. |
 | `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. The dev database and Keycloak both live here. |
-| `apps/bothy/` | The one compose project over Bothy's tiers, via `include:`. Also **owns `bothy-socket-proxy`**, the read-only Docker socket the `/-/api/docker` data plane goes through. |
+| `apps/bothy/` | The one compose project over Bothy's five containers, via `include:`. Also **owns the two socket proxies**: `bothy-socket-read` (read-only; the `/-/api/docker` data plane and bothy-ops' inspects) and `bothy-socket-write` (three verbs, bothy-ops only). |
 | `apps/bothy-web/` | The web tier - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `bothy-web-fallback`, the catch-all on `:80`. |
-| `apps/bothy-files/` | Bothy Files - the read/write file API over four named roots, with full-text search. Its `policy.toml` declares the roots and what is never served. No published port. |
-| `apps/bothy-config/` | Bothy Config - the service that changes one declared field in a YAML file without destroying the file. No published port. |
-| `apps/bothy-control/` | Bothy Control - `restart`, `stop`, `start`, an audit log, and `guard.py`, whose three-element verb tuple is the only thing refusing `kill`. Two socket proxies of its own, on a network Traefik cannot reach. No published port. |
+| `apps/bothy-files/` | Bothy Files - the read/write file API over four named roots, with full-text search, and the config forms that change one declared field in a YAML file without destroying the file. Its `policy.toml` declares the roots, what is never served, and (`[config]`) what a form may patch. No published port. |
+| `apps/bothy-ops/` | Bothy Ops - container `restart`, `stop`, `start` and five cluster actions, one audit log, and `guard.py`, whose three-element verb tuple is the only thing refusing `kill`. Talks to the daemon only through the two proxies, on a network Traefik cannot reach; joins the cluster only through `compose.cluster.yml`. No published port. |
+| `apps/bothy-common/` | The library both backends copy in: the audit writer, the HTTP/CSRF gate, `fullmatch` name rules and `safepath`. Standard library only. |
 | `apps/bothy-collector/` | Turns each project's `project.dev.yml` into `projects.json`, so a project that is switched off reads as *off* rather than absent, and a project made of host processes is visible at all. |
 | `host/` | Copies of the host configuration git cannot see: dnsmasq, `daemon.json`, `wsl.conf`, the systemd units, the Windows keepalive task. Required to rebuild the box - see [`host/README.md`](host/README.md). |
 | `scripts/` | [`bothy`](scripts/bothy) (the CLI) and `bothy.sh` (the installer that fetches it), plus `bootstrap.sh`, `backup.sh`, `doctor.sh`, `verify-access.sh`, `ci-install.sh`, two generators and `lib/`. `scripts/checks/` holds the tree-only checks CI runs first: links, diagrams, portability, recipe descriptions, the installer pin, bash 3.2 compatibility and the version. |
@@ -296,14 +295,16 @@ through Traefik._
 ![Traefik on :80 fans out to the catch-all serving Bothy, to exact-Path data-plane routes for the Traefik API, the Docker socket proxy and Loki/Prometheus, and to the oauth2-proxy prefix. oauth2-proxy talks OIDC to Keycloak on :8090, which stores its realm in the loopback-only Postgres. Every other service is reached directly on its own published port.](docs/assets/diagrams/readme-overview.svg)
 
 The picture is generated from `docs/diagrams/readme-overview.mmd` by `just
-diagrams`, and it shows the **shape** rather than a census: it predates the config
-and control tiers, and the router count drawn in it is a snapshot. Prefer the
+diagrams`, and it shows the **shape** rather than a census: it was redrawn for the
+2026-09 consolidation (five Bothy containers), and the router count drawn in it
+is a snapshot. Prefer the
 counts below - and note what actually checks them. `just verify` asserts **zero
 `Host()` routers**, and only that. Every other number on this page is prose, and
 prose goes stale silently; this README has twice described services that had
 already been deleted. That is the honest state rather than an aspiration.
 
-**Nine routers require a role**, across three files, counted from the tree:
+**Fourteen routers require a role**, across three files, counted from the tree
+(2026-09):
 
 | File | Routers | Requires |
 |---|---|---|
@@ -311,32 +312,37 @@ already been deleted. That is the honest state rather than an aspiration.
 | `edge/dynamic/bothy-files.yml` | `bothy-files-write`, `bothy-files-delete` | `editor` |
 | `edge/dynamic/bothy-config.yml` | `bothy-config-read` | `viewer` |
 | `edge/dynamic/bothy-config.yml` | `bothy-config-write` | `editor` |
-| `edge/dynamic/bothy-control.yml` | `bothy-control-restart`, `-stop`, `-start` | `operator` |
+| `edge/dynamic/bothy-ops.yml` | `bothy-ops-control-restart`, `-stop`, `-start` | `operator` |
+| `edge/dynamic/bothy-ops.yml` | `bothy-ops-kube-rollout-restart`, `-scale`, `-delete-completed-pods` | `operator` |
+| `edge/dynamic/bothy-ops.yml` | `bothy-ops-kube-events`, `-logs` | `viewer` |
 
-`sso-viewer` and `sso-editor` are defined in `bothy-files.yml`, `sso-operator` in
-`bothy-control.yml` - each next to the tier it gates. `auth.yml` defines only `sso`
-and `sso-errors`, and bare `sso` is attached to **no router at all**: defining a
-middleware is not attaching it.
+`sso-viewer`, `sso-editor` and `sso-operator` are all defined in
+`edge/dynamic/bothy-gates.yml` and in no router file, so deleting one tier's file
+cannot ungate another's. `auth.yml` defines only `sso` and `sso-errors`, and bare
+`sso` is attached to **no router at all**: defining a middleware is not attaching
+it.
 
-### Six networks, each holding the minimum
+### Five networks, each holding the minimum
 
 - **`devnet`** - the shared external network everything ordinary joins. Traefik
   pins its discovery to it (`--providers.docker.network=devnet`) so it can never
   pick the wrong container IP from a project-local network.
-- **`socketnet`** - Traefik and `bothy-socket-proxy`, and nothing else.
+- **`socketnet`** - Traefik and `bothy-socket-read`, and nothing else.
 - **`filesnet`** - Traefik and `bothy-files`, which holds read-write handles on
-  two git repositories.
-- **`confignet`** - Traefik and `bothy-config`, which can rewrite this box's
-  compose files and edge routes.
-- **`controlnet`** and **`controlsocknet`** - the action tier, and the reason it is
-  two networks and not one holding three: Traefik must not be *able* to reach a
-  proxy that can mutate containers. The edge meets `bothy-control` on one network
-  and `bothy-control` meets its two proxies on the other. Each holds exactly two
-  members.
+  two git repositories and patches compose files through the config forms.
+- **`opsnet`** and **`controlsocknet`** - the action tier, and the reason it is
+  two networks and not one: Traefik must not be *able* to reach a proxy that can
+  mutate containers. The edge meets `bothy-ops` on `opsnet`; `bothy-ops` meets
+  both proxies on `controlsocknet`. `bothy-ops` also joins minikube's
+  `thales-scc`, but only through `apps/bothy-ops/compose.cluster.yml`, added by
+  `just up-apps` when that network exists.
+
+`confignet`, `controlnet` and `kubenet` were retired in 2026-09, when eight Bothy
+containers became five.
 
 ### Single sign-on
 
-**Status: enforcing, on the three tiers that can change things.** Keycloak issues
+**Status: enforcing, on the routes that can change things** (files, config forms, container and cluster actions). Keycloak issues
 the roles and oauth2-proxy answers Traefik's `forwardAuth`. It is deliberately not
 yet on the dashboards, and that is a decision rather than a backlog item:
 attaching auth is the step that can lock you out, and the tools you would use to

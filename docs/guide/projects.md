@@ -16,8 +16,8 @@ intent**. It sees "not running" and cannot tell *somebody stopped this* from
 
 ## It is `project.dev.yml`, and it is YAML
 
-Not TOML. The two `.toml` files on the box - `apps/bothy-files/policy.toml` and
-`apps/bothy-config/policy.toml` - are **access policy** for those services and
+Not TOML. The `.toml` policy on the box -
+`apps/bothy-files/policy.toml` and its `[config]` section - are **access policy** for that service and
 have nothing to do with declaring a project. Do not conflate them; they are
 covered in [The files you will actually edit](configuring.md).
 

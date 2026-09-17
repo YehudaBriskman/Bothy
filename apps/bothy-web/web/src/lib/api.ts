@@ -9,7 +9,7 @@
 // Docker is enrichment. allSettled, never all - partial results are first-class.
 
 import { useEffect, useRef, useState } from 'react';
-import { allPorts, merge, placeOf, repoRootsOf, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
+import { allPorts, configRootsOf, merge, placeOf, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
 import { withDeclared, type CollectorPayload, type CollectorProject } from './projects';
 import type { RootPaths } from './config';
 
@@ -71,12 +71,13 @@ export interface PortalData {
   routers: Router[];
   nodes: PortalNode[];
   ports: PortRow[];
-  /** bothy-config's roots, root name -> host path, read off its bind mounts.
+  /** The config forms' roots, root name -> host path, read off bothy-files' bind
+   *  mounts and narrowed to [config].roots (configRootsOf in discover.ts).
    *  A whole-poll fact like `nodes` and `ports`: it comes from ONE container and
    *  is then the answer for every system the page renders, so it is resolved
    *  where the container list already is rather than re-derived per card. The
    *  card that needs it (SystemName) only ever sees ITS OWN system's nodes, and
-   *  bothy-config is usually not one of them. */
+   *  bothy-files is usually not one of them. */
   configRoots: RootPaths;
   df: SystemDf | null;
   // Projects that declared themselves via project.dev.yml, resolved against
@@ -181,9 +182,9 @@ export async function loadAll(): Promise<LoadResult> {
       nodes: withDeclared(merge(R, S, C, P?.placement ?? null), P?.projects ?? [],
         (subject, kind, system) => placeOf(P?.placement ?? null, subject, {}, kind, system)),
       ports: allPorts(C, P?.placement ?? null),
-      // The service key in apps/bothy-config/compose.yml. Named rather than
-      // matched loosely on purpose - see the RootPaths comment in config.ts.
-      configRoots: repoRootsOf(C, 'bothy-config'),
+      // bothy-files' mounts, narrowed to the one root the forms accept. Named
+      // rather than matched loosely on purpose - see RootPaths in config.ts.
+      configRoots: configRootsOf(C),
       df: D,
       projects: P?.projects ?? [],
       projectsAt: P?.generatedAt ?? null,

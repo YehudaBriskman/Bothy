@@ -14,16 +14,31 @@
 #
 # The unit tests alone would pass with the edge wide open; the probe alone would
 # pass with the path guards removed. Both have to run.
+#
+# ── the config forms' checks (bothy-config merged in, 2026-09) ──────────────
+#
+# They run in the OFFLINE half, because none of them needs anything up - only
+# the YAML parser the forms are built on (found or built by lib.sh):
+#
+#   noop_bytes.py         THE GATE. A patch that changes nothing changes no bytes,
+#                         for every patchable value in every YAML file here. If
+#                         this fails no field is safe to edit, so the rest skip.
+#   naive_dump_damage.py  what load-and-dump WOULD have done - the measurement
+#                         that keeps yamlpatch.py's header honest after a bump.
+#   patch_one_line.py     a real patch changes exactly one line, every comment
+#                         survives byte-identical.
+#   config_http.py        /config/fields and /config/patch through the REAL
+#                         bothy-files handler, against the SHIPPED policy and a
+#                         throwaway copy of the repo's compose files.
+#
+# test_safepath.py carries the config patcher's truth table too, against
+# resolve_config() - there is no second safepath to drift any more.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# `|| exit` is load-bearing, and none of these three files runs under `set -e`.
-# Without it a failed cd is ignored and every check below runs against whatever
-# directory the caller happened to be in - reading some other tree, or none, and
-# reporting on it as if it were this service. A suite that passes in the wrong
-# place is worse than one that errors.
-cd "$HERE/.." || exit 1
-
-fail=0
+# shellcheck source=../../bothy-common/checks/lib.sh
+. "$HERE/../../bothy-common/checks/lib.sh"
+# cd's into the service with `|| exit` - see lib.sh for why that is load-bearing.
+bothy_init "$HERE/.."
 
 # Flags, in a loop rather than as `$1`, because there are two of them now and
 # `[ "${1:-}" = ... ]` silently ignores the second.
@@ -36,12 +51,37 @@ for arg in "$@"; do
     *) echo "unknown flag: $arg" >&2; exit 2 ;;
   esac
 done
-echo "── path safety (unit) ──────────────────────────────────────"
-python3 checks/test_safepath.py || fail=1
+section "the shared library: names, audit, CSRF, bodies"
+gate "$PY" "$BOTHY_COMMON/checks/test_common.py"
+
+section "path safety (unit) - the editor AND the config forms"
+check "$PY" checks/test_safepath.py
+
+# The config forms. Everything below this line needs ruamel.yaml, which is this
+# service's one dependency; bothy_yaml_python finds or builds an interpreter.
+if bothy_yaml_python "$HERE/../requirements.txt" "$HERE/../.venv"; then
+  echo "python for the config checks: $YPY ($("$YPY" -c 'import ruamel.yaml as r; print("ruamel.yaml", ".".join(map(str, r.version_info)))'))"
+  section "config THE GATE: a no-op patch must not change a byte"
+  if ! "$YPY" checks/noop_bytes.py; then
+    echo
+    echo "STOPPING the config checks. Every one below assumes the writer is"
+    echo "byte-clean, so running them now would report passes that mean nothing."
+    fail=1
+  else
+    section "config: the measurement behind refusing to re-serialise"
+    check "$YPY" checks/naive_dump_damage.py
+    section "config: a real patch changes ONE line, and no comment"
+    check "$YPY" checks/patch_one_line.py
+    section "config: the API - refusals, the 409, the snapshot, the audit line"
+    check "$YPY" checks/config_http.py
+  fi
+else
+  fail=1
+fi
 
 if [ "$OFFLINE" = 1 ]; then
   echo; echo "(--offline: skipping the probes that need the stack up)"
-  exit $fail
+  finish
 fi
 
 # The two below need a running edge AND credentials, so they are skipped rather
