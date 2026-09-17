@@ -52,7 +52,9 @@ echo "== containers =="
 # as idle. Leaving them here made `just doctor` report five phantom absences,
 # which is the fastest way to teach someone to ignore the health check.
 # keycloak/oauth2-proxy are the identity layer added the same day.
-expected="traefik oauth2-proxy keycloak prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter bothy-web bothy-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
+# victoriametrics/alloy replaced prometheus/promtail on 2026-09-17; the old two
+# are compose profiles now (legacy-*), stopped on purpose, so not listed.
+expected="traefik oauth2-proxy keycloak victoriametrics grafana loki alloy cadvisor node-exporter postgres postgres-exporter bothy-web bothy-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"
@@ -84,13 +86,16 @@ done
 [ -n "$sock" ] && green "$sock" \
   || red "socket proxy (missing - neither bothy-socket-proxy nor portal-socket-proxy is running)"
 
-echo "== prometheus targets =="
+echo "== scrape targets (victoriametrics) =="
 # Without this guard a missing jq piped its failure into a loop that never
 # iterated, so an absent dependency read exactly like a clean bill of health.
 if ! command -v jq >/dev/null 2>&1; then
-  red "jq is not installed - cannot read prometheus targets"
+  red "jq is not installed - cannot read scrape targets"
 else
-  # Prometheus has required basic auth since 2026-08-08 (monitoring/prometheus-web.yml).
+  # VictoriaMetrics (Prometheus until 2026-09-17) serves /api/v1/targets in
+  # Prometheus' JSON shape - job label, health up/down/unknown, lastError - so
+  # the filter below did not change; only the port did (host 8428, was 9090).
+  # Basic auth since 2026-08-08; VM enforces the same credentials (-httpAuth.*).
   # Without credentials this curl gets 401, jq yields nothing, and the check
   # reported "is it up?" about a server that was up the whole time - a probe
   # that could only ever fail one way.
@@ -119,12 +124,12 @@ else
   # where the job name ends.
   targets=$(printf 'user = "%s:%s"\n' "${DEV_LOGIN_USER:-}" "${DEV_LOGIN_PASSWORD:-}" \
     | curl -s --max-time 5 --config - \
-      'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+      'http://localhost:8428/api/v1/targets?state=active' 2>/dev/null \
     | jq -r '.data.activeTargets[]
              | [.labels.job, .health, (.lastError // "")]
              | @tsv' 2>/dev/null | sort -u)
   if [ -z "$targets" ]; then
-    red "prometheus returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
+    red "victoriametrics returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
   else
     # A HERE-STRING, NOT `echo "$targets" | while`. A pipeline runs its right
     # side in a SUBSHELL, so red()'s `faults=$((faults + 1))` incremented a copy

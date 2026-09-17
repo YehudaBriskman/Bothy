@@ -5,8 +5,8 @@
 # `restricted` is a label on those two namespaces only - so nothing here weakens
 # or excepts a policy. It is simply outside their scope, as kube-system is.
 #
-# enforce=privileged is written down rather than left implicit because promtail
-# NEEDS hostPath (/var/log/pods and the docker log files it links to), which
+# enforce=privileged is written down rather than left implicit because alloy
+# (promtail until 2026-09-17) NEEDS hostPath (/var/log/pods and the docker log files it links to), which
 # `baseline` refuses. warn/audit=restricted keep anything that drifts wider than
 # that visible in `kubectl apply` output and the audit log.
 apiVersion: v1

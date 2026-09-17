@@ -1,0 +1,117 @@
+// Every container's logs, plus host-process log files -> Loki.
+//
+// Grafana Alloy, replacing promtail (end-of-life) on 2026-09-17. Generated with
+//   docker run grafana/alloy:v1.19.2 convert --source-format=promtail monitoring/promtail.yml
+// from the promtail config at 198591e, then reviewed line by line. The LABEL SET
+// IS THE CONTRACT and did not change - measured with a side-by-side test container
+// against the live promtail, same containers, same window:
+//
+//   docker streams   container, stack, stream
+//   host processes   job="host-processes", host_service, filename
+//
+// The portal's log panels query {container="<docker name>"} (apps/bothy-web/web/
+// src/lib/logs.ts, apps/bothy-collector/collect.py), so `container` is the one
+// label that must never be renamed. The cluster DaemonSet uses `k8s_container`
+// for exactly that reason - see k8s/monitoring/alloy.yaml.
+//
+// ── DOCKER ACCESS: the same as promtail had, no wider ────────────────────────
+// promtail's docker_sd_configs talked to /var/run/docker.sock directly, mounted
+// read-only. Alloy does the same - discovery AND log reads go over the API. The
+// `:ro` on a socket mount does not make the API read-only (nothing can), which is
+// why the container runs nothing but this file. promtail also mounted
+// /var/lib/docker/containers, which docker_sd never read; Alloy is given NO
+// such mount, so the access is narrower than before, not equal.
+//
+// ── RELOADING ───────────────────────────────────────────────────────────────
+// This file is reached through a DIRECTORY mount (./alloy:/etc/alloy), so an
+// edit is visible in the container at once - no stale-inode trap. Alloy still
+// only re-reads it when told: `docker compose -f monitoring/compose.yml restart alloy`.
+
+// ── containers ──────────────────────────────────────────────────────────────
+discovery.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "5s"
+}
+
+// Applied by loki.source.docker to each container's targets. Every __meta_*
+// label is dropped afterwards, so these three rules ARE the stream's labels.
+discovery.relabel "containers" {
+	targets = []
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_log_stream"]
+		target_label  = "stream"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "stack"
+	}
+}
+
+// POSITIONS: kept under --storage.path (the alloy_data volume). promtail's
+// positions for docker targets do NOT carry over - there is no legacy import for
+// this component - so on its FIRST start Alloy re-reads what docker still retains
+// of each container's log (json-file, 3 x 10m). Loki absorbs that: lines older
+// than an hour behind a stream's newest are refused as out of order, and exact
+// duplicates (same stream, timestamp and line) are dropped on ingest and again
+// at query time. Expect a burst of "entry too far behind" warnings once.
+loki.source.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	targets          = discovery.docker.containers.targets
+	relabel_rules    = discovery.relabel.containers.rules
+	refresh_interval = "5s"
+	forward_to       = [loki.write.default.receiver]
+}
+
+// ── host processes ──────────────────────────────────────────────────────────
+// The half of the box docker discovery cannot see. A project run from a terminal
+// (`just dev`, `tilt up`) has no container; anything that writes to
+// ~/.local/state/devbox-logs lands in Loki beside the container logs.
+//
+// Convention over config: the FILENAME is the stream name (host_service), so a
+// new project needs no change here - it just writes a file into the directory.
+loki.source.file "host_processes" {
+	targets = [{
+		__address__ = "localhost",
+		__path__    = "/host-logs/*.log",
+		job         = "host-processes",
+	}]
+	forward_to = [loki.process.host_processes.receiver]
+
+	file_match {
+		enabled = true
+	}
+
+	// promtail's positions file, mounted read-only from its old volume. Read
+	// once, only while Alloy has no positions of its own, so the host logs are
+	// NOT re-shipped from byte 0 at the switch-over.
+	legacy_positions_file = "/promtail-positions/positions.yaml"
+}
+
+loki.process "host_processes" {
+	forward_to = [loki.write.default.receiver]
+
+	stage.regex {
+		expression = "/host-logs/(?P<host_service>[^/]+)\\.log$"
+		source     = "filename"
+	}
+
+	stage.labels {
+		values = {
+			host_service = null,
+		}
+	}
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

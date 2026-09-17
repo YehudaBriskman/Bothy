@@ -173,10 +173,12 @@ up-auth: network
     echo "    curl -s http://$IP:8090/realms/devbox/.well-known/openid-configuration | jq -r .issuer"
 
 # compose.cluster.yml is added ONLY when the docker network `thales-scc` exists
-# (the minikube cluster). It joins prometheus to that network so it can scrape
-# the node; as an `external` network in compose.yml itself it would make this
-# recipe fail on every box without the cluster. See that file's header.
-# Observability: grafana, prometheus, loki, cadvisor, node-exporter (+ the cluster, if present)
+# (the minikube cluster). It joins victoriametrics to that network so it can
+# scrape the node; as an `external` network in compose.yml itself it would make
+# this recipe fail on every box without the cluster. See that file's header.
+# The legacy prometheus/promtail services sit behind compose profiles and are
+# NOT started here.
+# Observability: grafana, victoriametrics, loki, alloy, cadvisor, node-exporter (+ the cluster, if present)
 up-monitoring: network
     #!/usr/bin/env bash
     set -euo pipefail
@@ -380,18 +382,20 @@ bothy-prom-route:
 
 # (Re)apply the cluster side of monitoring into minikube thales-scc: namespace
 # `monitoring`, kube-state-metrics (pinned helm chart, NodePort 30808), the
-# kubelet scrape identity, the promtail DaemonSet shipping pod logs to Loki, and
-# the metrics-server addon - then refresh Prometheus' kubelet token. Idempotent.
-# See k8s/monitoring/README.md. The compose side is `just up-monitoring`.
-# Apply cluster monitoring (KSM, promtail, RBAC) into thales-scc and refresh the token.
+# kubelet scrape identity, the Alloy DaemonSet shipping pod logs to Loki, and
+# the metrics-server addon - then refresh the kubelet token VictoriaMetrics
+# scrapes with. Idempotent. See k8s/monitoring/README.md. The compose side is
+# `just up-monitoring`.
+# Apply cluster monitoring (KSM, alloy, RBAC) into thales-scc and refresh the token.
 k8s-monitoring:
     ./scripts/k8s-monitoring.sh
 
 # Rewrite monitoring/kube-auth/token from the cluster's prometheus-scraper-token
 # Secret. GITIGNORED (a credential), mode 600 owned by uid 65534 so the
-# container's `nobody` can read it. No restart needed: Prometheus re-reads it
-# on every scrape.
-# Regenerate the kubelet bearer token Prometheus scrapes thales-scc with.
+# container's `nobody` can read it (the legacy Prometheus; VictoriaMetrics runs
+# as root and reads it either way). No restart needed: the token is re-read on
+# every scrape.
+# Regenerate the kubelet bearer token VictoriaMetrics scrapes thales-scc with.
 kube-prom-token:
     ./scripts/gen-kube-prom-token.sh
 
@@ -481,7 +485,7 @@ urls:
     echo ""
     echo "  Stack services:"
     echo "    Grafana       http://$IP:3000         (unified dev login)"
-    echo "    Prometheus    http://$IP:9090"
+    echo "    Metrics (VM)  http://$IP:8428/vmui    (VictoriaMetrics; Prometheus API - unified dev login)"
     echo "    cAdvisor      http://$IP:8082"
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"

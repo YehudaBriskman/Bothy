@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # (Re)apply the box's observability inside the minikube cluster thales-scc:
 # namespace `monitoring`, kube-state-metrics (helm, pinned), the kubelet scrape
-# identity, the promtail DaemonSet, and the metrics-server addon. Then refresh
-# the Prometheus token file. Idempotent; see k8s/monitoring/README.md.
+# identity, the Alloy DaemonSet, and the metrics-server addon. Then refresh
+# the kubelet token file VictoriaMetrics scrapes with. Idempotent; see
+# k8s/monitoring/README.md.
 #
 # Touches ONLY the `monitoring` namespace, three cluster-scoped RBAC objects
 # named monitoring-*, and the minikube metrics-server addon (kube-system). Never
@@ -29,14 +30,23 @@ helm --kube-context "$ctx" upgrade --install kube-state-metrics \
   prometheus-community/kube-state-metrics --version "$KSM_CHART_VERSION" \
   -n monitoring -f "$dir/kube-state-metrics.values.yaml" --wait --timeout 5m
 
-# Stamp the ConfigMap's hash onto the pod template, so a config edit rolls the
-# DaemonSet instead of leaving promtail on the old config until it restarts.
-sum="$(sha256sum "$dir/promtail.yaml" | cut -c1-16)"
-sed "s/checksum\/config: \"set-by-apply\"/checksum\/config: \"$sum\"/" "$dir/promtail.yaml" \
-  | kubectl --context "$ctx" apply -f -
-kubectl --context "$ctx" -n monitoring rollout status ds/promtail --timeout=180s
+# promtail was the shipper until 2026-09-17. Remove it on clusters that still
+# have it, BEFORE alloy starts: alloy imports promtail's positions file
+# (/var/lib/promtail on the node) on its first start, so stopping promtail first
+# freezes those offsets and the hand-over neither drops nor re-sends lines.
+# --ignore-not-found: a fresh cluster never had it. --wait: the pod must be gone,
+# not terminating, when alloy reads the file.
+kubectl --context "$ctx" -n monitoring delete daemonset/promtail configmap/promtail serviceaccount/promtail --ignore-not-found --wait
+kubectl --context "$ctx" delete clusterrolebinding/monitoring-promtail clusterrole/monitoring-promtail --ignore-not-found
 
-# `kubectl top` / k9s' CPU and MEM columns. Not scraped by Prometheus - the
+# Stamp the ConfigMap's hash onto the pod template, so a config edit rolls the
+# DaemonSet instead of leaving alloy on the old config until it restarts.
+sum="$(sha256sum "$dir/alloy.yaml" | cut -c1-16)"
+sed "s/checksum\/config: \"set-by-apply\"/checksum\/config: \"$sum\"/" "$dir/alloy.yaml" \
+  | kubectl --context "$ctx" apply -f -
+kubectl --context "$ctx" -n monitoring rollout status ds/alloy --timeout=180s
+
+# `kubectl top` / k9s' CPU and MEM columns. Not scraped by VictoriaMetrics - the
 # kubelet-cadvisor job covers that - it is for the terminal.
 minikube -p "$profile" addons enable metrics-server >/dev/null
 echo "metrics-server addon enabled"

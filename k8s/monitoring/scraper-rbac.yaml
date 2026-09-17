@@ -1,4 +1,5 @@
-# The identity the compose `prometheus` uses to scrape the kubelet
+# The identity the compose `victoriametrics` (`prometheus` until 2026-09-17; the
+# names below kept theirs) uses to scrape the kubelet
 # (https://192.168.49.2:10250/metrics and /metrics/cadvisor).
 #
 # ONE VERB ON ONE SUBRESOURCE: get nodes/metrics. The kubelet authorizes

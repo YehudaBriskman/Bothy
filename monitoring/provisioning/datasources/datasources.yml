@@ -1,15 +1,22 @@
 apiVersion: 1
 
 datasources:
+  # Backed by VictoriaMetrics since 2026-09-17 (monitoring/compose.yml). The
+  # name, uid and type stay `Prometheus` / `prometheus` / `prometheus` ON PURPOSE:
+  # every dashboard panel, the five alert rules (datasourceUid: prometheus) and
+  # the Grafana MCP address it by uid, and VM serves the Prometheus query API, so
+  # only the URL moved. Rollback to the legacy Prometheus = this URL back to
+  # http://prometheus:9090, then restart grafana.
   - name: Prometheus
     uid: prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://victoriametrics:8428
     isDefault: true
     editable: true
-    # Prometheus requires basic auth since 2026-08-08 (SSO parked). $VARS are
-    # expanded by Grafana from the container env (set in compose from .env).
+    # Basic auth since 2026-08-08 (SSO parked); VM enforces the same credentials
+    # (-httpAuth.*). $VARS are expanded by Grafana from the container env (set in
+    # compose from .env).
     basicAuth: true
     basicAuthUser: $DEV_LOGIN_USER
     secureJsonData:

@@ -1,0 +1,282 @@
+# Pod logs from thales-scc -> the box's Loki (the compose `loki`, host :3100).
+#
+# Grafana Alloy, replacing the promtail DaemonSet on 2026-09-17 - together with
+# the compose shipper (monitoring/alloy/config.alloy), as the promtail header
+# demanded: one shipper, one version, one config language on both sides.
+# The config below came from
+#   alloy convert --source-format=promtail  (the ConfigMap of promtail.yaml at 198591e)
+# and was then reviewed; every change from the converter output is commented.
+#
+# ── LABELS (unchanged), and why `container` is NOT one of them ─────────────────
+#   cluster        thales-scc   (loki.write external_labels; every stream has it)
+#   namespace      k8s namespace
+#   pod            pod name
+#   k8s_container  container name inside the pod
+#   stream         stdout / stderr - same meaning as the compose shipper's
+#   job            kubernetes-pods
+#   (filename dropped)
+#
+# The compose shipper already owns `container` (a DOCKER container name) and
+# `stack` (a compose project), and the portal builds its log panels as
+# {container="<docker name>"} (apps/bothy-collector/collect.py, apps/bothy-web).
+# Tals runs a `postgres` and a `keycloak` in the cluster and the box runs
+# containers with those names too - so a k8s `container` label would silently
+# pour cluster logs into the box's own log panels. `k8s_container` cannot
+# collide; `namespace`/`pod`/`cluster` are unused by the compose side. `stream`
+# IS shared, on purpose, because it means the same thing on both.
+#
+# ── WHERE LOKI IS ─────────────────────────────────────────────────────────────
+# host.minikube.internal = 192.168.49.1, the docker gateway of the `thales-scc`
+# network, i.e. the host, where loki publishes 0.0.0.0:3100. minikube writes the
+# name into CoreDNS on every start, so it follows the gateway if the network is
+# ever re-created on another subnet.
+#
+# ── ACCESS: the same as promtail's ────────────────────────────────────────────
+# RBAC `get/list/watch pods` and nothing else. File tailing from hostPath, NOT
+# loki.source.kubernetes: that one reads logs through the API server and would
+# need `pods/log`, i.e. a wider grant, to replace a mount that works.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-alloy
+rules:
+  # discovery.kubernetes role=pod: read pod metadata. Nothing else, no write verbs.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: monitoring-alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: monitoring-alloy
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy
+  namespace: monitoring
+data:
+  config.alloy: |
+    // Only THIS node's pods - a DaemonSet must not ship its neighbours'.
+    //
+    // The converter turned promtail's implicit rule (drop a target whose
+    // __host__ differs from $HOSTNAME) into a field selector, which is the
+    // better form: the API server filters, instead of every node watching every
+    // pod. It read HOSTNAME with a fallback to the pod's own hostname; that
+    // fallback is the POD name, which matches no node, so an unset variable
+    // would have meant zero targets and no error. NODE_NAME has no fallback,
+    // and the DaemonSet always sets it. (promtail's $1-expansion trap - see git
+    // history of promtail.yaml - does not exist here: nothing expands env vars
+    // inside the config text.)
+    discovery.kubernetes "pods" {
+      role = "pod"
+
+      selectors {
+        role  = "pod"
+        field = "spec.nodeName=" + sys.env("NODE_NAME")
+      }
+    }
+
+    discovery.relabel "pods" {
+      targets = discovery.kubernetes.pods.targets
+
+      // promtail's `__host__` rule is gone: nothing in Alloy reads __host__,
+      // the selector above does its job.
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "k8s_container"
+      }
+
+      rule {
+        target_label = "job"
+        replacement  = "kubernetes-pods"
+      }
+
+      // /var/log/pods/<ns>_<pod>_<uid>/<container>/<restart>.log
+      rule {
+        source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+        separator     = "/"
+        target_label  = "__path__"
+        replacement   = "/var/log/pods/*$1/*.log"
+      }
+    }
+
+    loki.source.file "pods" {
+      targets    = discovery.relabel.pods.output
+      forward_to = [loki.process.pods.receiver]
+
+      // __path__ is a glob; without this block it would be taken literally.
+      file_match {
+        enabled = true
+      }
+
+      // promtail's positions, on the node's persistent disk. Read once, only
+      // while Alloy has no positions of its own (under --storage.path), so the
+      // switch-over continues from promtail's offsets instead of re-sending
+      // every pod log from byte 0.
+      legacy_positions_file = "/var/lib/promtail/positions.yaml"
+    }
+
+    loki.process "pods" {
+      forward_to = [loki.write.default.receiver]
+
+      // The node runs dockerd behind cri-dockerd: /var/log/pods/*/*/N.log are
+      // symlinks to /var/lib/docker/containers/<id>/<id>-json.log, so the
+      // lines are docker JSON, not CRI format. This stage also sets `stream`.
+      stage.docker { }
+
+      // `filename` embeds the pod UID and the restart count
+      // (.../algorithm/2.log): a new stream per restart for no query anyone
+      // writes. namespace/pod/k8s_container already say where.
+      stage.label_drop {
+        values = ["filename"]
+      }
+    }
+
+    loki.write "default" {
+      endpoint {
+        url = "http://host.minikube.internal:3100/loki/api/v1/push"
+      }
+      external_labels = {
+        cluster = "thales-scc",
+      }
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alloy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alloy
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alloy
+      annotations:
+        # Roll the pods when the config above changes (`just k8s-monitoring`
+        # stamps this file's hash here).
+        checksum/config: "set-by-apply"
+    spec:
+      serviceAccountName: alloy
+      tolerations:
+        - operator: Exists   # the one node is the control plane
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.19.2
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --storage.path=/var/lib/alloy/data
+            # 0.0.0.0, not the image's 127.0.0.1 default: the kubelet probes the
+            # POD IP. Nothing routes to it - no Service, no NodePort.
+            - --server.http.listen-addr=0.0.0.0:12345
+            - --disable-reporting
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: http
+              containerPort: 12345
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            periodSeconds: 10
+          # uid 0 is needed to read the node's log files (0640 root:root, in
+          # 0710 root dirs under /var/lib/docker/containers) - as their OWNER,
+          # so no capability is: every one is dropped, including the
+          # DAC_OVERRIDE / DAC_READ_SEARCH that would let it read anything else.
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+            - name: pods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: docker-containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            # The PARENT of --storage.path, not the path itself. The image ships
+            # /var/lib/alloy owned by its own `alloy` user and closed to others;
+            # uid 0 with every capability dropped cannot traverse it, so a mount
+            # at .../data failed with "mkdir /var/lib/alloy/data: permission
+            # denied" (measured, first apply). Mounting over the parent replaces
+            # that directory with the root-owned hostPath.
+            - name: data
+              mountPath: /var/lib/alloy
+            - name: promtail-positions
+              mountPath: /var/lib/promtail
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: alloy
+        - name: pods
+          hostPath:
+            path: /var/log/pods
+        - name: docker-containers
+          hostPath:
+            path: /var/lib/docker/containers
+        # On the node's persistent disk (/var, NOT /run which is tmpfs): positions
+        # that reset re-ship the whole log history into Loki on every restart.
+        - name: data
+          hostPath:
+            path: /var/lib/alloy
+            type: DirectoryOrCreate
+        # Read-only, for the one-time legacy_positions_file import above. Safe to
+        # drop (with the config line) once every node has run alloy once.
+        - name: promtail-positions
+          hostPath:
+            path: /var/lib/promtail
+            type: DirectoryOrCreate
+        - name: tmp
+          emptyDir: {}
