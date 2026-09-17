@@ -14,7 +14,7 @@ set dotenv-load := true
 # against the FIRST file's directory, which built the editor tier from the web
 # tier's Dockerfile and moved its audit log).
 #
-# apps/portal-files/compose.yml was in NO lifecycle recipe before this: it ran,
+# apps/bothy-files/compose.yml was in NO lifecycle recipe before this: it ran,
 # but `just down` never stopped it and `just up` never started it. It is reached
 # through exactly one path now, so it cannot fall out again.
 BOTHY := "-f apps/bothy/compose.yml"
@@ -43,7 +43,7 @@ network:
     # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
     # read the docker socket through it. Keep the blast radius at two.
     -docker network create socketnet 2>/dev/null || true
-    # filesnet: traefik + portal-files, and nothing else. portal-files holds
+    # filesnet: traefik + bothy-files, and nothing else. bothy-files holds
     # read-write bind mounts on two git repos and has no auth of its own, so the
     # network IS the boundary - authorisation happens at the edge in front of it.
     # Putting it on devnet would hand ~20 containers write access to the docs.
@@ -206,12 +206,12 @@ up-data: network
 # Apps: Bothy - the web tier, the editor tier and the socket proxy, one project.
 #
 # There is nothing else here. Reading and editing the box's markdown is Bothy
-# Files, a route in the portal backed by apps/portal-files, which reads the real
+# Files, a route in the portal backed by apps/bothy-files, which reads the real
 # file from a bind mount. No second copy, no sync lag, nothing to keep out of git.
 # Apps: Bothy's web, editor and socket tiers, plus the config tier.
 up-apps: network
     docker compose {{BOTHY}} up -d
-    # The config tier. Separate from the editor tier on purpose: portal-files
+    # The config tier. Separate from the editor tier on purpose: bothy-files
     # states it carries no third-party dependencies because it holds read-write
     # handles on two repositories, and a YAML parser is a dependency. This one
     # carries it, and mounts far less.
@@ -305,7 +305,7 @@ portability:
 # Re-render docs/diagrams/*.mmd to docs/assets/diagrams/*.svg. Only the stale
 # ones; pass `all` to force every one.
 #
-# THE SVGs ARE OUTPUT, NEVER SOURCE. apps/portal-files/policy.toml flags
+# THE SVGs ARE OUTPUT, NEVER SOURCE. apps/bothy-files/policy.toml flags
 # `**/*.svg` as `caution` on write, which is right for an SVG a person might edit
 # and wrong for these seven - they are machine-generated from the .mmd beside
 # them, and scripts/checks/diagrams.sh (CI tier 0) fails the moment the two
@@ -331,7 +331,7 @@ bootstrap *args:
 # of everything the portal SERVES for anything that looks like a credential.
 # Checks for the editor tier. `offline` skips what needs the stack up; `ci` skips the box-specific credential survey.
 files-check mode="":
-    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
+    @bash apps/bothy-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
 
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
@@ -351,15 +351,15 @@ psql:
 # the redis_data volume and the images were deleted after the retirement, so
 # there is nothing left to restore.
 
-# Regenerate the portal's read-only Prometheus route (edge/dynamic/portal-prom.yml).
+# Regenerate the portal's read-only Prometheus route (edge/dynamic/bothy-prom.yml).
 #
 # That file carries the basic-auth header the edge injects on the portal's
 # behalf, so it is GITIGNORED and generated from .env rather than committed.
 # Run this on a fresh clone, and again after changing DEV_LOGIN_*. Traefik
 # watches ./dynamic, so no restart is needed.
 # Regenerate the portal's Prometheus data-plane route.
-portal-prom-route:
-    ./scripts/gen-portal-prom-route.sh
+bothy-prom-route:
+    ./scripts/gen-bothy-prom-route.sh
 
 # Print access URLs. Pure-IP-over-tailscale model: every service has a published
 # host port on this node's tailnet IP.

@@ -20,12 +20,12 @@
     "realm": [
       {
         "name": "viewer",
-        "description": "Read the box: browse files, search their contents, download bytes, and read the config a service declares. Gates 3 routers (portal-files read + download, bothy-config read).",
+        "description": "Read the box: browse files, search their contents, download bytes, and read the config a service declares. Gates 3 routers (bothy-files read + download, bothy-config read).",
         "composite": false
       },
       {
         "name": "editor",
-        "description": "Change a file on disk, and patch a declared config field. Saves write straight to the working tree. Gates 3 routers (portal-files write + delete, bothy-config patch).",
+        "description": "Change a file on disk, and patch a declared config field. Saves write straight to the working tree. Gates 3 routers (bothy-files write + delete, bothy-config patch).",
         "composite": false
       },
       {

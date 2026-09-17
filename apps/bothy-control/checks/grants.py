@@ -231,7 +231,7 @@ for walk_root, walk_dirs, walk_files in os.walk(REPO):
         except OSError:
             continue
         # The image name appears in prose in three other files - dependabot's
-        # comment, portal-api.yml's, this one's - so the text match only decides
+        # comment, bothy-api.yml's, this one's - so the text match only decides
         # whether the file is worth parsing. What SELECTS a service is its own
         # `image:` line.
         if SOCKET_IMAGE not in cf.text:

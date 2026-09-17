@@ -160,8 +160,10 @@ for name in sorted(guard.SEVERING):
 # the exact line guard.py:102-110 draws). This list should mirror actions.ts's
 # SELF map, so drop 'portal-socket-proxy' here in the same change that drops the
 # legacy key there, and not before.
-for name in ("portal-next", "bothy-socket-proxy", "portal-socket-proxy",
-             "portal-files", "bothy-config",
+# portal-next / portal-files: the same, for the 2026-09 rename to bothy-web /
+# bothy-files - mirrors the legacy keys added to SELF in that change.
+for name in ("bothy-web", "portal-next", "bothy-socket-proxy", "portal-socket-proxy",
+             "bothy-files", "portal-files", "bothy-config",
              "keycloak", "oauth2-proxy", "grafana", "postgres"):
     for verb in guard.VERBS:
         ok(guard.severed(name, verb) is None,

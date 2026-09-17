@@ -61,8 +61,8 @@ There are two paths now, and which one a request takes depends only on the port.
 |---|---|---|
 | A | Most services are reached **directly on a published host port**. No DNS, no proxy, no `Host` header - the browser opens `http://<node-ip>:3000` and hits Grafana's own listener. | each stack's `compose.yml` `ports:`, printed by `just urls` |
 | B | Port 80 is Traefik. It matches **path only**, because no router carries a `Host()` rule. Two providers feed it: **docker** (container labels, `exposedbydefault=false`) and **file** (`edge/dynamic/*.yml`, `watch=true`). | `edge/compose.yml` |
-| B1 | The portal's `/-/api/*` data-plane routes match at priority 100. Every rule is an exact `Path()` - that is a security boundary, not a style. | `edge/dynamic/portal-api.yml`, `portal-prom.yml` |
-| B2 | Everything else falls through to `portal-next-fallback` (`PathPrefix(/)`, priority 1) and gets the portal SPA. **A wrong path returns 200 with the SPA, not a 404** - which is why route tests must assert content type. | `apps/portal-next/compose.yml` |
+| B1 | The portal's `/-/api/*` data-plane routes match at priority 100. Every rule is an exact `Path()` - that is a security boundary, not a style. | `edge/dynamic/bothy-api.yml`, `bothy-prom.yml` |
+| B2 | Everything else falls through to `bothy-web-fallback` (`PathPrefix(/)`, priority 1) and gets the portal SPA. **A wrong path returns 200 with the SPA, not a 404** - which is why route tests must assert content type. | `apps/bothy-web/compose.yml` |
 
 **No step authenticates.** As of 2026-08-12, no router carries an auth
 middleware. See [Identity](#identity-being-rebuilt-not-yet-enforced) below.
@@ -115,7 +115,7 @@ browser reaches anything but the portal. What exists today:
 | `traefik` | `0.0.0.0:80` | **The front door for the portal and its data plane**, and nothing else. |
 | `grafana` `prometheus` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `9090` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. `dozzle` (`:8080`), `kafka-ui` (`:8081`) and `portainer` (`:9000`) were here until 2026-08-17; Bothy Control and the service pages replaced them. |
 | `postgres` | `127.0.0.1:5432` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database. Reached over an SSH tunnel, or by name over devnet from another container. `redis` (`:6379`) and `kafka` (`:9092`) sat here under the same rule until they were retired on 2026-08-12 - both idle, zero keys and zero topics. |
-| `portal-next` `portal-files` `oauth2-proxy` `bothy-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
+| `bothy-web` `bothy-files` `oauth2-proxy` `bothy-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
 
 The cost of the port model is real and worth stating: ports are a flat global
 namespace with no allocator, so every new service is a manual collision check
@@ -139,12 +139,12 @@ The whole table, as of 2026-08-12 plus `ping@internal` (2026-09-17) - eight rout
 
 | Router | Rule | Priority | Notes |
 |---|---|---|---|
-| `portal-api-docker@file` | exact `Path(...)` ×2 | 100 | `/-/api/docker/containers/json`, `/system/df`. **The security boundary** - see below |
-| `portal-api-loki@file` | exact `Path(...)` ×2 | 100 | `query_range`, `labels` - the portal's log view |
-| `portal-api-prom@file` | exact `Path(...)` ×2 | 100 | `query`, `query_range` - from the **gitignored generated** `portal-prom.yml`, which carries a basic-auth header |
-| `portal-api-traefik@file` | exact `Path(...)` ×4 | 100 | `http/routers`, `http/services`, `overview`, `version`. The only reachable slice of `api@internal` |
+| `bothy-api-docker@file` | exact `Path(...)` ×2 | 100 | `/-/api/docker/containers/json`, `/system/df`. **The security boundary** - see below |
+| `bothy-api-loki@file` | exact `Path(...)` ×2 | 100 | `query_range`, `labels` - the portal's log view |
+| `bothy-api-prom@file` | exact `Path(...)` ×2 | 100 | `query`, `query_range` - from the **gitignored generated** `bothy-prom.yml`, which carries a basic-auth header |
+| `bothy-api-traefik@file` | exact `Path(...)` ×4 | 100 | `http/routers`, `http/services`, `overview`, `version`. The only reachable slice of `api@internal` |
 | `oauth2-endpoints@file` | `PathPrefix(/oauth2/)` | 100 | The login flow. Host-less so the post-login redirect lands wherever the user was |
-| `portal-next-fallback@docker` | `PathPrefix(/)` | 1 | Catch-all: **every** unmatched path on `:80` gets the portal SPA, 200 `text/html` |
+| `bothy-web-fallback@docker` | `PathPrefix(/)` | 1 | Catch-all: **every** unmatched path on `:80` gets the portal SPA, 200 `text/html` |
 | `prometheus@internal` | `PathPrefix(/metrics)` | max | Traefik's own metrics, on the internal `:8899` entrypoint only |
 | `ping@internal` | `PathPrefix(/ping)` | max | Added 2026-09-17 for the container healthcheck. Same internal `:8899` entrypoint, never `web` |
 
@@ -155,7 +155,7 @@ Two consequences of that table:
   blocked, `application/json` means routed. Verified 2026-08-12.
 - **The Traefik dashboard router is gone**, deleted 2026-08-12. It served
   `api@internal` unauthenticated, and `/api/rawdata` rendered the live
-  `Authorization: Basic` header that `portal-prom.yml`'s `customRequestHeaders`
+  `Authorization: Basic` header that `bothy-prom.yml`'s `customRequestHeaders`
   middleware injects - a credential leak through a read-only dashboard.
   `--api.dashboard=true` is now `--api=true`, so `api@internal` still exists as
   a service for the four exact paths above but no router serves the UI.
@@ -187,7 +187,7 @@ Two consequences worth knowing:
 
 - The socket proxy is invisible to Traefik's **docker** provider (that provider is
   pinned to devnet), which is exactly why it is declared in the **file** provider
-  instead - `edge/dynamic/portal-api.yml` names it by Docker DNS over socketnet.
+  instead - `edge/dynamic/bothy-api.yml` names it by Docker DNS over socketnet.
 - Traefik mounts the socket `:ro`; Dozzle mounts it `:ro`; Portainer mounts it
   **read-write**. Its UI exposes container `Env` and container `exec`, and exec
   is root on this box, so Portainer used to carry the SSO middleware *on top of*
@@ -202,7 +202,7 @@ gates by endpoint *family*, so it also permits `/containers/{id}/json` - whose
 body includes `Env`, i.e. every password on the box.
 
 The boundary is therefore the exact `Path()` rules in
-`edge/dynamic/portal-api.yml`, and nothing else:
+`edge/dynamic/bothy-api.yml`, and nothing else:
 
 ```yaml
 rule: >-
@@ -275,8 +275,8 @@ numbers below are repeated here only so this table is readable on its own.
 | `monitoring/` | `monitoring` | `prometheus` `grafana` `loki` `promtail` `cadvisor` `node-exporter` | `:9090` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and Prometheus use the shared `DEV_LOGIN_*` credential. Prometheus runs `--web.enable-lifecycle`, so an unauthenticated `POST /-/quit` would stop it - its login is the only thing preventing that |
 | `data/postgres` | `postgres` | `postgres` `postgres-exporter` | `127.0.0.1:5432` | Postgres' own |
 | `apps/bothy` | `bothy` | `bothy-socket-proxy` (the read-only Docker socket the portal's data plane goes through) | none - socketnet only | n/a |
-| `apps/portal-next` | `portal-next` | `portal-next` | the `:80` catch-all | **none** |
-| `apps/portal-files` | `bothy` | `portal-files` | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
+| `apps/bothy-web` | `bothy` | `bothy-web` | the `:80` catch-all | **none** |
+| `apps/bothy-files` | `bothy` | `bothy-files` | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
 | `host/` | - | none | - | - |
 
 Every "none" in that last column is reachable by anything on the tailnet without
@@ -285,7 +285,7 @@ authenticating. That is the current, accepted state, not an oversight - see
 
 Notes on `apps/`:
 
-- **`portal-next` is the portal, and the only one.** The original pure-HTML
+- **`bothy-web` is the portal, and the only one.** The original pure-HTML
   `apps/portal` nginx was retired behind `traefik.enable=false` and kept as a
   one-line rollback until 2026-08-17, when it was deleted - the rollback was a
   fiction, because the HTML it served linked to hostnames that stopped resolving
@@ -296,7 +296,7 @@ Notes on `apps/`:
   that project also owns `bothy-socket-proxy`, which the live portal depends on
   for `/-/api/docker`. Act on the one service.
 - **Bothy Files replaced every markdown viewer this box has had.** It is a route
-  in the portal (`/#/files`) backed by `apps/portal-files`, and it reads the real
+  in the portal (`/#/files`) backed by `apps/bothy-files`, and it reads the real
   file from a bind mount rather than a mirror of it - so there is no sync lag, no
   second copy to keep out of git, and the same surface can search, render and
   edit. Wiki.js was retired, and on 2026-08-18 `apps/wiki/` and its `wiki`
@@ -451,7 +451,7 @@ it must never be blank.
 ![The portal join - compose labels, Traefik routers and container state into one node list](assets/diagrams/discovery-join.svg)
 
 The chain in one line: **router → service → server URL → devnet IP → container**.
-The implementation is `apps/portal-next/web/src/lib/discover.ts`, deliberately
+The implementation is `apps/bothy-web/web/src/lib/discover.ts`, deliberately
 pure (no DOM, no fetch, no globals) because the join is the part with real bugs
 in it.
 
@@ -541,7 +541,7 @@ regroup would have 404'd bookmarks and reshuffled colours. Now:
 - `findSystem()` resolves a URL by display key **then** by identity, so a
   bookmark taken before a regroup still opens.
 
-Truth table: `apps/portal-next/checks/grouping.mjs`.
+Truth table: `apps/bothy-web/checks/grouping.mjs`.
 
 ### Optional polish labels
 
@@ -673,7 +673,7 @@ Then, in order:
 
 Publish nothing. Join `devnet` and let other containers reach it by service
 name. This is still the correct default for exporters, sidecars and proxies -
-`bothy-socket-proxy`, `oauth2-proxy`, `portal-files` and every `*-exporter` do it.
+`bothy-socket-proxy`, `oauth2-proxy`, `bothy-files` and every `*-exporter` do it.
 
 ### A host process
 

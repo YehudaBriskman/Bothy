@@ -13,7 +13,7 @@ flowchart TB
         end
 
         subgraph s_devnet["devnet - internal bridge network"]
-            PNEXT["portal-next :80<br/>catch-all, priority 1"]
+            PNEXT["bothy-web :80<br/>catch-all, priority 1"]
             APIS["bothy-socket-proxy · loki · prometheus<br/>· api@internal - reached only via exact Path()"]
         end
     end

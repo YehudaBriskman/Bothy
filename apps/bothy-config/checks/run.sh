@@ -22,7 +22,7 @@
 #                         line, and every comment survives byte-identical.
 #   test_safepath.py      The path boundary as a pure unit, with real planted
 #                         symlinks. This service's safepath.py is a COPY of
-#                         portal-files'; this is what notices when they drift.
+#                         bothy-files'; this is what notices when they drift.
 #   api.py                The whole thing through HTTP, against the SHIPPED
 #                         policy and a throwaway copy of the repo's real files:
 #                         refusals, the 409, the snapshot, the audit line.

@@ -1,7 +1,7 @@
 flowchart TB
     subgraph s_edge["edge/ - the single front door"]
         TRAEFIK["traefik v3.6<br/>publishes :80 - api=true, no dashboard<br/>docker provider + file provider"]
-        DYN["edge/dynamic/<br/>auth · portal-api · portal-prom (generated)<br/>host-services and tals are RETIRED stubs"]
+        DYN["edge/dynamic/<br/>auth · bothy-api · bothy-prom (generated)<br/>host-services and tals are RETIRED stubs"]
     end
 
     subgraph s_auth["auth/ - identity, defined but NOT enforced"]
@@ -23,9 +23,9 @@ flowchart TB
     end
 
     subgraph s_apps["apps/ - what the box itself serves"]
-        PNEXT["portal-next - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
+        PNEXT["bothy-web - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
         PSOCK["bothy-socket-proxy<br/>shipped by apps/bothy/socket-proxy.yml"]
-        PFILES["portal-files - the editor tier.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
+        PFILES["bothy-files - the editor tier.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
     end
 
     subgraph s_host["host/ - configuration that is not in any container"]

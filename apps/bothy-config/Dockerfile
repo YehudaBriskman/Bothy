@@ -1,6 +1,6 @@
 # Alpine + python3 + one pinned dependency.
 #
-# There is a pip install step here and there is none in apps/portal-files -
+# There is a pip install step here and there is none in apps/bothy-files -
 # that difference is the whole reason these are two services rather than one
 # endpoint. See requirements.txt.
 FROM python:3.13-alpine
@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir --only-binary=:all: -r requirements.txt
 
 COPY safepath.py yamlpatch.py app.py policy.toml ./
 
-# No git in this image, unlike portal-files. This service does not commit; a
+# No git in this image, unlike bothy-files. This service does not commit; a
 # patch is a file write and the repository's history is made with `git` in a
 # terminal. Installing it "in case" would put a binary that can rewrite history
 # in a container holding a writable mount on the stack repo.

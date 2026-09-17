@@ -239,7 +239,7 @@ themes. Everything below is either documented only in a design document, only in
 | New page | What it has to say | Source that already exists |
 |---|---|---|
 | `the-cli.md` | every `bothy` subcommand, what passes through to `just`, `init`/`upgrade`/`self-update` | `scripts/bothy` `usage()`, `scripts/checks/cli-commands.sh` |
-| `projects.md` | declaring a project so the console can see it - **`project.dev.yml`, which is YAML and not TOML** - every key, every service key, every state | `apps/portal-collector/README.md`, `collect.py:664`, `edge/dynamic/project.example.yml` |
+| `projects.md` | declaring a project so the console can see it - **`project.dev.yml`, which is YAML and not TOML** - every key, every service key, every state | `apps/bothy-collector/README.md`, `collect.py:664`, `edge/dynamic/project.example.yml` |
 | `services.md` | adding a service to the stack, the `dev.portal.*` labels, grouping, what publishes a port | `ARCHITECTURE.md` §7, §5, `CONTRIBUTING.md` |
 | `settings.md` | what Settings shows, what it deliberately will not write, and why | `control-and-settings.md` §6, `Settings.tsx` |
 | `monitoring.md` | what is scraped, what is retained, where the dashboards come from | `ARCHITECTURE.md` §5, `monitoring/` |
@@ -248,7 +248,7 @@ themes. Everything below is either documented only in a design document, only in
 | `upgrading.md` | what `bothy upgrade` does to the box vs `self-update` to the tool | `scripts/bothy`, #141 |
 
 `themes.md` also needs the file-format half it currently defers to
-`apps/portal-next/data/themes/README.md`, since the guide is written for
+`apps/bothy-web/data/themes/README.md`, since the guide is written for
 "somebody who has not read the source".
 
 Three constraints, all of them existing:

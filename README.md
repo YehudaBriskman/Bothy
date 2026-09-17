@@ -147,7 +147,7 @@ in the README is reference material for somebody who has.
 
 No count here on purpose - the guide grows, and a number in this sentence is the
 fastest-rotting thing on the page. [The guide index](docs/guide/index.md) is the
-list, and `apps/portal-next/checks/start-table.mjs` asserts that it and the
+list, and `apps/bothy-web/checks/start-table.mjs` asserts that it and the
 folder on disk still describe each other.
 
 | If you want to | Read |
@@ -227,12 +227,12 @@ seconds, with no edit to Bothy.** Stop it and its dot goes red just as fast.
 > `docker-socket-proxy` gates by endpoint *family*, so `CONTAINERS=1` also permits
 > `/containers/{id}/json` - whose body contains every container's `Env`, i.e. real
 > passwords. What actually prevents that is the router in
-> `edge/dynamic/portal-api.yml`, where every rule is an exact `` Path(`…`) `` and
+> `edge/dynamic/bothy-api.yml`, where every rule is an exact `` Path(`…`) `` and
 > exactly two Docker endpoints are routed. **Never widen it to `PathPrefix`.**
 
 ### 2. A service with no auth of its own is protected by exactly one thing: who can reach it
 
-The socket proxy taught this and every tier since is built on it. `portal-files`
+The socket proxy taught this and every tier since is built on it. `bothy-files`
 holds read-write bind mounts on two git repositories and authenticates nobody.
 `bothy-config` can rewrite this box's compose files and edge routes, and
 authenticates nobody. `bothy-control` can stop a running container, and
@@ -269,16 +269,16 @@ cannot be skipped, then write the test that proves it was not.**
 | Path | What lives there |
 |---|---|
 | `edge/` | **Traefik v3.7** on `:80`, plus the `:8100` sandbox entrypoint that serves raw file bytes from a different origin. No Host-name routing and no dashboard (`--api=true`, never `--api.dashboard=true` - it served the merged config, credentials included). Exports Prometheus metrics on an internal entrypoint with no host port. Traefik must be **≥ v3.6**: older builds hardcode Docker API v1.24 and silently load zero routes against a modern daemon. |
-| `edge/dynamic/` | Seven watched file-provider files. `portal-api.yml` is the security boundary and is worth reading in full; `portal-files.yml`, `bothy-config.yml` and `bothy-control.yml` carry the role-gated routers and the middlewares that gate them; `auth.yml` holds `sso` / `sso-errors` and the host-less `` PathPrefix(`/oauth2/`) `` router; `project.example.yml` and `portal-prom.example.yml` are annotated templates. |
+| `edge/dynamic/` | Seven watched file-provider files. `bothy-api.yml` is the security boundary and is worth reading in full; `bothy-files.yml`, `bothy-config.yml` and `bothy-control.yml` carry the role-gated routers and the middlewares that gate them; `auth.yml` holds `sso` / `sso-errors` and the host-less `` PathPrefix(`/oauth2/`) `` router; `project.example.yml` and `bothy-prom.example.yml` are annotated templates. |
 | `auth/` | **Keycloak 26.7.1 + oauth2-proxy 7.15.3** - the local identity layer. Keycloak publishes `:8090` and stores its data in the shared Postgres under its own `keycloak` role; oauth2-proxy runs `--provider=oidc` and publishes no port. This compose file also carries the OIDC reasoning that could not live inside `auth/realm-devbox.json`. |
 | `monitoring/` | Prometheus, Grafana, Loki + Promtail, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds the provisioned dashboards. |
 | `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. The dev database and Keycloak both live here. |
 | `apps/bothy/` | The one compose project over Bothy's tiers, via `include:`. Also **owns `bothy-socket-proxy`**, the read-only Docker socket the `/-/api/docker` data plane goes through. |
-| `apps/portal-next/` | The web tier - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `portal-next-fallback`, the catch-all on `:80`. |
-| `apps/portal-files/` | Bothy Files - the read/write file API over four named roots, with full-text search. Its `policy.toml` declares the roots and what is never served. No published port. |
+| `apps/bothy-web/` | The web tier - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `bothy-web-fallback`, the catch-all on `:80`. |
+| `apps/bothy-files/` | Bothy Files - the read/write file API over four named roots, with full-text search. Its `policy.toml` declares the roots and what is never served. No published port. |
 | `apps/bothy-config/` | Bothy Config - the service that changes one declared field in a YAML file without destroying the file. No published port. |
 | `apps/bothy-control/` | Bothy Control - `restart`, `stop`, `start`, an audit log, and `guard.py`, whose three-element verb tuple is the only thing refusing `kill`. Two socket proxies of its own, on a network Traefik cannot reach. No published port. |
-| `apps/portal-collector/` | Turns each project's `project.dev.yml` into `projects.json`, so a project that is switched off reads as *off* rather than absent, and a project made of host processes is visible at all. |
+| `apps/bothy-collector/` | Turns each project's `project.dev.yml` into `projects.json`, so a project that is switched off reads as *off* rather than absent, and a project made of host processes is visible at all. |
 | `host/` | Copies of the host configuration git cannot see: dnsmasq, `daemon.json`, `wsl.conf`, the systemd units, the Windows keepalive task. Required to rebuild the box - see [`host/README.md`](host/README.md). |
 | `scripts/` | [`bothy`](scripts/bothy) (the CLI) and `bothy.sh` (the installer that fetches it), plus `bootstrap.sh`, `backup.sh`, `doctor.sh`, `verify-access.sh`, `ci-install.sh`, two generators and `lib/`. `scripts/checks/` holds the tree-only checks CI runs first: links, diagrams, portability, recipe descriptions, the installer pin, bash 3.2 compatibility and the version. |
 | `docs/` | [`guide/`](docs/guide/index.md) for people who have not read the source, [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the request path and the discovery join, [`kb/`](docs/kb/README.md) for this specific machine's operational history, `brand/` for the design system, `diagrams/` for the mermaid sources and `plans/` for the design arguments. |
@@ -307,13 +307,13 @@ already been deleted. That is the honest state rather than an aspiration.
 
 | File | Routers | Requires |
 |---|---|---|
-| `edge/dynamic/portal-files.yml` | `portal-files-read`, `portal-files-download` | `viewer` |
-| `edge/dynamic/portal-files.yml` | `portal-files-write`, `portal-files-delete` | `editor` |
+| `edge/dynamic/bothy-files.yml` | `bothy-files-read`, `bothy-files-download` | `viewer` |
+| `edge/dynamic/bothy-files.yml` | `bothy-files-write`, `bothy-files-delete` | `editor` |
 | `edge/dynamic/bothy-config.yml` | `bothy-config-read` | `viewer` |
 | `edge/dynamic/bothy-config.yml` | `bothy-config-write` | `editor` |
 | `edge/dynamic/bothy-control.yml` | `bothy-control-restart`, `-stop`, `-start` | `operator` |
 
-`sso-viewer` and `sso-editor` are defined in `portal-files.yml`, `sso-operator` in
+`sso-viewer` and `sso-editor` are defined in `bothy-files.yml`, `sso-operator` in
 `bothy-control.yml` - each next to the tier it gates. `auth.yml` defines only `sso`
 and `sso-errors`, and bare `sso` is attached to **no router at all**: defining a
 middleware is not attaching it.
@@ -324,7 +324,7 @@ middleware is not attaching it.
   pins its discovery to it (`--providers.docker.network=devnet`) so it can never
   pick the wrong container IP from a project-local network.
 - **`socketnet`** - Traefik and `bothy-socket-proxy`, and nothing else.
-- **`filesnet`** - Traefik and `portal-files`, which holds read-write handles on
+- **`filesnet`** - Traefik and `bothy-files`, which holds read-write handles on
   two git repositories.
 - **`confignet`** - Traefik and `bothy-config`, which can rewrite this box's
   compose files and edge routes.
@@ -505,7 +505,7 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
   lessons they paid for. Deliberately not user documentation.
 - **The compose files themselves.** Every non-obvious setting has a comment
   explaining what broke without it - `edge/compose.yml`, `auth/compose.yml`,
-  `edge/dynamic/auth.yml` and `edge/dynamic/portal-api.yml` are the four worth
+  `edge/dynamic/auth.yml` and `edge/dynamic/bothy-api.yml` are the four worth
   reading in full.
 - [`host/README.md`](host/README.md) - the host-level configuration that git
   cannot see, and what each copy is for.

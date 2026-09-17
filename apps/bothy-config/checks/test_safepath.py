@@ -3,10 +3,10 @@
 
 Run: python3 checks/test_safepath.py
 
-safepath.py here is a COPY of apps/portal-files/safepath.py, and its header says
+safepath.py here is a COPY of apps/bothy-files/safepath.py, and its header says
 so. A copy's real risk is drift: someone closes a hole in the original and not in
 this one, and nothing anywhere notices. This file is the thing that notices - it
-runs the same class of cases portal-files' own truth table runs, so a case added
+runs the same class of cases bothy-files' own truth table runs, so a case added
 there and not here is a case that fails here.
 
 Every case is an attack that must be REFUSED, or a legitimate patch that must be
@@ -86,7 +86,7 @@ for d in (root, outside,
     os.makedirs(d, exist_ok=True)
 
 open(os.path.join(root, "compose.yml"), "w").write("services: {}\n")
-open(os.path.join(root, "edge", "dynamic", "portal-files.yml"), "w").write("http: {}\n")
+open(os.path.join(root, "edge", "dynamic", "bothy-files.yml"), "w").write("http: {}\n")
 open(os.path.join(root, "monitoring", "prometheus-web.yml"), "w").write("basic_auth_users: {}\n")
 open(os.path.join(root, ".git", "config.yml"), "w").write("x: 1\n")
 open(os.path.join(root, "notes.md"), "w").write("# not yaml\n")
@@ -97,7 +97,7 @@ open(os.path.join(outside, "compose.yml"), "w").write("services: {}\n")
 os.symlink(outside, os.path.join(root, "link-out"))
 os.symlink(os.path.join(outside, "compose.yml"),
            os.path.join(root, "innocent.yml"))
-os.symlink(os.path.join(root, "edge", "dynamic", "portal-files.yml"),
+os.symlink(os.path.join(root, "edge", "dynamic", "bothy-files.yml"),
            os.path.join(root, "shortcut.yml"))
 
 safepath.ROOTS["stacks"] = root
@@ -150,7 +150,7 @@ print("── policy: what may be patched at all ──────────�
 check("a markdown file",
       lambda: safepath.resolve("stacks", "notes.md", **W), expect_refused=True)
 check("anything under edge/dynamic",
-      lambda: safepath.resolve("stacks", "edge/dynamic/portal-files.yml", **W),
+      lambda: safepath.resolve("stacks", "edge/dynamic/bothy-files.yml", **W),
       expect_refused=True)
 check("a file denied by exact path",
       lambda: safepath.resolve("stacks", "monitoring/prometheus-web.yml", **W),

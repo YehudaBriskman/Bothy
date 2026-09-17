@@ -1,6 +1,6 @@
 """Resolve a client-supplied path to a real file, or refuse.
 
-DERIVED FROM apps/portal-files/safepath.py, deliberately and with attribution.
+DERIVED FROM apps/bothy-files/safepath.py, deliberately and with attribution.
 
 Why a copy rather than an import. The two services do not share a build context:
 `apps/bothy-config/compose.yml` builds with `context: .`, and Docker will not
@@ -15,7 +15,7 @@ the content-type tables are NOT here - this service serves no bytes to a browser
 and walks no trees, so carrying them would be surface with no user.
 
 THE DRIFT RISK IS REAL AND IS HANDLED BY A TEST, not by discipline.
-checks/test_safepath.py runs the same truth table portal-files runs, including
+checks/test_safepath.py runs the same truth table bothy-files runs, including
 real planted symlinks. If someone fixes a hole there and not here, the case they
 added is the case that fails here.
 

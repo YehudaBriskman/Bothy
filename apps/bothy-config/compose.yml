@@ -6,7 +6,7 @@ name: bothy-config
 # anything.
 #
 # NETWORK ISOLATION IS THE PRIMARY CONTROL, and it is the lesson the socket-proxy
-# taught and portal-files repeated: a service with no auth of its own is
+# taught and bothy-files repeated: a service with no auth of its own is
 # protected by exactly one thing - who can reach it. This sits on `confignet`,
 # which holds two containers (traefik and this), and publishes NO host port.
 # Authorisation happens at the edge, so anything that can reach :8098 directly
@@ -19,7 +19,7 @@ name: bothy-config
 # The write path is: browser -> Traefik (exact Path + forwardAuth requiring the
 # `editor` role) -> here. See edge/dynamic/bothy-config.yml.
 #
-# WHY THIS IS NOT AN ENDPOINT ON portal-files. That service states at the top of
+# WHY THIS IS NOT AN ENDPOINT ON bothy-files. That service states at the top of
 # app.py that it has no third-party dependencies, because it holds read-write
 # bind mounts on two git repositories and "every dependency is something that can
 # ship a vulnerability into that position". A YAML round-tripper is a dependency.
@@ -57,7 +57,7 @@ services:
     volumes:
       # ONE mount, and the narrowness is the point.
       #
-      # portal-files mounts four roots because a file explorer over three of them
+      # bothy-files mounts four roots because a file explorer over three of them
       # is not a file explorer. This service exists to patch the files that
       # DECLARE this box, and every one of those is in the stack repo - so
       # nothing else is mounted, and ~/projects, ~/claude-notes and $HOME are
@@ -68,7 +68,7 @@ services:
       # monitoring/, mgmt/, apps/*). policy.toml is what narrows it from there,
       # and it narrows it hard: .yml and .yaml only, edge/dynamic/ excluded
       # outright, and exactly one field name patchable in any of them.
-      # Relative for the same reason portal-files' mount is - see the note
+      # Relative for the same reason bothy-files' mount is - see the note
       # there. `../..` is the repo root because a fragment's relative paths
       # resolve against its own directory.
       - ../..:/repos/stacks:rw
@@ -77,7 +77,7 @@ services:
       - ./audit:/audit:rw
       # The undo net: the previous version of every file this service overwrites.
       #
-      # A SEPARATE directory from portal-files' trash. Sharing would give the box
+      # A SEPARATE directory from bothy-files' trash. Sharing would give the box
       # one undo net instead of two, which is nicer - and it would have two
       # containers pruning one tree under different policies. See policy.toml.
       #

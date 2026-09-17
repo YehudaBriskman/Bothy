@@ -110,16 +110,16 @@ mutant() {
   fi
 }
 
-PORTAL_CHECKS=(bash apps/portal-next/checks/run.sh --offline)
+WEB_CHECKS=(bash apps/bothy-web/checks/run.sh --offline)
 
 echo "── the derivation that replaced a hardcoded home directory ─────────"
 # The prefix trap: without the trailing slash a sibling checkout whose path
 # merely STARTS with this one is filed as part of it.
 mutant "asDir loses its trailing slash" \
-  apps/portal-next/web/src/lib/discover.ts \
+  apps/bothy-web/web/src/lib/discover.ts \
   'const asDir = (p: string): string => (p.endsWith('"'"'/'"'"') ? p : `${p}/`);' \
   'const asDir = (p: string): string => p;' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 echo
 echo "── identity is not display grouping ────────────────────────────────"
@@ -128,23 +128,23 @@ echo "── identity is not display grouping ───────────�
 # Collapse them back into one and every symptom is silent: the Overview looks
 # right, and only the person who opens an old /control/systems/ link finds out.
 mutant "a display label moves the identity too" \
-  apps/portal-next/web/src/lib/discover.ts \
+  apps/bothy-web/web/src/lib/discover.ts \
   '  const decide = (system: string, kind: string): Classification => ({
     system,' \
   '  const decide = (system: string, kind: string): Classification => ({
     system: labels['"'"'dev.portal.group'"'"'] ?? system,' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 # The other half: makeNode() honoured dev.portal.group and allPorts() ignored it,
 # so a system assembled with that label listed its services and none of its
 # ports. Both read one classify() now; make the ports table read past it again.
 mutant "the ports table stops honouring the label" \
-  apps/portal-next/web/src/lib/discover.ts \
+  apps/bothy-web/web/src/lib/discover.ts \
   '        system: cls.system,
         group: cls.group,' \
   '        system: cls.system,
         group: cls.system,' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 # THE THIRD THING KEYED OFF A GROUP, after the accent seed and the bookmarked
 # URL: which groups you collapsed, remembered per browser. Key it on the display
@@ -153,10 +153,10 @@ mutant "the ports table stops honouring the label" \
 # localStorage under the old name. Nothing errors, and the person it happens to
 # has no reason to connect the two.
 mutant "collapsed groups are filed under the display name" \
-  apps/portal-next/web/src/lib/discover.ts \
+  apps/bothy-web/web/src/lib/discover.ts \
   'primaryIdentity(group, [...identities].sort())' \
   'group' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 # The prune that keeps stale keys from accumulating for the life of a browser
 # profile, pointed at the wrong moment. The portal polls, and a poll that fails
@@ -164,30 +164,30 @@ mutant "collapsed groups are filed under the display name" \
 # is indistinguishable from "the box has no services". Without the guard, one
 # failed poll erases a layout, and the erase is written straight back to disk.
 mutant "a failed poll prunes every collapsed group" \
-  apps/portal-next/web/src/lib/collapse.ts \
+  apps/bothy-web/web/src/lib/collapse.ts \
   'if (live.length === 0) return [...stored];' \
   'if (live.length < 0) return [...stored];' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 echo
 echo "── the palette contract ────────────────────────────────────────────"
 # Every colour must come from a token. A literal in a component is invisible in
 # one theme and wrong in the other four.
 mutant "a raw hex lands in a component" \
-  apps/portal-next/web/src/components/SystemName.tsx \
+  apps/bothy-web/web/src/components/SystemName.tsx \
   'export function SystemName({' \
   'const MUTANT_TINT = '"'"'#ff00ff'"'"';
 
 export function SystemName({' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 # A theme that omits a required token does not fall back to something sensible -
 # the rule renders with an empty value and the syntax highlighting disappears.
 mutant "a theme drops a required syntax token" \
-  apps/portal-next/web/src/themes/tokyo-night.css \
+  apps/bothy-web/web/src/themes/tokyo-night.css \
   '  --hl-kw:' \
   '  --mutant-removed-hl-kw:' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 echo
 echo "── could anyone but its author run this ────────────────────────────"
@@ -202,7 +202,7 @@ echo "── could anyone but its author run this ──────────
 # `/home/<name>/` contiguous, so splitting it costs nothing at runtime.
 HOME_PREFIX='/home/'
 mutant "a home directory is hardcoded again" \
-  apps/portal-next/web/src/lib/config.ts \
+  apps/bothy-web/web/src/lib/config.ts \
   'export const PROJECT_TITLE_FIELD' \
   'const MUTANT_PATH = '"'$HOME_PREFIX"'someone/stacks/'"'"';
 
@@ -329,10 +329,10 @@ echo "── a declared project can still be acted on ────────�
 # null` DELETES the restart/stop/start control from its own containers - and a
 # stopped one then has no way back. Nothing errors; the cell is simply empty.
 mutant "a declared service loses its container" \
-  apps/portal-next/web/src/lib/projects.ts \
+  apps/bothy-web/web/src/lib/projects.ts \
   'container: liveContainer(svc, live),' \
   'container: null,' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 # The inverse, and the one with teeth: resolving a declared NAME to whatever
 # container looks close enough. Compose numbers its containers (`cvops-api-1`),
@@ -340,22 +340,22 @@ mutant "a declared service loses its container" \
 # matches nothing must resolve to nothing, because the only way to start a
 # container that does not exist is /containers/create.
 mutant "a declared name is matched loosely" \
-  apps/portal-next/web/src/lib/projects.ts \
+  apps/bothy-web/web/src/lib/projects.ts \
   'return svc.container ? live.get(svc.container) ?? null : null;' \
   'if (!svc.container) return null;
   const want = svc.container;
   return live.get(want) ?? [...live.entries()].find(([k]) => k.startsWith(want))?.[1] ?? null;' \
-  -- "${PORTAL_CHECKS[@]}"
+  -- "${WEB_CHECKS[@]}"
 
 echo
 echo "── the path boundary ───────────────────────────────────────────────"
 # THE containment check. Resolve first, compare after. Deleting it is the whole
 # directory-traversal class in one line, and 30 unit cases exist to catch it.
 mutant "resolve() stops containing paths" \
-  apps/portal-files/safepath.py \
+  apps/bothy-files/safepath.py \
   'if candidate != real_root and not candidate.startswith(real_root + os.sep):' \
   'if False:' \
-  -- bash apps/portal-files/checks/run.sh --offline
+  -- bash apps/bothy-files/checks/run.sh --offline
 
 echo
 echo "── the shell layer macOS has to parse ──────────────────────────────"

@@ -15,7 +15,7 @@ name: edge
 # Host() router in the files this compose owns has been removed, and
 # new services publish a host port rather than declaring a name. Traefik still
 # earns its keep for the host-less exact-Path() routes that make up the portal's
-# /-/api/* data plane (edge/dynamic/portal-api.yml, portal-prom.yml) and for the
+# /-/api/* data plane (edge/dynamic/bothy-api.yml, bothy-prom.yml) and for the
 # portal fallback on the bare IP. Do not write new Host() rules against a
 # namespace that no longer resolves - the route will register and simply never
 # match.
@@ -38,7 +38,7 @@ services:
     # rack `Edge · Traefik` all along - this propagates it.
     #
     # One label per compose project names the whole project (projectNames() in
-    # apps/portal-next/web/src/lib/discover.ts).
+    # apps/bothy-web/web/src/lib/discover.ts).
     labels:
       - dev.portal.project=Edge · Traefik
     command:
@@ -79,11 +79,11 @@ services:
       # It is NOT unauthenticated: the router still carries sso-viewer, and the
       # session cookie reaches :8100 because cookies ignore ports. That same fact
       # is why /write had to be hardened against cross-origin POSTs in the same
-      # change - see apps/portal-files/app.py do_POST.
+      # change - see apps/bothy-files/app.py do_POST.
       - --entrypoints.sandbox.address=:8100
       # --api=true, NOT --api.dashboard=true (changed 2026-08-12).
       #
-      # The API itself must stay on: edge/dynamic/portal-api.yml routes four
+      # The API itself must stay on: edge/dynamic/bothy-api.yml routes four
       # exact paths (/-/api/traefik/{http/routers,http/services,overview,version})
       # to `service: api@internal`, and that internal service only exists while
       # the API is enabled. Turning the API off entirely 404s the portal's
@@ -147,7 +147,7 @@ services:
     # middleware, i.e. the whole Traefik API served unauthenticated. The API
     # includes /api/rawdata, which dumps the entire merged dynamic config -
     # every router, service AND middleware, with their values. One of those
-    # middlewares is `portal-api-prom-auth` (edge/dynamic/portal-prom.yml), whose
+    # middlewares is `bothy-api-prom-auth` (edge/dynamic/bothy-prom.yml), whose
     # customRequestHeaders carry a LIVE `Authorization: Basic ...` for
     # Prometheus. Anything that could reach :80 - i.e. every device on the
     # tailnet - could read that credential by fetching one URL. Removing the
@@ -158,7 +158,7 @@ services:
     # `--api=true` does not open a port - only `--api.insecure=true` would, and
     # that is exactly the hole we just closed. The API is reachable solely
     # through routers that name `service: api@internal`, which today means the
-    # four exact Path() rules in edge/dynamic/portal-api.yml. /api/rawdata is
+    # four exact Path() rules in edge/dynamic/bothy-api.yml. /api/rawdata is
     # deliberately not among them and must not be added: its body prints the
     # middleware values, so its output is credential material.
     #
@@ -171,10 +171,10 @@ services:
         limits:
           memory: 128m
     # socketnet: reaches bothy-socket-proxy for the portal's read-only Docker
-    # API (see edge/dynamic/portal-api.yml). Traefik and the proxy are the only
+    # API (see edge/dynamic/bothy-api.yml). Traefik and the proxy are the only
     # two members - the proxy has no auth, so reachability is authorisation.
     # filesnet added 2026-08-12 with the editor tier: it holds exactly two
-    # containers, traefik and portal-files, so that a service with no auth of
+    # containers, traefik and bothy-files, so that a service with no auth of
     # its own is reachable only from the edge that authorises it.
     # confignet joins the same family as socketnet and filesnet: one network per
     # thing that authenticates nobody, holding traefik and that thing only. The

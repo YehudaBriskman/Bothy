@@ -9,7 +9,7 @@ Half of this repository's compose files are comments:
 
     edge/compose.yml                174 lines, 124 comments   71%
     auth/compose.yml                459 lines, 299 comments   65%
-    apps/portal-files/compose.yml   112 lines,  70 comments   62%
+    apps/bothy-files/compose.yml   112 lines,  70 comments   62%
     all compose.yml files         1,485 lines, 754 comments   50%
 
 They are the most valuable content in the repository. Several are the only record

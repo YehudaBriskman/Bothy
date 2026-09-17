@@ -100,8 +100,8 @@ class Refused(Exception):
 #   bothy-control-socket-write   the POST is in flight through it.
 #
 # WHY THIS IS NARROWER THAN THE UI'S WARNING LIST. `consequenceOf` in
-# apps/portal-next/web/src/lib/actions.ts warns about seven containers, and the
-# other six - portal-next, bothy-socket-proxy, portal-files, bothy-config,
+# apps/bothy-web/web/src/lib/actions.ts warns about seven containers, and the
+# other six - bothy-web, bothy-socket-proxy, bothy-files, bothy-config,
 # keycloak, oauth2-proxy - are deliberately NOT refused here. Stopping any of
 # them degrades the interface, sometimes badly (stopping oauth2-proxy locks
 # every gated tier until somebody opens a terminal), but the action completes

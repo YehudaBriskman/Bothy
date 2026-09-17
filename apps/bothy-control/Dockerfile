@@ -2,7 +2,7 @@
 #
 # There is no pip install step here, unlike apps/bothy-config. That service
 # carries a YAML round-tripper and argues for it; this one has no dependency to
-# argue about, on portal-files' reasoning: every dependency is something that
+# argue about, on bothy-files' reasoning: every dependency is something that
 # can ship a vulnerability into a process whose one capability is acting on
 # containers. Talking to a socket proxy is http.client against a plain HTTP
 # port, which the standard library has done since forever.

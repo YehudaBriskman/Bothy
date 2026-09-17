@@ -8,7 +8,7 @@ flowchart TB
     subgraph s_devnet["devnet - around two dozen containers"]
         OAUTH["oauth2-proxy"]
         OBS["monitoring - grafana, prometheus, loki,<br/>promtail, cadvisor, node-exporter"]
-        APPSG["apps - portal-next, portal-files, bothy-socket-proxy"]
+        APPSG["apps - bothy-web, bothy-files, bothy-socket-proxy"]
         DATAG["data - postgres plus its exporter - not routed"]
         PROJ["project containers<br/>e.g. cvops-nginx, cvops-garage"]
     end

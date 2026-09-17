@@ -16,7 +16,7 @@ intent**. It sees "not running" and cannot tell *somebody stopped this* from
 
 ## It is `project.dev.yml`, and it is YAML
 
-Not TOML. The two `.toml` files on the box - `apps/portal-files/policy.toml` and
+Not TOML. The two `.toml` files on the box - `apps/bothy-files/policy.toml` and
 `apps/bothy-config/policy.toml` - are **access policy** for those services and
 have nothing to do with declaring a project. Do not conflate them; they are
 covered in [The files you will actually edit](configuring.md).
@@ -134,7 +134,7 @@ its PID - because the state alone is not actionable.
 ## How it runs
 
 ```
-~/projects/**/project.dev.yml  ->  collect.py  ->  portal-next/data/projects.json
+~/projects/**/project.dev.yml  ->  collect.py  ->  bothy-web/data/projects.json
       (intent)                   (host truth)            (rendered)
 ```
 
@@ -146,8 +146,8 @@ data every 10 seconds, so a project starting or stopping surfaces while you are
 still looking at the page.
 
 ```sh
-systemctl --user status portal-collector.timer
-python3 apps/portal-collector/collect.py    # run once by hand; prints a table on a tty
+systemctl --user status bothy-collector.timer
+python3 apps/bothy-collector/collect.py    # run once by hand; prints a table on a tty
 ```
 
 `projects.json` is written atomically, because the console must never read a
@@ -165,4 +165,4 @@ every total.
 
 - [Adding a service to the stack](services.md) - the other half: things Bothy itself runs
 - [Operating it from the console](the-console.md) - where a declared project appears, and what you may do to it
-- [`apps/portal-collector/README.md`](../../apps/portal-collector/README.md) - the reference for all of the above
+- [`apps/bothy-collector/README.md`](../../apps/bothy-collector/README.md) - the reference for all of the above

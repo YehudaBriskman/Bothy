@@ -7,7 +7,7 @@ never trust `origin/main` to describe it** - see [lessons.md](lessons.md)._
 ## The front door - since 2026-08-12: direct ports, Traefik for the portal only
 
 Primary access is **published ports on the tailnet IP** (table in [access.md](access.md)).
-**Traefik v3.7** (`edge/`) still owns :80, but only for the portal (now **portal-next** -
+**Traefik v3.7** (`edge/`) still owns :80, but only for the portal (now **bothy-web** -
 the old `portal` container is `traefik.enable=false`) via its prio-1 fallback router,
 plus the prio-100 Host-less `Path()` routers for `/-/api/{traefik,docker,loki,prom}/*`.
 
@@ -22,17 +22,17 @@ The router table, verified 2026-08-12:
 
 | Router | Rule | Priority |
 |---|---|---|
-| `portal-api-docker@file` | 2 exact `Path()`s under `/-/api/docker/` | 100 |
-| `portal-api-loki@file` | 2 exact `Path()`s under `/-/api/loki/` | 100 |
-| `portal-api-prom@file` | 2 exact `Path()`s under `/-/api/prom/` | 100 |
-| `portal-api-traefik@file` | 4 exact `Path()`s under `/-/api/traefik/` | 100 |
-| `portal-next-fallback@docker` | `PathPrefix(/)` - the catch-all | 1 |
+| `bothy-api-docker@file` | 2 exact `Path()`s under `/-/api/docker/` | 100 |
+| `bothy-api-loki@file` | 2 exact `Path()`s under `/-/api/loki/` | 100 |
+| `bothy-api-prom@file` | 2 exact `Path()`s under `/-/api/prom/` | 100 |
+| `bothy-api-traefik@file` | 4 exact `Path()`s under `/-/api/traefik/` | 100 |
+| `bothy-web-fallback@docker` | `PathPrefix(/)` - the catch-all | 1 |
 | `prometheus@internal` | `PathPrefix(/metrics)` on the internal `:8899` entrypoint | - |
 | `ping@internal` | `PathPrefix(/ping)` on the same `:8899` entrypoint (healthcheck, 2026-09-17) | - |
 
 **The Traefik dashboard was deleted in the same change** because it was leaking a
 credential: `--api.dashboard=true` became `--api=true`. The API must stay on - the
-four `portal-api-traefik` paths use `service: api@internal` - but it is no longer
+four `bothy-api-traefik` paths use `service: api@internal` - but it is no longer
 browsable. Full write-up in [lessons.md](lessons.md).
 
 **GitHub SSO (oauth2-proxy) is PARKED** - container down, `edge/dynamic/auth.yml`
@@ -70,9 +70,9 @@ hostname-nesting logic is retained but is effectively dormant.
 |---|---|
 | `edge/dynamic` bind mount goes **stale after `git checkout`** | Bind mounts pin the inode; checkout recreates the dir. Traefik then serves an old in-memory config while `watch=true` silently does nothing. **After any branch switch:** `docker compose -f edge/compose.yml up -d --force-recreate` |
 | `docker compose` does **not** read `~/stacks/.env` | Only `just` loads it (`set dotenv-load`). Direct compose: `set -a; . ./.env; set +a` first - otherwise "required variable missing" |
-| `portal-next-fallback` returns **200 for any request on :80** | Since 2026-08-12 it is the *only* non-API router, so **every** path and hostname returns the portal page. A 200 proves Traefik is alive and nothing else - verify on the service's own port, and check bytes as well as code |
+| `bothy-web-fallback` returns **200 for any request on :80** | Since 2026-08-12 it is the *only* non-API router, so **every** path and hostname returns the portal page. A 200 proves Traefik is alive and nothing else - verify on the service's own port, and check bytes as well as code |
 | A `Host()` rule you add today registers as `enabled` and matches **nothing** | There is no name layer left. Publish a port; if you truly need a route, use a host-less exact `Path()` (`edge/dynamic/project.example.yml`) |
-| The `POST` protection on the docker API is in the **socket-proxy env** (`POST: 0`), not in the `Path()` rules | The comment in `portal-api.yml` claiming otherwise was corrected; don't trim the env block |
+| The `POST` protection on the docker API is in the **socket-proxy env** (`POST: 0`), not in the `Path()` rules | The comment in `bothy-api.yml` claiming otherwise was corrected; don't trim the env block |
 | A headers middleware puts the secret **into the config**, where any admin-API dump serves it | This is what leaked a Prometheus credential on 2026-08-12 ([lessons.md](lessons.md)). Audit the proxy's own `/api/*` before injecting auth headers |
 | oauth2-proxy image is **distroless** | No shell → any docker healthcheck on it hangs in `starting` forever. It has none, on purpose |
 | `--skip-provider-button` + Traefik `errors` middleware | Incompatible (CSRF cookie dropped) - don't re-add the flag |

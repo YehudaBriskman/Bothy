@@ -5,7 +5,7 @@
     POST /control/stop      {"container": "grafana"}
     POST /control/start     {"container": "grafana"}
 
-The response shape is `ActionResult` in apps/portal-next/web/src/lib/actions.ts,
+The response shape is `ActionResult` in apps/bothy-web/web/src/lib/actions.ts,
 which was written before either side of it existed and is the contract this file
 satisfies rather than one it proposes:
 
@@ -20,7 +20,7 @@ client cannot compute for itself.
 
 ── no third-party dependencies ──────────────────────────────────────────────
 
-Standard library only, on portal-files' reasoning rather than by preference.
+Standard library only, on bothy-files' reasoning rather than by preference.
 That service refuses dependencies because it holds read-write mounts on two git
 repositories; this one refuses them because it holds a path to the Docker
 daemon, which is the same argument with a higher ceiling. A dependency here is

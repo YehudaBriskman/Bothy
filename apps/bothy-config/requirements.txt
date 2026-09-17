@@ -1,6 +1,6 @@
 # THE dependency, and the reason this is a separate service.
 #
-# apps/portal-files/app.py has no third-party dependencies at all, on purpose:
+# apps/bothy-files/app.py has no third-party dependencies at all, on purpose:
 # "this container holds read-write bind mounts on two git repositories, and every
 # dependency is something that can ship a vulnerability into that position".
 # A YAML parser is a dependency, so the parser lives here instead - with one

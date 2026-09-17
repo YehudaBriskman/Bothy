@@ -50,7 +50,7 @@ See [CHECKLIST.md § 31](../CHECKLIST.md#31-governance).
 - **Retired-not-deleted** is an established precedent here: a knowledge-base
   document that stopped being true was marked retired and turned into the manual
   for re-enabling what it described, rather than being removed.
-- **The predecessor to this tree**, `apps/portal-next/DESIGN_BRIEF.md`, was a
+- **The predecessor to this tree**, `apps/bothy-web/DESIGN_BRIEF.md`, was a
   one-off orchestration contract for a parallel rebuild. Its token list went stale
   - it names tokens and components that were renamed or deleted - which is
   precisely the failure this governance section exists to prevent. It is marked

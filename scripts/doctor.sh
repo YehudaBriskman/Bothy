@@ -42,9 +42,9 @@ echo "== containers =="
 # start/stop/restart and the service pages read logs from Loki, so both were
 # stopped. Their compose file is kept - if you start them again, put them back
 # here, because a health check that does not know about a service you rely on is
-# worse than one that reports it missing. `portal-files` took its slot: it is
+# worse than one that reports it missing. `bothy-files` took its slot: it is
 # the editor tier, it has no published port, and a health sweep that cannot see
-# the one service that can WRITE to the repos is missing the thing worth watching. `portal-next` is the LIVE portal
+# the one service that can WRITE to the repos is missing the thing worth watching. `bothy-web` is the LIVE portal
 # and the only one - the retired nginx `portal` was deleted on 2026-08-17, and
 # the socket proxy it used to own moved to apps/bothy/ on 2026-08-18. The proxy
 # is not in this list at all; it is checked below, for the reason given there.
@@ -52,7 +52,7 @@ echo "== containers =="
 # as idle. Leaving them here made `just doctor` report five phantom absences,
 # which is the fastest way to teach someone to ignore the health check.
 # keycloak/oauth2-proxy are the identity layer added the same day.
-expected="traefik oauth2-proxy keycloak prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portal-next portal-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
+expected="traefik oauth2-proxy keycloak prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter bothy-web bothy-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"

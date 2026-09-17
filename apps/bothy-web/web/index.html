@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bothy</title>
+    <meta name="description" content="A self-discovering console for one machine: containers, ports, routes, metrics and files - found by asking Docker, and reported honestly." />
+
+    <!-- Icons. The SVG is the real one and every current desktop browser
+         prefers it; the PNGs exist because iOS home-screen icons and the PWA
+         manifest still cannot take an SVG. All of them are generated from ONE
+         set of coordinates - see scripts/gen-icons.py, which is also the only
+         way to regenerate the PNGs on a box with no ImageMagick. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <!-- Paints the browser/OS chrome around the page (Android address bar, iOS
+         status bar in standalone mode). One tag, rewritten at runtime from the
+         resolved --bg by lib/theme.tsx.
+
+         It used to be two tags keyed on prefers-color-scheme. That was already
+         wrong for anyone who had PINNED a theme against their OS - the page went
+         light and the address bar stayed dark - and it cannot express a named
+         theme at all. This value is only the pre-paint default. -->
+    <meta name="theme-color" content="#09090b" />
+    <!-- Stamp the resolved theme BEFORE first paint. index.css carries one light
+         palette keyed on [data-theme='light'] (no prefers-color-scheme copy to
+         drift out of sync), so without this a 'system' user on a light desktop
+         would see a dark frame until React mounted. Kept deliberately tiny and
+         duplicated from lib/theme.tsx - an import would defeat the purpose.
+
+         IT DELIBERATELY CARRIES NO LIST OF THEMES. A named theme's appearance is
+         read back from localStorage, written there by the app when the theme was
+         chosen, so adding a theme never means editing this script - which is the
+         one edit that would also force the CSP hash in nginx.conf to be
+         regenerated. The two BUILT-IN ids are known here because they are the
+         base palettes in index.css itself, not because this is a registry.
+
+         Editing this script at all means updating that hash; checks/csp_hash.mjs
+         fails the build otherwise. -->
+    <!-- The portal-theme* keys keep their pre-rename names ON PURPOSE: renaming them would wipe saved themes. -->
+    <script>
+      (function () {
+        var e = document.documentElement;
+        try {
+          var sel = localStorage.getItem('portal-theme') || 'bothy-dark';
+          if (sel === 'dark') sel = 'bothy-dark';
+          if (sel === 'light') sel = 'bothy-light';
+          var app;
+          if (sel === 'system') {
+            app = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            sel = app === 'dark' ? 'bothy-dark' : 'bothy-light';
+          } else if (sel === 'bothy-light') {
+            app = 'light';
+          } else if (sel === 'bothy-dark') {
+            app = 'dark';
+          } else {
+            app = localStorage.getItem('portal-theme-appearance') === 'light' ? 'light' : 'dark';
+          }
+          e.setAttribute('data-theme', app);
+          e.setAttribute('data-bothy-theme', sel);
+          // A USER theme's stylesheet is not in the bundle - it is a file in
+          // /data/themes on the box - so it has to be requested, and requesting
+          // it here rather than after React mounts is the difference between a
+          // correct first frame and a flash of the base palette.
+          //
+          // The flag is written by lib/theme.tsx when the theme was chosen. This
+          // script cannot work it out: telling a bundled `tokyo-night` from a
+          // user `tokyo-night` needs the registry, and putting the registry here
+          // would mean regenerating the CSP hash every time a theme is added.
+          if (localStorage.getItem('portal-theme-is-user') === '1') {
+            var l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.setAttribute('data-bothy-user-theme', sel);
+            l.href = '/data/themes/' + encodeURIComponent(sel) + '.css';
+            document.head.appendChild(l);
+          }
+        } catch (err) {
+          e.setAttribute('data-theme', 'dark');
+          e.setAttribute('data-bothy-theme', 'bothy-dark');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -205,7 +205,7 @@ services:
       # claims live in its own project.dev.yml, and nothing reconciles the two.
       # Before publishing a host port, check BOTH:
       #   ss -ltn | grep :<port>
-      #   python3 -c "import json;d=json.load(open('apps/portal-next/data/projects.json'));print(sorted({s['port'] for p in d['projects'] for s in p['services'] if s.get('port')}))"
+      #   python3 -c "import json;d=json.load(open('apps/bothy-web/data/projects.json'));print(sorted({s['port'] for p in d['projects'] for s in p['services'] if s.get('port')}))"
       # Claimed today: 5000, 5400, 8083, 8084.
       - "8090:8080"
     volumes:

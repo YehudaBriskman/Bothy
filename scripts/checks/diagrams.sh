@@ -39,7 +39,7 @@
 #     was left behind, which is how a picture nothing generates any more ends up
 #     being maintained by hand.
 #
-# apps/portal-files/policy.toml flags **/*.svg as `caution` on write, which is
+# apps/bothy-files/policy.toml flags **/*.svg as `caution` on write, which is
 # right for an SVG somebody might hand-edit and exactly wrong for these: they are
 # machine output. This check is what makes that safe to ignore for these seven -
 # a hand edit to the SVG does not change the recorded hash, but any hand edit to

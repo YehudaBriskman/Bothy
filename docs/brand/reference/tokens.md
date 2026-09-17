@@ -1,6 +1,6 @@
 # Token reference
 
-_Status as of 2026-08-10. Transcribed from `apps/portal-next/web/src/index.css`,
+_Status as of 2026-08-10. Transcribed from `apps/bothy-web/web/src/index.css`,
 which is the source of truth - where this table and that file disagree, the file
 is right and this page is stale._
 

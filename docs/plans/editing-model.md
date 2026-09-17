@@ -46,7 +46,7 @@ computes new file bytes and hands them to the one that exists.
 |---|---|---|
 | `edge/compose.yml` | 174 | 124 (**71%**) |
 | `auth/compose.yml` | 459 | 299 (**65%**) |
-| `apps/portal-files/compose.yml` | 112 | 70 (**62%**) |
+| `apps/bothy-files/compose.yml` | 112 | 70 (**62%**) |
 | all `compose.yml` files | 1,485 | 754 (**50%**) |
 
 Those comments are not decoration. The README's pitch is literally "every
@@ -67,12 +67,12 @@ So, two hard requirements on any config writer:
   first, before any field is editable: load, change nothing, write, `diff`. If
   that is not empty, nothing else is safe to build.
 
-There is a second-order consequence. `apps/portal-files` states, at the top of
+There is a second-order consequence. `apps/bothy-files` states, at the top of
 `app.py`, that it has **no third-party dependencies** - "this container holds
 read-write bind mounts on two git repositories, and every dependency is something
 that can ship a vulnerability into that position". A YAML round-tripper is a
 third-party dependency. **So the config tier is a separate service** from the
-file tier, exactly as the action tier will be: `portal-files` keeps its property,
+file tier, exactly as the action tier will be: `bothy-files` keeps its property,
 and the thing that needs a parser carries the parser and its own smaller mount.
 
 ---
@@ -231,7 +231,7 @@ decides, exactly as it does now.
 Rename a project from the UI, end to end:
 
 1. `/-/api/me` so the page knows the user holds `editor`.
-2. A config service (separate from `portal-files`, carrying the round-trip
+2. A config service (separate from `bothy-files`, carrying the round-trip
    parser) with a byte-identity no-op test as its first check.
 3. `policy` declaring exactly one patchable field: `dev.portal.project`.
 4. A form on the system page. Writes through the existing write chain: resolve,

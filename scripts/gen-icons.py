@@ -40,7 +40,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PUBLIC = ROOT / "apps/portal-next/web/public"
+PUBLIC = ROOT / "apps/bothy-web/web/public"
 
 # (source svg, output png, pixel size). Sizes are the manifest's, plus the one
 # Apple asks for.
