@@ -1,6 +1,6 @@
-# What bothy-kube may be asked to do. DATA, not capability.
+# What bothy-ops' cluster half may be asked to do (bothy-kube until 2026-09). DATA, not capability.
 #
-# Every id here must have a hand-written handler in app.py (HANDLERS), and every
+# Every id here must have a hand-written handler in kube.py (HANDLERS), and every
 # handler must be declared here - the service refuses to start otherwise
 # (guard.check_handlers). Adding a table below does nothing on its own.
 #
@@ -18,7 +18,7 @@
 # params.<name>: type = "int" | "bool" | "name"; ints need min and max.
 #
 # THE SAME IDS appear three more times, and checks/ asserts all four agree:
-#   edge/dynamic/bothy-kube.yml     one exact Path() router per id, with the
+#   edge/dynamic/bothy-ops.yml      one exact Path() router per id, with the
 #                                   middleware matching `role`
 #   k8s/rbac/bothy-kube.yaml        the verbs the handlers actually need
 #   web/src/lib/kube-actions.ts     KUBE_CATALOG, what the dialog offers
