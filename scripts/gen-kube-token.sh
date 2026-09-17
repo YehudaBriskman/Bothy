@@ -107,6 +107,6 @@ probe() { # expect verb resource namespace-or-dash
   printf '  %-4s %-16s %-36s %-16s %s\n' "$got" "$2" "$label" "$4" "$([ "$got" = "$1" ] && echo ok || echo 'UNEXPECTED')"
   [ "$got" = "$1" ] || fail=1
 }
-# shellcheck source=lib/bothy-kube-probes.sh
+# shellcheck source=scripts/lib/bothy-kube-probes.sh
 . "$root/scripts/lib/bothy-kube-probes.sh"
 exit $fail

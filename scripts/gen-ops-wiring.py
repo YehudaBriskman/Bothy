@@ -373,7 +373,8 @@ def _row(expect: str, verb: str, res: str, ns: str) -> str:
 
 
 def gen_probes(cat: guard.Catalog) -> str:
-    rows = [f"# {STAMP}",
+    rows = ["# shellcheck shell=bash",
+            f"# {STAMP}",
             "#",
             "# Sourced by scripts/gen-kube-token.sh, which defines",
             "#   probe <expect yes|no> <verb> <resource[/name]> <namespace or - for cluster scope> [--<subresource>]",
