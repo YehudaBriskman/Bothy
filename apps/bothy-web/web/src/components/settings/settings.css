@@ -1,0 +1,370 @@
+/* ============================================================================
+   The Settings area - a two-region shell (grouped nav | body) and the setting
+   block. Scoped under .set-shell at (0,2,0) or better so it beats index.css's
+   single-class utilities regardless of emission order - the reason
+   pages/control/control.css gives. pages/Settings.css still styles the pieces
+   that moved in with the old page (roles, theme cards, reading size), under
+   .settings-page, which the body carries.
+   ========================================================================== */
+
+/* ── the shell: a fixed-height section, every region scrolls itself ──────────
+   The ControlShell recipe, for the same reasons written there: the page does not
+   scroll, the nav cannot slide under the topbar, and no height is measured. */
+.shell:has(.set-shell) { height: 100dvh; min-height: 0; overflow: hidden; }
+.shell:has(.set-shell) .content {
+  max-width: none; padding: 0; min-height: 0;
+  display: grid; grid-template-rows: minmax(0, 1fr);
+}
+
+.set-shell {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  height: 100%; min-height: 0;
+}
+
+.set-shell .set-side {
+  display: flex; flex-direction: column; gap: 14px;
+  min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: 16px 12px 24px;
+  border-right: 1px solid var(--line);
+}
+
+.set-shell .set-main { min-width: 0; min-height: 0; overflow-y: auto; }
+.set-shell .set-body {
+  /* Wider than the old 820px page: users, credentials and the audit log are
+     tables. Prose inside a block still caps its own measure (.set-lede). */
+  max-width: 1080px; padding: 18px 32px 72px; gap: 14px;
+}
+.set-shell .settings-page { max-width: 1080px; gap: 14px; }
+
+/* ── the nav ─────────────────────────────────────────────────────────────── */
+.set-nav-list { display: flex; flex-direction: column; gap: 14px; }
+.set-nav-group { display: flex; flex-direction: column; gap: 1px; }
+.set-nav-list .set-nav-gh {
+  margin: 0 0 4px; padding: 0 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.set-nav-list .set-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: var(--r-sm);
+  color: var(--fg-muted); font-size: 13.5px; font-weight: 600;
+  position: relative; min-width: 0;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.set-nav-list .set-nav-item:hover { background: var(--surface-2); color: var(--fg); }
+.set-nav-list .set-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.set-nav-list .set-nav-item .set-ico { flex: none; opacity: .85; }
+.set-nav-list .set-nav-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+/* "You are here" is a statement: a leading bar and a weight, never a filled
+   button. The accent is chrome, used for position only. */
+.set-nav-list .set-nav-item.on { color: var(--fg); background: var(--surface-2); }
+.set-nav-list .set-nav-item.on .set-ico { opacity: 1; }
+.set-nav-list .set-nav-item.on::before {
+  content: ''; position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 2px; border-radius: 0 2px 2px 0; background: var(--accent);
+}
+/* The role a page's data needs. A word, in the quiet text colour - not a badge
+   colour, because it describes a requirement, not a state. */
+.set-nav-list .set-nav-needs {
+  flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--fg-subtle);
+}
+
+/* ── search ──────────────────────────────────────────────────────────────── */
+.set-search { position: relative; }
+.set-search .set-search-box { position: relative; }
+.set-search .set-search-ico { position: absolute; left: 10px; top: 50%; translate: 0 -50%; color: var(--fg-subtle); pointer-events: none; }
+.set-search .set-search-in {
+  width: 100%; font: inherit; font-size: 13px; color: var(--fg);
+  background: var(--surface-1); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  padding: 7px 10px 7px 30px; min-height: 34px;
+}
+.set-search .set-search-in::placeholder { color: var(--fg-subtle); }
+.set-search .set-search-in:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.set-search .set-search-list {
+  position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 6px);
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--surface-4); border: 1px solid var(--line-strong); border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg); max-height: min(60vh, 420px); overflow-y: auto;
+  width: max(100%, 320px);
+}
+.set-search .set-search-opt {
+  display: flex; gap: 9px; align-items: flex-start; padding: 8px 9px; border-radius: var(--r-sm); cursor: pointer;
+}
+.set-search .set-search-opt .set-ico { margin-top: 2px; flex: none; color: var(--fg-subtle); }
+.set-search .set-search-opt.on { background: var(--surface-3); }
+.set-search .set-search-txt { display: flex; flex-direction: column; min-width: 0; }
+.set-search .set-search-t { font-size: 13px; font-weight: 600; color: var(--fg); }
+.set-search .set-search-s {
+  font-size: 12px; color: var(--fg-muted); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.set-search .set-search-none { padding: 10px; font-size: 12.5px; color: var(--fg-muted); }
+
+/* ── crumbs and head ─────────────────────────────────────────────────────── */
+.set-shell .set-crumbs ol {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px;
+  font-size: 12.5px; color: var(--fg-subtle);
+}
+.set-shell .set-crumbs li + li::before { content: '›'; margin-right: 6px; color: var(--fg-subtle); }
+.set-shell .set-crumbs a { color: var(--fg-muted); }
+.set-shell .set-crumbs a:hover { color: var(--fg); text-decoration: underline; }
+.set-shell .set-crumbs [aria-current='page'] { color: var(--fg); font-weight: 600; }
+.set-shell .set-head { margin: 2px 0 6px; }
+.set-shell .set-head h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.set-shell .set-head-lede { margin: 4px 0 0; max-width: 72ch; font-size: 13.5px; line-height: 1.55; color: var(--fg-muted); }
+
+/* ── the block ───────────────────────────────────────────────────────────── */
+.set-shell .set-block {
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+  scroll-margin-top: 16px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+/* Arriving from the search: the block says "this one" for a moment. A border
+   and a ring in the accent - position, not state. */
+.set-shell .set-block.is-target { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-bg); }
+.set-shell .set-block-h {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 14px 16px;
+}
+.set-shell .set-block.is-open .set-block-h { border-bottom: 1px solid var(--line); }
+.set-shell .set-block-ht { min-width: 0; }
+.set-shell .set-block-title {
+  margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--fg);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.set-shell .set-block-desc { margin: 3px 0 0; font-size: 13px; line-height: 1.5; color: var(--fg-muted); max-width: 72ch; }
+.set-shell .set-badge {
+  font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--fg-subtle);
+  border: 1px solid var(--line-strong); border-radius: var(--r-full); padding: 1px 8px; white-space: nowrap;
+}
+.set-shell .set-block-toggle { flex: none; }
+.set-shell .set-block-chev { transition: rotate var(--dur) var(--ease); }
+.set-shell .set-block.is-open .set-block-chev { rotate: 180deg; }
+.set-shell .set-block-b { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* The save bar - only drawn while a block has a draft. */
+.set-shell .set-save {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin: 4px -16px -16px; padding: 10px 16px;
+  background: var(--surface-2); border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.set-shell .set-save-note { margin: 0; font-size: 12.5px; color: var(--fg-muted); }
+.set-shell .set-save-btns { display: flex; gap: 8px; margin-left: auto; }
+
+/* ── shared bits ─────────────────────────────────────────────────────────── */
+.set-shell .btn.sm { padding: 5px 11px; font-size: 12.5px; border-radius: var(--r-sm); min-height: 30px; }
+.set-shell .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.set-shell .btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
+.set-shell .btn:disabled:hover { border-color: var(--line-strong); }
+.set-shell .set-lede { margin: 0; max-width: 78ch; font-size: 13.5px; line-height: 1.55; color: var(--fg-muted); }
+.set-shell .set-note { display: block; margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--fg-subtle); max-width: 80ch; }
+.set-shell .set-empty { margin: 0; font-size: 13.5px; color: var(--fg-muted); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.set-shell .set-empty p { margin: 0; }
+.set-shell .set-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.set-shell .set-actions .set-note { flex: 1 1 240px; }
+.set-shell .set-skel .skel { border-radius: var(--r-sm); }
+.set-shell .kv-list { gap: 11px 16px; }
+.set-shell .kv-v .set-note { margin-top: 2px; }
+
+.set-shell .set-refusal {
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+  padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: var(--r-md);
+  background: var(--bg-2); font-size: 13.5px; color: var(--fg-muted);
+}
+.set-shell .set-refusal p { margin: 0; max-width: 80ch; line-height: 1.55; }
+.set-shell .set-refusal b { color: var(--fg); }
+
+.set-shell .set-cmd {
+  display: inline-flex; align-items: center; gap: 2px; max-width: 100%;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-xs);
+  padding: 0 0 0 6px; margin: 1px 2px; vertical-align: middle;
+}
+.set-shell .set-cmd code { font-size: 12px; color: var(--fg); overflow-wrap: anywhere; }
+.set-shell .set-cmd-copy {
+  appearance: none; border: 0; background: transparent; color: var(--fg-subtle); cursor: pointer;
+  display: grid; place-items: center; width: 26px; height: 24px; border-radius: var(--r-xs); flex: none;
+}
+.set-shell .set-cmd-copy:hover { color: var(--fg); background: var(--surface-3); }
+.set-shell .set-cmd-copy:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* Choices: real radio inputs, laid out as cards. The input stays visible - a
+   hidden radio is a keyboard trap waiting for a stylesheet to fail. */
+.set-shell .set-choice { border: 0; margin: 0; padding: 0; min-width: 0; }
+.set-shell .set-choice-l { padding: 0; margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--fg-muted); }
+.set-shell .set-choice-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.set-shell .set-opt {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 9px; align-items: start;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface-2); cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.set-shell .set-opt:hover { border-color: var(--line-strong); background: var(--surface-3); }
+.set-shell .set-opt.on { border-color: var(--accent-line); background: var(--accent-bg); }
+.set-shell .set-opt input { margin: 2px 0 0; accent-color: var(--accent); grid-row: span 2; }
+.set-shell .set-opt input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.set-shell .set-opt-t { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+.set-shell .set-opt-h { font-size: 12px; line-height: 1.45; color: var(--fg-muted); }
+
+.set-shell .set-checks { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.set-shell .set-check {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 9px; align-items: start;
+  padding: 6px 2px; cursor: pointer;
+}
+.set-shell .set-check input { margin: 3px 0 0; accent-color: var(--accent); grid-row: span 2; }
+.set-shell .set-check-t { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+.set-shell .set-check-h { font-size: 12.5px; color: var(--fg-muted); }
+.set-shell .set-check-inline { display: inline-grid; padding: 0; }
+.set-shell .set-check-inline input { grid-row: auto; margin-top: 3px; }
+
+.set-shell .set-font-sample {
+  margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  font-size: 16px; line-height: 1.6; color: var(--fg); background: var(--bg-2);
+}
+.set-shell .set-font-sample.is-serif { font-family: var(--font-serif); }
+.set-shell .set-accent-demo { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 13px; }
+.set-shell .set-accent-ring { padding: 4px 10px; border-radius: var(--r-sm); outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ── tables inside blocks ────────────────────────────────────────────────── */
+.set-shell .set-tbl { border: 1px solid var(--line); border-radius: var(--r-md); max-height: none; }
+.set-shell .set-tbl-scroll { max-height: min(62vh, 640px); }
+.set-shell .set-tbl.is-loading { opacity: .6; }
+.set-shell .set-tbl .tbl { font-size: 13px; }
+.set-shell .set-tbl .tbl th {
+  position: sticky; top: 0; z-index: 1; background: var(--surface-2);
+  font-size: 12px; white-space: nowrap; border-bottom: 1px solid var(--line);
+}
+.set-shell .set-tbl .tbl td { vertical-align: top; padding-top: 8px; padding-bottom: 8px; }
+html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; padding-bottom: 4px; }
+.set-shell .tbl .num { text-align: right; }
+.set-shell .set-cell-sub { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.4; color: var(--fg-subtle); font-weight: 400; }
+.set-shell .set-cell-act { text-align: right; white-space: nowrap; width: 1%; }
+.set-shell .set-wrap { overflow-wrap: anywhere; }
+.set-shell .set-nowrap { white-space: nowrap; }
+.set-shell .set-tbl-note { margin-top: -4px; }
+.set-shell .set-tbl-sep td {
+  background: var(--bg-2); font-size: 11.5px; font-weight: 600; color: var(--fg-subtle);
+  padding-top: 6px; padding-bottom: 6px;
+}
+.set-shell .tnum, .set-shell .num { font-variant-numeric: tabular-nums; }
+
+/* A warning is STATE, so the reserved palette is legal - and it always rides
+   with a glyph and a word, never colour alone. */
+.set-shell .set-warn { color: var(--st-warn-fg); display: inline-flex; align-items: center; gap: 4px; }
+.set-shell .set-state { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.set-shell .set-key { font-weight: 600; overflow-wrap: anywhere; }
+.set-shell .set-rotate { min-width: 220px; font-size: 12.5px; line-height: 1.6; color: var(--fg-muted); }
+.set-shell .set-fresh {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0;
+  font-size: 12.5px; color: var(--fg-subtle);
+}
+.set-shell .set-fresh.is-stale { color: var(--st-warn-fg); }
+
+.set-shell .set-match {
+  display: inline-block; margin: 0 4px 3px 0; padding: 1px 6px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-xs); font-size: 12px;
+}
+.set-shell .set-pill { padding: 1px 6px; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-xs); }
+.set-shell .set-input {
+  font: inherit; font-size: 13px; color: var(--fg); width: 100%; min-width: 0; min-height: 30px;
+  background: var(--surface-1); border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 4px 8px;
+}
+.set-shell .set-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.set-shell .set-input[aria-invalid='true'] { border-color: var(--st-down-line); }
+.set-shell .set-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.set-shell .set-field-l { font-size: 11.5px; font-weight: 600; color: var(--fg-subtle); }
+.set-shell .set-edit-row td { background: var(--surface-2); }
+.set-shell .set-edit-btns { display: flex; gap: 6px; justify-content: flex-end; }
+.set-shell .set-edit-msg { margin: 6px 0 0; font-size: 12px; white-space: normal; text-align: left; color: var(--fg-muted); max-width: 260px; }
+.set-shell .set-edit-msg.is-err { color: var(--st-down-fg); }
+
+.set-shell .set-role-h { text-align: center; font-size: 11.5px; }
+.set-shell .set-role-cell { text-align: center; }
+.set-shell .set-role-cell[data-held='yes'] { color: var(--st-up-fg); }
+.set-shell .set-role-cell[data-held='no'] { color: var(--fg-subtle); }
+.set-shell .set-role-id { min-width: 72px; font-weight: 700; color: var(--fg); }
+
+.set-shell .set-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.set-shell .set-toolbar .set-lede { flex: 1 1 280px; }
+.set-shell .set-subsection { display: flex; flex-direction: column; gap: 8px; }
+.set-shell .set-h3 { margin: 4px 0 0; font-size: 13.5px; font-weight: 700; color: var(--fg); font-family: var(--mono); }
+.set-shell .set-h3-sub { font-family: var(--font); font-weight: 400; font-size: 12px; color: var(--fg-subtle); margin-left: 6px; }
+
+.set-shell .set-filters { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.set-shell .set-filters .set-field { width: 180px; }
+.set-shell .set-seg { flex-wrap: wrap; }
+.set-shell .set-pager { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.set-shell .set-pager .set-note { margin-right: auto; }
+.set-shell .set-outcome { font-size: 12px; font-weight: 600; }
+.set-shell .set-outcome.is-bad { color: var(--st-down-fg); }
+.set-shell .set-detail { max-width: 360px; color: var(--fg-muted); }
+
+.set-shell .set-docs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.set-shell .set-doc {
+  display: flex; flex-direction: column; gap: 3px; height: 100%;
+  padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+}
+.set-shell .set-doc:hover { border-color: var(--accent-line); background: var(--accent-bg); }
+.set-shell .set-doc:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.set-shell .set-doc-t { font-size: 13.5px; font-weight: 700; color: var(--accent-fg); }
+.set-shell .set-doc-d { font-size: 12.5px; color: var(--fg-muted); line-height: 1.45; }
+
+/* The roles list moved in from the old page; inside a block it needs no top
+   padding of its own. */
+.set-shell .roles { margin: 0; }
+
+/* ── the mobile bar and drawer ───────────────────────────────────────────── */
+.set-shell .set-mobile-bar { display: none; }
+
+.set-drawer-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+}
+.set-drawer {
+  position: fixed; z-index: 91; top: 0; bottom: 0; left: 0;
+  width: min(320px, 88vw);
+  display: flex; flex-direction: column;
+  background: var(--surface-4); border-right: 1px solid var(--line-strong); box-shadow: var(--shadow-lg);
+  animation: set-drawer-in var(--dur) var(--ease);
+}
+.set-drawer:focus-visible { outline: none; }
+.set-drawer .set-drawer-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 12px 10px 16px; border-bottom: 1px solid var(--line);
+}
+.set-drawer .set-drawer-title { margin: 0; font-size: 15px; font-weight: 700; }
+.set-drawer .set-drawer-x { width: 36px; height: 36px; }
+.set-drawer .set-drawer-body { min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+@keyframes set-drawer-in { from { translate: -24px 0; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+
+@media (max-width: 900px) {
+  .shell:has(.set-shell) { height: auto; min-height: 100vh; overflow: visible; }
+  .shell:has(.set-shell) .content { display: block; padding: 0 0 60px; }
+  .set-shell { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .set-shell .set-side { display: none; }
+  .set-shell .set-main { overflow: visible; }
+  .set-shell .set-mobile-bar {
+    display: flex; align-items: center; gap: 10px;
+    position: sticky; top: 0; z-index: 20;
+    padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .set-shell .set-drawer-btn { min-height: 40px; }
+  .set-shell .set-mobile-here { font-size: 13.5px; font-weight: 600; color: var(--fg-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .set-shell .set-body { padding: 14px 16px 48px; }
+  .set-shell .set-head h1 { font-size: 21px; }
+  .set-shell .set-block-h { padding: 12px; gap: 10px; }
+  .set-shell .set-block-b { padding: 12px; }
+  .set-shell .set-save { margin: 4px -12px -12px; padding: 10px 12px; }
+  .set-shell .set-filters .set-field { width: calc(50% - 5px); }
+}
+@media (max-width: 560px) {
+  .set-shell .set-block-h { flex-direction: column; }
+  .set-shell .set-block-toggle { align-self: flex-start; }
+  .set-shell .set-choice-opts { grid-template-columns: minmax(0, 1fr); }
+  .set-shell .set-filters .set-field { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .set-drawer { animation: none; }
+  .set-shell .set-block-chev, .set-shell .set-block { transition: none; }
+}

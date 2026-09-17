@@ -48,6 +48,21 @@ export const ROLES: readonly Role[] = ['viewer', 'editor', 'operator', 'shell'];
 
 /** Null when signed out. Never throws for a 401 - being signed out is ordinary. */
 export async function fetchMe(signal?: AbortSignal): Promise<Me | null> {
+  // DEV ONLY - a literal `false` after a build. `vite dev` does not proxy
+  // /oauth2/*, so every dev session is signed out and the signed-in pages could
+  // not be looked at while they were built. The same console override the action
+  // dialogs already honour: localStorage['bothy-dev-roles'] = 'viewer,operator'.
+  if (import.meta.env.DEV) {
+    let raw: string | null = null;
+    try { raw = localStorage.getItem('bothy-dev-roles'); } catch { raw = null; }
+    if (raw !== null) {
+      const groups = [...raw.split(',').map((r) => r.trim()).filter(Boolean), 'default-roles-devbox'];
+      return {
+        user: '00000000-0000-4000-8000-000000000000', email: 'dev@example.com',
+        preferredUsername: 'dev', groups, roles: ROLES.filter((k) => groups.includes(k)),
+      };
+    }
+  }
   const r = await fetch('/oauth2/userinfo', {
     signal,
     headers: { Accept: 'application/json' },

@@ -63,12 +63,45 @@ const FILE = {
 const LATENCY = 260;
 const wait = () => new Promise((r) => setTimeout(r, LATENCY));
 
+// placement.yml, for Settings > Services & placement. Its own in-memory copy with
+// its own mtime, for the reason FILE above gives: one shared value would make a
+// patch here look like a drift there. Rule ids are the match lists joined, which
+// is what the service sends as `service` for a placement-rule site.
+const PLACEMENT_PATH = 'apps/bothy-collector/placement.yml';
+const PLACEMENT = {
+  mtime: 1_758_100_000,
+  sites: [
+    { service: 'project:auth', field: 'placement.section', value: 'bothy', line: 30 },
+    { service: 'project:auth', field: 'placement.subgroup', value: 'core', line: 31 },
+    { service: 'container:thales-sonarqube,container:thales-sonarqube-db', field: 'placement.section', value: 'bothy', line: 38 },
+    { service: 'container:thales-sonarqube,container:thales-sonarqube-db', field: 'placement.subgroup', value: 'helpers', line: 39 },
+    { service: 'container:thales-sonarqube,container:thales-sonarqube-db', field: 'placement.group', value: 'sonarqube', line: 40 },
+    { service: 'container:thales-sonarqube,container:thales-sonarqube-db', field: 'placement.title', value: 'SonarQube', line: 41 },
+    { service: 'k8s:monitoring', field: 'placement.section', value: 'bothy', line: 47 },
+    { service: 'k8s:monitoring', field: 'placement.subgroup', value: 'helpers', line: 48 },
+    { service: 'k8s:monitoring', field: 'placement.title', value: 'Cluster monitoring', line: 49 },
+    { service: 'project:headlamp', field: 'placement.section', value: 'bothy', line: 53 },
+    { service: 'project:headlamp', field: 'placement.subgroup', value: 'helpers', line: 54 },
+    { service: 'project:headlamp', field: 'placement.title', value: 'Headlamp', line: 55 },
+    { service: 'k8s:bothy', field: 'placement.section', value: 'bothy', line: 57 },
+    { service: 'k8s:bothy', field: 'placement.subgroup', value: 'core', line: 58 },
+    { service: 'k8s:bothy', field: 'placement.title', value: 'Bothy Kube', line: 59 },
+  ],
+};
+const PLACEMENT_FIELDS = ['dev.portal.project', 'placement.group', 'placement.section', 'placement.subgroup', 'placement.title'];
+
 export async function loadFieldsMock(root: string, path: string): Promise<FieldsResult> {
   await wait();
   const forced = read(OUTCOME_KEY);
   if (forced === 'signed-out') refuse(401, 'Unauthorized', false);
   if (forced === 'no-viewer') refuse(403, 'Forbidden', false);
   if (forced === 'silence') refuse(0, 'no answer', false);
+  if (path === PLACEMENT_PATH && forced !== 'undeclared') {
+    return {
+      root, path, mtime: PLACEMENT.mtime, patchable: PLACEMENT_FIELDS,
+      fields: PLACEMENT.sites.map((x) => ({ ...x, kind: 'placement-rule', maxLength: x.field === 'placement.title' ? 80 : 64 })),
+    };
+  }
   if (forced === 'undeclared' || path !== FILE.path) {
     return { root, path, mtime: FILE.mtime, fields: [], patchable: ['dev.portal.project'] };
   }
@@ -104,6 +137,28 @@ export async function patchFieldMock(req: PatchRequest): Promise<PatchResult> {
     // reload button in the conflict state has to be able to produce.
     FILE.value = 'Edge · Traefik (changed elsewhere)';
     FILE.mtime += 41;
+  }
+
+  if (req.path === PLACEMENT_PATH) {
+    if (req.baseMtime !== PLACEMENT.mtime) {
+      refuse(409, 'the file changed on disk since the form was loaded', true, {
+        conflict: { path: req.path, baseMtime: req.baseMtime, currentMtime: PLACEMENT.mtime, yours: req.value,
+          theirs: PLACEMENT.sites.filter((x) => x.field === req.field).map((x) => ({ field: x.field, service: x.service, value: x.value })) },
+      });
+    }
+    const site = PLACEMENT.sites.find((x) => x.field === req.field && x.service === req.service);
+    if (!site) refuse(404, `${req.field} is not declared in this file on service '${req.service}'`, true);
+    const previous = site.value;
+    const changed = previous !== req.value;
+    if (changed) { site.value = req.value; PLACEMENT.mtime += 3; }
+    return {
+      ok: true, path: req.path, field: req.field, service: site.service, value: req.value,
+      previous: changed ? previous : undefined, mtime: PLACEMENT.mtime, changed, snapshot: changed, applied: false,
+      author: 'dev@localhost',
+      appliedNote: changed
+        ? 'written to the file. The collector re-reads placement.yml on its next run (every 30 seconds), and the Overview follows on its next poll.'
+        : 'nothing changed, so nothing to apply',
+    };
   }
 
   if (req.baseMtime !== FILE.mtime) {

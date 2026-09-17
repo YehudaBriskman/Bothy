@@ -257,7 +257,7 @@ export function ThemeEditor() {
       // picker would show it selected until the next reload, which reads as the
       // delete not having worked.
       setSelection('bothy-dark');
-      nav('/settings');
+      nav('/settings/appearance');
       return;
     }
     setNotice({
@@ -282,7 +282,7 @@ export function ThemeEditor() {
     <div className="page theme-editor">
       <div className="page-head">
         <div>
-          <button type="button" className="te-back" onClick={() => nav('/settings')}>
+          <button type="button" className="te-back" onClick={() => nav('/settings/appearance')}>
             <ArrowLeft size={14} aria-hidden="true" /> Settings
           </button>
           <h1>{editing ? `Editing ${draft.name || editing}` : 'New theme'}</h1>

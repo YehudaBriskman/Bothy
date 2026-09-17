@@ -98,6 +98,13 @@ mv "$OUT/cluster.js" "$OUT/cluster-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/collapse.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/collapse.js" "$OUT/collapse.mjs"
+# The Settings registry and its per-browser preferences - both import nothing.
+(cd "$WEB" && npx tsc src/lib/settings-index.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/settings-index.js" "$OUT/settings-index.mjs"
+(cd "$WEB" && npx tsc src/lib/prefs.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/prefs.js" "$OUT/prefs.mjs"
 (cd "$WEB" && npx tsc src/lib/customThemes.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
@@ -113,7 +120,8 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
-   "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" "$OUT/"
+   "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" \
+   "$HERE/settings.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -186,6 +194,12 @@ echo "── which group state survives a reload, and under what ─"
 # from accumulating forever. Both fail silently: a key that moves loses a layout
 # with no error, and a prune given the wrong list eats live state the same way.
 node "$OUT/collapsed-groups.mjs"
+
+echo
+echo "── the Settings registry, its routes and its preferences ─"
+# lib/settings-index.ts == pages/settings/routes.tsx == each page's blocks, the
+# search, and every hand-editable preference falling back to its default.
+node "$OUT/settings.mjs" "$WEB/src"
 
 echo
 echo "── this box, right now ─────────────────────────────────"

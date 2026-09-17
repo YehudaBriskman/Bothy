@@ -6,8 +6,7 @@ import { ServiceDetail } from './pages/ServiceDetail';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { Ports, Routes as RoutesPage } from './pages/Access';
 import { Topology } from './pages/Topology';
-import { Settings } from './pages/Settings';
-import { ThemeEditor } from './pages/ThemeEditor';
+import { settingsRoutes } from './pages/settings/routes';
 import { Files } from './pages/files/Files';
 import { Reader } from './pages/files/Reader';
 import { ControlShell } from './pages/control/ControlShell';
@@ -45,13 +44,11 @@ export function App() {
           <Route path="cluster" element={<Cluster />} />
         </Route>
 
-        <Route path="settings" element={<Settings />} />
-        {/* The theme editor is its own route rather than a dialog on Settings:
-            it applies the draft to the WHOLE document as you type, so it needs
-            the page to itself, and a URL means an unfinished theme survives a
-            reload as a thing you can navigate back to. */}
-        <Route path="settings/theme/new" element={<ThemeEditor />} />
-        <Route path="settings/theme/:id" element={<ThemeEditor />} />
+        {/* Settings is a section with its own grouped nav (pages/settings/
+            routes.tsx). The theme editor's two full-page routes ride in the same
+            fragment: it applies the draft to the WHOLE document as you type, so
+            it needs the page to itself. */}
+        {settingsRoutes()}
 
         {/* Bothy Files - one nav entry, two destinations (docs/plans/
             reading-first.md §2). `/files` opens as a READER; the IDE is

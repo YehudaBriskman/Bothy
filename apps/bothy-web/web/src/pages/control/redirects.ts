@@ -45,6 +45,9 @@ export const LIVE_PATHS = [
   '/control/routes',
   '/control/topology',
   '/settings',
+  // Settings is a section since 2026-09 (pages/settings/routes.tsx); a bare
+  // /settings redirects to /settings/profile.
+  '/settings/:section',
   // Files is one nav entry and two routes since reading-first.md §2: `/files`
   // reads, `/files/edit` is the IDE. Both are listed because this array is what
   // the check tests redirect targets against - and because the moment a page

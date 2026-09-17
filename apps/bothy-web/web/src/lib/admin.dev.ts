@@ -68,9 +68,12 @@ export async function usersMock(): Promise<UsersResult> {
         lastSeenAt: ago(420),
       },
       {
-        id: '9b2e44f0-1c3d-4e5f-8a7b-6c5d4e3f2a10', username: 'service-account-bothy-admin', email: null,
-        enabled: true, emailVerified: false, createdAt: ago(3600), requiredActions: [],
-        roles: [], otherRoles: ['default-roles-devbox'], credentials: [], passwordSetAt: null,
+        // A second account worth noticing: viewer only, never signed in, and
+        // made to change its password first. Service accounts are NOT here -
+        // Keycloak leaves them out of the user list (verified against the realm).
+        id: '9b2e44f0-1c3d-4e5f-8a7b-6c5d4e3f2a10', username: 'reviewer', email: 'reviewer@example.com',
+        enabled: true, emailVerified: false, createdAt: ago(86400 * 3), requiredActions: ['UPDATE_PASSWORD'],
+        roles: ['viewer'], otherRoles: ['default-roles-devbox'], credentials: ['password'], passwordSetAt: ago(86400 * 3),
         otp: false, sessions: 0, lastSeenAt: null,
       },
     ],
