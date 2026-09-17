@@ -1,0 +1,75 @@
+# The Tals reference data Job (component catalog, aircraft and treatment types, rules),
+# as bothy-ops' run-template creates it.
+#
+# Derived from ~/projects/army/Tals/manifests/deploy/jobs/seed-reference.yaml (release
+# 0.1.7).
+# seed-reference.yaml - insert-if-absent; outside DEPLOY_ENV=dev it only fills
+# an EMPTY rules table and keeps an existing one. Running it twice is harmless.
+# (seed-scenario, which WIPES first, is deliberately not a template.)
+#
+# WHAT BOTHY CHANGES ON THE WAY IN (kube.h_run_template), and nothing else:
+#   * every container's image becomes the image the live deployment named in
+#     `bothy.dev/image-from` (deployment/container) runs now, after it passes
+#     the catalog's image_registries allowlist. The image below is a
+#     placeholder that only `kubectl create --dry-run=server` ever sees.
+#   * metadata.namespace, and the labels bothy.dev/template and
+#     app.kubernetes.io/managed-by=bothy (the Jobs tab reads the first).
+#   * the name: generateName below plus the apiserver's random suffix.
+#
+# FORMAT: JSON, which is YAML, with whole-line `#` comments. bothy-ops is
+# standard-library Python and has no YAML parser; kubectl reads this as YAML.
+# Baked into the image at build time (apps/bothy-ops/Dockerfile, the
+# `jobtemplates` build context) - a request can name a template, never send one.
+#
+# Checked 2026-09-17 against PSA restricted + the three Kyverno ClusterPolicies:
+#   kubectl --context thales-scc -n thales-pre-prod create --dry-run=server -f k8s/job-templates/thales-pre-prod/seed-reference.yaml
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "generateName": "thales-seed-reference-",
+    "labels": { "app": "seed" },
+    "annotations": { "bothy.dev/image-from": "backend/backend" }
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "activeDeadlineSeconds": 300,
+    "ttlSecondsAfterFinished": 86400,
+    "template": {
+      "metadata": { "labels": { "app": "seed" } },
+      "spec": {
+        "restartPolicy": "Never",
+        "securityContext": {
+          "runAsNonRoot": true,
+          "seccompProfile": { "type": "RuntimeDefault" }
+        },
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "name": "seed",
+            "image": "thales/backend:0.1.7",
+            "imagePullPolicy": "IfNotPresent",
+            "command": ["node", "dist/db/seed.js"],
+            "envFrom": [{ "configMapRef": { "name": "thales" } }],
+            "env": [{ "name": "SECRETS_DIR", "value": "/etc/thales/secrets" }],
+            "volumeMounts": [
+              { "name": "secrets", "mountPath": "/etc/thales/secrets", "readOnly": true }
+            ],
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": { "drop": ["ALL"] }
+            },
+            "resources": {
+              "requests": { "cpu": "100m", "memory": "256Mi", "ephemeral-storage": "64Mi" },
+              "limits": { "cpu": "1", "memory": "512Mi", "ephemeral-storage": "256Mi" }
+            }
+          }
+        ],
+        "volumes": [
+          { "name": "secrets", "secret": { "secretName": "thales", "defaultMode": 256 } }
+        ]
+      }
+    }
+  }
+}

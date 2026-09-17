@@ -12,6 +12,7 @@ import { Files } from './pages/files/Files';
 import { Reader } from './pages/files/Reader';
 import { ControlShell } from './pages/control/ControlShell';
 import { Control } from './pages/control/Control';
+import { Cluster } from './pages/control/Cluster';
 import { LEGACY_PATHS, legacyTarget } from './pages/control/redirects';
 import { GUIDE_PATH } from './pages/files/routes';
 
@@ -41,6 +42,7 @@ export function App() {
           <Route path="ports" element={<Ports />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="topology" element={<Topology />} />
+          <Route path="cluster" element={<Cluster />} />
         </Route>
 
         <Route path="settings" element={<Settings />} />

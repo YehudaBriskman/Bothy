@@ -68,6 +68,15 @@ class Handler(JsonHandler):
             return self._send(200, {"ok": True, "verbs": list(guard.VERBS),
                                     "severing": sorted(guard.SEVERING),
                                     **kube.health()})
+        if route == "/kube/catalog":
+            # What the UI draws its cluster controls from: static data out of the
+            # image, the same bytes whatever the cluster is doing - so it answers
+            # with no token and no apiserver. CSRF-checked like every other read.
+            try:
+                self.check_csrf("GET")
+            except guard.Refused as e:
+                return self._send(e.status, {"error": str(e)})
+            return self._send(200, kube.catalog_doc())
         if route.startswith("/kube/"):
             return kube.handle(self, "GET", route[len("/kube/"):])
         return self._send(404, {"error": "no such endpoint"})

@@ -87,6 +87,14 @@ mv "$OUT/kube-actions.js" "$OUT/kube-actions-mod.mjs"
 mv "$OUT/http.js" "$OUT/http.mjs"
 sed -i.bak "s#from './http';#from './http.mjs';#" "$OUT/actions-mod.mjs" "$OUT/kube-actions-mod.mjs"
 rm -f "$OUT/actions-mod.mjs.bak" "$OUT/kube-actions-mod.mjs.bak"
+# cluster.ts, the Cluster page's pure logic. It carries TYPE-only imports from
+# kube-actions.ts, which tsc erases from the output but still follows - so it
+# needs the same vite/client types, and it drops a second kube-actions.js here
+# that nothing imports (the checks use kube-actions-mod.mjs above).
+(cd "$WEB" && npx tsc src/lib/cluster.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler \
+  --types vite/client --outDir "$OUT" >/dev/null)
+mv "$OUT/cluster.js" "$OUT/cluster-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/collapse.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/collapse.js" "$OUT/collapse.mjs"
@@ -105,7 +113,7 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
-   "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$OUT/"
+   "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -150,8 +158,15 @@ node "$OUT/declared-actions.mjs"
 echo
 echo "── what a cluster workload can be acted on ─────────────"
 # lib/kube-actions.ts + lib/projects.ts: the namespace scope, the confirm levels,
-# and the collector's namespace/deployment surviving into the node.
-node "$OUT/kube-actions.mjs"
+# and the collector's namespace/deployment surviving into the node. The catalog
+# is the GENERATED fixture (scripts/gen-ops-wiring.py), not a hand copy.
+node "$OUT/kube-actions.mjs" "$WEB/src/lib/kube-catalog.dev.json"
+
+echo
+echo "── what the Cluster page draws, and for whom ───────────"
+# lib/cluster.ts: topology edges and status colours, role gating per action,
+# and the client mirrors of the ConfigMap-value and image allowlists.
+node "$OUT/cluster.mjs" "$WEB/src/lib/kube-catalog.dev.json"
 
 echo
 echo "── what a system IS vs where it is SHOWN ───────────────"

@@ -95,22 +95,18 @@ echo "wrote $out/token and $out/ca.crt (mode 600)"
 echo "bothy-ops re-reads the token on every request. If bothy-ops was started"
 echo "without the cluster overlay (no thales-scc then), run: just up-apps"
 echo
-echo "what $sa may do (must match k8s/rbac/bothy-kube.yaml):"
+echo "what $sa may do (the rows are GENERATED from apps/bothy-ops/catalog.toml"
+echo "into scripts/lib/bothy-kube-probes.sh - every granted verb, then the refusals):"
 fail=0
-probe() { # expect verb resource namespace
-  local got
-  got="$("${kc[@]}" auth can-i "$2" "$3" -n "$4" --as="$sa" 2>/dev/null || true)"
-  printf '  %-4s %-8s %-22s %-16s %s\n' "$got" "$2" "$3" "$4" "$([ "$got" = "$1" ] && echo ok || echo 'UNEXPECTED')"
+probe() { # expect verb resource namespace-or-dash
+  local got scope sub label
+  if [ "$4" = "-" ]; then scope=(); else scope=(-n "$4"); fi
+  sub=(); label="$3"
+  if [ -n "${5:-}" ]; then sub=(--subresource="${5#--}"); label="$3 ${5}"; fi
+  got="$("${kc[@]}" auth can-i "$2" "$3" ${sub[@]+"${sub[@]}"} ${scope[@]+"${scope[@]}"} --as="$sa" 2>/dev/null || true)"
+  printf '  %-4s %-16s %-36s %-16s %s\n' "$got" "$2" "$label" "$4" "$([ "$got" = "$1" ] && echo ok || echo 'UNEXPECTED')"
   [ "$got" = "$1" ] || fail=1
 }
-probe yes patch  deployments.apps        thales-dev
-probe yes patch  deployments.apps/scale  thales-pre-prod
-probe yes get    pods/log                thales-dev
-probe yes delete pods                    thales-dev
-probe no  create pods/exec               thales-dev
-probe no  create pods/portforward        thales-dev
-probe no  get    secrets                 thales-dev
-probe no  get    secrets                 bothy
-probe no  list   pods                    kube-system
-probe no  patch  deployments.apps        thales
+# shellcheck source=scripts/lib/bothy-kube-probes.sh
+. "$root/scripts/lib/bothy-kube-probes.sh"
 exit $fail

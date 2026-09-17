@@ -1,0 +1,136 @@
+/* ============================================================================
+   /control/cluster. Scoped under .cl-page (0,2,0) for the reason control.css
+   gives: index.css is emitted last, and a single-class rule here would lose.
+   Every colour is a token. The status palette appears only on things that ARE
+   state - a dot, an edge into a failing node, a restart count that is high -
+   never on chrome.
+   ========================================================================== */
+
+.cl-page .cl-head { flex-wrap: wrap; margin-bottom: 14px; }
+.cl-page .cl-head-aside { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cl-page .cl-ns button { font-family: var(--mono); font-size: 12.5px; }
+.cl-page .btn.cl-headlamp { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 6px 12px; }
+.cl-page .tbl-filter { margin: 0; }
+.cl-page .tbl-search input { font-size: 13.5px; padding: 7px 0; }
+
+/* The tab strip scrolls sideways on a phone rather than wrapping into three
+   ragged rows - nine tabs is a list you scan, not a paragraph. */
+.cl-page .cl-tabs { overflow-x: auto; overflow-y: hidden; margin-bottom: 16px; }
+.cl-page .cl-tabs .tabs { flex-wrap: nowrap; margin: 0; min-width: max-content; }
+
+.cl-page .cl-panel { min-width: 0; }
+.cl-page .cl-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cl-page .cl-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin-bottom: 10px; }
+.cl-page .cl-h2 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+
+.cl-page .cl-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.cl-page .cl-fresh { font-size: 13px; }
+.cl-page .cl-sub-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cl-page .btn.cl-small { font-size: 12.5px; padding: 4px 10px; gap: 6px; display: inline-flex; align-items: center; white-space: nowrap; }
+.cl-page .btn[aria-disabled='true'] { opacity: var(--disabled-opacity); cursor: default; }
+.cl-page .cl-run { display: inline-flex; align-items: center; gap: 6px; }
+.cl-page .cl-stale { color: var(--st-warn-fg); }
+.cl-page .cl-note-wrap { display: flex; flex-direction: column; gap: 6px; }
+.cl-page .cl-card { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 4px 14px; }
+
+/* ── tables ─────────────────────────────────────────────────────────────────*/
+.cl-page .cl-tbl { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.cl-page .cl-tbl .tbl td.num, .cl-page .cl-tbl .tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.cl-page .cl-tbl .tbl td { white-space: nowrap; }
+.cl-page .cl-tbl .tbl td.cl-img { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+/* break-word, not anywhere: `anywhere` shrinks a cell's min-content to one
+   character, and an auto-layout table then squeezes a pod name into a column of
+   single letters at 390px (seen on the first screenshot). */
+.cl-page .cl-wrap { white-space: normal; overflow-wrap: break-word; }
+.cl-page .cl-tbl .tbl td:has(.cl-wrap) { white-space: normal; }
+.cl-page .cl-tbl td[data-hot='true'] { color: var(--st-warn-fg); font-weight: 700; }
+.cl-page .cl-cell-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.cl-page .cl-actions-cell { text-align: right; width: 1%; }
+.cl-page .cl-row-btns { display: inline-flex; gap: 6px; justify-content: flex-end; }
+.cl-page .cl-link {
+  appearance: none; background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--accent-fg); font: inherit; font-family: var(--mono); font-size: 12.5px;
+}
+.cl-page .cl-link:hover { text-decoration: underline; }
+
+.cl-page .cl-key { vertical-align: top; }
+.cl-page .cl-key-why { display: block; font-family: var(--font); font-size: 11.5px; white-space: normal; max-width: 280px; }
+.cl-page .cl-val { white-space: normal; overflow-wrap: break-word; min-width: 160px; }
+.cl-page tr[data-editable='true'] .cl-key { color: var(--accent-fg); }
+.cl-page .cl-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cl-page .cl-edit .ka-input { max-width: 220px; padding: 4px 8px; }
+.cl-page .ka-input {
+  font: inherit; font-size: 13px; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  padding: 5px 8px;
+}
+.cl-page .ka-input[aria-invalid='true'] { border-color: var(--st-down-line); }
+.cl-page .ka-hint { font-size: 12px; }
+
+/* ── row menu ───────────────────────────────────────────────────────────────*/
+.cl-page .cl-menu { position: relative; display: inline-block; }
+.cl-page .cl-menu .svc-act-btn { opacity: 1; }
+.cl-page .cl-menu-list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 240px;
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--surface-4); border: 1px solid var(--line-strong); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+}
+.cl-page .cl-menu-list button {
+  appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+  background: transparent; border: 0; border-radius: var(--r-sm); cursor: pointer;
+  color: var(--fg); font: inherit; font-size: 13px; padding: 7px 10px; white-space: nowrap;
+}
+.cl-page .cl-menu-list button:hover, .cl-page .cl-menu-list button:focus-visible { background: var(--surface-3); }
+
+/* ── topology ───────────────────────────────────────────────────────────────*/
+.cl-page .cl-topo {
+  position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 64px;
+  padding: 16px; background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+.cl-page .cl-topo-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.cl-page .cl-topo-svg path { fill: none; stroke: var(--line-strong); stroke-width: 1.5; }
+.cl-page .cl-topo-svg path[data-state='down'] { stroke: var(--st-down-line); stroke-dasharray: 4 3; }
+.cl-page .cl-topo-svg path[data-state='warn'] { stroke: var(--st-warn-line); }
+.cl-page .cl-topo-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: relative; }
+.cl-page .cl-topo-h { margin: 0 0 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--fg-subtle); }
+.cl-page .cl-topo-empty { margin: 0; font-size: 13px; }
+.cl-page .cl-topo-node {
+  appearance: none; font: inherit; text-align: left; color: var(--fg);
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  padding: 9px 11px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--st-unknown);
+}
+.cl-page button.cl-topo-node { cursor: pointer; }
+.cl-page button.cl-topo-node:hover { border-color: var(--line-strong); background: var(--surface-3); }
+.cl-page .cl-topo-node[data-state='up'] { border-left-color: var(--st-up); }
+.cl-page .cl-topo-node[data-state='warn'] { border-left-color: var(--st-warn); }
+.cl-page .cl-topo-node[data-state='down'] { border-left-color: var(--st-down); }
+.cl-page .cl-topo-node[data-state='off'] { border-left-color: var(--st-off); }
+.cl-page .cl-topo-name { display: flex; align-items: center; gap: 7px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.cl-page .cl-topo-detail, .cl-page .cl-topo-links { font-size: 12px; overflow-wrap: anywhere; }
+.cl-page .cl-topo-links { display: none; }
+.cl-page .cl-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin: 0; }
+.cl-page .cl-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── metrics ────────────────────────────────────────────────────────────────*/
+.cl-page .cl-spark { display: block; }
+.cl-page .cl-spark[data-kind='cpu'] { color: var(--chart-1); }
+.cl-page .cl-spark[data-kind='mem'] { color: var(--chart-2); }
+.cl-page .cl-spark-line { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.cl-page .cl-spark-area { fill: currentColor; opacity: .14; stroke: none; }
+
+/* ── narrow ─────────────────────────────────────────────────────────────────*/
+@media (max-width: 760px) {
+  /* Tables scroll sideways inside their own wrapper rather than crushing columns. */
+  .cl-page .cl-tbl .tbl { min-width: 640px; }
+  .cl-page .cl-topo { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .cl-page .cl-topo-svg { display: none; }
+  .cl-page .cl-topo-links { display: block; }
+}
+@media (max-width: 560px) {
+  .cl-page .cl-head-aside { width: 100%; }
+  .cl-page .btn.cl-headlamp { margin-left: auto; }
+  .cl-page .cl-tbl .tbl td.cl-img { max-width: 140px; }
+}

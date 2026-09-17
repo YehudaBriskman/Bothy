@@ -130,10 +130,15 @@ fi
 echo
 echo "what $sa may do (must match k8s/rbac/bothy-browse.yaml):"
 fail=0
-probe() { # expect verb resource namespace(-A for all)
-  local got ns=(-n "$4")
+# A subresource is `pods/exec` in the table but goes to can-i as
+# `pods --subresource=exec`: `kubectl auth can-i create pods/exec` reads TYPE/NAME
+# and asks about a pod NAMED exec, so those rows used to pass without asking the
+# question they print (found 2026-09-17, same bug as gen-kube-token.sh).
+probe() { # expect verb resource[/subresource] namespace(-A for all)
+  local got ns=(-n "$4") res="$3" sub=()
   [ "$4" = "-A" ] && ns=(-A)
-  got="$("${kc[@]}" auth can-i "$2" "$3" "${ns[@]}" --as="$sa" 2>/dev/null || true)"
+  case "$3" in pods/*) res="pods"; sub=(--subresource="${3#pods/}") ;; esac
+  got="$("${kc[@]}" auth can-i "$2" "$res" ${sub[@]+"${sub[@]}"} "${ns[@]}" --as="$sa" 2>/dev/null || true)"
   printf '  %-4s %-8s %-22s %-16s %s\n' "$got" "$2" "$3" "$4" "$([ "$got" = "$1" ] && echo ok || echo 'UNEXPECTED')"
   [ "$got" = "$1" ] || fail=1
 }
@@ -145,6 +150,7 @@ probe no  get    secrets                 thales-dev
 probe no  list   secrets                 -A
 probe no  get    secrets                 bothy
 probe no  create pods/exec               thales-dev
+probe no  get    pods/exec               thales-dev
 probe no  create pods/attach             thales-dev
 probe no  create pods/portforward        thales-dev
 probe no  patch  deployments.apps        thales-dev

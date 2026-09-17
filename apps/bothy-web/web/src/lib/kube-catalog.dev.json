@@ -1,0 +1,465 @@
+{
+  "namespaces": [
+    "thales-dev",
+    "thales-pre-prod"
+  ],
+  "actions": [
+    {
+      "id": "deployments",
+      "title": "Deployments",
+      "meaning": "Every deployment in the namespace, with replicas, images and rollout state.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "rollout-status",
+      "title": "Rollout status",
+      "meaning": "Whether the newest version of this deployment is fully rolled out.",
+      "target": "deployment",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "rollout-history",
+      "title": "History",
+      "meaning": "The revisions this deployment has run, newest first, with their images.",
+      "target": "deployment",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "rollback-to-revision",
+      "title": "Roll back",
+      "meaning": "Run an earlier revision's pod template again. Pods are replaced one at a time.",
+      "target": "deployment",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "type-name",
+      "stream": false,
+      "params": {
+        "revision": {
+          "type": "int",
+          "required": true,
+          "min": 1,
+          "max": 999999
+        }
+      }
+    },
+    {
+      "id": "pause",
+      "title": "Pause rollout",
+      "meaning": "Stop this deployment reacting to template changes until it is resumed.",
+      "target": "deployment",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "click",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "resume",
+      "title": "Resume rollout",
+      "meaning": "Let a paused deployment roll out its template again.",
+      "target": "deployment",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "click",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "set-image",
+      "title": "Set image",
+      "meaning": "Run a different image in one container. Only thales/ images are accepted.",
+      "target": "deployment",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "type-name",
+      "stream": false,
+      "params": {
+        "container": {
+          "type": "name",
+          "required": true
+        },
+        "image": {
+          "type": "image",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "rollout-restart",
+      "title": "Restart rollout",
+      "meaning": "Replace every pod of this deployment, one at a time. Configuration is unchanged.",
+      "target": "deployment",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "click",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "scale",
+      "title": "Scale",
+      "meaning": "Set how many pods run, from 0 to 3. Scaling to 0 stops the workload.",
+      "target": "deployment",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "type-name",
+      "stream": false,
+      "params": {
+        "replicas": {
+          "type": "int",
+          "required": true,
+          "min": 0,
+          "max": 3
+        }
+      }
+    },
+    {
+      "id": "events",
+      "title": "Events",
+      "meaning": "What the cluster recently said about this deployment and its pods.",
+      "target": "deployment",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {
+        "limit": {
+          "type": "int",
+          "required": false,
+          "default": 50,
+          "min": 1,
+          "max": 200
+        }
+      }
+    },
+    {
+      "id": "logs",
+      "title": "Logs",
+      "meaning": "The last lines a pod wrote, or follow them live for up to two minutes.",
+      "target": "deployment",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": true,
+      "params": {
+        "tail": {
+          "type": "int",
+          "required": false,
+          "default": 200,
+          "min": 1,
+          "max": 500
+        },
+        "follow": {
+          "type": "bool",
+          "required": false,
+          "default": false
+        },
+        "seconds": {
+          "type": "int",
+          "required": false,
+          "default": 120,
+          "min": 5,
+          "max": 300
+        },
+        "pod": {
+          "type": "name",
+          "required": false
+        },
+        "container": {
+          "type": "name",
+          "required": false
+        },
+        "previous": {
+          "type": "bool",
+          "required": false,
+          "default": false
+        }
+      }
+    },
+    {
+      "id": "pods",
+      "title": "Pods",
+      "meaning": "Pods in the namespace, or of one deployment, with status and restarts.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {
+        "deployment": {
+          "type": "name",
+          "required": false
+        }
+      }
+    },
+    {
+      "id": "delete-pod",
+      "title": "Delete pod",
+      "meaning": "Delete one pod so its deployment or job replaces it. Only managed pods.",
+      "target": "pod",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "click",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "delete-completed-pods",
+      "title": "Delete completed pods",
+      "meaning": "Remove pods that finished successfully. Running pods are never touched.",
+      "target": "namespace",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "click",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "jobs",
+      "title": "Jobs",
+      "meaning": "Jobs in the namespace, newest first, and whether they succeeded.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "job-logs",
+      "title": "Job logs",
+      "meaning": "What a job's pod wrote.",
+      "target": "job",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {
+        "tail": {
+          "type": "int",
+          "required": false,
+          "default": 200,
+          "min": 1,
+          "max": 500
+        },
+        "container": {
+          "type": "name",
+          "required": false
+        },
+        "previous": {
+          "type": "bool",
+          "required": false,
+          "default": false
+        }
+      }
+    },
+    {
+      "id": "delete-job",
+      "title": "Delete job",
+      "meaning": "Delete a job and, in the background, its pods and their logs.",
+      "target": "job",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "click",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "run-template",
+      "title": "Run template",
+      "meaning": "Start a job from a template shipped with Bothy, on the backend's current image.",
+      "target": "template",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "type-name",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "configmap",
+      "title": "ConfigMap",
+      "meaning": "Every key and value of the thales ConfigMap, and which keys may be changed here.",
+      "target": "configmap",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "patch-key",
+      "title": "Change a key",
+      "meaning": "Set one allowlisted key. Pods read it at start, so it applies on their next restart.",
+      "target": "configmap",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "type-name",
+      "stream": false,
+      "params": {
+        "key": {
+          "type": "configmap-key",
+          "required": true
+        },
+        "value": {
+          "type": "configmap-value",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "patch-key-and-restart",
+      "title": "Change a key and restart",
+      "meaning": "Set one allowlisted key, then restart every deployment that reads this ConfigMap.",
+      "target": "configmap",
+      "method": "POST",
+      "role": "operator",
+      "confirm": "type-name",
+      "stream": false,
+      "params": {
+        "key": {
+          "type": "configmap-key",
+          "required": true
+        },
+        "value": {
+          "type": "configmap-value",
+          "required": true
+        }
+      }
+    },
+    {
+      "id": "services",
+      "title": "Services",
+      "meaning": "Services, their ports and the pods they select.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "routes",
+      "title": "Routes",
+      "meaning": "OpenShift Routes: the hostnames that reach a service.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "ingresses",
+      "title": "Ingresses",
+      "meaning": "Ingress rules: hostnames and paths that reach a service.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "persistentvolumeclaims",
+      "title": "Volume claims",
+      "meaning": "Persistent volume claims, their size and whether they are bound.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "networkpolicies",
+      "title": "Network policies",
+      "meaning": "Which pods may talk to which, as the namespace's policies declare.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "resourcequotas",
+      "title": "Resource quotas",
+      "meaning": "The namespace's resource ceilings and how much is used.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "limitranges",
+      "title": "Limit ranges",
+      "meaning": "Default and maximum resources a container gets in this namespace.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {}
+    },
+    {
+      "id": "namespace-events",
+      "title": "Namespace events",
+      "meaning": "Everything the cluster recently said about this namespace, newest first.",
+      "target": "namespace",
+      "method": "GET",
+      "role": "viewer",
+      "confirm": "none",
+      "stream": false,
+      "params": {
+        "limit": {
+          "type": "int",
+          "required": false,
+          "default": 200,
+          "min": 1,
+          "max": 500
+        }
+      }
+    }
+  ],
+  "configmaps": [
+    "thales"
+  ],
+  "configmapKeys": {
+    "LOG_LEVEL": {
+      "pattern": "debug|info|warn|error",
+      "meaning": "How much the backend and algorithm log."
+    },
+    "DB_POOL_MAX": {
+      "pattern": "[1-9]|1[0-9]|20",
+      "meaning": "Database connections each backend replica may hold (1 to 20)."
+    },
+    "JOB_MAX_WORKERS": {
+      "pattern": "[1-4]",
+      "meaning": "Solver jobs the algorithm runs at once (1 to 4)."
+    }
+  },
+  "imageRegistries": [
+    "thales/",
+    "localhost:5000/thales/"
+  ],
+  "jobTemplates": [
+    "migrate",
+    "seed-identity",
+    "seed-reference"
+  ]
+}

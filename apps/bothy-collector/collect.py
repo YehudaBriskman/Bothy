@@ -784,6 +784,13 @@ K8S_SKIP_NS = {
     "kube-system", "kube-public", "kube-node-lease", "local-path-storage",
     "ingress-nginx", "kubernetes-dashboard", "gcp-auth", "kyverno",
 }
+# The ONE cluster this box runs, named explicitly on every kubectl call. Without
+# it kubectl follows whatever `current-context` is - and a bare `minikube start`
+# (no -p) builds a new empty cluster and steals that context, after which the
+# portal would silently describe the wrong cluster, or none. A constant, not an
+# environment variable: the other consumers (bothy-ops' RBAC, the scrape config,
+# `just doctor`) all name `thales-scc` literally too.
+K8S_CONTEXT = "thales-scc"
 K8S_TIMEOUT = float(os.environ.get("BOTHY_COLLECTOR_K8S_TIMEOUT") or os.environ.get("PORTAL_COLLECTOR_K8S_TIMEOUT", "4"))
 
 # Cluster workloads that a HOST port forwards to, so the portal can offer a link
@@ -839,7 +846,7 @@ def kubectl_json(args: list[str]) -> dict[str, Any] | None:
         return None
     try:
         out = subprocess.run(
-            [KUBECTL, *args, "-o", "json"],
+            [KUBECTL, "--context", K8S_CONTEXT, *args, "-o", "json"],
             capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
@@ -865,11 +872,10 @@ def k8s_projects(
             print("kubectl not found - cluster discovery skipped", file=sys.stderr)
         return []
 
-    ctx = subprocess.run(
-        [KUBECTL, "config", "current-context"],
-        capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False,
-    )
-    cluster = (ctx.stdout or "").strip() or "kubernetes"
+    # The context IS the cluster name here. It used to be read back from
+    # `kubectl config current-context`, which reported whichever cluster kubectl
+    # happened to point at rather than the one every call above just queried.
+    cluster = K8S_CONTEXT
 
     deploys = kubectl_json(["get", "deployments", "--all-namespaces"]) or {"items": []}
     svcs = kubectl_json(["get", "services", "--all-namespaces"]) or {"items": []}
