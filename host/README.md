@@ -18,6 +18,7 @@ instead of vanishing. After editing a real file, copy it back here.
 | `wsl/wslconfig` | `C:\Users\devssh\.wslconfig` | Memory, CPU and nested virtualisation for the WSL VM. |
 | `wsl/resolv.conf` | `/etc/resolv.conf` | Points the box at its own dnsmasq. Held with `chattr +i` - see below. |
 | `systemd/stacks-backup.*` | `/etc/systemd/system/` | The nightly backup timer at 03:00. |
+| `systemd/bothy-inventory.*` | `/etc/systemd/system/` | Every five minutes, `apps/bothy-ops/inventory.py` writes the credential and backup METADATA that Settings serves (names, modes, ages, sizes - never a value). Without it those two pages say the inventory is stale. `just admin-inventory` runs it by hand. |
 | `systemd/minikube.service` | `/etc/systemd/system/` | Started minikube with the distro. **Stopped and disabled 2026-08-12** - the unit is installed but not enabled, and the cluster itself was deleted. See below. |
 | `windows/DevBox-WSL-Keepalive.xml` | Windows Task Scheduler | **The most important file here.** See below. |
 

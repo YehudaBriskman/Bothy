@@ -24,6 +24,12 @@
 #                        COUNTS what reaches it - "refused" is a positive assertion.
 #   api_kube.py          the cluster HTTP surface against a stand-in apiserver over
 #                        real TLS, including "no cluster" -> 503.
+#   test_inventory.py    the host-side credential inventory: a .env of sentinel
+#                        values, and no sentinel byte in anything written or served.
+#   wiring_admin.py      the Settings admin reads: four exact GET routers behind
+#                        operator, read-only mounts, no secret mounted.
+#   api_admin.py         the admin HTTP surface against a stand-in Keycloak that
+#                        counts requests; audit parsing, paging, refusals.
 #   transition.py        the only one that needs docker: real proxies from the
 #                        shipped grants, a real throwaway container, a real state
 #                        change. Skipped with --offline.
@@ -68,6 +74,15 @@ check "$PY" checks/api_control.py
 section "cluster: the HTTP surface, and what never reaches the apiserver"
 # stderr is the audit echo of ~100 requests; the assertions are on stdout.
 check "$PY" checks/api_kube.py 2>/dev/null
+
+section "admin: the credential inventory never carries a value"
+gate "$PY" checks/test_inventory.py
+
+section "admin: the Settings reads are wired as claimed"
+check "$PY" checks/wiring_admin.py
+
+section "admin: the HTTP surface, and what never reaches Keycloak"
+check "$PY" checks/api_admin.py 2>/dev/null
 
 if [ "$OFFLINE" = 1 ]; then
   echo

@@ -3,6 +3,7 @@
 
     POST /control/{restart,stop,start}      containers   control.py
     *    /kube/<catalog id>                  workloads    kube.py
+    GET  /admin/{users,credentials,backups,audit}  Settings reads  admin.py
     GET  /healthz                            local only, no edge route
 
 Until 2026-09 these were two services, bothy-control and bothy-kube, each with
@@ -47,6 +48,7 @@ except ImportError:  # a checkout: apps/bothy-common is the package's parent
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     os.pardir, "bothy-common"))
 
+import admin  # noqa: E402
 import control  # noqa: E402
 import guard  # noqa: E402
 import kube  # noqa: E402
@@ -79,6 +81,8 @@ class Handler(JsonHandler):
             return self._send(200, kube.catalog_doc())
         if route.startswith("/kube/"):
             return kube.handle(self, "GET", route[len("/kube/"):])
+        if route.startswith("/admin/"):
+            return admin.handle(self, route[len("/admin/"):])
         return self._send(404, {"error": "no such endpoint"})
 
     def do_POST(self) -> None:  # noqa: N802

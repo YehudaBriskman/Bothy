@@ -21,4 +21,5 @@
 !bothy-ops/guard.py
 !bothy-ops/control.py
 !bothy-ops/kube.py
+!bothy-ops/admin.py
 !bothy-ops/catalog.toml

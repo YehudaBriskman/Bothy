@@ -398,6 +398,9 @@ mk() {
 }
 mk "$STATE_ROOT/bothy/trash"
 mk "$STATE_ROOT/bothy/config-trash"
+# The admin inventory (apps/bothy-ops/inventory.py): mounted read-only into
+# bothy-ops with create_host_path false, so it must exist before `up`.
+mk "$STATE_ROOT/bothy/inventory" && chmod 700 "$STATE_ROOT/bothy/inventory"
 mk "$STATE_ROOT/devbox-logs"
 mk "$BACKUP_ROOT/postgres"
 mk "$PROJECTS_ROOT"

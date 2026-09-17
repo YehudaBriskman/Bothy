@@ -17,7 +17,7 @@ FROM python:3.13-alpine@sha256:7415fbc3c9e4979cc717d92377ab2bc7b2b4a2af1ac03cc52
 WORKDIR /app
 
 COPY bothy-common/bothy_common ./bothy_common
-COPY bothy-ops/guard.py bothy-ops/control.py bothy-ops/kube.py bothy-ops/app.py bothy-ops/catalog.toml ./
+COPY bothy-ops/guard.py bothy-ops/control.py bothy-ops/kube.py bothy-ops/admin.py bothy-ops/app.py bothy-ops/catalog.toml ./
 
 # The Jobs run-template may create, from the `jobtemplates` build context
 # (compose.yml: additional_contexts -> ../../k8s/job-templates). BAKED IN, not

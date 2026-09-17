@@ -44,3 +44,9 @@
 # `*` above - it carries a basic-auth credential). Comments only: a live example
 # in this directory overwrites the real router, see the file's own header.
 !bothy-prom.example.yml
+# The Settings admin reads (bothy-ops admin.py): users, credentials inventory,
+# backups, audit log - four exact Path() GET routers behind sso-operator.
+# HAND-WRITTEN and separate from bothy-ops.yml, whose kube routers are generated.
+# No credential. Allow-listed in the same commit as the file, for the reason
+# every entry above gives.
+!bothy-admin.yml

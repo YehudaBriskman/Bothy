@@ -70,6 +70,13 @@ services:
       KUBE_API: https://192.168.49.2:8443
       KUBE_TOKEN_FILE: /secrets/token
       KUBE_CA_FILE: /secrets/ca.crt
+      # The Settings area's admin reads (admin.py). Their own log, beside
+      # actions.log rather than in it: a kube line is recognised by its shape, and
+      # a third shape in one file is how a parser starts guessing.
+      ADMIN_AUDIT_LOG: /audit/admin.log
+      FILES_AUDIT_LOG: /audit-files/writes.log
+      CONFIG_AUDIT_LOG: /audit-files/patches.log
+      INVENTORY_FILE: /inventory/inventory.json
     volumes:
       # Mounted so the log outlives a container rebuild - an audit trail that a
       # `docker compose up --build` erases is not an audit trail.
@@ -80,6 +87,21 @@ services:
       # disk must not block a legitimate restart). The symptom would be a
       # silently empty audit trail, the worst way for one to be broken.
       - ./audit:/audit:rw
+      # bothy-files' write and patch logs, READ-ONLY, for the Settings audit
+      # viewer. bothy-files stays the only writer of its own trail.
+      - ../bothy-files/audit:/audit-files:ro
+      # The credential and backup inventory, METADATA ONLY, written on the host
+      # by apps/bothy-ops/inventory.py (`just admin-inventory`, and the
+      # bothy-inventory timer). Mounted instead of .env and ~/backups on purpose:
+      # this process can stop the databases, and must not also hold every
+      # password. Never auto-created - a root-owned directory would stop the host
+      # writer; `just up-apps` and bootstrap create it.
+      - type: bind
+        source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/inventory
+        target: /inventory
+        read_only: true
+        bind:
+          create_host_path: false
       # NO token mount here. ./secrets is mounted by compose.cluster.yml, next to
       # the network it is useless without; a box with no cluster has no token
       # and must still come up.

@@ -241,7 +241,15 @@ up-apps: network
     set -euo pipefail
     state="${STATE_ROOT:-$HOME/.local/state}"
     mkdir -p "$state/bothy/trash" "$state/bothy/config-trash"
+    mkdir -p -m 700 "$state/bothy/inventory"
+    # The Settings credentials/backups pages read this; refresh it now so they
+    # are not empty until the timer's first run. Metadata only - see its header.
+    python3 apps/bothy-ops/inventory.py || echo "note: the admin inventory could not be written - Settings > Credentials will say so"
     files=({{BOTHY}})
+    # The Users & roles page: only once `just admin-client` has written a secret.
+    if [ -f apps/bothy-ops/secrets/keycloak-admin-client-secret ]; then
+      files+=(-f apps/bothy-ops/compose.admin.yml)
+    fi
     if docker network inspect thales-scc >/dev/null 2>&1; then
       if [ -d apps/bothy-ops/secrets ]; then
         files+=(-f apps/bothy-ops/compose.cluster.yml)
@@ -370,6 +378,19 @@ ops-check mode="":
 # Regenerate the kube edge routers, RBAC Role and can-i rows from catalog.toml. `check` only diffs.
 ops-wiring mode="":
     @python3 scripts/gen-ops-wiring.py {{ if mode == "check" { "--check" } else { "" } }}
+# The Settings area's Keycloak client `bothy-admin` (view-users only), and its
+# secret in apps/bothy-ops/secrets. `--rotate` issues a new secret; `--revoke`
+# disables the client and deletes the file.
+# Create (or rotate/revoke) the read-only Keycloak client behind Settings > Users.
+admin-client *args:
+    ./scripts/keycloak-admin-client.sh {{args}}
+
+# Settings > Credentials and Backups are served from a metadata-only file written
+# on the host - names, modes, ages and sizes, never a value. The timer in
+# host/systemd/bothy-inventory.timer runs this every five minutes.
+# Rewrite the host-side credential and backup inventory that Settings serves.
+admin-inventory:
+    python3 apps/bothy-ops/inventory.py
 
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
