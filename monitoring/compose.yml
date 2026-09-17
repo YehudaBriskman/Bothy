@@ -1,7 +1,99 @@
 name: monitoring
 
 services:
+  # ── metrics: VictoriaMetrics (replaced Prometheus 2026-09-17) ────────────────
+  #
+  # Single-node VictoriaMetrics scrapes the SAME prometheus.yml (+ scrape.d/ via
+  # compose.cluster.yml) and answers the Prometheus HTTP API, so Grafana's
+  # `prometheus` datasource, the five alert rules and Bothy's /-/api/prom/* graphs
+  # work unchanged. Measured before the switch with scripts/checks/prom-parity.sh
+  # against the live Prometheus: identical label sets for every query; alert
+  # expressions and gauges identical to the sample; rate() differs point-by-point
+  # by design (MetricsQL does not extrapolate) with window means within 5%.
+  #
+  # WHY: at this box's scale it holds 15 days in roughly half Prometheus' disk
+  # (25h imported = 22 MB) and steady memory ~100 MiB.
+  #
+  # ADDRESSING - a new name, a new port, and deliberately NO `prometheus` alias.
+  # During the switch-over both run side by side (history is imported from the
+  # live Prometheus over devnet), and on rollback the legacy service comes back
+  # under its old name. An alias would make `prometheus` resolve to BOTH
+  # containers at those moments and Docker's DNS would round-robin between two
+  # different databases. The consumers were few enough to repoint instead:
+  # provisioning/datasources, scripts/gen-bothy-prom-route.sh, scripts/doctor.sh.
+  #
+  # ROLLBACK: the Prometheus service is kept below under the `legacy-prometheus`
+  # profile, and its volume `monitoring_prometheus_data` is kept, untouched.
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.152.0
+    container_name: victoriametrics
+    restart: unless-stopped
+    # CREDENTIALS WITHOUT LEAKING THEM INTO `docker inspect`. The password flag
+    # takes `file://` natively, so the secret never enters argv at all. The
+    # username flag does not (it is a plain string), so a shell reads it from the
+    # same mounted file at start; `docker inspect` shows the `$(cat ...)`, not the
+    # value. prom-username.txt / prom-password.txt are the files bootstrap already
+    # generates for Prometheus - gitignored, from DEV_LOGIN_* in .env.
+    #
+    # $$ is compose's escape; the container's sh sees a single $. `exec` keeps VM
+    # as PID 1 so `docker stop` reaches it and it flushes cleanly.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        exec /victoria-metrics-prod
+        -storageDataPath=/victoria-metrics-data
+        -retentionPeriod=15d
+        -promscrape.config=/etc/prometheus/prometheus.yml
+        -httpAuth.username="$$(cat /etc/prometheus/prom-username.txt)"
+        -httpAuth.password=file:///etc/prometheus/prom-password.txt
+    # RETENTION. 15d, as Prometheus had. There is no equivalent of Prometheus'
+    # --storage.tsdb.retention.size: VM deletes whole data parts once they are
+    # entirely outside the window, so the disk can briefly hold more than 15 days
+    # (worst case documented upstream: retention + 1 month). At ~20 MB/day that is
+    # still well under the 3GB ceiling Prometheus had. The remaining guard is
+    # -storage.minFreeDiskSpaceBytes (default 100 MB): VM stops accepting writes
+    # rather than fill the disk.
+    labels:
+      - dev.portal.project=Monitoring · Grafana
+    volumes:
+      # Same in-container paths Prometheus used, so prometheus.yml's
+      # username_file/password_file lines and scrape.d/ work for both.
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prom-username.txt:/etc/prometheus/prom-username.txt:ro
+      - ./prom-password.txt:/etc/prometheus/prom-password.txt:ro
+      - victoriametrics_data:/victoria-metrics-data
+    # vmui at http://<box>:8428/vmui, same basic auth.
+    ports:
+      - "8428:8428"
+    # /health answers without auth (it says "OK" and nothing else), so the probe
+    # carries no credential at all. The image is alpine with busybox wget.
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "-T", "3", "http://127.0.0.1:8428/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          # VM sizes its caches to 60% of THIS limit (-memory.allowedPercent), so
+          # the limit is also the cache budget. Measured: ~95 MiB scraping this
+          # box; ~330 MiB right after a 25h vmctl import, which is caches filling
+          # up to that budget, not growth.
+          memory: 512m
+    networks: [devnet]
+
+  # ── LEGACY: Prometheus, kept for rollback only ──────────────────────────────
+  # Not started by `just up-monitoring` / `docker compose up` (profile). Rollback:
+  #   docker compose -f monitoring/compose.yml stop victoriametrics
+  #   docker compose -f monitoring/compose.yml --profile legacy-prometheus up -d prometheus
+  # and point provisioning/datasources + the bothy-prom route back at
+  # prometheus:9090. It comes back WITHOUT the thales-scc jobs: scrape.d/ is now
+  # in VictoriaMetrics' format (a bare list), which Prometheus refuses, so
+  # compose.cluster.yml does not mount it into this service. The self-scrape job
+  # in prometheus.yml also targets VM now; expect that one target DOWN.
   prometheus:
+    profiles: [legacy-prometheus]
     image: prom/prometheus:v3.13.2
     container_name: prometheus
     # No Traefik router - reached directly on published port 9090.
@@ -110,7 +202,7 @@ services:
     # no health flag), so it has no healthcheck and service_healthy would make
     # `compose up` refuse to start grafana at all.
     depends_on:
-      prometheus:
+      victoriametrics:
         condition: service_healthy
       loki:
         condition: service_started
@@ -125,6 +217,10 @@ services:
     deploy:
       resources:
         limits:
+          # NOT lowered (2026-09-17). A fresh container reads ~165 MiB, which is
+          # what `docker stats` showed when the trim was planned - but over 7 days
+          # the median was 406 MiB, p95 437 MiB, peak 511 MiB. The snapshot was a
+          # just-restarted Grafana, not its working size.
           memory: 512m
     networks: [devnet]
 
@@ -147,10 +243,64 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          # 7-day peak 211 MiB, p95 147 MiB (measured 2026-09-17) -> ~1.8x peak.
+          memory: 384m
     networks: [devnet]
 
+  # ── logs: Grafana Alloy (replaced promtail 2026-09-17) ───────────────────────
+  # promtail is end-of-life. Config converted with `alloy convert
+  # --source-format=promtail` and reviewed; the Loki label set is unchanged
+  # (container, stack, stream; host_service + filename for host processes) -
+  # verified with a side-by-side test container writing test="alloy" streams.
+  # See alloy/config.alloy for the docker-access note and first-start behaviour.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    container_name: alloy
+    restart: unless-stopped
+    # The UI/API stays on 127.0.0.1 (the image default): the healthcheck is the
+    # only client, and the Alloy UI shows the full pipeline to anyone who can
+    # reach it. promtail listened on 0.0.0.0:9080 and nothing on devnet used it.
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+    volumes:
+      # A DIRECTORY mount, not a file: editing config.alloy does not strand the
+      # container on the old inode (the gotcha that bit promtail.yml twice).
+      - ./alloy:/etc/alloy:ro
+      # Positions (and nothing else) live here. Unlike promtail's /tmp default,
+      # this survives a recreate, so logs are not re-shipped on every restart.
+      - alloy_data:/var/lib/alloy/data
+      # promtail's old positions, read once for the host-log files so the switch
+      # does not re-send them from byte 0. Harmless after that; drop it together
+      # with the promtail_positions volume once promtail is gone for good.
+      - promtail_positions:/promtail-positions:ro
+      # Docker discovery and log reads, over the API - the access promtail had.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Host-process logs; the filename becomes host_service.
+      - ${HOME}/.local/state/devbox-logs:/host-logs:ro
+    # Ubuntu image with bash but no wget/curl: the same /dev/tcp probe promtail
+    # used. HTTP/1.0 makes Alloy close the socket, so the read ends.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/12345 && printf 'GET /-/ready HTTP/1.0\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q ' 200 '"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          # Measured 65 MiB tailing three containers in the side-by-side test;
+          # promtail peaked at 113 MiB over 7 days tailing all of them.
+          memory: 256m
+    networks: [devnet]
+
+  # ── LEGACY: promtail, kept for rollback only ────────────────────────────────
+  #   docker compose -f monitoring/compose.yml stop alloy
+  #   docker compose -f monitoring/compose.yml --profile legacy-promtail up -d promtail
   promtail:
+    profiles: [legacy-promtail]
     image: grafana/promtail:3.6.8
     container_name: promtail
     restart: unless-stopped
@@ -248,7 +398,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256m
+          # 7-day peak 54 MiB, p95 46 MiB since the 2026-08-19 flag trim below.
+          memory: 128m
     networks: [devnet]
 
   node-exporter:
@@ -271,10 +422,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128m
+          # 7-day peak 24 MiB, p95 22 MiB.
+          memory: 64m
     networks: [devnet]
 
 volumes:
+  victoriametrics_data:
+  alloy_data:
+  # Both kept for rollback (see the legacy services). promtail_positions is also
+  # read once by alloy; prometheus_data is ~700 MB - delete it only once the
+  # rollback window is over: `docker volume rm monitoring_prometheus_data`.
   promtail_positions:
   prometheus_data:
   grafana_data:

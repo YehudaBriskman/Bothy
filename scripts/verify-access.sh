@@ -36,7 +36,9 @@ echo "== 1. Services must still be reachable at IP:port (unchanged from baseline
 # dozzle:8080 and portainer:9000 left this baseline on 2026-08-17, when Bothy
 # Control replaced what they did. Their compose file is kept, so if either is
 # started again this list is where its port goes back.
-for e in grafana:3000:302 prometheus:9090:401 \
+# prometheus:9090:401 became victoriametrics:8428:401 on 2026-09-17 (same basic
+# auth, new backend and port).
+for e in grafana:3000:302 victoriametrics:8428:401 \
          cadvisor:8082:307 loki:3100:404 node-exporter:9100:200; do
   n=${e%%:*}; rest=${e#*:}; p=${rest%%:*}; want=${rest##*:}
   got=$(code "http://$IP:$p/")
