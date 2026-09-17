@@ -176,16 +176,19 @@ if ! command -v kubectl >/dev/null 2>&1; then
   # no third state to put it in.
   dim "kubectl is not installed - nothing in Bothy needs it"
 else
-  # minikube was retired on 2026-08-12 - 1,046 MB for zero non-system pods over
-  # 27 days. Stopped AND deleted: `minikube profile list` reports no profile, so
-  # `minikube start` builds a NEW empty cluster rather than resuming the old one.
-  # This comment said "not deleted; `minikube start` brings it back" for a few
-  # hours after the delete, which would have promised somebody their workloads
-  # back. Absence is the expected state and must not read as a fault, or
-  # `just doctor` cries wolf every run and stops being read at all.
-  nodes=$(kubectl get nodes --no-headers 2>/dev/null || true)
+  # The default `minikube` profile was retired and deleted on 2026-08-12. Since
+  # 2026-09-01 the one cluster is profile `thales-scc` (Tals' OpenShift SCC
+  # emulation), started at boot by minikube.service. So: no cluster while that
+  # unit is enabled is a fault; no cluster with it disabled is a choice.
+  # --context pins the profile: the portal collector and the forwards all use
+  # thales-scc, so a context switched elsewhere must not make this go green.
+  nodes=$(kubectl --context thales-scc --request-timeout=5s get nodes --no-headers 2>/dev/null || true)
   if [ -z "$nodes" ]; then
-    dim "minikube retired 2026-08-12 - deleted, not stopped ('minikube start' builds a new empty cluster)"
+    if systemctl is-enabled --quiet minikube.service 2>/dev/null; then
+      red "cluster thales-scc down but minikube.service is enabled (systemctl status minikube)"
+    else
+      dim "no cluster: minikube.service disabled (profile thales-scc; 'minikube start -p thales-scc')"
+    fi
   else
     # A here-string for the same reason the prometheus loop above uses one:
     # `echo | awk | while` ran the loop body in a SUBSHELL, so red()'s increment

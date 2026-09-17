@@ -127,6 +127,12 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+    # Added 2026-09-17: this was the one Bothy service with no cap, although
+    # stack/overview.md promises every container has one. idles at ~33 MiB; headroom for reading and diffing large files.
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
 networks:
   filesnet:

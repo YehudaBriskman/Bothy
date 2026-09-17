@@ -108,6 +108,12 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+    # Added 2026-09-17: this was the one Bothy service with no cap, although
+    # stack/overview.md promises every container has one. idles at ~18 MiB; it parses one YAML file per request.
+    deploy:
+      resources:
+        limits:
+          memory: 128m
 
 networks:
   confignet:

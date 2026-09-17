@@ -729,19 +729,20 @@ K8S_TIMEOUT = float(os.environ.get("PORTAL_COLLECTOR_K8S_TIMEOUT", "4"))
 # Cluster workloads that a HOST port forwards to, so the portal can offer a link
 # that actually opens. Keyed (namespace, deployment) -> host port.
 #
-# Only thales-dev is listed, and that is a decision rather than an omission: it
-# is the namespace carrying the seed fixture and a working Keycloak login.
-# `thales` and `thales-pre-prod` are the production shape - AUTH_MODE=saml
-# against an AD-FS that does not exist on this side of the air gap - so they
-# refuse password login BY DESIGN. Linking them would invite someone to click
-# into a login that cannot succeed and read the refusal as a fault.
+# Ports match ~/projects/army/Tals/MINIKUBE-STACKS.md (release 0.1.7): pre-prod on
+# 31080, dev on 31081. Until 2026-09-17 only thales-dev was linked, on 5179, on the
+# grounds that pre-prod refused password login; since 0.1.7 pre-prod has a
+# break-glass password account (AUTH_MODE=saml plus break-glass), so a link to it
+# opens a login that can succeed.
 #
-# The port is held open by the user unit `thales-portal-forward.service`, and is
+# Each port is held open by a user unit, `thales-{preprod,dev}-forward.service`
+# (Restart=always; runs without a login because devssh has linger), and is
 # emitted only when something is genuinely listening on it (checked below). A
 # link to a dead forward is worse than no link: it reports the cluster as broken
 # when what is actually broken is a helper process on this box.
 K8S_HOST_FORWARDS = {
-    ("thales-dev", "frontend"): 5179,
+    ("thales-pre-prod", "frontend"): 31080,
+    ("thales-dev", "frontend"): 31081,
 }
 
 
