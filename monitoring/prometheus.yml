@@ -2,6 +2,14 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Optional scrape jobs that depend on something outside this compose project.
+# Today: the minikube cluster thales-scc (scrape.d/kubernetes.yml). The
+# directory is mounted only by compose.cluster.yml, so without the cluster the
+# glob matches nothing and Prometheus starts exactly as before. Relative to this
+# file's directory, so `promtool check config` finds it in a checkout too.
+scrape_config_files:
+  - scrape.d/*.yml
+
 scrape_configs:
   - job_name: prometheus
     # Self-scrape needs the same basic auth the web config enforces. Both files
