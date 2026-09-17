@@ -92,6 +92,13 @@ jobs:
         if: always()
         run: bash apps/bothy-ops/checks/run.sh --offline
 
+      # catalog.toml is the only hand-written cluster wiring; the edge routers,
+      # the RBAC Role, the can-i rows and the UI's dev catalog are generated
+      # from it. A stale copy is a Role or a router that disagrees with review.
+      - name: Ops wiring - generated from catalog.toml, and not stale
+        if: always()
+        run: python3 scripts/gen-ops-wiring.py --check
+
       # bothy-files: the editor AND the config forms (bothy-config until 2026-09).
       - name: Files tier - path safety with real symlinks, and the config patch boundary
         if: always()

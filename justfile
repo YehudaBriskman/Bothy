@@ -363,6 +363,14 @@ files-check mode="":
 ops-check mode="":
     @bash apps/bothy-ops/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
 
+# apps/bothy-ops/catalog.toml is the only hand-written cluster wiring. This
+# regenerates what is derived from it: the edge routers, the RBAC Role, the
+# can-i rows of `just kube-token`, and the UI's dev catalog. `check` fails on
+# drift instead of writing (CI runs that). Apply RBAC with `just kube-token`.
+# Regenerate the kube edge routers, RBAC Role and can-i rows from catalog.toml. `check` only diffs.
+ops-wiring mode="":
+    @python3 scripts/gen-ops-wiring.py {{ if mode == "check" { "--check" } else { "" } }}
+
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
     @bash scripts/backup.sh
