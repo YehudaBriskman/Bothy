@@ -22,7 +22,7 @@ Security vulnerabilities do not belong in a pull request either - see SECURITY.m
 
 - [ ] No secrets or personal identifiers added - no real hostnames, IP addresses, tailnet names, e-mail addresses, tokens or passwords, in code, comments, docs or commit messages
 - [ ] `just doctor` still passes
-- [ ] Portal typechecks and builds if touched - `cd apps/portal-next/web && npx tsc -b --noEmit && npm run build`
+- [ ] Portal typechecks and builds if touched - `cd apps/bothy-web/web && npx tsc -b --noEmit && npm run build`
 - [ ] Every compose file I changed still parses - `docker compose -f <file> config -q`
 - [ ] New browser-reachable services follow the access model: a **published host port**, checked free against `just urls`, added to the `urls` recipe, with its own `DEV_LOGIN_*` login. **No `Host()` rule** - the name layer was deleted 2026-08-12 and such a router matches nothing
 - [ ] I did not attach `sso@file` / `sso-errors@file` to a router. They are defined and deliberately unattached while identity is rebuilt - see SECURITY.md rule 1

@@ -7,15 +7,15 @@ instead, the repository would stop describing the box, `git log` would stop bein
 its history, and a `git pull` would silently revert somebody's change. Everything
 below follows from refusing that.
 
-── why this is a SEPARATE service from portal-files ────────────────────────
+── why this is a SEPARATE service from bothy-files ────────────────────────
 
-`apps/portal-files/app.py` states at the top that it has no third-party
+`apps/bothy-files/app.py` states at the top that it has no third-party
 dependencies, "because this container holds read-write bind mounts on two git
 repositories, and every dependency is something that can ship a vulnerability
 into that position". A YAML round-tripper is a third-party dependency.
 
 So the parser lives here, with its own smaller mount - one repository instead of
-four roots - and its own network. portal-files keeps its property; this service
+four roots - and its own network. bothy-files keeps its property; this service
 carries the dependency and pays for it with a narrower blast radius. See
 docs/plans/editing-model.md §2.
 
@@ -26,7 +26,7 @@ Authorisation happens at the edge: Traefik's forwardAuth asks oauth2-proxy
 process. Putting authz here as well would mean two places to get it right and two
 places to get it wrong.
 
-The consequence is the rule the socket-proxy taught and portal-files repeats:
+The consequence is the rule the socket-proxy taught and bothy-files repeats:
 **reachability IS authorisation.** This publishes no host port and sits on
 `confignet`, which holds two containers - Traefik and this. If it is ever put on
 devnet, ~20 containers including third-party images get the ability to rewrite
@@ -39,7 +39,7 @@ upstream - and the edge strips client-supplied X-Auth-Request-* anyway.
 
 ── what it inherits rather than reinvents ──────────────────────────────────
 
-Everything portal-files already proved, on purpose and by copy where importing
+Everything bothy-files already proved, on purpose and by copy where importing
 was not possible:
 
   resolve()     the path boundary, resolve-first-compare-after   safepath.py
@@ -48,7 +48,7 @@ was not possible:
   audit()       one line per write, with who and what            below
   the role gate the edge, not here            edge/dynamic/bothy-config.yml
 
-The one thing it does NOT inherit is the writer. portal-files takes a whole file
+The one thing it does NOT inherit is the writer. bothy-files takes a whole file
 of text from a human who can see it; this takes one value from a form. The
 difference is yamlpatch.py, and its header explains why a round-tripper was
 measured and rejected.
@@ -97,7 +97,7 @@ def audit(who: str, action: str, res, field: str, service: str,
     format anything else has to parse.
 
     It carries the OLD value as well as the new, which the file tier's log does
-    not, and that difference is the point of it. portal-files logs that a file
+    not, and that difference is the point of it. bothy-files logs that a file
     was written and how many bytes; the file itself is the record of what it
     says, and a person can read the diff. A form write is one value inside a
     file nobody looked at, so "what did this say before" has no other answer
@@ -309,7 +309,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # ── CSRF ────────────────────────────────────────────────────────────
         #
-        # Same shape as portal-files' /write, and needed for the same reason: the
+        # Same shape as bothy-files' /write, and needed for the same reason: the
         # oauth2-proxy session cookie is sent to every port on this host, so a
         # page on the sandbox origin (:8100) is SAME-SITE with the portal and
         # SameSite=lax does not block a POST from there to here.
@@ -360,7 +360,7 @@ class Handler(BaseHTTPRequestHandler):
             # the same baseMtime and gets the same 409 rather than inventing a
             # second policy.
             #
-            # It is REQUIRED here, where portal-files makes it optional. That is
+            # It is REQUIRED here, where bothy-files makes it optional. That is
             # a deliberate divergence. In Files a missing baseMtime means a
             # script or curl, and the human sent the whole file so they at least
             # saw what they were replacing. A form sends one value for a file it

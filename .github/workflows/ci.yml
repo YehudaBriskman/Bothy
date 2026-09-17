@@ -52,13 +52,13 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: apps/portal-next/web/package-lock.json
+          cache-dependency-path: apps/bothy-web/web/package-lock.json
 
-      # The portal-next harness compiles TypeScript modules with a bare
+      # The bothy-web harness compiles TypeScript modules with a bare
       # `tsc <file>` before running its truth tables against them, so it needs
       # the dev dependencies even though it never builds the app.
       - name: Install portal dependencies
-        working-directory: apps/portal-next/web
+        working-directory: apps/bothy-web/web
         run: npm ci
 
       # The config tier's checks need ruamel.yaml, which the system python
@@ -84,7 +84,7 @@ jobs:
 
       - name: Portal - truth tables, themes, wikilinks, stray colour
         if: always()
-        run: bash apps/portal-next/checks/run.sh --offline
+        run: bash apps/bothy-web/checks/run.sh --offline
 
       - name: Config tier - the patch boundary
         if: always()
@@ -96,7 +96,7 @@ jobs:
 
       - name: Editor tier - path safety, with real planted symlinks
         if: always()
-        working-directory: apps/portal-files
+        working-directory: apps/bothy-files
         run: bash checks/run.sh --offline
 
       - name: shellcheck
@@ -215,10 +215,10 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: apps/portal-next/web/package-lock.json
+          cache-dependency-path: apps/bothy-web/web/package-lock.json
 
       - name: Install portal dependencies
-        working-directory: apps/portal-next/web
+        working-directory: apps/bothy-web/web
         run: npm ci
 
       # One row plants an unguarded `cd` and requires shellcheck to catch it.
@@ -321,7 +321,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: apps/portal-next/web
+        working-directory: apps/bothy-web/web
     steps:
       - uses: actions/checkout@v7
 
@@ -329,7 +329,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: apps/portal-next/web/package-lock.json
+          cache-dependency-path: apps/bothy-web/web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -348,7 +348,7 @@ jobs:
       # the pre-paint theme stamp silently stops running - a light-mode reader
       # gets a dark flash and nothing errors.
       - name: The CSP and the inline script must agree
-        working-directory: apps/portal-next
+        working-directory: apps/bothy-web
         run: node checks/csp_hash.mjs
 
   # ── Tier 1 ──────────────────────────────────────────────────────────────────
@@ -359,7 +359,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [portal-next, portal-files, bothy-config, bothy-control]
+        app: [bothy-web, bothy-files, bothy-config, bothy-control]
     steps:
       - uses: actions/checkout@v7
 

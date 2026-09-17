@@ -10,7 +10,7 @@ like style and are actually the security boundary - a well-meaning
 "simplification" of any of them turns a read-only status page into a credential
 leak or a remote root shell. Those are listed under
 [Load-bearing design rules](#load-bearing-design-rules). Read that section before
-touching `edge/dynamic/portal-api.yml`, `edge/dynamic/portal-prom.yml`,
+touching `edge/dynamic/bothy-api.yml`, `edge/dynamic/bothy-prom.yml`,
 `apps/bothy/socket-proxy.yml`, `apps/bothy-control/compose.yml`,
 `edge/dynamic/auth.yml` or `auth/`.
 
@@ -46,8 +46,8 @@ device and the box, and edge auth covers only the last of them:
 |---|---|
 | The tailnet itself | Everything. It is the outer perimeter and, today, very nearly the only one |
 | Each service's own login, using the shared `DEV_LOGIN_*` credential | Grafana, Prometheus |
-| Keycloak roles at the edge (`forwardAuth`) | The tiers that change things: `viewer`/`editor` on the file and config tiers (`edge/dynamic/portal-files.yml`, `bothy-config.yml`), `operator` on the control tier (`bothy-control.yml`). The only places a role is enforced today. `shell` is defined and gated on nothing |
-| The exact `Path()` rules in `edge/dynamic/portal-api.yml` and `portal-prom.yml` | The portal's data plane - the only reachable slice of the Docker socket, Loki, Prometheus and the Traefik API |
+| Keycloak roles at the edge (`forwardAuth`) | The tiers that change things: `viewer`/`editor` on the file and config tiers (`edge/dynamic/bothy-files.yml`, `bothy-config.yml`), `operator` on the control tier (`bothy-control.yml`). The only places a role is enforced today. `shell` is defined and gated on nothing |
+| The exact `Path()` rules in `edge/dynamic/bothy-api.yml` and `bothy-prom.yml` | The portal's data plane - the only reachable slice of the Docker socket, Loki, Prometheus and the Traefik API |
 
 The portal itself has **no** login for browsing its own pages. That is accepted,
 not overlooked - but note the asymmetry that is *not* accepted and has been
@@ -124,7 +124,7 @@ security change, and should be reviewed as one.
 ### 1. SSO enforces on the tiers that change things, and nowhere else yet
 
 > **Status: ENFORCED, narrowly.** Nine role-gated routers, in three files:
-> `edge/dynamic/portal-files.yml` (`viewer` for reads and downloads, `editor`
+> `edge/dynamic/bothy-files.yml` (`viewer` for reads and downloads, `editor`
 > for writes and deletes), `bothy-config.yml` (the same pair over config fields)
 > and `bothy-control.yml` (`operator`, one router per verb). The fourth role,
 > `shell`, is defined in the realm and referenced by no router at all - see
@@ -149,7 +149,7 @@ host port `8090`) so the callback is an IP:port URL and depends on no name.
 
 **Defining a middleware does not enforce it** - that takes a router referencing
 it, which is the distinction this section existed to make while nothing did. Nine
-routers do now, across three files - `edge/dynamic/portal-files.yml` (four),
+routers do now, across three files - `edge/dynamic/bothy-files.yml` (four),
 `bothy-config.yml` (two) and `bothy-control.yml` (three) - using `sso-viewer`,
 `sso-editor` and `sso-operator`: the same `forwardAuth`, differing only in
 `?allowed_groups=`. The auth stack also owns `oauth2-endpoints`
@@ -221,7 +221,7 @@ thing standing between the tailnet and root.
 
 Because the proxy is not on `devnet`, Traefik's Docker provider cannot see it -
 which is exactly why its service is declared in the file provider
-(`edge/dynamic/portal-api.yml`) rather than by container labels.
+(`edge/dynamic/bothy-api.yml`) rather than by container labels.
 
 ### 3. The `/-/api/*` routers use exact `Path()`. Never `PathPrefix()`. This is THE control.
 
@@ -231,7 +231,7 @@ and **that response body contains `Env`**. On this box that is the Postgres
 password and the Grafana admin password, verified by reading them out of it.
 
 The socket-proxy environment variables **do not** prevent this. The only thing
-that prevents it is that every rule in `edge/dynamic/portal-api.yml` is an
+that prevents it is that every rule in `edge/dynamic/bothy-api.yml` is an
 **exact `Path()`**. There are exactly two Docker paths routed:
 
 ```
@@ -344,9 +344,9 @@ No database is routed through Traefik and none should be. Traefik owns HTTP on
   `/containers/json`-adjacent surfaces and in `ps`. Use `environment:` with a
   `${VAR}` reference.
 - **A secret that has to live in an edge config file is generated, never
-  committed.** `edge/dynamic/portal-prom.yml` carries a basic-auth header for
+  committed.** `edge/dynamic/bothy-prom.yml` carries a basic-auth header for
   Prometheus, so it is written from the environment by
-  `scripts/gen-portal-prom-route.sh` (`just portal-prom-route`), gitignored, and
+  `scripts/gen-bothy-prom-route.sh` (`just bothy-prom-route`), gitignored, and
   a **comments-only** example is committed beside it. Two things were learned
   the hard way, both recorded 2026-08-12:
   - The first version of that example was *live YAML* declaring the same router
@@ -402,7 +402,7 @@ Recorded 2026-08-12 so nobody re-files it and nobody reintroduces it.
 
 | Was | Why it was a real finding | Fix |
 |---|---|---|
-| The Traefik dashboard router served `api@internal` unauthenticated | `/api/rawdata` renders middleware configuration verbatim, including the live `Authorization: Basic` header that `portal-prom.yml`'s `customRequestHeaders` middleware injects. A read-only dashboard was handing out a credential | Router deleted; `--api.dashboard=true` became `--api=true`. `api@internal` survives only as the backend for four exact `Path()` rules |
+| The Traefik dashboard router served `api@internal` unauthenticated | `/api/rawdata` renders middleware configuration verbatim, including the live `Authorization: Basic` header that `bothy-prom.yml`'s `customRequestHeaders` middleware injects. A read-only dashboard was handing out a credential | Router deleted; `--api.dashboard=true` became `--api=true`. `api@internal` survives only as the backend for four exact `Path()` rules |
 
 ---
 
@@ -448,20 +448,20 @@ And the `shell` role, which is the thing #90 would spend:
   arbitrary terminal. Keep composite=false and never nest it in another role"* -
   `auth/realm-devbox.json:37-39`;
 - the interface says the same: *"An arbitrary terminal. Granted to nobody, on
-  purpose."* (`apps/portal-next/web/src/lib/me.ts:29`), rendered as **Granted to
+  purpose."* (`apps/bothy-web/web/src/lib/me.ts:29`), rendered as **Granted to
   nobody** rather than as an ordinary "Not held"
-  (`apps/portal-next/web/src/pages/Settings.tsx:260`);
+  (`apps/bothy-web/web/src/pages/Settings.tsx:260`);
 - it is granted to nobody. The seeding step grants `viewer editor operator` and
   says why it stops there - *"`shell` is DELIBERATELY NOT GRANTED"*,
   `auth/compose.yml:428-434`;
 - **no router references it.** There are three `allowed_groups=` values in
   `edge/dynamic/` and none is `shell`: `viewer` and `editor`
-  (`portal-files.yml:188,197`, referenced again by the config tier at
+  (`bothy-files.yml:188,197`, referenced again by the config tier at
   `bothy-config.yml:61,69`) and `operator` (`bothy-control.yml:169`). The only
   occurrences of the word in that directory are two comments using it as the
   negative control of an authorisation probe - `allowed_groups=shell -> 403
-  (nobody has it)` (`portal-files.yml:40`, `bothy-control.yml:49`) - which
-  `apps/portal-files/checks/authz_probe.py:84` re-runs against the live edge.
+  (nobody has it)` (`bothy-files.yml:40`, `bothy-control.yml:49`) - which
+  `apps/bothy-files/checks/authz_probe.py:84` re-runs against the live edge.
 
 So the role is a **name with no route and no holder**, and that is exactly what
 makes it a safe thing to gate a new route on: oauth2-proxy fails closed on a
@@ -702,9 +702,9 @@ first `just up`:
    before you assume any dashboard here is behind a login, and attach
    `sso-errors@file,sso@file` one router at a time - starting with a router you
    do not need in order to fix a mistake.
-5. **Generate `edge/dynamic/portal-prom.yml`, never commit it.** Run
-   `just portal-prom-route`. It carries a credential; `git check-ignore -v
-   edge/dynamic/portal-prom.yml` must print the rule.
+5. **Generate `edge/dynamic/bothy-prom.yml`, never commit it.** Run
+   `just bothy-prom-route`. It carries a credential; `git check-ignore -v
+   edge/dynamic/bothy-prom.yml` must print the rule.
 6. **Keep it on a private tailnet.** If you put this behind a public address, at
    minimum you need TLS, real authentication in front of every route, the
    portal's Docker API removed or re-reviewed, and the databases moved off any

@@ -2,13 +2,13 @@
 # WHAT THIS FILE IS NOW: the socket proxy, and nothing else.
 #
 # It used to also run the original pure-HTML portal on nginx, kept as a one-line
-# rollback after apps/portal-next replaced it (`traefik.enable=false`, roll back
+# rollback after apps/bothy-web replaced it (`traefik.enable=false`, roll back
 # by flipping it to true). That rollback was deleted on 2026-08-17 and the
 # reasoning is worth keeping, because "keep it, it costs nothing" is how it
 # survived this long:
 #
 #   · It cost 64 MB and a running container to serve nothing. Traefik has not
-#     routed to it since portal-next took the catch-all.
+#     routed to it since bothy-web took the catch-all.
 #   · The rollback was a fiction. The HTML it served was written against
 #     hostnames that no longer resolve, and its
 #     portal.js carried its own copy of the name tables. Flipping the label
@@ -39,7 +39,7 @@ services:
   #    gates by endpoint FAMILY, so it also permits /containers/{id}/json -
   #    whose response includes Env, i.e. POSTGRES_PASSWORD and the Grafana admin
   #    password. The actual boundary is the exact Path() rule in
-  #    ../../edge/dynamic/portal-api.yml. Never widen that to PathPrefix.
+  #    ../../edge/dynamic/bothy-api.yml. Never widen that to PathPrefix.
   #
   #  • POST=0 is load-bearing. Without it, CONTAINERS=1 also grants
   #    /containers/{id}/kill|stop|restart to anyone who can reach this.
@@ -59,17 +59,17 @@ services:
   #    SIZE numbers - it carries NO Env and no new secret-bearing field. It is
   #    also read-only (POST=0 still blocks every mutating /system endpoint). As
   #    with CONTAINERS, the real boundary is the exact Path() rule in
-  #    ../../edge/dynamic/portal-api.yml - only /-/api/docker/system/df is
+  #    ../../edge/dynamic/bothy-api.yml - only /-/api/docker/system/df is
   #    routed; nothing else under /system is reachable from the tailnet.
   socket-proxy:
     image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
     # THIS NAME IS AN API, not a label. Three things match on it by string and
     # none of them can be discovered from here:
-    #   · edge/dynamic/portal-api.yml dials `http://bothy-socket-proxy:2375`
+    #   · edge/dynamic/bothy-api.yml dials `http://bothy-socket-proxy:2375`
     #     over socketnet by Docker DNS. Change one without the other and
     #     /-/api/docker/containers/json 502s and every Overview enrichment goes
     #     blank.
-    #   · apps/portal-next/web/src/lib/actions.ts's SELF map keys the foot-gun
+    #   · apps/bothy-web/web/src/lib/actions.ts's SELF map keys the foot-gun
     #     warning on it, and a miss there fails OPEN - the warning vanishes
     #     silently rather than erroring.
     #   · scripts/doctor.sh checks it by name.

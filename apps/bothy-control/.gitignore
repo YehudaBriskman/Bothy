@@ -4,7 +4,7 @@ __pycache__/
 # The action LOG is not committed - it is a record of this box, not of the code.
 #
 # The DIRECTORY is, and that is a deliberate divergence from
-# apps/portal-files/.gitignore, which ignores `audit/` outright. Docker creates
+# apps/bothy-files/.gitignore, which ignores `audit/` outright. Docker creates
 # a missing bind source as ROOT and this container runs as uid 1000, so an
 # absent directory is mounted unwritable - and audit() swallows that error by
 # design, because a full disk must never block a legitimate restart. The symptom

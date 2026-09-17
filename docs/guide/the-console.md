@@ -98,7 +98,7 @@ hand-written `curl` is refused at the edge exactly the same way. See
 
 **Foot-gun warnings.** Seven containers carry a sentence said *before* the act,
 because stopping them takes away the page you are acting from - Traefik,
-`portal-next`, the socket proxy, `portal-files`, `bothy-config`, Keycloak and
+`bothy-web`, the socket proxy, `bothy-files`, `bothy-config`, Keycloak and
 oauth2-proxy. Stopping Keycloak means nobody can sign in again, including you.
 These are warnings. You may proceed, and the interface says the sentence rather
 than overruling the decision.

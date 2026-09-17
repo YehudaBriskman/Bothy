@@ -54,7 +54,7 @@ Then, in order:
 
 Publish nothing. Join `devnet` and let other containers reach it by service
 name. This is the correct default for exporters, sidecars and proxies -
-`bothy-socket-proxy`, `oauth2-proxy`, `portal-files` and every `*-exporter` do
+`bothy-socket-proxy`, `oauth2-proxy`, `bothy-files` and every `*-exporter` do
 exactly this.
 
 ## A database

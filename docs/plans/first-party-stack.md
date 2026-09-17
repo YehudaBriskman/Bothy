@@ -43,7 +43,7 @@ docs that is always a little behind the file.
 
 Measured against the running service, not guessed:
 
-1. **Full-text search.** `portal-files` serves `/healthz /roots /tree /read
+1. **Full-text search.** `bothy-files` serves `/healthz /roots /tree /read
    /history /repos /status /git/diff /raw /archive`. There is no way to find a
    string across the notes. MkDocs' search box is the function you would miss on
    day one.
@@ -57,9 +57,9 @@ permalink anchors and mermaid. The `md.tsx` subset is deliberate and the Source
 toggle is one click away. If a mermaid diagram is wanted later it is its own
 decision, not a blocker for this phase.
 
-### 1.1 `/search` in `portal-files`
+### 1.1 `/search` in `bothy-files`
 
-**Files:** `apps/portal-files/app.py`, `apps/portal-files/checks/`
+**Files:** `apps/bothy-files/app.py`, `apps/bothy-files/checks/`
 
 **The one design rule:** the search walk goes through `safepath.collect()`.
 That function's docstring already argues this — `listing()` doing its own
@@ -97,7 +97,7 @@ repo's own "no silent caps" rule:
 The response carries `truncated: {reason, scanned, elapsed}` when any bound
 bites. A result list that quietly stops is worse than an error.
 
-**Checks** (`apps/portal-files/checks/`, wired into `just files-check`):
+**Checks** (`apps/bothy-files/checks/`, wired into `just files-check`):
 - a `search_denied.py` that plants a string in a file the policy denies
   (`.env`-shaped name, a `home` top-level dot entry, something under `.git`) and
   asserts the hit **never appears**. This is the check that matters; everything
@@ -106,12 +106,12 @@ bites. A result list that quietly stops is worse than an error.
   like `/read`. Add it to `authz_probe.py`'s table.
 - a bounds test asserting `truncated` is set and the array respects the cap.
 
-**Edge:** one more exact `Path()` rule in `edge/dynamic/portal-files.yml`
+**Edge:** one more exact `Path()` rule in `edge/dynamic/bothy-files.yml`
 alongside `/read`, with the `sso-viewer` middleware chain. Never a `PathPrefix`.
 
 ### 1.2 The Search view in the UI
 
-**Files:** `apps/portal-next/web/src/pages/files/` (new `Search.tsx`),
+**Files:** `apps/bothy-web/web/src/pages/files/` (new `Search.tsx`),
 `ActivityBar.tsx`, `lib/files.ts`
 
 `ActivityBar.tsx` currently says, in a comment, that there is **deliberately no
@@ -128,7 +128,7 @@ already scrolls to a position for the git decorations.
 
 ### 1.3 Relative links in rendered markdown
 
-**Files:** `apps/portal-next/web/src/pages/files/md.tsx`
+**Files:** `apps/bothy-web/web/src/pages/files/md.tsx`
 
 Today a repo-relative link renders as `<span class="md-reflink">` with the
 target beside it. Make it navigate **when, and only when, it resolves to a file
@@ -150,8 +150,8 @@ looks:
 - `justfile` — `up-apps`, `down`, `nuke`
 - `scripts/doctor.sh` — the `expected` container list (`docs docs-sync`)
 - `scripts/verify-access.sh` — `docs:8085:200` in the port baseline
-- `apps/portal-next/web/src/pages/Overview.tsx` — the `docs` quick-link
-- `apps/portal-next/web/src/lib/discover.ts` — the `docs.${BASE}` port entry
+- `apps/bothy-web/web/src/pages/Overview.tsx` — the `docs` quick-link
+- `apps/bothy-web/web/src/lib/discover.ts` — the `docs.${BASE}` port entry
 - `just urls`, `README.md`, `docs/kb/access.md`, `docs/kb/runbook-post-reboot.md`
 - the root `.gitignore` line covering `apps/docs/content`
 
@@ -195,7 +195,7 @@ says "POST=0 is load-bearing", and it is understating it: `POST=1` with
 `CONTAINERS=1` grants the whole container POST family, which includes
 `/containers/create`. The read-only surface must stay read-only.
 
-Instead, the `portal-files` pattern, which exists and is proven:
+Instead, the `bothy-files` pattern, which exists and is proven:
 
 ```
 browser
@@ -226,7 +226,7 @@ recipes and an ssh session, and they should stay that way.
    Read stays on `viewer`; only the three verbs need `operator`.
 3. **The UI** — actions on the service detail page and the system card. A
    confirm step for `stop` on anything the portal itself depends on (traefik,
-   portal-next, portal-files, the socket proxies): stopping the edge from a page
+   bothy-web, bothy-files, the socket proxies): stopping the edge from a page
    served through the edge is a foot-gun that deserves a sentence, not a toast.
 4. **Retire `mgmt/`** — same checklist shape as 1.4. `portainer_data` is a real
    volume with real content (its own users and settings); back it up and then

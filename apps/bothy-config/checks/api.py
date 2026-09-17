@@ -57,10 +57,10 @@ os.makedirs(TRASH)
 # one that must stay unreachable.
 # data/kafka/compose.yml was in this list until 2026-08-18 as "one that must
 # stay unreachable"; it was deleted with the rest of the retired stacks.
-# edge/dynamic/portal-files.yml plays that role - a real repo file with no
+# edge/dynamic/bothy-files.yml plays that role - a real repo file with no
 # patchable label - so the case is still covered.
 for rel in ("edge/compose.yml", "auth/compose.yml", "monitoring/compose.yml",
-            "edge/dynamic/portal-files.yml", "README.md"):
+            "edge/dynamic/bothy-files.yml", "README.md"):
     src = os.path.join(REPO, rel)
     if not os.path.exists(src):
         continue
@@ -160,7 +160,7 @@ EDGE_MTIME = doc.get("mtime")
 code, doc = call("GET", "/config/fields?root=stacks&path=README.md")
 say(code == 403, "a .md file is not patchable", f"{code} {doc.get('error')}")
 
-code, doc = call("GET", "/config/fields?root=stacks&path=edge/dynamic/portal-files.yml")
+code, doc = call("GET", "/config/fields?root=stacks&path=edge/dynamic/bothy-files.yml")
 say(code == 403, "edge/dynamic is unreachable even for READING",
     f"{code} {doc.get('error')}")
 
@@ -185,7 +185,7 @@ say(code == 403 and "escapes" in doc.get("error", ""),
     "a path outside the roots is refused", f"{code} {doc.get('error')}")
 
 code, doc = call("POST", "/config/patch", {
-    "root": "stacks", "path": "edge/dynamic/portal-files.yml",
+    "root": "stacks", "path": "edge/dynamic/bothy-files.yml",
     "field": "dev.portal.project", "value": "x", "baseMtime": 1})
 say(code == 403, "and so is anything under edge/dynamic",
     f"{code} {doc.get('error')}")

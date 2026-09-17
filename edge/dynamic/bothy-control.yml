@@ -16,7 +16,7 @@
 # database.
 #
 # They are written as three separate routers rather than one rule with three
-# Path() alternatives, which is a real departure from portal-files.yml (whose
+# Path() alternatives, which is a real departure from bothy-files.yml (whose
 # read router lists eight paths in one rule). The reason is that these three are
 # not one permission: the day `stop` needs a tier above `restart`, or `start`
 # needs to be reachable when the others are not, that is an edit to one router
@@ -26,24 +26,24 @@
 # ── the `operator` role, and why the middleware is new ──────────────────────
 #
 # `sso-operator` is defined HERE, and it is a deliberate re-introduction. It
-# used to exist in edge/dynamic/portal-files.yml and was deleted on 2026-08-15
+# used to exist in edge/dynamic/bothy-files.yml and was deleted on 2026-08-15
 # with the git action routes it gated, for a reason that file states well: "a
 # middleware nothing references is a loaded gun with no trigger - it looks like
 # protection while protecting nothing, and the next router to want a gate might
 # pick it up believing it is already proven in use."
 #
 # So it comes back now, in the file that references it, and it goes away again
-# with that file. It is not defined in portal-files.yml or auth.yml: a
+# with that file. It is not defined in bothy-files.yml or auth.yml: a
 # middleware and its only consumer should be deletable in one move.
 #
 # It is IDENTICAL to sso-viewer and sso-editor except for one word in the URL,
 # which is the property that made this design worth having in the first place -
-# portal-files.yml said adding the operator tier would be "another four lines,
+# bothy-files.yml said adding the operator tier would be "another four lines,
 # not another container", and this is the four lines.
 #
 # The `operator` role must exist in the Keycloak realm and be granted to whoever
 # should hold it. Verified there before this is trusted, on the precedent in
-# portal-files.yml's header:
+# bothy-files.yml's header:
 #
 #   allowed_groups=editor -> 202   (devssh has it)
 #   allowed_groups=shell  -> 403   (nobody has it)
@@ -109,7 +109,7 @@ http:
     #
     # And NO read router at all. This service answers no read - what is running
     # is already served by the portal's read-only Docker API
-    # (edge/dynamic/portal-api.yml), and a second source of truth for container
+    # (edge/dynamic/bothy-api.yml), and a second source of truth for container
     # state would be two things to keep agreeing.
 
   middlewares:
@@ -157,7 +157,7 @@ http:
           X-Forwarded-Email: ""
 
     # The role gate. Identical to sso-viewer and sso-editor in
-    # edge/dynamic/portal-files.yml except for the word `operator`.
+    # edge/dynamic/bothy-files.yml except for the word `operator`.
     #
     # NOTE for the interface: a 403 from here carries oauth2-proxy's own error
     # page, not JSON, so the `needsRole` field in ActionRefusal never actually

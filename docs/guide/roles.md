@@ -34,10 +34,10 @@ YAML, not another container.
 
 | Router | Role | Path |
 |---|---|---|
-| `portal-files-read` | `viewer` | roots, tree, read, search, links, history, repos, status, git diff |
-| `portal-files-download` | `viewer` | raw and archive, on the `:8100` sandbox entrypoint only |
-| `portal-files-write` | `editor` | write |
-| `portal-files-delete` | `editor` | delete |
+| `bothy-files-read` | `viewer` | roots, tree, read, search, links, history, repos, status, git diff |
+| `bothy-files-download` | `viewer` | raw and archive, on the `:8100` sandbox entrypoint only |
+| `bothy-files-write` | `editor` | write |
+| `bothy-files-delete` | `editor` | delete |
 | `bothy-config-read` | `viewer` | config fields |
 | `bothy-config-write` | `editor` | config patch |
 | `bothy-control-restart` | `operator` | restart |
@@ -61,7 +61,7 @@ under pressure.
 The middlewares themselves are defined next to what they gate, and that
 placement is itself an argument:
 
-- `sso-viewer` and `sso-editor` live in `edge/dynamic/portal-files.yml`;
+- `sso-viewer` and `sso-editor` live in `edge/dynamic/bothy-files.yml`;
 - `sso-operator` lives in `edge/dynamic/bothy-control.yml`;
 - `sso-errors` - which turns a bare 401 into a sign-in page - lives in
   `edge/dynamic/auth.yml` and is borrowed by everything.
@@ -71,7 +71,7 @@ own copies. Traefik's file provider merges every file in the directory into one
 namespace, so two definitions of a middleware named `sso-editor` is a collision
 whose winner no single file can decide - and the two would then drift
 invisibly, with both routers still answering and one of them against the wrong
-role. The cost is real and is stated in the file: deleting `portal-files.yml`
+role. The cost is real and is stated in the file: deleting `bothy-files.yml`
 would silently unauthenticate the config tier's routers.
 
 `sso-operator` was deleted once, on 2026-08-15, along with the routes it gated,
@@ -159,7 +159,7 @@ file write leaves a diff a human can read and revert, and a forged
 serves `.env`, and `.env` contains the cookie secret. Anyone who can read it can
 mint a session for any role. That is a deliberate trade for a single-owner box
 and it is documented at the point it is made, in
-[`apps/portal-files/policy.toml`](../../apps/portal-files/policy.toml). It stops
+[`apps/bothy-files/policy.toml`](../../apps/bothy-files/policy.toml). It stops
 being acceptable the moment a second person holds only `viewer`.
 
 ## The three sources do not agree, and here is how
@@ -183,22 +183,22 @@ name capabilities that do not exist here:
   alert.
 
 **The interface** (`ROLE_MEANING` in
-`apps/portal-next/web/src/lib/me.ts`) is the user-facing wording and is much
+`apps/bothy-web/web/src/lib/me.ts`) is the user-facing wording and is much
 closer, but it is scoped to the file tier and predates the config tier:
 `viewer` reads "browse files, search their contents, download bytes" and also
 gates reading config fields; `editor` reads "change a file on disk" and also
 gates deleting one and patching a compose label through a form.
 
 **The README** is the third, and it undercounts. Its single-sign-on table lists
-**three** routers, all in `portal-files.yml` - read, download and write -
-omitting `portal-files-delete`, omitting `/links` from the read router's paths,
+**three** routers, all in `bothy-files.yml` - read, download and write -
+omitting `bothy-files-delete`, omitting `/links` from the read router's paths,
 and omitting the config and control tiers entirely. The prose beside it says
 "three routers require a role today". Nine do.
 
 `SECURITY.md` disagreed with itself in the same way and in one section: the
 status blockquote at the top of § 1 said *nine role-gated routers in three
 files*, and four paragraphs later the same section still said *"Three routers
-do now, all in `edge/dynamic/portal-files.yml`"*. Corrected 2026-08-19 - the
+do now, all in `edge/dynamic/bothy-files.yml`"*. Corrected 2026-08-19 - the
 blockquote was the half that matched the router table.
 
 The router table is the one that is true, because it is the one that runs. It

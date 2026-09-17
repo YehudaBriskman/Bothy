@@ -83,7 +83,7 @@ Grafana, Portainer, Dozzle, Kafka-UI, Prometheus (basic auth).
 
 | Port | Service | Note |
 |---|---|---|
-| 80 | Portal (portal-next) | Traefik catch-all; **200 expected - a 401 now means regression**. It answers *every* path/host, so a 200 here proves nothing about any other service |
+| 80 | Portal (bothy-web) | Traefik catch-all; **200 expected - a 401 now means regression**. It answers *every* path/host, so a 200 here proves nothing about any other service |
 | 3000 | Grafana | unified dev login |
 | 3001 | Wiki.js | stack currently down |
 | 8080 | Dozzle | unified dev login (simple-auth users file) |

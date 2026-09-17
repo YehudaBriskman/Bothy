@@ -1,6 +1,6 @@
 # Design and brand system
 
-_Status as of 2026-08-10. Extracted from the Bothy portal (`apps/portal-next`),
+_Status as of 2026-08-10. Extracted from the Bothy portal (`apps/bothy-web`),
 which is the reference implementation._
 
 Everything that has to be decided before a website or an interface is finished,
