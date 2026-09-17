@@ -361,6 +361,57 @@ No database is routed through Traefik and none should be. Traefik owns HTTP on
 If a credential is ever committed, treat it as compromised: rotate it first,
 then rewrite history. Removing it in a follow-up commit is not a fix.
 
+### 6. The cluster tier (`bothy-kube`) is three locks, and the innermost is the cluster's
+
+`apps/bothy-kube` gives the web UI five OpenShift-console verbs on the local
+Kubernetes cluster: `rollout-restart`, `scale` (0..3), `events`, `logs` (tail
+<= 500, SSE follow <= 300 s) and `delete-completed-pods`. Only in the namespaces
+`thales-dev` and `thales-pre-prod`. It is built so that any one lock failing
+still leaves the other two:
+
+| Lock | What it enforces | Where |
+|---|---|---|
+| **Edge** | One exact `Path()` per action - no `PathPrefix`, no `Host()`. Reads behind `sso-viewer`, changes behind `sso-operator`. Client `X-Auth-Request-*` stripped. | `edge/dynamic/bothy-kube.yml` |
+| **Service** | Catalog ids must map 1:1 to hard-coded handlers or the service **refuses to start**. Namespace enum, RFC 1123 label names (`fullmatch`, no dots, no slashes), declared params with bounds, `type-name` confirmation checked server-side, JSON-only POST, cross-site `Sec-Fetch-Site` refused, one TSV audit line per request, including refusals. | `apps/bothy-kube/{guard.py,catalog.toml,app.py}` |
+| **Cluster** | ServiceAccount `bothy/bothy-kube` with a Role in **each target namespace only**: deployments get/list/patch, deployments/scale get/patch, pods get/list/delete, pods/log get, events list. **No** pods/exec, pods/attach, pods/portforward, secrets, configmaps, watch, create, or ClusterRole. | `k8s/rbac/bothy-kube.yaml` |
+
+`checks/wiring.py` asserts that the catalog, the edge routers, the UI's copy and
+the Role all agree. `checks/api.py` drives the real handler against a stand-in
+apiserver over real TLS that counts requests, so every refusal is shown to reach
+nothing.
+
+**The credential.** A long-lived ServiceAccount token Secret
+(`bothy/bothy-kube-token`), written by `just kube-token` to
+`apps/bothy-kube/secrets/` (mode 600 inside a 700 directory, gitignored) and
+mounted read-only. It is long-lived rather than a bound `kubectl create token
+--duration` token because this box runs unattended: an expiry nobody is watching
+fails silently, and a Secret token can be revoked exactly and at once
+(`just kube-token --revoke`, or `--rotate`). The trade is that a leaked copy
+stays valid until someone rotates it. What it can do is bounded by the Role, not
+by its lifetime.
+
+**The networks.** `kubenet` holds traefik and bothy-kube and nothing else (the
+way in). `thales-scc` is minikube's own network (the way out, to
+`https://192.168.49.2:8443`, TLS verified against the cluster CA). Traefik is
+**not** on `thales-scc`. There is no published port.
+
+**`pods: delete` is the widest verb.** It can delete a running pod. The handler
+only deletes pods the apiserver lists with `status.phase=Succeeded`, re-checks
+the phase per pod, and sends a UID precondition. A Deployment would recreate a
+deleted running pod anyway, so the worst case is a restart, not data loss.
+
+**Verified against the live cluster, 2026-09-17:** with the real token, the
+apiserver answered 403 to listing secrets in `thales-dev`, reading the token's
+own Secret, `pods/exec`, `pods/portforward`, listing pods in `kube-system`,
+deployments in `thales` and nodes. `kubectl auth can-i
+--as=system:serviceaccount:bothy:bothy-kube create pods/exec -n thales-dev`
+prints `no`. Through the service, `kube-system`, an action named `secrets`,
+`exec`, a traversal in a name and cross-site POSTs were all refused before
+reaching the cluster.
+
+To repeat it: `just kube-token` prints the can-i table (it exits non-zero if any
+row is unexpected), and `apps/bothy-kube/checks/run.sh` runs the offline suite.
+
 ---
 
 ## Accepted risks

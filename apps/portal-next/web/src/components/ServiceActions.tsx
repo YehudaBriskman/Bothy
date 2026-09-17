@@ -35,6 +35,7 @@ import { signInHref } from '../lib/me';
 import type { PortalNode } from '../lib/discover';
 import { StatusIcon } from '../lib/icons';
 import { Dialog } from './ui/Dialog';
+import { KubeActionCell } from './KubeActions';
 import './ServiceActions.css';
 
 // Three circles. lucide's bare `Square` was the first choice for stop and had to
@@ -81,7 +82,8 @@ type Phase =
  *  affordance that could only ever fail is worse than an empty cell. */
 export function ActionCell({ node }: { node: PortalNode }) {
   const [open, setOpen] = useState(false);
-  if (!node.container) return null;
+  // A cluster workload has no container but may have a deployment bothy-kube acts on.
+  if (!node.container) return node.kube ? <KubeActionCell node={node} /> : null;
 
   const name = node.container.name;
   return (

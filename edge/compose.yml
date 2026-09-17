@@ -168,7 +168,8 @@ services:
     # stake of the three.
     # controlnet, and deliberately NOT controlsocknet: the edge reaches the
     # action SERVICE, never the proxies that can mutate containers.
-    networks: [devnet, socketnet, filesnet, confignet, controlnet]
+    # kubenet: reaches bothy-kube only - deliberately NOT minikube's thales-scc.
+    networks: [devnet, socketnet, filesnet, confignet, controlnet, kubenet]
 
 networks:
   devnet:
@@ -180,4 +181,6 @@ networks:
   confignet:
     external: true
   controlnet:
+    external: true
+  kubenet:
     external: true

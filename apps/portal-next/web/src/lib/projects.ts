@@ -37,6 +37,9 @@ export interface CollectorService {
   state: CollectorState;
   detail?: string | null;
   logs?: { kind: 'container' | 'host'; selector: string; filter?: string | null } | null;
+  /** Set by the collector on Kubernetes workloads only. */
+  namespace?: string | null;
+  deployment?: string | null;
 }
 
 export interface CollectorProject {
@@ -202,6 +205,7 @@ function nodeOf(
     icon: 'server',
     desc: svc.detail || svc.description || 'Declared in project.dev.yml',
     logs: svc.logs ?? null,
+    kube: svc.namespace && svc.deployment ? { namespace: svc.namespace, deployment: svc.deployment } : null,
   };
 }
 

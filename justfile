@@ -38,6 +38,10 @@ network:
     # another. Each holds exactly two members.
     -docker network create controlnet 2>/dev/null || true
     -docker network create controlsocknet 2>/dev/null || true
+    # kubenet: traefik + bothy-kube, and nothing else. bothy-kube holds a token
+    # that can restart and scale cluster workloads and authenticates nobody, so
+    # the network is the boundary. Its way OUT is minikube's own network.
+    -docker network create kubenet 2>/dev/null || true
     # socketnet holds exactly two containers: traefik + bothy-socket-proxy.
     # docker-socket-proxy has NO auth, so network reachability IS authorisation -
     # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
@@ -360,6 +364,20 @@ psql:
 # Regenerate the portal's Prometheus data-plane route.
 portal-prom-route:
     ./scripts/gen-portal-prom-route.sh
+
+# bothy-kube's cluster credential: applies k8s/rbac/bothy-kube.yaml, then writes
+# apps/bothy-kube/secrets/{token,ca.crt} (mode 600, gitignored) and prints what
+# the account can and cannot do. `--rotate` revokes and reissues; `--revoke` stops.
+# Issue (or rotate/revoke) bothy-kube's ServiceAccount token.
+kube-token *args:
+    ./scripts/gen-kube-token.sh {{args}}
+
+# The cluster tier. NOT part of `up-apps`: it joins minikube's `thales-scc`
+# network, which exists only while that cluster does, and a box with no cluster
+# must still come up with `just up`.
+# Start bothy-kube (needs the thales-scc cluster and `just kube-token`).
+up-kube: network
+    docker compose -f apps/bothy-kube/compose.yml up -d --build
 
 # Print access URLs. Pure-IP-over-tailscale model: every service has a published
 # host port on this node's tailnet IP.

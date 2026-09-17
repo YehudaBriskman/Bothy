@@ -1,0 +1,6 @@
+The bothy-kube action log lands here (compose.yml mounts ./audit:/audit).
+
+Committed, empty, on bothy-control's reasoning: docker creates a missing bind
+source as root, this service runs as uid 1000, and audit() swallows a write
+failure by design - so a missing directory would be a silently empty log.
+actions.log itself is gitignored by the repo-wide *.log rule.
