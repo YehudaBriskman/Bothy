@@ -239,6 +239,10 @@
   --wrap: 1180px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+  /* The THIRD family, and only for rendered documents in Files, chosen per
+     browser in Settings > Appearance > Document font. A system stack like the
+     other two - no webfont, no request (brand/foundations/typography.md). */
+  --font-serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, Cambria, serif;
 }
 
 /* Derived tints. TWO percentages, not thirteen - every chip, bar and tag comes
@@ -1296,3 +1300,36 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
+/* ── accent, chosen per browser (Settings > Appearance > Accent) ─────────────
+   Overrides the CHROME accent on the two built-in palettes only; a named theme
+   carries its own and is left alone, which is why each block names its theme id.
+   (0,3,0) beats the base palettes wherever the bundle emits them. The derived
+   --accent-bg/--accent-line/--ring re-evaluate for free: they are color-mix()
+   over --accent on this same element.
+
+   Both hues keep >= 45 degrees of OKLCH hue from every chromatic status, the
+   rule contract.ts applies to the panel accents (HUE_SEPARATION), measured
+   2026-09-17: violet 80 from --st-down, cyan 48 (dark) / 61 (light) from
+   --st-up. Teal and pink were ruled out on the same measurement - teal reads as
+   `up`, pink as `down`. checks/theme-contract.mjs evaluates all four blocks
+   against the full contrast contract. */
+:root[data-accent='violet'][data-bothy-theme='bothy-dark'] {
+  --accent:    #a78bfa;   /* violet-400 */
+  --accent-2:  #8b5cf6;
+  --accent-fg: #c4b5fd;
+}
+:root[data-accent='violet'][data-bothy-theme='bothy-light'] {
+  --accent:    #7c3aed;   /* violet-600 */
+  --accent-2:  #6d28d9;
+  --accent-fg: #6d28d9;
+}
+:root[data-accent='cyan'][data-bothy-theme='bothy-dark'] {
+  --accent:    #22d3ee;   /* cyan-400 */
+  --accent-2:  #06b6d4;
+  --accent-fg: #67e8f9;
+}
+:root[data-accent='cyan'][data-bothy-theme='bothy-light'] {
+  --accent:    #0e7490;   /* cyan-700: cyan-600 as a fill under white text is 3.2 */
+  --accent-2:  #155e75;
+  --accent-fg: #0e7490;
+}

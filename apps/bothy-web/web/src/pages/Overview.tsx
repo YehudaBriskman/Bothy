@@ -19,6 +19,8 @@ import { KNOWN_SERVICES, type PortalNode, type Status } from '../lib/discover';
 import { serviceLink, systemLink, kindLabelOf } from '../lib/links';
 import { Skeleton } from '../components/states';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
+import { useLayout } from '../lib/usePrefs';
+import { orderSections } from '../lib/prefs';
 import './Overview.css';
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -450,7 +452,15 @@ export function Overview() {
   // Bothy is now a whole section - its edge, auth, file tier and control tier -
   // and most of those CAN fail while this page renders, so they are shown like
   // everything else, under their own heading.
-  const groups = useMemo<MatrixGroup[]>(() => sectionsOf(systems), [systems]);
+  // Settings > Layout & navigation, per browser: which section leads, and which
+  // of the optional panels are drawn. The status line and the attention strip
+  // are not optional - see OVERVIEW_PANELS in lib/prefs.ts.
+  const [layout] = useLayout();
+  const hide = (id: string) => (layout.hiddenPanels as string[]).includes(id);
+  const groups = useMemo<MatrixGroup[]>(
+    () => orderSections(sectionsOf(systems), layout.sectionOrder),
+    [systems, layout.sectionOrder],
+  );
 
   // Built from location.hostname, so the floor works from the tailnet IP,
   // MagicDNS or localhost - whichever the reader reached the box by. It used to
@@ -502,7 +512,7 @@ export function Overview() {
               degraded={degraded}
             />
 
-            <QuickView />
+            {!hide('quickview') && <QuickView />}
 
             <AttentionStrip attention={attention} />
 
@@ -516,10 +526,10 @@ export function Overview() {
                 broken" is the question this page exists for, and a row of charts
                 above it would be three pretty things standing in front of the
                 one sentence you came to read. */}
-            <Vitals />
+            {!hide('vitals') && <Vitals />}
 
-            <div className="ov-dash">
-              <Panel
+            {!(hide('ui') && hide('disk') && hide('top')) && <div className="ov-dash">
+              {!hide('ui') && <Panel
                 title="Open a UI"
                 Icon={ExternalLink}
                 meta={stack.length + project.length}
@@ -533,9 +543,9 @@ export function Overview() {
                 }
               >
                 <UiBody stack={stack} project={project} />
-              </Panel>
+              </Panel>}
 
-              <Panel
+              {!hide('disk') && <Panel
                 title="Data & disk"
                 Icon={HardDrive}
                 meta={data.df ? fmtBytes(diskTotal) : 'no sizes'}
@@ -549,10 +559,10 @@ export function Overview() {
                 }
               >
                 <DiskBody systems={systems} df={data.df} />
-              </Panel>
+              </Panel>}
 
-              <TopContainers />
-            </div>
+              {!hide('top') && <TopContainers />}
+            </div>}
           </>
         )}
       </div>

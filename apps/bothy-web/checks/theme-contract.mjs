@@ -193,6 +193,22 @@ console.log(`  contract: ${REQUIRED.length} required tokens · `
 checkTheme('Bothy Dark', 'dark', BASE, HL_DARK);
 checkTheme('Bothy Light', 'light', merge(BASE, LIGHT), merge(HL_DARK, HL_LIGHT));
 
+// The per-browser accent overrides (Settings > Appearance > Accent). Each is the
+// built-in palette with three tokens replaced, so it owes the whole contract -
+// the --accent-fg and --on-accent contrasts are the rules it can actually break.
+for (const accent of ['violet', 'cyan']) {
+  for (const [id, appearance, base, hl] of [
+    ['bothy-dark', 'dark', BASE, HL_DARK],
+    ['bothy-light', 'light', merge(BASE, LIGHT), merge(HL_DARK, HL_LIGHT)],
+  ]) {
+    const sel = `:root[data-accent='${accent}'][data-bothy-theme='${id}']`;
+    const over = pick((s) => s === sel);
+    say(Object.keys(over).length === 3, `${sel} declares --accent, --accent-2 and --accent-fg`,
+      Object.keys(over).join(' '));
+    checkTheme(`${id} + ${accent} accent`, appearance, merge(base, over), hl);
+  }
+}
+
 // The five swatch copies the picker paints for the two built-ins. They exist
 // because a :root palette cannot be applied to a card in a list; they are safe
 // only while they still equal what they claim to preview.

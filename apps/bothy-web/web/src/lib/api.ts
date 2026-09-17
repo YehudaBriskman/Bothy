@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { allPorts, configRootsOf, merge, placeOf, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
 import { withDeclared, type CollectorPayload, type CollectorProject } from './projects';
 import type { RootPaths } from './config';
+import { readData } from './prefs';
 
 // /system/df - per-image / per-container / per-volume disk usage. Read-only,
 // carries no Env (see edge/dynamic/bothy-api.yml). Purely additive enrichment:
@@ -212,7 +213,10 @@ export function usePortalData(): { data: PortalData; refresh: () => void } {
     const schedule = () => {
       clearTimeout(timer);
       if (document.hidden) return; // this page lives in a background tab for days
-      timer = setTimeout(run, failsRef.current >= MAX_BACKOFF ? POLL_FAIL : POLL_OK);
+      // The healthy interval is Settings > Data & refresh, read per schedule so
+      // a change applies on the next poll without a reload. POLL_OK stays the
+      // documented default (DATA_DEFAULT agrees); the backoff is not configurable.
+      timer = setTimeout(run, failsRef.current >= MAX_BACKOFF ? POLL_FAIL : readData().pollSeconds * 1000);
     };
 
     const run = async () => {

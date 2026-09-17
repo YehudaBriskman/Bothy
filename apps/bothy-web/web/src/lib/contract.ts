@@ -137,6 +137,9 @@ export const FILL_ALLOWANCE: Record<string, string> = {
 export const STRUCTURAL = new Set([
   '--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-full', '--border-w', '--wrap',
   '--scrollbar-w', '--dur-fast', '--dur', '--dur-slow', '--ease', '--font', '--mono',
+  // The document serif, offered by Settings > Appearance > Document font. A font
+  // stack, not a colour - same family as --font and --mono.
+  '--font-serif',
   '--disabled-opacity', '--rest-opacity',
   // The reading scale. index.css says out loud that these are STRUCTURAL - "a
   // theme inherits these unless it opts in - the same treatment radii and motion

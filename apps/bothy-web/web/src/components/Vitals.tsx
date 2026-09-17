@@ -17,6 +17,7 @@ import {
   fmtPercent, fmtRate, useMetrics, type RangeKey, type Series,
 } from '../lib/metrics';
 import { TimeChart, ChartLegend, type ChartSeries } from './TimeChart';
+import { readData } from '../lib/prefs';
 import './Vitals.css';
 
 /**
@@ -44,7 +45,8 @@ function summarise(s: Series | undefined): { now: number; peak: number; avg: num
 }
 
 export function Vitals() {
-  const [range, setRange] = useState<RangeKey>('1h');
+  // Opens on Settings > Data & refresh > Default chart range (per browser).
+  const [range, setRange] = useState<RangeKey>(() => readData().chartRange);
 
   // One poll for all four queries, so the three charts always describe the same
   // instant - separate hooks would drift by up to a refresh interval and the
