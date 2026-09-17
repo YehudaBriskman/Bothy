@@ -47,6 +47,7 @@ device and the box, and edge auth covers only the last of them:
 | The tailnet itself | Everything. It is the outer perimeter and, today, very nearly the only one |
 | Each service's own login, using the shared `DEV_LOGIN_*` credential | Grafana, Prometheus |
 | Keycloak roles at the edge (`forwardAuth`) | The tiers that change things: `viewer`/`editor` on the file and config tiers (`edge/dynamic/bothy-files.yml`, `bothy-config.yml`), `operator` on the control tier (`bothy-control.yml`). The only places a role is enforced today. `shell` is defined and gated on nothing |
+| A dedicated `oauth2-proxy-headlamp` (Keycloak client `headlamp`, `--allowed-group=viewer`), in front of a ServiceAccount bound to the built-in `view` ClusterRole | Headlamp, the read-only cluster console on `:8110` (`apps/headlamp/compose.yml`). The proxy is the only published port; Headlamp itself has none. Every viewer is the same cluster identity, `bothy/bothy-browse`, which cannot read Secrets, exec, attach, port-forward or write anything (`k8s/rbac/bothy-browse.yaml`; `just headlamp-token` prints the can-i table). Verified live 2026-09-17: through a real login, Secrets, a dry-run ConfigMap create, `pods/exec` and `pods/portforward` all answered 403 from the apiserver |
 | The exact `Path()` rules in `edge/dynamic/bothy-api.yml` and `bothy-prom.yml` | The portal's data plane - the only reachable slice of the Docker socket, Loki, Prometheus and the Traefik API |
 
 The portal itself has **no** login for browsing its own pages. That is accepted,

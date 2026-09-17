@@ -409,6 +409,40 @@ kube-token *args:
 up-kube: network
     docker compose -f apps/bothy-kube/compose.yml up -d --build
 
+# Headlamp's cluster credential: applies k8s/rbac/bothy-browse.yaml (the built-in
+# `view` ClusterRole - no secrets, exec or port-forward), then writes
+# apps/headlamp/secrets/kubeconfig (mode 600, gitignored) and prints the can-i
+# table. `--rotate` revokes and reissues; `--revoke` stops.
+# Issue (or rotate/revoke) Headlamp's read-only ServiceAccount kubeconfig.
+headlamp-token *args:
+    ./scripts/gen-headlamp-token.sh {{args}}
+
+# Headlamp, the read-only cluster console, behind its own oauth2-proxy on :8110
+# (Keycloak client `headlamp`, role `viewer`). NOT part of `up`, for the same
+# reason as up-kube: it joins minikube's `thales-scc` network, which exists only
+# while the cluster does. Idempotent: the token is issued only if absent, and
+# the Keycloak client (plus its two .env secrets) is re-asserted every run.
+# The script writes .env, so compose runs in a nested just that re-reads it.
+# Start Headlamp (read-only cluster console, SSO on :8110). Needs the cluster and Keycloak.
+up-headlamp:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker network inspect thales-scc >/dev/null 2>&1 || {
+      echo "no docker network thales-scc - start the cluster first: minikube start -p thales-scc" >&2; exit 1; }
+    [ -f apps/headlamp/secrets/kubeconfig ] || ./scripts/gen-headlamp-token.sh
+    ./scripts/keycloak-headlamp-client.sh
+    env -u HEADLAMP_OAUTH2_CLIENT_SECRET -u HEADLAMP_OAUTH2_COOKIE_SECRET \
+      just _up-headlamp
+    echo ""
+    echo "  Headlamp   http://$(bash scripts/lib/box-addr.sh):8110   (Keycloak login, role viewer)"
+
+_up-headlamp:
+    docker compose -f apps/headlamp/compose.yml up -d
+
+# Stop Headlamp and its proxy. Run before `minikube delete`, or the network cannot go.
+down-headlamp:
+    docker compose -f apps/headlamp/compose.yml down
+
 # Print access URLs. Pure-IP-over-tailscale model: every service has a published
 # host port on this node's tailnet IP.
 #
@@ -452,6 +486,9 @@ urls:
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
     echo "    Keycloak      http://$IP:8090/admin   (identity - admin / shared dev login)"
+    echo "    Headlamp      http://$IP:8110         (read-only cluster console - Keycloak"
+    echo "                                            login, role viewer; only while the"
+    echo "                                            thales-scc cluster runs: just up-headlamp)"
     echo ""
     echo "    Files (raw)   http://$IP:8100         (SANDBOX ORIGIN - raw file bytes"
     echo "                                            only. A different port is a"

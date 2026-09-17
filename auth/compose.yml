@@ -181,6 +181,11 @@ services:
       # configuration options and an unrecognised one is a startup failure.
       DEVBOX_OAUTH2_CLIENT_SECRET: ${KEYCLOAK_OAUTH2_CLIENT_SECRET:?set KEYCLOAK_OAUTH2_CLIENT_SECRET in .env}
       DEVBOX_OAUTH2_REDIRECT_URI: http://${BOX_IP:?set BOX_IP in .env}/oauth2/callback
+      # The `headlamp` client (apps/headlamp). Only its redirect URI comes from
+      # here: the realm file imports that client DISABLED and with no secret, and
+      # scripts/keycloak-headlamp-client.sh (run by `just up-headlamp`) sets the
+      # secret and enables it - so no new .env key is required to start Keycloak.
+      DEVBOX_HEADLAMP_REDIRECT_URI: http://${BOX_IP:?set BOX_IP in .env}:8110/oauth2/callback
 
       # The JVM defaults to a quarter of the container limit, which is 256m of
       # the 1g below and enough to make first-boot schema creation crawl.

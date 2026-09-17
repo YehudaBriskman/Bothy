@@ -50,6 +50,12 @@ rules:
     section: bothy
     subgroup: helpers
     title: Cluster monitoring
+  # Headlamp and its login (apps/headlamp) - a read-only browser for the cluster,
+  # which serves the box rather than any one project.
+  - match: [project:headlamp]
+    section: bothy
+    subgroup: helpers
+    title: Headlamp
   - match: [k8s:bothy]
     section: bothy
     subgroup: core

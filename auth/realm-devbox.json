@@ -45,7 +45,7 @@
     {
       "clientId": "oauth2-proxy",
       "name": "oauth2-proxy (Traefik forwardAuth)",
-      "description": "The only OIDC client here. Traefik asks oauth2-proxy for a verdict; it asks Keycloak. Secret and redirect URI are injected from .env at import.",
+      "description": "The shared forwardAuth client. Traefik asks oauth2-proxy for a verdict; it asks Keycloak. Secret and redirect URI are injected from .env at import.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
@@ -58,6 +58,45 @@
 
       "secret": "${DEVBOX_OAUTH2_CLIENT_SECRET}",
       "redirectUris": ["${DEVBOX_OAUTH2_REDIRECT_URI}"],
+      "webOrigins": ["+"],
+
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+
+      "protocolMappers": [
+        {
+          "name": "realm-roles-as-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "headlamp",
+      "name": "Headlamp (read-only cluster browser)",
+      "description": "oauth2-proxy-headlamp in front of Headlamp on its own port. Imported DISABLED and with no secret; scripts/keycloak-headlamp-client.sh sets the secret from .env and enables it.",
+      "enabled": false,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+
+      "redirectUris": ["${DEVBOX_HEADLAMP_REDIRECT_URI}"],
       "webOrigins": ["+"],
 
       "attributes": {
