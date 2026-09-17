@@ -130,6 +130,15 @@ def _load_policy(path: str) -> dict:
     for fname, fcfg in fields.items():
         if not isinstance(fcfg, dict) or not fcfg.get("kind"):
             raise PolicyError(f"config field {fname!r} declares no kind")
+        # `paths` narrows a field to named files (placement.yml's fields exist in
+        # exactly one). Optional, but when present it must be a non-empty list of
+        # plain relative paths - an empty list would silently disable the field.
+        if "paths" in fcfg:
+            ps = fcfg["paths"]
+            if (not isinstance(ps, list) or not ps
+                    or not all(isinstance(x, str) and x and not x.startswith("/")
+                               and ".." not in x.split("/") for x in ps)):
+                raise PolicyError(f"config field {fname!r} has a malformed `paths` list")
     csnaps = cfg.get("snapshots")
     if not isinstance(csnaps, dict) or not csnaps.get("path"):
         raise PolicyError("policy declares no [config.snapshots].path")
@@ -233,6 +242,14 @@ CONFIG_DENY_RELPATHS = frozenset(_CONFIG["deny_relpaths"])
 CONFIG_FIELDS: dict[str, dict] = dict(_CONFIG["fields"])
 # The ceiling on any value, whatever its own field's limit says.
 CONFIG_MAX_VALUE = int(_CONFIG.get("max_length", 500))
+
+
+def config_fields_for(relpath: str) -> dict[str, dict]:
+    """The fields a form may patch IN THIS FILE: every field with no `paths`,
+    plus those whose `paths` name it exactly. A field scoped to placement.yml is
+    therefore not even located in a compose file, let alone patched there."""
+    return {f: c for f, c in CONFIG_FIELDS.items()
+            if "paths" not in c or relpath in c["paths"]}
 
 # GIT_ROOTS stays in code: it is not policy, it is a fact about where the
 # repositories physically are. A root may contain many (~/projects) or none, and

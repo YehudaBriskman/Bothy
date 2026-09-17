@@ -247,8 +247,79 @@ def _locate_compose_label(doc, text: str, lines: list[int],
     return sites
 
 
+PLACEMENT_KEYS = ("section", "subgroup", "title", "group")
+
+
+def placement_rule_id(match: object) -> str | None:
+    """A placement rule's identity: its `match` list, joined. None if it has none.
+
+    The rule's POSITION would be shorter and wrong: inserting a rule above it
+    would move every patch aimed at the rules below onto a different rule, and
+    the conflict check would not catch it (the file's mtime moved, so a reload
+    would show new values under the same row). The match list is what the rule
+    IS; two rules with the same list are refused below as ambiguous.
+    """
+    if not isinstance(match, list) or not match or not all(isinstance(m, str) for m in match):
+        return None
+    return ",".join(match)
+
+
+def _locate_placement_rule(doc, text: str, lines: list[int], field: str) -> list[Site]:
+    """Find `placement.<key>` in apps/bothy-collector/placement.yml.
+
+        rules:
+          - match: [project:auth]
+            section: bothy          <- field placement.section, service "project:auth"
+
+    `service` carries the rule's identity (placement_rule_id) so the patch API's
+    existing "which service" disambiguation names a rule here. Only keys that are
+    ALREADY WRITTEN are sites: a rule with no `title:` has no title to change, and
+    adding one is an edit in Files, like every other structural change.
+
+    The policy scopes these fields to that one file (`paths`), so this locator is
+    never asked about a compose file or a Kyverno policy that happens to have a
+    top-level `rules:`.
+    """
+    key = field.split(".", 1)[1] if "." in field else ""
+    if key not in PLACEMENT_KEYS:
+        raise RewriteRefused(f"{field}: not a placement key - expected placement.<{'|'.join(PLACEMENT_KEYS)}>")
+    sites: list[Site] = []
+    if not isinstance(doc, CommentedMap):
+        return sites
+    rules = doc.get("rules")
+    if not isinstance(rules, CommentedSeq):
+        return sites
+    seen: dict[str, int] = {}
+    for rule in rules:
+        if not isinstance(rule, CommentedMap):
+            continue
+        rid = placement_rule_id(rule.get("match"))
+        if rid is None:
+            continue
+        seen[rid] = seen.get(rid, 0) + 1
+        if key not in rule:
+            continue
+        val = rule[key]
+        if not isinstance(val, str):
+            raise RewriteRefused(f"{field} on rule {rid!r} is not a plain string")
+        lc = rule.lc.value(key)
+        if lc is None:
+            raise RewriteRefused(f"{field}: ruamel reported no position on rule {rid!r}")
+        start, end = _span_of(text, lines, lc[0], lc[1], val, f"{field} on {rid}")
+        sites.append(Site(field=field, kind="placement-rule", service=rid, value=val,
+                          line=lc[0] + 1, start=start, end=end))
+    dup = sorted(r for r, n in seen.items() if n > 1)
+    if dup:
+        # Two rules with one identity cannot be told apart by a patch request.
+        # Refused for the whole file rather than per site, because "which of the
+        # two did you mean" has no answer a form could give.
+        raise RewriteRefused(f"placement.yml has more than one rule matching {dup[0]!r} - edit it in Files")
+    return sites
+
+
 LOCATORS = {
     "compose-label": _locate_compose_label,
+    "placement-rule": _locate_placement_rule,
 }
 
 
@@ -379,6 +450,12 @@ def _clear_site(doc, site: Site):
     different index, so the comparison would report a difference that is only the
     hole we punched. Overwriting it in place keeps the shapes aligned.
     """
+    if site.kind == "placement-rule":
+        key = site.field.split(".", 1)[1]
+        for rule in (doc.get("rules") or []) if isinstance(doc, dict) else []:
+            if isinstance(rule, dict) and placement_rule_id(rule.get("match")) == site.service and key in rule:
+                rule[key] = "\0"
+        return doc
     try:
         svc = doc["services"][site.service]
         labels = svc["labels"]

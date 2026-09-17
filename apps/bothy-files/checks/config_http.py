@@ -149,8 +149,9 @@ def comment_lines(rel: str) -> int:
 
 print("── it starts, and says what it can do ──────────────────────────────")
 code, doc = call("GET", "/healthz")
-say(code == 200 and doc.get("fields") == ["dev.portal.project"],
-    "healthz names the one patchable field", f"{code} {doc}")
+say(code == 200 and doc.get("fields") == ["dev.portal.project", "placement.group", "placement.section",
+                                          "placement.subgroup", "placement.title"],
+    "healthz names the patchable fields (the label, and placement's four)", f"{code} {doc}")
 
 print()
 print("── reading what is patchable ───────────────────────────────────────")

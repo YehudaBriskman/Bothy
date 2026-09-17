@@ -52,6 +52,19 @@ LOG = AuditLog(os.environ.get("CONFIG_AUDIT_LOG", "/audit/patches.log"))
 _EDGE_SPACE = re.compile(r"^\s|\s$")
 
 
+# EDITING IS NOT APPLYING, said per kind: what makes the change live differs.
+APPLIED_NOTE = {
+    "compose-label": (
+        "written to the file. A compose label is read at "
+        "container-creation time, so this takes effect when the "
+        "service is recreated - that is operator work, not this "
+        "service's."),
+    "placement-rule": (
+        "written to the file. The collector re-reads placement.yml on its next "
+        "run (every 30 seconds), and the Overview follows on its next poll."),
+}
+
+
 def audit(who: str, action: str, res, field: str, service: str,
           old: str | None = None, new: str | None = None) -> None:
     """One line per change: who, what, which field on which service, old -> new.
@@ -145,7 +158,8 @@ def fields_in(res) -> dict:
     value. One read, one stat, one answer.
     """
     text, mtime = read_text(res)
-    sites = yamlpatch.locate(text, safepath.CONFIG_FIELDS)
+    fields = safepath.config_fields_for(res.relpath)
+    sites = yamlpatch.locate(text, fields)
     return {
         "root": res.root_key,
         "path": res.relpath,
@@ -155,7 +169,7 @@ def fields_in(res) -> dict:
              "line": s.line, "kind": s.kind, "maxLength": _limit(s.field)}
             for s in sites
         ],
-        "patchable": sorted(safepath.CONFIG_FIELDS),
+        "patchable": sorted(fields),
     }
 
 
@@ -195,6 +209,13 @@ def handle_post(h) -> None:
                                       for_write=True)
         field = body.get("field", "")
         value = validate(field, body.get("value"))
+        fields = safepath.config_fields_for(res.relpath)
+        if field not in fields:
+            # Declared, but scoped to other files by its `paths` - a placement
+            # field is refused on a compose file before the file is even read.
+            raise safepath.PathRefused(
+                f"{field!r} is not patchable in {res.relpath} - the policy scopes it to "
+                + ", ".join(safepath.CONFIG_FIELDS[field].get("paths", [])))
         want_service = body.get("service")
         who = h.actor()
 
@@ -223,7 +244,7 @@ def handle_post(h) -> None:
                 "yours": value,
                 "theirs": [
                     {"field": s.field, "service": s.service, "value": s.value}
-                    for s in yamlpatch.locate(text, safepath.CONFIG_FIELDS)
+                    for s in yamlpatch.locate(text, fields)
                     if s.field == field
                 ],
             })
@@ -232,7 +253,7 @@ def handle_post(h) -> None:
         # An ambiguous patch is REFUSED rather than applied to the first match:
         # the caller knows which service it meant, and guessing is the quiet
         # wrongness this whole design exists to avoid.
-        sites = [s for s in yamlpatch.locate(text, safepath.CONFIG_FIELDS)
+        sites = [s for s in yamlpatch.locate(text, fields)
                  if s.field == field
                  and (want_service is None or s.service == want_service)]
         if not sites:
@@ -297,10 +318,6 @@ def handle_post(h) -> None:
             # changed six labels and nothing on screen moved until every affected
             # container was recreated.
             "applied": False,
-            "appliedNote": (
-                "written to the file. A compose label is read at "
-                "container-creation time, so this takes effect when the "
-                "service is recreated - that is operator work, not this "
-                "service's."),
+            "appliedNote": APPLIED_NOTE.get(site.kind, APPLIED_NOTE["compose-label"]),
         })
     return _errors(h, "/config/patch", run)

@@ -394,6 +394,16 @@ max_length = 500
 [config.fields]
 "dev.portal.project" = { kind = "compose-label", max_length = 80 }
 
+# Where a system is SHOWN on the Overview (Settings > Services & placement). The
+# worst outcome of a wrong value is a card under the wrong heading, the same
+# blast radius as the label above. `paths` scopes each to the one file that has
+# these keys, so they are not even located anywhere else. Existing values only:
+# adding or deleting a rule is a Files edit.
+"placement.section"  = { kind = "placement-rule", max_length = 64, paths = ["apps/bothy-collector/placement.yml"] }
+"placement.subgroup" = { kind = "placement-rule", max_length = 64, paths = ["apps/bothy-collector/placement.yml"] }
+"placement.title"    = { kind = "placement-rule", max_length = 80, paths = ["apps/bothy-collector/placement.yml"] }
+"placement.group"    = { kind = "placement-rule", max_length = 64, paths = ["apps/bothy-collector/placement.yml"] }
+
 # ── the config undo net ─────────────────────────────────────────────────────
 #
 # A SEPARATE directory from [snapshots] above, and it stays separate after the

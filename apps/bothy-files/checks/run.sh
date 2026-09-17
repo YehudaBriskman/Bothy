@@ -74,6 +74,8 @@ if bothy_yaml_python "$HERE/../requirements.txt" "$HERE/../.venv"; then
     check "$YPY" checks/patch_one_line.py
     section "config: the API - refusals, the 409, the snapshot, the audit line"
     check "$YPY" checks/config_http.py
+    section "config: placement rules - located, scoped to one file, one line"
+    check "$YPY" checks/placement_http.py
   fi
 else
   fail=1

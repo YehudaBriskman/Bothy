@@ -594,7 +594,19 @@ for label, cond, got in [
      _cfg.get("deny_prefixes")),
     ("the bcrypt file is excluded by path",
      "monitoring/prometheus-web.yml" in _cfg.get("deny_relpaths", []), _cfg.get("deny_relpaths")),
-    ("exactly one patchable field", sorted(_cfg.get("fields", {})) == ["dev.portal.project"],
+    # The label, plus placement.yml's four (Settings > Services & placement). A
+    # widening here must be a deliberate edit to this list as well as the policy.
+    ("exactly the declared patchable fields", sorted(_cfg.get("fields", {})) == [
+        "dev.portal.project", "placement.group", "placement.section", "placement.subgroup", "placement.title"],
+     sorted(_cfg.get("fields", {}))),
+    ("every placement field is scoped to placement.yml and nothing else",
+     all(v.get("paths") == ["apps/bothy-collector/placement.yml"]
+         for k, v in _cfg.get("fields", {}).items() if k.startswith("placement.")),
+     {k: v.get("paths") for k, v in _cfg.get("fields", {}).items()}),
+    ("no field is class C (volumes, privileged, command, ...)",
+     not any(seg in ("volumes", "privileged", "cap_add", "command", "entrypoint", "network_mode",
+                     "image", "ports", "environment", "user")
+             for k in _cfg.get("fields", {}) for seg in k.split(".")),
      sorted(_cfg.get("fields", {}))),
     ("config-trash is a DIFFERENT net from the editor's",
      _cfg.get("snapshots", {}).get("path") not in (None, _ship["snapshots"]["path"]),
