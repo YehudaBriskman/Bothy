@@ -1,17 +1,18 @@
 // Cluster - what Bothy may do to Kubernetes, and with which identity.
 //
-// The scope and the verbs are the UI's mirror of bothy-ops' catalog (lib/
-// kube-actions.ts, which apps/bothy-ops/checks/wiring.py holds equal to
-// catalog.toml), so this page cannot claim a verb the service does not have. The
+// The scope and the verbs are bothy-ops' own catalog, served at
+// GET /-/api/kube/catalog (viewer), so this page cannot claim a verb the service
+// does not have. The
 // token's age comes from the credential inventory when the reader holds
 // operator; otherwise the page says which command shows it.
 
+import { Link } from 'react-router-dom';
 import { StatusIcon } from '../../lib/icons';
 import { usePortal } from '../../lib/data';
-import { KUBE_CATALOG, KUBE_NAMESPACES, SCALE_MAX } from '../../lib/kube-actions';
+import { loadCatalog } from '../../lib/kube-actions';
 import { fetchCredentials } from '../../lib/admin';
 import { SettingBlock } from '../../components/settings/SettingBlock';
-import { Cmd, Loading, When, useLoad } from '../../components/settings/bits';
+import { Cmd, Loading, Refusal, When, useLoad } from '../../components/settings/bits';
 import { statusOf } from '../../lib/http';
 
 export function ClusterSettings() {
@@ -25,22 +26,34 @@ export function ClusterSettings() {
 }
 
 function Scope() {
+  const { data, error, loading, reload } = useLoad(() => loadCatalog());
+  if (loading) return <Loading rows={5} />;
+  if (error || !data) {
+    return (
+      <>
+        <Refusal error={error} needs="viewer" what="the cluster catalog" />
+        <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+      </>
+    );
+  }
+  const scale = data.actions.find((a) => a.id === 'scale')?.params.replicas?.max;
   return (
     <>
       <p className="set-lede">
-        Two namespaces, as a literal list in the service - not a pattern, not a label selector:{' '}
-        {KUBE_NAMESPACES.map((n, i) => <span key={n}>{i > 0 && ' and '}<span className="mono set-pill">{n}</span></span>)}.
+        {data.namespaces.length} namespaces, as a literal list in the service - not a pattern, not a label selector:{' '}
+        {data.namespaces.map((n, i) => <span key={n}>{i > 0 && ', '}<span className="mono set-pill">{n}</span></span>)}.
         Anything else is refused before a request reaches the apiserver.
       </p>
       <div className="tbl-wrap set-tbl">
         <table className="tbl">
           <thead>
-            <tr><th scope="col">Action</th><th scope="col">Role</th><th scope="col">Confirmation</th><th scope="col">What it does</th></tr>
+            <tr><th scope="col">Action</th><th scope="col">On</th><th scope="col">Role</th><th scope="col">Confirmation</th><th scope="col">What it does</th></tr>
           </thead>
           <tbody>
-            {KUBE_CATALOG.map((a) => (
+            {data.actions.map((a) => (
               <tr key={a.id}>
                 <td><b>{a.title}</b><span className="set-cell-sub mono">{a.id}</span></td>
+                <td className="mono">{a.target}</td>
                 <td className="mono">{a.role}</td>
                 <td>{a.confirm === 'type-name' ? 'type the name' : a.confirm === 'click' ? 'one click' : 'none'}</td>
                 <td>{a.meaning}</td>
@@ -50,8 +63,10 @@ function Scope() {
         </table>
       </div>
       <p className="set-note set-tbl-note">
-        Scale is capped at {SCALE_MAX} replicas. There is no exec, no port-forward and no Secret read, and the
-        ServiceAccount could not do them if the service tried.
+        The workloads themselves, and these actions on them, are in{' '}
+        <Link className="link" to="/control/cluster">Control › Cluster</Link>.
+        {scale != null && ` Scale is capped at ${scale} replicas.`} There is no exec, no port-forward and no Secret
+        read, and the ServiceAccount could not do them if the service tried.
       </p>
     </>
   );

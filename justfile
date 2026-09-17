@@ -378,6 +378,7 @@ ops-check mode="":
 # Regenerate the kube edge routers, RBAC Role and can-i rows from catalog.toml. `check` only diffs.
 ops-wiring mode="":
     @python3 scripts/gen-ops-wiring.py {{ if mode == "check" { "--check" } else { "" } }}
+
 # The Settings area's Keycloak client `bothy-admin` (view-users only), and its
 # secret in apps/bothy-ops/secrets. `--rotate` issues a new secret; `--revoke`
 # disables the client and deletes the file.
