@@ -1201,8 +1201,8 @@ def handle(h, method: str, aid: str) -> None:
 
         # What was ASKED, for a refusal's audit line - untrusted, truncated, and
         # flattened by the log. Replaced by the checked values below.
-        where = (f"{str(req.get('namespace', '-'))[:64]}/"
-                 f"{str(req.get('deployment', req.get('namespace', '-')))[:64]}")
+        asked = next((req[f] for f in guard.TARGETS.values() if f and f in req), req.get("namespace", "-"))
+        where = f"{str(req.get('namespace', '-'))[:64]}/{str(asked)[:64]}"
         action, ns, target, params = guard.check_request(CATALOG, aid, method, req)
         where, params_for_log = f"{ns}/{target}", params
         result = HANDLERS[action.id](Ctx(action, ns, target, params, h, who))
