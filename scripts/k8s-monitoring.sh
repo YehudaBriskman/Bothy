@@ -14,7 +14,17 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ctx="${KUBE_CONTEXT:-thales-scc}"
 profile="${MINIKUBE_PROFILE:-thales-scc}"
 dir="$root/k8s/monitoring"
-KSM_CHART_VERSION="8.5.0"   # app v2.20.0. Bump deliberately, never float.
+# The chart version lives in k8s/monitoring/Chart.yaml, where Dependabot's helm
+# ecosystem can see and bump it; a shell variable here was invisible to it.
+# Read with awk (no yq dependency): the `version:` that follows
+# `- name: kube-state-metrics`. An empty result is fatal - never install unpinned.
+KSM_CHART_VERSION="$(awk '
+  /^[[:space:]]*-[[:space:]]*name:[[:space:]]*kube-state-metrics[[:space:]]*$/ { hit = 1; next }
+  hit && /^[[:space:]]*-/ { exit }
+  hit && /^[[:space:]]*version:/ { sub(/^[[:space:]]*version:[[:space:]]*/, ""); sub(/[[:space:]]*(#.*)?$/, ""); gsub(/"/, ""); print; exit }
+' "$dir/Chart.yaml")"
+[[ "$KSM_CHART_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+  || { echo "no exact kube-state-metrics version in $dir/Chart.yaml (got '$KSM_CHART_VERSION')" >&2; exit 1; }
 
 kubectl --context "$ctx" get nodes >/dev/null \
   || { echo "cluster $ctx is not reachable - 'minikube start -p $profile'" >&2; exit 1; }

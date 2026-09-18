@@ -1,0 +1,21 @@
+# A VERSION FILE, not a chart anyone installs.
+#
+# scripts/k8s-monitoring.sh installs prometheus-community/kube-state-metrics
+# directly (`helm upgrade --install ... --version <this>`). The version used to be
+# a shell variable in that script, which no update tool can see, so the chart
+# never got a bump PR. Written as a wrapper chart's dependency, Dependabot's
+# `helm` ecosystem (.github/dependabot.yml, /k8s/monitoring) reads and bumps it.
+#
+# The script reads `version:` from the kube-state-metrics entry below with awk,
+# so keep that entry's shape: `- name:` first, `version:` on its own line.
+# There is no Chart.lock on purpose; nothing runs `helm dependency build` here.
+apiVersion: v2
+name: bothy-k8s-monitoring
+description: Version pins for the cluster add-ons scripts/k8s-monitoring.sh installs
+type: application
+version: 0.1.0
+dependencies:
+  # 8.5.0 is app v2.20.0. Bump deliberately, never float.
+  - name: kube-state-metrics
+    version: 8.5.0
+    repository: https://prometheus-community.github.io/helm-charts

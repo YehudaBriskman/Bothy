@@ -13,7 +13,7 @@ and alerts did not change.
 
 | Signal | In the cluster (`monitoring` ns) | Reaches the box via | Lands in |
 |---|---|---|---|
-| Object state (node Ready, pods, restarts) | kube-state-metrics, helm chart `prometheus-community/kube-state-metrics` **8.5.0**, NodePort **30808** | VictoriaMetrics joins docker network `thales-scc`, scrapes `192.168.49.2:30808` | job `kube-state-metrics` |
+| Object state (node Ready, pods, restarts) | kube-state-metrics, helm chart `prometheus-community/kube-state-metrics` **8.5.0** (pinned in `Chart.yaml`), NodePort **30808** | VictoriaMetrics joins docker network `thales-scc`, scrapes `192.168.49.2:30808` | job `kube-state-metrics` |
 | Kubelet health, PVC fullness | - (kubelet itself) | `https://192.168.49.2:10250/metrics`, bearer token | job `kubelet` |
 | Pod CPU / memory / network | - (kubelet's cAdvisor) | `https://192.168.49.2:10250/metrics/cadvisor`, bearer token | job `kubelet-cadvisor` |
 | Pod logs | Alloy DaemonSet (`grafana/alloy:v1.19.2`) | pushes to `host.minikube.internal:3100` = the host's Loki | Loki, `{cluster="thales-scc"}` |
