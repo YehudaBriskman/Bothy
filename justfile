@@ -259,7 +259,19 @@ up-apps: network
     fi
     # --remove-orphans: a service dropped from the project (socket-proxy became
     # socket-read in 2026-09) must not keep running under its old definition.
-    docker compose "${files[@]}" up -d --remove-orphans
+    # --wait: return only once every Bothy container is HEALTHY. Traefik routes
+    # nothing to a container still `starting`, and bothy-web carries the `/`
+    # catch-all - so "up" returning early meant a few seconds in which the box
+    # answered Traefik's 404 on its front page (CI's install job, 2026-09-18).
+    docker compose "${files[@]}" up -d --remove-orphans --wait --wait-timeout 180
+    # ...and healthy is not yet ROUTED: Traefik batches provider changes (2s
+    # throttle), measured 1.2-1.9s after --wait returns. Wait for the catch-all
+    # itself to be in the router table, so the next command sees the front page.
+    for _ in $(seq 1 30); do
+      curl -fsS -m 2 http://127.0.0.1/-/api/traefik/http/routers 2>/dev/null \
+        | grep -q '"bothy-web-fallback@docker"' && break
+      sleep 1
+    done
 
 # Stop everything (keeps volumes/data)
 down:

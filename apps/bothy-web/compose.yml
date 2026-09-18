@@ -46,6 +46,12 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+      # LOAD-BEARING. Traefik's docker provider ignores a container whose
+      # health is still `starting`, and this container's labels ARE the
+      # catch-all router. Without start_interval the first probe waits a full
+      # `interval`, so for ~30s after every (re)start `/` is Traefik's own 404
+      # - CI's install job hit exactly that 5s after `just up` (2026-09-18).
+      start_interval: 2s
     deploy:
       resources:
         limits:
