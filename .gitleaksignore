@@ -21,3 +21,7 @@
 # published branch to hide a reviewed false positive is a worse trade than
 # recording it here.
 ea73096a783531974990e9959d8c4f6a8c0663e1:scripts/doctor.sh:curl-auth-user:37
+
+# `APPEARANCE_KEY = 'bothy-appearance-v1'` in apps/bothy-web/web/src/lib/prefs.ts - a
+# localStorage KEY NAME for display prefs, not a credential. Reviewed 2026-09-18.
+d7e5734a31545028d812beefecd0d300d4e066b5:apps/bothy-web/web/src/lib/prefs.ts:generic-api-key:21
