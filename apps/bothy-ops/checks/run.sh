@@ -30,6 +30,15 @@
 #                        operator, read-only mounts, no secret mounted.
 #   api_admin.py         the admin HTTP surface against a stand-in Keycloak that
 #                        counts requests; audit parsing, paging, refusals.
+#   test_updates_catalog THE UPDATE CATALOG: unknown keys and channels refused,
+#                        `auto` refused on one-way and boundary components; the
+#                        version shapes and levels; every real pin resolves.
+#   test_discover_updates the host discovery against a fake registry: levels,
+#                        drift, floats, a 429 fuse, the cache, the file modes.
+#   wiring_updates.py    Settings > Updates: one exact GET router behind viewer,
+#                        a read-only state mount, the textfile collector.
+#   api_updates.py       GET /updates/status through the real handler: merged,
+#                        allow-listed, refused, stale, audited.
 #   transition.py        the only one that needs docker: real proxies from the
 #                        shipped grants, a real throwaway container, a real state
 #                        change. Skipped with --offline.
@@ -83,6 +92,18 @@ check "$PY" checks/wiring_admin.py
 
 section "admin: the HTTP surface, and what never reaches Keycloak"
 check "$PY" checks/api_admin.py 2>/dev/null
+
+section "updates: the catalog, and the version arithmetic behind every badge"
+gate "$PY" checks/test_updates_catalog.py
+
+section "updates: host discovery against a fake registry"
+check "$PY" checks/test_discover_updates.py
+
+section "updates: Settings > Updates is wired as claimed"
+check "$PY" checks/wiring_updates.py
+
+section "updates: the HTTP surface, merged and allow-listed"
+check "$PY" checks/api_updates.py 2>/dev/null
 
 if [ "$OFFLINE" = 1 ]; then
   echo

@@ -23,3 +23,5 @@
 !bothy-ops/kube.py
 !bothy-ops/admin.py
 !bothy-ops/catalog.toml
+!bothy-ops/updates.py
+!bothy-ops/updates.toml

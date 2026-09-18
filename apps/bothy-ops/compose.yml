@@ -81,6 +81,8 @@ services:
       FILES_AUDIT_LOG: /audit-files/writes.log
       CONFIG_AUDIT_LOG: /audit-files/patches.log
       INVENTORY_FILE: /inventory/inventory.json
+      # Settings > Updates (updates.py): what the host's discovery timer found.
+      UPDATES_AVAILABLE: /updates/available.json
     volumes:
       # Mounted so the log outlives a container rebuild - an audit trail that a
       # `docker compose up --build` erases is not an audit trail.
@@ -103,6 +105,19 @@ services:
       - type: bind
         source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/inventory
         target: /inventory
+        read_only: true
+        bind:
+          create_host_path: false
+      # What is newer than what runs, written on the host by
+      # apps/bothy-ops/discover_updates.py (`just updates-discover`, and the
+      # bothy-updates-discover timer). READ-ONLY, and the same shape as the
+      # inventory mount above for the same reasons: the registries, docker
+      # inspect and git stay on the host, and a root-owned directory created by
+      # docker would stop the host writer - `just up-apps` and bootstrap create it.
+      # Step 4's spool (a read-WRITE mount) is not here: nothing is applied yet.
+      - type: bind
+        source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/updates
+        target: /updates
         read_only: true
         bind:
           create_host_path: false
