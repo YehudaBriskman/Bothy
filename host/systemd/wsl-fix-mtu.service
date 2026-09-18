@@ -1,6 +1,6 @@
 [Unit]
 Description=Restore eth0 MTU to 1500 (WSL inherits 1280 from the Windows Tailscale adapter)
-Documentation=file:///home/devssh/stacks/docs/kb/incidents/2026-08-30-wsl-eth0-mtu-1280.md
+Documentation=https://github.com/YehudaBriskman/Bothy/blob/main/docs/kb/incidents/2026-08-30-wsl-eth0-mtu-1280.md
 After=network.target
 Before=tailscaled.service
 

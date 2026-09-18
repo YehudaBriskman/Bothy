@@ -289,6 +289,10 @@ jobs:
             echo "OAUTH2_CLIENT_ID=ci-placeholder"
             echo "OAUTH2_CLIENT_SECRET=ci-placeholder"
             echo "OAUTH2_COOKIE_SECRET=ci-placeholder-cookie-secret"
+            # Headlamp's proxy (apps/headlamp/compose.yml) - generated on a box
+            # by scripts/keycloak-headlamp-client.sh, blank in .env.example.
+            echo "HEADLAMP_OAUTH2_CLIENT_SECRET=ci-placeholder"
+            echo "HEADLAMP_OAUTH2_COOKIE_SECRET=ci-placeholder-cookie-secret"
           } >> .env
 
       - name: Validate every compose file
@@ -388,6 +392,10 @@ jobs:
           - app: bothy-ops
             context: apps
             file: apps/bothy-ops/Dockerfile
+            # compose.yml's `additional_contexts: jobtemplates` - the Job
+            # templates run-template bakes in. build-push-action does not read
+            # compose, so the named context has to be given here too.
+            build-contexts: jobtemplates=k8s/job-templates
     steps:
       - uses: actions/checkout@v7
 
@@ -401,6 +409,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-contexts: ${{ matrix.build-contexts }}
           push: false
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
