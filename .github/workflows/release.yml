@@ -1,0 +1,72 @@
+name: Release
+
+# Tags v$VERSION when a GREEN commit on main carries a VERSION that has no tag
+# yet, and publishes a GitHub Release with notes generated from the merged PRs.
+#
+# Why workflow_run and not `on: push`: the updater (docs/plans/updates.md) only
+# offers releases whose CI passed, so the tag must never exist before CI does.
+# Triggered by CI completing on main; anything but `success` does nothing.
+#
+# The installer pin (scripts/bothy.sh BOTHY_PIN_SHA) CANNOT ride along - it pins
+# the tagged commit's sha, which only exists after this runs. It follows as its
+# own PR; until then scripts/checks/installer-pin.sh reports the pending release.
+# The default token here cannot open PRs (repo setting), so that PR is manual.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag v$VERSION once CI is green
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Decide whether this commit is a release
+        id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+          v=$(tr -d '[:space:]' < VERSION)
+          bash scripts/checks/version.sh
+          if git rev-parse --quiet --verify "refs/tags/v$v" >/dev/null; then
+            echo "v$v already tagged - nothing to release"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "v$v is new - releasing ${{ github.event.workflow_run.head_sha }}"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$v" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and publish the release
+        if: steps.decide.outputs.release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.decide.outputs.version }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$V" -m "Bothy v$V" "$SHA"
+          git push origin "v$V"
+          gh release create "v$V" --verify-tag --generate-notes --title "Bothy v$V"
+          echo "::notice::Released v$V at $SHA. Next: a PR moving scripts/bothy.sh BOTHY_PIN_VERSION/BOTHY_PIN_SHA to v$V / $SHA."
