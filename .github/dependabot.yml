@@ -43,7 +43,9 @@ updates:
         applies-to: version-updates
         update-types: [minor, patch]
 
-  # ── The one Dockerfile: the portal's multi-stage build image ──────────────
+  # ── Our own Dockerfiles' base images ──────────────────────────────────────
+  # Every FROM is `tag@sha256:digest`; Dependabot bumps both halves together.
+  # bothy-web's two bases (node, nginx) were floating tags until 2026-09-18.
   - package-ecosystem: docker
     directory: "/apps/bothy-web"
     schedule:
@@ -52,6 +54,24 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(portal)"
+      include: scope
+    labels: [dependencies, docker]
+
+  # bothy-files and bothy-ops share one base (python:3.13-alpine), pinned by
+  # digest in both - and until 2026-09-18 nothing ever proposed moving it, so
+  # the pin was a freeze. Each directory holds its Dockerfile even though the
+  # BUILD context is apps/ (compose `context: ..`); Dependabot reads the file,
+  # not the context.
+  - package-ecosystem: docker
+    directories:
+      - "/apps/bothy-files"
+      - "/apps/bothy-ops"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(apps)"
       include: scope
     labels: [dependencies, docker]
 

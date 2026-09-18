@@ -1,0 +1,18 @@
+# bothy-web builds from THIS directory, and the Dockerfile COPYs only
+# nginx.conf and web/. An allowlist, like apps/.dockerignore, so a new
+# directory here cannot quietly join the context.
+#
+# web/node_modules is the one that matters: the Dockerfile runs `npm ci` and
+# then `COPY web/ ./`, so a host node_modules in the context would be laid over
+# the locked install and the build would ship whatever the box had. web/dist
+# likewise. data/ changes every minute (the collector writes it) and is
+# bind-mounted, never baked.
+*
+!Dockerfile
+!nginx.conf
+!web
+web/node_modules
+web/dist
+web/.vite
+web/.mdcheck-tmp
+web/*.tsbuildinfo
