@@ -129,10 +129,12 @@ echo "── identity is not display grouping ───────────�
 # right, and only the person who opens an old /control/systems/ link finds out.
 mutant "a display label moves the identity too" \
   apps/bothy-web/web/src/lib/discover.ts \
-  '  const decide = (system: string, kind: string): Classification => ({
-    system,' \
-  '  const decide = (system: string, kind: string): Classification => ({
-    system: labels['"'"'dev.portal.group'"'"'] ?? system,' \
+  '    return {
+      system,
+      group: p.group' \
+  '    return {
+      system: labels['"'"'dev.portal.group'"'"'] ?? system,
+      group: p.group' \
   -- "${WEB_CHECKS[@]}"
 
 # The other half: makeNode() honoured dev.portal.group and allPorts() ignored it,
@@ -354,7 +356,7 @@ echo "── the path boundary ────────────────�
 # THE containment check. Resolve first, compare after. Deleting it is the whole
 # directory-traversal class in one line, and 30 unit cases exist to catch it.
 mutant "resolve() stops containing paths" \
-  apps/bothy-files/safepath.py \
+  apps/bothy-common/bothy_common/safepath.py \
   'if candidate != real_root and not candidate.startswith(real_root + os.sep):' \
   'if False:' \
   -- bash apps/bothy-files/checks/run.sh --offline
