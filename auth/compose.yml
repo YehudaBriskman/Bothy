@@ -101,7 +101,7 @@ services:
 
   # ── 2. Keycloak - the identity provider ────────────────────────────────────
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.1   # pinned: never `latest` on the auth boundary
+    image: quay.io/keycloak/keycloak:26.7.3-1   # pinned: never `latest` on the auth boundary
     container_name: keycloak
     restart: unless-stopped
     depends_on:
@@ -316,7 +316,7 @@ services:
   # http://${BOX_IP}:8090/admin answers "HTTPS required" and there is no way in.
   # The devbox realm sets this in its own JSON; master needs the API.
   keycloak-init:
-    image: quay.io/keycloak/keycloak:26.7.1
+    image: quay.io/keycloak/keycloak:26.7.3-1
     container_name: keycloak-init
     restart: "no"
     depends_on:
