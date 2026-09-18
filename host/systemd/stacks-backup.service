@@ -1,5 +1,5 @@
 [Unit]
-Description=Backup dev stacks (postgres/redis/grafana/portainer)
+Description=Backup dev stacks (postgres, grafana, .env, victoriametrics, loki, alloy, audit/trash, notes)
 After=docker.service
 
 [Service]
@@ -8,4 +8,9 @@ User=devssh
 Group=devssh
 Environment=HOME=/home/devssh
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# The VictoriaMetrics tar is ~400 MB. Idle I/O and a lower CPU priority keep a
+# 03:00 run from being felt by anything else on the box; a oneshot has no start
+# timeout by default, so a slow disk only makes it take longer.
+Nice=10
+IOSchedulingClass=idle
 ExecStart=/home/devssh/stacks/scripts/backup.sh
