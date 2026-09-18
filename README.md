@@ -482,9 +482,11 @@ ssh -L 5432:localhost:5432 <user>@<this-node>.<your-tailnet>.ts.net
 
 `stacks-backup.timer` runs `scripts/backup.sh` at 03:00 daily, keeping the newest
 14 of each: the Postgres dump - which carries Keycloak's realm, users and roles as
-well as the dev database - the Grafana database, and `.env`, which is gitignored
-and exists in exactly one place on earth, so losing it loses every credential on
-the box.
+well as the dev database - the Grafana database, `.env` (gitignored and in exactly
+one place on earth, so losing it loses every credential on the box), Alloy's
+positions, the audit logs and trash, and the notes repo. VictoriaMetrics and Loki
+are backed up too, newest 3 kept. `just restore-<kind> <file>` puts one back -
+see [docs/guide/backups.md](docs/guide/backups.md).
 
 The script is deliberately **not** `set -e`: one failed service must not skip the
 others. It waits for Postgres to accept connections before dumping, verifies every
