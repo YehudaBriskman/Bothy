@@ -2,7 +2,7 @@
 // the index so that module stays import-free and checkable with a bare tsc.
 
 import {
-  Activity, Archive, Info, KeyRound, LayoutPanelLeft, Palette, RefreshCw, ScrollText, Ship,
+  Activity, Archive, Download, Info, KeyRound, LayoutPanelLeft, Palette, RefreshCw, ScrollText, Ship,
   UserRound, Users, Waypoints, type LucideIcon,
 } from 'lucide-react';
 
@@ -18,6 +18,7 @@ const ICONS: Record<string, LucideIcon> = {
   activity: Activity,
   scroll: ScrollText,
   archive: Archive,
+  download: Download,
   info: Info,
 };
 

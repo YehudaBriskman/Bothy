@@ -61,3 +61,9 @@
    ring, not less. */
 .user-menu .um-item:focus-visible { background: var(--surface-3); color: var(--fg);
   outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* The Updates count on the Settings row: a number in the quiet chrome, pushed to
+   the row's end. Neutral on purpose - it is a fact about versions, not a state. */
+.user-menu .um-count { margin-left: auto; min-width: 18px; padding: 0 6px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
+  color: var(--fg); background: var(--surface-3); border: 1px solid var(--line-strong); }

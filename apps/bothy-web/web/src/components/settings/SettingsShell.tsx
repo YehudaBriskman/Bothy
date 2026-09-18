@@ -14,9 +14,13 @@
 // costs that sank the old one - the scrim, the focus trap, the focus-order
 // workaround - are Radix Dialog's, not hand-written.
 //
-// The nav carries no counts and no status marks (principles.md rule 2). The role
-// hint beside Users, Credentials, Audit and Backups is a WORD, not a colour, and
-// it describes where the data comes from - it is never the gate.
+// The nav carries no status marks (principles.md rule 2), and ONE count: beside
+// Updates, how many components are a minor version or more behind
+// (docs/plans/updates.md §8, approved 2026-09-18). A number in neutral chrome, not
+// a coloured dot, so it states a fact rather than encoding a state - and it draws
+// only once the count is known and above zero. The role hint beside Users,
+// Credentials, Audit and Backups is a WORD, not a colour, and it describes where
+// the data comes from - it is never the gate.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -25,9 +29,11 @@ import { Menu, X } from 'lucide-react';
 import { GROUPS, SECTIONS, groupTitle, sectionById } from '../../lib/settings-index';
 import { SettingsSearch } from './SettingsSearch';
 import { SectionIcon } from './icons';
+import { useUpdatesBehind } from './useUpdatesBehind';
 import './settings.css';
 
 function Nav({ onNavigate }: { onNavigate?: () => void }) {
+  const behind = useUpdatesBehind();
   return (
     <nav className="set-nav-list" aria-label="Settings sections">
       {GROUPS.map((g) => (
@@ -43,6 +49,11 @@ function Nav({ onNavigate }: { onNavigate?: () => void }) {
               <SectionIcon name={s.icon} />
               <span className="set-nav-label">{s.title}</span>
               {s.needs && <span className="set-nav-needs">{s.needs}</span>}
+              {s.id === 'updates' && behind !== null && behind > 0 && (
+                <span className="set-nav-count" title={`${behind} a minor version or more behind`}>
+                  {behind}<span className="sr-only"> components a minor version or more behind</span>
+                </span>
+              )}
             </NavLink>
           ))}
         </div>

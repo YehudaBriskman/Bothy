@@ -313,6 +313,70 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; pad
 .set-shell .set-doc-t { font-size: 13.5px; font-weight: 700; color: var(--accent-fg); }
 .set-shell .set-doc-d { font-size: 12.5px; color: var(--fg-muted); line-height: 1.45; }
 
+/* ── Updates ─────────────────────────────────────────────────────────────────
+   A LEVEL is not state: an available major says nothing about health. So the
+   three levels are neutral chrome told apart by their WORD, with a heavier
+   outline for a major - never the status palette (principles.md rule 1). Drift
+   and "not checked" are state, and use .set-warn with a glyph beside the word. */
+.set-shell .upd-tbl td { min-width: 96px; }
+.set-shell .upd-tbl td.upd-name { min-width: 150px; }
+.set-shell .upd-tbl td.upd-notes { min-width: 120px; }
+.set-shell .upd-tag { font-weight: 600; color: var(--fg); }
+.set-shell .upd-avail { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.set-shell .upd-level {
+  display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; line-height: 1.5;
+  padding: 0 7px; border-radius: var(--r-full); white-space: nowrap;
+  color: var(--fg-muted); background: var(--bg-2); border: 1px solid var(--line);
+}
+.set-shell .upd-level[data-level='minor'] { color: var(--fg); border-color: var(--line-strong); }
+.set-shell .upd-level[data-level='major'] { color: var(--fg); border: 1.5px solid var(--fg-muted); text-transform: uppercase; }
+.set-shell .upd-oneway {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  color: var(--fg-muted); padding: 0 7px; border: 1px dashed var(--line-strong); border-radius: var(--r-full);
+}
+.set-shell .upd-drift, .set-shell .upd-err { font-size: 11.5px; font-weight: 700; margin-left: 6px; }
+.set-shell .upd-err { margin-left: 0; }
+.set-shell .upd-why {
+  max-width: 240px; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.set-shell .upd-current { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-subtle); white-space: nowrap; }
+.set-shell .upd-channel { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--fg); }
+.set-shell .upd-notes .upd-oneway { margin-right: 6px; }
+.set-shell .upd-cl { display: inline-flex; align-items: center; gap: 2px; font-size: 12.5px; white-space: nowrap; }
+.set-shell .upd-notbuilt { border-style: solid; }
+.set-shell .upd-todo { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.6; }
+.set-shell .upd-todo .upd-level { margin-left: 2px; }
+
+/* Below 640px a six-column table is a sideways scroll that hides the one column
+   that matters (Available). Each component becomes a card instead: the name on
+   top, then label/value pairs from each cell's data-label. */
+@media (max-width: 640px) {
+  .set-shell .upd-tbl thead { display: none; }
+  .set-shell .upd-tbl, .set-shell .upd-tbl tbody, .set-shell .upd-tbl tr, .set-shell .upd-tbl td { display: block; }
+  .set-shell .upd-tbl tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .set-shell .upd-tbl tr.set-tbl-sep { padding: 0; }
+  .set-shell .set-tbl .upd-tbl td { min-width: 0; border-bottom: 0; padding: 3px 12px; }
+  .set-shell .upd-tbl td.upd-name, .set-shell .upd-tbl td.upd-notes { min-width: 0; }
+  .set-shell .upd-tbl td[data-label] { display: grid; grid-template-columns: 76px minmax(0, 1fr); column-gap: 10px; }
+  .set-shell .upd-tbl td[data-label] > * { grid-column: 2; }
+  .set-shell .upd-tbl td[data-label]::before {
+    content: attr(data-label); grid-column: 1; grid-row: 1 / span 4;
+    font-size: 11.5px; font-weight: 600; color: var(--fg-subtle); padding-top: 1px;
+  }
+  .set-shell .upd-tbl .upd-why { max-width: none; }
+  .set-shell .upd-tbl .upd-drift { margin-left: 0; }
+}
+
+/* The count beside Updates in the nav: how many components are a minor or more
+   behind. A NUMBER in the quiet chrome, not a coloured dot - rule 2 keeps state
+   off the nav's decoration, and a count is a fact, not an alarm. */
+.set-nav-list .set-nav-count {
+  flex: none; min-width: 18px; padding: 0 6px; border-radius: var(--r-full); text-align: center;
+  font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
+  color: var(--fg); background: var(--surface-3); border: 1px solid var(--line-strong);
+}
+
 /* The roles list moved in from the old page; inside a block it needs no top
    padding of its own. */
 .set-shell .roles { margin: 0; }

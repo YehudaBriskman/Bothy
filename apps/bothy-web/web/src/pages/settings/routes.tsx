@@ -22,6 +22,7 @@ import { ClusterSettings } from './Cluster';
 import { MonitoringSettings } from './Monitoring';
 import { AuditSettings } from './Audit';
 import { BackupsSettings } from './Backups';
+import { UpdatesSettings } from './Updates';
 import { AboutSettings } from './About';
 
 export const SETTINGS_PAGES: Record<string, () => React.ReactElement> = {
@@ -36,6 +37,7 @@ export const SETTINGS_PAGES: Record<string, () => React.ReactElement> = {
   monitoring: MonitoringSettings,
   audit: AuditSettings,
   backups: BackupsSettings,
+  updates: UpdatesSettings,
   about: AboutSettings,
 };
 

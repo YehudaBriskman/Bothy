@@ -55,6 +55,8 @@ export const SECTIONS: readonly SettingsSection[] = [
     lede: 'Every action, file write, config patch and admin read, newest first.' },
   { id: 'backups', title: 'Backups', group: 'box', icon: 'archive', needs: 'operator',
     lede: 'What the nightly backup keeps, how recent it is, and how to take one now.' },
+  { id: 'updates', title: 'Updates', group: 'box', icon: 'download',
+    lede: 'What is newer than what this box runs, how far each component may update on its own, and how to apply an update by hand.' },
   { id: 'about', title: 'About & health', group: 'box', icon: 'info',
     lede: 'The Bothy containers, their images and health, and where the documentation is.' },
 ];
@@ -114,6 +116,10 @@ export const BLOCKS: readonly SettingsBlockDef[] = [
   // backups
   { id: 'backup-sets', section: 'backups', title: 'Backup sets', description: 'Each set: how many copies, the newest, the oldest and the total size.', keywords: 'postgres grafana env dump restore' },
   { id: 'backup-schedule', section: 'backups', title: 'Schedule and taking one now', description: 'The nightly timer, and the command.', keywords: 'timer cron nightly just backup' },
+  // updates
+  { id: 'update-components', section: 'updates', title: 'Components', description: 'Every component: pinned, running and available version, how big the step is, and its channel.', keywords: 'versions upgrade outdated newer release patch minor major drift changelog images pins' },
+  { id: 'update-channels', section: 'updates', title: 'Channels and the night window', description: 'What auto, notify and manual mean, and when an automatic update may run.', keywords: 'auto automatic policy window nightly schedule one-way' },
+  { id: 'update-apply', section: 'updates', title: 'Applying an update', description: 'Not built yet - the commands that apply one by hand, and how discovery runs.', keywords: 'upgrade apply just recipe manual pull timer discover refresh' },
   // about
   { id: 'containers', section: 'about', title: 'Bothy containers', description: 'The five Bothy containers: image, state and health.', keywords: 'version images health status' },
   { id: 'edge', section: 'about', title: 'Edge', description: 'The Traefik version and its router table.', keywords: 'traefik routers version' },
