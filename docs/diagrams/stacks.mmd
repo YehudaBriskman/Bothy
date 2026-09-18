@@ -24,7 +24,7 @@ flowchart TB
 
     subgraph s_apps["apps/ - what the box itself serves"]
         PNEXT["bothy-web - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
-        PSOCK["bothy-socket-read + bothy-socket-write<br/>shipped by apps/bothy/socket-proxy.yml"]
+        PSOCK["bothy-socket-read + bothy-socket-write<br/>shipped by apps/bothy/compose.socket-proxy.yml"]
         PFILES["bothy-files - the editor tier and config forms.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
         POPS["bothy-ops - container and cluster actions.<br/>opsnet in, controlsocknet out,<br/>thales-scc only via compose.cluster.yml"]
     end

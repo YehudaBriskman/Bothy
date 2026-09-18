@@ -55,7 +55,7 @@ __all__ = ["Refused"]  # re-exported: every caller catches guard.Refused
 #
 # `kill` is NOT here, and it is the interesting omission because the write
 # socket proxy's ALLOW_RESTARTS flag grants it alongside stop and restart (see
-# apps/bothy/socket-proxy.yml - the two are one haproxy rule and cannot be
+# apps/bothy/compose.socket-proxy.yml - the two are one haproxy rule and cannot be
 # separated). So the proxy would pass `kill` and this tuple is the only thing
 # that refuses it: the proxy is a coarse grant and this file is the fine one.
 VERBS: tuple[str, ...] = ("restart", "stop", "start")

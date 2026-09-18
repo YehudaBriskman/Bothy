@@ -16,7 +16,7 @@ the target state. `from == to` is a complete and honest answer.
 
 ── the two proxies, and why there are two ───────────────────────────────────
 
-Fully argued in apps/bothy/socket-proxy.yml. The short version, because it
+Fully argued in apps/bothy/compose.socket-proxy.yml. The short version, because it
 shapes every request below: the READ proxy has POST=0 and can therefore never
 mutate anything, and the WRITE proxy has CONTAINERS=0 and can therefore never
 reach /containers/create or read a container's Env. Neither alone is dangerous,

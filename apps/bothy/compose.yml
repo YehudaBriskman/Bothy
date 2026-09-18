@@ -46,4 +46,4 @@ include:
   - path: ../bothy-web/compose.yml
   - path: ../bothy-files/compose.yml
   - path: ../bothy-ops/compose.yml
-  - path: ./socket-proxy.yml
+  - path: ./compose.socket-proxy.yml

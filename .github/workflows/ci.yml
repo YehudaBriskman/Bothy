@@ -314,9 +314,13 @@ jobs:
             # project on its own - it adds a network or a mount to a service
             # defined elsewhere - so it is validated ON TOP OF the compose.yml
             # beside it, which is how `just up-apps` / `up-monitoring` use it.
+            # compose.socket-proxy.yml is NOT an overlay: it is an `include:`
+            # fragment of apps/bothy/compose.yml, a whole project on its own,
+            # named compose.* only so Dependabot discovers it. Validate it alone,
+            # like the other fragments, so a cross-fragment depends_on still fails.
             args=(-f "$f")
             case "$(basename "$f")" in
-              compose.yml) ;;
+              compose.yml|compose.socket-proxy.yml) ;;
               compose.*.yml) args=(-f "$(dirname "$f")/compose.yml" -f "$f") ;;
             esac
             if docker compose "${args[@]}" --env-file .env config -q; then

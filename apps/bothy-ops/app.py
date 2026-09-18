@@ -15,7 +15,7 @@ bought nothing but two of everything. What did NOT merge is what the separation
 was actually for:
 
   * the socket proxies stay split, read from write, and this process still
-    holds no docker socket (apps/bothy/socket-proxy.yml);
+    holds no docker socket (apps/bothy/compose.socket-proxy.yml);
   * the cluster credential is still a namespaced ServiceAccount token that can
     neither exec nor read a secret (k8s/rbac/bothy-kube.yaml);
   * every route is still one exact Path() with its own role gate

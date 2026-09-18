@@ -303,7 +303,8 @@ Notes on `apps/`:
   fiction, because the HTML it served linked to hostnames that stopped resolving
   when the name layer was retired on 2026-08-12. `apps/portal/` itself went on
   2026-08-18; the socket-proxy fragment that was its only remaining reason to
-  exist moved to `apps/bothy/socket-proxy.yml`.
+  exist moved to `apps/bothy/compose.socket-proxy.yml` (named `socket-proxy.yml`
+  until 2026-09-19, renamed so Dependabot's docker-compose ecosystem finds it).
   **Do not `docker compose down` the `bothy` project to restart the portal** -
   that project also owns `bothy-socket-read`, which the live portal depends on
   for `/-/api/docker`. Act on the one service.
