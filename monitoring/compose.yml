@@ -61,7 +61,7 @@ services:
     networks: [devnet]
 
   grafana:
-    image: grafana/grafana:13.1.4
+    image: grafana/grafana:13.2.1
     container_name: grafana
     # No Traefik router - reached on published port 3000, where Grafana's own login applies.
     restart: unless-stopped
