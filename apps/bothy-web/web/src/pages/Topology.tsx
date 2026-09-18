@@ -288,7 +288,7 @@ function FlatMap() {
           return (
             <g key={`c-${node.id}`} className={`topo-ctr ${active ? 'on' : ''}`} transform={`translate(${CTR_X} ${y})`} style={{ opacity: isLit(node.id) ? 1 : 0.18 }}>
               <rect x={-7} y={-7} width={14} height={14} rx={3} style={{ fill: hex, filter: `drop-shadow(0 0 4px ${hex})` }} />
-              <text x={16} y={4} className="topo-label ctr">{node.container?.image?.split(/[/:]/).slice(-2, -1)[0] || node.container?.name}</text>
+              <text x={16} y={4} className="topo-label ctr">{node.container?.image?.replace(/@.*$/, '').split(/[/:]/).slice(-2, -1)[0] || node.container?.name}</text>
             </g>
           );
         })}

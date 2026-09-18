@@ -64,7 +64,9 @@ services:
   # as apps/wiki, and it keeps Keycloak's tables out of reach of every other
   # thing that holds the shared dev credential.
   keycloak-db-init:
-    image: postgres:17          # same major as the server it talks to
+    # The SAME ref as the server in data/postgres/compose.yml: psql must be on
+    # the server's major. Bump both together.
+    image: postgres:17.10@sha256:39fb82e41109483c81ac15422a302500b4a753777b47f8431038703536bc6c52
     container_name: keycloak-db-init
     restart: "no"
     environment:
