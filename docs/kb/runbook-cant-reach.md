@@ -35,12 +35,36 @@ ping 100.117.176.85                      # normal traffic
 
 | Result | Broken layer | Do |
 |---|---|---|
-| All pong **but pages stall / SSH hangs at KEX** | **Large-packet blackhole** - small packets pass, full-size die | Confirm: `curl` shows a code but `%{size_download}`=0; `ping -l 1150` pongs, `-l 1200` dies. Fix: restart tailscaled ON THE BOX (small-KEX SSH door in [access.md](access.md)) - [incidents/2026-08-08](incidents/2026-08-08-wsl-node-large-packet-blackhole.md) |
+| All pong **but pages stall / SSH hangs at KEX** | **Large-packet blackhole** - small packets pass, full-size die | Confirm: `curl` shows a code but `%{size_download}`=0; `ping -l 1150` pongs, `-l 1200` dies. **Check the MTUs FIRST - that is the cause, not NAT:** see the box below. [incidents/2026-08-30](incidents/2026-08-30-wsl-eth0-mtu-1280.md), [incidents/2026-08-08](incidents/2026-08-08-wsl-node-large-packet-blackhole.md) |
 | All pong | Nothing network-side | Check application: username `devssh@`? sshd vs Tailscale-SSH confusion? Check-mode prompt waiting for a browser click? ([access.md](access.md)) |
 | disco+TSMP pong, ICMP dead | **Peer's kernel/interface/firewall** - tunnel is fine but the OS drops packets | On the peer: `ip -4 addr show tailscale0` (must show its 100.x/32 - **empty = the 2026-08-02 bug**, restart tailscaled); then ufw/nftables `ts-input` rules; `ip rule show` (5210/5230/5250/5270 + `lookup 52`) |
 | disco pongs, TSMP dead | WireGuard session broken | Restart tailscaled on the peer |
 | Nothing pongs | Node truly offline | Its machine/network/daemon is down - see below |
 | First pings time out, then work | **NAT-hairpin port rotation / idle handshake** - normal for the WSL node | Wait ~30s, retry. Self-heals ([topology.md](topology.md)) |
+
+### Large-packet blackhole → check the MTU budget before anything else
+
+On the box:
+
+```
+ip link show eth0        # the underlay
+ip link show tailscale0  # the tunnel
+```
+
+**eth0 must exceed tailscale0 by ~60 bytes** (WireGuard 32 + UDP 8 + IP 20). If
+they are both 1280, every full-size packet is silently dropped - that is the
+whole fault, and it is what actually happened on 2026-08-30.
+
+```
+sudo ip link set dev eth0 mtu 1500     # the fix; nothing on Windows changes
+systemctl restart wsl-fix-mtu.service  # or just run the unit that does it
+```
+
+WSL copies the **smallest** MTU among the Windows host's adapters onto eth0, and
+Windows' Tailscale adapter is 1280 - so this returns after any WSL restart unless
+`wsl-fix-mtu.service` is enabled. Restarting tailscaled does **not** fix it (it
+was what appeared to work on 08-08); it resets tailscale0 to 1280 and leaves eth0
+alone. Full analysis: [incidents/2026-08-30](incidents/2026-08-30-wsl-eth0-mtu-1280.md).
 
 ## Step 2 - Is the box itself up? (rarely the answer, verify anyway)
 
@@ -70,7 +94,7 @@ elevated `schtasks /run /TN "DevBox-WSL-Keepalive"`, or log in as devssh once.
   names; the rule survives them.)
 - **A name-layer lookup is NXDOMAIN from any device - that is the expected state
   since 2026-08-08/08-12, not a fault.** Use `http://100.117.176.85:<port>`.
-- A 200 from a weird hostname or a nonsense path - `portal-next-fallback` answers
+- A 200 from a weird hostname or a nonsense path - `bothy-web-fallback` answers
   everything on `:80`; proves nothing. Since 2026-08-12 it is the only non-API router,
   so this is now the *normal* response rather than an edge case.
 - **The Traefik dashboard is 404/gone** - deleted deliberately
