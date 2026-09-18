@@ -623,6 +623,8 @@ class Discoverer:
                 if dig(t)[0] == im["digest"]:
                     cur = v
                     e["current"].update(version=v.text, identifiedAs=t)
+                    if im["digest"] in run_digests:
+                        e["runningVersion"] = v.text
                     break
             if cur is None:
                 raise ValueError("pinned by digest only, and the digest is none of the 8 newest releases")
@@ -632,8 +634,11 @@ class Discoverer:
                 # A floating pin (`v3.7`, `17`): newer releases arrive under the
                 # same tag. That is an update waiting, not drift.
                 e["floatMoved"] = bool(d and run_digests and d not in run_digests)
-                fam = sorted((v, t) for t in tags if (v := updates.parse_version(t)) and len(v.parts) == 3
-                             and v.prefix == cur.prefix and not v.has_rev and v.parts[:len(cur.parts)] == cur.parts)
+                # The float's family: the releases it can point at - `v3.7.x` for
+                # `v3.7`, `17.x` for `17` (postgres tags two parts, traefik three).
+                fam = sorted((v, t) for t in tags if (v := updates.parse_version(t))
+                             and len(v.parts) > len(cur.parts) and v.prefix == cur.prefix
+                             and not v.has_rev and v.parts[:len(cur.parts)] == cur.parts)
                 for v, t in reversed(fam[-5:]):
                     td, _ = dig(t)
                     if td and td in run_digests and "runningVersion" not in e:

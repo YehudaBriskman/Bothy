@@ -66,6 +66,8 @@ REG = {
     "x/pinned": {"v0.17.0": D("e"), "v0.18.0": D("f"), "v0.18.1": D("0")},
     "library/floaty": {"v3.7": D("9"), "v3.7.1": D("8"), "v3.7.2": D("9"), "v3.8": D("a"), "v3.8.0": D("a")},
     "x/limited": {"1.0.0": D("1")},
+    # postgres' shape: a one-part float whose releases have TWO parts.
+    "library/pg": {"17": D("b"), "17.5": D("a"), "17.6": D("b"), "18": D("c"), "18.0": D("c"), "17-alpine": D("d")},
 }
 SEEN: list[tuple[str, str]] = []
 TOKENS_ISSUED: list[str] = []
@@ -181,6 +183,9 @@ w("compose.yml", f"""services:
   limited:
     image: ghcr.io/x/limited:1.0.0
     container_name: limited
+  pg:
+    image: pg:17
+    container_name: pg
 """)
 w("k8s/ds.yaml", "spec:\n  template:\n    spec:\n      containers:\n        - name: side\n          image: busybox:1\n"
   "        - name: app\n          args: [run]\n          image: app:1.2.3\n")
@@ -193,6 +198,7 @@ RUNNING = {
     "stale": {"name": "stale", "image": "quay.io/x/stale:0.9.0", "digest": D("c"), "state": "running"},
     "pinned": {"name": "pinned", "image": f"quay.io/x/pinned@{D('f')}", "digest": D("e"), "state": "running"},
     "floaty": {"name": "floaty", "image": "floaty:v3.7", "digest": D("8"), "state": "running"},
+    "pg": {"name": "pg", "image": "pg:17", "digest": D("a"), "state": "running"},
 }
 
 
@@ -214,6 +220,7 @@ CAT = updates.load_catalog({
         comp("pinned", ["compose.yml:pinned"]),
         comp("floaty", ["compose.yml:floaty"]),
         comp("limited", ["compose.yml:limited"]),
+        comp("pg", ["compose.yml:pg"], **{"class": "database"}, channel="manual"),
         comp("in-cluster", ["k8s/ds.yaml:app"], source="manifest", workload="monitoring/daemonset/app",
              **{"class": "cluster"}, channel="notify"),
         comp("ksm", ["install.sh:KSM"], source="helm", chart="ksm", chart_repo=f"{BASE}/charts".replace("http://", "https://"),
@@ -282,11 +289,17 @@ ok(f.get("runningVersion") == "3.7.1" and f["current"].get("floatTarget") == "v3
 ok(f["candidates"]["minor"]["tag"] == "v3.8" and f["candidates"]["patch"]["tag"] == "v3.7",
    f"v3.8 is the minor; the moved float is the patch: {f['candidates']}")
 
+pg = C["pg"]
+ok(pg["floatMoved"] is True and pg.get("runningVersion") == "17.5" and pg["current"].get("floatTarget") == "17.6",
+   f"a one-part float's family has two parts (postgres): running 17.5, the float now 17.6: {pg['current']}")
+ok(pg["candidates"]["major"]["tag"] == "18" and pg["candidates"]["minor"]["version"] == "17.6",
+   f"18 is the major; the moved float is a minor step to 17.6: {pg['candidates']}")
+
 print()
 print("── LIMITS: a 429 fuses the host and nothing else ────────────────")
 ok(C["limited"]["error"] and "rate limit" in C["limited"]["error"], f"the 429 is said: {C['limited']['error']}")
 ok(net.blocked == {f"localhost:{srv.server_address[1]}"}, f"that host, and only it, is fused for the run: {net.blocked}")
-ok(all(C[k]["error"] is None for k in ("app", "drifty", "stale", "pinned", "floaty", "in-cluster", "ksm", "bothy")),
+ok(all(C[k]["error"] is None for k in ("app", "drifty", "stale", "pinned", "floaty", "pg", "in-cluster", "ksm", "bothy")),
    "every other component finished")
 LIMITED.clear()
 stale_cache = {"tags": {"ghcr.io/x/limited": {"at": 0, "v": ["1.0.0", "1.1.0"]}},

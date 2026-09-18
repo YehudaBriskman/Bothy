@@ -152,7 +152,7 @@ put({"version": 1, "generatedAt": now, "secret": SENT, "components": {
                 "running": [{"name": "grafana", "image": "x", "digest": D("1"), "state": "running", "env": {"PW": SENT}}],
                 "drift": None, "latest": {"tag": "13.3.0", "version": "13.3.0", "level": "catastrophic", "note": SENT},
                 "candidates": {"minor": {"tag": "13.3.0", "level": "minor", "x": SENT}, "sideways": {"tag": SENT}},
-                "notes": [SENT]},
+                "notices": [SENT]},
     "not-in-catalog": {"checkedAt": now, "latest": {"tag": SENT, "level": "major"}},
 }})
 st, body = get()

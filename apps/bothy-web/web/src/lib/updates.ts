@@ -26,6 +26,8 @@ export interface VersionRef {
   digest: string | null;
   level?: Level;
   publishedAt?: string;
+  /** The pin's own floating tag (`v3.7`, `17`), moved upstream to a newer image. */
+  floating?: boolean;
 }
 
 export interface RunningRef {
@@ -39,10 +41,21 @@ export interface Discovered {
   checkedAt: string | null;
   error: string | null;
   image: string | null;
-  current: { tag: string | null; version: string | null; digest: string | null; float: boolean };
+  current: {
+    tag: string | null;
+    version: string | null;
+    digest: string | null;
+    float: boolean;
+    /** For a floating pin: the release the tag names upstream now (`v3.7.13`). */
+    floatTarget: string | null;
+    /** For a digest-only pin: the release tag that digest turned out to be. */
+    identifiedAs: string | null;
+  };
   running: RunningRef[];
   runningVersion: string | null;
   drift: string | null;
+  /** Facts, not faults: "the cluster did not answer - running version unknown". */
+  notes: string[];
   floatMoved: boolean | null;
   latest: VersionRef | null;
   candidates: Partial<Record<Level, VersionRef>>;

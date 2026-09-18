@@ -2,9 +2,10 @@
 //
 // lib/updates.ts routes here behind `import.meta.env.DEV`, a literal `false` after
 // a build. The shape is the service's allow-list, and the data is shaped like this
-// box on 2026-09-18: Grafana merged but not running (drift), Traefik's floating
-// tag moved under it, a Postgres major on offer, our own first release tag, and
-// one registry that rate-limited the run.
+// box's first real discovery run (2026-09-19): Grafana, Loki and Keycloak merged
+// but never applied (drift), Traefik's and Postgres' floating tags moved under
+// them, a Postgres major on offer and our own v2026.9.0 - plus, invented, one
+// registry that rate-limited the run and a cluster that did not answer.
 //
 // Not a happy path. Force a state from the console:
 //
@@ -47,7 +48,8 @@ interface Spec {
   id: string; title: string; cls: string; source?: UpdateRow['source']; pins: string[]; apply: string;
   channel: Channel; oneWayWhy?: string; changelog: string; dependants?: string[];
   tag: string | null; version?: string | null; float?: boolean; running?: string | null; runningDigest?: string;
-  runningVersion?: string; drift?: string; floatMoved?: boolean; error?: string;
+  runningVersion?: string; drift?: string; floatMoved?: boolean; floatTarget?: string; error?: string;
+  identifiedAs?: string; notes?: string[];
   cands?: Partial<Record<Level, string>>;
 }
 
@@ -59,7 +61,8 @@ const SPECS: Spec[] = [
     channel: 'auto', changelog: 'https://github.com/prometheus/node_exporter/releases/tag/v{v}', tag: 'v1.12.1', running: 'prom/node-exporter:v1.12.1' },
   { id: 'postgres-exporter', title: 'postgres-exporter', cls: 'stateless', pins: ['data/postgres/compose.yml:postgres-exporter'],
     apply: 'just up-data', channel: 'auto', changelog: 'https://github.com/prometheus-community/postgres_exporter/releases/tag/v{v}',
-    tag: null, version: '0.18.1', running: 'quay.io/prometheuscommunity/postgres-exporter@sha256:…' },
+    tag: null, version: '0.20.1', identifiedAs: 'v0.20.1', runningVersion: '0.20.1',
+    running: 'quay.io/prometheuscommunity/postgres-exporter@sha256:…' },
   { id: 'alloy', title: 'Alloy', cls: 'stateless', pins: ['monitoring/compose.yml:alloy'], apply: 'just up-monitoring', channel: 'auto',
     changelog: 'https://github.com/grafana/alloy/releases/tag/v{v}', tag: 'v1.19.2', running: 'grafana/alloy:v1.19.2', cands: { patch: 'v1.19.3' } },
   { id: 'headlamp', title: 'Headlamp', cls: 'stateless', pins: ['apps/headlamp/compose.yml:headlamp'], apply: 'just up-headlamp', channel: 'auto',
@@ -69,28 +72,30 @@ const SPECS: Spec[] = [
     channel: 'auto', changelog: 'https://docs.victoriametrics.com/victoriametrics/changelog/', dependants: ['grafana', "the portal's vitals"],
     tag: 'v1.152.0', running: 'victoriametrics/victoria-metrics:v1.152.0', cands: { minor: 'v1.153.0' } },
   { id: 'loki', title: 'Loki', cls: 'timeseries', pins: ['monitoring/compose.yml:loki'], apply: 'just up-monitoring', channel: 'auto',
-    changelog: 'https://github.com/grafana/loki/releases/tag/v{v}', dependants: ['alloy', 'grafana'], tag: '3.7.7', running: 'grafana/loki:3.7.7',
-    cands: { patch: '3.7.8' } },
+    changelog: 'https://github.com/grafana/loki/releases/tag/v{v}', dependants: ['alloy', 'grafana'], tag: '3.7.7', running: 'grafana/loki:3.7.6',
+    drift: 'loki runs grafana/loki:3.7.6, monitoring/compose.yml pins grafana/loki:3.7.7', cands: { patch: '3.7.8' } },
   { id: 'grafana', title: 'Grafana', cls: 'app-db', pins: ['monitoring/compose.yml:grafana'], apply: 'just up-monitoring', channel: 'notify',
     oneWayWhy: "grafana.db's schema migrates on first start and cannot be downgraded. Stop Grafana and copy the volume first.",
     changelog: 'https://github.com/grafana/grafana/releases/tag/v{v}', tag: '13.2.2', running: 'grafana/grafana:13.1.4',
-    drift: 'grafana runs grafana/grafana:13.1.4, monitoring pins grafana/grafana:13.2.2', cands: { patch: '13.2.3', minor: '13.3.0' } },
+    drift: 'grafana runs grafana/grafana:13.1.4, monitoring/compose.yml pins grafana/grafana:13.2.2', cands: { minor: '13.3.0' } },
   { id: 'traefik', title: 'Traefik', cls: 'edge', pins: ['edge/compose.yml:traefik'], apply: 'just up-edge', channel: 'notify',
     changelog: 'https://github.com/traefik/traefik/releases/tag/v{v}', dependants: ['every route on :80', 'this page'], tag: 'v3.7', float: true,
-    running: 'traefik:v3.7', runningVersion: '3.7.1', floatMoved: true, cands: { patch: 'v3.7', minor: 'v3.8' } },
+    running: 'traefik:v3.7', runningVersion: '3.7.9', floatMoved: true, floatTarget: 'v3.7.13', cands: { patch: 'v3.7', minor: 'v3.8' } },
   { id: 'bothy', title: 'Bothy (web, files, ops)', cls: 'own-code', source: 'github', pins: ['VERSION'], apply: 'just up-apps', channel: 'notify',
     changelog: 'https://github.com/YehudaBriskman/Bothy/releases/tag/v{v}', dependants: ['bothy-web', 'bothy-files', 'bothy-ops'],
     tag: 'v2026.8.1', cands: { minor: 'v2026.9.0' } },
   { id: 'kube-state-metrics', title: 'kube-state-metrics (chart)', cls: 'cluster', source: 'helm', pins: ['scripts/k8s-monitoring.sh:KSM_CHART_VERSION'],
     apply: 'just k8s-monitoring', channel: 'notify', changelog: 'https://github.com/prometheus-community/helm-charts/releases/tag/kube-state-metrics-{v}',
-    tag: '8.5.0', running: null, cands: { patch: '8.5.2', minor: '8.6.0' } },
+    tag: '8.5.0', running: null, notes: ['the cluster did not answer - installed chart unknown'],
+    cands: { patch: '8.5.2', minor: '8.6.0' } },
   { id: 'alloy-cluster', title: 'Alloy (cluster DaemonSet)', cls: 'cluster', source: 'manifest', pins: ['k8s/monitoring/alloy.yaml:alloy'],
     apply: 'just k8s-monitoring', channel: 'notify', changelog: 'https://github.com/grafana/alloy/releases/tag/v{v}', tag: 'v1.19.2', running: null,
     cands: { patch: 'v1.19.3' } },
   { id: 'keycloak', title: 'Keycloak', cls: 'app-db', pins: ['auth/compose.yml:keycloak', 'auth/compose.yml:keycloak-init'], apply: 'just up-auth',
     channel: 'manual', oneWayWhy: 'Keycloak migrates its database on first start; the only way back is the pre-update pg_dump of the keycloak database.',
     changelog: 'https://github.com/keycloak/keycloak/releases/tag/{v}', dependants: ['oauth2-proxy', 'every gated route (fails closed while it is down)'],
-    tag: '26.7.4-0', version: '26.7.4', running: 'quay.io/keycloak/keycloak:26.7.4-0', cands: { patch: '26.7.5-0' } },
+    tag: '26.7.4-0', version: '26.7.4', running: 'quay.io/keycloak/keycloak:26.7.1',
+    drift: 'keycloak runs quay.io/keycloak/keycloak:26.7.1, auth/compose.yml pins quay.io/keycloak/keycloak:26.7.4-0' },
   { id: 'oauth2-proxy', title: 'oauth2-proxy', cls: 'boundary', pins: ['auth/compose.yml:oauth2-proxy'], apply: 'just up-auth', channel: 'manual',
     changelog: 'https://github.com/oauth2-proxy/oauth2-proxy/releases/tag/v{v}', dependants: ['every gated route'], tag: 'v7.15.4',
     running: 'quay.io/oauth2-proxy/oauth2-proxy:v7.15.4' },
@@ -105,7 +110,7 @@ const SPECS: Spec[] = [
     apply: 'just up-data', channel: 'manual',
     oneWayWhy: "A major version cannot open the previous major's data directory; it is a dump, a new volume and a restore (docs/plans/updates.md §5).",
     changelog: 'https://www.postgresql.org/docs/release/', dependants: ['keycloak', 'postgres-exporter'], tag: '17', float: true,
-    running: 'postgres:17', runningVersion: '17.6', floatMoved: true, cands: { minor: '17', major: '18' } },
+    running: 'postgres:17', floatMoved: true, floatTarget: '17.11', cands: { minor: '17', major: '18' } },
 ];
 
 const bare = (t: string) => t.replace(/^v/, '').replace(/-\d+$/, '');
@@ -115,16 +120,18 @@ function row(s: Spec, checkedAt: string, discovered: boolean): UpdateRow {
   const cands: Partial<Record<Level, VersionRef>> = {};
   for (const [lv, t] of Object.entries(s.cands ?? {}) as [Level, string][]) {
     const moved = s.float && t === s.tag;
-    cands[lv] = { tag: t, version: moved ? null : bare(t), digest: dg(lv[0] === 'p' ? 'a' : lv[0] === 'm' ? 'b' : 'c'), level: lv,
-      publishedAt: ago(86400 * (lv === 'patch' ? 2 : lv === 'minor' ? 9 : 40)) };
+    cands[lv] = { tag: t, version: moved ? (s.floatTarget ? bare(s.floatTarget) : null) : bare(t),
+      digest: dg(lv[0] === 'p' ? 'a' : lv[0] === 'm' ? 'b' : 'c'), level: lv,
+      ...(moved ? { floating: true } : { publishedAt: ago(86400 * (lv === 'patch' ? 2 : lv === 'minor' ? 9 : 40)) }) };
   }
   const top = ORDER.find((l) => cands[l]);
   const latest = top ? cands[top]! : null;
   const d: Discovered | null = !discovered ? null : {
     checkedAt, error: s.error ?? null, image: null,
-    current: { tag: s.tag, version: s.version ?? (s.tag && !s.float ? bare(s.tag) : null), digest: s.tag ? null : dg('e'), float: !!s.float },
+    current: { tag: s.tag, version: s.version ?? (s.tag && !s.float ? bare(s.tag) : null), digest: s.tag ? null : dg('e'), float: !!s.float,
+      floatTarget: s.floatTarget ?? null, identifiedAs: s.identifiedAs ?? null },
     running: s.running ? [{ name: s.id, image: s.running, digest: s.runningDigest ?? dg('d'), state: 'running' }] : [],
-    runningVersion: s.runningVersion ?? null, drift: s.drift ?? null, floatMoved: s.floatMoved ?? null,
+    runningVersion: s.runningVersion ?? null, drift: s.drift ?? null, notes: s.notes ?? [], floatMoved: s.floatMoved ?? null,
     latest: s.error ? null : latest, candidates: s.error ? {} : cands,
   };
   const level = d?.latest?.level ?? null;

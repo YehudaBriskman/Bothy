@@ -380,6 +380,8 @@ def _ver(d: object) -> dict | None:
         out["level"] = d["level"]
     if isinstance(d.get("publishedAt"), str):
         out["publishedAt"] = d["publishedAt"][:40]
+    if d.get("floating") is True:
+        out["floating"] = True  # the pin's own floating tag, moved to a newer image
     return out
 
 
@@ -406,10 +408,14 @@ def _discovered(d: object) -> dict | None:
         "image": _s(d.get("image"), 255),
         "current": {"tag": _s(cur.get("tag"), 128), "version": _s(cur.get("version"), 64),
                     "digest": cur["digest"] if isinstance(cur.get("digest"), str) and _DIGEST.fullmatch(cur["digest"]) else None,
-                    "float": cur.get("float") is True},
+                    "float": cur.get("float") is True,
+                    # A floating tag's current release, and a digest pin's release.
+                    "floatTarget": _s(cur.get("floatTarget"), 128),
+                    "identifiedAs": _s(cur.get("identifiedAs"), 128)},
         "running": _running(d.get("running")),
         "runningVersion": _s(d.get("runningVersion"), 64),
         "drift": _s(d.get("drift"), 300),
+        "notes": [n[:200] for n in d["notes"][:5] if isinstance(n, str)] if isinstance(d.get("notes"), list) else [],
         "floatMoved": d.get("floatMoved") if isinstance(d.get("floatMoved"), bool) else None,
         "latest": _ver(d.get("latest")),
         "candidates": {lv: _ver(cands.get(lv)) for lv in LEVELS if _ver(cands.get(lv))},

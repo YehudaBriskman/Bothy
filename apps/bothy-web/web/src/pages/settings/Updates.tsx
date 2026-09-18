@@ -163,9 +163,9 @@ function Pinned({ r }: { r: UpdateRow }) {
   if (!c) return <><span className="dim">-</span><span className="set-cell-sub mono">{where}</span></>;
   return (
     <>
-      <span className="mono upd-tag">{c.tag ?? c.version ?? 'a digest'}</span>
+      <span className="mono upd-tag">{c.tag ?? c.identifiedAs ?? c.version ?? 'a digest'}</span>
       <span className="set-cell-sub">
-        {c.float ? 'floating tag · ' : !c.tag ? 'by digest · ' : ''}
+        {c.float ? `floating${c.floatTarget ? `, now ${c.floatTarget}` : ''} · ` : !c.tag ? 'by digest · ' : ''}
         <span className="mono">{where}</span>
         {r.pins.length > 1 && ` +${r.pins.length - 1}`}
       </span>
@@ -196,6 +196,7 @@ function Running({ r }: { r: UpdateRow }) {
           <AlertTriangle size={12} aria-hidden="true" />drift
         </span>
       )}
+      {d.notes.map((n) => <span key={n} className="set-cell-sub">{n}</span>)}
     </>
   );
 }
@@ -214,14 +215,14 @@ function Available({ r }: { r: UpdateRow }) {
   if (!d.latest || !d.latest.level) {
     return <span className="upd-current"><Check size={13} aria-hidden="true" />up to date</span>;
   }
-  const moved = d.current.float && d.latest.tag === d.current.tag;
+  const moved = !!d.latest.floating;
   const others = (['patch', 'minor', 'major'] as Level[])
     .map((lv) => d.candidates[lv])
     .filter((c) => c && c.tag !== d.latest!.tag);
   return (
     <>
       <span className="upd-avail">
-        <span className="mono upd-tag">{moved ? `${d.latest.tag} (moved)` : d.latest.tag}</span>
+        <span className="mono upd-tag">{moved ? `${d.latest.tag} → ${d.latest.version ?? 'newer'}` : d.latest.tag}</span>
         <LevelBadge level={d.latest.level} />
       </span>
       {others.length > 0 && (
@@ -231,6 +232,7 @@ function Available({ r }: { r: UpdateRow }) {
           ))}
         </span>
       )}
+      {moved && <span className="set-cell-sub">the tag moved to a newer image</span>}
       {d.latest.publishedAt && <span className="set-cell-sub">released <When iso={d.latest.publishedAt} /></span>}
     </>
   );
