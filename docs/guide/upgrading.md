@@ -24,21 +24,61 @@ Four steps, and it stops at the first that fails:
 
 That last step is the whole of "apply". There is **no `down`**, and no `-v`.
 
-## Your data survives, and that is tested rather than promised
+## Bothy's own code is rebuilt, not just restarted
 
-`just up` recreates containers whose definitions changed and leaves volumes
-alone. The claim that this preserves data is asserted in CI by the Upgrade
+Most of the stack is third-party images named by a pinned tag, and a new pin is
+applied by `up` pulling it. Bothy's own three services - bothy-web, bothy-files
+and bothy-ops - are different: they are **built from this checkout**, and
+`up` on its own never rebuilds an image that already exists. So `just up-apps`
+(which `just up` runs) builds them first, then brings them up:
+
+```
+docker compose -f apps/bothy/compose.yml build     # a no-op when nothing changed
+docker compose -f apps/bothy/compose.yml up -d --wait ...
+```
+
+The build is cached layer by layer, so an upgrade that did not touch the apps
+costs seconds. It **does** need the network when their sources or base images
+changed (`npm ci`, and the pinned `node`, `nginx` and `python` bases), which is
+why `bothy download` builds them too.
+
+Before 2026-09-18 this step was missing, and an upgrade applied every new
+compose file and **none of the new app code** - the old images kept running,
+healthy, with nothing to say so.
+
+Each image is labelled with the commit it was built from, so you can check:
+
+```
+docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' bothy-web
+git -C ~/stacks rev-parse HEAD                      # should match
+curl -s http://<box>/version.json                   # the same, as a browser sees it
+```
+
+The label is `HEAD` at build time, so every new commit relabels the three
+images and `just up` recreates those three containers - a few seconds of
+downtime for Bothy's own pages, and nothing else restarts.
+
+## Your data survives and the new code runs, and both are tested
+
+`just up` recreates containers whose definitions or images changed and leaves
+volumes alone. That this preserves data and applies the new code is asserted in
+CI by the Upgrade
 workflow (`.github/workflows/upgrade.yml`), which installs the previous commit,
-writes a row to the database, upgrades to `HEAD`, and then checks two things:
+writes a row to the database, upgrades to `HEAD`, and then checks three things:
 
 - the row is still readable;
 - **no volume was recreated** - compared by volume **ID**, not by name, because
   a recreated volume keeps its name and comparing names would pass exactly when
-  the data was lost.
+  the data was lost;
+- **the running code is `HEAD`'s** - bothy-web, bothy-files and bothy-ops run
+  images labelled with the new commit, `/version.json` names it, and the
+  `index.html` bothy-web serves is byte-identical to a fresh build of `HEAD`'s
+  sources. The data checks alone passed for months while no upgrade applied app
+  code at all.
 
 So the thing that would break this is not an ordinary upgrade. It is somebody
-adding a `down -v` to the apply step, or renaming a volume in a compose file -
-which is rare and always deliberate, and which that workflow exists to catch.
+adding a `down -v` to the apply step, renaming a volume in a compose file, or
+dropping the build from `up-apps` - which that workflow exists to catch.
 
 Take a backup anyway before an upgrade you are unsure about. See
 [Backups](backups.md); it is one command and the restore path is documented.
@@ -48,19 +88,23 @@ Take a backup anyway before an upgrade you are unsure about. See
 `bothy download` pre-fetches every image named by **every** compose file in the
 checkout - not only the ones `up` starts, because the point of the command is
 that a later `up` needs no network at all, and that includes the tiers you may
-start by hand. It also runs `npm ci` for the portal's web sources if `npm` is
-present, though the image build does not need it.
+start by hand. `pull` skips Bothy's own three images, which are built rather
+than pulled, so it also **builds** them - which fetches their base images and
+the portal's npm packages - leaving the build inside `up` all cache hits. It
+also runs `npm ci` for the portal's web sources if `npm` is present, for local
+development; the image build does its own.
 
 The order for an offline or slow-link upgrade is:
 
 ```
-bothy upgrade      # pulls the checkout (this part needs the network)
+bothy upgrade      # pulls the checkout and builds the apps (needs the network)
 bothy download     # pulls the images
 bothy up
 ```
 
 `upgrade` already runs `up` at the end, so on a good link the middle step is
-just insurance.
+just insurance. If the link drops partway, run `bothy download` and then
+`bothy up`: every build step that already finished is cached.
 
 ## After upgrading, update the CLI too
 
@@ -96,6 +140,10 @@ distinguishes two machines claiming the same release.
   If the change is yours and wanted, commit it on a branch; if it is not, it is
   usually an edit made through [Bothy Files](files.md), and the file's history
   is in the reader.
+- **The pages look unchanged after an upgrade.** Compare the revision label
+  (above) with `git rev-parse HEAD`. If they differ, the build did not run or
+  failed - `just up-apps` again shows why. A browser tab that was already open
+  keeps the old page until it reloads.
 - **A container will not start after an upgrade.** `bothy doctor` first - it
   covers containers, ports, routes, targets, DNS and disk, and the failing line
   is often not the one you expect. See [Troubleshooting](troubleshooting.md).
