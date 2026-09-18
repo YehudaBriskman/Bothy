@@ -38,6 +38,8 @@ function Sets({ d }: { d: BackupsResult }) {
   const managed = d.sets.filter((s) => s.managed);
   const other = d.sets.filter((s) => !s.managed);
   const total = d.sets.reduce((n, s) => n + (s.bytes ?? 0), 0);
+  // Sets that keep fewer copies than the default (the time-series stores), named.
+  const fewer = managed.filter((s) => s.keep != null && d.keep != null && s.keep < d.keep);
   const row = (s: BackupsResult['sets'][number]) => {
     const age = s.newest?.at ? Date.now() - Date.parse(s.newest.at) : null;
     const old = s.managed && age !== null && age > 2 * DAY;
@@ -62,7 +64,7 @@ function Sets({ d }: { d: BackupsResult }) {
     <>
       <p className="set-lede">
         <span className="mono">{d.root}</span> · {d.sets.length} sets · {fmtBytes(total)} in all · the newest {d.keep} of each
-        managed set are kept. Inventory written <When iso={d.generatedAt} />
+        managed set are kept{fewer.length > 0 && <> ({fewer.map((s) => `${s.keep} of ${s.name}`).join(', ')})</>}. Inventory written <When iso={d.generatedAt} />
         {d.stale && <span className="set-warn"> - stale; the bothy-inventory timer may not be running</span>}.
       </p>
       <div className="tbl-wrap set-tbl">
@@ -102,11 +104,12 @@ function Schedule({ d }: { d: BackupsResult | null }) {
       </div></div>
       <div className="kv"><div className="kv-k">Take one now</div><div className="kv-v">
         <Cmd>just backup</Cmd>
-        <span className="set-note">Postgres (pg_dumpall), Grafana’s database and a copy of .env. A failure in one does not stop the others.</span>
+        <span className="set-note">Postgres (pg_dumpall), Grafana’s database, .env, VictoriaMetrics, Loki, Alloy’s positions, the audit logs and trash, and the notes. A failure in one does not stop the others.</span>
       </div></div>
       <div className="kv"><div className="kv-k">Restore</div><div className="kv-v">
-        By hand, from a shell - <Link className="link" to={filesHref('guide', 'stacks', 'docs/guide/backups.md')}>the backups guide</Link>{' '}
-        has the three commands.
+        By hand, from a shell: <Cmd>just restore-postgres &lt;file&gt;</Cmd> and the same for grafana, env,
+        victoriametrics and loki - <Link className="link" to={filesHref('guide', 'stacks', 'docs/guide/backups.md')}>the backups guide</Link>{' '}
+        has each one.
         <span className="set-note">Deliberately not a button: a restore overwrites every database on the box.</span>
       </div></div>
     </div>

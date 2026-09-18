@@ -246,7 +246,7 @@ CLIENT_FIELDS = ("id", "purpose", "realm", "where", "set", "changed", "changedSc
 ENV_FIELDS = ("path", "present", "mode", "expectMode", "changed", "bytes", "error")
 BACKUP_FIELDS = ("root", "present", "keep", "command", "error")
 TIMER_FIELDS = ("unit", "active", "last", "next")
-SET_FIELDS = ("name", "managed", "what", "readable", "mode", "count", "bytes", "newest", "oldest")
+SET_FIELDS = ("name", "managed", "what", "keep", "readable", "mode", "count", "bytes", "newest", "oldest")
 POINT_FIELDS = ("name", "at", "bytes")
 
 
