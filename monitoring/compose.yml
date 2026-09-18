@@ -100,7 +100,7 @@ services:
     networks: [devnet]
 
   loki:
-    image: grafana/loki:3.7.6
+    image: grafana/loki:3.7.7
     container_name: loki
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
