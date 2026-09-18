@@ -1,0 +1,20 @@
+[Unit]
+Description=Bothy update discovery - what is newer than what this box runs (READ-ONLY: pulls and changes nothing)
+Documentation=file:///home/devssh/stacks/apps/bothy-ops/discover_updates.py
+# It asks registries on the internet; without a network it would only record an
+# error per component.
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=devssh
+Group=devssh
+Environment=HOME=/home/devssh
+# kubectl and helm come from mise's shims. Without them the two cluster rows say
+# "the cluster did not answer", which is true enough to be harmless.
+Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 /home/devssh/stacks/apps/bothy-ops/discover_updates.py --quiet
+Nice=10
+# A registry that hangs must not hold the next run's slot.
+TimeoutStartSec=10min

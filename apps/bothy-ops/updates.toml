@@ -1,0 +1,308 @@
+# What Bothy knows how to keep current: every component it runs, how to update
+# it by hand, and how far an update may ever go without a person.
+#
+# THE ONLY HAND-WRITTEN UPDATE CATALOG (docs/plans/updates.md §3). Read by:
+#
+#   apps/bothy-ops/discover_updates.py   on the HOST, every 6h: reads each pin
+#                                        named below, asks the registry / GitHub /
+#                                        the helm index what is newer, and writes
+#                                        ~/.local/state/bothy/updates/available.json
+#   apps/bothy-ops/updates.py            in bothy-ops: serves this file merged with
+#                                        available.json at GET /-/api/updates/status
+#
+# Discovery and a READ-ONLY Settings page only (build step 3). Nothing reads
+# `apply` or `verify` to run anything yet; they are what the page tells a person
+# to do by hand, and what the updater (step 4) will be held to.
+#
+# updates.load_catalog() has NO DEFAULTS and REFUSES unknown keys, unknown
+# channels, and an `auto` channel on anything one-way or on the auth boundary. A
+# typo here stops bothy-ops starting, which is the loud way to be wrong.
+#
+# ── the policy (approved 2026-09-18, docs/plans/updates.md "Decisions") ─────────
+#
+#   channel = "auto"     patch releases only, applied in the window below. A minor
+#                        of an auto component is only NOTIFIED; a major is MANUAL.
+#   channel = "notify"   shown, with a badge; applied by a person.
+#   channel = "manual"   shown, never offered for one click in v1.
+#   ANY major, of anything, is manual (updates.effective_channel()).
+#
+# `auto` is legal only for class stateless and timeseries. Widening that is a code
+# change to updates.AUTO_CLASSES, reviewed, not an edit to this file.
+#
+# ── component keys (ALL required unless marked) ──────────────────────────────────
+#
+#   title       what the page calls it
+#   class       stateless | boundary | edge | timeseries | app-db | database |
+#               own-code | cluster                       (docs/plans/updates.md §4)
+#   source      where "newer" comes from:
+#                 image     a container registry (Docker Registry HTTP API v2)
+#                 manifest  the same, for an image pinned in a k8s manifest
+#                 helm      a chart's helm repository index.yaml
+#                 github    the release tags of a GitHub repository
+#   pins        where the version is written, repo-relative. The FIRST is the one
+#               the page shows; the rest must agree with it (discovery says so
+#               when they do not):
+#                 image     "<compose file>:<service>"
+#                 manifest  "<manifest>:<container name>"
+#                 helm      "<script>:<SHELL_VARIABLE>"
+#                 github    "<file holding the version>"
+#   apply       the `just` recipe that applies a changed pin
+#   dependants  what restarts or is interrupted with it (container names, or
+#               "every gated route"-style words for the page)
+#   changelog   https URL; `{version}` is replaced by the version on offer
+#   channel     auto | notify | manual
+#   one_way     true when the first start of a new version migrates data that the
+#               old version cannot read - rollback is a restore, not a re-pin
+#   one_way_why REQUIRED when one_way is true, FORBIDDEN otherwise
+#   verify      the canaries that must pass after an update (descriptive until
+#               step 4 runs them; rule 7: bodies, never status codes)
+#   repo        (github only) owner/name
+#   chart       (helm only) the chart name in the index
+#   chart_repo  (helm only) the https URL of the helm repository
+#   release     (helm only) "<namespace>/<release>", to read what is installed
+#   workload    (manifest only) "<namespace>/<kind>/<name>", to read what runs
+#
+# Not listed: prometheus and promtail (monitoring/compose.yml, behind the
+# legacy-* profiles - kept for rollback and never started), bothy-web's nginx /
+# node bases and the Python bases of bothy-files and bothy-ops (they update WITH
+# our own code), minikube / kubectl / helm (host tooling, out of scope for v1).
+
+[policy]
+# Automatic updates run only inside this window, local time...
+window_start = "03:30"
+window_end = "05:00"
+# ...only when that night's 03:00 backup (stacks-backup.service) succeeded, and
+# `just doctor` was green just before.
+require_backup = "stacks-backup.service"
+require_doctor = true
+# One automatic update per night, stopping at the first failure.
+max_auto_per_night = 1
+# A rollback or a failed verify pauses `auto` for that component until an
+# operator clears it.
+pause_on_failure = true
+# The discovery timer's period, in hours; the page calls the result stale after
+# two missed runs.
+discover_every_hours = 6
+
+# ══ stateless infrastructure - auto (patch) ═══════════════════════════════════
+
+[components.cadvisor]
+title = "cAdvisor"
+class = "stateless"
+source = "image"
+pins = ["monitoring/compose.yml:cadvisor"]
+apply = "just up-monitoring"
+dependants = []
+changelog = "https://github.com/google/cadvisor/releases/tag/v{version}"
+channel = "auto"
+one_way = false
+verify = ["container healthy", "VictoriaMetrics: up{job=\"cadvisor\"} == 1 and container_memory_working_set_bytes has series"]
+
+[components.node-exporter]
+title = "node-exporter"
+class = "stateless"
+source = "image"
+pins = ["monitoring/compose.yml:node-exporter"]
+apply = "just up-monitoring"
+dependants = []
+changelog = "https://github.com/prometheus/node_exporter/releases/tag/v{version}"
+channel = "auto"
+one_way = false
+verify = ["container healthy", "VictoriaMetrics: up{job=\"node-exporter\"} == 1", "bothy_update_available is still exported (the textfile collector)"]
+
+[components.postgres-exporter]
+title = "postgres-exporter"
+class = "stateless"
+source = "image"
+pins = ["data/postgres/compose.yml:postgres-exporter"]
+apply = "just up-data"
+dependants = []
+changelog = "https://github.com/prometheus-community/postgres_exporter/releases/tag/v{version}"
+channel = "auto"
+one_way = false
+verify = ["VictoriaMetrics: pg_up == 1"]
+
+[components.alloy]
+title = "Alloy"
+class = "stateless"
+source = "image"
+pins = ["monitoring/compose.yml:alloy"]
+apply = "just up-monitoring"
+dependants = []
+changelog = "https://github.com/grafana/alloy/releases/tag/v{version}"
+channel = "auto"
+one_way = false
+verify = ["container healthy", "Loki: fresh lines for {container=\"alloy\"} in query_range within 2 minutes"]
+
+[components.headlamp]
+title = "Headlamp"
+class = "stateless"
+source = "image"
+pins = ["apps/headlamp/compose.yml:headlamp"]
+apply = "just up-headlamp"
+dependants = ["oauth2-proxy-headlamp"]
+changelog = "https://github.com/headlamp-k8s/headlamp/releases/tag/v{version}"
+channel = "auto"
+one_way = false
+verify = ["container healthy", ":8110 answers the Keycloak sign-in redirect, not Headlamp itself"]
+
+# ══ time-series - auto (patch) ═════════════════════════════════════════════════
+
+[components.victoriametrics]
+title = "VictoriaMetrics"
+class = "timeseries"
+source = "image"
+pins = ["monitoring/compose.yml:victoriametrics"]
+apply = "just up-monitoring"
+dependants = ["grafana", "the portal's vitals"]
+changelog = "https://docs.victoriametrics.com/victoriametrics/changelog/"
+channel = "auto"
+one_way = false
+verify = ["`up` returns series", "every target that was up before is up again"]
+
+[components.loki]
+title = "Loki"
+class = "timeseries"
+source = "image"
+pins = ["monitoring/compose.yml:loki"]
+apply = "just up-monitoring"
+dependants = ["alloy", "grafana"]
+changelog = "https://github.com/grafana/loki/releases/tag/v{version}"
+channel = "auto"
+# The IMAGE is two-way. A schema change is a config edit (a new period_config
+# with a future `from`), never an image update - the updater refuses to edit an
+# existing period (docs/plans/updates.md §5).
+one_way = false
+verify = ["/ready says ready", "fresh lines in query_range"]
+
+# ══ notify ═════════════════════════════════════════════════════════════════════
+
+[components.grafana]
+title = "Grafana"
+class = "app-db"
+source = "image"
+pins = ["monitoring/compose.yml:grafana"]
+apply = "just up-monitoring"
+dependants = []
+changelog = "https://github.com/grafana/grafana/releases/tag/v{version}"
+channel = "notify"
+one_way = true
+one_way_why = "grafana.db's schema migrates on first start and cannot be downgraded. Stop Grafana and copy the volume first."
+verify = ["/api/health reports database: ok", "the provisioned dashboards and alert rules are all present"]
+
+[components.traefik]
+title = "Traefik"
+class = "edge"
+source = "image"
+pins = ["edge/compose.yml:traefik"]
+apply = "just up-edge"
+dependants = ["every route on :80", "this page"]
+changelog = "https://github.com/traefik/traefik/releases/tag/v{version}"
+channel = "notify"
+one_way = false
+verify = ["the router count is unchanged", "bothy-web-fallback@docker is present", "an unrouted path still answers the portal (rule 7: bytes, not 200)"]
+
+[components.bothy]
+title = "Bothy (web, files, ops)"
+class = "own-code"
+source = "github"
+repo = "YehudaBriskman/Bothy"
+pins = ["VERSION"]
+apply = "just up-apps"
+dependants = ["bothy-web", "bothy-files", "bothy-ops"]
+changelog = "https://github.com/YehudaBriskman/Bothy/releases/tag/v{version}"
+channel = "notify"
+one_way = false
+verify = ["`just ops-check offline` and `just files-check offline` pass", "bothy-web serves the new bundle", "`just doctor` is green"]
+
+[components.kube-state-metrics]
+title = "kube-state-metrics (chart)"
+class = "cluster"
+source = "helm"
+chart = "kube-state-metrics"
+chart_repo = "https://prometheus-community.github.io/helm-charts"
+release = "monitoring/kube-state-metrics"
+pins = ["scripts/k8s-monitoring.sh:KSM_CHART_VERSION"]
+apply = "just k8s-monitoring"
+dependants = ["the cluster panels in Grafana"]
+changelog = "https://github.com/prometheus-community/helm-charts/releases/tag/kube-state-metrics-{version}"
+channel = "notify"
+one_way = false
+verify = ["VictoriaMetrics: up{job=\"kube-state-metrics\"} == 1", "kube_pod_info has series"]
+
+[components.alloy-cluster]
+title = "Alloy (cluster DaemonSet)"
+class = "cluster"
+source = "manifest"
+pins = ["k8s/monitoring/alloy.yaml:alloy"]
+workload = "monitoring/daemonset/alloy"
+apply = "just k8s-monitoring"
+dependants = []
+changelog = "https://github.com/grafana/alloy/releases/tag/v{version}"
+channel = "notify"
+one_way = false
+verify = ["the DaemonSet is rolled out", "Loki: fresh pod-log lines from the cluster"]
+
+# ══ manual only ════════════════════════════════════════════════════════════════
+
+[components.keycloak]
+title = "Keycloak"
+class = "app-db"
+source = "image"
+pins = ["auth/compose.yml:keycloak", "auth/compose.yml:keycloak-init"]
+apply = "just up-auth"
+dependants = ["oauth2-proxy", "every gated route (fails closed while it is down)"]
+changelog = "https://github.com/keycloak/keycloak/releases/tag/{version}"
+channel = "manual"
+one_way = true
+one_way_why = "Keycloak migrates its database on first start; the only way back is the pre-update pg_dump of the keycloak database."
+verify = ["the discovery document's issuer is unchanged", "keycloak-init re-ran and exited 0", "oauth2-proxy: allowed_groups=shell still answers 403"]
+
+[components.oauth2-proxy]
+title = "oauth2-proxy"
+class = "boundary"
+source = "image"
+pins = ["auth/compose.yml:oauth2-proxy"]
+apply = "just up-auth"
+dependants = ["every gated route"]
+changelog = "https://github.com/oauth2-proxy/oauth2-proxy/releases/tag/v{version}"
+channel = "manual"
+one_way = false
+verify = ["allowed_groups=viewer answers 202 for a session holding it", "allowed_groups=shell answers 403", "allowed_groups=<junk> answers 403 (fails closed)"]
+
+[components.oauth2-proxy-headlamp]
+title = "oauth2-proxy (Headlamp)"
+class = "boundary"
+source = "image"
+pins = ["apps/headlamp/compose.yml:oauth2-proxy-headlamp"]
+apply = "just up-headlamp"
+dependants = ["headlamp"]
+changelog = "https://github.com/oauth2-proxy/oauth2-proxy/releases/tag/v{version}"
+channel = "manual"
+one_way = false
+verify = [":8110 without a session redirects to Keycloak", "a session without `viewer` is refused"]
+
+[components.socket-proxy]
+title = "Docker socket proxies (read, write)"
+class = "boundary"
+source = "image"
+pins = ["apps/bothy/socket-proxy.yml:socket-read", "apps/bothy/socket-proxy.yml:socket-write"]
+apply = "just up-apps"
+dependants = ["bothy-ops", "the portal's Docker reads"]
+changelog = "https://github.com/Tecnativa/docker-socket-proxy/releases/tag/v{version}"
+channel = "manual"
+one_way = false
+verify = ["`just ops-check` (grants.py and the real-container transition) passes", "socket-write refuses /containers/create"]
+
+[components.postgres]
+title = "Postgres"
+class = "database"
+source = "image"
+pins = ["data/postgres/compose.yml:postgres", "auth/compose.yml:keycloak-db-init"]
+apply = "just up-data"
+dependants = ["keycloak", "postgres-exporter", "every gated route (through Keycloak)"]
+changelog = "https://www.postgresql.org/docs/release/"
+channel = "manual"
+one_way = true
+one_way_why = "A major version cannot open the previous major's data directory; it is a dump, a new volume and a restore (docs/plans/updates.md §5)."
+verify = ["pg_isready", "keycloak starts and its issuer is unchanged", "VictoriaMetrics: pg_up == 1"]

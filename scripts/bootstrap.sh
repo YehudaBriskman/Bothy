@@ -401,6 +401,11 @@ mk "$STATE_ROOT/bothy/config-trash"
 # The admin inventory (apps/bothy-ops/inventory.py): mounted read-only into
 # bothy-ops with create_host_path false, so it must exist before `up`.
 mk "$STATE_ROOT/bothy/inventory" && chmod 700 "$STATE_ROOT/bothy/inventory"
+# Update discovery (apps/bothy-ops/discover_updates.py): available.json, mounted
+# read-only into bothy-ops the same way; and the node-exporter textfile directory,
+# 755 because node-exporter reads it as `nobody`. Both create_host_path false.
+mk "$STATE_ROOT/bothy/updates" && chmod 700 "$STATE_ROOT/bothy/updates"
+mk "$STATE_ROOT/bothy/textfile" && chmod 755 "$STATE_ROOT/bothy/textfile"
 mk "$STATE_ROOT/devbox-logs"
 mk "$BACKUP_ROOT/postgres"
 mk "$PROJECTS_ROOT"
