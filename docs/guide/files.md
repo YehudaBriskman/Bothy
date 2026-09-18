@@ -28,7 +28,7 @@ for a save button is the Edit button, which is a link.
 
 A root is a **named place**. Clients send the name, never a filesystem path, so
 there is no default and no way to ask for "the whole disk". They are declared in
-[`apps/portal-files/policy.toml`](../../apps/portal-files/policy.toml), and a
+[`apps/bothy-files/policy.toml`](../../apps/bothy-files/policy.toml), and a
 root declared there but not mounted in compose is a startup error rather than an
 empty directory - a silently empty root reads as "nothing to see".
 
@@ -150,7 +150,7 @@ Three things it will not do, each on purpose:
 
 Reading requires the **`viewer`** role. That was not always true, and the change
 is documented at the top of
-[`edge/dynamic/portal-files.yml`](../../edge/dynamic/portal-files.yml): reads
+[`edge/dynamic/bothy-files.yml`](../../edge/dynamic/bothy-files.yml): reads
 were open while the roots were two markdown trees of published documentation,
 and that reasoning died when the roots widened to "the box".
 
@@ -256,4 +256,4 @@ honest reason to build one. See [Roles](roles.md).
 - [The files you will actually edit](configuring.md) - what those cautions are warning about
 - [Settings](settings.md) - the reading size, and where this browser's other preferences live
 - [When something is wrong](troubleshooting.md) - the repair paths when an edit breaks something
-- [`apps/portal-files/policy.toml`](../../apps/portal-files/policy.toml) - the policy itself, which is the reference for all of the above
+- [`apps/bothy-files/policy.toml`](../../apps/bothy-files/policy.toml) - the policy itself, which is the reference for all of the above

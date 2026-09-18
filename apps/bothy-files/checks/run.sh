@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# Checks for the editor tier.  `just files-check`
+#
+# Three layers, deliberately, because each catches what the others cannot:
+#
+#   test_safepath.py  the security boundary as a PURE unit - 30 cases including
+#                     real planted symlinks. Runs anywhere, needs nothing up.
+#   authz_probe.py    does oauth2-proxy actually enforce a per-route role? Asks
+#                     for a role the user does NOT hold and requires a 403 - then
+#                     reads Traefik's runtime router table to check which gate
+#                     each route is actually wired to.
+#   e2e.py            the whole path: anonymous refused, login, write, and the
+#                     guards re-checked THROUGH http rather than in-process.
+#
+# The unit tests alone would pass with the edge wide open; the probe alone would
+# pass with the path guards removed. Both have to run.
+#
+# ── the config forms' checks (bothy-config merged in, 2026-09) ──────────────
+#
+# They run in the OFFLINE half, because none of them needs anything up - only
+# the YAML parser the forms are built on (found or built by lib.sh):
+#
+#   noop_bytes.py         THE GATE. A patch that changes nothing changes no bytes,
+#                         for every patchable value in every YAML file here. If
+#                         this fails no field is safe to edit, so the rest skip.
+#   naive_dump_damage.py  what load-and-dump WOULD have done - the measurement
+#                         that keeps yamlpatch.py's header honest after a bump.
+#   patch_one_line.py     a real patch changes exactly one line, every comment
+#                         survives byte-identical.
+#   config_http.py        /config/fields and /config/patch through the REAL
+#                         bothy-files handler, against the SHIPPED policy and a
+#                         throwaway copy of the repo's compose files.
+#
+# test_safepath.py carries the config patcher's truth table too, against
+# resolve_config() - there is no second safepath to drift any more.
+set -uo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../bothy-common/checks/lib.sh
+. "$HERE/../../bothy-common/checks/lib.sh"
+# cd's into the service with `|| exit` - see lib.sh for why that is load-bearing.
+bothy_init "$HERE/.."
+
+# Flags, in a loop rather than as `$1`, because there are two of them now and
+# `[ "${1:-}" = ... ]` silently ignores the second.
+OFFLINE=0
+SKIP_SURVEY=0
+for arg in "$@"; do
+  case "$arg" in
+    --offline)      OFFLINE=1 ;;
+    --skip-survey)  SKIP_SURVEY=1 ;;
+    *) echo "unknown flag: $arg" >&2; exit 2 ;;
+  esac
+done
+section "the shared library: names, audit, CSRF, bodies"
+gate "$PY" "$BOTHY_COMMON/checks/test_common.py"
+
+section "path safety (unit) - the editor AND the config forms"
+check "$PY" checks/test_safepath.py
+
+# The config forms. Everything below this line needs ruamel.yaml, which is this
+# service's one dependency; bothy_yaml_python finds or builds an interpreter.
+if bothy_yaml_python "$HERE/../requirements.txt" "$HERE/../.venv"; then
+  echo "python for the config checks: $YPY ($("$YPY" -c 'import ruamel.yaml as r; print("ruamel.yaml", ".".join(map(str, r.version_info)))'))"
+  section "config THE GATE: a no-op patch must not change a byte"
+  if ! "$YPY" checks/noop_bytes.py; then
+    echo
+    echo "STOPPING the config checks. Every one below assumes the writer is"
+    echo "byte-clean, so running them now would report passes that mean nothing."
+    fail=1
+  else
+    section "config: the measurement behind refusing to re-serialise"
+    check "$YPY" checks/naive_dump_damage.py
+    section "config: a real patch changes ONE line, and no comment"
+    check "$YPY" checks/patch_one_line.py
+    section "config: the API - refusals, the 409, the snapshot, the audit line"
+    check "$YPY" checks/config_http.py
+    section "config: placement rules - located, scoped to one file, one line"
+    check "$YPY" checks/placement_http.py
+  fi
+else
+  fail=1
+fi
+
+if [ "$OFFLINE" = 1 ]; then
+  echo; echo "(--offline: skipping the probes that need the stack up)"
+  finish
+fi
+
+# The two below need a running edge AND credentials, so they are skipped rather
+# than failed when those are absent - a missing .env is not a broken boundary.
+set -a; . "$HERE/../../../.env" 2>/dev/null || true; set +a
+if [ -z "${DEV_LOGIN_PASSWORD:-}" ]; then
+  echo; echo "SKIP: no DEV_LOGIN_PASSWORD in .env - cannot run the authenticated probes"
+  exit $fail
+fi
+
+echo; echo "── per-route role enforcement ──────────────────────────────"
+python3 checks/authz_probe.py || fail=1
+
+echo; echo "── end to end ──────────────────────────────────────────────"
+python3 checks/e2e.py || fail=1
+
+echo; echo "── save semantics: disk, not commit, and the conflict ──────"
+python3 checks/save_semantics.py || fail=1
+
+echo; echo "── git is VIEW-ONLY: the mutating verbs must be gone ────────"
+python3 checks/git_ops.py || fail=1
+
+echo; echo "── the undo net: an overwrite keeps what it destroyed ───────"
+python3 checks/snapshots.py || fail=1
+
+echo; echo "── delete: and the net is a PRECONDITION for it ─────────────"
+# Runs after snapshots.py on purpose. Delete is only defensible because the undo
+# net works, so the check that the net works should have gone green first - a
+# delete suite passing while the trash is broken would be reporting the wrong
+# thing as healthy.
+python3 checks/delete_semantics.py || fail=1
+
+echo; echo "── search must not see what the explorer refuses to open ────"
+# The endpoint reads FILE CONTENT, so a deny-list miss here shows a secret's
+# LINE rather than merely its filename. Plants a token in three kinds of denied
+# file and requires that only the served one comes back.
+python3 checks/search_denied.py || fail=1
+
+echo; echo "── backlinks: the graph, and what must not be in it ─────────"
+# Runs after search_denied.py for the same reason it exists: /links walks with
+# safepath.collect() too, and an index is a place a denied file would sit
+# permanently rather than only appearing in one answer. Plants its corpus in
+# $HOME - never inside either repo - and removes it in a finally.
+python3 checks/links_index.py || fail=1
+
+echo
+echo "── /tree?path= scopes, and cannot leave the root ────────────"
+# `path` was accepted and silently ignored: a client asking for a subtree got
+# the whole root and no way to tell. It names a DIRECTORY, which resolve() does
+# not answer for, so listing() does its own containment check - and that is the
+# half worth asserting.
+python3 checks/tree_scope.py || fail=1
+
+echo; echo "── does anything SERVED look like a credential? ─────────────"
+# Baseline diff, not "fail on any hit" - the detector flags 40 files and the top
+# hits are .env.example and READMEs, so an absolute check would be noise nobody
+# reads. This fails on something NEW.
+#
+# THE ONE CHECK HERE THAT IS ABOUT A MACHINE RATHER THAN ABOUT THE CODE, which
+# is why it can be skipped and nothing else can. Its baseline is a hash of what
+# THIS box happens to serve, so on any other machine every hit is "NEW" - on a
+# GitHub runner it correctly reported the runner's own
+# actions-runner/.credentials, a real signed JWT that has nothing to do with
+# Bothy. That is the detector working, and it is also an answer no CI run can
+# act on, because the finding is about the host it was handed.
+#
+# So the install job skips it and says so, and it stays a first-class check
+# everywhere a human runs `just files-check`. It is not weakened, not
+# baselined-away, and not made conditional on some heuristic about the
+# environment - it is one flag, used in one place, for a stated reason.
+if [ "$SKIP_SURVEY" = 1 ]; then
+  echo "  SKIPPED (--skip-survey): the baseline fingerprints one box's content,"
+  echo "  so on any other machine every hit is NEW and none of them is actionable."
+else
+  python3 checks/served_secrets.py || fail=1
+fi
+
+echo; echo "── the sandbox must actually contain a hostile document ────"
+# Needs a browser: the claim is about browser enforcement, so nothing else can
+# test it. Skipped rather than failed if playwright-core is absent - the SKIP now
+# lives INSIDE the check, which is the only place that can tell the difference
+# between "no browser here" and "the browser is somewhere else". The guard this
+# replaced stat'd one literal path in one person's npx cache, so it printed SKIP
+# on every other machine and on this one the moment npx rehashed the directory.
+#
+# In a SUBSHELL, and that is the point of the parentheses: env.py is the suite's
+# one resolver and this is the one check that cannot import it, so the values are
+# handed over as exported variables. Scoping them here keeps the rest of the run
+# on the ordinary resolution path rather than on a $BOTHY_BASE this script set.
+( eval "$(python3 checks/env.py --sh)"; node checks/sandbox_escape.mjs ) || fail=1
+
+echo; echo "── raw bytes + archives (the sandbox origin) ───────────────"
+python3 checks/bytes_e2e.py || fail=1
+
+exit $fail

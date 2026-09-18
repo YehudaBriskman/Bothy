@@ -7,7 +7,7 @@ shell script is where quoting bugs go to live.
 
 WHY IT IS A MERGE AT ALL. The first version regenerated the baseline from
 scratch, and on its second real use it silently ate a seven-line note explaining
-why `apps/portal-next/checks/repo-roots.mjs` holds 18 home-path hits ON PURPOSE -
+why `apps/bothy-web/checks/repo-roots.mjs` holds 18 home-path hits ON PURPOSE -
 every one a fictional machine (`/home/ada`, `/opt/bothy`), because that file
 exists to prove Bothy runs on a checkout that is NOT this one.
 

@@ -1,0 +1,86 @@
+# The role gates - the ONLY definitions of sso-viewer, sso-editor and sso-operator.
+#
+# WARNING - this directory is rendered as a Go template. A doubled brace
+# anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. Traefik then keeps
+# serving its last-good config, so nothing looks wrong until the next restart,
+# when every @file router disappears at once. `just verify` check 5b catches it.
+#
+# ── why the gates have a file of their own (2026-09) ────────────────────────
+#
+# Until then each gate was defined inside the tier file that happened to need it
+# first: sso-viewer and sso-editor in bothy-files.yml, sso-operator in
+# bothy-control.yml. Traefik's file provider merges every .yml in this directory
+# into one namespace, so the other tiers BORROWED them by bare name - and the
+# coupling ran the wrong way: deleting bothy-control.yml would have deleted the
+# operator gate from under bothy-kube.yml. Traefik fails closed on a missing
+# middleware (the router errors and serves nothing), so that was an outage rather
+# than a hole, but "delete one tier, break another" is still a trap.
+#
+# Now every router file references these, and no router file defines one. A
+# tier file can be deleted without touching another tier. This file must not be
+# deleted at all: without it every gated router in the box errors.
+#
+# `sso-errors` (a 401 rewritten into a sign-in page) is defined in auth.yml with
+# the rest of the login plumbing, and stays there: it is not a gate, and losing
+# it degrades an error message rather than an authorisation decision.
+#
+# ── how a gate works ────────────────────────────────────────────────────────
+#
+# forwardAuth asks oauth2-proxy whether the session cookie holds a group. The
+# three gates are IDENTICAL except for one word in the URL, which is the property
+# that made this design worth having: a new tier is four lines, not a container.
+#
+# oauth2-proxy fails CLOSED on a group nobody holds, verified before the first
+# gate shipped:
+#
+#   allowed_groups=editor -> 202   (devssh has it)
+#   allowed_groups=shell  -> 403   (nobody has it)
+#   allowed_groups=<junk> -> 403   (fails closed)
+#
+# So a realm that never created `operator` refuses every operator route rather
+# than admitting everybody - the safe direction to be wrong in.
+#
+# A 403 from a gate carries oauth2-proxy's own page, not JSON. The UI reads the
+# status (apps/bothy-web/web/src/lib/http.ts refusalOf()), never a body field.
+#
+# `trustForwardHeader: true` is safe here ONLY because Traefik is the sole
+# client of oauth2-proxy's /oauth2/auth on these networks; the identity it
+# returns is copied onto the request by authResponseHeaders, after each router's
+# *-deidentify middleware has deleted any client-sent copy.
+#
+# The roles themselves (viewer, editor, operator) live in the Keycloak realm -
+# auth/realm-devbox.json - with a description of what each one gates.
+
+http:
+  middlewares:
+    # READ the box: browse, search, download bytes, read config values, read
+    # cluster events and logs.
+    sso-viewer:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=viewer"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Preferred-Username
+
+    # CHANGE a file: write, delete, patch a declared config field.
+    sso-editor:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=editor"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Preferred-Username
+
+    # ACT on what is running: restart/stop/start a container; restart, scale or
+    # clean up a cluster workload.
+    sso-operator:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth?allowed_groups=operator"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Preferred-Username

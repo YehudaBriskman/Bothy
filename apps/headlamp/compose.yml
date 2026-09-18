@@ -1,0 +1,210 @@
+name: headlamp
+
+# Headlamp: a READ-ONLY web console for the local cluster (minikube profile
+# thales-scc), behind its own Keycloak login.
+#
+#   browser --> :8110 oauth2-proxy-headlamp --headlampnet--> headlamp:4466
+#                     (Keycloak, role viewer)                    |
+#                                                         thales-scc network
+#                                                                |
+#                                                   https://192.168.49.2:8443
+#                                                   as bothy/bothy-browse (`view`)
+#
+# ── three locks, and the one that matters is the cluster's ─────────────────
+#
+#   1. SSO     oauth2-proxy-headlamp admits only a devbox-realm user holding the
+#              `viewer` role (--allowed-group=viewer). It is the ONLY published
+#              port; headlamp itself has none.
+#   2. Network headlamp sits on `headlampnet` (itself + its proxy, nothing else)
+#              and `thales-scc` (the way out, to the apiserver). Not devnet.
+#   3. RBAC    every request Headlamp makes uses ONE ServiceAccount token, bound
+#              to the built-in `view` ClusterRole (k8s/rbac/bothy-browse.yaml):
+#              no secrets, no exec/attach, no port-forward, no writes. Headlamp
+#              draws an exec/terminal/edit/delete button only when a
+#              SelfSubjectAccessReview says yes, so they are simply absent - and
+#              if one ever were drawn, the apiserver would refuse it.
+#
+# Everyone who passes lock 1 is the same Kubernetes identity. That is the
+# design, not a gap: the identity can do nothing that needs telling people apart.
+#
+# ── the cluster is optional; this file is not in `just up` ──────────────────
+#
+# `thales-scc` is minikube's docker network. It exists only while that cluster
+# does, and an `external: true` network that is missing is a hard error for the
+# whole project. So, like apps/bothy-kube, this is its own recipe, `just
+# up-headlamp`, and never part of `just up` - a box with no cluster must still
+# come up. (monitoring/compose.cluster.yml's optional-overlay trick is not
+# needed here: Headlamp without the cluster has nothing to show, so there is no
+# useful half to start.) If the cluster is deleted: `just down-headlamp` first,
+# or `minikube delete` cannot remove a network with containers attached.
+#
+# BEFORE FIRST RUN (the recipe does all three):
+#   just headlamp-token                     # ./secrets/kubeconfig, mode 600
+#   scripts/keycloak-headlamp-client.sh     # the Keycloak client + two .env keys
+#   docker compose -f apps/headlamp/compose.yml up -d
+
+services:
+  headlamp:
+    image: ghcr.io/headlamp-k8s/headlamp:v0.45.0   # pinned; checked on ghcr 2026-09-17
+    container_name: headlamp
+    restart: unless-stopped
+    # Run as the owner of ./secrets/kubeconfig (mode 600) rather than the image's
+    # uid 100, the bothy-kube precedent: the token file never needs a chown, and
+    # `just headlamp-token --rotate` never needs root. /headlamp in the image is
+    # world-readable, so nothing else depends on uid 100.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command:
+      - -in-cluster=false
+      - -kubeconfig=/secrets/kubeconfig
+      # The kubeconfig is mounted read-only and is not Headlamp's to edit - no
+      # "remove cluster" from the UI.
+      - -allow-kubeconfig-changes=false
+      # No clusters added from the browser: the only cluster is the one the
+      # kubeconfig names, with the one identity it carries.
+      - -enable-dynamic-clusters=false
+      # Helm install/upgrade/uninstall stay off (the default, stated so nobody
+      # "enables" it without reading this). RBAC would refuse them anyway.
+      - -enable-helm=false
+      # Plugins: only what ships in the image (static-plugins/prometheus, a
+      # read-only chart panel). The user-plugin directories point at an empty
+      # tmpfs and are not watched, so nothing can be installed or loaded at
+      # runtime.
+      - -plugins-dir=/tmp/plugins
+      - -user-plugins-dir=/tmp/user-plugins
+      - -watch-plugins-changes=false
+      # Headlamp's identity-aware-proxy mode is deliberately NOT enabled
+      # (-proxy-auth). It would take the user's id_token from oauth2-proxy and
+      # send THAT to the apiserver, which does not trust Keycloak - every call
+      # would 401. The ServiceAccount in the kubeconfig is the identity.
+    read_only: true
+    tmpfs:
+      - /tmp
+      # Headlamp keeps its settings and plugin dirs under $HOME/.config.
+      - /home/headlamp:uid=${PUID:-1000},gid=${PGID:-1000},mode=0700
+    environment:
+      HOME: /home/headlamp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    volumes:
+      - type: bind
+        source: ./secrets
+        target: /secrets
+        read_only: true
+        bind:
+          # A missing directory fails `up` loudly instead of docker creating an
+          # empty root-owned one and Headlamp showing an empty cluster list.
+          create_host_path: false
+    # NO ports: - the only way in is oauth2-proxy-headlamp on headlampnet.
+    networks:
+      - headlampnet
+      - thales-scc
+    labels:
+      - traefik.enable=false
+    healthcheck:
+      # busybox wget ships in the image. /config is served by the backend and
+      # lists the clusters it loaded from the kubeconfig.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4466/config"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ── the login in front of it ───────────────────────────────────────────────
+  # A DEDICATED oauth2-proxy, in reverse-proxy mode, rather than the shared one
+  # in auth/compose.yml. That one answers Traefik's forwardAuth for the :80
+  # tiers and is never in a request path; this one IS the request path for one
+  # port. The OIDC settings mirror it - read auth/compose.yml for the reasoning
+  # behind each; only the differences are argued here.
+  oauth2-proxy-headlamp:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4   # same pin as auth/compose.yml
+    container_name: oauth2-proxy-headlamp
+    restart: unless-stopped
+    depends_on:
+      headlamp:
+        condition: service_healthy
+    command:
+      - --provider=oidc
+      - --provider-display-name=Keycloak
+      # The single spelling of Keycloak's address - see auth/compose.yml's
+      # header. Reached on the host's published port from headlampnet, like the
+      # shared proxy does from devnet; this container needs no devnet.
+      - --oidc-issuer-url=http://${BOX_IP:?set BOX_IP in .env}:8090/realms/devbox
+      - --client-id=headlamp
+      - --http-address=0.0.0.0:4180
+      - --upstream=http://headlamp:4466
+      - --email-domain=*
+      - --code-challenge-method=S256
+      - --scope=openid email profile
+      - --insecure-oidc-allow-unverified-email=true
+
+      # The role gate. Keycloak realm roles arrive as the flat `groups` claim
+      # through the client's realm-roles-as-groups mapper (created by
+      # scripts/keycloak-headlamp-client.sh). No `viewer` -> 403, after login.
+      - --oidc-groups-claim=groups
+      - --allowed-group=viewer
+
+      - --redirect-url=http://${BOX_IP:?set BOX_IP in .env}:8110/oauth2/callback
+
+      # Cookies ignore the PORT, so every service on this IP shares one cookie
+      # jar. The shared proxy's cookie is `_oauth2_proxy`, encrypted with a
+      # different secret; under the same name each proxy would overwrite the
+      # other's session on every login and each would read the other's cookie
+      # as garbage. A distinct name keeps the two sessions independent.
+      - --cookie-name=_oauth2_proxy_headlamp
+      - --cookie-secure=false
+      - --cookie-samesite=lax
+
+      # Straight to Keycloak instead of an interstitial "Sign in with Keycloak"
+      # page. Safe HERE, unlike on the shared proxy: nothing sits between the
+      # browser and this container, so the 302 and its CSRF Set-Cookie reach
+      # the browser intact (the Traefik errors-middleware problem that rules it
+      # out in auth/compose.yml does not exist on this path).
+      - --skip-provider-button=true
+
+      # NOT --reverse-proxy. The browser talks to this container directly on a
+      # published port; there is no proxy in front whose X-Forwarded-* headers
+      # deserve trust, so any such header is the client's own and is ignored.
+      #
+      # Tokens are NOT passed upstream (no --pass-access-token,
+      # --pass-authorization-header, --set-authorization-header): Headlamp would
+      # forward a Keycloak token to the apiserver in place of its ServiceAccount
+      # token, and the apiserver trusts no Keycloak token.
+    environment:
+      OAUTH2_PROXY_CLIENT_SECRET: ${HEADLAMP_OAUTH2_CLIENT_SECRET:?run scripts/keycloak-headlamp-client.sh - it generates this in .env}
+      OAUTH2_PROXY_COOKIE_SECRET: ${HEADLAMP_OAUTH2_COOKIE_SECRET:?run scripts/keycloak-headlamp-client.sh - it generates this in .env}
+    ports:
+      # 8110, picked 2026-09-17 per /f-expose. Checked free three ways: not in
+      # `just urls` (stack: 80 3000 3100 8082 8090 8100 9090 9100, reserved
+      # 3900 5173 8086 10350 31080 31081); not declared by any project
+      # (projects.json: 3003 5000 5173 5400 8000 8081 8083 8084 25432 31080
+      # 31081; monorepo-inherited's .dev-ports.env also holds 8085 8086 8091
+      # 8092); and nothing listening (`ss -ltn`).
+      - "8110:4180"
+    # No healthcheck: distroless image, no shell and no wget (see
+    # auth/compose.yml). A dead proxy is a refused connection on :8110.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    networks:
+      - headlampnet
+    labels:
+      - traefik.enable=false
+
+networks:
+  # Just the two services above. Created by this project, so it needs no
+  # `just network` entry and goes away with `down`.
+  headlampnet:
+    name: headlampnet
+  thales-scc:
+    name: thales-scc
+    external: true

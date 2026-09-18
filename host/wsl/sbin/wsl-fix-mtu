@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Restore eth0's MTU inside WSL.
+#
+# WHY: WSL2 brings eth0 up with the SMALLEST MTU it sees among the Windows
+# host's adapters. Windows runs Tailscale, whose adapter is MTU 1280, so eth0
+# lands on 1280 - while the vSwitch that actually carries its traffic
+# ("vEthernet (WSL)") and the host's Ethernet are both 1500.
+#
+# That 1280 is one byte-budget short of the tunnel: this box's own tailscale0 is
+# also 1280, and WireGuard adds ~60 bytes of encapsulation on top. So every
+# full-size tunnel packet became ~1340 bytes and could not leave eth0 - silently
+# dropped, no ICMP. Small requests worked, large ones black-holed: the portal
+# answered 200 with ZERO bytes of body, Keycloak never answered at all.
+# (Incident: docs/kb/incidents/2026-08-30-wsl-eth0-mtu-1280.md, and the same
+# signature as 2026-08-08.)
+#
+# The fix is entirely guest-side. Nothing on Windows is touched.
+set -u
+
+log() { logger -t wsl-fix-mtu -- "$*"; echo "wsl-fix-mtu: $*"; }
+
+apply() {
+    ip link set dev eth0 mtu 1500 2>/dev/null
+    [ "$(cat /sys/class/net/eth0/mtu 2>/dev/null)" = "1500" ]
+}
+
+if apply; then
+    log "eth0 MTU set to 1500"
+else
+    # Fallback: if eth0 genuinely cannot carry 1500, keep the tunnel usable by
+    # shrinking it instead, so encapsulated packets fit inside whatever eth0 has.
+    log "WARNING: could not set eth0 to 1500 (mtu=$(cat /sys/class/net/eth0/mtu 2>/dev/null))"
+    if [ -e /sys/class/net/tailscale0 ]; then
+        ip link set dev tailscale0 mtu 1180 2>/dev/null \
+            && log "fallback: tailscale0 MTU lowered to 1180" \
+            || log "fallback FAILED - the tunnel will drop large packets"
+    fi
+    exit 0
+fi
+
+# WSL can re-apply the host-derived MTU shortly after boot. Re-check once.
+sleep 10
+if [ "$(cat /sys/class/net/eth0/mtu 2>/dev/null)" != "1500" ]; then
+    log "eth0 drifted back - re-applying"
+    apply && log "eth0 MTU re-set to 1500"
+fi

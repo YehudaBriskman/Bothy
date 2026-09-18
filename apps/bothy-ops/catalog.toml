@@ -1,0 +1,532 @@
+# What bothy-ops' cluster half may be asked to do. DATA, not capability.
+#
+# THIS FILE IS THE ONLY HAND-WRITTEN WIRING (2026-09). scripts/gen-ops-wiring.py
+# reads it and GENERATES the three things that used to be hand-copied from it:
+#
+#   edge/dynamic/bothy-ops.yml         one exact Path() router per action id, with
+#                                      sso-viewer or sso-operator from `role`
+#   k8s/rbac/bothy-kube.yaml           the Role in each namespace, merged from
+#                                      every action's `rbac` declaration
+#   scripts/lib/bothy-kube-probes.sh   the `kubectl auth can-i` rows that
+#                                      `just kube-token` prints
+#
+# and the UI reads it at run time from GET /-/api/kube/catalog. So adding an
+# action is: a table here, a handler in kube.py, a test, `just ops-wiring`.
+# checks/wiring.py re-runs the generator and fails on any drift.
+#
+# Every id here must have a hand-written handler in kube.py (HANDLERS), and every
+# handler must be declared here - the service refuses to start otherwise
+# (guard.check_handlers). Adding a table below does nothing on its own.
+#
+# ── action keys, all REQUIRED (guard.load_catalog has no defaults) ─────────────
+#
+#   title     what the interface calls it
+#   meaning   one sentence, in the reader's terms - the UI shows it verbatim
+#   target    what the request names, besides the namespace:
+#               namespace   nothing else
+#               deployment  "deployment": <name>
+#               pod         "pod": <name>
+#               job         "job": <name>
+#               template    "template": one of job_templates below
+#               configmap   "configmap": one of configmaps below
+#   method    GET for a read, POST for a change - enforced against `role`
+#   role      "viewer" (sso-viewer at the edge) or "operator" (sso-operator)
+#   confirm   "none" | "click" | "type-name". An operator action may not be
+#             "none". "type-name" is checked by the SERVICE too: the request body
+#             must carry confirm = <the target's name> - or, for a configmap
+#             action that takes a `key`, confirm = <the key>.
+#   stream    true when the action can answer as text/event-stream
+#   rbac      what the HANDLER calls, as [{resource, verbs, subresource?}]. The
+#             generator merges these into the Role, so a grant exists only
+#             because an action declared it. guard.py refuses secrets, exec,
+#             attach, portforward, watch, escalate, bind, impersonate, `*`, and
+#             any resource it does not know the API group of.
+#
+# params.<name>: type = "int" | "bool" | "name" | "image" | "configmap-key" |
+#   "configmap-value"; ints need min and max. `image` must match an OCI
+#   reference AND start with one of image_registries. `configmap-key` must be a
+#   key of [configmap_keys]; `configmap-value` must fullmatch that key's pattern.
+
+# ── policy: the allowlists the params above are checked against ───────────────
+
+# The only ConfigMaps any action may name. Also becomes the Role's resourceNames
+# for configmaps, so the cluster enforces it too: the token cannot read
+# kube-root-ca.crt or any ConfigMap somebody adds later.
+configmaps = ["thales"]
+
+# Where set-image may point a container, and what a rollback may restore.
+# `thales/` is how the local minikube images are named (release 0.1.7 is
+# `thales/backend:0.1.7`, loaded with `minikube image load`); `localhost:5000/
+# thales/` is the in-cluster registry addon's spelling. Anything else - docker.io,
+# ghcr.io, a bare `nginx` - is refused before a request is built.
+image_registries = ["thales/", "localhost:5000/thales/"]
+
+# The Jobs run-template may create. Each is a FILE, k8s/job-templates/<ns>/<name>.yaml,
+# copied into the image at build time; the request names one of these and
+# nothing else, and no part of the Job comes from the client. seed-scenario is
+# deliberately absent: it wipes the database.
+job_templates = ["migrate", "seed-identity", "seed-reference"]
+
+# The keys patch-key may change, and what each may be set to. SMALL ON PURPOSE:
+# everything else in ConfigMap `thales` is an address, an identity setting or a
+# security switch, and belongs in the manifests. Each pattern is the
+# INTERSECTION of what every consumer accepts, checked against the Tals source:
+#
+#   LOG_LEVEL        pino (backend) takes debug|info|warn|error; Python logging
+#                    (algorithm) takes those too (WARN is an alias). trace/fatal
+#                    would crash-loop the algorithm pod at config load.
+#   DB_POOL_MAX      backend, per replica (live value 10). 1..20: every replica
+#                    and every Job opens its own pool against one small Postgres.
+#   JOB_MAX_WORKERS  algorithm solver processes. 1..4: each runs
+#                    CPSAT_SEARCH_WORKERS threads on a 6-CPU node.
+#
+# ENABLE_OTLP_EXPORT was considered and left out: `true` with OTLP_ENDPOINT empty
+# is a config refusal, so the algorithm pod would stop starting.
+[configmap_keys.LOG_LEVEL]
+pattern = "debug|info|warn|error"
+meaning = "How much the backend and algorithm log."
+
+[configmap_keys.DB_POOL_MAX]
+pattern = "[1-9]|1[0-9]|20"
+meaning = "Database connections each backend replica may hold (1 to 20)."
+
+[configmap_keys.JOB_MAX_WORKERS]
+pattern = "[1-4]"
+meaning = "Solver jobs the algorithm runs at once (1 to 4)."
+
+# ══ deployments ══════════════════════════════════════════════════════════════
+
+[actions.deployments]
+title = "Deployments"
+meaning = "Every deployment in the namespace, with replicas, images and rollout state."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "deployments", verbs = ["list"] }]
+
+[actions.rollout-status]
+title = "Rollout status"
+meaning = "Whether the newest version of this deployment is fully rolled out."
+target = "deployment"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "deployments", verbs = ["get"] }]
+
+[actions.rollout-history]
+title = "History"
+meaning = "The revisions this deployment has run, newest first, with their images."
+target = "deployment"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [
+  { resource = "deployments", verbs = ["get"] },
+  { resource = "replicasets", verbs = ["list"] },
+]
+
+[actions.rollback-to-revision]
+title = "Roll back"
+meaning = "Run an earlier revision's pod template again. Pods are replaced one at a time."
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "type-name"
+stream = false
+rbac = [
+  { resource = "deployments", verbs = ["get", "patch"] },
+  { resource = "replicasets", verbs = ["list"] },
+]
+
+[actions.rollback-to-revision.params.revision]
+type = "int"
+required = true
+min = 1
+max = 999999
+
+[actions.pause]
+title = "Pause rollout"
+meaning = "Stop this deployment reacting to template changes until it is resumed."
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false
+rbac = [{ resource = "deployments", verbs = ["get", "patch"] }]
+
+[actions.resume]
+title = "Resume rollout"
+meaning = "Let a paused deployment roll out its template again."
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false
+rbac = [{ resource = "deployments", verbs = ["get", "patch"] }]
+
+[actions.set-image]
+title = "Set image"
+meaning = "Run a different image in one container. Only thales/ images are accepted."
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "type-name"
+stream = false
+rbac = [{ resource = "deployments", verbs = ["get", "patch"] }]
+
+[actions.set-image.params.container]
+type = "name"
+required = true
+
+[actions.set-image.params.image]
+type = "image"
+required = true
+
+[actions.rollout-restart]
+title = "Restart rollout"
+meaning = "Replace every pod of this deployment, one at a time. Configuration is unchanged."
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false
+rbac = [{ resource = "deployments", verbs = ["get", "patch"] }]
+
+[actions.scale]
+title = "Scale"
+meaning = "Set how many pods run, from 0 to 3. Scaling to 0 stops the workload."
+target = "deployment"
+method = "POST"
+role = "operator"
+confirm = "type-name"
+stream = false
+# The subresource, so scale cannot also rewrite the pod spec.
+rbac = [{ resource = "deployments", subresource = "scale", verbs = ["get", "patch"] }]
+
+[actions.scale.params.replicas]
+type = "int"
+required = true
+min = 0
+# 3, not "whatever the node fits". This is a single-node minikube shared with the
+# rest of the box; a replica count above three is a capacity decision, and that
+# belongs in the manifests, not behind a button.
+max = 3
+
+[actions.events]
+title = "Events"
+meaning = "What the cluster recently said about this deployment and its pods."
+target = "deployment"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [
+  { resource = "deployments", verbs = ["get"] },
+  { resource = "events", verbs = ["list"] },
+]
+
+[actions.events.params.limit]
+type = "int"
+min = 1
+max = 200
+default = 50
+
+[actions.logs]
+title = "Logs"
+meaning = "The last lines a pod wrote, or follow them live for up to two minutes."
+target = "deployment"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = true
+rbac = [
+  { resource = "deployments", verbs = ["get"] },
+  { resource = "pods", verbs = ["list"] },
+  { resource = "pods", subresource = "log", verbs = ["get"] },
+]
+
+[actions.logs.params.tail]
+type = "int"
+min = 1
+max = 500
+default = 200
+
+[actions.logs.params.follow]
+type = "bool"
+default = false
+
+# How long a follow may stay open. Bounded because a browser tab left open would
+# otherwise hold an apiserver watch and a service thread forever.
+[actions.logs.params.seconds]
+type = "int"
+min = 5
+max = 300
+default = 120
+
+# Optional: a specific pod of the deployment (checked against its selector), and
+# a specific container of that pod. Without them: the newest running pod, its
+# first container.
+[actions.logs.params.pod]
+type = "name"
+
+[actions.logs.params.container]
+type = "name"
+
+# The previous instance of the container - what a crash-looping pod said before
+# it died, which is usually the only log that matters.
+[actions.logs.params.previous]
+type = "bool"
+default = false
+
+# ══ pods ═════════════════════════════════════════════════════════════════════
+
+[actions.pods]
+title = "Pods"
+meaning = "Pods in the namespace, or of one deployment, with status and restarts."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [
+  { resource = "deployments", verbs = ["get"] },
+  { resource = "replicasets", verbs = ["list"] },
+  { resource = "pods", verbs = ["list"] },
+]
+
+# Optional: only the pods of this deployment (by its selector).
+[actions.pods.params.deployment]
+type = "name"
+
+[actions.delete-pod]
+title = "Delete pod"
+meaning = "Delete one pod so its deployment or job replaces it. Only managed pods."
+target = "pod"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false
+rbac = [
+  { resource = "pods", verbs = ["get", "delete"] },
+  { resource = "replicasets", verbs = ["get"] },
+  { resource = "deployments", verbs = ["get"] },
+  { resource = "jobs", verbs = ["get"] },
+]
+
+[actions.delete-completed-pods]
+title = "Delete completed pods"
+meaning = "Remove pods that finished successfully. Running pods are never touched."
+target = "namespace"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false
+rbac = [{ resource = "pods", verbs = ["list", "delete"] }]
+
+# ══ jobs ═════════════════════════════════════════════════════════════════════
+
+[actions.jobs]
+title = "Jobs"
+meaning = "Jobs in the namespace, newest first, and whether they succeeded."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "jobs", verbs = ["list"] }]
+
+[actions.job-logs]
+title = "Job logs"
+meaning = "What a job's pod wrote."
+target = "job"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [
+  { resource = "jobs", verbs = ["get"] },
+  { resource = "pods", verbs = ["list"] },
+  { resource = "pods", subresource = "log", verbs = ["get"] },
+]
+
+[actions.job-logs.params.tail]
+type = "int"
+min = 1
+max = 500
+default = 200
+
+[actions.job-logs.params.container]
+type = "name"
+
+[actions.job-logs.params.previous]
+type = "bool"
+default = false
+
+[actions.delete-job]
+title = "Delete job"
+meaning = "Delete a job and, in the background, its pods and their logs."
+target = "job"
+method = "POST"
+role = "operator"
+confirm = "click"
+stream = false
+rbac = [{ resource = "jobs", verbs = ["get", "delete"] }]
+
+[actions.run-template]
+title = "Run template"
+meaning = "Start a job from a template shipped with Bothy, on the backend's current image."
+target = "template"
+method = "POST"
+role = "operator"
+confirm = "type-name"
+stream = false
+# create is the one creating verb in the Role, and only on jobs. The Job's body
+# is a file in the image; the image is read from the live backend deployment.
+rbac = [
+  { resource = "jobs", verbs = ["create"] },
+  { resource = "deployments", verbs = ["get"] },
+]
+
+# ══ configmaps ═══════════════════════════════════════════════════════════════
+
+[actions.configmap]
+title = "ConfigMap"
+meaning = "Every key and value of the thales ConfigMap, and which keys may be changed here."
+target = "configmap"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "configmaps", verbs = ["get"] }]
+
+[actions.patch-key]
+title = "Change a key"
+meaning = "Set one allowlisted key. Pods read it at start, so it applies on their next restart."
+target = "configmap"
+method = "POST"
+role = "operator"
+confirm = "type-name"
+stream = false
+rbac = [{ resource = "configmaps", verbs = ["get", "patch"] }]
+
+[actions.patch-key.params.key]
+type = "configmap-key"
+required = true
+
+[actions.patch-key.params.value]
+type = "configmap-value"
+required = true
+
+[actions.patch-key-and-restart]
+title = "Change a key and restart"
+meaning = "Set one allowlisted key, then restart every deployment that reads this ConfigMap."
+target = "configmap"
+method = "POST"
+role = "operator"
+confirm = "type-name"
+stream = false
+rbac = [
+  { resource = "configmaps", verbs = ["get", "patch"] },
+  { resource = "deployments", verbs = ["list", "patch"] },
+]
+
+[actions.patch-key-and-restart.params.key]
+type = "configmap-key"
+required = true
+
+[actions.patch-key-and-restart.params.value]
+type = "configmap-value"
+required = true
+
+# ══ read-only views of the namespace ═════════════════════════════════════════
+
+[actions.services]
+title = "Services"
+meaning = "Services, their ports and the pods they select."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "services", verbs = ["list"] }]
+
+[actions.routes]
+title = "Routes"
+meaning = "OpenShift Routes: the hostnames that reach a service."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "routes", verbs = ["list"] }]
+
+[actions.ingresses]
+title = "Ingresses"
+meaning = "Ingress rules: hostnames and paths that reach a service."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "ingresses", verbs = ["list"] }]
+
+[actions.persistentvolumeclaims]
+title = "Volume claims"
+meaning = "Persistent volume claims, their size and whether they are bound."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "persistentvolumeclaims", verbs = ["list"] }]
+
+[actions.networkpolicies]
+title = "Network policies"
+meaning = "Which pods may talk to which, as the namespace's policies declare."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "networkpolicies", verbs = ["list"] }]
+
+[actions.resourcequotas]
+title = "Resource quotas"
+meaning = "The namespace's resource ceilings and how much is used."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "resourcequotas", verbs = ["list"] }]
+
+[actions.limitranges]
+title = "Limit ranges"
+meaning = "Default and maximum resources a container gets in this namespace."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "limitranges", verbs = ["list"] }]
+
+# Polled, never watched: `watch` is not a verb this Role grants.
+[actions.namespace-events]
+title = "Namespace events"
+meaning = "Everything the cluster recently said about this namespace, newest first."
+target = "namespace"
+method = "GET"
+role = "viewer"
+confirm = "none"
+stream = false
+rbac = [{ resource = "events", verbs = ["list"] }]
+
+[actions.namespace-events.params.limit]
+type = "int"
+min = 1
+max = 500
+default = 200

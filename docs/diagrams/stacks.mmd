@@ -1,12 +1,12 @@
 flowchart TB
     subgraph s_edge["edge/ - the single front door"]
         TRAEFIK["traefik v3.6<br/>publishes :80 - api=true, no dashboard<br/>docker provider + file provider"]
-        DYN["edge/dynamic/<br/>auth · portal-api · portal-prom (generated)<br/>host-services and tals are RETIRED stubs"]
+        DYN["edge/dynamic/<br/>auth · bothy-api · bothy-gates · bothy-files<br/>bothy-config · bothy-ops · bothy-prom (generated)<br/>host-services and tals are RETIRED stubs"]
     end
 
     subgraph s_auth["auth/ - identity, defined but NOT enforced"]
         KC["keycloak<br/>local IdP - host port 8090"]
-        OAUTH["oauth2-proxy<br/>callback is an IP:port URL<br/>gates the editor tier by role"]
+        OAUTH["oauth2-proxy<br/>callback is an IP:port URL<br/>gates files, config and ops by role"]
     end
 
     subgraph s_mon["monitoring/ - observability"]
@@ -23,9 +23,10 @@ flowchart TB
     end
 
     subgraph s_apps["apps/ - what the box itself serves"]
-        PNEXT["portal-next - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
-        PSOCK["bothy-socket-proxy<br/>shipped by apps/bothy/socket-proxy.yml"]
-        PFILES["portal-files - the editor tier.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
+        PNEXT["bothy-web - Vite + React built to<br/>static files, served by nginx.<br/>Owns the :80 catch-all"]
+        PSOCK["bothy-socket-read + bothy-socket-write<br/>shipped by apps/bothy/socket-proxy.yml"]
+        PFILES["bothy-files - the editor tier and config forms.<br/>filesnet only, no published port,<br/>read/write over stacks, notes and projects"]
+        POPS["bothy-ops - container and cluster actions.<br/>opsnet in, controlsocknet out,<br/>thales-scc only via compose.cluster.yml"]
     end
 
     subgraph s_host["host/ - configuration that is not in any container"]
@@ -34,7 +35,9 @@ flowchart TB
 
     DYN -->|"file provider, watched"| TRAEFIK
     TRAEFIK -->|"forwardAuth"| OAUTH
-    TRAEFIK -.->|"over socketnet only"| PSOCK
+    TRAEFIK -.->|"over socketnet only - read proxy"| PSOCK
+    TRAEFIK -.->|"over opsnet only"| POPS
+    POPS -.->|"over controlsocknet"| PSOCK
     PTAIL --> LOKI
     GRAF --> PROM
     GRAF --> LOKI

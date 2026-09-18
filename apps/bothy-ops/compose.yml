@@ -1,0 +1,142 @@
+# bothy-ops: restart/stop/start a container, and a handful of OpenShift-console
+# verbs on two cluster namespaces. Everything in Bothy that acts on something
+# RUNNING, in one process since 2026-09 (it was bothy-control + bothy-kube).
+#
+# Included by apps/bothy/compose.yml - bring it up with `just up-apps`, which
+# also adds compose.cluster.yml when minikube's network exists. Read app.py's
+# header for what merged and, more importantly, what deliberately did not.
+#
+# ── networks ────────────────────────────────────────────────────────────────
+#
+#   opsnet          traefik + bothy-ops, and nothing else. The ONLY way in.
+#                   This service authenticates nobody, so the network IS the
+#                   authorisation - the filesnet / socketnet precedent.
+#   controlsocknet  bothy-ops + the two socket proxies (apps/bothy/socket-proxy.yml).
+#                   The way out to the daemon. Traefik is NOT on it: the edge
+#                   must not be ABLE to reach a proxy that can stop a container.
+#   thales-scc      minikube's own network, where the apiserver listens on
+#                   192.168.49.2:8443. Added ONLY by compose.cluster.yml - see
+#                   that file for why it cannot live here.
+#
+#   DO NOT put this on devnet. ~20 containers live there, including third-party
+#   images, and every one of them would get the ability to stop this box's
+#   databases. Nothing would warn you; the service would work perfectly.
+#
+# The request path is: browser -> Traefik (one exact Path() per verb/action,
+# forwardAuth requiring `operator` for a change and `viewer` for a read) -> here.
+# See edge/dynamic/bothy-ops.yml.
+
+services:
+  bothy-ops:
+    build:
+      # The build context is apps/, not this directory, so the image can COPY
+      # apps/bothy-common/bothy_common in. apps/.dockerignore is an allowlist:
+      # without it the context would carry bothy-web's node_modules.
+      context: ..
+      dockerfile: bothy-ops/Dockerfile
+      # run-template's Job files, which live beside the RBAC in k8s/ rather than
+      # in apps/ (whose .dockerignore allowlist keeps the token out of the build).
+      additional_contexts:
+        jobtemplates: ../../k8s/job-templates
+    container_name: bothy-ops      # guard.SEVERING names this. Keep in sync.
+    restart: unless-stopped
+    # Never root, and never able to become root. No docker socket is mounted -
+    # the proxies hold it - but this is the one thing on controlsocknet that can
+    # talk to them, and it holds a cluster token.
+    #
+    # ${PUID:-1000}, NOT a literal 1000: this writes an audit log into a bind
+    # mount, so its uid must match whoever owns the checkout (macOS's first
+    # account is 501). checks/grants.py asserts the default is not 0.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      PORT: 8097
+      # ONE log for both halves. A container line and a kube line are told apart
+      # by their shape (a kube line's sixth field is a JSON object); see
+      # control.audit() and kube.audit().
+      AUDIT_LOG: /audit/actions.log
+      # Split read from write here as well as at the proxies, so the code cannot
+      # send an inspect down the write path or a POST down the read one.
+      DOCKER_READ: http://bothy-socket-read:2375
+      DOCKER_WRITE: http://bothy-socket-write:2375
+      # Verified 2026-09-17: `kubectl config view` for context thales-scc and
+      # `docker inspect thales-scc` both give 192.168.49.2, port 8443, and the
+      # serving cert carries that IP as a SAN - so TLS verification stays on.
+      KUBE_API: https://192.168.49.2:8443
+      KUBE_TOKEN_FILE: /secrets/token
+      KUBE_CA_FILE: /secrets/ca.crt
+      # The Settings area's admin reads (admin.py). Their own log, beside
+      # actions.log rather than in it: a kube line is recognised by its shape, and
+      # a third shape in one file is how a parser starts guessing.
+      ADMIN_AUDIT_LOG: /audit/admin.log
+      FILES_AUDIT_LOG: /audit-files/writes.log
+      CONFIG_AUDIT_LOG: /audit-files/patches.log
+      INVENTORY_FILE: /inventory/inventory.json
+    volumes:
+      # Mounted so the log outlives a container rebuild - an audit trail that a
+      # `docker compose up --build` erases is not an audit trail.
+      #
+      # The directory is COMMITTED (audit/.gitkeep): docker creates a missing
+      # bind source as ROOT and this runs as uid 1000, so an absent directory is
+      # mounted unwritable - and the audit writer swallows that by design (a full
+      # disk must not block a legitimate restart). The symptom would be a
+      # silently empty audit trail, the worst way for one to be broken.
+      - ./audit:/audit:rw
+      # bothy-files' write and patch logs, READ-ONLY, for the Settings audit
+      # viewer. bothy-files stays the only writer of its own trail.
+      - ../bothy-files/audit:/audit-files:ro
+      # The credential and backup inventory, METADATA ONLY, written on the host
+      # by apps/bothy-ops/inventory.py (`just admin-inventory`, and the
+      # bothy-inventory timer). Mounted instead of .env and ~/backups on purpose:
+      # this process can stop the databases, and must not also hold every
+      # password. Never auto-created - a root-owned directory would stop the host
+      # writer; `just up-apps` and bootstrap create it.
+      - type: bind
+        source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/inventory
+        target: /inventory
+        read_only: true
+        bind:
+          create_host_path: false
+      # NO token mount here. ./secrets is mounted by compose.cluster.yml, next to
+      # the network it is useless without; a box with no cluster has no token
+      # and must still come up.
+    networks:
+      - opsnet             # in, from traefik
+      - controlsocknet     # out, to the proxies
+    # NO depends_on the proxies, although it had one when they shared a file.
+    # They live in apps/bothy/socket-proxy.yml now, and a depends_on naming a
+    # service from another include fragment makes THIS file invalid on its own
+    # (CI validates every compose file by itself). Nothing is lost: bothy-ops
+    # dials a proxy per request, so a proxy that is not up yet is a 502 on one
+    # click, never a failed start.
+    labels:
+      # No traefik.* router labels ON PURPOSE. The docker provider would give
+      # this a router derived from the container name; an auto-generated router
+      # would be an unauthenticated way to stop this box's databases or scale
+      # pre-prod. The routes are the exact Path() rules in edge/dynamic/bothy-ops.yml.
+      - traefik.enable=false
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8097/healthz',timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          # bothy-control and bothy-kube had 64m each and idled well under it.
+          # Log follows hold a thread and a buffer each (at most MAX_STREAMS=4).
+          memory: 96m
+
+networks:
+  opsnet:
+    name: opsnet
+    external: true
+  controlsocknet:
+    name: controlsocknet
+    external: true

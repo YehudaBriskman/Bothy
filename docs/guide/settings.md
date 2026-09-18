@@ -1,99 +1,72 @@
-# Settings, and what deliberately is not there
+# Settings
 
-Settings is mostly a **read-only** page, and that is the design rather than a
-stage it is passing through. It is worth understanding why, because "why can I
-not change this here" is the question the page exists to answer.
+Settings is a section with its own grouped menu, a search box and pages made of
+**setting blocks** - a title, one line saying what it is, and Expand/Collapse.
+It is laid out like GitLab's settings on purpose: there is a lot of it, and a
+flat page of a lot is a page nobody finds anything on.
 
-## The word "settings" collapses three different things
+Open it from the person menu in the topbar. `/settings` lands on Profile &
+session; every section has its own address (`/settings/credentials`, ...), and
+a search hit adds `?block=<id>`, which opens and scrolls to that block. Below
+900px wide the menu is a drawer behind the **Sections** button.
+
+## Where each thing lives
+
+The word "settings" collapses three different things, and the page keeps them
+apart:
 
 | Thing | Belongs to | Where it lives |
 |---|---|---|
-| theme, pane widths, collapsed groups, reading size | the **browser** | this browser's local storage |
+| theme, density, motion, accent, fonts, sizes, landing page, Overview layout, refresh interval | the **browser** | this browser's local storage |
 | identity, roles, where the session came from | the **user** | the session token, changed in the realm |
-| a default root, a landing page, favourites | the **user** | nowhere yet - no store exists |
+| placement rules, alert rules, retention, credentials, backups | the **box** | files in this repository and on the host |
 
-Almost every complaint about the page dissolves once those three are apart. A
-pane width is a fact about the screen you are sitting at; carrying it to your
-phone would be the bug, not the feature. Your roles are a fact about your
-account; changing them here would mean this page could grant itself privileges.
+A per-browser setting says **this browser** beside it. Nothing about the browser
+follows you to another device, and that is right: a density or a refresh
+interval is a fact about the screen and the link you are on.
 
-## The three groups on the page
+## The sections
 
-**You.** Who the session says you are, which roles you hold, what each one
-permits, and where the session came from. All of it arrives with the token.
+| Section | What it shows or changes | Source | Needs |
+|---|---|---|---|
+| Profile & session | account, the four roles your token carries, sign out | `/oauth2/userinfo` | a session |
+| Appearance | theme, making a theme, reading size, document font, table density, motion, accent | this browser | - |
+| Layout & navigation | landing page, Overview section order and optional panels, reset remembered layout | this browser | - |
+| Data & refresh | poll interval, default chart range, retention (read from the config files), clear this browser's Bothy data | this browser; Files for retention | viewer for retention |
+| Services & placement | `apps/bothy-collector/placement.yml` as a table; change a value a rule already sets | config forms | viewer to read, **editor** to change |
+| Users & roles | every account in realm `devbox`, its roles, password age, sessions | `/-/api/admin/users` | **operator** |
+| Credentials | every `.env` key, credential file and Keycloak client: set or not, mode, age, what reads it, the rotation command - **never a value** | `/-/api/admin/credentials` | **operator** |
+| Cluster | the namespaces and actions bothy-ops allows, its token, Headlamp | the served kube catalog | viewer; operator for the token age |
+| Monitoring & alerts | every scrape target and whether it answered; the Grafana alert rule definitions | metrics route; Files | viewer for rules |
+| Audit log | container and cluster actions, file writes, config patches and admin reads, filtered and paged | `/-/api/admin/audit` | **operator** |
+| Backups | each backup set's newest copy, count and size; the schedule and `just backup` | `/-/api/admin/backups` | **operator** |
+| About & health | the five Bothy containers, the Traefik version and router table, documentation | Docker and Traefik reads | - |
 
-The one rule to carry out of the roles panel: **it is a description of a token,
-not a permission check**. A role missing from that list has never stopped a
-request. It explains, in advance, the 403 that would have come back. What the
-interface hides is never what the API enforces - see [Roles](roles.md).
+The role column is a courtesy. The edge decides; a block you may not read says
+which role it wanted, in words.
 
-**Appearance.** The theme picker, the two ways to make a theme, and the reading
-size. These write to this browser and nowhere else.
+## What is never on this page
 
-**Where these are kept.** One row per store, each answering the question a
-reader actually arrives with: *does this follow me to another device?* The
-answers differ, which is the whole reason the stores are worth telling apart.
+- **A secret value.** Credentials are an inventory written on the host
+  (`just admin-inventory`, refreshed every five minutes by
+  `host/systemd/bothy-inventory.timer`): key names, "set", "still the public
+  placeholder", file modes and times. See [SECURITY.md](../../SECURITY.md) rule 7.
+- **A button that rotates, restores or grants.** Each of those restarts,
+  overwrites or re-authorises something. The page shows the command, with a copy
+  button; the shell runs it.
+- **A way to hide "is anything broken".** The Overview's status line and
+  attention strip are not optional panels.
 
-## Reading size
+## First-time setup on a box
 
-Two numbers, under Appearance:
+Two pages need a one-off step, and say so until it is done:
 
-- **Document text** - the rendered page in Files: prose, tables and code.
-- **Panel text** - the document index on the left and the outline on the right.
-
-They are separate because they answer different questions. Raising the document
-reflows prose and does nothing to the rails; raising the panels makes the index
-legible without touching a word of prose. One control would tie them together
-and neither would land where you wanted it.
-
-Each shows a sample at the size it is set to, because "12.5px" is a number
-nobody thinks in. Both are stored per browser, and the Stores table says so.
-
-## Why there is no "coming soon" form
-
-The page does not render a greyed-out control labelled *not yet*. A control that
-cannot work is a promise the page has no way to keep, and a sentence saying why
-is both shorter and true.
-
-The reason those preferences have nowhere to live is not that nobody has got
-round to it. **A store is a write path, and a write path is a threat model, an
-audit trail and a boundary.** It is worth paying for when there is a preference
-somebody actually wants kept - and the page exists partly to make that moment
-obvious when it arrives.
-
-Four features are waiting on that one decision: group naming and ordering,
-favourites, a default root, and a default landing page. The argument is written
-up in [`docs/plans/control-and-settings.md`](../plans/control-and-settings.md)
-§6b, and it is genuinely open rather than rhetorical.
-
-## What a form here would be allowed to change
-
-If a settings form is ever built for the **system** rather than the browser, two
-constraints are already fixed and are worth knowing before you propose one:
-
-- **Never render environment values.** `.env` holds real secrets, which is why
-  the file service refuses it by name. A compiler over it may show **keys and
-  whether they are set** - `POSTGRES_PASSWORD  set`, `ALERT_EMAIL_TO  not set` -
-  and never the value. A settings page that printed `.env` to any tailnet viewer
-  would undo a control that already exists.
-- **Do not parse compose to build it.** The declaration layer already exists and
-  is already reconciled against host truth ([Declaring a project](projects.md)),
-  and a compose file is not a form - it is a program, with `privileged`,
-  arbitrary mounts and arbitrary commands. A UI that round-trips compose is a UI
-  that can write arbitrary code onto the box.
-
-## What is not stored anywhere
-
-- **Which documents you have read** is kept in this browser, newest first, and
-  nowhere else.
-- **Your favourites** do not exist, per the above.
-- **Nothing on this page is written to the box** except a theme you author,
-  which is a real `.css` file and is shared by every browser that reaches it -
-  the choice of theme is per browser, the theme itself is not.
+    just admin-client      # the view-users-only Keycloak client for Users & roles
+    just admin-inventory   # the metadata file for Credentials and Backups
+    just up-apps           # picks up the admin overlay once the client exists
 
 ## Related
 
 - [Roles](roles.md) - what each role permits, and where that is actually enforced
-- [Themes](themes.md) - the picker, and writing your own
-- [Operating it from the console](the-console.md) - the rest of the interface
-- [`docs/plans/control-and-settings.md`](../plans/control-and-settings.md) - the argument, in full
+- [Backups](backups.md) - the restore commands
+- [`docs/plans/settings-v2.md`](../plans/settings-v2.md) - every data source, and the ones deliberately not used

@@ -25,7 +25,7 @@
 #
 # ── IF YOU GENUINELY NEED A TRAEFIK ROUTE ────────────────────────────────────
 # The only shape that still works is a HOST-LESS exact `Path()` rule, which is
-# what the portal's own data plane uses (see portal-api.yml). Be aware of what
+# what the portal's own data plane uses (see bothy-api.yml). Be aware of what
 # that means: with no Host to scope it, the route answers on EVERY address this
 # box has, at once, and it is a shared global path namespace - so a generic path
 # like `/api` will collide with the next project that wants `/api`.
@@ -45,7 +45,7 @@
 #           servers:
 #             - url: "http://host.docker.internal:3000"
 #
-# `Path()`, never `PathPrefix()`. portal-api.yml explains at length why that
+# `Path()`, never `PathPrefix()`. bothy-api.yml explains at length why that
 # distinction is a security control and not a style preference: a prefix loose
 # enough to be convenient is loose enough to expose an endpoint you did not
 # audit.

@@ -57,7 +57,7 @@ if [ -f "$BOTHY_ROOT/.env" ]; then
   done < "$BOTHY_ROOT/.env"
 fi
 
-# The same names, and the same defaults, that apps/portal-files/compose.yml
+# The same names, and the same defaults, that apps/bothy-files/compose.yml
 # uses. Written twice - once there for compose, once here for shell - and that
 # duplication is real. It is guarded by scripts/checks/portability.sh rather
 # than by machinery, because a variable indirection between a compose file and a

@@ -83,7 +83,7 @@ is itself useful information.
 ## What Bothy decided, and why
 
 All three standing rules originated in the portal and are enforced in
-`apps/portal-next/web/src/index.css`, where they are stated at the top of the
+`apps/bothy-web/web/src/index.css`, where they are stated at the top of the
 token block.
 
 Rules 1 and 2 came first and have held unchanged. Rule 3 was added later, after

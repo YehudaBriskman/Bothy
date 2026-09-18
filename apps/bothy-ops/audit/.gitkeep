@@ -1,0 +1,13 @@
+The action log lands here (see compose.yml's ./audit:/audit mount).
+
+This directory is COMMITTED, empty, on purpose. Docker creates a missing bind
+source as root, and bothy-ops runs as uid 1000, so an absent directory would
+be mounted and unwritable - and audit() swallows that error by design, because a
+full disk must never block a legitimate restart. The symptom would therefore be
+a silently empty log rather than a failure, which is the worst way for an audit
+trail to be broken. Committing the directory means it is always there and always
+owned by whoever cloned the repo.
+
+Both halves of bothy-ops write here since 2026-09 (container actions and cluster
+actions, one actions.log). apps/bothy-files declares the same kind of mount and
+does NOT commit its directory; bootstrap creates it.

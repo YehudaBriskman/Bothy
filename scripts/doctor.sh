@@ -29,7 +29,7 @@ red()   { faults=$((faults + 1)); printf '  \033[31m✗\033[0m %s\n' "$*"; }
 dim()   { printf '  \033[2m·\033[0m %s\n' "$*"; }
 
 echo "== containers =="
-# traefik, oauth2-proxy and bothy-socket-proxy are the front door and the login
+# traefik, oauth2-proxy and bothy-socket-read are the front door and the login
 # for everything else, and were missing from this list entirely.
 #
 # `wiki` was retired and replaced by Bothy Files - it sat here reporting a
@@ -42,55 +42,51 @@ echo "== containers =="
 # start/stop/restart and the service pages read logs from Loki, so both were
 # stopped. Their compose file is kept - if you start them again, put them back
 # here, because a health check that does not know about a service you rely on is
-# worse than one that reports it missing. `portal-files` took its slot: it is
+# worse than one that reports it missing. `bothy-files` took its slot: it is
 # the editor tier, it has no published port, and a health sweep that cannot see
-# the one service that can WRITE to the repos is missing the thing worth watching. `portal-next` is the LIVE portal
+# the one service that can WRITE to the repos is missing the thing worth watching. `bothy-web` is the LIVE portal
 # and the only one - the retired nginx `portal` was deleted on 2026-08-17, and
 # the socket proxy it used to own moved to apps/bothy/ on 2026-08-18. The proxy
-# is not in this list at all; it is checked below, for the reason given there.
+# was checked separately below until 2026-09; it is in this list now.
 # redis/redis-exporter/kafka/kafka-ui/kafka-exporter removed 2026-08-12 - retired
 # as idle. Leaving them here made `just doctor` report five phantom absences,
 # which is the fastest way to teach someone to ignore the health check.
 # keycloak/oauth2-proxy are the identity layer added the same day.
-expected="traefik oauth2-proxy keycloak prometheus grafana loki promtail cadvisor node-exporter postgres postgres-exporter portal-next portal-files bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write"
+# 2026-09: Bothy is FIVE containers - bothy-config folded into bothy-files,
+# bothy-control and bothy-kube into bothy-ops, and the two read-only socket
+# proxies (bothy-socket-proxy, bothy-control-socket-read) into bothy-socket-read.
+# bothy-ops is always expected: without the cluster it still runs and answers
+# its kube verbs with 503, which is not a fault of this box.
+# victoriametrics/alloy replaced prometheus/promtail on 2026-09-17; the old two
+# are compose profiles now (legacy-*), stopped on purpose, so not listed.
+expected="traefik oauth2-proxy keycloak victoriametrics grafana loki alloy cadvisor node-exporter postgres postgres-exporter bothy-web bothy-files bothy-ops bothy-socket-read bothy-socket-write"
 for c in $expected; do
   st=$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)
   [ "$st" = running ] && green "$c" || red "$c ($st)"
 done
 
-# THE SOCKET PROXY IS CHECKED SEPARATELY, because it is mid-rename (#97) and the
-# loop above cannot express "either of these". That loop reds every name it is
-# given that is not running, so listing both names guarantees one permanent red
-# every sweep, and listing one guarantees a red on whichever side of the
-# recreate you happen to be standing. Neither is a health signal; both are the
-# cry-wolf failure this list has already been trimmed twice to avoid.
-#
-# The window is real rather than theoretical: `container_name` is IMMUTABLE on a
-# running container, so apps/bothy/socket-proxy.yml says bothy-socket-proxy from
-# the moment the rename merges while the daemon keeps answering to
-# portal-socket-proxy until `docker compose up -d --force-recreate socket-proxy`
-# runs. Accept EITHER and print which one answered, so the sweep reports where
-# the rename actually got to instead of hiding it behind a generic ✓.
-#
-# Delete the legacy name and fold this back into `expected` once the container
-# has been recreated.
-sock=""
-for c in bothy-socket-proxy portal-socket-proxy; do
-  if [ "$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null)" = running ]; then
-    sock=$c
-    break
+# The socket proxy used to be checked separately here, accepting either
+# bothy-socket-proxy or portal-socket-proxy while a rename (#97) was half-done.
+# Both names are gone (2026-09): the proxy is bothy-socket-read, in `expected`
+# above. A container still answering to an OLD name means the consolidation was
+# not deployed with --remove-orphans - that is worth a line of its own, because
+# an orphaned second copy of a socket proxy is exactly what nobody looks for.
+for c in bothy-socket-proxy portal-socket-proxy bothy-config bothy-control bothy-control-socket-read bothy-control-socket-write bothy-kube; do
+  if docker inspect --type container "$c" >/dev/null 2>&1; then
+    red "$c still exists - retired 2026-09; remove it (see the Track A deploy runbook)"
   fi
 done
-[ -n "$sock" ] && green "$sock" \
-  || red "socket proxy (missing - neither bothy-socket-proxy nor portal-socket-proxy is running)"
 
-echo "== prometheus targets =="
+echo "== scrape targets (victoriametrics) =="
 # Without this guard a missing jq piped its failure into a loop that never
 # iterated, so an absent dependency read exactly like a clean bill of health.
 if ! command -v jq >/dev/null 2>&1; then
-  red "jq is not installed - cannot read prometheus targets"
+  red "jq is not installed - cannot read scrape targets"
 else
-  # Prometheus has required basic auth since 2026-08-08 (monitoring/prometheus-web.yml).
+  # VictoriaMetrics (Prometheus until 2026-09-17) serves /api/v1/targets in
+  # Prometheus' JSON shape - job label, health up/down/unknown, lastError - so
+  # the filter below did not change; only the port did (host 8428, was 9090).
+  # Basic auth since 2026-08-08; VM enforces the same credentials (-httpAuth.*).
   # Without credentials this curl gets 401, jq yields nothing, and the check
   # reported "is it up?" about a server that was up the whole time - a probe
   # that could only ever fail one way.
@@ -119,12 +115,12 @@ else
   # where the job name ends.
   targets=$(printf 'user = "%s:%s"\n' "${DEV_LOGIN_USER:-}" "${DEV_LOGIN_PASSWORD:-}" \
     | curl -s --max-time 5 --config - \
-      'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+      'http://localhost:8428/api/v1/targets?state=active' 2>/dev/null \
     | jq -r '.data.activeTargets[]
              | [.labels.job, .health, (.lastError // "")]
              | @tsv' 2>/dev/null | sort -u)
   if [ -z "$targets" ]; then
-    red "prometheus returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
+    red "victoriametrics returned no targets - up, but unauthenticated? set DEV_LOGIN_* in .env"
   else
     # A HERE-STRING, NOT `echo "$targets" | while`. A pipeline runs its right
     # side in a SUBSHELL, so red()'s `faults=$((faults + 1))` incremented a copy
@@ -176,16 +172,19 @@ if ! command -v kubectl >/dev/null 2>&1; then
   # no third state to put it in.
   dim "kubectl is not installed - nothing in Bothy needs it"
 else
-  # minikube was retired on 2026-08-12 - 1,046 MB for zero non-system pods over
-  # 27 days. Stopped AND deleted: `minikube profile list` reports no profile, so
-  # `minikube start` builds a NEW empty cluster rather than resuming the old one.
-  # This comment said "not deleted; `minikube start` brings it back" for a few
-  # hours after the delete, which would have promised somebody their workloads
-  # back. Absence is the expected state and must not read as a fault, or
-  # `just doctor` cries wolf every run and stops being read at all.
-  nodes=$(kubectl get nodes --no-headers 2>/dev/null || true)
+  # The default `minikube` profile was retired and deleted on 2026-08-12. Since
+  # 2026-09-01 the one cluster is profile `thales-scc` (Tals' OpenShift SCC
+  # emulation), started at boot by minikube.service. So: no cluster while that
+  # unit is enabled is a fault; no cluster with it disabled is a choice.
+  # --context pins the profile: the portal collector and the forwards all use
+  # thales-scc, so a context switched elsewhere must not make this go green.
+  nodes=$(kubectl --context thales-scc --request-timeout=5s get nodes --no-headers 2>/dev/null || true)
   if [ -z "$nodes" ]; then
-    dim "minikube retired 2026-08-12 - deleted, not stopped ('minikube start' builds a new empty cluster)"
+    if systemctl is-enabled --quiet minikube.service 2>/dev/null; then
+      red "cluster thales-scc down but minikube.service is enabled (systemctl status minikube)"
+    else
+      dim "no cluster: minikube.service disabled (profile thales-scc; 'minikube start -p thales-scc')"
+    fi
   else
     # A here-string for the same reason the prometheus loop above uses one:
     # `echo | awk | while` ran the loop body in a SUBSHELL, so red()'s increment

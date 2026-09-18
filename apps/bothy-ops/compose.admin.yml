@@ -1,0 +1,35 @@
+# Overlay: give bothy-ops what the Users & roles page needs - the Keycloak admin
+# client secret, and where Keycloak is.
+#
+#   docker compose -f apps/bothy/compose.yml -f apps/bothy-ops/compose.admin.yml up -d
+#
+# `just up-apps` adds this file by itself when
+# apps/bothy-ops/secrets/keycloak-admin-client-secret exists (written by
+# `just admin-client`). Without it, GET /-/api/admin/users answers 503 and says
+# what to run; credentials, backups and the audit log are unaffected.
+#
+# WHY AN OVERLAY. The secret lives in apps/bothy-ops/secrets, which only exists
+# once a token script has run. Mounted from compose.yml with create_host_path
+# false it would fail `up` on every fresh clone; with the short syntax docker
+# would create it ROOT-owned, and `just kube-token` could then never write the
+# cluster token into it. compose.cluster.yml mounts the same directory at the
+# same target for the same reason; compose merges the two by target.
+#
+# WHY KEYCLOAK BY ITS PUBLISHED ADDRESS. Keycloak is on devnet only, and
+# bothy-ops must never join devnet (SECURITY.md rule 2). http://${BOX_IP}:8090 is
+# the single spelling oauth2-proxy already uses (auth/compose.yml), a bridge
+# network reaches it, and realm devbox is sslRequired=NONE for the tailnet.
+services:
+  bothy-ops:
+    environment:
+      KEYCLOAK_URL: http://${BOX_IP:?set BOX_IP in .env}:8090
+      KEYCLOAK_REALM: devbox
+      KEYCLOAK_CLIENT_ID: bothy-admin
+      KEYCLOAK_SECRET_FILE: /secrets/keycloak-admin-client-secret
+    volumes:
+      - type: bind
+        source: ../bothy-ops/secrets
+        target: /secrets
+        read_only: true
+        bind:
+          create_host_path: false

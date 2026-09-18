@@ -8,6 +8,26 @@ first. Dead ends are recorded rather than deleted - see
 
 ---
 
+## 2026-09-17 - A drawer for the Settings nav below 900px
+
+The drawer is a recorded dead end ([responsive](../quality/responsive.md)), and
+this is a deliberate, scoped exception. The dead end was a drawer for FIVE
+top-level destinations, which a topbar holds; its cost was a hand-written scrim,
+focus trap and focus-order workaround. Settings v2 has twelve grouped sections and
+a search box inside one topbar entry. The horizontal strip Control uses below
+900px would hide ten of them off-screen with no group labels, and the search has
+nowhere to go. So below 900px a sticky "Sections" button opens a Radix Dialog
+sheet holding the search and the grouped nav - the behaviour that sank the old
+drawer is the library's, not ours. Above 900px it is a scoped sidebar like
+Control's: subordinate to the topbar, never a replacement for it.
+
+**Also decided with it:** every Settings preference is per browser (versioned
+localStorage keys, re-checked on read), the accent choice is limited to hues that
+keep 45 degrees from every chromatic status, and the Overview's status line and
+attention strip cannot be hidden - "is anything broken" is not a preference.
+
+---
+
 ## 2026-08-10 - Rebuild the global quick view instead of deleting it
 
 **Decision.** Reinstate the at-a-glance stat row as five tiles backed by real

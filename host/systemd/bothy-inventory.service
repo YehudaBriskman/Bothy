@@ -1,0 +1,11 @@
+[Unit]
+Description=Bothy admin inventory - credential and backup METADATA for Settings (never a value)
+Documentation=file:///home/devssh/stacks/apps/bothy-ops/inventory.py
+
+[Service]
+Type=oneshot
+User=devssh
+Group=devssh
+Environment=HOME=/home/devssh
+ExecStart=/usr/bin/python3 /home/devssh/stacks/apps/bothy-ops/inventory.py
+Nice=10

@@ -330,9 +330,9 @@ case "$box_ip" in
   *) ok "BOX_IP already set to $box_ip - left alone" ;;
 esac
 
-# ── PUID/PGID: who the three writing services run as ─────────────────────────
+# ── PUID/PGID: who the two writing services run as ─────────────────────────
 #
-# portal-files, bothy-config and bothy-control write into bind-mounted host
+# bothy-files and bothy-ops write into bind-mounted host
 # directories - the audit logs, and for the editor tier the repositories
 # themselves. Their compose files ran them as a hardcoded `1000:1000`, which
 # made Bothy installable only by somebody who happens to BE uid 1000. That is
@@ -348,18 +348,18 @@ esac
 # existing install does not migrate anything: the directories keep the ownership
 # they were created with, and the services stop being able to write to them.
 # NEVER 0, and this is a security boundary rather than a preference.
-# bothy-control talks to the docker daemon through two socket proxies, and
-# apps/bothy-control/checks/grants.py asserts it does not run as root - because a
+# bothy-ops talks to the docker daemon through two socket proxies, and
+# apps/bothy-ops/checks/grants.py asserts it does not run as root - because a
 # root process holding container control is a straight path from "restart a
 # container" to the host. Installing AS root is a thing people do; propagating it
 # into the service is not. The directories are chowned instead, so the services
 # keep uid 1000 and can still write.
 if [ "$(env_value PUID)" = "" ] && [ "$me_u" != "1000" ]; then
   if [ "$me_u" = "0" ]; then
-    warn "installing as root - PUID stays 1000 (bothy-control must not be root)"
+    warn "installing as root - PUID stays 1000 (bothy-ops must not be root)"
     say "  the directories created above are chowned to 1000:1000 so writes still work"
     for d in "$STATE_ROOT/bothy/trash" "$STATE_ROOT/bothy/config-trash" \
-             apps/portal-files/audit apps/bothy-config/audit apps/bothy-control/audit; do
+             apps/bothy-files/audit apps/bothy-ops/audit; do
       [ -d "$d" ] && chown -R 1000:1000 "$d" 2>/dev/null
     done
   else
@@ -386,7 +386,7 @@ mk() {
   if [ -d "$1" ]; then
     # A directory docker created before we got here is root-owned, and the
     # service that writes to it runs as a normal user. That is the exact failure
-    # portal-files' compose comment warns about, and it is silent until start.
+    # bothy-files' compose comment warns about, and it is silent until start.
     if [ ! -w "$1" ]; then
       die "$1 exists but is not writable by you - sudo chown -R $me_u:$me_g '$1'"
     else
@@ -398,13 +398,16 @@ mk() {
 }
 mk "$STATE_ROOT/bothy/trash"
 mk "$STATE_ROOT/bothy/config-trash"
+# The admin inventory (apps/bothy-ops/inventory.py): mounted read-only into
+# bothy-ops with create_host_path false, so it must exist before `up`.
+mk "$STATE_ROOT/bothy/inventory" && chmod 700 "$STATE_ROOT/bothy/inventory"
 mk "$STATE_ROOT/devbox-logs"
 mk "$BACKUP_ROOT/postgres"
 mk "$PROJECTS_ROOT"
-mk apps/portal-files/audit
-mk apps/bothy-control/audit
+mk apps/bothy-files/audit
+mk apps/bothy-ops/audit
 
-# The notes root is a git REPO, not just a directory: portal-files mounts it
+# The notes root is a git REPO, not just a directory: bothy-files mounts it
 # read-write and policy.toml declares it, and the service fails closed without
 # it. An empty one is better than a refusal to start, but it must be loud -
 # nobody should conclude their notes vanished.
@@ -513,10 +516,10 @@ fi
 # The route that carries the Overview's graphs. There is already a generator for
 # it; calling it beats reimplementing it, and it is cheap enough to always run
 # because it is purely derived from .env.
-if bash scripts/gen-portal-prom-route.sh >/dev/null 2>&1; then
-  ok "generated        edge/dynamic/portal-prom.yml (the Prometheus data plane)"
+if bash scripts/gen-bothy-prom-route.sh >/dev/null 2>&1; then
+  ok "generated        edge/dynamic/bothy-prom.yml (the Prometheus data plane)"
 else
-  die "scripts/gen-portal-prom-route.sh failed"
+  die "scripts/gen-bothy-prom-route.sh failed"
 fi
 
 echo

@@ -20,17 +20,17 @@
     "realm": [
       {
         "name": "viewer",
-        "description": "Read the box: browse files, search their contents, download bytes, and read the config a service declares. Gates 3 routers (portal-files read + download, bothy-config read).",
+        "description": "Read the box: browse files, search their contents, download bytes, read the config a service declares, and read cluster events and logs. Gates 5 routers (bothy-files read + download, bothy-config read, bothy-ops kube events + logs).",
         "composite": false
       },
       {
         "name": "editor",
-        "description": "Change a file on disk, and patch a declared config field. Saves write straight to the working tree. Gates 3 routers (portal-files write + delete, bothy-config patch).",
+        "description": "Change a file on disk, and patch a declared config field. Saves write straight to the working tree. Gates 3 routers (bothy-files write + delete, bothy-config patch - all served by bothy-files).",
         "composite": false
       },
       {
         "name": "operator",
-        "description": "Act on what is running - restart, stop and start a service. Gates 3 routers, one per verb (bothy-control). There is no exec and no kill.",
+        "description": "Act on what is running - restart, stop and start a service; restart, scale or clean up a cluster workload. Gates 6 routers, one per verb or action (bothy-ops). There is no exec and no kill.",
         "composite": false
       },
       {
@@ -45,7 +45,7 @@
     {
       "clientId": "oauth2-proxy",
       "name": "oauth2-proxy (Traefik forwardAuth)",
-      "description": "The only OIDC client here. Traefik asks oauth2-proxy for a verdict; it asks Keycloak. Secret and redirect URI are injected from .env at import.",
+      "description": "The shared forwardAuth client. Traefik asks oauth2-proxy for a verdict; it asks Keycloak. Secret and redirect URI are injected from .env at import.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
@@ -58,6 +58,45 @@
 
       "secret": "${DEVBOX_OAUTH2_CLIENT_SECRET}",
       "redirectUris": ["${DEVBOX_OAUTH2_REDIRECT_URI}"],
+      "webOrigins": ["+"],
+
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+
+      "protocolMappers": [
+        {
+          "name": "realm-roles-as-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "headlamp",
+      "name": "Headlamp (read-only cluster browser)",
+      "description": "oauth2-proxy-headlamp in front of Headlamp on its own port. Imported DISABLED and with no secret; scripts/keycloak-headlamp-client.sh sets the secret from .env and enables it.",
+      "enabled": false,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+
+      "redirectUris": ["${DEVBOX_HEADLAMP_REDIRECT_URI}"],
       "webOrigins": ["+"],
 
       "attributes": {

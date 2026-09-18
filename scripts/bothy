@@ -203,9 +203,9 @@ cmd_download() {
       || printf '    (some images could not be pulled - see `docker compose -f %s pull`)\n' "$f"
   done
   say "  $found compose file(s)"
-  if [ -d apps/portal-next/web ]; then
+  if [ -d apps/bothy-web/web ]; then
     say "== portal dependencies =="
-    ( cd apps/portal-next/web && npm ci --silent 2>/dev/null ) \
+    ( cd apps/bothy-web/web && npm ci --silent 2>/dev/null ) \
       && say "  npm ci done" || say "  (npm ci failed or npm is absent - the image build does not need it)"
   fi
   say ""

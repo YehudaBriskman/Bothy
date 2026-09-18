@@ -188,7 +188,7 @@ the bug.
 ## Working on the portal
 
 The portal - **Bothy**, served at `http://<node-ip>/` by the catch-all router -
-is a Vite + React app in `apps/portal-next/web`, built to static files by a
+is a Vite + React app in `apps/bothy-web/web`, built to static files by a
 multi-stage Docker image (Node builds, nginx serves `dist/`). It **discovers**
 what is running from read-only APIs under `/-/api/*` - it is not a hand-written
 list, and must never become one again.
@@ -202,7 +202,7 @@ that publishes a port but has no route still appears - it comes from
 Before you open a PR, both of these must pass:
 
 ```sh
-cd apps/portal-next/web
+cd apps/bothy-web/web
 npx tsc -b --noEmit
 npm run build
 ```
@@ -210,13 +210,13 @@ npm run build
 Then rebuild and check it in a real browser:
 
 ```sh
-docker compose -f apps/portal-next/compose.yml up -d --build
+docker compose -f apps/bothy-web/compose.yml up -d --build
 ```
 
 **Do not `docker compose down` the `bothy` project to restart the portal.** That
-project also owns `bothy-socket-proxy`, the read-only Docker socket the portal
+project also owns `bothy-socket-read`, the read-only Docker socket the portal
 needs for `/-/api/docker`; take it down and the Overview enrichment goes blank
-even after portal-next comes back. Act on the one service, as above.
+even after bothy-web comes back. Act on the one service, as above.
 
 (This paragraph used to warn about `apps/portal/`. That directory existed only
 to hold the socket proxy and was deleted on 2026-08-18 - the fragment now lives

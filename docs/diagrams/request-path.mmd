@@ -9,12 +9,12 @@ flowchart TB
         end
 
         subgraph s_edge["Path B - port 80"]
-            TRAEFIK["Traefik v3.6 - entrypoint web on :80<br/>7 routers, ZERO Host rules"]
+            TRAEFIK["Traefik v3.6 - entrypoint web on :80<br/>ZERO Host rules"]
         end
 
         subgraph s_devnet["devnet - internal bridge network"]
-            PNEXT["portal-next :80<br/>catch-all, priority 1"]
-            APIS["bothy-socket-proxy · loki · prometheus<br/>· api@internal - reached only via exact Path()"]
+            PNEXT["bothy-web :80<br/>catch-all, priority 1"]
+            APIS["bothy-socket-read · loki · prometheus<br/>· api@internal - reached only via exact Path()"]
         end
     end
 

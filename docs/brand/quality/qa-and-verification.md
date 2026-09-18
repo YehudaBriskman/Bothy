@@ -52,7 +52,7 @@ See [CHECKLIST.md § 30](../CHECKLIST.md#30-qa-and-verification).
 
 - Typecheck and production build on every change.
 - Secret scanning on push and periodically over full history.
-- A container-status truth table in `apps/portal-next/checks/`, which also
+- A container-status truth table in `apps/bothy-web/checks/`, which also
   classifies the box's live container list.
 - Real-browser verification through Playwright for anything visual.
 

@@ -1,7 +1,9 @@
 set dotenv-load := true
 
-# Bothy - the web app on :80, its editor tier, and the socket proxy its Docker
-# API reads through. ONE compose project on purpose (2026-08-16).
+# Bothy - five containers, ONE compose project on purpose (2026-08-16): the web
+# app on :80, bothy-files (editor + config forms), bothy-ops (container + cluster
+# actions) and the two socket proxies. Eight containers in four projects until
+# 2026-09; see apps/bothy/compose.yml for what merged and what did not.
 #
 # It used to be three: `portal`, `portal-next` and `portal-files`. Bothy groups
 # systems by com.docker.compose.project, so it rendered ITSELF as three separate
@@ -14,7 +16,7 @@ set dotenv-load := true
 # against the FIRST file's directory, which built the editor tier from the web
 # tier's Dockerfile and moved its audit log).
 #
-# apps/portal-files/compose.yml was in NO lifecycle recipe before this: it ran,
+# apps/bothy-files/compose.yml was in NO lifecycle recipe before this: it ran,
 # but `just down` never stopped it and `just up` never started it. It is reached
 # through exactly one path now, so it cannot fall out again.
 BOTHY := "-f apps/bothy/compose.yml"
@@ -26,24 +28,26 @@ default:
 # Create the shared docker networks (idempotent)
 network:
     -docker network create devnet 2>/dev/null || true
-    # confignet: traefik + bothy-config, and nothing else. That service can
-    # REWRITE compose files and edge routes, so the same rule the socket proxy
-    # taught applies with a higher stake - it authenticates nobody, and the
-    # network is what stands in for that.
-    -docker network create confignet 2>/dev/null || true
-    # controlnet / controlsocknet: the action tier, and the reason it is TWO
-    # networks rather than one holding three. traefik must not be ABLE to reach a
-    # proxy that can mutate containers - only bothy-control may - so the edge
-    # meets the service on one network and the service meets its proxies on
-    # another. Each holds exactly two members.
-    -docker network create controlnet 2>/dev/null || true
+    # opsnet / controlsocknet: the action tier, and the reason it is TWO networks
+    # rather than one. opsnet is traefik + bothy-ops and nothing else - bothy-ops
+    # can stop containers and scale cluster workloads and authenticates nobody, so
+    # the network IS the boundary. controlsocknet is bothy-ops + the two socket
+    # proxies: traefik must not be ABLE to reach a proxy that can mutate
+    # containers, so the edge meets the service on one network and the service
+    # meets its proxies on another. bothy-ops' way out to the cluster is
+    # minikube's own network, added by apps/bothy-ops/compose.cluster.yml.
+    #
+    # controlnet, kubenet and confignet were retired 2026-09 with bothy-control,
+    # bothy-kube and bothy-config. They are no longer created; remove the old ones
+    # by hand once nothing is attached (`docker network rm ...`).
+    -docker network create opsnet 2>/dev/null || true
     -docker network create controlsocknet 2>/dev/null || true
-    # socketnet holds exactly two containers: traefik + bothy-socket-proxy.
-    # docker-socket-proxy has NO auth, so network reachability IS authorisation -
-    # on devnet, any of ~20 containers (incl. third-party wiki.js, kafka-ui) could
-    # read the docker socket through it. Keep the blast radius at two.
+    # socketnet: traefik + bothy-socket-read. docker-socket-proxy has NO auth, so
+    # network reachability IS authorisation - on devnet, any of ~20 containers
+    # could read the docker socket through it. That proxy is POST=0, so nothing on
+    # socketnet can mutate a container through it.
     -docker network create socketnet 2>/dev/null || true
-    # filesnet: traefik + portal-files, and nothing else. portal-files holds
+    # filesnet: traefik + bothy-files, and nothing else. bothy-files holds
     # read-write bind mounts on two git repos and has no auth of its own, so the
     # network IS the boundary - authorisation happens at the edge in front of it.
     # Putting it on devnet would hand ~20 containers write access to the docs.
@@ -168,9 +172,24 @@ up-auth: network
     echo "  redirect loop, not an error. Check it after changing BOX_IP:"
     echo "    curl -s http://$IP:8090/realms/devbox/.well-known/openid-configuration | jq -r .issuer"
 
-# Observability: grafana, prometheus, loki, cadvisor, node-exporter
+# compose.cluster.yml is added ONLY when the docker network `thales-scc` exists
+# (the minikube cluster). It joins victoriametrics to that network so it can
+# scrape the node; as an `external` network in compose.yml itself it would make
+# this recipe fail on every box without the cluster. See that file's header.
+# The legacy prometheus/promtail services sit behind compose profiles and are
+# NOT started here.
+# Observability: grafana, victoriametrics, loki, alloy, cadvisor, node-exporter (+ the cluster, if present)
 up-monitoring: network
-    docker compose -f monitoring/compose.yml up -d
+    #!/usr/bin/env bash
+    set -euo pipefail
+    files=(-f monitoring/compose.yml)
+    if docker network inspect thales-scc >/dev/null 2>&1; then
+      files+=(-f monitoring/compose.cluster.yml)
+      # The mount source must be a directory before compose creates it as root.
+      mkdir -p monitoring/kube-auth
+      [ -f monitoring/kube-auth/token ] || echo "note: no monitoring/kube-auth/token - run 'just k8s-monitoring' (kubelet jobs stay DOWN until then)"
+    fi
+    docker compose "${files[@]}" up -d
 
 # Data services: postgres (+ its exporter).
 #
@@ -203,37 +222,62 @@ up-monitoring: network
 up-data: network
     docker compose -f data/postgres/compose.yml up -d
 
-# Apps: Bothy - the web tier, the editor tier and the socket proxy, one project.
+# Apps: Bothy - one project, five containers (apps/bothy/compose.yml).
 #
-# There is nothing else here. Reading and editing the box's markdown is Bothy
-# Files, a route in the portal backed by apps/portal-files, which reads the real
-# file from a bind mount. No second copy, no sync lag, nothing to keep out of git.
-# Apps: Bothy's web, editor and socket tiers, plus the config tier.
+# compose.cluster.yml is added ONLY when the docker network `thales-scc` exists
+# (the minikube cluster). It joins bothy-ops to that network and mounts its
+# token; as an `external` network in compose.yml itself it would fail this
+# recipe - and with it the file editor and container actions - on every box
+# without the cluster. Without it the kube verbs answer 503 "cluster
+# unavailable" and nothing else changes. This replaces `just up-kube` (2026-09).
+#
+# Both undo nets must exist before bothy-files starts: policy.toml declares them
+# and the service refuses to boot without them - a safety net nobody notices is
+# missing is worse than none. Docker would create them root-owned otherwise.
+#
+# Apps: Bothy's five containers, plus the cluster overlay when thales-scc exists.
 up-apps: network
-    docker compose {{BOTHY}} up -d
-    # The config tier. Separate from the editor tier on purpose: portal-files
-    # states it carries no third-party dependencies because it holds read-write
-    # handles on two repositories, and a YAML parser is a dependency. This one
-    # carries it, and mounts far less.
-    #
-    # The snapshot directory must exist before it starts - policy.toml declares
-    # it and the service refuses to boot without it, on the same reasoning as the
-    # editor tier's undo net: a safety net nobody notices is missing is worse
-    # than none at all.
-    mkdir -p ~/.local/state/bothy/config-trash
-    docker compose -f apps/bothy-config/compose.yml up -d
-    # The action tier. Its routes require the `operator` role, and oauth2-proxy
-    # fails CLOSED on a group nobody holds - so shipping this before the role
-    # exists refuses everybody rather than admitting everybody.
-    docker compose -f apps/bothy-control/compose.yml up -d
+    #!/usr/bin/env bash
+    set -euo pipefail
+    state="${STATE_ROOT:-$HOME/.local/state}"
+    mkdir -p "$state/bothy/trash" "$state/bothy/config-trash"
+    mkdir -p -m 700 "$state/bothy/inventory"
+    # The Settings credentials/backups pages read this; refresh it now so they
+    # are not empty until the timer's first run. Metadata only - see its header.
+    python3 apps/bothy-ops/inventory.py || echo "note: the admin inventory could not be written - Settings > Credentials will say so"
+    files=({{BOTHY}})
+    # The Users & roles page: only once `just admin-client` has written a secret.
+    if [ -f apps/bothy-ops/secrets/keycloak-admin-client-secret ]; then
+      files+=(-f apps/bothy-ops/compose.admin.yml)
+    fi
+    if docker network inspect thales-scc >/dev/null 2>&1; then
+      if [ -d apps/bothy-ops/secrets ]; then
+        files+=(-f apps/bothy-ops/compose.cluster.yml)
+      else
+        echo "note: thales-scc exists but apps/bothy-ops/secrets does not - run 'just kube-token', then 'just up-apps' again (kube verbs answer 503 until then)"
+      fi
+    fi
+    # --remove-orphans: a service dropped from the project (socket-proxy became
+    # socket-read in 2026-09) must not keep running under its old definition.
+    # --wait: return only once every Bothy container is HEALTHY. Traefik routes
+    # nothing to a container still `starting`, and bothy-web carries the `/`
+    # catch-all - so "up" returning early meant a few seconds in which the box
+    # answered Traefik's 404 on its front page (CI's install job, 2026-09-18).
+    docker compose "${files[@]}" up -d --remove-orphans --wait --wait-timeout 180
+    # ...and healthy is not yet ROUTED: Traefik batches provider changes (2s
+    # throttle), measured 1.2-1.9s after --wait returns. Wait for the catch-all
+    # itself to be in the router table, so the next command sees the front page.
+    for _ in $(seq 1 30); do
+      curl -fsS -m 2 http://127.0.0.1/-/api/traefik/http/routers 2>/dev/null \
+        | grep -q '"bothy-web-fallback@docker"' && break
+      sleep 1
+    done
 
 # Stop everything (keeps volumes/data)
 down:
     -docker compose -f auth/compose.yml down
     -docker compose -f edge/compose.yml down
     -docker compose {{BOTHY}} down
-    -docker compose -f apps/bothy-config/compose.yml down
-    -docker compose -f apps/bothy-control/compose.yml down
     # apps/wiki and mgmt/ were DELETED on 2026-08-18, so there is nothing here to
     # bring down any more. The `wiki` database they were kept for went with them:
     # its content was superseded by the Files tier, and it is in the nightly dump
@@ -252,8 +296,6 @@ nuke:
     -docker compose -f auth/compose.yml down -v
     -docker compose -f edge/compose.yml down -v
     -docker compose {{BOTHY}} down -v
-    -docker compose -f apps/bothy-config/compose.yml down -v
-    -docker compose -f apps/bothy-control/compose.yml down -v
     -docker compose -f data/postgres/compose.yml down -v
     -docker compose -f monitoring/compose.yml down -v
 
@@ -305,7 +347,7 @@ portability:
 # Re-render docs/diagrams/*.mmd to docs/assets/diagrams/*.svg. Only the stale
 # ones; pass `all` to force every one.
 #
-# THE SVGs ARE OUTPUT, NEVER SOURCE. apps/portal-files/policy.toml flags
+# THE SVGs ARE OUTPUT, NEVER SOURCE. apps/bothy-files/policy.toml flags
 # `**/*.svg` as `caution` on write, which is right for an SVG a person might edit
 # and wrong for these seven - they are machine-generated from the .mmd beside
 # them, and scripts/checks/diagrams.sh (CI tier 0) fails the moment the two
@@ -331,7 +373,37 @@ bootstrap *args:
 # of everything the portal SERVES for anything that looks like a credential.
 # Checks for the editor tier. `offline` skips what needs the stack up; `ci` skips the box-specific credential survey.
 files-check mode="":
-    @bash apps/portal-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
+    @bash apps/bothy-files/checks/run.sh {{ if mode == "offline" { "--offline" } else { if mode == "ci" { "--skip-survey" } else { "" } } }}
+
+# Checks for bothy-ops: the guard as a pure unit, the socket-proxy grants, both
+# HTTP surfaces against stand-ins (a counting fake daemon, a TLS fake apiserver),
+# the edge/RBAC/compose wiring, and - unless `offline` - a real container
+# transition through real throwaway proxies.
+# Checks for bothy-ops (container + cluster actions). `offline` skips the one that needs docker.
+ops-check mode="":
+    @bash apps/bothy-ops/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
+
+# apps/bothy-ops/catalog.toml is the only hand-written cluster wiring. This
+# regenerates what is derived from it: the edge routers, the RBAC Role, the
+# can-i rows of `just kube-token`, and the UI's dev catalog. `check` fails on
+# drift instead of writing (CI runs that). Apply RBAC with `just kube-token`.
+# Regenerate the kube edge routers, RBAC Role and can-i rows from catalog.toml. `check` only diffs.
+ops-wiring mode="":
+    @python3 scripts/gen-ops-wiring.py {{ if mode == "check" { "--check" } else { "" } }}
+
+# The Settings area's Keycloak client `bothy-admin` (view-users only), and its
+# secret in apps/bothy-ops/secrets. `--rotate` issues a new secret; `--revoke`
+# disables the client and deletes the file.
+# Create (or rotate/revoke) the read-only Keycloak client behind Settings > Users.
+admin-client *args:
+    ./scripts/keycloak-admin-client.sh {{args}}
+
+# Settings > Credentials and Backups are served from a metadata-only file written
+# on the host - names, modes, ages and sizes, never a value. The timer in
+# host/systemd/bothy-inventory.timer runs this every five minutes.
+# Rewrite the host-side credential and backup inventory that Settings serves.
+admin-inventory:
+    python3 apps/bothy-ops/inventory.py
 
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:
@@ -351,15 +423,78 @@ psql:
 # the redis_data volume and the images were deleted after the retirement, so
 # there is nothing left to restore.
 
-# Regenerate the portal's read-only Prometheus route (edge/dynamic/portal-prom.yml).
+# Regenerate the portal's read-only Prometheus route (edge/dynamic/bothy-prom.yml).
 #
 # That file carries the basic-auth header the edge injects on the portal's
 # behalf, so it is GITIGNORED and generated from .env rather than committed.
 # Run this on a fresh clone, and again after changing DEV_LOGIN_*. Traefik
 # watches ./dynamic, so no restart is needed.
 # Regenerate the portal's Prometheus data-plane route.
-portal-prom-route:
-    ./scripts/gen-portal-prom-route.sh
+bothy-prom-route:
+    ./scripts/gen-bothy-prom-route.sh
+
+# (Re)apply the cluster side of monitoring into minikube thales-scc: namespace
+# `monitoring`, kube-state-metrics (pinned helm chart, NodePort 30808), the
+# kubelet scrape identity, the Alloy DaemonSet shipping pod logs to Loki, and
+# the metrics-server addon - then refresh the kubelet token VictoriaMetrics
+# scrapes with. Idempotent. See k8s/monitoring/README.md. The compose side is
+# `just up-monitoring`.
+# Apply cluster monitoring (KSM, alloy, RBAC) into thales-scc and refresh the token.
+k8s-monitoring:
+    ./scripts/k8s-monitoring.sh
+
+# Rewrite monitoring/kube-auth/token from the cluster's prometheus-scraper-token
+# Secret. GITIGNORED (a credential), mode 600 owned by uid 65534 so the
+# container's `nobody` can read it (the legacy Prometheus; VictoriaMetrics runs
+# as root and reads it either way). No restart needed: the token is re-read on
+# every scrape.
+# Regenerate the kubelet bearer token VictoriaMetrics scrapes thales-scc with.
+kube-prom-token:
+    ./scripts/gen-kube-prom-token.sh
+
+# bothy-ops' cluster credential: applies k8s/rbac/bothy-kube.yaml, then writes
+# apps/bothy-ops/secrets/{token,ca.crt} (mode 600, gitignored) and prints what
+# the account can and cannot do. `--rotate` revokes and reissues; `--revoke` stops.
+#
+# `just up-kube` is GONE (2026-09): bothy-kube merged into bothy-ops, and
+# `just up-apps` adds the cluster overlay by itself when thales-scc exists.
+# Issue (or rotate/revoke) bothy-ops' ServiceAccount token for the cluster.
+kube-token *args:
+    ./scripts/gen-kube-token.sh {{args}}
+
+# Headlamp's cluster credential: applies k8s/rbac/bothy-browse.yaml (the built-in
+# `view` ClusterRole - no secrets, exec or port-forward), then writes
+# apps/headlamp/secrets/kubeconfig (mode 600, gitignored) and prints the can-i
+# table. `--rotate` revokes and reissues; `--revoke` stops.
+# Issue (or rotate/revoke) Headlamp's read-only ServiceAccount kubeconfig.
+headlamp-token *args:
+    ./scripts/gen-headlamp-token.sh {{args}}
+
+# Headlamp, the read-only cluster console, behind its own oauth2-proxy on :8110
+# (Keycloak client `headlamp`, role `viewer`). NOT part of `up`, for the same
+# reason as up-kube: it joins minikube's `thales-scc` network, which exists only
+# while the cluster does. Idempotent: the token is issued only if absent, and
+# the Keycloak client (plus its two .env secrets) is re-asserted every run.
+# The script writes .env, so compose runs in a nested just that re-reads it.
+# Start Headlamp (read-only cluster console, SSO on :8110). Needs the cluster and Keycloak.
+up-headlamp:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker network inspect thales-scc >/dev/null 2>&1 || {
+      echo "no docker network thales-scc - start the cluster first: minikube start -p thales-scc" >&2; exit 1; }
+    [ -f apps/headlamp/secrets/kubeconfig ] || ./scripts/gen-headlamp-token.sh
+    ./scripts/keycloak-headlamp-client.sh
+    env -u HEADLAMP_OAUTH2_CLIENT_SECRET -u HEADLAMP_OAUTH2_COOKIE_SECRET \
+      just _up-headlamp
+    echo ""
+    echo "  Headlamp   http://$(bash scripts/lib/box-addr.sh):8110   (Keycloak login, role viewer)"
+
+_up-headlamp:
+    docker compose -f apps/headlamp/compose.yml up -d
+
+# Stop Headlamp and its proxy. Run before `minikube delete`, or the network cannot go.
+down-headlamp:
+    docker compose -f apps/headlamp/compose.yml down
 
 # Print access URLs. Pure-IP-over-tailscale model: every service has a published
 # host port on this node's tailnet IP.
@@ -399,11 +534,14 @@ urls:
     echo ""
     echo "  Stack services:"
     echo "    Grafana       http://$IP:3000         (unified dev login)"
-    echo "    Prometheus    http://$IP:9090"
+    echo "    Metrics (VM)  http://$IP:8428/vmui    (VictoriaMetrics; Prometheus API - unified dev login)"
     echo "    cAdvisor      http://$IP:8082"
     echo "    node-exporter http://$IP:9100"
     echo "    Loki          http://$IP:3100         (API only; 404 at / is normal)"
     echo "    Keycloak      http://$IP:8090/admin   (identity - admin / shared dev login)"
+    echo "    Headlamp      http://$IP:8110         (read-only cluster console - Keycloak"
+    echo "                                            login, role viewer; only while the"
+    echo "                                            thales-scc cluster runs: just up-headlamp)"
     echo ""
     echo "    Files (raw)   http://$IP:8100         (SANDBOX ORIGIN - raw file bytes"
     echo "                                            only. A different port is a"
@@ -440,11 +578,21 @@ urls:
     echo "                                           these directly, so it must stay"
     echo "                                           0.0.0.0-bound, not loopback)"
     echo "    Tals frontend http://$IP:5173         (ports in Tals' .ports.lock)"
+    echo "    Tals pre-prod  http://$IP:31080        (minikube profile thales-scc, namespace"
+    echo "                                           thales-pre-prod; break-glass login)"
+    echo "    Tals dev       http://$IP:31081        (namespace thales-dev; seeded, demo logins)"
+    echo "                                           Both held open by the user units"
+    echo "                                           thales-{preprod,dev}-forward; the"
+    echo "                                           cluster starts via minikube.service."
     echo ""
     echo "  Retired 2026-08-12 - measured idle, then DELETED. Data NOT recoverable:"
     echo "    Kafka + Kafka-UI (was :8081)  zero topics      ~1,110 MB"
     echo "    Redis            (was :6379)  zero keys           ~30 MB"
     echo "    minikube         (local k8s)  zero user pods   ~1,046 MB"
+    echo "      ^ REBUILT 2026-09-01 as profile \"thales-scc\" - an OpenShift"
+    echo "        restricted-v2 SCC emulation (PSA restricted + Kyverno) running the"
+    echo "        thales-dev and thales-pre-prod namespaces, started at boot by"
+    echo "        minikube.service. The line above records the 2026-08-12 deletion."
     echo "      All three were first stopped and kept, then removed for real:"
     echo "      the kafka_data and redis_data volumes and every image are gone,"
     echo "      and 'minikube delete' ran at 13:56 (no profile remains)."

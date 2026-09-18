@@ -52,13 +52,13 @@ writes the file through Bothy Files and therefore needs the **`editor`** role;
 without it everything else on the page still works and the preview is still
 live, you just cannot write.
 
-**Or write the file.** Drop a `.css` into `apps/portal-next/data/themes/` on the
+**Or write the file.** Drop a `.css` into `apps/bothy-web/data/themes/` on the
 box and reload. The filename is the theme's id, so renaming the file renames the
 theme - **the file is the registration**, because nginx lists the directory as
 JSON and there is no index to update and therefore none to forget.
 
 The format is documented where somebody standing in that directory will find it:
-[`apps/portal-next/data/themes/README.md`](../../apps/portal-next/data/themes/README.md).
+[`apps/bothy-web/data/themes/README.md`](../../apps/bothy-web/data/themes/README.md).
 The short version is a header comment and a doubled attribute selector:
 
 ```css
@@ -94,7 +94,7 @@ Without it you may see one frame of the wrong palette.
 ## What the contract enforces
 
 The rules a palette must satisfy live in one module,
-[`apps/portal-next/web/src/lib/contract.ts`](../../apps/portal-next/web/src/lib/contract.ts),
+[`apps/bothy-web/web/src/lib/contract.ts`](../../apps/bothy-web/web/src/lib/contract.ts),
 imported by **two** consumers: the build-time check that holds Bothy's own
 themes to them, and the editor, which runs them live as you type. One set of
 rules, because a rule that lives in the check and a rule that lives in the
@@ -176,7 +176,7 @@ reclassified as structural, where they belonged.
 
 ## Related
 
-- [`apps/portal-next/data/themes/README.md`](../../apps/portal-next/data/themes/README.md) - the file format, the token count, and the three colour rules in full
+- [`apps/bothy-web/data/themes/README.md`](../../apps/bothy-web/data/themes/README.md) - the file format, the token count, and the three colour rules in full
 - [`docs/brand/foundations/theming.md`](../brand/foundations/theming.md) - how light and dark coexist without a flash on load
 - [`docs/brand/reference/tokens.md`](../brand/reference/tokens.md) - the token reference
 - [`docs/brand/foundations/colour.md`](../brand/foundations/colour.md) - the palette, and what each colour job is for

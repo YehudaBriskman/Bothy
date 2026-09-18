@@ -22,7 +22,7 @@ next session does not mistake them for evidence that names still work.
 | **SSO parked; portal API auth-free** | Dashboards got native logins on 2026-08-08 (unified dev login, see access.md), but the portal `/-/api/*` (container list, loki queries, prom queries, traefik routes) remains auth-free for any tailnet member | Accepted while tailnet = own devices. Keycloak is being introduced separately as the SSO replacement |
 | **Tailscale SSH check-mode stalls automation** | ACL SSH rule gained `action: check` sometime after 08-02; unattended sessions can hang on a browser prompt | Flip to `accept` in the admin console, or live with it |
 | **Wiki.js stack is down** | Replaced by Bothy Files; compose still has port 3001 | Decide: retire wiki fully or bring back |
-| **Large-packet blackhole can recur** | Root cause (WinNAT hairpin wedge) not fixed, only reset by tailscaled restart; checker + runbooks now detect it | Watch for "code ok, bytes 0" |
+| **Large-packet blackhole - root cause found 2026-08-30** | It was never the WinNAT hairpin. WSL copies the smallest Windows adapter MTU (Tailscale's 1280) onto eth0, leaving no room for WireGuard's ~60 B on top of tailscale0's own 1280. Fixed by `wsl-fix-mtu.service` (eth0 → 1500). | Recurs only if that unit is disabled. Still watch for "code ok, bytes 0" - and check `ip link show eth0` first ([incidents/2026-08-30](incidents/2026-08-30-wsl-eth0-mtu-1280.md)) |
 | **ThinkPad has no sshd running** | Confirmed 2026-08-02 (dev node got connection-refused at 13:19) | Can't SSH *to* the laptop; enable if wanted; also re-verify pure-IP URLs from it when it's back online |
 | **WSLg crash-loop on the dev box** | weston `rdp-backend.so` segfaults ~every 2 min (170+ since boot). Harmless to services; spams dmesg | Fix: `[wsl2] guiApplications=false` in `C:\Users\devssh\.wslconfig`, restart the distro |
 | **Unattended tailscale upgrades on the laptop** | The 2026-08-02 incident came from a package upgrade without daemon restart | After any tailscale upgrade: restart tailscaled; heed the version-skew warning |
@@ -61,9 +61,12 @@ next session does not mistake them for evidence that names still work.
 - dnsmasq answers non-`.test` queries for tailnet clients (open resolver, tailnet-scoped) -
   side effect of the upstream config that fixed in-box DNS.
 - oauth2-proxy container has no healthcheck (distroless image - a check can never pass).
+- loki has no healthcheck for the same reason (distroless: no shell, no wget, no health
+  flag in the binary). So grafana's `depends_on` waits for prometheus to be *healthy*
+  but for loki only to be *started* (2026-09-17).
 - Portal-API routers have no `Host()` rule. Since 2026-08-12 that is not a tradeoff,
   it is **the only supported routing shape** - see [architecture.md](architecture.md).
-- prio-1 `portal-next-fallback` catches every unrouted request (that's its job) - which
+- prio-1 `bothy-web-fallback` catches every unrouted request (that's its job) - which
   is exactly why a 200 from `:80` proves nothing; see the lookalikes list.
 
 ## Looks broken, isn't

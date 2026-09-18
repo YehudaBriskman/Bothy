@@ -1,14 +1,14 @@
 # Every file in this repository is owned by the maintainer.
 #
 # The security boundary lives in a handful of these files - the exact Path()
-# rules in edge/dynamic/portal-api.yml and edge/dynamic/portal-prom.yml (the
+# rules in edge/dynamic/bothy-api.yml and edge/dynamic/bothy-prom.yml (the
 # latter is generated and gitignored), the socket-proxy settings in
 # apps/bothy/socket-proxy.yml, and the auth stack in auth/ and edge/dynamic/auth.yml.
 #
 # As of 2026-08-12 those Path() rules are the ONLY edge control: sso@file is
 # defined and attached to no router while identity is rebuilt on Keycloak, and
 # the Traefik dashboard router was deleted because /api/rawdata leaked the live
-# basic-auth header from portal-prom.yml. Review a change to any of these as a
+# basic-auth header from bothy-prom.yml. Review a change to any of these as a
 # security change. See SECURITY.md.
 
 * @YehudaBriskman

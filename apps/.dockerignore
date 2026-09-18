@@ -1,0 +1,25 @@
+# The build context for bothy-files and bothy-ops is apps/ (so both images can
+# COPY bothy-common/bothy_common). This file makes that context an ALLOWLIST.
+#
+# Without it, every build would send apps/bothy-web/web/node_modules, the
+# audit logs and apps/bothy-ops/secrets (a live cluster token) to the builder.
+# A deny-list would have to remember each of those; this cannot forget one.
+# bothy-web builds from its own directory and is not affected.
+#
+# A NEW MODULE must be listed here as well as COPY'd in its Dockerfile, or the
+# build fails with "not found" - which is the loud direction to be wrong in.
+*
+!bothy-common/bothy_common/*.py
+!bothy-files/Dockerfile
+!bothy-files/requirements.txt
+!bothy-files/app.py
+!bothy-files/config_api.py
+!bothy-files/yamlpatch.py
+!bothy-files/policy.toml
+!bothy-ops/Dockerfile
+!bothy-ops/app.py
+!bothy-ops/guard.py
+!bothy-ops/control.py
+!bothy-ops/kube.py
+!bothy-ops/admin.py
+!bothy-ops/catalog.toml

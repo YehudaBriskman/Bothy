@@ -12,29 +12,41 @@
 !.gitignore
 !auth.yml
 !host-services.yml
-!portal-api.yml
+!bothy-api.yml
 !project.example.yml
-# The file-explorer routes. Stack-owned and load-bearing: it carries the two role
-# gates (sso-viewer / sso-editor) that are the ONLY thing standing between the
-# tailnet and write access to the repos. It contains no credential - the role
-# name is not a secret - and losing it would silently unprotect the write tier,
-# so it is tracked. It was ignored by the `*` above for its first two commits,
-# which is exactly the failure mode this comment exists to prevent repeating.
-!portal-files.yml
-# The config-tier routes, tracked for exactly the reason portal-files.yml is:
-# they carry the `editor` gate on a service that can rewrite this repo's compose
-# files, so losing the file would silently unprotect a write path. It holds no
-# credential. Added in the same commit as the file, on the strength of the note
-# above - portal-files.yml went two commits untracked before anyone noticed.
+# THE ROLE GATES - the only definitions of sso-viewer, sso-editor and
+# sso-operator, referenced by every tier file below (2026-09). The most
+# load-bearing file in this directory: without it every gated router errors. No
+# credential - a role name is not a secret. Added in the same commit as the file,
+# because of every note below.
+!bothy-gates.yml
+# The file-explorer routes. Stack-owned and load-bearing: its role gates are the
+# ONLY thing standing between the tailnet and write access to the repos. It
+# contains no credential, and losing it would silently remove the editor tier's
+# routes, so it is tracked. It was ignored by the `*` above for its first two
+# commits, which is exactly the failure mode this comment exists to prevent
+# repeating. (It defined sso-viewer/sso-editor itself until 2026-09.)
+!bothy-files.yml
+# The config-form routes, tracked for exactly the reason bothy-files.yml is:
+# they put the `editor` gate on a path that can rewrite this repo's compose
+# files. It holds no credential. Served by bothy-files since 2026-09.
 !bothy-config.yml
-# The control-tier routes, tracked for the same reason again - and this one has
-# the strongest case of the three. It DEFINES sso-operator, which exists nowhere
-# else in this directory, so losing the file would not merely unprotect these
-# routes: it would delete the only definition of the role gate on the one
-# service that can stop this box's databases. Added in the same commit as the
-# service, on the strength of the note above.
-!bothy-control.yml
-# The redacted twin of the GENERATED portal-prom.yml (which stays ignored by the
+# The action routes: container verbs and cluster actions (bothy-ops). Tracked
+# for the strongest reason of all - the operator gate on the one service that can
+# stop this box's databases. Replaces bothy-control.yml and bothy-kube.yml
+# (2026-09), both of which were allow-listed here and are deleted: a stale
+# `!name` line for a file that no longer exists would let a hand-made file of
+# that name be committed without anyone reading this list. bothy-kube.yml was
+# written in a worktree, IGNORED by the `*` above, and missed its first merge
+# (2026-09-17) - which is why this line went in with the file.
+!bothy-ops.yml
+# The redacted twin of the GENERATED bothy-prom.yml (which stays ignored by the
 # `*` above - it carries a basic-auth credential). Comments only: a live example
 # in this directory overwrites the real router, see the file's own header.
-!portal-prom.example.yml
+!bothy-prom.example.yml
+# The Settings admin reads (bothy-ops admin.py): users, credentials inventory,
+# backups, audit log - four exact Path() GET routers behind sso-operator.
+# HAND-WRITTEN and separate from bothy-ops.yml, whose kube routers are generated.
+# No credential. Allow-listed in the same commit as the file, for the reason
+# every entry above gives.
+!bothy-admin.yml

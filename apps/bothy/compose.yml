@@ -1,67 +1,49 @@
-# Bothy — one compose project over three tiers.
+# Bothy - one compose project, five containers.
 #
-# Bothy groups systems by com.docker.compose.project, so while the web tier, the
-# editor tier and the socket proxy were three projects (`portal-next`,
-# `portal-files`, `portal`) it rendered ITSELF as three separate cards in its own
-# Overview. One project, one card.
+#   bothy-web           nginx; the portal on :80. No power.
+#   bothy-files         the file editor AND the config forms. Read-write on the
+#                       stack repo and the notes, read-only on $HOME and projects.
+#   bothy-ops           container actions AND cluster actions. Reaches the daemon
+#                       only through the two proxies below; holds the kube token.
+#   bothy-socket-read   CONTAINERS=1 SYSTEM=1 POST=0 - the portal's Docker API and
+#                       bothy-ops' inspects.
+#   bothy-socket-write  CONTAINERS=0 POST=1, three verbs - bothy-ops only.
+#
+# It was eight until 2026-09 (bothy-config, bothy-control, bothy-kube and three
+# proxies, in four projects). The merge removed duplicated code and containers;
+# it did NOT remove a boundary. Read the headers of the fragments for the ones
+# that stayed: the read/write proxy split, one inbound network per service that
+# authenticates nobody (filesnet, opsnet), and exact Path() routes at the edge.
+#
+# Bothy groups systems by com.docker.compose.project, so one project renders as
+# one card in its own Overview.
+#
+# The cluster is OPTIONAL: `just up-apps` adds ../bothy-ops/compose.cluster.yml
+# only when minikube's `thales-scc` network exists. Use the recipe.
 #
 # ── WHY `include:` AND NOT `-f a.yml -f b.yml` ───────────────────────────────
-# Tried the multi-file form first, on 2026-08-16, and it broke portal-files.
+# Tried the multi-file form first, on 2026-08-16, and it broke bothy-files.
 #
 # With repeated `-f`, EVERY relative path in EVERY file resolves against the
 # FIRST file's directory — not against the file that wrote it. So
-# portal-files' `build: context: .` resolved to apps/portal-next/ and built the
-# WEB tier's Dockerfile: the editor tier came up as nginx, which then hit
-# portal-files' own `read_only: true` and crash-looped on
-# `mkdir /var/cache/nginx/client_temp`. Its `./audit:/audit:rw` mount had
-# likewise moved to apps/portal-next/audit, so the write log would have silently
-# stopped accumulating in the place anything looks for it.
+# bothy-files' `build: context:` resolved to apps/bothy-web/ and built the WEB
+# tier's Dockerfile: the editor tier came up as nginx and crash-looped. Its
+# `./audit:/audit:rw` mount had likewise moved to apps/bothy-web/audit, so the
+# write log would have silently stopped accumulating where anything looks.
 #
 # `include:` resolves each fragment's paths against ITS OWN directory, which is
 # exactly the difference that matters here. It is also why this file is a stub
-# rather than a merge of the three: the three files each carry the isolation
-# rationale for a tier, and those tiers are NOT alike —
+# rather than a merge: each fragment carries the isolation rationale for a tier,
+# and those tiers are NOT alike. (compose.cluster.yml is the one file that IS
+# added with -f, and it spells its one path so that it resolves either way.)
 #
-#   portal-files    alone with traefik on filesnet, rw handles on two git repos
-#   socket-proxy    alone with traefik on socketnet, holds the docker socket
-#   portal-next     on devnet, the only one that is meant to be broadly reachable
-#
-# Merging them into one document would file three different security postures
-# under one set of comments. Merging the PROJECT is what fixes the display;
-# nothing about the isolation needs to change, so nothing here changes it.
-#
-# The socket-proxy fragment used to live in apps/portal/, a directory that
-# existed only to hold it: the pure-HTML portal it was named after was retired
-# long before, and its own nginx went with it. Moved here and apps/portal/
-# deleted on 2026-08-18. A directory named after a dead service is a standing
-# invitation to `compose down` the thing the live portal depends on - which is
-# exactly why README had to carry a "do not compose down this directory" note.
-#
-# THE CONTAINER IS bothy-socket-proxy as of 2026-08-19 (#97). It was
-# portal-socket-proxy - named after the nginx portal that was retired long
-# before the directory move, and the last reference in the repo to a service
-# that no longer exists.
-#
-# CORRECTING WHAT THIS COMMENT USED TO SAY: it claimed the name was in
-# bothy-control's self-protection allowlist, `guard.py`. It was not, and never
-# has been. guard.SEVERING holds exactly four names - traefik, bothy-control and
-# its two socket proxies - and checks/grants.py asserts that count, so the claim
-# was checkable and false. guard.py:102-110 explains at length WHY that list is
-# deliberately narrower than the UI's: stopping the socket proxy degrades the
-# interface but the action still completes and bothy-control reports it
-# truthfully, and a truthful report of a deliberate decision is not the
-# service's business to override. The only Python reference is a NEGATIVE
-# assertion in checks/test_guard.py listing what is deliberately not refused.
-#
-# What the name is actually load-bearing in: the SPA's foot-gun guard
-# (portal-next/web/src/lib/actions.ts, where a miss fails OPEN), the Traefik
-# service that dials it by Docker DNS (edge/dynamic/portal-api.yml), and
-# scripts/doctor.sh. socket-proxy.yml spells out the coupling next to the
-# `container_name:` line itself.
+# DO NOT `docker compose down` this project casually: it takes the socket proxy
+# the portal reads through down with it, and the portal's Overview goes blank.
 
 name: bothy
 
 include:
-  - path: ../portal-next/compose.yml
-  - path: ../portal-files/compose.yml
+  - path: ../bothy-web/compose.yml
+  - path: ../bothy-files/compose.yml
+  - path: ../bothy-ops/compose.yml
   - path: ./socket-proxy.yml

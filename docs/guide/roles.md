@@ -34,15 +34,20 @@ YAML, not another container.
 
 | Router | Role | Path |
 |---|---|---|
-| `portal-files-read` | `viewer` | roots, tree, read, search, links, history, repos, status, git diff |
-| `portal-files-download` | `viewer` | raw and archive, on the `:8100` sandbox entrypoint only |
-| `portal-files-write` | `editor` | write |
-| `portal-files-delete` | `editor` | delete |
+| `bothy-files-read` | `viewer` | roots, tree, read, search, links, history, repos, status, git diff |
+| `bothy-files-download` | `viewer` | raw and archive, on the `:8100` sandbox entrypoint only |
+| `bothy-files-write` | `editor` | write |
+| `bothy-files-delete` | `editor` | delete |
 | `bothy-config-read` | `viewer` | config fields |
 | `bothy-config-write` | `editor` | config patch |
-| `bothy-control-restart` | `operator` | restart |
-| `bothy-control-stop` | `operator` | stop |
-| `bothy-control-start` | `operator` | start |
+| `bothy-ops-control-restart` | `operator` | container restart |
+| `bothy-ops-control-stop` | `operator` | container stop |
+| `bothy-ops-control-start` | `operator` | container start |
+| `bothy-ops-kube-rollout-restart` | `operator` | cluster rollout restart |
+| `bothy-ops-kube-scale` | `operator` | cluster scale (type the name) |
+| `bothy-ops-kube-delete-completed-pods` | `operator` | cluster clean-up |
+| `bothy-ops-kube-events` | `viewer` | cluster events |
+| `bothy-ops-kube-logs` | `viewer` | cluster logs |
 
 Two structural choices in that table are worth reading rather than skimming.
 
@@ -58,27 +63,34 @@ alternatives, for the same reason. The day `stop` needs a tier above `restart`,
 that is an edit to one router instead of a rule that has to be split first,
 under pressure.
 
-The middlewares themselves are defined next to what they gate, and that
-placement is itself an argument:
+The middlewares themselves live in one place, and that placement is itself an
+argument:
 
-- `sso-viewer` and `sso-editor` live in `edge/dynamic/portal-files.yml`;
-- `sso-operator` lives in `edge/dynamic/bothy-control.yml`;
+- `sso-viewer`, `sso-editor` and `sso-operator` are defined in
+  `edge/dynamic/bothy-gates.yml`, and in no router file;
 - `sso-errors` - which turns a bare 401 into a sign-in page - lives in
   `edge/dynamic/auth.yml` and is borrowed by everything.
 
-The config tier borrows `sso-viewer` and `sso-editor` rather than defining its
-own copies. Traefik's file provider merges every file in the directory into one
+Every router file references the gates by bare name rather than defining its own
+copies. Traefik's file provider merges every file in the directory into one
 namespace, so two definitions of a middleware named `sso-editor` is a collision
 whose winner no single file can decide - and the two would then drift
 invisibly, with both routers still answering and one of them against the wrong
-role. The cost is real and is stated in the file: deleting `portal-files.yml`
-would silently unauthenticate the config tier's routers.
+role.
+
+Until 2026-09 each gate was defined in the first tier file that needed it
+(`sso-viewer`/`sso-editor` in `bothy-files.yml`, `sso-operator` in
+`bothy-control.yml`) and borrowed by the others, so deleting one tier's file
+would have errored another tier's routers. That coupling is why the gates got a
+file of their own when the tiers were consolidated.
 
 `sso-operator` was deleted once, on 2026-08-15, along with the routes it gated,
 for a reason worth keeping: *a middleware nothing references is a loaded gun
 with no trigger - it looks like protection while protecting nothing, and the
 next router to want a gate might pick it up believing it is already proven in
-use.* It came back with the control tier, in the file that uses it.
+use.* It came back with the control tier. A gate in `bothy-gates.yml` that no
+router references would be exactly that gun again - `apps/bothy-ops/checks/wiring.py`
+asserts all three gates are defined there; keep each one in use.
 
 One more, for completeness: the plain `sso` middleware in `auth.yml` - the one
 that checks for *any* session rather than a role - is attached to **no router at
@@ -159,7 +171,7 @@ file write leaves a diff a human can read and revert, and a forged
 serves `.env`, and `.env` contains the cookie secret. Anyone who can read it can
 mint a session for any role. That is a deliberate trade for a single-owner box
 and it is documented at the point it is made, in
-[`apps/portal-files/policy.toml`](../../apps/portal-files/policy.toml). It stops
+[`apps/bothy-files/policy.toml`](../../apps/bothy-files/policy.toml). It stops
 being acceptable the moment a second person holds only `viewer`.
 
 ## The three sources do not agree, and here is how
@@ -183,22 +195,22 @@ name capabilities that do not exist here:
   alert.
 
 **The interface** (`ROLE_MEANING` in
-`apps/portal-next/web/src/lib/me.ts`) is the user-facing wording and is much
+`apps/bothy-web/web/src/lib/me.ts`) is the user-facing wording and is much
 closer, but it is scoped to the file tier and predates the config tier:
 `viewer` reads "browse files, search their contents, download bytes" and also
 gates reading config fields; `editor` reads "change a file on disk" and also
 gates deleting one and patching a compose label through a form.
 
 **The README** is the third, and it undercounts. Its single-sign-on table lists
-**three** routers, all in `portal-files.yml` - read, download and write -
-omitting `portal-files-delete`, omitting `/links` from the read router's paths,
+**three** routers, all in `bothy-files.yml` - read, download and write -
+omitting `bothy-files-delete`, omitting `/links` from the read router's paths,
 and omitting the config and control tiers entirely. The prose beside it says
 "three routers require a role today". Nine do.
 
 `SECURITY.md` disagreed with itself in the same way and in one section: the
 status blockquote at the top of § 1 said *nine role-gated routers in three
 files*, and four paragraphs later the same section still said *"Three routers
-do now, all in `edge/dynamic/portal-files.yml`"*. Corrected 2026-08-19 - the
+do now, all in `edge/dynamic/bothy-files.yml`"*. Corrected 2026-08-19 - the
 blockquote was the half that matched the router table.
 
 The router table is the one that is true, because it is the one that runs. It

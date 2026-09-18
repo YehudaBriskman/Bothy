@@ -1,0 +1,92 @@
+# The minikube cluster `thales-scc`, scraped from OUTSIDE by the compose
+# VictoriaMetrics. Loaded through `scrape_config_files` in prometheus.yml.
+#
+# A BARE LIST, not `scrape_configs:` - VictoriaMetrics' format for an included
+# file (Prometheus wanted the map; VM refuses it with "cannot unmarshal !!map").
+#
+# HOW IT GETS THERE. The node is the docker container `thales-scc`, 192.168.49.2
+# on the docker network of the same name. Docker isolates bridge networks from
+# each other, so from devnet that address simply times out (measured). The
+# victoriametrics container therefore joins `thales-scc` as a second network - but
+# only through monitoring/compose.cluster.yml, which `just up-monitoring` adds
+# when that network exists. On a box with no cluster the directory this file
+# lives in is not even mounted, so there are no permanently-DOWN targets (see the
+# redis/kafka note in prometheus.yml for why that matters).
+#
+# EVERY JOB IS job=~"kube.*" AND cluster="thales-scc". The Grafana alert
+# `kube_cluster_down` keys on exactly that. Rename a job and the alert goes
+# quietly blind.
+#
+# 192.168.49.2 is stable: minikube's docker driver gives the first profile the
+# first address of 192.168.49.0/24 and keeps it across `minikube start`.
+
+# Object state - node conditions, pod phases, restarts, deployments. Plain
+# HTTP on a fixed NodePort; see k8s/monitoring/kube-state-metrics.values.yaml.
+- job_name: kube-state-metrics
+  honor_labels: true   # KSM's own namespace/pod labels describe the OBJECT, not the exporter pod
+  static_configs:
+    - targets: ["192.168.49.2:30808"]
+      labels:
+        cluster: thales-scc
+
+# The kubelet's own health. /metrics is ~2000 series, nearly all request
+# histograms nobody here reads, so it is cut down to what answers "is the node
+# doing its job" plus PVC fullness (the one kubelet metric with no stand-in).
+- job_name: kubelet
+  scheme: https
+  authorization:
+    # ABSOLUTE. Prometheus resolved a relative path against THIS file's
+    # directory; VM resolves it against prometheus.yml's, so `../kube-auth/token`
+    # became /etc/kube-auth/token and both kubelet jobs went DOWN (measured).
+    credentials_file: /etc/prometheus/kube-auth/token
+  tls_config:
+    # The kubelet's serving cert is self-signed by the kubelet itself, not by
+    # the cluster CA, so there is nothing to verify it against. The token
+    # still authenticates us; the network is a private docker bridge.
+    insecure_skip_verify: true
+  metrics_path: /metrics
+  static_configs:
+    - targets: ["192.168.49.2:10250"]
+      labels:
+        cluster: thales-scc
+        node: thales-scc
+  metric_relabel_configs:
+    - source_labels: [__name__]
+      regex: kubelet_(running_pods|running_containers|node_name|evictions|volume_stats_(used|capacity|available)_bytes|volume_stats_inodes(_used)?|pleg_relist_duration_seconds_(sum|count)|container_log_filesystem_used_bytes)|process_(resident_memory_bytes|cpu_seconds_total)|kubernetes_build_info
+      action: keep
+
+# Per-pod CPU / memory / network, from the kubelet's embedded cAdvisor. Same
+# discipline as the compose cadvisor in compose.yml: ~3700 series raw, of
+# which the families below are what a question about a pod actually needs.
+#
+# POD-LEVEL ONLY, measured: `container` is empty on every series. The node's
+# runtime is dockerd behind cri-dockerd, and the kubelet's cAdvisor maps the
+# pod cgroups but not the docker scopes inside them. Sum by (namespace, pod).
+# Kept to 171 series on 2026-09-17 (plus 40 kubelet, ~2300 KSM).
+- job_name: kubelet-cadvisor
+  scheme: https
+  authorization:
+    credentials_file: /etc/prometheus/kube-auth/token
+  tls_config:
+    insecure_skip_verify: true
+  metrics_path: /metrics/cadvisor
+  static_configs:
+    - targets: ["192.168.49.2:10250"]
+      labels:
+        cluster: thales-scc
+        node: thales-scc
+  metric_relabel_configs:
+    - source_labels: [__name__]
+      regex: container_(cpu_usage_seconds_total|cpu_cfs_throttled_periods_total|memory_working_set_bytes|memory_rss|spec_memory_limit_bytes|network_(receive|transmit)_bytes_total|oom_events_total|start_time_seconds)
+      action: keep
+    # Node-level cgroups (/, /kubepods.slice, ...) carry pod="". Pods only.
+    - source_labels: [pod]
+      regex: ""
+      action: drop
+    # LOAD-BEARING: drop `name`. These metrics have the SAME NAMES as the
+    # compose cadvisor's, and the portal selects those by `name!=""` / `by
+    # (name)` (web/src/lib/metrics.ts, SystemDialog.tsx) and the cadvisor
+    # dashboard by `name=~".+"`. Without `name`, pod series cannot leak into
+    # the box's container lists; they are found by namespace/pod/container.
+    - regex: name
+      action: labeldrop

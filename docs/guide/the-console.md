@@ -98,8 +98,8 @@ hand-written `curl` is refused at the edge exactly the same way. See
 
 **Foot-gun warnings.** Seven containers carry a sentence said *before* the act,
 because stopping them takes away the page you are acting from - Traefik,
-`portal-next`, the socket proxy, `portal-files`, `bothy-config`, Keycloak and
-oauth2-proxy. Stopping Keycloak means nobody can sign in again, including you.
+`bothy-web`, the read socket proxy, `bothy-files` (which also serves the config
+forms since 2026-09), `bothy-ops`, Keycloak and oauth2-proxy. Stopping Keycloak means nobody can sign in again, including you.
 These are warnings. You may proceed, and the interface says the sentence rather
 than overruling the decision.
 
@@ -110,10 +110,12 @@ the rule that picks them is mechanical rather than a taste judgement:
 > completing and reporting its own outcome.
 
 That comes out at exactly four - Traefik (the request arrived through it),
-`bothy-control` (the process holding the request), and its two socket proxies
-(one is how every action begins with an inspect, the other is the only path to
-the daemon at all). `apps/bothy-control/checks/grants.py` asserts the list is
-still four, so it cannot quietly grow or shrink.
+`bothy-ops` (the process holding the request), and the two socket proxies
+`bothy-socket-read` and `bothy-socket-write` (one is how every action begins
+with an inspect, the other is the only path to the daemon at all).
+`apps/bothy-ops/checks/grants.py` asserts the list is still four, so it cannot
+quietly grow or shrink. (Before 2026-09 the three were named `bothy-control`,
+`bothy-control-socket-read` and `bothy-control-socket-write`.)
 
 `start` is exempt from all of it. Starting something cannot remove a dependency
 - it is the recovery verb, and refusing it would refuse the recovery.
@@ -123,7 +125,7 @@ regret, and the service refuses what it cannot describe.** Conflating them is
 how a deny list turns into a list of things somebody once found scary.
 
 Every action, refusal and failure is appended to an audit log at
-`apps/bothy-control/audit/actions.log`, naming the actor from the session. It is
+`apps/bothy-ops/audit/actions.log` (shared with the cluster actions), naming the actor from the session. It is
 bind-mounted so that a rebuild does not erase it.
 
 ## What Bothy Control deliberately will not do
@@ -131,12 +133,12 @@ bind-mounted so that a rebuild does not erase it.
 There is **no `exec`**, and no shell in the browser. `docker exec` is root on
 this box, so the verb does not exist:
 
-- `EXEC: 0` is written out explicitly on all three socket proxies rather than
+- `EXEC: 0` is written out explicitly on both socket proxies rather than
   left to a default, each with the same comment - *container exec == root on
   this box* - and `checks/grants.py` asserts both that the variable is present
   and that its value is `0`;
 - the verb list is a literal three-element tuple in
-  [`apps/bothy-control/guard.py`](../../apps/bothy-control/guard.py), written
+  [`apps/bothy-ops/guard.py`](../../apps/bothy-ops/guard.py), written
   out and never derived from the handlers, because a derived allowlist grows
   when the thing it is derived from grows;
 - `kill` is absent from that tuple and a check asserts it stays absent. This is

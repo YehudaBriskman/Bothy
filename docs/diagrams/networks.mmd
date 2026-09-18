@@ -2,22 +2,41 @@ flowchart TB
     SOCKET[("/var/run/docker.sock<br/>root-equivalent")]
 
     subgraph s_socketnet["socketnet - exactly two members"]
-        PROXY["bothy-socket-proxy<br/>CONTAINERS=1 SYSTEM=1 POST=0 EXEC=0<br/>no auth of any kind - no published port"]
+        READ["bothy-socket-read<br/>CONTAINERS=1 SYSTEM=1 POST=0 EXEC=0<br/>no auth of any kind - no published port"]
+    end
+
+    subgraph s_filesnet["filesnet - exactly two members"]
+        FILES["bothy-files<br/>editor + config forms"]
+    end
+
+    subgraph s_opsnet["opsnet - exactly two members"]
+        OPS["bothy-ops<br/>container + cluster actions"]
+    end
+
+    subgraph s_ctlsock["controlsocknet - traefik is NOT a member"]
+        WRITE["bothy-socket-write<br/>CONTAINERS=0 POST=1 EXEC=0<br/>restart / start / stop only"]
     end
 
     subgraph s_devnet["devnet - around two dozen containers"]
         OAUTH["oauth2-proxy"]
         OBS["monitoring - grafana, prometheus, loki,<br/>promtail, cadvisor, node-exporter"]
-        APPSG["apps - portal-next, portal-files, bothy-socket-proxy"]
+        APPSG["bothy-web"]
         DATAG["data - postgres plus its exporter - not routed"]
         PROJ["project containers<br/>e.g. cvops-nginx, cvops-garage"]
     end
 
-    TRAEFIK["traefik<br/>the only container on BOTH networks"]
+    TRAEFIK["traefik<br/>on devnet, socketnet, filesnet and opsnet"]
+    K8S["thales-scc - minikube's network<br/>joined only via compose.cluster.yml"]
 
     TRAEFIK --> OAUTH
     TRAEFIK --> OBS
     TRAEFIK --> APPSG
     TRAEFIK --> PROJ
-    TRAEFIK -->|"the only path to the proxy"| PROXY
-    PROXY -->|"mounted read-only"| SOCKET
+    TRAEFIK -->|"the only path to the read proxy"| READ
+    TRAEFIK -->|"exact Path, viewer / editor"| FILES
+    TRAEFIK -->|"exact Path, operator / viewer"| OPS
+    OPS -->|"inspect"| READ
+    OPS -->|"restart / stop / start"| WRITE
+    OPS -.->|"apiserver, when the cluster exists"| K8S
+    READ -->|"mounted read-only"| SOCKET
+    WRITE -->|"mounted read-only"| SOCKET

@@ -1,0 +1,70 @@
+# Headlamp's identity in the cluster: read-only browsing, nothing else.
+#
+#   kubectl --context thales-scc apply -f k8s/rbac/bothy-browse.yaml
+#   (`just headlamp-token` applies it for you)
+#
+# ONE ServiceAccount `bothy/bothy-browse` bound to the BUILT-IN `view`
+# ClusterRole, cluster-wide. The Namespace `bothy` is declared again here so the
+# file applies on its own; it is identical to the one in bothy-kube.yaml, so
+# applying both in either order changes nothing.
+#
+# ── why `view`, and what it does NOT carry ──────────────────────────────────
+#
+# `view` is the upstream aggregated read role. It is maintained by Kubernetes
+# itself and deliberately excludes everything that escalates:
+#
+#   secrets                   no get/list/watch - the one read that is a credential
+#   pods/exec, pods/attach    no create - a shell in a workload
+#   pods/portforward          no create - a tunnel into the cluster network
+#   anything but get/list/watch
+#   roles, rolebindings       no - RBAC is not even readable
+#
+# It is cluster-wide (a ClusterRoleBinding) on purpose: the point of Headlamp is
+# to browse the whole cluster, kube-system and kyverno included. That is wider
+# than bothy-kube, which is namespace-scoped because it can CHANGE things; this
+# account changes nothing anywhere.
+#
+# CRDs that aggregate into `view` (label rbac.authorization.k8s.io/aggregate-to-
+# view) become readable too. Kyverno's policy CRDs do that; they are policy, not
+# credentials.
+#
+# `just headlamp-token` prints the can-i table that proves the above against the
+# live apiserver, and exits non-zero if any row is unexpected.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bothy
+  labels:
+    app.kubernetes.io/part-of: bothy
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bothy-browse
+  namespace: bothy
+  labels:
+    app.kubernetes.io/part-of: bothy
+    app.kubernetes.io/name: headlamp
+# The token is a Secret created by scripts/gen-headlamp-token.sh, never mounted
+# into a pod - nothing runs as this account inside the cluster.
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bothy-browse-view
+  labels:
+    app.kubernetes.io/part-of: bothy
+    app.kubernetes.io/name: headlamp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: bothy-browse
+    namespace: bothy

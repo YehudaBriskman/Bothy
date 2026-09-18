@@ -25,7 +25,7 @@ and stuck. That is the strongest argument for doing it, and it also means the
 hard parts (resize, collapse, persistence, focus order) have a reference
 implementation rather than a blank page.
 
-**Intent is already modelled.** `apps/portal-collector` exists precisely because
+**Intent is already modelled.** `apps/bothy-collector` exists precisely because
 "the portal only ever recorded observed facts, never intent". It reads each
 project's `project.dev.yml`, reconciles the declaration against host truth, and
 already carries a `start` command, a `ui` flag per service, and states that
@@ -161,8 +161,8 @@ wrote, not an environment variable away from being everything.
 Explicitly out of scope, and it should be written into the compose file so it
 stays out: `exec`, `create`, `rm`, image pulls, volume operations.
 
-**A confirm step for anything Bothy depends on** - traefik, portal-next,
-portal-files, the socket proxies. Stopping the edge from a page served through
+**A confirm step for anything Bothy depends on** - traefik, bothy-web,
+bothy-files, the socket proxies. Stopping the edge from a page served through
 the edge deserves a sentence, not a toast.
 
 ---
@@ -173,7 +173,7 @@ the edge deserves a sentence, not a toast.
 
 There is no `/-/api/me`. oauth2-proxy sets `X-Auth-Request-Email`,
 `X-Auth-Request-User` and `X-Auth-Request-Groups` on requests it forwards, and
-`portal-files` uses the email to attribute a write - but the SPA never sees any
+`bothy-files` uses the email to attribute a write - but the SPA never sees any
 of it. Consequences today:
 
 - the page cannot say who is signed in;

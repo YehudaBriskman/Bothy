@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+"""The generated wiring is up to date, and says what the design promises.
+
+Run: python3 checks/wiring.py      (needs PyYAML - the system python3 has it)
+
+Static: reads files only. Everything here is a property you want to know BEFORE
+the RBAC is applied or the edge file lands in a watched directory.
+
+── what it asserts ─────────────────────────────────────────────────────────
+
+  GENERATED scripts/gen-ops-wiring.py, re-run into a temp dir, produces exactly
+            the committed edge/dynamic/bothy-ops.yml, k8s/rbac/bothy-kube.yaml,
+            scripts/lib/bothy-kube-probes.sh and the UI's kube-catalog.dev.json.
+            catalog.toml is the only hand-written copy; any drift fails here.
+  RBAC      what the generated Role holds, asserted on the OUTPUT, independent
+            of the generator: one Role + RoleBinding per namespace in
+            guard.NAMESPACES and no other; no ClusterRole(Binding); no exec,
+            attach, portforward, secrets, serviceaccounts/token, wildcards; no
+            watch, update, deletecollection, escalate, bind, impersonate; create
+            only on jobs, delete only on pods and jobs, patch only on
+            deployments(/scale) and configmaps; configmaps only by resourceNames
+            = the catalog's allowlist; nothing cluster-scoped; the subject is
+            bothy/bothy-kube; the SA does not automount
+  EDGE      edge/dynamic/bothy-ops.yml: one router per catalog id, one for the
+            catalog, one per container verb, and no other; each rule an exact
+            Path(); no Host, no PathPrefix, no doubled brace; the role
+            middleware matches the catalog; the gates are defined in
+            bothy-gates.yml and NOT redefined here
+  PROBES    the can-i rows name every forbidden thing, and never spell a
+            subresource as TYPE/NAME (which can-i silently misreads)
+  COMPOSE   no ports; networks exactly opsnet + controlsocknet, and thales-scc
+            only through the overlay; read-only root, no-new-privileges,
+            cap_drop ALL, memory cap, healthcheck; the token mount is read-only,
+            never auto-created, and lives only in the overlay; the job
+            templates are a build context, not a mount
+  TRAEFIK   edge/compose.yml puts traefik on opsnet and NOT on controlsocknet
+            or thales-scc
+  JUST      `just network` creates opsnet; `just up-apps` adds the overlay only
+            when thales-scc exists; `just ops-wiring` exists
+  UI        web/src/lib/kube-actions.ts carries NO hand-copied catalog
+  IGNORE    the token directory is gitignored
+
+The kube ServiceAccount is still named `bothy-kube` in the cluster: it is an
+identity with issued tokens, and renaming it with the container would have
+revoked the live token for no security gain. That is the one place the old name
+is deliberate.
+"""
+import os
+import re
+import sys
+import tomllib
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SVC = os.path.dirname(HERE)
+REPO = os.path.dirname(os.path.dirname(SVC))
+sys.path.insert(0, SVC)
+sys.path.insert(0, os.path.join(os.path.dirname(SVC), "bothy-common"))
+
+import guard  # noqa: E402
+
+try:
+    import yaml
+except ImportError:
+    print("  FAIL  PyYAML is not importable - run with the system python3 (python3-yaml)")
+    sys.exit(1)
+
+fails: list[str] = []
+
+
+def ok(cond: bool, label: str) -> None:
+    print(("  PASS  " if cond else "  FAIL  ") + label)
+    if not cond:
+        fails.append(label)
+
+
+with open(os.path.join(SVC, "catalog.toml"), "rb") as fh:
+    CAT = guard.load_catalog(tomllib.load(fh))
+
+# ── GENERATED ───────────────────────────────────────────────────────────────
+print("── GENERATED: the wiring is what catalog.toml generates ─────────")
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+
+GEN = os.path.join(REPO, "scripts", "gen-ops-wiring.py")
+with tempfile.TemporaryDirectory(prefix="wiring-") as tmp:
+    r = subprocess.run([sys.executable, GEN, "--out", tmp], capture_output=True, text=True)
+    ok(r.returncode == 0, f"the generator runs ({r.returncode}{': ' + r.stderr.strip()[:200] if r.returncode else ''})")
+    for rel in ("edge/dynamic/bothy-ops.yml", "k8s/rbac/bothy-kube.yaml", "scripts/lib/bothy-kube-probes.sh",
+                "apps/bothy-web/web/src/lib/kube-catalog.dev.json"):
+        try:
+            want = open(os.path.join(tmp, rel), encoding="utf-8").read()
+            have = open(os.path.join(REPO, rel), encoding="utf-8").read()
+        except OSError as e:
+            ok(False, f"{rel}: {e}")
+            continue
+        ok(want == have, f"{rel} is up to date (else: just ops-wiring)")
+
+# ── RBAC ────────────────────────────────────────────────────────────────────
+print()
+print("── RBAC: what the generated Role holds ──────────────────────────")
+docs = [d for d in yaml.safe_load_all(open(os.path.join(REPO, "k8s/rbac/bothy-kube.yaml"))) if d]
+kinds = [d["kind"] for d in docs]
+ok("ClusterRole" not in kinds and "ClusterRoleBinding" not in kinds, "no ClusterRole, no ClusterRoleBinding")
+ok(set(kinds) <= {"Namespace", "ServiceAccount", "Role", "RoleBinding"}, f"only namespaced RBAC kinds: {sorted(set(kinds))}")
+
+sa = [d for d in docs if d["kind"] == "ServiceAccount"]
+ok(len(sa) == 1 and sa[0]["metadata"] == {**sa[0]["metadata"], "name": "bothy-kube", "namespace": "bothy"},
+   "one ServiceAccount, bothy/bothy-kube")
+ok(sa and sa[0].get("automountServiceAccountToken") is False, "the SA never automounts into a pod")
+
+roles = [d for d in docs if d["kind"] == "Role"]
+ok(sorted(r["metadata"]["namespace"] for r in roles) == sorted(guard.NAMESPACES),
+   f"one Role per guard.NAMESPACES and no other: {sorted(r['metadata']['namespace'] for r in roles)}")
+FORBIDDEN_RES = {"pods/exec", "pods/attach", "pods/portforward", "pods/proxy", "services/proxy", "secrets",
+                 "serviceaccounts", "serviceaccounts/token", "namespaces", "nodes", "roles", "rolebindings",
+                 "clusterroles", "clusterrolebindings", "*"}
+FORBIDDEN_VERBS = {"*", "update", "deletecollection", "escalate", "bind", "impersonate", "watch", "proxy"}
+WRITES = {"create": {("batch", "jobs")}, "delete": {("", "pods"), ("batch", "jobs")},
+          "patch": {("apps", "deployments"), ("apps", "deployments/scale"), ("", "configmaps")}}
+rule_sets = []
+for r in roles:
+    ns = r["metadata"]["namespace"]
+    got: dict[tuple[str, str], set[str]] = {}
+    for rule in r.get("rules", []):
+        ok(set(rule) <= {"apiGroups", "resources", "verbs", "resourceNames"}, f"{ns}: no nonResourceURLs or unknown rule keys")
+        ok("*" not in rule.get("apiGroups", []), f"{ns}: no wildcard apiGroup")
+        for g in rule.get("apiGroups", []):
+            for res in rule.get("resources", []):
+                got.setdefault((g, res), set()).update(rule.get("verbs", []))
+                if res == "configmaps":
+                    ok(rule.get("resourceNames") == list(CAT.policy.configmaps),
+                       f"{ns}: configmaps only by resourceNames {list(CAT.policy.configmaps)}")
+    rule_sets.append(got)
+    res_all = {res for _, res in got}
+    verbs_all = set().union(*got.values()) if got else set()
+    ok(not (res_all & FORBIDDEN_RES), f"{ns}: no exec/attach/portforward/secrets/tokens/namespaces/RBAC/wildcard")
+    ok(not (verbs_all & FORBIDDEN_VERBS), f"{ns}: no watch/update/deletecollection/escalate/bind/impersonate")
+    for verb, allowed in WRITES.items():
+        holders = {k for k, v in got.items() if verb in v}
+        ok(holders <= allowed, f"{ns}: {verb} only on {sorted(r for _, r in allowed)}: {sorted(r for _, r in holders)}")
+    ok(verbs_all <= {"get", "list", "create", "delete", "patch"}, f"{ns}: verbs within get/list/create/delete/patch")
+    # every grant is declared by at least one action - the Role holds nothing nobody asked for
+    declared = {(g.group, g.resource) for a in CAT.values() for g in a.rbac}
+    ok(set(got) == declared, f"{ns}: the Role's resources are exactly the declared ones")
+ok(len(rule_sets) == 2 and rule_sets[0] == rule_sets[1], "both namespaces get the same Role")
+
+bindings = [d for d in docs if d["kind"] == "RoleBinding"]
+ok(sorted(b["metadata"]["namespace"] for b in bindings) == sorted(guard.NAMESPACES),
+   "one RoleBinding per namespace")
+for b in bindings:
+    ok(b["roleRef"] == {"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": "bothy-kube"}
+       and b["subjects"] == [{"kind": "ServiceAccount", "name": "bothy-kube", "namespace": "bothy"}],
+       f"{b['metadata']['namespace']}: binds Role bothy-kube to bothy/bothy-kube only")
+
+# ── PROBES ──────────────────────────────────────────────────────────────────
+print()
+print("── PROBES: the can-i table asks the right questions ─────────────")
+probes = [ln.split() for ln in open(os.path.join(REPO, "scripts/lib/bothy-kube-probes.sh"), encoding="utf-8")
+          if ln.startswith("probe ")]
+ok(all(len(pr) in (5, 6) and pr[1] in ("yes", "no") for pr in probes), f"{len(probes)} well-formed probe rows")
+ok(not any("/" in pr[3] and pr[3].split("/")[0] in ("pods", "deployments.apps") for pr in probes),
+   "no subresource spelled TYPE/NAME (can-i reads `pods/exec` as a pod named exec)")
+nos = {(pr[2], pr[3], pr[5] if len(pr) == 6 else "") for pr in probes if pr[1] == "no"}
+for verb, res, sub in (("create", "pods", "--exec"), ("get", "pods", "--exec"), ("create", "pods", "--attach"),
+                       ("create", "pods", "--portforward"), ("get", "secrets", ""), ("list", "secrets", ""),
+                       ("create", "namespaces", ""), ("delete", "namespaces", ""),
+                       ("escalate", "roles.rbac.authorization.k8s.io", ""), ("watch", "pods", "")):
+    ok((verb, res, sub) in nos, f"the table asserts `no` for {verb} {res} {sub}".rstrip())
+gt = open(os.path.join(REPO, "scripts/gen-kube-token.sh"), encoding="utf-8").read()
+ok("scripts/lib/bothy-kube-probes.sh" in gt and "--subresource" in gt,
+   "just kube-token sources the generated rows and passes --subresource")
+
+# ── EDGE ────────────────────────────────────────────────────────────────────
+print()
+print("── EDGE: one exact Path per catalog id and per verb ─────────────")
+edge_dir = os.path.join(REPO, "edge/dynamic")
+edge_src = open(os.path.join(edge_dir, "bothy-ops.yml"), encoding="utf-8").read()
+ok("{{" not in edge_src, "no doubled brace anywhere (Go template would void the file)")
+edge = yaml.safe_load(edge_src)["http"]
+routers = edge["routers"]
+KUBE_P, CONTROL_P = "bothy-ops-kube-", "bothy-ops-control-"
+ok(all(k.startswith((KUBE_P, CONTROL_P)) for k in routers),
+   f"every router is a kube action or a container verb: {sorted(routers)}")
+ids_from_routers = {k[len(KUBE_P):] for k in routers if k.startswith(KUBE_P)}
+verbs_from_routers = {k[len(CONTROL_P):] for k in routers if k.startswith(CONTROL_P)}
+ok(ids_from_routers == set(CAT) | {"catalog"}, f"kube routers == catalog ids + catalog: {len(ids_from_routers)}")
+ok(verbs_from_routers == set(guard.VERBS), f"control routers == guard.VERBS: {sorted(verbs_from_routers)}")
+ROLE_MW = {"viewer": "sso-viewer", "operator": "sso-operator"}
+for name, r in routers.items():
+    if name.startswith(KUBE_P):
+        aid, path, role = name[len(KUBE_P):], f"/-/api/kube/{name[len(KUBE_P):]}", None
+        role = CAT[aid].role if aid in CAT else ("viewer" if aid == "catalog" else None)
+    else:
+        aid, path, role = name[len(CONTROL_P):], f"/-/api/control/{name[len(CONTROL_P):]}", "operator"
+    ok(r["rule"] == f"Path(`{path}`)", f"{name}: exact Path(`{path}`)")
+    ok("Host" not in r["rule"] and "PathPrefix" not in r["rule"] and "Regexp" not in r["rule"],
+       f"{name}: no Host, PathPrefix or Regexp")
+    if role:
+        ok(r["middlewares"] == ["bothy-ops-strip", "ops-deidentify", ROLE_MW[role], "sso-errors"],
+           f"{name}: middlewares strip, deidentify, {ROLE_MW[role]}, sso-errors")
+    ok(r["service"] == "bothy-ops" and r.get("entryPoints") == ["web"], f"{name}: service bothy-ops on web")
+mws = edge.get("middlewares", {})
+ok(not ({"sso-viewer", "sso-editor", "sso-operator", "sso-errors"} & set(mws)),
+   "no gate is redefined here")
+gates = yaml.safe_load(open(os.path.join(edge_dir, "bothy-gates.yml"), encoding="utf-8"))["http"]["middlewares"]
+ok(set(gates) == {"sso-viewer", "sso-editor", "sso-operator"},
+   f"bothy-gates.yml defines exactly the three gates: {sorted(gates)}")
+for role in ("viewer", "editor", "operator"):
+    ok(gates.get(f"sso-{role}", {}).get("forwardAuth", {}).get("address", "").endswith(f"allowed_groups={role}"),
+       f"sso-{role} asks oauth2-proxy for group {role}")
+others = {}
+for fn in sorted(os.listdir(edge_dir)):
+    if fn.endswith(".yml") and fn != "bothy-gates.yml":
+        others[fn] = open(os.path.join(edge_dir, fn), encoding="utf-8").read()
+for mw in ("sso-viewer", "sso-editor", "sso-operator"):
+    defs = [fn for fn, src in others.items() if re.search(rf"^\s{{4}}{mw}:\s*$", src, re.M)]
+    ok(not defs, f"{mw} is defined ONLY in bothy-gates.yml (also in: {defs or 'nowhere'})")
+ok(re.search(r"^\s{4}sso-errors:\s*$", others.get("auth.yml", ""), re.M) is not None,
+   "sso-errors is still defined in auth.yml")
+ok(set(mws["ops-deidentify"]["headers"]["customRequestHeaders"]) >= {"X-Auth-Request-Email", "X-Auth-Request-User",
+   "X-Auth-Request-Groups"}, "client X-Auth-Request-* headers are stripped")
+ok(edge["services"]["bothy-ops"]["loadBalancer"]["servers"] == [{"url": "http://bothy-ops:8097"}],
+   "service points at bothy-ops:8097 (over opsnet)")
+ign = open(os.path.join(edge_dir, ".gitignore"), encoding="utf-8").read()
+for fn in ("bothy-ops.yml", "bothy-gates.yml"):
+    ok(re.search(rf"^!{re.escape(fn)}$", ign, re.M) is not None,
+       f"edge/dynamic/.gitignore allow-lists {fn} (the directory denies `*`)")
+for fn in ("bothy-control.yml", "bothy-kube.yml"):
+    ok(not os.path.exists(os.path.join(edge_dir, fn)), f"the retired {fn} is gone")
+
+# ── COMPOSE ─────────────────────────────────────────────────────────────────
+print()
+print("── COMPOSE: no port, one way in, locked down ────────────────────")
+comp = yaml.safe_load(open(os.path.join(SVC, "compose.yml")))
+svc = comp["services"]["bothy-ops"]
+ok(list(comp["services"]) == ["bothy-ops"], "exactly one service")
+ok("ports" not in svc and "expose" not in svc, "no ports published")
+ok(sorted(svc["networks"]) == ["controlsocknet", "opsnet"],
+   f"networks exactly opsnet + controlsocknet: {svc['networks']}")
+ok(all(comp["networks"][n].get("external") for n in ("opsnet", "controlsocknet")),
+   "both networks are external (created by just network)")
+ok("thales-scc" not in comp.get("networks", {}),
+   "thales-scc is NOT in compose.yml - a missing external network would fail the whole project")
+ok(svc.get("read_only") is True, "read-only root filesystem")
+ok("no-new-privileges:true" in svc.get("security_opt", []), "no-new-privileges")
+ok(svc.get("cap_drop") == ["ALL"], "cap_drop ALL")
+ok(svc.get("deploy", {}).get("resources", {}).get("limits", {}).get("memory"), "a memory cap")
+ok("healthcheck" in svc, "a healthcheck")
+ok(svc.get("build", {}).get("additional_contexts", {}).get("jobtemplates") == "../../k8s/job-templates",
+   "the job templates are a BUILD context (baked into the image), not a mount")
+ok(not any("job-templates" in str(v) for v in svc.get("volumes", [])), "and never mounted at run time")
+ok("traefik.enable=false" in svc.get("labels", []), "traefik.enable=false (no auto router)")
+ok(not str(svc.get("user", "")).startswith("0") and "root" not in str(svc.get("user", "")), "not root")
+vols = svc["volumes"]
+ok(not any("docker.sock" in str(v) for v in vols), "no docker socket")
+ok(not any(isinstance(v, dict) and v.get("target") == "/secrets" for v in vols),
+   "no token mount in the base file - it rides with the cluster network")
+
+over = yaml.safe_load(open(os.path.join(SVC, "compose.cluster.yml")))
+osvc = over["services"]["bothy-ops"]
+ok(list(over["services"]) == ["bothy-ops"], "the overlay touches bothy-ops only")
+ok(sorted(osvc["networks"]) == ["controlsocknet", "opsnet", "thales-scc"],
+   f"the overlay adds thales-scc and nothing else: {osvc['networks']}")
+ok(over["networks"]["thales-scc"].get("external") is True, "thales-scc is external (created by minikube)")
+sec = [v for v in osvc.get("volumes", []) if isinstance(v, dict) and v.get("target") == "/secrets"]
+ok(len(sec) == 1 and sec[0].get("read_only") is True and sec[0].get("bind", {}).get("create_host_path") is False,
+   "the token mount is read-only and never auto-created")
+ok(sec and sec[0].get("source") == "../bothy-ops/secrets",
+   "the token source is spelled so it resolves from apps/bothy AND apps/bothy-ops")
+ok(not any("docker.sock" in str(v) for v in osvc.get("volumes", [])), "the overlay adds no docker socket")
+
+tr = yaml.safe_load(open(os.path.join(REPO, "edge/compose.yml")))["services"]["traefik"]
+ok("opsnet" in tr["networks"], "traefik is on opsnet")
+ok("thales-scc" not in tr["networks"], "traefik is NOT on thales-scc (no route to the apiserver)")
+ok("controlsocknet" not in tr["networks"], "traefik is NOT on controlsocknet (no route to the write proxy)")
+for gone in ("controlnet", "kubenet", "confignet"):
+    ok(gone not in tr["networks"], f"traefik no longer joins the retired {gone}")
+
+bothy = yaml.safe_load(open(os.path.join(REPO, "apps/bothy/compose.yml")))
+inc = sorted(i["path"] if isinstance(i, dict) else i for i in bothy.get("include", []))
+ok(inc == sorted(["../bothy-web/compose.yml", "../bothy-files/compose.yml",
+                  "../bothy-ops/compose.yml", "./socket-proxy.yml"]),
+   f"apps/bothy/compose.yml includes exactly web, files, ops and the proxies: {inc}")
+
+just = open(os.path.join(REPO, "justfile"), encoding="utf-8").read()
+ok("docker network create opsnet" in just, "`just network` creates opsnet")
+for gone in ("controlnet", "kubenet", "confignet"):
+    ok(f"docker network create {gone}" not in just, f"`just network` no longer creates {gone}")
+ok(re.search(r"^ops-wiring", just, re.M) is not None and "gen-ops-wiring.py" in just,
+   "`just ops-wiring` regenerates the wiring")
+ok(re.search(r"^up-kube", just, re.M) is None, "`just up-kube` is gone - up-apps covers the cluster")
+upapps = just.split("\nup-apps", 1)[1].split("\n\n", 1)[0] if "\nup-apps" in just else ""
+ok("docker network inspect thales-scc" in upapps and "apps/bothy-ops/compose.cluster.yml" in upapps,
+   "`just up-apps` adds compose.cluster.yml only when thales-scc exists")
+ok(re.search(r"^apps/bothy-ops/secrets/$", open(os.path.join(REPO, ".gitignore")).read(), re.M) is not None,
+   "apps/bothy-ops/secrets/ is gitignored")
+_dign = [ln.strip() for ln in open(os.path.join(REPO, "apps/.dockerignore"), encoding="utf-8")
+         if ln.strip() and not ln.lstrip().startswith("#")]
+ok(bool(_dign) and _dign[0] == "*" and all(ln.startswith("!") for ln in _dign[1:])
+   and not any("secrets" in ln or "audit" in ln for ln in _dign),
+   "apps/.dockerignore is an allowlist, so the cluster token never enters a build context")
+
+# ── UI ──────────────────────────────────────────────────────────────────────
+print()
+print("── UI: the catalog is fetched, never copied ─────────────────────")
+ts_path = os.path.join(REPO, "apps/bothy-web/web/src/lib/kube-actions.ts")
+ts = open(ts_path, encoding="utf-8").read()
+ok(re.search(r"\{\s*id:\s*'rollout-restart'", ts) is None and "KUBE_CATALOG: readonly" not in ts,
+   "kube-actions.ts carries no hand-copied catalog entries")
+ok("/-/api/kube" in ts, "kube-actions.ts talks to /-/api/kube")
+# The one literal the UI keeps: the Services-table row button is drawn without
+# fetching the catalog, so it needs the scope synchronously.
+m = re.search(r"KUBE_NAMESPACES: readonly string\[\] = \[([^\]]*)\]", ts)
+ok(m is not None and tuple(re.findall(r"'([^']+)'", m.group(1))) == guard.NAMESPACES,
+   "KUBE_NAMESPACES == guard.NAMESPACES")
+
+print()
+if fails:
+    print(f"FAILED: {len(fails)}")
+    sys.exit(1)
+print("wiring: all passed")

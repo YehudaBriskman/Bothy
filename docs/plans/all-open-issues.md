@@ -134,14 +134,14 @@ open. `doctor.sh:54`'s `expected` list has the mirror-image window.
 1. **Double-accept.** `SELF` carries both keys with the same message;
    `test_guard.py:152` lists both; `doctor.sh:54` accepts either for this one
    name. Nothing renames yet.
-2. **Flip.** `container_name` and `edge/dynamic/portal-api.yml:151` change in
+2. **Flip.** `container_name` and `edge/dynamic/bothy-api.yml:151` change in
    the *same commit* — a `docker compose up -d --force-recreate` of the
    `socket-proxy` service in project `bothy`. Traefik's file provider watches
    `./dynamic`, so no restart, but the two must move together or
    `/-/api/docker/containers/json` 502s and the whole Overview enrichment goes
    blank. Afterwards verify socketnet still holds **exactly two** members — that
    two-member blast radius is the only control on a proxy with no auth.
-3. **Drop the legacy key**, once a rebuilt `portal-next` image has shipped.
+3. **Drop the legacy key**, once a rebuilt `bothy-web` image has shipped.
 
 **Fix while in there,** because they are wrong today: `apps/bothy/compose.yml:40-46`
 claims the name is in `guard.py` (it is not — `guard.py:102-110` explains at
@@ -254,7 +254,7 @@ whatever else claims it.
 `docs/plans/control-and-settings.md` already decided the hard part and it should
 be quoted rather than re-litigated: **do not parse compose to do it.** That plan
 pre-authorises a safe "Layer 2 — Run". This issue is that layer, scoped to
-declared intent — `apps/portal-collector` already reads each project's
+declared intent — `apps/bothy-collector` already reads each project's
 `project.dev.yml` and reconciles declaration against host truth.
 
 `guard.py:39` `VERBS = ("restart","stop","start")` is the seam. Extending the
@@ -347,7 +347,7 @@ Remaining, all from #104's own stated scope:
   only in a screenshot's alt text; Bothy Config not at all.
 - Repo map is stale: `scripts/` is described as "`backup.sh` and `doctor.sh`"
   (there are eight plus the CLI plus `scripts/checks/`), and it omits
-  `apps/bothy-config/`, `apps/bothy-control/`, `apps/portal-collector/`. No
+  `apps/bothy-config/`, `apps/bothy-control/`, `apps/bothy-collector/`. No
   mention of `VERSION`, the release, or the CLI anywhere.
 - Router counts disagree between README (10) and ARCHITECTURE (7), and `just
   verify` guards only the zero-`Host()` invariant, so the number is unguarded
@@ -374,7 +374,7 @@ that will catch you", `docs/ARCHITECTURE.md`, and
 `docs/brand/foundations/theming.md`. **Do not touch `docs/kb/`** — it is
 correctly scoped as one machine's history and is not user documentation.
 
-This is also the real test of B2's work: `apps/portal-files/compose.yml` makes
+This is also the real test of B2's work: `apps/bothy-files/compose.yml` makes
 `docs` its own `safepath.ROOTS` entry, and the reader has only ever been
 exercised against `docs/kb` and `~/claude-notes`.
 
@@ -443,7 +443,7 @@ encoder. Any colour added must come from a token; `stray-colour.mjs` scans
 **The cheapest real win, independent of everything else:** the `Storage` panel
 has no row for custom theme *files on disk*. `STORES[0]` says theme →
 localStorage; that a custom theme is a `.css` file under
-`apps/portal-next/data/themes/` appears only as prose in the Appearance lede.
+`apps/bothy-web/data/themes/` appears only as prose in the Appearance lede.
 That is the one factual gap in #95's "say where each setting lives" ask, and it
 is a four-line change.
 

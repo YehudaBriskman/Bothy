@@ -1,0 +1,90 @@
+# Routes for the Settings area's admin READS, served by bothy-ops (admin.py).
+#
+# HAND-WRITTEN, and kept out of bothy-ops.yml on purpose: that file's kube
+# routers are generated from apps/bothy-ops/catalog.toml, and these four are not
+# catalog actions. A generator that owns one file can rewrite it whole; it must
+# never be able to drop a gate it does not know about.
+#
+# WARNING - this directory is rendered as a Go template. A doubled brace
+# anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. `just verify` check
+# 5b catches it; apps/bothy-ops/checks/wiring_admin.py does too.
+#
+# ── one exact Path per endpoint, GET only, operator ─────────────────────────
+#
+#   /-/api/admin/users         Keycloak users and their realm roles
+#   /-/api/admin/credentials   where every credential lives - names, modes, ages; never a value
+#   /-/api/admin/backups       backup sets - newest, count, size
+#   /-/api/admin/audit         the audit logs, filtered and paged
+#
+# All four are `operator`, not `viewer`, although none changes anything. Each
+# discloses more than reading the box needs: the account list, the map of where
+# every secret sits, and who did what. `viewer` can already read .env through
+# Files (policy.toml [sensitive] explains why); that is an argument for gating
+# that, not for loosening this.
+#
+# `Method(GET)` is part of every rule. The service answers GET only; saying so at
+# the edge means a POST never reaches it at all.
+#
+# ── self-contained ──────────────────────────────────────────────────────────
+#
+# The strip and deidentify middlewares and the service below are this file's
+# own, under names nothing else uses, so deleting bothy-ops.yml (or regenerating
+# it) cannot break these routes and deleting this file cannot break those. The
+# gates are the exception, and deliberately: sso-operator is defined ONLY in
+# bothy-gates.yml, and sso-errors ONLY in auth.yml.
+
+http:
+  routers:
+    bothy-admin-users:
+      rule: "Path(`/-/api/admin/users`) && Method(`GET`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-admin
+      middlewares: [bothy-admin-strip, admin-deidentify, sso-operator, sso-errors]
+
+    bothy-admin-credentials:
+      rule: "Path(`/-/api/admin/credentials`) && Method(`GET`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-admin
+      middlewares: [bothy-admin-strip, admin-deidentify, sso-operator, sso-errors]
+
+    bothy-admin-backups:
+      rule: "Path(`/-/api/admin/backups`) && Method(`GET`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-admin
+      middlewares: [bothy-admin-strip, admin-deidentify, sso-operator, sso-errors]
+
+    bothy-admin-audit:
+      rule: "Path(`/-/api/admin/audit`) && Method(`GET`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-admin
+      middlewares: [bothy-admin-strip, admin-deidentify, sso-operator, sso-errors]
+
+  middlewares:
+    # /-/api/admin/users -> /admin/users. The service answers only its own paths.
+    bothy-admin-strip:
+      stripPrefix:
+        prefixes: ["/-/api"]
+
+    # Delete any identity header the CLIENT sent before forwardAuth runs, so the
+    # only name in admin.log is oauth2-proxy's. Same list as ops-deidentify.
+    admin-deidentify:
+      headers:
+        customRequestHeaders:
+          X-Auth-Request-User: ""
+          X-Auth-Request-Email: ""
+          X-Auth-Request-Groups: ""
+          X-Auth-Request-Preferred-Username: ""
+          X-Forwarded-User: ""
+          X-Forwarded-Email: ""
+
+  services:
+    # The same container as bothy-ops.yml's service, under this file's own name.
+    # opsnet holds traefik and bothy-ops only; reachability is authorisation.
+    bothy-admin:
+      loadBalancer:
+        servers:
+          - url: "http://bothy-ops:8097"

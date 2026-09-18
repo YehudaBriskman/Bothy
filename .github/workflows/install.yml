@@ -101,7 +101,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: workspace/apps/portal-next/web/package-lock.json
+          cache-dependency-path: workspace/apps/bothy-web/web/package-lock.json
 
       - uses: astral-sh/setup-uv@v7
 
@@ -262,19 +262,19 @@ jobs:
         working-directory: ${{ env.BOTHY_DIR }}
         run: just files-check ci
 
-      - name: Config tier
+      - name: Files tier offline half - the config patch boundary
         if: always()
         working-directory: ${{ env.BOTHY_DIR }}
-        run: bash apps/bothy-config/checks/run.sh
+        run: bash apps/bothy-files/checks/run.sh --offline
 
-      - name: Control tier, including the real-daemon transition
+      - name: Ops tier, including the real-daemon transition
         if: always()
         working-directory: ${{ env.BOTHY_DIR }}
-        run: bash apps/bothy-control/checks/run.sh
+        run: bash apps/bothy-ops/checks/run.sh
 
       - name: Portal truth tables against this box's own containers
         if: always()
-        working-directory: ${{ env.BOTHY_DIR }}/apps/portal-next
+        working-directory: ${{ env.BOTHY_DIR }}/apps/bothy-web
         run: |
           set -euo pipefail
           (cd web && npm ci --silent)

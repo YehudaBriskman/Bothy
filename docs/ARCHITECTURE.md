@@ -20,7 +20,7 @@ but it is not how the box works today.
 
 Traefik still owns `:80`, and still matters, but for a smaller job than before:
 it serves the portal's catch-all and the portal's read-only `/-/api/*` data
-plane, all on host-less exact `Path()` rules. Seven routers exist in total.
+plane, all on host-less exact `Path()` rules - and the role-gated routes of Bothy's two backends. Nineteen committed routers exist in total (fourteen of them role-gated, counted 2026-09), plus the generated Prometheus route.
 
 **The stack is a helper, not a platform.** It provides what projects *don't*
 ship - routing, dashboards, log aggregation. It never provides what projects
@@ -61,8 +61,8 @@ There are two paths now, and which one a request takes depends only on the port.
 |---|---|---|
 | A | Most services are reached **directly on a published host port**. No DNS, no proxy, no `Host` header - the browser opens `http://<node-ip>:3000` and hits Grafana's own listener. | each stack's `compose.yml` `ports:`, printed by `just urls` |
 | B | Port 80 is Traefik. It matches **path only**, because no router carries a `Host()` rule. Two providers feed it: **docker** (container labels, `exposedbydefault=false`) and **file** (`edge/dynamic/*.yml`, `watch=true`). | `edge/compose.yml` |
-| B1 | The portal's `/-/api/*` data-plane routes match at priority 100. Every rule is an exact `Path()` - that is a security boundary, not a style. | `edge/dynamic/portal-api.yml`, `portal-prom.yml` |
-| B2 | Everything else falls through to `portal-next-fallback` (`PathPrefix(/)`, priority 1) and gets the portal SPA. **A wrong path returns 200 with the SPA, not a 404** - which is why route tests must assert content type. | `apps/portal-next/compose.yml` |
+| B1 | The portal's `/-/api/*` data-plane routes match at priority 100. Every rule is an exact `Path()` - that is a security boundary, not a style. | `edge/dynamic/bothy-api.yml`, `bothy-prom.yml` |
+| B2 | Everything else falls through to `bothy-web-fallback` (`PathPrefix(/)`, priority 1) and gets the portal SPA. **A wrong path returns 200 with the SPA, not a 404** - which is why route tests must assert content type. | `apps/bothy-web/compose.yml` |
 
 **No step authenticates.** As of 2026-08-12, no router carries an auth
 middleware. See [Identity](#identity-being-rebuilt-not-yet-enforced) below.
@@ -113,9 +113,9 @@ browser reaches anything but the portal. What exists today:
 | Container | Host bind | Status |
 |---|---|---|
 | `traefik` | `0.0.0.0:80` | **The front door for the portal and its data plane**, and nothing else. |
-| `grafana` `prometheus` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `9090` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. `dozzle` (`:8080`), `kafka-ui` (`:8081`) and `portainer` (`:9000`) were here until 2026-08-17; Bothy Control and the service pages replaced them. |
+| `grafana` `victoriametrics` `loki` `cadvisor` `node-exporter` `keycloak` | `0.0.0.0:3000` `8428` `3100` `8082` `9100` `8090` | **The access path.** Not a legacy remnant and not a workaround - this is the model. Each is listed in `just urls`. `dozzle` (`:8080`), `kafka-ui` (`:8081`) and `portainer` (`:9000`) were here until 2026-08-17; Bothy Control and the service pages replaced them. |
 | `postgres` | `127.0.0.1:5432` | **Loopback only, and non-negotiable.** Dropping the `127.0.0.1:` prefix hands the whole tailnet a database. Reached over an SSH tunnel, or by name over devnet from another container. `redis` (`:6379`) and `kafka` (`:9092`) sat here under the same rule until they were retired on 2026-08-12 - both idle, zero keys and zero topics. |
-| `portal-next` `portal-files` `oauth2-proxy` `bothy-socket-proxy` `promtail` and every exporter | none | Nothing needs to reach these except Traefik or Prometheus, over `devnet`. |
+| `bothy-web` `bothy-files` `bothy-ops` `oauth2-proxy` `bothy-socket-read` `bothy-socket-write` `alloy` and every exporter | none | Nothing needs to reach these except Traefik or VictoriaMetrics, over `devnet`. |
 
 The cost of the port model is real and worth stating: ports are a flat global
 namespace with no allocator, so every new service is a manual collision check
@@ -135,17 +135,18 @@ ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 9092:localhost:9092 <user>@
 kept), but *valid* YAML with a wrong priority shadows real routes instantly, with
 no restart to catch it.
 
-The whole table, as of 2026-08-12 - seven routers, **zero `Host()` rules**:
+The whole table, as of 2026-08-12 plus `ping@internal` (2026-09-17) - eight routers, **zero `Host()` rules**:
 
 | Router | Rule | Priority | Notes |
 |---|---|---|---|
-| `portal-api-docker@file` | exact `Path(...)` ×2 | 100 | `/-/api/docker/containers/json`, `/system/df`. **The security boundary** - see below |
-| `portal-api-loki@file` | exact `Path(...)` ×2 | 100 | `query_range`, `labels` - the portal's log view |
-| `portal-api-prom@file` | exact `Path(...)` ×2 | 100 | `query`, `query_range` - from the **gitignored generated** `portal-prom.yml`, which carries a basic-auth header |
-| `portal-api-traefik@file` | exact `Path(...)` ×4 | 100 | `http/routers`, `http/services`, `overview`, `version`. The only reachable slice of `api@internal` |
+| `bothy-api-docker@file` | exact `Path(...)` ×2 | 100 | `/-/api/docker/containers/json`, `/system/df`. **The security boundary** - see below |
+| `bothy-api-loki@file` | exact `Path(...)` ×2 | 100 | `query_range`, `labels` - the portal's log view |
+| `bothy-api-prom@file` | exact `Path(...)` ×2 | 100 | `query`, `query_range` - from the **gitignored generated** `bothy-prom.yml`, which carries a basic-auth header |
+| `bothy-api-traefik@file` | exact `Path(...)` ×4 | 100 | `http/routers`, `http/services`, `overview`, `version`. The only reachable slice of `api@internal` |
 | `oauth2-endpoints@file` | `PathPrefix(/oauth2/)` | 100 | The login flow. Host-less so the post-login redirect lands wherever the user was |
-| `portal-next-fallback@docker` | `PathPrefix(/)` | 1 | Catch-all: **every** unmatched path on `:80` gets the portal SPA, 200 `text/html` |
+| `bothy-web-fallback@docker` | `PathPrefix(/)` | 1 | Catch-all: **every** unmatched path on `:80` gets the portal SPA, 200 `text/html` |
 | `prometheus@internal` | `PathPrefix(/metrics)` | max | Traefik's own metrics, on the internal `:8899` entrypoint only |
+| `ping@internal` | `PathPrefix(/ping)` | max | Added 2026-09-17 for the container healthcheck. Same internal `:8899` entrypoint, never `web` |
 
 Two consequences of that table:
 
@@ -154,7 +155,7 @@ Two consequences of that table:
   blocked, `application/json` means routed. Verified 2026-08-12.
 - **The Traefik dashboard router is gone**, deleted 2026-08-12. It served
   `api@internal` unauthenticated, and `/api/rawdata` rendered the live
-  `Authorization: Basic` header that `portal-prom.yml`'s `customRequestHeaders`
+  `Authorization: Basic` header that `bothy-prom.yml`'s `customRequestHeaders`
   middleware injects - a credential leak through a read-only dashboard.
   `--api.dashboard=true` is now `--api=true`, so `api@internal` still exists as
   a service for the four exact paths above but no router serves the UI.
@@ -172,7 +173,17 @@ projects (and separate project repos under `~/projects`) share one edge.
 | Network | Members | Purpose |
 |---|---|---|
 | `devnet` | ~24 containers: the whole stack plus any project container that opts in | The shared bus. Traefik discovers here (`--providers.docker.network=devnet`), Prometheus scrapes here, containers resolve each other by service name here. |
-| `socketnet` | **Exactly two**: `traefik` and `bothy-socket-proxy` | Isolation for the Docker socket proxy. |
+| `socketnet` | **Exactly two**: `traefik` and `bothy-socket-read` | Isolation for the read-only Docker socket proxy. |
+| `filesnet` | **Exactly two**: `traefik` and `bothy-files` | The only way into the file editor and the config forms. |
+| `opsnet` | **Exactly two**: `traefik` and `bothy-ops` | The only way into container and cluster actions. |
+| `controlsocknet` | `bothy-ops`, `bothy-socket-read`, `bothy-socket-write` - **not** traefik | bothy-ops' way out to the daemon; the edge cannot reach the write proxy. |
+| `thales-scc` | minikube's own network; `bothy-ops` joins it only through `apps/bothy-ops/compose.cluster.yml` | bothy-ops' way out to the apiserver. Traefik is not on it. |
+
+The heading says two because `devnet` and `socketnet` are the two every stack
+shares; the other three are one-per-service isolation networks for Bothy's
+backends, which authenticate nobody. `confignet`, `controlnet` and `kubenet`
+existed until the 2026-09 consolidation (eight Bothy containers to five) and are
+retired.
 
 ### Why `socketnet` exists
 
@@ -186,7 +197,7 @@ Two consequences worth knowing:
 
 - The socket proxy is invisible to Traefik's **docker** provider (that provider is
   pinned to devnet), which is exactly why it is declared in the **file** provider
-  instead - `edge/dynamic/portal-api.yml` names it by Docker DNS over socketnet.
+  instead - `edge/dynamic/bothy-api.yml` names it by Docker DNS over socketnet.
 - Traefik mounts the socket `:ro`; Dozzle mounts it `:ro`; Portainer mounts it
   **read-write**. Its UI exposes container `Env` and container `exec`, and exec
   is root on this box, so Portainer used to carry the SSO middleware *on top of*
@@ -201,7 +212,7 @@ gates by endpoint *family*, so it also permits `/containers/{id}/json` - whose
 body includes `Env`, i.e. every password on the box.
 
 The boundary is therefore the exact `Path()` rules in
-`edge/dynamic/portal-api.yml`, and nothing else:
+`edge/dynamic/bothy-api.yml`, and nothing else:
 
 ```yaml
 rule: >-
@@ -271,11 +282,13 @@ numbers below are repeated here only so this table is readable on its own.
 |---|---|---|---|---|
 | `edge/` | `edge` | `traefik` | `:80` - portal + `/-/api/*` only | none, and none needed: no dashboard router exists any more |
 | `auth/` | `auth` | `keycloak` `oauth2-proxy` | Keycloak `:8090`; oauth2-proxy only via `/oauth2/` on `:80` | n/a - it *is* the identity layer, and it guards nothing yet |
-| `monitoring/` | `monitoring` | `prometheus` `grafana` `loki` `promtail` `cadvisor` `node-exporter` | `:9090` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and Prometheus use the shared `DEV_LOGIN_*` credential. Prometheus runs `--web.enable-lifecycle`, so an unauthenticated `POST /-/quit` would stop it - its login is the only thing preventing that |
+| `monitoring/` | `monitoring` | `victoriametrics` `grafana` `loki` `alloy` `cadvisor` `node-exporter` (legacy `prometheus` / `promtail` under compose profiles, stopped) | `:8428` `:3000` `:3100` - `:8082` `:9100` for the exporters | Grafana and VictoriaMetrics use the shared `DEV_LOGIN_*` credential. VictoriaMetrics accepts writes (`/api/v1/import`) and deletes on the same port - its login is the only thing preventing that |
 | `data/postgres` | `postgres` | `postgres` `postgres-exporter` | `127.0.0.1:5432` | Postgres' own |
-| `apps/bothy` | `bothy` | `bothy-socket-proxy` (the read-only Docker socket the portal's data plane goes through) | none - socketnet only | n/a |
-| `apps/portal-next` | `portal-next` | `portal-next` | the `:80` catch-all | **none** |
-| `apps/portal-files` | `bothy` | `portal-files` | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
+| `apps/bothy` | `bothy` | `bothy-socket-read` (the read-only Docker socket the portal's data plane and bothy-ops' inspects go through) and `bothy-socket-write` (three verbs, bothy-ops only) | none - socketnet / controlsocknet only | n/a |
+| `apps/bothy-web` | `bothy` | `bothy-web` | the `:80` catch-all | **none** |
+| `apps/bothy-files` | `bothy` | `bothy-files` (the file editor and, since 2026-09, the config forms) | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
+| `apps/bothy-ops` | `bothy` | `bothy-ops` (container restart/stop/start and five cluster actions) | none - opsnet only | `operator` to act, `viewer` for cluster events and logs, enforced at the edge |
+| `apps/bothy-common` | - | none - the library both backends COPY in (audit, http/CSRF, names, safepath) | - | - |
 | `host/` | - | none | - | - |
 
 Every "none" in that last column is reachable by anything on the tailnet without
@@ -284,7 +297,7 @@ authenticating. That is the current, accepted state, not an oversight - see
 
 Notes on `apps/`:
 
-- **`portal-next` is the portal, and the only one.** The original pure-HTML
+- **`bothy-web` is the portal, and the only one.** The original pure-HTML
   `apps/portal` nginx was retired behind `traefik.enable=false` and kept as a
   one-line rollback until 2026-08-17, when it was deleted - the rollback was a
   fiction, because the HTML it served linked to hostnames that stopped resolving
@@ -292,10 +305,10 @@ Notes on `apps/`:
   2026-08-18; the socket-proxy fragment that was its only remaining reason to
   exist moved to `apps/bothy/socket-proxy.yml`.
   **Do not `docker compose down` the `bothy` project to restart the portal** -
-  that project also owns `bothy-socket-proxy`, which the live portal depends on
+  that project also owns `bothy-socket-read`, which the live portal depends on
   for `/-/api/docker`. Act on the one service.
 - **Bothy Files replaced every markdown viewer this box has had.** It is a route
-  in the portal (`/#/files`) backed by `apps/portal-files`, and it reads the real
+  in the portal (`/#/files`) backed by `apps/bothy-files`, and it reads the real
   file from a bind mount rather than a mirror of it - so there is no sync lag, no
   second copy to keep out of git, and the same surface can search, render and
   edit. Wiki.js was retired, and on 2026-08-18 `apps/wiki/` and its `wiki`
@@ -309,8 +322,8 @@ hand-kept target list, so *every* container is covered with no per-service setup
 
 | Signal | Collector | Coverage |
 |---|---|---|
-| Logs | `promtail` via `docker_sd_configs` → Loki | Every running container, any stack or project. Labels: `container`, `stack` (compose project), `stream`. |
-| Container metrics | `cadvisor` → Prometheus | CPU / memory / network / filesystem, every container. |
+| Logs | `alloy` (`discovery.docker` + `loki.source.docker`) → Loki | Every running container, any stack or project. Labels: `container`, `stack` (compose project), `stream`. |
+| Container metrics | `cadvisor` → VictoriaMetrics | CPU / memory / network / filesystem, every container. |
 | Host metrics | `node-exporter` | |
 | Docker daemon | `metrics-addr` on `:9323` (optional, in `host/docker/daemon.json`) | **Not scraped.** The `docker-daemon` job was removed on 2026-08-19: nothing in the repo read an `engine_daemon_*` series, and because the setting is opt-in the target sat permanently down on any box that had not been hand-edited. The setting is harmless to keep; `monitoring/prometheus.yml` carries the restore recipe. |
 | App metrics | `postgres-exporter` | The `redis-exporter` and `kafka-exporter` jobs came out of `monitoring/prometheus.yml` on 2026-08-12 with their services. A scrape job for something that no longer runs is not harmless: its target sits permanently down, and "are all targets up?" stops being a question worth asking. |
@@ -328,7 +341,7 @@ defaults or aborts on a required variable - so **always use `just`**.
 
 | Recipe | Effect |
 |---|---|
-| `just network` | Create `devnet` and `socketnet` (idempotent) |
+| `just network` | Create `devnet`, `socketnet`, `filesnet`, `opsnet` and `controlsocknet` (idempotent) |
 | `just up` | `network` → `up-edge` → `up-auth` → `up-monitoring` → `up-data` → `up-mgmt` → `up-apps`, in that order |
 | `just up-edge` / `up-auth` / `up-monitoring` / `up-data` / `up-mgmt` / `up-apps` | One group |
 | `just doctor` | Containers, Prometheus targets, k8s node, disk/memory, backup **age and size** |
@@ -434,8 +447,8 @@ prefix on every vhost on this box.
 |---|---|---|
 | `/-/api/traefik/http/routers` | `api@internal` | Every route, including host processes (`@file`) - **the skeleton** |
 | `/-/api/traefik/http/services` | `api@internal` | Server targets, for the join |
-| `/-/api/docker/containers/json` | `bothy-socket-proxy` | Ports, health, images, compose labels, `Mounts` - **the enrichment** |
-| `/-/api/docker/system/df` | `bothy-socket-proxy` | Per-volume / image / container disk sizes |
+| `/-/api/docker/containers/json` | `bothy-socket-read` | Ports, health, images, compose labels, `Mounts` - **the enrichment** |
+| `/-/api/docker/system/df` | `bothy-socket-read` | Per-volume / image / container disk sizes |
 
 **Traefik is the skeleton; Docker is enrichment. Either can die and the page still
 renders** - the loader uses `Promise.allSettled`, never `all`, and partial results
@@ -450,7 +463,7 @@ it must never be blank.
 ![The portal join - compose labels, Traefik routers and container state into one node list](assets/diagrams/discovery-join.svg)
 
 The chain in one line: **router → service → server URL → devnet IP → container**.
-The implementation is `apps/portal-next/web/src/lib/discover.ts`, deliberately
+The implementation is `apps/bothy-web/web/src/lib/discover.ts`, deliberately
 pure (no DOM, no fetch, no globals) because the join is the part with real bugs
 in it.
 
@@ -511,7 +524,7 @@ a dangling route is exactly what the portal should shout about.
 
 **Infra is a place on disk, not a list of names.** It was a set of five project
 names in `discover.ts` and the set had already gone stale — `bothy-control` and
-`bothy-config` were split out of the `bothy` project after it was written and
+`bothy-config` were split out of the `bothy` project after it was written (and merged back into `bothy-files`/`bothy-ops` in 2026-09) and
 rendered as two more "Stack" systems. A name test is also unsafe: compose project
 names are global to the docker daemon and belong to whoever claimed them first,
 so a checkout at `~/projects/portal` was being declared part of Bothy. The names
@@ -540,7 +553,7 @@ regroup would have 404'd bookmarks and reshuffled colours. Now:
 - `findSystem()` resolves a URL by display key **then** by identity, so a
   bookmark taken before a regroup still opens.
 
-Truth table: `apps/portal-next/checks/grouping.mjs`.
+Truth table: `apps/bothy-web/checks/grouping.mjs`.
 
 ### Optional polish labels
 
@@ -582,10 +595,12 @@ the case for all of these. An `@file` route with no container is honestly
 | Volume | Owner | Holds | In the backup |
 |---|---|---|---|
 | `postgres_postgres_data` | `data/postgres` | The shared dev database | yes - logical dump |
-| `monitoring_prometheus_data` | `monitoring` | TSDB. 15-day retention with a 3 GB ceiling - whichever is reached first | no |
+| `monitoring_victoriametrics_data` | `monitoring` | Metrics, 15-day retention (`-retentionPeriod`; no size ceiling - VM drops whole parts once outside the window) | no |
+| `monitoring_prometheus_data` | `monitoring` | The retired Prometheus TSDB, kept for the `legacy-prometheus` rollback; history was imported into VictoriaMetrics with `vmctl` | no |
+| `monitoring_alloy_data` | `monitoring` | Alloy's read positions - same load-bearing role as promtail's below | no |
 | `monitoring_grafana_data` | `monitoring` | `grafana.db` - users, dashboards, alert state | yes |
 | `monitoring_loki_data` | `monitoring` | Log chunks and index | no |
-| `monitoring_promtail_positions` | `monitoring` | Read offsets. **Not data, but load-bearing:** positions default to `/tmp`, which is empty again after every restart, so promtail re-read every container log from the start and duplicated the whole history into Loki each time it came back. | no |
+| `monitoring_promtail_positions` | `monitoring` | Legacy promtail read offsets (Alloy imports the host-log ones once). **Not data, but load-bearing:** positions default to `/tmp`, which is empty again after every restart, so promtail re-read every container log from the start and duplicated the whole history into Loki each time it came back. | no |
 
 `mgmt_portainer_data` and `redis_redis_data` were rows here until the services
 that owned them were retired on 2026-08-17 and 2026-08-12. The volumes are
@@ -672,7 +687,7 @@ Then, in order:
 
 Publish nothing. Join `devnet` and let other containers reach it by service
 name. This is still the correct default for exporters, sidecars and proxies -
-`bothy-socket-proxy`, `oauth2-proxy`, `portal-files` and every `*-exporter` do it.
+`bothy-socket-read`, `bothy-socket-write`, `oauth2-proxy`, `bothy-files`, `bothy-ops` and every `*-exporter` do it.
 
 ### A host process
 
@@ -724,7 +739,7 @@ The ones that fail *silently*. Each has cost real debugging time here.
 | Trap | Symptom | Fix |
 |---|---|---|
 | **Traefik's `edge/dynamic` bind mount goes stale after `git checkout`** | Every edit to `edge/dynamic/` has no effect; `--providers.file.watch=true` stops meaning anything. A bind mount pins the host inode at container-creation time, and checkout deletes and recreates directories. Ran that way for five days once. | `docker compose -f edge/compose.yml up -d --force-recreate` after any branch switch |
-| **Editing a bind-mounted config *file* replaces its inode** | `prometheus.yml`, `promtail.yml`, `loki-config.yml` keep serving the old content. A plain `restart` reads the stale inode. | `docker compose -f monitoring/compose.yml up -d --force-recreate <svc>` |
+| **Editing a bind-mounted config *file* replaces its inode** | `prometheus.yml`, `loki-config.yml` keep serving the old content (`alloy/` is a directory mount and is exempt). A plain `restart` reads the stale inode. | `docker compose -f monitoring/compose.yml up -d --force-recreate <svc>` |
 | **Traefik below v3.6 on Docker 29** | *Every* request 404s while Traefik looks perfectly healthy - older builds hardcode Docker API v1.24, ignore `DOCKER_API_VERSION`, and the provider loads zero routes | Keep Traefik ≥ v3.6 and `DOCKER_API_VERSION: "1.44"` |
 | **Listing `networks:` drops the compose default network** | A service mysteriously cannot reach its own database | Always `[default, devnet]` |
 | **A dotless hostname in a *host* process** | Looked like a database fault: `getaddrinfo` hung 40 s per lookup, starving libuv's four-thread pool, so unrelated DB connections timed out with no TCP socket ever opened. Bare compose names (`tempo`, `redis`) only resolve inside Docker. | dnsmasq now runs `domain-needed`, so dotless names `NXDOMAIN` in ~0 ms. If you genuinely need one, add an explicit `address=/name/<ip>` rather than removing the flag. |

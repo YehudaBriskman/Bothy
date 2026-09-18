@@ -1,0 +1,1335 @@
+/* ============================================================================
+   Dev Box portal - design system. Dark-first "observability / control-room".
+
+   Token model: shadcn's CSS-variable convention (a naming contract, no
+   toolchain - deliberately NOT HeroUI's, whose theming is a Tailwind plugin and
+   whose HSL channel-splitting exists only to serve Tailwind's alpha modifier).
+   Borrowed from HeroUI anyway: the 4-step elevation ladder, per-status tint
+   tokens, layout tokens, and theme-specific shadow recipes.
+
+   Two rules that predate this file and still hold:
+     · --st-* status colours are RESERVED and never used as chrome.
+     · --a1..--a5 panel accents are chrome only and never encode state.
+
+   Third rule, new: an element's footprint should be proportional to the number
+   of information dimensions it carries. One bit does not get a full-width row.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ── elevation ladder ───────────────────────────────────────────────────
+     Four steps, not two. The old palette had --surface/--surface-2 and then
+     invented one-off mixes wherever a third or fourth level was needed (hover
+     rows, popovers), which is why the same "slightly lighter" appeared at five
+     different values.
+
+     Repainted 2026-08-10 to shadcn.com's own dark scheme: NEUTRAL zinc, not the
+     navy this used to be. The old surfaces were blue-tinted (#0f1520 is 12% more
+     blue than red) and every one of them was semi-transparent over a blue-glow
+     background, so a "grey" panel was never actually grey and the accent had to
+     fight its own backdrop to read as a different colour at all. These are flat
+     and opaque - the backdrop-filter blurs are gone with them. */
+  --bg: #09090b;                         /* zinc-950 - the page */
+  --bg-2: #0b0b0d;                       /* insets darker than a card */
+  --surface-1: #101013;                  /* cards, panels */
+  --surface-2: #17171a;                  /* headers, insets */
+  --surface-3: #202024;                  /* hover, active row */
+  --surface-4: #26262b;                  /* popovers, tooltips, dialogs */
+
+  /* ── foreground pairs ─────────────────────────────────────────────────── */
+  --fg:        #fafafa;   /* 18.35 on surface-1 · 16.45 on surface-2 */
+  --fg-muted:  #a1a1aa;   /*  7.61 ·  6.82 - zinc-400 */
+  /* zinc-500 (#71717a) measures 3.85 here, below AA at the 11–12px sizes this
+     is used at (hostnames, volume counts, reasons), so it is lifted. */
+  --fg-subtle: #8f8f99;   /*  5.62 ·  5.04 */
+  --on-accent: #09090b;   /* text on a filled --accent */
+
+  --line:        rgb(255 255 255 / 10%);
+  --line-strong: rgb(255 255 255 / 17%);
+
+  /* ── accent (chrome only - never encodes state) ──────────────────────────
+     On a neutral ground the accent no longer has to shout to be distinguishable
+     from the background, so it drops from the old #4d9bff to blue-400. */
+  --accent:      #60a5fa;
+  --accent-2:    #3b82f6;
+  --accent-fg:   #93c5fd;   /* 9.94 on surface-1 - accent used as TEXT */
+  --accent-bg:   color-mix(in oklab, var(--accent) 14%, transparent);
+  --accent-line: color-mix(in oklab, var(--accent) 32%, transparent);
+  --ring:        var(--accent);
+
+  /* ── brand (identity, not chrome and not state) ──────────────────────────
+     The dot in the wordmark, and nothing else in the app. It was var(--accent)
+     until 2026-08-19, which meant the one mark that is supposed to say "this is
+     Bothy" restated whatever a theme had chosen for its buttons - the mark
+     turned blue, green or mauve with the chrome and stopped identifying
+     anything. So it is its own token: a fifth colour JOB beside surface, status,
+     chrome and chart.
+
+     Theme-tunable rather than fixed. A theme MAY override it - a light palette
+     has to, see below - because the contract measures whatever it resolves to
+     and a value that cannot be seen is not identity either.
+
+     7.48:1 on --surface-1, 7.04:1 on --surface-2. The floor is 3:1, not 4.5:1:
+     this is a 4.5px filled circle, a mark on chrome, never text.
+
+     IT IS DELIBERATELY EXEMPT FROM THE ACCENT HUE RULE - see contract.ts. */
+  --brand:       #3fb950;
+
+  /* ── chart series (chrome, never state) ──────────────────────────────────
+     Used ONLY by the metrics graphs; a series colour says "this is the CPU
+     line", never "this is bad". Status keeps its own reserved palette above.
+
+     These are not eyeballed. Both this set and the light one below were run
+     through the categorical-palette checks (lightness band for the mode, chroma
+     floor, adjacent-pair CVD separation, normal-vision separation, ≥3:1 against
+     the card surface) and are the ordering that passes: the obvious
+     blue→teal→amber→purple→rose ramp FAILS on dark because every hue sits above
+     the dark band's L≤0.67 ceiling and glares, and reordering to separate teal
+     from amber puts amber next to rose, which collapses to ΔE 9 for normal
+     vision. Slot ORDER is part of what was validated - assign series to slots
+     1,2,3… in order and never reorder or cycle them.
+
+     One caveat that the marks have to honour: chart-2↔chart-3 (teal↔amber) sit
+     at tritan ΔE 6.3, inside the floor band that is only legal WITH secondary
+     encoding. Hence every multi-series chart here ships a legend AND direct
+     end-labels; do not drop them. */
+  --chart-1: #6366f1; --chart-2: #0d9488; --chart-3: #ea580c;
+  --chart-4: #a855f7; --chart-5: #f43f5e;
+
+  /* ── status: the primary information on this dashboard ──────────────────
+     A status palette is a set of VOLUMES, not a set of labels. The page has a
+     finite amount of attention to spend, so anything that shouts spends budget
+     another signal then cannot have. Loudness is reserved for --st-down; the
+     quiet states must be genuinely quiet - --st-unknown especially, since it is
+     a statement about the PORTAL's knowledge, not about a service's health.
+     Contract per status: {base} fill · {-fg} text · {-bg} tint · {-line} border.
+
+     Dark-mode honesty: luminance contrast here runs warn 10.95 > up 9.51 >
+     down 6.79 > unknown 3.84 > stopped 2.43, so on dark `up` is BRIGHTER than
+     `down` and the weight ladder cannot be fixed the way §light fixes it - a
+     saturated red is intrinsically darker than a saturated green. On dark,
+     urgency is therefore carried by hue, the icon and the exception-first sort.
+     Do not "fix" this by brightening the red into the amber's territory; that
+     destroys the warn/down distinction, which is the more valuable one. */
+  --st-up:      #34d399;  --st-up-fg:      #34d399;
+  --st-warn:    #fbbf24;  --st-warn-fg:    #fbbf24;
+  --st-down:    #fb7185;  --st-down-fg:    #fb7185;
+  --st-unknown: #64748b;  --st-unknown-fg: #94a3b8;
+  /* Switched off on purpose - the quietest token in the palette, because
+     "stopped" is the one status that must recede rather than ask for
+     attention. Never used for anything broken. */
+  --st-off:     #4a5568;  --st-off-fg:     #7b8598;
+
+  /* The wash behind the page. Was a blue glow (#10192e) bright enough to lift
+     the top of every page a full step off --bg; now a neutral breath of light
+     that you notice only if you look for it. */
+  --bg-glow: #131316;
+
+  /* Panel accents. CHROME ONLY, never state - and until 2026-08-17 that claim was
+     false in the strongest possible way: `--a4` was #34d399, BYTE-IDENTICAL to
+     `--st-up`. A decorative spine and an "up" cell rendered the same green, ~8px
+     apart on the Overview.
+     THE RULE, so this cannot rot again. An accent is legal iff, against every
+     status token IN THE SAME THEME: (a) for a chromatic status (OKLCH C >= 0.06:
+     up, warn, down) its hue differs by >= 45deg; (b) for a near-grey status
+     (C < 0.06: unknown, off) its chroma exceeds the status's by >= 0.06.
+     Hue alone is the wrong test - `unknown` (H 257) and `off` (H 261) sit in the
+     blue band, so "use slate for chrome" passes a hue check and still collides.
+     Applying (a) forbids the arc 328 -> 208 through red, amber and green, which
+     leaves exactly one 120deg window: 208-328, cyan-blue through violet to
+     magenta. FIVE slots spaced ~24deg across it, at constant OKLCH L .72 so no
+     spine is louder than another. Do not add a sixth without re-running the check. */
+  --a1: #1eb5e0;  /* L .72 C .130 H 224 */
+  --a2: #4cabfd;  /* L .72 C .149 H 248 */
+  --a3: #869efc;  /* L .72 C .140 H 272 */
+  --a4: #ae8dfc;  /* L .72 C .159 H 296 */
+  --a5: #e169fc;  /* L .72 C .230 H 320 */
+
+  /* ── layout ─────────────────────────────────────────────────────────────── */
+  --r-xs: 5px; --r-sm: 7px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
+  --border-w: 1px;
+  --hover-opacity: .9;
+  --disabled-opacity: .5;
+  /* An always-present control that is quiet until you reach for it (the per-row
+     action trigger). It belongs beside the other two rather than as a fallback
+     inside one component: this is the third state in the same family, and a
+     component-local `var(--rest-opacity, .55)` describing a token that does not
+     exist reads as configurable when nothing can configure it. */
+  --rest-opacity: .55;
+
+  /* ── reading ──────────────────────────────────────────────────────────────
+     The rendered-document scale, tokenised 2026-08-17. It was ~30 literal
+     values in editor.css, which meant a theme could restyle every colour in the
+     app and not touch the one surface people spend the most time reading.
+
+     STRUCTURAL, so a theme inherits these unless it opts in - the same
+     treatment radii and motion get. A theme is a palette; changing the reading
+     measure would make it a different product wearing the same name. But a
+     theme MAY set them, which is the point of their being tokens at all.
+
+     72ch is prose, not a terminal. The measure rule changes reading speed more
+     than the typeface does. */
+  /* ONE width, and it STRETCHES. Every top-level block in a rendered document
+     gets this and nothing gets an exception - prose, tables, code fences,
+     figures, callouts, backlinks.
+
+     It was 72ch, with tables, code and figures let out to `max-width: 100%`.
+     Two widths, and on a 1440px screen that was prose at ~660px next to a table
+     at ~1100px: a block 1.7x the width of the paragraph above it reads as a
+     different document, and the page changed width every few blocks.
+
+     The fix that did NOT work was capping the column - putting a `max-width` on
+     `.fx-read`. `.fx-read` is the element with `overflow: auto`, so capping it
+     moves the SCROLLBAR off the edge of the pane and into the middle of the
+     page. A scroll container is the wrong thing to size.
+
+     So the one width is the one the pane already gives, and the blocks fill it.
+     Long lines on a very wide screen are the cost, and it is paid knowingly:
+     the alternative on this surface was two widths that did not agree.
+
+     Still a token, so a theme that wants a measure back sets one value. */
+  --read-measure: 100%;
+  /* 16px, not 14.5px. The measure was already right - 72ch, verified rendering
+     at exactly 72 characters - but the body was set at the app's UI size, and a
+     document is not a dashboard. 14.5px is a good size for a control that sits
+     beside a chart and a tiring one for a page of prose you actually read.
+     The measure is in `ch`, so raising the size keeps the line at 72 characters
+     and simply makes the column physically wider - which is the point. */
+  --read-fs: 16px;
+  /* The PANELS beside the document - index rows, outline entries, breadcrumbs.
+     They were ~30 literal values in read.css set at the app's CONTROL size, on a
+     surface whose whole argument is that a document is not a dashboard, and
+     every one of them is now a ratio of this.
+     Two tokens rather than one because they answer different questions: raising
+     --read-fs widens the column (the measure is in `ch`) and does nothing to the
+     rails; raising this makes the index legible without reflowing a word of
+     prose. Both are settable per browser - see pages/files/reading.ts. */
+  --rd-ui-fs: 12.5px;
+  --read-lh: 1.65;
+  --read-gap: 15px;      /* between blocks, tracks --read-fs */
+  --read-h1: 27px;
+  --read-h2: 21px;
+  --read-h3: 17.5px;
+  --read-h4: 15px;
+
+  /* ── motion ─────────────────────────────────────────────────────────────── */
+  --dur-fast: 120ms;   /* hover, colour */
+  --dur:      180ms;   /* transform, elevation */
+  --dur-slow: 260ms;   /* page transition */
+  --ease:     cubic-bezier(.2,.7,.2,1);
+
+  /* ── elevation: theme-specific recipes, never a hardcoded black ─────────── */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / .4),
+               inset 0 0 0 1px rgb(255 255 255 / .04);
+  --shadow-md: 0 8px 24px -12px rgb(0 0 0 / .6),
+               inset 0 0 0 1px rgb(255 255 255 / .06);
+  --shadow-lg: 0 20px 48px -20px rgb(0 0 0 / .7),
+               inset 0 0 0 1px rgb(255 255 255 / .08);
+
+  /* ── scroll affordance ───────────────────────────────────────────────────
+     Used by .scroll-shade (the inner top/bottom shadows) and by the scrollbar
+     rules. Kept as tokens so light mode can weaken them: the same shadow that
+     reads as depth on near-black reads as dirt on white. */
+  --scroll-shade: rgb(0 0 0 / .55);
+  --scrollbar-w: 10px;
+  --scrollbar-thumb:       color-mix(in oklab, var(--fg) 16%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--accent) 55%, transparent);
+
+  --wrap: 1180px;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+  /* The THIRD family, and only for rendered documents in Files, chosen per
+     browser in Settings > Appearance > Document font. A system stack like the
+     other two - no webfont, no request (brand/foundations/typography.md). */
+  --font-serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, Cambria, serif;
+}
+
+/* Derived tints. TWO percentages, not thirteen - every chip, bar and tag comes
+   from here, so a status can be re-toned in one place. Replaces the 53 ad-hoc
+   color-mix() calls that had drifted to five different fill strengths.
+   `in oklab` because srgb interpolation of a saturated hue toward transparent
+   dips through a muddier, darker midpoint. */
+:root {
+  --st-up-bg:        color-mix(in oklab, var(--st-up) 14%, transparent);
+  --st-up-line:      color-mix(in oklab, var(--st-up) 32%, transparent);
+  --st-warn-bg:      color-mix(in oklab, var(--st-warn) 14%, transparent);
+  --st-warn-line:    color-mix(in oklab, var(--st-warn) 32%, transparent);
+  --st-down-bg:      color-mix(in oklab, var(--st-down) 14%, transparent);
+  --st-down-line:    color-mix(in oklab, var(--st-down) 32%, transparent);
+  --st-unknown-bg:   color-mix(in oklab, var(--st-unknown) 14%, transparent);
+  --st-unknown-line: color-mix(in oklab, var(--st-unknown) 32%, transparent);
+  --st-off-bg:       color-mix(in oklab, var(--st-off) 12%, transparent);
+  --st-off-line:     color-mix(in oklab, var(--st-off) 26%, transparent);
+  --track:           color-mix(in oklab, var(--fg) 8%, transparent);
+}
+
+/* Light palette. ONE copy - lib/theme.tsx resolves 'system' against
+   matchMedia and always stamps a concrete data-theme, so the duplicate
+   @media (prefers-color-scheme: light) block this file used to carry is gone.
+   It had already drifted: --ok-ink existed in both copies, --unk in neither.
+   index.html stamps the same attribute pre-paint so there is no flash. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Neutral zinc, to match the repainted dark scheme. The old light palette was
+     also blue-tinted (#f4f6fb) - harmless alone, but it meant the two themes
+     disagreed about what "no colour" is, so a token that read as grey in one
+     read as blue in the other. */
+  --bg:        #ffffff;
+  --bg-2:      #f4f4f5;   /* zinc-100 - insets */
+  --surface-1: #ffffff;   /* cards */
+  --surface-2: #fafafa;   /* headers, insets */
+  --surface-3: #f4f4f5;   /* hover, active row */
+  --surface-4: #ffffff;   /* popovers, dialogs */
+
+  --fg:        #09090b;   /* 19.94 on surface-1 */
+  --fg-muted:  #52525b;   /*  7.70 - zinc-600 */
+  --fg-subtle: #6b6b76;   /*  5.44 */
+  --on-accent: #ffffff;
+
+  --line:        rgb(9 9 11 / 10%);
+  --line-strong: rgb(9 9 11 / 17%);
+
+  --accent:    #2563eb;
+  --accent-2:  #1d4ed8;
+  --accent-fg: #1d4ed8;   /* 7.06 - #2563eb as text was 5.17, kept darker */
+
+  /* The dark green measures 2.54 on white, so it is not merely dimmer here, it
+     is below the 3:1 floor and the dot disappears. Stepped down two rungs of the
+     same ramp instead of tinted: 4.63 on --surface-1, 4.44 on --surface-2.
+     This is what "theme-tunable" is FOR - one brand green that survives every
+     ground would have to be a compromise on both. */
+  --brand:     #238636;
+
+  /* The same five entities in the same slot order - a series must not change
+     hue with the theme - re-stepped for a white ground and re-validated there
+     (the light band is L 0.43–0.77, a different band from dark's 0.48–0.67, so
+     this is a genuine second selection rather than a tint of the first). */
+  --chart-1: #4f5fd9; --chart-2: #0d9488; --chart-3: #d97706;
+  --chart-4: #9333ea; --chart-5: #e11d48;
+
+  /* On white a strong inner shadow reads as a smudge, not as depth. */
+  --scroll-shade: rgb(9 9 11 / .16);
+  --scrollbar-thumb:       color-mix(in oklab, var(--fg) 20%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--accent) 55%, transparent);
+
+  /* Every status is remapped here. --unk was the ONLY status token that never
+     was: it lived in :root and in neither light block, which made `unknown`
+     the visually HEAVIEST colour on the light page (L 0.179) - nearly twice as
+     heavy as `down` - while `up` sat at 1.89:1, nearly invisible. On this box
+     7 of 27 services are `unknown` (the @file host routes, which are honestly
+     unknown, not broken), so light mode shouted loudest about the least urgent
+     thing on the page.
+
+     Ordering is now down > warn > up > unknown > stopped, matching urgency.
+     Two values are deliberately off-ramp to get there: --st-warn is amber-600,
+     because amber-500 (L 0.439) is LIGHTER than the green and inverts
+     warn-vs-up; and --st-unknown is #adbac7 rather than slate-400 (#94a3b8),
+     which sat at near-identical weight to `up`.
+
+     Fill ratios: down (4.62) and warn (3.13) clear the 3:1 non-text threshold;
+     up (2.50), unknown (1.94) and stopped (1.46) do NOT, by design - they are
+     large solid areas beside a track, not controls whose boundary must be
+     discernible. Safe only because status is never encoded by colour alone.
+     Re-verify if any of these is ever used for a small glyph or a 1px border.
+     The -fg values are all ≥ 4.5:1 and are the ones safe for text.
+
+     THE TWO QUIET ONES WERE MEASURED AGAINST THE WRONG GROUND (fixed 2026-08-17
+     by checks/theme-contract.mjs, the first thing it found). The ratios recorded
+     above were taken on a CARD; the two quietest foregrounds are painted mostly
+     on --bg-2 - the file explorer's `.fx-ro` and `.fx-ico.t-denied`, the
+     reader's `.rd-root-ro` - which is darker than a card, so the real numbers
+     were lower than the ones written down: unknown 4.33 and stopped 4.18, both
+     below AA, on 12px text. Darkened until they clear 4.5 on --bg-2 while
+     keeping the ordering that matters (stopped stays the quietest thing on the
+     page, and quieter than unknown). This is why the check measures a token
+     against the surfaces it is actually used on rather than against one
+     canonical background. */
+  --st-up:      #10b981;  --st-up-fg:      #047857;  /* fg 5.39 · fill 2.50 */
+  --st-warn:    #d97706;  --st-warn-fg:    #92400e;  /* fg 6.97 · fill 3.13 */
+  --st-down:    #e11d48;  --st-down-fg:    #be123c;  /* fg 6.18 · fill 4.62 */
+  --st-unknown: #adbac7;  --st-unknown-fg: #5f6a7d;  /* fg 4.97 on --bg-2 · fill 1.94 */
+  --st-off:     #cbd5e1;  --st-off-fg:     #666f7d;  /* fg 4.62 on --bg-2 · fill 1.46 */
+
+  /* The accents' FIRST light remap. They were never redefined here, so the DARK
+     values were rendering on #fafafa - and .svc-group-idx paints an accent as
+     12px bold TEXT, so that was six of six below WCAG AA: measured 1.73, 2.06,
+     2.44, 2.54, 4.06 and 1.84 to 1. These are chosen for >= 4.6:1 on --surface-2,
+     not merely for hue. Same legal arc as the dark set above. */
+  --a1: #077a99;  /* 4.73:1 on #fafafa */
+  --a2: #1575be;  /* 4.66:1 */
+  --a3: #4e5ffb;  /* 4.62:1 */
+  --a4: #8e3ffe;  /* 4.69:1 */
+  --a5: #b921d6;  /* 4.73:1 */
+
+  --bg-glow: #dfe5f5;
+
+  --hover-opacity: .8;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / .06);
+  --shadow-md: 0 8px 24px -12px rgb(15 23 42 / .14);
+  --shadow-lg: 0 20px 48px -20px rgb(15 23 42 / .18);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: inherit; text-decoration: none; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+/* visible only when focused - first tab stop on every page */
+.skip-link {
+  position: absolute; left: 8px; top: -60px; z-index: 100;
+  background: var(--surface-2); color: var(--fg); border: 1px solid var(--line-strong);
+  border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 600;
+  transition: top .15s ease;
+}
+.skip-link:focus-visible { top: 8px; }
+.wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+
+/* ── ambient background ──────────────────────────────────────────────────── */
+/* The two coloured orbs are GONE (2026-08-10). They were a 520px blue and a
+   420px cyan radial blur behind every page, and they are incompatible with a
+   neutral scheme in a way that is not a matter of taste: the surfaces above them
+   are the elevation ladder, so a tinted, POSITION-DEPENDENT backdrop meant the
+   same --surface-1 card rendered a different colour at the top of the page than
+   at the bottom. That is the one thing an elevation ladder may not do.
+   What is left: a barely-there neutral wash and the grid, which carry the
+   "control room" feel without colouring anything on top of them. */
+.bg { position: fixed; inset: 0; z-index: -1; overflow: hidden;
+  background: radial-gradient(1200px 700px at 70% -10%, var(--bg-glow) 0%, var(--bg) 60%); }
+.grid-lines { position: absolute; inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px; mask-image: radial-gradient(1000px 620px at 60% 0%, #000 0%, transparent 78%);
+  opacity: 0.4; }
+
+/* ── hero ────────────────────────────────────────────────────────────────── */
+.hero { padding: 64px 0 26px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 7px 14px; border-radius: 999px; font-size: 13px; color: var(--fg-muted);
+  background: var(--surface-1); border: 1px solid var(--line); 
+}
+.pill .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--fg-subtle);
+  box-shadow: 0 0 0 0 currentColor; }
+.pill .via { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; }
+.pill.live { color: var(--st-up); } .pill.live .pulse { background: var(--st-up); animation: beat 2s infinite; }
+.pill.degraded, .pill.stale { color: var(--st-warn); } .pill.degraded .pulse, .pill.stale .pulse { background: var(--st-warn); }
+.pill.down { color: var(--st-down); } .pill.down .pulse { background: var(--st-down); }
+.pill span:not(.pulse):not(.via) { color: var(--fg-muted); }
+/* The beat ring inherits the pill's own colour, so a .pill.down pulses rose
+   rather than the hardcoded green this used to emit regardless of state. */
+@keyframes beat { 0%,100% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 50%, transparent);}
+                  50%     { box-shadow: 0 0 0 6px transparent;} }
+
+h1 { font-size: clamp(38px, 6vw, 68px); line-height: 1.02; letter-spacing: -0.03em;
+  font-weight: 800; margin: 22px 0 16px; }
+
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; max-width: 760px; }
+.stat { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 18px 20px; }
+
+
+/* ── tabs / toolbar ──────────────────────────────────────────────────────── */
+main.wrap { padding-top: 12px; padding-bottom: 60px; }
+/* This block sat unused for the app's whole life - nothing rendered
+   role="tab" until components/Tabs.tsx. Underline rather than filled pill, for
+   the same reason as the nav: a tab states where you are, it is not a button
+   asking to be pressed. */
+.tabs { display: flex; align-items: center; gap: 2px; margin: 0 0 18px;
+  border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button[role="tab"] { appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--fg-muted); font: inherit; font-weight: 600; font-size: 13.5px;
+  padding: 9px 13px; border-radius: var(--r-sm) var(--r-sm) 0 0; position: relative;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.tabs button[role="tab"]:hover { background: var(--surface-1); color: var(--fg); }
+.tabs button[role="tab"].on { color: var(--fg); }
+.tabs button[role="tab"].on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.tabs .tab-n { font-family: var(--mono); font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--fg-subtle);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-full); padding: 0 6px; }
+.tabs button[role="tab"].on .tab-n { color: var(--fg-muted); }
+
+.search { appearance: none; background: var(--surface-1); border: 1px solid var(--line);
+  color: var(--fg); border-radius: 10px; padding: 8px 12px; font: inherit; min-width: 200px; }
+/* `outline: none` used to live here, with a border-colour change as the only
+   replacement. That fails on two counts: it removes the keyboard focus
+   indicator entirely (2.4.7), and a 1px border tint is colour-alone. Keeping
+   the border change and letting the :focus-visible ring through for the
+   keyboard costs nothing and fixes both.
+   `:focus-visible`, not `:focus`: the two must never be able to disagree about
+   whether this field is focused, and one selector cannot. On a text field this
+   is not a behaviour change - :focus-visible matches text inputs whatever the
+   modality, so the mouse still gets the tint, which is the point of it. */
+.search:focus-visible { border-color: var(--accent); }
+.hint { color: var(--fg-subtle); font-size: 12px; }
+kbd { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+
+/* ── services panels + cards ─────────────────────────────────────────────── */
+.panels { display: flex; flex-direction: column; gap: 34px; }
+
+
+.tail { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: 700;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; font-size: 13px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.card { display: flex; flex-direction: column; gap: 12px; padding: 18px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+  position: relative; overflow: hidden;
+  animation: rise 0.5s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(min(var(--i, 0), 12) * 0.04s); }
+.card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--acc, var(--accent)); opacity: 0.65; }
+a.card { transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
+  box-shadow: var(--shadow-lg); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+.ico { font-size: 22px; width: 40px; height: 40px; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; flex: none; }
+
+
+.nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { font-size: 10.5px; font-weight: 600; color: var(--fg-muted); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+.desc { color: var(--fg-muted); font-size: 13.5px; flex: 1; }
+.go { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  color: var(--accent); }
+.go.cli { color: var(--fg-subtle); font-weight: 500; }
+
+/* status dot */
+.status { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.dot[data-state="up"] { background: var(--st-up); box-shadow: 0 0 8px color-mix(in oklab, var(--st-up) 70%, transparent); }
+.dot[data-state="starting"] { background: var(--st-warn); box-shadow: 0 0 8px color-mix(in oklab, var(--st-warn) 70%, transparent); }
+.dot[data-state="down"] { background: var(--st-down); box-shadow: 0 0 8px color-mix(in oklab, var(--st-down) 70%, transparent); }
+/* No glow: a stopped service is a state, not a signal. */
+.dot[data-state="stopped"] { background: var(--st-off); }
+.dot[data-state="unknown"] { background: var(--st-unknown); }
+
+
+/* ── tables (ports / routes) ─────────────────────────────────────────────── */
+
+.chips { display: flex; gap: 6px; }
+.chips button { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+  color: var(--fg-muted); background: var(--surface-1); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 12px; }
+.chips button.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
+.tbar .cnt { margin-left: auto; }
+/* max-height is what makes `position: sticky` on <th> work at all. overflow-x
+   forces overflow-y to compute to `auto`, so .tbl-wrap becomes the sticky
+   containing block - but with no height cap it never scrolls vertically, the
+   PAGE does, and the header simply scrolled away and never came back. */
+.tbl-wrap { overflow: auto; max-height: min(72vh, 720px);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface-1); }
+.tbl-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl th { text-align: left; padding: 8px 14px; color: var(--fg-subtle); font-weight: 600;
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface-2);
+  cursor: pointer; white-space: nowrap; user-select: none; }
+.tbl th.sorted { color: var(--fg); }
+/* 32px rows (6+6 padding + 20px line box). At 47px the Routes table needed two
+   viewports to show 21 routes; the extra 15px per row carried nothing. */
+.tbl td { padding: 6px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tbody tr:hover { background: var(--surface-2); }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.rule { color: var(--fg-muted); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl a { color: var(--accent); }
+.tag { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--fg-muted); white-space: nowrap; }
+.tag.public { color: var(--st-up); border-color: color-mix(in oklab, var(--st-up) 30%, transparent); }
+.tag.loopback { color: var(--fg-subtle); }
+.tag.warn { color: var(--st-warn); border-color: color-mix(in oklab, var(--st-warn) 30%, transparent); }
+.tag.bad { color: var(--st-down); border-color: color-mix(in oklab, var(--st-down) 30%, transparent); }
+
+/* ── states / skeleton ───────────────────────────────────────────────────── */
+/* 56px of padding made "no results" as prominent as the content it replaced -
+   an empty state is a note, not an announcement. `.state.err` keeps the larger
+   padding: the APIs being unreachable IS an announcement. */
+.state { text-align: center; padding: 22px 20px; background: var(--surface-1);
+  border: 1px solid var(--line); border-radius: var(--r-lg); }
+.state.err { padding: 40px 20px; }
+.state h4 { margin: 0 0 6px; font-size: 17px; }
+.state p { color: var(--fg-muted); max-width: 520px; margin: 0 auto 16px; }
+.state.err { border-color: color-mix(in oklab, var(--st-down) 26%, var(--line)); }
+.btn.ghost { appearance: none; cursor: pointer; font: inherit; font-weight: 600; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 16px; }
+.skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+/* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
+.skel-col { display: flex; flex-direction: column; gap: 14px; }
+.skel { height: 132px; border-radius: var(--r-lg); border: 1px solid var(--line);
+  background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.grid.floor { margin-top: 18px; }
+
+/* ── footer ──────────────────────────────────────────────────────────────── */
+
+
+@media (max-width: 640px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .hero { padding-top: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card, .skel, .pill .pulse, .spin { animation: none !important; }
+}
+
+/* ============================================================================
+   V2 - multi-page control-room shell. Everything below is additive; it uses the
+   same tokens/status palette/accents so light + dark both work automatically.
+   ========================================================================== */
+
+/* ── primitives ──────────────────────────────────────────────────────────── */
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* status glyph (lucide) - coloured by the reserved palette, never colour-alone */
+.si { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
+.si svg { display: block; }
+.si-label { font-size: 12px; color: var(--fg-muted); font-weight: 600; }
+
+/* icon container (replaces the old emoji .ico) */
+.ico { width: 38px; height: 38px; display: grid; place-items: center; flex: none;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; color: var(--fg); }
+.ico.sm { width: 26px; height: 26px; border-radius: 8px; }
+.ico.lg { width: 56px; height: 56px; border-radius: 14px; color: var(--accent); }
+.ico svg { display: block; }
+
+/* NO BOX. The topbar's right-hand controls are the theme menu and the user menu
+   - two icons - and each used to sit in its own 38px bordered, filled tile. Four
+   borders and two fills to say "these are buttons", next to a search field that
+   is genuinely a box, which made the row read as three competing containers.
+   The icon alone is enough: it is in the topbar, it is 38px of hit area, and the
+   cursor changes. Colour carries the hover instead of chrome.
+
+   The hit area is UNCHANGED at 38x38 - only the paint is gone. Shrinking a
+   control to match its new visual weight is the mistake that follows this one. */
+.icon-btn { appearance: none; cursor: pointer; display: grid; place-items: center;
+  width: 38px; height: 38px; border-radius: 10px; color: var(--fg-muted);
+  background: none; border: 0; }
+.icon-btn:hover { color: var(--fg); }
+/* Focus still needs a visible ring: removing the border removed the only thing
+   that showed keyboard focus on these two controls. */
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.badge { font-size: 10.5px; font-weight: 600; color: var(--fg-muted); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.badge.bad { color: var(--st-down); border-color: color-mix(in oklab, var(--st-down) 30%, transparent); }
+.dim { color: var(--fg-subtle); }
+.link { color: var(--accent); }
+.wrap-any { word-break: break-all; white-space: normal; }
+
+/* ── app shell ───────────────────────────────────────────────────────────────
+   The 236px sidebar is GONE, and with it the mobile drawer, the scrim, the
+   hamburger and the visibility/tab-order workaround they required.
+
+   Why: it carried 5 nav items and two `code` hints, and measured ~793px of
+   empty column below them - ~13% of the viewport width spent on nothing, on
+   every page, at every width. Five destinations is a topbar's job. Deleting it
+   also deletes the whole responsive branch: one layout now, no drawer state,
+   no focus trap to get wrong.
+
+   The row it leaves behind is a single sticky topbar: brand · nav · search
+   trigger · actions. Search is now a trigger for the command palette rather
+   than an input that router-pushed on every keystroke. */
+.shell { display: flex; flex-direction: column; min-height: 100vh; }
+
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px;
+  padding: 10px 22px; border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 78%, transparent); backdrop-filter: blur(14px); }
+
+/* ── brand ───────────────────────────────────────────────────────────────────
+   "an address, not a name" is gone. It named the box after a DNS name that has been
+   dormant since 2026-08-08, so for anyone arriving on the tailnet IP - which is
+   everyone, currently - the topbar stated an address that does not resolve.
+   The wordmark is now the box's own name and the line under it is read from
+   location.hostname at run time, so it is always the address you actually used.
+   See components/Brand.tsx. */
+/* THE HUT TILE IS GONE (2026-08-18), and so is the address line under the word.
+   The lockup was a bordered 30px tile holding the hut mark, then "Bothy" in
+   bold, then the host in grey mono - three elements to say one thing, in the
+   corner every page shows. The wordmark IS the logo now; the mark survives as
+   the favicon and in the Files empty state, where it is doing work.
+
+   The address moved into the wordmark's tooltip, where it is read when wanted
+   and right-click copies it. See components/Brand.tsx for why that gesture. */
+.brand { display: flex; align-items: center; padding-right: 6px; flex: none; }
+/* The lit doorway - the only coloured part of the mark, and the reason it is
+   not just another house glyph. */
+.brand-door { fill: var(--accent); }
+/* The wordmark, painted as a MASK rather than embedded as markup or an <img>.
+   Three reasons, and the middle one is the trap:
+
+     · A MASK takes its colour from `background`, so `currentColor` here means
+       the wordmark follows the theme the way the type it replaced did. There
+       are seven themes; a two-tone logo fixed to one of them is unreadable in
+       the other six.
+     · AN <img> WOULD NOT WORK. An SVG loaded through <img> is an isolated
+       document with no parent to inherit from, so `currentColor` inside it
+       resolves to black and the mark goes theme-blind. This cost a render cycle
+       to discover - the fix looked like it had failed when it had not.
+     · INLINING the markup would put 13 KB of path data in the JS bundle on
+       every page. As a mask it is one cached request, 3.6 KB gzipped, and it
+       does not grow the bundle at all.
+
+   The size is the measured aspect ratio, 2.666:1 (getBBox in a real browser,
+   not guessed), at the cap height of the 14.5px type it replaces. */
+/* THE LIT DOT IS THE MARK. The wordmark's "o" is a ring with a lit dot in its
+   middle - the same idea as the hut's doorway in favicon.svg, and the reason
+   this logo is not just the word set in a typeface. The original artwork drew
+   it as a 900 KB embedded bitmap with a soft glow; stripping the rasters took
+   the dot with them, which left the word and lost the point of it.
+
+   It comes back as geometry, in two layers, because a CSS mask is monochrome
+   and this needs two colours:
+
+     ::before  the letterforms, masked from wordmark.svg, in currentColor
+     ::after   the dot, a plain circle, in var(--brand)
+
+   The mask lives on ::before rather than on the element, because a mask set on
+   the element would clip ::after away with everything else.
+
+   THE NUMBERS ARE MEASURED, not eyeballed. The dot's centre is 33.9% across and
+   45.0% down the ink box - taken from the source artwork's own transform
+   (a 190.5-unit square at 481.49,663.92 inside a 1128.09x423.17 ink box) and
+   confirmed independently by finding the green pixels in a render: 0.3388,
+   0.4487. Its diameter is 9.6% of the wordmark's WIDTH - the saturated core
+   rather than the glow - so it sits inside the ring's hole with air around it. */
+.brand-wordmark {
+  position: relative;
+  display: block;
+  border: 0;
+  /* 2.666:1, the measured aspect ratio. It replaced 14.5px bold type and was
+     first set to that cap height, which read as smaller than the type had -
+     a wordmark is a shape, not a line of text, so it needs the room the
+     descender and the counters actually use. */
+  width: 64px;
+  height: 24px;
+  font-size: 0;              /* the glyphs are replaced; the text stays for a11y */
+}
+.brand-wordmark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  -webkit-mask: url(/wordmark.svg) no-repeat left center / contain;
+  mask: url(/wordmark.svg) no-repeat left center / contain;
+}
+.brand-wordmark::after {
+  content: '';
+  position: absolute;
+  /* 7% of the WIDTH. The source artwork's dot measures 9.57% (108 units of green
+     over a 1128-unit ink box) and is an ellipse taller than it is wide; this is
+     a smaller circle on purpose, because at 24px tall the artwork's proportion
+     reads as a blob filling the counter rather than as a light inside it.
+     Percentage width, not height: it resolves against the containing block's
+     WIDTH, and the first version of this said 25.5% - the same circle expressed
+     against the height - and rendered a dot two and a half times too big. */
+  width: 7%;
+  aspect-ratio: 1;
+  left: 33.9%;
+  top: 45%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  /* --brand, not --accent. The dot is the one piece of identity on the page; on
+     --accent it repainted itself in every theme's button colour and stopped
+     being a mark at all. The geometry above is unaffected - do not retune it. */
+  background: var(--brand);
+}
+
+
+/* ── nav ─────────────────────────────────────────────────────────────────────
+   The active item is marked by an underline rather than a filled pill: at this
+   size a filled background reads as a button the user is meant to press, when it
+   is really a "you are here" statement.
+
+   Responsive behaviour, narrowest first:
+     · wide            icon + label, as written.
+     · ≤1080px         icons only; the label expands on hover/focus (below).
+     · overflowing     the row scrolls horizontally with fades at the live edge,
+                       rather than squeezing items until they are unreadable.
+   The x-scroll is not a breakpoint - it is driven by whether the row actually
+   overflows (data-shade-l/r, set by lib/scroll.ts), so a box with three systems
+   and a box with thirty both get the right treatment at the same width. */
+.nav {
+  display: flex; align-items: center; gap: 2px; min-width: 0;
+  overflow-x: auto; overflow-y: hidden;
+  /* The nav has its own scroll affordance (the mask below); a visible 10px
+     scrollbar under a 34px row would eat a third of it. */
+  scrollbar-width: none;
+  /* Keeps the active item's 2px underline from being clipped by the scroll box. */
+  padding-bottom: 2px; margin-bottom: -2px;
+}
+.nav::-webkit-scrollbar { display: none; }
+.nav[data-shade-l] { mask-image: linear-gradient(90deg, transparent, #000 22px); }
+.nav[data-shade-r] { mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); }
+.nav[data-shade-l][data-shade-r] {
+  mask-image: linear-gradient(90deg, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+}
+
+.nav-item { display: flex; align-items: center; gap: 7px; padding: 7px 11px; border-radius: var(--r-sm);
+  color: var(--fg-muted); font-weight: 600; font-size: 13.5px; position: relative; flex: none;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.nav-item svg { flex: none; opacity: .85; }
+.nav-item:hover { background: var(--surface-1); color: var(--fg); }
+.nav-item.on { color: var(--fg); }
+.nav-item.on svg { opacity: 1; }
+.nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: -11px; height: 2px;
+  border-radius: 2px 2px 0 0; background: var(--accent); }
+
+/* The label. `display: none` cannot be animated, so the collapsed state is a
+   zero max-width with hidden overflow - which can. */
+.nav-label {
+  display: inline-block; white-space: nowrap;
+  transition: max-width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease),
+              margin-left var(--dur) var(--ease);
+}
+
+.topbar-spacer { flex: 1; min-width: 8px; }
+/* No max-width. The old `max-width: 30%` was sized against .topbar as a flex
+   child; the pill now sits inside a Tooltip wrapper, so a percentage resolves
+   against a shrink-to-fit span and collapsed it to a 30px blob. It also is not
+   needed any more - the pill shows the one-word fresh.short ("live"), and the
+   full sentence moved into the tooltip. */
+.topbar-pill { flex: none; white-space: nowrap; }
+.pill-short { text-transform: capitalize; }
+
+/* The search TRIGGER - a button, not an input. It looks like a field because
+   that is what it opens; making it a real input meant every keystroke pushed a
+   route and the browser history filled with one entry per character. */
+.topbar-search { flex: none; width: 232px; display: flex; align-items: center; gap: 8px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 7px 10px; color: var(--fg-subtle); font: inherit; font-size: 13px; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease); text-align: left; }
+.topbar-search:hover { border-color: var(--line-strong); }
+.topbar-search:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.topbar-search .search-ico { color: var(--fg-subtle); flex: none; }
+.topbar-search .search-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.content { flex: 1; padding: 26px 30px 70px; width: 100%; max-width: 1320px; margin: 0 auto; }
+
+/* Icons only, labels on demand. The label collapses to zero width and reopens
+   on hover OR keyboard focus - focus matters as much as hover here, because
+   without it a keyboard user tabbing the nav gets four unlabelled squares.
+   `title` on the link is the third fallback, for touch, where neither fires. */
+@media (max-width: 1080px) {
+  .nav-item { padding: 7px 9px; }
+  .nav-label { max-width: 0; opacity: 0; margin-left: -7px; overflow: hidden; }
+  .nav-item:hover .nav-label,
+  .nav-item:focus-visible .nav-label { max-width: 10ch; opacity: 1; margin-left: 0; }
+  .nav-item.on::after { left: 9px; right: 9px; }
+}
+@media (max-width: 900px) {
+  /* `.brand-text` used to be hidden here, leaving the hut tile as the whole
+     brand on a narrow screen. There is no tile now, so hiding the wordmark
+     would leave the corner empty - it stays, and only the freshness pill goes. */
+  .topbar-pill { display: none; }
+  .topbar-search { width: auto; }
+  .topbar-search .search-label, .topbar-search .kbd { display: none; }
+  .content { padding: 22px 18px 60px; }
+}
+@media (max-width: 560px) {
+  .topbar { padding: 10px 12px; gap: 6px; }
+  /* The rail is 3px of decoration; on a phone that is 3px of a 360px viewport. */
+  .scroll-rail { display: none; }
+}
+/* Expanding a label on hover is motion; a user who asked for less of it gets the
+   label instantly instead of not at all. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-label { transition: none; }
+}
+
+/* ── generic page chrome ─────────────────────────────────────────────────── */
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
+  flex-wrap: wrap; margin-bottom: 20px; }
+.page-head h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+.page-sub { color: var(--fg-subtle); font-size: 13.5px; margin: 4px 0 0; }
+
+.back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-subtle); font-size: 13px;
+  font-weight: 600; margin-bottom: 14px; }
+.back-link:hover { color: var(--fg); }
+
+/* ── view + density toggles ──────────────────────────────────────────────── */
+.view-controls { display: flex; gap: 8px; }
+.seg-toggle { display: inline-flex; background: var(--surface-1); border: 1px solid var(--line);
+  border-radius: 10px; padding: 3px; gap: 2px; }
+.seg-toggle button { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+  color: var(--fg-muted); background: transparent; border: 0; border-radius: 7px; padding: 6px 11px;
+  display: inline-flex; align-items: center; gap: 6px; }
+.seg-toggle button.on { background: var(--surface-2); color: var(--fg); box-shadow: var(--shadow-sm); }
+
+/* ── filter bar ──────────────────────────────────────────────────────────── */
+.filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 22px;
+  padding: 12px 14px; background: var(--surface-1); border: 1px solid var(--line); border-radius: 12px;
+  }
+.filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { appearance: none; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--fg-muted); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 11px; display: inline-flex; align-items: center; gap: 6px;
+  text-transform: capitalize; }
+.chip:hover { border-color: var(--line-strong); color: var(--fg); }
+.chip.on { color: var(--fg); border-color: var(--accent); background: color-mix(in oklab, var(--accent) 14%, var(--surface-2)); }
+.chip.clear { text-transform: none; color: var(--st-down); }
+.filter-select { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-subtle); }
+.filter-select select { appearance: none; font: inherit; font-weight: 600; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.filter-search { flex: 1; min-width: 180px; appearance: none; font: inherit; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; }
+/* :focus-visible for the reason .search states above - one selector, so the
+   tint and the ring cannot disagree, and no change for a text field. */
+.filter-search:focus-visible { border-color: var(--accent); }
+
+/* ── services groups ─────────────────────────────────────────────────────── */
+.svc-groups { display: flex; flex-direction: column; gap: 26px; }
+.svc-group { --acc: var(--accent); }
+.svc-group-head-row { display: flex; align-items: flex-start; gap: 8px; }
+.svc-group-head { flex: 1; min-width: 0; appearance: none; cursor: pointer; background: transparent; border: 0;
+  display: flex; align-items: center; gap: 12px; padding: 0 0 14px; color: var(--fg); text-align: left; }
+/* the head itself is a collapse toggle, so the system link lives beside it -
+   before this there was NO path from Services to a system page at all */
+.svc-group-open { flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px; color: var(--fg-subtle);
+  border: 1px solid var(--line); background: var(--surface-1); }
+.svc-group-open:hover { color: var(--accent); border-color: var(--accent); }
+.svc-group-head .chev { color: var(--fg-subtle); transition: transform 0.18s ease; }
+.svc-group-head .chev.closed { transform: rotate(-90deg); }
+.svc-group-idx { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--acc);
+  border: 1px solid color-mix(in oklab, var(--acc) 40%, transparent); border-radius: 7px; padding: 3px 7px; }
+.svc-group-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.svc-group-sub { color: var(--fg-subtle); font-size: 12.5px; }
+.svc-group-head .tail { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.svc-group-head .cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: 700;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; font-size: 13px; }
+
+
+.svc-grid.compact { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+
+/* ── service card ────────────────────────────────────────────────────────── */
+
+
+.svc-card.compact { padding: 12px; gap: 8px; }
+
+
+.nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* ── service table rows ──────────────────────────────────────────────────── */
+.svc-tbl td { vertical-align: middle; }
+.svc-tbl.compact td { padding: 6px 14px; }
+.svc-tr:hover { background: var(--surface-2); }
+.svc-td-link { display: flex; align-items: center; gap: 10px; color: inherit; }
+.svc-td-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.svc-td-text .pt { margin-top: 0; }
+.svc-td-img { color: var(--fg-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc-td-open a { color: var(--fg-subtle); display: inline-flex; }
+.svc-td-open a:hover { color: var(--accent); }
+.tag.link { color: var(--accent); }
+.tag.link:hover { border-color: var(--accent); }
+
+/* ── overview ────────────────────────────────────────────────────────────── */
+.overview { }
+.ov-body { padding: 40px 0 20px; display: flex; flex-direction: column; gap: 44px; }
+
+
+.ov-bar .seg.up { background: var(--st-up); }
+.ov-bar .seg.starting { background: var(--st-warn); }
+.ov-bar .seg.down { background: var(--st-down); }
+.ov-bar .seg.unknown { background: var(--st-unknown); }
+
+
+.ov-alert { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: inherit;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px;
+  border-left: 3px solid var(--st-down); }
+.ov-alert:hover { border-color: var(--line-strong); }
+.ov-alert-name { font-weight: 700; }
+.ov-alert-why { color: var(--fg-subtle); font-size: 12.5px; margin-left: auto; }
+.ov-alert-arrow { color: var(--fg-subtle); flex: none; }
+
+
+.ov-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.ov-quick-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; color: inherit;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px; }
+.ov-quick-item:hover { border-color: var(--accent); transform: translateY(-2px); transition: .15s; }
+.ov-quick-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-quick-ext { color: var(--fg-subtle); margin-left: auto; flex: none; }
+
+.ov-offline { text-align: left; }
+.ov-offline .ov-quick { margin-top: 16px; }
+
+/* ── 3D scene ────────────────────────────────────────────────────────────── */
+
+
+.leg { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-muted); text-transform: capitalize; }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+/* Legend swatch for a DASHED line, so "waits for" is distinguishable from the
+   status dots beside it by shape as well as colour - the statuses already carry
+   the only meaningful colour on that legend, and a fifth coloured dot would read
+   as a fifth status. */
+.leg-dash {
+  width: 14px; height: 0; display: inline-block; vertical-align: middle;
+  border-top: 1.5px dashed var(--fg-subtle);
+}
+
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+
+
+/* static (no-webgl / reduced-motion) layered diagram */
+
+
+/* ── detail pages ────────────────────────────────────────────────────────── */
+
+
+.acc-bar { width: 5px; height: 26px; border-radius: 3px; background: var(--acc); display: inline-block; }
+
+
+/* A hard 96px label column wrapped "Also reachable at" onto three lines while
+   leaving a gap beside "Host". minmax lets the column take what the longest
+   label needs and no more - and because every .kv in a .kv-list is a separate
+   grid, `subgrid` is what keeps them aligned with each other rather than each
+   sizing independently. */
+.kv-list { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 9px 12px; }
+.kv { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; font-size: 13.5px; }
+.kv-k { color: var(--fg-subtle); }
+.kv-v { min-width: 0; overflow-wrap: anywhere; }
+
+/* Section heading INSIDE a panel - for the merged Reachability panel, where
+   Route and Published ports are sections rather than panels of their own. */
+.kv-sub { grid-column: 1 / -1; margin: 16px 0 2px; font-size: 11px; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; color: var(--fg-subtle);
+  display: flex; align-items: center; gap: 7px; }
+.kv-sub:first-child { margin-top: 0; }
+.kv-sub-n { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-full); padding: 0 6px; }
+
+.labels-scroll { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 6px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--bg-2); }
+.label-row { display: grid; grid-template-columns: minmax(200px, 40%) 1fr; gap: 12px; font-size: 12px; }
+.label-k { color: var(--fg-muted); overflow-wrap: anywhere; }
+.label-v { color: var(--fg-subtle); overflow-wrap: anywhere; }
+
+/* ── topology ────────────────────────────────────────────────────────────── */
+.topo-legend { display: flex; gap: 14px; flex-wrap: wrap; }
+.topo-wrap { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-1);
+  padding: 10px; overflow: auto; }
+.topo-svg { width: 100%; min-width: 720px; height: auto; display: block; }
+.topo-band { fill: color-mix(in oklab, var(--fg) 3%, transparent); stroke: var(--line); }
+.topo-band-label { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); font-weight: 600; }
+.topo-edge { stroke-width: 1.5; transition: opacity .15s; }
+.topo-hub-c { fill: color-mix(in oklab, var(--accent) 22%, var(--surface-2)); stroke: var(--accent); stroke-width: 1.5; }
+.topo-hub { cursor: default; }
+.topo-hub-t { fill: var(--fg); font-size: 12px; font-weight: 700; text-anchor: middle; }
+.topo-hub-sub { fill: var(--fg-subtle); font-size: 11px; text-anchor: middle; font-family: var(--mono); }
+.topo-label { fill: var(--fg-muted); font-size: 12px; }
+.topo-node:hover .topo-label { fill: var(--fg); font-weight: 600; }
+.topo-label.ctr { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); }
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .ov-stats { grid-template-columns: repeat(3, 1fr); }
+}
+/* The <=860px sidebar-drawer block is gone with the sidebar: the fixed
+   translateX drawer, its `visibility` tab-order workaround (off-screen links
+   stayed focusable, so Tab began with six invisible stops), the hamburger and
+   the scrim. The shell's own @media (max-width: 900px) rule replaces all of it
+   by making the topbar denser. */
+@media (max-width: 640px) {
+  .ov-stats { grid-template-columns: repeat(2, 1fr); }
+  .ov-body { padding-top: 26px; gap: 34px; }
+  .scene-overlay { padding: 40px 22px; }
+  .page-head h1 { font-size: 23px; }
+  .filter-search { min-width: 120px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .svc-card, .scene-scrollcue { animation: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SHARED UTILITY CONTRACT (design brief). Page/component agents build on these;
+   they add only co-located CSS and never edit this file.
+   ══════════════════════════════════════════════════════════════════════════ */
+.panel { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+  display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.panel-h { display: flex; align-items: center; gap: 10px; padding: 13px 16px;
+  border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px; }
+.panel-h .sub { color: var(--fg-subtle); font-weight: 500; font-size: 12px; margin-left: auto; }
+.panel-b { padding: 16px; min-height: 0; }
+/* The per-element ::-webkit-scrollbar rules that used to live here are gone -
+   the scrollbar is styled once, globally, in the SCROLLING block near the end of
+   this file, and two definitions of the same thing is how they drift. */
+.panel-b.scroll { overflow-y: auto; max-height: 320px; }
+
+/* The `.reveal` / `.reveal.in` pair is GONE, along with components/Reveal.tsx.
+   It defaulted content to opacity:0 and depended on an IntersectionObserver to
+   turn it back on - so any element the observer missed stayed invisible
+   forever. That shipped a near-blank portal twice (see portal.md, "Traps paid
+   for in blood"): most recently the entire Overview dashboard vanished on any
+   warm return to the page, because it renders below the fold and nothing
+   re-checks. Entrance animation now belongs to the components themselves
+   (.syscard, framer-motion), which animate FROM a visible resting state and
+   cannot leave content hidden if they never run. */
+
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.dot[data-state="up"] { background: var(--st-up); box-shadow: 0 0 8px color-mix(in oklab, var(--st-up) 65%, transparent); }
+.dot[data-state="starting"] { background: var(--st-warn); box-shadow: 0 0 8px color-mix(in oklab, var(--st-warn) 65%, transparent); }
+.dot[data-state="down"] { background: var(--st-down); box-shadow: 0 0 8px color-mix(in oklab, var(--st-down) 65%, transparent); }
+.dot[data-state="stopped"] { background: var(--st-off); }
+.dot[data-state="unknown"] { background: var(--st-unknown); }
+
+.tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--fg-muted); white-space: nowrap; }
+.tag.ok, .tag.public { color: var(--st-up); border-color: color-mix(in oklab, var(--st-up) 34%, transparent); }
+.tag.warn { color: var(--st-warn); border-color: color-mix(in oklab, var(--st-warn) 34%, transparent); }
+.tag.down, .tag.bad { color: var(--st-down); border-color: color-mix(in oklab, var(--st-down) 34%, transparent); }
+.tag.loopback { color: var(--fg-subtle); }
+
+.btn { appearance: none; cursor: pointer; font: inherit; font-weight: 600; font-size: 13px;
+  display: inline-flex; align-items: center; gap: 7px; color: var(--fg); background: var(--surface-2);
+  border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 14px; transition: border-color .15s, background .15s; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.ghost { background: transparent; }
+
+.chip { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg-muted);
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px;
+  display: inline-flex; align-items: center; gap: 6px; }
+.chip.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
+.chip .n { font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
+
+.kbd { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
+
+/* ── tooltip ─────────────────────────────────────────────────────────────────
+   The inverted-surface pair (foreground colour as background) - the one shadcn
+   idea that carries the most weight per line, because it makes a tooltip read
+   as an overlay rather than as another card. Shows on hover AND focus: the
+   `title=` attributes this replaces were invisible to keyboard users. */
+.tip-wrap { position: relative; display: inline-flex; }
+.tip { position: absolute; z-index: 60; top: calc(100% + 8px); left: 50%; translate: -50% 0;
+  background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 600; line-height: 1.35;
+  padding: 6px 9px; border-radius: var(--r-sm); white-space: nowrap; pointer-events: none;
+  box-shadow: var(--shadow-md); }
+.tip::before { content: ''; position: absolute; top: -3px; left: 50%; translate: -50% 0; rotate: 45deg;
+  width: 8px; height: 8px; background: var(--fg); border-radius: 1px; }
+.tip[data-align='end'] { left: auto; right: 0; translate: none; }
+.tip[data-align='end']::before { left: auto; right: 12px; translate: none; }
+/* Pinned to the trigger's LEFT edge. Without it, a centred tooltip on the brand
+   - the leftmost thing in the topbar - renders half outside the window. There is
+   no collision detection here on purpose (see components/Tooltip.tsx); the two
+   corner cases get an explicit alignment instead. */
+.tip[data-align='start'] { left: 0; right: auto; translate: none; }
+.tip[data-align='start']::before { left: 12px; translate: none; }
+
+/* ── command palette ─────────────────────────────────────────────────────────
+   Hand-written against the tokens - cmdk is ~14 KB for a 27-item list. The
+   input keeps focus throughout and the list is driven by aria-activedescendant,
+   which is what lets Up/Down move the selection without ever moving focus. */
+.cmdk-scrim { position: fixed; inset: 0; z-index: 80; background: color-mix(in oklab, var(--bg) 62%, transparent);
+  backdrop-filter: blur(3px); display: grid; place-items: start center; padding: 12vh 16px 16px; }
+.cmdk { width: min(560px, 100%); background: var(--surface-4); border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg); overflow: hidden;
+  display: flex; flex-direction: column; max-height: 62vh; }
+.cmdk-in { display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  border-bottom: 1px solid var(--line); flex: none; }
+.cmdk-in svg { color: var(--fg-subtle); flex: none; }
+.cmdk-in input { appearance: none; border: 0; background: transparent; color: var(--fg);
+  font: inherit; font-size: 15px; width: 100%; outline: none; }
+/* The input has no border of its own, so the ring goes on the row that frames
+   it. `:has(:focus-visible)` rather than `:focus-within` so it appears for the
+   keyboard and not on every mouse click into the field. */
+.cmdk-in:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--r-sm); }
+.cmdk-list { overflow-y: auto; padding: 6px; min-height: 0; }
+.cmdk-group { padding: 8px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--fg-subtle); }
+.cmdk-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-sm);
+  font-size: 13.5px; cursor: pointer; color: var(--fg-muted); }
+.cmdk-item .cmdk-sub { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--fg-subtle); }
+.cmdk-item[aria-selected='true'] { background: var(--surface-3); color: var(--fg); }
+.cmdk-empty { padding: 22px 12px; text-align: center; color: var(--fg-subtle); font-size: 13px; }
+.cmdk-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--fg-subtle); flex: none; }
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl th { text-align: left; padding: 8px 14px; color: var(--fg-subtle); font-weight: 600; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 1; background: var(--surface-2); white-space: nowrap; user-select: none; }
+/* 32px rows (6+6 padding + 20px line box). At 47px the Routes table needed two
+   viewports to show 21 routes; the extra 15px per row carried nothing. */
+.tbl td { padding: 6px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tbody tr:hover { background: var(--surface-2); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCROLLING - the affordances, in one place.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. the scrollbars themselves ──────────────────────────────────────────
+   The default bar is a light-grey slab that belongs to the OS, not to a
+   near-black control room, and at 15px wide it was the widest chrome on the
+   page. These are thin, neutral at rest, and pick up the accent under the
+   pointer - which also makes them visible in the only moment they matter.
+
+   Firefox gets `scrollbar-width`/`scrollbar-color` (no pseudo-elements); every
+   Chromium/WebKit browser gets the ::-webkit rules. Both are declared: they are
+   not alternatives, they are different engines. */
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+*::-webkit-scrollbar { width: var(--scrollbar-w); height: var(--scrollbar-w); }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb); border-radius: var(--r-full);
+  /* A transparent border + padding-box clip is what insets the thumb inside the
+     gutter; without it the thumb is a full-width slab touching both edges. */
+  border: 3px solid transparent; background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+/* ── 2. inner shadow on a scrollable edge ──────────────────────────────────
+   Set by lib/scroll.ts: data-shade-t/b/l/r appear only on the side the element
+   can still travel towards, so the shadow is a statement ("there is more this
+   way"), not a decoration that is always on.
+
+   These MUST be inset shadows. An absolutely-positioned ::before inside a
+   scroll container scrolls away with the content - it would slide out of view
+   exactly when it became true. An inset shadow paints on the border box, which
+   does not move.
+
+   Composed through custom properties so top and bottom (or left and right) can
+   be on at once without a combinatorial explosion of selectors. The neutral
+   value must be a fully transparent shadow, not `none` and not `0 0` - `0 0`
+   resolves its colour to currentColor and paints a hard ring. */
+.scroll-shade {
+  --shade-t: 0 0 0 0 transparent; --shade-b: 0 0 0 0 transparent;
+  --shade-l: 0 0 0 0 transparent; --shade-r: 0 0 0 0 transparent;
+  box-shadow: var(--shade-t), var(--shade-b), var(--shade-l), var(--shade-r);
+  transition: box-shadow var(--dur-fast) var(--ease);
+}
+.scroll-shade[data-shade-t] { --shade-t: inset 0 12px 9px -12px var(--scroll-shade); }
+.scroll-shade[data-shade-b] { --shade-b: inset 0 -12px 9px -12px var(--scroll-shade); }
+.scroll-shade[data-shade-l] { --shade-l: inset 12px 0 9px -12px var(--scroll-shade); }
+.scroll-shade[data-shade-r] { --shade-r: inset -12px 0 9px -12px var(--scroll-shade); }
+
+/* ── 3. page progress rail ─────────────────────────────────────────────────
+   A 3px accent line down the LEFT edge of the viewport that grows top-to-bottom
+   as the page scrolls. Left, not right, on purpose: on the right it would sit
+   under the native scrollbar and read as a second, disagreeing scrollbar.
+   Hidden entirely when the page does not scroll (useScrollProgress returns 0),
+   because a progress indicator on a page with no progress to make is noise. */
+.scroll-rail {
+  position: fixed; left: 0; top: 0; bottom: 0; width: 3px; z-index: 30;
+  pointer-events: none; background: transparent;
+}
+.scroll-rail-fill {
+  display: block; width: 100%; height: 100%;
+  transform-origin: top center;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2) 55%, var(--chart-4));
+  /* scaleY on a fixed-height bar rather than animating `height`: transform is
+     composited, height is a layout property and would relayout on every frame
+     of a scroll. */
+  will-change: transform;
+}
+
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+/* ...except the skip link's target. `<main id="content" tabindex="-1">` is
+   focused programmatically by the skip link (AppShell.tsx) and can never be
+   tabbed to, so the rule above drew a 2px accent rectangle around the ENTIRE
+   page - a viewport-sized frame whose whole message is "focus is here now", and
+   it stayed until the next keypress. The ring is restyled nowhere else in this
+   app and it is never removed from a control; this is a container, and the move
+   itself is the feedback: the landmark is announced, and the next Tab lands on a
+   real control with a ring of its own. Declared after the global rule because
+   both are (0,1,0) and the later one wins. */
+.content:focus, .content:focus-visible { outline: none; }
+
+/* ── forced colours (Windows High Contrast) ────────────────────────────────
+   In forced-colours mode the OS replaces every colour we declare with its own
+   palette. That is fine for text, and fatal for this app's small coloured
+   marks: the status dot, the matrix cell and the chart swatch are BACKGROUNDS,
+   and a forced background makes all five statuses identical. Everywhere that
+   happens the shape is also carrying meaning elsewhere (a glyph, a label, a
+   title), but "up" and "down" sitting side by side as two identical squares is
+   still a real loss.
+
+   So: give every status mark a BORDER in forced-colours mode. Borders are
+   drawn with the system's own colours and survive, which restores the
+   filled-vs-hollow distinction the palette was carrying. `forced-color-adjust:
+   none` is deliberately NOT used - overriding the user's palette is the thing
+   this mode exists to prevent. */
+@media (forced-colors: active) {
+  .dot, .sm-cell, .tc-swatch, .vz-bar-seg {
+    border: 1px solid CanvasText;
+    forced-color-adjust: auto;
+  }
+  /* Hollow already means "not a signal" in this design; keep it readable. */
+  .sm-cell[data-state='stopped'], .vz-bar-seg.is-aside { background: Canvas; }
+  /* The focus ring must not be the accent the OS just discarded. */
+  *:focus-visible { outline-color: Highlight; }
+  /* Surfaces lose their borders when backgrounds are forced flat. */
+  .ov-panel, .vit-panel, .dlg, .card, .svc-card, .sm-chip, .tbl-wrap {
+    border: 1px solid CanvasText;
+  }
+  /* Decorative only - it is noise once the palette is the user's. */
+  .bg, .scroll-rail { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Nothing here may HIDE content. Killing transitions must never be able to
+     leave an element at opacity:0 - that was the old .reveal failure mode. */
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ── accent, chosen per browser (Settings > Appearance > Accent) ─────────────
+   Overrides the CHROME accent on the two built-in palettes only; a named theme
+   carries its own and is left alone, which is why each block names its theme id.
+   (0,3,0) beats the base palettes wherever the bundle emits them. The derived
+   --accent-bg/--accent-line/--ring re-evaluate for free: they are color-mix()
+   over --accent on this same element.
+
+   Both hues keep >= 45 degrees of OKLCH hue from every chromatic status, the
+   rule contract.ts applies to the panel accents (HUE_SEPARATION), measured
+   2026-09-17: violet 80 from --st-down, cyan 48 (dark) / 61 (light) from
+   --st-up. Teal and pink were ruled out on the same measurement - teal reads as
+   `up`, pink as `down`. checks/theme-contract.mjs evaluates all four blocks
+   against the full contrast contract. */
+:root[data-accent='violet'][data-bothy-theme='bothy-dark'] {
+  --accent:    #a78bfa;   /* violet-400 */
+  --accent-2:  #8b5cf6;
+  --accent-fg: #c4b5fd;
+}
+:root[data-accent='violet'][data-bothy-theme='bothy-light'] {
+  --accent:    #7c3aed;   /* violet-600 */
+  --accent-2:  #6d28d9;
+  --accent-fg: #6d28d9;
+}
+:root[data-accent='cyan'][data-bothy-theme='bothy-dark'] {
+  --accent:    #22d3ee;   /* cyan-400 */
+  --accent-2:  #06b6d4;
+  --accent-fg: #67e8f9;
+}
+:root[data-accent='cyan'][data-bothy-theme='bothy-light'] {
+  --accent:    #0e7490;   /* cyan-700: cyan-600 as a fill under white text is 3.2 */
+  --accent-2:  #155e75;
+  --accent-fg: #0e7490;
+}

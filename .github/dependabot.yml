@@ -26,7 +26,7 @@ updates:
 
   # ── The portal front-end (Vite + React) ───────────────────────────────────
   - package-ecosystem: npm
-    directory: "/apps/portal-next/web"
+    directory: "/apps/bothy-web/web"
     schedule:
       interval: weekly
       day: monday
@@ -39,13 +39,13 @@ updates:
     groups:
       # One PR for the routine bumps; majors still arrive on their own, because
       # a React or three.js major needs `npx tsc -b --noEmit` and a real browser.
-      portal-minor-and-patch:
+      bothy-web-minor-and-patch:
         applies-to: version-updates
         update-types: [minor, patch]
 
   # ── The one Dockerfile: the portal's multi-stage build image ──────────────
   - package-ecosystem: docker
-    directory: "/apps/portal-next"
+    directory: "/apps/bothy-web"
     schedule:
       interval: weekly
       day: monday
@@ -66,10 +66,9 @@ updates:
       - "/monitoring"
       - "/data/postgres"
       - "/apps/bothy"
-      - "/apps/portal-next"
-      - "/apps/portal-files"
-      - "/apps/bothy-config"
-      - "/apps/bothy-control"
+      - "/apps/bothy-web"
+      - "/apps/bothy-files"
+      - "/apps/bothy-ops"
       # /apps/docs was still listed after that directory was deleted, which is
       # how a missing-directory warning goes unread for a fortnight. Removed.
       # /mgmt, /apps/wiki, /data/redis and /data/kafka were all DELETED on

@@ -1,0 +1,31 @@
+/* ============================================================================
+   Per-browser preferences from Settings, as attributes on <html>.
+
+   Stamped by lib/prefs.ts stampAppearance() before React mounts and on change.
+   A DEFAULT IS AN ABSENT ATTRIBUTE, so a browser that never opened Settings
+   matches none of these rules. No colour lives here - the accent overrides are
+   tokens and so are in index.css.
+   ========================================================================== */
+
+/* Table density. Only the row padding moves; type size does not, because a
+   compact table you cannot read is not denser, it is smaller. */
+html[data-density='compact'] .tbl td { padding-top: 3px; padding-bottom: 3px; }
+html[data-density='compact'] .tbl th { padding-top: 5px; padding-bottom: 5px; }
+
+/* Motion, turned off here rather than by the OS. The same rule index.css applies
+   under prefers-reduced-motion, for the same reason written there: it may never
+   HIDE content, so durations go to ~0 rather than elements being removed.
+   framer-motion is told separately (MotionConfig in main.tsx). */
+html[data-motion='reduce'] *,
+html[data-motion='reduce'] *::before,
+html[data-motion='reduce'] *::after {
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* The document font in Files. Prose only: code, tables of identifiers and the
+   side panels keep --mono and --font, which is what identifiers need. */
+html[data-doc-font='serif'] .bothy-files .md { font-family: var(--font-serif); }
+html[data-doc-font='serif'] .bothy-files .md :is(code, pre, kbd, samp) { font-family: var(--mono); }

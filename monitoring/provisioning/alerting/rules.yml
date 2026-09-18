@@ -22,7 +22,9 @@ groups:
             datasourceUid: prometheus
             model:
               refId: A
-              expr: up
+              # kube* jobs excluded: the cluster has its own group below
+              # (cluster-alerts), so a stopped cluster pages ONCE, not per job.
+              expr: up{job!~"kube.*"}
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -101,6 +103,90 @@ groups:
               conditions:
                 - type: query
                   evaluator: { type: gt, params: [85] }
+                  operator: { type: and }
+                  query: { params: [] }
+                  reducer: { type: last, params: [] }
+
+  # The minikube cluster thales-scc (monitoring/scrape.d/kubernetes.yml).
+  #
+  # noDataState: OK on both, and that is a trade-off, not an oversight. With no
+  # cluster on the box - or prometheus started without compose.cluster.yml - the
+  # kube* series do not exist at all, and NoData=Alerting would page forever on
+  # every box that never had a cluster. The cost: if prometheus is recreated
+  # WITHOUT the override, these go silent instead of red. `just up-monitoring`
+  # adds the override whenever the thales-scc network exists, which is why it,
+  # not a bare `docker compose`, is the way to (re)start prometheus.
+  - orgId: 1
+    name: cluster-alerts
+    folder: Alerts
+    interval: 1m
+    rules:
+      # Node container stopped, kubelet dead, or KSM gone: any kube* target down.
+      # minikube.service starts the cluster at boot, so down for 5m is a fault.
+      - uid: kube_cluster_down
+        title: Kubernetes cluster down
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: critical
+        annotations:
+          summary: "thales-scc: scrape job {{ $labels.job }} is DOWN - cluster stopped? (systemctl status minikube; kubectl --context thales-scc get nodes)"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: max by (cluster, job) (up{cluster="thales-scc", job=~"kube.*"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: lt, params: [1] }
+                  operator: { type: and }
+                  query: { params: [] }
+                  reducer: { type: last, params: [] }
+
+      # The apiserver answers and KSM runs, but the kubelet reports NotReady
+      # (disk/memory pressure, runtime down, network plugin broken).
+      - uid: kube_node_not_ready
+        title: Kubernetes node NotReady
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: critical
+        annotations:
+          summary: "thales-scc: node {{ $labels.node }} is NotReady (kubectl --context thales-scc describe node {{ $labels.node }})"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: max by (cluster, node) (kube_node_status_condition{cluster="thales-scc", condition="Ready", status="true"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: lt, params: [1] }
                   operator: { type: and }
                   query: { params: [] }
                   reducer: { type: last, params: [] }

@@ -98,7 +98,7 @@ lands is a flow that does not exist.
 | `browser-stepup` | a Keycloak flow, created by `keycloak-init` so it reaches boxes past first boot |
 | a second oauth2-proxy | dedicated to the shell route, carrying `--acr-values=stepup` |
 | `policy.toml` | `~/projects` becomes writable — see §6 |
-| audit | every session recorded, on `apps/portal-files/app.py`'s append-only model |
+| audit | every session recorded, on `apps/bothy-files/app.py`'s append-only model |
 | the panel | a fourth top-level entry, target picker, themed with the rest |
 
 ---
@@ -125,7 +125,7 @@ is a different design, not a detail.
 ## 6. Consequences worth deciding deliberately
 
 **`~/projects` becomes writable.** It is `ro` today
-(`apps/portal-files/compose.yml`, `policy.toml`). Development in the work area
+(`apps/bothy-files/compose.yml`, `policy.toml`). Development in the work area
 needs it `rw`. Note `policy.toml`'s existing reasoning: `home` is read-only
 because it **overlaps every other root**, and a shell whose target list includes
 both `home` and `projects` reintroduces exactly that overlap through a door the
