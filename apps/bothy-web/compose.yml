@@ -10,6 +10,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # The commit this image is built from: the OCI revision label and
+      # /version.json. `just up-apps` sets BOTHY_REVISION to `git rev-parse
+      # HEAD`; a bare `docker compose build` gets "unknown", which is honest.
+      args:
+        REVISION: ${BOTHY_REVISION:-unknown}
     container_name: bothy-web
     restart: unless-stopped
     volumes:

@@ -22,3 +22,21 @@ RUN npm run build
 FROM nginx:1.31-alpine@sha256:62ff2089abf5a9ed33bd232895bef5e22f7bb4b200675cec49a5ebc48e3d4ac8
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+
+# ── which commit this image was built from ────────────────────────────────────
+#
+# `just up-apps` passes REVISION=$(git rev-parse HEAD) (compose.yml build.args).
+# It lands in two places:
+#   - the OCI label, for `docker inspect` - the same label bothy-files and
+#     bothy-ops carry, so one command answers "is the running code HEAD?";
+#   - /version.json, for a BROWSER, which cannot docker-inspect. An open tab that
+#     sees it change knows Bothy was updated under it (docs/plans/updates.md §6).
+#     nginx.conf serves it with an exact location, no-cache, and a real 404 -
+#     never the SPA fallback.
+#
+# LAST, and only here: the ARG invalidates the layers after it, so a new commit
+# re-runs this one tiny RUN and nothing else. The bundle above is built from the
+# sources alone, so a commit that does not touch web/ reuses it from cache.
+ARG REVISION=unknown
+LABEL org.opencontainers.image.revision=$REVISION
+RUN printf '{"revision":"%s"}\n' "$REVISION" > /usr/share/nginx/html/version.json

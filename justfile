@@ -257,6 +257,39 @@ up-apps: network
         echo "note: thales-scc exists but apps/bothy-ops/secrets does not - run 'just kube-token', then 'just up-apps' again (kube verbs answer 503 until then)"
       fi
     fi
+    # BUILD FIRST, every time. bothy-web, bothy-files and bothy-ops are `build:`
+    # images, and a plain `up` never rebuilds an image that already exists - so
+    # until 2026-09-18 `bothy upgrade` (pull, then `just up`) pulled new app code
+    # and kept serving the old image, green and healthy, forever. `upgrade.yml`
+    # compared data, not code, so nothing noticed.
+    #
+    # A separate `build` rather than `up --build`: it fails BEFORE anything
+    # running is touched (a broken build leaves the old containers serving), and
+    # it reads as its own step in the log. It costs nothing when nothing changed:
+    # BuildKit's layer cache answers every step and returns the same image ID,
+    # so `up` recreates nothing - the second-`just up` assertion in upgrade.yml
+    # holds that.
+    #
+    # BOTHY_REVISION is baked in as the OCI revision label (and bothy-web's
+    # /version.json). It is the last layer of each Dockerfile, so a new commit
+    # that changes no app source re-runs one metadata step and recreates the
+    # three containers onto an image that says which commit it is. That churn is
+    # the price of "docker inspect answers which code is running" - and it is
+    # what upgrade.yml compares against HEAD. HEAD, not "HEAD plus local edits":
+    # a dirty tree builds what is on disk and is labelled with the commit under it.
+    #
+    # BUILDX_NO_DEFAULT_ATTESTATIONS is LOAD-BEARING for "costs nothing". buildx
+    # attaches a provenance attestation by default and it carries the build's
+    # timestamp, so on the containerd image store (Docker 29's default, and this
+    # box's) every build of an UNCHANGED tree got a new image ID - and `up`
+    # recreated all three containers on every `just up`. Measured 2026-09-18:
+    # three cached builds, three IDs; with this set, three builds, one ID.
+    # compose's own `build: provenance: false` did NOT help on compose v5.3.1
+    # (same test), which is why it is an env var here and not a compose key.
+    # Nothing is pushed anywhere, so nothing reads the attestation.
+    BOTHY_REVISION="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+    export BOTHY_REVISION BUILDX_NO_DEFAULT_ATTESTATIONS=1
+    docker compose "${files[@]}" build
     # --remove-orphans: a service dropped from the project (socket-proxy became
     # socket-read in 2026-09) must not keep running under its old definition.
     # --wait: return only once every Bothy container is HEALTHY. Traefik routes

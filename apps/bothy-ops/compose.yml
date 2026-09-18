@@ -34,6 +34,10 @@ services:
       # without it the context would carry bothy-web's node_modules.
       context: ..
       dockerfile: bothy-ops/Dockerfile
+      # The commit this image is built from, as the OCI revision label - see
+      # apps/bothy-web/compose.yml. `just up-apps` sets BOTHY_REVISION.
+      args:
+        REVISION: ${BOTHY_REVISION:-unknown}
       # run-template's Job files, which live beside the RBAC in k8s/ rather than
       # in apps/ (whose .dockerignore allowlist keeps the token out of the build).
       additional_contexts:
