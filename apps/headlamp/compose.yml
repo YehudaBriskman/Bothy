@@ -121,7 +121,7 @@ services:
   # port. The OIDC settings mirror it - read auth/compose.yml for the reasoning
   # behind each; only the differences are argued here.
   oauth2-proxy-headlamp:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3   # same pin as auth/compose.yml
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4   # same pin as auth/compose.yml
     container_name: oauth2-proxy-headlamp
     restart: unless-stopped
     depends_on:
