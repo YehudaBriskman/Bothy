@@ -336,9 +336,29 @@ jobs:
                 -d '{"dashboard":{"uid":"restore-probe","title":"restore probe","panels":[]},"overwrite":true}' \
                 http://localhost:3000/api/dashboards/db
           echo
-          # A moment that both time-series stores hold data for, and that the
-          # wipe below takes away: an instant two minutes before the backup.
-          echo "PROBE_T=$(( $(date +%s) - 120 ))" >> "$GITHUB_ENV"
+          # A moment BOTH time-series stores provably hold data for, and that the
+          # wipe below takes away. Not "two minutes ago": on a fresh runner
+          # VictoriaMetrics may be younger than that (it was, 2026-09-19 - the
+          # probe time fell before its first scrape and the check blamed the
+          # restore). So pick a recent instant and wait until both stores answer
+          # for it BEFORE backing up - a precondition, not an assumption.
+          probe=$(( $(date +%s) - 20 ))
+          ready=
+          for _ in $(seq 1 30); do
+            n=$(printf 'user = "%s:%s"\n' "$DEV_LOGIN_USER" "$DEV_LOGIN_PASSWORD" \
+                | curl -fsS --config - "http://localhost:8428/api/v1/query?query=count(up)&time=$probe" \
+                | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo 0)
+            l=$(curl -fsS -G http://localhost:3100/loki/api/v1/query_range \
+                  --data-urlencode 'query={container=~".+"}' \
+                  --data-urlencode "start=$(( probe - 600 ))000000000" \
+                  --data-urlencode "end=${probe}000000000" --data-urlencode limit=5 \
+                | jq '[.data.result[].values[]] | length' 2>/dev/null || echo 0)
+            if [ "${n:-0}" -gt 0 ] && [ "${l:-0}" -gt 0 ]; then ready=1; break; fi
+            sleep 5
+          done
+          [ -n "$ready" ] || { echo "FAIL  the stores never held data for the probe time (vm=$n loki=$l)"; exit 1; }
+          echo "  probe time $probe: victoriametrics $n series of up, loki $l lines"
+          echo "PROBE_T=$probe" >> "$GITHUB_ENV"
           # Gated this time: every step of backup.sh has something to back up
           # on this box, so any failure is a real one.
           just backup
