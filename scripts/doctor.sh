@@ -299,6 +299,47 @@ else
   fi
 fi
 
+# THE OTHER ARTEFACTS (2026-09). backup.sh saves eight kinds now, and a check
+# that only looked at postgres would report green while, say, the Loki step had
+# been failing for a week. Same rule as above: age AND size, and a young box
+# gets a dim "not yet" instead of a red. Globs are the ones backup.sh writes -
+# `env-2*`, not `env-*`, so a restore's `env-...-pre-restore` safety copy does
+# not pass for a nightly backup.
+#
+# Two kinds may legitimately never exist: notes (only if $NOTES_ROOT does) and
+# state (only once an audit log or trash directory does). Their absence is dim.
+bk_fresh() {  # <label> <dir> <glob> <min-bytes> [optional]
+  local label=$1 dir=$2 glob=$3 min=$4 optional=${5:-} f sz age
+  # shellcheck disable=SC2086  # the glob must expand
+  f=$(ls -1t "$BACKUP_ROOT/$dir"/$glob 2>/dev/null | head -1)
+  if [ -z "$f" ]; then
+    if [ -n "$optional" ] || { [ -n "$uptime_s" ] && [ "$uptime_s" -lt 86400 ]; }; then
+      dim "$label: none yet${optional:+ ($optional)}"
+    else
+      red "$label: no backup at all under $BACKUP_ROOT/$dir"
+    fi
+    return
+  fi
+  sz=$(wc -c < "$f")
+  age=$(( ( $(date +%s) - $(stat -c %Y "$f") ) / 3600 ))
+  if [ "$sz" -lt "$min" ]; then red "$label: latest is ${sz}B - almost certainly empty: $(basename "$f")"
+  elif [ "$age" -gt 48 ]; then red "$label: latest is ${age}h old: $(basename "$f")"
+  else green "$label: $(basename "$f") ($(du -h "$f" | cut -f1), ${age}h old)"
+  fi
+}
+bk_fresh grafana         grafana         'grafana-*.db'   1000
+bk_fresh .env            env             'env-2*[0-9]'    1
+bk_fresh victoriametrics victoriametrics 'vm-*.tar'       1000
+bk_fresh loki            loki            'loki-*.tar.gz'  1000
+bk_fresh alloy           alloy           'alloy-*.tar.gz' 100
+bk_fresh "audit + trash" state           'state-*.tar.gz' 100 "no audit or trash directory to save"
+if [ -d "$NOTES_ROOT" ]; then
+  bk_fresh notes         notes           'notes-2*[0-9].*' 100
+fi
+# The size of the whole thing, because two of these are hundreds of MB each and
+# the disk they sit on is the disk they protect.
+[ -d "$BACKUP_ROOT" ] && dim "backups use $(du -sh "$BACKUP_ROOT" 2>/dev/null | cut -f1) under $BACKUP_ROOT ($(df -h "$BACKUP_ROOT" | awk 'NR==2{print $4}') free)"
+
 # ── verdict ──────────────────────────────────────────────────────────────────
 echo
 # printf, not green/red: red() increments the counter, and a verdict line that

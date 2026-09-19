@@ -114,7 +114,7 @@ export const BLOCKS: readonly SettingsBlockDef[] = [
   // audit
   { id: 'audit-log', section: 'audit', title: 'Audit log', description: 'Filter by log, person, outcome and action.', keywords: 'history who did what actions writes patches' },
   // backups
-  { id: 'backup-sets', section: 'backups', title: 'Backup sets', description: 'Each set: how many copies, the newest, the oldest and the total size.', keywords: 'postgres grafana env dump restore' },
+  { id: 'backup-sets', section: 'backups', title: 'Backup sets', description: 'Each set: how many copies, the newest, the oldest and the total size.', keywords: 'postgres grafana env dump restore victoriametrics loki alloy audit trash notes' },
   { id: 'backup-schedule', section: 'backups', title: 'Schedule and taking one now', description: 'The nightly timer, and the command.', keywords: 'timer cron nightly just backup' },
   // updates
   { id: 'update-components', section: 'updates', title: 'Components', description: 'Every component: pinned, running and available version, how big the step is, and its channel.', keywords: 'versions upgrade outdated newer release patch minor major drift changelog images pins' },

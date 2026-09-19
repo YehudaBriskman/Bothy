@@ -39,6 +39,10 @@
 #      all compare data, so a box running last month's app code passed them.
 #      Together with (3) it also pins the build as a no-op when nothing changed:
 #      a rebuild that is not cache-stable would recreate containers there.
+#   6. THE BACKUPS CAN BE PUT BACK. Back up, then damage the box (drop a table,
+#      delete grafana.db, wipe VictoriaMetrics and Loki), run every `just
+#      restore-*` recipe, and find a row, an API-made dashboard, metrics and log
+#      lines from before the backup. A backup nobody has restored is a hope.
 #
 # ── why nightly ────────────────────────────────────────────────────────────
 #
@@ -277,6 +281,8 @@ jobs:
           # What this step is actually about is COVERAGE: does the dump contain
           # every database that exists? That is asserted below, on the artifact,
           # and it is unaffected by whether some other service was up.
+          # (The portainer step is gone since 2026-08-18, and the restore steps
+          # further down DO gate on `just backup` - this one stays about coverage.)
           just backup || echo "  (backup reported a failure; coverage is asserted below)"
           latest=$(ls -1t "${HOME}"/backups/postgres/pg-*.sql.gz 2>/dev/null | head -1)
           [ -n "$latest" ] || { echo "FAIL  backup produced no postgres dump"; exit 1; }
@@ -303,6 +309,122 @@ jobs:
             esac
           done
           [ $rc -eq 0 ] && echo "  dump covers: $(echo "$live" | tr '\n' ' ')"
+          exit $rc
+
+      # ── back up, damage, restore ───────────────────────────────────────────
+      # The step above proves the dump CONTAINS every database. This proves the
+      # backups can be PUT BACK: each restore recipe is run for real against a
+      # box that has just lost the thing it restores, and what comes back is
+      # checked on the data - a row, a dashboard, metrics and log lines from
+      # before the backup - never on a recipe's exit code alone.
+      #
+      # A dashboard made through the API, not a provisioned one: provisioned
+      # dashboards are re-created from monitoring/dashboards/ on every start,
+      # so they would "come back" even from an empty grafana.db.
+      - name: Plant what a restore must bring back, then back up
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          set -a; . ./.env; set +a
+          docker exec postgres psql -U "${POSTGRES_USER:-dev}" -d "${POSTGRES_DB:-dev}" \
+            -v ON_ERROR_STOP=1 -c \
+            "CREATE TABLE restore_probe (id int primary key, note text);
+             INSERT INTO restore_probe VALUES (1, 'written before the backup');"
+          # Credentials on stdin (--config -), never in argv - see doctor.sh.
+          printf 'user = "%s:%s"\n' "${GRAFANA_USER:-admin}" "${GRAFANA_PASSWORD:-admin}" \
+            | curl -fsS --config - -H 'Content-Type: application/json' \
+                -d '{"dashboard":{"uid":"restore-probe","title":"restore probe","panels":[]},"overwrite":true}' \
+                http://localhost:3000/api/dashboards/db
+          echo
+          # A moment BOTH time-series stores provably hold data for, and that the
+          # wipe below takes away. Not "two minutes ago": on a fresh runner
+          # VictoriaMetrics may be younger than that (it was, 2026-09-19 - the
+          # probe time fell before its first scrape and the check blamed the
+          # restore). So pick a recent instant and wait until both stores answer
+          # for it BEFORE backing up - a precondition, not an assumption.
+          probe=$(( $(date +%s) - 20 ))
+          ready=
+          for _ in $(seq 1 30); do
+            n=$(printf 'user = "%s:%s"\n' "$DEV_LOGIN_USER" "$DEV_LOGIN_PASSWORD" \
+                | curl -fsS --config - "http://localhost:8428/api/v1/query?query=count(up)&time=$probe" \
+                | jq -r '.data.result[0].value[1] // "0"' 2>/dev/null || echo 0)
+            l=$(curl -fsS -G http://localhost:3100/loki/api/v1/query_range \
+                  --data-urlencode 'query={container=~".+"}' \
+                  --data-urlencode "start=$(( probe - 600 ))000000000" \
+                  --data-urlencode "end=${probe}000000000" --data-urlencode limit=5 \
+                | jq '[.data.result[].values[]] | length' 2>/dev/null || echo 0)
+            if [ "${n:-0}" -gt 0 ] && [ "${l:-0}" -gt 0 ]; then ready=1; break; fi
+            sleep 5
+          done
+          [ -n "$ready" ] || { echo "FAIL  the stores never held data for the probe time (vm=$n loki=$l)"; exit 1; }
+          echo "  probe time $probe: victoriametrics $n series of up, loki $l lines"
+          echo "PROBE_T=$probe" >> "$GITHUB_ENV"
+          # Gated this time: every step of backup.sh has something to back up
+          # on this box, so any failure is a real one.
+          just backup
+
+      - name: Damage it - drop the table, delete grafana.db, wipe VictoriaMetrics and Loki
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          set -a; . ./.env; set +a
+          docker exec postgres psql -U "${POSTGRES_USER:-dev}" -d "${POSTGRES_DB:-dev}" \
+            -v ON_ERROR_STOP=1 -c "DROP TABLE restore_probe;"
+          docker exec grafana rm -f /var/lib/grafana/grafana.db
+          for c in victoriametrics loki; do
+            docker stop "$c" >/dev/null
+            d=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Destination}}{{end}}{{end}}' "$c")
+            docker run --rm --volumes-from "$c" python:3.13-alpine sh -c "rm -rf $d/*"
+            docker start "$c" >/dev/null
+          done
+          echo "  damaged"
+
+      - name: Restore each with its recipe
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          # The glob is $2 unquoted on purpose; names are backup.sh's own.
+          # shellcheck disable=SC2012,SC2086
+          newest() { ls -1t "$HOME/backups/$1"/$2 | head -1; }
+          just restore-postgres        "$(newest postgres 'pg-*.sql.gz')"      --yes
+          just restore-grafana         "$(newest grafana 'grafana-*.db')"      --yes
+          just restore-victoriametrics "$(newest victoriametrics 'vm-*.tar')"  --yes
+          just restore-loki            "$(newest loki 'loki-*.tar.gz')"        --yes
+          # env: into the real path, the way a person would - then it must be
+          # byte-identical to what the backup took.
+          just restore-env             "$(newest env 'env-2*[0-9]')"           --yes
+          cmp .env "$(newest env 'env-2*[0-9]')"
+
+      - name: Everything planted before the backup is back
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          set -a; . ./.env; set +a
+          rc=0
+          check() {  # <ok?> <pass message> <fail message>
+            if [ "$1" = yes ]; then echo "  $2"; else echo "FAIL  $3"; rc=1; fi
+          }
+          got=$(docker exec postgres psql -U "${POSTGRES_USER:-dev}" -d "${POSTGRES_DB:-dev}" \
+                  -tAc "SELECT note FROM restore_probe WHERE id = 1" || true)
+          check "$([ "$got" = "written before the backup" ] && echo yes)" \
+            "postgres: the row is back" "postgres row: '$got'"
+          title=$(printf 'user = "%s:%s"\n' "${GRAFANA_USER:-admin}" "${GRAFANA_PASSWORD:-admin}" \
+                  | curl -fsS --config - http://localhost:3000/api/dashboards/uid/restore-probe \
+                  | jq -r '.dashboard.title' || true)
+          check "$([ "$title" = "restore probe" ] && echo yes)" \
+            "grafana: the API-made dashboard is back" "grafana dashboard: '$title'"
+          n=$(printf 'user = "%s:%s"\n' "$DEV_LOGIN_USER" "$DEV_LOGIN_PASSWORD" \
+              | curl -fsS --config - "http://localhost:8428/api/v1/query?query=count(up)&time=$PROBE_T" \
+              | jq -r '.data.result[0].value[1] // "0"' || echo 0)
+          check "$([ "${n:-0}" -gt 0 ] && echo yes)" \
+            "victoriametrics: $n series of up at the probe time" "victoriametrics has nothing at the probe time"
+          lines=$(curl -fsS -G http://localhost:3100/loki/api/v1/query_range \
+                    --data-urlencode 'query={container=~".+"}' \
+                    --data-urlencode "start=$(( PROBE_T - 600 ))000000000" \
+                    --data-urlencode "end=${PROBE_T}000000000" --data-urlencode limit=50 \
+                  | jq '[.data.result[].values[]] | length' || echo 0)
+          check "$([ "${lines:-0}" -gt 0 ] && echo yes)" \
+            "loki: $lines log lines from before the backup" "loki has no lines before the probe time"
           exit $rc
 
       - name: Collect logs

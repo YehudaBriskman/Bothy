@@ -1,20 +1,32 @@
 flowchart LR
-    subgraph s_covered["Backed up nightly"]
+    subgraph s_covered["Backed up nightly - keep 14"]
         V1["postgres_postgres_data<br/><i>dev · keycloak</i>"]
         V5["monitoring_grafana_data"]
         ENVF["stacks/.env<br/>gitignored - exists nowhere else"]
+        V8["monitoring_alloy_data<br/>positions"]
+        ST["audit logs · trash dirs"]
+        NT["~/claude-notes"]
     end
 
-    subgraph s_uncovered["Not backed up - rebuildable or expendable"]
-        V4["monitoring_prometheus_data<br/>15d retention, 3GB ceiling"]
+    subgraph s_big["Backed up nightly - keep 3"]
+        V3["monitoring_victoriametrics_data<br/>15d retention"]
         V6["monitoring_loki_data<br/>168h retention"]
-        V7["monitoring_promtail_positions"]
+    end
+
+    subgraph s_uncovered["Not backed up - re-issued or expendable"]
+        V4["monitoring_prometheus_data<br/>rollback only"]
+        SEC["generated secrets<br/>re-issued by recipe"]
     end
 
     BK["scripts/backup.sh<br/>stacks-backup.timer - 03:00 daily - Persistent=true"]
-    OUT[("~/backups<br/>newest 14 of each retained")]
+    OUT[("~/backups<br/>restore: just restore-*")]
 
     V1 -->|"pg_dumpall piped through gzip"| BK
-    V5 -->|"docker cp grafana.db"| BK
+    V5 -->|"SQLite online backup, integrity-checked"| BK
     ENVF -->|"install -m 600"| BK
+    V8 -->|"tar"| BK
+    ST -->|"tar"| BK
+    NT -->|"git bundle"| BK
+    V3 -->|"snapshot API, tar"| BK
+    V6 -->|"flush, stop, tar, start"| BK
     BK --> OUT

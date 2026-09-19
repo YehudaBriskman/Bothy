@@ -485,9 +485,34 @@ admin-inventory:
 updates-discover *args:
     python3 apps/bothy-ops/discover_updates.py {{args}}
 
-# Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
+# What it saves, and how, is listed at the top of scripts/backup.sh.
+# Back up postgres, grafana, .env, VictoriaMetrics, Loki, alloy, audit/trash and notes now (the nightly timer also runs this).
 backup:
     @bash scripts/backup.sh
+
+# RESTORE. Each takes an explicit file - there is no "latest" default, on
+# purpose - shows what it will overwrite, asks unless `--yes`, stops only the
+# service it replaces, and verifies afterwards. See docs/guide/backups.md.
+#   just restore-postgres ~/backups/postgres/pg-<ts>.sql.gz
+# Restore postgres from a pg_dumpall file (drops + recreates the databases in it; restarts keycloak).
+restore-postgres file *flags:
+    @bash scripts/restore.sh postgres {{quote(file)}} {{flags}}
+
+# Restore grafana.db from a backup (stops grafana, replaces the file, starts it, checks /api/health).
+restore-grafana file *flags:
+    @bash scripts/restore.sh grafana {{quote(file)}} {{flags}}
+
+# Restore .env from a backup (the current one is saved first; takes effect at the next `just up`).
+restore-env file *flags:
+    @bash scripts/restore.sh env {{quote(file)}} {{flags}}
+
+# Restore VictoriaMetrics from a vm-<ts>.tar or an unpacked snapshot directory (replaces ALL its data).
+restore-victoriametrics path *flags:
+    @bash scripts/restore.sh victoriametrics {{quote(path)}} {{flags}}
+
+# Restore Loki from a loki-<ts>.tar.gz (replaces ALL its data).
+restore-loki file *flags:
+    @bash scripts/restore.sh loki {{quote(file)}} {{flags}}
 
 # Follow a container's logs, e.g. `just logs grafana`
 logs service:

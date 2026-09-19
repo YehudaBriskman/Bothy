@@ -284,7 +284,16 @@ BACKUP_KINDS = {
     "postgres": "pg_dumpall of every database, keycloak included (users and password hashes).",
     "grafana": "grafana.db - dashboards, users, alert state.",
     "env": "Copies of .env - every credential, in plaintext.",
+    "victoriametrics": "A snapshot of every metric (15 days), as a tar.",
+    "loki": "Every log line (7 days), taken with Loki briefly stopped.",
+    "alloy": "Alloy's positions - how far into each log it has shipped.",
+    "state": "The audit logs and the undo trash of the file editor and config forms.",
+    "notes": "A git bundle of the notes repo, plus any uncommitted files.",
 }
+# Mirrors BK_KEEP / BK_KEEP_BIG in scripts/lib/backup-lib.sh: the time-series
+# stores are hundreds of MB each, so fewer of them are kept.
+BACKUP_KEEP_DEFAULT = 14
+BACKUP_KEEP = {"victoriametrics": 3, "loki": 3}
 
 
 def _timer(unit: str) -> dict:
@@ -331,6 +340,7 @@ def backups(root: str) -> dict:
                 "name": name,
                 "managed": name in BACKUP_KINDS,
                 "what": BACKUP_KINDS.get(name),
+                "keep": BACKUP_KEEP.get(name, BACKUP_KEEP_DEFAULT) if name in BACKUP_KINDS else None,
                 "readable": True,
                 "mode": file_meta(d).get("mode"),
                 "count": len(files),
@@ -340,7 +350,7 @@ def backups(root: str) -> dict:
             })
     return {"root": "~/" + os.path.relpath(root, os.path.expanduser("~"))
             if root.startswith(os.path.expanduser("~")) else root,
-            **meta, "keep": 14, "command": "just backup",
+            **meta, "keep": BACKUP_KEEP_DEFAULT, "command": "just backup",
             "timer": _timer("stacks-backup.timer"), "sets": sets}
 
 

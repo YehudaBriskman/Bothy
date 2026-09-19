@@ -109,6 +109,8 @@ export interface BackupSet {
   name: string;
   managed?: boolean;
   what?: string | null;
+  /** How many copies backup.sh keeps of this set; null for sets it does not write. */
+  keep?: number | null;
   readable?: boolean;
   mode?: string | null;
   count?: number;

@@ -596,11 +596,11 @@ the case for all of these. An `@file` route with no container is honestly
 | Volume | Owner | Holds | In the backup |
 |---|---|---|---|
 | `postgres_postgres_data` | `data/postgres` | The shared dev database | yes - logical dump |
-| `monitoring_victoriametrics_data` | `monitoring` | Metrics, 15-day retention (`-retentionPeriod`; no size ceiling - VM drops whole parts once outside the window) | no |
+| `monitoring_victoriametrics_data` | `monitoring` | Metrics, 15-day retention (`-retentionPeriod`; no size ceiling - VM drops whole parts once outside the window) | yes - snapshot API, tar; newest 3 |
 | `monitoring_prometheus_data` | `monitoring` | The retired Prometheus TSDB, kept for the `legacy-prometheus` rollback; history was imported into VictoriaMetrics with `vmctl` | no |
-| `monitoring_alloy_data` | `monitoring` | Alloy's read positions - same load-bearing role as promtail's below | no |
-| `monitoring_grafana_data` | `monitoring` | `grafana.db` - users, dashboards, alert state | yes |
-| `monitoring_loki_data` | `monitoring` | Log chunks and index | no |
+| `monitoring_alloy_data` | `monitoring` | Alloy's read positions - same load-bearing role as promtail's below | yes - tar |
+| `monitoring_grafana_data` | `monitoring` | `grafana.db` - users, dashboards, alert state | yes - SQLite online backup, integrity-checked |
+| `monitoring_loki_data` | `monitoring` | Log chunks and index | yes - flush, stop, tar, start; newest 3 |
 | `monitoring_promtail_positions` | `monitoring` | Legacy promtail read offsets (Alloy imports the host-log ones once). **Not data, but load-bearing:** positions default to `/tmp`, which is empty again after every restart, so promtail re-read every container log from the start and duplicated the whole history into Loki each time it came back. | no |
 
 `mgmt_portainer_data` and `redis_redis_data` were rows here until the services
@@ -610,11 +610,15 @@ left on disk deliberately, and `backup.sh` says why.
 
 ### What the nightly backup covers
 
-`stacks-backup.timer` fires `scripts/backup.sh` at 03:00 daily and keeps the
-newest **14** of each: the Postgres dump, `grafana.db`, and `.env`. It creates
-exactly those three directories - a Redis step lived here until 2026-08-12 and a
-Portainer one until 2026-08-17, and both came out with their services rather than
-being left to fail nightly for ever.
+`stacks-backup.timer` fires `scripts/backup.sh` at 03:00 daily. It keeps the
+newest **14** of the Postgres dump, `grafana.db`, `.env`, Alloy's positions, the
+audit logs and trash directories, and a `git bundle` of the notes repo - and the
+newest **3** of VictoriaMetrics and Loki, which are ~400 MB and ~20 MB a night.
+Every kind has a restore recipe (`just restore-postgres <file>` and siblings) that
+asks first, stops only the service it replaces and verifies afterwards; the
+[backups guide](guide/backups.md) has the table, the sizes and each recipe. A
+Redis step lived here until 2026-08-12 and a Portainer one until 2026-08-17, and
+both came out with their services rather than being left to fail nightly for ever.
 
 `.env` is in there because it is gitignored and exists in exactly one place on
 earth. Losing it loses every credential on the box.
