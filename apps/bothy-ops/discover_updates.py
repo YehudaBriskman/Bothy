@@ -664,6 +664,10 @@ class Discoverer:
                 raise ValueError("pinned by digest only, and the digest is none of the 8 newest releases")
         else:
             d, _ = dig(im["tag"], floating=e["current"]["float"])
+            # The digest the pinned tag names upstream NOW. The updater's plan
+            # takes its target digest from here (updater/plans.py): a plan says
+            # tag@digest, and the executor refuses a pull that yields another.
+            e["current"]["resolved"] = d
             if e["current"]["float"]:
                 # A floating pin (`v3.7`, `17`): newer releases arrive under the
                 # same tag. That is an update waiting, not drift.
@@ -849,6 +853,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--only", help="comma-separated component ids")
     ap.add_argument("--json", action="store_true", help="print the document as well as the table")
     ap.add_argument("--quiet", action="store_true", help="no table (the timer)")
+    ap.add_argument("--no-plans", action="store_true",
+                    help="do not pre-compute the updater's plans (plans/<component>.json)")
     a = ap.parse_args(argv)
 
     try:
@@ -868,6 +874,19 @@ def main(argv: list[str]) -> int:
     net = Net(cache, use_cache=not a.no_cache)
     doc = Discoverer(catalog, net).run(only)
     out, prom = write(doc, state_dir, textfile_dir)
+    if not a.no_plans and not only:
+        # Build step 4: a plan per component, pre-computed HERE on the host so
+        # bothy-ops only ever reads one (updater/plans.py). Still read-only:
+        # git and docker inspect, no pull. A partial (--only) run skips it, since
+        # a plan must be built from one whole discovery.
+        from updater import plans
+        from updater.config import Config
+        try:
+            got = plans.write_all(Config(state=state_dir), catalog, doc)
+            n = sum(1 for v in got.values() if not v.startswith("- "))
+            print(f"plans: {n} deployable of {len(got)} -> {os.path.join(state_dir, 'plans')}", file=sys.stderr)
+        except (OSError, ValueError, updates.CatalogError) as e:
+            print(f"note: plans could not be written ({e})", file=sys.stderr)
     try:
         _atomic(cache_path, json.dumps(cache, separators=(",", ":")), 0o600, 0o700)
     except OSError as e:

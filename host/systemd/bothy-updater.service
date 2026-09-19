@@ -1,0 +1,26 @@
+[Unit]
+Description=Bothy updater - apply update requests from the spool (host executor; deploys only what main pins)
+Documentation=file:///home/devssh/stacks/apps/bothy-ops/updater/__init__.py
+# Started by bothy-updater.path, never by a timer: nothing here runs unless an
+# operator asked through Settings > Updates (or wrote a request by hand).
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=devssh
+Group=devssh
+Environment=HOME=/home/devssh
+# `just` comes from mise's shims, like kubectl in bothy-updates-discover.service.
+Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=/home/devssh/stacks/apps/bothy-ops
+ExecStart=/usr/bin/python3 -m updater run
+# Everything it writes - status.json, history.jsonl, audit.log, snapshots - is
+# 600/700 by construction; the umask makes that the default for the rest.
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+Nice=5
+# A pull, a snapshot of VictoriaMetrics, the recipe's --wait and verify, twice
+# if it rolls back. Generous, because being killed half-way is the worst ending.
+TimeoutStartSec=60min
