@@ -286,7 +286,7 @@ def _dump_tables(pg: str, pgenv: dict, dump: str) -> tuple[int, str]:
         return -1, err
     try:
         with open(listing, encoding="utf-8", errors="replace") as fh:
-            n = sum(1 for ln in fh if re.match(r"\d+; \d+ \d+ TABLE ", ln))
+            n = sum(1 for ln in fh if re.match(r"\d+; \d+ \d+ TABLE (?!DATA )", ln))
     finally:
         os.unlink(listing)
     return n, ""

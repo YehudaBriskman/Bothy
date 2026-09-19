@@ -27,6 +27,14 @@ again, under the old image: is data written before the update still readable?
           verify again.
 
 A restore is never the first move, because it is the only step that loses data.
+
+── ...and for one-way data (app-db: Grafana, Keycloak) it ALWAYS is ───────────
+
+A class with `always_restore` (classes.AppDb) migrates its data on the first
+start of the new version, so the old image may not read it at all. There the
+rollback restores the snapshot FIRST, with the new container stopped, and only
+then puts the previous image back on every pin line. If the restore fails, the
+old image is not put back: the result is `failed`, and a person decides.
 """
 
 from __future__ import annotations
