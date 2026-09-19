@@ -9,7 +9,7 @@
 # anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. `just verify` check
 # 5b catches it; apps/bothy-ops/checks/wiring_updates.py does too.
 #
-# ── four exact Paths, each with its method and its role ────────────────────
+# ── five exact Paths, each with its method and its role ────────────────────
 #
 #   GET  /-/api/updates/status    viewer    every component in updates.toml: pinned,
 #                                           running and available versions, drift,
@@ -23,15 +23,18 @@
 #   POST /-/api/updates/request   OPERATOR  {component, plan_id, confirm}. bothy-ops
 #                                           writes ONE spool file and answers 202;
 #                                           the host executor decides the rest
+#   POST /-/api/updates/unpause   OPERATOR  {component}. bothy-ops writes ONE
+#                                           unpause file into the spool; the host
+#                                           clears the automatic-update pause
 #
 # The reads are `viewer`: versions of public images and the steps of a job - the
 # same facts About & health already shows - and they change nothing. The request
-# is `operator`, like every other verb that acts on something running
+# and the unpause are `operator`, like every other verb that acts on something running
 # (bothy-ops.yml). Path() matches the path alone, so ?component= and ?id= reach
 # the service, which accepts exactly one parameter each.
 #
 # `Method(...)` is part of every rule: a POST never reaches a read, and a GET
-# never reaches the request.
+# never reaches the request or the unpause.
 #
 # ── self-contained ──────────────────────────────────────────────────────────
 #
@@ -66,6 +69,13 @@ http:
 
     bothy-updates-request:
       rule: "Path(`/-/api/updates/request`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]
+
+    bothy-updates-unpause:
+      rule: "Path(`/-/api/updates/unpause`) && Method(`POST`)"
       entryPoints: [web]
       priority: 110
       service: bothy-updates

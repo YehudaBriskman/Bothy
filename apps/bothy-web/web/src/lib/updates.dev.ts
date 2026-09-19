@@ -24,16 +24,22 @@
 //
 //   localStorage['bothy-dev-updates-job'] = 'rolled_back' | 'aborted' | 'failed' | 'refused'
 //   localStorage['bothy-dev-updates-request'] = 'stale' | 'busy' | 'no-operator'
+//
+// Step 7 - the automatic channel. The seed history has a night job's success
+// (node-exporter) and its rollback (VictoriaMetrics), so VictoriaMetrics is PAUSED
+// until Unpause; the "host" clears it a few seconds after the request, the way the
+// real spool round trip does. Reset with localStorage.removeItem('bothy-dev-updates-unpaused').
 
 import type {
-  Channel, Discovered, HistoryEntry, Job, JobState, JobStep, Level, Plan, PlanAnswer, PlanSummary,
-  RequestAnswer, StepName, UpdateRow, UpdatesStatus, VersionRef,
+  AutoDecision, Channel, Discovered, HistoryEntry, Job, JobState, JobStep, Level, Pause, Plan, PlanAnswer, PlanSummary,
+  RequestAnswer, StepName, UnpauseAnswer, UpdateRow, UpdatesStatus, VersionRef,
 } from './updates';
 
 const OUTCOME_KEY = 'bothy-dev-updates-outcome';
 const JOB_OUTCOME_KEY = 'bothy-dev-updates-job';
 const REQUEST_KEY = 'bothy-dev-updates-request';
 const JOBS_KEY = 'bothy-dev-updates-jobs';
+const UNPAUSED_KEY = 'bothy-dev-updates-unpaused';
 
 const read = (k: string): string | null => {
   try { return localStorage.getItem(k); } catch { return null; }
@@ -158,8 +164,46 @@ function row(s: Spec, checkedAt: string, discovered: boolean): UpdateRow {
     changelog: s.changelog.includes('{v}') && ver ? s.changelog.replace('{v}', ver) : s.changelog.split('{v}')[0].replace(/tag\/v?$/, ''),
     level, effectiveChannel: effective(s.channel, level), behind: level === 'minor' || level === 'major', discovered: d,
     plan: discovered ? summaryOf(s.id) : null,
+    ...pauseOf(s.id),
   };
 }
+
+// ── step 7: the pause the seed's automatic rollback left, and its unpause ────
+
+const PAUSED_SEED: Record<string, Pause> = {
+  victoriametrics: {
+    since: ago(86400 * 5 - 184), result: 'rolled_back', jobId: 'e'.repeat(32), requestedBy: 'auto',
+    reason: 'rolled back: `up` returned no series within 120 s',
+  },
+};
+
+/** {at} of an unpause asked for in this browser, per component. */
+function unpaused(): Record<string, number> {
+  try { return JSON.parse(read(UNPAUSED_KEY) ?? '{}') as Record<string, number>; } catch { return {}; }
+}
+
+function pauseOf(id: string): { paused: Pause | null; unpauseQueued: boolean } {
+  const p = PAUSED_SEED[id];
+  const at = unpaused()[id];
+  if (!p) return { paused: null, unpauseQueued: false };
+  if (at && Date.now() - at > 4000) return { paused: null, unpauseQueued: false };
+  return { paused: p, unpauseQueued: !!at };
+}
+
+export async function unpauseMock(component: string): Promise<UnpauseAnswer> {
+  await new Promise((r) => setTimeout(r, 300));
+  if (read(REQUEST_KEY) === 'no-operator') refuse(403, 'Forbidden', false);
+  const st = pauseOf(component);
+  if (!st.paused) refuse(409, `automatic updates are not paused for ${component}`, true);
+  if (st.unpauseQueued) refuse(409, `an unpause of ${component} is already waiting for the host`, true);
+  try { localStorage.setItem(UNPAUSED_KEY, JSON.stringify({ ...unpaused(), [component]: Date.now() })); } catch { /* per-tab */ }
+  return { ok: true, id: 'a'.repeat(32), component };
+}
+
+const LAST_NIGHT: AutoDecision = {
+  at: ago(3600 * 6), outcome: 'skipped', component: null, jobId: null,
+  reason: 'nothing eligible: no auto component has a deployable patch plan that is not paused',
+};
 
 export async function updatesMock(): Promise<UpdatesStatus> {
   await new Promise((r) => setTimeout(r, 240));
@@ -194,6 +238,7 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     applying: (() => { const j = current(); return !!j && !TERMINAL_STATES.includes(j.state); })(),
     job: current(),
     history: history(),
+    auto: { enabled: true, actor: 'auto', paused: rows.filter((r) => r.paused).map((r) => r.id), last: LAST_NIGHT },
     components: rows,
   };
 }
@@ -450,14 +495,14 @@ export async function jobMock(id: string): Promise<Job> {
 const SEED: HistoryEntry[] = [
   {
     id: 'f'.repeat(32), component: 'node-exporter', planId: 'c0ffee00c0ffee00c0ffee00', state: 'succeeded',
-    requestedBy: 'devssh@example.com', requestedAt: ago(86400 * 3), startedAt: ago(86400 * 3 - 2), endedAt: ago(86400 * 3 - 41),
+    requestedBy: 'auto', requestedAt: ago(86400 * 3), startedAt: ago(86400 * 3 - 2), endedAt: ago(86400 * 3 - 41),
     durationMs: 39_000,
     from: { image: 'prom/node-exporter:v1.12.0', version: '1.12.0' }, to: { image: 'prom/node-exporter:v1.12.1', version: '1.12.1' },
     error: null, snapshot: '~/backups/pre-update/20260916T101204Z-node-exporter/', note: null,
   },
   {
     id: 'e'.repeat(32), component: 'victoriametrics', planId: 'beefbeefbeefbeefbeefbeef', state: 'rolled_back',
-    requestedBy: 'devssh@example.com', requestedAt: ago(86400 * 5), startedAt: ago(86400 * 5 - 2), endedAt: ago(86400 * 5 - 184),
+    requestedBy: 'auto', requestedAt: ago(86400 * 5), startedAt: ago(86400 * 5 - 2), endedAt: ago(86400 * 5 - 184),
     durationMs: 182_000,
     from: { image: 'victoriametrics/victoria-metrics:v1.151.0', version: '1.151.0' },
     to: { image: 'victoriametrics/victoria-metrics:v1.152.0', version: '1.152.0' },

@@ -6,6 +6,7 @@
     GET  /admin/{users,credentials,backups,audit}  Settings reads  admin.py
     GET  /updates/{status,plan,job}          Settings > Updates   updates.py
     POST /updates/request                    one spool file       updates.py
+    POST /updates/unpause                    one spool file       updates.py
     GET  /healthz                            local only, no edge route
 
 Until 2026-09 these were two services, bothy-control and bothy-kube, each with
@@ -99,6 +100,9 @@ class Handler(JsonHandler):
         if route == "/updates/request":
             # Writes one file into the spool. The HOST decides whether it runs.
             return updates.handle(self, "request")
+        if route == "/updates/unpause":
+            # Asks the host to clear an automatic-update pause; the host decides.
+            return updates.handle(self, "unpause")
         return self._send(404, {"error": "no such endpoint"})
 
 
