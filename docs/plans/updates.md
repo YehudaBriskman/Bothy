@@ -1,6 +1,7 @@
 # Updates: keeping every part of Bothy current from the web UI
 
-Status: **design, not built.** Written 2026-09-18 from two read-only surveys:
+Status: **steps 0-4 built** (step 4, the updater for the stateless and time-series classes, on 2026-09-19 - see
+[Decisions](#decisions)); steps 5-8 are design. Written 2026-09-18 from two read-only surveys:
 - the repo and live box: every pin, volume, backup and restart;
 - the tooling and patterns available, with sources at the end.
 
@@ -37,7 +38,7 @@ The honest security statement: devssh is in the `docker` group, so any host proc
 - a version the host itself discovered, compared exactly;
 - a plan id the host itself wrote.
 
-A total compromise of bothy-ops then buys "move a listed component to a listed version". That is bounded, and comparable to the `set-image` it already has on the cluster.
+A total compromise of bothy-ops then buys "move a listed component to a listed version". That is bounded, and comparable to the `set-image` it already has on the cluster. As built (step 4, [Decisions](#decisions)) it is narrower still: "deploy, for a listed component, the version `main` already pins".
 
 ### Rejected alternatives
 
@@ -78,7 +79,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
   - the helm index, for charts.
 
   It writes `available.json`, labels each entry patch, minor or major, and writes Prometheus textfile metrics `bothy_update_available{component,level}`, which node-exporter already exports.
-- **bothy-ops gains three exact `Path()` routes** in a hand-written `edge/dynamic/bothy-updates.yml` (allow-listed in `edge/dynamic/.gitignore`):
+- **bothy-ops gains exact `Path()` routes** (four as built: status, plan, job and request) in a hand-written `edge/dynamic/bothy-updates.yml` (allow-listed in `edge/dynamic/.gitignore`):
   - `GET /-/api/updates/status` (viewer): current and available versions, running job, history;
   - `GET /-/api/updates/plan?component=` (viewer): the host-written plan (diff, changelog, one-way flag, dependants, downtime);
   - `POST /-/api/updates/request` (operator; type-the-name for `one_way` and major): `{component, plan_id, confirm}`. It writes one spool file and an audit line, then answers 202. It never runs anything.
@@ -88,7 +89,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
   - re-validates everything and doesn't trust bothy-ops;
   - holds one global `flock`, so only one update runs at a time;
   - writes `status.json` after every step, so the UI keeps showing progress while bothy-ops, Traefik or bothy-web restart underneath it;
-  - appends to `audit/updates.log` and `history.jsonl`, and commits each pin change to a local `deploy/box` branch, so git is the history.
+  - appends to an audit log and `history.jsonl`. It does **not** commit, and there is no `deploy/box` branch: it deploys only what `main` already pins, so git's history of `main` already is the history (see [Decisions](#decisions)).
 
 ## 4. Component classes
 
@@ -144,7 +145,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
    - one-way components: stop, restore the snapshot, the previous digest, then `up`.
 
    The result is recorded as `rolled_back`, and a Grafana alert fires.
-8. **Record:** an audit line per step, a `history.jsonl` entry (from, to, digests, plan, operator, duration, snapshot path, outcome), the textfile metric `bothy_update_last_result`, and a `deploy/box` commit.
+8. **Record:** an audit line per step, a `history.jsonl` entry (from, to, digests, plan, operator, duration, snapshot path, outcome) and the textfile metric `bothy_update_last_result`. No commit: what was deployed is a commit on `main` already.
 
 ### Per-component specifics
 
@@ -197,7 +198,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
    - write restore recipes: `just restore-postgres`, `restore-grafana`, `restore-env`;
    - add an `upgrade.yml` case that restores.
 3. **Discovery:** the timer, `available.json`, the textfile metrics, and a read-only Settings → Updates page (current, available, channel, badges, changelog links). Useful even if nothing below is ever built.
-4. **The updater for stateless and time-series classes:** spool, path unit, plans, snapshot, apply, verify, roll back, history. Then the `POST` route (operator) and the plan view.
+4. **The updater for stateless and time-series classes:** spool, path unit, plans, snapshot, apply, verify, roll back, history. Then the `POST` route (operator) and the plan view. **Built 2026-09-19** - see [Decisions](#decisions) for how it differs from the sketch above.
 5. **One-way classes** (Grafana, Keycloak), with the snapshot and restore paths exercised in CI.
 6. **Own code:** tags, build-before-switch, the rollback timer, the `/version` banner.
 7. **Channels and the window:** automatic patches for the classes marked `auto`, one component per night after a successful 03:00 backup, stopping at the first failure. Plus a Grafana alert on `rolled_back` or failure.
@@ -210,6 +211,94 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 - **A running job** shows its steps live from `status.json`, and survives the UI restarting under it.
 - **History:** reads `history.jsonl`, with the snapshot path of each run and a **Roll back** action. Roll back is itself a plan, with its own confirmation.
 - **Settings badge:** a count on the Settings nav item for anything a minor version or more behind.
+
+## Decisions
+
+### Step 4 (2026-09-19): the updater deploys only what `main` already pins
+
+**The question.** §3 and §5 sketched an updater that rewrites a pin to a discovered newer version and commits that to a local
+`deploy/box` branch. The box runs `main`, and `bothy upgrade` is `git pull --ff-only`: a local commit that diverges from
+`origin/main` blocks it, and a dirty pin line makes it refuse or conflict the week Dependabot bumps the same line. So the pin
+change has to be recorded somewhere, and every place is worse than the last - a local branch (diverges), a dirty tree
+("applied, not merged", blocks upgrades), or a PR the box opens itself (a GitHub credential on the host, and a round trip).
+
+**The decision: the updater never writes a newer pin at all.** A plan is *"this container runs W; the checked-out `main`
+pins X"*. The one-click flow is: Dependabot (or anyone) opens the PR, CI and `upgrade.yml` test it, it merges, the box's
+checkout is pulled, and Settings > Updates offers **exactly X**. A version `main` does not pin is not offered; the page says to
+merge its PR.
+
+| | Rewrite pins (the sketch) | Deploy what `main` pins (built) |
+|---|---|---|
+| Source of truth | the box and `main` disagree until someone reconciles | git, only |
+| Review and CI | none for the box's choice | the PR, `ci.yml`, and `upgrade.yml`'s HEAD^1 -> HEAD on the exact change |
+| `bothy upgrade` / `git pull --ff-only` | blocked by the local commit or the dirty line | never blocked by a success |
+| Dependabot | its PR conflicts with the box's edit | its PR *is* the input |
+| What a request can choose | a component and a version (from a list) | a component and a plan id; the version is a line on `main` |
+| Code that writes into compose files | on every update | on a rollback only |
+| Cost | none | a newer version waits for its PR to merge and the checkout to be pulled |
+
+The cost is real and accepted: it is the review step, and it is how the box was actually updated on 2026-09-18 (merged,
+then applied by hand). "Merged but not running" is precisely §1's gap, and this closes it.
+
+**What makes a checkout deployable** (`updater/plans.py`): HEAD is on the branch `main`; the pin file has no local
+changes; HEAD is an ancestor of `refs/remotes/origin/main` (nothing unreviewed); discovery saw the same tag and resolved its
+digest; the pin is an exact version, not floating; the running version is older, and not by a major. The plan's id is a hash of
+all of that plus the running image id and HEAD's sha, so any change - a new commit, a restarted container, a re-published tag -
+makes the old plan stale, and the executor recomputes it and refuses a mismatch.
+
+**The one exception: a rollback writes the old pin back.** If verify fails, the previous image goes back on the pin line - a
+strict one-line edit that aborts unless the line still reads exactly what the plan recorded - and the recipe runs again. The tree
+is then dirty *on purpose*: it says "main pins X, this box deliberately runs W", so the next `just up` does not re-apply the
+broken version. The plan for that component refuses until a person looks (`git diff`, then `git checkout -- <file>`).
+
+### Step 4: the other choices
+
+- **Plans are pre-computed on the host** by `discover_updates.py` (`plans/<component>.json`, 600), not requested through a
+  second path unit. bothy-ops stays read-only on everything but the spool, and a plan exists before anyone asks, so the page
+  can show "ready to deploy" or the reason in the table itself. Keyed by component so a stale plan cannot linger.
+- **Pre-flight's health check is narrower than `just doctor`**, on purpose: the component's container running and healthy, its
+  own canaries green *before* the update (a component that was already broken cannot be verified), and - the one that matters
+  most - `docker compose config --hash` proving the recipe recreates this service and nothing else in its project. `just
+  up-monitoring` recreates every changed service in `monitoring/`, so without it updating Loki would silently apply a merged
+  Grafana pin (one-way) with no snapshot. `just doctor` is a whole-box sweep that is often amber for reasons unrelated to the
+  component (a stopped project), and would block every update.
+- **Backups:** the newest file in `~/backups/postgres` (the nightly marker) and, for a time-series component, its own kind, must
+  be under 24 h old.
+- **Snapshots** go to `~/backups/pre-update/<ts>-<component>/` (700, last 3 kept): the pin line, the compose file, the plan, the
+  old image's id and digests; for VictoriaMetrics and Loki also the data, through the same `bk_snapshot_vm` /
+  `bk_snapshot_loki` the nightly backup uses (`scripts/snapshot.sh`), so `just restore-<kind>` restores it.
+- **The pull is checked**: the pulled image must carry the digest discovery recorded for the tag; a moved tag aborts before
+  anything running changes.
+- **Canaries read bodies** (rule 7), from inside the component's network namespace with the backup helper image: cAdvisor,
+  node-exporter and postgres-exporter `/metrics` must carry a named metric; Alloy's `/-/ready` must say ready; Headlamp's
+  `/config` must carry `"clusters"`; VictoriaMetrics' `up` must return series; Loki's `/ready` must say `ready` and a count over
+  the last 2 minutes must be non-zero.
+- **The time-series restore rule.** A time-series component also has a history probe - a query evaluated at a fixed moment T0
+  before the update (`count(up)` for VictoriaMetrics, a line count for Loki). On any failure the image is rolled back first;
+  the data snapshot is restored **only if the history probe still fails under the old image**, i.e. the data itself is
+  damaged. A restore discards everything written since the snapshot, so it is never the first move.
+- **Results**: `succeeded`, `rolled_back`, `aborted` (snapshot or pull failed; nothing running changed), `failed` (the rollback
+  did not restore health - a person is needed), `refused` (validation or pre-flight; nothing touched).
+- **Records**: `status.json` after every step, `history.jsonl`, and the executor's own `audit.log` - all in the state directory
+  bothy-ops mounts read-only, not in `apps/bothy-ops/audit`, which bothy-ops can write. The request itself is a line in
+  bothy-ops' `admin.log`. `bothy_update_last_result{component,result}` goes to node-exporter's textfile directory.
+- **No updater timer.** Nothing is applied unless someone asked; the night window and `auto` are step 7.
+
+### What steps 5-8 plug in
+
+- **Step 5, one-way (Grafana, Keycloak):** a class in `updater/classes.py` with its snapshot (Grafana stopped then the
+  volume tarred; `pg_dump -Fc keycloak`), its canaries in `canaries.py` (`/api/health` database ok; the issuer unchanged and
+  `keycloak-init` exited 0), and a `restore` that the rollback always runs (one-way means the image alone cannot go back).
+  Plans for them already say `confirm: type-name`, and bothy-ops and the executor already enforce it. Keycloak has two pins,
+  so `plans.py`'s single-pin rule widens to "every pin moves to the same image".
+- **Step 6, own code:** a `github`-source class whose "pin" is `VERSION` on a release tag; its apply is build-then-switch and
+  its rollback the previous SHA's images. It also needs the updater to run from a copy that does not replace itself
+  (`~/.local/lib/bothy-updater/<sha>/`), and `bothy upgrade` to stop running a blanket `just up` - today it bypasses every
+  snapshot and canary here. Moving the checkout (`git pull --ff-only`) belongs there too; step 4 never moves it.
+- **Step 7, channels and the window:** a timer that writes a spool request itself for the one `auto` patch a night, after a
+  successful 03:00 backup. The executor needs no change: it already re-validates every request the same way.
+- **Step 8, cluster add-ons and the Postgres major:** classes whose apply is `just k8s-monitoring` or the dump/new-volume
+  procedure, still behind a plan id, a snapshot and verify.
 
 ## Sources
 

@@ -569,34 +569,63 @@ Rotation from the interface is not built: the page shows the command. User write
 (role grants, password resets) are not built either; they need their own
 operator routes, a type-the-name confirmation and a `manage-users` client first.
 
-### 8. Update discovery (in `bothy-ops`) reads; nothing in the browser path applies
+### 8. Updates: the browser asks, the host decides, and only for what `main` pins
 
-Added 2026-09-19, build step 3 of `docs/plans/updates.md`. One exact
-`Path() && Method(GET)` router, `/-/api/updates/status`, behind `sso-viewer`, in
-the hand-written `edge/dynamic/bothy-updates.yml` (kept out of the generated
-`bothy-ops.yml`). It serves `apps/bothy-ops/updates.toml` merged with what the
-host found; each read is a line in `apps/bothy-ops/audit/admin.log`.
+Added 2026-09-19 (build steps 3 and 4 of `docs/plans/updates.md`). Four exact
+`Path() && Method()` routers in the hand-written `edge/dynamic/bothy-updates.yml`
+(kept out of the generated `bothy-ops.yml`): `GET /-/api/updates/status`, `/plan`
+and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` behind
+**`sso-operator`**. Every request, refusals included, is a line in
+`apps/bothy-ops/audit/admin.log`.
 
-- **Discovery runs on the host**, not in a container:
+- **Discovery and plans run on the host**, not in a container:
   `apps/bothy-ops/discover_updates.py` (a systemd timer,
   `host/systemd/bothy-updates-discover.*`, every 6 h). It reads the pins from the
   repo, runs `docker inspect`, `kubectl get` and `helm list` (all read-only), and
   asks the public registries with **anonymous** pull tokens, GitHub's releases
   API unauthenticated and the helm index. It holds no credential and pulls
-  nothing. It writes `~/.local/state/bothy/updates/available.json` (mode 600, dir
-  700), which bothy-ops mounts **read-only** and re-filters to an allow-list, and
-  a node-exporter textfile (`~/.local/state/bothy/textfile`, 755/644 because
-  node-exporter runs as `nobody`, mounted read-only on a dedicated directory).
-- **bothy-ops gained no new power.** No socket, no network path to the internet,
-  no read-write mount: the only read-write mount is still its audit directory
-  (`checks/wiring_updates.py` asserts it). The catalog is baked into the image
-  and a malformed one refuses the start.
+  nothing. It writes `~/.local/state/bothy/updates/available.json` and one
+  `plans/<component>.json` per component (600 in 700), which bothy-ops mounts
+  **read-only** and re-filters to an allow-list, and a node-exporter textfile
+  (`~/.local/state/bothy/textfile`, 755/644 because node-exporter runs as
+  `nobody`, mounted read-only on a dedicated directory).
+- **Applying is SECURITY.md "shape 3", reached through "shape 1".** The request
+  route makes bothy-ops write ONE file into `~/.local/state/bothy/updates/spool`
+  - its only read-write mount besides its audit dir (`checks/wiring_updates.py`
+  asserts both) - and answer 202. It runs nothing. The host's
+  `bothy-updater.path` starts `bothy-updater.service` (devssh, oneshot,
+  `NoNewPrivileges`), which takes a global `flock` and treats the spool as
+  hostile: only a regular `<32 hex>.json` of at most 4 KiB, opened
+  `O_NOFOLLOW`, with an exact key set; anything else is removed; a request is
+  unlinked before it runs (at most once). It then **re-validates against
+  `updates.toml` and a plan it recomputes itself**, and refuses unless the plan id
+  matches. Every command is a fixed argv list; nothing from the request reaches
+  one except as a catalog lookup key.
+- **What a total compromise of bothy-ops can make the host do** - the honest
+  statement, since devssh is in the `docker` group and so root-equivalent over
+  Docker whatever runs as it: for a component of class `stateless` or
+  `timeseries` in `updates.toml`, **deploy the image the checked-out `main`
+  already pins** - reviewed, merged and on `origin/main` - which `just up` would
+  deploy anyway, at a moment of its choosing, and only through the same
+  pre-flight (fresh backup, disk, health and canaries green, the recipe touching
+  nothing else). It cannot choose a version, an image, a file, a recipe or a
+  command: the plan id is a hash the host computed from files the host reads. Its
+  remaining levers are timing (a Loki snapshot stops Loki for seconds), disk (a
+  pre-update snapshot, kept 3 per component, behind a free-space check) and
+  noise (a refused request is a history line). It can edit none of the records:
+  `status.json`, `history.jsonl` and the executor's `audit.log` sit in the
+  directory it mounts read-only.
+- **The one write to the tree** is a rollback's: the old image goes back on the
+  pin line, a single-line edit that aborts unless the line still reads exactly
+  what the plan recorded, left uncommitted so the next `just up` keeps the
+  working version.
 - **The policy is code, not catalog.** `updates.load_catalog()` refuses `auto` on
   a one-way component, on the auth boundary, and on any class outside
   `AUTO_CLASSES` (stateless, time-series); `effective_channel()` makes a minor of
-  an auto component `notify` and any major `manual`. Applying - the spool, the
-  host updater and the operator `POST` - is step 4 and not built; the page shows
-  the `just` recipe to run by hand.
+  an auto component `notify` and any major `manual`. The updater's own classes
+  (`updater/classes.py`) are a separate, code-reviewed list: one-way classes,
+  the boundary, own code and the cluster are refused at plan time. No timer
+  applies anything; `auto` is step 7 and not built.
 
 ---
 
