@@ -15,7 +15,7 @@ can shelter in. That is what this box is - one machine that quietly holds
 everything, open to anyone on the tailnet, not a service anybody sells.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v2026.8.1-4c1)](https://github.com/YehudaBriskman/Bothy/releases)
+[![Release](https://img.shields.io/badge/release-v2026.9.0-4c1)](https://github.com/YehudaBriskman/Bothy/releases)
 ![docker compose](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 ![just](https://img.shields.io/badge/just-task%20runner-EF5A29)
 ![Traefik](https://img.shields.io/badge/Traefik-v3.7-24A1C1?logo=traefikproxy&logoColor=white)

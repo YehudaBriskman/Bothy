@@ -68,8 +68,8 @@ set -u
 # the exact tree this file was published against - a substituted or rewritten
 # tag cannot match. It proves nothing about whether THIS FILE is genuine; that
 # is what reading it before running it is for.
-BOTHY_PIN_VERSION="v2026.8.1"
-BOTHY_PIN_SHA="25d6ef4fcdac878fcadd497097d30e2d7f75cab8"
+BOTHY_PIN_VERSION="v2026.9.0"
+BOTHY_PIN_SHA="581a65750c3874cf32ad7191097f592b2024b3e8"
 
 # ── settings ────────────────────────────────────────────────────────────────
 #
