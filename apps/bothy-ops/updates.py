@@ -526,6 +526,8 @@ def status(catalog: Catalog) -> dict:
                        "discoverEveryHours": p.discover_every_hours},
             "applying": bool(queue) or bool(job and job["state"] == "running"),
             "job": job,
+            # Step 6: the installed updater, and a staged one waiting for `just install-updater`.
+            "updater": _updater(),
             "history": _history(20),
             "auto": {"enabled": p.max_auto_per_night > 0, "actor": AUTO_ACTOR,
                      "paused": sorted(auto_state["paused"]), "last": auto_state["last"]},
@@ -553,7 +555,9 @@ MAX_SPOOL_BYTES = 4096
 MAX_QUEUE = 8
 
 JOB_STATES = ("queued", "running", "succeeded", "rolled_back", "aborted", "failed", "refused")
-STEP_NAMES = ("validate", "preflight", "snapshot", "pull", "apply", "verify", "rollback", "restore", "record")
+STEP_NAMES = ("validate", "preflight", "snapshot", "pull", "apply", "verify", "rollback", "restore", "record",
+              # own code (step 6): build instead of pull, a rollback timer, the checkout move, a staged updater
+              "build", "arm", "switch", "stage")
 STEP_STATES = ("pending", "running", "ok", "failed", "skipped")
 _JOB = re.compile(r"[a-f0-9]{32}")
 _PLAN = re.compile(r"[a-f0-9]{24}")
@@ -642,10 +646,11 @@ def _plan(p: object) -> dict | None:
         "preflight": _strs_list(p.get("preflight")),
         "verify": _strs_list(p.get("verify")),
         "rollback": _s(p.get("rollback"), 800),
+        **({"own": _own(p["own"])} if isinstance(p.get("own"), dict) else {}),
     }
 
 
-_SNAPSHOT_KINDS = ("image", "victoriametrics", "loki", "grafana", "keycloak")
+_SNAPSHOT_KINDS = ("image", "victoriametrics", "loki", "grafana", "keycloak", "git")
 
 
 def _pins(v: object) -> list[dict]:
@@ -659,6 +664,41 @@ def _pins(v: object) -> list[dict]:
                     "line": line if isinstance(line, int) and not isinstance(line, bool) and 0 < line < 100000
                     else None})
     return out
+_OWN_APPS = ("bothy-web", "bothy-files", "bothy-ops")
+_TAG = re.compile(r"v\d{1,5}\.\d{1,5}\.\d{1,5}")
+
+
+def _own(o: dict) -> dict:
+    """An own-code plan's extra facts (step 6), copied field by field."""
+    ci = o.get("ci") if isinstance(o.get("ci"), dict) else {}
+    num = (lambda v: v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None)
+    url = o.get("releaseUrl")
+    return {
+        "fromSha": o["fromSha"] if isinstance(o.get("fromSha"), str) and _SHA.fullmatch(o["fromSha"]) else None,
+        "toSha": o["toSha"] if isinstance(o.get("toSha"), str) and _SHA.fullmatch(o["toSha"]) else None,
+        "tag": o["tag"] if isinstance(o.get("tag"), str) and _TAG.fullmatch(o["tag"]) else None,
+        "releaseUrl": url[:300] if isinstance(url, str) and url.startswith("https://") else None,
+        "commits": num(o.get("commits")), "diffstat": _s(o.get("diffstat"), 200),
+        "apps": [a for a in _strs_list(o.get("apps"), 3, 20) if a in _OWN_APPS],
+        "compose": _strs_list(o.get("compose"), 20, 200), "edge": _strs_list(o.get("edge"), 20, 200),
+        "elsewhere": _strs_list(o.get("elsewhere"), 20, 200), "elsewhereCount": num(o.get("elsewhereCount")),
+        "updater": o.get("updater") is True, "updaterFiles": _strs_list(o.get("updaterFiles"), 20, 200),
+        "ci": {"via": _s(ci.get("via"), 80), "detail": _s(ci.get("detail"), 300), "runs": num(ci.get("runs"))},
+        "rollbackAfter": num(o.get("rollbackAfter")),
+        "order": [a for a in _strs_list(o.get("order"), 3, 20) if a in _OWN_APPS],
+    }
+
+
+def _updater() -> dict | None:
+    """Which updater copy runs and which is staged (updater/install.py writes it)."""
+    doc = _read_json(os.path.join(UPDATES_DIR, "updater.json"), 64 * 1024)
+    if not isinstance(doc, dict) or doc.get("version") != 1:
+        return None
+    cur = doc.get("current") if isinstance(doc.get("current"), dict) else {}
+    stg = doc.get("staged") if isinstance(doc.get("staged"), dict) else {}
+    sha = (lambda v: v if isinstance(v, str) and _SHA.fullmatch(v) else None)
+    return {"current": sha(cur.get("sha")), "installedAt": _iso_or_none(cur.get("installedAt")),
+            "staged": sha(stg.get("sha")), "stagedAt": _iso_or_none(stg.get("stagedAt"))}
 
 
 def _ref(v: object) -> dict | None:

@@ -442,7 +442,22 @@ class AppDb(UpdateClass):
                      f"{name} left stopped"
 
 
-CLASSES: dict[str, UpdateClass] = {"stateless": Stateless(), "timeseries": Timeseries(), "app-db": AppDb()}
+class OwnCode(UpdateClass):
+    """Bothy itself (build step 6). Its plan, apply, verify and rollback are not
+    the image pipeline's at all - they live in owncode.py; this entry only makes
+    the class known to the plan dispatch and to the spool's re-validation."""
+    name = "own-code"
+    rollback = "the previous commit and the previous images, by the armed rollback unit (owncode.py)"
+
+    def snapshot_kind(self, cid: str) -> str:
+        return "git"
+
+    def backup_kinds(self, cid: str) -> tuple[str, ...]:
+        return ()   # no database; audit and state live outside the images
+
+
+CLASSES: dict[str, UpdateClass] = {"stateless": Stateless(), "timeseries": Timeseries(), "app-db": AppDb(),
+                                   "own-code": OwnCode()}
 
 
 def get(cls: str, cid: str) -> UpdateClass | None:

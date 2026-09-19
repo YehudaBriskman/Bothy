@@ -176,12 +176,13 @@ def container(name: str) -> dict | None:
 
 
 def image(ref: str) -> dict | None:
-    """{id, repoDigests, size} of a local image, or None."""
+    """{id, repoDigests, size, labels} of a local image, or None."""
     j = docker_json(["image", "inspect", ref])
     if not j:
         return None
     i = j[0]
-    return {"id": i.get("Id"), "repoDigests": i.get("RepoDigests") or [], "size": i.get("Size") or 0}
+    return {"id": i.get("Id"), "repoDigests": i.get("RepoDigests") or [], "size": i.get("Size") or 0,
+            "labels": (i.get("Config") or {}).get("Labels") or {}}
 
 
 def repo_digest(img: dict | None, repository_ref: str) -> str | None:
@@ -210,7 +211,10 @@ def docker_root() -> str:
     return out.strip() if rc == 0 and out.strip().startswith("/") else "/var/lib/docker"
 
 
-# ── git (read-only: the updater never commits, checks out or pulls) ────────────
+# ── git ───────────────────────────────────────────────────────────────────────
+# Read-only for every class but one. The updater never commits. Own code
+# (owncode.py) fetches, fast-forwards the checkout to a green release tag, and -
+# its rollback only, on a tree pre-flight proved clean - resets it back.
 
 def git(repo: str, *args: str, timeout: float = 20) -> tuple[int, str]:
     rc, out, err = run(["git", "-C", repo, *args], timeout=timeout)

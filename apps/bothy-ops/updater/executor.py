@@ -162,8 +162,15 @@ def run_one(cfg: Config, name: str) -> str:
         return rec.finish("refused", str(e))["state"]
     rec.set(**{"from": {"image": fresh["from"]["image"], "version": fresh["from"]["version"]},
                "to": {"image": fresh["to"]["image"], "version": fresh["to"]["version"]}})
+    comp = catalog.components[doc["component"]]
+    if comp.cls == "own-code":
+        from . import owncode  # Bothy itself (step 6): build, arm, switch - not the image pipeline
+        rec.reshape(record.OWN_STEPS)
+        rec.step("validate", "ok", f"plan {fresh['id']}: {fresh['from']['sha'][:12]} -> {fresh['to']['tag']} "
+                                   f"({fresh['to']['sha'][:12]}), fetched and re-derived here")
+        return owncode.OwnExecution(cfg, rec, comp, fresh).go()
     rec.step("validate", "ok", f"plan {fresh['id']}: {fresh['from']['image']} -> {fresh['to']['image']}")
-    return Execution(cfg, rec, catalog.components[doc["component"]], fresh).go()
+    return Execution(cfg, rec, comp, fresh).go()
 
 
 class Execution:
@@ -500,6 +507,16 @@ def main_status(cfg: Config) -> int:
     q = spool.queued(cfg.spool)
     if q:
         print(f"queued: {', '.join(n[:-5] for n in q)}")
+    try:
+        u = hostio.read_json(cfg.updater_file, 64 * 1024)
+    except (OSError, ValueError, HostError):
+        u = None
+    if isinstance(u, dict):
+        cur, stg = u.get("current") or {}, u.get("staged") or {}
+        print(f"updater: current {str(cur.get('sha') or 'not installed')[:12]}"
+              + (f", STAGED {str(stg.get('sha'))[:12]} - `just install-updater` switches to it" if stg else ""))
+    else:
+        print("updater: not installed - `just install-updater` (Bothy's own updates need it)")
     return 0
 
 
