@@ -1,7 +1,7 @@
 # Updates: keeping every part of Bothy current from the web UI
 
-Status: **steps 0-4 built** (step 4, the updater for the stateless and time-series classes, on 2026-09-19 - see
-[Decisions](#decisions)); steps 5-8 are design. Written 2026-09-18 from two read-only surveys:
+Status: **steps 0-4 and 7 built** (step 4, the updater for the stateless and time-series classes, and step 7, the
+automatic channel, on 2026-09-19 - see [Decisions](#decisions)); steps 5, 6 and 8 are design. Written 2026-09-18 from two read-only surveys:
 - the repo and live box: every pin, volume, backup and restart;
 - the tooling and patterns available, with sources at the end.
 
@@ -79,7 +79,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
   - the helm index, for charts.
 
   It writes `available.json`, labels each entry patch, minor or major, and writes Prometheus textfile metrics `bothy_update_available{component,level}`, which node-exporter already exports.
-- **bothy-ops gains exact `Path()` routes** (four as built: status, plan, job and request) in a hand-written `edge/dynamic/bothy-updates.yml` (allow-listed in `edge/dynamic/.gitignore`):
+- **bothy-ops gains exact `Path()` routes** (five as built: status, plan, job and request, and - step 7 - unpause) in a hand-written `edge/dynamic/bothy-updates.yml` (allow-listed in `edge/dynamic/.gitignore`):
   - `GET /-/api/updates/status` (viewer): current and available versions, running job, history;
   - `GET /-/api/updates/plan?component=` (viewer): the host-written plan (diff, changelog, one-way flag, dependants, downtime);
   - `POST /-/api/updates/request` (operator; type-the-name for `one_way` and major): `{component, plan_id, confirm}`. It writes one spool file and an audit line, then answers 202. It never runs anything.
@@ -201,7 +201,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 4. **The updater for stateless and time-series classes:** spool, path unit, plans, snapshot, apply, verify, roll back, history. Then the `POST` route (operator) and the plan view. **Built 2026-09-19** - see [Decisions](#decisions) for how it differs from the sketch above.
 5. **One-way classes** (Grafana, Keycloak), with the snapshot and restore paths exercised in CI.
 6. **Own code:** tags, build-before-switch, the rollback timer, the `/version` banner.
-7. **Channels and the window:** automatic patches for the classes marked `auto`, one component per night after a successful 03:00 backup, stopping at the first failure. Plus a Grafana alert on `rolled_back` or failure.
+7. **Channels and the window:** automatic patches for the classes marked `auto`, one component per night after a successful 03:00 backup, stopping at the first failure. Plus a Grafana alert on `rolled_back` or failure. **Built 2026-09-19** - see [Decisions](#decisions).
 8. **Cluster add-ons** (helm and manifests) and the Postgres major procedure: documented, manual, and still driven through the same plan, snapshot and verify path.
 
 ## 8. Settings → Updates (UI)
@@ -295,10 +295,55 @@ broken version. The plan for that component refuses until a person looks (`git d
   its rollback the previous SHA's images. It also needs the updater to run from a copy that does not replace itself
   (`~/.local/lib/bothy-updater/<sha>/`), and `bothy upgrade` to stop running a blanket `just up` - today it bypasses every
   snapshot and canary here. Moving the checkout (`git pull --ff-only`) belongs there too; step 4 never moves it.
-- **Step 7, channels and the window:** a timer that writes a spool request itself for the one `auto` patch a night, after a
-  successful 03:00 backup. The executor needs no change: it already re-validates every request the same way.
+- **Step 7, channels and the window:** built - see below.
 - **Step 8, cluster add-ons and the Postgres major:** classes whose apply is `just k8s-monitoring` or the dump/new-volume
   procedure, still behind a plan id, a snapshot and verify.
+
+### Step 7 (2026-09-19): the automatic channel is a host timer that writes a request
+
+**The shape.** `bothy-updater-auto.timer` (03:30, `Persistent=false`) runs `python3 -m updater auto`
+(`apps/bothy-ops/updater/auto.py`) on the host. It decides a night and, at most once, writes ONE spool request in exactly the
+schema bothy-ops writes, with `requestedBy: "auto"`. The executor runs it like any other request - re-validation, the whole
+pre-flight, snapshot, verify, rollback - so the automatic path adds no way of changing the box that a click did not already
+have. The service waits for the job's result (up to 80 minutes) so `systemctl status bothy-updater-auto` says how the night went.
+
+**The gates, in order; the first "no" ends the night:**
+
+| Gate | What it reads | Why this and not more |
+|---|---|---|
+| Window | local time inside `[policy]` 03:30-05:00 | the timer is `Persistent=false` too: a night the box slept through is skipped, never run at noon |
+| One a night | `auto.json` `nights[<date>]` + `history.jsonl` | tonight's job unfinished -> wait; ended in anything but `succeeded` (refused included) -> nothing more tonight |
+| Idle | the spool, `status.json` | a night job never queues behind a person's |
+| Backup | `systemctl show stacks-backup.service` (`Result=success`, `ExecMainStatus=0`, not running, exited after 03:00 today) **and** the newest `~/backups/postgres` file newer than 03:00 | a unit can succeed having written nothing, and a file can be yesterday's; the service is `After=stacks-backup.service`, so a backup still running at 03:30 is waited for |
+| Candidates | plans refreshed now (`plans.write_all`); channel `auto`, plan deployable, `effective_channel() == "auto"` (a patch), confirm `click`, not paused | oldest first: by the night a target was first seen waiting, then by id |
+| Doctor | the candidate's container running and healthy, its body canaries green now (history probes excluded) | see below; a red candidate is passed over with its reason and the next is tried |
+
+**Doctor is the narrow health, not `scripts/doctor.sh --strict`.** `doctor.sh` is a whole-box sweep that is routinely red for
+reasons unrelated to the component on offer (a stopped project, no cluster, a scrape target nobody runs); as a gate it would
+shut every night, and a gate that is always shut is ignored. Step 4 made the same call for the executor's pre-flight. What an
+unattended update needs is sharper: the thing about to be replaced is healthy now, by its bodies (rule 7) - and the executor
+checks it again, with disk, scope and backup age, before touching anything. A whole-box outage is the alerting's job.
+
+**Pause on failure.** Any `rolled_back` or `failed` result in `history.jsonl` for an `auto`-channel component - whoever asked
+- pauses auto for it. The executor syncs the pauses after every job it runs (a guarded hook in its drain loop), and the night
+job syncs them first. The pause lives in `~/.local/state/bothy/updates/auto.json`: host-written, 600, in the directory
+bothy-ops mounts read-only - bothy-ops shows it and cannot clear it. A failure is handled once (its job id is remembered), so
+clearing a pause is not undone by the same old history line. A `refused` job does not pause: nothing was touched.
+
+**Unpause is an operator's, and the host's to apply.** `POST /-/api/updates/unpause` (operator, exact `Path()`, CSRF,
+audited in `admin.log`) writes `unpause-<id>.json` into the spool; the update loop leaves that name alone, and the executor's
+loop claims it (exact keys, `O_NOFOLLOW`, never the actor `auto`) and clears the pause, auditing who. From a shell:
+`just update-unpause <component>`. The page shows paused rows with the reason and an Unpause button.
+
+**The actor.** Every record of a night job says `auto` - `status.json`, `history.jsonl`, the executor's `audit.log` - and
+the page draws it as "the night job". bothy-ops refuses a request or an unpause from a signed-in name `auto` (403), so the
+name means the system only when the system wrote it.
+
+**Alerts** (`monitoring/provisioning/alerting/rules.yml`, group `update-alerts`): `update_failed` on
+`bothy_update_last_result{result=~"rolled_back|failed"}` (critical, sticky until the next success), `update_auto_paused` on
+`bothy_update_paused` (a new textfile metric, 1/0 per auto component), and `update_stale`, a severity=info notice routed once a
+day for a patch or minor on offer now and 13-14 days ago. `checks/e2e_update_alerts.py` loads the file into a throwaway
+Grafana and evaluates the rules against a throwaway VictoriaMetrics.
 
 ## Sources
 
