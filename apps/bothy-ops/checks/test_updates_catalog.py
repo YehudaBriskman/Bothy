@@ -167,7 +167,7 @@ for c in cat.components.values():
         elif c.source == "manifest":
             ok(bool(du.manifest_image(text, name or "")), f"{c.id}: {pin} -> {du.manifest_image(text, name or '')}")
         elif c.source == "helm":
-            v = du.shell_var(text, name or "")
+            v = du.helm_pin(f, text, name or "")
             ok(bool(v and updates.parse_version(v)), f"{c.id}: {pin} = {v}")
         else:
             ok(bool(updates.parse_version("v" + text.strip())), f"{c.id}: {f} holds a version ({text.strip()})")

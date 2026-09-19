@@ -367,6 +367,31 @@ ok(rows["drifty"]["effectiveChannel"] == "auto", "an auto component's patch stay
 ok(st["summary"]["drift"] == 4 and st["summary"]["errors"] >= 1, f"the summary counts drift and errors: {st['summary']}")
 
 print()
+print("── HELM PINS: a Chart.yaml dependency, or a shell variable ──────")
+# k8s/monitoring/Chart.yaml holds the KSM version as a wrapper-chart dependency
+# (#184) while the catalog still read a SHELL_VARIABLE (#186) - each passed alone.
+CHART = """apiVersion: v2
+name: wrapper
+version: 0.1.0   # the WRAPPER's own version - must never be read as a pin
+dependencies:
+  - name: other-chart
+    version: 1.0.0
+    repository: https://example.invalid
+  # a comment between entries
+  - name: kube-state-metrics
+    version: 8.5.0
+    repository: https://example.invalid
+"""
+ok(du.chart_dependency(CHART, "kube-state-metrics") == "8.5.0", "reads the named dependency's version")
+ok(du.chart_dependency(CHART, "other-chart") == "1.0.0", "...and only that entry's, not a neighbour's")
+ok(du.chart_dependency(CHART, "wrapper") is None, "the chart's own version is not a dependency pin")
+ok(du.chart_dependency(CHART, "missing") is None, "an absent dependency is None, not a guess")
+ok(du.helm_pin("k8s/monitoring/Chart.yaml", CHART, "kube-state-metrics") == "8.5.0", "helm_pin routes Chart.yaml to the dependency reader")
+ok(du.helm_pin("scripts/x.sh", 'KSM="8.5.0"\n', "KSM") == "8.5.0", "helm_pin still reads a shell variable from a script")
+ok(du.helm_pin("k8s/monitoring/Chart.yaml", open(os.path.join(os.path.dirname(os.path.dirname(SVC)), "k8s/monitoring/Chart.yaml")).read(), "kube-state-metrics") is not None,
+   "the repo's real Chart.yaml yields the kube-state-metrics pin")
+
+print()
 if fails:
     print(f"FAILED: {len(fails)}")
     sys.exit(1)

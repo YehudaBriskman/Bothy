@@ -167,6 +167,40 @@ def shell_var(text: str, var: str) -> str | None:
     return _strip(m.group(1)) if m else None
 
 
+def chart_dependency(text: str, name: str) -> str | None:
+    """`version:` of the `- name: <name>` entry under a Chart.yaml's `dependencies:`.
+
+    k8s/monitoring/Chart.yaml is a version file in wrapper-chart shape so that
+    Dependabot's helm ecosystem bumps it (#184). Same line-scanning as the rest of
+    this file - no YAML library on the host path."""
+    in_deps = False
+    in_entry = False
+    for ln in text.splitlines():
+        if not ln.strip() or ln.lstrip().startswith("#"):
+            continue
+        if not ln.startswith((" ", "-")):
+            in_deps = ln.rstrip() == "dependencies:"
+            in_entry = False
+            continue
+        if not in_deps:
+            continue
+        m = re.match(r"\s*-\s*name:\s*(\S+)", ln)
+        if m:
+            in_entry = _strip(m.group(1)) == name
+            continue
+        m = re.match(r"\s+version:\s*(\S+)", ln)
+        if in_entry and m:
+            return _strip(m.group(1))
+    return None
+
+
+def helm_pin(path: str, text: str, name: str) -> str | None:
+    """A helm pin is either a Chart.yaml dependency or a SHELL_VARIABLE in a script."""
+    if path.endswith("Chart.yaml"):
+        return chart_dependency(text, name)
+    return shell_var(text, name)
+
+
 def split_image(ref: str) -> dict:
     """docker.io/library/x:tag@sha256:... -> {registry, repository, tag, digest, ref}."""
     rest, _, digest = ref.partition("@")
@@ -669,7 +703,7 @@ class Discoverer:
     # ── a helm chart ──
     def chart(self, c: updates.Component, e: dict) -> None:
         f, var = c.pin_parts()
-        pin = shell_var(self._read(f), var or "")
+        pin = helm_pin(f, self._read(f), var or "")
         if not pin:
             raise ValueError(f"{var} not found in {f}")
         cur = updates.parse_version(pin)
