@@ -46,8 +46,8 @@ import { statusOf } from '../../lib/http';
 import {
   AUTO_ACTOR, fetchJob, fetchPlan, fetchUpdates, isTerminal, pinFile, publishBehind, rememberJob, rememberedJob,
   requestUpdate, unpauseAuto,
-  type Channel, type HistoryEntry, type Job, type JobState, type JobStep, type Level, type Plan, type UpdateRow,
-  type UpdatesStatus,
+  type Channel, type HistoryEntry, type Job, type JobState, type JobStep, type Level, type OwnPlan, type Plan, type UpdateRow,
+  type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
 
 export function UpdatesSettings() {
@@ -80,6 +80,7 @@ export function UpdatesSettings() {
   return (
     <>
       {data && <Freshness d={data} />}
+      {data?.updater?.staged && <UpdaterStaged u={data.updater} />}
       {jobId && <JobPanel id={jobId} key={jobId} onFinished={reload} onDismiss={dismiss} />}
       <SettingBlock id="update-components" badge="viewer · update: operator">
         {loading && !data ? <Loading rows={8} /> : error ? fail : data && (
@@ -125,6 +126,22 @@ function Freshness({ d }: { d: UpdatesStatus }) {
         {d.discovery.stale
           ? ` - older than two ${d.policy.discoverEveryHours}-hour runs; the bothy-updates-discover timer may not be running.`
           : '.'}
+      </span>
+    </p>
+  );
+}
+
+// A Bothy update that changed the updater itself left its new copy STAGED: the
+// host updater never replaces itself in the middle of a run, so switching is a
+// person's step, between jobs.
+function UpdaterStaged({ u }: { u: UpdaterInfo }) {
+  return (
+    <p className="set-fresh is-stale upd-staged" role="status">
+      <AlertTriangle size={14} aria-hidden="true" />
+      <span>
+        A new updater is staged (<span className="mono">{u.staged!.slice(0, 12)}</span>, <When iso={u.stagedAt} />) beside the
+        one that runs (<span className="mono">{u.current ? u.current.slice(0, 12) : 'none'}</span>). Bothy was updated; the
+        program that updates it switches only when you say so: <Cmd>just install-updater</Cmd> on the host.
       </span>
     </p>
   );
@@ -495,6 +512,7 @@ function PlanRefusal({ error }: { error: unknown }) {
 }
 
 function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
+  if (plan.own) return <OwnFacts plan={plan} own={plan.own} age={age} />;
   return (
     <div className="upd-plan-facts">
       <div className="upd-diff" aria-label="pin change">
@@ -548,6 +566,77 @@ function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
   );
 }
 
+// Bothy itself (class own-code, step 6): not a pin but a release tag, built before
+// anything changes and rolled back by a timer.
+function OwnFacts({ plan, own, age }: { plan: Plan; own: OwnPlan; age: number | null }) {
+  const sha = (s: string | null) => (s ? s.slice(0, 12) : '?');
+  const files = (xs: string[], more?: number | null) => (
+    <>
+      {xs.map((f, i) => <span key={f}>{i > 0 && ', '}<span className="mono">{f}</span></span>)}
+      {more != null && more > xs.length && <span className="set-cell-sub"> and {more - xs.length} more</span>}
+    </>
+  );
+  const mins = own.rollbackAfter ? Math.round(own.rollbackAfter / 60) : 10;
+  return (
+    <div className="upd-plan-facts">
+      <div className="upd-diff" aria-label="release change">
+        <div className="upd-diff-side">
+          <span className="upd-diff-k">running</span>
+          <span className="mono upd-tag">{plan.from.tag ?? plan.from.version}</span>
+          <span className="mono set-cell-sub">{sha(own.fromSha)}</span>
+        </div>
+        <ArrowRight size={16} aria-hidden="true" className="upd-diff-arrow" />
+        <div className="upd-diff-side">
+          <span className="upd-diff-k">green release</span>
+          <span className="mono upd-tag">{own.tag ?? plan.to.tag}</span>
+          <span className="mono set-cell-sub">{sha(own.toSha)}</span>
+        </div>
+        <LevelBadge level={plan.level} />
+      </div>
+      <dl className="upd-dl">
+        <dt>Release</dt>
+        <dd>{own.releaseUrl
+          ? <a className="link upd-cl" href={own.releaseUrl} target="_blank" rel="noreferrer noopener">{own.tag} release notes<ArrowUpRight size={12} aria-hidden="true" /></a>
+          : <span className="dim">none linked</span>}
+          {own.commits != null && <span className="set-cell-sub">{own.commits} commits{own.diffstat ? ` · ${own.diffstat}` : ''}</span>}</dd>
+        <dt>CI</dt>
+        <dd><span className="upd-ci"><Check size={13} aria-hidden="true" />{own.ci.detail ?? 'verified green'}</span>
+          <span className="set-cell-sub">asked via {own.ci.via ?? 'the GitHub API'}; release.yml tags only commits whose CI passed on main</span></dd>
+        <dt>Rebuilds</dt>
+        <dd>{own.apps.length ? files(own.apps) : <span className="dim">no app source changed</span>}
+          <span className="set-cell-sub">built from a temporary worktree of {own.tag} <b>before</b> anything running changes;
+            then {(own.order.length ? own.order : plan.restarts).join(', then ')} come up - web last</span></dd>
+        {own.compose.length > 0 && <><dt>Compose</dt><dd>{files(own.compose)} <span className="set-cell-sub">applied by <span className="mono">{plan.recipe}</span></span></dd></>}
+        {own.edge.length > 0 && <><dt>Edge</dt><dd>{files(own.edge)} <span className="set-cell-sub">Traefik reloads these the moment the checkout moves</span></dd></>}
+        {own.elsewhere.length > 0 && (
+          <><dt>Not applied</dt><dd>{files(own.elsewhere, own.elsewhereCount)}
+            <span className="set-cell-sub">other stacks’ files: in the checkout afterwards, applied by their own rows or recipes, not by this update</span></dd></>
+        )}
+        {own.updater && (
+          <><dt>Updater</dt><dd className="set-warn upd-own-updater"><AlertTriangle size={12} aria-hidden="true" />
+            <span>this release changes the updater ({files(own.updaterFiles)}): its new copy is <b>staged</b>, not switched -
+              {' '}<span className="mono">just install-updater</span> afterwards</span></dd></>
+        )}
+        <dt>Downtime</dt>
+        <dd>{plan.downtime}</dd>
+        <dt>Signed out</dt>
+        <dd>{plan.signedOut}</dd>
+        <dt>Snapshot</dt>
+        <dd>{plan.snapshot.what} <span className="set-cell-sub">into <span className="mono">{plan.snapshot.dir}</span></span></dd>
+        <dt>Pre-flight</dt>
+        <dd><ul className="upd-list">{plan.preflight.map((x) => <li key={x}><Ticks text={x} /></li>)}</ul></dd>
+        <dt>Verify</dt>
+        <dd><ul className="upd-list">{plan.verify.map((x) => <li key={x}><Ticks text={x} /></li>)}</ul></dd>
+        <dt>Rollback</dt>
+        <dd><Ticks text={plan.rollback} /> <span className="set-cell-sub">Timer: {mins} min.</span></dd>
+        <dt>Plan</dt>
+        <dd><span className="mono">{plan.id}</span> · written <When iso={plan.createdAt} />
+          {age != null && age > 12 * 3600 && <span className="set-warn"> · over 12 h old - `just updates-discover` refreshes it</span>}</dd>
+      </dl>
+    </div>
+  );
+}
+
 // ── the live job ─────────────────────────────────────────────────────────────
 
 const STATE_WORD: Record<JobState, string> = {
@@ -575,6 +664,10 @@ const STEP_WORD: Record<JobStep['name'], string> = {
   rollback: 'Roll back',
   restore: 'Restore the data snapshot',
   record: 'Record',
+  build: 'Build the new images (nothing running is touched)',
+  arm: 'Arm the rollback timer',
+  switch: 'Move the checkout (fast-forward)',
+  stage: 'Stage the new updater (not switched)',
 };
 
 function useJob(id: string) {
@@ -815,6 +908,13 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
             It runs as a host job (<span className="mono">bothy-updater.service</span>), not in bothy-ops: this page only drops one
             request in a spool. It keeps running if you close the tab.
           </span>
+        </div></div>
+        <div className="kv"><div className="kv-k">Bothy itself</div><div className="kv-v">
+          Deploys the newest <b>release tag</b> CI marked green (release.yml tags only a commit whose CI passed on{' '}
+          <span className="mono">main</span>), never main’s tip. The new images are built before anything running changes; a
+          rollback timer is armed before the checkout moves, and puts the previous commit and images back unless verify
+          passes. The same path runs from a shell: <Cmd>bothy upgrade</Cmd>.
+          <span className="set-note">Open tabs are told to reload when the page they loaded is no longer the one being served.</span>
         </div></div>
         <div className="kv"><div className="kv-k">Getting a newer version</div><div className="kv-v">
           Merge its Dependabot PR, then on the box <Cmd>git pull --ff-only</Cmd> and <Cmd>just updates-discover</Cmd>. The

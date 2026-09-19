@@ -6,6 +6,7 @@ import { DataProvider } from './lib/data';
 import { ThemeProvider } from './lib/theme';
 import { PrefsRuntime } from './components/settings/PrefsRuntime';
 import { landingRedirect, readAppearance, readLayout, stampAppearance } from './lib/prefs';
+import { installChunkReload } from './lib/version';
 import './index.css';
 import './prefs.css';
 
@@ -30,6 +31,11 @@ stampAppearance(readAppearance(), document.documentElement);
   const to = landingRedirect(location.hash, readLayout());
   if (to) history.replaceState(null, '', to);
 }
+
+// A lazy chunk that no longer exists - Bothy was updated under this tab, and the
+// catch-all answers the old hash with index.html - reloads the page once.
+// lib/version.ts; the "Bothy updated" banner covers the case before a chunk fails.
+installChunkReload();
 
 // HashRouter (not BrowserRouter): the app is served as static files by nginx
 // with no client-routing rewrite, so deep links must live after the '#'.

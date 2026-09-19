@@ -31,10 +31,16 @@
 // (node-exporter) and its rollback (VictoriaMetrics), so VictoriaMetrics is PAUSED
 // until Unpause; the "host" clears it a few seconds after the request, the way the
 // real spool round trip does. Reset with localStorage.removeItem('bothy-dev-updates-unpaused').
+// Step 6 - Bothy itself. Its row is deployable too: v2026.8.1 -> the green release
+// v2026.9.0, a plan whose diff touches another stack (so it is type-the-name) and
+// the updater (so a new updater copy is staged, not switched). Its job runs the
+// own-code steps (build, arm, switch, stage). The installed updater:
+//
+//   localStorage['bothy-dev-updates-updater'] = 'staged' | 'none'
 
 import type {
   AutoDecision, Channel, Discovered, HistoryEntry, Job, JobState, JobStep, Level, Pause, Plan, PlanAnswer, PlanSummary,
-  RequestAnswer, StepName, UnpauseAnswer, UpdateRow, UpdatesStatus, VersionRef,
+  RequestAnswer, StepName, UnpauseAnswer, UpdateRow, UpdaterInfo, UpdatesStatus, VersionRef,
 } from './updates';
 
 const OUTCOME_KEY = 'bothy-dev-updates-outcome';
@@ -42,6 +48,7 @@ const JOB_OUTCOME_KEY = 'bothy-dev-updates-job';
 const REQUEST_KEY = 'bothy-dev-updates-request';
 const JOBS_KEY = 'bothy-dev-updates-jobs';
 const UNPAUSED_KEY = 'bothy-dev-updates-unpaused';
+const UPDATER_KEY = 'bothy-dev-updates-updater';
 
 const read = (k: string): string | null => {
   try { return localStorage.getItem(k); } catch { return null; }
@@ -241,8 +248,19 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     job: current(),
     history: history(),
     auto: { enabled: true, actor: 'auto', paused: rows.filter((r) => r.paused).map((r) => r.id), last: LAST_NIGHT },
+    updater: updaterInfo(),
     components: rows,
   };
+}
+
+const INSTALLED = '4f1c2a9e7d3b5c8a0e6f1d2b3c4a5e6f7a8b9c0d';
+const TARGET = '9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d';
+
+function updaterInfo(): UpdaterInfo | null {
+  const u = read(UPDATER_KEY);
+  if (u === 'none') return null;
+  return { current: INSTALLED, installedAt: ago(86400 * 12),
+    staged: u === 'staged' ? TARGET : null, stagedAt: u === 'staged' ? ago(600) : null };
 }
 
 // ── step 4: plans ────────────────────────────────────────────────────────────
@@ -344,6 +362,48 @@ const PLANS: Record<string, Plan> = {
       'oauth2-proxy: a signed-in user gets 202 for allowed_groups=viewer and 403 for allowed_groups=shell'],
     rollback: 'ONE-WAY: on any failure after the pull, the pre-update snapshot is restored FIRST - always, because the new version may already have migrated the data and the old one cannot read it - with the new container stopped. Then the previous image goes back on every pin line (left uncommitted) and the recipe runs again, and the old image must pass the same canaries. Anything written between the snapshot and the rollback is lost.',
   },
+  bothy: {
+    id: 'e41b77a0c2d95f36180ab4c7', component: 'bothy', title: 'Bothy (web, files, ops)', class: 'own-code',
+    createdAt: ago(3600 * 2 + 700), level: 'minor', confirm: 'type-name',
+    from: { image: `bothy@${INSTALLED.slice(0, 12)}`, tag: 'v2026.8.1', version: '2026.8.1', digest: null, container: 'bothy-web' },
+    to: { image: `bothy@${TARGET.slice(0, 12)}`, tag: 'v2026.9.0', version: '2026.9.0', digest: null },
+    pin: { file: 'VERSION', service: null, line: 1, commit: INSTALLED },
+    changelog: 'https://github.com/YehudaBriskman/Bothy/releases/tag/v2026.9.0', oneWay: false, oneWayWhy: null,
+    restarts: ['bothy-files', 'bothy-ops', 'bothy-web'], recipe: 'just up-apps',
+    downtime: '~10-40 s per container, one at a time: bothy-files, then bothy-ops, then bothy-web. The file editor, then container actions and Settings, then the page itself are away while each is recreated; this page reconnects on its own',
+    signedOut: 'nobody - sessions live in oauth2-proxy, which is not touched',
+    snapshot: {
+      kind: 'git',
+      what: `the current commit (${INSTALLED.slice(0, 12)}) and the three running images, kept as <image>:${INSTALLED.slice(0, 12)}… - the rollback runs them again without a build`,
+      dir: '~/backups/pre-update/<time>-bothy/', estimateBytes: null,
+    },
+    preflight: [
+      'the plan is still current: recomputed after a `git fetch`, it has this id',
+      'the checkout is on main, clean (nothing modified or untracked) and not ahead of origin/main',
+      'v2026.9.0 is on origin/main, strictly ahead of HEAD, its VERSION says 2026.9.0, and every check run on its commit passed (asked via gh (authenticated))',
+      "bothy-files, bothy-ops, bothy-web run HEAD's images and are healthy",
+      'a systemd user manager is running (the rollback timer lives there), and no earlier rollback is armed',
+      'no other update is running (one global lock)',
+    ],
+    verify: [
+      `each container runs the image built from ${TARGET.slice(0, 12)}, and its revision label says so`,
+      `bothy-web's /version.json names ${TARGET.slice(0, 12)}`,
+      "bothy-files' and bothy-ops' /healthz answer `\"ok\": true`",
+      'the catch-all serves index.html for an unrouted path - in bothy-web, and through the edge',
+    ],
+    rollback: `A rollback unit is armed before the checkout moves and fires 10 min after the containers are up unless verify passes; a failed verify fires it at once. It runs \`git reset --hard ${INSTALLED.slice(0, 12)}\` (safe: pre-flight proved the tree clean and the move is a fast-forward) and \`just up-apps\` on the previous images, without a build. The release is then not offered again.`,
+    own: {
+      fromSha: INSTALLED, toSha: TARGET, tag: 'v2026.9.0',
+      releaseUrl: 'https://github.com/YehudaBriskman/Bothy/releases/tag/v2026.9.0',
+      commits: 98, diffstat: '214 files changed, 9120 insertions(+), 2311 deletions(-)',
+      apps: ['bothy-files', 'bothy-ops', 'bothy-web'], compose: ['apps/bothy-ops/compose.yml'],
+      edge: ['edge/dynamic/bothy-updates.yml'],
+      elsewhere: ['monitoring/compose.yml', 'auth/compose.yml', 'scripts/backup.sh', 'justfile'], elsewhereCount: 4,
+      updater: true, updaterFiles: ['apps/bothy-ops/updater', 'apps/bothy-ops/updates.py'],
+      ci: { via: 'gh (authenticated)', detail: 'all 23 check runs passed', runs: 23 },
+      rollbackAfter: 600, order: ['bothy-files', 'bothy-ops', 'bothy-web'],
+    },
+  },
 };
 
 const REASONS: Record<string, string> = {
@@ -353,7 +413,6 @@ const REASONS: Record<string, string> = {
   headlamp: 'nothing to deploy: headlamp is not running (start it with `just up-headlamp`)',
   victoriametrics: 'nothing to deploy: victoriametrics runs what main pins. v1.153.0 is newer upstream - merge its Dependabot PR, pull the checkout, then `just updates-discover`',
   traefik: 'class edge is not handled by the updater yet; floating pin v3.7',
-  bothy: 'class own-code is not handled by the updater yet (step 6)',
   'kube-state-metrics': 'class cluster is not handled by the updater (manual, host kubeconfig)',
   'alloy-cluster': 'class cluster is not handled by the updater (manual, host kubeconfig)',
   'oauth2-proxy': 'class boundary is manual: `just up-auth` by hand, then the boundary probes',
@@ -412,6 +471,15 @@ const STEPS_ROLLBACK: [StepName, number][] = [
   ['validate', 2], ['preflight', 3], ['snapshot', 6], ['pull', 9], ['apply', 12], ['verify', 15], ['rollback', 18], ['record', 21],
 ];
 const END = 22;
+// Bothy itself: built before anything changes, a rollback armed, the checkout moved.
+const STEPS_OWN: [StepName, number][] = [
+  ['validate', 2], ['preflight', 3], ['build', 5], ['snapshot', 9], ['arm', 10], ['switch', 11], ['apply', 12],
+  ['verify', 17], ['stage', 20], ['record', 21],
+];
+const STEPS_OWN_ROLLBACK: [StepName, number][] = [
+  ['validate', 2], ['preflight', 3], ['build', 5], ['snapshot', 9], ['arm', 10], ['switch', 11], ['apply', 12],
+  ['verify', 15], ['rollback', 18], ['record', 21],
+];
 
 const hex = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -445,13 +513,19 @@ export async function requestMock(body: { component: string; plan_id: string; co
 const FAIL_AT: Partial<Record<JobState, StepName>> = {
   refused: 'preflight', aborted: 'pull', rolled_back: 'verify', failed: 'verify',
 };
+// Bothy itself has no pull: an abort is a failed build.
+const failStep = (j: DevJob): StepName | null => {
+  const f = FAIL_AT[j.outcome] ?? null;
+  return f === 'pull' && PLANS[j.component]?.class === 'own-code' ? 'build' : f;
+};
 
 function render(j: DevJob, now = Date.now()): Job {
   const p = PLANS[j.component];
   const t = (now - j.requestedAt) / 1000;
   const at = (s: number) => iso(j.requestedAt + s * 1000);
-  const failAt = FAIL_AT[j.outcome] ?? null;
-  const table = failAt === 'verify' ? STEPS_ROLLBACK : STEPS_OK;
+  const failAt = failStep(j);
+  const own = p.class === 'own-code';
+  const table = failAt === 'verify' ? (own ? STEPS_OWN_ROLLBACK : STEPS_ROLLBACK) : (own ? STEPS_OWN : STEPS_OK);
   // An early failure (pre-flight, pull) ends the job one second after that step starts.
   const early = failAt && failAt !== 'verify' ? table.find(([n]) => n === failAt)![1] + 1 : null;
   const end = early ?? END;
@@ -499,6 +573,10 @@ const DETAIL_RUNNING: Partial<Record<StepName, string>> = {
   apply: 'waiting for healthy (--wait)',
   verify: 'canaries - bodies, not status codes',
   rollback: 'putting the old pin line back',
+  build: 'docker compose build, in a temporary worktree of the release',
+  arm: 'systemd-run --user --on-active',
+  switch: 'git merge --ff-only',
+  stage: 'copying the new updater beside the running one',
 };
 
 function DETAIL_OK(p: Plan, n: StepName): string | null {
@@ -512,6 +590,25 @@ function DETAIL_OK(p: Plan, n: StepName): string | null {
     rollback: `${p.pin.file} re-pinned to ${p.from.image}; ${p.from.container} healthy again`,
     record: 'history, audit line and bothy_update_last_result written',
   };
+  if (p.own) {
+    const o = p.own;
+    const f = o.fromSha?.slice(0, 12);
+    const t = o.toSha?.slice(0, 12);
+    Object.assign(d, {
+      validate: `plan ${p.id}: ${f} -> ${o.tag} (${t}), fetched and re-derived here`,
+      preflight: 'bothy-files healthy; bothy-ops healthy; bothy-web healthy; systemd user manager up',
+      build: `built bothy-files, bothy-ops, bothy-web :${t} from a temporary worktree of ${o.tag}`,
+      snapshot: `previous sha ${f}, images tagged :${f}…`,
+      arm: 'bothy-own-rollback-3fa1c09e2b7d-2.timer fires at 14:32:10 (600 s) unless verify disarms it (re-armed once the containers were up)',
+      switch: `main fast-forwarded ${f} -> ${t} (${o.tag})`,
+      apply: '`just up-apps` for bothy-files, bothy-ops, bothy-web, in that order, on the images built above',
+      verify: `bothy-files, bothy-ops, bothy-web run ${t} and are healthy; /version.json names it; /healthz ok; catch-all serves index.html; the edge serves the same index.html`,
+      stage: o.updater
+        ? `${o.updaterFiles.slice(0, 2).join(', ')} changed: staged ${t} beside current ${f} - NOT switched; \`just install-updater\` switches`
+        : 'the release does not change the updater',
+      rollback: `the checkout reset to ${f}; the previous images run and are healthy`,
+    });
+  }
   return d[n] ?? null;
 }
 
@@ -523,8 +620,13 @@ const FAIL_DETAIL: Partial<Record<JobState, string>> = {
 };
 
 const NOTE: Partial<Record<JobState, (p: Plan) => string>> = {
-  succeeded: (p) => `${p.from.container} runs ${p.to.image}. The checkout is unchanged - main already pinned this.`,
-  rolled_back: (p) => `${p.pin.file} now pins ${p.from.image} LOCALLY (uncommitted), so the next \`${p.recipe}\` keeps the working version; main still pins ${p.to.image}. To try again: fix the cause, then \`git checkout -- ${p.pin.file}\` and \`just updates-discover\`.`,
+  succeeded: (p) => (p.own
+    ? `Bothy runs ${p.own.tag} (${p.own.toSha?.slice(0, 12)}); the checkout fast-forwarded from ${p.own.fromSha?.slice(0, 12)}.`
+      + (p.own.updater ? ` The release changes the updater: its copy is STAGED (${p.own.toSha?.slice(0, 12)}), not running - run \`just install-updater\` on the host to switch to it.` : '')
+    : `${p.from.container} runs ${p.to.image}. The checkout is unchanged - main already pinned this.`),
+  rolled_back: (p) => p.own
+    ? `The checkout is back at ${p.own.fromSha?.slice(0, 12)} and the previous images run again. ${p.own.tag} is not offered again until a newer release, or until ~/.local/state/bothy/updates/own/blocked.json is deleted.`
+    : `${p.pin.file} now pins ${p.from.image} LOCALLY (uncommitted), so the next \`${p.recipe}\` keeps the working version; main still pins ${p.to.image}. To try again: fix the cause, then \`git checkout -- ${p.pin.file}\` and \`just updates-discover\`.`,
   failed: (p) => `A person is needed: ${p.from.container} is not healthy on either image. The snapshot is kept.`,
   refused: () => 'Nothing was touched.',
   aborted: () => 'Nothing running was changed.',

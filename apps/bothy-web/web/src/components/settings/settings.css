@@ -425,6 +425,15 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; pad
 .upd-dl dt { font-size: 12px; font-weight: 600; color: var(--fg-subtle); padding-top: 1px; }
 .upd-dl dd { margin: 0; color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
 .upd-list { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
+/* Bothy itself (step 6). CI's verdict IS state - a pass - so it takes the up
+   colour, on the glyph only and beside the words. */
+.upd-ci { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.upd-ci svg { color: var(--st-up-fg); flex: none; }
+.upd-dl dd.upd-own-updater { align-items: flex-start; }
+.upd-own-updater svg { margin-top: 4px; flex: none; }
+.set-shell .upd-staged { align-items: flex-start; flex-wrap: nowrap; line-height: 1.6; }
+.set-shell .upd-staged > span { min-width: 0; }
+.set-shell .upd-staged svg { margin-top: 3px; flex: none; }
 @media (max-width: 520px) {
   .upd-dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .upd-dl dd { margin-bottom: 6px; }
