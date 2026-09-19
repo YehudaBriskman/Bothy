@@ -6,20 +6,25 @@ Run: python3 checks/wiring_updates.py      (needs PyYAML - the system python3 ha
 Static, and apart from wiring.py for wiring_admin.py's reason: these routers are
 hand-written, those are generated.
 
-  EDGE     edge/dynamic/bothy-updates.yml: exactly one router, `Path(exact) &&
-           Method(GET)` on /-/api/updates/status, strip, deidentify, sso-viewer,
-           sso-errors; its own middlewares and service; no gate redefined; no
-           doubled brace; allow-listed in edge/dynamic/.gitignore; and NOT in the
-           generated bothy-ops.yml
-  COMPOSE  bothy-ops mounts the updates state dir READ-ONLY, never auto-created,
-           and nothing read-write that step 4's spool would need; node-exporter
-           has the textfile collector on a dedicated read-only directory
+  EDGE     edge/dynamic/bothy-updates.yml: exactly four routers, each an exact
+           `Path() && Method()`: status, plan and job are GET behind sso-viewer;
+           request is POST behind sso-OPERATOR; all strip, deidentify, then the
+           gate, then sso-errors; its own middlewares and service; no gate
+           redefined; no doubled brace; allow-listed in edge/dynamic/.gitignore;
+           and NOT in the generated bothy-ops.yml
+  COMPOSE  bothy-ops mounts the updates state dir READ-ONLY and the spool - its
+           ONLY read-write mount besides the audit dir - both never
+           auto-created; node-exporter has the textfile collector on a
+           dedicated read-only directory
   BUILD    updates.py and updates.toml are COPY'd and allow-listed;
-           discover_updates.py is NOT (host-only)
-  JUST     updates-discover exists; up-apps creates the updates dir, up-monitoring
-           the textfile dir; bootstrap creates both
-  HOST     the service and timer exist, run discover_updates.py as the owner
-  UI       lib/updates.ts calls exactly this path
+           discover_updates.py and the updater package are NOT (host-only)
+  JUST     updates-discover, update-plan, update-status exist; up-apps creates
+           the updates dir and the spool, up-monitoring the textfile dir;
+           bootstrap creates all three
+  HOST     the discover service/timer and the updater path/service exist; the
+           updater runs `python3 -m updater run` as the owner, from the path unit
+           watching exactly the spool
+  UI       lib/updates.ts calls exactly these four paths
 """
 import os
 import re
@@ -48,18 +53,29 @@ def read(rel: str) -> str:
     return open(os.path.join(REPO, rel), encoding="utf-8").read()
 
 
-print("── EDGE: one exact GET path behind sso-viewer ───────────────────")
+print("── EDGE: four exact paths, each with its method and its gate ──")
 src = read("edge/dynamic/bothy-updates.yml")
 ok("{{" not in src and "}}" not in src, "no doubled brace anywhere")
 edge = yaml.safe_load(src)["http"]
 routers = edge["routers"]
-ok(list(routers) == ["bothy-updates-status"], f"exactly one router: {sorted(routers)}")
-r = routers["bothy-updates-status"]
-ok(r["rule"] == "Path(`/-/api/updates/status`) && Method(`GET`)", "exact Path and GET only")
-ok(not re.search(r"Host|PathPrefix|Regexp", r["rule"]), "no Host, PathPrefix or Regexp")
-ok(r["middlewares"] == ["bothy-updates-strip", "updates-deidentify", "sso-viewer", "sso-errors"],
-   "strip, deidentify, sso-viewer, sso-errors - in that order")
-ok(r["service"] == "bothy-updates" and r.get("entryPoints") == ["web"], "its own service, on web")
+WANT = {  # router -> (path, method, gate)
+    "bothy-updates-status": ("/-/api/updates/status", "GET", "sso-viewer"),
+    "bothy-updates-plan": ("/-/api/updates/plan", "GET", "sso-viewer"),
+    "bothy-updates-job": ("/-/api/updates/job", "GET", "sso-viewer"),
+    "bothy-updates-request": ("/-/api/updates/request", "POST", "sso-operator"),
+}
+ok(set(routers) == set(WANT), f"exactly four routers: {sorted(routers)}")
+for name, (path, method, gate) in WANT.items():
+    r = routers.get(name, {})
+    ok(r.get("rule") == f"Path(`{path}`) && Method(`{method}`)", f"{name}: exact Path and {method} only")
+    ok(not re.search(r"Host|PathPrefix|Regexp", r.get("rule", "")), f"{name}: no Host, PathPrefix or Regexp")
+    ok(r.get("middlewares") == ["bothy-updates-strip", "updates-deidentify", gate, "sso-errors"],
+       f"{name}: strip, deidentify, {gate}, sso-errors - in that order")
+    ok(r.get("service") == "bothy-updates" and r.get("entryPoints") == ["web"], f"{name}: its own service, on web")
+ok([n for n, r in routers.items() if "sso-operator" in r.get("middlewares", [])] == ["bothy-updates-request"],
+   "the ONE route that changes anything is the only one behind operator")
+ok(all("POST" not in r["rule"] for n, r in routers.items() if n != "bothy-updates-request"),
+   "no read accepts a POST")
 mws = edge.get("middlewares", {})
 ok(set(mws) == {"bothy-updates-strip", "updates-deidentify"}, f"defines only its own middlewares: {sorted(mws)}")
 ok(mws["bothy-updates-strip"] == {"stripPrefix": {"prefixes": ["/-/api"]}}, "strip removes /-/api only")
@@ -69,7 +85,8 @@ ok(edge["services"] == {"bothy-updates": {"loadBalancer": {"servers": [{"url": "
    "one service, bothy-ops:8097 over opsnet")
 others = {fn: read(f"edge/dynamic/{fn}") for fn in os.listdir(os.path.join(REPO, "edge/dynamic"))
           if fn.endswith(".yml") and fn != "bothy-updates.yml"}
-for n in ("bothy-updates-strip", "updates-deidentify", "bothy-updates", "sso-viewer", "sso-errors"):
+for n in ("bothy-updates-strip", "updates-deidentify", "bothy-updates", "sso-viewer", "sso-operator",
+          "sso-errors"):
     defined_here = re.search(rf"^\s+{re.escape(n)}:\s*$", src, re.M) is not None
     elsewhere = any(re.search(rf"^\s+{re.escape(n)}:\s*$", s, re.M) for s in others.values())
     if n.startswith("sso-"):
@@ -94,7 +111,15 @@ ok(inv and inv[0]["source"].rsplit("/", 1)[0] == upd[0]["source"].rsplit("/", 1)
    "…and mounted from the same state root as the inventory")
 rw = [v for v in svc["volumes"] if (isinstance(v, str) and v.endswith(":rw")) or
       (isinstance(v, dict) and not v.get("read_only"))]
-ok(all("audit" in str(v) for v in rw), f"the only read-write mount is still the audit dir (no spool yet): {rw}")
+spool = [v for v in longv if v.get("target") == "/spool"]
+ok(len(spool) == 1 and spool[0].get("read_only") is False and spool[0].get("bind", {}).get("create_host_path") is False
+   and spool[0]["source"] == "${STATE_ROOT:-${HOME}/.local/state}/bothy/updates/spool",
+   "the spool is read-write, never auto-created, inside the updates state dir")
+ok(len(rw) == 2 and "./audit:/audit:rw" in rw and spool[0] in rw,
+   f"the ONLY read-write mounts are the audit dir and the spool: {rw}")
+envs = svc.get("environment", {})
+ok(envs.get("UPDATES_SPOOL") == "/spool" and envs.get("UPDATES_DIR") == "/updates",
+   "the service is told where the spool and the state dir are")
 ok(svc.get("environment", {}).get("UPDATES_AVAILABLE") == "/updates/available.json", "the service is told where the file is")
 ne = yaml.safe_load(read("monitoring/compose.yml"))["services"]["node-exporter"]
 ok("--collector.textfile.directory=/textfile" in ne["command"], "node-exporter has the textfile collector")
@@ -103,7 +128,7 @@ ok(len(tf) == 1 and tf[0].get("read_only") is True and tf[0].get("bind", {}).get
    and tf[0]["source"].endswith("/bothy/textfile"), "…on a dedicated, read-only, never-created directory")
 
 print()
-print("── BUILD: updates.py ships, discover_updates.py does not ────────")
+print("── BUILD: updates.py ships; discovery and the updater do not ───")
 docker = read("apps/bothy-ops/Dockerfile")
 dign = read("apps/.dockerignore")
 ok(re.search(r"^COPY .*bothy-ops/updates\.py bothy-ops/updates\.toml", docker, re.M) is not None,
@@ -111,34 +136,52 @@ ok(re.search(r"^COPY .*bothy-ops/updates\.py bothy-ops/updates\.toml", docker, r
 ok("!bothy-ops/updates.py" in dign and "!bothy-ops/updates.toml" in dign, "apps/.dockerignore allow-lists both")
 ok("discover_updates" not in re.sub(r"#.*", "", docker) and "discover_updates" not in dign,
    "discover_updates.py is host-only, not in the image")
+ok(not re.search(r"\bupdater\b", re.sub(r"#.*", "", docker)) and not re.search(r"\bupdater\b", dign),
+   "the updater package is host-only, not in the image (bothy-ops cannot run it)")
 app = read("apps/bothy-ops/app.py")
-ok('route == "/updates/status"' in app and "updates.CATALOG = updates.load()" in app,
-   "app.py routes GET /updates/status and refuses to start on a bad catalog")
-ok("def do_POST" in app and "/updates" not in app.split("def do_POST", 1)[1].split("def main", 1)[0],
-   "no POST route under /updates (nothing is applied in step 3)")
-
+ok('route in ("/updates/status", "/updates/plan", "/updates/job")' in app and "updates.CATALOG = updates.load()" in app,
+   "app.py routes the three GETs and refuses to start on a bad catalog")
+post = app.split("def do_POST", 1)[1].split("def main", 1)[0]
+ok(re.findall(r'"/updates/[a-z]+"', post) == ['"/updates/request"'], "the only POST under /updates is /updates/request")
+upd = read("apps/bothy-ops/updates.py")
+ok(not re.search(r"^\s*(import|from)\s+(subprocess|socket|http\.client|urllib\.request)\b", upd, re.M),
+   "updates.py imports nothing that starts a process or opens a connection")
 print()
 print("── JUST, bootstrap and host units ───────────────────────────────")
 just = read("justfile")
 ok(re.search(r"^updates-discover \*args:\n    python3 apps/bothy-ops/discover_updates\.py", just, re.M) is not None,
    "`just updates-discover` runs the host program")
+ok(re.search(r"^update-plan component:\n    cd apps/bothy-ops && python3 -m updater plan", just, re.M) is not None
+   and re.search(r"^update-status:\n    cd apps/bothy-ops && python3 -m updater status", just, re.M) is not None,
+   "`just update-plan` and `just update-status` run the host updater by hand")
 upapps = just.split("\nup-apps", 1)[1].split("\n\n", 1)[0]
-ok('mkdir -p -m 700 "$state/bothy/updates"' in upapps, "up-apps creates the updates dir, 700")
+ok('mkdir -p -m 700 "$state/bothy/updates"' in upapps and 'mkdir -p -m 700 "$state/bothy/updates/spool"' in upapps,
+   "up-apps creates the updates dir and the spool, 700")
 upmon = just.split("\nup-monitoring", 1)[1].split("\n\n", 1)[0]
 ok("bothy/textfile" in upmon and "mkdir -p -m 755" in upmon, "up-monitoring creates the textfile dir, 755")
 boot = read("scripts/bootstrap.sh")
-ok("bothy/updates" in boot and "bothy/textfile" in boot, "bootstrap creates both")
+ok("bothy/updates" in boot and "bothy/textfile" in boot and 'bothy/updates/spool" && chmod 700' in boot,
+   "bootstrap creates all three")
 svcu = read("host/systemd/bothy-updates-discover.service")
 tim = read("host/systemd/bothy-updates-discover.timer")
 ok("apps/bothy-ops/discover_updates.py" in svcu and "Type=oneshot" in svcu and "User=devssh" in svcu,
-   "the service runs discover_updates.py once, as the owner")
+   "the discover service runs discover_updates.py once, as the owner")
 ok("OnUnitActiveSec=6h" in tim and "Persistent=true" in tim, "the timer runs it every six hours, catching up")
-
+pth = read("host/systemd/bothy-updater.path")
+usv = read("host/systemd/bothy-updater.service")
+ok(re.search(r"^PathExistsGlob=/\S+/\.local/state/bothy/updates/spool/\*\.json$", pth, re.M) is not None and "Unit=bothy-updater.service" in pth,
+   "bothy-updater.path watches exactly the spool's *.json")
+ok("Type=oneshot" in usv and "User=devssh" in usv and "ExecStart=/usr/bin/python3 -m updater run" in usv
+   and re.search(r"^WorkingDirectory=/\S+/apps/bothy-ops$", usv, re.M) is not None and "NoNewPrivileges=yes" in usv,
+   "bothy-updater.service: one run of the executor, as the owner, no new privileges")
+ok(not os.path.exists(os.path.join(REPO, "host/systemd/bothy-updater.timer")),
+   "there is no updater timer: nothing is applied unless someone asked (auto channels are step 7)")
 print()
-print("── UI: the client calls exactly this path ───────────────────────")
+print("── UI: the client calls exactly these paths ─────────────────────")
 ts = read("apps/bothy-web/web/src/lib/updates.ts")
 paths = set(re.findall(r"['`](/-/api/updates/[a-z/-]+)", ts))
-ok(paths == {"/-/api/updates/status"}, f"lib/updates.ts calls only /-/api/updates/status: {sorted(paths)}")
+ok(paths == {f"/-/api/updates/{p}" for p in ("status", "plan", "request", "job")},
+   f"lib/updates.ts calls exactly the four routed paths: {sorted(paths)}")
 
 print()
 if fails:

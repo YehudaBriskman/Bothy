@@ -406,6 +406,10 @@ mk "$STATE_ROOT/bothy/inventory" && chmod 700 "$STATE_ROOT/bothy/inventory"
 # 755 because node-exporter reads it as `nobody`. Both create_host_path false.
 mk "$STATE_ROOT/bothy/updates" && chmod 700 "$STATE_ROOT/bothy/updates"
 mk "$STATE_ROOT/bothy/textfile" && chmod 755 "$STATE_ROOT/bothy/textfile"
+# The update spool (build step 4): bothy-ops' ONE read-write mount besides its
+# audit dir. POST /-/api/updates/request writes a request here; the host's
+# bothy-updater.path picks it up. create_host_path false, like the rest.
+mk "$STATE_ROOT/bothy/updates/spool" && chmod 700 "$STATE_ROOT/bothy/updates/spool"
 mk "$STATE_ROOT/devbox-logs"
 mk "$BACKUP_ROOT/postgres"
 mk "$PROJECTS_ROOT"

@@ -1,4 +1,4 @@
-# The route for Settings > Updates, served by bothy-ops (updates.py).
+# The routes for Settings > Updates, served by bothy-ops (updates.py).
 #
 # HAND-WRITTEN, and kept out of bothy-ops.yml on purpose, for bothy-admin.yml's
 # reason: that file's kube routers are generated from apps/bothy-ops/catalog.toml,
@@ -9,27 +9,37 @@
 # anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. `just verify` check
 # 5b catches it; apps/bothy-ops/checks/wiring_updates.py does too.
 #
-# ── one exact Path, GET only, viewer ────────────────────────────────────────
+# ── four exact Paths, each with its method and its role ────────────────────
 #
-#   /-/api/updates/status   every component in updates.toml: pinned, running and
-#                           available versions, patch/minor/major, drift, channel
+#   GET  /-/api/updates/status    viewer    every component in updates.toml: pinned,
+#                                           running and available versions, drift,
+#                                           channel; the plan summary per row; the
+#                                           running job and the history
+#   GET  /-/api/updates/plan      viewer    ?component=  the plan the HOST wrote:
+#                                           old tag@digest -> new tag@digest, what
+#                                           restarts, downtime, the snapshot
+#   GET  /-/api/updates/job       viewer    ?id=  one job's steps, from status.json
+#                                           or history.jsonl (read-only mount)
+#   POST /-/api/updates/request   OPERATOR  {component, plan_id, confirm}. bothy-ops
+#                                           writes ONE spool file and answers 202;
+#                                           the host executor decides the rest
 #
-# `viewer`, not `operator`: it says what versions the box runs and what is newer
-# upstream - all of it public information about public images, the same facts
-# About & health already shows a viewer - and it changes nothing. Step 4's plan
-# read stays viewer and its request route will be `operator`; neither exists yet
-# (docs/plans/updates.md §3), and a router for a path the service does not answer
-# is a route nobody reviewed.
+# The reads are `viewer`: versions of public images and the steps of a job - the
+# same facts About & health already shows - and they change nothing. The request
+# is `operator`, like every other verb that acts on something running
+# (bothy-ops.yml). Path() matches the path alone, so ?component= and ?id= reach
+# the service, which accepts exactly one parameter each.
 #
-# `Method(GET)` is part of the rule: a POST never reaches the service at all.
+# `Method(...)` is part of every rule: a POST never reaches a read, and a GET
+# never reaches the request.
 #
 # ── self-contained ──────────────────────────────────────────────────────────
 #
 # The strip and deidentify middlewares and the service below are this file's
 # own, under names nothing else uses, so deleting bothy-ops.yml or bothy-admin.yml
-# cannot break this route and deleting this file cannot break theirs. The gate is
-# the exception, deliberately: sso-viewer is defined ONLY in bothy-gates.yml, and
-# sso-errors ONLY in auth.yml.
+# cannot break these routes and deleting this file cannot break theirs. The gates
+# are the exception, deliberately: sso-viewer and sso-operator are defined ONLY in
+# bothy-gates.yml, and sso-errors ONLY in auth.yml.
 
 http:
   routers:
@@ -40,8 +50,29 @@ http:
       service: bothy-updates
       middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]
 
+    bothy-updates-plan:
+      rule: "Path(`/-/api/updates/plan`) && Method(`GET`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]
+
+    bothy-updates-job:
+      rule: "Path(`/-/api/updates/job`) && Method(`GET`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]
+
+    bothy-updates-request:
+      rule: "Path(`/-/api/updates/request`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]
+
   middlewares:
-    # /-/api/updates/status -> /updates/status. The service answers only its own paths.
+    # /-/api/updates/<x> -> /updates/<x>. The service answers only its own paths.
     bothy-updates-strip:
       stripPrefix:
         prefixes: ["/-/api"]

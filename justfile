@@ -282,6 +282,10 @@ up-apps: network
     # auto-created). NOT refreshed here: discovery asks registries on the
     # internet, which `up` should not wait on - the timer, or `just updates-discover`.
     mkdir -p -m 700 "$state/bothy/updates"
+    # ...and its spool, bothy-ops' only read-WRITE mount besides its audit dir:
+    # Settings > Updates writes one request file here and the host's
+    # bothy-updater.path picks it up (build step 4). 700, never auto-created.
+    mkdir -p -m 700 "$state/bothy/updates/spool"
     files=({{BOTHY}})
     # The Users & roles page: only once `just admin-client` has written a secret.
     if [ -f apps/bothy-ops/secrets/keycloak-admin-client-secret ]; then
@@ -484,6 +488,22 @@ admin-inventory:
 # Discover newer versions of every component (read-only) and print the table.
 updates-discover *args:
     python3 apps/bothy-ops/discover_updates.py {{args}}
+
+# The host updater (docs/plans/updates.md step 4). It deploys ONLY what the
+# checked-out main already pins - a merged Dependabot PR, say - for the stateless
+# and time-series components, with a pre-flight, a snapshot, canaries on response
+# bodies and an automatic rollback. Settings > Updates queues a request and
+# host/systemd/bothy-updater.path runs it; these are the same program by hand,
+# over Tailscale SSH, when the browser is not an option.
+#   just update-plan loki     the plan for one component (read-only)
+#   just update-status        the current job, the last ten and the queue
+# Show the plan the host updater would run for a component (read-only).
+update-plan component:
+    cd apps/bothy-ops && python3 -m updater plan --component {{quote(component)}}
+
+# Show the updater's current job, recent history and queue.
+update-status:
+    cd apps/bothy-ops && python3 -m updater status
 
 # What it saves, and how, is listed at the top of scripts/backup.sh.
 # Back up postgres, grafana, .env, VictoriaMetrics, Loki, alloy, audit/trash and notes now (the nightly timer also runs this).

@@ -83,6 +83,8 @@ services:
       INVENTORY_FILE: /inventory/inventory.json
       # Settings > Updates (updates.py): what the host's discovery timer found.
       UPDATES_AVAILABLE: /updates/available.json
+      UPDATES_DIR: /updates
+      UPDATES_SPOOL: /spool
     volumes:
       # Mounted so the log outlives a container rebuild - an audit trail that a
       # `docker compose up --build` erases is not an audit trail.
@@ -114,11 +116,29 @@ services:
       # inventory mount above for the same reasons: the registries, docker
       # inspect and git stay on the host, and a root-owned directory created by
       # docker would stop the host writer - `just up-apps` and bootstrap create it.
-      # Step 4's spool (a read-WRITE mount) is not here: nothing is applied yet.
+      #
+      # Step 4 reads three more things out of it, all written by the host
+      # updater (apps/bothy-ops/updater): plans/<component>.json, status.json and
+      # history.jsonl. Still read-only - this process can never edit a plan,
+      # a job's record or the executor's audit.log.
       - type: bind
         source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/updates
         target: /updates
         read_only: true
+        bind:
+          create_host_path: false
+      # THE SPOOL - the one read-WRITE mount besides ./audit, and the whole of
+      # this process's part in applying an update: POST /updates/request writes
+      # ONE <job>.json here (temp name, then rename) and answers 202. The host's
+      # bothy-updater.path sees it and bothy-updater.service re-validates every
+      # field against updates.toml and a plan it recomputes itself - so what a
+      # total compromise of this process can put here is bounded by what that
+      # executor accepts (SECURITY.md rule 8). Never auto-created, for the
+      # inventory mount's reason; `just up-apps` and bootstrap create it, 700.
+      - type: bind
+        source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/updates/spool
+        target: /spool
+        read_only: false
         bind:
           create_host_path: false
       # NO token mount here. ./secrets is mounted by compose.cluster.yml, next to
