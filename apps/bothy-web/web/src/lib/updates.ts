@@ -158,14 +158,16 @@ export interface Plan {
   id: string;
   component: string;
   title: string;
-  class: 'stateless' | 'timeseries';
+  class: 'stateless' | 'timeseries' | 'app-db';
   createdAt: string;
   level: 'patch' | 'minor';
-  /** Step 4 is always 'click'; 'type-name' means confirm must equal the component id. */
+  /** 'type-name' (every one-way plan, and any major) means confirm must equal the component id. */
   confirm: 'click' | 'type-name';
   from: { image: string; tag: string | null; version: string | null; digest: string | null; container: string };
   to: { image: string; tag: string | null; version: string | null; digest: string | null };
   pin: { file: string; service: string; line: number; commit: string };
+  /** Every pin line the plan moves - Keycloak's image is pinned twice. Absent from an older service. */
+  pins?: { file: string; service: string; line: number | null }[];
   changelog: string | null;
   oneWay: boolean;
   oneWayWhy: string | null;
@@ -173,7 +175,10 @@ export interface Plan {
   recipe: string;
   downtime: string;
   signedOut: string;
-  snapshot: { kind: 'image' | 'victoriametrics' | 'loki'; what: string; dir: string; estimateBytes: number | null };
+  snapshot: {
+    kind: 'image' | 'victoriametrics' | 'loki' | 'grafana' | 'keycloak';
+    what: string; dir: string; estimateBytes: number | null;
+  };
   preflight: string[];
   verify: string[];
   rollback: string;

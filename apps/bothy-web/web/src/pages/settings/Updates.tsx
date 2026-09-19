@@ -512,9 +512,13 @@ function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
         <LevelBadge level={plan.level} />
       </div>
       <dl className="upd-dl">
-        <dt>Pin</dt>
-        <dd><span className="mono">{plan.pin.file}:{plan.pin.line}</span> (service <span className="mono">{plan.pin.service}</span>) at{' '}
-          <span className="mono">{plan.pin.commit.slice(0, 10)}</span> - the checkout already says this; nothing is edited.</dd>
+        <dt>{(plan.pins?.length ?? 1) > 1 ? 'Pins' : 'Pin'}</dt>
+        {(plan.pins?.length ?? 1) > 1
+          ? <dd>{plan.pins!.map((q, i) => <span key={`${q.file}:${q.service}`}>{i > 0 && ', '}
+              <span className="mono">{q.file}:{q.line ?? '?'}</span> (<span className="mono">{q.service}</span>)</span>)}
+              {' '}at <span className="mono">{plan.pin.commit.slice(0, 10)}</span> - one image, every line; a rollback puts all of them back.</dd>
+          : <dd><span className="mono">{plan.pin.file}:{plan.pin.line}</span> (service <span className="mono">{plan.pin.service}</span>) at{' '}
+              <span className="mono">{plan.pin.commit.slice(0, 10)}</span> - the checkout already says this; nothing is edited.</dd>}
         <dt>Changelog</dt>
         <dd>{plan.changelog
           ? <a className="link upd-cl" href={plan.changelog} target="_blank" rel="noreferrer noopener">{plan.to.version ?? plan.to.tag}<ArrowUpRight size={12} aria-hidden="true" /></a>
@@ -526,7 +530,7 @@ function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
         <dt>Signed out</dt>
         <dd>{plan.signedOut}</dd>
         <dt>Snapshot</dt>
-        <dd>{plan.snapshot.what} <span className="set-cell-sub">
+        <dd><Ticks text={plan.snapshot.what} /> <span className="set-cell-sub">
           into <span className="mono">{plan.snapshot.dir}</span>
           {plan.snapshot.estimateBytes != null && <> · about {fmtBytes(plan.snapshot.estimateBytes)}</>} · the last 3 are kept</span></dd>
         {plan.oneWay && <><dt>One-way</dt><dd className="set-warn"><Lock size={12} aria-hidden="true" />{plan.oneWayWhy}</dd></>}
