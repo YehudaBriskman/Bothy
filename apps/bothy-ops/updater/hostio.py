@@ -42,6 +42,38 @@ def run(argv: list[str], *, timeout: float = 120, env: dict | None = None, cwd: 
     return p.returncode, p.stdout, p.stderr
 
 
+def run_io(argv: list[str], *, stdin_path: str | None = None, stdout_path: str | None = None,
+           timeout: float = 900, env: dict | None = None) -> tuple[int, str]:
+    """run() for BYTES: stdin from a file and/or stdout into a NEW file (0600).
+
+    A pg_dump -Fc or a tar stream is binary, which run()'s text pipes would
+    corrupt. The output file is created O_EXCL - a snapshot never overwrites -
+    and removed again if the command fails. Returns (rc, stderr tail).
+    """
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
+        raise TypeError("run_io() takes an argv list of str - never a shell string")
+    fin = fout = None
+    try:
+        fin = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
+        if stdout_path:
+            fout = os.fdopen(os.open(stdout_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), "wb")
+        p = subprocess.run(argv, stdin=fin, stdout=fout if fout else subprocess.DEVNULL, stderr=subprocess.PIPE,
+                           timeout=timeout, env=env, check=False)
+        rc, err = p.returncode, p.stderr.decode(errors="replace")
+    except subprocess.TimeoutExpired:
+        rc, err = 124, f"{argv[0]} timed out after {int(timeout)}s"
+    except OSError as e:
+        rc, err = 127, f"{argv[0]}: {e}"
+    finally:
+        if fin not in (None, subprocess.DEVNULL):
+            fin.close()
+        if fout:
+            fout.close()
+    if rc != 0 and stdout_path and fout is not None and os.path.exists(stdout_path):
+        os.unlink(stdout_path)
+    return rc, tail(err, 400)
+
+
 def tail(text: str, n: int = 400) -> str:
     text = (text or "").strip()
     return text if len(text) <= n else "…" + text[-n:]

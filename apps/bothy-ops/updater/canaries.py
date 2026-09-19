@@ -29,18 +29,22 @@ What the executor does with that is its rollback rule (executor.py).
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.parse
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .hostio import run, tail
+from .hostio import docker_json, dotenv, run, tail
 
 PROBE = r'''
 import base64, re, sys, urllib.error, urllib.request
 method, url, pat = sys.argv[1], sys.argv[2], sys.argv[3]
+body = sys.argv[4].encode() if len(sys.argv) > 4 else b""
 cred = sys.stdin.read().strip()
-req = urllib.request.Request(url, method=method, data=b"" if method == "POST" else None)
+req = urllib.request.Request(url, method=method, data=body if method in ("POST", "PUT") else None)
+if len(sys.argv) > 5:
+    req.add_header("Content-Type", sys.argv[5])
 if cred:
     req.add_header("Authorization", "Basic " + base64.b64encode(cred.encode()).decode())
 def out(status, body):
@@ -68,6 +72,12 @@ class Ctx:
     container: str
     phase: str = "verify"            # preflight | verify | rollback
     baseline: dict = field(default_factory=dict)
+    plan: dict = field(default_factory=dict)   # the plan being executed: from/to versions
+
+    def expected_tag(self) -> str | None:
+        """The tag that should be running in this phase: the new one only in verify."""
+        side = self.plan.get("to" if self.phase == "verify" else "from") or {}
+        return side.get("tag")
 
 
 @dataclass(frozen=True)
@@ -75,11 +85,17 @@ class Canary:
     describe: str
     check: Callable[[Ctx], tuple[bool, str]]
     history: bool = False            # the data-loss probe of a time-series component
+    retry: bool = True               # False: a failure is final, verify does not wait it out
 
 
-def probe(ctx: Ctx, url: str, pattern: str = "", *, method: str = "GET", cred: str = "") -> tuple[int, str]:
-    rc, out, err = run(["docker", "run", "--rm", "-i", "--network", f"container:{ctx.container}",
-                        ctx.cfg.helper_image, "python3", "-c", PROBE, method, url, pattern],
+def probe(ctx: Ctx, url: str, pattern: str = "", *, method: str = "GET", cred: str = "",
+          body: str | None = None, ctype: str | None = None, container: str | None = None) -> tuple[int, str]:
+    """(status, body) of one request from inside `container` (default: the
+    component's). `cred` - `user:password` for basic auth - goes in on STDIN;
+    `body` is argv and must never carry a secret."""
+    extra = [] if body is None else [body] + ([ctype] if ctype else [])
+    rc, out, err = run(["docker", "run", "--rm", "-i", "--network", f"container:{container or ctx.container}",
+                        ctx.cfg.helper_image, "python3", "-c", PROBE, method, url, pattern, *extra],
                        stdin=cred, timeout=90)
     if rc != 0:
         return 0, f"the probe could not run: {tail(err or out, 200)}"
@@ -201,6 +217,207 @@ def loki_history() -> Canary:
                     lambda ctx: "")
 
 
+# ── Grafana (app-db, one-way) ─────────────────────────────────────────────────
+#
+# Its admin login is read from the checkout's .env (GRAFANA_USER / _PASSWORD,
+# the same defaults monitoring/compose.yml falls back to) and handed to the probe
+# on STDIN. /api/health needs no login; the dashboard and datasource reads do.
+
+def _env(ctx: Ctx) -> dict:
+    return dotenv(ctx.cfg.repo)
+
+
+def _grafana_cred(ctx: Ctx) -> str:
+    e = _env(ctx)
+    return f"{e.get('GRAFANA_USER') or 'admin'}:{e.get('GRAFANA_PASSWORD') or 'admin'}"
+
+
+def _json(body: str):
+    try:
+        return json.loads(body)
+    except ValueError:
+        return None
+
+
+def grafana_health() -> Canary:
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        st, body = probe(ctx, "http://127.0.0.1:3000/api/health")
+        j = _json(body) if st == 200 else None
+        if not isinstance(j, dict) or j.get("database") != "ok":
+            return False, f"{st}: /api/health does not say database ok ({tail(body, 120)})"
+        want = (ctx.expected_tag() or "").lstrip("v")
+        if want and j.get("version") != want:
+            return False, f"/api/health says version {j.get('version')}, expected {want}"
+        return True, f"database ok, version {j.get('version')}"
+    return Canary("Grafana: /api/health says database ok and names the expected version", check)
+
+
+def grafana_dashboards() -> Canary:
+    """No dashboard lost: the count through the API is at least pre-flight's."""
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        st, body = probe(ctx, "http://127.0.0.1:3000/api/search?type=dash-db&limit=5000", cred=_grafana_cred(ctx))
+        j = _json(body) if st == 200 else None
+        if not isinstance(j, list):
+            return False, f"{st}: /api/search did not answer a list ({tail(body, 120)})"
+        n = len(j)
+        if ctx.phase == "preflight":
+            ctx.baseline["dashboards"] = n
+            return True, f"{n} dashboards"
+        n0 = ctx.baseline.get("dashboards")
+        if n0 is None:
+            return False, "no pre-flight dashboard count"
+        return n >= n0, f"{n} dashboards, {n0} before the update"
+    return Canary("Grafana: at least as many dashboards (API search) as before the update", check)
+
+
+def grafana_datasource(uid: str = "prometheus") -> Canary:
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        st, body = probe(ctx, f"http://127.0.0.1:3000/api/datasources/uid/{uid}/health", cred=_grafana_cred(ctx))
+        j = _json(body)
+        if st == 200 and isinstance(j, dict) and j.get("status") == "OK":
+            return True, f"datasource {uid}: OK"
+        why = j.get("message") if isinstance(j, dict) else body
+        return False, f"{st}: datasource {uid} is not OK ({tail(str(why), 120)})"
+    return Canary(f"Grafana: datasource uid={uid} answers its /health with OK", check)
+
+
+# ── Keycloak (app-db, one-way) ────────────────────────────────────────────────
+
+REALM = "devbox"
+KC = "http://127.0.0.1:8080"
+# scripts/keycloak-admin-client.sh keeps the service account's secret here.
+ADMIN_CLIENT = "bothy-admin"
+ADMIN_SECRET = os.path.join("apps", "bothy-ops", "secrets", "keycloak-admin-client-secret")
+
+
+def kc_issuer() -> Canary:
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        st, body = probe(ctx, f"{KC}/realms/{REALM}/.well-known/openid-configuration")
+        j = _json(body) if st == 200 else None
+        iss = j.get("issuer") if isinstance(j, dict) else None
+        if not isinstance(iss, str) or not iss.endswith(f"/realms/{REALM}"):
+            return False, f"{st}: no issuer for realm {REALM} ({tail(body, 120)})"
+        if ctx.phase == "preflight":
+            ctx.baseline["issuer"] = iss
+            return True, f"issuer {iss}"
+        was = ctx.baseline.get("issuer")
+        return iss == was, f"issuer {iss}" + ("" if iss == was else f", was {was}")
+    return Canary(f"Keycloak: the discovery document's issuer is unchanged (realm {REALM})", check)
+
+
+def kc_realm() -> Canary:
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        st, body = probe(ctx, f"{KC}/realms/{REALM}")
+        j = _json(body) if st == 200 else None
+        ok = isinstance(j, dict) and j.get("realm") == REALM and bool(j.get("public_key"))
+        return ok, f"{st} realm {j.get('realm') if isinstance(j, dict) else tail(body, 80)}"
+    return Canary(f"Keycloak: realm {REALM} exists and publishes its key", check)
+
+
+def kc_admin_token() -> Canary:
+    """The client-credentials grant of bothy-admin (scripts/keycloak-admin-client.sh).
+    The secret is read from its file and goes to the probe on stdin; the token
+    that comes back is never written anywhere - only that there was one."""
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        path = os.path.join(ctx.cfg.repo, ADMIN_SECRET)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                secret = fh.read().strip()
+        except OSError:
+            return False, f"no {ADMIN_SECRET} - run `just admin-client`"
+        if not secret:
+            return False, f"{ADMIN_SECRET} is empty"
+        st, body = probe(ctx, f"{KC}/realms/{REALM}/protocol/openid-connect/token", method="POST",
+                         cred=f"{ADMIN_CLIENT}:{secret}", body="grant_type=client_credentials",
+                         ctype="application/x-www-form-urlencoded")
+        j = _json(body)
+        if (st == 200 and isinstance(j, dict) and j.get("access_token")
+                and str(j.get("token_type")).lower() == "bearer"):
+            return True, f"token issued to {ADMIN_CLIENT} (expires in {j.get('expires_in')} s)"
+        err = j.get("error") if isinstance(j, dict) else None
+        return False, f"{st}: no token for {ADMIN_CLIENT} ({err or 'unexpected body'})"
+    return Canary(f"Keycloak: the admin token endpoint issues {ADMIN_CLIENT} a token (client credentials)", check)
+
+
+def kc_init_ran(container: str = "keycloak-init") -> Canary:
+    """keycloak-init exited 0 - and, after a recreate, it ran AFTER Keycloak started."""
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        i = docker_json(["inspect", "--type", "container", container])
+        k = docker_json(["inspect", "--type", "container", ctx.container])
+        if not i or not k:
+            return False, f"{container} or {ctx.container} does not exist"
+        st, kst = i[0].get("State") or {}, k[0].get("State") or {}
+        if st.get("Status") != "exited" or st.get("ExitCode") != 0:
+            return False, f"{container} is {st.get('Status')} with exit code {st.get('ExitCode')}"
+        if ctx.phase != "preflight" and str(st.get("StartedAt")) < str(kst.get("StartedAt")):
+            return False, f"{container} last ran at {st.get('StartedAt')}, before {ctx.container} started"
+        return True, f"{container} exited 0 at {str(st.get('FinishedAt'))[:19]}"
+    return Canary("Keycloak: keycloak-init ran after it and exited 0", check)
+
+
+# A real sign-in, from inside oauth2-proxy's network namespace: /oauth2/start ->
+# Keycloak's login form -> the callback (rewritten to this listener, since the
+# configured redirect URL goes through the edge) -> a session cookie. Then the
+# question the whole boundary rests on: a role the user holds is admitted (202),
+# `shell`, which nobody holds, is refused (403). Without a session both would be
+# 401, which proves nothing. The login comes from the checkout's .env
+# (DEV_LOGIN_USER / _PASSWORD - the seeded user keycloak-init maintains), on STDIN.
+LOGIN = r'''
+import html, re, sys, urllib.error, urllib.parse, urllib.request
+from http.cookiejar import CookieJar
+user, _, pw = sys.stdin.read().partition("\n")
+pw = pw.rstrip("\n")
+base = "http://127.0.0.1:4180"
+class Stay(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()), Stay)
+def go(url, data=None):
+    for _ in range(12):
+        try:
+            r = op.open(urllib.request.Request(url, data=data), timeout=20)
+            return r.status, url, r.read().decode(errors="replace")
+        except urllib.error.HTTPError as e:
+            if e.code not in (301, 302, 303, 307, 308):
+                return e.code, url, e.read().decode(errors="replace")
+            nxt = urllib.parse.urljoin(url, e.headers.get("Location", ""))
+            u = urllib.parse.urlsplit(nxt)
+            if u.path == "/oauth2/callback":
+                nxt = base + "/oauth2/callback?" + u.query
+            url, data = nxt, None
+    return 0, url, "too many redirects"
+st, url, body = go(base + "/oauth2/start?rd=%2F")
+m = re.search(r'action="([^"]+)"', body)
+if not m:
+    print(f"LOGIN no login form at {urllib.parse.urlsplit(url).path} ({st})")
+    sys.exit()
+st, url, body = go(html.unescape(m.group(1)), urllib.parse.urlencode({"username": user, "password": pw}).encode())
+codes = {}
+for g in ("viewer", "shell"):
+    try:
+        codes[g] = op.open(base + "/oauth2/auth?allowed_groups=" + g, timeout=20).status
+    except urllib.error.HTTPError as e:
+        codes[g] = e.code
+print(f"CODES viewer={codes['viewer']} shell={codes['shell']} after {urllib.parse.urlsplit(url).path} ({st})")
+'''
+
+
+def oauth2_shell_denied(container: str = "oauth2-proxy") -> Canary:
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        e = _env(ctx)
+        user, pw = e.get("DEV_LOGIN_USER"), e.get("DEV_LOGIN_PASSWORD")
+        if not user or not pw:
+            return False, "DEV_LOGIN_USER / DEV_LOGIN_PASSWORD are not in .env"
+        rc, out, err = run(["docker", "run", "--rm", "-i", "--network", f"container:{container}",
+                            ctx.cfg.helper_image, "python3", "-c", LOGIN], stdin=f"{user}\n{pw}\n", timeout=120)
+        line = (out.strip().splitlines() or [""])[-1]
+        if rc != 0 or not line:
+            return False, f"the sign-in probe could not run: {tail(err or out, 160)}"
+        return line.startswith("CODES viewer=202 shell=403"), line[:200]
+    return Canary("oauth2-proxy: a signed-in user gets 202 for allowed_groups=viewer and 403 for "
+                  "allowed_groups=shell", check)
+
+
 # ── the table: component id -> canaries (the container comes from its pin) ────
 
 CANARIES: dict[str, list[Canary]] = {
@@ -216,6 +433,9 @@ CANARIES: dict[str, list[Canary]] = {
                               "Headlamp: /config answers its cluster list")],
     "victoriametrics": [vm_up(), vm_history()],
     "loki": [loki_ready(), loki_fresh(), loki_history()],
+    "grafana": [grafana_health(), grafana_dashboards(), grafana_datasource("prometheus")],
+    "keycloak": [kc_issuer(), kc_realm(), kc_init_ran("keycloak-init"), kc_admin_token(),
+                 oauth2_shell_denied("oauth2-proxy")],
 }
 
 
