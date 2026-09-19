@@ -209,6 +209,10 @@ up-monitoring: network
     #!/usr/bin/env bash
     set -euo pipefail
     files=(-f monitoring/compose.yml)
+    # node-exporter's textfile collector reads this (read-only, never
+    # auto-created; 755 because node-exporter runs as nobody). Update discovery
+    # writes bothy_updates.prom into it.
+    mkdir -p -m 755 "${STATE_ROOT:-$HOME/.local/state}/bothy/textfile"
     if docker network inspect thales-scc >/dev/null 2>&1; then
       files+=(-f monitoring/compose.cluster.yml)
       # The mount source must be a directory before compose creates it as root.
@@ -274,6 +278,10 @@ up-apps: network
     # The Settings credentials/backups pages read this; refresh it now so they
     # are not empty until the timer's first run. Metadata only - see its header.
     python3 apps/bothy-ops/inventory.py || echo "note: the admin inventory could not be written - Settings > Credentials will say so"
+    # Settings > Updates reads available.json from here (read-only mount, never
+    # auto-created). NOT refreshed here: discovery asks registries on the
+    # internet, which `up` should not wait on - the timer, or `just updates-discover`.
+    mkdir -p -m 700 "$state/bothy/updates"
     files=({{BOTHY}})
     # The Users & roles page: only once `just admin-client` has written a secret.
     if [ -f apps/bothy-ops/secrets/keycloak-admin-client-secret ]; then
@@ -466,6 +474,16 @@ admin-client *args:
 # Rewrite the host-side credential and backup inventory that Settings serves.
 admin-inventory:
     python3 apps/bothy-ops/inventory.py
+
+# Settings > Updates is served from a file written on the host: every pin in
+# apps/bothy-ops/updates.toml against the registries, GitHub and the helm index,
+# and what is running. READ-ONLY - it pulls nothing and changes no pin. The timer
+# host/systemd/bothy-updates-discover.timer runs it every six hours; answers are
+# cached (~/.cache/bothy/updates.json), so a rerun is cheap. `args` go to the
+# program: --no-cache, --only grafana,loki, --json, --state-dir DIR.
+# Discover newer versions of every component (read-only) and print the table.
+updates-discover *args:
+    python3 apps/bothy-ops/discover_updates.py {{args}}
 
 # Back up postgres/redis/grafana/portainer now (nightly timer also runs this)
 backup:

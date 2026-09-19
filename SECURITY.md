@@ -569,6 +569,35 @@ Rotation from the interface is not built: the page shows the command. User write
 (role grants, password resets) are not built either; they need their own
 operator routes, a type-the-name confirmation and a `manage-users` client first.
 
+### 8. Update discovery (in `bothy-ops`) reads; nothing in the browser path applies
+
+Added 2026-09-19, build step 3 of `docs/plans/updates.md`. One exact
+`Path() && Method(GET)` router, `/-/api/updates/status`, behind `sso-viewer`, in
+the hand-written `edge/dynamic/bothy-updates.yml` (kept out of the generated
+`bothy-ops.yml`). It serves `apps/bothy-ops/updates.toml` merged with what the
+host found; each read is a line in `apps/bothy-ops/audit/admin.log`.
+
+- **Discovery runs on the host**, not in a container:
+  `apps/bothy-ops/discover_updates.py` (a systemd timer,
+  `host/systemd/bothy-updates-discover.*`, every 6 h). It reads the pins from the
+  repo, runs `docker inspect`, `kubectl get` and `helm list` (all read-only), and
+  asks the public registries with **anonymous** pull tokens, GitHub's releases
+  API unauthenticated and the helm index. It holds no credential and pulls
+  nothing. It writes `~/.local/state/bothy/updates/available.json` (mode 600, dir
+  700), which bothy-ops mounts **read-only** and re-filters to an allow-list, and
+  a node-exporter textfile (`~/.local/state/bothy/textfile`, 755/644 because
+  node-exporter runs as `nobody`, mounted read-only on a dedicated directory).
+- **bothy-ops gained no new power.** No socket, no network path to the internet,
+  no read-write mount: the only read-write mount is still its audit directory
+  (`checks/wiring_updates.py` asserts it). The catalog is baked into the image
+  and a malformed one refuses the start.
+- **The policy is code, not catalog.** `updates.load_catalog()` refuses `auto` on
+  a one-way component, on the auth boundary, and on any class outside
+  `AUTO_CLASSES` (stateless, time-series); `effective_channel()` makes a minor of
+  an auto component `notify` and any major `manual`. Applying - the spool, the
+  host updater and the operator `POST` - is step 4 and not built; the page shows
+  the `just` recipe to run by hand.
+
 ---
 
 ## Accepted risks

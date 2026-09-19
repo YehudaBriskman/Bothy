@@ -408,8 +408,23 @@ services:
     restart: unless-stopped
     command:
       - --path.rootfs=/host
+      # The textfile collector, for metrics a HOST program writes: today
+      # bothy_update_available{component,level} from apps/bothy-ops/
+      # discover_updates.py (Settings > Updates). Added 2026-09-19; before that
+      # node-exporter had no textfile directory at all.
+      - --collector.textfile.directory=/textfile
     volumes:
       - /:/host:ro
+      # A DEDICATED directory, read-only - not a path under /host, which would
+      # tie the collector to one home directory and let any *.prom a process
+      # drops anywhere be exported. never auto-created: `just up-monitoring` and
+      # bootstrap create it 755 (node-exporter runs as nobody).
+      - type: bind
+        source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/textfile
+        target: /textfile
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "9100:9100"
     healthcheck:

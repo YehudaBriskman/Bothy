@@ -1,0 +1,13 @@
+[Unit]
+Description=Discover Bothy updates every six hours (registries, GitHub releases, the helm index)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+# Docker Hub's anonymous quota is per public IP, shared with every pull the box
+# makes; a fixed minute would line up with anything else scheduled on the hour.
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

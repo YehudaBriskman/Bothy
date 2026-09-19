@@ -4,6 +4,7 @@
     POST /control/{restart,stop,start}      containers   control.py
     *    /kube/<catalog id>                  workloads    kube.py
     GET  /admin/{users,credentials,backups,audit}  Settings reads  admin.py
+    GET  /updates/status                     Settings > Updates   updates.py
     GET  /healthz                            local only, no edge route
 
 Until 2026-09 these were two services, bothy-control and bothy-kube, each with
@@ -52,6 +53,7 @@ import admin  # noqa: E402
 import control  # noqa: E402
 import guard  # noqa: E402
 import kube  # noqa: E402
+import updates  # noqa: E402
 from bothy_common.http import JsonHandler, serve  # noqa: E402
 
 PORT = int(os.environ.get("PORT", "8097"))
@@ -83,6 +85,8 @@ class Handler(JsonHandler):
             return kube.handle(self, "GET", route[len("/kube/"):])
         if route.startswith("/admin/"):
             return admin.handle(self, route[len("/admin/"):])
+        if route == "/updates/status":
+            return updates.handle(self)
         return self._send(404, {"error": "no such endpoint"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -97,7 +101,10 @@ class Handler(JsonHandler):
 def main() -> None:
     try:
         kube.CATALOG = kube.load()
-    except (guard.CatalogError, OSError, tomllib.TOMLDecodeError) as e:
+        # The update catalog too: a typo in updates.toml is a defect in what was
+        # reviewed and built, not a request-time 500 (updates.load_catalog).
+        updates.CATALOG = updates.load()
+    except (guard.CatalogError, updates.CatalogError, OSError, tomllib.TOMLDecodeError) as e:
         # Refuse to start. A service that ran with half a catalog would be a
         # service whose surface nobody reviewed. (A missing CLUSTER is not this -
         # that is a 503 per request; a malformed CATALOG is a code defect.)
@@ -106,7 +113,7 @@ def main() -> None:
     serve(PORT, Handler,
           f"bothy-ops on :{PORT} - verbs {list(guard.VERBS)} via read {control.DOCKER_READ} "
           f"/ write {control.DOCKER_WRITE}; kube actions {sorted(kube.CATALOG)} on "
-          f"{list(guard.NAMESPACES)} via {kube.KUBE_API}")
+          f"{list(guard.NAMESPACES)} via {kube.KUBE_API}; {len(updates.CATALOG.components)} update components")
 
 
 if __name__ == "__main__":

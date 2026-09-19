@@ -40,6 +40,7 @@ interval is a fact about the screen and the link you are on.
 | Monitoring & alerts | every scrape target and whether it answered; the Grafana alert rule definitions | metrics route; Files | viewer for rules |
 | Audit log | container and cluster actions, file writes, config patches and admin reads, filtered and paged | `/-/api/admin/audit` | **operator** |
 | Backups | each backup set's newest copy, count and size; the schedule and `just backup` | `/-/api/admin/backups` | **operator** |
+| Updates | every component's pinned, running and available version, patch/minor/major, drift, one-way, channel and changelog; how to apply one by hand (applying from the page is not built yet) | `/-/api/updates/status` | viewer |
 | About & health | the five Bothy containers, the Traefik version and router table, documentation | Docker and Traefik reads | - |
 
 The role column is a courtesy. The edge decides; a block you may not read says
@@ -63,6 +64,7 @@ Two pages need a one-off step, and say so until it is done:
 
     just admin-client      # the view-users-only Keycloak client for Users & roles
     just admin-inventory   # the metadata file for Credentials and Backups
+    just updates-discover  # what Updates shows (read-only; the timer refreshes it every 6h)
     just up-apps           # picks up the admin overlay once the client exists
 
 ## Related

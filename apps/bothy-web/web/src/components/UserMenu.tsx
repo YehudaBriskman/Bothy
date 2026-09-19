@@ -31,6 +31,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LogIn, LogOut, Settings2, UserRound } from 'lucide-react';
 import { fetchMe, signInHref, signOutHref, type Me } from '../lib/me';
+import { useUpdatesBehind } from './settings/useUpdatesBehind';
 import './UserMenu.css';
 
 export function useMe(): { me: Me | null; loading: boolean } {
@@ -54,6 +55,11 @@ export function UserMenu() {
   const list = useRef<HTMLDivElement | null>(null);
   const wrap = useRef<HTMLDivElement | null>(null);
   const id = useId();
+  // The count on the Settings row (docs/plans/updates.md §8). Asked for only once
+  // the menu is OPEN, and only for a session holding viewer: every page load is
+  // not a reason to read the update status, and a session without the role would
+  // only collect a 403.
+  const behind = useUpdatesBehind(open && !!me?.roles.includes('viewer'));
 
   const close = useCallback((toButton: boolean) => {
     setOpen(false);
@@ -178,6 +184,11 @@ export function UserMenu() {
           >
             <Settings2 size={15} aria-hidden="true" />
             <span>Settings</span>
+            {behind !== null && behind > 0 && (
+              <span className="um-count" title={`Updates: ${behind} a minor version or more behind`}>
+                {behind}<span className="sr-only"> updates a minor version or more behind</span>
+              </span>
+            )}
           </Link>
 
           <a

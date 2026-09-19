@@ -50,3 +50,7 @@
 # No credential. Allow-listed in the same commit as the file, for the reason
 # every entry above gives.
 !bothy-admin.yml
+# Settings > Updates (bothy-ops updates.py): one exact Path() GET router behind
+# sso-viewer. HAND-WRITTEN and separate from the generated bothy-ops.yml, like
+# bothy-admin.yml. No credential. Allow-listed in the same commit as the file.
+!bothy-updates.yml
