@@ -13,7 +13,13 @@ Group=devssh
 Environment=HOME=/home/devssh
 # `just` comes from mise's shims, like kubectl in bothy-updates-discover.service.
 Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
-WorkingDirectory=/home/devssh/stacks/apps/bothy-ops
+# The INSTALLED copy, never the checkout: an update of Bothy moves the checkout,
+# and the program doing it must not change under itself. `just install-updater`
+# writes it and switches `current`; systemd resolves the symlink when a run
+# starts, so a switch takes effect at the next job, never inside one.
+# Own-code updates arm their rollback timer in devssh's USER manager
+# (`systemd-run --user`), which needs `loginctl enable-linger devssh`.
+WorkingDirectory=/home/devssh/.local/lib/bothy-updater/current/apps/bothy-ops
 ExecStart=/usr/bin/python3 -m updater run
 # Everything it writes - status.json, history.jsonl, audit.log, snapshots - is
 # 600/700 by construction; the umask makes that the default for the rest.
@@ -22,5 +28,5 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 Nice=5
 # A pull, a snapshot of VictoriaMetrics, the recipe's --wait and verify, twice
-# if it rolls back. Generous, because being killed half-way is the worst ending.
+# if it rolls back - or for Bothy itself, a full build of three images. Generous, because being killed half-way is the worst ending.
 TimeoutStartSec=60min
