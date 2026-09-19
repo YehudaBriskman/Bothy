@@ -31,7 +31,6 @@ import time
 import updates
 
 from . import classes
-from .hostio import HostError
 
 JOB_ID = re.compile(r"[a-f0-9]{32}")
 FILE = re.compile(r"([a-f0-9]{32})\.json")
@@ -162,8 +161,3 @@ def queued(spool: str) -> list[str]:
         return sorted(n for n in os.listdir(spool) if FILE.fullmatch(n))
     except FileNotFoundError:
         return []
-
-
-def check_writable(spool: str) -> None:
-    if not os.path.isdir(spool):
-        raise HostError(f"no spool directory at {spool}")
