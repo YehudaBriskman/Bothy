@@ -103,7 +103,7 @@ const SPECS: Spec[] = [
     apply: 'just up-headlamp', channel: 'manual', changelog: 'https://github.com/oauth2-proxy/oauth2-proxy/releases/tag/v{v}', dependants: ['headlamp'],
     tag: 'v7.15.4', running: null },
   { id: 'socket-proxy', title: 'Docker socket proxies (read, write)', cls: 'boundary',
-    pins: ['apps/bothy/socket-proxy.yml:socket-read', 'apps/bothy/socket-proxy.yml:socket-write'], apply: 'just up-apps', channel: 'manual',
+    pins: ['apps/bothy/compose.socket-proxy.yml:socket-read', 'apps/bothy/compose.socket-proxy.yml:socket-write'], apply: 'just up-apps', channel: 'manual',
     changelog: 'https://github.com/Tecnativa/docker-socket-proxy/releases/tag/v{v}', dependants: ['bothy-ops', "the portal's Docker reads"],
     tag: '0.3.0', running: 'tecnativa/docker-socket-proxy:0.3.0' },
   { id: 'postgres', title: 'Postgres', cls: 'database', pins: ['data/postgres/compose.yml:postgres', 'auth/compose.yml:keycloak-db-init'],
