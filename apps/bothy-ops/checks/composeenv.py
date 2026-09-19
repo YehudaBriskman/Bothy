@@ -32,7 +32,7 @@ import re
 _SVC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The two socket proxies live in the `bothy` project since 2026-09
 # (bothy-socket-read merged the portal's proxy and the control read proxy).
-COMPOSE = os.path.join(os.path.dirname(_SVC), "bothy", "socket-proxy.yml")
+COMPOSE = os.path.join(os.path.dirname(_SVC), "bothy", "compose.socket-proxy.yml")
 # bothy-ops itself - the one client of both proxies.
 OPS_COMPOSE = os.path.join(_SVC, "compose.yml")
 

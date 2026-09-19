@@ -279,7 +279,7 @@ for gone in ("controlnet", "kubenet", "confignet"):
 bothy = yaml.safe_load(open(os.path.join(REPO, "apps/bothy/compose.yml")))
 inc = sorted(i["path"] if isinstance(i, dict) else i for i in bothy.get("include", []))
 ok(inc == sorted(["../bothy-web/compose.yml", "../bothy-files/compose.yml",
-                  "../bothy-ops/compose.yml", "./socket-proxy.yml"]),
+                  "../bothy-ops/compose.yml", "./compose.socket-proxy.yml"]),
    f"apps/bothy/compose.yml includes exactly web, files, ops and the proxies: {inc}")
 
 just = open(os.path.join(REPO, "justfile"), encoding="utf-8").read()

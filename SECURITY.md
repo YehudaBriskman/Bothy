@@ -11,7 +11,7 @@ like style and are actually the security boundary - a well-meaning
 leak or a remote root shell. Those are listed under
 [Load-bearing design rules](#load-bearing-design-rules). Read that section before
 touching `edge/dynamic/bothy-api.yml`, `edge/dynamic/bothy-prom.yml`,
-`apps/bothy/socket-proxy.yml`, `apps/bothy-ops/compose.yml`,
+`apps/bothy/compose.socket-proxy.yml`, `apps/bothy-ops/compose.yml`,
 `edge/dynamic/bothy-gates.yml`,
 `edge/dynamic/auth.yml` or `auth/`.
 
@@ -205,7 +205,7 @@ middlewares, while the file on disk looks perfect. Keep doubled braces out of
 
 ### 2. docker-socket-proxy: network reachability *is* authorisation
 
-`apps/bothy/socket-proxy.yml` runs `tecnativa/docker-socket-proxy` twice so that
+`apps/bothy/compose.socket-proxy.yml` runs `tecnativa/docker-socket-proxy` twice so that
 nothing else - not nginx, not bothy-ops - ever touches `/var/run/docker.sock`,
 which is root-equivalent on this box. **Only the proxies hold the socket, and
 read and write are split:** `bothy-socket-read` (`CONTAINERS=1 SYSTEM=1
@@ -654,7 +654,7 @@ the ordering `docs/plans/all-open-issues.md` §C3 asks for.
 
 Two socket proxies run here (three until 2026-09, when the portal's read-only
 proxy and bothy-control's read proxy merged into `bothy-socket-read`), both in
-`apps/bothy/socket-proxy.yml`, and neither can exec:
+`apps/bothy/compose.socket-proxy.yml`, and neither can exec:
 
 | Proxy | Grants | Refuses |
 |---|---|---|
@@ -741,7 +741,7 @@ option and costs the most:
   hold `/var/run/docker.sock` - is a host root shell. Two compose files say so
   on three lines, in the same six words.
 - **Creating the throwaway container instead is worse, not better.**
-  `apps/bothy/socket-proxy.yml`'s header reads the haproxy rule text out of
+  `apps/bothy/compose.socket-proxy.yml`'s header reads the haproxy rule text out of
   `tecnativa/docker-socket-proxy:0.3.0`: the granular `ALLOW_*` lines are
   `allow` rules, the broad `^/containers` line sits below them, and there is
   **no deny in between** - so `POST=1` with `CONTAINERS=1` permits every POST
@@ -757,7 +757,7 @@ consolidation kept split on purpose. Putting it on a **third, dedicated proxy**
 does not fix that, it relocates it: the dedicated proxy would itself be a
 create-a-privileged-container endpoint defended only by the Python in front of
 it, which is the design the split rejected - *"a total compromise of bothy-ops
-still cannot create a privileged container"* (`apps/bothy/socket-proxy.yml`).
+still cannot create a privileged container"* (`apps/bothy/compose.socket-proxy.yml`).
 
 Shape 3 is the honest one about what it gives away: everything the operator's
 own account can already do on the host, and no socket grant at all. Shape 1
@@ -792,10 +792,10 @@ The two-member networks are what keep that unreachable today, and a shell adds
 members. `socketnet` holds exactly Traefik and the socket proxy because *"the
 proxy has no authentication, so keeping the blast radius at two members is the
 control"* (`README.md:272-274`, `justfile:41-45`,
-`apps/bothy/socket-proxy.yml`). `controlsocknet` holds `bothy-ops` and the two
+`apps/bothy/compose.socket-proxy.yml`). `controlsocknet` holds `bothy-ops` and the two
 proxies, and Traefik is deliberately **not** on it: *"'It is not configured to'
 is weaker than 'it cannot', and the network is what makes it the second"*
-(`apps/bothy/socket-proxy.yml`). Since 2026-09 `bothy-socket-read` sits on both
+(`apps/bothy/compose.socket-proxy.yml`). Since 2026-09 `bothy-socket-read` sits on both
 `socketnet` and `controlsocknet`; that adjacency is safe only because it is
 `POST: 0`. A shell service needs its own pair on
 that precedent, never a seat on an existing one, and never `devnet`.

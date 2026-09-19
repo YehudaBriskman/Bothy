@@ -10,7 +10,7 @@ you want to know is true BEFORE a POST=1 socket proxy starts.
 
 ── why this check exists at all ────────────────────────────────────────────
 
-apps/bothy/socket-proxy.yml says the important thing: "deny-by-default is
+apps/bothy/compose.socket-proxy.yml says the important thing: "deny-by-default is
 the image's behaviour, but a socket proxy is the last place to trust a default
 surviving an image bump. Say it out loud." Saying it out loud is a comment, and
 a comment is not a check. This is the check.
@@ -81,7 +81,7 @@ def ok(cond: bool, label: str) -> None:
 # they DO, so the two must be looking at the same bytes read the same way.
 from composeenv import OPS, Compose, block, container_name, env  # noqa: E402
 
-# The proxies are read from apps/bothy/socket-proxy.yml, bothy-ops from its own
+# The proxies are read from apps/bothy/compose.socket-proxy.yml, bothy-ops from its own
 # compose.yml (composeenv.OPS). Both moved in 2026-09; see composeenv.py.
 READ, WRITE, SVC_NAME = "socket-read", "socket-write", "bothy-ops"
 

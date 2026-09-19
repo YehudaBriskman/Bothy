@@ -134,7 +134,7 @@ const serviceTypeOf = (t?: string | null): ServiceType =>
  *   · the container DOES NOT EXIST -> creating it is `/containers/create`, which
  *     the write socket proxy refuses by holding CONTAINERS=0, on the grounds that
  *     a create with a bind mount of `/` is root on this box
- *     (apps/bothy/socket-proxy.yml). Bothy cannot do it and must not learn to.
+ *     (apps/bothy/compose.socket-proxy.yml). Bothy cannot do it and must not learn to.
  *
  * So this returns null in the second case, `nodeOf` leaves `container` null, and
  * ActionCell draws nothing - which is the honest answer rather than a button

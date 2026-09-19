@@ -275,13 +275,13 @@ echo "── the grant that would make a browser root ────────�
 # rule below them and no deny in between, so POST=1 together with CONTAINERS=1
 # permits every POST under /containers - /containers/create included, and a
 # create with a bind mount of / is root on this box. Bothy runs two proxies
-# (apps/bothy/socket-proxy.yml) precisely so that neither one holds both flags.
+# (apps/bothy/compose.socket-proxy.yml) precisely so that neither one holds both flags.
 #
 # This row plants the pair on the WRITE proxy: the exact edit somebody reaching
 # for "start a service from a compose file" (#91) would make, because it is the
 # one that would appear to work.
 mutant "the write socket proxy is granted CONTAINERS" \
-  apps/bothy/socket-proxy.yml \
+  apps/bothy/compose.socket-proxy.yml \
   'CONTAINERS:     0' \
   'CONTAINERS:     1' \
   -- bash apps/bothy-ops/checks/run.sh --offline
@@ -296,7 +296,7 @@ mutant "the write socket proxy is granted CONTAINERS" \
 # portal's socket-proxy file. Revert the sweep to the two named services and this
 # row goes red while the row above stays green.
 mutant "a fourth socket proxy appears with both flags" \
-  apps/bothy/socket-proxy.yml \
+  apps/bothy/compose.socket-proxy.yml \
   '
 services:
 ' \
@@ -321,7 +321,7 @@ services:
 # with the control read proxy), which both the named assertions and the
 # repo-wide sweep must catch.
 mutant "exec creeps on to the read socket proxy" \
-  apps/bothy/socket-proxy.yml \
+  apps/bothy/compose.socket-proxy.yml \
   'EXEC:           0   # container exec == root on this box' \
   'EXEC:           1   # container exec == root on this box' \
   -- bash apps/bothy-ops/checks/run.sh --offline

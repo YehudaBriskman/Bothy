@@ -26,7 +26,7 @@
 // /containers/<name>/start, which bothy-ops performs and guard.VERBS allows.
 // Creating one that does not exist is /containers/create, which the write socket
 // proxy refuses by holding CONTAINERS=0, because a create with a bind mount of /
-// is root on this box (apps/bothy/socket-proxy.yml). So a declared name that
+// is root on this box (apps/bothy/compose.socket-proxy.yml). So a declared name that
 // docker does not report must resolve to NOTHING, and the cases below assert
 // that from three directions: docker silent, name absent, name merely similar.
 //

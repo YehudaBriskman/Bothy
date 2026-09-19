@@ -11,7 +11,7 @@
 #   opsnet          traefik + bothy-ops, and nothing else. The ONLY way in.
 #                   This service authenticates nobody, so the network IS the
 #                   authorisation - the filesnet / socketnet precedent.
-#   controlsocknet  bothy-ops + the two socket proxies (apps/bothy/socket-proxy.yml).
+#   controlsocknet  bothy-ops + the two socket proxies (apps/bothy/compose.socket-proxy.yml).
 #                   The way out to the daemon. Traefik is NOT on it: the edge
 #                   must not be ABLE to reach a proxy that can stop a container.
 #   thales-scc      minikube's own network, where the apiserver listens on
@@ -128,7 +128,7 @@ services:
       - opsnet             # in, from traefik
       - controlsocknet     # out, to the proxies
     # NO depends_on the proxies, although it had one when they shared a file.
-    # They live in apps/bothy/socket-proxy.yml now, and a depends_on naming a
+    # They live in apps/bothy/compose.socket-proxy.yml now, and a depends_on naming a
     # service from another include fragment makes THIS file invalid on its own
     # (CI validates every compose file by itself). Nothing is lost: bothy-ops
     # dials a proxy per request, so a proxy that is not up yet is a 502 on one

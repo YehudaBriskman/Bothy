@@ -160,7 +160,7 @@ echo "── what a declared project can be acted on ─────────
 # started from the console - and the line they must hold: a verb is only ever
 # offered on a container docker has actually reported. A declared name docker
 # does not know would have to be CREATED, and /containers/create is the one call
-# the two-proxy split in apps/bothy/socket-proxy.yml exists to refuse.
+# the two-proxy split in apps/bothy/compose.socket-proxy.yml exists to refuse.
 node "$OUT/declared-actions.mjs"
 
 echo

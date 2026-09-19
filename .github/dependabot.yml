@@ -4,7 +4,7 @@
 # (see CONTRIBUTING.md, "Pin images"). Pinning is what keeps a surprise
 # `:latest` out of a socket-holding container; Dependabot is what stops pinning
 # from turning into rot. Two of these containers ARE the security boundary:
-#   • tecnativa/docker-socket-proxy  (apps/bothy/socket-proxy.yml)
+#   • tecnativa/docker-socket-proxy  (apps/bothy/compose.socket-proxy.yml)
 #   • quay.io/oauth2-proxy           (auth/compose.yml)
 # Review their PRs by hand and re-run the boundary check in SECURITY.md before
 # merging. Do not let them be batched into a group.
@@ -76,27 +76,20 @@ updates:
     labels: [dependencies, docker]
 
   # ── Images referenced from the compose files ──────────────────────────────
-  # Which files this ecosystem reads is decided by a filename regex in
-  # dependabot-core (docker/lib/dependabot/docker_compose/file_fetcher.rb,
-  # checked 2026-09-18), not by anything configurable here:
-  #     /(docker-)?compose(-[\w]+)?(?>\.[\w-]+)?\.ya?ml/i
-  # It needs "compose" in the NAME. So compose.yml, compose.cluster.yml and
-  # compose.admin.yml are all read - and apps/bothy/socket-proxy.yml is NOT.
-  #
-  # KNOWN GAP: tecnativa/docker-socket-proxy (socket-proxy.yml, pulled into
-  # apps/bothy/compose.yml by `include:`) gets no bump PR. Dependabot does not
-  # follow `include:`, and neither the `docker` ecosystem (Dockerfiles and
-  # kind:/apiVersion: YAML only) nor any config key can point it at the file.
-  # The supported fix is renaming it to match the regex, e.g.
-  # apps/bothy/compose.socket-proxy.yml - deferred because ~30 references,
-  # including checks/grants.py, checks/composeenv.py and mutants.sh, and the
-  # running proxies' config_files label, would move with it. Until then, check
-  # its release page by hand when the oauth2-proxy PR arrives.
+  # The ecosystem only discovers files whose NAME matches
+  #   /(docker-)?compose(-[\w]+)?(?>\.[\w-]+)?\.ya?ml/i
+  # - listing a directory is not enough. Every stack uses `compose.yml`, and the
+  # socket proxies live in `apps/bothy/compose.socket-proxy.yml`, so every pinned
+  # image in the repo is covered, the boundary image included. Until 2026-09-19
+  # that file was `socket-proxy.yml`, which does NOT match, so
+  # tecnativa/docker-socket-proxy was silently never bumped. A new fragment must
+  # keep a `compose.<name>.yml` / `compose-<name>.yml` name or it drops out the
+  # same way.
   #
   # Boundary images appear in this block (oauth2-proxy in /auth and
-  # /apps/headlamp). That is why it has NO `groups:` - see the header.
-  # If this ecosystem is ever unavailable to the repo, delete this block - the
-  # pins above and the `docker` block still stand.
+  # /apps/headlamp, the socket proxies in /apps/bothy). That is why it groups
+  # nothing but postgres - see the header. If this ecosystem is ever unavailable to the
+  # repo, delete this block - the pins above and the `docker` block still stand.
   - package-ecosystem: docker-compose
     directories:
       - "/edge"
@@ -116,6 +109,21 @@ updates:
       # 2026-08-18 and removed from this list in the same change. A dependabot
       # entry for a directory that does not exist is exactly the missing-directory
       # warning this file's own history records going unread for a fortnight.
+    # Postgres MAJORS never arrive as a PR. A major is a dump -> new volume ->
+    # restore procedure (docs/plans/updates.md sec. 5, channel `manual`), not a
+    # tag bump; 17 -> 18.4 came as #189/#190 on 2026-09-19 and each half broke
+    # "both postgres pins agree" (server + keycloak-db-init).
+    ignore:
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
+    # The ONE group here, and it holds no boundary image: postgres is pinned in
+    # /data/postgres (server) and /auth (keycloak-db-init, same major by rule),
+    # and `group-by: dependency-name` makes that one PR across both directories
+    # instead of two halves that each fail on their own.
+    groups:
+      postgres:
+        patterns: ["postgres"]
+        group-by: dependency-name
     schedule:
       interval: weekly
       day: monday

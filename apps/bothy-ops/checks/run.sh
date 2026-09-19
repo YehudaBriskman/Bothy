@@ -15,7 +15,7 @@
 #                        rule with traversal shapes enumerated, SEVERING.
 #   test_guard_kube      THE BOUNDARY, cluster: catalog format, catalog/handler
 #                        parity, the namespace enum, params, type-name confirm.
-#   grants.py            the socket-proxy grants are what socket-proxy.yml says,
+#   grants.py            the socket-proxy grants are what compose.socket-proxy.yml says,
 #                        and no proxy anywhere in the repo holds POST=1 with
 #                        CONTAINERS=1. Static: answered BEFORE a POST=1 proxy starts.
 #   wiring.py            catalog == edge routers == UI copy == RBAC; compose,
@@ -71,7 +71,7 @@ gate "$PY" checks/test_guard_control.py
 section "THE BOUNDARY: catalog, scope, names, params"
 gate "$PY" checks/test_guard_kube.py
 
-section "the socket-proxy grants are what socket-proxy.yml claims"
+section "the socket-proxy grants are what compose.socket-proxy.yml claims"
 check "$PY" checks/grants.py
 
 section "the copies of the catalog, the edge and the compose files agree"
