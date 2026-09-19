@@ -181,6 +181,25 @@ ok(not os.path.exists(os.path.join(REPO, "host/systemd/bothy-updater.timer")),
    "the executor has no timer of its own: it runs a request someone - or the auto night job - wrote "
    "(checks/wiring_auto.py covers bothy-updater-auto.timer)")
 print()
+print("── step 6: the updater never replaces itself; images named by commit ─")
+ok(re.search(r"^WorkingDirectory=/\S+/\.local/lib/bothy-updater/current/apps/bothy-ops$", usv, re.M) is not None,
+   "bothy-updater.service runs the INSTALLED copy (…/bothy-updater/current), never the checkout it moves")
+ok(re.search(r"^ExecStart=/usr/bin/python3 /\S+/\.local/lib/bothy-updater/current/apps/bothy-ops/discover_updates\.py",
+             svcu, re.M) is not None,
+   "discovery (which writes the plans) runs the same installed copy - a plan id is computed by the code that re-checks it")
+ok(re.search(r"^install-updater:\n    cd apps/bothy-ops && python3 -m updater install", just, re.M) is not None,
+   "`just install-updater` installs HEAD's updater and switches `current`")
+ok('BOTHY_IMAGE_TAG="${BOTHY_IMAGE_TAG:-$BOTHY_REVISION}"' in upapps and '"${BOTHY_UP_NO_BUILD:-}" = 1' in upapps
+   and "--no-build" in upapps and re.search(r"^up-apps \*services: network$", just, re.M) is not None,
+   "up-apps: per-service, images tagged by HEAD's sha, and a no-build mode for the updater and its rollback")
+for app in ("bothy-web", "bothy-files", "bothy-ops"):
+    comp = read(f"apps/{app}/compose.yml")
+    ok(f"image: {app}:${{BOTHY_IMAGE_TAG:-latest}}" in comp and "pull_policy: never" in comp,
+       f"{app}: image named by commit (BOTHY_IMAGE_TAG), never pulled")
+bothy_cli = read("scripts/bothy")
+ok("exec python3 -m updater upgrade" in bothy_cli.split("cmd_upgrade()", 1)[1].split("\n}\n", 1)[0],
+   "`bothy upgrade` drives the updater's plan and executor when the updater is installed")
+print()
 print("── UI: the client calls exactly these paths ─────────────────────")
 ts = read("apps/bothy-web/web/src/lib/updates.ts")
 paths = set(re.findall(r"['`](/-/api/updates/[a-z/-]+)", ts))

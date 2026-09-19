@@ -52,6 +52,10 @@
 #   wiring_auto.py       the timer fires at window_start after the backup, not
 #                        persistent; auto.json is read-only to bothy-ops; the
 #                        alert rules query what the updater writes.
+#   test_owncode.py      BOTHY UPDATING ITSELF (step 6): HEAD -> the newest green
+#                        release tag, and every refusal (dirty, diverged, not
+#                        green, not on main, the boundary in the diff, …); the
+#                        installed/staged updater copies.
 #   e2e_updater.py       needs docker: the executor END TO END on a throwaway
 #                        compose project and registry - success, a rollback on a
 #                        body canary, a pre-flight refusal, two at once, the
@@ -64,6 +68,11 @@
 #                        that pauses, the next night skipping it. --offline skips.
 #   e2e_update_alerts.py needs docker: rules.yml's update alerts loaded into a
 #                        throwaway Grafana and evaluated. --offline skips.
+#   e2e_owncode.py       needs docker and a systemd user manager: Bothy's own
+#                        update END TO END on a throwaway clone and project - v1
+#                        -> v2, a forced verify failure and a killed executor
+#                        both restored by the rollback timer, and a release that
+#                        changes the updater staged, not switched.
 #   transition.py        the only one that needs docker: real proxies from the
 #                        shipped grants, a real throwaway container, a real state
 #                        change. Skipped with --offline.
@@ -142,6 +151,9 @@ check "$PY" checks/test_auto.py
 section "auto: the timer, the backup, the state file and the alerts agree"
 check "$PY" checks/wiring_auto.py
 
+section "own code: Bothy's plan for itself - a green release tag, and every refusal"
+check "$PY" checks/test_owncode.py
+
 if [ "$OFFLINE" = 1 ]; then
   echo
   echo "(--offline: skipping the checks that need a docker daemon)"
@@ -169,5 +181,11 @@ section "the update alert rules, in a throwaway grafana"
 # The repo's alerting provisioning, unchanged, in the live Grafana image against a
 # throwaway VictoriaMetrics fed the updater's series: loads, fires, pends.
 check "$PY" checks/e2e_update_alerts.py
+
+section "Bothy updating itself, end to end, on a throwaway clone"
+# Its own git repo (origin, dev, live), compose project (-p bothy-owncode-test,
+# no host ports), images, state and updater lib; the rollback timer is a real
+# `systemd-run --user` unit, compressed to 8 s. All removed in a finally block.
+check "$PY" checks/e2e_owncode.py
 
 finish
