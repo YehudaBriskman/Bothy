@@ -1,0 +1,20 @@
+[Unit]
+Description=Bothy automatic updates - at most one `auto` patch a night, 03:30, after the 03:00 backup
+Documentation=file:///home/devssh/stacks/apps/bothy-ops/updater/auto.py
+
+[Timer]
+# Inside [policy] window_start..window_end of apps/bothy-ops/updates.toml
+# (03:30-05:00), half an hour after stacks-backup.timer (03:00), whose success the
+# job requires. checks/wiring_auto.py holds these three times together.
+OnCalendar=*-*-* 03:30:00
+# NOT persistent, on purpose: a night the box slept through is SKIPPED. With
+# Persistent=true a missed 03:30 would fire at the next boot - noon, say, while
+# someone is working - which is exactly when an unattended update must not run.
+# (The job checks the window itself as well, so a manual start at noon says why
+# it did nothing.)
+Persistent=false
+AccuracySec=1min
+Unit=bothy-updater-auto.service
+
+[Install]
+WantedBy=timers.target

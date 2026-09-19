@@ -1,0 +1,29 @@
+[Unit]
+Description=Bothy automatic updates - request at most one `auto` patch, then wait for its result
+Documentation=file:///home/devssh/stacks/apps/bothy-ops/updater/auto.py
+# Started by bothy-updater-auto.timer. It checks the window, tonight's backup,
+# the pauses and the candidate's health, then writes ONE request into the spool -
+# the same file Settings > Updates writes, with the actor `auto` - and
+# bothy-updater.path runs it through the unchanged executor. This unit waits for
+# that job's result, so `systemctl status` and the journal say how the night went.
+#
+# Ordered after the backup: if stacks-backup.service is still running at 03:30,
+# this start job waits for it (both are queued jobs), and then checks its result.
+After=docker.service network-online.target stacks-backup.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=devssh
+Group=devssh
+Environment=HOME=/home/devssh
+Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=/home/devssh/stacks/apps/bothy-ops
+ExecStart=/usr/bin/python3 -m updater auto
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+Nice=5
+# The wait for the job is capped at 80 minutes inside the program; a VictoriaMetrics
+# snapshot plus a rollback fits in that.
+TimeoutStartSec=90min
