@@ -1,0 +1,18 @@
+[Unit]
+Description=Bothy updater - watch the spool for update requests from Settings > Updates
+Documentation=file:///home/devssh/stacks/apps/bothy-ops/updater/__init__.py
+
+[Path]
+# bothy-ops writes <job>.json here (a dot-named temp file first, which this glob
+# does not match, then a rename). While any request is present the service is
+# started; a run drains the whole queue, and if a file is still there when it
+# exits, systemd starts it again.
+PathExistsGlob=/home/devssh/.local/state/bothy/updates/spool/*.json
+Unit=bothy-updater.service
+# A flood cannot spin this: the executor removes every file it reads, valid or
+# not, and bothy-ops refuses a ninth waiting request. Belt and braces anyway.
+TriggerLimitIntervalSec=60
+TriggerLimitBurst=20
+
+[Install]
+WantedBy=paths.target

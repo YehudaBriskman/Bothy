@@ -218,21 +218,15 @@ if running "$BK_VM"; then
   if [ "${avail:-0}" -lt "$need" ]; then
     fail "victoriametrics skipped - $(bk_human "${avail:-0}") free under $BK, want $(bk_human "$need")"
   else
-    resp=$(bk_vm_api "$BK_VM" POST /snapshot/create 2>&1)
-    vm_snap=$(printf '%s' "$resp" | sed -n 's/.*"snapshot":"\([^"]*\)".*/\1/p')
-    if [ -z "$vm_snap" ]; then
-      fail "victoriametrics /snapshot/create failed: $resp"
-    else
-      docker exec "$BK_VM" tar -chf - -C "/victoria-metrics-data/snapshots/$vm_snap" . > "$out" 2>/dev/null
-      if tar -tf "$out" 2>/dev/null | grep -c '^\./data/' >/dev/null; then
-        keep_if_real "$out" 1000 "victoriametrics (snapshot $vm_snap)"
-      else
-        fail "victoriametrics tar of $vm_snap is unreadable or has no data/"
-        rm -f "$out"
-      fi
-      bk_vm_api "$BK_VM" POST "/snapshot/delete?snapshot=$vm_snap" >/dev/null 2>&1 \
-        || fail "victoriametrics snapshot $vm_snap NOT deleted - POST /snapshot/delete?snapshot=$vm_snap"
-    fi
+    # bk_snapshot_vm (scripts/lib/backup-lib.sh) - shared with the updater's
+    # pre-update snapshot. Its stderr is its report; 2 = kept, but the
+    # server-side snapshot is still there.
+    vm_msg=$(bk_snapshot_vm "$BK_VM" "$out" 2>&1); vm_rc=$?
+    case "$vm_rc" in
+      0) keep_if_real "$out" 1000 "$vm_msg" ;;
+      2) keep_if_real "$out" 1000 "victoriametrics"; fail "$vm_msg" ;;
+      *) fail "$vm_msg"; rm -f "$out" ;;
+    esac
   fi
 else
   fail "victoriametrics not running - skipped"
@@ -255,21 +249,18 @@ fi
 # scrape target). /ready then takes ~15s, which is Loki's own ring delay.
 if running "$BK_LOKI"; then
   out="$BK/loki/loki-$ts.tar.gz"
-  bk_http "$BK_LOKI" POST http://127.0.0.1:3100/flush </dev/null >/dev/null 2>&1 \
-    || log "loki: /flush did not answer 2xx - continuing; the stop below closes the WAL anyway"
   restart_on_exit="$restart_on_exit $BK_LOKI"
-  t0=$(date +%s)
-  if docker stop -t 60 "$BK_LOKI" >/dev/null; then
-    docker run --rm --volumes-from "$BK_LOKI:ro" "$BK_HELPER_IMAGE" tar -czf - -C /loki . > "$out" 2>/dev/null
-    docker start "$BK_LOKI" >/dev/null
-    restart_on_exit=""
-    log "loki: stopped for $(( $(date +%s) - t0 ))s"
-    keep_if_real "$out" 1000 loki
-    bk_wait 90 bk_http "$BK_LOKI" GET http://127.0.0.1:3100/ready </dev/null \
-      || fail "loki restarted but /ready did not answer within 90s"
-  else
-    fail "loki would not stop - skipped"
-  fi
+  # bk_snapshot_loki (scripts/lib/backup-lib.sh) - shared with the updater's
+  # pre-update snapshot: /flush, stop, tar, start, wait for /ready.
+  bk_snapshot_loki "$BK_LOKI" "$out" 2> "$BK/loki/.msg-$ts"; loki_rc=$?
+  restart_on_exit=""
+  while IFS= read -r m; do log "$m"; done < "$BK/loki/.msg-$ts"
+  rm -f "$BK/loki/.msg-$ts"
+  case "$loki_rc" in
+    0) keep_if_real "$out" 1000 loki ;;
+    3) keep_if_real "$out" 1000 loki; fail "loki restarted but /ready did not answer within 90s" ;;
+    *) fail "loki would not stop - skipped"; rm -f "$out" ;;
+  esac
 else
   fail "loki not running - skipped"
 fi

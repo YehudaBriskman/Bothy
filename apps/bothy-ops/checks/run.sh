@@ -39,6 +39,16 @@
 #                        a read-only state mount, the textfile collector.
 #   api_updates.py       GET /updates/status through the real handler: merged,
 #                        allow-listed, refused, stale, audited.
+#   test_updater.py      THE HOST UPDATER's decisions (step 4): plans are "what
+#                        runs -> what main pins" and every refusal; the spool
+#                        (tampered plan ids, symlinks, junk); the strict pin
+#                        edit; the global lock; the result metric.
+#   api_updates_apply.py plan / request / job through the real handler: one
+#                        spool file per 202 and nothing else; every refusal.
+#   e2e_updater.py       needs docker: the executor END TO END on a throwaway
+#                        compose project and registry - success, a rollback on a
+#                        body canary, a pre-flight refusal, two at once, and the
+#                        time-series snapshot/restore. Skipped with --offline.
 #   transition.py        the only one that needs docker: real proxies from the
 #                        shipped grants, a real throwaway container, a real state
 #                        change. Skipped with --offline.
@@ -105,9 +115,15 @@ check "$PY" checks/wiring_updates.py
 section "updates: the HTTP surface, merged and allow-listed"
 check "$PY" checks/api_updates.py 2>/dev/null
 
+section "updater: plans, the spool, the pin edit and the lock (host side)"
+check "$PY" checks/test_updater.py
+
+section "updates: plan, request and job - one spool file, and nothing else"
+check "$PY" checks/api_updates_apply.py 2>/dev/null
+
 if [ "$OFFLINE" = 1 ]; then
   echo
-  echo "(--offline: skipping the one check that needs a docker daemon)"
+  echo "(--offline: skipping the two checks that need a docker daemon)"
   finish
 fi
 
@@ -117,5 +133,10 @@ section "a real container really transitions"
 # container this box runs - the names carry a random suffix. Roughly 45s: a
 # stop or restart on a PID 1 that ignores SIGTERM costs the full StopTimeout.
 check "$PY" checks/transition.py
+
+section "the host updater, end to end, on a throwaway project"
+# Its own registry, images, compose projects (-p bothy-updater-test*), git repo
+# and state dirs, all removed in a finally block. Never the live stack.
+check "$PY" checks/e2e_updater.py
 
 finish

@@ -15,10 +15,25 @@
 //
 // `undiscovered` is a fresh deploy before the timer's first run; `current` is a box
 // with nothing to do.
+//
+// Step 4 - plans, a request, a job. Two rows are deployable (Loki 3.7.6 -> 3.7.7,
+// time-series; Alloy, stateless); every other row carries the reason the host
+// would give. A requested job advances by WALL CLOCK from its requestedAt (kept in
+// localStorage), so a reload mid-run resumes where it was - the property the real
+// panel needs. It ends `succeeded` unless forced:
+//
+//   localStorage['bothy-dev-updates-job'] = 'rolled_back' | 'aborted' | 'failed' | 'refused'
+//   localStorage['bothy-dev-updates-request'] = 'stale' | 'busy' | 'no-operator'
 
-import type { Channel, Discovered, Level, UpdateRow, UpdatesStatus, VersionRef } from './updates';
+import type {
+  Channel, Discovered, HistoryEntry, Job, JobState, JobStep, Level, Plan, PlanAnswer, PlanSummary,
+  RequestAnswer, StepName, UpdateRow, UpdatesStatus, VersionRef,
+} from './updates';
 
 const OUTCOME_KEY = 'bothy-dev-updates-outcome';
+const JOB_OUTCOME_KEY = 'bothy-dev-updates-job';
+const REQUEST_KEY = 'bothy-dev-updates-request';
+const JOBS_KEY = 'bothy-dev-updates-jobs';
 
 const read = (k: string): string | null => {
   try { return localStorage.getItem(k); } catch { return null; }
@@ -142,6 +157,7 @@ function row(s: Spec, checkedAt: string, discovered: boolean): UpdateRow {
     verify: ['container healthy'],
     changelog: s.changelog.includes('{v}') && ver ? s.changelog.replace('{v}', ver) : s.changelog.split('{v}')[0].replace(/tag\/v?$/, ''),
     level, effectiveChannel: effective(s.channel, level), behind: level === 'minor' || level === 'major', discovered: d,
+    plan: discovered ? summaryOf(s.id) : null,
   };
 }
 
@@ -175,7 +191,295 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     },
     policy: { windowStart: '03:30', windowEnd: '05:00', requireBackup: 'stacks-backup.service', requireDoctor: true,
       maxAutoPerNight: 1, pauseOnFailure: true, discoverEveryHours: 6 },
-    applying: false,
+    applying: (() => { const j = current(); return !!j && !TERMINAL_STATES.includes(j.state); })(),
+    job: current(),
+    history: history(),
     components: rows,
   };
+}
+
+// ── step 4: plans ────────────────────────────────────────────────────────────
+
+const HEAD = '5c1e0a9d2b7f4e3a8c6d1f0b9e2a7c4d3f5b6e8a';
+
+const PLANS: Record<string, Plan> = {
+  loki: {
+    id: 'a3f19c20e7b84d15c6a2f0b9', component: 'loki', title: 'Loki', class: 'timeseries', createdAt: ago(3600 * 2 + 700),
+    level: 'patch', confirm: 'click',
+    from: { image: 'grafana/loki:3.7.6', tag: '3.7.6', version: '3.7.6', digest: dg('d'), container: 'loki' },
+    to: { image: 'grafana/loki:3.7.7', tag: '3.7.7', version: '3.7.7', digest: dg('a') },
+    pin: { file: 'monitoring/compose.yml', service: 'loki', line: 228, commit: HEAD },
+    changelog: 'https://github.com/grafana/loki/releases/tag/v3.7.7', oneWay: false, oneWayWhy: null,
+    restarts: ['loki', 'alloy (its pushes retry while Loki is away)', 'grafana (log panels)'],
+    recipe: 'just up-monitoring',
+    downtime: 'About 30 s: Loki stops for the snapshot (a few seconds), is recreated, then needs ~15 s of ring delay before /ready.',
+    signedOut: 'nobody',
+    snapshot: {
+      kind: 'loki',
+      what: 'Loki flushed and stopped, /loki tarred, then started again - plus the old pin line, the compose file and the image digest.',
+      dir: '~/backups/pre-update/<ts>-loki/', estimateBytes: 27_400_000,
+    },
+    preflight: ['free disk at least twice the image plus the snapshot', 'loki is running and its canaries pass now',
+      '`just up-monitoring` would recreate nothing but loki (every other service runs its own pin)', 'the newest backup is under 24 h old',
+      'no other update holds the lock'],
+    verify: ['loki runs the planned digest', '/ready says ready', 'query_range returns fresh lines',
+      'the lines logged before the update are still readable (the history probe)'],
+    rollback: 'On any failure the old pin line is put back and `just up-monitoring` runs again. The snapshot is restored only if the history probe still fails under the OLD image - restoring discards everything written since.',
+  },
+  alloy: {
+    id: '7be2d04f91ac3e58b0d6a1c4', component: 'alloy', title: 'Alloy', class: 'stateless', createdAt: ago(3600 * 2 + 700),
+    level: 'patch', confirm: 'click',
+    from: { image: 'grafana/alloy:v1.19.2', tag: 'v1.19.2', version: '1.19.2', digest: dg('d'), container: 'alloy' },
+    to: { image: 'grafana/alloy:v1.19.3', tag: 'v1.19.3', version: '1.19.3', digest: dg('b') },
+    pin: { file: 'monitoring/compose.yml', service: 'alloy', line: 257, commit: HEAD },
+    changelog: 'https://github.com/grafana/alloy/releases/tag/v1.19.3', oneWay: false, oneWayWhy: null,
+    restarts: ['alloy'], recipe: 'just up-monitoring',
+    downtime: 'About 10 s: Alloy is recreated; it resumes from its positions file, so no log line is lost.',
+    signedOut: 'nobody',
+    snapshot: {
+      kind: 'image',
+      what: 'The old pin line, the compose file and the running image digest - Alloy keeps no data worth a copy.',
+      dir: '~/backups/pre-update/<ts>-alloy/', estimateBytes: null,
+    },
+    preflight: ['free disk at least twice the image', 'alloy is healthy and /-/ready says ready now',
+      '`just up-monitoring` would recreate nothing but alloy', 'the newest backup is under 24 h old', 'no other update holds the lock'],
+    verify: ['alloy runs the planned digest', 'container healthy', '/-/ready says ready'],
+    rollback: 'On any failure the old pin line is put back and `just up-monitoring` runs again.',
+  },
+};
+
+const REASONS: Record<string, string> = {
+  cadvisor: 'nothing to deploy: cadvisor runs what main pins',
+  'node-exporter': 'nothing to deploy: node-exporter runs what main pins',
+  'postgres-exporter': 'nothing to deploy: postgres-exporter runs what main pins',
+  headlamp: 'nothing to deploy: headlamp is not running (start it with `just up-headlamp`)',
+  victoriametrics: 'nothing to deploy: victoriametrics runs what main pins. v1.153.0 is newer upstream - merge its Dependabot PR, pull the checkout, then `just updates-discover`',
+  grafana: 'class app-db is not handled by the updater yet (one-way, step 5) - `just backup`, then `just up-monitoring` by hand',
+  traefik: 'class edge is not handled by the updater yet; floating pin v3.7',
+  bothy: 'class own-code is not handled by the updater yet (step 6)',
+  'kube-state-metrics': 'class cluster is not handled by the updater (manual, host kubeconfig)',
+  'alloy-cluster': 'class cluster is not handled by the updater (manual, host kubeconfig)',
+  keycloak: 'class app-db is not handled by the updater yet (one-way, step 5)',
+  'oauth2-proxy': 'class boundary is manual: `just up-auth` by hand, then the boundary probes',
+  'oauth2-proxy-headlamp': 'class boundary is manual: `just up-headlamp` by hand',
+  'socket-proxy': 'class boundary is manual: `just up-apps` by hand, then `just ops-check`',
+  postgres: 'a major (17 -> 18) is a manual procedure; floating pin 17',
+};
+
+const NO_PLAN = 'no plan yet - run `just updates-discover`';
+
+function summaryOf(id: string): PlanSummary {
+  const p = PLANS[id];
+  if (p && !busyWith(id)) {
+    return {
+      id: p.id, deployable: true, from: p.from.version ?? p.from.tag ?? '?', to: p.to.version ?? p.to.tag ?? '?',
+      level: p.level, createdAt: p.createdAt,
+    };
+  }
+  return {
+    id: null, deployable: false,
+    reason: p ? `a job for ${id} is already queued or running` : (REASONS[id] ?? NO_PLAN),
+    createdAt: ago(3600 * 2 + 700),
+  };
+}
+
+export async function planMock(component: string): Promise<PlanAnswer> {
+  await new Promise((r) => setTimeout(r, 200));
+  if (!SPECS.some((s) => s.id === component)) refuse(404, `unknown component ${component}`, true);
+  const p = PLANS[component];
+  return p
+    ? { ok: true, component, plan: p, reason: null, ageSeconds: 3600 * 2 + 700 }
+    : { ok: true, component, plan: null, reason: REASONS[component] ?? NO_PLAN, ageSeconds: 3600 * 2 + 700 };
+}
+
+// ── step 4: requests and jobs, advanced by wall clock ────────────────────────
+
+interface DevJob { id: string; component: string; planId: string; requestedAt: number; outcome: JobState }
+
+const TERMINAL_STATES: JobState[] = ['succeeded', 'rolled_back', 'aborted', 'failed', 'refused'];
+
+function jobs(): DevJob[] {
+  try {
+    const j: unknown = JSON.parse(read(JOBS_KEY) ?? '[]');
+    return Array.isArray(j) ? (j as DevJob[]) : [];
+  } catch { return []; }
+}
+function saveJobs(js: DevJob[]) {
+  try { localStorage.setItem(JOBS_KEY, JSON.stringify(js.slice(-10))); } catch { /* dev only */ }
+}
+
+// Seconds after the request at which each step starts; the job ends at END.
+const STEPS_OK: [StepName, number][] = [
+  ['validate', 2], ['preflight', 3], ['snapshot', 6], ['pull', 9], ['apply', 12], ['verify', 16], ['record', 21],
+];
+const STEPS_ROLLBACK: [StepName, number][] = [
+  ['validate', 2], ['preflight', 3], ['snapshot', 6], ['pull', 9], ['apply', 12], ['verify', 15], ['rollback', 18], ['record', 21],
+];
+const END = 22;
+
+const hex = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+function busyWith(component: string): boolean {
+  const now = Date.now();
+  return jobs().some((j) => j.component === component && now - j.requestedAt < END * 1000);
+}
+
+export async function requestMock(body: { component: string; plan_id: string; confirm: true | string }): Promise<RequestAnswer> {
+  await new Promise((r) => setTimeout(r, 300));
+  const forced = read(REQUEST_KEY);
+  if (forced === 'no-operator') refuse(403, 'Forbidden', false);
+  const p = PLANS[body.component];
+  if (!p) refuse(404, `no plan for ${body.component}`, true);
+  if (forced === 'stale' || body.plan_id !== p.id) {
+    refuse(409, 'the plan is no longer current - the checkout, the running image or discovery changed since it was written. Reload to see the new plan.', true);
+  }
+  if (forced === 'busy' || busyWith(body.component)) refuse(409, `a job for ${body.component} is already queued or running`, true);
+  if (p.confirm === 'type-name' ? body.confirm !== p.component : body.confirm !== true) refuse(400, 'confirm does not match the plan', true);
+  const want = read(JOB_OUTCOME_KEY) as JobState | null;
+  const j: DevJob = {
+    id: hex(32), component: p.component, planId: p.id, requestedAt: Date.now(),
+    outcome: want && TERMINAL_STATES.includes(want) ? want : 'succeeded',
+  };
+  saveJobs([...jobs(), j]);
+  return { ok: true, jobId: j.id, component: j.component, planId: j.planId };
+}
+
+// Where a forced ending breaks the run: the step that fails.
+const FAIL_AT: Partial<Record<JobState, StepName>> = {
+  refused: 'preflight', aborted: 'pull', rolled_back: 'verify', failed: 'verify',
+};
+
+function render(j: DevJob, now = Date.now()): Job {
+  const p = PLANS[j.component];
+  const t = (now - j.requestedAt) / 1000;
+  const at = (s: number) => iso(j.requestedAt + s * 1000);
+  const failAt = FAIL_AT[j.outcome] ?? null;
+  const table = failAt === 'verify' ? STEPS_ROLLBACK : STEPS_OK;
+  // An early failure (pre-flight, pull) ends the job one second after that step starts.
+  const early = failAt && failAt !== 'verify' ? table.find(([n]) => n === failAt)![1] + 1 : null;
+  const end = early ?? END;
+  const done = t >= end;
+  let broken = false;
+  const steps: JobStep[] = table.map(([name, start], i) => {
+    const stop = i + 1 < table.length ? table[i + 1][1] : END;
+    const stepEnd = early && name === failAt ? early : stop;
+    if (broken && name !== 'rollback' && name !== 'record') {
+      return { name, state: 'skipped', startedAt: null, endedAt: null, detail: null };
+    }
+    if (early && start >= early && name !== 'record') return { name, state: done ? 'skipped' : 'pending', startedAt: null, endedAt: null, detail: null };
+    if (early && name === 'record') {
+      return done ? { name, state: 'ok', startedAt: at(early), endedAt: at(early), detail: DETAIL_OK(p, name) }
+        : { name, state: 'pending', startedAt: null, endedAt: null, detail: null };
+    }
+    if (t < start) return { name, state: 'pending', startedAt: null, endedAt: null, detail: null };
+    if (t < stepEnd) return { name, state: 'running', startedAt: at(start), endedAt: null, detail: DETAIL_RUNNING[name] ?? null };
+    const bad = name === failAt || (name === 'rollback' && j.outcome === 'failed');
+    if (name === failAt) broken = true;
+    return {
+      name, state: bad ? 'failed' : 'ok', startedAt: at(start), endedAt: at(stepEnd),
+      detail: bad ? (FAIL_DETAIL[name === 'rollback' ? 'failed' : j.outcome] ?? 'failed') : DETAIL_OK(p, name),
+    };
+  });
+  const state: JobState = t < 2 ? 'queued' : done ? j.outcome : 'running';
+  return {
+    id: j.id, component: j.component, planId: j.planId, state,
+    requestedBy: 'operator@example.com', requestedAt: iso(j.requestedAt),
+    startedAt: t >= 2 ? at(2) : null, endedAt: done ? at(end) : null,
+    from: { image: p.from.image, version: p.from.version }, to: { image: p.to.image, version: p.to.version },
+    error: done && j.outcome !== 'succeeded' ? FAIL_DETAIL[j.outcome] ?? null : null,
+    snapshot: t >= 9 && failAt !== 'preflight'
+      ? `~/backups/pre-update/${iso(j.requestedAt).replace(/[-:]/g, '').slice(0, 15)}Z-${j.component}/`
+      : null,
+    note: done ? NOTE[j.outcome]?.(p) ?? null : null,
+    steps,
+  };
+}
+
+const DETAIL_RUNNING: Partial<Record<StepName, string>> = {
+  preflight: 'disk, health, recipe scope, backup age',
+  snapshot: 'copying the pin line, the compose file and the data',
+  pull: 'docker pull',
+  apply: 'waiting for healthy (--wait)',
+  verify: 'canaries - bodies, not status codes',
+  rollback: 'putting the old pin line back',
+};
+
+function DETAIL_OK(p: Plan, n: StepName): string | null {
+  const d: Partial<Record<StepName, string>> = {
+    validate: `plan ${p.id} re-derived on the host and matches`,
+    preflight: '812 GiB free · canaries green · newest backup 7 h old',
+    snapshot: p.snapshot.kind === 'image' ? 'pin line, compose file, digest' : 'pin line, compose file, digest, 26 MiB data tar',
+    pull: `${p.to.image} is ${p.to.digest?.slice(0, 19)}…`,
+    apply: `${p.recipe}: ${p.from.container} recreated`,
+    verify: `${p.verify.length} canaries passed`,
+    rollback: `${p.pin.file} re-pinned to ${p.from.image}; ${p.from.container} healthy again`,
+    record: 'history, audit line and bothy_update_last_result written',
+  };
+  return d[n] ?? null;
+}
+
+const FAIL_DETAIL: Partial<Record<JobState, string>> = {
+  refused: 'the newest backup is 31 h old (limit 24 h) - run `just backup`, then ask again',
+  aborted: 'the tag now names a different image than the plan - rediscover; nothing running was changed',
+  rolled_back: 'a canary did not hold within 120 s: the body never said ready',
+  failed: 'after the rollback the container is still not healthy on the old image',
+};
+
+const NOTE: Partial<Record<JobState, (p: Plan) => string>> = {
+  succeeded: (p) => `${p.from.container} runs ${p.to.image}. The checkout is unchanged - main already pinned this.`,
+  rolled_back: (p) => `${p.pin.file} now pins ${p.from.image} LOCALLY (uncommitted), so the next \`${p.recipe}\` keeps the working version; main still pins ${p.to.image}. To try again: fix the cause, then \`git checkout -- ${p.pin.file}\` and \`just updates-discover\`.`,
+  failed: (p) => `A person is needed: ${p.from.container} is not healthy on either image. The snapshot is kept.`,
+  refused: () => 'Nothing was touched.',
+  aborted: () => 'Nothing running was changed.',
+};
+
+function current(): Job | null {
+  const js = jobs();
+  return js.length ? render(js[js.length - 1]) : null;
+}
+
+export async function jobMock(id: string): Promise<Job> {
+  await new Promise((r) => setTimeout(r, 150));
+  if (read(OUTCOME_KEY) === 'silence') refuse(0, 'no answer', false);
+  const j = jobs().find((x) => x.id === id);
+  if (!j) refuse(404, 'no such job', true);
+  return render(j);
+}
+
+const SEED: HistoryEntry[] = [
+  {
+    id: 'f'.repeat(32), component: 'node-exporter', planId: 'c0ffee00c0ffee00c0ffee00', state: 'succeeded',
+    requestedBy: 'devssh@example.com', requestedAt: ago(86400 * 3), startedAt: ago(86400 * 3 - 2), endedAt: ago(86400 * 3 - 41),
+    durationMs: 39_000,
+    from: { image: 'prom/node-exporter:v1.12.0', version: '1.12.0' }, to: { image: 'prom/node-exporter:v1.12.1', version: '1.12.1' },
+    error: null, snapshot: '~/backups/pre-update/20260916T101204Z-node-exporter/', note: null,
+  },
+  {
+    id: 'e'.repeat(32), component: 'victoriametrics', planId: 'beefbeefbeefbeefbeefbeef', state: 'rolled_back',
+    requestedBy: 'devssh@example.com', requestedAt: ago(86400 * 5), startedAt: ago(86400 * 5 - 2), endedAt: ago(86400 * 5 - 184),
+    durationMs: 182_000,
+    from: { image: 'victoriametrics/victoria-metrics:v1.151.0', version: '1.151.0' },
+    to: { image: 'victoriametrics/victoria-metrics:v1.152.0', version: '1.152.0' },
+    error: '`up` returned no series within 120 s', snapshot: '~/backups/pre-update/20260914T091530Z-victoriametrics/',
+    note: 'The history probe passed under the old image, so the snapshot was NOT restored.',
+  },
+  {
+    id: 'd'.repeat(32), component: 'cadvisor', planId: 'abad1deaabad1deaabad1dea', state: 'refused',
+    requestedBy: 'devssh@example.com', requestedAt: ago(86400 * 6), startedAt: ago(86400 * 6 - 1), endedAt: ago(86400 * 6 - 3),
+    durationMs: 2_000,
+    from: { image: 'gcr.io/cadvisor/cadvisor:v0.55.0', version: '0.55.0' }, to: { image: 'gcr.io/cadvisor/cadvisor:v0.55.1', version: '0.55.1' },
+    error: '`just up-monitoring` would also recreate grafana (its pin changed) - update grafana first', snapshot: null,
+    note: 'Nothing was touched.',
+  },
+];
+
+function history(): HistoryEntry[] {
+  const now = Date.now();
+  const mine: HistoryEntry[] = jobs().map((j) => render(j, now)).filter((j) => TERMINAL_STATES.includes(j.state)).reverse()
+    .map(({ steps: _steps, ...rest }) => ({
+      ...rest,
+      durationMs: rest.startedAt && rest.endedAt ? Date.parse(rest.endedAt) - Date.parse(rest.startedAt) : null,
+    }));
+  return [...mine, ...SEED].slice(0, 20);
 }

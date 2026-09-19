@@ -91,3 +91,63 @@ bk_wait() {  # <seconds> <cmd...>
 }
 
 bk_human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || echo "${1}B"; }
+
+# ── the two time-series snapshots ───────────────────────────────────────────
+#
+# Functions rather than inline steps since 2026-09-19, because two callers take
+# them: scripts/backup.sh (nightly) and the host updater's pre-update snapshot
+# (apps/bothy-ops/updater, through scripts/snapshot.sh). One way to take each,
+# so a pre-update copy is exactly what `just restore-victoriametrics` and
+# `just restore-loki` already know how to put back. The WHY of each shape is
+# written at the call sites in backup.sh; the mechanics live here.
+#
+# Both report on stderr and write only <out>. Return codes:
+#   0 the artefact is good
+#   1 no artefact (the caller discards <out>)
+#   2 VictoriaMetrics only: the artefact is good, but the server-side snapshot
+#     could not be deleted (it pins every part it links - say so loudly)
+#   3 Loki only: the artefact is good, but Loki did not answer /ready in 90s
+
+bk_snapshot_vm() {  # <container> <out.tar>
+  local c=$1 out=$2 resp snap rc=0
+  resp=$(bk_vm_api "$c" POST /snapshot/create 2>&1)
+  snap=$(printf '%s' "$resp" | sed -n 's/.*"snapshot":"\([^"]*\)".*/\1/p')
+  if [ -z "$snap" ]; then
+    echo "victoriametrics /snapshot/create failed: $resp" >&2
+    return 1
+  fi
+  docker exec "$c" tar -chf - -C "/victoria-metrics-data/snapshots/$snap" . > "$out" 2>/dev/null
+  if tar -tf "$out" 2>/dev/null | grep -c '^\./data/' >/dev/null; then
+    echo "victoriametrics: snapshot $snap" >&2
+  else
+    echo "victoriametrics tar of $snap is unreadable or has no data/" >&2
+    rm -f "$out"
+    rc=1
+  fi
+  if ! bk_vm_api "$c" POST "/snapshot/delete?snapshot=$snap" >/dev/null 2>&1; then
+    echo "victoriametrics snapshot $snap NOT deleted - POST /snapshot/delete?snapshot=$snap" >&2
+    [ "$rc" = 0 ] && rc=2
+  fi
+  return "$rc"
+}
+
+# The CALLER owns "start it again if we die half-way": backup.sh through its
+# restart_on_exit trap, scripts/snapshot.sh through its own.
+bk_snapshot_loki() {  # <container> <out.tar.gz>
+  local c=$1 out=$2 t0
+  bk_http "$c" POST http://127.0.0.1:3100/flush </dev/null >/dev/null 2>&1 \
+    || echo "loki: /flush did not answer 2xx - continuing; the stop below closes the WAL anyway" >&2
+  t0=$(date +%s)
+  if ! docker stop -t 60 "$c" >/dev/null; then
+    echo "loki would not stop - skipped" >&2
+    return 1
+  fi
+  docker run --rm --volumes-from "$c:ro" "$BK_HELPER_IMAGE" tar -czf - -C /loki . > "$out" 2>/dev/null
+  docker start "$c" >/dev/null
+  echo "loki: stopped for $(( $(date +%s) - t0 ))s" >&2
+  if ! bk_wait 90 bk_http "$c" GET http://127.0.0.1:3100/ready </dev/null; then
+    echo "loki restarted but /ready did not answer within 90s" >&2
+    return 3
+  fi
+  return 0
+}

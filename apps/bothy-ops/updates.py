@@ -1,11 +1,18 @@
-"""Updates - the catalog, and the one READ that serves it.
+"""Updates - the catalog, the reads that serve it, and the one request.
 
-    GET /updates/status     the catalog (updates.toml) merged with what the host
-                            last discovered (available.json) - viewer
+    GET  /updates/status     the catalog (updates.toml) merged with what the host
+                             last discovered (available.json), the running or
+                             last job, and the history - viewer
+    GET  /updates/plan       ?component=  the plan the HOST wrote for it - viewer
+    GET  /updates/job        ?id=  one job: queued, running or finished - viewer
+    POST /updates/request    {component, plan_id, confirm} - operator. Writes ONE
+                             file into the spool and answers 202. Runs nothing.
 
-Build step 3 of docs/plans/updates.md: discovery and a read-only Settings page.
-There is no apply, no request route and no spool. Nothing here runs anything,
-pulls anything or writes anything except its own audit line.
+Build steps 3 and 4 of docs/plans/updates.md. This process never pulls, never
+edits a pin and never restarts anything for an update: the host executor
+(apps/bothy-ops/updater, bothy-updater.path + .service) does, after checking
+every field of the spool file again for itself. What this process CAN do is
+bounded by what that executor accepts - see SECURITY.md rule 8.
 
 ── two halves, two processes ─────────────────────────────────────────────────
 
@@ -18,9 +25,10 @@ pulls anything or writes anything except its own audit line.
                       field to an allow-list, the admin.py "second lock": the host
                       writer is trusted to be right, not to be the only check.
 
-Registry calls, docker inspect and git are the host's job (discover_updates.py);
-this process holds none of the credentials or sockets that would take, and it
-must not grow a network path to the internet for a page to be drawn.
+Registry calls, docker inspect and git are the host's job (discover_updates.py,
+updater/plans.py); this process holds none of the credentials or sockets that
+would take, and it must not grow a network path to the internet for a page to be
+drawn. Its only read-write mounts are its audit dir and the spool.
 
 ── the policy lives in code, not in the catalog ──────────────────────────────
 
@@ -37,11 +45,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
 import sys
 import time
 import tomllib
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 try:
@@ -49,7 +58,7 @@ try:
 except ImportError:  # a checkout, or the host-side discoverer
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "bothy-common"))
 
-from bothy_common.audit import AuditLog  # noqa: E402
+from bothy_common.audit import AuditLog, flat  # noqa: E402
 from bothy_common.http import Refused  # noqa: E402
 
 CATALOG_FILE = os.environ.get("UPDATES_CATALOG", os.path.join(HERE, "updates.toml"))
@@ -458,6 +467,21 @@ def _changelog(c: Component, disc: dict | None) -> str:
     return base[:-len("tag/")] if base.endswith("/tag/") else base
 
 
+def _row_plan(cid: str) -> dict | None:
+    """The status row's summary of the host's plan file for `cid`."""
+    doc = _read_plan(cid)
+    if doc is None:
+        return None
+    if doc.get("ok") is True:
+        p = _plan(doc.get("plan"))
+        if not p:
+            return None
+        return {"id": p["id"], "deployable": True, "from": p["from"]["version"] or p["from"]["tag"],
+                "to": p["to"]["version"] or p["to"]["tag"], "level": p["level"], "createdAt": p["createdAt"]}
+    return {"id": None, "deployable": False, "reason": _s(doc.get("reason"), 300) or "no plan",
+            "createdAt": _s(doc.get("createdAt"), 40)}
+
+
 def status(catalog: Catalog) -> dict:
     doc, meta = _available()
     found = doc["components"] if doc else {}
@@ -475,6 +499,7 @@ def status(catalog: Catalog) -> dict:
             "effectiveChannel": effective_channel(c.channel, level),
             "behind": level in ("minor", "major"),
             "discovered": disc,
+            "plan": _row_plan(c.id),
         })
     summary = {
         "components": len(rows),
@@ -484,18 +509,344 @@ def status(catalog: Catalog) -> dict:
         "errors": sum(1 for r in rows if r["discovered"] and r["discovered"]["error"]),
     }
     p = catalog.policy
+    job = _current_job()
+    queue = _queued()
     return {"discovery": meta, "summary": summary,
             "policy": {"windowStart": p.window_start, "windowEnd": p.window_end,
                        "requireBackup": p.require_backup, "requireDoctor": p.require_doctor,
                        "maxAutoPerNight": p.max_auto_per_night, "pauseOnFailure": p.pause_on_failure,
                        "discoverEveryHours": p.discover_every_hours},
-            "applying": False,
+            "applying": bool(queue) or bool(job and job["state"] == "running"),
+            "job": job,
+            "history": _history(20),
             "components": rows}
 
 
-def audit(who: str, outcome: str, detail: str = "", took_ms: int | None = None) -> None:
-    """time  who  READ|REFUSED|FAILED|ERROR  updates-status  [detail]  [Nms] - admin.log's shape."""
-    fields: list[object] = [who, outcome, "updates-status"]
+# ══ step 4: plans, requests and jobs ═════════════════════════════════════════
+#
+# bothy-ops' whole part in APPLYING an update is to write one small file into
+# the spool, after checking the request against the plan the HOST wrote. It
+# runs nothing, pulls nothing and edits nothing; the host executor
+# (apps/bothy-ops/updater, a systemd path unit) re-validates every field of that
+# file and decides for itself. Everything else here READS what the executor
+# wrote, through the read-only mount, and re-filters it to an allow-list - the
+# same "second lock" as available.json.
+
+UPDATES_DIR = os.environ.get("UPDATES_DIR", os.path.dirname(AVAILABLE_FILE))
+SPOOL_DIR = os.environ.get("UPDATES_SPOOL", "/spool")
+MAX_PLAN_BYTES = 256 * 1024
+MAX_STATUS_BYTES = 512 * 1024
+MAX_HISTORY_BYTES = 2 * 1024 * 1024
+MAX_SPOOL_BYTES = 4096
+# How many requests may wait at once. The executor runs one at a time; a queue
+# longer than this is a stuck executor or a flood, and both deserve a refusal.
+MAX_QUEUE = 8
+
+JOB_STATES = ("queued", "running", "succeeded", "rolled_back", "aborted", "failed", "refused")
+STEP_NAMES = ("validate", "preflight", "snapshot", "pull", "apply", "verify", "rollback", "restore", "record")
+STEP_STATES = ("pending", "running", "ok", "failed", "skipped")
+_JOB = re.compile(r"[a-f0-9]{32}")
+_PLAN = re.compile(r"[a-f0-9]{24}")
+_SHA = re.compile(r"[a-f0-9]{40}")
+_ISO = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+_SPOOL_FILE = re.compile(r"([a-f0-9]{32})\.json")
+
+
+def _iso_or_none(v: object) -> str | None:
+    return v if isinstance(v, str) and _ISO.fullmatch(v) else None
+
+
+def _digest_or_none(v: object) -> str | None:
+    return v if isinstance(v, str) and _DIGEST.fullmatch(v) else None
+
+
+def _strs_list(v: object, n: int = 12, width: int = 300) -> list[str]:
+    return [x[:width] for x in v[:n] if isinstance(x, str)] if isinstance(v, list) else []
+
+
+def _read_bounded(path: str, limit: int) -> str | None:
+    """A file's text, or None when absent, unreadable, a symlink or too large."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not (st.st_mode & 0o170000 == 0o100000) or st.st_size > limit:
+            return None
+        return os.read(fd, limit + 1).decode("utf-8", "replace")
+    finally:
+        os.close(fd)
+
+
+def _read_json(path: str, limit: int) -> object:
+    text = _read_bounded(path, limit)
+    if text is None:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
+def _read_plan(cid: str) -> dict | None:
+    if not _ID.fullmatch(cid):
+        return None
+    doc = _read_json(os.path.join(UPDATES_DIR, "plans", f"{cid}.json"), MAX_PLAN_BYTES)
+    return doc if isinstance(doc, dict) and doc.get("version") == 1 and doc.get("component") == cid else None
+
+
+def _plan(p: object) -> dict | None:
+    """A host-written plan, copied field by field. None when it is not one."""
+    if not isinstance(p, dict) or not isinstance(p.get("id"), str) or not _PLAN.fullmatch(p["id"]):
+        return None
+    if p.get("level") not in ("patch", "minor", "major") or p.get("confirm") not in ("click", "type-name"):
+        return None
+    f, t, pin, snap = (p.get(k) if isinstance(p.get(k), dict) else {} for k in ("from", "to", "pin", "snapshot"))
+    if not isinstance(f.get("image"), str) or not isinstance(t.get("image"), str):
+        return None
+    line = pin.get("line")
+    est = snap.get("estimateBytes")
+    return {
+        "id": p["id"], "component": _s(p.get("component"), 40), "title": _s(p.get("title"), 120),
+        "class": _s(p.get("class"), 20), "createdAt": _iso_or_none(p.get("createdAt")),
+        "discoveredAt": _iso_or_none(p.get("discoveredAt")),
+        "level": p["level"], "confirm": p["confirm"],
+        "from": {"image": f["image"][:255], "tag": _s(f.get("tag"), 128), "version": _s(f.get("version"), 64),
+                 "digest": _digest_or_none(f.get("digest")), "container": _s(f.get("container"), 64)},
+        "to": {"image": t["image"][:255], "tag": _s(t.get("tag"), 128), "version": _s(t.get("version"), 64),
+               "digest": _digest_or_none(t.get("digest"))},
+        "pin": {"file": _s(pin.get("file"), 200), "service": _s(pin.get("service"), 64),
+                "line": line if isinstance(line, int) and not isinstance(line, bool) and 0 < line < 100000 else None,
+                "commit": pin["commit"] if isinstance(pin.get("commit"), str) and _SHA.fullmatch(pin["commit"]) else None},
+        "changelog": p["changelog"][:300] if isinstance(p.get("changelog"), str)
+        and p["changelog"].startswith("https://") else None,
+        "oneWay": p.get("oneWay") is True, "oneWayWhy": _s(p.get("oneWayWhy"), 300),
+        "restarts": _strs_list(p.get("restarts"), 12, 100),
+        "recipe": p["recipe"] if isinstance(p.get("recipe"), str) and _APPLY.fullmatch(p["recipe"]) else None,
+        "downtime": _s(p.get("downtime"), 300), "signedOut": _s(p.get("signedOut"), 300),
+        "snapshot": {"kind": snap.get("kind") if snap.get("kind") in ("image", "victoriametrics", "loki") else None,
+                     "what": _s(snap.get("what"), 400), "dir": _s(snap.get("dir"), 300),
+                     "estimateBytes": est if isinstance(est, int) and not isinstance(est, bool) and est >= 0 else None},
+        "preflight": _strs_list(p.get("preflight")),
+        "verify": _strs_list(p.get("verify")),
+        "rollback": _s(p.get("rollback"), 800),
+    }
+
+
+def _ref(v: object) -> dict | None:
+    if not isinstance(v, dict) or not isinstance(v.get("image"), str):
+        return None
+    return {"image": v["image"][:255], "version": _s(v.get("version"), 64)}
+
+
+def _job(j: object, *, steps: bool = True) -> dict | None:
+    """A job record (status.json's, or a history line), copied field by field."""
+    if not isinstance(j, dict) or not isinstance(j.get("id"), str) or not _JOB.fullmatch(j["id"]):
+        return None
+    if j.get("state") not in JOB_STATES:
+        return None
+    out = {
+        "id": j["id"], "component": _s(j.get("component"), 40) or "?",
+        "planId": j["planId"] if isinstance(j.get("planId"), str) and _PLAN.fullmatch(j["planId"]) else None,
+        "state": j["state"], "requestedBy": _s(j.get("requestedBy"), 200) or "unknown",
+        "requestedAt": _iso_or_none(j.get("requestedAt")), "startedAt": _iso_or_none(j.get("startedAt")),
+        "endedAt": _iso_or_none(j.get("endedAt")),
+        "from": _ref(j.get("from")), "to": _ref(j.get("to")),
+        "error": _s(j.get("error"), 500), "snapshot": _s(j.get("snapshot"), 300), "note": _s(j.get("note"), 800),
+    }
+    if steps:
+        out["steps"] = [{"name": s["name"], "state": s["state"], "startedAt": _iso_or_none(s.get("startedAt")),
+                         "endedAt": _iso_or_none(s.get("endedAt")), "detail": _s(s.get("detail"), 500)}
+                        for s in (j.get("steps") if isinstance(j.get("steps"), list) else [])[:12]
+                        if isinstance(s, dict) and s.get("name") in STEP_NAMES and s.get("state") in STEP_STATES]
+    else:
+        d = j.get("durationMs")
+        out["durationMs"] = d if isinstance(d, int) and not isinstance(d, bool) and d >= 0 else None
+        out["failedStep"] = j.get("failedStep") if j.get("failedStep") in STEP_NAMES else None
+    return out
+
+
+def _current_job() -> dict | None:
+    doc = _read_json(os.path.join(UPDATES_DIR, "status.json"), MAX_STATUS_BYTES)
+    return _job(doc.get("job")) if isinstance(doc, dict) and doc.get("version") == 1 else None
+
+
+def _history_lines() -> list[str]:
+    path = os.path.join(UPDATES_DIR, "history.jsonl")
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            fh.seek(max(0, size - MAX_HISTORY_BYTES))
+            data = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return []
+    lines = data.splitlines()
+    return lines[1:] if size > MAX_HISTORY_BYTES else lines
+
+
+def _history(limit: int) -> list[dict]:
+    out = []
+    for ln in reversed(_history_lines()):
+        try:
+            e = _job(json.loads(ln), steps=False)
+        except ValueError:
+            continue
+        if e:
+            out.append(e)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def _queued() -> list[dict]:
+    """The requests waiting in the spool - this process wrote them, and still
+    reads them as untrusted: a symlink or an oversized file is skipped."""
+    try:
+        names = sorted(n for n in os.listdir(SPOOL_DIR) if _SPOOL_FILE.fullmatch(n))
+    except OSError:
+        return []
+    out = []
+    for n in names[:MAX_QUEUE * 2]:
+        d = _read_json(os.path.join(SPOOL_DIR, n), MAX_SPOOL_BYTES)
+        if isinstance(d, dict) and d.get("jobId") == n[:-5]:
+            out.append(d)
+    return out
+
+
+def _queued_job(d: dict) -> dict:
+    return {"id": d["jobId"], "component": _s(d.get("component"), 40) or "?",
+            "planId": d.get("planId") if isinstance(d.get("planId"), str) and _PLAN.fullmatch(d["planId"]) else None,
+            "state": "queued", "requestedBy": _s(d.get("requestedBy"), 200) or "unknown",
+            "requestedAt": _iso_or_none(d.get("requestedAt")), "startedAt": None, "endedAt": None,
+            "from": None, "to": None, "steps": [], "error": None, "snapshot": None, "note": None}
+
+
+def _one_param(h, name: str) -> str:
+    q = urlparse(h.path).query
+    try:
+        pairs = parse_qsl(q, keep_blank_values=True, strict_parsing=True)
+    except ValueError:
+        raise Refused(f"expected ?{name}=…", status=400) from None
+    if len(pairs) != 1 or pairs[0][0] != name:
+        raise Refused(f"expected exactly one parameter, {name}", status=400)
+    return pairs[0][1]
+
+
+def plan_read(h) -> tuple[dict, str]:
+    cid = _one_param(h, "component")
+    if not _ID.fullmatch(cid):
+        raise Refused("component must be a catalog id", status=400)
+    if cid not in CATALOG.components:
+        raise Refused(f"{cid} is not in updates.toml", status=404)
+    doc = _read_plan(cid)
+    if doc is None:
+        return ({"component": cid, "plan": None, "ageSeconds": None,
+                 "reason": "no plan yet - run `just updates-discover` on the host (it writes one per component)"},
+                f"{cid}: none")
+    try:
+        age = max(0, int(time.time() - os.stat(os.path.join(UPDATES_DIR, "plans", f"{cid}.json")).st_mtime))
+    except OSError:
+        age = None
+    if doc.get("ok") is True:
+        p = _plan(doc.get("plan"))
+        if p and p["component"] == cid:
+            return {"component": cid, "plan": p, "reason": None, "ageSeconds": age}, f"{cid}: {p['id']}"
+        return {"component": cid, "plan": None, "reason": "the plan file is malformed", "ageSeconds": age}, \
+            f"{cid}: malformed"
+    return ({"component": cid, "plan": None, "reason": _s(doc.get("reason"), 300) or "no plan", "ageSeconds": age},
+            f"{cid}: refused")
+
+
+def request_update(h, who: str) -> tuple[dict, str]:
+    """POST /updates/request: check, then write ONE spool file. Runs nothing."""
+    body = h.read_json_object(1024)
+    if set(body) != {"component", "plan_id", "confirm"}:
+        raise Refused("the body is exactly {component, plan_id, confirm}", status=400)
+    cid, pid, confirm = body["component"], body["plan_id"], body["confirm"]
+    if not isinstance(cid, str) or not _ID.fullmatch(cid):
+        raise Refused("component must be a catalog id", status=400)
+    if not isinstance(pid, str) or not _PLAN.fullmatch(pid):
+        raise Refused("plan_id must be 24 hex characters", status=400)
+    comp = CATALOG.components.get(cid)
+    if comp is None:
+        raise Refused(f"{cid} is not in updates.toml", status=404)
+    doc = _read_plan(cid)
+    if doc is None:
+        raise Refused(f"there is no plan for {cid} - run `just updates-discover` on the host", status=404)
+    if doc.get("ok") is not True:
+        raise Refused(f"{cid} has no deployable plan: {_s(doc.get('reason'), 300)}", status=409)
+    p = _plan(doc.get("plan"))
+    if not p or p["component"] != cid:
+        raise Refused("the plan file is malformed", status=502)
+    if p["id"] != pid:
+        raise Refused(f"plan {pid} is not the current plan for {cid} - reload and look again", status=409)
+    avail, _ = _available()
+    if not avail or avail.get("generatedAt") != p["discoveredAt"]:
+        raise Refused("discovery ran again after this plan was made - reload and look again", status=409)
+    if p["confirm"] == "type-name":
+        if confirm != cid:
+            raise Refused(f"type the component's id ({cid}) to confirm", status=400)
+    elif confirm is not True:
+        raise Refused("confirm must be true", status=400)
+    if not os.path.isdir(SPOOL_DIR) or not os.access(SPOOL_DIR, os.W_OK):
+        raise UpdatesError("the update spool is not mounted - `just up-apps` creates it", status=503)
+    queue = _queued()
+    if len(queue) >= MAX_QUEUE:
+        raise Refused(f"{len(queue)} requests are already waiting - is bothy-updater.path running?", status=429)
+    if any(q.get("component") == cid for q in queue):
+        raise Refused(f"an update of {cid} is already queued", status=409)
+    cur = _current_job()
+    if cur and cur["state"] == "running" and cur["component"] == cid:
+        raise Refused(f"an update of {cid} is running now", status=409)
+    job = secrets.token_hex(16)
+    req = {"v": 1, "jobId": job, "component": cid, "planId": pid, "confirm": confirm,
+           "requestedBy": flat(who)[:200] or "unknown",
+           "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    # Atomic: a dot-named temp file the path unit's glob (*.json) cannot match,
+    # then a rename. The executor never sees half a request.
+    tmp = os.path.join(SPOOL_DIR, f".{job}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        os.write(fd, json.dumps(req, sort_keys=True).encode())
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(tmp, os.path.join(SPOOL_DIR, f"{job}.json"))
+    return ({"jobId": job, "component": cid, "planId": pid},
+            f"{cid} plan {pid} job {job}: {p['from']['image']} -> {p['to']['image']}")
+
+
+def job_read(h) -> tuple[dict, str]:
+    jid = _one_param(h, "id")
+    if not _JOB.fullmatch(jid):
+        raise Refused("id must be 32 hex characters", status=400)
+    # Spool first, then status.json, then history: the executor writes
+    # status.json BEFORE it unlinks the spool file, and history BEFORE the next
+    # job replaces status.json - so in this order a job is never missed.
+    d = _read_json(os.path.join(SPOOL_DIR, f"{jid}.json"), MAX_SPOOL_BYTES)
+    if isinstance(d, dict) and d.get("jobId") == jid:
+        return {"job": _queued_job(d)}, f"{jid}: queued"
+    cur = _current_job()
+    if cur and cur["id"] == jid:
+        return {"job": cur}, f"{jid}: {cur['state']}"
+    for ln in reversed(_history_lines()):
+        if jid not in ln:
+            continue
+        try:
+            e = _job(json.loads(ln), steps=False)
+        except ValueError:
+            continue
+        if e and e["id"] == jid:
+            e["steps"] = []
+            return {"job": e}, f"{jid}: {e['state']}"
+    raise Refused("no such job", status=404)
+
+
+def audit(who: str, outcome: str, endpoint: str, detail: str = "", took_ms: int | None = None) -> None:
+    """time  who  READ|REQUESTED|REFUSED|FAILED|ERROR  updates-<endpoint>  [detail]  [Nms] - admin.log's shape."""
+    fields: list[object] = [who, outcome, f"updates-{endpoint}"]
     if detail:
         fields.append(detail)
     if took_ms is not None:
@@ -503,28 +854,41 @@ def audit(who: str, outcome: str, detail: str = "", took_ms: int | None = None) 
     LOG.write(*fields)
 
 
-def handle(h) -> None:
-    """GET /updates/status. `h` is the bothy-ops JsonHandler."""
+def handle(h, endpoint: str = "status") -> None:
+    """GET /updates/{status,plan,job}, POST /updates/request. `h` is the JsonHandler."""
     who = h.actor()
     t0 = time.monotonic()
+    method = "POST" if endpoint == "request" else "GET"
     try:
-        h.check_csrf("GET")
-        if urlparse(h.path).query:
-            raise Refused("/updates/status takes no parameters", status=400)
+        h.check_csrf(method)
         if CATALOG is None:
             raise UpdatesError("the update catalog is not loaded", status=503)
-        result = status(CATALOG)
-        s = result["summary"]
-        audit(who, "READ", f"{s['updates']} updates, {s['behind']} behind, {s['drift']} drift",
-              int((time.monotonic() - t0) * 1000))
-        return h._send(200, {"ok": True, **result})
+        if endpoint == "status":
+            if urlparse(h.path).query:
+                raise Refused("/updates/status takes no parameters", status=400)
+            result = status(CATALOG)
+            s = result["summary"]
+            code, outcome, detail = 200, "READ", f"{s['updates']} updates, {s['behind']} behind, {s['drift']} drift"
+        elif endpoint == "plan":
+            result, detail = plan_read(h)
+            code, outcome = 200, "READ"
+        elif endpoint == "job":
+            result, detail = job_read(h)
+            code, outcome = 200, "READ"
+        elif endpoint == "request":
+            result, detail = request_update(h, who)
+            code, outcome = 202, "REQUESTED"
+        else:
+            raise Refused("no such endpoint", status=404)
+        audit(who, outcome, endpoint, detail, int((time.monotonic() - t0) * 1000))
+        return h._send(code, {"ok": True, **result})
     except Refused as e:
-        audit(who, "REFUSED", str(e)[:200], int((time.monotonic() - t0) * 1000))
+        audit(who, "REFUSED", endpoint, str(e)[:200], int((time.monotonic() - t0) * 1000))
         return h._send(e.status, {"error": str(e)})
     except UpdatesError as e:
-        audit(who, "FAILED", str(e)[:200], int((time.monotonic() - t0) * 1000))
+        audit(who, "FAILED", endpoint, str(e)[:200], int((time.monotonic() - t0) * 1000))
         return h._send(e.status, {"error": str(e)})
     except Exception as e:  # noqa: BLE001
-        sys.stderr.write(f"ERROR /updates/status: {type(e).__name__}: {e}\n")
-        audit(who, "ERROR", type(e).__name__)
+        sys.stderr.write(f"ERROR /updates/{endpoint}: {type(e).__name__}: {e}\n")
+        audit(who, "ERROR", endpoint, type(e).__name__)
         return h._send(500, {"error": "internal error"})

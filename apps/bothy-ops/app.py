@@ -4,7 +4,8 @@
     POST /control/{restart,stop,start}      containers   control.py
     *    /kube/<catalog id>                  workloads    kube.py
     GET  /admin/{users,credentials,backups,audit}  Settings reads  admin.py
-    GET  /updates/status                     Settings > Updates   updates.py
+    GET  /updates/{status,plan,job}          Settings > Updates   updates.py
+    POST /updates/request                    one spool file       updates.py
     GET  /healthz                            local only, no edge route
 
 Until 2026-09 these were two services, bothy-control and bothy-kube, each with
@@ -85,8 +86,8 @@ class Handler(JsonHandler):
             return kube.handle(self, "GET", route[len("/kube/"):])
         if route.startswith("/admin/"):
             return admin.handle(self, route[len("/admin/"):])
-        if route == "/updates/status":
-            return updates.handle(self)
+        if route in ("/updates/status", "/updates/plan", "/updates/job"):
+            return updates.handle(self, route[len("/updates/"):])
         return self._send(404, {"error": "no such endpoint"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -95,6 +96,9 @@ class Handler(JsonHandler):
             return control.handle(self, route[len("/control/"):])
         if route.startswith("/kube/"):
             return kube.handle(self, "POST", route[len("/kube/"):])
+        if route == "/updates/request":
+            # Writes one file into the spool. The HOST decides whether it runs.
+            return updates.handle(self, "request")
         return self._send(404, {"error": "no such endpoint"})
 
 
