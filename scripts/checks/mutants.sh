@@ -392,6 +392,47 @@ mutant "a rollback edits a line it did not read" \
   'False:' \
   -- python3 apps/bothy-ops/checks/test_updater.py
 
+# Step 7, the automatic channel: the unpause is the second route that asks the
+# host for something, and the night job's gates are the only thing between a
+# merged patch and an unattended deploy.
+mutant "the unpause is gated on viewer" \
+  edge/dynamic/bothy-updates.yml \
+  'rule: "Path(`/-/api/updates/unpause`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]' \
+  'rule: "Path(`/-/api/updates/unpause`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "a missed night is caught up at boot" \
+  host/systemd/bothy-updater-auto.timer \
+  'Persistent=false' \
+  'Persistent=true' \
+  -- python3 apps/bothy-ops/checks/wiring_auto.py
+
+mutant "the night job ignores a failed backup" \
+  apps/bothy-ops/updater/auto.py \
+  'if props.get("Result") != "success" or props.get("ExecMainStatus") != "0":' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_auto.py
+
+mutant "the night job ignores a pause" \
+  apps/bothy-ops/updater/auto.py \
+  'if cid in st["paused"]:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_auto.py
+
+mutant "bothy-ops may write as the night job" \
+  apps/bothy-ops/updates.py \
+  'if flat(who) == AUTO_ACTOR:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates_apply.py
+
 echo
 echo "── the shell layer macOS has to parse ──────────────────────────────"
 # bash 4 syntax is a PARSE error on the bash 3.2 macOS ships: the script does not

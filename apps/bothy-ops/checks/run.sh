@@ -49,10 +49,18 @@
 #                        fake backup: the window, tonight's backup, doctor, one a
 #                        night, stop at the first failure, pause after a
 #                        rollback, unpause through the spool.
+#   wiring_auto.py       the timer fires at window_start after the backup, not
+#                        persistent; auto.json is read-only to bothy-ops; the
+#                        alert rules query what the updater writes.
 #   e2e_updater.py       needs docker: the executor END TO END on a throwaway
 #                        compose project and registry - success, a rollback on a
 #                        body canary, a pre-flight refusal, two at once, and the
 #                        time-series snapshot/restore. Skipped with --offline.
+#   e2e_auto.py          needs docker: the NIGHT JOB end to end on a throwaway
+#                        project - a patch picked and applied, a forced rollback
+#                        that pauses, the next night skipping it. --offline skips.
+#   e2e_update_alerts.py needs docker: rules.yml's update alerts loaded into a
+#                        throwaway Grafana and evaluated. --offline skips.
 #   transition.py        the only one that needs docker: real proxies from the
 #                        shipped grants, a real throwaway container, a real state
 #                        change. Skipped with --offline.
@@ -128,9 +136,12 @@ check "$PY" checks/api_updates_apply.py 2>/dev/null
 section "auto: the night window, the backup gate, one a night, pause and unpause"
 check "$PY" checks/test_auto.py
 
+section "auto: the timer, the backup, the state file and the alerts agree"
+check "$PY" checks/wiring_auto.py
+
 if [ "$OFFLINE" = 1 ]; then
   echo
-  echo "(--offline: skipping the two checks that need a docker daemon)"
+  echo "(--offline: skipping the checks that need a docker daemon)"
   finish
 fi
 
@@ -145,5 +156,15 @@ section "the host updater, end to end, on a throwaway project"
 # Its own registry, images, compose projects (-p bothy-updater-test*), git repo
 # and state dirs, all removed in a finally block. Never the live stack.
 check "$PY" checks/e2e_updater.py
+
+section "the automatic channel, end to end, on a throwaway project"
+# The night job against the same kind of throwaway registry and project: a patch
+# picked and applied, a forced rollback that pauses, the next night skipping it.
+check "$PY" checks/e2e_auto.py
+
+section "the update alert rules, in a throwaway grafana"
+# The repo's alerting provisioning, unchanged, in the live Grafana image against a
+# throwaway VictoriaMetrics fed the updater's series: loads, fires, pends.
+check "$PY" checks/e2e_update_alerts.py
 
 finish
