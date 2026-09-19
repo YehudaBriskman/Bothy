@@ -1,7 +1,7 @@
 # Updates: keeping every part of Bothy current from the web UI
 
-Status: **steps 0-4 and 7 built** (step 4, the updater for the stateless and time-series classes, and step 7, the
-automatic channel, on 2026-09-19 - see [Decisions](#decisions)); steps 5, 6 and 8 are design. Written 2026-09-18 from two read-only surveys:
+Status: **steps 0-5 and 7 built** (step 4, the updater for the stateless and time-series classes; step 5, the one-way
+app-db class for Grafana and Keycloak; step 7, the automatic channel - all 2026-09-19, see [Decisions](#decisions)); steps 6 and 8 are design. Written 2026-09-18 from two read-only surveys:
 - the repo and live box: every pin, volume, backup and restart;
 - the tooling and patterns available, with sources at the end.
 
@@ -199,7 +199,8 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
    - add an `upgrade.yml` case that restores.
 3. **Discovery:** the timer, `available.json`, the textfile metrics, and a read-only Settings → Updates page (current, available, channel, badges, changelog links). Useful even if nothing below is ever built.
 4. **The updater for stateless and time-series classes:** spool, path unit, plans, snapshot, apply, verify, roll back, history. Then the `POST` route (operator) and the plan view. **Built 2026-09-19** - see [Decisions](#decisions) for how it differs from the sketch above.
-5. **One-way classes** (Grafana, Keycloak), with the snapshot and restore paths exercised in CI.
+5. **One-way classes** (Grafana, Keycloak), with the snapshot and restore paths exercised in CI. **Built 2026-09-19** -
+   see [Decisions](#step-5-2026-09-19-the-one-way-app-db-class).
 6. **Own code:** tags, build-before-switch, the rollback timer, the `/version` banner.
 7. **Channels and the window:** automatic patches for the classes marked `auto`, one component per night after a successful 03:00 backup, stopping at the first failure. Plus a Grafana alert on `rolled_back` or failure. **Built 2026-09-19** - see [Decisions](#decisions).
 8. **Cluster add-ons** (helm and manifests) and the Postgres major procedure: documented, manual, and still driven through the same plan, snapshot and verify path.
@@ -284,9 +285,48 @@ broken version. The plan for that component refuses until a person looks (`git d
   bothy-ops' `admin.log`. `bothy_update_last_result{component,result}` goes to node-exporter's textfile directory.
 - **No updater timer.** Nothing is applied unless someone asked; the night window and `auto` are step 7.
 
+### Step 5 (2026-09-19): the one-way app-db class
+
+Grafana and Keycloak migrate their database on the first start of a new version, and the old version cannot read the
+result. So the class differs from the two before it in one rule: **the rollback always restores the snapshot, first**.
+
+- **Snapshot.** Grafana is **stopped**, its whole `grafana_data` volume (grafana.db and plugins) is tarred and grafana.db
+  integrity-checked, then Grafana is started again (seconds of downtime; the recreate follows). Keycloak is a
+  `pg_dump -Fc` of the database its `KC_DB_URL` names, from that postgres container, with Keycloak running (a dump is
+  one consistent snapshot), and it is proven readable with `pg_restore -l` before anything changes. The postgres
+  superuser's credentials come from the checkout's `.env` and reach `docker exec` as `-e PGUSER -e PGPASSWORD`
+  (environment), never as argv.
+- **Rollback, in this order:** stop the new container; restore (empty the volume and unpack it / drop, recreate and
+  `pg_restore` the database, then check integrity / the table count against the dump); only then write the previous
+  image back on *every* pin line and run the recipe, and the old image must pass the same canaries. The container is
+  left stopped by the restore, because starting it on the new image would migrate the restored data again. If the
+  restore fails, the old image is **not** put back (it may not read what is there) and the result is `failed`.
+- **scripts/restore.sh's grafana path was not reused**: it replaces grafana.db from a nightly `.db` file and restarts
+  Grafana on the image it has - after an update, the new one. The pre-update tar is the whole volume instead.
+- **Two pins.** Keycloak's image is pinned twice (`keycloak`, `keycloak-init`). A component may now list several pin
+  lines; every one must name exactly the same repository, tag and digest, or there is no plan (a Dependabot PR that
+  bumped one line is refused in words, not half-deployed). The plan lists them all, the scope check allows every pinned
+  service to change, and a rollback writes all of them back. A single-pin plan keeps the id it had.
+- **Canaries.** Grafana: `/api/health` says `database: ok` and the expected version; the dashboard count (API search,
+  admin login from `.env` on stdin) is at least pre-flight's; datasource `uid=prometheus` `/health` is `OK`. Keycloak:
+  the discovery document's `issuer` equals pre-flight's; realm `devbox` exists; `keycloak-init` ran after Keycloak
+  started and exited 0; `bothy-admin` (scripts/keycloak-admin-client.sh) gets a client-credentials token, its secret
+  read from `apps/bothy-ops/secrets/` and sent on stdin; and a **real sign-in** through oauth2-proxy (the seeded
+  `DEV_LOGIN_USER`) gets 202 for `allowed_groups=viewer` and 403 for `allowed_groups=shell` - without a session both
+  would be 401, which proves nothing.
+- **What the plan says.** Keycloak: logins unavailable for about 1-2 minutes, every gated route fails closed meanwhile,
+  and nobody is signed out - Keycloak 26 persists user sessions in its database by default (verified in the 26.0.0
+  release notes: "In Keycloak 26, this feature is enabled by default. This means that all user sessions are persisted
+  in the database by default"; nothing here disables it), and oauth2-proxy's cookies are untouched. A rollback ends
+  sessions started after the dump.
+- **Confirmation.** One-way plans are `confirm: type-name`; bothy-ops refuses anything but the component's id, and the
+  executor refuses the same again for a request written straight into the spool.
+- **Channels unchanged:** Grafana `notify`, Keycloak `manual`. Neither is ever automatic; both are one typed name, and
+  the plan is still only "deploy what main pins".
+
 ### What steps 5-8 plug in
 
-- **Step 5, one-way (Grafana, Keycloak):** a class in `updater/classes.py` with its snapshot (Grafana stopped then the
+- **Step 5, one-way (Grafana, Keycloak)** - built, above. The sketch was: a class in `updater/classes.py` with its snapshot (Grafana stopped then the
   volume tarred; `pg_dump -Fc keycloak`), its canaries in `canaries.py` (`/api/health` database ok; the issuer unchanged and
   `keycloak-init` exited 0), and a `restore` that the rollback always runs (one-way means the image alone cannot go back).
   Plans for them already say `confirm: type-name`, and bothy-ops and the executor already enforce it. Keycloak has two pins,

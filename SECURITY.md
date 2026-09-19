@@ -571,7 +571,7 @@ operator routes, a type-the-name confirmation and a `manage-users` client first.
 
 ### 8. Updates: the browser asks, the host decides, and only for what `main` pins
 
-Added 2026-09-19 (build steps 3, 4 and 7 of `docs/plans/updates.md`). Five exact
+Added 2026-09-19 (build steps 3, 4, 5 and 7 of `docs/plans/updates.md`). Five exact
 `Path() && Method()` routers in the hand-written `edge/dynamic/bothy-updates.yml`
 (kept out of the generated `bothy-ops.yml`): `GET /-/api/updates/status`, `/plan`
 and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
@@ -603,8 +603,8 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
   one except as a catalog lookup key.
 - **What a total compromise of bothy-ops can make the host do** - the honest
   statement, since devssh is in the `docker` group and so root-equivalent over
-  Docker whatever runs as it: for a component of class `stateless` or
-  `timeseries` in `updates.toml`, **deploy the image the checked-out `main`
+  Docker whatever runs as it: for a component of class `stateless`,
+  `timeseries` or `app-db` in `updates.toml`, **deploy the image the checked-out `main`
   already pins** - reviewed, merged and on `origin/main` - which `just up` would
   deploy anyway, at a moment of its choosing, and only through the same
   pre-flight (fresh backup, disk, health and canaries green, the recipe touching
@@ -616,15 +616,29 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
   `status.json`, `history.jsonl` and the executor's `audit.log` sit in the
   directory it mounts read-only.
 - **The one write to the tree** is a rollback's: the old image goes back on the
-  pin line, a single-line edit that aborts unless the line still reads exactly
+  pin line (every pin line of the component - Keycloak has two), a single-line
+  edit that aborts unless the line still reads exactly
   what the plan recorded, left uncommitted so the next `just up` keeps the
   working version.
+- **One-way components (app-db: Grafana, Keycloak; step 5)** add two levers,
+  both bounded: a pre-update snapshot (Grafana stopped for the volume tar; a
+  `pg_dump -Fc` of the keycloak database) and, on a failed verify, a RESTORE of
+  that snapshot, which discards whatever was written since it - seconds to
+  minutes. Their plans require the component's id typed (`confirm:
+  type-name`), checked by bothy-ops and again by the executor. The postgres
+  credentials for the dump come from the host's `.env` and reach `docker exec`
+  as environment, never argv; the canaries' secrets (the Grafana admin login,
+  the `bothy-admin` client secret, the seeded sign-in) go to the probe on
+  stdin, and nothing they return - a token included - is recorded beyond
+  "there was one".
 - **The policy is code, not catalog.** `updates.load_catalog()` refuses `auto` on
   a one-way component, on the auth boundary, and on any class outside
   `AUTO_CLASSES` (stateless, time-series); `effective_channel()` makes a minor of
   an auto component `notify` and any major `manual`. The updater's own classes
-  (`updater/classes.py`) are a separate, code-reviewed list: one-way classes,
-  the boundary, own code and the cluster are refused at plan time.
+  (`updater/classes.py`) are a separate, code-reviewed list: the boundary, own
+  code, the database and the cluster are refused at plan time; the one-way
+  app-db class is handled for grafana and keycloak only, whose snapshot and
+  restore are written for them.
 - **The automatic channel (step 7) is a host timer, not a new power.**
   `bothy-updater-auto.timer` (03:30, `Persistent=false`) runs
   `updater/auto.py` as devssh on the host. Inside the `[policy]` window, after
