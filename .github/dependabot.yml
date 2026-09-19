@@ -76,9 +76,27 @@ updates:
     labels: [dependencies, docker]
 
   # ── Images referenced from the compose files ──────────────────────────────
-  # Every stack in this repo uses `compose.yml`, which the docker-compose
-  # ecosystem picks up. If this ecosystem is ever unavailable to the repo,
-  # delete this block - the pins above and the `docker` block still stand.
+  # Which files this ecosystem reads is decided by a filename regex in
+  # dependabot-core (docker/lib/dependabot/docker_compose/file_fetcher.rb,
+  # checked 2026-09-18), not by anything configurable here:
+  #     /(docker-)?compose(-[\w]+)?(?>\.[\w-]+)?\.ya?ml/i
+  # It needs "compose" in the NAME. So compose.yml, compose.cluster.yml and
+  # compose.admin.yml are all read - and apps/bothy/socket-proxy.yml is NOT.
+  #
+  # KNOWN GAP: tecnativa/docker-socket-proxy (socket-proxy.yml, pulled into
+  # apps/bothy/compose.yml by `include:`) gets no bump PR. Dependabot does not
+  # follow `include:`, and neither the `docker` ecosystem (Dockerfiles and
+  # kind:/apiVersion: YAML only) nor any config key can point it at the file.
+  # The supported fix is renaming it to match the regex, e.g.
+  # apps/bothy/compose.socket-proxy.yml - deferred because ~30 references,
+  # including checks/grants.py, checks/composeenv.py and mutants.sh, and the
+  # running proxies' config_files label, would move with it. Until then, check
+  # its release page by hand when the oauth2-proxy PR arrives.
+  #
+  # Boundary images appear in this block (oauth2-proxy in /auth and
+  # /apps/headlamp). That is why it has NO `groups:` - see the header.
+  # If this ecosystem is ever unavailable to the repo, delete this block - the
+  # pins above and the `docker` block still stand.
   - package-ecosystem: docker-compose
     directories:
       - "/edge"
@@ -89,6 +107,9 @@ updates:
       - "/apps/bothy-web"
       - "/apps/bothy-files"
       - "/apps/bothy-ops"
+      # Headlamp and its own oauth2-proxy (a boundary image - the same pin as
+      # /auth; review both PRs together so the two never drift).
+      - "/apps/headlamp"
       # /apps/docs was still listed after that directory was deleted, which is
       # how a missing-directory warning goes unread for a fortnight. Removed.
       # /mgmt, /apps/wiki, /data/redis and /data/kafka were all DELETED on
@@ -103,3 +124,58 @@ updates:
       prefix: "chore"
       include: scope
     labels: [dependencies, docker]
+
+  # ── Images in the raw Kubernetes manifests ────────────────────────────────
+  # The `docker` ecosystem reads more than Dockerfiles: any *.yml/*.yaml in the
+  # directory whose first document has `apiVersion:` and `kind:` (the "likely
+  # Kubernetes resource" test in dependabot-core's shared_file_fetcher.rb), so
+  # k8s/monitoring/alloy.yaml's `image: grafana/alloy:…` is seen. Its first
+  # document is the ServiceAccount - keep a kind:/apiVersion: document FIRST in
+  # that file, or Dependabot silently stops reading it.
+  #
+  # The same alloy version is pinned in monitoring/compose.yml (docker-compose
+  # block above). The two arrive as separate PRs, and groups cannot span
+  # ecosystems: merge them together - one shipper, one version on both sides.
+  - package-ecosystem: docker
+    directory: "/k8s/monitoring"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(k8s)"
+      include: scope
+    labels: [dependencies, docker, k8s]
+
+  # ── The kube-state-metrics chart ──────────────────────────────────────────
+  # scripts/k8s-monitoring.sh installs it with `--version` read from
+  # k8s/monitoring/Chart.yaml, a version-only wrapper chart that exists so
+  # this ecosystem can see the pin (it was a shell variable, invisible to
+  # every update tool). Nothing here runs it: after merging, `just
+  # k8s-monitoring` applies the new chart to thales-scc.
+  - package-ecosystem: helm
+    directory: "/k8s/monitoring"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(k8s)"
+      include: scope
+    labels: [dependencies, k8s]
+
+  # ── bothy-files' one Python dependency ────────────────────────────────────
+  # ruamel.yaml is pinned EXACTLY on purpose (see requirements.txt): a release
+  # that shifts a reported column corrupts the files the editor writes. A bump
+  # PR is a prompt to run apps/bothy-files/checks (noop_bytes.py proves the
+  # version), never an auto-merge.
+  - package-ecosystem: pip
+    directory: "/apps/bothy-files"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(files)"
+      include: scope
+    labels: [dependencies, python]

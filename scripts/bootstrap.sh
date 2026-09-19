@@ -499,7 +499,11 @@ chmod 644 monitoring/prom-password.txt
 if [ -f monitoring/prometheus-web.yml ] && [ "$FORCE" = 0 ]; then
   say "already present  monitoring/prometheus-web.yml"
 else
-  hash=$(docker run --rm httpd:2.4-alpine htpasswd -nbB x "$prom_pass" 2>/dev/null | cut -d: -f2)
+  # Pinned like every compose image (tag for humans, digest for the pull): this
+  # container sees the Prometheus password. Not seen by Dependabot - it reads
+  # compose files and Dockerfiles, not shell - so bump it by hand.
+  htpasswd_image="httpd:2.4.68-alpine@sha256:3471d57791354e4eab0226c2f4f9a685ad5cab9e7ce64e2bb2bf7f9231231493"
+  hash=$(docker run --rm "$htpasswd_image" htpasswd -nbB x "$prom_pass" 2>/dev/null | cut -d: -f2)
   if [ -n "$hash" ]; then
     {
       echo "# Prometheus web config. GITIGNORED - contains a password hash."
@@ -509,7 +513,7 @@ else
     } > monitoring/prometheus-web.yml
     ok "generated        monitoring/prometheus-web.yml (bcrypt, from the dev login)"
   else
-    die "could not run httpd:2.4-alpine to hash the Prometheus password"
+    die "could not run $htpasswd_image to hash the Prometheus password"
   fi
 fi
 

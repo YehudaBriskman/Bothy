@@ -162,7 +162,10 @@ over `devnet`; humans reach them by SSH tunnel.
 
 No `:latest`, ever - least of all on the socket proxy or oauth2-proxy, which are
 the two containers that *are* the boundary. Prefer an exact version tag, and a
-digest for third-party images.
+digest for third-party images - written `name:tag@sha256:…`, never the digest
+alone: the digest decides what is pulled, the tag is what a human (and
+Dependabot, which bumps both together) reads. Use the multi-arch *index* digest
+(`docker buildx imagetools inspect <ref>`), not one platform's manifest.
 
 ### Don't add a port to the Windows portproxy scripts
 

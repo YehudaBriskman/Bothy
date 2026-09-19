@@ -141,7 +141,7 @@ _up-all: network up-edge up-data up-auth up-monitoring up-apps
 # on the bare IP. Must come up before anything that expects to be routed.
 # Edge: Traefik on :80. Must be up before anything that expects routing.
 up-edge: network
-    docker compose -f edge/compose.yml up -d
+    docker compose -f edge/compose.yml up -d --wait --wait-timeout 180
 
 # Identity: Keycloak (the IdP) + oauth2-proxy (what Traefik's forwardAuth asks).
 #
@@ -157,7 +157,33 @@ up-edge: network
 up-auth: network
     #!/usr/bin/env bash
     set -euo pipefail
-    docker compose -f auth/compose.yml up -d
+    # --wait, like every up-* recipe - with one service held out of it.
+    #
+    # keycloak-init is a one-shot that NOTHING depends on. Compose's --wait
+    # accepts an exited container only when some service depends on it with
+    # `service_completed_successfully` (keycloak-db-init has keycloak); any other
+    # exit - even exit 0 - fails the wait. So a --wait over the whole file raced:
+    # it passed if keycloak-init was still running when checked and failed with
+    # "container keycloak-init exited (0)" if it had already finished. Measured
+    # on a throwaway project with compose v5.3.1, 2026-09-18.
+    #
+    # 600s, not 180: the timeout also covers the dependency waits inside `up`,
+    # and keycloak is only declared unhealthy after start_period 180s + 20 x 15s
+    # retries = 480s, plus keycloak-db-init's own 60s wait for postgres. A
+    # shorter timeout would fail a slow first boot that compose itself would
+    # still have let through.
+    svcs=$(docker compose -f auth/compose.yml config --services | grep -vx keycloak-init)
+    # shellcheck disable=SC2086
+    docker compose -f auth/compose.yml up -d --wait --wait-timeout 600 $svcs
+    # ...then keycloak-init on its own, and its EXIT CODE is checked. Before
+    # this, a failed post-import fix (no seed user, master still sslRequired)
+    # left `just up-auth` returning 0. --no-deps: keycloak is healthy already.
+    docker compose -f auth/compose.yml up -d --no-deps keycloak-init
+    rc=$(docker wait keycloak-init)
+    if [ "$rc" != 0 ]; then
+      echo "keycloak-init exited $rc - see: docker logs keycloak-init" >&2
+      exit 1
+    fi
     # One resolver, not a second copy of the dance - see scripts/lib/box-addr.sh
     # for the order. This one matters more than most: the address printed here
     # has to be the address Keycloak's issuer was built from, or the admin
@@ -189,7 +215,10 @@ up-monitoring: network
       mkdir -p monitoring/kube-auth
       [ -f monitoring/kube-auth/token ] || echo "note: no monitoring/kube-auth/token - run 'just k8s-monitoring' (kubelet jobs stay DOWN until then)"
     fi
-    docker compose "${files[@]}" up -d
+    # --wait: healthy where a healthcheck exists (cadvisor's comes from its
+    # image), merely RUNNING for loki, which has none - so this proves loki
+    # started, not that it is ready. See `just doctor` for that.
+    docker compose "${files[@]}" up -d --wait --wait-timeout 180
 
 # Data services: postgres (+ its exporter).
 #
@@ -220,7 +249,7 @@ up-monitoring: network
 # postgres stays: it is in active use - Keycloak's database lives there.
 # Data: Postgres, bound to loopback only.
 up-data: network
-    docker compose -f data/postgres/compose.yml up -d
+    docker compose -f data/postgres/compose.yml up -d --wait --wait-timeout 180
 
 # Apps: Bothy - one project, five containers (apps/bothy/compose.yml).
 #
@@ -523,7 +552,7 @@ up-headlamp:
     echo "  Headlamp   http://$(bash scripts/lib/box-addr.sh):8110   (Keycloak login, role viewer)"
 
 _up-headlamp:
-    docker compose -f apps/headlamp/compose.yml up -d
+    docker compose -f apps/headlamp/compose.yml up -d --wait --wait-timeout 180
 
 # Stop Headlamp and its proxy. Run before `minikube delete`, or the network cannot go.
 down-headlamp:
