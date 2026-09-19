@@ -5,11 +5,53 @@ one of them is the most common way to end up confused about what version you are
 on.
 
 ```
-bothy upgrade        the BOX - pulls the checkout and re-applies it
+bothy upgrade        the BOX - moves the checkout to a newer release and applies it
 bothy self-update    the SCRIPT - replaces the bothy on your PATH
 ```
 
-## What `bothy upgrade` does
+## Two paths: with the host updater, and without
+
+`bothy upgrade` does one of two things, depending on whether the host updater is
+installed (`just install-updater`, which puts it in
+`~/.local/lib/bothy-updater/current`):
+
+- **Installed** - the normal case on a box that runs Settings > Updates. It is
+  the **same** plan and executor the Update button drives
+  ([docs/plans/updates.md](../plans/updates.md) step 6), from a shell:
+  1. `git fetch`, then pick the newest **release tag** on `origin/main` that is
+     ahead of the checkout and whose commit's CI check runs all passed (asked
+     through `gh` when it is logged in, else GitHub's API unauthenticated). Not
+     `main`'s tip: a tag is what `release.yml` cuts only on a green commit.
+  2. Show the plan - release notes, commits, what is rebuilt, which other
+     stacks' files come along unapplied, whether the updater itself changes -
+     and ask (`--yes` skips the question; a plan touching compose, edge or other
+     stacks asks you to type `bothy`).
+  3. Build `bothy-web:<sha>`, `bothy-files:<sha>` and `bothy-ops:<sha>` from a
+     temporary worktree of the tag, **before** anything running changes.
+  4. Arm a rollback timer (`systemd-run --user`), fast-forward the checkout,
+     bring up bothy-files, bothy-ops and bothy-web - web last - on those
+     images, and verify: the images and their labels, `/version.json`, the
+     `/healthz` bodies, the catch-all's `index.html`.
+  5. Verify passing disarms the timer. Verify failing - or the updater dying, or
+     WSL restarting - lets it fire: `git reset --hard` back to the previous
+     commit (safe because step 1 refused a dirty tree) and the previous images,
+     **without a build**. That release is then not offered again.
+
+  It refuses, and says why, on a dirty or untracked tree, a branch other than
+  `main`, a checkout that has diverged from `origin/main`, a tag that is not on
+  `main` or not green, and a release that touches the socket-proxy boundary. It
+  updates **Bothy's own three services only**: other stacks' pins that arrive
+  with the checkout are then offered on their own rows in Settings > Updates.
+- **Not installed** - a fresh install, CI, a box that never ran
+  `just install-updater`. The original path below: `main`'s tip, pulled and
+  applied, with no rollback. It says so when it runs.
+
+If a release changes the updater itself, the new copy is **staged** and not
+switched: the program doing an update never replaces itself mid-run. Settings >
+Updates and `just update-status` say a switch is pending; `just install-updater`
+makes it.
+
+## What `bothy upgrade` does without the updater
 
 Four steps, and it stops at the first that fails:
 
@@ -57,6 +99,16 @@ curl -s http://<box>/version.json                   # the same, as a browser see
 The label is `HEAD` at build time, so every new commit relabels the three
 images and `just up` recreates those three containers - a few seconds of
 downtime for Bothy's own pages, and nothing else restarts.
+
+The image **tag** is the commit too: `bothy-web:<sha>` (compose reads
+`BOTHY_IMAGE_TAG`, which `just up-apps` sets to `HEAD`'s sha). The previous
+commit's images therefore survive a build under their own name, which is what
+lets the updater's rollback run them again without building anything. `up-apps`
+keeps each image's three newest commits and never removes one a container runs.
+
+An open tab notices an update by itself: it polls `/version.json` and shows
+**"Bothy updated - reload"** when the served revision is no longer the one it
+loaded. A lazy-loaded page part that no longer exists reloads the tab once.
 
 ## Your data survives and the new code runs, and both are tested
 

@@ -247,7 +247,7 @@ straight path from "restart a container" to the host, and
 ## Living with it
 
 ```sh
-bothy upgrade      # git pull --ff-only, then just up. No down, no -v.
+bothy upgrade      # the newest green release, via the host updater if installed; else git pull + just up
 bothy download     # pre-fetch every image, so a later up needs no network
 bothy version      # what this checkout is
 just doctor        # containers, Prometheus targets, disk, backup freshness

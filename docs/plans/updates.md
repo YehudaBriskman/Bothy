@@ -1,7 +1,8 @@
 # Updates: keeping every part of Bothy current from the web UI
 
-Status: **steps 0-5 and 7 built** (step 4, the updater for the stateless and time-series classes; step 5, the one-way
-app-db class for Grafana and Keycloak; step 7, the automatic channel - all 2026-09-19, see [Decisions](#decisions)); steps 6 and 8 are design. Written 2026-09-18 from two read-only surveys:
+Status: **steps 0-7 built** (step 4, the updater for the stateless and time-series classes; step 5, the one-way
+app-db class for Grafana and Keycloak; step 6, Bothy updating itself; step 7, the automatic channel - all 2026-09-19, see
+[Decisions](#decisions)); step 8 is design. Written 2026-09-18 from two read-only surveys:
 - the repo and live box: every pin, volume, backup and restart;
 - the tooling and patterns available, with sources at the end.
 
@@ -201,7 +202,8 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 4. **The updater for stateless and time-series classes:** spool, path unit, plans, snapshot, apply, verify, roll back, history. Then the `POST` route (operator) and the plan view. **Built 2026-09-19** - see [Decisions](#decisions) for how it differs from the sketch above.
 5. **One-way classes** (Grafana, Keycloak), with the snapshot and restore paths exercised in CI. **Built 2026-09-19** -
    see [Decisions](#step-5-2026-09-19-the-one-way-app-db-class).
-6. **Own code:** tags, build-before-switch, the rollback timer, the `/version` banner.
+6. **Own code:** tags, build-before-switch, the rollback timer, the `/version` banner. **Built 2026-09-19** - see
+   [Decisions](#step-6-2026-09-19-bothy-updates-itself-to-a-green-release-tag).
 7. **Channels and the window:** automatic patches for the classes marked `auto`, one component per night after a successful 03:00 backup, stopping at the first failure. Plus a Grafana alert on `rolled_back` or failure. **Built 2026-09-19** - see [Decisions](#decisions).
 8. **Cluster add-ons** (helm and manifests) and the Postgres major procedure: documented, manual, and still driven through the same plan, snapshot and verify path.
 
@@ -331,10 +333,7 @@ result. So the class differs from the two before it in one rule: **the rollback 
   `keycloak-init` exited 0), and a `restore` that the rollback always runs (one-way means the image alone cannot go back).
   Plans for them already say `confirm: type-name`, and bothy-ops and the executor already enforce it. Keycloak has two pins,
   so `plans.py`'s single-pin rule widens to "every pin moves to the same image".
-- **Step 6, own code:** a `github`-source class whose "pin" is `VERSION` on a release tag; its apply is build-then-switch and
-  its rollback the previous SHA's images. It also needs the updater to run from a copy that does not replace itself
-  (`~/.local/lib/bothy-updater/<sha>/`), and `bothy upgrade` to stop running a blanket `just up` - today it bypasses every
-  snapshot and canary here. Moving the checkout (`git pull --ff-only`) belongs there too; step 4 never moves it.
+- **Step 6, own code:** built - see below.
 - **Step 7, channels and the window:** built - see below.
 - **Step 8, cluster add-ons and the Postgres major:** classes whose apply is `just k8s-monitoring` or the dump/new-volume
   procedure, still behind a plan id, a snapshot and verify.
@@ -384,6 +383,78 @@ name means the system only when the system wrote it.
 `bothy_update_paused` (a new textfile metric, 1/0 per auto component), and `update_stale`, a severity=info notice routed once a
 day for a patch or minor on offer now and 13-14 days ago. `checks/e2e_update_alerts.py` loads the file into a throwaway
 Grafana and evaluates the rules against a throwaway VictoriaMetrics.
+### Step 6 (2026-09-19): Bothy updates itself to a green release tag
+
+Class `own-code`, component `bothy`, in `apps/bothy-ops/updater/owncode.py`. It keeps step 4's rule - deploy only what is
+reviewed - and its shape: a plan the host computes, one spool request, the executor under its lock, re-derived before it
+acts. What differs is what "reviewed" means for our own code, and that the checkout MOVES.
+
+**Tag, not `main`'s tip.** The target is the newest `v*` tag on `origin/main` that is strictly ahead of HEAD, whose commit's
+`VERSION` matches its name, and whose commit's GitHub check runs all completed with none failing - asked through `gh` when
+it is installed and logged in, else the public API unauthenticated (the plan names which; a green answer is cached 6 h).
+`release.yml` already tags only commits whose CI passed on `main`; the check-runs question makes the updater verify that
+rather than assume it. `origin/main`'s tip was the alternative: reviewed too, but at any moment possibly red or mid-CI, with
+no version, no release page to link, and no stable name to refuse after a rollback. The cost is that a merged fix waits for a
+`VERSION` bump - `just release`'s habit, which this makes load-bearing.
+
+**What the plan refuses:** the updater running from the checkout it would move; a checkout not on `main`, detached, with
+modified OR untracked files (the rollback resets it, and a fast-forward can clash with an untracked file), or ahead of
+`origin/main`; no newer tag; a tag off `main`, behind HEAD or mislabelled; CI red, pending or absent; a release that changes
+`apps/bothy/compose.socket-proxy.yml` (`just up-apps` would recreate the auth boundary with Bothy - that is a manual
+update); a justfile at HEAD or at the tag without `BOTHY_UP_NO_BUILD` (predates this); a Bothy container not running HEAD's
+image; a release that was rolled back before (`own/blocked.json`). **What it escalates to type-the-name, and lists:** Bothy's
+compose files (applied), `edge/dynamic/` (Traefik reloads it the moment the checkout moves), other stacks' files (in the
+checkout afterwards, **not** applied - their own rows offer them), and a calendar "major". It also lists the changed apps,
+the commit count and diffstat, the release notes URL and CI's verdict.
+
+**Build before switch; images named by commit.** Compose now names Bothy's images `bothy-web:${BOTHY_IMAGE_TAG:-latest}`
+(and files, ops) with `pull_policy: never`, and `just up-apps` sets `BOTHY_IMAGE_TAG` to HEAD's sha. The executor builds the
+target's three images from a temporary `git worktree` of the tag before the live checkout or any container is touched, so a
+failed build is `aborted` with nothing running changed. An env-selected tag rather than `:latest` plus a sha alias, because
+the rollback then needs neither a build nor a retag: `git reset` to the old sha and `BOTHY_UP_NO_BUILD=1 just up-apps`
+selects exactly the old images by name - moving `:latest` back would be one more step that can be interrupted, leaving the
+name compose uses on the wrong build. The executor also tags the running images `:<previous sha>` by id first, and `up-apps`
+keeps each image's three newest commits.
+
+**The order, and the timer.** validate (after `git fetch`) -> preflight (the three containers healthy on the planned images,
+a systemd user manager, no rollback already armed) -> build -> snapshot (previous sha and image ids) -> **arm** -> switch
+(`git merge --ff-only <tag>`, under umask 022 - the unit's 077 would leave the checkout's files unreadable to the containers
+that bind-mount them) -> apply (`just up-apps bothy-files`, then `bothy-ops`, then `bothy-web` last, each with
+`BOTHY_UP_NO_BUILD=1`) -> verify -> stage. The rollback is a `systemd-run --user --on-active` timer, armed **before** the
+checkout moves (with the apply budget added) and re-armed for 10 minutes once the containers are up, so a dead updater, a
+hung verify or a WSL restart anywhere after `arm` is covered - arming only after apply would leave the move itself uncovered.
+The armed file is claimed by one atomic rename, so exactly one of "verify disarms it", "a failed verify fires it now" and
+"the timer fires" happens. When the timer fires with the executor gone, it also finishes the job's record.
+
+**Verify** reads bodies (rule 7): each container runs the image built above and its revision label is the target; bothy-web's
+`/version.json` names the target; bothy-files' and bothy-ops' `/healthz` say `"ok": true`; an unrouted path serves the same
+`index.html` as `/`, inside bothy-web and through the edge. `just ops-check offline` is NOT run here: it is what CI already
+ran on the tagged commit, and a harness problem on the box should not roll back a good release.
+
+**The reset.** The rollback runs `git reset --hard <previous sha>`. That is acceptable ONLY because pre-flight proved the
+tree clean and the move was a fast-forward: every file the reset touches is one the fast-forward wrote. An edit made inside
+the window anyway (the bothy-files editor) is saved to `own/<job>.dirty.json` before the reset.
+
+**The updater never replaces itself.** It runs from `~/.local/lib/bothy-updater/<sha>/` (the Python it imports, exported
+from git by `just install-updater`, with an `INSTALL.json` naming the checkout and each file's git object id) through a
+`current` symlink that both `bothy-updater.service` and `bothy-updates-discover.service` use - discovery writes the plans,
+and a plan id must be computed by the code that re-checks it. A release whose updater files differ from the installed copy
+only **stages** the new copy (`staged` symlink, `state/updater.json`); Settings > Updates and `just update-status` say a
+switch is pending, and `just install-updater` makes it, between jobs. The own-code plan refuses while the updater runs from
+the checkout itself.
+
+**`bothy upgrade`** now drives the same path when the updater is installed (`python3 -m updater upgrade`: plan, confirm,
+spool request, executor) instead of a blanket `git pull && just up`, which bypassed every check here and would move the
+checkout the rollback depends on. Without the updater (fresh installs, CI) it keeps the old pull-and-apply path and says so.
+`upgrade.yml` runs `just up`, not `bothy upgrade`, and still asserts HEAD's code runs.
+
+**Open tabs.** Every tab polls `/version.json` (a minute, and on focus) and shows "Bothy updated - reload" when the served
+revision is not the one it loaded; a chunk that fails to load reloads the tab once per ten minutes.
+
+**Tests.** `checks/test_owncode.py` (every refusal, against a throwaway origin with annotated tags) and
+`checks/e2e_owncode.py` (a throwaway clone and compose project with no host ports: v1 -> v2; a forced verify failure and a
+killed executor both restored to v1 by the rollback, the timer compressed to 8 s; a release that changes the updater staged,
+not switched). Four `mutants.sh` rows.
 
 ## Sources
 
