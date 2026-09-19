@@ -1,4 +1,4 @@
-"""python3 -m updater {run | plan | status} - see updater/__init__.py."""
+"""python3 -m updater {run | plan | status | auto | unpause | pauses} - see updater/__init__.py and updater/auto.py."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 
-from . import executor, plans
+from . import auto, executor, plans
 from .config import Config
 
 
@@ -19,8 +19,13 @@ def main(argv: list[str] | None = None, cfg: Config | None = None) -> int:
     p.add_argument("--target", help="refuse unless this is what main pins")
     p.add_argument("--write", action="store_true", help="write plans/<component>.json for every component")
     sub.add_parser("status", help="the current job, the last ten, and the queue")
+    auto.add_parsers(sub)
     a = ap.parse_args(argv)
     cfg = cfg or Config()
+
+    rc = auto.dispatch(a, cfg)
+    if rc is not None:
+        return rc
 
     if a.cmd == "run":
         return executor.run_spool(cfg)

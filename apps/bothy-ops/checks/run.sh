@@ -45,6 +45,10 @@
 #                        edit; the global lock; the result metric.
 #   api_updates_apply.py plan / request / job through the real handler: one
 #                        spool file per 202 and nothing else; every refusal.
+#   test_auto.py         THE AUTOMATIC CHANNEL (step 7), with a fake clock and a
+#                        fake backup: the window, tonight's backup, doctor, one a
+#                        night, stop at the first failure, pause after a
+#                        rollback, unpause through the spool.
 #   e2e_updater.py       needs docker: the executor END TO END on a throwaway
 #                        compose project and registry - success, a rollback on a
 #                        body canary, a pre-flight refusal, two at once, and the
@@ -120,6 +124,9 @@ check "$PY" checks/test_updater.py
 
 section "updates: plan, request and job - one spool file, and nothing else"
 check "$PY" checks/api_updates_apply.py 2>/dev/null
+
+section "auto: the night window, the backup gate, one a night, pause and unpause"
+check "$PY" checks/test_auto.py
 
 if [ "$OFFLINE" = 1 ]; then
   echo

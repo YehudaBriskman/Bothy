@@ -78,6 +78,7 @@ def run_spool(cfg: Config | None = None, *, log=print) -> int:
         hostio.ensure_dir(cfg.spool, 0o700)
         done = 0
         while done < cfg.max_jobs_per_run:
+            _auto_hook(cfg, "drain_unpause")
             reqs, junk = spool.entries(cfg.spool)
             for n in junk:
                 spool.remove(cfg.spool, n)
@@ -87,10 +88,26 @@ def run_spool(cfg: Config | None = None, *, log=print) -> int:
             name = reqs[0][1]
             result = run_one(cfg, name)
             log(f"{name[:-5]}: {result}")
+            _auto_hook(cfg, "sync_pauses")
             done += 1
         return 0
     finally:
         os.close(fd)
+
+
+def _auto_hook(cfg: Config, what: str) -> None:
+    """Step 7's two calls into the drain loop (updater/auto.py): claim unpause
+    requests, and pause a component the moment one of its jobs rolls back or
+    fails. A fault in either is audited and never stops an update or a rollback."""
+    try:
+        from . import auto
+        getattr(auto, what)(cfg)
+    except Exception as e:  # noqa: BLE001
+        try:
+            hostio.append_line(cfg.audit_file, "\t".join((iso(), "-", "-", "auto", what, "failed",
+                                                          f"{type(e).__name__}: {e}"[:300])))
+        except OSError:
+            pass
 
 
 def _audit_junk(cfg: Config, name: str) -> None:
