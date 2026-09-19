@@ -362,6 +362,37 @@ mutant "resolve() stops containing paths" \
   -- bash apps/bothy-files/checks/run.sh --offline
 
 echo
+echo "── what a browser can make the host updater do ─────────────────────"
+# The update request is the one route whose effect lands on the HOST. Its gate is
+# `operator`; the executor re-checks the plan id against a plan it recomputes;
+# it refuses a component outside the classes it handles; and a rollback edits
+# a pin line only when the line still reads exactly what the plan recorded.
+# Each row removes one of those, as a well-meaning simplification would.
+mutant "the update request is gated on viewer" \
+  edge/dynamic/bothy-updates.yml \
+  'middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]' \
+  'middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "the executor trusts the request's plan id" \
+  apps/bothy-ops/updater/spool.py \
+  'if p.get("id") != doc["planId"]:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+mutant "a request names a class the updater skips" \
+  apps/bothy-ops/updater/spool.py \
+  'if classes.get(comp.cls, comp.id) is None:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+mutant "a rollback edits a line it did not read" \
+  apps/bothy-ops/updater/pins.py \
+  'lines[pin.line - 1] != pin.text:' \
+  'False:' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+echo
 echo "── the shell layer macOS has to parse ──────────────────────────────"
 # bash 4 syntax is a PARSE error on the bash 3.2 macOS ships: the script does not
 # run at all, and the error names a line that looks fine.
