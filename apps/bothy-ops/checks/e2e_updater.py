@@ -147,7 +147,7 @@ CMD ["httpd", "-f", "-p", "8080", "-h", "/www"]
 
     # ── the repo, as main would carry it ────────────────────────────────────
     ORIGIN, REPO = os.path.join(TMP, "origin.git"), os.path.join(TMP, "repo")
-    GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"]
+    GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
     sh("git", "init", "-q", "--bare", "-b", "main", ORIGIN)
     sh("git", "clone", "-q", ORIGIN, REPO)
     sh(*GIT, "checkout", "-q", "-b", "main", cwd=REPO)
@@ -226,7 +226,7 @@ verify = ["the body names the version"]
         doc = plans.read_plan(cfg, cid)
         assert doc and doc["ok"], f"no plan for {cid}: {doc}"
         out, _ = updates.request_update(H({"component": cid, "plan_id": doc["plan"]["id"], "confirm": True}),
-                                        "operator@example.invalid")
+                                        "operator@example.com")
         return out["jobId"]
 
     def worker() -> subprocess.Popen:

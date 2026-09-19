@@ -44,3 +44,5 @@ docs/kb/access.md	person-email	1
 host/systemd/bothy-inventory.service	home-path	2
 docs/kb/incidents/2026-08-30-wsl-eth0-mtu-1280.md	tailnet-ip	4
 host/systemd/bothy-updates-discover.service	home-path	3
+host/systemd/bothy-updater.path	home-path	2
+host/systemd/bothy-updater.service	home-path	3

@@ -71,7 +71,7 @@ def ok(cond: bool, label: str) -> None:
 srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 BASE = f"http://127.0.0.1:{srv.server_address[1]}"
-WHO = "operator@example.invalid"
+WHO = "operator@example.com"
 
 
 def call(path: str, *, method: str = "GET", body: object = None, ctype: str = "application/json",

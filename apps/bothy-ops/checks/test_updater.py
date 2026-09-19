@@ -55,7 +55,7 @@ def D(c: str) -> str:
 TMP = tempfile.mkdtemp(prefix="bothy-updater-unit-")
 ORIGIN = os.path.join(TMP, "origin.git")
 REPO = os.path.join(TMP, "repo")
-GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"]
+GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
 
 
 def git(*args: str, cwd: str = REPO) -> str:
@@ -289,7 +289,7 @@ JOB = "a" * 32
 
 def req(**kw) -> dict:
     d = {"v": 1, "jobId": JOB, "component": "web", "planId": cur["id"], "confirm": True,
-         "requestedBy": "op@example.invalid", "requestedAt": "2026-09-19T10:00:00Z"}
+         "requestedBy": "op@example.com", "requestedAt": "2026-09-19T10:00:00Z"}
     d.update(kw)
     return d
 
