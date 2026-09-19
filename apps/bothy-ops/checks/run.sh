@@ -54,8 +54,11 @@
 #                        alert rules query what the updater writes.
 #   e2e_updater.py       needs docker: the executor END TO END on a throwaway
 #                        compose project and registry - success, a rollback on a
-#                        body canary, a pre-flight refusal, two at once, and the
-#                        time-series snapshot/restore. Skipped with --offline.
+#                        body canary, a pre-flight refusal, two at once, the
+#                        time-series snapshot/restore, and the one-way app-db
+#                        class on throwaway Grafana and Keycloak (a forced
+#                        failure restores the snapshot). ~10 min. Skipped with
+#                        --offline.
 #   e2e_auto.py          needs docker: the NIGHT JOB end to end on a throwaway
 #                        project - a patch picked and applied, a forced rollback
 #                        that pauses, the next night skipping it. --offline skips.
