@@ -1,11 +1,18 @@
-// Settings > Updates - bothy-ops updates.py, behind `viewer`.
+// Settings > Updates - bothy-ops updates.py.
 //
-//   GET /-/api/updates/status   the update catalog merged with what the host's
-//                               discovery timer last found (available.json)
+//   GET  /-/api/updates/status    viewer    the catalog merged with what the host's
+//                                           discovery timer found, the current job
+//                                           and the history
+//   GET  /-/api/updates/plan      viewer    the plan the HOST pre-computed for one
+//                                           component (?component=)
+//   POST /-/api/updates/request   operator  {component, plan_id, confirm} - writes
+//                                           ONE spool file and answers 202 with a job id
+//   GET  /-/api/updates/job       viewer    one job's steps (?id=)
 //
-// apps/bothy-ops/checks/wiring_updates.py asserts this file names exactly that
-// one path. It is a READ: build step 3 of docs/plans/updates.md is discovery and
-// this page; nothing here, or behind it, applies anything.
+// apps/bothy-ops/checks/wiring_updates.py asserts this file names exactly those
+// four paths. Build step 4 of docs/plans/updates.md: the browser approves a PLAN
+// ID the host wrote, never a version. The updater deploys only what the checked-
+// out `main` already pins - there is no version picker to send, on purpose.
 //
 // The shapes below are the service's ALLOW-LIST, restated: updates.py copies the
 // host's file field by field, and drops anything that is not one of these.
@@ -81,6 +88,8 @@ export interface UpdateRow {
   /** A minor or more behind - what the Settings nav counts. */
   behind: boolean;
   discovered: Discovered | null;
+  /** What the host pre-computed for this component (step 4). Absent from an older service. */
+  plan?: PlanSummary | null;
 }
 
 export interface UpdatesStatus {
@@ -101,10 +110,91 @@ export interface UpdatesStatus {
     pauseOnFailure: boolean;
     discoverEveryHours: number;
   };
-  /** Always false in step 3: nothing applies updates yet. */
+  /** True while a job is queued or running. */
   applying: boolean;
+  /** The current or most recent job (the host's status.json). */
+  job?: Job | null;
+  /** Finished jobs, newest first, at most 20 (history.jsonl). */
+  history?: HistoryEntry[];
   components: UpdateRow[];
 }
+
+// ── plans, requests, jobs (step 4) ───────────────────────────────────────────
+
+export type PlanSummary =
+  | { id: string; deployable: true; from: string; to: string; level: 'patch' | 'minor'; createdAt: string }
+  | { id: null; deployable: false; reason: string; createdAt: string | null };
+
+export interface Plan {
+  id: string;
+  component: string;
+  title: string;
+  class: 'stateless' | 'timeseries';
+  createdAt: string;
+  level: 'patch' | 'minor';
+  /** Step 4 is always 'click'; 'type-name' means confirm must equal the component id. */
+  confirm: 'click' | 'type-name';
+  from: { image: string; tag: string | null; version: string | null; digest: string | null; container: string };
+  to: { image: string; tag: string | null; version: string | null; digest: string | null };
+  pin: { file: string; service: string; line: number; commit: string };
+  changelog: string | null;
+  oneWay: boolean;
+  oneWayWhy: string | null;
+  restarts: string[];
+  recipe: string;
+  downtime: string;
+  signedOut: string;
+  snapshot: { kind: 'image' | 'victoriametrics' | 'loki'; what: string; dir: string; estimateBytes: number | null };
+  preflight: string[];
+  verify: string[];
+  rollback: string;
+}
+
+export interface PlanAnswer {
+  ok: true;
+  component: string;
+  plan: Plan | null;
+  reason: string | null;
+  ageSeconds: number | null;
+}
+
+export type JobState = 'queued' | 'running' | 'succeeded' | 'rolled_back' | 'aborted' | 'failed' | 'refused';
+export type StepName = 'validate' | 'preflight' | 'snapshot' | 'pull' | 'apply' | 'verify' | 'rollback' | 'restore' | 'record';
+export type StepState = 'pending' | 'running' | 'ok' | 'failed' | 'skipped';
+
+export interface JobStep {
+  name: StepName;
+  state: StepState;
+  startedAt: string | null;
+  endedAt: string | null;
+  detail: string | null;
+}
+
+interface JobBase {
+  id: string;
+  component: string;
+  planId: string;
+  state: JobState;
+  requestedBy: string;
+  requestedAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  from: { image: string; version: string | null } | null;
+  to: { image: string; version: string | null } | null;
+  error: string | null;
+  /** The pre-update snapshot directory on the host. */
+  snapshot: string | null;
+  note: string | null;
+}
+
+export interface Job extends JobBase { steps: JobStep[] }
+export interface HistoryEntry extends JobBase { durationMs: number | null }
+
+export const TERMINAL: readonly JobState[] = ['succeeded', 'rolled_back', 'aborted', 'failed', 'refused'];
+export const isTerminal = (s: JobState): boolean => TERMINAL.includes(s);
+
+export interface RequestAnswer { ok: true; jobId: string; component: string; planId: string }
+
 
 const WIRE = {
   refused: (status: number) => `refused with ${status}`,
@@ -114,6 +204,34 @@ const WIRE = {
 export async function fetchUpdates(signal?: AbortSignal): Promise<UpdatesStatus> {
   if (import.meta.env.DEV) return (await import('./updates.dev')).updatesMock();
   return apiFetch<UpdatesStatus>('/-/api/updates/status', { signal, ...WIRE });
+}
+
+export async function fetchPlan(component: string, signal?: AbortSignal): Promise<PlanAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).planMock(component);
+  return apiFetch<PlanAnswer>(`/-/api/updates/plan?component=${encodeURIComponent(component)}`, { signal, ...WIRE });
+}
+
+/** Ask the host to run a plan. The browser sends the plan's ID - the host wrote the
+ *  plan, re-derives it before it acts, and refuses one that is no longer current. */
+export async function requestUpdate(body: { component: string; plan_id: string; confirm: true | string }): Promise<RequestAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).requestMock(body);
+  return apiFetch<RequestAnswer>('/-/api/updates/request', { method: 'POST', body, ...WIRE });
+}
+
+export async function fetchJob(id: string, signal?: AbortSignal): Promise<Job> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).jobMock(id);
+  const r = await apiFetch<{ ok: true; job: Job }>(`/-/api/updates/job?id=${encodeURIComponent(id)}`, { signal, ...WIRE });
+  return r.job;
+}
+
+// The job this tab is following, remembered so a reload - or bothy-web itself
+// being recreated by the update it is watching - lands back on the same panel.
+const JOB_KEY = 'bothy-update-job';
+export function rememberedJob(): string | null {
+  try { const v = localStorage.getItem(JOB_KEY); return v && /^[0-9a-f]{32}$/.test(v) ? v : null; } catch { return null; }
+}
+export function rememberJob(id: string | null): void {
+  try { if (id) localStorage.setItem(JOB_KEY, id); else localStorage.removeItem(JOB_KEY); } catch { /* per-tab only then */ }
 }
 
 /** The file a pin lives in, without the service: `monitoring/compose.yml`. */

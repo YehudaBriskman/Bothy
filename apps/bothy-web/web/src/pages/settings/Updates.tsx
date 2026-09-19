@@ -1,37 +1,68 @@
-// Updates - what is newer than what this box runs. READ-ONLY (build step 3 of
-// docs/plans/updates.md).
+// Updates - what is newer than what this box runs, and (build step 4 of
+// docs/plans/updates.md) the one-click deploy of what `main` already pins.
 //
-// Everything on this page comes from one viewer read, GET /-/api/updates/status:
-// apps/bothy-ops/updates.toml (the catalog) merged with the file the host's
-// discovery timer writes. The registries, docker inspect and git are the HOST's
-// business (apps/bothy-ops/discover_updates.py); the browser and bothy-ops only
-// read the result.
+// Reads: GET /-/api/updates/status (viewer) - apps/bothy-ops/updates.toml merged
+// with the file the host's discovery timer writes, the current job and the
+// history. GET /-/api/updates/plan (viewer) - the plan the HOST pre-computed.
+// GET /-/api/updates/job (viewer) - one job's steps.
 //
-// NO BUTTON APPLIES ANYTHING, and the page says so in words rather than by
-// leaving a button out. Applying needs the host updater (step 4); until then the
-// page names the file to edit and the recipe to run, and copies it for you -
-// the Credentials and Backups pages' convention for an action a shell owns.
+// The one write: POST /-/api/updates/request (operator). The browser sends the
+// PLAN ID the host wrote, never a version: the updater deploys only what the
+// checked-out `main` already pins (Dependabot PR merged -> pull -> one click), and
+// re-derives the plan on the host before it acts. There is no version picker on
+// this page because there is nothing for a picker to choose.
 //
-// Colour: a level badge is NOT state, so it is drawn in the neutral chrome and
-// told apart by its word (and a heavier outline for a major). Drift and a failed
-// check ARE state - what runs is not what the repo says - so they take the
-// reserved warning colour, always with a glyph and a word beside it.
+// THE UPDATE BUTTON IS A COURTESY. It is drawn for operators (lib/session.ts); the
+// decision is the edge's `sso-operator` gate and the host's re-validation.
+//
+// The job panel follows a job by id, remembered in localStorage: the update it is
+// watching may recreate bothy-ops or bothy-web underneath it, so a failed poll is
+// "reconnecting", never an end state. Only the host says a job is over.
+//
+// Colour: a level badge is NOT state, so it is drawn in the neutral chrome. Drift,
+// a failed check and a job's outcome ARE state and take the reserved palette,
+// always with a glyph and a word beside it.
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowUpRight, Check, Lock } from 'lucide-react';
+import {
+  AlertTriangle, ArrowRight, ArrowUpRight, Check, CircleDashed, Lock, Minus, RotateCcw, X,
+} from 'lucide-react';
 import { filesHref } from '../files/routes';
 import { SettingBlock } from '../../components/settings/SettingBlock';
-import { Cmd, Loading, Prose, Refusal, When, useLoad } from '../../components/settings/bits';
+import { Cmd, Loading, Prose, Refusal, When, fmtBytes, useLoad } from '../../components/settings/bits';
+import { Dialog } from '../../components/ui/Dialog';
+import '../../components/ServiceActions.css';
+import '../../components/KubeActions.css';
+import { useOperator } from '../../lib/session';
+import { statusOf } from '../../lib/http';
 import {
-  fetchUpdates, pinFile, publishBehind,
-  type Channel, type Level, type UpdateRow, type UpdatesStatus,
+  fetchJob, fetchPlan, fetchUpdates, isTerminal, pinFile, publishBehind, rememberJob, rememberedJob, requestUpdate,
+  type Channel, type HistoryEntry, type Job, type JobState, type JobStep, type Level, type Plan, type UpdateRow,
+  type UpdatesStatus,
 } from '../../lib/updates';
 
 export function UpdatesSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchUpdates(signal));
+  const { canAct } = useOperator();
+  const [planFor, setPlanFor] = useState<UpdateRow | null>(null);
+  // The job this tab follows: one it asked for (remembered across reloads), else
+  // whatever the host says is running now.
+  const [followed, setFollowed] = useState<string | null>(() => rememberedJob());
+  const hostJob = data?.job && !isTerminal(data.job.state) ? data.job.id : null;
+  const jobId = followed ?? hostJob;
+
   // The page's own read is the freshest count there is; hand it to the nav.
   useEffect(() => { if (data) publishBehind(data.summary.behind); }, [data]);
+
+  const started = (id: string) => {
+    rememberJob(id);
+    setFollowed(id);
+    setPlanFor(null);
+    reload();
+  };
+  const dismiss = () => { rememberJob(null); setFollowed(null); };
+
   const fail = (
     <>
       <Refusal error={error} needs="viewer" what="update checks" />
@@ -41,15 +72,22 @@ export function UpdatesSettings() {
   return (
     <>
       {data && <Freshness d={data} />}
-      <SettingBlock id="update-components" badge="read-only · viewer">
-        {loading ? <Loading rows={8} /> : error ? fail : data && <Components d={data} />}
+      {jobId && <JobPanel id={jobId} key={jobId} onFinished={reload} onDismiss={dismiss} />}
+      <SettingBlock id="update-components" badge="viewer · update: operator">
+        {loading && !data ? <Loading rows={8} /> : error ? fail : data && (
+          <Components d={data} canAct={canAct} busy={!!jobId && !!data.applying} onUpdate={setPlanFor} />
+        )}
       </SettingBlock>
-      <SettingBlock id="update-channels" badge="from updates.toml">
-        {loading ? <Loading rows={3} /> : <Channels d={data} />}
-      </SettingBlock>
-      <SettingBlock id="update-apply" badge="not built yet">
+      <SettingBlock id="update-apply" badge="host updater">
         <Apply d={data} />
       </SettingBlock>
+      <SettingBlock id="update-history" badge="history.jsonl">
+        {loading && !data ? <Loading rows={3} /> : <History d={data} />}
+      </SettingBlock>
+      <SettingBlock id="update-channels" badge="from updates.toml">
+        {loading && !data ? <Loading rows={3} /> : <Channels d={data} />}
+      </SettingBlock>
+      {planFor && <PlanDialog row={planFor} onClose={() => setPlanFor(null)} onStarted={started} />}
     </>
   );
 }
@@ -64,13 +102,15 @@ function Freshness({ d }: { d: UpdatesStatus }) {
       </p>
     );
   }
+  const ready = d.components.filter((r) => r.plan?.deployable).length;
   return (
     <p className={`set-fresh ${d.discovery.stale ? 'is-stale' : ''}`} role="status">
       {d.discovery.stale && <AlertTriangle size={14} aria-hidden="true" />}
       <span>
         {s.components} components · {s.updates} with a newer version · <b>{s.behind}</b> a minor or more behind
         {s.drift > 0 && <> · {s.drift} drifting</>}
-        {s.errors > 0 && <> · {s.errors} not checked</>}. Checked on the host <When iso={d.discovery.generatedAt} />
+        {s.errors > 0 && <> · {s.errors} not checked</>}
+        {ready > 0 && <> · <b>{ready}</b> ready to deploy</>}. Checked on the host <When iso={d.discovery.generatedAt} />
         {d.discovery.stale
           ? ` - older than two ${d.policy.discoverEveryHours}-hour runs; the bothy-updates-discover timer may not be running.`
           : '.'}
@@ -93,7 +133,9 @@ function LevelBadge({ level }: { level: Level }) {
   return <span className="upd-level" data-level={level}>{LEVEL_WORD[level]}</span>;
 }
 
-function Components({ d }: { d: UpdatesStatus }) {
+interface RowCtx { canAct: boolean; busy: boolean; onUpdate: (r: UpdateRow) => void }
+
+function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
   const groups = (['auto', 'notify', 'manual'] as Channel[])
     .map((ch) => ({ ch, rows: d.components.filter((r) => r.channel === ch) }))
     .filter((g) => g.rows.length > 0);
@@ -109,26 +151,28 @@ function Components({ d }: { d: UpdatesStatus }) {
               <th scope="col">Available</th>
               <th scope="col">Channel</th>
               <th scope="col">Notes</th>
+              <th scope="col">Deploy</th>
             </tr>
           </thead>
           {groups.map((g) => (
             <tbody key={g.ch}>
-              <tr className="set-tbl-sep"><td colSpan={6}>{GROUP_TITLE[g.ch]}</td></tr>
-              {g.rows.map((r) => <Row key={r.id} r={r} />)}
+              <tr className="set-tbl-sep"><td colSpan={7}>{GROUP_TITLE[g.ch]}</td></tr>
+              {g.rows.map((r) => <Row key={r.id} r={r} {...ctx} />)}
             </tbody>
           ))}
         </table>
       </div>
       <p className="set-note set-tbl-note">
-        <b>Drift</b> means what runs is not what the repository pins - usually a pin that was merged and never applied.
-        Running the component’s recipe fixes it. A <b>floating</b> pin (a tag like <span className="mono">v3.7</span> or{' '}
-        <span className="mono">17</span>) can move under you; when it has, the new image is offered as the smallest step.
+        <b>Deploy</b> runs what the checkout’s <span className="mono">main</span> already pins - a merged pin that is not
+        running yet. <b>Available</b> is what is newer upstream; to get it, merge its Dependabot PR first. <b>Drift</b> means
+        what runs is not what the repository pins. A <b>floating</b> pin (<span className="mono">v3.7</span>,{' '}
+        <span className="mono">17</span>) can move under you and is never deployed by the updater.
       </p>
     </>
   );
 }
 
-function Row({ r }: { r: UpdateRow }) {
+function Row({ r, canAct, busy, onUpdate }: { r: UpdateRow } & RowCtx) {
   const d = r.discovered;
   return (
     <tr>
@@ -153,7 +197,32 @@ function Row({ r }: { r: UpdateRow }) {
         </a>
         <span className="set-cell-sub">{d?.checkedAt ? <>checked <When iso={d.checkedAt} /></> : 'not checked yet'}</span>
       </td>
+      <td data-label="Deploy" className="upd-deploy"><DeployCell r={r} canAct={canAct} busy={busy} onUpdate={onUpdate} /></td>
     </tr>
+  );
+}
+
+function DeployCell({ r, canAct, busy, onUpdate }: { r: UpdateRow } & RowCtx) {
+  const p = r.plan;
+  if (!p) return <span className="dim">no plan</span>;
+  if (!p.deployable) return <span className="set-cell-sub upd-reason" title={p.reason.replace(/`/g, '')}><Ticks text={p.reason} /></span>;
+  return (
+    <>
+      <span className="upd-avail">
+        <span className="mono upd-tag">{p.from} → {p.to}</span>
+        <LevelBadge level={p.level} />
+      </span>
+      {canAct ? (
+        <button
+          type="button" className="btn sm upd-go" onClick={() => onUpdate(r)} disabled={busy}
+          title={busy ? 'An update is running - one at a time' : undefined}
+        >
+          Update…
+        </button>
+      ) : (
+        <span className="set-cell-sub">needs <span className="mono">operator</span></span>
+      )}
+    </>
   );
 }
 
@@ -254,6 +323,355 @@ function ChannelCell({ r }: { r: UpdateRow }) {
   );
 }
 
+// ── the plan view ────────────────────────────────────────────────────────────
+
+/** Backticked spans as inline code - for prose that NAMES a command (a plan fact,
+ *  a step's detail) rather than hands one over. <Prose> makes each one copyable,
+ *  which is right for "run this next" and noise in a list of facts. */
+function Ticks({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(`[^`]+`)/g).map((t, i) => (t.startsWith('`') && t.endsWith('`') && t.length > 2
+        ? <code key={i} className="mono upd-code">{t.slice(1, -1)}</code>
+        : <span key={i}>{t}</span>))}
+    </>
+  );
+}
+
+const shortDigest = (d: string | null) => (d ? `${d.slice(0, 19)}…` : 'digest unknown');
+
+function PlanDialog({ row, onClose, onStarted }: { row: UpdateRow; onClose: () => void; onStarted: (jobId: string) => void }) {
+  const { data, error, loading } = useLoad((signal) => fetchPlan(row.id, signal), [row.id]);
+  const [typed, setTyped] = useState('');
+  const [phase, setPhase] = useState<{ t: 'idle' } | { t: 'sending' } | { t: 'refused'; error: unknown }>({ t: 'idle' });
+  const firing = useRef(false);
+  const plan = data?.plan ?? null;
+  const ready = !!plan && (plan.confirm === 'click' || typed === plan.component) && phase.t !== 'sending';
+
+  const go = async () => {
+    if (!plan || !ready || firing.current) return;
+    firing.current = true;
+    setPhase({ t: 'sending' });
+    try {
+      const r = await requestUpdate({ component: plan.component, plan_id: plan.id, confirm: plan.confirm === 'click' ? true : typed });
+      onStarted(r.jobId);
+    } catch (e) {
+      setPhase({ t: 'refused', error: e });
+    } finally {
+      firing.current = false;
+    }
+  };
+
+  return (
+    <Dialog
+      open size="lg"
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={<span className="sa-title">Update <span className="mono">{row.title}</span></span>}
+      description="The plan the host wrote. Approving it approves this plan id - the host re-derives it and refuses one that is no longer current."
+    >
+      <div className="ka-body upd-plan">
+        {loading ? <p className="sa-working" role="status"><span className="sa-spin" />Reading the plan…</p>
+          : error ? <PlanRefusal error={error} />
+            : !plan ? (
+              <div className="sa-norole">
+                <p className="sa-norole-h">No update to deploy.</p>
+                <p className="sa-note"><Prose text={data?.reason ?? 'The host wrote no plan for this component.'} /></p>
+              </div>
+            ) : (
+              <>
+                <PlanFacts plan={plan} age={data?.ageSeconds ?? null} />
+                {phase.t === 'refused' && <PlanRefusal error={phase.error} />}
+                <form className="ka-confirm" onSubmit={(e) => { e.preventDefault(); void go(); }}>
+                  <p className="sa-warn">
+                    <AlertTriangle size={16} aria-hidden="true" />
+                    <span>
+                      This recreates {plan.restarts.length > 0 ? plan.restarts.join(', ') : plan.component} on the host.
+                      {' '}Signed out: {plan.signedOut}.
+                    </span>
+                  </p>
+                  {plan.confirm === 'type-name' && (
+                    <label className="ka-field">
+                      <span className="ka-label">Type <span className="mono">{plan.component}</span> to confirm</span>
+                      <input
+                        className="ka-input mono" autoComplete="off" spellCheck={false} value={typed}
+                        onChange={(e) => setTyped(e.target.value)} aria-invalid={typed.length > 0 && typed !== plan.component}
+                      />
+                    </label>
+                  )}
+                  <div className="ka-row">
+                    <button type="button" className="btn ghost" onClick={onClose}>Leave it alone</button>
+                    <button type="submit" className="btn sa-go" disabled={!ready}>
+                      {phase.t === 'sending' ? 'Asking the host…' : `Update ${plan.component} to ${plan.to.tag ?? plan.to.version ?? 'the pin'}`}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+      </div>
+    </Dialog>
+  );
+}
+
+function PlanRefusal({ error }: { error: unknown }) {
+  const status = statusOf(error);
+  const msg = error instanceof Error ? error.message : String(error);
+  const fromService = !!(error as { fromService?: boolean } | null)?.fromService;
+  const title = status === 409 ? 'The host would not queue it.'
+    : status === 403 && !fromService ? 'Your session does not hold operator.'
+      : status === 401 ? 'Sign in first.'
+        : status === 0 ? 'Nothing answered.' : `Refused (${status}).`;
+  return (
+    <div className="sa-outcome" data-ok="false" role="alert">
+      <p className="sa-outcome-h">{title}</p>
+      {fromService && <p className="sa-note"><Prose text={msg} /></p>}
+    </div>
+  );
+}
+
+function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
+  return (
+    <div className="upd-plan-facts">
+      <div className="upd-diff" aria-label="pin change">
+        <div className="upd-diff-side">
+          <span className="upd-diff-k">running</span>
+          <span className="mono upd-tag">{plan.from.image}</span>
+          <span className="mono set-cell-sub">{shortDigest(plan.from.digest)}</span>
+        </div>
+        <ArrowRight size={16} aria-hidden="true" className="upd-diff-arrow" />
+        <div className="upd-diff-side">
+          <span className="upd-diff-k">main pins</span>
+          <span className="mono upd-tag">{plan.to.image}</span>
+          <span className="mono set-cell-sub">{shortDigest(plan.to.digest)}</span>
+        </div>
+        <LevelBadge level={plan.level} />
+      </div>
+      <dl className="upd-dl">
+        <dt>Pin</dt>
+        <dd><span className="mono">{plan.pin.file}:{plan.pin.line}</span> (service <span className="mono">{plan.pin.service}</span>) at{' '}
+          <span className="mono">{plan.pin.commit.slice(0, 10)}</span> - the checkout already says this; nothing is edited.</dd>
+        <dt>Changelog</dt>
+        <dd>{plan.changelog
+          ? <a className="link upd-cl" href={plan.changelog} target="_blank" rel="noreferrer noopener">{plan.to.version ?? plan.to.tag}<ArrowUpRight size={12} aria-hidden="true" /></a>
+          : <span className="dim">none linked</span>}</dd>
+        <dt>Restarts</dt>
+        <dd>{plan.restarts.join(', ')} · via <span className="mono">{plan.recipe}</span></dd>
+        <dt>Downtime</dt>
+        <dd>{plan.downtime}</dd>
+        <dt>Signed out</dt>
+        <dd>{plan.signedOut}</dd>
+        <dt>Snapshot</dt>
+        <dd>{plan.snapshot.what} <span className="set-cell-sub">
+          into <span className="mono">{plan.snapshot.dir}</span>
+          {plan.snapshot.estimateBytes != null && <> · about {fmtBytes(plan.snapshot.estimateBytes)}</>} · the last 3 are kept</span></dd>
+        {plan.oneWay && <><dt>One-way</dt><dd className="set-warn"><Lock size={12} aria-hidden="true" />{plan.oneWayWhy}</dd></>}
+        <dt>Pre-flight</dt>
+        <dd><ul className="upd-list">{plan.preflight.map((x) => <li key={x}><Ticks text={x} /></li>)}</ul></dd>
+        <dt>Verify</dt>
+        <dd><ul className="upd-list">{plan.verify.map((x) => <li key={x}><Ticks text={x} /></li>)}</ul></dd>
+        <dt>Rollback</dt>
+        <dd><Ticks text={plan.rollback} /></dd>
+        <dt>Plan</dt>
+        <dd><span className="mono">{plan.id}</span> · written <When iso={plan.createdAt} />
+          {age != null && age > 12 * 3600 && <span className="set-warn"> · over 12 h old - `just updates-discover` refreshes it</span>}</dd>
+      </dl>
+    </div>
+  );
+}
+
+// ── the live job ─────────────────────────────────────────────────────────────
+
+const STATE_WORD: Record<JobState, string> = {
+  queued: 'Queued - waiting for the host',
+  running: 'Running on the host',
+  succeeded: 'Updated',
+  rolled_back: 'Rolled back',
+  aborted: 'Aborted - nothing running was changed',
+  failed: 'Failed - a person is needed',
+  refused: 'Refused - nothing was touched',
+};
+
+// What a state means in the reserved palette: good, a warning, or down.
+const STATE_TONE: Record<JobState, 'up' | 'warn' | 'down' | 'busy'> = {
+  queued: 'busy', running: 'busy', succeeded: 'up', rolled_back: 'warn', aborted: 'warn', refused: 'warn', failed: 'down',
+};
+
+const STEP_WORD: Record<JobStep['name'], string> = {
+  validate: 'Re-validate the request and the plan',
+  preflight: 'Pre-flight',
+  snapshot: 'Snapshot',
+  pull: 'Pull the image',
+  apply: 'Apply',
+  verify: 'Verify (canaries)',
+  rollback: 'Roll back',
+  restore: 'Restore the data snapshot',
+  record: 'Record',
+};
+
+function useJob(id: string) {
+  const [job, setJob] = useState<Job | null>(null);
+  const [lost, setLost] = useState<{ since: number; why: string } | null>(null);
+  const [gone, setGone] = useState(false);
+  const stop = useRef(false);
+
+  const poll = useCallback(async (signal: AbortSignal) => {
+    try {
+      const j = await fetchJob(id, signal);
+      setJob(j);
+      setLost(null);
+      if (isTerminal(j.state)) stop.current = true;
+    } catch (e) {
+      if (signal.aborted) return;
+      const s = statusOf(e);
+      // A 404 from the SERVICE is an answer: the host has no such job. Anything
+      // else - a network error, a 502 from Traefik while bothy-ops is recreated,
+      // the portal's HTML while bothy-web is - is the update happening, not an end.
+      if (s === 404 && (e as { fromService?: boolean }).fromService) { setGone(true); stop.current = true; return; }
+      setLost((l) => l ?? { since: Date.now(), why: s === 0 ? 'nothing answered' : `answered ${s}` });
+    }
+  }, [id]);
+
+  useEffect(() => {
+    stop.current = false;
+    const ac = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      await poll(ac.signal);
+      if (!stop.current && !ac.signal.aborted) timer = setTimeout(() => void tick(), 2000);
+    };
+    void tick();
+    return () => { ac.abort(); if (timer) clearTimeout(timer); };
+  }, [poll]);
+
+  return { job, lost, gone };
+}
+
+function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () => void; onDismiss: () => void }) {
+  const { job, lost, gone } = useJob(id);
+  const ref = useRef<HTMLElement>(null);
+  const done = !!job && isTerminal(job.state);
+  const finished = useRef(false);
+  useEffect(() => {
+    if (done && !finished.current) { finished.current = true; onFinished(); }
+  }, [done, onFinished]);
+  useEffect(() => { ref.current?.scrollIntoView?.({ block: 'nearest' }); }, []);
+
+  if (gone) {
+    return (
+      <section className="upd-job" data-tone="warn" aria-label="Update job">
+        <p className="upd-job-h"><AlertTriangle size={15} aria-hidden="true" />The host has no job <span className="mono">{id.slice(0, 12)}</span>.</p>
+        <div className="ka-row"><button type="button" className="btn ghost sm" onClick={onDismiss}>Dismiss</button></div>
+      </section>
+    );
+  }
+  const tone = job ? STATE_TONE[job.state] : 'busy';
+  return (
+    <section ref={ref} className="upd-job" data-tone={tone} aria-label="Update job" aria-live="polite">
+      <header className="upd-job-head">
+        <p className="upd-job-h">
+          {!job || !done ? <span className="sa-spin" aria-hidden="true" /> : <JobGlyph state={job.state} />}
+          <span>{job ? STATE_WORD[job.state] : 'Asking the host…'}</span>
+          {job && <span className="mono upd-job-what">{job.component}{job.to ? ` → ${job.to.version ?? job.to.image}` : ''}</span>}
+        </p>
+        {done && <button type="button" className="btn ghost sm" onClick={onDismiss}>Dismiss</button>}
+      </header>
+      {lost && !done && (
+        <p className="set-note upd-lost" role="status">
+          <RotateCcw size={12} aria-hidden="true" /> Reconnecting - {lost.why}. The job runs on the host whatever this tab does;
+          an update to Bothy itself or to Traefik interrupts this page on purpose.
+        </p>
+      )}
+      {job && (
+        <>
+          <ol className="upd-steps">
+            {job.steps.map((s) => (
+              <li key={s.name} className="upd-step" data-state={s.state}>
+                <StepGlyph state={s.state} />
+                <span className="upd-step-name">{STEP_WORD[s.name]}</span>
+                <span className="upd-step-when">{s.endedAt && s.startedAt ? secs(s.startedAt, s.endedAt) : s.state === 'running' ? 'now' : ''}</span>
+                {s.detail && <span className="upd-step-detail"><Ticks text={s.detail} /></span>}
+              </li>
+            ))}
+          </ol>
+          {job.error && done && <p className="upd-job-err"><b>Why:</b> <Prose text={job.error} /></p>}
+          {job.note && done && <p className="set-note"><Prose text={job.note} /></p>}
+          <p className="set-cell-sub">
+            job <span className="mono">{job.id.slice(0, 12)}</span> · asked by {job.requestedBy} <When iso={job.requestedAt} />
+            {job.snapshot && <> · snapshot <span className="mono upd-path">{job.snapshot}</span></>}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+const secs = (a: string, b: string) => {
+  const s = Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 1000));
+  return s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
+};
+
+function StepGlyph({ state }: { state: JobStep['state'] }) {
+  if (state === 'running') return <span className="sa-spin upd-step-g" aria-label="running" />;
+  if (state === 'ok') return <Check size={14} className="upd-step-g" aria-label="done" />;
+  if (state === 'failed') return <X size={14} className="upd-step-g" aria-label="failed" />;
+  if (state === 'skipped') return <Minus size={14} className="upd-step-g" aria-label="skipped" />;
+  return <CircleDashed size={14} className="upd-step-g" aria-label="pending" />;
+}
+
+function JobGlyph({ state }: { state: JobState }) {
+  if (state === 'succeeded') return <Check size={15} aria-hidden="true" />;
+  if (state === 'failed') return <X size={15} aria-hidden="true" />;
+  if (state === 'rolled_back') return <RotateCcw size={15} aria-hidden="true" />;
+  return <AlertTriangle size={15} aria-hidden="true" />;
+}
+
+// ── history ──────────────────────────────────────────────────────────────────
+
+const HIST_WORD: Record<JobState, string> = {
+  queued: 'queued', running: 'running', succeeded: 'updated', rolled_back: 'rolled back', aborted: 'aborted',
+  failed: 'failed', refused: 'refused',
+};
+
+function History({ d }: { d: UpdatesStatus | null }) {
+  const h: HistoryEntry[] = d?.history ?? [];
+  if (h.length === 0) {
+    return <p className="set-empty">No update has run from here yet. Each one leaves a line in the host’s{' '}
+      <span className="mono">~/.local/state/bothy/updates/history.jsonl</span>.</p>;
+  }
+  return (
+    <div className="tbl-wrap set-tbl">
+      <table className="tbl upd-tbl upd-hist">
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">Component</th>
+            <th scope="col">Change</th>
+            <th scope="col">Result</th>
+            <th scope="col">Snapshot</th>
+          </tr>
+        </thead>
+        <tbody>
+          {h.map((e) => (
+            <tr key={e.id}>
+              <td data-label="When"><When iso={e.endedAt ?? e.requestedAt} />
+                <span className="set-cell-sub">{e.requestedBy}{e.durationMs != null && ` · ${Math.round(e.durationMs / 1000)} s`}</span></td>
+              <td data-label="Component"><b>{e.component}</b></td>
+              <td data-label="Change">
+                <span className="mono upd-tag">{e.from?.version ?? e.from?.image ?? '?'} → {e.to?.version ?? e.to?.image ?? '?'}</span>
+              </td>
+              <td data-label="Result">
+                <span className="upd-result" data-tone={STATE_TONE[e.state]}><JobGlyph state={e.state} />{HIST_WORD[e.state]}</span>
+                {e.error && <span className="set-cell-sub upd-why" title={e.error.replace(/`/g, '')}><Ticks text={e.error} /></span>}
+                {e.note && <span className="set-cell-sub"><Ticks text={e.note} /></span>}
+              </td>
+              <td data-label="Snapshot">{e.snapshot ? <span className="mono upd-path set-cell-sub">{e.snapshot}</span> : <span className="dim">none</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── channels and the window ─────────────────────────────────────────────────
 
 function Channels({ d }: { d: UpdatesStatus | null }) {
@@ -281,7 +699,8 @@ function Channels({ d }: { d: UpdatesStatus | null }) {
         was green. At most {p?.maxAutoPerNight ?? 1} automatic update a night, stopping at the first failure. A rollback or a failed
         verify pauses auto for that component until an operator clears it.
         <span className="set-note">
-          <b>Nothing runs automatically yet.</b> This is the approved policy the updater (build step 4) will be held to.
+          <b>Nothing runs automatically yet.</b> Every update today is one an operator asked for; the window is the policy
+          the automatic channel (build step 7) will be held to.
         </span>
       </div></div>
       <div className="kv"><div className="kv-k">One-way</div><div className="kv-v">
@@ -293,23 +712,40 @@ function Channels({ d }: { d: UpdatesStatus | null }) {
   );
 }
 
-// ── applying, by hand ───────────────────────────────────────────────────────
+// ── how applying works, and what is still by hand ───────────────────────────
 
 function Apply({ d }: { d: UpdatesStatus | null }) {
-  const todo = (d?.components ?? []).filter((r) => r.level || r.discovered?.drift);
+  // What the updater will not do, and what to do instead.
+  const manual = (d?.components ?? []).filter((r) => (r.level || r.discovered?.drift) && !r.plan?.deployable);
   return (
     <>
-      <div className="set-refusal upd-notbuilt" role="note">
-        <p>
-          <b>Applying an update from this page is not built yet.</b> The page only reads. Until the host updater exists,
-          update from a shell on the box: edit the pin, then run the component’s recipe.
-        </p>
+      <div className="kv-list">
+        <div className="kv"><div className="kv-k">What Update does</div><div className="kv-v">
+          Deploys what the checkout’s <span className="mono">main</span> already pins and is not running yet - nothing else.
+          The host re-checks the plan, runs the pre-flight, takes a snapshot, pulls, runs the component’s recipe, then checks
+          the component’s canaries <b>by their bodies</b>. Any failure puts the old image back.
+          <span className="set-note">
+            It runs as a host job (<span className="mono">bothy-updater.service</span>), not in bothy-ops: this page only drops one
+            request in a spool. It keeps running if you close the tab.
+          </span>
+        </div></div>
+        <div className="kv"><div className="kv-k">Getting a newer version</div><div className="kv-v">
+          Merge its Dependabot PR, then on the box <Cmd>git pull --ff-only</Cmd> and <Cmd>just updates-discover</Cmd>. The
+          row then offers <b>Update</b>. A version <span className="mono">main</span> does not pin is never offered, so git
+          stays the only record of what the box should run.
+        </div></div>
+        <div className="kv"><div className="kv-k">From a shell</div><div className="kv-v">
+          <Cmd>systemctl status bothy-updater.service</Cmd>
+          <span className="set-note">Recovery never needs this page: the job’s status, history and audit lines live under{' '}
+            <span className="mono">~/.local/state/bothy/updates/</span>, and every snapshot under{' '}
+            <span className="mono">~/backups/pre-update/</span>.</span>
+        </div></div>
       </div>
-      {todo.length > 0 && (
+      {manual.length > 0 && (
         <div className="set-subsection">
-          <h3 className="set-h3">By hand, today<span className="set-h3-sub">{todo.length} components</span></h3>
+          <h3 className="set-h3">Still by hand<span className="set-h3-sub">{manual.length} components</span></h3>
           <ul className="upd-todo">
-            {todo.map((r) => {
+            {manual.map((r) => {
               const d2 = r.discovered!;
               const target = d2.latest?.tag;
               return (
@@ -318,15 +754,15 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
                   {target && d2.latest?.level ? (
                     <>
                       <span className="mono">{d2.current.tag ?? 'digest'}</span> → <span className="mono">{target}</span>{' '}
-                      <LevelBadge level={d2.latest.level} />: edit{' '}
+                      <LevelBadge level={d2.latest.level} />: merge its Dependabot PR (or edit{' '}
                       {[...new Set(r.pins.map(pinFile))].map((f, i) => (
                         <span key={f}>{i > 0 && ' and '}<span className="mono">{f}</span></span>
-                      ))}, then <Cmd>{r.apply}</Cmd>
+                      ))}), then <Cmd>{r.apply}</Cmd>
                     </>
                   ) : (
                     <>drifting - <Cmd>{r.apply}</Cmd> brings it back to its pin</>
                   )}
-                  {d2.drift && <span className="set-note">Drift: {d2.drift}.</span>}
+                  {r.plan && !r.plan.deployable && <span className="set-note">Not one click: <Ticks text={r.plan.reason} /></span>}
                   {r.oneWay && <span className="set-note">One-way: run <Cmd>just backup</Cmd> first. {r.oneWayWhy}</span>}
                 </li>
               );
@@ -335,18 +771,6 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
         </div>
       )}
       <div className="kv-list">
-        <div className="kv"><div className="kv-k">Check again</div><div className="kv-v">
-          <Cmd>just updates-discover</Cmd>
-          <span className="set-note">
-            Read-only: it asks the registries, GitHub and the helm index, and pulls nothing. Answers are cached for five hours;
-            add <span className="mono">--no-cache</span> to ask again. The <span className="mono">bothy-updates-discover</span> timer
-            runs it every {d?.policy.discoverEveryHours ?? 6} hours.
-          </span>
-        </div></div>
-        <div className="kv"><div className="kv-k">After an update</div><div className="kv-v">
-          <Cmd>just doctor</Cmd>
-          <span className="set-note">Then the component’s own canaries, which the design lists per component.</span>
-        </div></div>
         <div className="kv"><div className="kv-k">The design</div><div className="kv-v">
           <Link className="link" to={filesHref('read', 'stacks', 'docs/plans/updates.md')}>docs/plans/updates.md</Link>
           <span className="set-note">Plans, snapshots, verify and rollback - and why the updater runs on the host, not in a container.</span>
