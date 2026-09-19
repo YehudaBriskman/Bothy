@@ -171,7 +171,10 @@ def _pin(where: str, source: str, pin: str) -> None:
     if not sep:
         raise CatalogError(f"{where}: {pin!r} must be <file>:<name>")
     if source == "helm":
-        if not _SHELLVAR.fullmatch(name):
+        if f.endswith("Chart.yaml"):
+            if not _NAME.fullmatch(name):
+                raise CatalogError(f"{where}: {name!r} is not a chart dependency name")
+        elif not _SHELLVAR.fullmatch(name):
             raise CatalogError(f"{where}: {name!r} is not a SHELL_VARIABLE name")
     elif not _NAME.fullmatch(name):
         raise CatalogError(f"{where}: {name!r} is not a service or container name")

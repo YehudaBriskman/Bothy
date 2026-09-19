@@ -84,7 +84,7 @@ const SPECS: Spec[] = [
   { id: 'bothy', title: 'Bothy (web, files, ops)', cls: 'own-code', source: 'github', pins: ['VERSION'], apply: 'just up-apps', channel: 'notify',
     changelog: 'https://github.com/YehudaBriskman/Bothy/releases/tag/v{v}', dependants: ['bothy-web', 'bothy-files', 'bothy-ops'],
     tag: 'v2026.8.1', cands: { minor: 'v2026.9.0' } },
-  { id: 'kube-state-metrics', title: 'kube-state-metrics (chart)', cls: 'cluster', source: 'helm', pins: ['scripts/k8s-monitoring.sh:KSM_CHART_VERSION'],
+  { id: 'kube-state-metrics', title: 'kube-state-metrics (chart)', cls: 'cluster', source: 'helm', pins: ['k8s/monitoring/Chart.yaml:kube-state-metrics'],
     apply: 'just k8s-monitoring', channel: 'notify', changelog: 'https://github.com/prometheus-community/helm-charts/releases/tag/kube-state-metrics-{v}',
     tag: '8.5.0', running: null, notes: ['the cluster did not answer - installed chart unknown'],
     cands: { patch: '8.5.2', minor: '8.6.0' } },
