@@ -42,3 +42,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD python3 -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8099/healthz',timeout=2).status==200 else 1)"
 
 CMD ["python3", "-u", "app.py"]
+
+# The commit this image was built from (`just up-apps` passes the HEAD sha).
+# LAST, so a new commit changes one metadata layer and every layer above comes
+# from cache. The upgrade workflow compares it to HEAD with `docker inspect`: it
+# is how CI proves an upgrade actually rebuilt this image.
+ARG REVISION=unknown
+LABEL org.opencontainers.image.revision=$REVISION

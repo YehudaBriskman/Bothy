@@ -203,6 +203,17 @@ cmd_download() {
       || printf '    (some images could not be pulled - see `docker compose -f %s pull`)\n' "$f"
   done
   say "  $found compose file(s)"
+  # `pull` skips build-only services, and Bothy's own three are exactly that.
+  # `just up-apps` BUILDS them (it must, or an upgrade never applies new app
+  # code), and that build fetches base images and npm packages. Building here,
+  # labelled the way up-apps labels it, leaves the later build all cache hits.
+  # (No attestations for the same reason as there: see the justfile's up-apps.)
+  say "== building Bothy's own images =="
+  BOTHY_REVISION="$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
+  BUILDX_NO_DEFAULT_ATTESTATIONS=1 \
+    docker compose -f apps/bothy/compose.yml --env-file .env build --quiet 2>/dev/null \
+    && say "  built" \
+    || say "  (the build failed - \`docker compose -f apps/bothy/compose.yml build\` will say why)"
   if [ -d apps/bothy-web/web ]; then
     say "== portal dependencies =="
     ( cd apps/bothy-web/web && npm ci --silent 2>/dev/null ) \
@@ -228,6 +239,9 @@ cmd_upgrade() {
   say "== applying =="
   # No `down`, no `-v`. The Upgrade CI tier asserts that this preserves data and
   # does not recreate volumes; adding a `down` here would quietly break that.
+  # `just up` REBUILDS Bothy's own images (up-apps runs `compose build` first);
+  # a bare `up` would keep serving the old code. upgrade.yml asserts the running
+  # images are labelled with the new commit.
   just up
 }
 

@@ -32,6 +32,14 @@
 #      gate on it - it exits 0 no matter what it finds. A dump missing a database
 #      looks exactly like a dump that has it until the day you restore.
 #
+#   5. THE NEW CODE IS WHAT RUNS. bothy-web, bothy-files and bothy-ops must be
+#      images built from HEAD (their org.opencontainers.image.revision label),
+#      and bothy-web must serve HEAD's /version.json and HEAD's bundle. Added
+#      2026-09-18, when it turned out no upgrade had ever rebuilt them: (1)-(4)
+#      all compare data, so a box running last month's app code passed them.
+#      Together with (3) it also pins the build as a no-op when nothing changed:
+#      a rebuild that is not cache-stable would recreate containers there.
+#
 # ── why nightly ────────────────────────────────────────────────────────────
 #
 # It is two full installs back to back, ~15-20 minutes. The property changes when
@@ -135,6 +143,72 @@ jobs:
           echo "upgrading to:"; git log --oneline -1
           # Exactly what a person does: pull, then up. No down, no prune, no -v.
           just up
+
+      # ── the upgrade applied the new CODE, not only the new compose files ───
+      #
+      # Until 2026-09-18 it did not: bothy-web, bothy-files and bothy-ops are
+      # `build:` images, `up` never rebuilds an image that exists, and nothing
+      # passed --build - so every upgrade kept the old app code running, green,
+      # healthy and silent. Every assertion below this block compares DATA, so
+      # this job passed throughout. These two compare CODE.
+      - name: The running images were built from HEAD
+        run: |
+          set -uo pipefail
+          # The IMAGE's label, not the container's config: that is what was
+          # actually built. `just up-apps` sets it from `git rev-parse HEAD`.
+          rc=0
+          for c in bothy-web bothy-files bothy-ops; do
+            img=$(docker inspect -f '{{.Image}}' "$c") || { echo "FAIL  no container $c"; rc=1; continue; }
+            rev=$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$img")
+            if [ "$rev" = "$HEAD_SHA" ]; then
+              echo "  $c: built from $rev"
+            else
+              echo "FAIL  $c runs an image built from '${rev:-<no label>}', not HEAD $HEAD_SHA"
+              rc=1
+            fi
+          done
+          exit $rc
+
+      - name: bothy-web serves HEAD's bundle
+        working-directory: ${{ env.DIR }}
+        run: |
+          set -euo pipefail
+          # 1. /version.json, through the edge exactly as a browser gets it.
+          #    Bytes, not a status: the catch-all answers 200 for anything
+          #    (rule 7), and nginx serves this file with an exact location so a
+          #    missing one is a 404 rather than index.html.
+          got=$(curl -fsS -m 5 http://127.0.0.1/version.json)
+          echo "  /version.json: $got"
+          [ "$got" = "{\"revision\":\"$HEAD_SHA\"}" ] \
+            || { echo "FAIL  /version.json does not name HEAD $HEAD_SHA"; exit 1; }
+          # 2. The BUNDLE. The label says which commit the image was built from;
+          #    this says the page actually served is what HEAD's source builds
+          #    to. The reference is built from HEAD's web/ in the Dockerfile's
+          #    own pinned node stage (not the runner's node), and compared to the
+          #    served index.html byte for byte - it names every content-hashed
+          #    asset, so a stale bundle cannot match.
+          docker build -q --target build -t bothy-web-ref apps/bothy-web >/dev/null
+          docker run --rm bothy-web-ref cat /app/dist/index.html > /tmp/index-ref.html
+          curl -fsS -m 5 http://127.0.0.1/ > /tmp/index-served.html
+          ref_js=$(grep -o 'assets/index-[^"]*\.js' /tmp/index-ref.html | head -1 || true)
+          got_js=$(grep -o 'assets/index-[^"]*\.js' /tmp/index-served.html | head -1 || true)
+          echo "  HEAD builds: ${ref_js:-<none>}"
+          echo "  served:      ${got_js:-<none>}"
+          [ -n "$ref_js" ] || { echo "FAIL  the reference build has no index-*.js"; exit 1; }
+          if ! cmp -s /tmp/index-ref.html /tmp/index-served.html; then
+            echo "FAIL  the served index.html is not HEAD's build"
+            diff /tmp/index-ref.html /tmp/index-served.html | head -20 || true
+            exit 1
+          fi
+          # And the asset it names is really there - not the catch-all's
+          # index.html wearing a .js name.
+          ctype=$(curl -fsS -m 5 -o /dev/null -w '%{content_type}' "http://127.0.0.1/$got_js") \
+            || { echo "FAIL  /$got_js is not served"; exit 1; }
+          case "$ctype" in
+            *javascript*) ;;
+            *) echo "FAIL  /$got_js is served as '$ctype', not a script"; exit 1 ;;
+          esac
+          echo "  served index.html is byte-identical to HEAD's build"
 
       - name: The row is still there
         working-directory: ${{ env.DIR }}

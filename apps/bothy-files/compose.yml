@@ -34,6 +34,10 @@ services:
       # bothy-web's node_modules.
       context: ..
       dockerfile: bothy-files/Dockerfile
+      # The commit this image is built from, as the OCI revision label - see
+      # apps/bothy-web/compose.yml. `just up-apps` sets BOTHY_REVISION.
+      args:
+        REVISION: ${BOTHY_REVISION:-unknown}
     container_name: bothy-files
     restart: unless-stopped
     # Never root, and never able to become root: this process holds a writable
