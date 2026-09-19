@@ -222,6 +222,50 @@ for n_ in spool():
         os.unlink(os.path.join(SPOOL, n_))
 
 print()
+print("── one-way (app-db, step 5): type the name, two pins ────────────")
+KID = "fedcba9876543210fedcba98"
+kc = loki_plan(pid=KID)
+kc["component"] = "keycloak"
+kc["plan"].update({
+    "component": "keycloak", "title": "Keycloak", "class": "app-db", "confirm": "type-name", "level": "patch",
+    "from": {"image": "quay.io/keycloak/keycloak:26.7.3-0", "tag": "26.7.3-0", "version": "26.7.3",
+             "digest": D("c"), "container": "keycloak"},
+    "to": {"image": "quay.io/keycloak/keycloak:26.7.4-0", "tag": "26.7.4-0", "version": "26.7.4", "digest": D("d")},
+    "pin": {"file": "auth/compose.yml", "service": "keycloak", "line": 90, "text": "    image: x", "commit": "c" * 40},
+    "pins": [{"file": "auth/compose.yml", "service": "keycloak", "line": 90, "text": "    image: x",
+              "container": "keycloak"},
+             {"file": "auth/compose.yml", "service": "keycloak-init", "line": 150, "text": "    image: x",
+              "container": "keycloak-init"}],
+    "oneWay": True, "oneWayWhy": "Keycloak migrates its database on first start.",
+    "restarts": ["keycloak", "keycloak-init", "oauth2-proxy"], "recipe": "just up-auth",
+    "downtime": "~1-2 min: logins are unavailable; every gated route FAILS CLOSED meanwhile",
+    "signedOut": "nobody: Keycloak 26 persists user sessions", "rollback": "ONE-WAY: the dump is restored first",
+    "snapshot": {"kind": "keycloak", "what": "pg_dump -Fc", "dir": "~/backups/pre-update/<time>-keycloak/",
+                 "estimateBytes": 1_000_000}})
+write("plans/keycloak.json", kc)
+st, b = call("/updates/plan?component=keycloak")
+p = b.get("plan") or {}
+ok(st == 200 and p.get("confirm") == "type-name" and p.get("oneWay") is True and p["snapshot"]["kind"] == "keycloak"
+   and p["class"] == "app-db", f"a one-way plan is served: type-name, the keycloak snapshot ({st})")
+ok([(q["service"], q["line"]) for q in p.get("pins", [])] == [("keycloak", 90), ("keycloak-init", 150)]
+   and all("text" not in q and "container" not in q for q in p["pins"]),
+   f"…with BOTH pin lines, file/service/line only: {p.get('pins')}")
+ok("FAILS CLOSED" in p.get("downtime", "") and "persists" in p.get("signedOut", ""),
+   "…and what the plan says about downtime and sessions")
+K = {"component": "keycloak", "plan_id": KID}
+for conf, label in ((True, "a click on a type-name plan"), ("grafana", "another component's name"),
+                    ("Keycloak", "the name in the wrong case"), ("", "an empty name")):
+    st, b = call("/updates/request", method="POST", body={**K, "confirm": conf})
+    ok(st == 400 and spool() == [f"{jid}.json"], f"{label} -> 400, no file ({st}: {b.get('error', '')[:60]})")
+st, b = call("/updates/request", method="POST", body={**K, "confirm": "keycloak"})
+kj = b.get("jobId", "")
+kf = os.path.join(SPOOL, f"{kj}.json")
+ok(st == 202 and os.path.exists(kf) and json.load(open(kf))["confirm"] == "keycloak",
+   f"the typed name -> 202, and the spool file carries it for the executor to check again ({st})")
+if os.path.exists(kf):
+    os.unlink(kf)
+
+print()
 print("── job: queued, running, finished ───────────────────────────────")
 st, b = call(f"/updates/job?id={jid}")
 ok(st == 200 and b["job"]["state"] == "queued" and b["job"]["requestedBy"] == WHO, f"in the spool -> queued ({st})")

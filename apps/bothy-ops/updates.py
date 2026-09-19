@@ -635,13 +635,30 @@ def _plan(p: object) -> dict | None:
         "restarts": _strs_list(p.get("restarts"), 12, 100),
         "recipe": p["recipe"] if isinstance(p.get("recipe"), str) and _APPLY.fullmatch(p["recipe"]) else None,
         "downtime": _s(p.get("downtime"), 300), "signedOut": _s(p.get("signedOut"), 300),
-        "snapshot": {"kind": snap.get("kind") if snap.get("kind") in ("image", "victoriametrics", "loki") else None,
+        "pins": _pins(p.get("pins")),
+        "snapshot": {"kind": snap.get("kind") if snap.get("kind") in _SNAPSHOT_KINDS else None,
                      "what": _s(snap.get("what"), 400), "dir": _s(snap.get("dir"), 300),
                      "estimateBytes": est if isinstance(est, int) and not isinstance(est, bool) and est >= 0 else None},
         "preflight": _strs_list(p.get("preflight")),
         "verify": _strs_list(p.get("verify")),
         "rollback": _s(p.get("rollback"), 800),
     }
+
+
+_SNAPSHOT_KINDS = ("image", "victoriametrics", "loki", "grafana", "keycloak")
+
+
+def _pins(v: object) -> list[dict]:
+    """Every pin line a plan moves (two for Keycloak): file, service, line - never the raw text."""
+    out = []
+    for q in (v if isinstance(v, list) else [])[:4]:
+        if not isinstance(q, dict):
+            continue
+        line = q.get("line")
+        out.append({"file": _s(q.get("file"), 200), "service": _s(q.get("service"), 64),
+                    "line": line if isinstance(line, int) and not isinstance(line, bool) and 0 < line < 100000
+                    else None})
+    return out
 
 
 def _ref(v: object) -> dict | None:
