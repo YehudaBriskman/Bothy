@@ -1,8 +1,9 @@
 # Updates: keeping every part of Bothy current from the web UI
 
-Status: **steps 0-7 built** (step 4, the updater for the stateless and time-series classes; step 5, the one-way
-app-db class for Grafana and Keycloak; step 6, Bothy updating itself; step 7, the automatic channel - all 2026-09-19, see
-[Decisions](#decisions)); step 8 is design. Written 2026-09-18 from two read-only surveys:
+Status: **steps 0-8 built** (step 4, the updater for the stateless and time-series classes; step 5, the one-way
+app-db class for Grafana and Keycloak; step 6, Bothy updating itself; step 7, the automatic channel - all 2026-09-19;
+step 8, the cluster add-ons and the Postgres major - 2026-09-22; see [Decisions](#decisions)). What remains is listed
+under [What is left](#what-is-left). Written 2026-09-18 from two read-only surveys:
 - the repo and live box: every pin, volume, backup and restart;
 - the tooling and patterns available, with sources at the end.
 
@@ -101,9 +102,9 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 | Edge | traefik | digest plus `edge/dynamic/` copy | no | previous digest | patch `auto` once pinned by digest; minor `manual` |
 | Time-series | victoriametrics, loki | stop, then tar the volume | Loki: only a *schema* change (config, not image) | digest; tar if needed | patch `auto`, minor `notify` |
 | App plus database | grafana, keycloak | Grafana: **stop**, then tar `grafana_data`. Keycloak: `pg_dump -Fc keycloak` | **yes** | restore the snapshot, then the previous digest | `notify`; always manual |
-| Database | postgres | `pg_dumpall` plus a volume tar | major: **yes** | restore | minor: `manual`. Major: its own procedure (§5) |
+| Database | postgres | `pg_dumpall`; the old volume itself | major: **yes** | back to the OLD volume | minor: by hand. Major: plan kind `postgres-major`, manual, typed AND noted (§5, step 8) |
 | Own code | bothy-web, bothy-files, bothy-ops (plus the repo) | git SHA; images kept as `bothy-*:<sha>` | no (no database; audit and state live outside the images) | re-tag the previous SHA's images | `notify`; manual, one click |
-| Cluster add-ons | kube-state-metrics (helm), alloy DaemonSet, `k8s/` | `helm get values` plus revision; `kubectl get -o yaml` | usually no | `helm rollback`; re-apply the previous SHA | `manual`, host kubeconfig only, **never** bothy-ops' namespaced token (rule 6) |
+| Cluster add-ons | kube-state-metrics (helm), alloy DaemonSet | `helm get values` plus revision; `kubectl get -o yaml` | no | `helm rollback <rev>`; `kubectl replace` of the saved objects | `notify`, host kubeconfig only, **never** bothy-ops' namespaced token (rule 6). Built in step 8 |
 | Host tooling | minikube, kubectl, helm (mise, all `latest`) | — | minikube's k8s version: yes | — | out of scope for v1; pin in mise first |
 
 ## 5. The pipeline: one path for every component
@@ -152,13 +153,10 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 
 - **Grafana:** the schema migrates on start and can't be undone. Stop it before the tar, because a live `docker cp` of SQLite can be torn. Fix `backup.sh` the same way.
 - **Keycloak:** the database migrates on first start; the only way back is the pre-upgrade dump. Expect 1–2 minutes of downtime, during which gated routes fail closed. Blue/green isn't practical on one box. `just up-auth` re-runs `keycloak-init`, because the realm import only runs on first boot.
-- **Postgres major** (17 → 18): never automatic.
-  1. `pg_dumpall`.
-  2. Create a new volume `postgres18_data`.
-  3. Restore into it.
-  4. Switch the volume name in compose.
-
-  The old volume stays as the rollback. Prefer this over `pg_upgrade --link`, which shares data files with the old cluster and so weakens the rollback. `keycloak-db-init` moves to the same major in the same plan.
+- **Postgres major** (17 → 18): never automatic, never one click - built in step 8 as the plan kind `postgres-major`
+  ([Decisions](#step-8-2026-09-22-cluster-add-ons-and-the-postgres-major)). The PR changes the image AND the volume
+  name (`postgres18_data`), both pins; the updater dumps, restores into the new volume, compares every row and
+  switches. The old volume stays as the rollback and is deleted only by hand, later. Prefer this over `pg_upgrade --link`, which shares data files with the old cluster and so weakens the rollback. `keycloak-db-init` moves to the same major in the same plan.
 - **Loki:** image updates are ordinary. A schema change means *adding* a `period_config` entry with a future `from` date. The updater refuses any plan that edits an existing period.
 - **VictoriaMetrics:** its upgrades can skip versions, and it can be downgraded unless the changelog says otherwise, so rollback by digest normally works.
 - **Traefik:** updating it severs the page that asked for it. The UI polls `status.json` and tolerates the gap.
@@ -205,7 +203,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 6. **Own code:** tags, build-before-switch, the rollback timer, the `/version` banner. **Built 2026-09-19** - see
    [Decisions](#step-6-2026-09-19-bothy-updates-itself-to-a-green-release-tag).
 7. **Channels and the window:** automatic patches for the classes marked `auto`, one component per night after a successful 03:00 backup, stopping at the first failure. Plus a Grafana alert on `rolled_back` or failure. **Built 2026-09-19** - see [Decisions](#decisions).
-8. **Cluster add-ons** (helm and manifests) and the Postgres major procedure: documented, manual, and still driven through the same plan, snapshot and verify path.
+8. **Cluster add-ons** (helm and manifests) and the Postgres major procedure: documented, manual, and still driven through the same plan, snapshot and verify path. **Built 2026-09-22** - see [Decisions](#step-8-2026-09-22-cluster-add-ons-and-the-postgres-major).
 
 ## 8. Settings → Updates (UI)
 
@@ -335,8 +333,7 @@ result. So the class differs from the two before it in one rule: **the rollback 
   so `plans.py`'s single-pin rule widens to "every pin moves to the same image".
 - **Step 6, own code:** built - see below.
 - **Step 7, channels and the window:** built - see below.
-- **Step 8, cluster add-ons and the Postgres major:** classes whose apply is `just k8s-monitoring` or the dump/new-volume
-  procedure, still behind a plan id, a snapshot and verify.
+- **Step 8, cluster add-ons and the Postgres major:** built - see below.
 
 ### Step 7 (2026-09-19): the automatic channel is a host timer that writes a request
 
@@ -455,6 +452,95 @@ revision is not the one it loaded; a chunk that fails to load reloads the tab on
 `checks/e2e_owncode.py` (a throwaway clone and compose project with no host ports: v1 -> v2; a forced verify failure and a
 killed executor both restored to v1 by the rollback, the timer compressed to 8 s; a release that changes the updater staged,
 not switched). Four `mutants.sh` rows.
+
+### Step 8 (2026-09-22): cluster add-ons, and the Postgres major
+
+**Cluster add-ons: class `cluster`** (`updater/cluster.py`, `updater/k8s.py`). Same rule as every class: deploy only
+what `main` pins. The plan is "the cluster runs W; main pins X":
+
+| | kube-state-metrics (source helm) | alloy-cluster (source manifest) |
+|---|---|---|
+| W | the release's chart version (`helm list`) | the DaemonSet template's image (`kubectl get`) |
+| X | the dependency in `k8s/monitoring/Chart.yaml` | container `alloy`'s `image:` in `k8s/monitoring/alloy.yaml`, with discovery's digest |
+| Snapshot | `helm get values` + `get manifest` at the recorded **revision** | `kubectl get -o yaml` of the DaemonSet and every ConfigMap it mounts, plus a cleaned JSON copy |
+| Apply | `just k8s-monitoring ksm` | `just k8s-monitoring alloy` |
+| Verify (bodies) | helm deployed at a newer revision; `/metrics` through the NodePort carries `kube_node_info`; VictoriaMetrics' `up{job="kube-state-metrics",cluster="thales-scc"}` is 1 **from a scrape after the upgrade** (`timestamp()`) | rolled out and ready on every node, every pod's `imageID` ending in the planned digest; Loki holds `{cluster="thales-scc"}` lines **written after the rollout** |
+| Rollback | `helm rollback <release> <revision> --wait` | `kubectl replace` of the saved ConfigMap(s) and DaemonSet, then the rollout |
+
+- **Narrow apply.** `scripts/k8s-monitoring.sh` takes a part (`ksm`, `alloy`; none = everything, as before). The full
+  script applies both add-ons, so updating Alloy through it would also apply a merged-but-pending chart bump with no
+  snapshot - the cluster's version of the compose scope check.
+- **Identity (SECURITY.md rule 6).** The operator's kubeconfig (kubectl's default, or `Config.kubeconfig`), and the
+  context named on **every** kubectl/helm argv - never the current one. The plan asks `kubectl auth whoami` and
+  refuses any `system:serviceaccount:*` identity, which bothy-ops' namespaced token is; pre-flight refuses if the
+  identity changed since the plan.
+- **The rollback writes the old pin back** on its one line (Chart.yaml's `version:`, alloy.yaml's `image:`), strictly
+  and uncommitted - the same honest dirty tree as the compose classes, so the next `just k8s-monitoring` keeps what
+  works.
+- **Refused at plan time:** a ServiceAccount identity; no context; not installed; a release not `deployed`; nothing to
+  deploy; a downgrade; a major; discovery older than the checkout; an unknown digest or a floating pin; another image;
+  a workload that is not a DaemonSet; a dirty pin file; not on main or ahead of origin/main.
+- **Channel `notify`.** `AUTO_CLASSES` excludes `cluster`: never automatic; a click deploys a patch or a minor.
+- **Discovery** already read both pins; its `plans.write_all` now yields deployable cluster plans. Checked read-only
+  against thales-scc on 2026-09-22 (a scratch clone with bumped pins): both planned, and the four checks green.
+
+**The Postgres major: plan kind `postgres-major`** (`updater/pgmajor.py`; class `database`, component `postgres`).
+
+*How it fits "deploy what main pins".* `main` must pin the new major **and** the new volume name, so the PR for a
+Postgres major changes, in one commit: `data/postgres/compose.yml`'s `image:` (an exact `<major>.<minor>@sha256:…`),
+the service's mount `- postgres<N>_data:<dir>` and its top-level declaration, and `auth/compose.yml`'s
+keycloak-db-init image (the same ref). The updater performs the data move. Until it has, `just up-data` refuses
+(`scripts/pg-volume-guard.sh`): a plain `up` would start Postgres - and Keycloak's realm - on the empty new volume.
+So the nightly `upgrade.yml` goes red once, on the night its HEAD^1 -> HEAD crosses the major; that is the guard
+working. Postgres 18+ keeps its data under `/var/lib/postgresql/<major>/docker` and refuses a mount at
+`/var/lib/postgresql/data`, so the PR mounts the volume at `/var/lib/postgresql`. The plan refuses: the same volume
+name, any name but `postgres<N>_data`, an undeclared or optioned volume, 18+ at the old mount, keycloak-db-init on
+another ref, a pin without a digest, a minor, a downgrade, and a new volume that already exists (an earlier attempt:
+a person looks, then removes it - the updater never deletes a volume).
+
+*Never automatic, never one click.* `confirm: type-name` **and** `requiresNote`: bothy-ops (the operator route)
+refuses a request without the typed id and a one-line maintenance note of 10-500 characters, and refuses a note on any
+other plan; the note goes into the spool file and `admin.log`; the executor checks both again and refuses the actor
+`auto`. `database` is not in `AUTO_CLASSES` and the channel is `manual`, so the night job never sees it.
+
+*The procedure*, one `status.json` step each: **preflight** (the nightly pg_dumpall < 24 h; free disk >= 3x the data
+for Docker, 2x for the dump; Keycloak healthy and its step-5 canaries green; the new volume absent; the recipes touch
+only the pinned services) -> **pull** (by digest) -> **stop** Keycloak, oauth2-proxy, postgres-exporter -> **dump**
+(`pg_dumpall` with the NEW major's client over the old container's loopback; every table's row count read from the
+dump's COPY blocks; then the old Postgres stops) -> **create** the new volume (with compose's labels) and a temporary
+container on the new image, no network -> **load** (every stderr line read; only `role "<superuser>" already exists`
+allowed) -> **compare** (every database and table row count equal to the dump's, Keycloak's `user_entity` named; the
+temporary container goes) -> **switch** (`just up-data`: compose recreates Postgres from main on the full volume) ->
+**start** (`just up-auth`: keycloak-db-init on the new major, Keycloak, oauth2-proxy, keycloak-init) -> **verify**
+(databases and Keycloak's users present, both pins on the new image, Keycloak's canaries: issuer, realm,
+keycloak-init, the admin token, a real sign-in viewer 202 / shell 403).
+
+*One deliberate reordering of the brief:* the writers stop **before** the dump. A dump taken while Keycloak runs loses
+whatever Keycloak writes until it stops, and "the row counts match the dump" would hold for a dump already stale. The
+"fresh pg_dumpall" pre-flight is the nightly one.
+
+*Rollback: to the OLD volume, never deleted.* Before the switch nothing in the tree moved and the old container still
+exists: the temporary container goes, the old Postgres and the writers start again. After it, the old image (both
+pins), the old mount and the old declaration go back on their lines - strict one-line edits, uncommitted - and
+`just up-data` / `just up-auth` put everything back; what was written to the new cluster since the switch is lost. The
+new volume is kept for a person. Deleting the old volume is a separate manual command that the plan and the result
+name (`docker volume rm postgres_postgres_data`).
+
+**Tests.** `checks/test_step8.py` (both kinds of plan and every refusal, against copies of the real files, with fake
+kubectl/helm and docker inspect; the note rules; the dump reader; the guard); `checks/api_updates_apply.py` (the note
+through the real handler); `checks/e2e_pgmajor.py` (throwaway Postgres 17 with a seeded dev DB and a fake Keycloak
+schema -> 18: a forced failure before the switch and one after it, each back on the 17 volume with every row, then
+success); `checks/e2e_cluster.py` (a throwaway `minikube -p bothy-cluster-e2e` in a temporary kubeconfig with a
+throwaway VictoriaMetrics and Loki: kube-state-metrics 8.4.2 -> 8.5.0 and Alloy v1.19.1 -> v1.19.2, each forced to
+roll back, then deployed). Seven `mutants.sh` rows.
+
+## What is left
+
+- **The auth boundary and the edge** (oauth2-proxy, the socket proxies, Traefik) are still updated by hand (§4).
+- **A Postgres minor** is still `just up-data` by hand; the updater moves Postgres only across a major.
+- **Host tooling** (minikube, kubectl, helm) stays out of scope until it is pinned in mise (§4).
+- **§8 extras:** editing a channel from the page (through the config tier) and a history row's "Roll back" as a plan.
+- **Editor saves committed to a `local/edits` branch** (§6): the updater still refuses a dirty tree instead.
 
 ## Sources
 

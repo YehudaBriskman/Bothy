@@ -86,7 +86,14 @@ xh --ignore-stdin :3100/loki/api/v1/query_range query=='{cluster="thales-scc",na
 ```sh
 just k8s-monitoring     # cluster side + token; safe to re-run
 just up-monitoring      # compose side; adds compose.cluster.yml when the thales-scc network exists
+just k8s-monitoring ksm     # ONLY the kube-state-metrics release   } what the host updater runs to
+just k8s-monitoring alloy   # ONLY the Alloy DaemonSet + ConfigMap  } move one add-on (updates step 8)
 ```
+
+A pin bump here (Dependabot's Chart.yaml PR, or alloy.yaml's image) is deployed from
+Settings > Updates once merged and pulled: the updater snapshots the release or the
+DaemonSet, runs the narrow part, checks kube_node_info / `up` / Loki, and rolls back
+(`helm rollback`, `kubectl replace`) on a failure - see docs/plans/updates.md, step 8.
 
 **Always start victoriametrics through `just up-monitoring`** (or pass both `-f`
 files). A bare `docker compose -f monitoring/compose.yml up -d victoriametrics`

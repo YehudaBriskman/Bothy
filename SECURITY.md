@@ -572,7 +572,8 @@ operator routes, a type-the-name confirmation and a `manage-users` client first.
 ### 8. Updates: the browser asks, the host decides, and only for what `main` pins
 
 Added 2026-09-19 (build steps 3, 4, 5 and 7 of `docs/plans/updates.md`; step 6,
-Bothy updating itself to a green release tag, the same day). Five exact
+Bothy updating itself to a green release tag, the same day; step 8, the cluster
+add-ons and the Postgres major, 2026-09-22). Five exact
 `Path() && Method()` routers in the hand-written `edge/dynamic/bothy-updates.yml`
 (kept out of the generated `bothy-ops.yml`): `GET /-/api/updates/status`, `/plan`
 and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
@@ -658,8 +659,10 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
   a one-way component, on the auth boundary, and on any class outside
   `AUTO_CLASSES` (stateless, time-series); `effective_channel()` makes a minor of
   an auto component `notify` and any major `manual`. The updater's own classes
-  (`updater/classes.py`) are a separate, code-reviewed list: the boundary, the
-  database and the cluster are refused at plan time; the one-way app-db class is
+  (`updater/classes.py`) are a separate, code-reviewed list: the boundary and the
+  edge are refused at plan time; the database class is the Postgres MAJOR only
+  (`updater/pgmajor.py`, below) and the cluster class has its own plan
+  (`updater/cluster.py`, below); the one-way app-db class is
   handled for grafana and keycloak only, whose snapshot and restore are written
   for them; own code has its own plan (`updater/owncode.py`, above) and is never
   `auto` (its channel is `notify`, and `AUTO_CLASSES` excludes it).
@@ -680,6 +683,37 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
   compromised bothy-ops gains from this route is lifting a pause, after which the
   night job is still held to the window, the backup, doctor, one a night and the
   executor's whole pre-flight; `just update-unpause` is the shell path.
+- **Cluster add-ons (class `cluster`, build step 8)** widen the host's reach to the
+  cluster, and only as far as `just k8s-monitoring` already goes: for
+  kube-state-metrics (a helm chart) and alloy-cluster (a DaemonSet image), move
+  to the version `main` pins, through the NARROW part of
+  `scripts/k8s-monitoring.sh` (`ksm` or `alloy`) - one add-on in namespace
+  `monitoring`, never the other's pending pin. Rule 6 holds in both directions:
+  the updater acts with the **operator's** kubeconfig and names the context on
+  every kubectl/helm argv (never the current one), and it asks `kubectl auth
+  whoami` and refuses any ServiceAccount - bothy-ops' namespaced token cannot be
+  borrowed, and bothy-ops itself still gains no cluster grant: it can only name
+  the component and the host's plan id. A rollback is `helm rollback` to the
+  recorded revision or a `kubectl replace` of the objects saved before, and
+  writes the old pin back on its line (uncommitted). Channel `notify`; never
+  automatic (`AUTO_CLASSES` excludes it).
+- **The Postgres major (plan kind `postgres-major`, class `database`, step 8)**
+  is the one plan a click can never run. It requires the component's id typed
+  AND a one-line maintenance note (10-500 characters), checked by bothy-ops and
+  again by the executor, which also refuses the actor `auto`; the class is
+  outside `AUTO_CLASSES` and the channel `manual`. It deploys only what `main`
+  pins - the new major AND the new volume name `postgres<N>_data`, both pins -
+  and performs the data move: the writers stopped, `pg_dumpall` into
+  `pre-update/` (600 in 700; the superuser's credentials from `.env` reach
+  `docker exec` / `docker run` as environment, never argv), a new volume and a
+  temporary container with **no network**, a restore whose every error line is
+  read, every database and row count compared with the dump, then compose's
+  switch. The OLD volume is never touched after the dump and never deleted by
+  the updater - nor is the new one; deleting either is a person's later command.
+  The worst a compromised bothy-ops gains here is starting a merged, reviewed
+  major at a moment of its choosing - and it cannot even do that without a note
+  in `admin.log`. Until the move has run, `just up-data` refuses to start
+  Postgres on the empty new volume (`scripts/pg-volume-guard.sh`).
 - **The own-code rollback timer is not a channel.** It only ever restores the
   previous version of a job someone (or the night job, which never picks own
   code) asked for, and it disarms when verify passes.
