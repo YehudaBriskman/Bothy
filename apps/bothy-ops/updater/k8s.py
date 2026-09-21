@@ -87,7 +87,8 @@ def helm_release(cfg, namespace: str, name: str) -> dict | None:
     """{revision, chart, status, appVersion} of an installed release, or None."""
     if not (_NAME.fullmatch(namespace) and _NAME.fullmatch(name)):
         raise HostError("a release names an unusable namespace or name")
-    rc, out, err = run(helm(cfg, "-n", namespace, "list", "-a", "-o", "json", "--filter", f"^{re.escape(name)}$"),
+    # No -a: helm 4 lists every status by default and dropped the flag.
+    rc, out, err = run(helm(cfg, "-n", namespace, "list", "-o", "json", "--filter", f"^{re.escape(name)}$"),
                        timeout=30)
     if rc != 0:
         raise HostError(f"helm list: {tail(err or out, 200)}")
