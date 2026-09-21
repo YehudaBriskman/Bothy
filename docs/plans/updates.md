@@ -437,7 +437,7 @@ the window anyway (the bothy-files editor) is saved to `own/<job>.dirty.json` be
 
 **The updater never replaces itself.** It runs from `~/.local/lib/bothy-updater/<sha>/` (the Python it imports, exported
 from git by `just install-updater`, with an `INSTALL.json` naming the checkout and each file's git object id) through a
-`current` symlink that both `bothy-updater.service` and `bothy-updates-discover.service` use - discovery writes the plans,
+`current` symlink that `bothy-updater.service`, `bothy-updates-discover.service` and step 7's `bothy-updater-auto.service` all use - discovery writes the plans,
 and a plan id must be computed by the code that re-checks it. A release whose updater files differ from the installed copy
 only **stages** the new copy (`staged` symlink, `state/updater.json`); Settings > Updates and `just update-status` say a
 switch is pending, and `just install-updater` makes it, between jobs. The own-code plan refuses while the updater runs from
