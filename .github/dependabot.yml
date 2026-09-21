@@ -36,6 +36,15 @@ updates:
       prefix: "chore(portal)"
       include: scope
     labels: [dependencies, portal]
+    # HOLD react/react-dom below 19.3 until @react-three/fiber allows it. fiber
+    # 9.7.0 (newest, checked 2026-09-21) peers `react >=19 <19.3`, so every group
+    # PR carrying 19.3 fails `npm ci` with ERESOLVE (#188, #199). Remove this
+    # block once `npm view @react-three/fiber peerDependencies` accepts 19.3.
+    ignore:
+      - dependency-name: "react"
+        versions: [">=19.3.0"]
+      - dependency-name: "react-dom"
+        versions: [">=19.3.0"]
     groups:
       # One PR for the routine bumps; majors still arrive on their own, because
       # a React or three.js major needs `npx tsc -b --noEmit` and a real browser.
