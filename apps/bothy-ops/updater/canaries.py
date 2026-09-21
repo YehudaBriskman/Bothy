@@ -468,12 +468,21 @@ def vm_job_up(job: str | None = None) -> Canary:
     def check(ctx: Ctx) -> tuple[bool, str]:
         j = job or (ctx.plan.get("cluster") or {}).get("job") or ""
         sel = f'up{{job="{j}",cluster="{ctx.cfg.kube_cluster_label}"}}'
-        q = urllib.parse.quote(f"max(timestamp({sel} == 1))")
-        st, body = probe(ctx, f"http://127.0.0.1:8428/api/v1/query?query={q}", cred=_vm_cred_of(ctx),
-                         container=ctx.cfg.vm_container)
+        # The value, then WHEN it was scraped. MetricsQL's tlast_over_time() is the raw
+        # sample's own timestamp; timestamp() of an instant query is aligned to the
+        # query step (measured: multiples of 300 s), which says nothing about "after".
+        cred = _vm_cred_of(ctx)
+        st, body = probe(ctx, "http://127.0.0.1:8428/api/v1/query?query=" + urllib.parse.quote(f"max({sel})"),
+                         cred=cred, container=ctx.cfg.vm_container)
+        r = _vector(body) if st == 200 else None
+        if not r or _scalar_sum(r) != 1:
+            return False, f"{st}: {sel} is not 1 ({tail(body, 120)})"
+        st, body = probe(ctx, "http://127.0.0.1:8428/api/v1/query?query="
+                         + urllib.parse.quote(f"max(tlast_over_time({sel}[2m]))"),
+                         cred=cred, container=ctx.cfg.vm_container)
         r = _vector(body) if st == 200 else None
         if not r:
-            return False, f"{st}: {sel} is not 1 ({tail(body, 120)})"
+            return False, f"{st}: no scrape time for {sel} ({tail(body, 120)})"
         ts = _scalar_sum(r)
         t0 = ctx.baseline.get("appliedAt") if ctx.phase != "preflight" else None
         if t0 and ts <= t0:
