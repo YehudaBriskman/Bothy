@@ -571,7 +571,8 @@ operator routes, a type-the-name confirmation and a `manage-users` client first.
 
 ### 8. Updates: the browser asks, the host decides, and only for what `main` pins
 
-Added 2026-09-19 (build steps 3, 4, 5 and 7 of `docs/plans/updates.md`). Five exact
+Added 2026-09-19 (build steps 3, 4, 5 and 7 of `docs/plans/updates.md`; step 6,
+Bothy updating itself to a green release tag, the same day). Five exact
 `Path() && Method()` routers in the hand-written `edge/dynamic/bothy-updates.yml`
 (kept out of the generated `bothy-ops.yml`): `GET /-/api/updates/status`, `/plan`
 and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
@@ -615,6 +616,28 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
   noise (a refused request is a history line). It can edit none of the records:
   `status.json`, `history.jsonl` and the executor's `audit.log` sit in the
   directory it mounts read-only.
+- **Bothy itself (class `own-code`, build step 6)** widens that by exactly one
+  thing: for component `bothy`, **fast-forward the checkout to the newest
+  release tag** that is on `origin/main`, ahead of HEAD, names its own
+  `VERSION`, and whose commit's GitHub check runs all passed - then rebuild and
+  restart bothy-web, bothy-files and bothy-ops from it. It still chooses no
+  version and no commit: the target is derived on the host after a `git fetch`.
+  The plan refuses a dirty or untracked tree, a diverged checkout, a tag that is
+  not green or not on `main`, and any release that changes
+  `apps/bothy/compose.socket-proxy.yml` - the socket proxies stay a manual
+  update, because `just up-apps` would otherwise recreate the auth boundary as a
+  side effect of a UI click. Its worst case is therefore "move to a release CI
+  passed on `main`, at a moment of its choosing", and a failed verify (or a dead
+  executor) puts the previous commit and images back through a `systemd-run
+  --user` timer armed before the checkout moves. That `git reset --hard` is the
+  one destructive write, and it is safe only because pre-flight proved the tree
+  clean; an edit made inside the window is saved first.
+- **The updater never runs the code it is deploying.** Its units run
+  `~/.local/lib/bothy-updater/current` - a copy of the updater's files exported
+  from git by `just install-updater` - never the checkout. A release that
+  changes the updater only stages its copy beside `current`; switching is a
+  person running `just install-updater` on the host. So a release cannot change
+  the program that validates the next request without someone choosing to.
 - **The one write to the tree** is a rollback's: the old image goes back on the
   pin line (every pin line of the component - Keycloak has two), a single-line
   edit that aborts unless the line still reads exactly
@@ -635,10 +658,11 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
   a one-way component, on the auth boundary, and on any class outside
   `AUTO_CLASSES` (stateless, time-series); `effective_channel()` makes a minor of
   an auto component `notify` and any major `manual`. The updater's own classes
-  (`updater/classes.py`) are a separate, code-reviewed list: the boundary, own
-  code, the database and the cluster are refused at plan time; the one-way
-  app-db class is handled for grafana and keycloak only, whose snapshot and
-  restore are written for them.
+  (`updater/classes.py`) are a separate, code-reviewed list: the boundary, the
+  database and the cluster are refused at plan time; the one-way app-db class is
+  handled for grafana and keycloak only, whose snapshot and restore are written
+  for them; own code has its own plan (`updater/owncode.py`, above) and is never
+  `auto` (its channel is `notify`, and `AUTO_CLASSES` excludes it).
 - **The automatic channel (step 7) is a host timer, not a new power.**
   `bothy-updater-auto.timer` (03:30, `Persistent=false`) runs
   `updater/auto.py` as devssh on the host. Inside the `[policy]` window, after
@@ -656,6 +680,9 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
   compromised bothy-ops gains from this route is lifting a pause, after which the
   night job is still held to the window, the backup, doctor, one a night and the
   executor's whole pre-flight; `just update-unpause` is the shell path.
+- **The own-code rollback timer is not a channel.** It only ever restores the
+  previous version of a job someone (or the night job, which never picks own
+  code) asked for, and it disarms when verify passes.
 
 ---
 

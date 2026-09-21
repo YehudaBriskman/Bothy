@@ -1,0 +1,38 @@
+/* "Bothy updated - reload" (components/UpdateBanner.tsx).
+   Fixed at the bottom so it moves no content and survives every page's own
+   layout (Settings and Control fix their height and scroll inside). Accent, not
+   the status palette: a new version is news, not a fault. Below the command
+   palette's scrim (z 80), above the page and the scroll rail. */
+.upd-banner {
+  position: fixed; z-index: 70;
+  left: 50%; bottom: 16px; translate: -50% 0;
+  width: max-content; max-width: min(640px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 10px 10px 14px;
+  background: var(--surface-2); color: var(--fg);
+  border: 1px solid var(--accent-line); border-left: 3px solid var(--accent);
+  border-radius: var(--r-md); box-shadow: var(--shadow-md);
+  animation: upd-banner-in .22s cubic-bezier(.2, .7, .2, 1);
+}
+.upd-banner-ico { flex: none; color: var(--accent-fg, var(--accent)); }
+.upd-banner-text { margin: 0; min-width: 0; font-size: 13px; line-height: 1.45; color: var(--fg-muted); }
+.upd-banner-text b { color: var(--fg); }
+.upd-banner-text .mono { color: var(--fg); font-size: 12.5px; }
+.upd-banner-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.upd-banner .btn { padding: 6px 12px; font-size: 12.5px; border-radius: var(--r-sm); }
+.upd-banner .btn.icon-only { padding: 6px 7px; }
+.upd-banner .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+@keyframes upd-banner-in { from { opacity: 0; translate: -50% 8px; } }
+
+/* A phone: the full width minus the 16px gutters, and the actions under the text
+   rather than squeezing it into a column of three words. */
+@media (max-width: 520px) {
+  .upd-banner { left: 16px; right: 16px; translate: none; width: auto; max-width: none; flex-wrap: wrap; bottom: 12px; }
+  .upd-banner-text { flex: 1 1 calc(100% - 30px); }
+  .upd-banner-actions { margin-left: 28px; }
+  @keyframes upd-banner-in { from { opacity: 0; translate: 0 8px; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .upd-banner { animation: none; }
+}

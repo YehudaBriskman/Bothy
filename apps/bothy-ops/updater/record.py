@@ -28,11 +28,15 @@ from .config import Config
 from .hostio import iso
 
 STEPS = ("validate", "preflight", "snapshot", "pull", "apply", "verify", "rollback", "restore", "record")
+# Own code (owncode.py) builds instead of pulling, arms a rollback timer, moves
+# the checkout, and may stage a new copy of the updater itself.
+OWN_STEPS = ("validate", "preflight", "build", "snapshot", "arm", "switch", "apply", "verify", "rollback",
+             "stage", "record")
 RESULTS = ("succeeded", "rolled_back", "aborted", "failed", "refused")
 HISTORY_KEEP = 500
 
 
-def new_job(req: dict, name: str) -> dict:
+def new_job(req: dict, name: str, steps: tuple[str, ...] = STEPS) -> dict:
     """A job record for a claimed request - built from its FIELDS only if they
     passed validation; otherwise from what can be said safely."""
     ok = isinstance(req, dict)
@@ -48,7 +52,7 @@ def new_job(req: dict, name: str) -> dict:
         "endedAt": None,
         "from": None, "to": None,
         "steps": [{"name": s, "state": "pending", "startedAt": None, "endedAt": None, "detail": None}
-                  for s in STEPS if s not in ("rollback", "restore")],
+                  for s in steps if s not in ("rollback", "restore")],
         "error": None, "snapshot": None, "note": None,
     }
 
@@ -68,9 +72,20 @@ class Recorder:
             if s["name"] == name:
                 return s
         s = {"name": name, "state": "pending", "startedAt": None, "endedAt": None, "detail": None}
-        # rollback/restore appear only when they happen, before `record`.
-        self.job["steps"].insert(len(self.job["steps"]) - 1, s)
+        # rollback/restore appear only when they happen, before `record` (and
+        # before own code's `stage`, which only a success reaches).
+        names = [x["name"] for x in self.job["steps"]]
+        at = names.index("stage") if "stage" in names else len(names) - 1
+        self.job["steps"].insert(at, s)
         return s
+
+    def reshape(self, steps: tuple[str, ...]) -> None:
+        """Swap in another class's step list, keeping the steps already taken."""
+        have = {s["name"]: s for s in self.job["steps"]}
+        self.job["steps"] = [have.get(n) or {"name": n, "state": "pending", "startedAt": None, "endedAt": None,
+                                             "detail": None}
+                             for n in steps if n not in ("rollback", "restore")]
+        self._write()
 
     def audit(self, step: str, state: str, detail: str = "") -> None:
         j = self.job

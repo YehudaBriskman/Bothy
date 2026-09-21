@@ -13,6 +13,7 @@ import { ThemeMenu } from './ThemeMenu';
 import { Brand } from './Brand';
 import { CommandPalette } from './CommandPalette';
 import { UserMenu } from './UserMenu';
+import { UpdateBanner } from './UpdateBanner';
 
 // Three destinations, and they are three DATASETS rather than three views.
 // Services, Access and Topology used to hold three of the five slots between
@@ -204,6 +205,8 @@ export function AppShell() {
       </AnimatePresence>
 
       <CommandPalette open={paletteOpen} onClose={closePalette} />
+      {/* "Bothy updated - reload": the served build is no longer this tab's. */}
+      <UpdateBanner />
     </div>
   );
 }

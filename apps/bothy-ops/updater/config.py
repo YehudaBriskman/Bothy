@@ -12,9 +12,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from . import OPS
-
-REPO = os.path.dirname(os.path.dirname(OPS))
+from . import CODE, INSTALLED, REPO
 
 
 def _state_root() -> str:
@@ -23,6 +21,15 @@ def _state_root() -> str:
 
 def _backup_root() -> str:
     return os.environ.get("BACKUP_ROOT") or os.path.expanduser("~/backups")
+
+
+def _lib_root() -> str:
+    return os.environ.get("BOTHY_UPDATER_LIB") or os.path.expanduser("~/.local/lib/bothy-updater")
+
+
+# Bothy's own three, in the order an update brings them up (docs/plans/updates.md
+# §6): bothy-web LAST, so the page showing the progress stays up the longest.
+OWN_SERVICES = ("bothy-files", "bothy-ops", "bothy-web")
 
 
 @dataclass
@@ -48,11 +55,46 @@ class Config:
     # Extra per-component words for a plan (downtime, signed out) - tests only.
     specifics: dict = field(default_factory=dict)
 
+    # ── own code (class own-code, component `bothy`; build step 6) ──────────────
+    # Where the updater is installed: <lib>/<sha>/ and a `current` symlink.
+    lib: str = ""
+    # The compose file that builds Bothy's images, repo-relative.
+    own_compose: str = "apps/bothy/compose.yml"
+    # service -> container name, and service -> image repository (`<repo>:<sha>`).
+    # The same names on the box; a throwaway project's in the end-to-end test.
+    own_containers: dict = field(default_factory=dict)
+    own_images: dict = field(default_factory=dict)
+    # The rollback timer: armed before the checkout moves, fires unless verify
+    # disarms it. 10 minutes on the box; seconds in the test.
+    own_rollback_after: int = 600
+    own_apply_timeout: int = 420          # per service: `just up-apps <svc>`, --wait included
+    own_build_timeout: int = 1800         # npm ci + vite build, from a cold cache
+    # The edge's catch-all, as a browser reaches it. None: skip it (no Traefik - tests).
+    own_edge_url: str | None = "http://127.0.0.1/"
+    # Health endpoints read in each container's network namespace: svc -> (url, regex).
+    own_health: dict = field(default_factory=lambda: {
+        "bothy-files": ("http://127.0.0.1:8099/healthz", r'"ok"\s*:\s*true'),
+        "bothy-ops": ("http://127.0.0.1:8097/healthz", r'"ok"\s*:\s*true'),
+    })
+    own_web_port: int = 80
+    # `git fetch` while planning. Off only where there is no origin to ask.
+    own_fetch: bool = True
+    # CI's verdict on a sha: a callable(repo, sha) -> {green, via, detail, runs}.
+    # None: the GitHub API (through `gh` when it is logged in, else unauthenticated).
+    own_checks: object = None
+    github_api: str = "https://api.github.com"
+    # Tests only - there is no environment variable for it: "fail" makes verify
+    # fail, "hang" makes verify sleep past the rollback timer.
+    own_force_verify: str | None = None
+
     def __post_init__(self) -> None:
         self.repo = os.path.realpath(self.repo)
         self.catalog = self.catalog or os.path.join(self.repo, "apps", "bothy-ops", "updates.toml")
         self.state = self.state or os.path.join(_state_root(), "bothy", "updates")
         self.backups = self.backups or _backup_root()
+        self.lib = self.lib or _lib_root()
+        self.own_containers = {s: self.own_containers.get(s, s) for s in OWN_SERVICES}
+        self.own_images = {s: self.own_images.get(s, s) for s in OWN_SERVICES}
         if self.textfile == "":
             self.textfile = os.path.join(_state_root(), "bothy", "textfile")
 
@@ -92,9 +134,21 @@ class Config:
     def snapshots(self) -> str:
         return os.path.join(self.backups, "pre-update")
 
+    @property
+    def own_dir(self) -> str:
+        """Own-code jobs' files: the armed rollback, its result, the CI cache."""
+        return os.path.join(self.state, "own")
+
+    @property
+    def updater_file(self) -> str:
+        """Which updater copy is installed and which is staged - bothy-ops reads it."""
+        return os.path.join(self.state, "updater.json")
+
     @staticmethod
     def script(name: str) -> str:
         # The scripts are CODE, so they come from the checkout this package was
         # loaded from - not from `repo`, which is the tree being deployed (and a
-        # temporary one in the tests).
-        return os.path.join(REPO, "scripts", name)
+        # temporary one in the tests). An INSTALLED copy carries no scripts/
+        # (updater/install.py copies the Python only), so it uses the checkout it
+        # was installed from, whose scripts/lib/env.sh finds that checkout's .env.
+        return os.path.join(REPO if INSTALLED else CODE, "scripts", name)

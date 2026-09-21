@@ -116,7 +116,12 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
     klass = classes.get(comp.cls, comp.id)
     if klass is None:
         raise PlanRefused(f"class {comp.cls} is not handled by the updater yet (it handles stateless, "
-                          f"timeseries and app-db) - update it by hand: merge its pin, then `{comp.apply}`")
+                          f"timeseries, app-db and own-code) - update it by hand: merge its pin, then `{comp.apply}`")
+    if comp.cls == "own-code":
+        # Bothy itself: HEAD -> the newest green release tag (build step 6). Not
+        # a compose pin at all, so before the pin rules below.
+        from . import owncode
+        return owncode.plan(comp, cfg, catalog, available, target)
     if comp.source != "image" or not comp.pins:
         raise PlanRefused("the updater handles compose image pins only")
     parts = [comp.pin_parts(i) for i in range(len(comp.pins))]

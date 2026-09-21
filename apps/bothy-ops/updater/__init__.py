@@ -3,9 +3,15 @@
     python3 -m updater plan [--component ID] [--target TAG]   compute / write plans
     python3 -m updater run                                     drain the spool (the systemd unit)
     python3 -m updater status                                  print status.json and the last jobs
+    python3 -m updater install                                 install HEAD's updater and switch to it
+    python3 -m updater upgrade [--yes]                         `bothy upgrade`: update Bothy itself
+    python3 -m updater own-rollback <armed file>               the own-code rollback timer's command
 
-Run from apps/bothy-ops (host/systemd/bothy-updater.service sets
-WorkingDirectory). Standard library only, like discover_updates.py and
+Run from apps/bothy-ops - on the box, from the INSTALLED copy
+~/.local/lib/bothy-updater/current/apps/bothy-ops (host/systemd/bothy-updater.service
+sets WorkingDirectory; `just install-updater` puts it there), so that an update
+of Bothy itself never replaces the program running it (updater/install.py).
+Standard library only, like discover_updates.py and
 inventory.py: it runs under the system python3, as devssh, with no venv.
 
 ── what it deploys: ONLY what `main` already pins ─────────────────────────────
@@ -51,8 +57,28 @@ from __future__ import annotations
 import os
 import sys
 
+import json
+
 PKG = os.path.dirname(os.path.abspath(__file__))
 OPS = os.path.dirname(PKG)
+# Where this CODE lives: the checkout, or ~/.local/lib/bothy-updater/<sha>/.
+CODE = os.path.dirname(os.path.dirname(OPS))
+
+
+def _install_manifest() -> dict | None:
+    """INSTALL.json of an installed copy (updater/install.py), else None."""
+    try:
+        with open(os.path.join(CODE, "INSTALL.json"), encoding="utf-8") as fh:
+            doc = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return doc if isinstance(doc, dict) and isinstance(doc.get("repo"), str) else None
+
+
+INSTALLED = _install_manifest()
+# The checkout the updater DEPLOYS: the one it was installed from, or - run from a
+# checkout, as the tests and `just update-plan` do - that checkout itself.
+REPO = os.path.realpath(INSTALLED["repo"]) if INSTALLED else CODE
 # updates.py (the catalog parser) and discover_updates.py (the pin readers) are
 # siblings of this package; updates.py finds bothy_common by itself.
 if OPS not in sys.path:

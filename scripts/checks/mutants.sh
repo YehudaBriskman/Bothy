@@ -434,6 +434,37 @@ mutant "bothy-ops may write as the night job" \
   -- python3 apps/bothy-ops/checks/api_updates_apply.py
 
 echo
+echo "── what Bothy will deploy of itself (step 6) ───────────────────────"
+# Bothy updating itself moves the checkout and restarts the UI that asked. What
+# keeps it to reviewed code is four refusals in the plan and one fact about where
+# the updater runs. Each row removes one, as a "why is it refusing?" fix would.
+mutant "Bothy deploys a release CI did not pass" \
+  apps/bothy-ops/updater/owncode.py \
+  'if not ci.get("green"):' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_owncode.py
+
+mutant "Bothy deploys a tag that is not on main" \
+  apps/bothy-ops/updater/owncode.py \
+  '    rc, _ = git(cfg.repo, "merge-base", "--is-ancestor", sha, "refs/remotes/origin/main")
+    if rc != 0:' \
+  '    rc, _ = git(cfg.repo, "merge-base", "--is-ancestor", sha, "refs/remotes/origin/main")
+    if False:' \
+  -- python3 apps/bothy-ops/checks/test_owncode.py
+
+mutant "Bothy moves (and may reset) a dirty checkout" \
+  apps/bothy-ops/updater/owncode.py \
+  'if rc != 0 or dirty:' \
+  'if rc != 0:' \
+  -- python3 apps/bothy-ops/checks/test_owncode.py
+
+mutant "the updater runs from the checkout it moves" \
+  host/systemd/bothy-updater.service \
+  '/.local/lib/bothy-updater/current/apps/bothy-ops' \
+  '/stacks/apps/bothy-ops' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+echo
 echo "── the shell layer macOS has to parse ──────────────────────────────"
 # bash 4 syntax is a PARSE error on the bash 3.2 macOS ships: the script does not
 # run at all, and the error names a line that looks fine.

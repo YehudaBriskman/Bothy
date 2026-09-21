@@ -145,27 +145,39 @@ export interface UpdatesStatus {
   history?: HistoryEntry[];
   /** Step 7: the automatic channel. Absent from an older service. */
   auto?: { enabled: boolean; actor: string; paused: string[]; last: AutoDecision | null };
+  /** Step 6: which copy of the host updater runs, and a newer one staged by an
+   *  update of Bothy itself, waiting for `just install-updater`. Null: not installed. */
+  updater?: UpdaterInfo | null;
   components: UpdateRow[];
+}
+
+export interface UpdaterInfo {
+  current: string | null;
+  installedAt: string | null;
+  staged: string | null;
+  stagedAt: string | null;
 }
 
 // ── plans, requests, jobs (step 4) ───────────────────────────────────────────
 
 export type PlanSummary =
-  | { id: string; deployable: true; from: string; to: string; level: 'patch' | 'minor'; createdAt: string }
+  | { id: string; deployable: true; from: string; to: string; level: Level; createdAt: string }
   | { id: null; deployable: false; reason: string; createdAt: string | null };
 
 export interface Plan {
   id: string;
   component: string;
   title: string;
-  class: 'stateless' | 'timeseries' | 'app-db';
+  class: 'stateless' | 'timeseries' | 'app-db' | 'own-code';
   createdAt: string;
-  level: 'patch' | 'minor';
+  /** A major only for Bothy itself (calendar versions), and then type-the-name. */
+  level: Level;
   /** 'type-name' (every one-way plan, and any major) means confirm must equal the component id. */
   confirm: 'click' | 'type-name';
   from: { image: string; tag: string | null; version: string | null; digest: string | null; container: string };
   to: { image: string; tag: string | null; version: string | null; digest: string | null };
-  pin: { file: string; service: string; line: number; commit: string };
+  /** `service` is null for Bothy itself, whose "pin" is VERSION. */
+  pin: { file: string; service: string | null; line: number; commit: string };
   /** Every pin line the plan moves - Keycloak's image is pinned twice. Absent from an older service. */
   pins?: { file: string; service: string; line: number | null }[];
   changelog: string | null;
@@ -176,12 +188,39 @@ export interface Plan {
   downtime: string;
   signedOut: string;
   snapshot: {
-    kind: 'image' | 'victoriametrics' | 'loki' | 'grafana' | 'keycloak';
+    kind: 'image' | 'victoriametrics' | 'loki' | 'grafana' | 'keycloak' | 'git';
     what: string; dir: string; estimateBytes: number | null;
   };
   preflight: string[];
   verify: string[];
   rollback: string;
+  /** Bothy itself (class own-code, step 6): a green release tag instead of a pin. */
+  own?: OwnPlan;
+}
+
+export interface OwnPlan {
+  fromSha: string | null;
+  toSha: string | null;
+  /** The release tag, `v2026.9.1` - release.yml cuts it only on a green commit. */
+  tag: string | null;
+  releaseUrl: string | null;
+  commits: number | null;
+  diffstat: string | null;
+  /** Which images' SOURCE changed. All three are recreated regardless. */
+  apps: string[];
+  /** Bothy's own compose files - applied by `just up-apps`. */
+  compose: string[];
+  /** edge/dynamic - Traefik reloads them the moment the checkout moves. */
+  edge: string[];
+  /** Other stacks' files: in the checkout afterwards, NOT applied by this update. */
+  elsewhere: string[];
+  elsewhereCount: number | null;
+  /** The release changes the updater itself: staged, never switched mid-run. */
+  updater: boolean;
+  updaterFiles: string[];
+  ci: { via: string | null; detail: string | null; runs: number | null };
+  rollbackAfter: number | null;
+  order: string[];
 }
 
 export interface PlanAnswer {
@@ -193,7 +232,10 @@ export interface PlanAnswer {
 }
 
 export type JobState = 'queued' | 'running' | 'succeeded' | 'rolled_back' | 'aborted' | 'failed' | 'refused';
-export type StepName = 'validate' | 'preflight' | 'snapshot' | 'pull' | 'apply' | 'verify' | 'rollback' | 'restore' | 'record';
+export type StepName = 'validate' | 'preflight' | 'snapshot' | 'pull' | 'apply' | 'verify' | 'rollback' | 'restore' | 'record'
+  // Bothy itself (step 6): build before anything changes, arm the rollback timer,
+  // move the checkout, stage a new updater.
+  | 'build' | 'arm' | 'switch' | 'stage';
 export type StepState = 'pending' | 'running' | 'ok' | 'failed' | 'skipped';
 
 export interface JobStep {

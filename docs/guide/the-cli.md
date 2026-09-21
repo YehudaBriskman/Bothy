@@ -16,7 +16,7 @@ exists at all.
 |---|---|
 | `bothy init [dir]` | check prerequisites, clone, install `just`, record where the checkout is, and bring it up. Default directory is `~/bothy`. |
 | `bothy download` | pre-fetch every image and dependency, so a later `up` needs no network |
-| `bothy upgrade` | pull the checkout and apply it, preserving your data |
+| `bothy upgrade` | move to the newest green release and apply it, preserving your data (through the host updater when it is installed) |
 | `bothy self-update` | replace the `bothy` on your `PATH` with the checkout's copy |
 | `bothy version` | what this checkout is - version, commit, whether it is modified, and where it lives |
 | `bothy doctor --pre` | check prerequisites **before** a checkout exists |
@@ -87,7 +87,10 @@ clone anything.
 This is the single most confusing thing about the CLI and it is worth being
 blunt about:
 
-- **`bothy upgrade` updates the box.** It pulls the checkout and re-applies it.
+- **`bothy upgrade` updates the box.** With the host updater installed it runs
+  the same plan and executor as Settings > Updates (a green release tag, built
+  first, rolled back on failure); without it, it pulls the checkout and
+  re-applies it. [Upgrading](upgrading.md) has both.
 - **`bothy self-update` updates this script.** It copies `scripts/bothy` from
   the checkout over the `bothy` on your `PATH`.
 

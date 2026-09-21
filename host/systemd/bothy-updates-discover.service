@@ -14,7 +14,12 @@ Environment=HOME=/home/devssh
 # kubectl and helm come from mise's shims. Without them the two cluster rows say
 # "the cluster did not answer", which is true enough to be harmless.
 Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/bin/python3 /home/devssh/stacks/apps/bothy-ops/discover_updates.py --quiet
+# From the INSTALLED updater (`just install-updater`), like bothy-updater.service:
+# discovery also writes the plans, and a plan's id must be computed by the same
+# code that re-computes it before it acts. The copy reads the pins, the catalog
+# and the tags from the checkout named in its INSTALL.json. For Bothy itself it
+# runs `git fetch` (remote-tracking refs and tags only - never the working tree).
+ExecStart=/usr/bin/python3 /home/devssh/.local/lib/bothy-updater/current/apps/bothy-ops/discover_updates.py --quiet
 Nice=10
 # A registry that hangs must not hold the next run's slot.
 TimeoutStartSec=10min

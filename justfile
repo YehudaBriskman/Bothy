@@ -268,8 +268,17 @@ up-data: network
 # and the service refuses to boot without them - a safety net nobody notices is
 # missing is worse than none. Docker would create them root-owned otherwise.
 #
+# `services` (optional) limits the build and the `up` to those services - the
+# own-code updater brings bothy-files, bothy-ops and bothy-web up one at a time,
+# web last. Two environment switches, both the updater's (docs/plans/updates.md
+# step 6) and harmless by hand:
+#   BOTHY_IMAGE_TAG     the tag of bothy-{web,files,ops}; default HEAD's sha
+#   BOTHY_UP_NO_BUILD=1 do not build: run the images already tagged so (the
+#                       updater built them from a temporary worktree first; its
+#                       rollback re-runs the previous commit's)
+#
 # Apps: Bothy's five containers, plus the cluster overlay when thales-scc exists.
-up-apps: network
+up-apps *services: network
     #!/usr/bin/env bash
     set -euo pipefail
     state="${STATE_ROOT:-$HOME/.local/state}"
@@ -329,15 +338,35 @@ up-apps: network
     # (same test), which is why it is an env var here and not a compose key.
     # Nothing is pushed anywhere, so nothing reads the attestation.
     BOTHY_REVISION="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-    export BOTHY_REVISION BUILDX_NO_DEFAULT_ATTESTATIONS=1
-    docker compose "${files[@]}" build
+    # The image TAG is the commit too (compose.yml: bothy-web:${BOTHY_IMAGE_TAG}),
+    # so the previous commit's images survive this build under their own name.
+    BOTHY_IMAGE_TAG="${BOTHY_IMAGE_TAG:-$BOTHY_REVISION}"
+    export BOTHY_REVISION BOTHY_IMAGE_TAG BUILDX_NO_DEFAULT_ATTESTATIONS=1
+    # `${a[@]+"${a[@]}"}`: an EMPTY array under `set -u` is an unbound-variable
+    # error on bash 3.2 (macOS), and both of these are usually empty.
+    svcs=({{services}})
+    up_flags=()
+    if [ "${BOTHY_UP_NO_BUILD:-}" = 1 ]; then
+      echo "BOTHY_UP_NO_BUILD=1: running the images tagged $BOTHY_IMAGE_TAG, not building"
+      up_flags=(--no-build)
+    else
+      docker compose "${files[@]}" build ${svcs[@]+"${svcs[@]}"}
+    fi
     # --remove-orphans: a service dropped from the project (socket-proxy became
     # socket-read in 2026-09) must not keep running under its old definition.
     # --wait: return only once every Bothy container is HEALTHY. Traefik routes
     # nothing to a container still `starting`, and bothy-web carries the `/`
     # catch-all - so "up" returning early meant a few seconds in which the box
     # answered Traefik's 404 on its front page (CI's install job, 2026-09-18).
-    docker compose "${files[@]}" up -d --remove-orphans --wait --wait-timeout 180
+    docker compose "${files[@]}" up -d --remove-orphans --wait --wait-timeout 180 \
+      ${up_flags[@]+"${up_flags[@]}"} ${svcs[@]+"${svcs[@]}"}
+    # Images named by commit accumulate: keep each one's three newest. `image rm`
+    # of a tag a container still runs is refused by Docker, so this never removes
+    # what is running - and the updater's rollback re-tags what it needs by id.
+    for repo in bothy-web bothy-files bothy-ops; do
+      old=$(docker image ls "$repo" --format '{{{{.Tag}}' 2>/dev/null | grep -E '^[0-9a-f]{40}$' | tail -n +4 || true)
+      for t in $old; do docker image rm "$repo:$t" >/dev/null 2>&1 || true; done
+    done
     # ...and healthy is not yet ROUTED: Traefik batches provider changes (2s
     # throttle), measured 1.2-1.9s after --wait returns. Wait for the catch-all
     # itself to be in the router table, so the next command sees the front page.
@@ -522,6 +551,15 @@ update-pauses:
 # Clear the automatic-update pause of one component (an operator's decision).
 update-unpause component:
     cd apps/bothy-ops && python3 -m updater unpause {{quote(component)}}
+
+# The updater never replaces itself mid-run (docs/plans/updates.md step 6): the
+# systemd units run ~/.local/lib/bothy-updater/current, a copy of the updater's
+# files at one commit. This copies HEAD's (from git, not the working tree) and
+# switches `current` atomically. An update of Bothy that changes the updater only
+# STAGES the new copy; Settings > Updates then says this switch is pending.
+# Install (or switch to) HEAD's updater in ~/.local/lib/bothy-updater - its systemd units run from there.
+install-updater:
+    cd apps/bothy-ops && python3 -m updater install
 
 # What it saves, and how, is listed at the top of scripts/backup.sh.
 # Back up postgres, grafana, .env, VictoriaMetrics, Loki, alloy, audit/trash and notes now (the nightly timer also runs this).

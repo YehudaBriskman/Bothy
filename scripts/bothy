@@ -226,6 +226,25 @@ cmd_download() {
 cmd_upgrade() {
   home=$(require_home) || exit 1
   cd "$home" || exit 1
+  # WITH THE HOST UPDATER INSTALLED (`just install-updater`), this is not a pull
+  # at all: it drives the SAME plan and executor Settings > Updates does - the
+  # newest release tag CI marked green, built before anything running changes,
+  # a rollback timer armed, bothy-files, bothy-ops and bothy-web brought up in
+  # that order, verified by bodies, rolled back on failure (docs/plans/updates.md
+  # step 6). A blanket `git pull && just up` would bypass every one of those, and
+  # would move the checkout the updater's rollback depends on under it.
+  #
+  # WITHOUT it - a fresh install, CI, a box that never ran install-updater - the
+  # old path below stays: main's tip, pulled and applied, no rollback. It is what
+  # `just install-updater` exists to replace.
+  updater="${BOTHY_UPDATER_LIB:-$HOME/.local/lib/bothy-updater}/current/apps/bothy-ops"
+  if [ -d "$updater/updater" ]; then
+    say "== the host updater is installed - updating Bothy through it =="
+    cd "$updater" || die "cannot enter $updater"
+    exec python3 -m updater upgrade "$@"
+  fi
+  say "(the host updater is not installed: pulling main and applying it, with no rollback."
+  say " \`just install-updater\` makes this a verified, rolled-back-on-failure update.)"
   before=$(git rev-parse --short HEAD)
   say "== pulling =="
   git pull --ff-only || die "pull failed - the checkout has local changes or has diverged"
@@ -317,7 +336,9 @@ bothy - install and run a Bothy box
                         (default ~/bothy)
   bothy download        pre-fetch every image and dependency, so a later
                         `up` needs no network
-  bothy upgrade         pull and apply, preserving your data
+  bothy upgrade [--yes] update to the newest green release, preserving your
+                        data (through the host updater when it is installed;
+                        otherwise pull main and apply it)
   bothy self-update     replace the bothy on your PATH with the checkout's
                         copy - `upgrade` updates the box, not this file
   bothy version         what this checkout is

@@ -62,6 +62,16 @@ from typing import Callable
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
+# Run from the INSTALLED updater copy (~/.local/lib/bothy-updater/current, see
+# updater/install.py), the pins and the catalog are still the checkout's: the
+# copy's INSTALL.json names it. Read, never trusted beyond "a path".
+try:
+    with open(os.path.join(REPO, "INSTALL.json"), encoding="utf-8") as _fh:
+        _inst = json.load(_fh)
+    if isinstance(_inst, dict) and isinstance(_inst.get("repo"), str) and os.path.isdir(_inst["repo"]):
+        REPO = os.path.realpath(_inst["repo"])
+except (OSError, ValueError):
+    pass
 sys.path.insert(0, HERE)
 
 import updates  # noqa: E402  (the catalog parser bothy-ops uses - one definition of valid)
@@ -858,7 +868,7 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv)
 
     try:
-        catalog = updates.load(os.path.join(HERE, "updates.toml"))
+        catalog = updates.load(os.path.join(REPO, "apps", "bothy-ops", "updates.toml"))
     except (updates.CatalogError, OSError, ValueError) as e:
         print(f"updates.toml is invalid - nothing discovered: {e}", file=sys.stderr)
         return 2
