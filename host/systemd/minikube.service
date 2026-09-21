@@ -32,7 +32,12 @@ User=devssh
 Group=devssh
 Environment=HOME=/home/devssh
 Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# The compose services that join the `thales-scc` docker network start first at
+# boot and one of them can take the node's fixed IP (.2) - then start exits 80,
+# "Address already in use" (headlamp, 2026-09-21). Pre frees it, post reconnects.
+ExecStartPre=/home/devssh/stacks/scripts/minikube-node-ip.sh pre
 ExecStart=/home/devssh/.local/share/mise/shims/minikube start -p thales-scc
+ExecStartPost=/home/devssh/stacks/scripts/minikube-node-ip.sh post
 ExecStop=/home/devssh/.local/share/mise/shims/minikube stop -p thales-scc
 TimeoutStartSec=600
 

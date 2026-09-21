@@ -29,7 +29,7 @@ docs/kb/topology.md	tailnet-ip	6
 edge/compose.yml	tailnet-ip	1
 .env.example	tailnet-ip	1
 host/dnsmasq/dev.conf	tailnet-ip	1
-host/systemd/minikube.service	home-path	3
+host/systemd/minikube.service	home-path	5
 host/systemd/stacks-backup.service	home-path	1
 host/windows/install-portproxy-refresh.cmd	tailnet-ip	1
 host/windows/refresh-portproxy.ps1	tailnet-ip	3
