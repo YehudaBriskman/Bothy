@@ -33,7 +33,9 @@
 .bothy-files .fx-fact dt { color: var(--fg-subtle); font-size: 11px; }
 .bothy-files .fx-fact dd { margin: 0; color: var(--fg-muted); font-size: 11.5px; min-width: 0; }
 .bothy-files .fx-fact-path { overflow-wrap: anywhere; font-size: 11px; color: var(--fg); }
-.bothy-files .fx-fact .tag { font-size: 9.5px; padding: 1px 7px; }
+/* 11px, the smallest step of the type scale: at 9.5px the status-coloured
+   "git"/"yes" tags were the smallest status text in the app (audit SYS-3). */
+.bothy-files .fx-fact .tag { font-size: 11px; padding: 1px 7px; }
 
 /* ── downloads ───────────────────────────────────────────────────────────────
    The last row of the facts, on the facts' own 68px grid, so "Download" reads

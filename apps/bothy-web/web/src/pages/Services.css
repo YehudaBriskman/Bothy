@@ -23,7 +23,16 @@
 .services-page .filter-chips .chip.on .n {
   color: var(--fg); background: color-mix(in oklab, var(--accent) 22%, transparent);
 }
-.services-page .filter-chips .chip.is-zero { opacity: 0.45; }
+/* A zero count is a fact, not a disabled control (design audit CT-3,
+   2026-09-21). It was `opacity: .45`, which took a chip that is still a live,
+   focusable toggle down to 1.9-2.4:1. It stays clickable - the counts are LIVE,
+   so a chip that is 0 now can be 3 on the next poll, and a control that drops
+   out of the tab order and comes back between polls is worse than one that
+   filters to an honest empty table - and it reads as empty by its SHAPE: a
+   dashed border and no fill, with the label and count at their normal,
+   measured contrast (--fg-muted 4.5+:1, --fg-subtle 4.5+:1). */
+.services-page .filter-chips .chip.is-zero { border-style: dashed; background: transparent; }
+.services-page .filter-chips .chip.is-zero .n { background: transparent; }
 .services-page .filter-select select { font-variant-numeric: tabular-nums; }
 
 /* ── group collapse body (framer animates height) ───────────────────────── */

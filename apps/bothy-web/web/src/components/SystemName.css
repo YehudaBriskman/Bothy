@@ -75,7 +75,7 @@
 }
 .sn-drift-h { margin: 0; display: flex; align-items: center; gap: 8px;
   font-size: 13.5px; font-weight: 700; color: var(--fg); }
-.sn-drift-h svg { flex: none; color: var(--st-warn); }
+.sn-drift-h svg { flex: none; color: var(--st-warn-fg); }
 
 /* Declared against observed, in the collector's own vocabulary. A two-column
    grid so the two values line up and the difference is the thing you see; it
