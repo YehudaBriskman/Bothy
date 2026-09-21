@@ -571,11 +571,11 @@ operator routes, a type-the-name confirmation and a `manage-users` client first.
 
 ### 8. Updates: the browser asks, the host decides, and only for what `main` pins
 
-Added 2026-09-19 (build steps 3 and 4 of `docs/plans/updates.md`). Four exact
+Added 2026-09-19 (build steps 3, 4 and 7 of `docs/plans/updates.md`). Five exact
 `Path() && Method()` routers in the hand-written `edge/dynamic/bothy-updates.yml`
 (kept out of the generated `bothy-ops.yml`): `GET /-/api/updates/status`, `/plan`
-and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` behind
-**`sso-operator`**. Every request, refusals included, is a line in
+and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
+`POST /-/api/updates/unpause` behind **`sso-operator`**. Every request, refusals included, is a line in
 `apps/bothy-ops/audit/admin.log`.
 
 - **Discovery and plans run on the host**, not in a container:
@@ -624,8 +624,24 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` behind
   `AUTO_CLASSES` (stateless, time-series); `effective_channel()` makes a minor of
   an auto component `notify` and any major `manual`. The updater's own classes
   (`updater/classes.py`) are a separate, code-reviewed list: one-way classes,
-  the boundary, own code and the cluster are refused at plan time. No timer
-  applies anything; `auto` is step 7 and not built.
+  the boundary, own code and the cluster are refused at plan time.
+- **The automatic channel (step 7) is a host timer, not a new power.**
+  `bothy-updater-auto.timer` (03:30, `Persistent=false`) runs
+  `updater/auto.py` as devssh on the host. Inside the `[policy]` window, after
+  tonight's `stacks-backup.service` succeeded (unit result AND a fresh dump), it
+  writes at most ONE request a night into the spool - the exact schema bothy-ops
+  writes, with the actor `auto`, for an `auto`-channel component's **patch** plan
+  - and the unchanged executor re-validates it like any other. bothy-ops refuses
+  to write the actor `auto` itself (403), so the name in every record is the
+  system's only when the system wrote it. A `rolled_back` or `failed` job pauses
+  auto for that component in `~/.local/state/bothy/updates/auto.json` (600, in
+  the directory bothy-ops mounts read-only): bothy-ops can SHOW a pause and
+  cannot clear one. `POST /-/api/updates/unpause` (operator, audited) only drops
+  `unpause-<id>.json` into the spool - an exact key set, the actor never `auto`,
+  read `O_NOFOLLOW` - and the executor's loop clears the pause itself. The worst a
+  compromised bothy-ops gains from this route is lifting a pause, after which the
+  night job is still held to the window, the backup, doctor, one a night and the
+  executor's whole pre-flight; `just update-unpause` is the shell path.
 
 ---
 

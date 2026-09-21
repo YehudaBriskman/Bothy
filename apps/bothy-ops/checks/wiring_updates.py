@@ -6,9 +6,9 @@ Run: python3 checks/wiring_updates.py      (needs PyYAML - the system python3 ha
 Static, and apart from wiring.py for wiring_admin.py's reason: these routers are
 hand-written, those are generated.
 
-  EDGE     edge/dynamic/bothy-updates.yml: exactly four routers, each an exact
+  EDGE     edge/dynamic/bothy-updates.yml: exactly five routers, each an exact
            `Path() && Method()`: status, plan and job are GET behind sso-viewer;
-           request is POST behind sso-OPERATOR; all strip, deidentify, then the
+           request and unpause are POST behind sso-OPERATOR; all strip, deidentify, then the
            gate, then sso-errors; its own middlewares and service; no gate
            redefined; no doubled brace; allow-listed in edge/dynamic/.gitignore;
            and NOT in the generated bothy-ops.yml
@@ -24,7 +24,7 @@ hand-written, those are generated.
   HOST     the discover service/timer and the updater path/service exist; the
            updater runs `python3 -m updater run` as the owner, from the path unit
            watching exactly the spool
-  UI       lib/updates.ts calls exactly these four paths
+  UI       lib/updates.ts calls exactly these five paths
 """
 import os
 import re
@@ -53,7 +53,7 @@ def read(rel: str) -> str:
     return open(os.path.join(REPO, rel), encoding="utf-8").read()
 
 
-print("── EDGE: four exact paths, each with its method and its gate ──")
+print("── EDGE: five exact paths, each with its method and its gate ──")
 src = read("edge/dynamic/bothy-updates.yml")
 ok("{{" not in src and "}}" not in src, "no doubled brace anywhere")
 edge = yaml.safe_load(src)["http"]
@@ -63,8 +63,9 @@ WANT = {  # router -> (path, method, gate)
     "bothy-updates-plan": ("/-/api/updates/plan", "GET", "sso-viewer"),
     "bothy-updates-job": ("/-/api/updates/job", "GET", "sso-viewer"),
     "bothy-updates-request": ("/-/api/updates/request", "POST", "sso-operator"),
+    "bothy-updates-unpause": ("/-/api/updates/unpause", "POST", "sso-operator"),
 }
-ok(set(routers) == set(WANT), f"exactly four routers: {sorted(routers)}")
+ok(set(routers) == set(WANT), f"exactly five routers: {sorted(routers)}")
 for name, (path, method, gate) in WANT.items():
     r = routers.get(name, {})
     ok(r.get("rule") == f"Path(`{path}`) && Method(`{method}`)", f"{name}: exact Path and {method} only")
@@ -72,9 +73,10 @@ for name, (path, method, gate) in WANT.items():
     ok(r.get("middlewares") == ["bothy-updates-strip", "updates-deidentify", gate, "sso-errors"],
        f"{name}: strip, deidentify, {gate}, sso-errors - in that order")
     ok(r.get("service") == "bothy-updates" and r.get("entryPoints") == ["web"], f"{name}: its own service, on web")
-ok([n for n, r in routers.items() if "sso-operator" in r.get("middlewares", [])] == ["bothy-updates-request"],
-   "the ONE route that changes anything is the only one behind operator")
-ok(all("POST" not in r["rule"] for n, r in routers.items() if n != "bothy-updates-request"),
+WRITES = ["bothy-updates-request", "bothy-updates-unpause"]
+ok(sorted(n for n, r in routers.items() if "sso-operator" in r.get("middlewares", [])) == WRITES,
+   "the TWO routes that ask the host for anything are the only ones behind operator")
+ok(all("POST" not in r["rule"] for n, r in routers.items() if n not in WRITES),
    "no read accepts a POST")
 mws = edge.get("middlewares", {})
 ok(set(mws) == {"bothy-updates-strip", "updates-deidentify"}, f"defines only its own middlewares: {sorted(mws)}")
@@ -142,7 +144,8 @@ app = read("apps/bothy-ops/app.py")
 ok('route in ("/updates/status", "/updates/plan", "/updates/job")' in app and "updates.CATALOG = updates.load()" in app,
    "app.py routes the three GETs and refuses to start on a bad catalog")
 post = app.split("def do_POST", 1)[1].split("def main", 1)[0]
-ok(re.findall(r'"/updates/[a-z]+"', post) == ['"/updates/request"'], "the only POST under /updates is /updates/request")
+ok(re.findall(r'"/updates/[a-z]+"', post) == ['"/updates/request"', '"/updates/unpause"'],
+   "the only POSTs under /updates are /updates/request and /updates/unpause")
 upd = read("apps/bothy-ops/updates.py")
 ok(not re.search(r"^\s*(import|from)\s+(subprocess|socket|http\.client|urllib\.request)\b", upd, re.M),
    "updates.py imports nothing that starts a process or opens a connection")
@@ -175,13 +178,14 @@ ok("Type=oneshot" in usv and "User=devssh" in usv and "ExecStart=/usr/bin/python
    and re.search(r"^WorkingDirectory=/\S+/apps/bothy-ops$", usv, re.M) is not None and "NoNewPrivileges=yes" in usv,
    "bothy-updater.service: one run of the executor, as the owner, no new privileges")
 ok(not os.path.exists(os.path.join(REPO, "host/systemd/bothy-updater.timer")),
-   "there is no updater timer: nothing is applied unless someone asked (auto channels are step 7)")
+   "the executor has no timer of its own: it runs a request someone - or the auto night job - wrote "
+   "(checks/wiring_auto.py covers bothy-updater-auto.timer)")
 print()
 print("── UI: the client calls exactly these paths ─────────────────────")
 ts = read("apps/bothy-web/web/src/lib/updates.ts")
 paths = set(re.findall(r"['`](/-/api/updates/[a-z/-]+)", ts))
-ok(paths == {f"/-/api/updates/{p}" for p in ("status", "plan", "request", "job")},
-   f"lib/updates.ts calls exactly the four routed paths: {sorted(paths)}")
+ok(paths == {f"/-/api/updates/{p}" for p in ("status", "plan", "request", "job", "unpause")},
+   f"lib/updates.ts calls exactly the five routed paths: {sorted(paths)}")
 
 print()
 if fails:

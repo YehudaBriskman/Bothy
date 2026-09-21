@@ -7,6 +7,8 @@
     GET  /updates/job        ?id=  one job: queued, running or finished - viewer
     POST /updates/request    {component, plan_id, confirm} - operator. Writes ONE
                              file into the spool and answers 202. Runs nothing.
+    POST /updates/unpause    {component} - operator. Writes ONE unpause file into
+                             the spool (step 7); the host clears the pause.
 
 Build steps 3 and 4 of docs/plans/updates.md. This process never pulls, never
 edits a pin and never restarts anything for an update: the host executor
@@ -484,6 +486,8 @@ def _row_plan(cid: str) -> dict | None:
 
 def status(catalog: Catalog) -> dict:
     doc, meta = _available()
+    auto_state = _auto_state()
+    unpausing = {d["component"] for d in _unpause_queued()}
     found = doc["components"] if doc else {}
     rows = []
     for c in catalog.components.values():
@@ -500,6 +504,10 @@ def status(catalog: Catalog) -> dict:
             "behind": level in ("minor", "major"),
             "discovered": disc,
             "plan": _row_plan(c.id),
+            # Step 7: the host's pause (auto.json, read-only here) and whether an
+            # operator's unpause is already waiting in the spool.
+            "paused": auto_state["paused"].get(c.id),
+            "unpauseQueued": c.id in unpausing,
         })
     summary = {
         "components": len(rows),
@@ -519,6 +527,8 @@ def status(catalog: Catalog) -> dict:
             "applying": bool(queue) or bool(job and job["state"] == "running"),
             "job": job,
             "history": _history(20),
+            "auto": {"enabled": p.max_auto_per_night > 0, "actor": AUTO_ACTOR,
+                     "paused": sorted(auto_state["paused"]), "last": auto_state["last"]},
             "components": rows}
 
 
@@ -769,6 +779,10 @@ def request_update(h, who: str) -> tuple[dict, str]:
         raise Refused("component must be a catalog id", status=400)
     if not isinstance(pid, str) or not _PLAN.fullmatch(pid):
         raise Refused("plan_id must be 24 hex characters", status=400)
+    if flat(who) == AUTO_ACTOR:
+        # The night job's name (updater/auto.py). Nobody signs in as it, and a
+        # request that did would read as the system's in every record.
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
     comp = CATALOG.components.get(cid)
     if comp is None:
         raise Refused(f"{cid} is not in updates.toml", status=404)
@@ -818,6 +832,99 @@ def request_update(h, who: str) -> tuple[dict, str]:
             f"{cid} plan {pid} job {job}: {p['from']['image']} -> {p['to']['image']}")
 
 
+# ══ step 7: the automatic channel's pauses ═══════════════════════════════════
+#
+# The pause state is the HOST's (updater/auto.py writes auto.json, 600, in the
+# directory mounted here read-only). This process shows it and can ask for one
+# pause to be cleared - one small file in the spool - and nothing more: the
+# executor's loop claims the file, re-checks it and clears the pause itself.
+
+AUTO_ACTOR = "auto"
+MAX_AUTO_BYTES = 512 * 1024
+_UNPAUSE_FILE = re.compile(r"unpause-([a-f0-9]{32})\.json")
+AUTO_OUTCOMES = ("requested", "skipped")
+
+
+def _auto_state() -> dict:
+    doc = _read_json(os.path.join(UPDATES_DIR, "auto.json"), MAX_AUTO_BYTES)
+    out: dict = {"paused": {}, "last": None}
+    if not isinstance(doc, dict) or doc.get("version") != 1:
+        return out
+    paused = doc.get("paused") if isinstance(doc.get("paused"), dict) else {}
+    for cid, p in list(paused.items())[:64]:
+        if not isinstance(cid, str) or not _ID.fullmatch(cid) or not isinstance(p, dict):
+            continue
+        out["paused"][cid] = {
+            "since": _iso_or_none(p.get("since")),
+            "result": p.get("result") if p.get("result") in ("rolled_back", "failed") else None,
+            "reason": _s(p.get("reason"), 300) or "a rollback or a failure",
+            "jobId": p["jobId"] if isinstance(p.get("jobId"), str) and _JOB.fullmatch(p["jobId"]) else None,
+            "requestedBy": _s(p.get("requestedBy"), 200),
+        }
+    last = doc.get("last")
+    if isinstance(last, dict) and last.get("outcome") in AUTO_OUTCOMES:
+        comp = last.get("component")
+        jid = last.get("jobId")
+        out["last"] = {
+            "at": _iso_or_none(last.get("at")),
+            "outcome": last["outcome"],
+            "reason": _s(last.get("reason"), 500),
+            "component": comp if isinstance(comp, str) and _ID.fullmatch(comp) else None,
+            "jobId": jid if isinstance(jid, str) and _JOB.fullmatch(jid) else None,
+        }
+    return out
+
+
+def _unpause_queued() -> list[dict]:
+    try:
+        names = sorted(n for n in os.listdir(SPOOL_DIR) if _UNPAUSE_FILE.fullmatch(n))
+    except OSError:
+        return []
+    out = []
+    for n in names[:MAX_QUEUE * 2]:
+        d = _read_json(os.path.join(SPOOL_DIR, n), MAX_SPOOL_BYTES)
+        if isinstance(d, dict) and d.get("id") == n[len("unpause-"):-5] and isinstance(d.get("component"), str):
+            out.append(d)
+    return out
+
+
+def request_unpause(h, who: str) -> tuple[dict, str]:
+    """POST /updates/unpause: check, then write ONE unpause file. Clears nothing itself."""
+    body = h.read_json_object(512)
+    if set(body) != {"component"}:
+        raise Refused("the body is exactly {component}", status=400)
+    cid = body["component"]
+    if not isinstance(cid, str) or not _ID.fullmatch(cid):
+        raise Refused("component must be a catalog id", status=400)
+    if cid not in CATALOG.components:
+        raise Refused(f"{cid} is not in updates.toml", status=404)
+    if flat(who) == AUTO_ACTOR:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
+    if cid not in _auto_state()["paused"]:
+        raise Refused(f"automatic updates are not paused for {cid}", status=409)
+    if not os.path.isdir(SPOOL_DIR) or not os.access(SPOOL_DIR, os.W_OK):
+        raise UpdatesError("the update spool is not mounted - `just up-apps` creates it", status=503)
+    queue = _unpause_queued()
+    if any(q.get("component") == cid for q in queue):
+        raise Refused(f"an unpause of {cid} is already waiting for the host", status=409)
+    if len(queue) >= MAX_QUEUE:
+        raise Refused(f"{len(queue)} unpause requests are already waiting - is bothy-updater.path running?",
+                      status=429)
+    rid = secrets.token_hex(16)
+    req = {"v": 1, "kind": "unpause", "id": rid, "component": cid, "requestedBy": flat(who)[:200] or "unknown",
+           "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    # Atomic, like a request: a dot-named temp file, then a rename.
+    tmp = os.path.join(SPOOL_DIR, f".{rid}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        os.write(fd, json.dumps(req, sort_keys=True).encode())
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(tmp, os.path.join(SPOOL_DIR, f"unpause-{rid}.json"))
+    return {"id": rid, "component": cid}, f"{cid} unpause {rid}"
+
+
 def job_read(h) -> tuple[dict, str]:
     jid = _one_param(h, "id")
     if not _JOB.fullmatch(jid):
@@ -855,10 +962,10 @@ def audit(who: str, outcome: str, endpoint: str, detail: str = "", took_ms: int 
 
 
 def handle(h, endpoint: str = "status") -> None:
-    """GET /updates/{status,plan,job}, POST /updates/request. `h` is the JsonHandler."""
+    """GET /updates/{status,plan,job}, POST /updates/{request,unpause}. `h` is the JsonHandler."""
     who = h.actor()
     t0 = time.monotonic()
-    method = "POST" if endpoint == "request" else "GET"
+    method = "POST" if endpoint in ("request", "unpause") else "GET"
     try:
         h.check_csrf(method)
         if CATALOG is None:
@@ -877,6 +984,9 @@ def handle(h, endpoint: str = "status") -> None:
             code, outcome = 200, "READ"
         elif endpoint == "request":
             result, detail = request_update(h, who)
+            code, outcome = 202, "REQUESTED"
+        elif endpoint == "unpause":
+            result, detail = request_unpause(h, who)
             code, outcome = 202, "REQUESTED"
         else:
             raise Refused("no such endpoint", status=404)

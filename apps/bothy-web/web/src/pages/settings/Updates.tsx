@@ -15,6 +15,13 @@
 // THE UPDATE BUTTON IS A COURTESY. It is drawn for operators (lib/session.ts); the
 // decision is the edge's `sso-operator` gate and the host's re-validation.
 //
+// Step 7, the automatic channel: a night job on the host (03:30) deploys at most
+// one `auto` patch a night and writes its records as the actor `auto` - shown here
+// as "the night job". A rollback or a failure PAUSES auto for that component; the
+// pause is the host's (auto.json, read-only to bothy-ops), so Unpause (operator,
+// POST /-/api/updates/unpause) only asks, and the row says "waiting for the host"
+// until the host has cleared it.
+//
 // The job panel follows a job by id, remembered in localStorage: the update it is
 // watching may recreate bothy-ops or bothy-web underneath it, so a failed poll is
 // "reconnecting", never an end state. Only the host says a job is over.
@@ -26,7 +33,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowRight, ArrowUpRight, Check, CircleDashed, Lock, Minus, RotateCcw, X,
+  AlertTriangle, ArrowRight, ArrowUpRight, Check, CircleDashed, CirclePause, Lock, Minus, RotateCcw, X,
 } from 'lucide-react';
 import { filesHref } from '../files/routes';
 import { SettingBlock } from '../../components/settings/SettingBlock';
@@ -37,7 +44,8 @@ import '../../components/KubeActions.css';
 import { useOperator } from '../../lib/session';
 import { statusOf } from '../../lib/http';
 import {
-  fetchJob, fetchPlan, fetchUpdates, isTerminal, pinFile, publishBehind, rememberJob, rememberedJob, requestUpdate,
+  AUTO_ACTOR, fetchJob, fetchPlan, fetchUpdates, isTerminal, pinFile, publishBehind, rememberJob, rememberedJob,
+  requestUpdate, unpauseAuto,
   type Channel, type HistoryEntry, type Job, type JobState, type JobStep, type Level, type Plan, type UpdateRow,
   type UpdatesStatus,
 } from '../../lib/updates';
@@ -75,7 +83,7 @@ export function UpdatesSettings() {
       {jobId && <JobPanel id={jobId} key={jobId} onFinished={reload} onDismiss={dismiss} />}
       <SettingBlock id="update-components" badge="viewer · update: operator">
         {loading && !data ? <Loading rows={8} /> : error ? fail : data && (
-          <Components d={data} canAct={canAct} busy={!!jobId && !!data.applying} onUpdate={setPlanFor} />
+          <Components d={data} canAct={canAct} busy={!!jobId && !!data.applying} onUpdate={setPlanFor} onChanged={reload} />
         )}
       </SettingBlock>
       <SettingBlock id="update-apply" badge="host updater">
@@ -103,6 +111,7 @@ function Freshness({ d }: { d: UpdatesStatus }) {
     );
   }
   const ready = d.components.filter((r) => r.plan?.deployable).length;
+  const paused = d.components.filter((r) => r.paused).length;
   return (
     <p className={`set-fresh ${d.discovery.stale ? 'is-stale' : ''}`} role="status">
       {d.discovery.stale && <AlertTriangle size={14} aria-hidden="true" />}
@@ -110,7 +119,9 @@ function Freshness({ d }: { d: UpdatesStatus }) {
         {s.components} components · {s.updates} with a newer version · <b>{s.behind}</b> a minor or more behind
         {s.drift > 0 && <> · {s.drift} drifting</>}
         {s.errors > 0 && <> · {s.errors} not checked</>}
-        {ready > 0 && <> · <b>{ready}</b> ready to deploy</>}. Checked on the host <When iso={d.discovery.generatedAt} />
+        {ready > 0 && <> · <b>{ready}</b> ready to deploy</>}
+        {paused > 0 && <> · <span className="set-warn">{paused} automatic {paused === 1 ? 'update' : 'updates'} paused</span></>}.
+        {' '}Checked on the host <When iso={d.discovery.generatedAt} />
         {d.discovery.stale
           ? ` - older than two ${d.policy.discoverEveryHours}-hour runs; the bothy-updates-discover timer may not be running.`
           : '.'}
@@ -133,7 +144,7 @@ function LevelBadge({ level }: { level: Level }) {
   return <span className="upd-level" data-level={level}>{LEVEL_WORD[level]}</span>;
 }
 
-interface RowCtx { canAct: boolean; busy: boolean; onUpdate: (r: UpdateRow) => void }
+interface RowCtx { canAct: boolean; busy: boolean; onUpdate: (r: UpdateRow) => void; onChanged: () => void }
 
 function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
   const groups = (['auto', 'notify', 'manual'] as Channel[])
@@ -172,7 +183,7 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
   );
 }
 
-function Row({ r, canAct, busy, onUpdate }: { r: UpdateRow } & RowCtx) {
+function Row({ r, canAct, busy, onUpdate, onChanged }: { r: UpdateRow } & RowCtx) {
   const d = r.discovered;
   return (
     <tr>
@@ -185,7 +196,7 @@ function Row({ r, canAct, busy, onUpdate }: { r: UpdateRow } & RowCtx) {
       <td data-label="Pinned"><Pinned r={r} /></td>
       <td data-label="Running"><Running r={r} /></td>
       <td data-label="Available"><Available r={r} /></td>
-      <td data-label="Channel"><ChannelCell r={r} /></td>
+      <td data-label="Channel"><ChannelCell r={r} canAct={canAct} onChanged={onChanged} /></td>
       <td data-label="Notes" className="upd-notes">
         {r.oneWay && (
           <span className="upd-oneway" title={r.oneWayWhy ?? undefined}>
@@ -202,7 +213,7 @@ function Row({ r, canAct, busy, onUpdate }: { r: UpdateRow } & RowCtx) {
   );
 }
 
-function DeployCell({ r, canAct, busy, onUpdate }: { r: UpdateRow } & RowCtx) {
+function DeployCell({ r, canAct, busy, onUpdate }: { r: UpdateRow } & Omit<RowCtx, 'onChanged'>) {
   const p = r.plan;
   if (!p) return <span className="dim">no plan</span>;
   if (!p.deployable) return <span className="set-cell-sub upd-reason" title={p.reason.replace(/`/g, '')}><Ticks text={p.reason} /></span>;
@@ -309,7 +320,7 @@ function Available({ r }: { r: UpdateRow }) {
 
 const CHANNEL_WORD: Record<Channel, string> = { auto: 'auto', notify: 'notify', manual: 'manual' };
 
-function ChannelCell({ r }: { r: UpdateRow }) {
+function ChannelCell({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onChanged: () => void }) {
   const eff = r.effectiveChannel;
   return (
     <>
@@ -319,8 +330,63 @@ function ChannelCell({ r }: { r: UpdateRow }) {
           {r.channel} component; {r.level === 'major' ? 'a major is always manual' : 'only its patches are automatic'}
         </span>
       )}
+      {r.paused && <Paused r={r} canAct={canAct} onChanged={onChanged} />}
     </>
   );
+}
+
+// ── a paused automatic channel, and the operator's Unpause ──────────────────
+
+function Paused({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onChanged: () => void }) {
+  const p = r.paused!;
+  const [phase, setPhase] = useState<{ t: 'idle' } | { t: 'sending' } | { t: 'asked' } | { t: 'refused'; error: unknown }>({ t: 'idle' });
+  const waiting = r.unpauseQueued || phase.t === 'asked';
+  // The host clears the pause a moment after the spool file lands; look again
+  // until the row says so, rather than claiming it here.
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const t = setTimeout(onChanged, 3000);
+    return () => clearTimeout(t);
+  }, [waiting, onChanged, r.unpauseQueued]);
+  const go = async () => {
+    setPhase({ t: 'sending' });
+    try {
+      await unpauseAuto(r.id);
+      setPhase({ t: 'asked' });
+      onChanged();
+    } catch (e) {
+      setPhase({ t: 'refused', error: e });
+    }
+  };
+  return (
+    <span className="upd-paused">
+      <span className="set-warn upd-paused-h" title={p.reason.replace(/`/g, '')}>
+        <CirclePause size={12} aria-hidden="true" />auto paused
+      </span>
+      <span className="set-cell-sub upd-why">
+        <Ticks text={p.reason} />
+        {p.since && <> · since <When iso={p.since} /></>}
+        {p.requestedBy && <> · job asked by <Actor who={p.requestedBy} /></>}
+      </span>
+      {waiting ? (
+        <span className="set-cell-sub" role="status"><span className="sa-spin" aria-hidden="true" /> unpause asked - waiting for the host</span>
+      ) : canAct ? (
+        <button type="button" className="btn ghost sm upd-unpause" onClick={() => void go()} disabled={phase.t === 'sending'}
+          title="Let the night job update this component again. Find out why it failed first.">
+          {phase.t === 'sending' ? 'Asking the host…' : 'Unpause'}
+        </button>
+      ) : (
+        <span className="set-cell-sub">unpause needs <span className="mono">operator</span></span>
+      )}
+      {phase.t === 'refused' && <PlanRefusal error={phase.error} />}
+    </span>
+  );
+}
+
+/** Who asked: a person's name, or the night job for the system actor. */
+function Actor({ who }: { who: string }) {
+  if (who !== AUTO_ACTOR) return <>{who}</>;
+  return <span className="upd-actor-auto" title={`requestedBy "${AUTO_ACTOR}": bothy-updater-auto.timer, in the night window`}>the night job</span>;
 }
 
 // ── the plan view ────────────────────────────────────────────────────────────
@@ -595,7 +661,7 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
           {job.error && done && <p className="upd-job-err"><b>Why:</b> <Prose text={job.error} /></p>}
           {job.note && done && <p className="set-note"><Prose text={job.note} /></p>}
           <p className="set-cell-sub">
-            job <span className="mono">{job.id.slice(0, 12)}</span> · asked by {job.requestedBy} <When iso={job.requestedAt} />
+            job <span className="mono">{job.id.slice(0, 12)}</span> · asked by <Actor who={job.requestedBy} /> <When iso={job.requestedAt} />
             {job.snapshot && <> · snapshot <span className="mono upd-path">{job.snapshot}</span></>}
           </p>
         </>
@@ -653,7 +719,7 @@ function History({ d }: { d: UpdatesStatus | null }) {
           {h.map((e) => (
             <tr key={e.id}>
               <td data-label="When"><When iso={e.endedAt ?? e.requestedAt} />
-                <span className="set-cell-sub">{e.requestedBy}{e.durationMs != null && ` · ${Math.round(e.durationMs / 1000)} s`}</span></td>
+                <span className="set-cell-sub"><Actor who={e.requestedBy} />{e.durationMs != null && ` · ${Math.round(e.durationMs / 1000)} s`}</span></td>
               <td data-label="Component"><b>{e.component}</b></td>
               <td data-label="Change">
                 <span className="mono upd-tag">{e.from?.version ?? e.from?.image ?? '?'} → {e.to?.version ?? e.to?.image ?? '?'}</span>
@@ -695,13 +761,11 @@ function Channels({ d }: { d: UpdatesStatus | null }) {
       </div></div>
       <div className="kv"><div className="kv-k">Night window</div><div className="kv-v">
         {p ? <>{p.windowStart}–{p.windowEnd}</> : '03:30–05:00'} local time, only if that night’s{' '}
-        <span className="mono">{p?.requireBackup ?? 'stacks-backup.service'}</span> succeeded and <span className="mono">just doctor</span>{' '}
-        was green. At most {p?.maxAutoPerNight ?? 1} automatic update a night, stopping at the first failure. A rollback or a failed
-        verify pauses auto for that component until an operator clears it.
-        <span className="set-note">
-          <b>Nothing runs automatically yet.</b> Every update today is one an operator asked for; the window is the policy
-          the automatic channel (build step 7) will be held to.
-        </span>
+        <span className="mono">{p?.requireBackup ?? 'stacks-backup.service'}</span> succeeded and the component itself was
+        healthy, its canaries green. At most {p?.maxAutoPerNight ?? 1} automatic update a night, stopping at the first failure. A
+        rollback or a failed verify pauses auto for that component until an operator clears it (<b>Unpause</b> on its row, or{' '}
+        <Cmd>just update-unpause &lt;component&gt;</Cmd>). A night the box slept through is skipped, never caught up.
+        <LastNight d={d} />
       </div></div>
       <div className="kv"><div className="kv-k">One-way</div><div className="kv-v">
         <span className="upd-oneway"><Lock size={12} aria-hidden="true" />one-way</span>{' '}
@@ -709,6 +773,25 @@ function Channels({ d }: { d: UpdatesStatus | null }) {
         a restore, not a re-pin. Take a backup first.
       </div></div>
     </div>
+  );
+}
+
+function LastNight({ d }: { d: UpdatesStatus | null }) {
+  const a = d?.auto;
+  if (!a) return null;
+  if (!a.enabled) {
+    return <span className="set-note"><b>Automatic updates are off</b> (<span className="mono">max_auto_per_night = 0</span> in updates.toml).</span>;
+  }
+  const l = a.last;
+  if (!l) {
+    return <span className="set-note">The night job has not run yet - <span className="mono">bothy-updater-auto.timer</span> fires at 03:30.</span>;
+  }
+  return (
+    <span className="set-note">
+      Last night job <When iso={l.at} />: <b>{l.outcome === 'requested' ? `requested ${l.component ?? 'an update'}` : 'nothing done'}</b>
+      {l.reason && <> - <Ticks text={l.reason} /></>}
+      {a.paused.length > 0 && <>. Paused: {a.paused.map((c, i) => <span key={c}>{i > 0 && ', '}<span className="mono">{c}</span></span>)}</>}.
+    </span>
   );
 }
 

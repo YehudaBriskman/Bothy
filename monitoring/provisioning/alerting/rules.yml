@@ -190,3 +190,128 @@ groups:
                   operator: { type: and }
                   query: { params: [] }
                   reducer: { type: last, params: [] }
+
+  # Settings > Updates (docs/plans/updates.md step 7). The host updater writes
+  # these through node-exporter's textfile collector:
+  #   bothy_update_last_result{component,result}   updater/record.py - 1 on the
+  #                                                result of the component's LAST job
+  #   bothy_update_paused{component}               updater/auto.py - 1 while the
+  #                                                automatic channel is paused for it
+  #   bothy_update_available{component,level}      discover_updates.py
+  #
+  # noDataState: OK throughout: a box that never ran an update has none of these
+  # series, and that is not a fault. The cost is the usual one - if node-exporter
+  # stops, these go silent - and `instance_down` above already pages for that.
+  - orgId: 1
+    name: update-alerts
+    folder: Alerts
+    interval: 1m
+    rules:
+      # Sticky on purpose: last_result stays rolled_back/failed until the NEXT job
+      # of that component succeeds, so this keeps reminding (repeat_interval) until
+      # a person has looked. `failed` means the rollback did not restore health.
+      - uid: update_failed
+        title: Update rolled back or failed
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: critical
+        annotations:
+          summary: "Update of {{ $labels.component }} ended {{ $labels.result }} - see Settings > Updates (history) or `just update-status` on the host. An auto component stays paused until an operator clears it."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: max by (component, result) (bothy_update_last_result{result=~"rolled_back|failed"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  query: { params: [] }
+                  reducer: { type: last, params: [] }
+
+      # The night job will not touch this component again until an operator
+      # clears it: Settings > Updates > Unpause, or `just update-unpause <id>`.
+      - uid: update_auto_paused
+        title: Automatic updates paused
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: warning
+        annotations:
+          summary: "Automatic updates are paused for {{ $labels.component }} after a rollback or a failure - find out why, then Unpause in Settings > Updates (or `just update-unpause {{ $labels.component }}` on the host)"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: max by (component) (bothy_update_paused)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  query: { params: [] }
+                  reducer: { type: last, params: [] }
+
+      # A NOTICE, not a fault: a patch or minor has been on offer for over two
+      # weeks - on offer now, and also 13-14 days ago. VictoriaMetrics keeps 15
+      # days, so the window fits inside retention. Majors are left out: they are
+      # manual procedures that may wait on purpose. severity=info is routed to one
+      # email a day (policies.yml).
+      - uid: update_stale
+        title: Update waiting for over 14 days
+        condition: C
+        for: 1h
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.component }} has had a newer patch or minor on offer for over 14 days - merge its Dependabot PR, pull, and deploy it from Settings > Updates"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: max by (component) (bothy_update_available{level=~"patch|minor"}) and on (component) max by (component) (max_over_time(bothy_update_available{level=~"patch|minor"}[1d] offset 13d))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  query: { params: [] }
+                  reducer: { type: last, params: [] }

@@ -8,9 +8,11 @@
 //   POST /-/api/updates/request   operator  {component, plan_id, confirm} - writes
 //                                           ONE spool file and answers 202 with a job id
 //   GET  /-/api/updates/job       viewer    one job's steps (?id=)
+//   POST /-/api/updates/unpause   operator  {component} - asks the HOST to clear an
+//                                           automatic-update pause (step 7); 202
 //
 // apps/bothy-ops/checks/wiring_updates.py asserts this file names exactly those
-// four paths. Build step 4 of docs/plans/updates.md: the browser approves a PLAN
+// five paths. Build step 4 of docs/plans/updates.md: the browser approves a PLAN
 // ID the host wrote, never a version. The updater deploys only what the checked-
 // out `main` already pins - there is no version picker to send, on purpose.
 //
@@ -90,7 +92,32 @@ export interface UpdateRow {
   discovered: Discovered | null;
   /** What the host pre-computed for this component (step 4). Absent from an older service. */
   plan?: PlanSummary | null;
+  /** Step 7: automatic updates are paused for it (the host's auto.json). Absent from an older service. */
+  paused?: Pause | null;
+  /** An operator's unpause is waiting in the spool for the host. */
+  unpauseQueued?: boolean;
 }
+
+/** Why the automatic channel stopped touching a component - until an operator clears it. */
+export interface Pause {
+  since: string | null;
+  result: 'rolled_back' | 'failed' | null;
+  reason: string;
+  jobId: string | null;
+  requestedBy: string | null;
+}
+
+/** The night job's last decision (bothy-updater-auto.timer, 03:30). */
+export interface AutoDecision {
+  at: string | null;
+  outcome: 'requested' | 'skipped';
+  reason: string | null;
+  component: string | null;
+  jobId: string | null;
+}
+
+/** requestedBy on every record the night job wrote. bothy-ops refuses it from a person. */
+export const AUTO_ACTOR = 'auto';
 
 export interface UpdatesStatus {
   discovery: {
@@ -116,6 +143,8 @@ export interface UpdatesStatus {
   job?: Job | null;
   /** Finished jobs, newest first, at most 20 (history.jsonl). */
   history?: HistoryEntry[];
+  /** Step 7: the automatic channel. Absent from an older service. */
+  auto?: { enabled: boolean; actor: string; paused: string[]; last: AutoDecision | null };
   components: UpdateRow[];
 }
 
@@ -216,6 +245,15 @@ export async function fetchPlan(component: string, signal?: AbortSignal): Promis
 export async function requestUpdate(body: { component: string; plan_id: string; confirm: true | string }): Promise<RequestAnswer> {
   if (import.meta.env.DEV) return (await import('./updates.dev')).requestMock(body);
   return apiFetch<RequestAnswer>('/-/api/updates/request', { method: 'POST', body, ...WIRE });
+}
+
+export interface UnpauseAnswer { ok: true; id: string; component: string }
+
+/** Ask the host to clear an automatic-update pause. The host owns the pause; this
+ *  drops one request in the spool, and the row shows it as waiting until then. */
+export async function unpauseAuto(component: string): Promise<UnpauseAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).unpauseMock(component);
+  return apiFetch<UnpauseAnswer>('/-/api/updates/unpause', { method: 'POST', body: { component }, ...WIRE });
 }
 
 export async function fetchJob(id: string, signal?: AbortSignal): Promise<Job> {

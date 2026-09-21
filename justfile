@@ -505,6 +505,24 @@ update-plan component:
 update-status:
     cd apps/bothy-ops && python3 -m updater status
 
+# The automatic channel (docs/plans/updates.md step 7): bothy-updater-auto.timer
+# runs `update-auto` at 03:30. A rollback or a failure pauses auto for that
+# component until an operator clears it - here, or Settings > Updates.
+#   just update-auto --dry-run          what tonight would do, and why (writes nothing)
+#   just update-pauses                  what is paused, and the last night's decision
+#   just update-unpause loki            clear loki's pause (audited, as you)
+# Run the automatic-update night job by hand (it still keeps to the window).
+update-auto *args:
+    cd apps/bothy-ops && python3 -m updater auto {{args}}
+
+# List the components whose automatic updates are paused, and why.
+update-pauses:
+    cd apps/bothy-ops && python3 -m updater pauses
+
+# Clear the automatic-update pause of one component (an operator's decision).
+update-unpause component:
+    cd apps/bothy-ops && python3 -m updater unpause {{quote(component)}}
+
 # What it saves, and how, is listed at the top of scripts/backup.sh.
 # Back up postgres, grafana, .env, VictoriaMetrics, Loki, alloy, audit/trash and notes now (the nightly timer also runs this).
 backup:

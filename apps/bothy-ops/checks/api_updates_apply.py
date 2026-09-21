@@ -262,6 +262,69 @@ st, _ = call("/updates/job?id=../../status")
 ok(st == 400, f"a malformed id -> 400 ({st})")
 
 print()
+print("── auto (step 7): the actor, the pauses, the unpause request ────")
+for n_ in spool():
+    os.unlink(os.path.join(SPOOL, n_))
+st, b = call("/updates/request", method="POST", body=GOOD, headers={"X-Auth-Request-Email": "auto"})
+ok(st == 403 and "automatic channel" in b.get("error", "") and spool() == [],
+   f"nobody may request as `auto`, the night job's actor ({st})")
+write("auto.json", {"version": 1, "paused": {
+    "loki": {"since": GEN, "jobId": jid, "result": "rolled_back", "reason": "rolled back: the canary said no",
+             "requestedBy": "auto", "secret": SENT},
+    "../x": {"since": GEN}}, "last": {"at": GEN, "outcome": "requested", "reason": "loki 3.7.6 -> 3.7.7",
+                                     "component": "loki", "jobId": jid, "token": SENT}})
+history_line = {**done, "id": "8" * 32, "requestedBy": "auto", "state": "succeeded"}
+write("history.jsonl", json.dumps(history_line) + "\n")
+st, b = call("/updates/status")
+rows = {r["id"]: r for r in b["components"]}
+ok(st == 200 and rows["loki"]["paused"] and rows["loki"]["paused"]["reason"].startswith("rolled back")
+   and rows["loki"]["paused"]["jobId"] == jid and rows["alloy"]["paused"] is None,
+   "status: the host's pause on its row, with the reason; none on the others")
+ok(b["auto"] == {"enabled": True, "actor": "auto", "paused": ["loki"],
+                 "last": {"at": GEN, "outcome": "requested", "reason": "loki 3.7.6 -> 3.7.7", "component": "loki",
+                          "jobId": jid}}, f"status.auto: enabled, paused, the last night: {b.get('auto')}")
+ok(SENT not in json.dumps(b), "auto.json is allow-listed too (a sentinel and a bad id dropped)")
+ok(b["history"][0]["requestedBy"] == "auto", "the history carries the actor `auto`")
+UGOOD = {"component": "loki"}
+n = len(log_lines())
+ucases = [
+    (dict(body=UGOOD, ctype="text/plain"), 415, "text/plain"),
+    (dict(body=UGOOD, headers={"Sec-Fetch-Site": "cross-site"}), 403, "cross-site"),
+    (dict(body={**UGOOD, "by": "x"}), 400, "an extra key"),
+    (dict(body={}), 400, "no component"),
+    (dict(body={"component": "Loki;rm"}), 400, "a malformed component"),
+    (dict(body={"component": "nope"}), 404, "an unknown component"),
+    (dict(body={"component": "alloy"}), 409, "a component that is not paused"),
+    (dict(body=UGOOD, headers={"X-Auth-Request-Email": "auto"}), 403, "the system actor"),
+]
+for kw, want, label in ucases:
+    st, b = call("/updates/unpause", method="POST", **kw)
+    ok(st == want and spool() == [], f"unpause: {label} -> {want}, no file ({st}: {b.get('error', '')[:60]})")
+ok(len(log_lines()) - n == len(ucases), "every unpause refusal is one admin.log line")
+st, b = call("/updates/unpause", method="POST", body=UGOOD)
+files = spool()
+rid = b.get("id", "")
+ok(st == 202 and files == [f"unpause-{rid}.json"], f"202, and exactly one unpause file: {files}")
+ureq = json.load(open(os.path.join(SPOOL, files[0]))) if files else {}
+ok(ureq == {"v": 1, "kind": "unpause", "id": rid, "component": "loki", "requestedBy": WHO,
+            "requestedAt": ureq.get("requestedAt")} and stat.S_IMODE(os.stat(os.path.join(SPOOL, files[0])).st_mode) == 0o600,
+   "the file carries exactly {v, kind, id, component, requestedBy, requestedAt}, 600")
+last = log_lines()[-1].split("\t")
+ok(last[1:4] == [WHO, "REQUESTED", "updates-unpause"] and rid in last[4], f"admin.log: REQUESTED updates-unpause: {last[1:5]}")
+ok(json.load(open(os.path.join(UPD, "auto.json")))["paused"].get("loki"), "the pause itself is untouched - the host clears it")
+st, b = call("/updates/unpause", method="POST", body=UGOOD)
+ok(st == 409 and "already waiting" in b.get("error", "") and len(spool()) == 1, f"a duplicate -> 409 ({st})")
+st, b = call("/updates/status")
+ok({r["id"]: r for r in b["components"]}["loki"]["unpauseQueued"] is True, "status: the row says an unpause is waiting")
+st, b = call("/updates/request", method="POST", body=GOOD)
+ok(st != 429 and "requests are already waiting" not in b.get("error", ""),
+   "an unpause file does not count as an update request in the queue")
+for n_ in spool():
+    os.unlink(os.path.join(SPOOL, n_))
+st, _ = call("/updates/unpause")
+ok(st == 404, f"a GET to the unpause -> 404 ({st})")
+
+print()
 if fails:
     print(f"FAILED: {len(fails)}")
     sys.exit(1)

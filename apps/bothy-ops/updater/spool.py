@@ -34,6 +34,10 @@ from . import classes
 
 JOB_ID = re.compile(r"[a-f0-9]{32}")
 FILE = re.compile(r"([a-f0-9]{32})\.json")
+# The one other kind of file a spool may hold (step 7): an operator's request to
+# clear an automatic-update pause. auto.drain_unpause() claims these; the update
+# loop below leaves them alone rather than removing them as junk.
+UNPAUSE_FILE = re.compile(r"unpause-([a-f0-9]{32})\.json")
 PLAN_ID = re.compile(r"[a-f0-9]{24}")
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 COMPONENT = re.compile(r"[a-z][a-z0-9-]{0,39}")
@@ -62,6 +66,8 @@ def entries(spool: str) -> tuple[list[tuple[float, str]], list[str]]:
             continue
         if FILE.fullmatch(n) and stat.S_ISREG(st.st_mode):
             reqs.append((st.st_mtime, n))
+        elif UNPAUSE_FILE.fullmatch(n) and stat.S_ISREG(st.st_mode):
+            continue  # auto.drain_unpause() owns it
         elif n.startswith(".") and n.endswith(".tmp") and stat.S_ISREG(st.st_mode) and now - st.st_mtime < STALE_TMP:
             continue  # a write in progress
         else:
