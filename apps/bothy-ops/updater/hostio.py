@@ -43,23 +43,32 @@ def run(argv: list[str], *, timeout: float = 120, env: dict | None = None, cwd: 
 
 
 def run_io(argv: list[str], *, stdin_path: str | None = None, stdout_path: str | None = None,
-           timeout: float = 900, env: dict | None = None) -> tuple[int, str]:
+           timeout: float = 900, env: dict | None = None, stderr_path: str | None = None) -> tuple[int, str]:
     """run() for BYTES: stdin from a file and/or stdout into a NEW file (0600).
 
     A pg_dump -Fc or a tar stream is binary, which run()'s text pipes would
     corrupt. The output file is created O_EXCL - a snapshot never overwrites -
-    and removed again if the command fails. Returns (rc, stderr tail).
+    and removed again if the command fails. Returns (rc, stderr tail). With
+    `stderr_path`, ALL of stderr also goes to that new file (0600) - a restore
+    whose every error line must be read, not just the last 400 characters.
     """
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
         raise TypeError("run_io() takes an argv list of str - never a shell string")
-    fin = fout = None
+    fin = fout = ferr = None
     try:
         fin = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
         if stdout_path:
             fout = os.fdopen(os.open(stdout_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), "wb")
-        p = subprocess.run(argv, stdin=fin, stdout=fout if fout else subprocess.DEVNULL, stderr=subprocess.PIPE,
-                           timeout=timeout, env=env, check=False)
-        rc, err = p.returncode, p.stderr.decode(errors="replace")
+        if stderr_path:
+            ferr = os.fdopen(os.open(stderr_path, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), "w+b")
+        p = subprocess.run(argv, stdin=fin, stdout=fout if fout else subprocess.DEVNULL,
+                           stderr=ferr if ferr else subprocess.PIPE, timeout=timeout, env=env, check=False)
+        if ferr:
+            ferr.seek(0, os.SEEK_END)
+            ferr.seek(max(0, ferr.tell() - 4096))
+            rc, err = p.returncode, ferr.read().decode(errors="replace")
+        else:
+            rc, err = p.returncode, p.stderr.decode(errors="replace")
     except subprocess.TimeoutExpired:
         rc, err = 124, f"{argv[0]} timed out after {int(timeout)}s"
     except OSError as e:
@@ -69,6 +78,8 @@ def run_io(argv: list[str], *, stdin_path: str | None = None, stdout_path: str |
             fin.close()
         if fout:
             fout.close()
+        if ferr:
+            ferr.close()
     if rc != 0 and stdout_path and fout is not None and os.path.exists(stdout_path):
         os.unlink(stdout_path)
     return rc, tail(err, 400)

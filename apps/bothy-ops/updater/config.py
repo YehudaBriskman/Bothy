@@ -87,6 +87,35 @@ class Config:
     # fail, "hang" makes verify sleep past the rollback timer.
     own_force_verify: str | None = None
 
+    # ── cluster add-ons (class cluster; build step 8) ───────────────────────────
+    # The OPERATOR's kubeconfig (None: kubectl's own default, ~/.kube/config) and
+    # always an explicit context - never bothy-ops' namespaced token (SECURITY.md
+    # rule 6). The plan refuses a service-account identity outright.
+    kube_context: str = os.environ.get("KUBE_CONTEXT", "thales-scc")
+    kubeconfig: str | None = None
+    # The `cluster` label alloy.yaml stamps on every stream it ships to Loki.
+    kube_cluster_label: str = "thales-scc"
+    # Where the cluster canaries read the box's side: VictoriaMetrics' `up` and
+    # Loki's fresh lines, from inside those containers (canaries.probe).
+    vm_container: str = "victoriametrics"
+    loki_container: str = "loki"
+    cluster_timeout: int = 600           # the narrow `just k8s-monitoring <part>` (helm --wait, rollout)
+    cluster_verify_timeout: int = 240    # a scrape interval or two, and alloy's first push
+
+    # ── the Postgres major (class database, plan kind postgres-major; step 8) ───
+    # The containers that write to Postgres and are stopped before the dump, and
+    # the recipe that brings Keycloak and oauth2-proxy back after the switch.
+    # postgres-exporter comes back with the switch itself (`just up-data`).
+    pg_stop: tuple = ("keycloak", "oauth2-proxy", "postgres-exporter")
+    pg_start: tuple = ("up-auth",)
+    # Keycloak's container: its step-5 canaries verify the move (component `keycloak`).
+    pg_keycloak: str = "keycloak"
+    pg_ready_timeout: int = 180
+    pg_restore_timeout: int = 3600
+    # Tests only - no environment variable: "compare" fails the row-count
+    # comparison (before the switch), "verify" fails the last step (after it).
+    pg_force_fail: str | None = None
+
     def __post_init__(self) -> None:
         self.repo = os.path.realpath(self.repo)
         self.catalog = self.catalog or os.path.join(self.repo, "apps", "bothy-ops", "updates.toml")

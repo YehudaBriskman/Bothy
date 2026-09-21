@@ -30,8 +30,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -416,6 +419,132 @@ def oauth2_shell_denied(container: str = "oauth2-proxy") -> Canary:
         return line.startswith("CODES viewer=202 shell=403"), line[:200]
     return Canary("oauth2-proxy: a signed-in user gets 202 for allowed_groups=viewer and 403 for "
                   "allowed_groups=shell", check)
+
+
+# ── cluster add-ons (class cluster, build step 8) ──────────────────────────────
+#
+# Read with the operator's kubeconfig and an explicit context (k8s.py), and
+# through the box's own VictoriaMetrics and Loki - the two places a person would
+# look. `ctx.plan["cluster"]` says what to read; `ctx.baseline["appliedAt"]` is
+# when apply (or the rollback) finished, so "fresh" means "after the change".
+
+def _since(ctx: Ctx, floor: int = 30) -> int:
+    t = ctx.baseline.get("appliedAt")
+    return max(floor, int(time.time() - t) + 5) if ctx.phase != "preflight" and t else 120
+
+
+def ksm_nodeport() -> Canary:
+    """kube-state-metrics' /metrics, through its NodePort, carries kube_node_info -
+    the path VictoriaMetrics scrapes (monitoring/scrape.d/kubernetes.yml)."""
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        from . import k8s
+        c = ctx.plan.get("cluster") or {}
+        try:
+            svc = k8s.get_json(ctx.cfg, "-n", c.get("namespace", ""), "get", "service", c.get("service", ""))
+            ports = [p.get("nodePort") for p in (svc.get("spec") or {}).get("ports") or [] if p.get("nodePort")]
+            nodes = k8s.get_json(ctx.cfg, "get", "nodes")
+        except Exception as e:  # noqa: BLE001 - a canary answers, it does not raise
+            return False, f"the cluster did not say where the NodePort is: {e}"
+        ips = [a.get("address") for n in nodes.get("items") or []
+               for a in (n.get("status") or {}).get("addresses") or [] if a.get("type") == "InternalIP"]
+        if not ports or not ips:
+            return False, f"no NodePort ({ports}) or node address ({ips})"
+        url = f"http://{ips[0]}:{ports[0]}/metrics"
+        try:
+            with urllib.request.urlopen(url, timeout=20) as r:
+                body = r.read(64 * 1024 * 1024).decode(errors="replace")
+                st = r.status
+        except (urllib.error.URLError, OSError) as e:
+            return False, f"{url}: {str(e)[:120]}"
+        m = re.search(r"^kube_node_info\{[^\n]*", body, re.M)
+        return st == 200 and m is not None, (f"{url} {st}: {m.group(0)[:120]}" if m else
+                                             f"{url} {st}: no kube_node_info ({tail(body, 80)})")
+    return Canary("kube-state-metrics: /metrics through its NodePort carries kube_node_info", check)
+
+
+def vm_job_up(job: str | None = None) -> Canary:
+    """VictoriaMetrics' up{job=...} is 1 for the cluster - and, after the change, from
+    a scrape that happened AFTER it (a stale 1 from before the upgrade proves nothing)."""
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        j = job or (ctx.plan.get("cluster") or {}).get("job") or ""
+        sel = f'up{{job="{j}",cluster="{ctx.cfg.kube_cluster_label}"}}'
+        q = urllib.parse.quote(f"max(timestamp({sel} == 1))")
+        st, body = probe(ctx, f"http://127.0.0.1:8428/api/v1/query?query={q}", cred=_vm_cred_of(ctx),
+                         container=ctx.cfg.vm_container)
+        r = _vector(body) if st == 200 else None
+        if not r:
+            return False, f"{st}: {sel} is not 1 ({tail(body, 120)})"
+        ts = _scalar_sum(r)
+        t0 = ctx.baseline.get("appliedAt") if ctx.phase != "preflight" else None
+        if t0 and ts <= t0:
+            return False, f"{sel} == 1 only from a scrape at {int(ts)}, before the change ({int(t0)})"
+        return True, f"{sel} == 1 (scraped at {int(ts)})"
+    return Canary('VictoriaMetrics: up{job="kube-state-metrics"} is 1, from a scrape after the change', check)
+
+
+def _vm_cred_of(ctx: Ctx) -> str:
+    return _vm_cred(Ctx(ctx.cfg, ctx.cfg.vm_container))
+
+
+def ds_ready() -> Canary:
+    """The DaemonSet is rolled out and ready on every node, and every pod runs the
+    image this phase expects - by the digest the node actually pulled, when known."""
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        from . import k8s
+        c = ctx.plan.get("cluster") or {}
+        side = ctx.plan.get("to" if ctx.phase == "verify" else "from") or {}
+        want, digest = side.get("image"), side.get("digest")
+        try:
+            ds = k8s.get_json(ctx.cfg, "-n", c.get("namespace", ""), "get", "daemonset", c.get("name", ""))
+        except Exception as e:  # noqa: BLE001
+            return False, str(e)[:200]
+        tpl = ((ds.get("spec") or {}).get("template") or {}).get("spec") or {}
+        img = k8s.container_image(tpl, c.get("container", ""))
+        if img != want:
+            return False, f"the DaemonSet's template runs {img}, not {want}"
+        done, words = k8s.ds_rolled_out(ds)
+        if not done:
+            return False, f"not rolled out: {words}"
+        labels = ((ds.get("spec") or {}).get("selector") or {}).get("matchLabels") or {}
+        sel = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))
+        try:
+            pods = k8s.get_json(ctx.cfg, "-n", c.get("namespace", ""), "get", "pods", "-l", sel)
+        except Exception as e:  # noqa: BLE001
+            return False, str(e)[:200]
+        items = [p for p in pods.get("items") or [] if not (p.get("metadata") or {}).get("deletionTimestamp")]
+        bad = []
+        for p in items:
+            for cs in (p.get("status") or {}).get("containerStatuses") or []:
+                if cs.get("name") != c.get("container"):
+                    continue
+                iid = str(cs.get("imageID") or "")
+                if not cs.get("ready") or (digest and not iid.endswith(digest)):
+                    bad.append(f"{(p.get('metadata') or {}).get('name')} ready={cs.get('ready')} {iid[-19:]}")
+        if not items or bad:
+            return False, f"pods: {', '.join(bad) or 'none'}"
+        return True, f"{words}; {len(items)} pod(s) on {want}" + (f" ({digest[:19]}…)" if digest else "")
+    return Canary("the DaemonSet is rolled out and ready on every node, every pod on the planned image", check)
+
+
+def loki_cluster_fresh() -> Canary:
+    """Loki receives the cluster's lines - written after the change."""
+    def check(ctx: Ctx) -> tuple[bool, str]:
+        n = _since(ctx)
+        sel = f'{{cluster="{ctx.cfg.kube_cluster_label}"}}'
+        st, body = probe(ctx, _loki_q(f"sum(count_over_time({sel}[{n}s]))"), container=ctx.cfg.loki_container)
+        r = _vector(body) if st == 200 else None
+        got = _scalar_sum(r or [])
+        if r is None:
+            return False, f"{st}: {tail(body, 120)}"
+        return got > 0, f"{got:g} lines for {sel} in the last {n} s"
+    return Canary("Loki: fresh {cluster=...} lines, written after the change", check)
+
+
+# By the plan's cluster kind: a helm release, or a DaemonSet in a manifest.
+CLUSTER_CANARIES = {
+    "helm": lambda: [ksm_nodeport(), vm_job_up()],
+    "daemonset": lambda: [ds_ready(), loki_cluster_fresh()],
+}
 
 
 # ── the table: component id -> canaries (the container comes from its pin) ────
