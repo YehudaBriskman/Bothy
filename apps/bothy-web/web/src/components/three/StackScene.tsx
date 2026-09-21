@@ -4,17 +4,27 @@ import { Html, OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { useNavigate } from 'react-router-dom';
 import { usePortal } from '../../lib/data';
+import { followFactor } from '../../lib/motion';
+import { useMotionReduced } from '../../lib/useMotionReduced';
 import { panelize, type Panel } from '../../lib/panels';
 import type { PortalNode, Status, ServiceType } from '../../lib/discover';
 import { serviceLink } from '../../lib/links';
 import { ServiceIcon, StatusIcon } from '../../lib/icons';
 import {
-  hasWebGL, prefersReducedMotion, statusHexes, cssVar, scenePalette,
+  hasWebGL, statusHexes, cssVar, scenePalette,
   type ScenePalette,
 } from './webgl';
 
 import { StaticStack } from './StaticStack';
 import './three.css';
+
+// Per-SECOND follow rates for the two eased moves (design audit SYS-9). They
+// were per-FRAME lerp factors - 0.2 and 0.08 - so the camera flew 2.4x faster on
+// a 144Hz screen than on a 60Hz one. As rates they take the same time at any
+// frame rate: 2pi/response, the spring's own rate, for the responses in
+// lib/motion.ts (0.4 for the slab's little drawer-pull, 0.35 for the camera).
+const SLAB_RATE = (2 * Math.PI) / 0.4;
+const CAMERA_RATE = (2 * Math.PI) / 0.35;
 
 // The scene's structural materials, theme-aware. React context (not props)
 // because the palette is needed several levels down in half a dozen meshes, and
@@ -184,10 +194,10 @@ function Slab({
   onSelect: () => void;
 } & GroupProps) {
   const grp = useRef<THREE.Group>(null);
-  useFrame(() => {
+  useFrame((_, dt) => {
     // hovered slab eases forward like a pulled drawer
     if (grp.current) {
-      grp.current.position.z = THREE.MathUtils.lerp(grp.current.position.z, hovered ? 0.2 : 0, 0.2);
+      grp.current.position.z = THREE.MathUtils.lerp(grp.current.position.z, hovered ? 0.2 : 0, followFactor(dt, SLAB_RATE));
     }
   });
   const emis = emissiveFor(node.status);
@@ -697,13 +707,14 @@ function Rig({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gl, camera]);
 
-  useFrame((state) => {
+  useFrame((state, dt) => {
     now.current = state.clock.elapsedTime;
     const c = controls.current;
     if (!c) return;
     if (anim.current.active) {
-      camera.position.lerp(anim.current.pos, 0.08);
-      c.target.lerp(anim.current.target, 0.08);
+      const k = followFactor(dt, CAMERA_RATE);
+      camera.position.lerp(anim.current.pos, k);
+      c.target.lerp(anim.current.target, k);
       c.update();
       if (camera.position.distanceTo(anim.current.pos) < 0.06) anim.current.active = false;
       return;
@@ -865,7 +876,7 @@ const FOCI: { key: Focus; label: string }[] = [
 
 function Viewport({ nodes, fill = false }: { nodes: PortalNode[]; fill?: boolean }) {
   const [ok] = useState(() => hasWebGL());
-  const [reduced] = useState(() => prefersReducedMotion());
+  const reduced = useMotionReduced();
   const [focus, setFocus] = useState<Focus>('projects');
   const panels = useMemo(() => panelize(nodes), [nodes]);
   const hasEdge = panels.some((p) => p.key === 'infra');

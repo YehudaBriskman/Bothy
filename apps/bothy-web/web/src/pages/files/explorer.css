@@ -102,10 +102,7 @@
 }
 .bothy-files .fx-row:hover { background: var(--surface-2); color: var(--fg); }
 .bothy-files .fx-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.bothy-files .fx-chev {
-  flex: none; color: var(--fg-subtle);
-  transition: transform var(--dur-fast) var(--ease);
-}
+/* .fx-chev turns on the shared .chev timing (index.css). */
 .bothy-files .fx-chev.open { transform: rotate(90deg); }
 /* A file row has no chevron; the gap keeps its icon in the same column as the
    folder icons on the level above, which is what makes the indent readable. */

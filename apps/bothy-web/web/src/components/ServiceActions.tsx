@@ -37,6 +37,7 @@ import { StatusIcon } from '../lib/icons';
 import { Dialog } from './ui/Dialog';
 import { KubeActionCell } from './KubeActions';
 import './ServiceActions.css';
+import { Button, buttonClass } from './ui/Button';
 
 // Three circles. lucide's bare `Square` was the first choice for stop and had to
 // go: rendered at 16px on the left of a list row it is a 16px empty box beside a
@@ -340,7 +341,7 @@ function RoleLinks({ signedIn }: { signedIn: boolean }) {
       permits. They are granted in Keycloak, not here.
     </p>
   ) : (
-    <a className="btn primary sa-signin" href={signInHref()}>
+    <a className={buttonClass({ variant: 'primary' }, 'sa-signin')} href={signInHref()}>
       <LogIn size={15} aria-hidden="true" />
       Sign in
     </a>
@@ -362,31 +363,31 @@ function Footer({
         {/* The way out is named for what it preserves, not "Cancel" - the
             question was "shall I take the edge down", and the answer worth
             offering by name is the one that does not. */}
-        <button type="button" className="btn ghost" onClick={onCancel}>Leave it alone</button>
+        <Button variant="ghost" onClick={onCancel}>Leave it alone</Button>
         {/* The object and the verb, so the button reads as the sentence it
             performs even out of context. Not `primary`: the accent is chrome and
             filling the destructive answer with it would make it the invitation
             on the row. */}
-        <button type="button" className="btn sa-go" onClick={() => onRun(phase.verb)}>
+        <Button variant="caution" onClick={() => onRun(phase.verb)}>
           {VERB_LABEL[phase.verb]} {name}
-        </button>
+        </Button>
       </>
     );
   }
   if (phase.t === 'working') {
     // No cancel. The daemon has been asked and there is nothing to withdraw, and
     // a button that says Cancel and cancels nothing is worse than no button.
-    return <button type="button" className="btn ghost sa-busy" disabled>{VERB_WORKING[phase.verb]}…</button>;
+    return <Button variant="ghost" disabled>{VERB_WORKING[phase.verb]}…</Button>;
   }
   if (phase.t === 'done' || phase.t === 'failed') {
     return (
       <>
-        <button type="button" className="btn ghost" onClick={onCancel}>Back</button>
-        <button type="button" className="btn" onClick={onClose}>Close</button>
+        <Button variant="ghost" onClick={onCancel}>Back</Button>
+        <Button onClick={onClose}>Close</Button>
       </>
     );
   }
-  return <button type="button" className="btn ghost" onClick={onClose}>Close</button>;
+  return <Button variant="ghost" onClick={onClose}>Close</Button>;
 }
 
 /** One duration format, and never more precision than the source has: the daemon

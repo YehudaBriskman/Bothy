@@ -28,6 +28,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, CornerDownLeft, FolderTree, Lock } from 'lucide-react';
 import type { FileRoot, TreeFile } from '../../lib/files';
+import { Button } from '../../components/ui/Button';
 
 /** Directories offered at once. The list is a shortcut, not a browser - the tree
  *  below is the browser - so it stops at the point where reading it costs more
@@ -211,9 +212,9 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
           )}
 
           {scope && (
-            <button type="button" className="btn ghost sm rd-scope-all" onClick={() => go(root, '')}>
+            <Button variant="ghost" size="sm" className="rd-scope-all" onClick={() => go(root, '')}>
               Show all of {root}
-            </button>
+            </Button>
           )}
         </div>
       )}

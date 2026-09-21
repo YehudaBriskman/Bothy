@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { useServedRevision } from '../lib/version';
 import './UpdateBanner.css';
+import { Button } from './ui/Button';
 
 export function UpdateBanner() {
   const { loaded, now } = useServedRevision();
@@ -24,10 +25,10 @@ export function UpdateBanner() {
           <span className="mono">{short(now)}</span>. Reload to use it.</span>
       </p>
       <div className="upd-banner-actions">
-        <button type="button" className="btn sm" onClick={() => location.reload()}>Reload</button>
-        <button type="button" className="btn ghost sm icon-only" aria-label="Later" title="Later" onClick={() => setDismissed(now)}>
+        <Button size="sm" onClick={() => location.reload()}>Reload</Button>
+        <Button variant="ghost" size="sm" iconOnly aria-label="Later" title="Later" onClick={() => setDismissed(now)}>
           <X size={14} aria-hidden="true" />
-        </button>
+        </Button>
       </div>
     </div>
   );

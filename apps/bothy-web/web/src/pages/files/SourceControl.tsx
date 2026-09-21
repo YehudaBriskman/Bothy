@@ -46,6 +46,7 @@ import { Tooltip } from '../../components/Tooltip';
 import { FileIcon } from './icons';
 import { baseName, dirName, tailPath } from './tree';
 import { groupChanges, toneFor, type Change } from './gitdeco';
+import { Button } from '../../components/ui/Button';
 
 function Row({ c, onOpenDiff, open }: {
   c: Change;
@@ -116,7 +117,7 @@ function Group({ title, changes, onOpenDiff, openPath, openStaged }: {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <ChevronRight size={12} className={`fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
+        <ChevronRight size={12} className={`chev fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
         <span>{title}</span>
         <span className="fx-scm-count tnum">{changes.length}</span>
       </button>
@@ -245,7 +246,7 @@ export function SourceControl({
         {err ? (
           <div className="fx-msg">
             <p>{err}</p>
-            <button type="button" className="btn ghost" onClick={onRefresh}>Retry</button>
+            <Button variant="ghost" onClick={onRefresh}>Retry</Button>
           </div>
         ) : loading && !status ? (
           <div className="fx-skel" aria-hidden="true">

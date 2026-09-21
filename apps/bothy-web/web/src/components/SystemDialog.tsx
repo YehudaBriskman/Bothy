@@ -23,6 +23,7 @@ import { promQuote, fmtCores, useMetrics } from '../lib/metrics';
 import { BarGauge, type GaugeRow } from './viz';
 import { Dialog } from './ui/Dialog';
 import './SystemDialog.css';
+import { buttonClass } from './ui/Button';
 
 export function SystemDialog({
   system, open, onOpenChange,
@@ -131,7 +132,7 @@ export function SystemDialog({
       }
       description={counts || 'Nothing discovered in this system.'}
       footer={
-        <Link className="btn" to={systemLink(system.key)} onClick={() => onOpenChange(false)}>
+        <Link className={buttonClass({})} to={systemLink(system.key)} onClick={() => onOpenChange(false)}>
           Open system page <ArrowRight size={14} />
         </Link>
       }

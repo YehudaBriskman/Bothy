@@ -24,6 +24,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { blockById } from '../../lib/settings-index';
+import { scrollBehavior } from '../../lib/useMotionReduced';
+import { Button } from '../ui/Button';
 
 const OPEN_KEY = 'bothy-settings-nav-v1';
 
@@ -72,7 +74,7 @@ export function SettingBlock({ id, children, badge, dirty, saving, onSave, onDis
     setFlash(true);
     // After the body has rendered, so the scroll lands on the block's final
     // position rather than where it was while collapsed.
-    const t = setTimeout(() => ref.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+    const t = setTimeout(() => ref.current?.scrollIntoView({ block: 'start', behavior: scrollBehavior() }), 60);
     const f = setTimeout(() => setFlash(false), 1800);
     return () => { clearTimeout(t); clearTimeout(f); };
   }, [targeted]);
@@ -100,16 +102,13 @@ export function SettingBlock({ id, children, badge, dirty, saving, onSave, onDis
           </h2>
           {def?.description && <p className="set-block-desc">{def.description}</p>}
         </div>
-        <button
-          type="button"
-          className="btn ghost sm set-block-toggle"
+        <Button variant="ghost" size="sm" className="set-block-toggle"
           aria-expanded={open}
           aria-controls={`${uid}-b`}
-          onClick={toggle}
-        >
+          onClick={toggle}>
           <span>{open ? 'Collapse' : 'Expand'}</span>
-          <ChevronDown size={14} aria-hidden="true" className="set-block-chev" />
-        </button>
+          <ChevronDown size={14} aria-hidden="true" className="chev set-block-chev" />
+        </Button>
       </header>
       {open && (
         <div className="set-block-b" id={`${uid}-b`}>
@@ -119,11 +118,11 @@ export function SettingBlock({ id, children, badge, dirty, saving, onSave, onDis
               {saveNote && <p className="set-save-note">{saveNote}</p>}
               <div className="set-save-btns">
                 {onDiscard && (
-                  <button type="button" className="btn ghost sm" onClick={onDiscard} disabled={saving}>Discard</button>
+                  <Button variant="ghost" size="sm" onClick={onDiscard} disabled={saving}>Discard</Button>
                 )}
-                <button type="button" className="btn primary sm" onClick={onSave} disabled={saving}>
+                <Button variant="primary" size="sm" onClick={onSave} disabled={saving}>
                   {saving ? 'Saving…' : 'Save changes'}
-                </button>
+                </Button>
               </div>
             </div>
           )}

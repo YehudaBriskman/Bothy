@@ -152,7 +152,9 @@
   /* ── layout ─────────────────────────────────────────────────────────────── */
   --r-xs: 5px; --r-sm: 7px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
   --border-w: 1px;
-  --hover-opacity: .9;
+  /* --hover-opacity was here and in every theme, and nothing read it (design
+     audit SYS-15, 2026-09-21): deleted rather than adopted - a hover that fades
+     a control is the one hover this app never wants. */
   --disabled-opacity: .5;
   /* An always-present control that is quiet until you reach for it (the per-row
      action trigger). It belongs beside the other two rather than as a fallback
@@ -216,19 +218,133 @@
   --read-h3: 17.5px;
   --read-h4: 15px;
 
-  /* ── motion ─────────────────────────────────────────────────────────────── */
+  /* ── type: a CLOSED scale, in rem (design audit SYS-13, 2026-09-21) ────────
+     Nine steps and nothing between them. rem, so every step follows the
+     browser's own text-size setting - the root is never given a px size
+     (checks/design-tokens.mjs holds that). Each step carries its own leading
+     and tracking, because neither is one value for all sizes (R15.1, R15.2):
+     leading tightens as the type grows, tracking goes negative on display
+     sizes and slightly positive on the smallest. Use the three together:
+       font-size: var(--fs-sm); line-height: var(--lh-sm); letter-spacing: var(--tr-sm);
+     The px beside each is its size at the default 16px root.
+     Weights are the five a non-variable system font actually has; 550/650/750
+     render as 600/700 there and are off the scale. */
+  --fs-2xs: .6875rem;  --lh-2xs: 1.35;  --tr-2xs: .01em;    /* 11 - micro labels, counts */
+  --fs-xs:  .75rem;    --lh-xs:  1.4;   --tr-xs:  .005em;   /* 12 - meta, hostnames, tooltips */
+  --fs-sm:  .8125rem;  --lh-sm:  1.45;  --tr-sm:  0em;      /* 13 - controls, chips, menu rows */
+  --fs-md:  .875rem;   --lh-md:  1.5;   --tr-md:  0em;      /* 14 - table cells, nav */
+  --fs-body: 1rem;     --lh-body: 1.6;  --tr-body: 0em;     /* 16 - prose */
+  --fs-lg:  1.0625rem; --lh-lg:  1.35;  --tr-lg:  -.01em;   /* 17 - panel and group titles */
+  --fs-xl:  1.3125rem; --lh-xl:  1.25;  --tr-xl:  -.015em;  /* 21 - section and dialog headings */
+  --fs-2xl: 1.75rem;   --lh-2xl: 1.15;  --tr-2xl: -.02em;   /* 28 - page h1 */
+  --fs-display: clamp(2.375rem, 6vw, 4.25rem);
+  --lh-display: 1.02;  --tr-display: -.03em;               /* 38-68 - the hero, only */
+  /* Uppercase micro-labels (.eyebrow). Capitals need air that lowercase does not. */
+  --label-tracking: .06em;
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700; --fw-heavy: 800;
+
+  /* ── spacing: a 4px grid with 2px and 6px half-steps, in rem ────────────────
+     `--sp-2_5` is 2.5 steps of 4px. rem, so padding grows with the text it
+     holds instead of the text outgrowing its box. */
+  --sp-0_5: .125rem; --sp-1: .25rem;  --sp-1_5: .375rem; --sp-2: .5rem;
+  --sp-2_5: .625rem; --sp-3: .75rem;  --sp-4: 1rem;      --sp-5: 1.25rem;
+  --sp-6: 1.5rem;    --sp-8: 2rem;    --sp-10: 2.5rem;   --sp-12: 3rem;
+  --sp-16: 4rem;
+
+  /* ── icons ─────────────────────────────────────────────────────────────────
+     Four sizes. The close X alone was drawn at 12, 13, 14 and 16px. lucide
+     takes a number, so components/ui/Icon.tsx carries the same four as ICON and
+     checks/design-tokens.mjs asserts the two lists agree. */
+  --icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px;
+
+  /* ── interaction ───────────────────────────────────────────────────────────
+     --hit is the smallest box a pointer may be asked to land in: 24px under a
+     fine pointer (WCAG 2.5.8), 44px under a coarse one - the owner's decision 6,
+     2026-09-21 ("44 for every target on touch"). The coarse value is set in the
+     media block below. Apply it as min-height/min-width, never as a height. */
+  --hit: 1.5rem;
+  --ring-w: 2px;
+  --ring-offset: 2px;
+  /* Pressing (R1.1): feedback on pointer-DOWN. Compact controls shrink a
+     little; wide rows and cards shrink less, because the same .97 on a 600px
+     row moves its edge 9px. Rows that cannot scale darken one step instead. */
+  --press-scale: .97;
+  --press-scale-wide: .985;
+  --surface-press: color-mix(in oklab, var(--surface-3), var(--fg) 7%);
+
+  /* ── motion ─────────────────────────────────────────────────────────────────
+     Mirrored in lib/motion.ts for framer-motion and JS; checks/design-tokens.mjs
+     asserts the two copies agree, so change both or neither. */
   --dur-fast: 120ms;   /* hover, colour */
   --dur:      180ms;   /* transform, elevation */
-  --dur-slow: 260ms;   /* page transition */
-  --ease:     cubic-bezier(.2,.7,.2,1);
+  --dur-slow: 260ms;   /* a large surface arriving */
+  --dur-exit: 120ms;   /* leaving is quicker than arriving */
+  --press-dur: 100ms;  /* the press itself - under the 100ms "instant" line */
+  /* The brand curve: an ease-OUT, for things arriving and settling. */
+  --ease:          cubic-bezier(.2,.7,.2,1);
+  /* Its mirror, for things leaving: starts slow, leaves fast (R7.3). */
+  --ease-exit:     cubic-bezier(.4,0,.9,.4);
+  /* Symmetric, for a reversible hover or toggle, so both directions match. */
+  --ease-standard: cubic-bezier(.4,0,.2,1);
+  /* SPRINGS - dialogs, menus and drag, and nothing else (decision 1). All
+     critically damped: damping 1, no overshoot. A critically damped spring has
+     the same SHAPE at every response, so one linear() serves all three and only
+     the duration changes - the duration is the time to settle within 0.1%.
+     Sampled from x(t) = 1 - (1 + wt)e^(-wt), w = 2pi / response. */
+  --spring: linear(0, .079, .236, .403, .551, .671, .764, .833, .883, .919, .945,
+                   .962, .974, .983, .988, .992, .995, .997, .998, .999, 1);
+  --spring-dur-s: 440ms;   /* response 0.30 */
+  --spring-dur:   520ms;   /* response 0.35 - the default */
+  --spring-dur-l: 590ms;   /* response 0.40 */
+  /* The only bouncy one: damping 0.8, response 0.35, 1.5% overshoot. Reserved
+     for a release after a momentum gesture (R4.2). Bothy has none yet, so
+     nothing uses it - it is defined so the first flick does not invent one. */
+  --spring-bounce: linear(0, .052, .171, .316, .464, .598, .712, .805, .875, .927,
+                          .964, .988, 1.003, 1.011, 1.014, 1.015, 1.014, 1.012,
+                          1.01, 1.008, 1.006, 1.004, 1.003, 1.002, 1);
+  --spring-bounce-dur: 480ms;
+  --stagger: 30ms;         /* per item; clamp the index at 8 */
+  /* Loop periods. A loop is not a transition, but a literal in one is still a
+     literal: these are the three speeds the app's spinners and shimmers run at. */
+  --loop-spin: .9s;
+  --loop-shimmer: 1.4s;
+  --loop-pulse: 1.4s;
+  --loop-beat: 2s;
 
-  /* ── elevation: theme-specific recipes, never a hardcoded black ─────────── */
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / .4),
-               inset 0 0 0 1px rgb(255 255 255 / .04);
-  --shadow-md: 0 8px 24px -12px rgb(0 0 0 / .6),
-               inset 0 0 0 1px rgb(255 255 255 / .06);
-  --shadow-lg: 0 20px 48px -20px rgb(0 0 0 / .7),
-               inset 0 0 0 1px rgb(255 255 255 / .08);
+  /* ── elevation: FOUR steps with fixed meanings (SYS-14, decision 8) ─────────
+       1  rest - a card, a selected segment
+       2  raised - a hover lift, a tooltip
+       3  popover - menus and popovers
+       4  modal - dialog, drawer, command palette
+     A theme sets the two COLOURS below, never the geometry: the recipes are
+     color-mix()es over them, so the ladder keeps its shape in every theme. The
+     shadow colour's own alpha is the theme's shadow strength (mixing with
+     transparent multiplies it), which is how light mode gets a quarter-strength
+     blue-grey without a second set of recipes. Dark recipes carry an inset
+     hairline, because a shadow alone cannot separate a surface from a
+     near-black page; light sets the hairline transparent. */
+  --shadow-color: #000000;
+  --shadow-hairline: #ffffff;
+  --shadow-1: 0 1px 2px color-mix(in srgb, var(--shadow-color) 40%, transparent),
+              inset 0 0 0 1px color-mix(in srgb, var(--shadow-hairline) 4%, transparent);
+  --shadow-2: 0 6px 16px -8px color-mix(in srgb, var(--shadow-color) 55%, transparent),
+              inset 0 0 0 1px color-mix(in srgb, var(--shadow-hairline) 6%, transparent);
+  --shadow-3: 0 12px 32px -12px color-mix(in srgb, var(--shadow-color) 65%, transparent),
+              inset 0 0 0 1px color-mix(in srgb, var(--shadow-hairline) 8%, transparent);
+  --shadow-4: 0 28px 72px -24px color-mix(in srgb, var(--shadow-color) 75%, transparent),
+              inset 0 0 0 1px color-mix(in srgb, var(--shadow-hairline) 10%, transparent);
+  /* The scrim behind a modal. It DARKENS, in both themes: until 2026-09-21 it
+     was 72% of --bg, which on a white page is 72% white, so the light theme's
+     "dim to focus" lightened the page instead (R12.4).
+     checks/design-tokens.mjs composites it over --bg and fails if it lightens. */
+  --scrim: rgb(0 0 0 / .6);
+
+  /* ── materials: the two translucent surfaces (decision 4) ──────────────────
+     The top bar and the command palette's scrim, and nothing else. Both go solid
+     under prefers-reduced-transparency (the media block near the end). */
+  --mat-chrome-bg: color-mix(in oklab, var(--bg) 78%, transparent);
+  --mat-chrome-blur: blur(14px) saturate(1.2);
+  --mat-scrim-blur: blur(3px);
 
   /* ── scroll affordance ───────────────────────────────────────────────────
      Used by .scroll-shade (the inner top/bottom shadows) and by the scrollbar
@@ -264,7 +380,12 @@
   --st-unknown-line: color-mix(in oklab, var(--st-unknown) 32%, transparent);
   --st-off-bg:       color-mix(in oklab, var(--st-off) 12%, transparent);
   --st-off-line:     color-mix(in oklab, var(--st-off) 26%, transparent);
-  --track:           color-mix(in oklab, var(--fg) 8%, transparent);
+  /* --track (8% of --fg) was here with no reader; deleted with --hover-opacity. */
+}
+
+/* A coarse pointer - a finger - gets 44px targets everywhere (decision 6). */
+@media (pointer: coarse) {
+  :root { --hit: 2.75rem; }
 }
 
 /* Light palette. ONE copy - lib/theme.tsx resolves 'system' against
@@ -369,15 +490,24 @@
   --a4: #8e3ffe;  /* 4.69:1 */
   --a5: #b921d6;  /* 4.73:1 */
 
+  /* A cool blue-grey wash, not white-adjacent: it is what lifts the top of the
+     page off the white --bg at all. (docs/brand/reference/tokens.md said
+     "#ffffff-adjacent" until 2026-09-21; the code was right.) */
   --bg-glow: #dfe5f5;
 
-  --hover-opacity: .8;
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / .06);
-  --shadow-md: 0 8px 24px -12px rgb(15 23 42 / .14);
-  --shadow-lg: 0 20px 48px -20px rgb(15 23 42 / .18);
+  /* slate-900 at a quarter strength: on white, pure black reads as grime. The
+     recipes multiply this alpha, so this one value tunes the whole ladder. */
+  --shadow-color: rgb(15 23 42 / .25);
+  --shadow-hairline: transparent;
+  /* zinc-950 at 38%: dims a white page to a mid grey without going muddy. */
+  --scrim: rgb(9 9 11 / .38);
 }
 
 * { box-sizing: border-box; }
+/* NO font-size on html or body, in any unit but a percentage (SYS-13): the
+   root is the user's text-size setting, and every --fs-* step is a rem of it.
+   A px here would silently switch that setting off for the whole app.
+   checks/design-tokens.mjs refuses one. */
 html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg);
@@ -387,19 +517,29 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
+/* Form controls do not inherit type by default - the UA gives them its own
+   face and a 13.33px size. `.svc-group-head` is a <button> that never said
+   `font: inherit`, so the Services group headings rendered in ARIAL (design
+   audit CT-7). One reset here instead of a `font: inherit` remembered in every
+   component. */
+button, input, select, textarea { font: inherit; letter-spacing: inherit; }
 a { color: inherit; text-decoration: none; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-/* visible only when focused - first tab stop on every page */
+/* visible only when focused - first tab stop on every page. It slides in on
+   `translate`, not `top`: `top` is a layout property and relaid out the page on
+   every frame of the slide (design audit SYS-10). */
 .skip-link {
-  position: absolute; left: 8px; top: -60px; z-index: 100;
+  position: absolute; left: var(--sp-2); top: var(--sp-2); z-index: 100;
+  translate: 0 calc(-100% - var(--sp-4));
   background: var(--surface-2); color: var(--fg); border: 1px solid var(--line-strong);
-  border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 600;
-  transition: top .15s ease;
+  border-radius: var(--r-sm); padding: 9px 14px;
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-semibold);
+  transition: translate var(--dur-fast) var(--ease);
 }
-.skip-link:focus-visible { top: 8px; }
+.skip-link:focus-visible { translate: 0 0; }
 .wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
 
 /* ── ambient background ──────────────────────────────────────────────────── */
@@ -419,33 +559,37 @@ a { color: inherit; text-decoration: none; }
   background-size: 48px 48px; mask-image: radial-gradient(1000px 620px at 60% 0%, #000 0%, transparent 78%);
   opacity: 0.4; }
 
-/* ── hero ────────────────────────────────────────────────────────────────── */
-.hero { padding: 64px 0 26px; }
+/* ── the freshness pill (topbar) ─────────────────────────────────────────── */
+/* The old landing page's .hero, .stats, .stat, .card, .grid, .desc, .go,
+   .search, .hint and .panels were here, and nothing has rendered any of them
+   since the multi-page shell (deleted 2026-09-21, design audit SYS-15). */
 .pill {
   display: inline-flex; align-items: center; gap: 10px;
-  padding: 7px 14px; border-radius: 999px; font-size: 13px; color: var(--fg-muted);
-  background: var(--surface-1); border: 1px solid var(--line); 
+  padding: 7px 14px; border-radius: var(--r-full);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
+  background: var(--surface-1); border: 1px solid var(--line);
 }
 .pill .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--fg-subtle);
   box-shadow: 0 0 0 0 currentColor; }
-.pill .via { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; }
-.pill.live { color: var(--st-up-fg); } .pill.live .pulse { background: var(--st-up); animation: beat 2s infinite; }
+.pill.live { color: var(--st-up-fg); } .pill.live .pulse { background: var(--st-up); animation: beat var(--loop-beat) infinite; }
 .pill.degraded, .pill.stale { color: var(--st-warn-fg); } .pill.degraded .pulse, .pill.stale .pulse { background: var(--st-warn); }
 .pill.down { color: var(--st-down-fg); } .pill.down .pulse { background: var(--st-down); }
-.pill span:not(.pulse):not(.via) { color: var(--fg-muted); }
+.pill span:not(.pulse) { color: var(--fg-muted); }
 /* The beat ring inherits the pill's own colour, so a .pill.down pulses rose
    rather than the hardcoded green this used to emit regardless of state. */
 @keyframes beat { 0%,100% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 50%, transparent);}
                   50%     { box-shadow: 0 0 0 6px transparent;} }
 
-h1 { font-size: clamp(38px, 6vw, 68px); line-height: 1.02; letter-spacing: -0.03em;
-  font-weight: 800; margin: 22px 0 16px; }
-
-
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; max-width: 760px; }
-.stat { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
-  padding: 18px 20px; }
-
+/* A page title by default. The 68px display metrics used to live on the bare
+   `h1`, written for a hero that no longer exists, so every page title
+   inherited leading of 1.02 and -0.03em tracking meant for 68px type (SYS-13).
+   --fs-display is kept for the Overview hero and nothing else. */
+h1 { font-size: var(--fs-2xl); line-height: var(--lh-2xl); letter-spacing: var(--tr-2xl);
+  font-weight: var(--fw-heavy); margin: 22px 0 16px; }
+/* Uppercase micro-labels: one class and one tracking, where there were 35 rules
+   and five tracking values for the same 10.5px label. */
+.eyebrow { font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-bold);
+  letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--fg-subtle); }
 
 /* ── tabs / toolbar ──────────────────────────────────────────────────────── */
 main.wrap { padding-top: 12px; padding-bottom: 60px; }
@@ -456,8 +600,9 @@ main.wrap { padding-top: 12px; padding-bottom: 60px; }
 .tabs { display: flex; align-items: center; gap: 2px; margin: 0 0 18px;
   border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .tabs button[role="tab"] { appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--fg-muted); font: inherit; font-weight: 600; font-size: 13.5px;
-  padding: 9px 13px; border-radius: var(--r-sm) var(--r-sm) 0 0; position: relative;
+  color: var(--fg-muted); font-weight: var(--fw-semibold);
+  font-size: var(--fs-md); line-height: var(--lh-md); letter-spacing: var(--tr-md);
+  padding: 9px 13px; min-height: var(--hit); border-radius: var(--r-sm) var(--r-sm) 0 0; position: relative;
   display: inline-flex; align-items: center; gap: 7px;
   transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 .tabs button[role="tab"]:hover { background: var(--surface-1); color: var(--fg); }
@@ -465,81 +610,45 @@ main.wrap { padding-top: 12px; padding-bottom: 60px; }
 .tabs button[role="tab"].on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
   height: 2px; border-radius: 2px 2px 0 0;
   background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
-.tabs .tab-n { font-family: var(--mono); font-size: 11px; font-weight: 700;
-  font-variant-numeric: tabular-nums; color: var(--fg-subtle);
+.tabs .tab-n { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs);
+  font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; color: var(--fg-subtle);
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-full); padding: 0 6px; }
 .tabs button[role="tab"].on .tab-n { color: var(--fg-muted); }
 
-.search { appearance: none; background: var(--surface-1); border: 1px solid var(--line);
-  color: var(--fg); border-radius: 10px; padding: 8px 12px; font: inherit; min-width: 200px; }
-/* `outline: none` used to live here, with a border-colour change as the only
-   replacement. That fails on two counts: it removes the keyboard focus
-   indicator entirely (2.4.7), and a 1px border tint is colour-alone. Keeping
-   the border change and letting the :focus-visible ring through for the
-   keyboard costs nothing and fixes both.
-   `:focus-visible`, not `:focus`: the two must never be able to disagree about
-   whether this field is focused, and one selector cannot. On a text field this
-   is not a behaviour change - :focus-visible matches text inputs whatever the
-   modality, so the mouse still gets the tint, which is the point of it. */
-.search:focus-visible { border-color: var(--accent); }
-.hint { color: var(--fg-subtle); font-size: 12px; }
-kbd { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
 
-/* ── services panels + cards ─────────────────────────────────────────────── */
-.panels { display: flex; flex-direction: column; gap: 34px; }
-
-
+/* ── counts, names, badges ───────────────────────────────────────────────── */
 .tail { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
-.cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: 700;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; font-size: 13px; }
-
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.card { display: flex; flex-direction: column; gap: 12px; padding: 18px;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
-  position: relative; overflow: hidden;
-  animation: rise 0.5s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(min(var(--i, 0), 12) * 0.04s); }
-.card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--acc, var(--accent)); opacity: 0.65; }
-a.card { transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
-a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
-  box-shadow: var(--shadow-lg); }
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-.ico { font-size: 22px; width: 40px; height: 40px; display: grid; place-items: center;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; flex: none; }
-
+.cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: var(--fw-bold);
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 2px 10px;
+  font-size: var(--fs-sm); line-height: var(--lh-sm); }
 
 .nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pt { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; margin-top: 2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.badge { font-size: 10.5px; font-weight: 600; color: var(--fg-muted); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
-.desc { color: var(--fg-muted); font-size: 13.5px; flex: 1; }
-.go { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
-  color: var(--accent); }
-.go.cli { color: var(--fg-subtle); font-weight: 500; }
+.pt { color: var(--fg-subtle); font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-xs);
+  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* status dot */
+/* status dot. The glow marks a SIGNAL; stopped and unknown get none, because a
+   stopped service is a state, not a signal. */
 .status { display: inline-flex; align-items: center; gap: 6px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.dot[data-state="up"] { background: var(--st-up); box-shadow: 0 0 8px color-mix(in oklab, var(--st-up) 70%, transparent); }
-.dot[data-state="starting"] { background: var(--st-warn); box-shadow: 0 0 8px color-mix(in oklab, var(--st-warn) 70%, transparent); }
-.dot[data-state="down"] { background: var(--st-down); box-shadow: 0 0 8px color-mix(in oklab, var(--st-down) 70%, transparent); }
-/* No glow: a stopped service is a state, not a signal. */
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.dot[data-state="up"] { background: var(--st-up); box-shadow: 0 0 8px color-mix(in oklab, var(--st-up) 65%, transparent); }
+.dot[data-state="starting"] { background: var(--st-warn); box-shadow: 0 0 8px color-mix(in oklab, var(--st-warn) 65%, transparent); }
+.dot[data-state="down"] { background: var(--st-down); box-shadow: 0 0 8px color-mix(in oklab, var(--st-down) 65%, transparent); }
 .dot[data-state="stopped"] { background: var(--st-off); }
 .dot[data-state="unknown"] { background: var(--st-unknown); }
 
-
-/* ── tables (ports / routes) ─────────────────────────────────────────────── */
-
+/* ── tables ─────────────────────────────────────────────────────────────────
+   ONE .tbl, where there were two copies of it in this file (the first set a
+   `cursor: pointer` on every header, sortable or not; sorting is a <button>
+   inside the <th> since batch 1, components/SortHeader.tsx). */
 .chips { display: flex; gap: 6px; }
-.chips button { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+.chips button { appearance: none; cursor: pointer; font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm); line-height: var(--lh-sm);
   color: var(--fg-muted); background: var(--surface-1); border: 1px solid var(--line);
-  border-radius: 8px; padding: 5px 12px; }
+  border-radius: var(--r-sm); padding: 5px 12px; min-height: var(--hit); }
 .chips button.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
-.tbar .cnt { margin-left: auto; }
 /* max-height is what makes `position: sticky` on <th> work at all. overflow-x
    forces overflow-y to compute to `auto`, so .tbl-wrap becomes the sticky
    containing block - but with no height cap it never scrolls vertically, the
@@ -547,21 +656,20 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .tbl-wrap { overflow: auto; max-height: min(72vh, 720px);
   border: 1px solid var(--line); border-radius: var(--r-lg);
   background: var(--surface-1); }
-.tbl-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.tbl th { text-align: left; padding: 8px 14px; color: var(--fg-subtle); font-weight: 600;
-  border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface-2);
-  cursor: pointer; white-space: nowrap; user-select: none; }
+.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
+.tbl th { text-align: left; padding: 8px 14px; color: var(--fg-subtle); font-weight: var(--fw-semibold);
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; background: var(--surface-2);
+  white-space: nowrap; user-select: none; }
 .tbl th.sorted { color: var(--fg); }
-/* 32px rows (6+6 padding + 20px line box). At 47px the Routes table needed two
-   viewports to show 21 routes; the extra 15px per row carried nothing. */
-.tbl td { padding: 6px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+/* 32px rows (6+6 padding + a 20px line box). At 47px the Routes table needed
+   two viewports to show 21 routes; the extra 15px per row carried nothing. The
+   leading is pinned to that 20px box so the rem size cannot grow the row. */
+.tbl td { padding: 6px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; line-height: 1.25rem; }
 .tbl tr:last-child td { border-bottom: 0; }
 .tbl tbody tr:hover { background: var(--surface-2); }
 .mono { font-family: var(--mono); font-size: 12.5px; }
 .rule { color: var(--fg-muted); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbl a { color: var(--accent); }
-/* .tag lives with the other primitives, further down - this was a first copy the later one overrode. */
 
 /* ── states / skeleton ───────────────────────────────────────────────────── */
 /* 56px of padding made "no results" as prominent as the content it replaced -
@@ -569,30 +677,19 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    padding: the APIs being unreachable IS an announcement. */
 .state { text-align: center; padding: 22px 20px; background: var(--surface-1);
   border: 1px solid var(--line); border-radius: var(--r-lg); }
-.state.err { padding: 40px 20px; }
-.state h4 { margin: 0 0 6px; font-size: 17px; }
+.state.err { padding: 40px 20px; border-color: color-mix(in oklab, var(--st-down) 26%, var(--line)); }
+.state h4 { margin: 0 0 6px; font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
 .state p { color: var(--fg-muted); max-width: 520px; margin: 0 auto 16px; }
-.state.err { border-color: color-mix(in oklab, var(--st-down) 26%, var(--line)); }
-.btn.ghost { appearance: none; cursor: pointer; font: inherit; font-weight: 600; color: var(--fg);
-  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 16px; }
 .skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 /* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
 .skel-col { display: flex; flex-direction: column; gap: 14px; }
 .skel { height: 132px; border-radius: var(--r-lg); border: 1px solid var(--line);
   background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
-  background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  background-size: 200% 100%; animation: shimmer var(--loop-shimmer) infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-.grid.floor { margin-top: 18px; }
 
-/* ── footer ──────────────────────────────────────────────────────────────── */
-
-
-@media (max-width: 640px) {
-  .stats { grid-template-columns: repeat(2, 1fr); }
-  .hero { padding-top: 40px; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .card, .skel, .pill .pulse, .spin { animation: none !important; }
+  .skel, .pill .pulse, .spin { animation: none !important; }
 }
 
 /* ============================================================================
@@ -601,19 +698,20 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    ========================================================================== */
 
 /* ── primitives ──────────────────────────────────────────────────────────── */
-.spin { animation: spin 0.9s linear infinite; }
+.spin { animation: spin var(--loop-spin) linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* status glyph (lucide) - coloured by the reserved palette, never colour-alone */
 .si { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
 .si svg { display: block; }
-.si-label { font-size: 12px; color: var(--fg-muted); font-weight: 600; }
+.si-label { font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--fg-muted); font-weight: var(--fw-semibold); }
 
-/* icon container (replaces the old emoji .ico) */
+/* icon container (replaces the old emoji .ico - whose first copy stood above
+   this one until 2026-09-21) */
 .ico { width: 38px; height: 38px; display: grid; place-items: center; flex: none;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; color: var(--fg); }
-.ico.sm { width: 26px; height: 26px; border-radius: 8px; }
-.ico.lg { width: 56px; height: 56px; border-radius: 14px; color: var(--accent); }
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); color: var(--fg); }
+.ico.sm { width: 26px; height: 26px; border-radius: var(--r-sm); }
+.ico.lg { width: 56px; height: 56px; border-radius: var(--r-lg); color: var(--accent); }
 .ico svg { display: block; }
 
 /* NO BOX. The topbar's right-hand controls are the theme menu and the user menu
@@ -624,17 +722,18 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    cursor changes. Colour carries the hover instead of chrome.
 
    The hit area is UNCHANGED at 38x38 - only the paint is gone. Shrinking a
-   control to match its new visual weight is the mistake that follows this one. */
+   control to match its new visual weight is the mistake that follows this one.
+   Under a coarse pointer it grows to --hit (44px). Its own :focus-visible rule
+   went: it restated the global ring exactly. */
 .icon-btn { appearance: none; cursor: pointer; display: grid; place-items: center;
-  width: 38px; height: 38px; border-radius: 10px; color: var(--fg-muted);
+  width: 38px; height: 38px; min-width: var(--hit); min-height: var(--hit);
+  border-radius: var(--r-md); color: var(--fg-muted);
   background: none; border: 0; }
 .icon-btn:hover { color: var(--fg); }
-/* Focus still needs a visible ring: removing the border removed the only thing
-   that showed keyboard focus on these two controls. */
-.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.badge { font-size: 10.5px; font-weight: 600; color: var(--fg-muted); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.badge { font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-semibold);
+  color: var(--fg-muted); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r-full); padding: 1px 8px; white-space: nowrap; }
 .badge.bad { color: var(--st-down-fg); border-color: color-mix(in oklab, var(--st-down) 30%, transparent); }
 .dim { color: var(--fg-subtle); }
 .link { color: var(--accent); }
@@ -657,7 +756,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px;
   padding: 10px 22px; border-bottom: 1px solid var(--line);
-  background: color-mix(in oklab, var(--bg) 78%, transparent); backdrop-filter: blur(14px); }
+  background: var(--mat-chrome-bg); backdrop-filter: var(--mat-chrome-blur); }
 
 /* ── brand ───────────────────────────────────────────────────────────────────
    "an address, not a name" is gone. It named the box after a DNS name that has been
@@ -789,7 +888,9 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 }
 
 .nav-item { display: flex; align-items: center; gap: 7px; padding: 7px 11px; border-radius: var(--r-sm);
-  color: var(--fg-muted); font-weight: 600; font-size: 13.5px; position: relative; flex: none;
+  color: var(--fg-muted); font-weight: var(--fw-semibold);
+  font-size: var(--fs-md); line-height: var(--lh-md); letter-spacing: var(--tr-md);
+  min-height: var(--hit); min-width: var(--hit); position: relative; flex: none;
   transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 .nav-item svg { flex: none; opacity: .85; }
 .nav-item:hover { background: var(--surface-1); color: var(--fg); }
@@ -820,10 +921,12 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    route and the browser history filled with one entry per character. */
 .topbar-search { flex: none; width: 232px; display: flex; align-items: center; gap: 8px;
   background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
-  padding: 7px 10px; color: var(--fg-subtle); font: inherit; font-size: 13px; cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease); text-align: left; }
+  padding: 7px 10px; color: var(--fg-subtle); cursor: pointer; min-height: var(--hit);
+  font-size: var(--fs-sm); line-height: var(--lh-sm);
+  transition: border-color var(--dur-fast) var(--ease),
+              scale var(--press-dur) var(--ease-standard), box-shadow var(--press-dur) var(--ease-standard);
+  text-align: left; }
 .topbar-search:hover { border-color: var(--line-strong); }
-.topbar-search:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .topbar-search .search-ico { color: var(--fg-subtle); flex: none; }
 .topbar-search .search-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -863,8 +966,9 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 /* ── generic page chrome ─────────────────────────────────────────────────── */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
   flex-wrap: wrap; margin-bottom: 20px; }
-.page-head h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-.page-sub { color: var(--fg-subtle); font-size: 13.5px; margin: 4px 0 0; }
+.page-head h1 { font-size: var(--fs-2xl); line-height: var(--lh-2xl); letter-spacing: var(--tr-2xl);
+  font-weight: var(--fw-heavy); margin: 0; }
+.page-sub { color: var(--fg-subtle); font-size: var(--fs-sm); line-height: var(--lh-sm); margin: 4px 0 0; }
 
 .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-subtle); font-size: 13px;
   font-weight: 600; margin-bottom: 14px; }
@@ -873,24 +977,31 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 /* ── view + density toggles ──────────────────────────────────────────────── */
 .view-controls { display: flex; gap: 8px; }
 .seg-toggle { display: inline-flex; background: var(--surface-1); border: 1px solid var(--line);
-  border-radius: 10px; padding: 3px; gap: 2px; }
-.seg-toggle button { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
-  color: var(--fg-muted); background: transparent; border: 0; border-radius: 7px; padding: 6px 11px;
-  display: inline-flex; align-items: center; gap: 6px; }
-.seg-toggle button.on { background: var(--surface-2); color: var(--fg); box-shadow: var(--shadow-sm); }
+  border-radius: var(--r-md); padding: 3px; gap: 2px; }
+.seg-toggle button { appearance: none; cursor: pointer; font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm); line-height: var(--lh-sm);
+  color: var(--fg-muted); background: transparent; border: 0; border-radius: var(--r-sm); padding: 6px 11px;
+  min-height: var(--hit); display: inline-flex; align-items: center; gap: 6px; }
+.seg-toggle button.on { background: var(--surface-2); color: var(--fg); box-shadow: var(--shadow-1); }
 
 /* ── filter bar ──────────────────────────────────────────────────────────── */
 .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 22px;
   padding: 12px 14px; background: var(--surface-1); border: 1px solid var(--line); border-radius: 12px;
   }
 .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { appearance: none; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
-  color: var(--fg-muted); background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: 999px; padding: 5px 11px; display: inline-flex; align-items: center; gap: 6px;
-  text-transform: capitalize; }
+/* ONE .chip (design audit SYS-15). There were two, 999px round here and 8px
+   further down, and the later one won every property they shared - so the pill
+   radius, the surface-2 fill and the accent-bordered "on" state written here
+   had never rendered. This is what actually rendered, in one place. */
+.chip { appearance: none; cursor: pointer; font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm); line-height: var(--lh-sm);
+  color: var(--fg-muted); background: var(--surface-1); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 5px 12px; min-height: var(--hit);
+  display: inline-flex; align-items: center; gap: 6px; text-transform: capitalize; }
 .chip:hover { border-color: var(--line-strong); color: var(--fg); }
-.chip.on { color: var(--fg); border-color: var(--accent); background: color-mix(in oklab, var(--accent) 14%, var(--surface-2)); }
+.chip.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
 .chip.clear { text-transform: none; color: var(--st-down-fg); }
+.chip .n { font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
 .filter-select { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-subtle); }
 .filter-select select { appearance: none; font: inherit; font-weight: 600; color: var(--fg);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
@@ -904,6 +1015,8 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .svc-groups { display: flex; flex-direction: column; gap: 26px; }
 .svc-group { --acc: var(--accent); }
 .svc-group-head-row { display: flex; align-items: flex-start; gap: 8px; }
+/* A <button>: its type comes from the global form-control reset (it rendered in
+   Arial before that existed, design audit CT-7). */
 .svc-group-head { flex: 1; min-width: 0; appearance: none; cursor: pointer; background: transparent; border: 0;
   display: flex; align-items: center; gap: 12px; padding: 0 0 14px; color: var(--fg); text-align: left; }
 /* the head itself is a collapse toggle, so the system link lives beside it -
@@ -912,29 +1025,21 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   width: 28px; height: 28px; border-radius: 8px; color: var(--fg-subtle);
   border: 1px solid var(--line); background: var(--surface-1); }
 .svc-group-open:hover { color: var(--accent); border-color: var(--accent); }
-.svc-group-head .chev { color: var(--fg-subtle); transition: transform 0.18s ease; }
+/* ONE disclosure chevron timing for the whole app (SYS-9): there were five
+   chevrons on four timings. Each component still decides WHICH way its glyph
+   turns (a ChevronDown closes to -90deg, a ChevronRight opens to 90deg); the
+   speed and curve live here. The symmetric curve, because a disclosure is the
+   textbook reversible toggle and both directions should feel the same (R7.3). */
+.chev { flex: none; color: var(--fg-subtle);
+  transition: transform var(--dur) var(--ease-standard), rotate var(--dur) var(--ease-standard); }
 .svc-group-head .chev.closed { transform: rotate(-90deg); }
 .svc-group-idx { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--acc);
   border: 1px solid color-mix(in oklab, var(--acc) 40%, transparent); border-radius: 7px; padding: 3px 7px; }
 .svc-group-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
 .svc-group-sub { color: var(--fg-subtle); font-size: 12.5px; }
-.svc-group-head .tail { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
-.svc-group-head .cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: 700;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; font-size: 13px; }
-
-
-.svc-grid.compact { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-
-/* ── service card ────────────────────────────────────────────────────────── */
-
-
-.svc-card.compact { padding: 12px; gap: 8px; }
-
-
-.nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pt { color: var(--fg-subtle); font-family: var(--mono); font-size: 12px; margin-top: 2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
+/* .tail and .cnt inside the head are the shared ones above; the scoped copies
+   that restated them, the dead .svc-grid/.svc-card rules and a second .nm-text
+   and .pt were deleted 2026-09-21 (SYS-15). */
 
 /* ── service table rows ──────────────────────────────────────────────────── */
 .svc-tbl td { vertical-align: middle; }
@@ -950,15 +1055,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .tag.link:hover { border-color: var(--accent); }
 
 /* ── overview ────────────────────────────────────────────────────────────── */
-.overview { }
 .ov-body { padding: 40px 0 20px; display: flex; flex-direction: column; gap: 44px; }
-
-
-.ov-bar .seg.up { background: var(--st-up); }
-.ov-bar .seg.starting { background: var(--st-warn); }
-.ov-bar .seg.down { background: var(--st-down); }
-.ov-bar .seg.unknown { background: var(--st-unknown); }
-
 
 .ov-alert { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: inherit;
   background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px;
@@ -970,9 +1067,12 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 
 
 .ov-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+/* The transition lives on the element, not on :hover (SYS-9): declared only on
+   hover, the lift animated in and SNAPPED out. */
 .ov-quick-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; color: inherit;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px; }
-.ov-quick-item:hover { border-color: var(--accent); transform: translateY(-2px); transition: .15s; }
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
+  transition: translate var(--dur) var(--ease-standard), border-color var(--dur-fast) var(--ease); }
+.ov-quick-item:hover { border-color: var(--accent); translate: 0 -2px; }
 .ov-quick-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-quick-ext { color: var(--fg-subtle); margin-left: auto; flex: none; }
 
@@ -993,15 +1093,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
   border-top: 1.5px dashed var(--fg-subtle);
 }
 
-@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
-
-
-/* static (no-webgl / reduced-motion) layered diagram */
-
-
 /* ── detail pages ────────────────────────────────────────────────────────── */
-
-
 .acc-bar { width: 5px; height: 26px; border-radius: 3px; background: var(--acc); display: inline-block; }
 
 
@@ -1038,7 +1130,7 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .topo-svg { width: 100%; min-width: 720px; height: auto; display: block; }
 .topo-band { fill: color-mix(in oklab, var(--fg) 3%, transparent); stroke: var(--line); }
 .topo-band-label { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); font-weight: 600; }
-.topo-edge { stroke-width: 1.5; transition: opacity .15s; }
+.topo-edge { stroke-width: 1.5; transition: opacity var(--dur-fast) var(--ease); }
 .topo-hub-c { fill: color-mix(in oklab, var(--accent) 22%, var(--surface-2)); stroke: var(--accent); stroke-width: 1.5; }
 .topo-hub { cursor: default; }
 .topo-hub-t { fill: var(--fg); font-size: 12px; font-weight: 700; text-anchor: middle; }
@@ -1048,23 +1140,17 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .topo-label.ctr { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); }
 
 /* ── responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 1024px) {
-  .ov-stats { grid-template-columns: repeat(3, 1fr); }
-}
 /* The <=860px sidebar-drawer block is gone with the sidebar: the fixed
    translateX drawer, its `visibility` tab-order workaround (off-screen links
    stayed focusable, so Tab began with six invisible stops), the hamburger and
    the scrim. The shell's own @media (max-width: 900px) rule replaces all of it
-   by making the topbar denser. */
+   by making the topbar denser. (.ov-stats and .scene-* here styled nothing that
+   renders; deleted 2026-09-21.) */
 @media (max-width: 640px) {
-  .ov-stats { grid-template-columns: repeat(2, 1fr); }
   .ov-body { padding-top: 26px; gap: 34px; }
-  .scene-overlay { padding: 40px 22px; }
-  .page-head h1 { font-size: 23px; }
+  /* One step down the closed scale; 23px was between two steps. */
+  .page-head h1 { font-size: var(--fs-xl); line-height: var(--lh-xl); letter-spacing: var(--tr-xl); }
   .filter-search { min-width: 120px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .svc-card, .scene-scrollcue { animation: none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1074,8 +1160,10 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .panel { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
   display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .panel-h { display: flex; align-items: center; gap: 10px; padding: 13px 16px;
-  border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px; }
-.panel-h .sub { color: var(--fg-subtle); font-weight: 500; font-size: 12px; margin-left: auto; }
+  border-bottom: 1px solid var(--line); font-weight: var(--fw-bold);
+  font-size: var(--fs-md); line-height: var(--lh-md); }
+.panel-h .sub { color: var(--fg-subtle); font-weight: var(--fw-medium);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); margin-left: auto; }
 .panel-b { padding: 16px; min-height: 0; }
 /* The per-element ::-webkit-scrollbar rules that used to live here are gone -
    the scrollbar is styled once, globally, in the SCROLLING block near the end of
@@ -1092,15 +1180,11 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    (.syscard, framer-motion), which animate FROM a visible resting state and
    cannot leave content hidden if they never run. */
 
-.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
-.dot[data-state="up"] { background: var(--st-up); box-shadow: 0 0 8px color-mix(in oklab, var(--st-up) 65%, transparent); }
-.dot[data-state="starting"] { background: var(--st-warn); box-shadow: 0 0 8px color-mix(in oklab, var(--st-warn) 65%, transparent); }
-.dot[data-state="down"] { background: var(--st-down); box-shadow: 0 0 8px color-mix(in oklab, var(--st-down) 65%, transparent); }
-.dot[data-state="stopped"] { background: var(--st-off); }
-.dot[data-state="unknown"] { background: var(--st-unknown); }
+/* .dot is declared once, with the table primitives above (it was here too). */
 
-.tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
-  padding: 2px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+.tag { display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-weight: var(--fw-semibold);
+  padding: 2px 9px; border-radius: var(--r-full); background: var(--surface-2); border: 1px solid var(--line);
   color: var(--fg-muted); white-space: nowrap; }
 /* TEXT TAKES THE -fg HALF OF A STATUS, NEVER THE FILL (design audit SYS-3,
    2026-09-21). These said `color: var(--st-up)`: the fill, which the palette
@@ -1114,20 +1198,11 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 .tag.down, .tag.bad { color: var(--st-down-fg); border-color: color-mix(in oklab, var(--st-down) 34%, transparent); }
 .tag.loopback { color: var(--fg-subtle); }
 
-.btn { appearance: none; cursor: pointer; font: inherit; font-weight: 600; font-size: 13px;
-  display: inline-flex; align-items: center; gap: 7px; color: var(--fg); background: var(--surface-2);
-  border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 14px; transition: border-color .15s, background .15s; }
-.btn:hover { border-color: var(--accent); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.btn.ghost { background: transparent; }
+/* .btn is components/ui/Button.css now - the primitive owns its look, and
+   checks/design-tokens.mjs refuses a `.btn` rule anywhere else that does more
+   than place one. The second .chip that stood here is merged into the first. */
 
-.chip { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg-muted);
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px;
-  display: inline-flex; align-items: center; gap: 6px; }
-.chip.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
-.chip .n { font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
-
-.kbd { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
+.kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
 
 /* ── tooltip ─────────────────────────────────────────────────────────────────
@@ -1137,9 +1212,10 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    `title=` attributes this replaces were invisible to keyboard users. */
 .tip-wrap { position: relative; display: inline-flex; }
 .tip { position: absolute; z-index: 60; top: calc(100% + 8px); left: 50%; translate: -50% 0;
-  background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 600; line-height: 1.35;
+  background: var(--fg); color: var(--bg); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
   padding: 6px 9px; border-radius: var(--r-sm); white-space: nowrap; pointer-events: none;
-  box-shadow: var(--shadow-md); }
+  box-shadow: var(--shadow-2); }
 .tip::before { content: ''; position: absolute; top: -3px; left: 50%; translate: -50% 0; rotate: 45deg;
   width: 8px; height: 8px; background: var(--fg); border-radius: 1px; }
 .tip[data-align='end'] { left: auto; right: 0; translate: none; }
@@ -1158,40 +1234,32 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
 /* The scrim and the panel are SIBLINGS since the palette moved onto ui/Dialog's
    DialogSurface (Radix renders Overlay and Content side by side), so the panel
    positions itself rather than being centred by a grid on the scrim. */
-.cmdk-scrim { position: fixed; inset: 0; z-index: 80; background: color-mix(in oklab, var(--bg) 62%, transparent);
-  backdrop-filter: blur(3px); }
+.cmdk-scrim { position: fixed; inset: 0; z-index: 80; background: var(--scrim);
+  backdrop-filter: var(--mat-scrim-blur); }
 .cmdk { position: fixed; z-index: 81; top: 12vh; left: 50%; translate: -50% 0;
   width: min(560px, calc(100vw - 32px)); background: var(--surface-4); border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg); box-shadow: var(--shadow-lg); overflow: hidden;
+  border-radius: var(--r-lg); box-shadow: var(--shadow-4); overflow: hidden;
   display: flex; flex-direction: column; max-height: 62vh; }
 .cmdk-in { display: flex; align-items: center; gap: 10px; padding: 12px 14px;
   border-bottom: 1px solid var(--line); flex: none; }
 .cmdk-in svg { color: var(--fg-subtle); flex: none; }
 .cmdk-in input { appearance: none; border: 0; background: transparent; color: var(--fg);
-  font: inherit; font-size: 15px; width: 100%; outline: none; }
+  font-size: var(--fs-body); line-height: var(--lh-md); width: 100%; outline: none; }
 /* The input has no border of its own, so the ring goes on the row that frames
    it. `:has(:focus-visible)` rather than `:focus-within` so it appears for the
    keyboard and not on every mouse click into the field. */
 .cmdk-in:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--r-sm); }
 .cmdk-list { overflow-y: auto; padding: 6px; min-height: 0; }
-.cmdk-group { padding: 8px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+.cmdk-group { padding: 8px 10px 4px; font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-bold); letter-spacing: var(--label-tracking);
   text-transform: uppercase; color: var(--fg-subtle); }
 .cmdk-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-sm);
-  font-size: 13.5px; cursor: pointer; color: var(--fg-muted); }
-.cmdk-item .cmdk-sub { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--fg-subtle); }
+  font-size: var(--fs-md); line-height: var(--lh-md); min-height: var(--hit); cursor: pointer; color: var(--fg-muted); }
+.cmdk-item .cmdk-sub { margin-left: auto; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--fg-subtle); }
 .cmdk-item[aria-selected='true'] { background: var(--surface-3); color: var(--fg); }
-.cmdk-empty { padding: 22px 12px; text-align: center; color: var(--fg-subtle); font-size: 13px; }
+.cmdk-empty { padding: 22px 12px; text-align: center; color: var(--fg-subtle); font-size: var(--fs-sm); }
 .cmdk-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--line);
-  font-size: 11px; color: var(--fg-subtle); flex: none; }
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); flex: none; }
 
-.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.tbl th { text-align: left; padding: 8px 14px; color: var(--fg-subtle); font-weight: 600; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 1; background: var(--surface-2); white-space: nowrap; user-select: none; }
-/* 32px rows (6+6 padding + 20px line box). At 47px the Routes table needed two
-   viewports to show 21 routes; the extra 15px per row carried nothing. */
-.tbl td { padding: 6px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.tbl tr:last-child td { border-bottom: 0; }
-.tbl tbody tr:hover { background: var(--surface-2); }
 
 /* ══════════════════════════════════════════════════════════════════════════
    SCROLLING - the affordances, in one place.
@@ -1282,6 +1350,76 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    both are (0,1,0) and the later one wins. */
 .content:focus, .content:focus-visible { outline: none; }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   PRESS AND HIT - the two interaction rules every control shares.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── press (design audit SYS-1, R1.1) ───────────────────────────────────────
+   Feedback on pointer-DOWN, not on release. The app had 2 :active rules against
+   123 :hover ones, so a press looked exactly like a hover until the click
+   landed - and the brand's own component-states matrix requires "Active".
+
+   COMPACT CONTROLS dim a step and shrink to --press-scale. The dim is an inset
+   tint of --fg, so it reads on any fill - a filled primary, a transparent ghost
+   - and goes the right way in both themes (lighter on dark, darker on light).
+   ROWS AND CARDS darken to --surface-press and do not scale: .97 of a 600px row
+   moves its edges 9px, which is not a press but a lurch.
+
+   :where() keeps these at zero specificity, so a component's own :active (the
+   splitter, .sa-verb) still wins. `scale`, not `transform`, so a control that
+   already uses transform (a rotated chevron, a translated tooltip) keeps it. */
+/* The shared transition, so the press eases back out as well as in. A control
+   that declares its own `transition` must list `scale` and `box-shadow` at
+   --press-dur itself (.btn, .svc-act-btn and .topbar-search do). */
+:where(.btn, .chip, .chips button, .icon-btn, .seg-toggle button, .topbar-search, .dlg-x,
+  .svc-group-open, .svc-act-btn, .vit-ranges button, .fx-hbtn, .fx-rootchip, .fx-dlbtn,
+  .sn-copy, .set-cmd-copy, .logp-refresh) {
+  transition: scale var(--press-dur) var(--ease-standard), box-shadow var(--press-dur) var(--ease-standard),
+              color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+:where(.btn, .chip, .chips button, .icon-btn, .seg-toggle button, .topbar-search, .dlg-x,
+  .svc-group-open, .svc-act-btn, .vit-ranges button, .fx-hbtn, .fx-rootchip, .fx-dlbtn,
+  .sn-copy, .set-cmd-copy, .logp-refresh):active:not(:disabled, [aria-disabled='true']) {
+  scale: var(--press-scale);
+  box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--fg) 9%, transparent);
+}
+:where(.nav-item, .tabs button[role='tab'], .tm-row, .um-item, .fx-menu-item, .ui-menu-item,
+  .cmdk-item, .fx-row, .rd-doc, .rd-dir, .set-opt, .theme-card, .ct-item, .svc-group-head,
+  .ov-quick-item, .fx-sr-file, .fx-sr-line):active:not(:disabled, [aria-disabled='true']) {
+  background-color: var(--surface-press);
+}
+/* Reduced motion keeps the feedback and drops the movement (decision 3). Both
+   sources: the OS, and Settings > Appearance > Motion. */
+@media (prefers-reduced-motion: reduce) {
+  :where(.btn, .chip, .chips button, .icon-btn, .seg-toggle button, .topbar-search, .dlg-x,
+    .svc-group-open, .svc-act-btn, .vit-ranges button, .fx-hbtn, .fx-rootchip, .fx-dlbtn,
+    .sn-copy, .set-cmd-copy, .logp-refresh):active { scale: none; }
+}
+html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-toggle button,
+  .topbar-search, .dlg-x, .svc-group-open, .svc-act-btn, .vit-ranges button, .fx-hbtn,
+  .fx-rootchip, .fx-dlbtn, .sn-copy, .set-cmd-copy, .logp-refresh):active { scale: none; }
+
+/* ── hit targets (design audit SYS-6, decision 6) ───────────────────────────
+   --hit is 24px under a fine pointer and 44px under a coarse one. Controls that
+   can simply BE that big say `min-height: var(--hit)` in their own rule. These
+   are the ones whose drawn size must stay small - a 17px tab close, a 26px row
+   action beside a table cell - so they get an invisible hit slop instead: a
+   ::after that reaches out to --hit and never shrinks the target (min() with 0).
+   Where two slops overlap, the later control wins the overlap, which on touch
+   is a far smaller error than a 17px target. */
+:where(.svc-act-btn, .svc-group-open, .set-cmd-copy, .sn-copy, .ov-uirow-open, .fx-hbtn,
+  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn) { position: relative; }
+:where(.svc-act-btn, .svc-group-open, .set-cmd-copy, .sn-copy, .ov-uirow-open, .fx-hbtn,
+  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn)::after {
+  content: ''; position: absolute;
+  inset: min(0px, calc((100% - var(--hit)) / 2));
+}
+/* No hover on a touch screen, so nothing may exist ONLY on hover there. */
+@media (hover: none) {
+  .bothy-files .fx-rowwrap .fx-rowbtn { display: grid; }
+}
+
 /* ── forced colours (Windows High Contrast) ────────────────────────────────
    In forced-colours mode the OS replaces every colour we declare with its own
    palette. That is fine for text, and fatal for this app's small coloured
@@ -1291,31 +1429,81 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    title), but "up" and "down" sitting side by side as two identical squares is
    still a real loss.
 
-   So: give every status mark a BORDER in forced-colours mode. Borders are
-   drawn with the system's own colours and survive, which restores the
-   filled-vs-hollow distinction the palette was carrying. `forced-color-adjust:
-   none` is deliberately NOT used - overriding the user's palette is the thing
-   this mode exists to prevent. */
+   So: give every status mark a BORDER in forced-colours mode, and paint the
+   FILL itself in a system colour. The first version stopped at the border and
+   left `forced-color-adjust: auto`, which is the trap: the OS then flattens the
+   background to Canvas, so all five statuses became the same hollow box and the
+   promised "filled vs hollow" never happened (design audit SYS-12, measured).
+   The marks now opt out (`forced-color-adjust: none`) and are painted ONLY in
+   system colours - CanvasText for a status that is a signal (up, starting,
+   down), Canvas for one that is not (stopped, unknown) - so the user's palette
+   is still the only palette on screen, and the distinction survives. */
 @media (forced-colors: active) {
-  .dot, .sm-cell, .tc-swatch, .vz-bar-seg {
+  .dot, .sm-cell, .tc-swatch, .vz-bar-seg, .cl-dot, .ka-dot {
+    forced-color-adjust: none;
     border: 1px solid CanvasText;
-    forced-color-adjust: auto;
+    background: CanvasText;
+    box-shadow: none;
   }
-  /* Hollow already means "not a signal" in this design; keep it readable. */
-  .sm-cell[data-state='stopped'], .vz-bar-seg.is-aside { background: Canvas; }
+  /* Hollow means "not a signal" in this design. */
+  :is(.dot, .sm-cell, .cl-dot):is([data-state='stopped'], [data-state='unknown'], [data-state='off']),
+  .ka-status:is([data-state='stopped'], [data-state='unknown'], [data-state='off']) .ka-dot,
+  .vz-bar-seg:is(.is-aside, .is-empty, .seg-stopped, .seg-unknown) { background: Canvas; }
   /* The focus ring must not be the accent the OS just discarded. */
   *:focus-visible { outline-color: Highlight; }
   /* Surfaces lose their borders when backgrounds are forced flat. */
-  .ov-panel, .vit-panel, .dlg, .card, .svc-card, .sm-chip, .tbl-wrap {
+  .ov-panel, .vit-panel, .dlg, .sm-chip, .tbl-wrap {
     border: 1px solid CanvasText;
   }
+  /* The wordmark is a MASK painted with `background: currentColor`, and a
+     forced background is Canvas - so it vanished outright. It opts out and is
+     painted in the text colour, which is still the user's. The brand dot goes
+     with it: a coloured dot is exactly what this mode is asked to remove. */
+  .brand-wordmark::before { forced-color-adjust: none; background: CanvasText; }
+  .brand-wordmark::after { forced-color-adjust: none; background: CanvasText; }
   /* Decorative only - it is noise once the palette is the user's. */
   .bg, .scroll-rail { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   /* Nothing here may HIDE content. Killing transitions must never be able to
-     leave an element at opacity:0 - that was the old .reveal failure mode. */
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+     leave an element at opacity:0 - that was the old .reveal failure mode.
+     `iteration-count: 1` so a looping animation stops rather than strobing at
+     a hundredth of a millisecond per cycle; the in-app setting (prefs.css) has
+     always said so and this block did not. */
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── reduced transparency (decision 4, SYS-12) ─────────────────────────────
+   The two translucent materials go solid: the top bar takes the page colour
+   and the palette's scrim stops blurring. Nothing else in the app is
+   translucent, so nothing else has anything to do here. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --mat-chrome-bg: var(--bg);
+    --mat-chrome-blur: none;
+    --mat-scrim-blur: none;
+  }
+}
+
+/* ── more contrast (SYS-12) ─────────────────────────────────────────────────
+   Borders that can actually be seen, the quietest text raised a step, and
+   solid chrome. The lines are DERIVED from --fg rather than restated, so this
+   one block is right in every theme, light or dark, named or not - and the
+   selector is doubled past a named theme's 0,3,0 so that a theme's own --line
+   cannot out-rank the user's request for contrast. */
+@media (prefers-contrast: more) {
+  :root:root:root:root {
+    --line: color-mix(in oklab, var(--fg) 28%, transparent);
+    --line-strong: color-mix(in oklab, var(--fg) 45%, transparent);
+    --fg-subtle: var(--fg-muted);
+    --mat-chrome-bg: var(--bg);
+    --mat-chrome-blur: none;
+  }
 }
 
 /* ── accent, chosen per browser (Settings > Appearance > Accent) ─────────────

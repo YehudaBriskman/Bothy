@@ -14,6 +14,7 @@ import { Control } from './pages/control/Control';
 import { Cluster } from './pages/control/Cluster';
 import { LEGACY_PATHS, legacyTarget } from './pages/control/redirects';
 import { GUIDE_PATH } from './pages/files/routes';
+import { buttonClass } from './components/ui/Button';
 
 // Multi-page, one shared poll (lifted into <DataProvider> in main.tsx). The
 // AppShell is the persistent layout (one topbar - the global sidebar was
@@ -111,7 +112,7 @@ function NotFound() {
         <p>
           <span className="mono">{location.hash || '/'}</span> isn’t a page here.
         </p>
-        <Link className="btn ghost" to="/">Back to the Overview</Link>
+        <Link className={buttonClass({ variant: 'ghost' })} to="/">Back to the Overview</Link>
       </div>
     </div>
   );

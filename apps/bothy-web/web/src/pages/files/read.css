@@ -100,7 +100,7 @@
 .bothy-files .rd-root-n {
   margin-left: auto; font-size: calc(var(--rd-ui-fs) * 0.8); font-family: var(--mono); color: var(--fg-subtle);
 }
-.bothy-files .rd-chev { flex: none; color: var(--fg-subtle); transition: transform .12s ease; }
+/* .rd-chev turns on the shared .chev timing (index.css). */
 .bothy-files .rd-chev.open { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
   .bothy-files .rd-chev { transition: none; }
@@ -231,7 +231,7 @@
   width: 274px; max-height: 60vh; overflow: auto;
   padding: 9px 10px 10px;
   background: var(--surface-1); border: 1px solid var(--line-strong);
-  border-radius: var(--r-md); box-shadow: var(--shadow-md);
+  border-radius: var(--r-md); box-shadow: var(--shadow-3);
 }
 .bothy-files .rd-scope-h {
   margin: 0 0 5px;

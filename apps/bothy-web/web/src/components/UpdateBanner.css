@@ -11,17 +11,14 @@
   padding: 10px 10px 10px 14px;
   background: var(--surface-2); color: var(--fg);
   border: 1px solid var(--accent-line); border-left: 3px solid var(--accent);
-  border-radius: var(--r-md); box-shadow: var(--shadow-md);
-  animation: upd-banner-in .22s cubic-bezier(.2, .7, .2, 1);
+  border-radius: var(--r-md); box-shadow: var(--shadow-3);
+  animation: upd-banner-in var(--dur) var(--ease);
 }
 .upd-banner-ico { flex: none; color: var(--accent-fg, var(--accent)); }
 .upd-banner-text { margin: 0; min-width: 0; font-size: 13px; line-height: 1.45; color: var(--fg-muted); }
 .upd-banner-text b { color: var(--fg); }
 .upd-banner-text .mono { color: var(--fg); font-size: 12.5px; }
 .upd-banner-actions { flex: none; display: flex; align-items: center; gap: 4px; }
-.upd-banner .btn { padding: 6px 12px; font-size: 12.5px; border-radius: var(--r-sm); }
-.upd-banner .btn.icon-only { padding: 6px 7px; }
-.upd-banner .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 @keyframes upd-banner-in { from { opacity: 0; translate: -50% 8px; } }
 

@@ -50,8 +50,6 @@
    live button that does nothing when pressed, which is how a form teaches
    somebody that it is broken. */
 .sn-field .btn { flex: none; }
-.sn-field .btn:disabled { cursor: default; color: var(--fg-subtle);
-  background: transparent; border-color: var(--line); }
 
 .sn-hint { margin: 0; display: flex; gap: 7px; align-items: flex-start;
   font-size: 12.5px; line-height: 1.5; color: var(--fg-subtle); }
@@ -109,7 +107,6 @@
 .sn-copy:hover { color: var(--fg); border-color: var(--fg-subtle); }
 
 .sn-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.sn-row .btn { display: inline-flex; align-items: center; gap: 8px; }
 
 /* ── outcomes and refusals ─────────────────────────────────────────────────── */
 .sn-out { display: flex; flex-direction: column; gap: 7px;

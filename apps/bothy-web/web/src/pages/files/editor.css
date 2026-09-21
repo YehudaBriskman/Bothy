@@ -140,7 +140,7 @@
   padding: 4px; display: flex; flex-direction: column;
   background: var(--surface-1); color: var(--fg-muted);
   border: 1px solid var(--line); border-radius: var(--r-md);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-2);
 }
 .bothy-files .fx-menu-end { right: 0; }
 .bothy-files .fx-menu-start { left: 0; }
@@ -190,7 +190,6 @@
 .bothy-files .fx-note.warn { background: var(--st-warn-bg); border-color: var(--st-warn-line); color: var(--st-warn-fg); }
 .bothy-files .fx-note.info,
 .bothy-files .fx-note.auth { background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent-fg); }
-.bothy-files .fx-note.auth .btn { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* ── the document stack ──────────────────────────────────────────────────────
    EVERY open document is mounted, all the time, and the inactive ones are
@@ -272,7 +271,7 @@
 }
 .bothy-files .fx-media-img {
   max-width: 100%; max-height: 100%; object-fit: contain;
-  border-radius: var(--r-sm); box-shadow: var(--shadow-md);
+  border-radius: var(--r-sm); box-shadow: var(--shadow-2);
 }
 .bothy-files .fx-media-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .bothy-files .fx-media-note {
@@ -318,10 +317,8 @@
 }
 .bothy-files .fx-json-branch:hover { background: var(--surface-2); }
 .bothy-files .fx-json-branch:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.bothy-files .fx-json-chev {
-  flex: none; color: var(--fg-subtle); margin-left: -14px;
-  transition: transform var(--dur-fast) var(--ease);
-}
+/* Turns on the shared .chev timing (index.css); only the offset is local. */
+.bothy-files .fx-json-chev { margin-left: -14px; }
 .bothy-files .fx-json-chev.open { transform: rotate(90deg); }
 .bothy-files .fx-json-colon { color: var(--fg-subtle); margin-right: 2px; }
 .bothy-files .fx-json-brace { color: var(--fg-subtle); }

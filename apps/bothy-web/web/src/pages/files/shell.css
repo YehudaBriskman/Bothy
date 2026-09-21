@@ -158,10 +158,7 @@
   background: var(--accent-bg); color: var(--accent-fg); font-weight: 700;
   box-shadow: inset 0 0 0 1px var(--accent-line);
 }
-.bothy-files .btn.on,
-.bothy-files .btn[aria-pressed='true'] {
-  background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent-fg);
-}
+/* A pressed toggle Button is styled by ui/Button.css now, app-wide. */
 
 /* ── the four regions ────────────────────────────────────────────────────────
    Explicit grid-column on every cell, so a collapsed rail can be removed from
@@ -256,7 +253,6 @@
 
 /* Shared small controls. `.btn.sm` and `.icon-btn.sm` are used by three of the
    five regions, so they are declared once here rather than in each. */
-.bothy-files .btn.sm { padding: 5px 10px; font-size: 12px; }
 .bothy-files .icon-btn.sm { width: 26px; height: 26px; border-radius: var(--r-sm); }
 .bothy-files .fx-skel { display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; }
 .bothy-files .fx-skel .skel { height: 20px; border-radius: var(--r-sm); }

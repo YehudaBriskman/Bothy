@@ -41,7 +41,8 @@
      match. */
   opacity: var(--rest-opacity);
   transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-              border-color var(--dur-fast) var(--ease);
+              border-color var(--dur-fast) var(--ease),
+              scale var(--press-dur) var(--ease-standard), box-shadow var(--press-dur) var(--ease-standard);
 }
 .svc-act-btn svg { display: block; }
 
@@ -135,7 +136,7 @@
 .sa-spin {
   flex: none; width: 15px; height: 15px; border-radius: var(--r-full);
   border: 2px solid var(--line-strong); border-top-color: var(--accent);
-  animation: sa-turn .8s linear infinite;
+  animation: sa-turn var(--loop-spin) linear infinite;
 }
 @keyframes sa-turn { to { transform: rotate(360deg); } }
 
@@ -181,17 +182,14 @@
    filling the answer that takes the edge down with it would make the destructive
    choice the one the eye lands on. It reads as an ordinary button, and the
    sentence above it does the arguing. */
-.sa-go { border-color: var(--st-warn-line); }
-.sa-go:hover { border-color: var(--st-warn); background: var(--st-warn-bg); }
+/* It is Button variant="caution" now - the same amber edge, in the primitive. */
 
 /* index.css's `.btn` declares no :disabled at all - measured, the in-flight
    footer button came out at full weight and read as the live control it had
    just stopped being. Declared here rather than there because a component never
    edits the global file; the same treatment as every other inert control in the
    app, opacity token and no pointer. */
-.sa-go:disabled,
-.sa-busy:disabled { opacity: var(--disabled-opacity); cursor: default; }
-.sa-busy:disabled:hover { border-color: var(--line-strong); }
+/* ...and ui/Button now has one - these per-component copies are gone. */
 
 /* ── narrow ────────────────────────────────────────────────────────────────*/
 @media (max-width: 560px) {

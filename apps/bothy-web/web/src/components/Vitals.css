@@ -79,7 +79,7 @@
 .vit-skel {
   height: 132px; border-radius: var(--r-md);
   background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
-  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  background-size: 200% 100%; animation: shimmer var(--loop-shimmer) infinite;
 }
 
 .vit-off {

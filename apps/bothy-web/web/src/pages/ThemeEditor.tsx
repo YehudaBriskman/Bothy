@@ -40,6 +40,7 @@ import type { CodeHandle } from './files/CodeSurface';
 // that must not load that shell - see src/hl.css.
 import '../hl.css';
 import './ThemeEditor.css';
+import { Button } from '../components/ui/Button';
 
 const ROOT = 'stacks';
 const dirOf = (id: string) => `${THEME_DIR_HOST}${id}.css`;
@@ -294,26 +295,18 @@ export function ThemeEditor() {
           {/* Closing the pane drops what was typed in it, so reopening starts from
               the canonical file again. The buffer exists to stop the surface
               fighting a caret mid-word; it is not a second draft. */}
-          <button
-            type="button"
-            className="btn"
-            onClick={() => { setShowCss((v) => !v); setTypedCss(null); }}
-          >
+          <Button onClick={() => { setShowCss((v) => !v); setTypedCss(null); }}>
             <Code2 size={15} aria-hidden="true" /> {showCss ? 'Hide' : 'Show'} CSS
-          </button>
+          </Button>
           {editing && (
-            <button
-              type="button"
-              className="btn te-danger"
-              disabled={!mayWrite || busy}
-              onClick={remove}
-            >
+            <Button variant="danger" disabled={!mayWrite || busy}
+              onClick={remove}>
               <Trash2 size={15} aria-hidden="true" /> Delete
-            </button>
+            </Button>
           )}
-          <button type="button" className="btn primary" onClick={save} disabled={!mayWrite || busy}>
+          <Button variant="primary" onClick={save} disabled={!mayWrite || busy}>
             <Save size={15} aria-hidden="true" /> {busy ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </div>
       </div>
 

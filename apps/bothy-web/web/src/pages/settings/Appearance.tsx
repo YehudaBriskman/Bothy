@@ -19,6 +19,7 @@ import type { Accent, Density, DocFont, Motion } from '../../lib/prefs';
 import {
   READING_DEFAULT, READING_LIMITS, READING_STEP, useReading, type Reading,
 } from '../files/reading';
+import { Button, buttonClass } from '../../components/ui/Button';
 
 export function AppearanceSettings() {
   return (
@@ -146,10 +147,10 @@ function ReadingSize() {
                 disabled={v >= max} aria-label={`Larger ${label.toLowerCase()}`}>
                 <Plus size={14} />
               </button>
-              <button type="button" className="btn ghost sm" onClick={() => setReading({ [key]: READING_DEFAULT[key] })}
+              <Button variant="ghost" size="sm" onClick={() => setReading({ [key]: READING_DEFAULT[key] })}
                 disabled={v === READING_DEFAULT[key]}>
                 Reset
-              </button>
+              </Button>
             </div>
             <p className="set-read-sample" style={{ fontSize: `${v}px` }}>
               {key === 'doc' ? 'The quick brown fox jumps over the lazy dog.' : 'Tailnet troubleshooting'}
@@ -227,7 +228,7 @@ function PrefBlocks() {
             : `You are using ${theme.name}, which declares its own accent, so this choice waits until you pick Bothy Dark or Bothy Light.`}
         </p>
         <div className="set-accent-demo" aria-hidden="true">
-          <span className="btn primary sm">Primary button</span>
+          <span className={buttonClass({ variant: 'primary', size: 'sm' })}>Primary button</span>
           <span className="link">A link</span>
           <span className="set-accent-ring">Focus ring</span>
         </div>

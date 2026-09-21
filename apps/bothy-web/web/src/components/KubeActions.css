@@ -12,11 +12,8 @@
 
 .ka-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ka-row-between { justify-content: space-between; }
-/* Scoped to .ka-body on purpose: index.css has an earlier `.btn.ghost` rule
-   with `font: inherit`, which outranks a single class and rendered every ghost
-   button in this dialog at body size - measured on the first screenshot. */
-.ka-body .btn, .ka-body .btn.ghost { font-size: 13px; }
-.ka-body .btn.ka-small { font-size: 12.5px; padding: 5px 11px; gap: 6px; display: inline-flex; align-items: center; }
+/* The .ka-body .btn size overrides and .ka-small are gone: components/ui/Button
+   has one small size, and it is used here (design audit SYS-7). */
 
 .ka-flag {
   display: inline-flex; align-items: center;
@@ -64,7 +61,7 @@
 .ka-live {
   display: inline-block; width: 8px; height: 8px; margin-right: 4px; vertical-align: 1px;
   border-radius: var(--r-full); background: var(--st-up);
-  animation: ka-pulse 1.4s var(--ease) infinite;
+  animation: ka-pulse var(--loop-pulse) var(--ease) infinite;
 }
 @keyframes ka-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .ka-live { animation: none; } }
@@ -109,4 +106,3 @@
 .ka-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--fg-muted); }
 .ka-wide { max-width: 440px; width: 100%; }
 .ka-bad { color: var(--st-down-fg); }
-.ka-body .btn[aria-disabled='true'] { opacity: var(--disabled-opacity); cursor: default; }

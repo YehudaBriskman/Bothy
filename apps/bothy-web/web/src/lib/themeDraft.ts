@@ -152,8 +152,8 @@ export const GROUPS: { title: string; note: string; tokens: string[] }[] = [
   },
   {
     title: 'Depth',
-    note: 'Shadow recipes and the scroll fade. Composite values rather than plain colours, so these are edited as text.',
-    tokens: ['--shadow-sm', '--shadow-md', '--shadow-lg', '--scroll-shade', '--hover-opacity'],
+    note: 'The shadow colour (its alpha is the strength) and the inset hairline that edges a raised surface - the four-step shadow geometry is Bothy\'s and is mixed from these two. The scrim dims the page behind a dialog and must darken it; the scroll fade marks an edge with more to scroll.',
+    tokens: ['--shadow-color', '--shadow-hairline', '--scrim', '--scroll-shade'],
   },
 ];
 

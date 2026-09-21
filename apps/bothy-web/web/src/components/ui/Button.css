@@ -1,0 +1,65 @@
+/* Button - the one stylesheet allowed to style `.btn` (see Button.tsx).
+   Every label colour here is measured in lib/contract.ts rule 2b, in every
+   theme: >= 4.5:1 at rest and hovered, on every ground a button sits on. */
+
+.btn {
+  appearance: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  min-height: var(--hit);
+  padding: var(--sp-2) var(--sp-3);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); letter-spacing: var(--tr-sm);
+  white-space: nowrap;
+  color: var(--fg); background: var(--surface-2);
+  border: var(--border-w) solid var(--line-strong); border-radius: var(--r-md);
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease),
+              scale var(--press-dur) var(--ease-standard), box-shadow var(--press-dur) var(--ease-standard);
+}
+.btn svg { flex: none; }
+
+/* Hover is for a control that will answer. A disabled one does not. */
+.btn:not(:disabled, [aria-disabled='true']):hover { border-color: var(--accent); }
+
+.btn-secondary:not(:disabled, [aria-disabled='true']):hover { background: var(--surface-3); }
+
+.btn-ghost { background: transparent; }
+.btn-ghost:not(:disabled, [aria-disabled='true']):hover { background: var(--surface-3); }
+
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+/* Hover moves the fill 14% toward --fg - always AWAY from --on-accent, so the
+   label only gains contrast (contract rule 2b measures this exact mix). */
+.btn-primary:not(:disabled, [aria-disabled='true']):hover {
+  background: color-mix(in srgb, var(--accent) 86%, var(--fg));
+  border-color: color-mix(in srgb, var(--accent) 86%, var(--fg));
+}
+
+.btn-danger { background: transparent; color: var(--st-down-fg); border-color: var(--st-down-line); }
+/* The hover tint is mixed over --bg and is OPAQUE: a translucent red over a
+   light dialog surface pulled the label under 4.5:1 in two themes. Over --bg it
+   can only take the ground toward the page colour, which the label is measured
+   on (contract rule 2b). */
+.btn-danger:not(:disabled, [aria-disabled='true']):hover {
+  background: color-mix(in oklab, var(--st-down) 14%, var(--bg)); border-color: var(--st-down-fg);
+}
+
+.btn-caution { border-color: var(--st-warn-line); }
+.btn-caution:not(:disabled, [aria-disabled='true']):hover { border-color: var(--st-warn); background: var(--st-warn-bg); }
+
+.btn-sm {
+  padding: var(--sp-1) var(--sp-2_5);
+  gap: var(--sp-1_5);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
+  border-radius: var(--r-sm);
+}
+.btn-icon { padding: var(--sp-1_5); min-width: var(--hit); }
+.btn-sm.btn-icon { padding: var(--sp-1); }
+
+/* A toggle Button (aria-pressed) that is ON reads as selected, in the accent's
+   quiet tint - it was a Files-only rule until 2026-09-21. */
+.btn[aria-pressed='true'] { background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent-fg); }
+
+/* Disabled is a STATE, not a colour: the opacity token, no pointer, and (above)
+   no hover and no press. aria-disabled is covered too, for a control that must
+   stay focusable to explain why it is off (a role-gated action's title). */
+.btn:is(:disabled, [aria-disabled='true']) { opacity: var(--disabled-opacity); cursor: not-allowed; }

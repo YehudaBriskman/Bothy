@@ -28,6 +28,7 @@ import {
   ConfigTab, EventsTab, JobsTab, MetricsTab, NetworkTab, PodsTab, StorageTab, TopologyTab, WorkloadsTab,
 } from './ClusterTabs';
 import './cluster.css';
+import { buttonClass } from '../../components/ui/Button';
 
 const TABS = [
   { key: 'topology', label: 'Topology' },
@@ -80,7 +81,7 @@ export function Cluster() {
               ))}
             </div>
           )}
-          <a className="btn ghost cl-headlamp" href={headlamp} target="_blank" rel="noreferrer">
+          <a className={buttonClass({ variant: 'ghost', size: 'sm' }, 'cl-headlamp')} href={headlamp} target="_blank" rel="noreferrer">
             Browse in Headlamp <ExternalLink size={14} aria-hidden="true" />
           </a>
         </div>

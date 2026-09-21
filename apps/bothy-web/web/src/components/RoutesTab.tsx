@@ -5,6 +5,7 @@ import { usePortal } from '../lib/data';
 import { ErrState } from './states';
 import './Tables.css';
 import { SortHeader } from './SortHeader';
+import { Button } from './ui/Button';
 
 // The Routes tab is the escape hatch: it shows EVERY Traefik router, including
 // the ones that never became a service card (bothy-web-fallback, host processes,
@@ -182,7 +183,7 @@ export function RoutesTab({
               <tr>
                 <td colSpan={COLS.length} className="tbl-empty">
                   No routers match {[provider !== 'all' ? `provider “${provider}”` : '', query.trim() ? `“${query.trim()}”` : ''].filter(Boolean).join(' + ') || 'these filters'}.
-                  {activeFilter && <button type="button" className="btn ghost sm tbl-empty-clear" onClick={clear}>Clear filters</button>}
+                  {activeFilter && <Button variant="ghost" size="sm" className="tbl-empty-clear" onClick={clear}>Clear filters</Button>}
                 </td>
               </tr>
             ) : rows.map(({ router: r, name, provider: prov, service, target, state }) => (

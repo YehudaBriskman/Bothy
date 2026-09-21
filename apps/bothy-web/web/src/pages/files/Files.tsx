@@ -89,6 +89,7 @@ import './inspector.css';
 import './panel.css';
 import './scm.css';
 import './search.css';
+import { buttonClass } from '../../components/ui/Button';
 
 const MAX_CALLS = 200;
 
@@ -1219,7 +1220,7 @@ export function Files() {
             Spelled out in words rather than an icon, unlike its three neighbours,
             because it is a DESTINATION and they are layout toggles. */}
         <Link
-          className="btn ghost sm fx-head-read"
+          className={buttonClass({ variant: 'ghost', size: 'sm' }, 'fx-head-read')}
           to={filesHref('read', active ? active.root : root, active ? active.path : '')}
           title={active ? `Read ${baseName(active.path)} without the editor` : 'Open the reading view'}
         >

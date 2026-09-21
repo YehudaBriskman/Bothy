@@ -31,6 +31,7 @@ import { SectionIcon } from './icons';
 import { useUpdatesBehind } from './useUpdatesBehind';
 import { DialogClose, DialogSurface, DialogTitle } from '../ui/Dialog';
 import './settings.css';
+import { Button } from '../ui/Button';
 
 function Nav({ onNavigate }: { onNavigate?: () => void }) {
   const behind = useUpdatesBehind();
@@ -92,10 +93,10 @@ export function SettingsShell() {
           {/* The drawer is a modal like any other, so it is ui/Dialog's
               DialogSurface: same trap, same Escape, same focus return (to this
               button) as every dialog in the app. */}
-          <button type="button" className="btn ghost set-drawer-btn" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)}>
+          <Button variant="ghost" className="set-drawer-btn" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)}>
             <Menu size={16} aria-hidden="true" />
             <span>Sections</span>
-          </button>
+          </Button>
           <DialogSurface
             open={drawer} onOpenChange={setDrawer} title="Settings" titleVisible
             overlayClassName="set-drawer-overlay" className="set-drawer"

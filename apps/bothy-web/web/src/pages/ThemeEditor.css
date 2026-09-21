@@ -10,8 +10,7 @@
 .theme-editor .te-back:hover { color: var(--fg); }
 
 .theme-editor .te-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
-.theme-editor .te-danger { color: var(--st-down-fg); border-color: var(--st-down-line); }
-.theme-editor .te-danger:hover:not(:disabled) { background: var(--st-down-bg); }
+/* .te-danger is Button variant="danger" (SYS-7). */
 
 .theme-editor .te-empty { padding: 24px 2px; color: var(--fg-muted); }
 

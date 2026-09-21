@@ -7,7 +7,6 @@
 
 /* ── view-controls cluster ──────────────────────────────────────────────── */
 .services-page .view-controls { align-items: center; }
-.services-page .btn.sm { padding: 6px 12px; font-size: 12.5px; }
 .services-page .page-sub .tnum { color: var(--fg); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ── filter bar: facet counts on every control ──────────────────────────── */

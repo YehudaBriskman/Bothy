@@ -76,14 +76,17 @@
   --a4: #8839ef;
   --a5: #b81fa8;
 
-  /* A light theme's shadow is a shadow, not a glow: the inset hairline that
-     lifts a dark surface has to become a dark hairline here or it disappears. */
-  --shadow-sm: 0 1px 2px rgb(76 79 105 / 10%), inset 0 1px 0 rgb(255 255 255 / 60%);
-  --shadow-md: 0 4px 14px rgb(76 79 105 / 13%), inset 0 1px 0 rgb(255 255 255 / 65%);
-  --shadow-lg: 0 18px 44px rgb(76 79 105 / 18%), inset 0 1px 0 rgb(255 255 255 / 70%);
+  /* ── depth ────────────────────────────────────────────────────────────────
+     Two colours, not three recipes (2026-09-21): index.css owns the four-step
+     GEOMETRY and mixes these into it. The shadow is Latte's text colour at a
+     quarter strength - its alpha is the strength - and the hairline is white,
+     the light catching a raised surface's edge. The scrim DARKENS: a light
+     theme's modal scrim is a dim, never a wash of the page colour. */
+  --shadow-color: rgb(76 79 105 / .3);
+  --shadow-hairline: rgb(255 255 255 / .6);
+  --scrim: rgb(76 79 105 / .4);
 
   --scroll-shade: rgb(239 241 245 / 84%);
-  --hover-opacity: .8;
 }
 
 :root[data-bothy-theme='catppuccin-latte'] .bothy-files.bothy-files {

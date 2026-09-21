@@ -11,6 +11,7 @@ import { useSearchParams } from 'react-router-dom';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Loading, Refusal, When, useLoad } from '../../components/settings/bits';
 import { fetchAudit, type AuditLogName, type AuditQuery } from '../../lib/admin';
+import { Button } from '../../components/ui/Button';
 
 const LOGS: { id: 'all' | AuditLogName; label: string; hint: string }[] = [
   { id: 'all', label: 'All', hint: 'Every log, merged by time' },
@@ -83,14 +84,14 @@ function AuditBody() {
           </select>
         </label>
         {(q.who || q.outcome || q.action) && (
-          <button type="button" className="btn ghost sm" onClick={() => set({ who: null, outcome: null, action: null })}>Clear filters</button>
+          <Button variant="ghost" size="sm" onClick={() => set({ who: null, outcome: null, action: null })}>Clear filters</Button>
         )}
       </div>
 
       {loading && !data ? <Loading rows={8} /> : error ? (
         <>
           <Refusal error={error} needs="operator" what="the audit log" />
-          <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+          <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
         </>
       ) : data && (
         <>
@@ -128,10 +129,10 @@ function AuditBody() {
               {data.skipped > 0 && ` · ${data.skipped} unreadable lines skipped`}
               {truncated.length > 0 && ` · only the newest 4 MB of ${truncated.join(', ')} is read`}
             </span>
-            <button type="button" className="btn ghost sm" disabled={data.offset === 0}
-              onClick={() => set({ offset: Math.max(0, data.offset - PAGE) })}>Newer</button>
-            <button type="button" className="btn ghost sm" disabled={data.offset + data.limit >= data.total}
-              onClick={() => set({ offset: data.offset + PAGE })}>Older</button>
+            <Button variant="ghost" size="sm" disabled={data.offset === 0}
+              onClick={() => set({ offset: Math.max(0, data.offset - PAGE) })}>Newer</Button>
+            <Button variant="ghost" size="sm" disabled={data.offset + data.limit>= data.total}
+              onClick={() => set({ offset: data.offset + PAGE })}>Older</Button>
           </div>
         </>
       )}
