@@ -253,6 +253,7 @@ up-monitoring: network
 # postgres stays: it is in active use - Keycloak's database lives there.
 # Data: Postgres, bound to loopback only.
 up-data: network
+    @bash scripts/pg-volume-guard.sh data/postgres/compose.yml postgres
     docker compose -f data/postgres/compose.yml up -d --wait --wait-timeout 180
 
 # Apps: Bothy - one project, five containers (apps/bothy/compose.yml).
@@ -619,10 +620,11 @@ bothy-prom-route:
 # kubelet scrape identity, the Alloy DaemonSet shipping pod logs to Loki, and
 # the metrics-server addon - then refresh the kubelet token VictoriaMetrics
 # scrapes with. Idempotent. See k8s/monitoring/README.md. The compose side is
-# `just up-monitoring`.
+# `just up-monitoring`. `just k8s-monitoring ksm` / `alloy` apply ONE add-on
+# only - what the host updater's cluster class runs (docs/plans/updates.md step 8).
 # Apply cluster monitoring (KSM, alloy, RBAC) into thales-scc and refresh the token.
-k8s-monitoring:
-    ./scripts/k8s-monitoring.sh
+k8s-monitoring *part:
+    ./scripts/k8s-monitoring.sh {{part}}
 
 # Rewrite monitoring/kube-auth/token from the cluster's prometheus-scraper-token
 # Secret. GITIGNORED (a credential), mode 600 owned by uid 65534 so the
