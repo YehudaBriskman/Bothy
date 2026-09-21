@@ -4,6 +4,7 @@ import type { PortalNode, Router } from '../lib/discover';
 import { usePortal } from '../lib/data';
 import { ErrState } from './states';
 import './Tables.css';
+import { SortHeader } from './SortHeader';
 
 // The Routes tab is the escape hatch: it shows EVERY Traefik router, including
 // the ones that never became a service card (bothy-web-fallback, host processes,
@@ -172,15 +173,7 @@ export function RoutesTab({
           <thead>
             <tr>
               {COLS.map(([k, label]) => (
-                <th
-                  key={k}
-                  onClick={() => setKey(k)}
-                  aria-sort={sort.key === k ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}
-                  className={`sortable ${sort.key === k ? 'sorted' : ''}`}
-                >
-                  {label}
-                  <span className="sort-caret">{sort.key === k ? (sort.dir === 1 ? '↑' : '↓') : ''}</span>
-                </th>
+                <SortHeader key={k} k={k} label={label} sort={sort} onSort={setKey} />
               ))}
             </tr>
           </thead>

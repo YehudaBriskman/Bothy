@@ -25,9 +25,18 @@
 .tbl-filter .chips button.on .n { color: inherit; }
 .tbl-filter .cnt { margin-left: auto; }
 
-/* sortable header affordance + a fixed-width caret slot so headers don't jump */
-.tbl th.sortable { cursor: pointer; }
-.tbl th.sortable:hover { color: var(--fg); }
+/* Sortable header (components/SortHeader.tsx): the <th> keeps its padding and
+   aria-sort, the <button> inside it is the control. The button inherits the
+   header's type and colour so it reads as a header, and bleeds 4px/6px past its
+   text so the target and the focus ring have room without moving the label.
+   A fixed-width caret slot so headers don't jump. */
+.tbl th .sort-btn {
+  appearance: none; background: transparent; border: 0; cursor: pointer;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; white-space: nowrap;
+  display: inline-flex; align-items: center;
+  margin: -4px -6px; padding: 4px 6px; border-radius: var(--r-sm);
+}
+.tbl th .sort-btn:hover, .tbl th.sorted .sort-btn { color: var(--fg); }
 .tbl th .sort-caret { display: inline-block; width: 12px; margin-left: 2px; color: var(--accent);
   font-variant-numeric: tabular-nums; }
 
