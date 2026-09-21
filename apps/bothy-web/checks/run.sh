@@ -116,6 +116,12 @@ mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 (cd "$WEB" && npx tsc src/pages/files/tree.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
+# lib/motion.ts, the JS copy of the motion tokens - imports nothing - for the
+# design-tokens check, which asserts it equals the CSS copy.
+(cd "$WEB" && npx tsc src/lib/motion.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/motion.js" "$OUT/motion.mjs"
+cp "$HERE/design-tokens.mjs" "$OUT/"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
@@ -239,6 +245,15 @@ echo "── the design audit's accessibility blockers stay fixed ─"
 # primitive, sort headers that are buttons, a focus ring that reshapes nothing.
 # Reads the source tree and imports the compiled contract, like the check above.
 node "$OUT/a11y-contract.mjs" "$WEB/src"
+
+echo
+echo "── the design audit's tokens and shared primitives hold ──"
+# docs/plans/design-audit-apple.md, batch 2: one Button, a press state, the
+# --hit floor, a closed rem type scale with the root left to the browser, motion
+# tokens that agree between CSS and lib/motion.ts with no literals, the four-step
+# elevation ladder and a scrim that darkens, Button contrast in every palette,
+# and a token reference generated from the code.
+node "$OUT/design-tokens.mjs" "$WEB/src" "$WEB/../../.."
 
 echo
 echo "── a theme dropped in by hand is read correctly ────────"
