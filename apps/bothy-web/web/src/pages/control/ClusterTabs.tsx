@@ -20,6 +20,7 @@ import { queryRange, fmtCores, fmtSize, type Series } from '../../lib/metrics';
 import { EventList, KubeDialog, Refused, type KubeDialogTab } from '../../components/KubeActions';
 import { ConfirmDialog } from '../../components/KubeConfirm';
 import { Dialog } from '../../components/ui/Dialog';
+import { Menu } from '../../components/ui/Menu';
 
 type Roles = string[];
 
@@ -256,35 +257,21 @@ const MENU: { tab: KubeDialogTab; label: string; Icon: typeof History }[] = [
   { tab: 'logs', label: 'Logs', Icon: ScrollText },
 ];
 
+/** The row's "…" menu. On ui/Menu since 2026-09-21: the old list was absolutely
+ *  positioned inside the table's scroller and got clipped by it (design audit
+ *  CL-1) - at 390px only one of these four items could be seen. */
 function RowMenu({ name, onPick }: { name: string; onPick: (tab: KubeDialogTab) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', close);
-    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
-  }, [open]);
   return (
-    <div className="cl-menu" ref={ref}>
-      <button type="button" className="svc-act-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`Actions for ${name}`} title={`Actions for ${name}`} onClick={() => setOpen((o) => !o)}>
-        <MoreHorizontal size={15} aria-hidden="true" />
-      </button>
-      {open && (
-        <ul className="cl-menu-list" role="menu">
-          {MENU.map(({ tab, label, Icon }) => (
-            <li key={tab} role="none">
-              <button type="button" role="menuitem" onClick={() => { setOpen(false); onPick(tab); }}>
-                <Icon size={14} aria-hidden="true" /> {label}
-              </button>
-            </li>
-          ))}
-        </ul>
+    <Menu
+      trigger={(
+        <button type="button" className="svc-act-btn cl-menu-btn" aria-label={`Actions for ${name}`} title={`Actions for ${name}`}>
+          <MoreHorizontal size={15} aria-hidden="true" />
+        </button>
       )}
-    </div>
+      items={MENU.map(({ tab, label, Icon }) => ({
+        key: tab, label, icon: <Icon size={14} aria-hidden="true" />, onSelect: () => onPick(tab),
+      }))}
+    />
   );
 }
 
@@ -336,6 +323,9 @@ export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
       {del && spec && (
         <ConfirmDialog
           spec={spec} req={{ namespace: ns, pod: del.name }} what={del.name} onClose={() => setDel(null)} onDone={pods.reload}
+          // A deleted pod takes its row, and the Delete button that opened
+          // this, with it: fall back to the table rather than to <body>.
+          returnFocusTo={() => document.querySelector<HTMLElement>('[role="region"][aria-label="Pods"]')}
           goLabel="Delete this pod"
           consequence={del.owner
             ? `${del.name} is deleted and ${del.owner.kind} ${del.owner.name} replaces it. With one replica, requests fail until the new pod is ready.`
@@ -406,6 +396,7 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
       {del && delSpec && (
         <ConfirmDialog
           spec={delSpec} req={{ namespace: ns, job: del }} what={del} onClose={() => setDel(null)} onDone={jobs.reload}
+          returnFocusTo={() => document.querySelector<HTMLElement>('[role="region"][aria-label="Jobs"]')}
           goLabel="Delete this job"
           consequence={`${del} is deleted, and its pods and their logs with it (in the background). A job that is still running is stopped.`}
           describe={(r: DeleteJobResult) => ({ line: `Deleted ${r.deleted}.`, sub: 'Its pods are removed in the background.' })}
@@ -501,7 +492,7 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
           const isEditing = editing === e.key;
           const ok = valueAllowed(catalog, e.key, draft);
           return (
-            <tr key={e.key} data-editable={e.editable ? 'true' : undefined}>
+            <tr key={e.key} data-editable={e.editable ? 'true' : undefined} data-cm-key={e.key}>
               <td className="mono cl-key">
                 {e.key}
                 {e.editable && e.meaning && <span className="cl-key-why dim">{e.meaning}</span>}
@@ -538,6 +529,9 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
         <ConfirmDialog
           spec={spec} req={{ namespace: ns, configmap: name, key: confirm.key, value: confirm.value }} what={confirm.key}
           onClose={() => { setConfirm(null); setEditing(null); }} onDone={cm.reload}
+          // The Save button that opened this is gone once editing ends; the
+          // row's Edit button comes back in its place.
+          returnFocusTo={() => document.querySelector<HTMLElement>(`tr[data-cm-key="${CSS.escape(confirm.key)}"] .cl-actions-cell button`)}
           goLabel={confirm.restart ? `Set ${confirm.key} and restart` : `Set ${confirm.key}`}
           consequence={`${confirm.key} in ${ns}/${name} changes from "${confirm.from}" to "${confirm.value}".${confirm.restart ? ' Every deployment that reads this ConfigMap is then restarted, one pod at a time.' : ' Running pods keep the old value until they restart.'}`}
           describe={(r: PatchKeyResult) => ({

@@ -24,12 +24,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import * as RD from '@radix-ui/react-dialog';
 import { Menu, X } from 'lucide-react';
 import { GROUPS, SECTIONS, groupTitle, sectionById } from '../../lib/settings-index';
 import { SettingsSearch } from './SettingsSearch';
 import { SectionIcon } from './icons';
 import { useUpdatesBehind } from './useUpdatesBehind';
+import { DialogClose, DialogSurface, DialogTitle } from '../ui/Dialog';
 import './settings.css';
 
 function Nav({ onNavigate }: { onNavigate?: () => void }) {
@@ -89,27 +89,28 @@ export function SettingsShell() {
 
       <div className="set-main">
         <div className="set-mobile-bar">
-          <RD.Root open={drawer} onOpenChange={setDrawer}>
-            <RD.Trigger className="btn ghost set-drawer-btn">
-              <Menu size={16} aria-hidden="true" />
-              <span>Sections</span>
-            </RD.Trigger>
-            <RD.Portal>
-              <RD.Overlay className="set-drawer-overlay" />
-              <RD.Content className="set-drawer" aria-describedby={undefined}>
-                <div className="set-drawer-head">
-                  <RD.Title className="set-drawer-title">Settings</RD.Title>
-                  <RD.Close className="icon-btn set-drawer-x" aria-label="Close the sections menu">
-                    <X size={16} />
-                  </RD.Close>
-                </div>
-                <div className="set-drawer-body scroll-shade">
-                  <SettingsSearch />
-                  <Nav onNavigate={() => setDrawer(false)} />
-                </div>
-              </RD.Content>
-            </RD.Portal>
-          </RD.Root>
+          {/* The drawer is a modal like any other, so it is ui/Dialog's
+              DialogSurface: same trap, same Escape, same focus return (to this
+              button) as every dialog in the app. */}
+          <button type="button" className="btn ghost set-drawer-btn" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)}>
+            <Menu size={16} aria-hidden="true" />
+            <span>Sections</span>
+          </button>
+          <DialogSurface
+            open={drawer} onOpenChange={setDrawer} title="Settings" titleVisible
+            overlayClassName="set-drawer-overlay" className="set-drawer"
+          >
+            <div className="set-drawer-head">
+              <DialogTitle className="set-drawer-title">Settings</DialogTitle>
+              <DialogClose className="icon-btn set-drawer-x" aria-label="Close the sections menu">
+                <X size={16} />
+              </DialogClose>
+            </div>
+            <div className="set-drawer-body scroll-shade">
+              <SettingsSearch />
+              <Nav onNavigate={() => setDrawer(false)} />
+            </div>
+          </DialogSurface>
           <span className="set-mobile-here">{section?.title ?? 'Settings'}</span>
         </div>
 

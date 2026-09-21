@@ -1147,9 +1147,13 @@ a.card:hover { transform: translateY(-3px); border-color: var(--line-strong);
    Hand-written against the tokens - cmdk is ~14 KB for a 27-item list. The
    input keeps focus throughout and the list is driven by aria-activedescendant,
    which is what lets Up/Down move the selection without ever moving focus. */
+/* The scrim and the panel are SIBLINGS since the palette moved onto ui/Dialog's
+   DialogSurface (Radix renders Overlay and Content side by side), so the panel
+   positions itself rather than being centred by a grid on the scrim. */
 .cmdk-scrim { position: fixed; inset: 0; z-index: 80; background: color-mix(in oklab, var(--bg) 62%, transparent);
-  backdrop-filter: blur(3px); display: grid; place-items: start center; padding: 12vh 16px 16px; }
-.cmdk { width: min(560px, 100%); background: var(--surface-4); border: 1px solid var(--line-strong);
+  backdrop-filter: blur(3px); }
+.cmdk { position: fixed; z-index: 81; top: 12vh; left: 50%; translate: -50% 0;
+  width: min(560px, calc(100vw - 32px)); background: var(--surface-4); border: 1px solid var(--line-strong);
   border-radius: var(--r-lg); box-shadow: var(--shadow-lg); overflow: hidden;
   display: flex; flex-direction: column; max-height: 62vh; }
 .cmdk-in { display: flex; align-items: center; gap: 10px; padding: 12px 14px;

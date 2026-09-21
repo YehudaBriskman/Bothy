@@ -33,7 +33,7 @@ import type { PortalNode } from '../lib/discover';
 import { StatusIcon } from '../lib/icons';
 import { Dialog } from './ui/Dialog';
 import { Tabs } from './Tabs';
-import { ConfirmDialog, ConfirmPanel } from './KubeConfirm';
+import { ConfirmPanel } from './KubeConfirm';
 import './KubeActions.css';
 
 /** The row cell for a cluster workload. Nothing at all outside bothy-ops' kube scope. */
@@ -358,8 +358,38 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
   const [del, setDel] = useState<string | null>(null);
   const spec = findSpec(catalog, 'delete-pod');
   const g = gate(roles, spec);
+  // Where the keyboard goes back to after the inline confirm: that pod's Delete
+  // button if the pod is still listed, else the tab's Refresh. Without this the
+  // confirm's removal dropped focus onto the dialog container.
+  const box = useRef<HTMLDivElement>(null);
+  const backTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (del || !backTo.current) return;
+    const name = backTo.current;
+    backTo.current = null;
+    const el = box.current?.querySelector<HTMLElement>(`[data-pod-del="${CSS.escape(name)}"]`)
+      ?? box.current?.querySelector<HTMLElement>('button');
+    el?.focus();
+  }, [del]);
+
+  // ONE DIALOG AT A TIME (design audit CL-3, brand patterns/feedback.md). This
+  // used to open a second modal - a second scrim - on top of the deployment
+  // dialog; the confirm is now the same inline panel History uses.
+  if (del && spec) {
+    return (
+      <ConfirmPanel
+        spec={spec} req={{ namespace: target.namespace, pod: del }} what={del}
+        onBack={() => { backTo.current = del; setDel(null); pods.reload(); }}
+        onDone={() => { pods.reload(); onChanged?.(); }}
+        goLabel="Delete this pod"
+        consequence={`${del} is deleted and ${target.deployment} starts a replacement. With one replica, requests fail until the new pod is ready.`}
+        describe={(r: DeletePodResult) => ({ line: `Deleted ${r.deleted}.`, sub: r.owner ? `${r.owner.kind} ${r.owner.name} replaces it.` : undefined })}
+      />
+    );
+  }
+
   return (
-    <div className="ka-stack">
+    <div className="ka-stack" ref={box}>
       <div className="ka-row ka-row-between">
         <p className="sa-note">{pods.data ? `${pods.data.pods.length} pod${pods.data.pods.length === 1 ? '' : 's'} of ${target.deployment}.` : 'Reading pods…'}</p>
         <button type="button" className="btn ghost ka-small" onClick={pods.reload}><RefreshCw size={14} aria-hidden="true" /> Refresh</button>
@@ -385,6 +415,7 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
                 {g !== 'hidden' && p.deletable && (
                   <button
                     type="button" className="btn ghost ka-small" aria-disabled={g === 'enabled' ? undefined : true}
+                    data-pod-del={p.name}
                     title={g === 'enabled' ? `Delete ${p.name}` : 'Deleting a pod needs the operator role'}
                     onClick={() => { if (g === 'enabled') setDel(p.name); }}
                   >
@@ -395,15 +426,6 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
             </li>
           ))}
         </ol>
-      )}
-      {del && spec && (
-        <ConfirmDialog
-          spec={spec} req={{ namespace: target.namespace, pod: del }} what={del} onClose={() => { setDel(null); pods.reload(); }}
-          onDone={() => { pods.reload(); onChanged?.(); }}
-          goLabel="Delete this pod"
-          consequence={`${del} is deleted and ${target.deployment} starts a replacement. With one replica, requests fail until the new pod is ready.`}
-          describe={(r: DeletePodResult) => ({ line: `Deleted ${r.deleted}.`, sub: r.owner ? `${r.owner.kind} ${r.owner.name} replaces it.` : undefined })}
-        />
       )}
     </div>
   );
