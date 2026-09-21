@@ -21,6 +21,10 @@ no horizontal page scroll at the narrowest.
 
 **Target sizes:** 24x24 minimum, 44x44 for frequent or primary actions, with
 separation between adjacent targets.
+_Changed 2026-09-21 (design audit decision 6, owner-approved): **44x44 for every
+target under a coarse pointer, 24x24 under a fine pointer**, through one `--hit`
+token switched by `@media (pointer: coarse)`. Where a mark must stay visually
+small, the extra is invisible hit slop, not a bigger drawing._
 
 **Every hover-only affordance needs a focus and touch equivalent.**
 

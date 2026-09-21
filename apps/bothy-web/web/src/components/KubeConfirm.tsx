@@ -11,13 +11,13 @@
 // and then shows the outcome in words, or the refusal in words. It never
 // retries: a retried PATCH is a second action.
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import {
   confirmNameOf, confirmSatisfied, kubeCall, kubeRefusalOf,
   type KubeActionSpec, type KubeRefusal,
 } from '../lib/kube-actions';
-import { Dialog } from './ui/Dialog';
+import { Dialog, type FocusTarget } from './ui/Dialog';
 import './KubeActions.css';
 
 export interface Outcome { line: string; sub?: string }
@@ -53,6 +53,15 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
   const firing = useRef(false);
   const name = confirmNameOf(spec, req);
   const ready = valid && confirmSatisfied(spec.confirm, typed, name);
+  // The panel REPLACES the list whose button opened it, so that button is gone
+  // and focus has fallen to the dialog container. Put it on the first thing the
+  // reader has to deal with - the first field, else the way out.
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const f = form.current;
+    if (!f || f.contains(document.activeElement)) return;
+    (f.querySelector<HTMLElement>('input, select') ?? f.querySelector<HTMLElement>('button'))?.focus();
+  }, []);
 
   const run = async () => {
     if (firing.current || !ready) return;
@@ -86,7 +95,7 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
     );
   }
   return (
-    <form className="ka-confirm" onSubmit={(e) => { e.preventDefault(); void run(); }}>
+    <form className="ka-confirm" ref={form} onSubmit={(e) => { e.preventDefault(); void run(); }}>
       <p className="sa-warn">
         <AlertTriangle size={16} aria-hidden="true" />
         <span>{consequence}</span>
@@ -110,11 +119,12 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
 }
 
 /** The same panel in its own dialog, for a control that lives in a table row. */
-export function ConfirmDialog(props: Omit<ConfirmPanelProps, 'onBack'> & { onClose: () => void; title?: ReactNode }) {
-  const { onClose, title, ...panel } = props;
+export function ConfirmDialog(props: Omit<ConfirmPanelProps, 'onBack'> & { onClose: () => void; title?: ReactNode; returnFocusTo?: FocusTarget }) {
+  const { onClose, title, returnFocusTo, ...panel } = props;
   return (
     <Dialog
       open
+      returnFocusTo={returnFocusTo}
       onOpenChange={(o) => { if (!o) onClose(); }}
       title={title ?? <span className="sa-title">{panel.spec.title} <span className="mono">{panel.what}</span></span>}
       description={panel.spec.meaning}

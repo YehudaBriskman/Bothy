@@ -9,6 +9,13 @@
 // services + 13 systems + 5 destinations long; a substring match over 45 items
 // is not a problem worth a dependency.
 //
+// Modal behaviour - the Tab trap, Escape from anywhere inside, the inert page
+// behind, focus back where it was on close - comes from ui/Dialog's
+// DialogSurface, like every other modal here. Until 2026-09-21 this drew its own
+// `role="dialog" aria-modal` div with an Escape handler on the INPUT only: Tab
+// walked out behind the scrim into the page, and from there Escape no longer
+// closed it (design audit SH-1).
+//
 // A11y note: focus NEVER leaves the input. Up/Down move `active`, and the
 // highlighted row is announced via aria-activedescendant pointing at its id.
 // Moving real focus onto the rows would fight the input for the caret and break
@@ -18,6 +25,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Boxes, Layers, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react';
 import { usePortal } from '../lib/data';
+import { DialogSurface } from './ui/Dialog';
 import { systemsOf } from '../lib/systems';
 
 export interface Cmd {
@@ -105,8 +113,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     el?.scrollIntoView({ block: 'nearest' });
   }, [active, open]);
 
-  if (!open) return null;
-
   const go = (c: Cmd | undefined) => {
     if (!c) return;
     onClose();
@@ -119,17 +125,20 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     else if (e.key === 'Home') { e.preventDefault(); setActive(0); }
     else if (e.key === 'End') { e.preventDefault(); setActive(results.length - 1); }
     else if (e.key === 'Enter') { e.preventDefault(); go(results[active]); }
-    else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+    // Escape is not handled here any more: DialogSurface closes on it from
+    // anywhere inside the palette, which a handler on the input could not.
   };
 
   let cursor = -1; // running index across groups, so `active` maps to a flat list
 
   return (
-    <div
-      className="cmdk-scrim"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <DialogSurface
+      open={open}
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title="Command palette"
+      overlayClassName="cmdk-scrim"
+      className="cmdk"
     >
-      <div className="cmdk" role="dialog" aria-modal="true" aria-label="Command palette">
         <div className="cmdk-in">
           <Search size={17} aria-hidden="true" />
           <input
@@ -186,7 +195,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <span><CornerDownLeft size={11} /> open</span>
           <span><span className="kbd">esc</span> close</span>
         </div>
-      </div>
-    </div>
+    </DialogSurface>
   );
 }

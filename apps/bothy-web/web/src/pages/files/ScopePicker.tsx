@@ -67,6 +67,15 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
   const [draft, setDraft] = useState(scope);
   const box = useRef<HTMLDivElement | null>(null);
   const input = useRef<HTMLInputElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  // Escape closes from ANYWHERE inside, and hands focus back to the button that
+  // opened it when focus was inside - otherwise the popover unmounts under the
+  // focused element and the keyboard lands on <body> (design audit FL-2).
+  const dismiss = () => {
+    const inside = !!box.current?.contains(document.activeElement);
+    setOpen(false);
+    if (inside) trigger.current?.focus();
+  };
 
   // The draft follows the real scope while the popover is SHUT. Reopening on a
   // half-typed path from three folders ago is the popover remembering something
@@ -82,7 +91,7 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
     const onDown = (e: PointerEvent) => {
       if (!box.current?.contains(e.target as globalThis.Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(); };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
@@ -113,6 +122,7 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
       <button
         type="button"
         className="rd-scope-btn"
+        ref={trigger}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((v) => !v)}
@@ -163,8 +173,11 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') { e.preventDefault(); go(root, draft); }
                 // Stop Escape reaching the page's own handlers, which would
-                // close something behind the popover as well.
-                if (e.key === 'Escape') e.stopPropagation();
+                // close something behind the popover as well - and close THIS
+                // one here, since stopping it also stops the document listener
+                // above. Stopping it without closing was the bug: Escape in the
+                // field, the one place focus always is, did nothing at all.
+                if (e.key === 'Escape') { e.stopPropagation(); dismiss(); }
               }}
             />
             <button

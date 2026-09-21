@@ -67,21 +67,11 @@
 .cl-page .ka-input[aria-invalid='true'] { border-color: var(--st-down-line); }
 .cl-page .ka-hint { font-size: 12px; }
 
-/* ── row menu ───────────────────────────────────────────────────────────────*/
-.cl-page .cl-menu { position: relative; display: inline-block; }
-.cl-page .cl-menu .svc-act-btn { opacity: 1; }
-.cl-page .cl-menu-list {
-  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 240px;
-  list-style: none; margin: 0; padding: 4px;
-  background: var(--surface-4); border: 1px solid var(--line-strong); border-radius: var(--r-md);
-  box-shadow: var(--shadow-md);
-}
-.cl-page .cl-menu-list button {
-  appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
-  background: transparent; border: 0; border-radius: var(--r-sm); cursor: pointer;
-  color: var(--fg); font: inherit; font-size: 13px; padding: 7px 10px; white-space: nowrap;
-}
-.cl-page .cl-menu-list button:hover, .cl-page .cl-menu-list button:focus-visible { background: var(--surface-3); }
+/* ── row menu ───────────────────────────────────────────────────────────────
+   The list itself is components/ui/Menu (portalled, so the table's scroller
+   can no longer clip it). Only the trigger is styled here: always drawn, where
+   .svc-act-btn elsewhere waits for row hover. */
+.cl-page .cl-menu-btn { opacity: 1; }
 
 /* ── topology ───────────────────────────────────────────────────────────────*/
 .cl-page .cl-topo {

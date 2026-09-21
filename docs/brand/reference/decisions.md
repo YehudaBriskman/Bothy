@@ -8,6 +8,42 @@ first. Dead ends are recorded rather than deleted - see
 
 ---
 
+## 2026-09-21 - The design audit's conflicts, decided
+
+The Apple-design audit (`docs/plans/design-audit-apple.md`) recorded ten places
+where its yardstick and this brand disagreed. The owner decided all ten; the table
+is in the audit under "Decisions (approved 2026-09-21)". The ones that change a
+rule written elsewhere in these docs:
+
+- **Motion.** Springs only for dialogs, menus and drag; the brand curve stays for
+  colour and fade. Page changes cross-fade and never show a blank frame. Reduced
+  motion keeps fades and removes movement. ([motion](../foundations/motion.md))
+- **Materials.** Translucency only on the top bar and the command palette, each
+  with a solid fallback under `prefers-reduced-transparency`.
+  ([shape-and-elevation](../foundations/shape-and-elevation.md))
+- **Theme.** Follows the OS by default; the manual override stays.
+  ([theming](../foundations/theming.md))
+- **Targets.** 44px under a coarse pointer, 24px under a fine one.
+  ([responsive](../quality/responsive.md))
+- **Confirmations.** Type-the-name only for irreversible actions; one click for
+  reversible ones. The cluster catalog's current inversion is fixed in a later
+  batch. ([forms](../patterns/forms.md), [feedback](../patterns/feedback.md))
+
+**What cost what.** The cross-fade gives up "pages never overlap" to get rid of a
+~130ms blank frame on every navigation. Following the OS gives up a uniform first
+impression (dark) for a page that matches the device. 44px touch targets make
+dense tables taller on phones; fine pointers keep today's density. Rejected:
+springs everywhere (the skill's default) - a colour change that overshoots or
+settles is motion with nothing to say.
+
+**Implemented the same day, batch 1:** the accessibility blockers - one modal
+primitive that returns focus, the palette and the Settings drawer moved onto it,
+a portalled menu primitive, sort headers as buttons, status text on the `-fg`
+tokens, readable zero-count chips, and a focus ring that no longer reshapes
+controls. `apps/bothy-web/checks/a11y-contract.mjs` holds them.
+
+---
+
 ## 2026-09-17 - A drawer for the Settings nav below 900px
 
 The drawer is a recorded dead end ([responsive](../quality/responsive.md)), and

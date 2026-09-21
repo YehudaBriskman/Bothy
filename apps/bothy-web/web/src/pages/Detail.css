@@ -30,7 +30,7 @@
    and has not yet" - and one line rather than a banner, because the panel that
    explains it is on the same page and a second copy of the explanation is a
    second thing that can go stale. */
-.detail-drift { margin: 7px 0 0; font-size: 13px; line-height: 1.5; color: var(--st-warn);
+.detail-drift { margin: 7px 0 0; font-size: 13px; line-height: 1.5; color: var(--st-warn-fg);
   max-width: 68ch; }
 
 /* status pill - reuses StatusIcon's coloured glyph+label, framed by the reserved
@@ -143,7 +143,6 @@
   border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center; }
 .detail .filter-chips .chip.on .n {
   color: var(--fg); background: color-mix(in oklab, var(--accent) 22%, transparent); }
-.detail .filter-chips .chip.is-zero { opacity: 0.45; }
 .detail .filter-div { width: 1px; align-self: stretch; min-height: 20px;
   background: var(--line-strong); margin: 0 2px; }
 
@@ -198,4 +197,4 @@
 .detail .start-cmd { display: block; margin: 8px 0; padding: 10px 13px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
   color: var(--fg); font-size: 13px; overflow-x: auto; white-space: pre; }
-.detail .start-warn { margin-top: 14px; color: var(--st-warn); }
+.detail .start-warn { margin-top: 14px; color: var(--st-warn-fg); }

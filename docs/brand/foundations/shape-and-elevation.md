@@ -38,11 +38,18 @@ See [CHECKLIST.md § 8](../CHECKLIST.md#8-shape-and-elevation).
 - **Three shadow steps per theme.** The dark recipes include an inset white
   hairline for the reason above; the light recipes use a dark-blue-grey rather
   than black, because pure black on white reads as grime.
+  _2026-09-21 (design audit decision 8): a fourth step is added for modal
+  surfaces - dialog, drawer, palette - in batch 2._
 - **Surfaces are opaque.** The backdrop blurs that used to sit on every card were
   removed along with the surface transparency on 2026-08-10 - with an opaque
   surface a blur is a no-op that still costs compositing. The only remaining
   blurs are the sticky topbar and the command-palette scrim, where translucency
   is the actual effect.
+  _2026-09-21 (design audit decision 4, owner-approved): translucent material is
+  allowed on exactly two surfaces, the top bar and the command palette, and each
+  needs a solid fallback under `prefers-reduced-transparency: reduce`. Every
+  other surface - cards, dialogs, menus, the drawer - stays opaque, and the
+  dialog overlay's undocumented blur is to go (batch 2, SYS-12)._
 
 ## Dead ends
 

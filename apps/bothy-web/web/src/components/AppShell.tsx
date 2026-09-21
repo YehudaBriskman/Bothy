@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
@@ -40,23 +40,16 @@ export function AppShell() {
   useScrollShades();
   const progress = useScrollProgress();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  // The palette is the only thing that ever takes focus away from the page, so
-  // it is also the only thing that has to give it back.
-  const restoreFocus = useRef<HTMLElement | null>(null);
+  // Giving focus back when the palette closes is ui/Dialog's job now, as it is
+  // for every other modal - it captures the opener itself.
 
   // The `spin` state went with the refresh BUTTON: it existed to spin that
   // icon for 700ms so a click had visible feedback. `r` needs none - the numbers
   // change, which is the feedback.
   const doRefresh = useCallback(() => { refresh(); }, [refresh]);
 
-  const openPalette = () => {
-    restoreFocus.current = document.activeElement as HTMLElement | null;
-    setPaletteOpen(true);
-  };
-  const closePalette = () => {
-    setPaletteOpen(false);
-    restoreFocus.current?.focus();
-  };
+  const openPalette = () => setPaletteOpen(true);
+  const closePalette = () => setPaletteOpen(false);
 
   // ⌘K / Ctrl-K and "/" open the palette; "r" refreshes. The `typing` guard is
   // what keeps "r" from being unpressable inside the palette's own input.
