@@ -59,7 +59,7 @@ def _home(p: str) -> str:
     return "~" + p[len(h):] if p.startswith(h + os.sep) else p
 
 
-def _git_gate(cfg: Config, rel: str) -> str:
+def _git_gate(cfg: Config, rels: list[str]) -> str:
     """HEAD's sha, if the checkout may be deployed from at all."""
     rc, branch = git(cfg.repo, "symbolic-ref", "--quiet", "--short", "HEAD")
     if rc != 0 or branch != "main":
@@ -68,10 +68,11 @@ def _git_gate(cfg: Config, rel: str) -> str:
     rc, head = git(cfg.repo, "rev-parse", "HEAD")
     if rc != 0 or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise PlanRefused("git rev-parse HEAD failed")
-    rc, dirty = git(cfg.repo, "status", "--porcelain", "--", rel)
-    if rc != 0 or dirty:
-        raise PlanRefused(f"{rel} has local changes (a rollback leaves the old pin there on purpose) - "
-                          f"look at `git diff {rel}`, then `git checkout -- {rel}` to deploy what main pins")
+    for rel in rels:
+        rc, dirty = git(cfg.repo, "status", "--porcelain", "--", rel)
+        if rc != 0 or dirty:
+            raise PlanRefused(f"{rel} has local changes (a rollback leaves the old pin there on purpose) - "
+                              f"look at `git diff {rel}`, then `git checkout -- {rel}` to deploy what main pins")
     rc, _ = git(cfg.repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main")
     if rc != 0:
         raise PlanRefused("there is no origin/main to compare the checkout with")
@@ -80,6 +81,22 @@ def _git_gate(cfg: Config, rel: str) -> str:
         raise PlanRefused("HEAD has commits that are not on origin/main - the updater deploys only what "
                           "main pins, reviewed and merged")
     return head
+
+
+def _same_image_everywhere(all_pins: list) -> None:
+    """A component with several pin lines (Keycloak: keycloak and keycloak-init
+    share one image) moves ALL of them, to ONE image. So every line must name
+    exactly the same repository, tag and digest - a Dependabot PR that bumped
+    one line and not the other is refused, in words, rather than half-deployed.
+    """
+    first = all_pins[0]
+    want = split_image(first.value)
+    for pl in all_pins[1:]:
+        got = split_image(pl.value)
+        if (got["ref"], got["tag"], got["digest"]) != (want["ref"], want["tag"], want["digest"]):
+            raise PlanRefused(f"the pins disagree: {first.file}:{first.line} ({first.service}) pins {first.value}, "
+                              f"{pl.file}:{pl.line} ({pl.service}) pins {pl.value} - every pin of this component "
+                              "must name the same tag@digest; fix main first")
 
 
 def _material_id(material: dict) -> str:
@@ -98,19 +115,24 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
         raise PlanRefused(f"{component!r} is not in updates.toml")
     klass = classes.get(comp.cls, comp.id)
     if klass is None:
-        raise PlanRefused(f"class {comp.cls} is not handled by the updater yet (build step 4 is stateless and "
-                          f"timeseries) - update it by hand: merge its pin, then `{comp.apply}`")
-    if comp.source != "image" or len(comp.pins) != 1:
-        raise PlanRefused("the updater handles a single compose image pin per component")
-    rel, service = comp.pin_parts(0)
+        raise PlanRefused(f"class {comp.cls} is not handled by the updater yet (it handles stateless, "
+                          f"timeseries and app-db) - update it by hand: merge its pin, then `{comp.apply}`")
+    if comp.source != "image" or not comp.pins:
+        raise PlanRefused("the updater handles compose image pins only")
+    parts = [comp.pin_parts(i) for i in range(len(comp.pins))]
+    rel, service = parts[0]
 
-    head = _git_gate(cfg, rel)
+    head = _git_gate(cfg, sorted({f for f, _ in parts}))
     try:
-        pin = pins.locate(cfg.repo, rel, service or "")
+        all_pins = [pins.locate(cfg.repo, f, s or "") for f, s in parts]
     except HostError as e:
         raise PlanRefused(str(e)) from None
-    if not pin.container:
-        raise PlanRefused(f"{rel}:{service} has no container_name - the updater addresses containers by name")
+    pin = all_pins[0]
+    for pl in all_pins:
+        if not pl.container:
+            raise PlanRefused(f"{pl.file}:{pl.service} has no container_name - the updater addresses containers "
+                              "by name")
+    _same_image_everywhere(all_pins)
     to = split_image(pin.value)
     to_v = updates.parse_version(to["tag"]) if to["tag"] else None
     if not to_v or len(to_v.parts) < 3:
@@ -163,7 +185,7 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
         raise PlanRefused(f"{target} is not what main pins ({pin.value}) - the updater deploys only what main "
                           "pins; merge its Dependabot PR and pull the checkout first")
 
-    restarts = [pin.container, *comp.dependants]
+    restarts = list(dict.fromkeys([*(pl.container for pl in all_pins), *comp.dependants]))
     material = {
         "v": PLAN_VERSION, "component": comp.id, "class": comp.cls, "container": pin.container,
         "from": {"image": run["image"], "imageId": run["imageId"], "digest": from_digest},
@@ -171,6 +193,12 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
         "pin": {"file": rel, "service": service, "line": pin.line, "text": pin.text, "commit": head},
         "recipe": comp.apply,
     }
+    pin_list = [{"file": pl.file, "service": pl.service, "line": pl.line, "text": pl.text,
+                 "container": pl.container} for pl in all_pins]
+    if len(all_pins) > 1:
+        # Only when there is more than one, so a single-pin plan keeps the id it
+        # had before multi-pin components existed.
+        material["pins"] = pin_list
     kinds = klass.backup_kinds(comp.id)
     cs = canaries.for_component(cfg, comp.id)
     return {
@@ -196,12 +224,15 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
             "free disk: at least twice (the image + the snapshot) on the backup disk and on Docker's",
             f"{pin.container} is running and healthy, and its canaries pass NOW - an update is never verified "
             "against a component that was already broken",
-            f"`{comp.apply}` would recreate {pin.container} and nothing else in its compose project (compose "
-            "config hashes), so no other pending change rides along",
+            f"`{comp.apply}` would recreate {' and '.join(pl.container for pl in all_pins)} and nothing else in "
+            "its compose project (compose config hashes), so no other pending change rides along",
             f"the newest backup in ~/backups/{{{','.join(kinds)}}} is under 24 h old",
             "no other update is running (one global lock)",
         ],
         "verify": [f"{pin.container} runs the pulled image and is healthy", *(c.describe for c in cs)],
+        # Every pin line the plan moves (and a rollback writes back) - one for
+        # most components, two for Keycloak. `pin` above is the first of them.
+        "pins": pin_list,
         "rollback": klass.rollback,
     }
 

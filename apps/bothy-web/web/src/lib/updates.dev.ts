@@ -16,8 +16,10 @@
 // `undiscovered` is a fresh deploy before the timer's first run; `current` is a box
 // with nothing to do.
 //
-// Step 4 - plans, a request, a job. Two rows are deployable (Loki 3.7.6 -> 3.7.7,
-// time-series; Alloy, stateless); every other row carries the reason the host
+// Step 4 - plans, a request, a job. Four rows are deployable (Loki 3.7.6 -> 3.7.7,
+// time-series; Alloy, stateless; Grafana 13.1.4 -> 13.2.2 and Keycloak 26.7.3-0 ->
+// 26.7.4-0, the one-way app-db class: type the name, two pins for Keycloak);
+// every other row carries the reason the host
 // would give. A requested job advances by WALL CLOCK from its requestedAt (kept in
 // localStorage), so a reload mid-run resumes where it was - the property the real
 // panel needs. It ends `succeeded` unless forced:
@@ -115,8 +117,8 @@ const SPECS: Spec[] = [
   { id: 'keycloak', title: 'Keycloak', cls: 'app-db', pins: ['auth/compose.yml:keycloak', 'auth/compose.yml:keycloak-init'], apply: 'just up-auth',
     channel: 'manual', oneWayWhy: 'Keycloak migrates its database on first start; the only way back is the pre-update pg_dump of the keycloak database.',
     changelog: 'https://github.com/keycloak/keycloak/releases/tag/{v}', dependants: ['oauth2-proxy', 'every gated route (fails closed while it is down)'],
-    tag: '26.7.4-0', version: '26.7.4', running: 'quay.io/keycloak/keycloak:26.7.1',
-    drift: 'keycloak runs quay.io/keycloak/keycloak:26.7.1, auth/compose.yml pins quay.io/keycloak/keycloak:26.7.4-0' },
+    tag: '26.7.4-0', version: '26.7.4', running: 'quay.io/keycloak/keycloak:26.7.3-0',
+    drift: 'keycloak runs quay.io/keycloak/keycloak:26.7.3-0, auth/compose.yml pins quay.io/keycloak/keycloak:26.7.4-0' },
   { id: 'oauth2-proxy', title: 'oauth2-proxy', cls: 'boundary', pins: ['auth/compose.yml:oauth2-proxy'], apply: 'just up-auth', channel: 'manual',
     changelog: 'https://github.com/oauth2-proxy/oauth2-proxy/releases/tag/v{v}', dependants: ['every gated route'], tag: 'v7.15.4',
     running: 'quay.io/oauth2-proxy/oauth2-proxy:v7.15.4' },
@@ -291,6 +293,57 @@ const PLANS: Record<string, Plan> = {
     verify: ['alloy runs the planned digest', 'container healthy', '/-/ready says ready'],
     rollback: 'On any failure the old pin line is put back and `just up-monitoring` runs again.',
   },
+  // Step 5: the one-way class. Type-the-name, a data snapshot, a rollback that ALWAYS restores.
+  grafana: {
+    id: '5d0e6f1a2b3c4d5e6f708192', component: 'grafana', title: 'Grafana', class: 'app-db', createdAt: ago(3600 * 2 + 700),
+    level: 'minor', confirm: 'type-name',
+    from: { image: 'grafana/grafana:13.1.4', tag: '13.1.4', version: '13.1.4', digest: dg('c'), container: 'grafana' },
+    to: { image: 'grafana/grafana:13.2.2', tag: '13.2.2', version: '13.2.2', digest: dg('e') },
+    pin: { file: 'monitoring/compose.yml', service: 'grafana', line: 167, commit: HEAD },
+    pins: [{ file: 'monitoring/compose.yml', service: 'grafana', line: 167 }],
+    changelog: 'https://github.com/grafana/grafana/releases/tag/v13.2.2', oneWay: true,
+    oneWayWhy: "grafana.db's schema migrates on first start and cannot be downgraded. Stop Grafana and copy the volume first.",
+    restarts: ['grafana'], recipe: 'just up-monitoring',
+    downtime: '~30-90 s in two pieces: Grafana is STOPPED while its volume is tarred (seconds; longer with many plugins), started again, then recreated on the new image, whose first start migrates grafana.db before it answers. Dashboards on :3000 and alert evaluation pause meanwhile',
+    signedOut: "nobody - Grafana's sessions live in grafana.db, which the update keeps. A rollback restores the snapshot, which ends any session started after it",
+    snapshot: {
+      kind: 'grafana',
+      what: 'Grafana STOPPED and its whole volume (grafana.db and plugins) tarred, grafana.db integrity-checked, then started again; plus every pin line, the compose file, this plan and the old image\'s id and digest',
+      dir: '~/backups/pre-update/<time>-grafana/', estimateBytes: 9_800_000,
+    },
+    preflight: ['the plan is still current', 'free disk: at least twice (the image + the snapshot)',
+      'grafana is running and healthy, and its canaries pass NOW', '`just up-monitoring` would recreate grafana and nothing else in its compose project',
+      'the newest backup in ~/backups/{postgres,grafana} is under 24 h old', 'no other update is running (one global lock)'],
+    verify: ['grafana runs the pulled image and is healthy', 'Grafana: /api/health says database ok and names the expected version',
+      'Grafana: at least as many dashboards (API search) as before the update', 'Grafana: datasource uid=prometheus answers its /health with OK'],
+    rollback: 'ONE-WAY: on any failure after the pull, the pre-update snapshot is restored FIRST - always, because the new version may already have migrated the data and the old one cannot read it - with the new container stopped. Then the previous image goes back on every pin line (left uncommitted) and the recipe runs again, and the old image must pass the same canaries. Anything written between the snapshot and the rollback is lost.',
+  },
+  keycloak: {
+    id: '9a8b7c6d5e4f30211203f4e5', component: 'keycloak', title: 'Keycloak', class: 'app-db', createdAt: ago(3600 * 2 + 700),
+    level: 'patch', confirm: 'type-name',
+    from: { image: 'quay.io/keycloak/keycloak:26.7.3-0', tag: '26.7.3-0', version: '26.7.3', digest: dg('b'), container: 'keycloak' },
+    to: { image: 'quay.io/keycloak/keycloak:26.7.4-0', tag: '26.7.4-0', version: '26.7.4', digest: dg('f') },
+    pin: { file: 'auth/compose.yml', service: 'keycloak', line: 89, commit: HEAD },
+    pins: [{ file: 'auth/compose.yml', service: 'keycloak', line: 89 }, { file: 'auth/compose.yml', service: 'keycloak-init', line: 153 }],
+    changelog: 'https://github.com/keycloak/keycloak/releases/tag/26.7.4', oneWay: true,
+    oneWayWhy: 'Keycloak migrates its database on first start; the only way back is the pre-update pg_dump of the keycloak database.',
+    restarts: ['keycloak', 'keycloak-init', 'oauth2-proxy', 'every gated route (fails closed while it is down)'], recipe: 'just up-auth',
+    downtime: '~1-2 min: logins are unavailable while Keycloak is recreated, migrates its database and passes its health check, and keycloak-init re-runs. Every gated route (sso-viewer, sso-editor, sso-operator, Headlamp) FAILS CLOSED meanwhile - refused, never open',
+    signedOut: "nobody: Keycloak 26 persists user sessions in its database by default (persistent user sessions, on since 26.0.0 - keycloak.org release notes), so they survive the restart, and oauth2-proxy's cookies are untouched. A rollback restores the pre-update dump, which ends any session started after it",
+    snapshot: {
+      kind: 'keycloak',
+      what: "`pg_dump -Fc` of Keycloak's database (no downtime), proven readable with `pg_restore -l` before anything changes; plus every pin line, the compose file, this plan and the old image's id and digest",
+      dir: '~/backups/pre-update/<time>-keycloak/', estimateBytes: 1_400_000,
+    },
+    preflight: ['the plan is still current', 'free disk: at least twice (the image + the snapshot)',
+      'keycloak is running and healthy, and its canaries pass NOW', '`just up-auth` would recreate keycloak and keycloak-init and nothing else in its compose project',
+      'the newest backup in ~/backups/{postgres} is under 24 h old', 'no other update is running (one global lock)'],
+    verify: ['keycloak runs the pulled image and is healthy', "Keycloak: the discovery document's issuer is unchanged (realm devbox)",
+      'Keycloak: realm devbox exists and publishes its key', 'Keycloak: keycloak-init ran after it and exited 0',
+      'Keycloak: the admin token endpoint issues bothy-admin a token (client credentials)',
+      'oauth2-proxy: a signed-in user gets 202 for allowed_groups=viewer and 403 for allowed_groups=shell'],
+    rollback: 'ONE-WAY: on any failure after the pull, the pre-update snapshot is restored FIRST - always, because the new version may already have migrated the data and the old one cannot read it - with the new container stopped. Then the previous image goes back on every pin line (left uncommitted) and the recipe runs again, and the old image must pass the same canaries. Anything written between the snapshot and the rollback is lost.',
+  },
 };
 
 const REASONS: Record<string, string> = {
@@ -299,12 +352,10 @@ const REASONS: Record<string, string> = {
   'postgres-exporter': 'nothing to deploy: postgres-exporter runs what main pins',
   headlamp: 'nothing to deploy: headlamp is not running (start it with `just up-headlamp`)',
   victoriametrics: 'nothing to deploy: victoriametrics runs what main pins. v1.153.0 is newer upstream - merge its Dependabot PR, pull the checkout, then `just updates-discover`',
-  grafana: 'class app-db is not handled by the updater yet (one-way, step 5) - `just backup`, then `just up-monitoring` by hand',
   traefik: 'class edge is not handled by the updater yet; floating pin v3.7',
   bothy: 'class own-code is not handled by the updater yet (step 6)',
   'kube-state-metrics': 'class cluster is not handled by the updater (manual, host kubeconfig)',
   'alloy-cluster': 'class cluster is not handled by the updater (manual, host kubeconfig)',
-  keycloak: 'class app-db is not handled by the updater yet (one-way, step 5)',
   'oauth2-proxy': 'class boundary is manual: `just up-auth` by hand, then the boundary probes',
   'oauth2-proxy-headlamp': 'class boundary is manual: `just up-headlamp` by hand',
   'socket-proxy': 'class boundary is manual: `just up-apps` by hand, then `just ops-check`',

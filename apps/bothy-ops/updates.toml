@@ -10,9 +10,11 @@
 #   apps/bothy-ops/updates.py            in bothy-ops: serves this file merged with
 #                                        available.json at GET /-/api/updates/status
 #
-# Discovery and a READ-ONLY Settings page only (build step 3). Nothing reads
-# `apply` or `verify` to run anything yet; they are what the page tells a person
-# to do by hand, and what the updater (step 4) will be held to.
+# The host updater (apps/bothy-ops/updater) deploys what `main` pins for the
+# classes it handles - stateless and timeseries (step 4) and the one-way app-db,
+# Grafana and Keycloak (step 5) - running `apply` and the canaries in
+# updater/canaries.py. `verify` here is the words the page shows for them; the
+# checks themselves are code. Every other class is still updated by hand.
 #
 # updates.load_catalog() has NO DEFAULTS and REFUSES unknown keys, unknown
 # channels, and an `auto` channel on anything one-way or on the auth boundary. A
@@ -23,7 +25,9 @@
 #   channel = "auto"     patch releases only, applied in the window below. A minor
 #                        of an auto component is only NOTIFIED; a major is MANUAL.
 #   channel = "notify"   shown, with a badge; applied by a person.
-#   channel = "manual"   shown, never offered for one click in v1.
+#   channel = "manual"   shown, never applied automatically. The updater may still
+#                        offer it as a plan, but a one-way plan always needs the
+#                        component's name TYPED, never a click.
 #   ANY major, of anything, is manual (updates.effective_channel()).
 #
 # `auto` is legal only for class stateless and timeseries. Widening that is a code
@@ -188,7 +192,7 @@ changelog = "https://github.com/grafana/grafana/releases/tag/v{version}"
 channel = "notify"
 one_way = true
 one_way_why = "grafana.db's schema migrates on first start and cannot be downgraded. Stop Grafana and copy the volume first."
-verify = ["/api/health reports database: ok", "the provisioned dashboards and alert rules are all present"]
+verify = ["/api/health reports database: ok and the new version", "at least as many dashboards (API search) as before", "datasource uid=prometheus: /health OK"]
 
 [components.traefik]
 title = "Traefik"
@@ -256,7 +260,7 @@ changelog = "https://github.com/keycloak/keycloak/releases/tag/{version}"
 channel = "manual"
 one_way = true
 one_way_why = "Keycloak migrates its database on first start; the only way back is the pre-update pg_dump of the keycloak database."
-verify = ["the discovery document's issuer is unchanged", "keycloak-init re-ran and exited 0", "oauth2-proxy: allowed_groups=shell still answers 403"]
+verify = ["the discovery document's issuer is unchanged", "realm devbox exists", "keycloak-init re-ran and exited 0", "bothy-admin gets a client-credentials token", "oauth2-proxy: a signed-in user gets 202 for viewer and 403 for allowed_groups=shell"]
 
 [components.oauth2-proxy]
 title = "oauth2-proxy"

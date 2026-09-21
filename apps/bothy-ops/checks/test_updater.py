@@ -13,10 +13,14 @@ pins down:
            major, not newer, nothing to deploy, not running, not on main, dirty,
            ahead of origin/main, discovery older than the checkout, digest
            unknown, a --target main does not pin
-  SPOOL    only <32 hex>.json regular files are requests; exact keys; a symlink,
+  APP-DB   (step 5) Grafana and Keycloak plans are one-way: type-the-name, their
+           snapshot, a rollback that always restores; Keycloak's TWO pins are
+           both in the plan and must name the same tag@digest, or no plan
+  SPOOL   only <32 hex>.json regular files are requests; exact keys; a symlink,
            an oversized file and junk are refused or removed; a tampered plan id,
            an unknown component, a component outside the updater's classes and a
-           major (no plan) are all refused before anything runs
+           major (no plan) are all refused before anything runs; a one-way plan
+           needs the component's id as confirm, in the executor as in bothy-ops
   PINS     the one-line edit keeps comments and quotes, and refuses unless the
            line and the value are exactly what the plan recorded
   LOCK     a second run while one holds the lock does nothing and says so
@@ -109,6 +113,32 @@ one_way = true
 one_way_why = "its database migrates on first start and cannot go back"
 verify = ["health"]
 
+[components.grafana]
+title = "Grafana"
+class = "app-db"
+source = "image"
+pins = ["compose.yml:grafana"]
+apply = "just up-web"
+dependants = []
+changelog = "https://example.invalid/grafana/v{version}"
+channel = "notify"
+one_way = true
+one_way_why = "grafana.db's schema migrates on first start and cannot be downgraded"
+verify = ["health"]
+
+[components.keycloak]
+title = "Keycloak"
+class = "app-db"
+source = "image"
+pins = ["compose.yml:keycloak", "compose.yml:kc-init"]
+apply = "just up-web"
+dependants = ["oauth2-proxy", "every gated route"]
+changelog = "https://example.invalid/keycloak/{version}"
+channel = "manual"
+one_way = true
+one_way_why = "Keycloak migrates its database on first start; only the dump goes back"
+verify = ["issuer"]
+
 [components.flo]
 title = "Floating"
 class = "stateless"
@@ -136,12 +166,21 @@ services:
   flo:
     image: traefik:v3.7
     container_name: t-flo
+  grafana:
+    image: grafana/grafana:13.2.2
+    container_name: t-grafana
+  keycloak:
+    image: quay.io/keycloak/keycloak:{kc}   # pinned twice
+    container_name: t-kc
+  kc-init:
+    image: quay.io/keycloak/keycloak:{kci}
+    container_name: t-kc-init
 """
 
 
-def write_compose(web: str = "1.0.1", loki: str = "3.7.7") -> None:
+def write_compose(web: str = "1.0.1", loki: str = "3.7.7", kc: str = "26.7.4-0", kci: str | None = None) -> None:
     with open(os.path.join(REPO, "compose.yml"), "w") as fh:
-        fh.write(COMPOSE.format(web=web, loki=loki))
+        fh.write(COMPOSE.format(web=web, loki=loki, kc=kc, kci=kci or kc))
 
 
 os.makedirs(ORIGIN)
@@ -170,6 +209,10 @@ def avail(web_resolved=D("b"), loki_resolved=D("d"), web_tag="1.0.1") -> dict:
                                                                 "resolved": loki_resolved}},
         "graf": {"image": "docker.io/grafana/grafana", "current": {"tag": "13.2.2"}},
         "flo": {"image": "docker.io/library/traefik", "current": {"tag": "v3.7", "float": True}},
+        "grafana": {"image": "docker.io/grafana/grafana", "current": {"tag": "13.2.2", "float": False,
+                                                                      "resolved": D("f")}},
+        "keycloak": {"image": "quay.io/keycloak/keycloak", "current": {"tag": "26.7.4-0", "float": False,
+                                                                        "resolved": D("e")}},
     }}
 
 
@@ -177,6 +220,8 @@ def avail(web_resolved=D("b"), loki_resolved=D("d"), web_tag="1.0.1") -> dict:
 RUNNING = {
     "t-web": ("example.invalid/web:1.0.0", "sha256:" + "1" * 64, D("a")),
     "t-loki": ("grafana/loki:3.7.6", "sha256:" + "2" * 64, D("c")),
+    "t-grafana": ("grafana/grafana:13.1.4", "sha256:" + "7" * 64, D("7")),
+    "t-kc": ("quay.io/keycloak/keycloak:26.7.3-0", "sha256:" + "8" * 64, D("8")),
 }
 
 
@@ -230,7 +275,8 @@ pl = plans.plan("loki", cfg=cfg, available=A)
 ok(pl["snapshot"]["kind"] == "loki" and "restored ONLY if" in pl["rollback"], "a timeseries plan: the loki snapshot and the restore rule")
 ok(pl["to"]["image"] == "grafana/loki:3.7.7", "a quoted pin is read without its quotes")
 
-refused(lambda: plans.plan("graf", cfg=cfg, available=A), "class app-db is not handled", "out of scope: app-db (one-way)")
+refused(lambda: plans.plan("graf", cfg=cfg, available=A), "class app-db is not handled",
+        "out of scope: an app-db component the updater has no snapshot for")
 refused(lambda: plans.plan("nope", cfg=cfg, available=A), "not in updates.toml", "a component outside the catalog")
 refused(lambda: plans.plan("flo", cfg=cfg, available=A), "floating", "a floating pin")
 refused(lambda: plans.plan("web", "1.0.2", cfg=cfg, available=A), "not what main pins", "a --target main does not pin")
@@ -265,10 +311,57 @@ refused(lambda: plans.plan("web", cfg=cfg, available=A), "not main", "a checkout
 git("checkout", "-q", "main")
 
 print()
+print("── APP-DB (step 5): one-way plans, and components with two pins ─")
+g = plans.plan("grafana", cfg=cfg, available=A)
+ok(g["class"] == "app-db" and g["oneWay"] is True and g["confirm"] == "type-name" and g["level"] == "minor",
+   "grafana 13.1.4 -> 13.2.2: one-way, so type-the-name, even for a minor")
+ok(g["snapshot"]["kind"] == "grafana" and "STOPPED" in g["snapshot"]["what"] and "plugins" in g["snapshot"]["what"],
+   f"the snapshot: Grafana stopped, the whole volume: {g['snapshot']['what'][:70]}")
+ok("restored FIRST" in g["rollback"] and "always" in g["rollback"], "the rollback ALWAYS restores, before the old image")
+ok(any("~/backups/{postgres,grafana}" in x for x in g["preflight"]), "pre-flight wants a fresh postgres AND grafana backup")
+ok(any("database ok" in v for v in g["verify"]) and any("dashboards" in v for v in g["verify"])
+   and any("uid=prometheus" in v for v in g["verify"]), "verify: health + version, the dashboard count, the datasource")
+ok(len(g["pins"]) == 1 and g["pins"][0]["service"] == "grafana", "one pin, listed")
+
+k = plans.plan("keycloak", cfg=cfg, available=A)
+ok(k["class"] == "app-db" and k["confirm"] == "type-name" and k["snapshot"]["kind"] == "keycloak"
+   and "pg_dump -Fc" in k["snapshot"]["what"], "keycloak: type-the-name, a pg_dump -Fc snapshot")
+ok([(q["service"], q["line"], q["container"]) for q in k["pins"]] == [("keycloak", 19, "t-kc"),
+                                                                      ("kc-init", 22, "t-kc-init")],
+   f"BOTH pin lines are in the plan: {[(q['service'], q['line']) for q in k['pins']]}")
+ok(k["restarts"] == ["t-kc", "t-kc-init", "oauth2-proxy", "every gated route"],
+   f"restarts: both containers, then the dependants: {k['restarts']}")
+ok("1-2 min" in k["downtime"] and "FAILS CLOSED" in k["downtime"] and "logins are unavailable" in k["downtime"],
+   "downtime: logins out ~1-2 min, gated routes fail closed")
+ok("persists user sessions" in k["signedOut"] and "26.0.0" in k["signedOut"], "signed out: nobody - 26.x persists sessions")
+ok(any("t-kc and t-kc-init" in x for x in k["preflight"]), "the scope check names both containers")
+ok(k["to"]["image"] == "quay.io/keycloak/keycloak:26.7.4-0" and k["to"]["digest"] == D("e"), "to: the pinned tag@digest")
+
+write_compose(kci="26.7.3-0")
+git("commit", "-q", "-am", "bump keycloak but not keycloak-init")
+git("push", "-q", "origin", "main")
+refused(lambda: plans.plan("keycloak", cfg=cfg, available=A), "pins disagree",
+        "two pins naming different tags are refused (a half-bumped PR)")
+write_compose(kci="26.7.4-0@" + D("9"))
+git("commit", "-q", "-am", "the second pin carries a digest")
+git("push", "-q", "origin", "main")
+refused(lambda: plans.plan("keycloak", cfg=cfg, available=A), "same tag@digest",
+        "the same tag, but one with a digest and one without, is refused too")
+write_compose()
+git("commit", "-q", "-am", "pins agree again")
+git("push", "-q", "origin", "main")
+k2 = plans.plan("keycloak", cfg=cfg, available=A)
+ok(k2["pins"] == k["pins"] and k2["id"] != k["id"], "agreeing again: a plan, with a new id (a new commit)")
+with open(os.path.join(REPO, "compose.yml"), "a") as fh:
+    fh.write("# a local edit\n")
+refused(lambda: plans.plan("keycloak", cfg=cfg, available=A), "local changes", "a dirty pin file refuses both pins")
+git("checkout", "-q", "--", "compose.yml")
+
+print()
 print("── write_all: one file per component, 600 in 700 ────────────────")
 hostio.write_json(cfg.available, A)
 got = plans.write_all(cfg)
-ok(set(got) == {"web", "loki", "graf", "flo"}, f"a file per catalog component: {sorted(got)}")
+ok(set(got) == {"web", "loki", "graf", "flo", "grafana", "keycloak"}, f"a file per catalog component: {sorted(got)}")
 ok(not got["web"].startswith("- ") and got["graf"].startswith("- "), "web has a plan; graf has a reason")
 ok(oct(os.stat(cfg.plans).st_mode & 0o777) == "0o700" and
    all(oct(os.stat(os.path.join(cfg.plans, f)).st_mode & 0o777) == "0o600" for f in os.listdir(cfg.plans)),
@@ -324,6 +417,13 @@ plans.write_all(cfg)
 cur = plans.read_plan(cfg, "web")["plan"]
 invalid(lambda: spool.validate_against(req(confirm="web"), cat, plans.read_plan(cfg, "web")), "confirmation",
         "a type-the-name confirm on a click plan")
+gp = plans.read_plan(cfg, "grafana")
+invalid(lambda: spool.validate_against(req(component="grafana", planId=gp["plan"]["id"], confirm=True), cat, gp),
+        "confirmation", "EXECUTOR side: a click (confirm: true) on a one-way plan is refused")
+invalid(lambda: spool.validate_against(req(component="grafana", planId=gp["plan"]["id"], confirm="keycloak"), cat, gp),
+        "confirmation", "…and so is another component's name")
+ok(spool.validate_against(req(component="grafana", planId=gp["plan"]["id"], confirm="grafana"), cat, gp)["id"]
+   == gp["plan"]["id"], "the component's own id is accepted")
 
 sp = cfg.spool
 with open(os.path.join(sp, f"{'c' * 32}.json"), "w") as fh:
@@ -355,6 +455,7 @@ drop(req(planId="0" * 24, jobId="1" * 32), f"{'1' * 32}.json")
 drop("{not json", f"{'2' * 32}.json")
 drop(req(component="graf", planId=cur["id"], jobId="3" * 32), f"{'3' * 32}.json")
 drop(req(component="nope", jobId="4" * 32), f"{'4' * 32}.json")
+drop(req(component="grafana", planId=gp["plan"]["id"], confirm=True, jobId="6" * 32), f"{'6' * 32}.json")
 executor.run_spool(cfg, log=lambda *_: None)
 hist = {h["id"]: h for h in record.history(cfg)}
 ok(os.listdir(sp) == [], "every request was claimed (removed), valid or not")
@@ -363,8 +464,10 @@ ok(all(hist.get(c * 32, {}).get("state") == "refused" for c in "1234"),
 ok("not the current plan" in hist["1" * 32]["error"] and "not JSON" in hist["2" * 32]["error"]
    and "does not handle" in hist["3" * 32]["error"] and "not in updates.toml" in hist["4" * 32]["error"],
    "each with its reason")
+ok(hist.get("6" * 32, {}).get("state") == "refused" and "confirmation" in hist["6" * 32]["error"],
+   "a one-way request written straight into the spool with confirm: true is refused by the executor")
 audit = open(cfg.audit_file).read()
-ok(audit.count("\tvalidate\tfailed\t") == 4 and audit.count("\tresult\trefused\t") == 4,
+ok(audit.count("\tvalidate\tfailed\t") == 5 and audit.count("\tresult\trefused\t") == 5,
    "audit.log: a failed validate and a refused result per request")
 st = hostio.read_json(cfg.status_file)["job"]
 ok(st["state"] == "refused" and all(s["state"] in ("failed", "skipped", "ok") for s in st["steps"]),

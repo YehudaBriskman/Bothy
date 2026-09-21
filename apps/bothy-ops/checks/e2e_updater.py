@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The host updater END TO END, against a THROWAWAY compose project. Needs docker.
 
-Run: python3 checks/e2e_updater.py            (about two minutes)
+Run: python3 checks/e2e_updater.py            (about eight minutes)
 
 NEVER the live stack. Everything here is its own:
 
@@ -34,6 +34,23 @@ and the executor as separate processes (`--worker`), exactly as systemd runs it.
                          bk_snapshot_vm / bk_snapshot_loki) and restore
                          (scripts/restore.sh) on throwaway VictoriaMetrics and Loki
                          containers - the same code the nightly backup runs
+  6  ONE-WAY: GRAFANA    a throwaway Grafana (13.1.4, its own volume, a datasource
+                         uid=prometheus on a throwaway VictoriaMetrics) and two
+                         dashboards made through the API. bothy-ops refuses a click
+                         (type-the-name). 13.2.2 with a FORCED verify failure that
+                         first deletes one dashboard and makes another -> the
+                         volume tar is restored, 13.1.4 runs, the old dashboards
+                         are back and the new one is gone. Then 13.2.2 succeeds.
+  7  ONE-WAY: KEYCLOAK   a throwaway postgres + Keycloak 26.7.3-0 (start-dev, the
+                         LIVE realm file and the LIVE keycloak-init script) +
+                         oauth2-proxy, and Keycloak's real canaries - a real
+                         sign-in, viewer 202 / shell 403. Both pins -> 26.7.4-0
+                         with a FORCED failure that deletes a client -> the
+                         pg_dump is restored, both pin lines go back, the client
+                         is back. Then 26.7.4-0 succeeds.
+
+Images it had to pull are removed again; the ones already on the box (the live
+stack's) are left alone.
 """
 import json
 import os
@@ -57,10 +74,86 @@ P1, P2 = "bothy-updater-test", "bothy-updater-test2"
 C1, C2 = f"{P1}-web", f"{P2}-web2"
 REG = f"{P1}-registry"
 VM, LOKI = f"{P1}-vm", f"{P1}-loki"
+# The app-db stand-ins (sections 6 and 7): two more compose projects, a network,
+# and the containers they talk to. All names start with bothy-updater-test.
+P3, P4 = f"{P1}-mon", f"{P1}-auth"
+NET = f"{P1}-net"
+GF, GFVM = f"{P1}-grafana", f"{P1}-gfvm"
+KC, KCI, KPG, O2P = f"{P1}-kc", f"{P1}-kc-init", f"{P1}-pg", f"{P1}-o2p"
+GF_OLD, GF_NEW = "grafana/grafana:13.1.4", "grafana/grafana:13.2.2"
+KC_OLD, KC_NEW = "quay.io/keycloak/keycloak:26.7.3-0", "quay.io/keycloak/keycloak:26.7.4-0"
+O2P_IMG = "quay.io/oauth2-proxy/oauth2-proxy:v7.15.4"
+VM_IMG = "victoriametrics/victoria-metrics:v1.152.0"
+GF_PASS, LOGIN_USER, LOGIN_PASS, PG_PASS = "e2e-grafana-pass", "e2e@example.com", "e2e-login-pass-1", "e2e-pg-pass"
+
+
+def _flag(cid: str) -> str:
+    """While this file exists, the injected canary of `cid` fails verify."""
+    return os.path.join(os.environ.get("E2E_TMP", "/nonexistent"), f"inject-{cid}")
+
+
+def _gf_api(ctx, method: str, path: str, body: str | None = None) -> tuple[int, str]:
+    return canaries.probe(ctx, "http://127.0.0.1:3000" + path, method=method, cred=f"admin:{GF_PASS}",
+                          body=body, ctype="application/json" if body else None)
+
+
+def _gf_dashboard(uid: str) -> str:
+    return json.dumps({"dashboard": {"uid": uid, "title": uid, "panels": [], "schemaVersion": 39},
+                       "overwrite": True})
+
+
+def kcadm(*args: str) -> tuple[int, str]:
+    """kcadm.sh in the THROWAWAY keycloak, as its bootstrap admin (test values only)."""
+    cfgf = "/tmp/e2e-kcadm.config"
+    subprocess.run(["docker", "exec", KC, "/opt/keycloak/bin/kcadm.sh", "config", "credentials", "--server",
+                    "http://localhost:8080", "--realm", "master", "--user", "admin", "--password", LOGIN_PASS,
+                    "--config", cfgf], capture_output=True)
+    p = subprocess.run(["docker", "exec", KC, "/opt/keycloak/bin/kcadm.sh", *args, "--config", cfgf],
+                       capture_output=True, text=True)
+    return p.returncode, p.stdout + p.stderr
+
+
+def kc_client(client_id: str) -> str | None:
+    rc, out = kcadm("get", "clients", "-r", "devbox", "-q", f"clientId={client_id}", "--fields", "id,clientId")
+    try:
+        return next((c["id"] for c in json.loads(out) if c.get("clientId") == client_id), None)
+    except (ValueError, TypeError):
+        return None
+
+
+def inject_grafana() -> canaries.Canary:
+    """A forced verify failure AFTER the new version has written to its database:
+    a dashboard made before the update is deleted and a new one made. Only the
+    snapshot restore brings the first back and removes the second."""
+    def check(ctx):
+        if ctx.phase != "verify" or not os.path.exists(_flag("grafana")):
+            return True, "not injected"
+        _gf_api(ctx, "DELETE", "/api/dashboards/uid/e2e-before-b")
+        _gf_api(ctx, "POST", "/api/dashboards/db", _gf_dashboard("e2e-after"))
+        return False, "FORCED: deleted e2e-before-b, made e2e-after, then failed"
+    return canaries.Canary("e2e: an injected failure (grafana)", check, retry=False)
+
+
+def inject_keycloak() -> canaries.Canary:
+    def check(ctx):
+        if ctx.phase != "verify" or not os.path.exists(_flag("keycloak")):
+            return True, "not injected"
+        cid = kc_client("e2e-before")
+        if cid:
+            kcadm("delete", f"clients/{cid}", "-r", "devbox")
+        kcadm("create", "clients", "-r", "devbox", "-s", "clientId=e2e-after")
+        return False, "FORCED: deleted client e2e-before, made e2e-after, then failed"
+    return canaries.Canary("e2e: an injected failure (keycloak)", check, retry=False)
 
 
 def test_canaries() -> dict:
     return {
+        # Grafana's REAL canaries (the container comes from the pin), after the injection.
+        "grafana": [inject_grafana(), *canaries.CANARIES["grafana"]],
+        # Keycloak's real canaries; the two that look at OTHER containers are
+        # pointed at the stand-ins' names.
+        "keycloak": [inject_keycloak(), canaries.kc_issuer(), canaries.kc_realm(), canaries.kc_init_ran(KCI),
+                     canaries.kc_admin_token(), canaries.oauth2_shell_denied(O2P)],
         "web": [canaries.body_matches("http://127.0.0.1:8080/", r"^web \d+\.\d+\.\d+$",
                                       "the body says `web <version>`")],
         "web2": [canaries.body_matches("http://127.0.0.1:8080/", r"^web2 \d+\.\d+\.\d+$",
@@ -100,11 +193,14 @@ def sh(*argv: str, cwd: str | None = None, check: bool = True, stdin: str | None
 
 
 def cleanup() -> None:
-    for proj in (P1, P2):
+    for proj in (P1, P2, P3, P4):
         subprocess.run(["docker", "compose", "-p", proj, "down", "-v", "--remove-orphans"],
                        capture_output=True)
-    subprocess.run(["docker", "rm", "-f", C1, C2, REG, VM, LOKI], capture_output=True)
-    subprocess.run(["docker", "volume", "rm", "-f", LOKI, VM], capture_output=True)
+    # -v: registry:2, postgres and victoria-metrics declare VOLUMEs, and a plain
+    # `rm -f` leaves each one behind as an anonymous volume.
+    subprocess.run(["docker", "rm", "-f", "-v", C1, C2, REG, VM, LOKI, GF, GFVM, KC, KCI, KPG, O2P], capture_output=True)
+    subprocess.run(["docker", "volume", "rm", "-f", LOKI, VM, f"{P3}_grafana_data"], capture_output=True)
+    subprocess.run(["docker", "network", "rm", NET], capture_output=True)
 
 
 if shutil.which("docker") is None or subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
@@ -116,7 +212,9 @@ if shutil.which("just") is None:
 
 cleanup()
 TMP = tempfile.mkdtemp(prefix="bothy-updater-e2e-")
+os.environ["E2E_TMP"] = TMP      # the workers inherit it: where the injection flags live
 built: list[str] = []
+pulled: list[str] = []           # images THIS run pulled - removed again at the end
 try:
     # ── the registry and the images ─────────────────────────────────────────
     sh("docker", "run", "-d", "--name", REG, "-p", "127.0.0.1::5000", "registry:2")
@@ -222,10 +320,10 @@ verify = ["the body names the version"]
         def read_json_object(self, _max: int) -> dict:
             return self.body
 
-    def request(cid: str) -> str:
+    def request(cid: str, confirm: object = True) -> str:
         doc = plans.read_plan(cfg, cid)
         assert doc and doc["ok"], f"no plan for {cid}: {doc}"
-        out, _ = updates.request_update(H({"component": cid, "plan_id": doc["plan"]["id"], "confirm": True}),
+        out, _ = updates.request_update(H({"component": cid, "plan_id": doc["plan"]["id"], "confirm": confirm}),
                                         "operator@example.com")
         return out["jobId"]
 
@@ -363,10 +461,292 @@ verify = ["the body names the version"]
     rok, rdetail = ts.restore(cfg, "loki", LOKI, art) if art else (False, "no artefact")
     ok(rok and "answers labels" in rdetail, f"scripts/restore.sh put Loki back and read its labels: {rdetail[-160:]}")
     ok(ts.take_snapshot(cfg, "loki", LOKI, sdir)[0] is None, "a snapshot never overwrites an existing file")
+    # ══ 6-7: the ONE-WAY class (app-db), on throwaway Grafana and Keycloak ══════
+    import yaml
+
+    from updater import classes
+
+    def have_image(ref: str) -> bool:
+        return subprocess.run(["docker", "image", "inspect", ref], capture_output=True).returncode == 0
+
+    PG_IMG = next(ln.split("image:", 1)[1].strip() for ln in open(os.path.join(updater.config.REPO, "data",
+                  "postgres", "compose.yml")) if ln.strip().startswith("image: postgres:"))
+    for ref in (GF_OLD, GF_NEW, KC_OLD, KC_NEW, O2P_IMG, PG_IMG, VM_IMG):
+        if not have_image(ref):
+            sh("docker", "pull", "-q", ref)
+            pulled.append(ref)
+    sh("docker", "network", "create", NET)
+
+    def add_available(cid: str, ref: str) -> None:
+        """What discovery would record for `ref` - from the image the test pulled,
+        so the plan's digest is the one `docker pull` will find (the executor checks)."""
+        s = du.split_image(ref)
+        doc = hostio.read_json(cfg.available)
+        doc["generatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        doc["components"][cid] = {"image": s["ref"], "current": {
+            "tag": s["tag"], "float": False, "resolved": hostio.repo_digest(hostio.image(ref), s["ref"])}}
+        hostio.write_json(cfg.available, doc)
+        plans.write_all(cfg, catalog, doc)
+
+    def steps_of(jid: str) -> dict:
+        st = hostio.read_json(cfg.status_file)["job"]
+        return {s["name"]: s["state"] for s in st["steps"]} if st["id"] == jid else {}
+
+    APPDB_TPL = """
+[components.{id}]
+title = "{id}"
+class = "app-db"
+source = "image"
+pins = [{pins}]
+apply = "just {recipe}"
+dependants = []
+changelog = "https://example.invalid/{id}/{{version}}"
+channel = "{channel}"
+one_way = true
+one_way_why = "its database migrates on first start and the old version cannot read it"
+verify = ["the canaries"]
+"""
+    with open(os.path.join(REPO, "updates.toml"), "a") as fh:
+        fh.write(APPDB_TPL.format(id="grafana", pins='"mon.yml:grafana"', recipe="up-mon", channel="notify"))
+        fh.write(APPDB_TPL.format(id="keycloak", pins='"auth.yml:keycloak", "auth.yml:keycloak-init"',
+                                  recipe="up-auth", channel="manual"))
+    with open(os.path.join(REPO, ".env"), "w") as fh:
+        fh.write(f"GRAFANA_USER=admin\nGRAFANA_PASSWORD={GF_PASS}\nPOSTGRES_USER=dev\nPOSTGRES_PASSWORD={PG_PASS}\n"
+                 f"DEV_LOGIN_USER={LOGIN_USER}\nDEV_LOGIN_PASSWORD={LOGIN_PASS}\n")
+    with open(os.path.join(REPO, ".gitignore"), "w") as fh:
+        fh.write(".env\napps/\n")
+    with open(os.path.join(REPO, "justfile"), "a") as fh:
+        fh.write("\nup-mon:\n    docker compose -f mon.yml up -d --wait --wait-timeout 240\n\n"
+                 "up-auth:\n    #!/usr/bin/env bash\n    set -euo pipefail\n"
+                 "    svcs=$(docker compose -f auth.yml config --services | grep -vx keycloak-init)\n"
+                 "    docker compose -f auth.yml up -d --wait --wait-timeout 400 $svcs\n"
+                 "    docker compose -f auth.yml up -d --no-deps keycloak-init\n"
+                 f"    rc=$(docker wait {KCI})\n"
+                 "    [ \"$rc\" = 0 ] || { echo \"keycloak-init exited $rc\" >&2; exit 1; }\n")
+    os.makedirs(os.path.join(cfg.backups, "grafana"))
+    open(os.path.join(cfg.backups, "grafana", "grafana-test.db"), "w").write("a backup")
+    os.utime(BK, None)
+
+    # ── 6. Grafana ──────────────────────────────────────────────────────────
+    print("── 6. app-db: Grafana - snapshot, forced failure, restore, update ─", flush=True)
+    sh("docker", "run", "-d", "--name", GFVM, "--network", NET, VM_IMG, "-selfScrapeInterval=5s")
+    os.makedirs(os.path.join(REPO, "gf-provisioning", "datasources"))
+    with open(os.path.join(REPO, "gf-provisioning", "datasources", "ds.yml"), "w") as fh:
+        fh.write(f"apiVersion: 1\ndatasources:\n  - name: Prometheus\n    type: prometheus\n    uid: prometheus\n"
+                 f"    access: proxy\n    url: http://{GFVM}:8428\n")
+
+    def mon(image: str) -> None:
+        with open(os.path.join(REPO, "mon.yml"), "w") as fh:
+            fh.write(f"""name: {P3}
+services:
+  grafana:
+    image: {image}   # the pin
+    container_name: {GF}
+    environment:
+      GF_SECURITY_ADMIN_USER: ${{GRAFANA_USER}}
+      GF_SECURITY_ADMIN_PASSWORD: ${{GRAFANA_PASSWORD}}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    volumes:
+      - ./gf-provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "-T", "3", "http://127.0.0.1:3000/api/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 90
+    networks: [testnet]
+volumes:
+  grafana_data:
+networks:
+  testnet:
+    external: true
+    name: {NET}
+""")
+
+    mon(GF_OLD)
+    merge("the app-db stand-ins: grafana on 13.1.4")
+    catalog = updates.load(cfg.catalog)
+    updates.CATALOG = catalog
+    sh("just", "up-mon", cwd=REPO)
+    gctx = canaries.Ctx(cfg, GF)
+    for uid in ("e2e-before-a", "e2e-before-b"):
+        st, _ = _gf_api(gctx, "POST", "/api/dashboards/db", _gf_dashboard(uid))
+        ok(st == 200, f"made dashboard {uid} in the UI's way (the API) before the update ({st})")
+
+    def gf_uids() -> set:
+        st, b = _gf_api(gctx, "GET", "/api/search?type=dash-db")
+        try:
+            return {d["uid"] for d in json.loads(b)} if st == 200 else set()
+        except ValueError:
+            return set()
+
+    def gf_version() -> str:
+        st, b = canaries.probe(gctx, "http://127.0.0.1:3000/api/health")
+        return (json.loads(b).get("version") if st == 200 else "") or ""
+
+    mon(GF_NEW)
+    merge("bump grafana to 13.2.2 (a Dependabot PR)")
+    add_available("grafana", GF_NEW)
+    gp = plans.read_plan(cfg, "grafana")
+    ok(gp["ok"] and gp["plan"]["confirm"] == "type-name" and gp["plan"]["oneWay"] and
+       gp["plan"]["snapshot"]["kind"] == "grafana", f"a one-way plan 13.1.4 -> 13.2.2: {gp.get('reason')}")
+    try:
+        request("grafana", True)
+        ok(False, "bothy-ops refuses a click on a one-way plan (ACCEPTED)")
+    except Exception as e:  # noqa: BLE001
+        ok("type the component's id" in str(e) and os.listdir(cfg.spool) == [],
+           f"bothy-ops refuses a click on a one-way plan, no spool file ({e})")
+
+    open(_flag("grafana"), "w").close()
+    jg1 = request("grafana", "grafana")
+    out = worker().communicate(timeout=900)[0]
+    r = job(jg1)
+    ok(r.get("state") == "rolled_back" and r.get("failedStep") == "verify" and "FORCED" in (r.get("error") or ""),
+       f"the forced failure rolled back: {r.get('state')} / {r.get('failedStep')}: {r.get('error')} {out[-300:]}")
+    stp = steps_of(jg1)
+    ok(stp.get("snapshot") == "ok" and stp.get("restore") == "ok" and stp.get("rollback") == "ok",
+       f"snapshot, restore AND rollback ran: {stp}")
+    snaps = [n for n in sorted(os.listdir(cfg.snapshots)) if n.endswith("-grafana")]
+    sd = os.path.join(cfg.snapshots, snaps[-1]) if snaps else ""
+    ok(sd and {"grafana-data.tar.gz", "app-db.json", "pin.json"} <= set(os.listdir(sd)),
+       f"the snapshot holds the volume tar: {os.listdir(sd) if sd else None}")
+    ok(running_image(GF) == GF_OLD and gf_version() == "13.1.4", f"13.1.4 runs again: {gf_version()}")
+    uids = gf_uids()
+    ok({"e2e-before-a", "e2e-before-b"} <= uids and "e2e-after" not in uids,
+       f"the dashboards made before the update are back, the one made after is gone: {sorted(uids)}")
+    ok(sh("git", "diff", "--numstat", cwd=REPO).startswith("1\t1\tmon.yml"), "the pin line went back (uncommitted)")
+    sh("git", "checkout", "-q", "--", "mon.yml", cwd=REPO)
+    os.unlink(_flag("grafana"))
+
+    add_available("grafana", GF_NEW)
+    jg2 = request("grafana", "grafana")
+    out = worker().communicate(timeout=900)[0]
+    r = job(jg2)
+    ok(r.get("state") == "succeeded", f"then the update succeeds: {r.get('state')}: {r.get('error')} {out[-300:]}")
+    ok(running_image(GF) == GF_NEW and gf_version() == "13.2.2", f"13.2.2 runs, and says so: {gf_version()}")
+    ok({"e2e-before-a", "e2e-before-b"} <= gf_uids(), "the dashboards survived the migration")
+
+    # ── 7. Keycloak ─────────────────────────────────────────────────────────
+    print("── 7. app-db: Keycloak - pg_dump, two pins, forced failure, restore ─", flush=True)
+    sh("docker", "run", "-d", "--name", KPG, "--network", NET, "-e", "POSTGRES_USER=dev", "-e",
+       f"POSTGRES_PASSWORD={PG_PASS}", "-e", "POSTGRES_DB=dev", PG_IMG)
+    for _ in range(60):
+        if subprocess.run(["docker", "exec", KPG, "pg_isready", "-q", "-U", "dev"]).returncode == 0:
+            break
+        time.sleep(1)
+    time.sleep(2)
+    sh("docker", "exec", KPG, "psql", "-U", "dev", "-d", "dev", "-v", "ON_ERROR_STOP=1",
+       "-c", "CREATE ROLE keycloak LOGIN PASSWORD 'e2e-kcdb'", "-c", "CREATE DATABASE keycloak OWNER keycloak")
+
+    live = yaml.safe_load(open(os.path.join(updater.config.REPO, "auth", "compose.yml")))["services"]
+
+    def auth(image: str) -> None:
+        doc = {"name": P4, "services": {
+            "keycloak": {
+                "image": image, "container_name": KC, "command": ["start-dev", "--import-realm"],
+                "environment": {
+                    "KC_DB": "postgres", "KC_DB_URL": f"jdbc:postgresql://{KPG}:5432/keycloak",
+                    "KC_DB_USERNAME": "keycloak", "KC_DB_PASSWORD": "e2e-kcdb",
+                    "KC_HOSTNAME": f"http://{KC}:8080", "KC_HTTP_ENABLED": "true", "KC_HEALTH_ENABLED": "true",
+                    "KC_BOOTSTRAP_ADMIN_USERNAME": "admin", "KC_BOOTSTRAP_ADMIN_PASSWORD": "${DEV_LOGIN_PASSWORD}",
+                    "DEVBOX_OAUTH2_CLIENT_SECRET": "e2e-oauth2-client-secret",
+                    "DEVBOX_OAUTH2_REDIRECT_URI": "http://127.0.0.1:4180/oauth2/callback",
+                    "DEVBOX_HEADLAMP_REDIRECT_URI": "http://127.0.0.1:8110/oauth2/callback"},
+                # The LIVE realm, imported - so the canaries meet the real clients and role mappers.
+                "volumes": [os.path.join(updater.config.REPO, "auth", "realm-devbox.json")
+                            + ":/opt/keycloak/data/import/realm-devbox.json:ro"],
+                "healthcheck": {**live["keycloak"]["healthcheck"], "interval": "3s", "start_period": "120s",
+                                "retries": 100},
+                "networks": {"testnet": {"aliases": ["keycloak"]}}},
+            # The LIVE keycloak-init script, verbatim: it logs in to http://keycloak:8080 (the
+            # alias above) and seeds DEV_LOGIN_USER with viewer, editor and operator.
+            "keycloak-init": {
+                "image": image, "container_name": KCI, "restart": "no",
+                "depends_on": {"keycloak": {"condition": "service_healthy"}},
+                "environment": {"KC_ADMIN_USER": "admin", "KC_ADMIN_PASSWORD": "${DEV_LOGIN_PASSWORD}",
+                                "DEV_LOGIN_USER": "${DEV_LOGIN_USER}", "DEV_LOGIN_PASSWORD": "${DEV_LOGIN_PASSWORD}"},
+                "entrypoint": live["keycloak-init"]["entrypoint"], "command": live["keycloak-init"]["command"],
+                "networks": ["testnet"]},
+            "oauth2-proxy": {
+                "image": O2P_IMG, "container_name": O2P, "restart": "unless-stopped",
+                "depends_on": {"keycloak": {"condition": "service_healthy"}},
+                "command": ["--provider=oidc", f"--oidc-issuer-url=http://{KC}:8080/realms/devbox",
+                            "--client-id=oauth2-proxy", "--http-address=0.0.0.0:4180", "--email-domain=*",
+                            "--code-challenge-method=S256", "--scope=openid email profile",
+                            "--insecure-oidc-allow-unverified-email=true",
+                            "--redirect-url=http://127.0.0.1:4180/oauth2/callback", "--cookie-secure=false",
+                            "--cookie-samesite=lax", "--upstream=static://202", "--set-xauthrequest=true"],
+                # Throwaway values for a throwaway proxy. The client secret MUST equal
+                # DEVBOX_OAUTH2_CLIENT_SECRET above (the realm's), or the callback 500s.
+                # The cookie secret is built, not a literal, so gitleaks has nothing to flag.
+                "environment": {"OAUTH2_PROXY_CLIENT_SECRET": "e2e-oauth2-client-secret",
+                                "OAUTH2_PROXY_COOKIE_SECRET": bytes(range(16)).hex()},
+                "networks": ["testnet"]}},
+            "networks": {"testnet": {"external": True, "name": NET}}}
+        with open(os.path.join(REPO, "auth.yml"), "w") as fh:
+            yaml.safe_dump(doc, fh, sort_keys=False, width=400)
+
+    auth(KC_OLD)
+    merge("the keycloak stand-in on 26.7.3-0")
+    catalog = updates.load(cfg.catalog)
+    updates.CATALOG = catalog
+    t0 = time.monotonic()
+    sh("just", "up-auth", cwd=REPO)
+    print(f"  (keycloak stand-in up in {int(time.monotonic() - t0)}s)", flush=True)
+    secret = "e2e-admin-client-" + "5" * 20
+    rc, o = kcadm("create", "clients", "-r", "devbox", "-s", "clientId=bothy-admin", "-s", "publicClient=false",
+                  "-s", "serviceAccountsEnabled=true", "-s", "standardFlowEnabled=false", "-s", f"secret={secret}")
+    os.makedirs(os.path.join(REPO, "apps", "bothy-ops", "secrets"), mode=0o700)
+    with open(os.path.join(REPO, canaries.ADMIN_SECRET), "w") as fh:
+        fh.write(secret)
+    rc2, o2 = kcadm("create", "clients", "-r", "devbox", "-s", "clientId=e2e-before")
+    ok(rc == 0 and rc2 == 0 and kc_client("e2e-before"), f"bothy-admin and a client e2e-before exist before the update {o2}")
+
+    auth(KC_NEW)
+    merge("bump keycloak AND keycloak-init to 26.7.4-0")
+    add_available("keycloak", KC_NEW)
+    kp = plans.read_plan(cfg, "keycloak")
+    ok(kp["ok"] and [q["service"] for q in kp["plan"]["pins"]] == ["keycloak", "keycloak-init"]
+       and kp["plan"]["confirm"] == "type-name", f"a one-way plan over BOTH pins: {kp.get('reason')}")
+
+    open(_flag("keycloak"), "w").close()
+    jk1 = request("keycloak", "keycloak")
+    out = worker().communicate(timeout=1200)[0]
+    r = job(jk1)
+    ok(r.get("state") == "rolled_back" and r.get("failedStep") == "verify" and "FORCED" in (r.get("error") or ""),
+       f"the forced failure rolled back: {r.get('state')} / {r.get('failedStep')}: {r.get('error')} {out[-300:]}")
+    stp = steps_of(jk1)
+    ok(stp.get("preflight") == "ok" and stp.get("snapshot") == "ok" and stp.get("restore") == "ok"
+       and stp.get("rollback") == "ok", f"pre-flight (all canaries green), dump, restore, rollback: {stp}")
+    snaps = [n for n in sorted(os.listdir(cfg.snapshots)) if n.endswith("-keycloak")]
+    sd = os.path.join(cfg.snapshots, snaps[-1]) if snaps else ""
+    ok(sd and "keycloak.dump" in os.listdir(sd) and os.path.getsize(os.path.join(sd, "keycloak.dump")) > 10000,
+       f"the snapshot holds the pg_dump -Fc: {os.listdir(sd) if sd else None}")
+    ok(running_image(KC) == KC_OLD and running_image(KCI) == KC_OLD, "keycloak AND keycloak-init are on 26.7.3-0 again")
+    ok(kc_client("e2e-before") and not kc_client("e2e-after"),
+       "the client made before the update is back, the one made after is gone (the dump was restored)")
+    ok(sh("git", "diff", "--numstat", cwd=REPO).startswith("2\t2\tauth.yml"),
+       "BOTH pin lines went back (two lines, uncommitted)")
+    sh("git", "checkout", "-q", "--", "auth.yml", cwd=REPO)
+    os.unlink(_flag("keycloak"))
+
+    add_available("keycloak", KC_NEW)
+    jk2 = request("keycloak", "keycloak")
+    out = worker().communicate(timeout=1200)[0]
+    r = job(jk2)
+    ok(r.get("state") == "succeeded", f"then the update succeeds: {r.get('state')}: {r.get('error')} {out[-300:]}")
+    ok(running_image(KC) == KC_NEW and running_image(KCI) == KC_NEW and kc_client("e2e-before"),
+       "26.7.4-0 runs in both, and the realm's clients survived the migration")
+    vd = [s for s in hostio.read_json(cfg.status_file)["job"]["steps"] if s["name"] == "verify"][0]["detail"] or ""
+    ok("canaries green" in vd, f"verify: {vd}")
 finally:
     cleanup()
     for ref in built:
         subprocess.run(["docker", "rmi", "-f", ref], capture_output=True)
+    for ref in pulled:
+        subprocess.run(["docker", "rmi", ref], capture_output=True)
     shutil.rmtree(TMP, ignore_errors=True)
 
 print()

@@ -27,6 +27,14 @@ again, under the old image: is data written before the update still readable?
           verify again.
 
 A restore is never the first move, because it is the only step that loses data.
+
+── ...and for one-way data (app-db: Grafana, Keycloak) it ALWAYS is ───────────
+
+A class with `always_restore` (classes.AppDb) migrates its data on the first
+start of the new version, so the old image may not read it at all. There the
+rollback restores the snapshot FIRST, with the new container stopped, and only
+then puts the previous image back on every pin line. If the restore fails, the
+old image is not put back: the result is `failed`, and a person decides.
 """
 
 from __future__ import annotations
@@ -167,10 +175,14 @@ class Execution:
         self.klass = classes.get(comp.cls, comp.id)
         self.container = plan["container"]
         self.canaries = canaries.for_component(cfg, comp.id)
-        self.ctx = canaries.Ctx(cfg, self.container, phase="preflight")
+        self.ctx = canaries.Ctx(cfg, self.container, phase="preflight", plan=plan)
         pp = plan["pin"]
         self.pin = pins.PinLine(pp["file"], pp["service"], pp["line"], pp["text"], plan["to"]["image"],
                                 self.container)
+        # Every pin line the component moves - Keycloak's image is pinned twice
+        # (keycloak, keycloak-init). The plan proved they all name the same image.
+        self.pins = [pins.PinLine(q["file"], q["service"], q["line"], q["text"], plan["to"]["image"],
+                                  q.get("container")) for q in plan.get("pins") or []] or [self.pin]
         self.artefact: str | None = None
 
     # ── the job ──
@@ -287,12 +299,13 @@ class Execution:
             if ol.get("com.docker.compose.oneoff") == "True":
                 continue
             have[ol.get("com.docker.compose.service", "")] = ol.get("com.docker.compose.config-hash", "")
-        others = [s for s in want if s != self.pin.service and have.get(s) != want[s]]
+        mine = {q.service for q in self.pins if q.file == self.pin.file}
+        others = [s for s in want if s not in mine and have.get(s) != want[s]]
         if others:
             raise Refuse(f"`{self.comp.apply}` would also recreate or create {', '.join(sorted(others))} "
                          "(its configuration changed since it was started) - apply that first, by hand if "
                          "the updater does not handle it")
-        return f"scope: only {self.pin.service} changes in project {project}"
+        return f"scope: only {', '.join(sorted(mine))} change in project {project}"
 
     def _baseline(self) -> str:
         self.ctx.phase = "preflight"
@@ -323,7 +336,9 @@ class Execution:
             "lineAtHead": self.pin.text, "commit": self.plan["pin"]["commit"],
             "oldImage": self.plan["from"]["image"], "oldImageId": self.plan["from"]["imageId"],
             "oldDigest": self.plan["from"]["digest"], "oldRepoDigests": old.get("repoDigests", []),
-            "newImage": self.plan["to"]["image"], "newDigest": self.plan["to"]["digest"]})
+            "newImage": self.plan["to"]["image"], "newDigest": self.plan["to"]["digest"],
+            "pins": [{"file": q.file, "service": q.service, "line": q.line, "lineAtHead": q.text}
+                     for q in self.pins]})
         src = os.path.join(self.cfg.repo, self.pin.file)
         dst = os.path.join(d, os.path.basename(self.pin.file))
         shutil.copyfile(src, dst)
@@ -397,7 +412,7 @@ class Execution:
         for cn in self.canaries:
             while True:
                 ok, d = cn.check(self.ctx)
-                if ok or time.monotonic() > deadline:
+                if ok or not cn.retry or time.monotonic() > deadline:
                     break
                 time.sleep(3)
             if not ok:
@@ -410,21 +425,36 @@ class Execution:
     def rollback(self, cause: Exception) -> str:
         old = self.plan["from"]["image"]
         self.rec.step("rollback", "running", f"because {cause}")
+        restored = False
+        if self.klass.always_restore:
+            # ONE-WAY: the data goes back BEFORE the old image, whatever the probes
+            # say - the new version may have migrated it past what the old reads.
+            self.rec.step("restore", "running", f"one-way: restoring {self.artefact} before the old image")
+            rok, rdetail = self.klass.restore(self.cfg, self.comp.id, self.container, self.artefact or "")
+            if not rok:
+                self.rec.step("restore", "failed", rdetail)
+                self.rec.step("rollback", "failed", "the snapshot could not be restored - the old image was NOT "
+                                                    "put back on data it may not be able to read")
+                return self.rec.finish("failed", f"{cause}; and restoring the snapshot failed: {rdetail}",
+                                       note=self._note(old, restored=False, pinned=False))["state"]
+            self.rec.step("restore", "ok", rdetail)
+            restored = True
         try:
-            pins.replace(self.cfg.repo, self.pin, old)
+            for q in self.pins:
+                pins.replace(self.cfg.repo, q, old)
             self._recipe()
         except (HostError, StepError, OSError) as e:
             self.rec.step("rollback", "failed", str(e))
             return self.rec.finish("failed", f"{cause}; and the rollback failed: {e}",
-                                   note=self._note(old, restored=False))["state"]
+                                   note=self._note(old, restored=restored))["state"]
         ok, detail, history_ok = self.check(self.plan["from"]["imageId"], "rollback")
         if ok:
             self.rec.step("rollback", "ok", f"{old} is back: {detail}")
-            return self.rec.finish("rolled_back", str(cause), note=self._note(old, restored=False))["state"]
-        if history_ok or not self.klass.history or not self.artefact:
+            return self.rec.finish("rolled_back", str(cause), note=self._note(old, restored=restored))["state"]
+        if restored or history_ok or not self.klass.history or not self.artefact:
             self.rec.step("rollback", "failed", detail)
             return self.rec.finish("failed", f"{cause}; after the rollback: {detail}",
-                                   note=self._note(old, restored=False))["state"]
+                                   note=self._note(old, restored=restored))["state"]
         # History is unreadable under the OLD image too: the data is damaged.
         self.rec.step("rollback", "ok", f"{old} is back, but {detail}")
         self.rec.step("restore", "running", f"restoring {self.artefact}")
@@ -437,11 +467,17 @@ class Execution:
         self.rec.step("restore", "ok", detail2)
         return self.rec.finish("rolled_back", str(cause), note=self._note(old, restored=True))["state"]
 
-    def _note(self, old: str, *, restored: bool) -> str:
+    def _note(self, old: str, *, restored: bool, pinned: bool = True) -> str:
         f = self.pin.file
-        s = (f"{f}:{self.pin.line} now pins {old} LOCALLY (uncommitted, on purpose) so the next `just up` keeps "
-             f"the version that works; main still pins {self.plan['to']['image']}. Find out why it failed, then "
-             f"`git checkout -- {f}` and deploy again.")
+        where = ", ".join(f"{q.file}:{q.line}" for q in self.pins)
+        if not pinned:
+            s = (f"The data snapshot {self.artefact} could NOT be restored, so the old image was not put back; "
+                 f"{self.container} may be stopped. A person is needed: restore it by hand, then "
+                 f"`git diff {f}`.")
+            return s
+        s = (f"{where} now pin{'s' if len(self.pins) == 1 else ''} {old} LOCALLY (uncommitted, on purpose) so the "
+             f"next `just up` keeps the version that works; main still pins {self.plan['to']['image']}. Find out "
+             f"why it failed, then `git checkout -- {f}` and deploy again.")
         if restored:
             s += f" Data was restored from {self.artefact}: anything written after the snapshot is gone."
         return s
