@@ -121,7 +121,7 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
    "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" \
-   "$HERE/settings.mjs" "$OUT/"
+   "$HERE/settings.mjs" "$HERE/a11y-contract.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -231,6 +231,14 @@ echo "── every theme keeps the palette's contract ────────�
 # it is run from $OUT (where the compiled contract is) and told where the tree
 # is, rather than inferring a sibling that is not there.
 node "$OUT/theme-contract.mjs" "$WEB/src"
+
+echo
+echo "── the design audit's accessibility blockers stay fixed ─"
+# docs/plans/design-audit-apple.md, batch 1: status text never in a fill colour
+# (and its -fg ratios computed from the tokens, both themes), one modal
+# primitive, sort headers that are buttons, a focus ring that reshapes nothing.
+# Reads the source tree and imports the compiled contract, like the check above.
+node "$OUT/a11y-contract.mjs" "$WEB/src"
 
 echo
 echo "── a theme dropped in by hand is read correctly ────────"
