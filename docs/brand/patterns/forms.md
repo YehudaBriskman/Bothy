@@ -34,13 +34,20 @@ explanation - and never mix them in one product. Disabled-until-valid hides
 **Prevent double submission** and show a loading state.
 
 **Destructive actions need typed confirmation or an undo window.**
+_Made precise 2026-09-21 (design audit decision 7, owner-approved): **type the
+name only for irreversible actions** - the thing is gone, or this UI cannot put it
+back. **Reversible actions take one click**, and where the UI can undo them it
+offers the undo instead of asking first. The cluster catalog currently has this
+inverted (one click to delete a job, the name typed to scale up); correcting it
+is a later batch._
 
 **Secrets use a password input** with a reveal toggle, and never appear in a URL
 or a log.
 
 **Enter submits, Escape cancels, tab order matches visual order.**
 
-**Targets meet 24x24 minimum; frequent ones 44x44.**
+**Targets meet 24x24 minimum; frequent ones 44x44.** (2026-09-21: 44x44 for
+every target under a coarse pointer - see [responsive](../quality/responsive.md).)
 
 ## Checklist
 

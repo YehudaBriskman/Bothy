@@ -106,7 +106,9 @@ deleted rather than re-tinted.
 
 **Four surface steps**, opaque, with the backdrop blurs removed along with the
 transparency. The only remaining blurs are on the sticky topbar and the command
-palette scrim, where translucency is the point.
+palette scrim, where translucency is the point. (2026-09-21: the rule is now
+"top bar and command palette only, with a solid fallback under
+`prefers-reduced-transparency`" - see [shape-and-elevation](shape-and-elevation.md).)
 
 **Foreground tokens carry their measured ratios in the CSS**, per surface. The
 subtle grey is deliberately lifted above the obvious choice: zinc-500 measures

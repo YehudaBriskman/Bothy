@@ -44,6 +44,11 @@ See [CHECKLIST.md § 5](../CHECKLIST.md#5-theming-and-modes).
 - **Three choices, two palettes.** `dark` is the default; `light` and `system`
   are available; `system` is resolved through `matchMedia` and re-resolved on
   change.
+  _Changed 2026-09-21 (design audit decision 5, owner-approved): the default
+  becomes `system` - the page follows the OS - and the manual override stays,
+  persisted per browser. Until design-audit batch 3 ships it (SYS-19, which also
+  updates the pre-paint script and its CSP hash), the code still defaults to
+  `bothy-dark`._
 - **Persistence key:** `portal-theme` in local storage. Listed in the storage
   inventory in [security-and-privacy](../quality/security-and-privacy.md).
 - **Pre-paint stamp** lives inline in `index.html` and is deliberately a

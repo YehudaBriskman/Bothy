@@ -38,6 +38,16 @@ toast to say a thing you can see happened is noise.
 **Destructive confirmations name the object and the consequence**, not "are you
 sure".
 
+**One dialog at a time.** A confirm raised from inside a dialog is an inline panel
+in that dialog, not a second modal on top of it (2026-09-21: the Cluster pod-delete
+confirm was the last nested modal). **Closing any dialog returns focus to what
+opened it** - the shared `ui/Dialog` primitive does this, which is why every modal
+must be built on it.
+
+**Confirmation weight follows reversibility** (2026-09-21, design audit decision
+7): type the name only for an irreversible action; a reversible one takes one
+click, with an undo where the UI can offer one. See [forms](forms.md).
+
 **Feedback within 100ms for anything over 300ms.**
 
 **Nothing moves focus without user intent.**

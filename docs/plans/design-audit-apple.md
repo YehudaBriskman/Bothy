@@ -1,6 +1,8 @@
 # Design audit: Bothy against the "apple-design" skill
 
-_Written 2026-09-19. Status: audit only. No source was changed, nothing is started._
+_Written 2026-09-19. Status: batch 1 (the accessibility blockers) implemented
+2026-09-21; the §5 conflicts are decided in "Decisions (approved 2026-09-21)"
+below §5. Batches 2-5 are not started._
 
 **What was audited.** The Bothy portal: the live app on this box (`http://<box>/`) and
 its source in `apps/bothy-web/web/src`. Every page was covered: Overview; Control
@@ -41,7 +43,10 @@ where the real gaps are.
   in the subfolders `shell/ control/ cluster/ files/ settings/ system/`.
 - Probe scripts and JSON are in `…/scratchpad/audit/work/<area>/`.
 - **The scratchpad is session-temporary.** Copy it somewhere durable if the
-  screenshots need to outlive this session.
+  screenshots need to outlive this session. (It did not survive: the `S/…` paths
+  below are dead, and the file:line references are what count. Batch 1's before
+  and after screenshots and its keyboard walkthrough log are kept on the box at
+  `~/.local/state/bothy/design-audit/batch1/`.)
 - Source paths below are relative to `apps/bothy-web/web/src/`. Line numbers are as
   of commit `4a5077c`. Other agents are editing this tree, so re-check a line before
   acting on it.
@@ -1134,8 +1139,9 @@ filters awkwardly**
 
 ## 5. Conflicts between the skill and docs/brand
 
-These are recorded, not resolved. Each one needs an owner's decision, and the fixes
-above that depend on one say so.
+These were recorded here unresolved. **All ten were decided on 2026-09-21** - see
+"Decisions (approved 2026-09-21)" right after this section, which supersedes the
+"Proposal" lines below.
 
 1. **One easing curve vs springs and mirrored easing.**
    - Brand (`foundations/motion.md`, `tokens.md`): three durations and **one**
@@ -1204,6 +1210,35 @@ above that depend on one say so.
 The two sides already agree on: the system font, no overshoot on entrances, never
 hiding content under reduced motion, a required "Active" press state (a compliance
 gap, not a conflict), and validating inline rather than on submit.
+
+---
+
+## Decisions (approved 2026-09-21)
+
+The owner approved these on 2026-09-21. They resolve every conflict in §5, and they
+supersede the "Proposal" lines there. The brand docs carry the same rules with a
+dated note where a rule changed (`foundations/motion.md`, `foundations/theming.md`,
+`foundations/shape-and-elevation.md`, `foundations/colour.md`,
+`quality/responsive.md`, `patterns/forms.md`, `patterns/feedback.md`, and the
+entry in `reference/decisions.md`). What each decision changes in code lands in the
+batch named beside it; recording the policy does not implement it.
+
+| § 5 | Conflict | Decision | Lands in |
+|---|---|---|---|
+| 1 | One easing curve vs springs | **Springs only for dialogs, menus and drag.** Critically damped (damping 1, no bounce), from the `--spring` token in §6. **Colour and fade keep the brand curve** `--ease` (`cubic-bezier(.2,.7,.2,1)`) and the three duration tokens. Exits of a sprung surface run the same spring back (R7.1, R7.3); nothing else gets a spring. | Batch 2 (tokens), batch 3 (overlays) |
+| 2 | Waiting for the page exit | **Page changes cross-fade, never a blank frame.** The next route mounts at once and fades in over the outgoing one; nothing waits for an exit, and there is no frame where neither page is visible. `AnimatePresence mode="wait"` goes (SYS-8). | Batch 3 |
+| 3 | How much reduced motion removes | **Reduced motion keeps fades and removes movement.** Under `prefers-reduced-motion` (or the in-app setting) every translate, scale and spring is dropped, and opacity and colour changes stay at `--dur-fast`. Still nothing may hide content. | Batch 2 (`useMotionReduced`), batch 3 |
+| 4 | Opaque surfaces vs translucent materials | **Translucent material only for the top bar and the command palette**, each with a **solid fallback under `prefers-reduced-transparency: reduce`**. Cards, dialogs, menus and the drawer stay opaque; the dialog overlay's blur and the no-op `.sv-frame` blur go. | Batch 2 (SYS-12) |
+| 5 | Dark by default vs following the OS | **The theme follows the OS by default** (`system`), and **the manual override stays**: light, dark and the named themes remain one click away and persist per browser. | Batch 3 (SYS-19) |
+| 6 | Touch-target floor | **44px targets under a coarse pointer, 24px under a fine pointer**, via the `--hit` token (SYS-6). The brand's "44 for frequent or primary actions" becomes "44 for every target on touch". | Batch 2 |
+| 7 | Confirmation policy | **Type-the-name only for irreversible actions; one click for reversible ones.** Irreversible = the thing is gone or cannot be put back by the same UI (delete a job, delete completed pods, scale to 0 if the manifest will not restore it). Reversible = the UI can undo it (scale to 1 or more, set image, rollback, pause/resume, theme delete with an undo). Today's catalog is inverted (CL-4); fixing it is a later batch, and this entry records the policy only. | Batch 5 (CL-4, ST-15) |
+| 8 | Three shadow steps vs "bigger surfaces read thicker" | **Four steps**, the fourth reserved for modal surfaces (dialog, drawer, palette), as SYS-14 proposes. Closest to decision 4: depth comes from shadow, not from translucency. | Batch 2 |
+| 9 | Destructive button weight | **An unfilled `--st-down-fg` outline button**, tinted `--st-down-bg` on hover (SYS-7). Distinct from Cancel without becoming the loudest thing in the dialog. | Batch 2 (SYS-7, deferred from batch 1) |
+| 10 | Sidebar and drawer | **Keep both exceptions** as `reference/decisions.md` records them. The drawer is a dialog, so decision 1 applies: it opens and closes on the same spring along the same path. | Batch 3 |
+
+**Already true after batch 1.** The drawer and the palette are on the shared
+`ui/Dialog` primitive, so every future change to dialog motion (decisions 1 and 3)
+is made once.
 
 ---
 
@@ -1295,6 +1330,20 @@ files. Effort: M overall.
 - SYS-2: delete the focus-rule radius.
 - SYS-7: the button disabled and danger variants.
 - FL-2: scope picker Escape.
+
+**Batch 1 as shipped (2026-09-21).** All seven P0s plus the batch's keyboard and
+focus items: SYS-3 (and the Inspector tag at 11px), CT-3, CT-1, SH-1 (not the
+interim fix - the palette moved onto `ui/Dialog` outright), SYS-4 first part with
+CL-3, CL-1 on a new `ui/Menu`, SYS-2 and FL-2. SYS-4's fix differs from the text
+above in one way worth knowing: focus return is done by the primitive for both
+mount styles (`{open && <Dialog/>}` and `open={x}`), because Radix calls
+`onCloseAutoFocus` on unmount as well as on close, so consumers were not rewritten
+to stay mounted. Two status text tokens moved to clear 4.5:1 where they are
+actually painted: light `--st-up-fg` on its own tint over `--bg-2` (4.41 → 4.84),
+dark `--st-off-fg` on `--surface-4` (4.05 → 4.62). Guarded by
+`apps/bothy-web/checks/a11y-contract.mjs`. **Deferred:** SYS-7 (button disabled
+and danger variants) moves to batch 2 - it is not a keyboard or focus item and it
+restyles `.btn` app-wide.
 
 **Batch 2: tokens and the interaction primitives.** Effort: M.
 - The §6 motion, press, hit, scrim, shadow and material tokens, plus `lib/motion.ts`.

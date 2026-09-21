@@ -33,6 +33,24 @@ leave everything visible.
 **Cap stagger.** A per-item delay multiplied by the index means item 60 waits
 two seconds. Clamp the multiplier.
 
+**Updated 2026-09-21 (design audit decisions 1-3, owner-approved).**
+
+- **Springs for dialogs, menus and drag - and nothing else.** Critically damped
+  (no bounce), from one `--spring` token. Colour and fade keep the single brand
+  curve `--ease` and the three duration tokens, so "one easing curve" still holds
+  for everything that is not a surface being moved.
+- **Page changes cross-fade, never a blank frame.** The next page mounts at once
+  and fades in over the outgoing one. This replaces "the outgoing page finishing
+  before the next mounts", which measured ~560ms per navigation with ~130ms of
+  nothing on screen.
+- **Reduced motion keeps fades and removes movement.** It drops every translate,
+  scale and spring and keeps opacity and colour changes at the fast duration. The
+  invariant below is unchanged: it still never hides anything.
+
+Implementation lands in design-audit batches 2 and 3
+(`docs/plans/design-audit-apple.md`); until then the code does what the older
+bullets under "What Bothy decided" describe.
+
 ## Checklist
 
 See [CHECKLIST.md § 9](../CHECKLIST.md#9-motion).
@@ -43,7 +61,8 @@ See [CHECKLIST.md § 9](../CHECKLIST.md#9-motion).
   260ms for the page transition, on one shared easing curve.
 - **Page transitions** are a short fade and rise keyed on the path, with the
   outgoing page finishing before the next mounts so pages never overlap.
-  Reduced motion collapses the offset to a plain fade.
+  Reduced motion collapses the offset to a plain fade. _Superseded 2026-09-21:
+  page changes cross-fade and never show a blank frame (see the update above)._
 - **Entrance animations belong to the components** and animate from a visible
   resting state, so a handler that never runs cannot hide anything.
 - **Stagger is clamped** so a long list does not tail off into a wait.
