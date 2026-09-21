@@ -1,8 +1,9 @@
 # Design audit: Bothy against the "apple-design" skill
 
 _Written 2026-09-19. Status: batch 1 (the accessibility blockers) implemented
-2026-09-21; the §5 conflicts are decided in "Decisions (approved 2026-09-21)"
-below §5. Batches 2-5 are not started._
+2026-09-21; batch 2 (tokens and the shared primitives) implemented 2026-09-22 -
+see "Batch 2 as shipped" in §7. The §5 conflicts are decided in "Decisions
+(approved 2026-09-21)" below §5. Batches 3-5 are not started._
 
 **What was audited.** The Bothy portal: the live app on this box (`http://<box>/`) and
 its source in `apps/bothy-web/web/src`. Every page was covered: Overview; Control
@@ -262,7 +263,7 @@ The biggest gaps, in priority order:
 
 Each item names the area findings it absorbs. Severity is the highest of those.
 
-### SYS-1 Add a press state: one shared `:active` rule
+### SYS-1 Add a press state: one shared `:active` rule - FIXED (batch 2)
 - **Rule:** R1.1, R10.1. This also closes a gap against the brand's own
   `patterns/component-states.md` ("Active").
 - **Severity:** P1. **Effort:** S.
@@ -386,7 +387,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Migrate the nine surfaces. The command palette moves onto `ui/Dialog` (that
     fixes SH-1).
 
-### SYS-6 Hit targets: one token and a coarse-pointer block
+### SYS-6 Hit targets: one token and a coarse-pointer block - FIXED (batch 2)
 - **Rule:** R10.1, R16.5.
 - **Severity:** P1. **Effort:** S–M.
 - **Absorbs:** SY-19, SH-7, CT-9, CT-20, CL-15, FL-12, ST-9, and part of CT-18.
@@ -410,7 +411,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
     `.set-cmd-copy`), use an invisible `::after{inset:-9px}` hit slop.
   - Show hover-only affordances when `(hover: none)`.
 
-### SYS-7 Button primitive: disabled, danger, small, and tokenised transitions
+### SYS-7 Button primitive: disabled, danger, small, and tokenised transitions - FIXED (batch 2)
 - **Rule:** R16.9, R16.3, R16.6, R16.4. Brand: `foundations/motion.md` (no literal
   durations).
 - **Severity:** P1. **Effort:** S.
@@ -458,7 +459,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   adding `y` only when motion is allowed. No exit, or an overlapping exit of 100ms or
   less (`mode="popLayout"`). Under reduce, no transition.
 
-### SYS-9 Motion tokens in JS, and spring tokens
+### SYS-9 Motion tokens in JS, and spring tokens - FIXED (batch 2)
 - **Rule:** R4.1, R4.2, R7.3, R16.7. Brand: `motion.md`.
 - **Severity:** P2. **Effort:** S–M.
 - **Absorbs:** SY-9, CT-14, FL-20, SY-22, and the lerp part of CT-17.
@@ -504,7 +505,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - `.ct-nav` uses `translate` or `clip-path: inset()`.
   - `.skip-link` uses `translate`.
 
-### SYS-11 One reduced-motion source; stop the perpetual loops
+### SYS-11 One reduced-motion source; stop the perpetual loops - PARTLY FIXED (batch 2)
 - **Rule:** R14.1, R14.4, R16.4. Brand: `motion.md` invariant.
 - **Severity:** P1. **Effort:** M.
 - **Absorbs:** SY-13, ST-7, FL-13, CT-15, SH-11, and the loop part of CT-17.
@@ -535,7 +536,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
     that animates `scale` and `opacity`.
   - Stop the 3D idle orbit after the first interaction.
 
-### SYS-12 Contrast, transparency and forced-colours media queries
+### SYS-12 Contrast, transparency and forced-colours media queries - FIXED (batch 2)
 - **Rule:** R14.2, R14.3, R12.5.
 - **Severity:** P1. **Effort:** S.
 - **Absorbs:** SY-6, SY-7, SH-19, CT-22, CL-17, ST-20.
@@ -565,7 +566,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
     - Add `.cl-dot` and `.ka-dot` to the block.
   - Remove the `.sv-frame` blur.
 
-### SYS-13 A closed type scale in rem, with size-specific tracking and leading
+### SYS-13 A closed type scale in rem, with size-specific tracking and leading - PARTLY FIXED (batch 2)
 - **Rule:** R15.1–R15.5, R16.7. Brand: `foundations/typography.md` ("Close the type
   scale"), which it lists as its largest known gap.
 - **Severity:** P1. **Effort:** L (mechanical once the tokens exist).
@@ -595,7 +596,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Control padding in em, so it scales with the text.
   - Migrate the shell and Overview first, then each area.
 
-### SYS-14 Elevation ladder and scrim token
+### SYS-14 Elevation ladder and scrim token - FIXED (batch 2)
 - **Rule:** R12.3, R12.4.
 - **Severity:** P2. **Effort:** S.
 - **Absorbs:** SY-12, CL-16.
@@ -612,7 +613,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Themes override only `--shadow-color` and `--shadow-hairline`.
   - A `--scrim` token: `rgb(9 9 11 / .38)` in light, `rgb(0 0 0 / .6)` in dark.
 
-### SYS-15 Radii, spacing, icons and duplicated rules
+### SYS-15 Radii, spacing, icons and duplicated rules - PARTLY FIXED (batch 2)
 - **Rule:** R16.7, R16.4.
 - **Severity:** P2. **Effort:** M–L.
 - **Absorbs:** SY-14, SY-15, SY-16, SY-17, CT-21.
@@ -718,7 +719,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Wrap `apply()` in `document.startViewTransition?.()` with a 200ms root
     cross-fade, skipped under reduce.
 
-### SYS-20 The token docs have drifted
+### SYS-20 The token docs have drifted - FIXED (batch 2)
 - **Rule:** brand `quality/governance.md`.
 - **Severity:** P2. **Effort:** S.
 - **Absorbs:** SY-21.
@@ -1356,6 +1357,30 @@ restyles `.btn` app-wide.
 - CT-7 and the global `font:inherit` reset.
 - Settle conflicts 1, 3, 6 and 8 in `reference/decisions.md` in the same PR, and
   regenerate `tokens.md` (SYS-20).
+
+**Batch 2 as shipped (2026-09-22).** Held by
+`apps/bothy-web/checks/design-tokens.mjs` (51 assertions) and two new rules in
+`lib/contract.ts` that every theme - and the theme editor, live - now answers.
+
+| Finding | Fix |
+|---|---|
+| SYS-1 press state | One shared `:active` rule in `index.css`: compact controls dim (an inset `--fg` tint) and shrink to `--press-scale` .97 over `--press-dur` 100ms; rows and cards darken to `--surface-press`. Reduced motion - OS or the in-app setting - drops the scale and keeps the dim. |
+| SYS-6 hit targets | `--hit`: 1.5rem (24px) fine, 2.75rem (44px) under `(pointer: coarse)` (decision 6). `min-height` on `.btn`, `.chip`, `.icon-btn`, nav, tabs, segments, `.dlg-x`, menu and palette rows; an invisible `::after` hit slop for the controls that must stay small (`.svc-act-btn`, `.fx-hbtn`, `.fx-tab-x`, copy buttons...). The hover-only Files download button shows under `(hover: none)`. |
+| SYS-7 Button | `components/ui/Button.tsx` + `Button.css`: primary, secondary, ghost, **danger** (the unfilled `--st-down-fg` outline, decision 9, with an opaque hover tint so the label never drops under AA), **caution** (the old `.sa-go` amber edge), `size="sm"`, a real disabled state, `aria-pressed`, tokenised transitions. 101 call sites migrated (`buttonClass()` for links); "Delete this pod/job" and "Yes, clear all N" are danger; `.set-danger` (never defined), `.te-danger`, `.ka-small`, `.cl-small`, five `.btn.sm`s and six scoped disabled copies deleted. |
+| SYS-9 motion | `lib/motion.ts` (DUR, EASE, EASE_EXIT, EASE_STANDARD, `spring(response, damping)`, SPRING short/base/long critically damped, SPRING_BOUNCE damping .8, stagger, `followFactor`) mirrored by `--dur-exit`, `--press-dur`, `--ease-exit`, `--ease-standard`, `--spring` (a sampled critically damped `linear()`), `--spring-dur-s/-/-l`, `--spring-bounce`, `--stagger`, `--loop-*`. Every literal CSS duration and bare `ease` and all 8 framer literals replaced; one `.chev` timing; the `.ov-quick-item` hover no longer snaps out; the 3D lerps are frame-rate independent. Springs are DEFINED only - overlays adopt them in batch 3. |
+| SYS-11 (hook part) | `lib/useMotionReduced.ts`: the OS query OR `html[data-motion=reduce]`, re-rendering on either; replaces framer's OS-only `useReducedMotion` in AppShell, ControlShell, Services, ServiceDetail, ProjectDetail and the 3D scene; `scrollBehavior()` for the two smooth scrolls. The OS reduce block gained `animation-iteration-count: 1`. **Left:** framer entrances from opacity 0, the Live pulse, the 3D idle orbit (batch 3). |
+| SYS-12 | `prefers-reduced-transparency` (solid top bar, no palette blur), `prefers-contrast: more` (lines from `--fg` at 28/45%, `--fg-subtle` raised, solid chrome - beats a named theme's 0,3,0), forced colours (wordmark painted in CanvasText, status marks filled CanvasText or hollow Canvas, `.cl-dot`/`.ka-dot` added). The dialog overlay blur, the no-op `.sv-frame` blur and the 3D label/tip blurs are gone; only `--mat-*` materials blur. |
+| SYS-13 (tokens part) | The closed 9-step rem scale with per-step `--lh-*` and `--tr-*`, `--fw-*`, `--label-tracking` and `.eyebrow`; the root keeps the browser's size; `button, input, select, textarea { font: inherit }` (CT-7: no Arial); the 68px metrics moved off the bare `h1`. Migrated: ui/Button, ui/Dialog, ui/Menu, tags, badges, kbd, tooltip, tabs, chips, nav, topbar search, segments, tables, panel heads, page head, palette. **Left:** the app-wide px sweep, `--read-*` in rem (batch 4). |
+| SYS-14 | Four steps, `--shadow-1` rest to `--shadow-4` modal, mixed from `--shadow-color` (alpha = strength) and `--shadow-hairline`; themes set only those two and `--scrim`. `--scrim` darkens in both themes (light: zinc-950 at 38%), asserted per theme. Every `--shadow-sm/md/lg` use mapped. |
+| SYS-15 (tokens part) | `--sp-*` spacing, `--icon-*` + `ui/Icon.tsx` (`absoluteStrokeWidth`); duplicate `.dot`, `.tag`, `.tbl`, `.chip` (the pill copy never rendered), `.badge`, `.ico`, `.btn.ghost`, `.nm-text`, `.pt` deleted; dead `.hero`, `.stats`, `.card`, `.grid`, `.svc-card`, `.ov-bar`, `@keyframes bob`/`rise`, `--hover-opacity`, `--track` deleted. **Left:** the radius and spacing literal sweep and the 8 `.ov-*` duplicates in Overview.css (batch 4). |
+| SYS-20 | `docs/brand/reference/tokens.md` is generated by `web/scripts/gen-tokens-doc.mjs` and the check fails when it is stale; decisions 1, 3, 6 and 8 recorded in the brand docs. |
+
+Two named themes changed colour because the new Button rule measured them on a
+dialog for the first time: Gruvbox `--surface-4` #5a524c → #4a4440 and
+`--st-down-fg` → #ff9789 (red status text in its dialogs was 3.0:1), Tokyo Night
+`--st-down-fg` → #f88499 (4.26 → 4.57). Screenshots before and after (5 pages ×
+light/dark × 1440/390 touch, plus pressed frames) are at
+`~/.local/state/bothy/design-audit/batch2/`.
 
 **Batch 3: overlays and motion behaviour.** Effort: M–L.
 - SYS-5: `ui/Menu` and `ui/Popover`. Migrate the 9 popovers, and move the palette

@@ -16,7 +16,7 @@ one does not apply.
 | Default | At rest |
 | Hover | The pointer is over it |
 | Focus-visible | The keyboard is on it |
-| Active | It is being pressed |
+| Active | It is being pressed. Since 2026-09-22 one shared `:active` rule: compact controls dim and shrink to `--press-scale`, rows darken to `--surface-press`; reduced motion keeps only the dim |
 | Current / selected | You are here, or this one is chosen |
 | Disabled | It exists but cannot be used, and why |
 | Read-only | It can be read and copied but not changed |

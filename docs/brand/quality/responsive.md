@@ -24,7 +24,9 @@ separation between adjacent targets.
 _Changed 2026-09-21 (design audit decision 6, owner-approved): **44x44 for every
 target under a coarse pointer, 24x24 under a fine pointer**, through one `--hit`
 token switched by `@media (pointer: coarse)`. Where a mark must stay visually
-small, the extra is invisible hit slop, not a bigger drawing._
+small, the extra is invisible hit slop, not a bigger drawing. **Done
+2026-09-22:** `--hit` is 1.5rem / 2.75rem; the shared controls take it as a
+min-height and the small ones get a `::after` slop that reaches it._
 
 **Every hover-only affordance needs a focus and touch equivalent.**
 
