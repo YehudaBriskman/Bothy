@@ -184,6 +184,9 @@ print()
 print("── step 6: the updater never replaces itself; images named by commit ─")
 ok(re.search(r"^WorkingDirectory=/\S+/\.local/lib/bothy-updater/current/apps/bothy-ops$", usv, re.M) is not None,
    "bothy-updater.service runs the INSTALLED copy (…/bothy-updater/current), never the checkout it moves")
+autosv = read("host/systemd/bothy-updater-auto.service")
+ok(re.search(r"^WorkingDirectory=/\S+/\.local/lib/bothy-updater/current/apps/bothy-ops$", autosv, re.M) is not None,
+   "bothy-updater-auto.service (the night job, step 7) runs the same installed copy")
 ok(re.search(r"^ExecStart=/usr/bin/python3 /\S+/\.local/lib/bothy-updater/current/apps/bothy-ops/discover_updates\.py",
              svcu, re.M) is not None,
    "discovery (which writes the plans) runs the same installed copy - a plan id is computed by the code that re-checks it")

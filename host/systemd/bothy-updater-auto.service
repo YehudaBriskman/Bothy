@@ -18,7 +18,10 @@ User=devssh
 Group=devssh
 Environment=HOME=/home/devssh
 Environment=PATH=/home/devssh/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
-WorkingDirectory=/home/devssh/stacks/apps/bothy-ops
+# The INSTALLED updater (`just install-updater`), like bothy-updater.service: the
+# night job decides from plans, and the program that writes a request must be the
+# one that re-checks it - never the checkout an own-code update moves (step 6).
+WorkingDirectory=/home/devssh/.local/lib/bothy-updater/current/apps/bothy-ops
 ExecStart=/usr/bin/python3 -m updater auto
 UMask=0077
 NoNewPrivileges=yes

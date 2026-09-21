@@ -165,7 +165,11 @@ def _audit(cfg: Config, job: str, component: str, who: str, step: str, state: st
 # ── pauses ─────────────────────────────────────────────────────────────────────
 
 def _auto_components(catalog: updates.Catalog) -> list[str]:
-    return sorted(c.id for c in catalog.components.values() if c.channel == "auto")
+    # AUTO_CLASSES as well as the channel: load_catalog() already refuses `auto`
+    # outside it, and Bothy itself (own-code, channel notify, step 6) must never be
+    # a night job even if that check were ever loosened - it moves the checkout.
+    return sorted(c.id for c in catalog.components.values()
+                  if c.channel == "auto" and c.cls in updates.AUTO_CLASSES)
 
 
 def sync_pauses(cfg: Config, catalog: updates.Catalog | None = None) -> list[str]:

@@ -198,6 +198,19 @@ req = {"v": 1, "jobId": "a" * 32, "component": "bothy", "planId": p["id"], "conf
        "requestedBy": "t", "requestedAt": "2026-09-19T10:00:00Z"}
 ok(spool.validate_against(req, catalog, doc)["id"] == p["id"], "the spool accepts a request for the own-code plan")
 
+print("── the night job (step 7) never picks Bothy itself ──────────────")
+import dataclasses  # noqa: E402
+from updater import auto  # noqa: E402
+try:
+    updates.load_catalog({**updates.tomllib.loads(CATALOG), "components": {"bothy": {
+        **updates.tomllib.loads(CATALOG)["components"]["bothy"], "channel": "auto"}}})
+    ok(False, "the catalog refuses channel auto on own-code (it was ACCEPTED)")
+except updates.CatalogError as e:
+    ok("auto" in str(e), f"the catalog refuses channel auto on own-code ({str(e)[:80]})")
+forced = dataclasses.replace(catalog, components={"bothy": dataclasses.replace(catalog.components["bothy"],
+                                                                               channel="auto")})
+ok(auto._auto_components(forced) == [], "…and auto's candidate filter drops own-code even if the catalog let it through")
+
 print("── REFUSALS ──────────────────────────────────────────────────────")
 refused(lambda: P(cfg=Config(repo=updater.CODE, state=STATE, lib=LIB)), "install-updater",
         "the updater runs from the checkout it would move")
