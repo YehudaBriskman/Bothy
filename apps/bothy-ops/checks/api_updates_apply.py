@@ -166,7 +166,7 @@ cases = [
     (dict(body=GOOD, headers={"Sec-Fetch-Site": "cross-site"}), 403, "cross-site"),
     (dict(raw=b"{not json"), 400, "not JSON"),
     (dict(body=[1, 2]), 400, "not an object"),
-    (dict(raw=b" " * 2000), 413, "an oversized body"),
+    (dict(raw=b" " * 3000), 413, "an oversized body (the limit is 2 KiB: a maintenance note fits, a payload does not)"),
     (dict(body={**GOOD, "image": "evil:latest"}), 400, "an extra key (a client cannot name an image)"),
     (dict(body={"component": "loki", "plan_id": PID}), 400, "a missing key"),
     (dict(body={**GOOD, "component": "Loki;rm"}), 400, "a malformed component"),
@@ -264,6 +264,59 @@ ok(st == 202 and os.path.exists(kf) and json.load(open(kf))["confirm"] == "keycl
    f"the typed name -> 202, and the spool file carries it for the executor to check again ({st})")
 if os.path.exists(kf):
     os.unlink(kf)
+
+print()
+print("── the Postgres major (step 8): typed AND a maintenance note ────")
+PGID = "abcabcabcabcabcabcabcabc"
+pg = loki_plan(pid=PGID)
+pg["component"] = "postgres"
+pg["plan"].update({
+    "component": "postgres", "title": "Postgres", "class": "database", "kind": "postgres-major",
+    "confirm": "type-name", "requiresNote": True, "level": "major",
+    "from": {"image": "postgres:17.10@" + D("e"), "tag": "17.10", "version": "17.10", "digest": D("e"),
+             "container": "postgres", "volume": "postgres_postgres_data"},
+    "to": {"image": "postgres:18.1@" + D("f"), "tag": "18.1", "version": "18.1", "digest": D("f")},
+    "pin": {"file": "data/postgres/compose.yml", "service": "postgres", "line": 8, "text": "x", "commit": "c" * 40},
+    "oneWay": True, "oneWayWhy": "A major cannot open the previous major's data directory.",
+    "restarts": ["postgres", "keycloak", "oauth2-proxy", "postgres-exporter", "keycloak-db-init"],
+    "recipe": "just up-data", "rollback": "back to the OLD volume, never deleted",
+    "procedure": [f"step {i}" for i in range(1, 11)],
+    "pgMajor": {"fromMajor": 17, "toMajor": 18, "oldVolume": "postgres_postgres_data",
+                "newVolume": "postgres_postgres18_data", "oldMount": "/var/lib/postgresql/data",
+                "newMount": "/var/lib/postgresql", "dataBytes": 123456, "databases": ["dev", "keycloak"],
+                "keycloakDb": "keycloak", "stops": ["keycloak"], "deleteOld": "docker volume rm postgres_postgres_data",
+                "secret": SENT},
+    "snapshot": {"kind": "pg-dumpall", "what": "a pg_dumpall", "dir": "~/backups/pre-update/<time>-postgres/",
+                 "estimateBytes": 123456}})
+write("plans/postgres.json", pg)
+st, b = call("/updates/plan?component=postgres")
+p = b.get("plan") or {}
+ok(st == 200 and p.get("kind") == "postgres-major" and p.get("requiresNote") is True and p["confirm"] == "type-name"
+   and p["snapshot"]["kind"] == "pg-dumpall" and len(p.get("procedure", [])) == 10,
+   f"the postgres-major plan is served: its kind, the note it needs, its ten-step procedure ({st})")
+ok(p.get("pgMajor", {}).get("newVolume") == "postgres_postgres18_data" and SENT not in json.dumps(b),
+   "…the two volumes, through the allow-list (a sentinel dropped)")
+PG = {"component": "postgres", "plan_id": PGID}
+NOTE = "moving Postgres to 18 - Keycloak is down ~3 min; team told in #ops"
+for body, label in (({**PG, "confirm": True, "note": NOTE}, "a CLICK, even with a note"),
+                    ({**PG, "confirm": "postgres"}, "the name typed but NO note"),
+                    ({**PG, "confirm": "postgres", "note": "ok"}, "a note too short to say anything"),
+                    ({**PG, "confirm": "postgres", "note": "x" * 501}, "a note over 500 characters"),
+                    ({**PG, "confirm": "postgres", "note": "line one\nline two here"}, "a note of two lines"),
+                    ({**PG, "confirm": "postgres", "note": 42}, "a note that is not text")):
+    st, b = call("/updates/request", method="POST", body=body)
+    ok(st == 400 and spool() == [f"{jid}.json"], f"{label} -> 400, no file ({st}: {b.get('error', '')[:60]})")
+st, b = call("/updates/request", method="POST", body={**GOOD, "note": NOTE})
+ok(st == 400 and spool() == [f"{jid}.json"], f"a note on a plan that does not ask for one -> 400 ({st})")
+st, b = call("/updates/request", method="POST", body={**PG, "confirm": "postgres", "note": NOTE})
+pj = b.get("jobId", "")
+pf = os.path.join(SPOOL, f"{pj}.json")
+preq = json.load(open(pf)) if os.path.exists(pf) else {}
+ok(st == 202 and preq.get("confirm") == "postgres" and preq.get("note") == NOTE,
+   f"typed AND noted -> 202, the spool file carries both for the executor to check again ({st})")
+ok(NOTE in log_lines()[-1], "admin.log records the maintenance note with the request")
+if os.path.exists(pf):
+    os.unlink(pf)
 
 print()
 print("── job: queued, running, finished ───────────────────────────────")
