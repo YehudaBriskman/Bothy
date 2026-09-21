@@ -5,7 +5,7 @@
 //                                           and the history
 //   GET  /-/api/updates/plan      viewer    the plan the HOST pre-computed for one
 //                                           component (?component=)
-//   POST /-/api/updates/request   operator  {component, plan_id, confirm} - writes
+//   POST /-/api/updates/request   operator  {component, plan_id, confirm[, note]} - writes
 //                                           ONE spool file and answers 202 with a job id
 //   GET  /-/api/updates/job       viewer    one job's steps (?id=)
 //   POST /-/api/updates/unpause   operator  {component} - asks the HOST to clear an
@@ -168,7 +168,7 @@ export interface Plan {
   id: string;
   component: string;
   title: string;
-  class: 'stateless' | 'timeseries' | 'app-db' | 'own-code';
+  class: 'stateless' | 'timeseries' | 'app-db' | 'own-code' | 'cluster' | 'database';
   createdAt: string;
   /** A major only for Bothy itself (calendar versions), and then type-the-name. */
   level: Level;
@@ -188,7 +188,7 @@ export interface Plan {
   downtime: string;
   signedOut: string;
   snapshot: {
-    kind: 'image' | 'victoriametrics' | 'loki' | 'grafana' | 'keycloak' | 'git';
+    kind: 'image' | 'victoriametrics' | 'loki' | 'grafana' | 'keycloak' | 'git' | 'helm' | 'daemonset' | 'pg-dumpall';
     what: string; dir: string; estimateBytes: number | null;
   };
   preflight: string[];
@@ -196,6 +196,42 @@ export interface Plan {
   rollback: string;
   /** Bothy itself (class own-code, step 6): a green release tag instead of a pin. */
   own?: OwnPlan;
+  /** Step 8: a cluster add-on, or the Postgres major (a guided, manual procedure). Null for the rest. */
+  kind?: 'cluster' | 'postgres-major' | null;
+  /** The request must carry a maintenance note (the Postgres major) - as well as the typed name. */
+  requiresNote?: boolean;
+  /** The procedure, step by step (the Postgres major). */
+  procedure?: string[];
+  cluster?: ClusterPlan;
+  pgMajor?: PgMajorPlan;
+}
+
+/** A cluster add-on (step 8): where, as whom, and which part of k8s-monitoring.sh runs. */
+export interface ClusterPlan {
+  kind: 'helm' | 'daemonset' | null;
+  context: string | null;
+  identity: string | null;
+  namespace: string | null;
+  release: string | null;
+  name: string | null;
+  revision: number | null;
+  part: 'ksm' | 'alloy' | null;
+  configMaps: string[];
+}
+
+/** The Postgres major (step 8): the two majors and the two volumes. The old one is never deleted by it. */
+export interface PgMajorPlan {
+  fromMajor: number | null;
+  toMajor: number | null;
+  oldVolume: string | null;
+  newVolume: string | null;
+  oldMount: string | null;
+  newMount: string | null;
+  dataBytes: number | null;
+  databases: string[];
+  keycloakDb: string | null;
+  stops: string[];
+  deleteOld: string | null;
 }
 
 export interface OwnPlan {
@@ -235,7 +271,9 @@ export type JobState = 'queued' | 'running' | 'succeeded' | 'rolled_back' | 'abo
 export type StepName = 'validate' | 'preflight' | 'snapshot' | 'pull' | 'apply' | 'verify' | 'rollback' | 'restore' | 'record'
   // Bothy itself (step 6): build before anything changes, arm the rollback timer,
   // move the checkout, stage a new updater.
-  | 'build' | 'arm' | 'switch' | 'stage';
+  | 'build' | 'arm' | 'switch' | 'stage'
+  // The Postgres major (step 8): writers stopped, dump, a new volume, load, compare, start.
+  | 'stop' | 'dump' | 'create' | 'load' | 'compare' | 'start';
 export type StepState = 'pending' | 'running' | 'ok' | 'failed' | 'skipped';
 
 export interface JobStep {
@@ -289,7 +327,7 @@ export async function fetchPlan(component: string, signal?: AbortSignal): Promis
 
 /** Ask the host to run a plan. The browser sends the plan's ID - the host wrote the
  *  plan, re-derives it before it acts, and refuses one that is no longer current. */
-export async function requestUpdate(body: { component: string; plan_id: string; confirm: true | string }): Promise<RequestAnswer> {
+export async function requestUpdate(body: { component: string; plan_id: string; confirm: true | string; note?: string }): Promise<RequestAnswer> {
   if (import.meta.env.DEV) return (await import('./updates.dev')).requestMock(body);
   return apiFetch<RequestAnswer>('/-/api/updates/request', { method: 'POST', body, ...WIRE });
 }

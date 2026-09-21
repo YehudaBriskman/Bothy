@@ -426,17 +426,20 @@ const shortDigest = (d: string | null) => (d ? `${d.slice(0, 19)}…` : 'digest 
 function PlanDialog({ row, onClose, onStarted }: { row: UpdateRow; onClose: () => void; onStarted: (jobId: string) => void }) {
   const { data, error, loading } = useLoad((signal) => fetchPlan(row.id, signal), [row.id]);
   const [typed, setTyped] = useState('');
+  const [note, setNote] = useState('');
   const [phase, setPhase] = useState<{ t: 'idle' } | { t: 'sending' } | { t: 'refused'; error: unknown }>({ t: 'idle' });
   const firing = useRef(false);
   const plan = data?.plan ?? null;
-  const ready = !!plan && (plan.confirm === 'click' || typed === plan.component) && phase.t !== 'sending';
+  const noteOk = !plan?.requiresNote || (note.trim().length >= 10 && note.trim().length <= 500);
+  const ready = !!plan && (plan.confirm === 'click' || typed === plan.component) && noteOk && phase.t !== 'sending';
 
   const go = async () => {
     if (!plan || !ready || firing.current) return;
     firing.current = true;
     setPhase({ t: 'sending' });
     try {
-      const r = await requestUpdate({ component: plan.component, plan_id: plan.id, confirm: plan.confirm === 'click' ? true : typed });
+      const r = await requestUpdate({ component: plan.component, plan_id: plan.id, confirm: plan.confirm === 'click' ? true : typed,
+        ...(plan.requiresNote ? { note: note.trim() } : {}) });
       onStarted(r.jobId);
     } catch (e) {
       setPhase({ t: 'refused', error: e });
@@ -472,6 +475,16 @@ function PlanDialog({ row, onClose, onStarted }: { row: UpdateRow; onClose: () =
                       {' '}Signed out: {plan.signedOut}.
                     </span>
                   </p>
+                  {plan.requiresNote && (
+                    <label className="ka-field">
+                      <span className="ka-label">Maintenance note - what, why, and who is told (10-500 characters, one line)</span>
+                      <input
+                        className="ka-input" autoComplete="off" value={note} maxLength={500}
+                        onChange={(e) => setNote(e.target.value.replace(/[\r\n]+/g, ' '))}
+                        aria-invalid={note.length > 0 && !noteOk}
+                      />
+                    </label>
+                  )}
                   {plan.confirm === 'type-name' && (
                     <label className="ka-field">
                       <span className="ka-label">Type <span className="mono">{plan.component}</span> to confirm</span>
@@ -552,6 +565,16 @@ function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
           into <span className="mono">{plan.snapshot.dir}</span>
           {plan.snapshot.estimateBytes != null && <> · about {fmtBytes(plan.snapshot.estimateBytes)}</>} · the last 3 are kept</span></dd>
         {plan.oneWay && <><dt>One-way</dt><dd className="set-warn"><Lock size={12} aria-hidden="true" />{plan.oneWayWhy}</dd></>}
+        {plan.cluster && <><dt>Cluster</dt>
+          <dd>context <span className="mono">{plan.cluster.context}</span> as <span className="mono">{plan.cluster.identity}</span>
+            {plan.cluster.revision != null && <> · helm revision {plan.cluster.revision} is the rollback point</>}
+            {' '}· only <span className="mono">{plan.recipe}</span></dd></>}
+        {plan.pgMajor && <><dt>Volumes</dt>
+          <dd><span className="mono">{plan.pgMajor.oldVolume}</span> ({plan.pgMajor.fromMajor}) <ArrowRight size={12} aria-hidden="true" />{' '}
+            <span className="mono">{plan.pgMajor.newVolume}</span> ({plan.pgMajor.toMajor}). The old volume is never deleted by this;
+            later, by hand: <span className="mono">{plan.pgMajor.deleteOld}</span></dd></>}
+        {(plan.procedure?.length ?? 0) > 0 && <><dt>Procedure</dt>
+          <dd><ol className="upd-list">{plan.procedure!.map((x) => <li key={x}><Ticks text={x} /></li>)}</ol></dd></>}
         <dt>Pre-flight</dt>
         <dd><ul className="upd-list">{plan.preflight.map((x) => <li key={x}><Ticks text={x} /></li>)}</ul></dd>
         <dt>Verify</dt>
@@ -668,6 +691,13 @@ const STEP_WORD: Record<JobStep['name'], string> = {
   arm: 'Arm the rollback timer',
   switch: 'Move the checkout (fast-forward)',
   stage: 'Stage the new updater (not switched)',
+  // The Postgres major (step 8). `switch` there is compose moving to the new volume.
+  stop: 'Stop the writers (Keycloak, oauth2-proxy, the exporter)',
+  dump: 'pg_dumpall, rows counted from the dump',
+  create: 'Create the new volume and a temporary Postgres on it',
+  load: 'Restore the dump into it',
+  compare: 'Compare every database and row count with the dump',
+  start: 'Start Keycloak and oauth2-proxy again',
 };
 
 function useJob(id: string) {
