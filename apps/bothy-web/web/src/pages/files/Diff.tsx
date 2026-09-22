@@ -17,6 +17,7 @@ import { useMemo } from 'react';
 import { FileDiff, GitCommitVertical } from 'lucide-react';
 import type { DiffResult } from '../../lib/files';
 import { EmptyState, ErrState, Skeleton } from '../../components/states';
+import { Icon } from '../../components/ui/Icon';
 
 type LineKind = 'add' | 'del' | 'hunk' | 'meta' | 'ctx';
 
@@ -116,11 +117,11 @@ export function DiffView({ target, res, loading, err }: {
       aria-label={`Diff of ${target.path}, ${target.staged ? 'staged against HEAD' : 'working tree against the index'}`}
     >
       <div className="fx-diff-sum">
-        <FileDiff size={13} aria-hidden="true" />
+        <Icon icon={FileDiff} size="sm" />
         <span className="mono">{target.path}</span>
         <span className="fx-diff-side">
           {target.staged
-            ? <><GitCommitVertical size={11} aria-hidden="true" /> staged, against HEAD</>
+            ? <><Icon icon={GitCommitVertical} size="xs" /> staged, against HEAD</>
             : 'working tree, against the index'}
         </span>
         <span className="fx-diff-counts tnum">

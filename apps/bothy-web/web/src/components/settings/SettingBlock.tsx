@@ -27,6 +27,7 @@ import { ChevronDown } from 'lucide-react';
 import { blockById } from '../../lib/settings-index';
 import { scrollBehavior } from '../../lib/useMotionReduced';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 
 const OPEN_KEY = 'bothy-settings-nav-v1';
 
@@ -108,7 +109,7 @@ export function SettingBlock({ id, children, badge, dirty, saving, onSave, onDis
           aria-controls={`${uid}-b`}
           onClick={toggle}>
           <span>{open ? 'Collapse' : 'Expand'}</span>
-          <ChevronDown size={14} aria-hidden="true" className="chev set-block-chev" />
+          <Icon icon={ChevronDown} size="sm" className="chev set-block-chev" />
         </Button>
       </header>
       {/* A Disclosure (SYS-10): folds on grid rows, fades, and keeps the id

@@ -18,6 +18,7 @@ import { StatusIcon } from '../../lib/icons';
 import { ALERT_RULES, parseAlertRules, readStackFile } from '../../lib/stack-config';
 import { filesHref } from '../files/routes';
 import { Button, buttonClass } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 interface Target { job: string; instance: string; up: boolean; duration: number | null }
 
@@ -155,7 +156,7 @@ function Rules() {
       {!groups.length && <p className="set-empty">The provisioning file declares no rules.</p>}
       <div className="set-actions">
         <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={grafana} target="_blank" rel="noopener noreferrer">
-          <ExternalLink size={14} aria-hidden="true" /> Firing state in Grafana
+          <Icon icon={ExternalLink} size="sm" /> Firing state in Grafana
         </a>
         <span className="set-note">
           Definitions from <Link className="link mono" to={filesHref('read', 'stacks', ALERT_RULES)}>{ALERT_RULES}</Link>.

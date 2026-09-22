@@ -24,6 +24,7 @@ import { BarGauge, type GaugeRow } from './viz';
 import { Dialog } from './ui/Dialog';
 import './SystemDialog.css';
 import { buttonClass } from './ui/Button';
+import { Icon } from './ui/Icon';
 
 export function SystemDialog({
   system, open, onOpenChange,
@@ -133,7 +134,7 @@ export function SystemDialog({
       description={counts || 'Nothing discovered in this system.'}
       footer={
         <Link className={buttonClass({})} to={systemLink(system.key)} onClick={() => onOpenChange(false)}>
-          Open system page <ArrowRight size={14} />
+          Open system page <Icon icon={ArrowRight} size="sm" />
         </Link>
       }
     >
@@ -148,7 +149,7 @@ export function SystemDialog({
       <ul className="sd-list">
         {system.nodes.map((n) => (
           <li className="sd-row" key={n.id}>
-            <span className="ico sm"><ServiceIcon node={n} size={14} /></span>
+            <span className="ico sm"><ServiceIcon node={n} size="sm" /></span>
             <Link className="sd-row-name" to={serviceLink(n)} onClick={() => onOpenChange(false)}>
               {n.name}
             </Link>
@@ -160,7 +161,7 @@ export function SystemDialog({
                 file declared the intent. */}
             {n.completesOnPurpose && n.status === 'stopped' ? (
               <span className="sd-done" title="Ran to completion - a dependent waits on service_completed_successfully">
-                <CheckCircle2 size={13} aria-hidden="true" /> completed
+                <Icon icon={CheckCircle2} size="sm" /> completed
               </span>
             ) : (
               <StatusIcon status={n.status} />
@@ -177,7 +178,7 @@ export function SystemDialog({
                 rel="noopener noreferrer"
                 aria-label={`Open ${n.name} in a new tab`}
               >
-                <ExternalLink size={13} />
+                <Icon icon={ExternalLink} size="sm" />
               </a>
             )}
           </li>
@@ -190,7 +191,7 @@ export function SystemDialog({
       {edges.length > 0 && (
         <>
           <h4 className="sd-h">
-            <Workflow size={12} aria-hidden="true" /> Wiring <span className="sd-n">{edges.length}</span>
+            <Icon icon={Workflow} size="xs" /> Wiring <span className="sd-n">{edges.length}</span>
           </h4>
           <ul className="sd-edges">
             {edges.map((e, i) => (
@@ -219,13 +220,13 @@ export function SystemDialog({
           entirely when there are no metrics, rather than an empty chart. */}
       {cpuRows.length > 0 && (
         <>
-          <h4 className="sd-h"><Cpu size={12} aria-hidden="true" /> CPU now</h4>
+          <h4 className="sd-h"><Icon icon={Cpu} size="xs" /> CPU now</h4>
           <BarGauge rows={cpuRows} />
         </>
       )}
       {memRows.length > 0 && (
         <>
-          <h4 className="sd-h"><MemoryStick size={12} aria-hidden="true" /> Memory now</h4>
+          <h4 className="sd-h"><Icon icon={MemoryStick} size="xs" /> Memory now</h4>
           <BarGauge rows={memRows} />
         </>
       )}
@@ -235,7 +236,7 @@ export function SystemDialog({
 
       {system.volumes.length > 0 && (
         <>
-          <h4 className="sd-h"><HardDrive size={12} aria-hidden="true" /> Volumes <span className="sd-n">{system.volumes.length}</span></h4>
+          <h4 className="sd-h"><Icon icon={HardDrive} size="xs" /> Volumes <span className="sd-n">{system.volumes.length}</span></h4>
           <ul className="sd-vols">
             {system.volumes.map((v) => (
               <li key={v.name}>

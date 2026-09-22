@@ -20,6 +20,7 @@ import {
   READING_DEFAULT, READING_LIMITS, READING_STEP, useReading, type Reading,
 } from '../files/reading';
 import { Button, buttonClass } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 export function AppearanceSettings() {
   return (
@@ -76,7 +77,7 @@ function Theme() {
                 onClick={(e) => e.stopPropagation()}
                 aria-label={`Edit ${t.name}`}
               >
-                <Pencil size={12} aria-hidden="true" /> Edit
+                <Icon icon={Pencil} size="xs" /> Edit
               </Link>
             )}
           </button>
@@ -95,7 +96,7 @@ function MakeATheme() {
     <>
       <div className="make-grid">
         <Link to="/settings/theme/new" className="make">
-          <p className="make-h"><Plus size={15} aria-hidden="true" /> In the theme editor</p>
+          <p className="make-h"><Icon icon={Plus} size="md" /> In the theme editor</p>
           <p className="make-p">
             Starts from the theme you are using now and applies every change to the whole page as you type. The palette
             rules run live and warn; they never refuse. Saving writes the file, which needs the{' '}
@@ -103,7 +104,7 @@ function MakeATheme() {
           </p>
         </Link>
         <div className="make">
-          <p className="make-h"><Code2 size={15} aria-hidden="true" /> Or write the file</p>
+          <p className="make-h"><Icon icon={Code2} size="md" /> Or write the file</p>
           <p className="make-p">
             Drop a <code className="mono">.css</code> file into <code className="mono">{THEME_DIR_HOST}</code> on the box
             and reload. <code className="mono">README.md</code> in that directory documents the format.
@@ -140,12 +141,12 @@ function ReadingSize() {
             <div className="set-read-ctl" role="group" aria-label={label}>
               <button type="button" className="icon-btn set-read-btn" onClick={() => setReading({ [key]: v - step })}
                 disabled={v <= min} aria-label={`Smaller ${label.toLowerCase()}`}>
-                <Minus size={14} />
+                <Icon icon={Minus} size="sm" />
               </button>
               <span className="set-read-v tnum" aria-live="polite">{v}px</span>
               <button type="button" className="icon-btn set-read-btn" onClick={() => setReading({ [key]: v + step })}
                 disabled={v >= max} aria-label={`Larger ${label.toLowerCase()}`}>
-                <Plus size={14} />
+                <Icon icon={Plus} size="sm" />
               </button>
               <Button variant="ghost" size="sm" onClick={() => setReading({ [key]: READING_DEFAULT[key] })}
                 disabled={v === READING_DEFAULT[key]}>

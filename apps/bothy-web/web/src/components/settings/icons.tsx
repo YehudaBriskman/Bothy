@@ -5,6 +5,7 @@ import {
   Activity, Archive, Download, Info, KeyRound, LayoutPanelLeft, Palette, RefreshCw, ScrollText, Ship,
   UserRound, Users, Waypoints, type LucideIcon,
 } from 'lucide-react';
+import { Icon, type IconSize } from '../ui/Icon';
 
 const ICONS: Record<string, LucideIcon> = {
   user: UserRound,
@@ -22,7 +23,6 @@ const ICONS: Record<string, LucideIcon> = {
   info: Info,
 };
 
-export function SectionIcon({ name, size = 16 }: { name: string; size?: number }) {
-  const I = ICONS[name] ?? Info;
-  return <I size={size} aria-hidden="true" className="set-ico" />;
+export function SectionIcon({ name, size = 'md' }: { name: string; size?: IconSize }) {
+  return <Icon icon={ICONS[name] ?? Info} size={size} className="set-ico" />;
 }

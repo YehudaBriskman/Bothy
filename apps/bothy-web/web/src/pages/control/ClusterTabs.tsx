@@ -22,6 +22,7 @@ import { ConfirmDialog } from '../../components/KubeConfirm';
 import { Dialog } from '../../components/ui/Dialog';
 import { Menu } from '../../components/ui/Menu';
 import { Button } from '../../components/ui/Button';
+import { Icon as SizedIcon } from '../../components/ui/Icon';
 
 type Roles = string[];
 
@@ -43,7 +44,7 @@ function ReadHead<T>({ read, what, children }: { read: ReadState<T>; what: strin
       <span className="cl-sub-actions">
         {children}
         <Button variant="ghost" size="sm" onClick={read.reload} aria-label={`Refresh ${what}`}>
-          <RefreshCw size={14} aria-hidden="true" /> Refresh
+          <SizedIcon icon={RefreshCw} size="sm" /> Refresh
         </Button>
       </span>
     </div>
@@ -264,11 +265,11 @@ function RowMenu({ name, onPick }: { name: string; onPick: (tab: KubeDialogTab) 
     <Menu
       trigger={(
         <button type="button" className="svc-act-btn cl-menu-btn" aria-label={`Actions for ${name}`} title={`Actions for ${name}`}>
-          <MoreHorizontal size={15} aria-hidden="true" />
+          <SizedIcon icon={MoreHorizontal} size="md" />
         </button>
       )}
       items={MENU.map(({ tab, label, Icon }) => ({
-        key: tab, label, icon: <Icon size={14} aria-hidden="true" />, onSelect: () => onPick(tab),
+        key: tab, label, icon: <SizedIcon icon={Icon} size="sm" />, onSelect: () => onPick(tab),
       }))}
     />
   );
@@ -307,11 +308,11 @@ export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
             <td className="cl-actions-cell">
               <span className="cl-row-btns">
                 {(p.owner?.kind === 'Deployment' || p.owner?.kind === 'Job') && (
-                  <Button variant="ghost" size="sm" onClick={() => setLogs(p)}><ScrollText size={14} aria-hidden="true" /> Logs</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setLogs(p)}><SizedIcon icon={ScrollText} size="sm" /> Logs</Button>
                 )}
                 {p.deletable && (
                   <GatedButton g={g} onClick={() => setDel(p)} title={`Delete ${p.name}`} denied="Deleting a pod needs the operator role">
-                    <Trash2 size={14} aria-hidden="true" /> Delete
+                    <SizedIcon icon={Trash2} size="sm" /> Delete
                   </GatedButton>
                 )}
               </span>
@@ -362,7 +363,7 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
               {catalog.jobTemplates.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
             <GatedButton g={gate(roles, runSpec)} onClick={() => setRun(template)} title={`Run the ${template} template`} denied="Running a job needs the operator role">
-              <Play size={14} aria-hidden="true" /> Run template
+              <SizedIcon icon={Play} size="sm" /> Run template
             </GatedButton>
           </span>
         )}
@@ -382,9 +383,9 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
             <td className="dim">{ago(j.startTime ?? j.createdAt)}</td>
             <td className="cl-actions-cell">
               <span className="cl-row-btns">
-                <Button variant="ghost" size="sm" onClick={() => setLogs(j.name)}><ScrollText size={14} aria-hidden="true" /> Logs</Button>
+                <Button variant="ghost" size="sm" onClick={() => setLogs(j.name)}><SizedIcon icon={ScrollText} size="sm" /> Logs</Button>
                 <GatedButton g={gate(roles, delSpec)} onClick={() => setDel(j.name)} title={`Delete ${j.name}`} denied="Deleting a job needs the operator role">
-                  <Trash2 size={14} aria-hidden="true" /> Delete
+                  <SizedIcon icon={Trash2} size="sm" /> Delete
                 </GatedButton>
               </span>
             </td>
@@ -445,7 +446,7 @@ function JobLogsDialog({ ns, job, onClose }: { ns: string; job: string; onClose:
             )}
             <label className="ka-check"><input type="checkbox" checked={previous} onChange={(e) => setPrevious(e.target.checked)} /> Previous instance</label>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
+          <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)}><SizedIcon icon={RefreshCw} size="sm" /> Refresh</Button>
         </div>
         <p className="sa-note">{loading ? 'Reading logs… ' : res ? <>From <span className="mono">{res.pod} / {res.container}</span></> : null}</p>
         {refusal && <Refused r={refusal} />}
@@ -515,7 +516,7 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
               <td className="cl-actions-cell">
                 {e.editable && !isEditing && (
                   <GatedButton g={patchG} onClick={() => start(e.key, e.value)} title={`Change ${e.key}`} denied="Changing a key needs the operator role">
-                    <Pencil size={14} aria-hidden="true" /> Edit
+                    <SizedIcon icon={Pencil} size="sm" /> Edit
                   </GatedButton>
                 )}
               </td>

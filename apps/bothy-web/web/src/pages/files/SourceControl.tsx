@@ -47,6 +47,7 @@ import { FileIcon } from './icons';
 import { baseName, dirName, tailPath } from './tree';
 import { groupChanges, toneFor, type Change } from './gitdeco';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 function Row({ c, onOpenDiff, open }: {
   c: Change;
@@ -59,7 +60,7 @@ function Row({ c, onOpenDiff, open }: {
     return (
       <li className="fx-scm-li">
         <span className="fx-scm-row denied" title={`git reports a change here (${c.label}), but the explorer may not open the file - so the service counts it without naming it.`}>
-          <Lock size={13} className="fx-ico t-denied" aria-hidden="true" />
+          <Icon icon={Lock} size="sm" className="fx-ico t-denied" />
           <span className="fx-scm-text">
             <span className="fx-name">a change you may not open</span>
             <span className="fx-scm-dir">counted, deliberately not named</span>
@@ -117,7 +118,7 @@ function Group({ title, changes, onOpenDiff, openPath, openStaged }: {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <ChevronRight size={12} className={`chev fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
+        <Icon icon={ChevronRight} size="xs" className={`chev fx-chev ${open ? 'open' : ''}`} />
         <span>{title}</span>
         <span className="fx-scm-count tnum">{changes.length}</span>
       </button>
@@ -176,7 +177,7 @@ export function SourceControl({
             disabled={loading}
             aria-label="Refresh the git status"
           >
-            <RefreshCw size={13} className={loading ? 'spin' : ''} />
+            <Icon icon={RefreshCw} size="sm" className={loading ? 'spin' : ''} />
           </button>
         </Tooltip>
       </div>
@@ -189,12 +190,12 @@ export function SourceControl({
         <div className="fx-scm-repo">
           {status?.repo ? (
             <span className="fx-scm-branch">
-              <GitBranch size={13} aria-hidden="true" />
+              <Icon icon={GitBranch} size="sm" />
               <span className="mono">{status.branch || '(detached)'}</span>
             </span>
           ) : (
             <span className="fx-scm-branch dim">
-              <GitBranch size={13} aria-hidden="true" />
+              <Icon icon={GitBranch} size="sm" />
               <span>{loading ? 'looking…' : 'no repository in scope'}</span>
             </span>
           )}
@@ -235,7 +236,7 @@ export function SourceControl({
             disabled control: nothing on this page needs permission, so nothing
             here has to say "you cannot". */}
         <p className="fx-scm-where">
-          <TerminalSquare size={12} aria-hidden="true" />
+          <Icon icon={TerminalSquare} size="xs" />
           <span>
             Viewing only — stage, commit and push with{' '}
             <span className="mono">git</span> in a terminal on the box.

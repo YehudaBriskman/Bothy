@@ -23,6 +23,7 @@ import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { useLayout } from '../lib/usePrefs';
 import { orderSections } from '../lib/prefs';
 import './Overview.css';
+import { Icon as SizedIcon } from '../components/ui/Icon';
 
 const STATUS_LABEL: Record<Status, string> = {
   up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown',
@@ -56,7 +57,7 @@ function Panel({
   return (
     <section className={`ov-panel ${className ?? ''}`} id={id}>
       <header className="ov-panel-head">
-        {Icon && <Icon size={14} className="ov-panel-ico" aria-hidden="true" />}
+        {Icon && <SizedIcon icon={Icon} size="sm" className="ov-panel-ico" />}
         <h2 className="ov-panel-title">{title}</h2>
         {meta != null && <span className="ov-panel-meta">{meta}</span>}
       </header>
@@ -146,8 +147,8 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
           {...(to ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
         >
           <span className="ov-ql-ico">
-            {node ? <ServiceIcon node={node} size={15} />
-              : Icon ? <Icon size={15} strokeWidth={1.9} aria-hidden="true" /> : null}
+            {node ? <ServiceIcon node={node} size="md" />
+              : Icon ? <SizedIcon icon={Icon} size="md" /> : null}
           </span>
           <span className="ov-ql-label">{label}</span>
           {status && status !== 'up' && <Dot status={status} />}
@@ -216,14 +217,14 @@ function StatusLine({
       <p className="ov-status-note">
         {attentionN > 0 ? (
           <>
-            <StatusIcon status="down" size={13} />
+            <StatusIcon status="down" size="sm" />
             <a href="#needs-attention">
               {attentionN} service{attentionN === 1 ? '' : 's'} need{attentionN === 1 ? 's' : ''} a look
             </a>
           </>
         ) : (
           <>
-            <StatusIcon status={allVerifiedUp ? 'up' : 'unknown'} size={13} />
+            <StatusIcon status={allVerifiedUp ? 'up' : 'unknown'} size="sm" />
             {allVerifiedUp
               ? `All ${verified} services that report in are up.`
               : `${up} of ${verified} confirmed up.`}
@@ -238,7 +239,7 @@ function StatusLine({
 
       {degraded.length > 0 && (
         <p className="ov-status-degraded">
-          <AlertTriangle size={13} aria-hidden="true" />
+          <SizedIcon icon={AlertTriangle} size="sm" />
           {degraded.join(' and ')} unreachable - these numbers cover only what is still visible.
         </p>
       )}
@@ -257,18 +258,18 @@ function AttentionStrip({ attention }: { attention: PortalNode[] }) {
   return (
     <section className="ov-attn" id="needs-attention" aria-label="Needs attention">
       <h2 className="ov-attn-h">
-        <AlertTriangle size={14} aria-hidden="true" />
+        <SizedIcon icon={AlertTriangle} size="sm" />
         Needs attention
         <span className="ov-attn-n">{attention.length}</span>
       </h2>
       <div className="ov-attn-list">
         {attention.map((n) => (
           <Link to={serviceLink(n)} className="ov-alert" key={n.id}>
-            <span className="ico sm"><ServiceIcon node={n} size={15} /></span>
+            <span className="ico sm"><ServiceIcon node={n} size="md" /></span>
             <span className="ov-alert-name">{n.name}</span>
             <StatusIcon status={n.status} />
             <span className="ov-alert-why">{n.status === 'down' ? 'down' : n.status === 'stopped' ? 'stopped' : kindLabelOf(n).label}</span>
-            <ArrowRight size={14} className="ov-alert-arrow" />
+            <SizedIcon icon={ArrowRight} size="sm" className="ov-alert-arrow" />
           </Link>
         ))}
       </div>
@@ -306,7 +307,7 @@ function UiBody({ stack, project }: { stack: UiLink[]; project: UiLink[] }) {
               <Link className="ov-uirow-name" to={serviceLink({ id: l.id })}>{l.name}</Link>
               <span className="ov-uirow-host">{l.host ?? (l.port != null ? `:${l.port}` : '-')}</span>
               <a className="ov-uirow-open" href={l.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${l.name} in a new tab`}>
-                <ExternalLink size={14} />
+                <SizedIcon icon={ExternalLink} size="sm" />
               </a>
             </li>
           ))}
@@ -485,7 +486,7 @@ export function Overview() {
             {floorLinks.map((n) => (
               <a key={n.id} className="ov-quick-item" href={n.url} target="_blank" rel="noopener noreferrer">
                 <span className="ov-quick-name">{n.name}</span>
-                <ExternalLink size={14} className="ov-quick-ext" />
+                <SizedIcon icon={ExternalLink} size="sm" className="ov-quick-ext" />
               </a>
             ))}
           </div>

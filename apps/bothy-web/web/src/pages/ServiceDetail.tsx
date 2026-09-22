@@ -13,6 +13,7 @@ import { systemLink, kindLabelOf, unknownReason } from '../lib/links';
 import { ActionCell } from '../components/ServiceActions';
 import './Detail.css';
 import { buttonClass } from '../components/ui/Button';
+import { Icon } from '../components/ui/Icon';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -35,7 +36,7 @@ export function ServiceDetail() {
   if (!node) {
     return (
       <div className="page detail">
-        <Link to="/control/services" className="back-link"><ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} /> Services</Link>
+        <Link to="/control/services" className="back-link"><Icon icon={ChevronRight} size="md" style={{ transform: 'rotate(180deg)' }} /> Services</Link>
         <div className="state"><h4>Service not found</h4><p>It may have stopped, or the page was reloaded from a stale link.</p></div>
       </div>
     );
@@ -68,19 +69,19 @@ export function ServiceDetail() {
     <div className="page detail" style={accStyle}>
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link to="/control/services">Services</Link>
-        <ChevronRight size={13} className="sep" aria-hidden="true" />
+        <Icon icon={ChevronRight} size="sm" className="sep" />
         <Link to={systemLink(node.group)}>{systemTitle}</Link>
-        <ChevronRight size={13} className="sep" aria-hidden="true" />
+        <Icon icon={ChevronRight} size="sm" className="sep" />
         <span className="here">{node.name}</span>
       </nav>
 
       <motion.header className="detail-head" {...riseIn(-1, reduce)}>
-        <span className="ico lg"><ServiceIcon node={node} size={28} /></span>
+        <span className="ico lg"><ServiceIcon node={node} size="xl" /></span>
         <div className="detail-head-meta">
           <h1>{node.name}</h1>
           <div className="detail-head-row">
             <span className="status-pill" data-state={status} title={why || undefined}>
-              <StatusIcon status={status} size={15} showLabel />
+              <StatusIcon status={status} size="md" showLabel />
             </span>
             {node.kind !== 'routed' && (
               <span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span>
@@ -96,7 +97,7 @@ export function ServiceDetail() {
         <div className="detail-head-actions">
           {node.browsable && node.url && (
             <a className={buttonClass({ variant: 'primary' })} href={node.url} target="_blank" rel="noopener noreferrer">
-              Open <ExternalLink size={15} />
+              Open <Icon icon={ExternalLink} size="md" />
             </a>
           )}
           <ActionCell node={node} />

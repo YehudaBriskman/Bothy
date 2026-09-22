@@ -14,6 +14,7 @@ import {
   Braces, FileArchive, FileCode2, FileCog, FileImage, FileText, FileTerminal,
   FileSpreadsheet, Film, Lock, Music, Package, type LucideIcon,
 } from 'lucide-react';
+import { Icon, type IconSize } from '../../components/ui/Icon';
 
 interface IconSpec { Icon: LucideIcon; tone: string; }
 
@@ -73,8 +74,8 @@ const BY_NAME: [RegExp, IconSpec][] = [
   [/^(readme|licen[cs]e|changelog|contributing)(\..+)?$/i, { Icon: FileText, tone: 'prose' }],
 ];
 
-export function FileIcon({ name, size = 13, className = '' }: {
-  name: string; size?: number; className?: string;
+export function FileIcon({ name, size = 'sm', className = '' }: {
+  name: string; size?: IconSize; className?: string;
 }) {
   const base = name.slice(name.lastIndexOf('/') + 1);
   let spec: IconSpec | undefined;
@@ -83,6 +84,6 @@ export function FileIcon({ name, size = 13, className = '' }: {
     const dot = base.lastIndexOf('.');
     spec = dot > 0 ? BY_EXT[base.slice(dot + 1).toLowerCase()] : undefined;
   }
-  const { Icon, tone } = spec ?? TEXT;
-  return <Icon size={size} className={`fx-ico ${tone ? `t-${tone}` : ''} ${className}`} aria-hidden="true" />;
+  const { Icon: glyph, tone } = spec ?? TEXT;
+  return <Icon icon={glyph} size={size} className={`fx-ico ${tone ? `t-${tone}` : ''} ${className}`} />;
 }

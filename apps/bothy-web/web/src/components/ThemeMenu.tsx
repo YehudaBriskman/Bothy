@@ -26,6 +26,7 @@ import { useTheme } from '../lib/theme';
 import { ThemeSwatch } from './ThemeSwatch';
 import { Menu, type MenuItem } from './ui/Menu';
 import './ThemeMenu.css';
+import { Icon as SizedIcon } from './ui/Icon';
 
 export function ThemeMenu() {
   const { selection, theme, themes, setSelection } = useTheme();
@@ -61,7 +62,7 @@ export function ThemeMenu() {
           aria-label={`Theme: ${current}. Choose a theme.`}
           title={`Theme: ${current}`}
         >
-          <Icon size={18} aria-hidden="true" />
+          <SizedIcon icon={Icon} size="lg" />
         </button>
       )}
     />

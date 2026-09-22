@@ -8,6 +8,7 @@ import { refusalOf, statusOf } from '../../lib/http';
 import { signInHref } from '../../lib/me';
 import { relDate } from '../../lib/files';
 import { buttonClass } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 
 /** A command to run on the box. Never a button that runs it: rotation and
  *  backups stay a shell's job in v1, and the page says the command out loud. */
@@ -23,7 +24,7 @@ export function Cmd({ children }: { children: string }) {
     <span className="set-cmd">
       <code className="mono">{children}</code>
       <button type="button" className="set-cmd-copy" onClick={copy} aria-label={`Copy: ${children}`} title="Copy">
-        {done ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
+        {done ? <Icon icon={Check} size="sm" /> : <Icon icon={Copy} size="sm" />}
       </button>
     </span>
   );
@@ -72,7 +73,7 @@ export function Refusal({ error, needs, what }: { error: unknown; needs?: string
     return (
       <div className="set-refusal" role="status">
         <p><b>Sign in to see {what}.</b> Nothing here is shown without a session.</p>
-        <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={signInHref()}><LogIn size={14} aria-hidden="true" /> Sign in</a>
+        <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={signInHref()}><Icon icon={LogIn} size="sm" /> Sign in</a>
       </div>
     );
   }

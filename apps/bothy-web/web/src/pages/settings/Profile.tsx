@@ -12,6 +12,7 @@ import { useMe } from '../../components/UserMenu';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Fact, Loading } from '../../components/settings/bits';
 import { buttonClass } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 export function ProfileSettings() {
   const { me, loading } = useMe();
@@ -38,7 +39,7 @@ function SignedOut() {
         roles your account holds and what each one permits.
       </p>
       <a className={buttonClass({ variant: 'primary', size: 'sm' })} href={signInHref()}>
-        <LogIn size={14} aria-hidden="true" /> Sign in
+        <Icon icon={LogIn} size="sm" /> Sign in
       </a>
     </div>
   );
@@ -91,7 +92,7 @@ function RoleRow({ role, held }: { role: Role; held: boolean }) {
   const Mark = held ? CircleCheck : ungrantable ? Ban : Circle;
   return (
     <li className="role" data-held={held ? 'yes' : 'no'}>
-      <Mark size={17} className="role-mark" aria-hidden="true" />
+      <Icon icon={Mark} size="md" className="role-mark" />
       <div className="role-text">
         <p className="role-line">
           <span className="role-id mono">{role}</span>
@@ -134,11 +135,11 @@ function Session({ signedIn }: { signedIn: boolean }) {
       <div className="set-actions">
         {signedIn ? (
           <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={signOutHref()}>
-            <LogOut size={14} aria-hidden="true" /> Sign out
+            <Icon icon={LogOut} size="sm" /> Sign out
           </a>
         ) : (
           <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={signInHref()}>
-            <LogIn size={14} aria-hidden="true" /> Sign in
+            <Icon icon={LogIn} size="sm" /> Sign in
           </a>
         )}
         <span className="set-note">Signing out ends the Bothy session in this browser and returns you to the Overview.</span>

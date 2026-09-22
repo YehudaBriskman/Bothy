@@ -34,6 +34,7 @@ import { systemLink } from '../../lib/links';
 import { StatusIcon } from '../../lib/icons';
 import { Skeleton } from '../../components/states';
 import './control.css';
+import { Icon } from '../../components/ui/Icon';
 
 interface Finding {
   key: string;
@@ -71,7 +72,7 @@ export function Control() {
         key: `sys:${group}`,
         to: systemLink(group),
         where: 'Services',
-        icon: <StatusIcon status={s.worst === 'down' ? 'down' : 'unknown'} size={15} />,
+        icon: <StatusIcon status={s.worst === 'down' ? 'down' : 'unknown'} size="md" />,
         subject: s.title,
         what: `${s.n} service${s.n === 1 ? '' : 's'} ${s.worst === 'down' ? 'down' : 'routed to nothing'}`,
       });
@@ -96,7 +97,7 @@ export function Control() {
         key: `port:${k}`,
         to: '/control/ports',
         where: 'Ports',
-        icon: <Plug size={15} aria-hidden="true" />,
+        icon: <Icon icon={Plug} size="md" />,
         subject: k,
         what: `claimed by ${[...containers].join(' and ')}`,
       });
@@ -114,7 +115,7 @@ export function Control() {
         key: `router:${r.name}`,
         to: '/control/routes',
         where: 'Routes',
-        icon: <Waypoints size={15} aria-hidden="true" />,
+        icon: <Icon icon={Waypoints} size="md" />,
         subject: String(r.name).split('@')[0],
         what: `router is ${r.status}`,
       });
@@ -147,14 +148,14 @@ export function Control() {
         <>
           {degraded.length > 0 && (
             <p className="ctl-degraded">
-              <AlertTriangle size={14} aria-hidden="true" />
+              <Icon icon={AlertTriangle} size="sm" />
               {degraded.join(' and ')} unreachable - this covers only what is still visible.
             </p>
           )}
 
           {findings.length === 0 ? (
             <p className="ctl-clear">
-              <StatusIcon status="up" size={15} />
+              <StatusIcon status="up" size="md" />
               Nothing in here needs a look. No system is reporting a fault, no two
               containers are claiming the same port, and every router is enabled.
             </p>
@@ -167,7 +168,7 @@ export function Control() {
                     <span className="ctl-f-subject">{f.subject}</span>
                     <span className="ctl-f-what">{f.what}</span>
                     <span className="ctl-f-where">{f.where}</span>
-                    <ArrowRight size={14} className="ctl-f-arrow" aria-hidden="true" />
+                    <Icon icon={ArrowRight} size="sm" className="ctl-f-arrow" />
                   </Link>
                 </li>
               ))}

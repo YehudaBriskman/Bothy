@@ -24,6 +24,7 @@ import {
 import { Tooltip } from '../../components/Tooltip';
 import { FileIcon } from './icons';
 import { baseName, dirName } from './tree';
+import { Icon } from '../../components/ui/Icon';
 
 const MIN_CHARS = 3;
 const DEBOUNCE_MS = 500;
@@ -209,7 +210,7 @@ export function SearchView({
         aria-label="Match case"
         onClick={() => setCaseSensitive((v) => !v)}
       >
-        <CaseSensitive size={14} />
+        <Icon icon={CaseSensitive} size="sm" />
       </button>
     </Tooltip>
   );
@@ -217,7 +218,7 @@ export function SearchView({
   return (
     <div className="fx-sr">
       <div className={`fx-filter${controls === 'minimal' ? ' fx-filter-min' : ''}`}>
-        <SearchIcon size={13} aria-hidden />
+        <Icon icon={SearchIcon} size="sm" />
         <input
           ref={boxRef}
           type="search"
@@ -232,7 +233,7 @@ export function SearchView({
         {q && (
           <button type="button" className="fx-filter-x" aria-label="Clear the search"
             onClick={() => { setQ(''); setRes(null); boxRef.current?.focus(); }}>
-            <X size={13} />
+            <Icon icon={X} size="sm" />
           </button>
         )}
         {controls === 'minimal' && caseToggle}
@@ -249,7 +250,7 @@ export function SearchView({
           </select>
         </label>
         <div className="fx-filter fx-sr-glob">
-          <FileSearch size={13} aria-hidden />
+          <Icon icon={FileSearch} size="sm" />
           <input
             type="text"
             value={glob}
@@ -297,7 +298,7 @@ export function SearchView({
               onClick={() => onOpen(g.root, g.path)}
               title={`${g.root}/${g.path}`}
             >
-              <FileIcon name={g.path} size={13} />
+              <FileIcon name={g.path} size="sm" />
               <span className="fx-sr-base">{baseName(g.path)}</span>
               <span className="fx-sr-dir">{dirName(g.path) || g.root}</span>
               <span className="fx-sr-n">{g.lines.length}</span>
@@ -336,7 +337,7 @@ export function SearchView({
                 onClick={() => onOpen(n.root, n.path)}
                 title={`${n.root}/${n.path}`}
               >
-                <FileIcon name={n.path} size={13} />
+                <FileIcon name={n.path} size="sm" />
                 <span className="fx-sr-base">{baseName(n.path)}</span>
                 <span className="fx-sr-dir">{dirName(n.path) || n.root}</span>
               </button>

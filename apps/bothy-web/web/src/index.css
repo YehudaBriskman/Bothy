@@ -259,10 +259,11 @@
   --sp-16: 4rem;
 
   /* ── icons ─────────────────────────────────────────────────────────────────
-     Four sizes. The close X alone was drawn at 12, 13, 14 and 16px. lucide
-     takes a number, so components/ui/Icon.tsx carries the same four as ICON and
-     checks/design-tokens.mjs asserts the two lists agree. */
-  --icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px;
+     Five sizes (xl, 24, joined in batch 4 for the one-glyph illustrations).
+     The close X alone was drawn at 12, 13, 14 and 16px. lucide takes a number,
+     so components/ui/Icon.tsx carries the same five as ICON, every glyph is
+     drawn through it, and checks/design-tokens.mjs asserts both. */
+  --icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px; --icon-xl: 24px;
 
   /* ── interaction ───────────────────────────────────────────────────────────
      --hit is the smallest box a pointer may be asked to land in: 24px under a

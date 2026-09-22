@@ -54,6 +54,7 @@ import { hasRole, signInHref } from '../lib/me';
 import type { PortalNode } from '../lib/discover';
 import './SystemName.css';
 import { Button, buttonClass } from './ui/Button';
+import { Icon } from './ui/Icon';
 
 // Loading the file, and the four things that can come back.
 type Load =
@@ -287,7 +288,7 @@ export function SystemName({
           {drift && (
             <section className="sn-drift" aria-labelledby="sn-drift-h">
               <p className="sn-drift-h" id="sn-drift-h">
-                <AlertTriangle size={16} aria-hidden="true" />
+                <Icon icon={AlertTriangle} size="md" />
                 {APPLY.title}
               </p>
               <dl className="sn-vs">
@@ -313,7 +314,7 @@ export function SystemName({
                 <code className="mono">{recreateCommand(file)}</code>
                 <button type="button" className="sn-copy" onClick={onCopy}
                   aria-label={copied ? 'Command copied' : 'Copy the recreate command'}>
-                  {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                  {copied ? <Icon icon={Check} size="sm" /> : <Icon icon={Copy} size="sm" />}
                   {copied ? 'Copied' : 'Copy'}
                 </button>
               </div>
@@ -324,7 +325,7 @@ export function SystemName({
                 <Button variant="ghost" onClick={onRestart}
                   disabled={apply.t === 'working' || !canAct}
                   title={canAct ? undefined : 'Restarting a service needs the operator role.'}>
-                  <RotateCw size={15} aria-hidden="true" />
+                  <Icon icon={RotateCw} size="md" />
                   {apply.t === 'working' ? 'Restarting…' : `Restart ${file.container}`}
                 </Button>
                 {!sessionLoading && !canAct && (
@@ -374,7 +375,7 @@ export function SystemName({
               )}
             </div>
             <p className="sn-hint" id="sn-hint">
-              <FileText size={13} aria-hidden="true" />
+              <Icon icon={FileText} size="sm" />
               <span>
                 <span className="mono">{PROJECT_TITLE_FIELD}</span> on service{' '}
                 <span className="mono">{site.service}</span>, line {site.line} of{' '}
@@ -404,7 +405,7 @@ export function SystemName({
                 </p>
               ) : (
                 <a className={buttonClass({ variant: 'primary' }, 'sn-signin')} href={signInHref()}>
-                  <LogIn size={15} aria-hidden="true" />
+                  <Icon icon={LogIn} size="md" />
                   Sign in
                 </a>
               )}
@@ -478,7 +479,7 @@ function RefusalBlock({
       )}
       {refusal.needs === 'sign-in' && (
         <a className={buttonClass({ variant: 'primary' }, 'sn-signin')} href={signInHref()}>
-          <LogIn size={15} aria-hidden="true" />
+          <Icon icon={LogIn} size="md" />
           Sign in
         </a>
       )}

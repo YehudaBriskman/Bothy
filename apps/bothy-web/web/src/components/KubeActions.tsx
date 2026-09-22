@@ -36,6 +36,7 @@ import { Tabs } from './Tabs';
 import { ConfirmPanel } from './KubeConfirm';
 import './KubeActions.css';
 import { Button } from './ui/Button';
+import { Icon as SizedIcon } from './ui/Icon';
 
 /** The row cell for a cluster workload. Nothing at all outside bothy-ops' kube scope. */
 export function KubeActionCell({ node }: { node: PortalNode }) {
@@ -54,7 +55,7 @@ export function KubeActionCell({ node }: { node: PortalNode }) {
         aria-label={label}
         title={label}
       >
-        <Boxes size={15} aria-hidden="true" />
+        <SizedIcon icon={Boxes} size="md" />
       </button>
       {open && (
         <KubeDialog
@@ -249,7 +250,7 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
                 type="button" className="sa-verb" aria-disabled={enabled ? undefined : true}
                 onClick={() => { if (enabled) { setImage(''); setOpen(id); } }}
               >
-                <Icon size={16} className="sa-verb-ico" aria-hidden="true" />
+                <SizedIcon icon={Icon} size="md" className="sa-verb-ico" />
                 <span className="sa-verb-text">
                   <span className="sa-verb-name">
                     {spec.title}
@@ -318,7 +319,7 @@ function HistoryTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
     <div className="ka-stack">
       <div className="ka-row ka-row-between">
         <p className="sa-note">{h.data ? `${h.data.revisions.length} revision${h.data.revisions.length === 1 ? '' : 's'}, newest first.` : 'Reading history…'}</p>
-        <Button variant="ghost" size="sm" onClick={h.reload}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
+        <Button variant="ghost" size="sm" onClick={h.reload}><SizedIcon icon={RefreshCw} size="sm" /> Refresh</Button>
       </div>
       {h.refusal && <Refused r={h.refusal} />}
       {h.data && (
@@ -327,7 +328,7 @@ function HistoryTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
             <li key={r.revision} className="ka-item" data-current={r.current ? 'true' : 'false'}>
               <span className="ka-item-main">
                 <span className="ka-item-head">
-                  <History size={13} aria-hidden="true" /> <strong>Revision {r.revision}</strong>
+                  <SizedIcon icon={History} size="sm" /> <strong>Revision {r.revision}</strong>
                   {r.current && <span className="ka-flag">Running</span>}
                   <span className="dim">{ago(r.createdAt)}</span>
                 </span>
@@ -338,7 +339,7 @@ function HistoryTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
                 <Button variant="ghost" size="sm" aria-disabled={g === 'enabled' ? undefined : true}
                   title={g === 'enabled' ? `Roll back to revision ${r.revision}` : 'Rolling back needs the operator role'}
                   onClick={() => { if (g === 'enabled') setRollTo(r.revision); }}>
-                  <RotateCcw size={14} aria-hidden="true" /> Roll back
+                  <SizedIcon icon={RotateCcw} size="sm" /> Roll back
                 </Button>
               )}
             </li>
@@ -391,7 +392,7 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
     <div className="ka-stack" ref={box}>
       <div className="ka-row ka-row-between">
         <p className="sa-note">{pods.data ? `${pods.data.pods.length} pod${pods.data.pods.length === 1 ? '' : 's'} of ${target.deployment}.` : 'Reading pods…'}</p>
-        <Button variant="ghost" size="sm" onClick={pods.reload}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
+        <Button variant="ghost" size="sm" onClick={pods.reload}><SizedIcon icon={RefreshCw} size="sm" /> Refresh</Button>
       </div>
       {pods.refusal && <Refused r={pods.refusal} />}
       {pods.data && pods.data.pods.length === 0 && <p className="sa-note">No pods. A deployment scaled to 0 has none.</p>}
@@ -416,7 +417,7 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
                     data-pod-del={p.name}
                     title={g === 'enabled' ? `Delete ${p.name}` : 'Deleting a pod needs the operator role'}
                     onClick={() => { if (g === 'enabled') setDel(p.name); }}>
-                    <Trash2 size={14} aria-hidden="true" /> Delete
+                    <SizedIcon icon={Trash2} size="sm" /> Delete
                   </Button>
                 )}
               </span>
@@ -437,7 +438,7 @@ function EventsTab({ target }: { target: KubeTarget }) {
       <div className="ka-row ka-row-between">
         <p className="sa-note">{ev.data ? `${ev.data.events.length} event${ev.data.events.length === 1 ? '' : 's'}, newest first.` : 'Reading events…'}</p>
         <Button variant="ghost" size="sm" onClick={ev.reload}>
-          <RefreshCw size={14} aria-hidden="true" /> Refresh
+          <SizedIcon icon={RefreshCw} size="sm" /> Refresh
         </Button>
       </div>
       {ev.refusal && <Refused r={ev.refusal} />}
@@ -452,7 +453,7 @@ export function EventList({ events }: { events: KubeEvent[] }) {
     <ol className="ka-events">
       {events.map((e, i) => (
         <li key={`${e.object}-${e.reason}-${i}`} className="ka-event" data-type={e.type === 'Warning' ? 'warn' : 'normal'}>
-          <span className="ka-ev-type">{e.type === 'Warning' ? <AlertTriangle size={13} aria-hidden="true" /> : null}{e.type}</span>
+          <span className="ka-ev-type">{e.type === 'Warning' ? <SizedIcon icon={AlertTriangle} size="sm" /> : null}{e.type}</span>
           <span className="ka-ev-main">
             <span className="ka-ev-head"><strong>{e.reason}</strong> <span className="mono dim">{e.object}</span>{e.count > 1 && <span className="dim"> ×{e.count}</span>}</span>
             <span className="ka-ev-msg">{e.message}</span>
@@ -563,12 +564,12 @@ function LogsTab({ target, initialPod }: { target: KubeTarget; initialPod?: stri
         </div>
         <div className="ka-row">
           {following ? (
-            <Button variant="ghost" size="sm" onClick={halt}><CircleStop size={14} aria-hidden="true" /> Stop</Button>
+            <Button variant="ghost" size="sm" onClick={halt}><SizedIcon icon={CircleStop} size="sm" /> Stop</Button>
           ) : (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
+              <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)}><SizedIcon icon={RefreshCw} size="sm" /> Refresh</Button>
               <Button size="sm" onClick={follow} disabled={previous} title={previous ? 'A previous instance has stopped writing' : undefined}>
-                <CirclePlay size={14} aria-hidden="true" /> Follow
+                <SizedIcon icon={CirclePlay} size="sm" /> Follow
               </Button>
             </>
           )}

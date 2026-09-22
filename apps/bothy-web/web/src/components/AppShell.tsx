@@ -14,6 +14,7 @@ import { Brand } from './Brand';
 import { CommandPalette } from './CommandPalette';
 import { UserMenu } from './UserMenu';
 import { UpdateBanner } from './UpdateBanner';
+import { Icon as SizedIcon } from './ui/Icon';
 
 // Three destinations, and they are three DATASETS rather than three views.
 // Services, Access and Topology used to hold three of the five slots between
@@ -153,7 +154,7 @@ export function AppShell() {
                 end={end}
                 className={({ isActive }) => `nav-item ${isActive ? 'on' : ''}`}
               >
-                <Icon size={16} />
+                <SizedIcon icon={Icon} size="md" />
                 <span className="nav-label">{label}</span>
               </NavLink>
             );
@@ -176,7 +177,7 @@ export function AppShell() {
         </Tooltip>
 
         <button className="topbar-search" onClick={openPalette} aria-label="Search (Ctrl K)" aria-haspopup="dialog">
-          <Search size={15} className="search-ico" aria-hidden="true" />
+          <SizedIcon icon={Search} size="md" className="search-ico" />
           <span className="search-label">Search…</span>
           <span className="kbd">{isMac ? '⌘' : 'Ctrl '}K</span>
         </button>

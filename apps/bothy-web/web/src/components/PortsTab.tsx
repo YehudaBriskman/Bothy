@@ -6,6 +6,7 @@ import { ErrState, EmptyState } from './states';
 import './Tables.css';
 import { SortHeader } from './SortHeader';
 import { Button } from './ui/Button';
+import { Icon } from './ui/Icon';
 
 type Filter = 'all' | 'public' | 'loopback';
 type SortKey = 'hostPort' | 'containerPort' | 'container' | 'group' | 'proto' | 'scope';
@@ -122,7 +123,7 @@ export function PortsTab({
       {!compact && (
         <div className="tbl-filter">
           <div className="tbl-search">
-            <Search size={15} aria-hidden="true" />
+            <Icon icon={Search} size="md" />
             <input
               type="search"
               placeholder="Filter ports, containers, groups…"

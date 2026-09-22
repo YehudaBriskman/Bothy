@@ -55,6 +55,7 @@ import { DiffView, type DiffTarget } from './Diff';
 import { OverflowMenu, type MenuItem } from './Menu';
 import type { CodeHandle, CodeStat } from './CodeSurface';
 import { Button, buttonClass } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 // The whole of CodeMirror lives behind this one line. `npm run build` puts it in
 // its own chunk, and the check that it STAYED there is the entry chunk's size
@@ -454,7 +455,7 @@ function TabStrip({
               title={`Close ${name}`}
               onClick={(e) => { e.stopPropagation(); onClose(d.id); }}
             >
-              <X size={12} aria-hidden="true" />
+              <Icon icon={X} size="xs" />
             </button>
           </div>
         );
@@ -617,22 +618,22 @@ export function Editor({
     items.push(
       {
         id: 'diff-working', label: 'Diff: working tree, against the index',
-        icon: <Pencil size={13} />, disabled: !diff.staged,
+        icon: <Icon icon={Pencil} size="sm" />, disabled: !diff.staged,
         note: !diff.staged ? 'already showing' : undefined,
         onPick: () => onDiffSide(false),
       },
       {
         id: 'diff-staged', label: 'Diff: staged, against HEAD',
-        icon: <GitCommitVertical size={13} />, disabled: diff.staged,
+        icon: <Icon icon={GitCommitVertical} size="sm" />, disabled: diff.staged,
         note: diff.staged ? 'already showing' : undefined,
         onPick: () => onDiffSide(true),
       },
-      { id: 'diff-close', label: 'Close the diff', icon: <X size={13} />, onPick: onCloseDiff },
+      { id: 'diff-close', label: 'Close the diff', icon: <Icon icon={X} size="sm" />, onPick: onCloseDiff },
     );
   }
   items.push(
     {
-      id: 'find', label: 'Find in this file', icon: <Search size={13} />,
+      id: 'find', label: 'Find in this file', icon: <Icon icon={Search} size="sm" />,
       chord: chordOf('find'), group: !!diff,
       disabled: !codeMounted,
       note: 'the text surface is not on screen - switch to Source',
@@ -640,38 +641,38 @@ export function Editor({
     },
     {
       id: 'keys', label: keysOpen ? 'Hide the keyboard shortcuts' : 'Keyboard shortcuts',
-      icon: <Keyboard size={13} />,
+      icon: <Icon icon={Keyboard} size="sm" />,
       disabled: !codeMounted,
       note: 'the text surface is not on screen - switch to Source',
       onPick: () => setKeysOpen((v) => !v),
     },
     {
-      id: 'reveal', label: 'Reveal in the explorer', icon: <Crosshair size={13} />, group: true,
+      id: 'reveal', label: 'Reveal in the explorer', icon: <Icon icon={Crosshair} size="sm" />, group: true,
       disabled: !active, note: 'nothing is open',
       onPick: onReveal,
     },
     {
       id: 'split',
       label: canSplit ? 'Open in a split beside' : 'Move to the other group',
-      icon: <Columns2 size={13} />,
+      icon: <Icon icon={Columns2} size="sm" />,
       disabled: !active || (canSplit && docs.length < 2),
       note: !active ? 'nothing is open' : 'the last tab in a group cannot split off itself',
       onPick: onSplitOff,
     },
     {
-      id: 'raw', label: 'Download the raw file', icon: <Download size={13} />, group: true,
+      id: 'raw', label: 'Download the raw file', icon: <Icon icon={Download} size="sm" />, group: true,
       disabled: !active?.file || !canDownload,
       note: !canDownload ? 'sign in first - the download origin has no sign-in page' : 'nothing is open',
       onPick: onDownload,
     },
     {
-      id: 'zip', label: 'Download as .zip', icon: <FileArchive size={13} />,
+      id: 'zip', label: 'Download as .zip', icon: <Icon icon={FileArchive} size="sm" />,
       disabled: !active?.file || !canDownload,
       note: !canDownload ? 'sign in first - the download origin has no sign-in page' : 'nothing is open',
       onPick: () => onArchive('zip'),
     },
     {
-      id: 'tgz', label: 'Download as .tar.gz', icon: <FileArchive size={13} />,
+      id: 'tgz', label: 'Download as .tar.gz', icon: <Icon icon={FileArchive} size="sm" />,
       disabled: !active?.file || !canDownload,
       note: !canDownload ? 'sign in first - the download origin has no sign-in page' : 'nothing is open',
       onPick: () => onArchive('tgz'),
@@ -724,7 +725,7 @@ export function Editor({
                   aria-label="Preview"
                   onClick={() => setView('preview')}
                 >
-                  <Eye size={13} aria-hidden="true" />
+                  <Icon icon={Eye} size="sm" />
                 </button>
               </Tooltip>
               <Tooltip label="Source - the text itself">
@@ -735,7 +736,7 @@ export function Editor({
                   aria-label="Source"
                   onClick={() => setView('source')}
                 >
-                  <Code2 size={13} aria-hidden="true" />
+                  <Icon icon={Code2} size="sm" />
                 </button>
               </Tooltip>
             </div>
@@ -744,7 +745,7 @@ export function Editor({
           {!diff && file && editable && !editing && (
             <Tooltip label="Edit this file">
               <button type="button" className="fx-hbtn" onClick={onEdit} aria-label="Edit this file">
-                <Pencil size={14} />
+                <Icon icon={Pencil} size="sm" />
               </button>
             </Tooltip>
           )}
@@ -758,15 +759,15 @@ export function Editor({
                   disabled={saving}
                   aria-label="Cancel the edit and restore the saved text"
                 >
-                  <Undo2 size={14} />
+                  <Icon icon={Undo2} size="sm" />
                 </button>
               </Tooltip>
               <Tooltip label={saving ? 'Saving…' : `Save to disk (${chordOf('save')})`}>
                 <button type="button" className="fx-hbtn is-primary" onClick={onSave}
                         disabled={saving} aria-label={saving ? 'Saving' : 'Save to disk'}>
                   {saving
-                    ? <LoaderCircle size={14} className="spin" aria-hidden="true" />
-                    : <Save size={14} aria-hidden="true" />}
+                    ? <Icon icon={LoaderCircle} size="sm" className="spin" />
+                    : <Icon icon={Save} size="sm" />}
                 </button>
               </Tooltip>
             </>
@@ -791,7 +792,7 @@ export function Editor({
                 onClick={() => onCloseDoc(active.id)}
                 aria-label={`Close ${baseName(active.path)}`}
               >
-                <X size={14} />
+                <Icon icon={X} size="sm" />
               </button>
             </Tooltip>
           )}
@@ -800,7 +801,7 @@ export function Editor({
 
       {pending && (
         <div className="fx-note warn" role="alert">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <Icon icon={AlertTriangle} size="md" />
           <span>
             <b>{pending.name}</b> has unsaved changes. Closing it discards them.
           </span>
@@ -818,7 +819,7 @@ export function Editor({
         // versions are in hand, so the choice is offered explicitly.
         <div className="fx-conflict" role="alert">
           <div className="fx-conflict-h">
-            <AlertTriangle size={15} aria-hidden="true" />
+            <Icon icon={AlertTriangle} size="md" />
             <strong>This file changed on disk since you opened it.</strong>
             <span className="dim">Nothing was overwritten.</span>
           </div>
@@ -845,10 +846,10 @@ export function Editor({
         // (brand/patterns/feedback.md) and an outcome you can still read beats
         // one that has already faded.
         <div className={`fx-note ${notice.tone}`} role="status">
-          {notice.tone === 'ok' && <CircleCheck size={15} aria-hidden="true" />}
-          {notice.tone === 'info' && <Info size={15} aria-hidden="true" />}
-          {notice.tone === 'bad' && <AlertTriangle size={15} aria-hidden="true" />}
-          {notice.tone === 'auth' && <LogIn size={15} aria-hidden="true" />}
+          {notice.tone === 'ok' && <Icon icon={CircleCheck} size="md" />}
+          {notice.tone === 'info' && <Icon icon={Info} size="md" />}
+          {notice.tone === 'bad' && <Icon icon={AlertTriangle} size="md" />}
+          {notice.tone === 'auth' && <Icon icon={LogIn} size="md" />}
           {notice.tone === 'auth' ? (
             <>
               <span>Saving needs the editor role. Your edits stay in this tab.</span>
@@ -861,7 +862,7 @@ export function Editor({
               <span>{notice.text}</span>
               <span className="fx-note-actions">
                 <button type="button" className="icon-btn sm" aria-label="Dismiss" onClick={dismissNotice}>
-                  <X size={14} />
+                  <Icon icon={X} size="sm" />
                 </button>
               </span>
             </>
@@ -871,7 +872,7 @@ export function Editor({
 
       {plain && file && kind === 'text' && (
         <div className="fx-note info" role="status">
-          <Info size={15} aria-hidden="true" />
+          <Icon icon={Info} size="md" />
           <span>
             The code editor did not load, so this is the plain text surface -
             no line highlight, no find panel, no multiple cursors. Editing and
@@ -967,7 +968,7 @@ export function Editor({
                 ? <span className="fx-stat">writable</span>
                 : (
                   <Tooltip label="The file service will not accept writes to this path - it is outside the writable set, or this session has viewer but not editor.">
-                    <span className="fx-stat"><Lock size={10} aria-hidden="true" /> read-only</span>
+                    <span className="fx-stat"><Icon icon={Lock} size="xs" /> read-only</span>
                   </Tooltip>
                 )}
             <span className="fx-stat-sep" aria-hidden="true" />

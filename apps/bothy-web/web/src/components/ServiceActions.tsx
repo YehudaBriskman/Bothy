@@ -38,6 +38,7 @@ import { Dialog } from './ui/Dialog';
 import { KubeActionCell } from './KubeActions';
 import './ServiceActions.css';
 import { Button, buttonClass } from './ui/Button';
+import { Icon as SizedIcon } from './ui/Icon';
 
 // Three circles. lucide's bare `Square` was the first choice for stop and had to
 // go: rendered at 16px on the left of a list row it is a 16px empty box beside a
@@ -107,7 +108,7 @@ export function ActionCell({ node }: { node: PortalNode }) {
         aria-label={`Restart, stop or start ${name}`}
         title={`Restart, stop or start ${name}`}
       >
-        <Power size={15} aria-hidden="true" />
+        <SizedIcon icon={Power} size="md" />
       </button>
       {/* Mounted only while open. Radix renders no portal content for a closed
           dialog, but the hooks inside would still run once per row on every
@@ -229,7 +230,7 @@ function ActionDialog({ node, onClose }: { node: PortalNode; onClose: () => void
           <div className="sa-consequence">
             <p className="sa-note">{CONSEQUENCE_LEAD[phase.verb]}</p>
             <p className="sa-warn">
-              <AlertTriangle size={16} aria-hidden="true" />
+              <SizedIcon icon={AlertTriangle} size="md" />
               <span>{phase.warning}</span>
             </p>
             <p className="sa-note">{VERB_MEANING[phase.verb]}</p>
@@ -295,7 +296,7 @@ function VerbRow({
         aria-disabled={enabled ? undefined : true}
         onClick={() => { if (enabled) onPick(); }}
       >
-        <Icon size={16} className="sa-verb-ico" aria-hidden="true" />
+        <SizedIcon icon={Icon} size="md" className="sa-verb-ico" />
         <span className="sa-verb-text">
           <span className="sa-verb-name">
             {VERB_LABEL[verb]}
@@ -304,7 +305,7 @@ function VerbRow({
                 make the list unreadable. */}
             {selfAffecting && warning && (
               <span className="sa-flag">
-                <AlertTriangle size={13} aria-hidden="true" />
+                <SizedIcon icon={AlertTriangle} size="sm" />
                 {CONSEQUENCE_FLAG[verb]}
               </span>
             )}
@@ -342,7 +343,7 @@ function RoleLinks({ signedIn }: { signedIn: boolean }) {
     </p>
   ) : (
     <a className={buttonClass({ variant: 'primary' }, 'sa-signin')} href={signInHref()}>
-      <LogIn size={15} aria-hidden="true" />
+      <SizedIcon icon={LogIn} size="md" />
       Sign in
     </a>
   );

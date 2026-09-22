@@ -9,6 +9,7 @@ import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Cmd, Loading, Refusal, When, fmtBytes, useLoad } from '../../components/settings/bits';
 import { fetchBackups, type BackupsResult } from '../../lib/admin';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 const DAY = 86_400_000;
 
@@ -50,7 +51,7 @@ function Sets({ d }: { d: BackupsResult }) {
         <td>
           {s.newest ? (
             <span className={old ? 'set-warn' : ''}>
-              {old && <AlertTriangle size={13} aria-hidden="true" />}<When iso={s.newest.at} />
+              {old && <Icon icon={AlertTriangle} size="sm" />}<When iso={s.newest.at} />
             </span>
           ) : <span className="dim">empty</span>}
           {s.newest && <span className="set-cell-sub mono">{s.newest.name} · {fmtBytes(s.newest.bytes)}</span>}

@@ -18,6 +18,7 @@ import { Search } from 'lucide-react';
 import { hitPath, searchSettings } from '../../lib/settings-index';
 import { SectionIcon } from './icons';
 import { Popover } from '../ui/Popover';
+import { Icon } from '../ui/Icon';
 
 export function SettingsSearch() {
   const [q, setQ] = useState('');
@@ -64,7 +65,7 @@ export function SettingsSearch() {
         className="set-search-list"
         anchor={(
           <div className="set-search-box">
-            <Search size={14} aria-hidden="true" className="set-search-ico" />
+            <Icon icon={Search} size="sm" className="set-search-ico" />
             <input
               id={`${id}-in`}
               ref={input}
@@ -99,7 +100,7 @@ export function SettingsSearch() {
             onMouseDown={(e) => { e.preventDefault(); go(i); }}
             onMouseEnter={() => setAt(i)}
           >
-            <SectionIcon name={h.section.icon} size={14} />
+            <SectionIcon name={h.section.icon} size="sm" />
             <span className="set-search-txt">
               <span className="set-search-t">{h.block ? h.block.title : h.section.title}</span>
               <span className="set-search-s">

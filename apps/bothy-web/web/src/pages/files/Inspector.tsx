@@ -35,6 +35,7 @@ import {
 import { fmtBytes, relDate, type Commit, type FileRead } from '../../lib/files';
 import { Tooltip } from '../../components/Tooltip';
 import { baseName } from './tree';
+import { Icon } from '../../components/ui/Icon';
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -71,7 +72,7 @@ function Sha({ sha }: { sha: string }) {
   return (
     <button type="button" className="fx-sha" onClick={copy} title={`Copy ${sha}`} aria-label={`Copy commit ${sha}`}>
       <span className="mono">{sha.slice(0, 7)}</span>
-      {done ? <Check size={10} aria-hidden="true" /> : <Copy size={10} aria-hidden="true" />}
+      {done ? <Icon icon={Check} size="xs" /> : <Icon icon={Copy} size="xs" />}
     </button>
   );
 }
@@ -115,7 +116,7 @@ export function Inspector({
                     find that out at the top of the rail, not in a tooltip. */}
                 {file.sensitive && (
                   <div className="fx-sensitive" role="note">
-                    <ShieldAlert size={15} aria-hidden="true" />
+                    <Icon icon={ShieldAlert} size="md" />
                     <span>
                       <b>Looks sensitive.</b> {file.sensitive}
                       {' '}It is shown because this is your box, and it is left out
@@ -131,7 +132,7 @@ export function Inspector({
                     time; this is the standing statement, not the dialog. */}
                 {file.caution && (
                   <div className={`fx-caution is-${file.caution.level}`} role="note">
-                    <TriangleAlert size={15} aria-hidden="true" />
+                    <Icon icon={TriangleAlert} size="md" />
                     <span>
                       <b>{file.caution.level === 'critical'
                         ? 'Editing this is load-bearing.'
@@ -160,7 +161,7 @@ export function Inspector({
                     <Fact label="Writable">
                       {file.writable
                         ? <span className="tag public">yes</span>
-                        : <span className="tag"><Lock size={9} aria-hidden="true" /> no</span>}
+                        : <span className="tag"><Icon icon={Lock} size="xs" /> no</span>}
                     </Fact>
 
                     {/* The last fact, and it happens to be actionable. One
@@ -261,7 +262,7 @@ export function Inspector({
                       key={c.sha}
                       title={new Date(c.date).toLocaleString()}
                     >
-                      <GitCommitVertical size={14} className="fx-commit-ico" aria-hidden="true" />
+                      <Icon icon={GitCommitVertical} size="sm" className="fx-commit-ico" />
                       <div className="fx-commit-body">
                         <div className="fx-commit-subject">{c.subject}</div>
                         <div className="fx-commit-meta">

@@ -15,6 +15,7 @@ import { EmptyState } from '../components/states';
 import './Services.css';
 import { Button } from '../components/ui/Button';
 import { Disclosure } from '../components/ui/Disclosure';
+import { Icon } from '../components/ui/Icon';
 
 // The card view and the density toggle are GONE. A ServiceCard measured the
 // same area as ~3 table rows while carrying strictly FEWER dimensions than the
@@ -176,7 +177,7 @@ export function Services() {
 
       {/* Persistent filter bar - every control combines and reports its count. */}
       <div className="filter-bar">
-        <SlidersHorizontal size={15} className="filters-ico" aria-hidden="true" />
+        <Icon icon={SlidersHorizontal} size="md" className="filters-ico" />
         <div className="filter-chips">
           {STATUSES.map((s) => {
             const on = statusFilter.has(s);
@@ -188,7 +189,7 @@ export function Services() {
                 onClick={() => toggleStatus(s)}
                 aria-pressed={on}
               >
-                <StatusIcon status={s} size={13} />
+                <StatusIcon status={s} size="sm" />
                 <span className="chip-l">{STATUS_LABEL[s]}</span>
                 <span className="n">{n}</span>
               </button>
@@ -218,7 +219,7 @@ export function Services() {
           aria-label="Filter services"
         />
         {activeFilters && (
-          <button className="chip clear" onClick={clearAll}><X size={13} /> Clear</button>
+          <button className="chip clear" onClick={clearAll}><Icon icon={X} size="sm" /> Clear</button>
         )}
       </div>
 
@@ -257,7 +258,7 @@ export function Services() {
                       aria-expanded={!isCollapsed}
                       aria-controls={bodyId}
                     >
-                      <ChevronDown size={16} className={`chev ${isCollapsed ? 'closed' : ''}`} />
+                      <Icon icon={ChevronDown} size="md" className={`chev ${isCollapsed ? 'closed' : ''}`} />
                       <span className="svc-group-idx">{String(gi + 1).padStart(2, '0')}</span>
                       <span className="svc-group-title">{p.title}</span>
                       <span className="svc-group-sub">{p.sub}</span>
@@ -272,7 +273,7 @@ export function Services() {
                         to={systemLink(p.group)}
                         title={`Open the ${p.title} system page`}
                       >
-                        <ArrowRight size={15} />
+                        <Icon icon={ArrowRight} size="md" />
                       </Link>
                     )}
                   </div>

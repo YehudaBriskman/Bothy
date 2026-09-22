@@ -34,6 +34,7 @@ import { renderMd, type MdLinks } from './md';
 import { JsonView } from './JsonView';
 import { baseName, type Kind } from './tree';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 /** Rendered, or the text itself. Lives here rather than in Editor.tsx because it
  *  is a property of the CONTENT, and this is the module that acts on it -
@@ -132,7 +133,7 @@ function DownloadCard({ path, size, kind, onDownload, canDownload }: {
   const isPdf = kind === 'pdf';
   return (
     <div className="fx-binary">
-      <span className="fx-binary-ico"><FileDown size={22} aria-hidden="true" /></span>
+      <span className="fx-binary-ico"><Icon icon={FileDown} size="xl" /></span>
       <h4>{isPdf ? 'PDF' : 'Binary file'}</h4>
       <p className="fx-binary-facts">
         <span className="mono">{baseName(path)}</span>
@@ -150,7 +151,7 @@ function DownloadCard({ path, size, kind, onDownload, canDownload }: {
               dumping the bytes into a viewer would help nobody.</>}
       </p>
       <Button variant="primary" onClick={onDownload} disabled={!canDownload}>
-        <Download size={14} aria-hidden="true" /> Download
+        <Icon icon={Download} size="sm" /> Download
       </Button>
       {!canDownload && <p className="fx-binary-note">Sign in first - the download origin has no sign-in page of its own.</p>}
     </div>

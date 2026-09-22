@@ -62,6 +62,7 @@ import './editor.css';
 import './explorer.css';
 import './search.css';
 import './read.css';
+import { Icon } from '../../components/ui/Icon';
 
 const LOADING: RootTree = { entries: [], truncated: false, loading: true, err: null };
 
@@ -477,12 +478,12 @@ export function Reader({ mode = 'read' }: {
             <div className="rd-mode">
               {guide ? (
                 <Link className="rd-mode-btn" to={filesHref('read', GUIDE_ROOT)}>
-                  <FolderTree size={13} aria-hidden="true" /> Browse all files
+                  <Icon icon={FolderTree} size="sm" /> Browse all files
                 </Link>
               ) : (
                 <>
                   <Link className="rd-mode-btn" to={filesHref('guide', '')}>
-                    <BookOpen size={13} aria-hidden="true" /> The Bothy guide
+                    <Icon icon={BookOpen} size="sm" /> The Bothy guide
                   </Link>
                   {/* WHERE YOU ARE LOOKING (#152). Browse mode only - the guide
                       is one folder of one root by design, and a scope picker on
@@ -552,7 +553,7 @@ export function Reader({ mode = 'read' }: {
                     onClick={() => setPane('index')}
                     aria-label="Back to the documents"
                   >
-                    <ChevronLeft size={14} aria-hidden="true" /> Documents
+                    <Icon icon={ChevronLeft} size="sm" /> Documents
                   </button>
                   <div className="rd-head-row">
                     <p className="rd-crumb mono" title={`${root}/${path}`}>
@@ -591,7 +592,7 @@ export function Reader({ mode = 'read' }: {
                           to={filesHref('edit', root, path)}
                           aria-label="Edit this file"
                         >
-                          <Pencil size={14} aria-hidden="true" />
+                          <Icon icon={Pencil} size="sm" />
                         </Link>
                       </Tooltip>
                     )}
@@ -601,7 +602,7 @@ export function Reader({ mode = 'read' }: {
                       reader's is a sentence. */}
                   {last ? (
                     <p className="rd-prov">
-                      <GitCommitHorizontal size={13} aria-hidden="true" />
+                      <Icon icon={GitCommitHorizontal} size="sm" />
                       <span className="rd-prov-t">
                         Last changed <b title={last.date}>{relDate(last.date)}</b> by {last.author}
                         {' - '}{last.subject}
@@ -612,7 +613,7 @@ export function Reader({ mode = 'read' }: {
                     // No history is a FACT about the file (untracked, or outside
                     // a work tree), not a gap in the page.
                     <p className="rd-prov">
-                      <GitCommitHorizontal size={13} aria-hidden="true" />
+                      <Icon icon={GitCommitHorizontal} size="sm" />
                       <span className="rd-prov-t">Not in a git history{file.versioned === false ? ' - this root is not a work tree' : ' yet'}.</span>
                     </p>
                   ) : null}

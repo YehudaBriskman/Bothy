@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { PortalNode, Status, ServiceType } from './discover';
+import { Icon, type IconSize } from '../components/ui/Icon';
 
 const IMAGE_ICONS: [string, LucideIcon][] = [
   ['loki', ScrollText], ['promtail', ScrollText], ['dozzle', ScrollText],
@@ -49,14 +50,13 @@ export function iconForNode(node: Pick<PortalNode, 'name' | 'host'> & {
 
 // A rendered service icon (inherits currentColor / size from CSS).
 export function ServiceIcon({
-  node, size = 20, className,
+  node, size = 'lg', className,
 }: {
   node: Parameters<typeof iconForNode>[0];
-  size?: number;
+  size?: IconSize;
   className?: string;
 }) {
-  const Icon = iconForNode(node);
-  return <Icon size={size} className={className} strokeWidth={1.9} aria-hidden="true" />;
+  return <Icon icon={iconForNode(node)} size={size} className={className} />;
 }
 
 // ── ServiceType → lucide (the domain page's section headers + type chips) ────
@@ -72,9 +72,8 @@ export const TYPE_ICON: Record<ServiceType, LucideIcon> = {
   other: Box,
 };
 
-export function TypeIcon({ type, size = 16, className }: { type: ServiceType; size?: number; className?: string }) {
-  const Icon = TYPE_ICON[type];
-  return <Icon size={size} strokeWidth={1.9} className={className} aria-hidden="true" />;
+export function TypeIcon({ type, size = 'md', className }: { type: ServiceType; size?: IconSize; className?: string }) {
+  return <Icon icon={TYPE_ICON[type]} size={size} className={className} />;
 }
 
 // ── Status → lucide (keep the coloured treatment via CSS var) ────────────────
@@ -120,11 +119,10 @@ const STATUS_LABEL: Record<Status, string> = {
 // Status glyph - coloured by the reserved status palette, never colour-alone
 // (always carries an accessible label). `spin` animates the starting spinner.
 export function StatusIcon({
-  status, size = 15, showLabel = false, title,
+  status, size = 'md', showLabel = false, title,
 }: {
-  status: Status; size?: number; showLabel?: boolean; title?: string;
+  status: Status; size?: IconSize; showLabel?: boolean; title?: string;
 }) {
-  const Icon = STATUS_ICON[status];
   const label = STATUS_LABEL[status];
   return (
     <span
@@ -132,11 +130,13 @@ export function StatusIcon({
       style={{ color: `var(${STATUS_VAR[status]})` }}
       title={title || label}
     >
+      {/* A touch heavier than the default line: form, not colour, carries the
+          state here. 2.2 at 15px drew 1.375px; this is that line, absolute. */}
       <Icon
+        icon={STATUS_ICON[status]}
         size={size}
-        strokeWidth={2.2}
+        strokeWidth={1.4}
         className={status === 'starting' ? 'spin' : undefined}
-        aria-hidden="true"
       />
       {showLabel ? <span className="si-label">{label}</span> : <span className="sr-only">{label}</span>}
     </span>

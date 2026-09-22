@@ -24,6 +24,7 @@ import { loadFields, patchField, refusalOf, whyRefused, type FieldSite, type Fie
 import { useOperator } from '../../lib/session';
 import { filesHref } from '../files/routes';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 const PATH = 'apps/bothy-collector/placement.yml';
 const KEYS = ['section', 'subgroup', 'title', 'group'] as const;
@@ -131,7 +132,7 @@ function RuleTable({ rules, mtime, canEdit, onSaved }: {
                 {canEdit && (
                   <Button variant="ghost" size="sm" onClick={() => setEditing(r.id)}
                     aria-label={`Edit the rule for ${r.match.join(', ')}`}>
-                    <Pencil size={13} aria-hidden="true" /> Edit
+                    <Icon icon={Pencil} size="sm" /> Edit
                   </Button>
                 )}
               </td>

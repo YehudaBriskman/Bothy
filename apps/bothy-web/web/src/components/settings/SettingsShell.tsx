@@ -32,6 +32,7 @@ import { useUpdatesBehind } from './useUpdatesBehind';
 import { DialogClose, DialogSurface, DialogTitle } from '../ui/Dialog';
 import './settings.css';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 
 function Nav({ onNavigate }: { onNavigate?: () => void }) {
   const behind = useUpdatesBehind();
@@ -94,7 +95,7 @@ export function SettingsShell() {
               DialogSurface: same trap, same Escape, same focus return (to this
               button) as every dialog in the app. */}
           <Button variant="ghost" className="set-drawer-btn" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)}>
-            <Menu size={16} aria-hidden="true" />
+            <Icon icon={Menu} size="md" />
             <span>Sections</span>
           </Button>
           <DialogSurface
@@ -104,7 +105,7 @@ export function SettingsShell() {
             <div className="set-drawer-head">
               <DialogTitle className="set-drawer-title">Settings</DialogTitle>
               <DialogClose className="icon-btn set-drawer-x" aria-label="Close the sections menu">
-                <X size={16} />
+                <Icon icon={X} size="md" />
               </DialogClose>
             </div>
             <div className="set-drawer-body scroll-shade">

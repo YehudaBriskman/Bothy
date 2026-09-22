@@ -4,6 +4,7 @@ import type { PortalNode } from '../lib/discover';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { serviceLink, nodeSub, kindLabelOf, unknownReason } from '../lib/links';
 import { ActionCell } from './ServiceActions';
+import { Icon } from './ui/Icon';
 
 // The dense table row - the manager's default when there are ~40 services and
 // cards would overwhelm. The WHOLE row navigates to detail (the name is still a
@@ -21,7 +22,7 @@ export function ServiceRow({ node, showGroup = true }: { node: PortalNode; showG
     <tr className="svc-tr" onClick={() => navigate(serviceLink(node))}>
       <td className="svc-td-name">
         <Link to={serviceLink(node)} className="svc-td-link" onClick={(e) => e.stopPropagation()}>
-          <span className="ico sm"><ServiceIcon node={node} size={15} /></span>
+          <span className="ico sm"><ServiceIcon node={node} size="md" /></span>
           <span className="svc-td-text">
             <span className="nm-text">{node.name}</span>
             <span className="pt">{nodeSub(node)}</span>
@@ -54,7 +55,7 @@ export function ServiceRow({ node, showGroup = true }: { node: PortalNode; showG
       <td className="svc-td-open">
         {node.browsable && node.url ? (
           <a href={node.url} target="_blank" rel="noopener noreferrer" title={node.url} onClick={(e) => e.stopPropagation()}>
-            <ExternalLink size={15} />
+            <Icon icon={ExternalLink} size="md" />
           </a>
         ) : null}
       </td>
