@@ -54,6 +54,20 @@ shared primitives use the scale now; the rest of the app moves page by page in
 batch 4. Form controls inherit the type (a Services heading was rendering in
 Arial). The table is in [reference/tokens.md](../reference/tokens.md).
 
+**Migrated 2026-09-22 (design audit batch 4).** Every font size in the app is
+a scale token now - 420 px declarations moved to the nearest step, each with
+its step's leading and tracking (uppercase labels take `--label-tracking`).
+40 distinct sizes became the 8 steps in use, and 421 px font sizes became 2:
+the chart tick labels (an SVG laid out in JS px) and the 3D nameplates
+(scaled by the scene), both at a step's px value. Inline code keeps an `em`
+size relative to its text. The reader's sizes are rem tokens on the scale,
+and the reading-size setting writes rem, so the browser's text size reaches
+the document too. The measure is capped again at `75ch`, as the column's
+padding (see `--read-measure` in index.css). Weights 550/650/750 are gone.
+`checks/design-tokens.mjs` §9 fails on any size, weight or inline size off the
+list. At a 125% browser text size every page's text scales and the layout
+holds (screenshots in `~/.local/state/bothy/design-audit/batch4/`).
+
 **Was the known gap.** There was no declared type scale. Seventeen distinct font sizes
 are in use, from 10.5px to 68px, chosen individually. This is the largest
 outstanding item in the foundations and is tracked in

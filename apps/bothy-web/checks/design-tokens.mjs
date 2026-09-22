@@ -547,7 +547,7 @@ console.log('\n── batch 4: type, rhythm, icons and edges stay on the tokens 
     const imp = s.match(/import\s*\{([^}]*)\}\s*from\s*'lucide-react'/);
     const names = imp ? imp[1].split(',').map((x) => x.trim()).filter((x) => x && !x.startsWith('type ')).map((x) => x.split(/\s+as\s+/).pop()) : [];
     for (const n of names) if (new RegExp(`<${n}[\\s/>]`).test(s)) direct.push(`${rel(f)}: <${n}>`);
-    for (const m of s.matchAll(/<([A-Z]\w*)\b[^<>]*?\ssize=\{\d+(\.\d+)?\}/g)) if (m[1] !== 'BothyMark') numeric.push(`${rel(f)}: <${m[1]} size={n}>`);
+    for (const m of s.matchAll(/<([A-Z][\w.]*|[a-z]\w*\.[A-Z][\w.]*)\b[^<>]*?\ssize=\{\d+(\.\d+)?\}/g)) if (m[1] !== 'BothyMark') numeric.push(`${rel(f)}: <${m[1]} size={n}>`);
   }
   say(direct.length === 0 && numeric.length === 0, 'every icon is drawn through ui/Icon - no bare lucide glyph, no numeric size (SYS-15)',
     [...direct, ...numeric].join('; ') || `${tsx.length} files`);

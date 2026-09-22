@@ -16,6 +16,7 @@ import {
 import { langFor } from '../../lib/files';
 import { highlight } from './highlight';
 import { embedAs, resolveRelative } from './tree';
+import { Icon } from '../../components/ui/Icon';
 
 // ── cross-document links ─────────────────────────────────────────────────────
 //
@@ -435,7 +436,7 @@ export function renderMd(src: string, k = 'b', links?: MdLinks): ReactNode[] {
         out.push(
           <div className={`md-callout is-${meta.tone}`} key={key()} role="note">
             <p className="md-callout-h">
-              <meta.Icon size={15} aria-hidden="true" />
+              <Icon icon={meta.Icon} size="md" />
               <span>{title}</span>
             </p>
             {body.trim() && (

@@ -44,8 +44,14 @@ See [CHECKLIST.md § 10](../CHECKLIST.md#10-iconography).
 - **Status glyphs are distinct** per state and paired with the reserved status
   colours - never colour alone.
 - **The service-icon mapping is a table** matched most-specific-first.
-- **Three container sizes** - small, default and large - with the glyph size
-  chosen per call site.
+- **Three container sizes** - small, default and large.
+- **Five glyph sizes, one component** (design audit SYS-15, batch 4). Every
+  glyph is drawn through `components/ui/Icon`: `xs` 12, `sm` 14, `md` 16, `lg`
+  20, `xl` 24 (one-glyph illustrations), mirrored by `--icon-*`. It was 14 sizes
+  across 280 call sites. The stroke is ABSOLUTE at 1.25px, so a 20px glyph does
+  not draw a heavier line than the 12px one beside it; 1.25 is what the common
+  14-16px icons already drew. Status glyphs draw 1.4. The check refuses a bare
+  lucide element or a numeric `size`.
 
 ## Dead ends
 
