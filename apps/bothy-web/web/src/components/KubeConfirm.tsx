@@ -138,19 +138,29 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
   );
 }
 
-/** The same panel in its own dialog, for a control that lives in a table row. */
-export function ConfirmDialog(props: Omit<ConfirmPanelProps, 'onBack'> & { onClose: () => void; title?: ReactNode; returnFocusTo?: FocusTarget }) {
-  const { onClose, title, returnFocusTo, ...panel } = props;
+/** The same panel in its own dialog, for a control that lives in a table row.
+ *
+ *  `open` is a prop rather than a mount: a dialog its consumer unmounts cannot
+ *  animate out, because React takes the DOM away in the same commit (SYS-4).
+ *  The panel is keyed on the opening, so each one starts at the question rather
+ *  than at the outcome of the last one - while the exit runs, the key is
+ *  unchanged and the panel keeps saying whatever it said. */
+export function ConfirmDialog(props: Omit<ConfirmPanelProps, 'onBack'> & {
+  open: boolean; onClose: () => void; title?: ReactNode; returnFocusTo?: FocusTarget;
+}) {
+  const { open, onClose, title, returnFocusTo, ...panel } = props;
+  const [opening, setOpening] = useState(0);
+  useEffect(() => { if (open) setOpening((n) => n + 1); }, [open]);
   return (
     <Dialog
-      open
+      open={open}
       returnFocusTo={returnFocusTo}
       onOpenChange={(o) => { if (!o) onClose(); }}
       title={title ?? <span className="sa-title">{panel.spec.title} <span className="mono">{panel.what}</span></span>}
       description={panel.spec.meaning}
     >
       <div className="ka-body">
-        <ConfirmPanel {...panel} onBack={onClose} />
+        <ConfirmPanel key={opening} {...panel} onBack={onClose} />
       </div>
     </Dialog>
   );
