@@ -127,13 +127,23 @@ export function ControlHome() {
 
   // ── the health strip ─────────────────────────────────────────────────────
   const expected = expectedUp(counts);
+  // "Down" in the words and the tone is the needsAttention count - a down
+  // container inside a system that is otherwise switched off is that system
+  // being off (lib/data.tsx rule 3), so it is named separately, not as a fault.
+  const liveDown = attentionNodes.filter((n) => n.status === 'down').length;
+  const offDown = counts.down - liveDown;
   const tiles: Tile[] = [
     {
       key: 'services', label: 'Services', to: '/control/services',
-      value: <><span className="ch-num">{counts.up}</span><span className="ch-of"> / {expected}</span></>,
-      sub: [`${counts.down} down`, `${counts.unknown} unverified`, counts.stopped ? `${counts.stopped} stopped` : ''].filter(Boolean).join(' · '),
-      tone: counts.down ? 'bad' : counts.unknown ? 'unknown' : 'ok',
-      toneLabel: counts.down ? 'Some down' : counts.unknown ? 'Some unverified' : 'All up',
+      value: <><span className="ch-num">{counts.up}</span><span className="ch-of"> / {expected} up</span></>,
+      sub: [
+        `${liveDown} down`,
+        counts.unknown ? `${counts.unknown} unverified` : '',
+        offDown ? `${offDown} failed in switched-off systems` : '',
+        counts.stopped ? `${counts.stopped} stopped` : '',
+      ].filter(Boolean).join(' · '),
+      tone: liveDown ? 'bad' : counts.unknown ? 'unknown' : 'ok',
+      toneLabel: liveDown ? 'Some down' : counts.unknown ? 'Some unverified' : 'All up',
     },
   ];
   {
@@ -192,7 +202,8 @@ export function ControlHome() {
       key: 'night', label: 'Night job', to: '/settings/updates',
       value: !enabled ? 'Off' : !last ? 'Not run' : last.outcome === 'requested' ? 'Requested' : 'Skipped',
       sub: !last ? (enabled ? 'runs at 03:30' : 'automatic updates are off')
-        : `${last.component ? `${last.component} · ` : ''}${last.reason ?? ''}${age != null ? `${last.reason || last.component ? ' · ' : ''}${fmtAge(age)} ago` : ''}`,
+        // The age first: the reason can be a sentence, and the line clamps.
+        : [age != null ? `${fmtAge(age)} ago` : '', last.component ?? '', last.reason ?? ''].filter(Boolean).join(' · '),
       tone: !enabled ? 'off' : !last ? 'unknown' : 'ok',
       toneLabel: !enabled ? 'Off' : last ? `Last decision: ${last.outcome}` : 'Not run yet',
     });
@@ -237,7 +248,7 @@ export function ControlHome() {
               gates={gates} signedIn={!!me} updates={updates} backups={backups} audit={audit} now={now}
             />
           </div>
-          <ServiceGroups nodes={data.nodes} />
+          <ServiceGroups nodes={data.nodes} attention={attentionNodes} />
         </>
       )}
     </div>

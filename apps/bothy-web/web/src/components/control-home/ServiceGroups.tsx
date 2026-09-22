@@ -16,12 +16,17 @@ import { Disclosure } from '../ui/Disclosure';
 import { Icon } from '../ui/Icon';
 import { Card, ToneIcon } from './parts';
 
-export function ServiceGroups({ nodes }: { nodes: PortalNode[] }) {
+export function ServiceGroups({ nodes, attention }: { nodes: PortalNode[]; attention: PortalNode[] }) {
   const systems = systemsOf(nodes);
+  // Open by default = something in it is on the Needs-attention list. Not
+  // systemHasIssues(): that counts a crashed container inside a system that is
+  // otherwise switched off, which lib/data.tsx rules is not news.
+  const live = new Set(attention.map((n) => n.group));
   // Only a person's explicit toggles are stored; everything else follows the
   // live default, so a system that breaks while the page is open unfolds.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  const sorted = [...systems].sort((a, b) => Number(systemHasIssues(b)) - Number(systemHasIssues(a)));
+  const hot = (s: (typeof systems)[number]) => s.nodes.some((n) => live.has(n.group));
+  const sorted = [...systems].sort((a, b) => Number(hot(b)) - Number(hot(a)));
 
   return (
     <Card id="ch-groups" title="Services by group" icon={Layers} to="/control/services" toLabel="Services" meta={systems.length}>
@@ -31,7 +36,7 @@ export function ServiceGroups({ nodes }: { nodes: PortalNode[] }) {
         <div className="svc-groups ch-groups">
           {sorted.map((s) => {
             const issues = systemHasIssues(s);
-            const open = toggled[s.key] ?? issues;
+            const open = toggled[s.key] ?? hot(s);
             const bodyId = `ch-group-${s.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
             const tone = s.isOff ? 'off' : s.down > 0 ? 'bad' : s.unknown > 0 ? 'unknown' : 'ok';
             const sub = s.isOff
