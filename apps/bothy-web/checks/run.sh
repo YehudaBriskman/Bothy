@@ -300,6 +300,17 @@ node "$MDOUT/checks/md-render.mjs"
 rm -rf "$MDOUT"
 
 echo
+echo "── what the Control landing asks for, and in what order ─"
+# pages/control/home.ts: the Needs-attention ordering, the summaries behind the
+# health strip, and the role gate that keeps a viewer's tab from ever requesting
+# the operator-only backup and audit reads. Imports nothing, like the rest.
+(cd "$WEB" && npx tsc src/pages/control/home.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/home.js" "$OUT/control-home-mod.mjs"
+cp "$HERE/control-home.mjs" "$OUT/"
+node "$OUT/control-home.mjs"
+
+echo
 echo "── a brand asset is small, vector, and follows the theme ─"
 # Reads web/public directly, so it needs no build. The logo that prompted this
 # was 1467 KB of baked bitmap in an SVG wrapper, and half of it was hard white -
