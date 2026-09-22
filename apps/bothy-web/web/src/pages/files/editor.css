@@ -115,11 +115,19 @@
    Rendered only while a tab is actually in the air. A permanent drop zone on the
    side of the editor is a 40% strip of nothing for the whole of the time nobody
    is dragging, and it would eat pointer events from the document under it. */
+/* FL-19: it FADES IN from the direction it opens from, rather than appearing
+   whole. An in-between frame that points at the outcome is the difference
+   between "a panel appeared" and "this is where it will land" (R8). */
 .bothy-files .fx-dropedge {
   position: absolute; top: 0; right: 0; bottom: 0; width: 38%;
   z-index: 5; display: grid; place-items: center;
   background: color-mix(in oklab, var(--accent) 14%, transparent);
   border-left: 2px dashed var(--accent);
+  animation: fx-dropedge-in var(--dur) var(--ease) both;
+}
+@keyframes fx-dropedge-in {
+  from { opacity: 0; translate: var(--sp-3) 0; }
+  to { opacity: 1; translate: 0 0; }
 }
 .bothy-files .fx-dropedge-hint {
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;

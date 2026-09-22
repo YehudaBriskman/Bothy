@@ -1435,7 +1435,17 @@ html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(
 .cmdk-item { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-sm);
   font-size: var(--fs-md); line-height: var(--lh-md); min-height: var(--hit); cursor: pointer; color: var(--fg-muted); }
 .cmdk-item .cmdk-sub { margin-left: auto; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--fg-subtle); }
-.cmdk-item[aria-selected='true'] { background: var(--surface-3); color: var(--fg); }
+/* SH-13: the selection was --surface-3 on the palette's --surface-4, about
+   1.1:1 - on a list you drive with the arrow keys, where "which row am I on"
+   is the only question. The accent tint plus a 2px bar says it in two ways,
+   neither of them colour alone. */
+.cmdk-item[aria-selected='true'] {
+  background: var(--accent-bg); color: var(--fg); position: relative;
+}
+.cmdk-item[aria-selected='true']::before {
+  content: ''; position: absolute; left: 0; top: var(--sp-1); bottom: var(--sp-1);
+  width: 2px; border-radius: 0 var(--r-2xs) var(--r-2xs) 0; background: var(--accent);
+}
 .cmdk-empty { padding: var(--sp-6) var(--sp-3); text-align: center; color: var(--fg-subtle); font-size: var(--fs-sm); }
 .cmdk-foot { display: flex; gap: var(--sp-3_5); padding: var(--sp-2) var(--sp-3_5); border-top: 1px solid var(--line);
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); flex: none; }
