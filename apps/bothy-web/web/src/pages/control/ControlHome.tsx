@@ -232,10 +232,7 @@ export function ControlHome() {
       </div>
 
       {loading ? (
-        <div aria-busy="true">
-          <span className="sr-only" role="status">Loading the box's state…</span>
-          <Skeleton variant="overview" />
-        </div>
+        <Skeleton variant="overview" state="search" label="Discovering what is running…" />
       ) : (
         <>
           <HealthStrip tiles={tiles} />

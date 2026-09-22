@@ -4,6 +4,7 @@
 // Every size here is a token (controlHome.css) and every icon goes through
 // ui/Icon, so the batch-4 sweep has nothing to convert in these files.
 
+import { Loader } from '../ui/Loader';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -70,9 +71,7 @@ export function SourceNote({ state, what, retry }: { state: SourceState; what: s
   if (state === 'loading') {
     return (
       <div className="ch-loading" aria-busy="true">
-        <span className="sr-only" role="status">Loading {what}…</span>
-        <div className="skel ch-skel" aria-hidden="true" />
-        <div className="skel ch-skel" aria-hidden="true" />
+        <Loader state="load" size="sm" label={`Loading ${what}…`} />
       </div>
     );
   }

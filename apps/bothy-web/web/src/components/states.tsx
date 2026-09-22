@@ -1,5 +1,6 @@
 import { Button } from './ui/Button';
-// Shared empty / error states.
+import { Loader, type LoaderState } from './ui/Loader';
+// Shared empty / error / loading states.
 
 // `onClear` is optional: "no services discovered" is not a filter problem, and
 // offering to clear a filter that isn't set is a dead control.
@@ -47,7 +48,32 @@ export function ErrState({ title, body, onRetry }: { title: string; body: string
 // and a wrapping row of chips, so the layout moved twice - once when the
 // skeleton appeared and again when it was replaced by something a different
 // height. `variant` costs a few lines and makes the placeholder honest.
-export function Skeleton({ variant = 'panels' }: { variant?: 'panels' | 'overview' | 'table' }) {
+export function Skeleton({
+  variant = 'panels',
+  state = 'load',
+  label = 'Loading…',
+  size = 'lg',
+}: {
+  variant?: 'panels' | 'overview' | 'table';
+  /** What kind of waiting (ui/Loader): `search` for the discovery poll, `load` otherwise. */
+  state?: LoaderState;
+  /** What is being waited on - announced, and shown under the orb. */
+  label?: string;
+  /** lg for a page, md for a pane (a file, a diff). */
+  size?: 'md' | 'lg';
+}) {
+  // The skeleton reserves the shape; the Loader is the one thing that says
+  // "working" (and the only thing that moves - .skel-host stills the shimmer).
+  // aria-busy marks the region, role=status (inside Loader) announces it.
+  return (
+    <div className="skel-host" aria-busy="true">
+      <Shapes variant={variant} />
+      <Loader state={state} size={size} label={label} className="skel-orb" />
+    </div>
+  );
+}
+
+function Shapes({ variant }: { variant: 'panels' | 'overview' | 'table' }) {
   if (variant === 'overview') {
     // Reserves the CURRENT shape of the page, which is the only thing a
     // skeleton is for: a 55px status line, three wrapping chip rows, then the
