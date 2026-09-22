@@ -218,6 +218,7 @@ Mirrored in `lib/motion.ts` for framer-motion; the check asserts they agree. Spr
 | `--dur` | `180ms` | transform, elevation |
 | `--dur-slow` | `260ms` | a large surface arriving |
 | `--dur-exit` | `120ms` | leaving is quicker than arriving |
+| `--dur-theme` | `200ms` | the theme-switch cross-fade (SYS-19) |
 | `--press-dur` | `100ms` | the press itself - under the 100ms "instant" line |
 | `--ease` | `cubic-bezier(.2,.7,.2,1)` |  |
 | `--ease-exit` | `cubic-bezier(.4,0,.9,.4)` |  |

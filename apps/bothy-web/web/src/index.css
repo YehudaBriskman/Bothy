@@ -279,6 +279,7 @@
   --dur:      180ms;   /* transform, elevation */
   --dur-slow: 260ms;   /* a large surface arriving */
   --dur-exit: 120ms;   /* leaving is quicker than arriving */
+  --dur-theme: 200ms;  /* the theme-switch cross-fade (SYS-19) */
   --press-dur: 100ms;  /* the press itself - under the 100ms "instant" line */
   /* The brand curve: an ease-OUT, for things arriving and settling. */
   --ease:          cubic-bezier(.2,.7,.2,1);
@@ -1237,7 +1238,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    so under reduced motion the fade stays and shortens to --dur-fast. A browser
    without the API applies the change in one frame, as it always did. */
 ::view-transition-old(root), ::view-transition-new(root) {
-  animation-duration: 200ms;
+  animation-duration: var(--dur-theme);
   animation-timing-function: var(--ease-standard);
 }
 @media (prefers-reduced-motion: reduce) {
