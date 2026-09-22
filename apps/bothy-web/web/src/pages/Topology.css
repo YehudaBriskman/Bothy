@@ -117,7 +117,10 @@
 .topo-list { display: none; }
 .topo-hint-coarse { display: none; }
 
-@media (hover: none) {
+/* Two reasons to drop the "hover" sentence, and either is enough: there is no
+   pointer that can hover, OR the map on screen is the list, which has no hover
+   behaviour to describe whatever the pointer is. */
+@media (hover: none), (max-width: 640px) {
   .topo-hint-fine { display: none; }
   .topo-hint-coarse { display: inline; }
 }

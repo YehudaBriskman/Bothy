@@ -151,6 +151,13 @@
   .cl-page .cl-tbl .tbl.as-cards td.cl-img { max-width: none; overflow: visible; }
   .cl-page .cl-tbl .tbl.as-cards td.cl-val { min-width: 0; }
   .cl-page .cl-tbl .tbl.as-cards td.cl-actions-cell { text-align: right; }
+  /* A pod's name is the card's title and is longer than a phone is wide, so it
+     wraps rather than being cut off mid-hash. */
+  .cl-page .cl-tbl .tbl.as-cards .cl-cell-name { display: flex; align-items: flex-start; }
+  .cl-page .cl-tbl .tbl.as-cards .cl-cell-name .mono { overflow-wrap: anywhere; }
+  /* A number right-aligned against a column edge reads as a column; against the
+     card's edge, with its label at the other end, it reads as two things. */
+  .cl-page .cl-tbl .tbl.as-cards td.num { text-align: left; }
 }
 @media (max-width: 560px) {
   .cl-page .cl-head-aside { width: 100%; }

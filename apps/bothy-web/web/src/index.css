@@ -776,8 +776,11 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
      its centred padding rather than becoming a card. */
   .tbl.as-cards > tbody > tr > td.tbl-empty { padding: var(--sp-8) var(--sp-4) !important; }
   /* A cell whose content is wider than the card (an image reference, a long
-     path) scrolls in ITSELF rather than taking the page sideways with it. */
+     path) wraps inside it rather than taking the page sideways. */
   .tbl.as-cards td .mono, .tbl.as-cards td.mono { max-width: 100%; }
+  /* Same reason as above: the numbers are no longer in a column, so aligning
+     them to the card's right edge only puts them far from their label. */
+  .tbl.as-cards td.num, .tbl.as-cards .num { text-align: left; }
 }
 
 /* ── states / skeleton ───────────────────────────────────────────────────── */
