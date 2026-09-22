@@ -10,7 +10,7 @@ import { TypeIcon } from '../lib/icons';
 import { ServiceTable } from '../components/ServiceTable';
 import { PortsTab } from '../components/PortsTab';
 import { RoutesTab } from '../components/RoutesTab';
-import { Tabs, TabPanel } from '../components/Tabs';
+import { Tabs, TabGroup, TabPanel } from '../components/Tabs';
 import { SystemName } from '../components/SystemName';
 import type { Drift } from '../lib/config';
 import './Detail.css';
@@ -277,7 +277,11 @@ export function ProjectDetail() {
             <div className="panel-h">
               Reachability <span className="sub">{routers.length + ports.length}</span>
             </div>
+            {/* TabGroup: the tablist and its panels share one id prefix, so a
+                page that has these tabs AND a dialog with tabs of the same
+                names cannot end up with two elements carrying one id (CL-18). */}
             <div className="panel-b panel-tbl">
+              <TabGroup>
               <Tabs
                 label="How this system is reached"
                 value={reach}
@@ -295,6 +299,7 @@ export function ProjectDetail() {
               <TabPanel tabKey="ports" active={reach === 'ports' && ports.length > 0}>
                 <PortsTab ports={ports} query="" compact />
               </TabPanel>
+              </TabGroup>
             </div>
           </motion.section>
         )}

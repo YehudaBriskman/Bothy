@@ -18,11 +18,11 @@
 // with the edge's own 401/403 in words. lib/cluster.ts gate() is the rule, and
 // the service and the edge enforce it regardless.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { useKubeCatalog, useKubeRoles } from '../../lib/kube-catalog';
-import { Tabs } from '../../components/Tabs';
+import { Tabs, TabGroup, TabPanel } from '../../components/Tabs';
 import { Refused } from '../../components/KubeActions';
 import {
   ConfigTab, EventsTab, JobsTab, MetricsTab, NetworkTab, PodsTab, StorageTab, TopologyTab, WorkloadsTab,
@@ -46,6 +46,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 export function Cluster() {
+  const nsBox = useRef<HTMLDivElement>(null);
   const { catalog, refusal } = useKubeCatalog();
   const { roles, loading } = useKubeRoles();
   const [params, setParams] = useSearchParams();
@@ -54,11 +55,29 @@ export function Cluster() {
   const ns = nsAsked && namespaces.includes(nsAsked) ? nsAsked : namespaces[0] ?? '';
   const tabAsked = params.get('tab');
   const tab: TabKey = (TABS.find((t) => t.key === tabAsked)?.key ?? 'topology');
+  // CL-25: a `?ns=` or `?tab=` that does not resolve fell back SILENTLY, so the
+  // address bar went on naming a namespace the page was not showing - and that
+  // URL, copied out of the bar into a chat, took the next person somewhere else
+  // again. The resolved values are written back (replace, so the dead URL stays
+  // out of the history), and a namespace that was asked for and does not exist
+  // is said out loud rather than swapped underneath.
+  const nsMissing = !!nsAsked && namespaces.length > 0 && !namespaces.includes(nsAsked);
   const set = (k: string, v: string) => {
     const next = new URLSearchParams(params);
     next.set(k, v);
     setParams(next, { replace: true });
   };
+  useEffect(() => {
+    if (!ns) return;
+    if (nsAsked === ns && tabAsked === tab) return;
+    const next = new URLSearchParams(params);
+    next.set('ns', ns);
+    next.set('tab', tab);
+    setParams(next, { replace: true });
+    // `params` is read but not depended on: this write would otherwise re-fire
+    // on its own result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ns, tab, nsAsked, tabAsked, setParams]);
   const headlamp = useMemo(() => `http://${location.hostname}:8110`, []);
 
   return (
@@ -71,12 +90,30 @@ export function Cluster() {
           </p>
         </div>
         <div className="cl-head-aside">
+          {/* CL-19: a roving tabindex, like Tabs. Every namespace used to be its
+              own tab stop, so a keyboard user crossed the whole group to get
+              past it - and a radiogroup is ONE control, which is what the arrow
+              keys are for. */}
           {namespaces.length > 0 && (
-            <div className="chips cl-ns" role="radiogroup" aria-label="Namespace">
-              {namespaces.map((n) => (
+            <div className="chips cl-ns" role="radiogroup" aria-label="Namespace" ref={nsBox}>
+              {namespaces.map((n, i) => (
                 <button
                   key={n} type="button" role="radio" aria-checked={n === ns} className={n === ns ? 'on' : ''}
+                  data-ns={n}
+                  tabIndex={n === ns || (!namespaces.includes(ns) && i === 0) ? 0 : -1}
                   onClick={() => set('ns', n)}
+                  onKeyDown={(e) => {
+                    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
+                      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1
+                        : e.key === 'Home' ? 'home' : e.key === 'End' ? 'end' : 0;
+                    if (!d) return;
+                    e.preventDefault();
+                    const at = namespaces.indexOf(ns);
+                    const j = d === 'home' ? 0 : d === 'end' ? namespaces.length - 1
+                      : (at + d + namespaces.length) % namespaces.length;
+                    set('ns', namespaces[j]);
+                    nsBox.current?.querySelector<HTMLElement>(`[data-ns="${namespaces[j]}"]`)?.focus();
+                  }}
                 >
                   {n}
                 </button>
@@ -89,6 +126,13 @@ export function Cluster() {
         </div>
       </div>
 
+      {nsMissing && (
+        <p className="sa-note cl-ns-note" role="status">
+          There is no namespace <span className="mono">{nsAsked}</span> in this cluster tier.
+          Showing <span className="mono">{ns}</span>.
+        </p>
+      )}
+
       {!catalog && refusal && <Refused r={refusal} />}
       {/* useKubeCatalog keeps asking every 20s. For a refusal a role cannot fix
           - a 503 "cluster unavailable", a tier that did not answer - that retry
@@ -98,10 +142,14 @@ export function Cluster() {
 
       {catalog && ns && (
         <>
-          <div className="cl-tabs scroll-shade">
+          <TabGroup>
+          <div className="cl-tabs">
             <Tabs label="Cluster views" value={tab} onChange={(k) => set('tab', k)} tabs={TABS.map((t) => ({ key: t.key, label: t.label }))} />
           </div>
-          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="cl-panel" key={`${ns}-${tab}`}>
+          {/* CL-18: through TabPanel, so this panel and the tablist above it
+              agree on an id prefix nothing else in the document shares - the
+              dialog this page opens has tabs called "pods" and "events" too. */}
+          <TabPanel tabKey={tab} active className="cl-panel" key={`${ns}-${tab}`}>
             {tab === 'topology' && <TopologyTab ns={ns} />}
             {tab === 'workloads' && <WorkloadsTab ns={ns} catalog={catalog} roles={roles} />}
             {tab === 'pods' && <PodsTab ns={ns} catalog={catalog} roles={roles} />}
@@ -111,7 +159,8 @@ export function Cluster() {
             {tab === 'storage' && <StorageTab ns={ns} />}
             {tab === 'events' && <EventsTab ns={ns} />}
             {tab === 'metrics' && <MetricsTab ns={ns} />}
-          </div>
+          </TabPanel>
+          </TabGroup>
         </>
       )}
     </div>

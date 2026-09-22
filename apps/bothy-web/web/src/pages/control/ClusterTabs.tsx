@@ -6,7 +6,7 @@ import {
   Children, cloneElement, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type ReactElement, type ReactNode,
 } from 'react';
-import { History, ListTree, MoreHorizontal, Pencil, Play, RefreshCw, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ChevronRight, History, ListTree, MoreHorizontal, Pencil, Play, RefreshCw, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react';
 import {
   findSpec, kubeGet, kubeRefusalOf,
   type ClaimsResult, type ConfigMapResult, type DeleteJobResult, type DeletePodResult,
@@ -220,9 +220,15 @@ function TopoGraph({ topo, onOpen }: { topo: ReturnType<typeof buildTopology>; o
             <span className="sr-only">{STATE_WORD[n.status]}</span>
           </>
         );
+        // CL-23: a card that opens a dialog and a card that is a label read the
+        // same - same surface, same border, same padding - so the only way to
+        // find out which was which was to click. The clickable one carries a
+        // chevron, which is the mark this app uses everywhere else for "there
+        // is more of this through here".
         return n.kind === 'deployment' ? (
-          <button key={n.id} type="button" className="cl-topo-node" data-node={n.id} data-state={n.status} onClick={() => onOpen(n.name)} title={`Open ${n.name}`}>
+          <button key={n.id} type="button" className="cl-topo-node is-open" data-node={n.id} data-state={n.status} onClick={() => onOpen(n.name)} title={`Open ${n.name}`}>
             {body}
+            <SizedIcon icon={ChevronRight} size="sm" className="cl-topo-go" aria-hidden />
           </button>
         ) : (
           <div key={n.id} className="cl-topo-node" data-node={n.id} data-state={n.status}>{body}</div>
@@ -531,6 +537,19 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
   const editable = (cm.data?.data ?? []).filter((e) => e.editable).length;
 
   const start = (key: string, value: string) => { setEditing(key); setDraft(value); };
+  // CL-12: leaving the editor puts focus back on the Edit button of the row it
+  // was opened from. Cancel REPLACES that button with itself, so without this
+  // focus fell to <body> - the same defect the dialogs had, one row down. The
+  // row is found by its key rather than held as a ref, because a poll can
+  // replace the row between opening the editor and closing it.
+  const stop = () => {
+    const key = editing;
+    setEditing(null);
+    if (!key) return;
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`tr[data-cm-key="${CSS.escape(key)}"] .cl-actions-cell button`)?.focus();
+    });
+  };
   const spec = confirm ? findSpec(catalog, confirm.restart ? 'patch-key-and-restart' : 'patch-key') : null;
 
   return (
@@ -559,14 +578,21 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
               </td>
               <td className="mono cl-val">
                 {isEditing ? (
-                  <form className="cl-edit" onSubmit={(ev) => { ev.preventDefault(); if (ok && draft !== e.value) setConfirm({ key: e.key, value: draft, restart, from: e.value }); }}>
+                  <form
+                    className="cl-edit"
+                    onSubmit={(ev) => { ev.preventDefault(); if (ok && draft !== e.value) setConfirm({ key: e.key, value: draft, restart, from: e.value }); }}
+                    // Escape cancels, wherever the caret is inside the row. An
+                    // inline editor that only closes through a button is one
+                    // the reader has to aim at to get out of (CL-12).
+                    onKeyDown={(ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); stop(); } }}
+                  >
                     <input
                       className="ka-input mono" value={draft} autoFocus spellCheck={false} aria-label={`New value for ${e.key}`}
                       aria-invalid={!ok} onChange={(ev) => setDraft(ev.target.value)}
                     />
                     <label className="ka-check"><input type="checkbox" checked={restart} onChange={(ev) => setRestart(ev.target.checked)} /> and restart</label>
                     <Button size="sm" type="submit" disabled={!ok || draft === e.value}>Save</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
+                    <Button variant="ghost" size="sm" onClick={stop}>Cancel</Button>
                     {!ok && <span className="ka-hint ka-bad">Must match <span className="mono">{e.pattern}</span></span>}
                   </form>
                 ) : (
@@ -589,7 +615,7 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
         <ConfirmDialog
           open={confirm != null}
           spec={spec} req={{ namespace: ns, configmap: name, key: shownConfirm.key, value: shownConfirm.value }} what={shownConfirm.key}
-          onClose={() => { setConfirm(null); setEditing(null); }} onDone={cm.reload}
+          onClose={() => { setConfirm(null); stop(); }} onDone={cm.reload}
           // The Save button that opened this is gone once editing ends; the
           // row's Edit button comes back in its place.
           returnFocusTo={() => document.querySelector<HTMLElement>(`tr[data-cm-key="${CSS.escape(shownConfirm.key)}"] .cl-actions-cell button`)}
@@ -766,6 +792,10 @@ export function clusterQueries(ns: string): { cpu: string; mem: string } {
 
 export function MetricsTab({ ns }: { ns: string }) {
   const [state, setState] = useState<{ cpu: Series[]; mem: Series[]; err: string | null; at: number | null }>({ cpu: [], mem: [], err: null, at: null });
+  // CL-22: every other tab has a Refresh, through ReadHead. This one polls
+  // every 30s and offered no way to ask NOW - which is the thing you want after
+  // a restart, and the one moment a 30s wait feels like a broken page.
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     const ac = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -778,7 +808,7 @@ export function MetricsTab({ ns }: { ns: string }) {
     };
     run();
     return () => { ac.abort(); clearTimeout(timer); };
-  }, [ns]);
+  }, [ns, nonce]);
 
   const pods = [...new Set([...state.cpu, ...state.mem].map((s) => s.label))].sort();
   const cpuOf = (p: string) => state.cpu.find((s) => s.label === p);
@@ -790,6 +820,11 @@ export function MetricsTab({ ns }: { ns: string }) {
     <div className="cl-stack">
       <div className="cl-sub">
         <span className="dim cl-fresh">CPU and memory per pod, last hour · kubelet cAdvisor{state.at ? ` · updated ${ago(new Date(state.at).toISOString())}` : ''}</span>
+        <span className="cl-sub-actions">
+          <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)} aria-label="Refresh metrics">
+            <SizedIcon icon={RefreshCw} size="sm" /> Refresh
+          </Button>
+        </span>
       </div>
       {state.err && <p className="sa-note cl-stale">Metrics are not available right now ({state.err}).{state.at ? ' Showing the last answer.' : ''}</p>}
       {!state.at && !state.err && <Loader state="load" size="md" label="Reading metrics…" />}

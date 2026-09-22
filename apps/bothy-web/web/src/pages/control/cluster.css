@@ -55,7 +55,15 @@
 .cl-page .cl-key-why { display: block; font-family: var(--font); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); white-space: normal; max-width: 280px; }
 .cl-page .cl-val { white-space: normal; overflow-wrap: break-word; min-width: 160px; }
 .cl-page tr[data-editable='true'] .cl-key { color: var(--accent-fg); }
+/* CL-12: it wraps only when it has to. At 760px and above the field, the
+   restart checkbox and the two buttons fit on the row they were opened on, so
+   the row grows from 32px to 66px and everything under it jumps a line down
+   for no reason. The hint is what wraps first, on a line of its own. */
 .cl-page .cl-edit { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+@media (min-width: 761px) {
+  .cl-page .cl-edit { flex-wrap: nowrap; }
+  .cl-page .cl-edit .ka-hint { flex-basis: 100%; }
+}
 .cl-page .cl-edit .ka-input { max-width: 220px; padding: var(--sp-1) var(--sp-2); }
 .cl-page .ka-input {
   font: inherit; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg);
@@ -90,8 +98,21 @@
   background: var(--surface-2); border: 1px solid var(--line);
   border-left: 3px solid var(--st-unknown);
 }
-.cl-page button.cl-topo-node { cursor: pointer; }
+/* CL-23: a card that opens something looks like one. It reserves room on the
+   right for the chevron, which sits against the card's own edge rather than
+   under the text, and dims until the card is hovered or focused - present
+   enough to distinguish the two kinds of card at rest, quiet enough not to be
+   five arrows down a column. */
+.cl-page button.cl-topo-node { cursor: pointer; position: relative; padding-right: var(--sp-8); }
 .cl-page button.cl-topo-node:hover { border-color: var(--line-strong); background: var(--surface-3); }
+.cl-page .cl-topo-go {
+  position: absolute; right: var(--sp-2_5); top: 50%; translate: 0 -50%;
+  color: var(--fg-subtle); opacity: .6;
+  transition: opacity var(--dur-fast) var(--ease), translate var(--dur-fast) var(--ease);
+}
+.cl-page button.cl-topo-node:hover .cl-topo-go,
+.cl-page button.cl-topo-node:focus-visible .cl-topo-go { opacity: 1; translate: 2px -50%; }
+.cl-page button.cl-topo-node:active { background: var(--surface-press); }
 .cl-page .cl-topo-node[data-state='up'] { border-left-color: var(--st-up); }
 .cl-page .cl-topo-node[data-state='warn'] { border-left-color: var(--st-warn); }
 .cl-page .cl-topo-node[data-state='down'] { border-left-color: var(--st-down); }
