@@ -15,6 +15,7 @@ import { TYPE_META } from './discover';
 import type { SystemDf } from './api';
 import { accentVar } from './accents';
 import { primaryIdentity } from './discover';
+import { uiName } from './ui-names';
 
 export type SystemKind = 'project' | 'stack' | 'infra';
 
@@ -293,7 +294,27 @@ export interface UiPortGroups {
   project: UiLink[]; // real projects
 }
 export function uiPorts(nodes: PortalNode[]): UiPortGroups {
-  const links = nodes.filter((n) => !n.hidden).map(uiLinkOf).filter((x): x is UiLink => x != null);
+  const vis = nodes.filter((n) => !n.hidden);
+  const raw = vis.map(uiLinkOf).filter((x): x is UiLink => x != null);
+  // Named for the product that opens, not the container that publishes it
+  // (lib/ui-names.ts): a system with ONE UI takes its placed title, the rest
+  // keep the service name with the product casing fixed. The residue group
+  // ("Other containers") is a remainder, not a product, so it never lends its
+  // title to a link.
+  const perGroup = new Map<string, number>();
+  for (const l of raw) perGroup.set(l.group, (perGroup.get(l.group) ?? 0) + 1);
+  // The link's OWN node's title, not the last one seen in its group: a group
+  // can mix a discovered container with a collector-declared service whose
+  // title came from the project (SonarQube's group also holds "Manifests").
+  const titleOf = new Map(vis.map((n) => [n.id, n.groupTitle] as const));
+  const links = raw.map((l) => ({
+    ...l,
+    name: uiName(
+      l.name,
+      isResidue(l.group) ? null : titleOf.get(l.id),
+      perGroup.get(l.group) ?? 0,
+    ),
+  }));
   const byName = (a: UiLink, b: UiLink) => a.name.localeCompare(b.name);
   return {
     project: links.filter((l) => l.groupKind === 'project').sort(byName),

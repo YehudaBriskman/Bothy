@@ -10,7 +10,7 @@ import { settingsRoutes } from './pages/settings/routes';
 import { Files } from './pages/files/Files';
 import { Reader } from './pages/files/Reader';
 import { ControlShell } from './pages/control/ControlShell';
-import { Control } from './pages/control/Control';
+import { ControlHome } from './pages/control/ControlHome';
 import { Cluster } from './pages/control/Cluster';
 import { LEGACY_PATHS, legacyTarget } from './pages/control/redirects';
 import { GUIDE_PATH } from './pages/files/routes';
@@ -35,7 +35,7 @@ export function App() {
         {/* The section shell renders the left nav and an <Outlet>; everything
             under it is a child route so the nav never unmounts. */}
         <Route path="control" element={<ControlShell />}>
-          <Route index element={<Control />} />
+          <Route index element={<ControlHome />} />
           <Route path="services" element={<Services />} />
           <Route path="services/:id" element={<ServiceDetail />} />
           <Route path="systems/:name" element={<ProjectDetail />} />
