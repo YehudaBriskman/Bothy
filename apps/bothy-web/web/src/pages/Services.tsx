@@ -11,7 +11,7 @@ import type { PortalNode, Status } from '../lib/discover';
 import { systemLink } from '../lib/links';
 import { ServiceTable } from '../components/ServiceTable';
 import { StatusIcon } from '../lib/icons';
-import { EmptyState, Skeleton } from '../components/states';
+import { EmptyState, Skeleton, firstPoll } from '../components/states';
 import './Services.css';
 import { Button } from '../components/ui/Button';
 import { Disclosure } from '../components/ui/Disclosure';
@@ -223,7 +223,7 @@ export function Services() {
         )}
       </div>
 
-      {!panels.length && data.at === 0 && data.fails === 0 ? (
+      {!panels.length && firstPoll(data) ? (
         <Skeleton variant="table" state="search" label="Discovering what is running…" />
       ) : !panels.length ? (
         // Only offer "Clear filter" when there IS one - otherwise the empty
@@ -286,7 +286,12 @@ export function Services() {
                       the DOM - collapsed is exactly when a screen reader most
                       needs that association to resolve. */}
                   <Disclosure open={!isCollapsed} id={bodyId} className="svc-group-body">
-                    <ServiceTable nodes={p.nodes} compact label={`${p.title} services`} />
+                    {/* showGroup=false (SYS-17): this page is grouped by
+                        project, so every row inside a panel repeats the title
+                        of the panel it is in - six wasted characters in a
+                        column at 1440, and a whole labelled line per card at
+                        390. */}
+                    <ServiceTable nodes={p.nodes} compact showGroup={false} label={`${p.title} services`} />
                   </Disclosure>
                 </section>
               );

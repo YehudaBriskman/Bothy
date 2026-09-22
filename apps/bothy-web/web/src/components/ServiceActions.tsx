@@ -40,6 +40,7 @@ import { KubeActionCell } from './KubeActions';
 import './ServiceActions.css';
 import { Button, buttonClass } from './ui/Button';
 import { Icon as SizedIcon } from './ui/Icon';
+import { NeedsRole } from './states';
 
 // Three circles. lucide's bare `Square` was the first choice for stop and had to
 // go: rendered at 16px on the left of a list row it is a 16px empty box beside a
@@ -317,21 +318,22 @@ function VerbRow({
   );
 }
 
+// The shared refusal (states.tsx NeedsRole, SYS-18). The words below are this
+// page's; the shape - heading, "X needs the Y role", then the way forward - is
+// every page's.
 function NoRole({ signedIn }: { signedIn: boolean }) {
   return (
-    <div className="sa-norole">
-      <p className="sa-norole-h">
-        {signedIn ? 'These are read-only for you.' : 'Sign in to act on what is running.'}
-      </p>
-      <p className="sa-note">
-        {signedIn
-          ? 'Acting on what is running needs the operator role, and this session does not hold it. '
-            + 'The edge would refuse the request before it reached anything.'
-          : 'Nothing here knows who you are yet, so the edge would refuse these before they reached '
-            + 'anything. Signing in returns you to this page.'}
-      </p>
+    <NeedsRole
+      title={signedIn ? undefined : 'Sign in to act on what is running.'}
+      what="Acting on what is running"
+      role="operator"
+      detail={signedIn
+        ? 'This session does not hold it, so the edge would refuse the request before it reached anything.'
+        : 'Nothing here knows who you are yet, so the edge would refuse these before they reached '
+          + 'anything. Signing in returns you to this page.'}
+    >
       <RoleLinks signedIn={signedIn} />
-    </div>
+    </NeedsRole>
   );
 }
 

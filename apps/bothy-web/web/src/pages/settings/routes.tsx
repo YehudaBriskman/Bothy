@@ -7,9 +7,10 @@
 // you type and needs the page to itself. React Router ranks those static
 // segments above `:section`, so they cannot be swallowed by the shell.
 
-import { Link, Navigate, Route } from 'react-router-dom';
+import { Link, Navigate, Route, useLocation } from 'react-router-dom';
 import { SettingsShell } from '../../components/settings/SettingsShell';
 import { ThemeEditor } from '../ThemeEditor';
+import { NotFound } from '../../components/states';
 import '../Settings.css';
 import { ProfileSettings } from './Profile';
 import { AppearanceSettings } from './Appearance';
@@ -42,12 +43,21 @@ export const SETTINGS_PAGES: Record<string, () => React.ReactElement> = {
   about: AboutSettings,
 };
 
+// The shared 404 (components/states.tsx, SYS-18): an <h1>, a document title,
+// and the address that was asked for shown rather than described.
 function UnknownSection() {
+  const loc = useLocation();
   return (
-    <div className="set-empty">
-      <p>There is no settings section at this address.</p>
-      <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} to="/settings/profile">Go to Profile &amp; session</Link>
-    </div>
+    <NotFound
+      title="No such settings section"
+      what="There is no settings section at"
+      value={loc.pathname}
+      docTitle="No such settings section · Settings"
+      actions={<>
+        <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} to="/settings/profile">Profile &amp; session</Link>
+        <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} to="/settings/about">About Bothy</Link>
+      </>}
+    />
   );
 }
 

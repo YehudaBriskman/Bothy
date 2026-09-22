@@ -38,6 +38,7 @@ import './KubeActions.css';
 import { Button } from './ui/Button';
 import { Icon as SizedIcon } from './ui/Icon';
 import { Loader } from './ui/Loader';
+import { NeedsRole } from './states';
 
 /** The row cell for a cluster workload. Nothing at all outside bothy-ops' kube scope. */
 export function KubeActionCell({ node }: { node: PortalNode }) {
@@ -235,10 +236,11 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
         </p>
       )}
       {!loading && !anyEnabled && (
-        <div className="sa-norole">
-          <p className="sa-norole-h">These are read-only for you.</p>
-          <p className="sa-note">Changing cluster workloads needs the operator role. History, Pods, Events and Logs need viewer.</p>
-        </div>
+        <NeedsRole
+          what="Changing cluster workloads"
+          role="operator"
+          detail="History, Pods, Events and Logs need viewer, which this session has."
+        />
       )}
       <ul className="sa-verbs">
         {specs.map(([id, spec]) => {

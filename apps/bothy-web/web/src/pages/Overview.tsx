@@ -18,7 +18,7 @@ import { TopContainers } from '../components/TopContainers';
 import { StatusBar, BarGauge, type Seg, type GaugeRow } from '../components/viz';
 import { KNOWN_SERVICES, type PortalNode, type Status } from '../lib/discover';
 import { serviceLink, systemLink, kindLabelOf } from '../lib/links';
-import { Skeleton } from '../components/states';
+import { Skeleton, firstPoll } from '../components/states';
 import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { useLayout } from '../lib/usePrefs';
 import { orderSections } from '../lib/prefs';
@@ -417,7 +417,7 @@ export function Overview() {
   const attentionN = attention.length;
   const attentionIds = useMemo(() => new Set(attention.map((n) => n.id)), [attention]);
   const bothDown = data.nodes.length === 0 && data.fails > 0;
-  const loading = data.at === 0 && data.fails === 0;
+  const loading = firstPoll(data);
 
   const { diskTotal, volumeCount } = useMemo(() => {
     const vols = diskVolumes(data.df, systems);

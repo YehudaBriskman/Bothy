@@ -27,6 +27,9 @@ import { ErrState, Skeleton } from '../../components/states';
 import { FileContent, Source, type View } from './FileContent';
 import { SignInCard } from './SignInCard';
 import { dirName, kindOf } from './tree';
+import { filesHref } from './routes';
+import { buttonClass } from '../../components/ui/Button';
+import { Link } from 'react-router-dom';
 
 type State =
   | { at: 'loading' }
@@ -127,12 +130,19 @@ export function FileView({
     return <div className="fx-pad"><SignInCard what="read this file" onRetry={retry} /></div>;
   }
   if (state.at === 'missing') {
+    // NOT a Retry (SYS-18, FL-17). A file that is not there will not be there
+    // on the second read either, and offering the button anyway is a control
+    // whose only outcome is the same message again. The way out is the shelf.
+    // The audit also asked for a "Search for X" link; there is no URL that
+    // opens the reader's search with a query, and inventing `?q=` here would
+    // be a parameter the page ignores - the exact defect pages/files/routes.ts
+    // is written to prevent. It waits for the reader to grow one.
     return (
       <div className="fx-pad">
         <ErrState
           title="No such file"
           body={`${root}/${path} is not in that root. It may have been moved or renamed since the link was written.`}
-          onRetry={root && path ? retry : undefined}
+          actions={<Link className={buttonClass({ variant: 'ghost', size: 'sm' })} to={filesHref('read', root)}>Back to Start</Link>}
         />
       </div>
     );

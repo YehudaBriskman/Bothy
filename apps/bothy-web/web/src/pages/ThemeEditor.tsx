@@ -21,7 +21,7 @@
 // stop you making a decision.
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, Check, Code2, Save, Trash2 } from 'lucide-react';
 import { evaluateTheme, type Finding } from '../lib/contract';
 import {
@@ -40,9 +40,10 @@ import type { CodeHandle } from './files/CodeSurface';
 // that must not load that shell - see src/hl.css.
 import '../hl.css';
 import './ThemeEditor.css';
-import { Button } from '../components/ui/Button';
+import { Button, buttonClass } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 import { Loader } from '../components/ui/Loader';
+import { ErrState, NeedsRole } from '../components/states';
 
 const ROOT = 'stacks';
 const dirOf = (id: string) => `${THEME_DIR_HOST}${id}.css`;
@@ -127,6 +128,14 @@ export function ThemeEditor() {
       });
       return;
     }
+    // ST-1: the draft is dropped BEFORE the read, not left standing until one
+    // succeeds. Without this, navigating from a theme to an id that does not
+    // exist kept the previous theme's tokens on screen under the heading
+    // "Editing does-not-exist", with Save and Delete live over a file that was
+    // never opened. `notice` is cleared with it, or the last read's error
+    // outlives the read that replaced it.
+    setDraft(null);
+    setNotice(null);
     readFile(ROOT, dirOf(editing))
       .then((f) => {
         if (!alive) return;
@@ -139,6 +148,7 @@ export function ThemeEditor() {
       })
       .catch((e) => {
         if (!alive) return;
+        setDraft(null);
         setNotice({
           tone: 'bad',
           text: isAuthError(e) ? 'Your session expired. Sign in and reload.'
@@ -274,7 +284,17 @@ export function ThemeEditor() {
     return (
       <div className="page theme-editor">
         <div className="page-head"><div><h1>Theme</h1></div></div>
-        {notice ? <p className="te-empty">{notice.text}</p> : <Loader state="load" size="lg" label="Reading the theme…" />}
+        {/* The shared error state, with a way out (SYS-18). This used to be a
+            bare sentence: a page whose only content was "Could not open X" and
+            no link anywhere - the reader's only exit was the browser's back
+            button, on a route they may have arrived at directly. */}
+        {notice ? (
+          <ErrState
+            title="Could not open that theme"
+            body={notice.text}
+            actions={<Link className={buttonClass({ variant: 'ghost' })} to="/settings/appearance">Back to Appearance</Link>}
+          />
+        ) : <Loader state="load" size="lg" label="Reading the theme…" />}
       </div>
     );
   }
@@ -315,13 +335,12 @@ export function ThemeEditor() {
       {/* Role first, because it changes what the rest of the page can do. Absent
           rather than a disabled button with no explanation. */}
       {!mayWrite && (
-        <p className="te-note te-warn">
-          <Icon icon={AlertTriangle} size="md" />
-          <span>
-            You can build and preview a theme here, but saving needs the <b>editor</b> role.
-            Everything below still works — the preview is live — you just cannot write the file.
-          </span>
-        </p>
+        <NeedsRole
+          title="You can build and preview a theme here, but not save it."
+          what="Writing a theme file"
+          role="editor"
+          detail="Everything below still works - the preview is live - you just cannot write the file."
+        />
       )}
 
       {notice && (

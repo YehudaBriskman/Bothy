@@ -9,6 +9,7 @@ import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Loading, Refusal, useLoad } from '../../components/settings/bits';
 import { filesHref } from '../files/routes';
 import { Button } from '../../components/ui/Button';
+import { firstPoll } from '../../components/states';
 
 // The five, in request-path order. Named, not discovered, because "is one of
 // them missing" is the question - discovery cannot report what it did not find.
@@ -32,7 +33,7 @@ export function AboutSettings() {
 
 function Containers() {
   const { data } = usePortal();
-  if (data.at === 0 && data.fails === 0) return <Loading rows={5} />;
+  if (firstPoll(data)) return <Loading rows={5} />;
   const byName = new Map(data.nodes.filter((n) => n.container).map((n) => [n.container!.name, n]));
   return (
     <>

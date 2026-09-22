@@ -78,7 +78,9 @@
 
 .sa-body { display: flex; flex-direction: column; gap: var(--sp-3_5); }
 
-.sa-note { margin: 0; color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+/* .sa-note and the no-role block moved to index.css 2026-09-22 (SYS-18): both
+   are worn by the shared state components, which render on pages that never
+   import this file - in dev that is a stylesheet that is simply not there. */
 
 /* ── the verb list ──────────────────────────────────────────────────────────
    Each row carries three facts - the verb, what it does, and whether it costs
@@ -153,12 +155,7 @@
 }
 
 /* ── no role ────────────────────────────────────────────────────────────────*/
-.sa-norole {
-  display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start;
-  padding: var(--sp-3) var(--sp-3_5); border-radius: var(--r-md);
-  background: var(--surface-2); border: 1px solid var(--line);
-}
-.sa-norole-h { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700; }
+/* .sa-norole is in index.css now - see above. */
 
 /* align-self, not align-items on the parent: the paragraphs beside it DO want
    the full width, and a flex column that stops stretching stops wrapping its

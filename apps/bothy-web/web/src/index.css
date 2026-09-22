@@ -789,6 +789,27 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .state.err { padding: var(--sp-10) var(--sp-5); border-color: color-mix(in oklab, var(--st-down) 26%, var(--line)); }
 .state h4 { margin: 0 0 var(--sp-1_5); font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
 .state p { color: var(--fg-muted); max-width: 520px; margin: 0 auto var(--sp-4); }
+/* A 404 is a PAGE, so its heading is the page's h1 - the audit found the 404
+   and the unknown settings section with no heading at all. It is drawn at the
+   same weight as the h4 above it, because "not found" is not a hero. */
+.state-404 h1 { margin: 0 0 var(--sp-1_5); font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
+.state-404 p:last-of-type { margin-bottom: var(--sp-4); }
+/* More than one way out, side by side and centred with the prose above them. */
+.state-acts { display: flex; gap: var(--sp-2); justify-content: center; flex-wrap: wrap; }
+
+/* ── the no-role refusal (components/states.tsx NeedsRole) ───────────────── */
+/* Here rather than in ServiceActions.css, where it used to live: the shared
+   component renders on pages that never import that file, and in dev an
+   unimported stylesheet is simply absent. */
+.sa-note { margin: 0; color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.sa-norole {
+  display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start;
+  padding: var(--sp-3) var(--sp-3_5); border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line); text-align: left;
+}
+.sa-norole-h { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700;
+  display: flex; align-items: center; gap: var(--sp-2); }
+.sa-norole-h svg { color: var(--st-warn-fg); flex: none; }
 .skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-3_5); }
 /* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
 .skel-col { display: flex; flex-direction: column; gap: var(--sp-3_5); }
