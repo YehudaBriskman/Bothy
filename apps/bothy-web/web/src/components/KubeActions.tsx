@@ -37,6 +37,7 @@ import { ConfirmPanel } from './KubeConfirm';
 import './KubeActions.css';
 import { Button } from './ui/Button';
 import { Icon as SizedIcon } from './ui/Icon';
+import { Loader } from './ui/Loader';
 
 /** The row cell for a cluster workload. Nothing at all outside bothy-ops' kube scope. */
 export function KubeActionCell({ node }: { node: PortalNode }) {
@@ -105,7 +106,8 @@ export function KubeDialog({ target, onClose, onChanged, aside, initialTab = 'ac
         />
         <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="ka-panel">
           {!catalog && refusal && <Refused r={refusal} />}
-          {!catalog && !refusal && <p className="sa-working"><span className="sa-spin" />Reading what this tier can do…</p>}
+          {!catalog && refusal && !refusal.needsRole && <Loader state="connect" size="sm" label="Asking the cluster tier again every 20 seconds…" />}
+          {!catalog && !refusal && <Loader state="load" size="md" label="Reading what this tier can do…" />}
           {catalog && tab === 'actions' && <ActionsTab catalog={catalog} target={target} onChanged={onChanged} />}
           {catalog && tab === 'history' && <HistoryTab catalog={catalog} target={target} onChanged={onChanged} />}
           {catalog && tab === 'pods' && (
@@ -318,7 +320,7 @@ function HistoryTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
   return (
     <div className="ka-stack">
       <div className="ka-row ka-row-between">
-        <p className="sa-note">{h.data ? `${h.data.revisions.length} revision${h.data.revisions.length === 1 ? '' : 's'}, newest first.` : 'Reading history…'}</p>
+        <p className="sa-note">{h.data ? `${h.data.revisions.length} revision${h.data.revisions.length === 1 ? '' : 's'}, newest first.` : h.loading ? <Loader state="load" size="sm" label="Reading history…" /> : null}</p>
         <Button variant="ghost" size="sm" onClick={h.reload}><SizedIcon icon={RefreshCw} size="sm" /> Refresh</Button>
       </div>
       {h.refusal && <Refused r={h.refusal} />}
@@ -391,7 +393,7 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
   return (
     <div className="ka-stack" ref={box}>
       <div className="ka-row ka-row-between">
-        <p className="sa-note">{pods.data ? `${pods.data.pods.length} pod${pods.data.pods.length === 1 ? '' : 's'} of ${target.deployment}.` : 'Reading pods…'}</p>
+        <p className="sa-note">{pods.data ? `${pods.data.pods.length} pod${pods.data.pods.length === 1 ? '' : 's'} of ${target.deployment}.` : pods.loading ? <Loader state="load" size="sm" label="Reading pods…" /> : null}</p>
         <Button variant="ghost" size="sm" onClick={pods.reload}><SizedIcon icon={RefreshCw} size="sm" /> Refresh</Button>
       </div>
       {pods.refusal && <Refused r={pods.refusal} />}
@@ -436,7 +438,7 @@ function EventsTab({ target }: { target: KubeTarget }) {
   return (
     <div className="ka-stack">
       <div className="ka-row ka-row-between">
-        <p className="sa-note">{ev.data ? `${ev.data.events.length} event${ev.data.events.length === 1 ? '' : 's'}, newest first.` : 'Reading events…'}</p>
+        <p className="sa-note">{ev.data ? `${ev.data.events.length} event${ev.data.events.length === 1 ? '' : 's'}, newest first.` : ev.loading ? <Loader state="load" size="sm" label="Reading events…" /> : null}</p>
         <Button variant="ghost" size="sm" onClick={ev.reload}>
           <SizedIcon icon={RefreshCw} size="sm" /> Refresh
         </Button>
@@ -576,7 +578,7 @@ function LogsTab({ target, initialPod }: { target: KubeTarget; initialPod?: stri
         </div>
       </div>
       <p className="sa-note">
-        {following ? <><span className="ka-live" aria-hidden="true" /> Following </> : loading ? 'Reading logs… ' : 'Last lines from '}
+        {following ? <><Loader state="stream" size="sm" announce={false} /> Following </> : loading ? <><Loader state="load" size="sm" label="Reading logs…" />{' '}</> : 'Last lines from '}
         {source && <span className="mono">{source}</span>}
       </p>
       {refusal && <Refused r={refusal} />}

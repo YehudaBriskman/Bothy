@@ -133,19 +133,8 @@
 
 /* ── in flight ──────────────────────────────────────────────────────────────*/
 .sa-working { display: flex; align-items: center; gap: var(--sp-2_5); margin: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted); }
-.sa-spin {
-  flex: none; width: 15px; height: 15px; border-radius: var(--r-full);
-  border: 2px solid var(--line-strong); border-top-color: var(--accent);
-  animation: sa-turn var(--loop-spin) linear infinite;
-}
-@keyframes sa-turn { to { transform: rotate(360deg); } }
-
-/* The global reduced-motion block already caps every animation at .01ms, which
-   would leave a static ring at a random angle. A pulse of opacity carries the
-   same "still working" without spinning. */
-@media (prefers-reduced-motion: reduce) {
-  .sa-spin { border-top-color: var(--line-strong); }
-}
+/* The ring that used to spin here (.sa-spin) is gone: an action in flight is
+   ui/Loader's `act` orb, and under reduced motion that orb is paused. */
 
 /* ── the outcome ────────────────────────────────────────────────────────────*/
 .sa-outcome { display: flex; flex-direction: column; gap: var(--sp-2); }

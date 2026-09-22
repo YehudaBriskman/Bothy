@@ -30,6 +30,7 @@ import {
 import './cluster.css';
 import { buttonClass } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
+import { Loader } from '../../components/ui/Loader';
 
 const TABS = [
   { key: 'topology', label: 'Topology' },
@@ -89,7 +90,11 @@ export function Cluster() {
       </div>
 
       {!catalog && refusal && <Refused r={refusal} />}
-      {!catalog && !refusal && <p className="sa-working"><span className="sa-spin" />Reading what the cluster tier can do…</p>}
+      {/* useKubeCatalog keeps asking every 20s. For a refusal a role cannot fix
+          - a 503 "cluster unavailable", a tier that did not answer - that retry
+          IS something in progress, so it is shown; a role refusal is not. */}
+      {!catalog && refusal && !refusal.needsRole && <Loader state="connect" size="sm" label="Asking the cluster tier again every 20 seconds…" />}
+      {!catalog && !refusal && <Loader state="load" size="md" label="Reading what the cluster tier can do…" />}
 
       {catalog && ns && (
         <>

@@ -23,6 +23,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { Menu } from '../../components/ui/Menu';
 import { Button } from '../../components/ui/Button';
 import { Icon as SizedIcon } from '../../components/ui/Icon';
+import { Loader } from '../../components/ui/Loader';
 
 type Roles = string[];
 
@@ -111,7 +112,7 @@ export function TopologyTab({ ns }: { ns: string }) {
     <div className="cl-stack">
       <ReadHead read={deps} what="Deployment → Service → Route or Ingress" />
       {refusal && <Refused r={refusal} />}
-      {loading && <p className="sa-working"><span className="sa-spin" />Reading the namespace…</p>}
+      {loading && <Loader state="load" size="md" label="Reading the namespace…" />}
       {!loading && deps.data && <TopoGraph topo={topo} onOpen={setOpen} />}
       <p className="cl-legend dim">
         {(['up', 'warn', 'down', 'off'] as ClusterStatus[]).map((s) => (
@@ -448,7 +449,7 @@ function JobLogsDialog({ ns, job, onClose }: { ns: string; job: string; onClose:
           </div>
           <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)}><SizedIcon icon={RefreshCw} size="sm" /> Refresh</Button>
         </div>
-        <p className="sa-note">{loading ? 'Reading logs… ' : res ? <>From <span className="mono">{res.pod} / {res.container}</span></> : null}</p>
+        <p className="sa-note">{loading ? <Loader state="load" size="sm" label="Reading logs…" /> : res ? <>From <span className="mono">{res.pod} / {res.container}</span></> : null}</p>
         {refusal && <Refused r={refusal} />}
         <pre className="ka-log mono" tabIndex={0} aria-label={`Logs of ${job}`}>{res?.lines.length ? res.lines.join('\n') : loading ? '' : 'No output.'}</pre>
       </div>
@@ -604,7 +605,7 @@ function Section<T>({ title, read, children }: { title: string; read: ReadState<
     <section className="cl-section" aria-label={title}>
       <h2 className="cl-h2">{title}</h2>
       <Stale read={read} />
-      {!read.data && read.loading ? <p className="sa-working"><span className="sa-spin" />Reading…</p> : read.data ? children : null}
+      {!read.data && read.loading ? <Loader state="load" size="sm" label={`Reading ${title.toLowerCase()}…`} /> : read.data ? children : null}
     </section>
   );
 }
@@ -731,7 +732,7 @@ export function MetricsTab({ ns }: { ns: string }) {
         <span className="dim cl-fresh">CPU and memory per pod, last hour · kubelet cAdvisor{state.at ? ` · updated ${ago(new Date(state.at).toISOString())}` : ''}</span>
       </div>
       {state.err && <p className="sa-note cl-stale">Metrics are not available right now ({state.err}).{state.at ? ' Showing the last answer.' : ''}</p>}
-      {!state.at && !state.err && <p className="sa-working"><span className="sa-spin" />Reading metrics…</p>}
+      {!state.at && !state.err && <Loader state="load" size="md" label="Reading metrics…" />}
       {state.at && pods.length === 0 && <p className="sa-note">No pod series for {ns}. The kubelet-cadvisor scrape may be down.</p>}
       {pods.length > 0 && (
         <Table label="Pod metrics" head={<><th>Pod</th><th>CPU</th><th className="num">Now</th><th>Memory</th><th className="num">Now</th></>}>
