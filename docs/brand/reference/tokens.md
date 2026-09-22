@@ -115,6 +115,7 @@ Five, spaced across the one hue window that clears every status by 45°.
 
 | Token | Value | Role |
 |---|---|---|
+| `--r-2xs` | `2px` |  |
 | `--r-xs` | `5px` |  |
 | `--r-sm` | `7px` |  |
 | `--r-md` | `10px` |  |
@@ -176,6 +177,7 @@ A 4px grid with 2px and 6px half-steps, in rem. `--sp-2_5` is 2.5 steps.
 | `--sp-2` | `.5rem` |  |
 | `--sp-2_5` | `.625rem` |  |
 | `--sp-3` | `.75rem` |  |
+| `--sp-3_5` | `.875rem` |  |
 | `--sp-4` | `1rem` |  |
 | `--sp-5` | `1.25rem` |  |
 | `--sp-6` | `1.5rem` |  |
@@ -194,6 +196,7 @@ Mirrored as `ICON` in `components/ui/Icon.tsx`.
 | `--icon-sm` | `14px` |  |
 | `--icon-md` | `16px` |  |
 | `--icon-lg` | `20px` |  |
+| `--icon-xl` | `24px` |  |
 
 ## Interaction
 
@@ -252,6 +255,7 @@ Four steps with fixed meanings: 1 rest, 2 raised, 3 popover, 4 modal. A theme se
 | `--mat-chrome-blur` | `blur(14px) saturate(1.2)` | same |  |
 | `--mat-palette-bg` | `color-mix(in oklab, var(--surface-4) 82%, transparent)` | same |  |
 | `--mat-palette-blur` | `blur(24px) saturate(1.4)` | same |  |
+| `--shadow-edge` | `0 1px 0 var(--line), 0 6px 12px -8px var(--scroll-shade)` | same |  |
 
 ## Scroll
 
@@ -268,15 +272,15 @@ The rendered-document scale in Files.
 
 | Token | Value | Role |
 |---|---|---|
-| `--read-measure` | `100%` |  |
-| `--read-fs` | `16px` |  |
-| `--rd-ui-fs` | `12.5px` |  |
+| `--read-measure` | `75ch` |  |
+| `--read-fs` | `var(--fs-body)` |  |
+| `--rd-ui-fs` | `.78125rem` |  |
 | `--read-lh` | `1.65` |  |
-| `--read-gap` | `15px` | between blocks, tracks --read-fs |
-| `--read-h1` | `27px` |  |
-| `--read-h2` | `21px` |  |
-| `--read-h3` | `17.5px` |  |
-| `--read-h4` | `15px` |  |
+| `--read-gap` | `.9375rem` | between blocks: 15px at the default root |
+| `--read-h1` | `var(--fs-2xl)` |  |
+| `--read-h2` | `var(--fs-xl)` |  |
+| `--read-h3` | `var(--fs-lg)` |  |
+| `--read-h4` | `var(--fs-body)` |  |
 
 ## Families and layout
 
@@ -294,3 +298,4 @@ The rendered-document scale in Files.
 | `--z-modal` | `90` |
 | `--z-popover` | `95` |
 | `--z-tooltip` | `96` |
+| `--topbar-h` | `calc(2 * var(--sp-2_5) + max(2.375rem, var(--hit)))` |

@@ -1148,11 +1148,8 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-full); padding: 0 var(--sp-1_5); }
 
-.labels-scroll { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-1_5);
-  border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-2_5); background: var(--bg-2); }
-.label-row { display: grid; grid-template-columns: minmax(200px, 40%) 1fr; gap: var(--sp-3); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
-.label-k { color: var(--fg-muted); overflow-wrap: anywhere; }
-.label-v { color: var(--fg-subtle); overflow-wrap: anywhere; }
+/* .labels-scroll / .label-row / -k / -v live in pages/Detail.css - one copy
+   (batch 4); this older set was overridden there by load order. */
 
 /* ── topology ────────────────────────────────────────────────────────────── */
 .topo-legend { display: flex; gap: var(--sp-3_5); flex-wrap: wrap; }
@@ -1161,7 +1158,6 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
 .topo-svg { width: 100%; min-width: 720px; height: auto; display: block; }
 .topo-band { fill: color-mix(in oklab, var(--fg) 3%, transparent); stroke: var(--line); }
 .topo-band-label { fill: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-family: var(--mono); font-weight: 600; }
-.topo-edge { stroke-width: 1.5; transition: opacity var(--dur-fast) var(--ease); }
 .topo-hub-c { fill: color-mix(in oklab, var(--accent) 22%, var(--surface-2)); stroke: var(--accent); stroke-width: 1.5; }
 .topo-hub { cursor: default; }
 .topo-hub-t { fill: var(--fg); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 700; text-anchor: middle; }
