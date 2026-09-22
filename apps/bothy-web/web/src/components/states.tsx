@@ -19,7 +19,9 @@ export function EmptyState({
   onClear,
 }: {
   message: string;
-  hint?: string;
+  /** A node, not a string: a hint may carry a command, and Settings renders
+   *  those as copyable spans rather than as text. */
+  hint?: ReactNode;
   onClear?: () => void;
 }) {
   return (
