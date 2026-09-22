@@ -41,14 +41,16 @@
    heading margin and size have to be undone. */
 .settings-page .panel-h { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); }
 
+/* ST-12: no margin. `.set-block-b` is a flex column with `gap: --sp-3`, and
+   this bottom margin was added to it - the legacy spacing of the old
+   single-page Settings, which had no gap of its own. */
 .settings-page .set-lede { color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm);
-  margin: 0 0 var(--sp-3_5); }
+  margin: 0; }
 
-/* A note under a value: the sentence that says what the value is FOR. Quieter
-   than the value it explains, and on its own line, so the column of values
-   stays scannable. */
-.settings-page .set-note { display: block; margin-top: var(--sp-1); font-size: var(--fs-xs); letter-spacing: var(--tr-xs);
-  color: var(--fg-subtle); line-height: var(--lh-xs); }
+/* `.set-note` is declared ONCE, in components/settings/settings.css - the copy
+   that was here differed only in carrying a top margin, and since both apply to
+   the same elements (the body carries `.settings-page` inside `.set-shell`) at
+   the same specificity, which one won was decided by emission order (ST-12). */
 .settings-page .set-sub { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-muted); }
 
 /* ── roles ───────────────────────────────────────────────────────────────── */
@@ -133,7 +135,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
   gap: var(--sp-2_5);
-  margin-top: var(--sp-3);
 }
 
 .settings-page .theme-card {
@@ -181,6 +182,10 @@
 /* The card is a <button>; this is a <Link> inside it. It sits in the corner and
    only shows on hover or focus, so it is present without competing with the
    swatches - the row you are actually reading. */
+/* ST-16: the slot is the positioned box, so the Edit link can be a sibling of
+   the radio rather than a link nested inside a button. The card fills it. */
+.settings-page .theme-slot { position: relative; display: flex; }
+.settings-page .theme-slot > .theme-card { flex: 1; }
 .settings-page .theme-edit {
   position: absolute; top: 8px; right: 8px;
   display: inline-flex; align-items: center; gap: var(--sp-1);
@@ -191,7 +196,14 @@
   opacity: 0; transition: opacity var(--dur-fast) var(--ease);
 }
 .settings-page .theme-card:hover .theme-edit,
+.settings-page .theme-card.is-on .theme-edit,
 .settings-page .theme-edit:focus-visible { opacity: 1; }
+/* ST-16: on a device with no hover it is always there. An affordance that
+   appears on hover, on a control a finger reaches by tapping, is an affordance
+   that does not exist - and the theme it edits is a file somebody wrote. */
+@media (hover: none) {
+  .settings-page .theme-edit { opacity: 1; }
+}
 
 /* ── making one ──────────────────────────────────────────────────────────────
    Two routes to the same file, side by side. `auto-fit` rather than a fixed two
@@ -244,7 +256,7 @@
    is currently set to. The sample is not decoration - "12.5px" is a number
    nobody thinks in, and the only honest way to show what a size does is to
    render something at it. */
-.set-reading { display: grid; gap: var(--sp-4); margin-top: var(--sp-3_5); }
+.set-reading { display: grid; gap: var(--sp-4); }
 .set-read-row {
   display: grid; gap: var(--sp-2) var(--sp-4);
   grid-template-columns: minmax(0, 1fr) auto;

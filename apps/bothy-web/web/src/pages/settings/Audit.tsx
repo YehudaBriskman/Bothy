@@ -111,7 +111,7 @@ function AuditBody() {
                 <tbody>
                   {data.entries.map((e, i) => (
                     <tr key={`${e.at}-${i}`}>
-                      <td className="set-nowrap"><When iso={e.at} /><span className="set-cell-sub">{LOGS.find((l) => l.id === e.log)?.label}</span></td>
+                      <td className="set-nowrap"><When iso={e.at} stamp /><span className="set-cell-sub">{LOGS.find((l) => l.id === e.log)?.label}</span></td>
                       <td className="set-wrap" data-label="Who">{e.who}</td>
                       <td data-label="Outcome"><span className={`set-outcome mono ${/REFUSED|FAILED|ERROR/.test(e.outcome) ? 'is-bad' : ''}`}>{e.outcome}</span></td>
                       <td className="mono" data-label="Action">{e.action}{e.kind && e.kind !== 'admin' && <span className="set-cell-sub">{e.kind}</span>}</td>

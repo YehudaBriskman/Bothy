@@ -191,7 +191,7 @@
 .bothy-files .fx-gutter {
   position: sticky; left: 0; z-index: 1; flex: none; margin: 0;
   padding: var(--sp-3_5) var(--sp-2_5) var(--sp-8) var(--sp-3_5); text-align: right;
-  font: inherit; color: var(--fg-subtle); opacity: .65;
+  font: inherit; color: var(--fg-subtle);
   background: var(--bg-2); border-right: 1px solid var(--line);
   font-variant-numeric: tabular-nums; user-select: none;
 }
@@ -367,7 +367,11 @@
   border-right: 1px solid var(--line);
   font-variant-numeric: tabular-nums;
 }
-.bothy-files .cm-lineNumbers .cm-gutterElement { padding: 0 var(--sp-2_5) 0 var(--sp-3_5); opacity: .65; }
+/* FL-7: --fg-subtle, and NO opacity. `.65` on top of the gutter's own colour
+   measured 3.19:1 - below AA for text somebody reads a line number off while
+   comparing it with a stack trace. The token is the quietest colour in the
+   palette that still clears 4.5:1. */
+.bothy-files .cm-lineNumbers .cm-gutterElement { padding: 0 var(--sp-2_5) 0 var(--sp-3_5); color: var(--fg-subtle); }
 .bothy-files .cm-gutters .cm-activeLineGutter {
   background: transparent; color: var(--fg); opacity: 1; font-weight: 600;
 }

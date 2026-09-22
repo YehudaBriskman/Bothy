@@ -47,7 +47,11 @@ function TreeRows({
   onOpenDiff: (path: string) => void;
 }) {
   return (
-    <ul className="fx-list">
+    // --depth: explorer.css draws this list's guide stripe from it, so a tree of
+    // any depth puts every stripe under its own chevron (FL-11). It was three
+    // hand-written selectors, and anything past depth 3 drew at depth 3's
+    // position - a guide pointing at the wrong parent.
+    <ul className="fx-list" style={{ ['--depth' as string]: depth }}>
       {nodes.map((n) => {
         // A path the service says we may not read. Shown rather than hidden -
         // "there is something here you cannot open" is information, and a file

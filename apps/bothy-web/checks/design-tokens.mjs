@@ -121,7 +121,7 @@ console.log('── every button look comes from components/ui/Button ───�
     'row or card (a whole list item is the target; presses darken, never scale)': [
       'fx-row', 'fx-scm-row', 'fx-scm-grouph', 'fx-json-row', 'fx-sr-file', 'fx-sr-line', 'rd-dir', 'rd-doc',
       'rd-card', 'rd-recent', 'rd-toc-a', 'tm-row', 'fx-menu-item', 'theme-card', 'svc-group-head',
-      'cl-topo-node', 'sa-verb',
+      'cl-topo-node', 'sa-verb', 'topo-list-open',
     ],
     'icon trigger (a glyph with an aria-label; hit slop to --hit)': [
       'icon-btn', 'fx-hbtn', 'svc-act-btn', 'fx-filter-x', 'fx-tab-x', 'fx-rowbtn', 'sn-copy', 'set-cmd-copy',

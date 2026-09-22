@@ -1317,7 +1317,11 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
    ══════════════════════════════════════════════════════════════════════════ */
 .panel { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
   display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-.panel-h { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-3) var(--sp-4);
+/* `margin: 0` is ST-3: this rule sets the spacing a panel head has, and where
+   the head is an <h2> - the theme editor, and anywhere else a panel titles
+   itself - the UA's own heading margins were added on top of it, so the head's
+   box was 1.5em taller than the rule says and the border sat away from it. */
+.panel-h { display: flex; align-items: center; gap: var(--sp-2_5); margin: 0; padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line); font-weight: var(--fw-bold);
   font-size: var(--fs-md); line-height: var(--lh-md); }
 .panel-h .sub { color: var(--fg-subtle); font-weight: var(--fw-medium);

@@ -283,11 +283,20 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 .set-shell .set-h3 { margin: var(--sp-1) 0 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700; color: var(--fg); font-family: var(--mono); }
 .set-shell .set-h3-sub { font-family: var(--font); font-weight: 400; font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle); margin-left: var(--sp-1_5); }
 
+/* ST-19: ONE row. The three text filters were 180px each beside a five-button
+   segment, so at any width under about 900px they broke into three rows of
+   different heights. They share the space that is left instead, down to a
+   readable minimum, and only then wrap - together. */
 .set-shell .set-filters { display: flex; align-items: flex-end; gap: var(--sp-2_5); flex-wrap: wrap; }
-.set-shell .set-filters .set-field { width: 180px; }
+.set-shell .set-filters .set-seg { flex: none; }
+.set-shell .set-filters .set-field { flex: 1 1 140px; width: auto; min-width: 0; max-width: 220px; }
 .set-shell .set-seg { flex-wrap: wrap; }
 .set-shell .set-pager { display: flex; align-items: center; gap: var(--sp-2); justify-content: flex-end; flex-wrap: wrap; }
 .set-shell .set-pager .set-note { margin-right: auto; }
+/* The absolute time is the line you read; the date and "4 hours ago" ride
+   under it in the sub style every other cell uses (ST-19). */
+.set-shell .set-stamp { display: block; }
+.set-shell .set-stamp-t { font-variant-numeric: tabular-nums; }
 .set-shell .set-outcome { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 600; }
 .set-shell .set-outcome.is-bad { color: var(--st-down-fg); }
 .set-shell .set-detail { max-width: 360px; color: var(--fg-muted); }

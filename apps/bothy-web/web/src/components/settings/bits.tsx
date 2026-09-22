@@ -44,10 +44,30 @@ export function Prose({ text }: { text: string }) {
   );
 }
 
-export function When({ iso, empty = 'never' }: { iso: string | null | undefined; empty?: string }) {
+/**
+ * A time, relative by default.
+ *
+ * `stamp` turns it round: the absolute HH:MM:SS first, the relative time under
+ * it (ST-19). The audit log is the one place that matters - "4 hours ago" is
+ * the right answer for a backup and the wrong one for a log you are reading
+ * against somebody's account of when they did something, and the absolute time
+ * lived only in a `title`, which touch never shows and a screen reader reads
+ * only if it is asked to.
+ */
+export function When({ iso, empty = 'never', stamp = false }: {
+  iso: string | null | undefined; empty?: string; stamp?: boolean;
+}) {
   if (!iso) return <span className="dim">{empty}</span>;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return <span>{iso}</span>;
+  if (stamp) {
+    return (
+      <time dateTime={iso} title={d.toLocaleString()} className="set-stamp">
+        <span className="set-stamp-t tnum">{d.toLocaleTimeString([], { hour12: false })}</span>
+        <span className="set-cell-sub">{d.toLocaleDateString()} · {relDate(iso)}</span>
+      </time>
+    );
+  }
   return <time dateTime={iso} title={d.toLocaleString()}>{relDate(iso)}</time>;
 }
 

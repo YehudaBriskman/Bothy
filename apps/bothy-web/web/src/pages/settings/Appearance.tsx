@@ -7,7 +7,7 @@
 // single Settings page with their keys unchanged - `portal-theme*` and
 // `bothy-reading-v1` - so nobody's saved choice is lost by the move.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Code2, Minus, Pencil, Plus, Undo2 } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
@@ -100,6 +100,25 @@ function DeletedTheme() {
 function Theme() {
   const { selection, theme, themes, setSelection } = useTheme();
   const custom = themes.filter((t) => t.user).length;
+  // ST-16: a roving tabindex over the radio group. Eight themes were eight tab
+  // stops plus their Edit links - seventeen presses to get past a control that
+  // is one choice. The keys are the ones a radiogroup answers to.
+  const box = useRef<HTMLDivElement>(null);
+  const ids: string[] = ['system', ...themes.map((t) => t.id)];
+  const focusAt = (id: string) => {
+    setSelection(id === 'system' ? 'system' : id);
+    requestAnimationFrame(() => box.current?.querySelector<HTMLElement>(`[data-theme-id="${CSS.escape(id)}"]`)?.focus());
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1
+        : e.key === 'Home' ? 'home' : e.key === 'End' ? 'end' : 0;
+    if (!d) return;
+    e.preventDefault();
+    const at = Math.max(0, ids.indexOf(selection));
+    const j = d === 'home' ? 0 : d === 'end' ? ids.length - 1 : (at + d + ids.length) % ids.length;
+    focusAt(ids[j]);
+  };
   return (
     <>
       <p className="set-lede">
@@ -108,10 +127,12 @@ function Theme() {
           <> A theme tagged <span className="theme-tag">yours</span> came from a file on the box rather than from the app.</>
         )}
       </p>
-      <div className="theme-grid" role="radiogroup" aria-label="Theme">
+      <div className="theme-grid" role="radiogroup" aria-label="Theme" ref={box} onKeyDown={onKey}>
         <button
           type="button"
           role="radio"
+          data-theme-id="system"
+          tabIndex={selection === 'system' ? 0 : -1}
           aria-checked={selection === 'system'}
           className={`theme-card ${selection === 'system' ? 'is-on' : ''}`}
           onClick={() => setSelection('system')}
@@ -120,31 +141,36 @@ function Theme() {
           <span className="theme-note">Follow the desktop. Currently {theme.name.replace(/^Bothy /, '').toLowerCase()}.</span>
         </button>
         {themes.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="radio"
-            aria-checked={selection === t.id}
-            className={`theme-card ${selection === t.id ? 'is-on' : ''}`}
-            onClick={() => setSelection(t.id)}
-          >
-            <span className="theme-name">
-              {t.name}
-              {t.user && <span className="theme-tag">yours</span>}
-            </span>
-            <span className="theme-note">{t.note}</span>
-            <ThemeSwatch id={t.id} />
+          // ST-16: the Edit link is a SIBLING of the radio, not a link nested
+          // inside a button - which is invalid, and which browsers resolve by
+          // guessing. `.theme-slot` is the positioned box both sit in.
+          <div className="theme-slot" key={t.id}>
+            <button
+              type="button"
+              role="radio"
+              data-theme-id={t.id}
+              tabIndex={selection === t.id ? 0 : -1}
+              aria-checked={selection === t.id}
+              className={`theme-card ${selection === t.id ? 'is-on' : ''}`}
+              onClick={() => setSelection(t.id)}
+            >
+              <span className="theme-name">
+                {t.name}
+                {t.user && <span className="theme-tag">yours</span>}
+              </span>
+              <span className="theme-note">{t.note}</span>
+              <ThemeSwatch id={t.id} />
+            </button>
             {t.user && (
               <Link
                 to={`/settings/theme/${t.id}`}
                 className="theme-edit"
-                onClick={(e) => e.stopPropagation()}
                 aria-label={`Edit ${t.name}`}
               >
                 <Icon icon={Pencil} size="xs" /> Edit
               </Link>
             )}
-          </button>
+          </div>
         ))}
       </div>
     </>
