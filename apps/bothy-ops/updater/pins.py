@@ -81,6 +81,57 @@ def locate(repo: str, rel: str, service: str) -> PinLine:
     return PinLine(rel, service, n, text, m.group("v"), cname)
 
 
+@dataclass(frozen=True)
+class Line:
+    """Any one line a rollback may write back (step 8): a chart's `version:`, a
+    manifest's `image:`, Postgres' volume mount and declaration."""
+    file: str          # repo-relative
+    line: int          # 1-based
+    text: str          # the whole line as main has it
+
+
+def find_line(repo: str, rel: str, pattern: str, *, after: str | None = None) -> Line:
+    """The ONE line of `rel` that fullmatches `pattern` (after the first line
+    fullmatching `after`, when given). Anything but exactly one is an error."""
+    path = os.path.join(repo, rel)
+    try:
+        lines = open(path, encoding="utf-8").read().split("\n")
+    except OSError as e:
+        raise HostError(f"{rel} could not be read ({e.strerror})") from None
+    start = 0
+    if after is not None:
+        start = next((i + 1 for i, ln in enumerate(lines) if re.fullmatch(after, ln)), -1)
+        if start < 0:
+            raise HostError(f"{rel}: no line matches {after!r}")
+    hits = [(i + 1, ln) for i, ln in enumerate(lines) if i >= start and re.fullmatch(pattern, ln)]
+    if len(hits) != 1:
+        raise HostError(f"{rel}: expected exactly one line matching {pattern!r}, found {len(hits)}")
+    return Line(rel, hits[0][0], hits[0][1])
+
+
+def swap(line: Line, old: str, new: str) -> str:
+    """line.text with the ONE occurrence of `old` replaced by `new`."""
+    if not old or line.text.count(old) != 1:
+        raise HostError(f"{line.file}:{line.line} does not carry {old!r} exactly once - not editing it")
+    return line.text.replace(old, new)
+
+
+def write_line(repo: str, line: Line, new_text: str) -> str:
+    """Rewrite one line - only if it still reads exactly line.text. Returns the new line."""
+    if "\n" in new_text or "\r" in new_text:
+        raise HostError("a line edit may not add lines")
+    path = os.path.join(repo, line.file)
+    with open(path, encoding="utf-8") as fh:
+        data = fh.read()
+    lines = data.split("\n")
+    if line.line < 1 or line.line > len(lines) or lines[line.line - 1] != line.text:
+        raise HostError(f"{line.file}:{line.line} no longer reads exactly {line.text.strip()!r} - not editing it")
+    lines[line.line - 1] = new_text
+    mode = os.stat(path).st_mode & 0o777
+    atomic_write(path, "\n".join(lines), mode)
+    return new_text
+
+
 def replace(repo: str, pin: PinLine, new_value: str) -> str:
     """Rewrite pin.line from pin.value to new_value. Returns the new line.
 

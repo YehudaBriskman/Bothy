@@ -42,6 +42,10 @@ PLAN_ID = re.compile(r"[a-f0-9]{24}")
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 COMPONENT = re.compile(r"[a-z][a-z0-9-]{0,39}")
 KEYS = {"v", "jobId", "component", "planId", "confirm", "requestedBy", "requestedAt"}
+# The one optional key (step 8): the maintenance note a postgres-major plan
+# requires. Any other plan refuses a request that carries one (pgmajor.validate_note).
+OPTIONAL = {"note"}
+MAX_NOTE = 500
 MAX_BYTES = 4096
 STALE_TMP = 120
 
@@ -117,8 +121,10 @@ def read(spool: str, name: str) -> dict:
 
 def validate_shape(doc: dict, name: str) -> dict:
     """Exact keys, exact types, exact formats. Returns the request."""
-    if set(doc) != KEYS:
-        raise Invalid(f"the request's keys are {sorted(doc)}, not {sorted(KEYS)}")
+    if not KEYS <= set(doc) <= KEYS | OPTIONAL:
+        raise Invalid(f"the request's keys are {sorted(doc)}, not {sorted(KEYS)} (+ an optional note)")
+    if "note" in doc and (not isinstance(doc["note"], str) or not 0 < len(doc["note"]) <= MAX_NOTE):
+        raise Invalid("the note is malformed")
     if doc["v"] != 1:
         raise Invalid("unknown request version")
     job = doc["jobId"]
@@ -159,6 +165,8 @@ def validate_against(doc: dict, catalog: updates.Catalog, plan_doc: dict | None)
     want = comp.id if p.get("confirm") == "type-name" else True
     if doc["confirm"] != want:
         raise Invalid("the confirmation does not match what the plan requires")
+    if p.get("requiresNote") and not (isinstance(doc.get("note"), str) and doc["note"].strip()):
+        raise Invalid("this plan requires a maintenance note, and the request carries none")
     return p
 
 

@@ -68,6 +68,15 @@
 #                        that pauses, the next night skipping it. --offline skips.
 #   e2e_update_alerts.py needs docker: rules.yml's update alerts loaded into a
 #                        throwaway Grafana and evaluated. --offline skips.
+#   test_step8.py        STEP 8's decisions: the cluster class (helm, DaemonSet,
+#                        the context on every argv, a ServiceAccount refused) and
+#                        the Postgres major (a new volume, typed AND noted, never
+#                        auto), the dump reader, the empty-volume guard.
+#   e2e_pgmajor.py       needs docker: 17 -> 18 on throwaway containers and
+#                        volumes, a forced failure before and after the switch.
+#   e2e_cluster.py       needs docker and minikube: a throwaway profile; the
+#                        kube-state-metrics chart and the alloy DaemonSet, each
+#                        rolled back, then deployed.
 #   e2e_owncode.py       needs docker and a systemd user manager: Bothy's own
 #                        update END TO END on a throwaway clone and project - v1
 #                        -> v2, a forced verify failure and a killed executor
@@ -154,6 +163,9 @@ check "$PY" checks/wiring_auto.py
 section "own code: Bothy's plan for itself - a green release tag, and every refusal"
 check "$PY" checks/test_owncode.py
 
+section "step 8: the cluster class and the Postgres major - plans and every refusal"
+check "$PY" checks/test_step8.py
+
 if [ "$OFFLINE" = 1 ]; then
   echo
   echo "(--offline: skipping the checks that need a docker daemon)"
@@ -187,5 +199,17 @@ section "Bothy updating itself, end to end, on a throwaway clone"
 # no host ports), images, state and updater lib; the rollback timer is a real
 # `systemd-run --user` unit, compressed to 8 s. All removed in a finally block.
 check "$PY" checks/e2e_owncode.py
+
+section "the Postgres major, end to end, on throwaway containers and volumes"
+# Its own compose projects, network and volumes (bothy-pgmajor-e2e*): 17 seeded,
+# main moved to 18 AND a new volume; a failure before and after the switch, each
+# back on the old volume with every row; then 18. Never the live postgres.
+check "$PY" checks/e2e_pgmajor.py
+
+section "the cluster class, end to end, on a throwaway minikube profile"
+# `minikube start -p bothy-cluster-e2e` into a TEMPORARY kubeconfig, a throwaway
+# VictoriaMetrics and Loki on its network; helm and DaemonSet, each rolled back
+# then deployed. Deleted at the end. Never thales-scc. Skips without minikube.
+check "$PY" checks/e2e_cluster.py
 
 finish

@@ -157,12 +157,29 @@ def run_one(cfg: Config, name: str) -> str:
         if fresh["id"] != p["id"]:
             raise spool.Invalid(f"plan {p['id']} is stale - recomputed now it is {fresh['id']} "
                                 "(main, the container or discovery changed); ask again")
+        from . import pgmajor
+        try:
+            note = pgmajor.validate_note(doc, fresh)
+        except ValueError as e:
+            raise spool.Invalid(str(e)) from None
     except spool.Invalid as e:
         rec.step("validate", "failed", str(e))
         return rec.finish("refused", str(e))["state"]
     rec.set(**{"from": {"image": fresh["from"]["image"], "version": fresh["from"]["version"]},
                "to": {"image": fresh["to"]["image"], "version": fresh["to"]["version"]}})
     comp = catalog.components[doc["component"]]
+    if comp.cls == "cluster":
+        from . import cluster  # cluster add-ons (step 8): helm / kubectl with the operator's kubeconfig
+        rec.reshape(record.CLUSTER_STEPS)
+        rec.step("validate", "ok", f"plan {fresh['id']}: {fresh['from']['image']} -> {fresh['to']['image']} in "
+                                   f"{fresh['cluster']['context']} as {fresh['cluster']['identity']}")
+        return cluster.ClusterExecution(cfg, rec, comp, fresh).go()
+    if comp.cls == "database":
+        # The Postgres major (step 8): stop, dump, new volume, load, compare, switch.
+        rec.reshape(record.PG_STEPS)
+        rec.step("validate", "ok", f"plan {fresh['id']}: {fresh['from']['image']} on {fresh['from']['volume']} -> "
+                                   f"{fresh['to']['image']} on {fresh['to']['volume']}; typed and noted: {note}")
+        return pgmajor.PgMajorExecution(cfg, rec, comp, fresh, note or "").go()
     if comp.cls == "own-code":
         from . import owncode  # Bothy itself (step 6): build, arm, switch - not the image pipeline
         rec.reshape(record.OWN_STEPS)
@@ -267,52 +284,8 @@ class Execution:
         return f"{self.container} {c['health'] or 'running'}"
 
     def _scope(self) -> str:
-        """`just <recipe>` must recreate this container and nothing else.
-
-        The recipe runs `docker compose up` over a whole project. If any OTHER
-        service in it has a pending change - Grafana's pin merged but not applied,
-        in the same project as Loki - updating Loki would drag Grafana's one-way
-        migration along with no snapshot. Compose recreates a container exactly
-        when its config hash differs from the `com.docker.compose.config-hash`
-        label it was created with, so compare the two, with the same files the
-        container was created from.
-        """
-        c = hostio.container(self.container) or {}
-        lab = c.get("labels") or {}
-        project = lab.get("com.docker.compose.project")
-        files = [f for f in (lab.get("com.docker.compose.project.config_files") or "").split(",") if f]
-        wd = lab.get("com.docker.compose.project.working_dir")
-        if not project or not files or not wd or lab.get("com.docker.compose.service") != self.pin.service:
-            raise Refuse(f"{self.container} carries no compose labels for service {self.pin.service}")
-        repo = self.cfg.repo + os.sep
-        if not all(os.path.realpath(f).startswith(repo) for f in files):
-            raise Refuse(f"{self.container} was created from files outside {self.cfg.repo}")
-        if os.path.realpath(os.path.join(self.cfg.repo, self.pin.file)) not in {os.path.realpath(f) for f in files}:
-            raise Refuse(f"{self.container} was not created from {self.pin.file}")
-        argv = ["docker", "compose", "-p", project, "--project-directory", wd]
-        for f in files:
-            argv += ["-f", f]
-        rc, out, err = run([*argv, "config", "--hash", "*"], env=hostio.dotenv(self.cfg.repo), cwd=self.cfg.repo)
-        if rc != 0:
-            raise Refuse(f"cannot prove the recipe touches only {self.container}: compose config failed "
-                         f"({tail(err, 200)})")
-        want = dict(ln.split(None, 1) for ln in out.splitlines() if len(ln.split()) == 2)
-        rc, names, _ = run(["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={project}",
-                            "--format", "{{.Names}}"])
-        have: dict[str, str] = {}
-        for n in names.split():
-            o = hostio.container(n) or {}
-            ol = o.get("labels") or {}
-            if ol.get("com.docker.compose.oneoff") == "True":
-                continue
-            have[ol.get("com.docker.compose.service", "")] = ol.get("com.docker.compose.config-hash", "")
         mine = {q.service for q in self.pins if q.file == self.pin.file}
-        others = [s for s in want if s not in mine and have.get(s) != want[s]]
-        if others:
-            raise Refuse(f"`{self.comp.apply}` would also recreate or create {', '.join(sorted(others))} "
-                         "(its configuration changed since it was started) - apply that first, by hand if "
-                         "the updater does not handle it")
-        return f"scope: only {', '.join(sorted(mine))} change in project {project}"
+        return compose_scope(self.cfg, self.container, self.pin.file, self.pin.service, mine, self.comp.apply)
 
     def _baseline(self) -> str:
         self.ctx.phase = "preflight"
@@ -488,6 +461,54 @@ class Execution:
         if restored:
             s += f" Data was restored from {self.artefact}: anything written after the snapshot is gone."
         return s
+
+
+def compose_scope(cfg: Config, container: str, pin_file: str, pin_service: str, mine: set, apply: str) -> str:
+    """`just <recipe>` must recreate the services in `mine` and nothing else.
+
+    The recipe runs `docker compose up` over a whole project. If any OTHER
+    service in it has a pending change - Grafana's pin merged but not applied,
+    in the same project as Loki - updating Loki would drag Grafana's one-way
+    migration along with no snapshot. Compose recreates a container exactly
+    when its config hash differs from the `com.docker.compose.config-hash`
+    label it was created with, so compare the two, with the same files the
+    container was created from. Raises Refuse.
+    """
+    c = hostio.container(container) or {}
+    lab = c.get("labels") or {}
+    project = lab.get("com.docker.compose.project")
+    files = [f for f in (lab.get("com.docker.compose.project.config_files") or "").split(",") if f]
+    wd = lab.get("com.docker.compose.project.working_dir")
+    if not project or not files or not wd or lab.get("com.docker.compose.service") != pin_service:
+        raise Refuse(f"{container} carries no compose labels for service {pin_service}")
+    repo = cfg.repo + os.sep
+    if not all(os.path.realpath(f).startswith(repo) for f in files):
+        raise Refuse(f"{container} was created from files outside {cfg.repo}")
+    if os.path.realpath(os.path.join(cfg.repo, pin_file)) not in {os.path.realpath(f) for f in files}:
+        raise Refuse(f"{container} was not created from {pin_file}")
+    argv = ["docker", "compose", "-p", project, "--project-directory", wd]
+    for f in files:
+        argv += ["-f", f]
+    rc, out, err = run([*argv, "config", "--hash", "*"], env=hostio.dotenv(cfg.repo), cwd=cfg.repo)
+    if rc != 0:
+        raise Refuse(f"cannot prove the recipe touches only {container}: compose config failed "
+                     f"({tail(err, 200)})")
+    want = dict(ln.split(None, 1) for ln in out.splitlines() if len(ln.split()) == 2)
+    rc, names, _ = run(["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={project}",
+                        "--format", "{{.Names}}"])
+    have: dict[str, str] = {}
+    for n in names.split():
+        o = hostio.container(n) or {}
+        ol = o.get("labels") or {}
+        if ol.get("com.docker.compose.oneoff") == "True":
+            continue
+        have[ol.get("com.docker.compose.service", "")] = ol.get("com.docker.compose.config-hash", "")
+    others = [s for s in want if s not in mine and have.get(s) != want[s]]
+    if others:
+        raise Refuse(f"`{apply}` would also recreate or create {', '.join(sorted(others))} "
+                     "(its configuration changed since it was started) - apply that first, by hand if "
+                     "the updater does not handle it")
+    return f"scope: only {', '.join(sorted(mine))} change in project {project}"
 
 
 def main_status(cfg: Config) -> int:

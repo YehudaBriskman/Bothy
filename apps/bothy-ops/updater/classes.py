@@ -1,8 +1,10 @@
 """The update classes the executor handles, and what each one means.
 
-docs/plans/updates.md §4 names eight classes. The updater handles THREE -
-`stateless` and `timeseries` (step 4), and the one-way `app-db` (step 5:
-Grafana and Keycloak) - and refuses the rest at plan time, in words. A class is
+docs/plans/updates.md §4 names eight classes. The updater handles SIX -
+`stateless` and `timeseries` (step 4), the one-way `app-db` (step 5: Grafana and
+Keycloak), `own-code` (step 6, owncode.py), and `cluster` and `database` (step 8:
+cluster.py, and pgmajor.py for the Postgres MAJOR only) - and refuses the rest
+(the auth boundary, the edge) at plan time, in words. A class is
 four things, and adding one (step 6: own-code) is writing these four for it and
 adding it to CLASSES:
 
@@ -456,8 +458,42 @@ class OwnCode(UpdateClass):
         return ()   # no database; audit and state live outside the images
 
 
+class Cluster(UpdateClass):
+    """Cluster add-ons (build step 8): a helm chart (kube-state-metrics) or a
+    DaemonSet image in a manifest (alloy-cluster). Plan, apply, verify and
+    rollback live in cluster.py; this entry makes the class known to the plan
+    dispatch and to the spool's re-validation."""
+    name = "cluster"
+    rollback = ("On any failure after apply: `helm rollback` to the revision recorded before it, or the "
+                "DaemonSet (and its ConfigMap) replaced with the yaml saved before it, then a wait for the "
+                "rollout. The previous pin goes back on its line (left uncommitted, on purpose) so the next "
+                "`just k8s-monitoring` keeps the version that works. There is no data to restore.")
+
+    def snapshot_kind(self, cid: str) -> str:
+        return "helm"
+
+    def backup_kinds(self, cid: str) -> tuple[str, ...]:
+        return ()   # the cluster's own state is the snapshot; nothing of the box's data changes
+
+
+class Database(UpdateClass):
+    """Postgres (build step 8): ONLY its major, as the guided manual plan kind
+    `postgres-major` in pgmajor.py. A Postgres minor is still done by hand."""
+    name = "database"
+    rollback = ("The OLD volume is never touched and never deleted. Before the switch, a failure removes the "
+                "temporary container and starts the old one again - the tree is unchanged. After the switch, the "
+                "old image and the old volume go back on their lines (uncommitted, on purpose) and `just up-data` "
+                "puts Postgres back on them; anything written to the new cluster since the switch is lost.")
+
+    def snapshot_kind(self, cid: str) -> str:
+        return "pg-dumpall"
+
+
+# The components the database class moves: only Postgres, whose procedure pgmajor.py writes out.
+DATABASES = ("postgres",)
+
 CLASSES: dict[str, UpdateClass] = {"stateless": Stateless(), "timeseries": Timeseries(), "app-db": AppDb(),
-                                   "own-code": OwnCode()}
+                                   "own-code": OwnCode(), "cluster": Cluster(), "database": Database()}
 
 
 def get(cls: str, cid: str) -> UpdateClass | None:
@@ -467,5 +503,7 @@ def get(cls: str, cid: str) -> UpdateClass | None:
     if isinstance(c, Timeseries) and cid not in TIMESERIES:
         return None
     if isinstance(c, AppDb) and cid not in APPDB:
+        return None
+    if isinstance(c, Database) and cid not in DATABASES:
         return None
     return c

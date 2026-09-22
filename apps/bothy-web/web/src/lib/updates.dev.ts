@@ -404,6 +404,61 @@ const PLANS: Record<string, Plan> = {
       rollbackAfter: 600, order: ['bothy-files', 'bothy-ops', 'bothy-web'],
     },
   },
+  // Step 8: a cluster add-on (helm) and the Postgres major (manual: typed AND noted).
+  'kube-state-metrics': {
+    id: '5f0a06d6ef2d7edbcb4e150a', component: 'kube-state-metrics', title: 'kube-state-metrics (chart)', class: 'cluster',
+    kind: 'cluster', createdAt: ago(3600 * 2 + 700), level: 'minor', confirm: 'click',
+    from: { image: 'kube-state-metrics-8.4.2', tag: '8.4.2', version: '8.4.2', digest: null, container: 'kube-state-metrics' },
+    to: { image: 'kube-state-metrics-8.5.0', tag: '8.5.0', version: '8.5.0', digest: null },
+    pin: { file: 'k8s/monitoring/Chart.yaml', service: 'kube-state-metrics', line: 20, commit: HEAD },
+    changelog: 'https://github.com/prometheus-community/helm-charts/releases/tag/kube-state-metrics-8.5.0',
+    oneWay: false, oneWayWhy: null, restarts: ['monitoring/kube-state-metrics in thales-scc', 'the cluster panels in Grafana'],
+    recipe: 'just k8s-monitoring ksm',
+    downtime: "~10-60 s: kube-state-metrics' pod is replaced (helm --wait); the cluster panels in Grafana miss a scrape or two. Nothing else in the cluster is touched",
+    signedOut: 'nobody - nothing that signs anyone in is touched',
+    snapshot: { kind: 'helm', what: '`helm get values` of kube-state-metrics and its revision 4 (plus `helm get manifest`), and the pin line',
+      dir: '~/backups/pre-update/<time>-kube-state-metrics/', estimateBytes: 0 },
+    preflight: ['the plan is still current: recomputed from main, the cluster and discovery, it has this id',
+      "the cluster is reached as minikube-user with --context thales-scc - the operator's kubeconfig, never a ServiceAccount token (bothy-ops' included)",
+      'kube-state-metrics is what the plan saw (revision 4), and its checks pass NOW',
+      '`just k8s-monitoring ksm` touches this add-on only', 'no other update is running (one global lock)'],
+    verify: ['helm says kube-state-metrics is deployed at chart 8.5.0, a newer revision than 4',
+      "kube-state-metrics' /metrics, through its NodePort, carries kube_node_info",
+      'VictoriaMetrics: up{job="kube-state-metrics",cluster="thales-scc"} is 1, from a scrape after the upgrade'],
+    rollback: '`helm rollback kube-state-metrics 4` (--wait), then the same checks on the old chart; k8s/monitoring/Chart.yaml:20 goes back to 8.4.2 (uncommitted, on purpose)',
+    cluster: { kind: 'helm', context: 'thales-scc', identity: 'minikube-user', namespace: 'monitoring', release: 'kube-state-metrics',
+      name: null, revision: 4, part: 'ksm', configMaps: [] },
+  },
+  postgres: {
+    id: 'c0ffee00c0ffee00c0ffee00', component: 'postgres', title: 'Postgres', class: 'database', kind: 'postgres-major',
+    requiresNote: true, createdAt: ago(3600 * 2 + 700), level: 'major', confirm: 'type-name',
+    from: { image: `postgres:17.10@${dg('7')}`, tag: '17.10', version: '17.10', digest: dg('7'), container: 'postgres' },
+    to: { image: `postgres:18.6@${dg('8')}`, tag: '18.6', version: '18.6', digest: dg('8') },
+    pin: { file: 'data/postgres/compose.yml', service: 'postgres', line: 8, commit: HEAD },
+    pins: [{ file: 'data/postgres/compose.yml', service: 'postgres', line: 8 }, { file: 'auth/compose.yml', service: 'keycloak-db-init', line: 69 }],
+    changelog: 'https://www.postgresql.org/docs/release/', oneWay: true,
+    oneWayWhy: "A major version cannot open the previous major's data directory; it is a dump, a new volume and a restore (docs/plans/updates.md §5).",
+    restarts: ['postgres', 'keycloak', 'oauth2-proxy', 'postgres-exporter', 'keycloak-db-init'], recipe: 'just up-data',
+    downtime: 'the whole move, start to finish: keycloak, oauth2-proxy, postgres-exporter stop FIRST and the database is unavailable until the switch. Every gated route FAILS CLOSED meanwhile. Roughly 2-4 min plus the dump and restore of 48 MiB data',
+    signedOut: 'nobody by the move itself - but nobody can sign in during it',
+    snapshot: { kind: 'pg-dumpall', what: "a pg_dumpall of every database with Postgres 18's client, taken after the writers stop, plus every table's row count read from it; and the OLD volume itself, never touched and never deleted",
+      dir: '~/backups/pre-update/<time>-postgres/', estimateBytes: 50_331_648 },
+    preflight: ['the plan is still current', "the request carries the component's id typed AND a maintenance note, and was made by a person",
+      'the nightly pg_dumpall in ~/backups/postgres is under 24 h old', 'free disk: at least 3x the data (48 MiB) for Docker, and twice it for the dump',
+      "keycloak is healthy and Keycloak's canaries pass NOW"],
+    procedure: ['pre-flight (above)', 'pull postgres:18.6@…', 'stop the writers: keycloak, oauth2-proxy, postgres-exporter',
+      "pg_dumpall into pre-update/ with Postgres 18's client; count every table's rows; stop the old Postgres",
+      'create postgres_postgres18_data and a temporary Postgres 18 on it (no network)', 'restore the dump into it',
+      "compare: every database, every table's row count, Keycloak's users - equal to the dump's",
+      'switch: `just up-data` recreates postgres from main - Postgres 18 on postgres_postgres18_data',
+      'start: `just up-auth`', "verify with Keycloak's canaries"],
+    verify: ["every database of the dump exists in the new cluster, and every table's row count equals the dump's",
+      "Keycloak's user count (keycloak.public.user_entity) equals the dump's", 'both pins run 18.6 (the keycloak-db-init major rule)'],
+    rollback: 'The OLD volume is never touched and never deleted. Before the switch, a failure starts the old container again; after it, the old image and volume go back on their lines (uncommitted) and `just up-data` puts Postgres back on them.',
+    pgMajor: { fromMajor: 17, toMajor: 18, oldVolume: 'postgres_postgres_data', newVolume: 'postgres_postgres18_data',
+      oldMount: '/var/lib/postgresql/data', newMount: '/var/lib/postgresql', dataBytes: 50_331_648, databases: ['dev', 'keycloak', 'postgres'],
+      keycloakDb: 'keycloak', stops: ['keycloak', 'oauth2-proxy', 'postgres-exporter'], deleteOld: 'docker volume rm postgres_postgres_data' },
+  },
 };
 
 const REASONS: Record<string, string> = {
@@ -413,12 +468,10 @@ const REASONS: Record<string, string> = {
   headlamp: 'nothing to deploy: headlamp is not running (start it with `just up-headlamp`)',
   victoriametrics: 'nothing to deploy: victoriametrics runs what main pins. v1.153.0 is newer upstream - merge its Dependabot PR, pull the checkout, then `just updates-discover`',
   traefik: 'class edge is not handled by the updater yet; floating pin v3.7',
-  'kube-state-metrics': 'class cluster is not handled by the updater (manual, host kubeconfig)',
-  'alloy-cluster': 'class cluster is not handled by the updater (manual, host kubeconfig)',
+  'alloy-cluster': 'nothing to deploy: monitoring/daemonset/alloy runs what main pins (grafana/alloy:v1.19.2)',
   'oauth2-proxy': 'class boundary is manual: `just up-auth` by hand, then the boundary probes',
   'oauth2-proxy-headlamp': 'class boundary is manual: `just up-headlamp` by hand',
   'socket-proxy': 'class boundary is manual: `just up-apps` by hand, then `just ops-check`',
-  postgres: 'a major (17 -> 18) is a manual procedure; floating pin 17',
 };
 
 const NO_PLAN = 'no plan yet - run `just updates-discover`';
@@ -489,7 +542,7 @@ function busyWith(component: string): boolean {
   return jobs().some((j) => j.component === component && now - j.requestedAt < END * 1000);
 }
 
-export async function requestMock(body: { component: string; plan_id: string; confirm: true | string }): Promise<RequestAnswer> {
+export async function requestMock(body: { component: string; plan_id: string; confirm: true | string; note?: string }): Promise<RequestAnswer> {
   await new Promise((r) => setTimeout(r, 300));
   const forced = read(REQUEST_KEY);
   if (forced === 'no-operator') refuse(403, 'Forbidden', false);
@@ -500,6 +553,7 @@ export async function requestMock(body: { component: string; plan_id: string; co
   }
   if (forced === 'busy' || busyWith(body.component)) refuse(409, `a job for ${body.component} is already queued or running`, true);
   if (p.confirm === 'type-name' ? body.confirm !== p.component : body.confirm !== true) refuse(400, 'confirm does not match the plan', true);
+  if (p.requiresNote && !(body.note && body.note.trim().length >= 10)) refuse(400, 'this plan needs a maintenance note', true);
   const want = read(JOB_OUTCOME_KEY) as JobState | null;
   const j: DevJob = {
     id: hex(32), component: p.component, planId: p.id, requestedAt: Date.now(),

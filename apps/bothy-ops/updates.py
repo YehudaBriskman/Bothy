@@ -5,7 +5,7 @@
                              last job, and the history - viewer
     GET  /updates/plan       ?component=  the plan the HOST wrote for it - viewer
     GET  /updates/job        ?id=  one job: queued, running or finished - viewer
-    POST /updates/request    {component, plan_id, confirm} - operator. Writes ONE
+    POST /updates/request    {component, plan_id, confirm[, note]} - operator. Writes ONE
                              file into the spool and answers 202. Runs nothing.
     POST /updates/unpause    {component} - operator. Writes ONE unpause file into
                              the spool (step 7); the host clears the pause.
@@ -557,7 +557,9 @@ MAX_QUEUE = 8
 JOB_STATES = ("queued", "running", "succeeded", "rolled_back", "aborted", "failed", "refused")
 STEP_NAMES = ("validate", "preflight", "snapshot", "pull", "apply", "verify", "rollback", "restore", "record",
               # own code (step 6): build instead of pull, a rollback timer, the checkout move, a staged updater
-              "build", "arm", "switch", "stage")
+              "build", "arm", "switch", "stage",
+              # the Postgres major (step 8): writers stopped, dump, a new volume, load, compare, start
+              "stop", "dump", "create", "load", "compare", "start")
 STEP_STATES = ("pending", "running", "ok", "failed", "skipped")
 _JOB = re.compile(r"[a-f0-9]{32}")
 _PLAN = re.compile(r"[a-f0-9]{24}")
@@ -647,10 +649,44 @@ def _plan(p: object) -> dict | None:
         "verify": _strs_list(p.get("verify")),
         "rollback": _s(p.get("rollback"), 800),
         **({"own": _own(p["own"])} if isinstance(p.get("own"), dict) else {}),
+        # Step 8: which procedure (a cluster add-on, the Postgres major), what the
+        # request must carry, the procedure's steps, and each kind's own facts.
+        "kind": p["kind"] if p.get("kind") in PLAN_KINDS else None,
+        "requiresNote": p.get("requiresNote") is True,
+        "procedure": _strs_list(p.get("procedure"), 12, 400),
+        **({"cluster": _cluster(p["cluster"])} if isinstance(p.get("cluster"), dict) else {}),
+        **({"pgMajor": _pg_major(p["pgMajor"])} if isinstance(p.get("pgMajor"), dict) else {}),
     }
 
 
-_SNAPSHOT_KINDS = ("image", "victoriametrics", "loki", "grafana", "keycloak", "git")
+_SNAPSHOT_KINDS = ("image", "victoriametrics", "loki", "grafana", "keycloak", "git", "helm", "daemonset",
+                   "pg-dumpall")
+PLAN_KINDS = ("cluster", "postgres-major")
+NOTE_MIN, NOTE_MAX = 10, 500
+
+
+def _num(v: object) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _cluster(c: dict) -> dict:
+    """A cluster add-on's facts (step 8): where, as whom, and which part of k8s-monitoring.sh."""
+    return {"kind": c.get("kind") if c.get("kind") in ("helm", "daemonset") else None,
+            "context": _s(c.get("context"), 100), "identity": _s(c.get("identity"), 120),
+            "namespace": _s(c.get("namespace"), 63), "release": _s(c.get("release"), 63),
+            "name": _s(c.get("name"), 63), "revision": _num(c.get("revision")),
+            "part": c.get("part") if c.get("part") in ("ksm", "alloy") else None,
+            "configMaps": _strs_list(c.get("configMaps"), 4, 63)}
+
+
+def _pg_major(g: dict) -> dict:
+    """The Postgres major's facts (step 8): the two majors, the two volumes, the data."""
+    return {"fromMajor": _num(g.get("fromMajor")), "toMajor": _num(g.get("toMajor")),
+            "oldVolume": _s(g.get("oldVolume"), 100), "newVolume": _s(g.get("newVolume"), 100),
+            "oldMount": _s(g.get("oldMount"), 100), "newMount": _s(g.get("newMount"), 100),
+            "dataBytes": _num(g.get("dataBytes")), "databases": _strs_list(g.get("databases"), 32, 63),
+            "keycloakDb": _s(g.get("keycloakDb"), 63), "stops": _strs_list(g.get("stops"), 8, 63),
+            "deleteOld": _s(g.get("deleteOld"), 200)}
 
 
 def _pins(v: object) -> list[dict]:
@@ -725,7 +761,7 @@ def _job(j: object, *, steps: bool = True) -> dict | None:
     if steps:
         out["steps"] = [{"name": s["name"], "state": s["state"], "startedAt": _iso_or_none(s.get("startedAt")),
                          "endedAt": _iso_or_none(s.get("endedAt")), "detail": _s(s.get("detail"), 500)}
-                        for s in (j.get("steps") if isinstance(j.get("steps"), list) else [])[:12]
+                        for s in (j.get("steps") if isinstance(j.get("steps"), list) else [])[:16]
                         if isinstance(s, dict) and s.get("name") in STEP_NAMES and s.get("state") in STEP_STATES]
     else:
         d = j.get("durationMs")
@@ -828,10 +864,11 @@ def plan_read(h) -> tuple[dict, str]:
 
 def request_update(h, who: str) -> tuple[dict, str]:
     """POST /updates/request: check, then write ONE spool file. Runs nothing."""
-    body = h.read_json_object(1024)
-    if set(body) != {"component", "plan_id", "confirm"}:
-        raise Refused("the body is exactly {component, plan_id, confirm}", status=400)
-    cid, pid, confirm = body["component"], body["plan_id"], body["confirm"]
+    body = h.read_json_object(2048)
+    if not {"component", "plan_id", "confirm"} <= set(body) <= {"component", "plan_id", "confirm", "note"}:
+        raise Refused("the body is exactly {component, plan_id, confirm} (+ note, for a plan that needs one)",
+                      status=400)
+    cid, pid, confirm, note = body["component"], body["plan_id"], body["confirm"], body.get("note")
     if not isinstance(cid, str) or not _ID.fullmatch(cid):
         raise Refused("component must be a catalog id", status=400)
     if not isinstance(pid, str) or not _PLAN.fullmatch(pid):
@@ -861,6 +898,15 @@ def request_update(h, who: str) -> tuple[dict, str]:
             raise Refused(f"type the component's id ({cid}) to confirm", status=400)
     elif confirm is not True:
         raise Refused("confirm must be true", status=400)
+    if p["requiresNote"]:
+        # The Postgres major (step 8): never one click - the id typed AND a note.
+        if not isinstance(note, str) or not NOTE_MIN <= len(note.strip()) <= NOTE_MAX or "\n" in note \
+                or "\r" in note:
+            raise Refused(f"this plan needs a maintenance note: one line, {NOTE_MIN}-{NOTE_MAX} characters - what, "
+                          "why, and who is told", status=400)
+        note = flat(note.strip())[:NOTE_MAX]
+    elif note is not None:
+        raise Refused("a maintenance note is only for a plan that asks for one", status=400)
     if not os.path.isdir(SPOOL_DIR) or not os.access(SPOOL_DIR, os.W_OK):
         raise UpdatesError("the update spool is not mounted - `just up-apps` creates it", status=503)
     queue = _queued()
@@ -875,6 +921,8 @@ def request_update(h, who: str) -> tuple[dict, str]:
     req = {"v": 1, "jobId": job, "component": cid, "planId": pid, "confirm": confirm,
            "requestedBy": flat(who)[:200] or "unknown",
            "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    if note is not None:
+        req["note"] = note
     # Atomic: a dot-named temp file the path unit's glob (*.json) cannot match,
     # then a rename. The executor never sees half a request.
     tmp = os.path.join(SPOOL_DIR, f".{job}.tmp")
@@ -886,7 +934,8 @@ def request_update(h, who: str) -> tuple[dict, str]:
         os.close(fd)
     os.rename(tmp, os.path.join(SPOOL_DIR, f"{job}.json"))
     return ({"jobId": job, "component": cid, "planId": pid},
-            f"{cid} plan {pid} job {job}: {p['from']['image']} -> {p['to']['image']}")
+            f"{cid} plan {pid} job {job}: {p['from']['image']} -> {p['to']['image']}"
+            + (f" note: {note}" if note is not None else ""))
 
 
 # ══ step 7: the automatic channel's pauses ═══════════════════════════════════

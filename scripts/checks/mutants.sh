@@ -465,6 +465,53 @@ mutant "the updater runs from the checkout it moves" \
   -- python3 apps/bothy-ops/checks/wiring_updates.py
 
 echo
+echo "── the cluster add-ons and the Postgres major (step 8) ─────────────"
+# The cluster class acts with the operator's kubeconfig on a NAMED context and
+# never as a ServiceAccount (rule 6); the Postgres major is never a click, never
+# the night job, and never onto the old or an empty volume. Each row removes one.
+mutant "the cluster class acts as a ServiceAccount (bothy-ops' token)" \
+  apps/bothy-ops/updater/k8s.py \
+  'if user.startswith("system:serviceaccount:"):' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_step8.py
+
+mutant "a kubectl argv relies on the current context" \
+  apps/bothy-ops/updater/k8s.py \
+  'argv = ["kubectl", "--context", _ctx(cfg), f"--request-timeout={REQUEST_TIMEOUT}"]' \
+  'argv = ["kubectl", f"--request-timeout={REQUEST_TIMEOUT}"]' \
+  -- python3 apps/bothy-ops/checks/test_step8.py
+
+mutant "a Postgres major runs on the OLD volume" \
+  apps/bothy-ops/updater/pgmajor.py \
+  'if new_key == old_key:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_step8.py
+
+mutant "the executor runs a Postgres major without a note" \
+  apps/bothy-ops/updater/spool.py \
+  'if p.get("requiresNote") and not (isinstance(doc.get("note"), str) and doc["note"].strip()):' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_step8.py
+
+mutant "the night job may run a Postgres major" \
+  apps/bothy-ops/updater/pgmajor.py \
+  'if doc.get("requestedBy") == "auto":' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_step8.py
+
+mutant "bothy-ops queues a Postgres major without a note" \
+  apps/bothy-ops/updates.py \
+  '    if p["requiresNote"]:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates_apply.py
+
+mutant "up-data starts Postgres on an empty new volume" \
+  scripts/pg-volume-guard.sh \
+  '[ -z "$others" ] && exit 0' \
+  'exit 0' \
+  -- python3 apps/bothy-ops/checks/test_step8.py
+
+echo
 echo "── the shell layer macOS has to parse ──────────────────────────────"
 # bash 4 syntax is a PARSE error on the bash 3.2 macOS ships: the script does not
 # run at all, and the error names a line that looks fine.

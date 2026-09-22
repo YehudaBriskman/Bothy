@@ -11,10 +11,13 @@
 #                                        available.json at GET /-/api/updates/status
 #
 # The host updater (apps/bothy-ops/updater) deploys what `main` pins for the
-# classes it handles - stateless and timeseries (step 4) and the one-way app-db,
-# Grafana and Keycloak (step 5) - running `apply` and the canaries in
-# updater/canaries.py. `verify` here is the words the page shows for them; the
-# checks themselves are code. Every other class is still updated by hand.
+# classes it handles - stateless and timeseries (step 4), the one-way app-db,
+# Grafana and Keycloak (step 5), Bothy itself (own-code, step 6), the cluster
+# add-ons (cluster, step 8: `just k8s-monitoring ksm|alloy`) and the Postgres
+# MAJOR (database, step 8: the manual plan kind postgres-major - typed AND noted,
+# never automatic) - running `apply` and the canaries in updater/canaries.py.
+# `verify` here is the words the page shows for them; the checks themselves are
+# code. The auth boundary and the edge are still updated by hand.
 #
 # updates.load_catalog() has NO DEFAULTS and REFUSES unknown keys, unknown
 # channels, and an `auto` channel on anything one-way or on the auth boundary. A
@@ -232,7 +235,7 @@ dependants = ["the cluster panels in Grafana"]
 changelog = "https://github.com/prometheus-community/helm-charts/releases/tag/kube-state-metrics-{version}"
 channel = "notify"
 one_way = false
-verify = ["VictoriaMetrics: up{job=\"kube-state-metrics\"} == 1", "kube_pod_info has series"]
+verify = ["helm: deployed at the pinned chart, a newer revision", "/metrics through the NodePort carries kube_node_info", "VictoriaMetrics: up{job=\"kube-state-metrics\"} == 1, from a scrape after the upgrade"]
 
 [components.alloy-cluster]
 title = "Alloy (cluster DaemonSet)"
@@ -245,7 +248,7 @@ dependants = []
 changelog = "https://github.com/grafana/alloy/releases/tag/v{version}"
 channel = "notify"
 one_way = false
-verify = ["the DaemonSet is rolled out", "Loki: fresh pod-log lines from the cluster"]
+verify = ["the DaemonSet is rolled out and ready on every node, every pod on the pinned digest", "Loki: fresh {cluster=\"thales-scc\"} lines, written after the rollout"]
 
 # ══ manual only ════════════════════════════════════════════════════════════════
 
@@ -309,4 +312,4 @@ changelog = "https://www.postgresql.org/docs/release/"
 channel = "manual"
 one_way = true
 one_way_why = "A major version cannot open the previous major's data directory; it is a dump, a new volume and a restore (docs/plans/updates.md §5)."
-verify = ["pg_isready", "keycloak starts and its issuer is unchanged", "VictoriaMetrics: pg_up == 1"]
+verify = ["every database of the dump exists, every table's row count equals the dump's", "Keycloak's user count equals the dump's", "keycloak-db-init runs the same major", "Keycloak's canaries: issuer unchanged, realm, keycloak-init, admin token, a real sign-in"]

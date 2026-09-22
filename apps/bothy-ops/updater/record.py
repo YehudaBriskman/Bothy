@@ -32,6 +32,13 @@ STEPS = ("validate", "preflight", "snapshot", "pull", "apply", "verify", "rollba
 # the checkout, and may stage a new copy of the updater itself.
 OWN_STEPS = ("validate", "preflight", "build", "snapshot", "arm", "switch", "apply", "verify", "rollback",
              "stage", "record")
+# Cluster add-ons (cluster.py, step 8): nothing is pulled on the host - the
+# snapshot is `helm get values` + the revision, or the DaemonSet's yaml.
+CLUSTER_STEPS = ("validate", "preflight", "snapshot", "apply", "verify", "rollback", "record")
+# The Postgres major (pgmajor.py, step 8): the writers stop, a pg_dumpall, a NEW
+# volume on the new image, the dump loaded into it and compared, then the switch.
+PG_STEPS = ("validate", "preflight", "pull", "stop", "dump", "create", "load", "compare", "switch", "start",
+            "verify", "rollback", "record")
 RESULTS = ("succeeded", "rolled_back", "aborted", "failed", "refused")
 HISTORY_KEEP = 500
 

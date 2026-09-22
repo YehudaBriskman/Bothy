@@ -8,7 +8,26 @@
 # Touches ONLY the `monitoring` namespace, three cluster-scoped RBAC objects
 # named monitoring-*, and the minikube metrics-server addon (kube-system). Never
 # thales-* namespaces, never a Kyverno policy.
+#
+#   k8s-monitoring.sh            everything above (what `just k8s-monitoring` runs)
+#   k8s-monitoring.sh ksm        ONLY the kube-state-metrics helm release
+#   k8s-monitoring.sh alloy      ONLY the Alloy objects in alloy.yaml, and the rollout
+#
+# The two narrow parts are what the host updater runs for the cluster class
+# (apps/bothy-ops/updater/cluster.py, docs/plans/updates.md step 8): updating one
+# add-on must not also apply the other's pending pin with no snapshot of it - the
+# same reason the compose classes prove their recipe recreates nothing else. The
+# context is always explicit (KUBE_CONTEXT, default thales-scc) and the identity
+# is the caller's kubeconfig - the operator's, never bothy-ops' namespaced token
+# (SECURITY.md rule 6).
 set -euo pipefail
+
+part="${1:-all}"
+case "$part" in
+  all|ksm|alloy) ;;
+  *) echo "usage: $0 [all|ksm|alloy]" >&2; exit 2 ;;
+esac
+[ $# -le 1 ] || { echo "usage: $0 [all|ksm|alloy]" >&2; exit 2; }
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ctx="${KUBE_CONTEXT:-thales-scc}"
@@ -29,16 +48,35 @@ KSM_CHART_VERSION="$(awk '
 kubectl --context "$ctx" get nodes >/dev/null \
   || { echo "cluster $ctx is not reachable - 'minikube start -p $profile'" >&2; exit 1; }
 
+ksm() {
+  if ! helm repo list 2>/dev/null | awk '{print $1}' | grep -qx prometheus-community; then
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  fi
+  helm repo update prometheus-community >/dev/null
+  helm --kube-context "$ctx" upgrade --install kube-state-metrics \
+    prometheus-community/kube-state-metrics --version "$KSM_CHART_VERSION" \
+    -n monitoring -f "$dir/kube-state-metrics.values.yaml" --wait --timeout 5m
+}
+
+# Stamp the ConfigMap's hash onto the pod template, so a config edit rolls the
+# DaemonSet instead of leaving alloy on the old config until it restarts.
+alloy() {
+  local sum
+  sum="$(sha256sum "$dir/alloy.yaml" | cut -c1-16)"
+  sed "s/checksum\/config: \"set-by-apply\"/checksum\/config: \"$sum\"/" "$dir/alloy.yaml" \
+    | kubectl --context "$ctx" apply -f -
+  kubectl --context "$ctx" -n monitoring rollout status ds/alloy --timeout=180s
+}
+
+case "$part" in
+  ksm) ksm; exit 0 ;;
+  alloy) alloy; exit 0 ;;
+esac
+
 kubectl --context "$ctx" apply -f "$dir/namespace.yaml"
 kubectl --context "$ctx" apply -f "$dir/scraper-rbac.yaml"
 
-if ! helm repo list 2>/dev/null | awk '{print $1}' | grep -qx prometheus-community; then
-  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-fi
-helm repo update prometheus-community >/dev/null
-helm --kube-context "$ctx" upgrade --install kube-state-metrics \
-  prometheus-community/kube-state-metrics --version "$KSM_CHART_VERSION" \
-  -n monitoring -f "$dir/kube-state-metrics.values.yaml" --wait --timeout 5m
+ksm
 
 # promtail was the shipper until 2026-09-17. Remove it on clusters that still
 # have it, BEFORE alloy starts: alloy imports promtail's positions file
@@ -49,12 +87,7 @@ helm --kube-context "$ctx" upgrade --install kube-state-metrics \
 kubectl --context "$ctx" -n monitoring delete daemonset/promtail configmap/promtail serviceaccount/promtail --ignore-not-found --wait
 kubectl --context "$ctx" delete clusterrolebinding/monitoring-promtail clusterrole/monitoring-promtail --ignore-not-found
 
-# Stamp the ConfigMap's hash onto the pod template, so a config edit rolls the
-# DaemonSet instead of leaving alloy on the old config until it restarts.
-sum="$(sha256sum "$dir/alloy.yaml" | cut -c1-16)"
-sed "s/checksum\/config: \"set-by-apply\"/checksum\/config: \"$sum\"/" "$dir/alloy.yaml" \
-  | kubectl --context "$ctx" apply -f -
-kubectl --context "$ctx" -n monitoring rollout status ds/alloy --timeout=180s
+alloy
 
 # `kubectl top` / k9s' CPU and MEM columns. Not scraped by VictoriaMetrics - the
 # kubelet-cadvisor job covers that - it is for the terminal.
