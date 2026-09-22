@@ -265,6 +265,17 @@
      drawn through it, and checks/design-tokens.mjs asserts both. */
   --icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px; --icon-xl: 24px;
 
+  /* ── loader ────────────────────────────────────────────────────────────────
+     The one loading indicator, components/ui/Loader.tsx, a thinking-orbs orb.
+     The orb ships three tuned designs, not a scale, so these are its presets:
+     20 inline with text, 32 in a card, 64 for a page or empty state. LOADER in
+     Loader.tsx mirrors them and checks/design-tokens.mjs asserts it. The ink is
+     read off the live theme and handed to the canvas. The hold is how long a
+     load may take before an orb appears at all - under it, nothing flashes. */
+  --loader-sm: 20px; --loader-md: 32px; --loader-lg: 64px;
+  --loader-ink: var(--fg-muted);   /* the orb's dots; depth shading keeps its ramp */
+  --loader-hold: 150ms;
+
   /* ── interaction ───────────────────────────────────────────────────────────
      --hit is the smallest box a pointer may be asked to land in: 24px under a
      fine pointer (WCAG 2.5.8), 44px under a coarse one - the owner's decision 6,
@@ -735,6 +746,16 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
   background-size: 200% 100%; animation: shimmer var(--loop-shimmer) infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* A skeleton that carries the Loader (components/states.tsx): the shapes hold
+   the layout still and the orb is the one thing that moves - two indicators
+   side by side read as two things waiting. The orb sits over the top of the
+   reserved shape, where the eye lands first. */
+.skel-host { position: relative; }
+.skel-host .skel { animation: none; }
+.skel-host > .skel-orb {
+  position: absolute; inset: 0 0 auto 0; height: 100%; max-height: calc(var(--sp-16) * 4);
+  background: color-mix(in oklab, var(--bg) 55%, transparent);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .skel, .pill .pulse::after, .spin { animation: none !important; }

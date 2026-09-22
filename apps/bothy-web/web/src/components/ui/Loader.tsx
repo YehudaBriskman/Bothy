@@ -1,0 +1,188 @@
+// Loader - Bothy's ONE loading and in-progress indicator (2026-09-22).
+//
+// Before this there were four: a CSS ring (.sa-spin) in eleven places, a spun
+// lucide glyph (.spin) on three refresh buttons and a save, a pulsing dot on
+// followed logs, and bare "Loading…" / "reading…" text. Each said "wait" in its
+// own voice, and none of them said WHAT was being waited on.
+//
+// Now there is one: a thinking-orbs orb (MIT, zero dependencies, a 2D canvas).
+// This file is the only place `thinking-orbs` is imported - checks/design-tokens.mjs
+// fails on any other import, and on any hand-made spinner coming back.
+//
+// THE STATE SAYS WHAT KIND OF WAITING. Seven, each mapped to one orb animation:
+//
+//   work     an update job running                       -> working
+//   search   discovery, a search while it queries         -> searching
+//   act      a container or cluster action in flight      -> solving
+//   stream   following logs live                          -> listening
+//   connect  reconnecting, retrying a backend             -> connecting
+//   load     first data for a page, card or table         -> breathing
+//   refresh  the Control home's Refresh in progress       -> weaving
+//
+// SIZES are the orb's own three presets, not a scale factor: 20 is its
+// inline-text design, 64 its empty-state design and 32 sits between. LOADER
+// mirrors --loader-sm/-md/-lg in index.css and the check asserts they agree.
+//
+// RULES the component carries so call sites cannot forget them:
+//   - Only mount it while something is in progress; unmount when it is done.
+//     There is no `active` prop on purpose - an idle orb is the thing the
+//     brand forbids (no perpetual loops for idle things).
+//   - role="status" with a polite live label, visible or sr-only. The canvas
+//     itself is aria-hidden so the label is read once. The region being
+//     loaded carries aria-busy where the markup allows (components/states.tsx).
+//   - Reduced motion - the OS setting OR Settings > Appearance > Motion, via
+//     useMotionReduced() - renders the orb PAUSED: a still frame, no animation.
+//   - Colour comes from the --loader-ink token, read off the live theme, and the
+//     orb's substrate from html[data-theme]; both re-read on a theme change.
+//
+// The package is about 50KB, so it is loaded lazily and kept out of the first
+// paint's critical path: the placeholder is an empty box of the orb's size, and
+// the chunk is fetched when the browser is idle, before most loaders mount.
+
+import { lazy, Suspense, useSyncExternalStore } from 'react';
+import { useMotionReduced } from '../../lib/useMotionReduced';
+import './Loader.css';
+
+const loadOrb = () => import('thinking-orbs');
+const ThinkingOrb = lazy(() => loadOrb().then((m) => ({ default: m.ThinkingOrb })));
+
+// Warm the chunk once the first paint is done, so a loader that mounts later
+// does not also wait for its own code. Never on the critical path.
+if (typeof window !== 'undefined') {
+  const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+  const warm = () => { void loadOrb().catch(() => { /* the placeholder stays; nothing else depends on it */ }); };
+  if (idle) idle(warm); else setTimeout(warm, 1500);
+}
+
+export const LOADER = { sm: 20, md: 32, lg: 64 } as const;
+export type LoaderSize = keyof typeof LOADER;
+
+export const LOADER_STATES = {
+  work: 'working',
+  search: 'searching',
+  act: 'solving',
+  stream: 'listening',
+  connect: 'connecting',
+  load: 'breathing',
+  refresh: 'weaving',
+} as const;
+export type LoaderState = keyof typeof LOADER_STATES;
+
+const DEFAULT_LABEL: Record<LoaderState, string> = {
+  work: 'Working…',
+  search: 'Searching…',
+  act: 'Working on it…',
+  stream: 'Following live…',
+  connect: 'Reconnecting…',
+  load: 'Loading…',
+  refresh: 'Refreshing…',
+};
+
+// ── the ink, read from the theme ────────────────────────────────────────────
+// The orb paints on a canvas, which cannot read a CSS variable, so the token is
+// resolved on a probe element and normalised to rgb() through a one-pixel
+// canvas (a theme may write its colours in any syntax the browser accepts; the
+// package parses only #hex and rgb()). One store for every loader on the page.
+
+interface Ink { color: string | undefined; dark: boolean }
+let ink: Ink = { color: undefined, dark: true };
+let inkKey = '';
+const listeners = new Set<() => void>();
+
+function readInk(): Ink {
+  const root = document.documentElement;
+  const probe = document.createElement('span');
+  probe.className = 'ui-loader-probe';
+  document.body.appendChild(probe);
+  const raw = getComputedStyle(probe).color;
+  probe.remove();
+  let color: string | undefined;
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = 1;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (ctx) {
+      ctx.fillStyle = raw;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      color = `rgb(${r}, ${g}, ${b})`;
+    }
+  } catch { color = undefined; /* stock grayscale ink */ }
+  return { color, dark: root.getAttribute('data-theme') !== 'light' };
+}
+
+function refreshInk() {
+  const next = readInk();
+  const key = `${next.color}|${next.dark}`;
+  if (key === inkKey) return;
+  inkKey = key;
+  ink = next;
+  listeners.forEach((l) => l());
+}
+
+let stop: (() => void) | null = null;
+function subscribe(onChange: () => void): () => void {
+  listeners.add(onChange);
+  if (!stop) {
+    refreshInk();
+    // data-theme / data-bothy-theme: a theme switch. style: the theme editor's
+    // live draft and the accent setting write custom properties inline.
+    const mo = new MutationObserver(refreshInk);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-bothy-theme', 'style', 'class'] });
+    const mqs = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'].map((q) => window.matchMedia?.(q));
+    mqs.forEach((m) => m?.addEventListener('change', refreshInk));
+    stop = () => { mo.disconnect(); mqs.forEach((m) => m?.removeEventListener('change', refreshInk)); };
+  }
+  return () => {
+    listeners.delete(onChange);
+    if (!listeners.size && stop) { stop(); stop = null; inkKey = ''; }
+  };
+}
+
+function useInk(): Ink {
+  return useSyncExternalStore(subscribe, () => ink, () => ink);
+}
+
+// ── the component ───────────────────────────────────────────────────────────
+
+export interface LoaderProps {
+  /** What kind of waiting this is - see the table at the top. */
+  state: LoaderState;
+  /** sm = inline with text (20), md = a card or panel (32), lg = a page or empty state (64). */
+  size?: LoaderSize;
+  /** What is being waited on, in words. Shown beside the orb unless `labelHidden`. */
+  label?: string;
+  /** Keep the label for screen readers only (a button that already says it, a tight row). */
+  labelHidden?: boolean;
+  /** Centre the loader in its container (the page and card states). Default: sm inline, md/lg centred. */
+  center?: boolean;
+  className?: string;
+}
+
+export function Loader({ state, size = 'sm', label, labelHidden = false, center, className }: LoaderProps) {
+  const reduced = useMotionReduced();
+  const { color, dark } = useInk();
+  const px = LOADER[size];
+  const text = label ?? DEFAULT_LABEL[state];
+  const hidden = labelHidden || label === undefined;
+  const centred = center ?? size !== 'sm';
+  const cls = ['ui-loader', centred ? 'ui-loader-center' : '', className ?? ''].filter(Boolean).join(' ');
+  return (
+    <span className={cls} role="status" aria-live="polite" data-size={size} data-state={state}>
+      <span className="ui-loader-orb" data-size={size}>
+        <Suspense fallback={null}>
+          <ThinkingOrb
+            state={LOADER_STATES[state]}
+            size={px}
+            theme={dark ? 'dark' : 'light'}
+            color={color}
+            paused={reduced}
+            aria-hidden="true"
+            data-paused={reduced ? 'true' : 'false'}
+          />
+        </Suspense>
+      </span>
+      <span className={hidden ? 'sr-only' : 'ui-loader-label'}>{text}</span>
+    </span>
+  );
+}

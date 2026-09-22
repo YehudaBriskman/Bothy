@@ -198,6 +198,18 @@ Mirrored as `ICON` in `components/ui/Icon.tsx`.
 | `--icon-lg` | `20px` |  |
 | `--icon-xl` | `24px` |  |
 
+## Loader
+
+Mirrored as `LOADER` in `components/ui/Loader.tsx`. The orb has three tuned designs (20, 32, 64), not a scale. See [feedback](../patterns/feedback.md#loading).
+
+| Token | Value | Role |
+|---|---|---|
+| `--loader-sm` | `20px` |  |
+| `--loader-md` | `32px` |  |
+| `--loader-lg` | `64px` |  |
+| `--loader-ink` | `var(--fg-muted)` | the orb's dots; depth shading keeps its ramp |
+| `--loader-hold` | `150ms` |  |
+
 ## Interaction
 
 `--hit` is 2.75rem (44px) under `(pointer: coarse)`.
