@@ -53,7 +53,9 @@ function TreeRows({
         // that silently vanishes is the kind of gap people debug for an hour -
         // but it is a disabled row, so it can never look openable.
         const denied = n.entry?.readable === false;
-        const pad = { paddingLeft: `${6 + depth * 12}px` };
+        // rem steps (the indent follows the text size); explorer.css draws the guide
+        // stripes from the same two tokens.
+        const pad = { paddingLeft: `calc(var(--sp-1_5) + ${depth} * var(--sp-3))` };
 
         if (n.dir) {
           const open = expanded.has(n.path);

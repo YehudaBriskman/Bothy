@@ -7,18 +7,18 @@
   position: fixed; z-index: 70;
   left: 50%; bottom: 16px; translate: -50% 0;
   width: max-content; max-width: min(640px, calc(100vw - 32px));
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 10px 10px 14px;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2_5) var(--sp-2_5) var(--sp-2_5) var(--sp-3_5);
   background: var(--surface-2); color: var(--fg);
   border: 1px solid var(--accent-line); border-left: 3px solid var(--accent);
   border-radius: var(--r-md); box-shadow: var(--shadow-3);
   animation: upd-banner-in var(--dur) var(--ease);
 }
 .upd-banner-ico { flex: none; color: var(--accent-fg, var(--accent)); }
-.upd-banner-text { margin: 0; min-width: 0; font-size: 13px; line-height: 1.45; color: var(--fg-muted); }
+.upd-banner-text { margin: 0; min-width: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted); }
 .upd-banner-text b { color: var(--fg); }
-.upd-banner-text .mono { color: var(--fg); font-size: 12.5px; }
-.upd-banner-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.upd-banner-text .mono { color: var(--fg); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.upd-banner-actions { flex: none; display: flex; align-items: center; gap: var(--sp-1); }
 
 @keyframes upd-banner-in { from { opacity: 0; translate: -50% 8px; } }
 
@@ -27,7 +27,8 @@
 @media (max-width: 520px) {
   .upd-banner { left: 16px; right: 16px; translate: none; width: auto; max-width: none; flex-wrap: wrap; bottom: 12px; }
   .upd-banner-text { flex: 1 1 calc(100% - 30px); }
-  .upd-banner-actions { margin-left: 28px; }
+  /* Under the text: the icon plus the banner's gap. */
+  .upd-banner-actions { margin-left: calc(var(--icon-md) + var(--sp-3)); }
   @keyframes upd-banner-in { from { opacity: 0; translate: 0 8px; } }
 }
 @media (prefers-reduced-motion: reduce) {

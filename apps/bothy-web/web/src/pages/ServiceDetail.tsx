@@ -165,7 +165,7 @@ export function ServiceDetail() {
                 ))}
               </div>
             ) : (
-              <p className="dim" style={{ margin: 0, fontSize: 13 }}>No published ports.</p>
+              <p className="dim" style={{ margin: 0, fontSize: 'var(--fs-sm)' }}>No published ports.</p>
             )}
           </div>
         </motion.section>

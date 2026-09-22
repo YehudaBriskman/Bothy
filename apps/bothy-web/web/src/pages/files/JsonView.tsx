@@ -60,7 +60,7 @@ function Row({ name, value, depth, path, budget }: {
     return true;
   });
 
-  const pad = { paddingLeft: `${6 + depth * 14}px` };
+  const pad = { paddingLeft: `calc(var(--sp-1_5) + ${depth} * var(--sp-3_5))` };
 
   if (!branch) {
     return (

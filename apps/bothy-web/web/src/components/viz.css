@@ -3,8 +3,8 @@
 
 /* ── segmented status bar ─────────────────────────────────────────────────── */
 .vz-bar {
-  display: flex; gap: 2px; width: 100%;
-  border-radius: 999px; overflow: hidden;
+  display: flex; gap: var(--sp-0_5); width: 100%;
+  border-radius: var(--r-full); overflow: hidden;
   background: color-mix(in oklab, var(--fg) 7%, transparent);
 }
 .vz-bar-seg { display: block; min-width: 3px; }
@@ -19,9 +19,9 @@
 /* Outside the measured whole (see StatusBar's `aside`): pushed away by a wider
    gap and drawn hollow, so it cannot be misread as part of the fraction the
    number beside it is quoting. */
-.vz-bar-seg.is-aside { margin-left: 7px; background: transparent;
+.vz-bar-seg.is-aside { margin-left: var(--sp-2); background: transparent;
   box-shadow: inset 0 0 0 1px var(--st-off); }
-.vz-bar-seg.is-aside ~ .vz-bar-seg.is-aside { margin-left: 2px; }
+.vz-bar-seg.is-aside ~ .vz-bar-seg.is-aside { margin-left: var(--sp-0_5); }
 
 /* ── horizontal bar gauge ─────────────────────────────────────────────────── */
 .vz-gauge { display: flex; flex-direction: column; }
@@ -30,28 +30,28 @@
   --acc: var(--accent);
   display: grid;
   grid-template-columns: minmax(0, 8.5rem) minmax(48px, 1fr) auto minmax(4.2rem, auto);
-  align-items: center; gap: 10px;
-  padding: 5px 10px; border-radius: 7px; color: inherit;
+  align-items: center; gap: var(--sp-2_5);
+  padding: var(--sp-1) var(--sp-2_5); border-radius: var(--r-sm); color: inherit;
 }
 a.vz-gauge-row:hover, .vz-gauge-row:hover { background: var(--surface-2); }
 .vz-gauge-label {
-  font-size: 12.5px; font-weight: 600; min-width: 0;
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .vz-gauge-track {
-  position: relative; display: block; height: 6px; border-radius: 999px;
+  position: relative; display: block; height: 6px; border-radius: var(--r-full);
   background: color-mix(in oklab, var(--fg) 8%, transparent); overflow: hidden;
 }
 .vz-gauge-fill {
-  position: absolute; inset: 0 auto 0 0; border-radius: 999px;
+  position: absolute; inset: 0 auto 0 0; border-radius: var(--r-full);
   background: linear-gradient(90deg,
     color-mix(in oklab, var(--acc) 55%, transparent),
     var(--acc));
 }
-.vz-gauge-sub { font-size: 11px; color: var(--fg-subtle); font-family: var(--mono); }
+.vz-gauge-sub { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle); font-family: var(--mono); }
 .vz-gauge-val {
   font-family: var(--mono); font-variant-numeric: tabular-nums;
-  font-size: 12.5px; font-weight: 700; color: var(--fg);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 700; color: var(--fg);
   text-align: right; white-space: nowrap;
 }
 .vz-gauge-sub:empty { display: none; }
@@ -63,6 +63,6 @@ a.vz-gauge-row:hover, .vz-gauge-row:hover { background: var(--surface-2); }
 
 @media (max-width: 640px) {
   /* drop the secondary "3 vols" column first - the bar and the size carry it */
-  .vz-gauge-row { grid-template-columns: minmax(0, 6rem) minmax(36px, 1fr) minmax(3.6rem, auto); gap: 8px; }
+  .vz-gauge-row { grid-template-columns: minmax(0, 6rem) minmax(36px, 1fr) minmax(3.6rem, auto); gap: var(--sp-2); }
   .vz-gauge-sub { display: none; }
 }

@@ -152,7 +152,7 @@ function ReadingSize() {
                 Reset
               </Button>
             </div>
-            <p className="set-read-sample" style={{ fontSize: `${v}px` }}>
+            <p className="set-read-sample" style={{ fontSize: `${v / 16}rem` }}>
               {key === 'doc' ? 'The quick brown fox jumps over the lazy dog.' : 'Tailnet troubleshooting'}
             </p>
           </div>

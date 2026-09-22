@@ -61,8 +61,7 @@ export const READING_DEFAULT: Reading = { doc: 16, ui: 12.5 };
 
 /** The band each is allowed into.
  *
- *  Bounded rather than free, and not to be tidy: `--read-measure` is `100%` and
- *  the panels are fixed-width rails, so a 40px index row does not wrap into a
+ *  Bounded rather than free, and not to be tidy: the panels are fixed-width rails, so a 40px index row does not wrap into a
  *  taller row - it ellipsises every title down to two words. The ceiling is the
  *  size at which the rail still says something. The floor is the size below
  *  which raising it was the point. */
@@ -112,7 +111,10 @@ export function parseReading(raw: string | null): Reading {
  *  and every panel elsewhere in the app that happens to inherit, which is a
  *  preference reaching a great deal further than its own name claims. */
 export function readingVars(r: Reading): Record<string, string> {
-  return { '--read-fs': `${r.doc}px`, '--rd-ui-fs': `${r.ui}px` };
+  // Stored in px (what the Settings controls show) and written in rem, so the
+  // browser's own text size still reaches the reader (design audit SYS-13,
+  // batch 4): 16 is 1rem at the default root and 1.25rem of reading at 125%.
+  return { '--read-fs': `${r.doc / 16}rem`, '--rd-ui-fs': `${r.ui / 16}rem` };
 }
 
 function read(): Reading {

@@ -150,7 +150,10 @@
   --a5: #e169fc;  /* L .72 C .230 H 320 */
 
   /* ── layout ─────────────────────────────────────────────────────────────── */
-  --r-xs: 5px; --r-sm: 7px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
+  /* Radii. --r-2xs (batch 4) is for MARKS, not controls: bar ends, meters,
+     scroll thumbs, the 2-3px corners that were literals. 8px folds into --r-sm,
+     6px into --r-xs, 9px into --r-md and 12px into --r-lg (SYS-15). */
+  --r-2xs: 2px; --r-xs: 5px; --r-sm: 7px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
   --border-w: 1px;
   /* --hover-opacity was here and in every theme, and nothing read it (design
      audit SYS-15, 2026-09-21): deleted rather than adopted - a hover that fades
@@ -175,48 +178,45 @@
 
      72ch is prose, not a terminal. The measure rule changes reading speed more
      than the typeface does. */
-  /* ONE width, and it STRETCHES. Every top-level block in a rendered document
-     gets this and nothing gets an exception - prose, tables, code fences,
-     figures, callouts, backlinks.
+  /* ONE width for every block - prose, tables, code fences, figures,
+     callouts, backlinks - and since design-audit batch 4 (FL-5) it is CAPPED
+     again, at 75ch (brand typography.md: "about 90 characters"; a `ch` is the
+     width of a zero, wider than the average letter, so 75ch of prose is about
+     85-90 characters). At 1440 the stretch put ~97 characters on a line.
 
-     It was 72ch, with tables, code and figures let out to `max-width: 100%`.
-     Two widths, and on a 1440px screen that was prose at ~660px next to a table
-     at ~1100px: a block 1.7x the width of the paragraph above it reads as a
-     different document, and the page changed width every few blocks.
-
-     The fix that did NOT work was capping the column - putting a `max-width` on
-     `.fx-read`. `.fx-read` is the element with `overflow: auto`, so capping it
-     moves the SCROLLBAR off the edge of the pane and into the middle of the
-     page. A scroll container is the wrong thing to size.
-
-     So the one width is the one the pane already gives, and the blocks fill it.
-     Long lines on a very wide screen are the cost, and it is paid knowingly:
-     the alternative on this surface was two widths that did not agree.
-
-     Still a token, so a theme that wants a measure back sets one value. */
-  --read-measure: 100%;
-  /* 16px, not 14.5px. The measure was already right - 72ch, verified rendering
-     at exactly 72 characters - but the body was set at the app's UI size, and a
-     document is not a dashboard. 14.5px is a good size for a control that sits
-     beside a chart and a tiring one for a page of prose you actually read.
-     The measure is in `ch`, so raising the size keeps the line at 72 characters
-     and simply makes the column physically wider - which is the point. */
-  --read-fs: 16px;
+     The two failures this history records still hold, and the cap avoids both:
+       · two widths (prose at 72ch beside tables at 100%) - so the cap is on the
+         COLUMN, not on each block: every block fills the same content box;
+       · a max-width on `.fx-read` - it is the scroll container, so that moved
+         the scrollbar into the middle of the page. The scroller stays full
+         width; editor.css centres the column with PADDING worked out from this
+         token, so the scrollbar stays on the pane's edge.
+     `ch` resolves against `.fx-read`'s own size, --read-fs, so the column
+     widens with the user's document size and keeps its character count.
+     A theme that wants the stretch back sets it to 100%. */
+  --read-measure: 75ch;
+  /* 16px, not 14.5px: a document is not a dashboard. On the closed scale
+     (--fs-body) and in rem since batch 4, so the browser's text size reaches it;
+     the Settings control writes rem too (pages/files/reading.ts). */
+  --read-fs: var(--fs-body);
   /* The PANELS beside the document - index rows, outline entries, breadcrumbs.
-     They were ~30 literal values in read.css set at the app's CONTROL size, on a
-     surface whose whole argument is that a document is not a dashboard, and
-     every one of them is now a ratio of this.
-     Two tokens rather than one because they answer different questions: raising
-     --read-fs widens the column (the measure is in `ch`) and does nothing to the
-     rails; raising this makes the index legible without reflowing a word of
-     prose. Both are settable per browser - see pages/files/reading.ts. */
-  --rd-ui-fs: 12.5px;
+     Every panel size in read.css is a ratio of this. Two tokens rather than
+     one because they answer different questions: raising --read-fs widens the
+     column (the measure is in `ch`) and does nothing to the rails; raising this
+     makes the index legible without reflowing a word of prose. Both are
+     settable per browser - see pages/files/reading.ts. 12.5px at the default
+     root, in rem. The ONE family of font sizes off the closed scale, on
+     purpose: a user-set size and fixed ratios of it (checks/design-tokens.mjs
+     lists it as the allowlist). */
+  --rd-ui-fs: .78125rem;
   --read-lh: 1.65;
-  --read-gap: 15px;      /* between blocks, tracks --read-fs */
-  --read-h1: 27px;
-  --read-h2: 21px;
-  --read-h3: 17.5px;
-  --read-h4: 15px;
+  --read-gap: .9375rem;  /* between blocks: 15px at the default root */
+  /* The document headings, on the closed scale (27 / 21 / 17.5 / 15px before
+     batch 4: +1, 0, -0.5 and +1px). */
+  --read-h1: var(--fs-2xl);
+  --read-h2: var(--fs-xl);
+  --read-h3: var(--fs-lg);
+  --read-h4: var(--fs-body);
 
   /* ── type: a CLOSED scale, in rem (design audit SYS-13, 2026-09-21) ────────
      Nine steps and nothing between them. rem, so every step follows the
@@ -245,9 +245,16 @@
 
   /* ── spacing: a 4px grid with 2px and 6px half-steps, in rem ────────────────
      `--sp-2_5` is 2.5 steps of 4px. rem, so padding grows with the text it
-     holds instead of the text outgrowing its box. */
+     holds instead of the text outgrowing its box.
+     --sp-3_5 (14px) joined in batch 4: it was the most common off-grid value
+     (90 uses - the inset of nearly every panel, card and row), and snapping it
+     would have moved every one of those edges by 2px. Every 2px to 16, then 4
+     and 8. The sweep's other snaps: odd values go to their multiple-of-4
+     neighbour (7 -> 8, 9 -> 8, 3 -> 4, 5 -> 4, 11 -> 12, 13 -> 12, 15 -> 16);
+     18 -> 16, 22 -> 24, 26/28 -> 24, 30/34/36 -> 32, 44 -> 40, 60-72 -> 64.
+     1px stays a literal: it is a hairline nudge, not a step of rhythm. */
   --sp-0_5: .125rem; --sp-1: .25rem;  --sp-1_5: .375rem; --sp-2: .5rem;
-  --sp-2_5: .625rem; --sp-3: .75rem;  --sp-4: 1rem;      --sp-5: 1.25rem;
+  --sp-2_5: .625rem; --sp-3: .75rem;  --sp-3_5: .875rem; --sp-4: 1rem;      --sp-5: 1.25rem;
   --sp-6: 1.5rem;    --sp-8: 2rem;    --sp-10: 2.5rem;   --sp-12: 3rem;
   --sp-16: 4rem;
 
@@ -547,12 +554,12 @@ a { color: inherit; text-decoration: none; }
   position: absolute; left: var(--sp-2); top: var(--sp-2); z-index: 100;
   translate: 0 calc(-100% - var(--sp-4));
   background: var(--surface-2); color: var(--fg); border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm); padding: 9px 14px;
+  border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3_5);
   font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-semibold);
   transition: translate var(--dur-fast) var(--ease);
 }
 .skip-link:focus-visible { translate: 0 0; }
-.wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+.wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 var(--sp-6); }
 
 /* ── ambient background ──────────────────────────────────────────────────── */
 /* The two coloured orbs are GONE (2026-08-10). They were a 520px blue and a
@@ -576,8 +583,8 @@ a { color: inherit; text-decoration: none; }
    .search, .hint and .panels were here, and nothing has rendered any of them
    since the multi-page shell (deleted 2026-09-21, design audit SYS-15). */
 .pill {
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 7px 14px; border-radius: var(--r-full);
+  display: inline-flex; align-items: center; gap: var(--sp-2_5);
+  padding: var(--sp-2) var(--sp-3_5); border-radius: var(--r-full);
   font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
   background: var(--surface-1); border: 1px solid var(--line);
 }
@@ -609,53 +616,53 @@ a { color: inherit; text-decoration: none; }
    inherited leading of 1.02 and -0.03em tracking meant for 68px type (SYS-13).
    --fs-display is kept for the Overview hero and nothing else. */
 h1 { font-size: var(--fs-2xl); line-height: var(--lh-2xl); letter-spacing: var(--tr-2xl);
-  font-weight: var(--fw-heavy); margin: 22px 0 16px; }
+  font-weight: var(--fw-heavy); margin: var(--sp-6) 0 var(--sp-4); }
 /* Uppercase micro-labels: one class and one tracking, where there were 35 rules
    and five tracking values for the same 10.5px label. */
 .eyebrow { font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-bold);
   letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--fg-subtle); }
 
 /* ── tabs / toolbar ──────────────────────────────────────────────────────── */
-main.wrap { padding-top: 12px; padding-bottom: 60px; }
+main.wrap { padding-top: var(--sp-3); padding-bottom: var(--sp-16); }
 /* This block sat unused for the app's whole life - nothing rendered
    role="tab" until components/Tabs.tsx. Underline rather than filled pill, for
    the same reason as the nav: a tab states where you are, it is not a button
    asking to be pressed. */
-.tabs { display: flex; align-items: center; gap: 2px; margin: 0 0 18px;
+.tabs { display: flex; align-items: center; gap: var(--sp-0_5); margin: 0 0 var(--sp-4);
   border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .tabs button[role="tab"] { appearance: none; border: 0; background: transparent; cursor: pointer;
   color: var(--fg-muted); font-weight: var(--fw-semibold);
   font-size: var(--fs-md); line-height: var(--lh-md); letter-spacing: var(--tr-md);
-  padding: 9px 13px; min-height: var(--hit); border-radius: var(--r-sm) var(--r-sm) 0 0; position: relative;
-  display: inline-flex; align-items: center; gap: 7px;
+  padding: var(--sp-2) var(--sp-3); min-height: var(--hit); border-radius: var(--r-sm) var(--r-sm) 0 0; position: relative;
+  display: inline-flex; align-items: center; gap: var(--sp-2);
   transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 .tabs button[role="tab"]:hover { background: var(--surface-1); color: var(--fg); }
 .tabs button[role="tab"].on { color: var(--fg); }
 .tabs button[role="tab"].on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
-  height: 2px; border-radius: 2px 2px 0 0;
+  height: 2px; border-radius: var(--r-2xs) var(--r-2xs) 0 0;
   background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 .tabs .tab-n { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs);
   font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; color: var(--fg-subtle);
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r-full); padding: 0 6px; }
+  border-radius: var(--r-full); padding: 0 var(--sp-1_5); }
 .tabs button[role="tab"].on .tab-n { color: var(--fg-muted); }
 
 kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
+  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px var(--sp-1); }
 
 /* ── counts, names, badges ───────────────────────────────────────────────── */
 .tail { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
 .cnt { color: var(--fg-muted); font-variant-numeric: tabular-nums; font-weight: var(--fw-bold);
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 2px 10px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--sp-0_5) var(--sp-2_5);
   font-size: var(--fs-sm); line-height: var(--lh-sm); }
 
 .nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pt { color: var(--fg-subtle); font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-xs);
-  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  margin-top: var(--sp-0_5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* status dot. The glow marks a SIGNAL; stopped and unknown get none, because a
    stopped service is a state, not a signal. */
-.status { display: inline-flex; align-items: center; gap: 6px; }
+.status { display: inline-flex; align-items: center; gap: var(--sp-1_5); }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
 .dot[data-state="up"] { background: var(--st-up); box-shadow: 0 0 8px color-mix(in oklab, var(--st-up) 65%, transparent); }
 .dot[data-state="starting"] { background: var(--st-warn); box-shadow: 0 0 8px color-mix(in oklab, var(--st-warn) 65%, transparent); }
@@ -667,11 +674,11 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
    ONE .tbl, where there were two copies of it in this file (the first set a
    `cursor: pointer` on every header, sortable or not; sorting is a <button>
    inside the <th> since batch 1, components/SortHeader.tsx). */
-.chips { display: flex; gap: 6px; }
+.chips { display: flex; gap: var(--sp-1_5); }
 .chips button { appearance: none; cursor: pointer; font-weight: var(--fw-semibold);
   font-size: var(--fs-sm); line-height: var(--lh-sm);
   color: var(--fg-muted); background: var(--surface-1); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 5px 12px; min-height: var(--hit); }
+  border-radius: var(--r-sm); padding: var(--sp-1) var(--sp-3); min-height: var(--hit); }
 .chips button.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
 /* max-height is what makes `position: sticky` on <th> work at all. overflow-x
    forces overflow-y to compute to `auto`, so .tbl-wrap becomes the sticky
@@ -681,17 +688,17 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   border: 1px solid var(--line); border-radius: var(--r-lg);
   background: var(--surface-1); }
 .tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
-.tbl th { text-align: left; padding: 8px 14px; color: var(--fg-subtle); font-weight: var(--fw-semibold);
+.tbl th { text-align: left; padding: var(--sp-2) var(--sp-3_5); color: var(--fg-subtle); font-weight: var(--fw-semibold);
   border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; background: var(--surface-2);
   white-space: nowrap; user-select: none; }
 .tbl th.sorted { color: var(--fg); }
 /* 32px rows (6+6 padding + a 20px line box). At 47px the Routes table needed
    two viewports to show 21 routes; the extra 15px per row carried nothing. The
    leading is pinned to that 20px box so the rem size cannot grow the row. */
-.tbl td { padding: 6px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; line-height: 1.25rem; }
+.tbl td { padding: var(--sp-1_5) var(--sp-3_5); border-bottom: 1px solid var(--line); vertical-align: middle; line-height: 1.25rem; }
 .tbl tr:last-child td { border-bottom: 0; }
 .tbl tbody tr:hover { background: var(--surface-2); }
-.mono { font-family: var(--mono); font-size: 12.5px; }
+.mono { font-family: var(--mono); font-size: var(--fs-sm); line-height: var(--lh-sm); }
 .rule { color: var(--fg-muted); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbl a { color: var(--accent); }
 
@@ -699,14 +706,14 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 /* 56px of padding made "no results" as prominent as the content it replaced -
    an empty state is a note, not an announcement. `.state.err` keeps the larger
    padding: the APIs being unreachable IS an announcement. */
-.state { text-align: center; padding: 22px 20px; background: var(--surface-1);
+.state { text-align: center; padding: var(--sp-6) var(--sp-5); background: var(--surface-1);
   border: 1px solid var(--line); border-radius: var(--r-lg); }
-.state.err { padding: 40px 20px; border-color: color-mix(in oklab, var(--st-down) 26%, var(--line)); }
-.state h4 { margin: 0 0 6px; font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
-.state p { color: var(--fg-muted); max-width: 520px; margin: 0 auto 16px; }
-.skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.state.err { padding: var(--sp-10) var(--sp-5); border-color: color-mix(in oklab, var(--st-down) 26%, var(--line)); }
+.state h4 { margin: 0 0 var(--sp-1_5); font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
+.state p { color: var(--fg-muted); max-width: 520px; margin: 0 auto var(--sp-4); }
+.skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-3_5); }
 /* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
-.skel-col { display: flex; flex-direction: column; gap: 14px; }
+.skel-col { display: flex; flex-direction: column; gap: var(--sp-3_5); }
 .skel { height: 132px; border-radius: var(--r-lg); border: 1px solid var(--line);
   background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
   background-size: 200% 100%; animation: shimmer var(--loop-shimmer) infinite; }
@@ -727,7 +734,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* status glyph (lucide) - coloured by the reserved palette, never colour-alone */
-.si { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
+.si { display: inline-flex; align-items: center; gap: var(--sp-1_5); vertical-align: middle; }
 .si svg { display: block; }
 .si-label { font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--fg-muted); font-weight: var(--fw-semibold); }
 
@@ -758,7 +765,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 
 .badge { font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-semibold);
   color: var(--fg-muted); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: var(--r-full); padding: 1px 8px; white-space: nowrap; }
+  border: 1px solid var(--line); border-radius: var(--r-full); padding: 1px var(--sp-2); white-space: nowrap; }
 .badge.bad { color: var(--st-down-fg); border-color: color-mix(in oklab, var(--st-down) 30%, transparent); }
 .dim { color: var(--fg-subtle); }
 .link { color: var(--accent); }
@@ -784,8 +791,8 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    new page coming up rather than the old one lingering on top. */
 [data-route-fade='in'] { position: relative; z-index: 1; }
 
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px;
-  padding: 10px 22px; border-bottom: 1px solid var(--line);
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--sp-2_5);
+  padding: var(--sp-2_5) var(--sp-6); border-bottom: 1px solid var(--line);
   background: var(--mat-chrome-bg); backdrop-filter: var(--mat-chrome-blur); }
 
 /* ── brand ───────────────────────────────────────────────────────────────────
@@ -803,7 +810,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 
    The address moved into the wordmark's tooltip, where it is read when wanted
    and right-click copies it. See components/Brand.tsx for why that gesture. */
-.brand { display: flex; align-items: center; padding-right: 6px; flex: none; }
+.brand { display: flex; align-items: center; padding-right: var(--sp-1_5); flex: none; }
 /* The lit doorway - the only coloured part of the mark, and the reason it is
    not just another house glyph. */
 .brand-door { fill: var(--accent); }
@@ -902,13 +909,13 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    overflows (data-shade-l/r, set by lib/scroll.ts), so a box with three systems
    and a box with thirty both get the right treatment at the same width. */
 .nav {
-  display: flex; align-items: center; gap: 2px; min-width: 0;
+  display: flex; align-items: center; gap: var(--sp-0_5); min-width: 0;
   overflow-x: auto; overflow-y: hidden;
   /* The nav has its own scroll affordance (the mask below); a visible 10px
      scrollbar under a 34px row would eat a third of it. */
   scrollbar-width: none;
   /* Keeps the active item's 2px underline from being clipped by the scroll box. */
-  padding-bottom: 2px; margin-bottom: -2px;
+  padding-bottom: var(--sp-0_5); margin-bottom: calc(-1 * var(--sp-0_5));
 }
 .nav::-webkit-scrollbar { display: none; }
 .nav[data-shade-l] { mask-image: linear-gradient(90deg, transparent, #000 22px); }
@@ -917,7 +924,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
   mask-image: linear-gradient(90deg, transparent, #000 22px, #000 calc(100% - 22px), transparent);
 }
 
-.nav-item { display: flex; align-items: center; gap: 7px; padding: 7px 11px; border-radius: var(--r-sm);
+.nav-item { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm);
   color: var(--fg-muted); font-weight: var(--fw-semibold);
   font-size: var(--fs-md); line-height: var(--lh-md); letter-spacing: var(--tr-md);
   min-height: var(--hit); min-width: var(--hit); position: relative; flex: none;
@@ -927,7 +934,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 .nav-item.on { color: var(--fg); }
 .nav-item.on svg { opacity: 1; }
 .nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: -11px; height: 2px;
-  border-radius: 2px 2px 0 0; background: var(--accent); }
+  border-radius: var(--r-2xs) var(--r-2xs) 0 0; background: var(--accent); }
 
 /* The label. Below 1080px it is not drawn at all (visually hidden, still the
    link's accessible name) and a Tooltip carries it on hover and focus - see
@@ -948,9 +955,9 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 /* The search TRIGGER - a button, not an input. It looks like a field because
    that is what it opens; making it a real input meant every keystroke pushed a
    route and the browser history filled with one entry per character. */
-.topbar-search { flex: none; width: 232px; display: flex; align-items: center; gap: 8px;
+.topbar-search { flex: none; width: 232px; display: flex; align-items: center; gap: var(--sp-2);
   background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
-  padding: 7px 10px; color: var(--fg-subtle); cursor: pointer; min-height: var(--hit);
+  padding: var(--sp-2) var(--sp-2_5); color: var(--fg-subtle); cursor: pointer; min-height: var(--hit);
   font-size: var(--fs-sm); line-height: var(--lh-sm);
   transition: border-color var(--dur-fast) var(--ease),
               scale var(--press-dur) var(--ease-standard), box-shadow var(--press-dur) var(--ease-standard);
@@ -959,13 +966,13 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 .topbar-search .search-ico { color: var(--fg-subtle); flex: none; }
 .topbar-search .search-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.content { flex: 1; padding: 26px 30px 70px; width: 100%; max-width: 1320px; margin: 0 auto; }
+.content { flex: 1; padding: var(--sp-6) var(--sp-8) var(--sp-16); width: 100%; max-width: 1320px; margin: 0 auto; }
 
 /* Icons only, labels on demand: the label is visually hidden and a Tooltip
    shows it on hover OR keyboard focus - focus matters as much as hover here,
    because without it a keyboard user tabbing the nav gets unlabelled squares. */
 @media (max-width: 1080px) {
-  .nav-item { padding: 7px 9px; }
+  .nav-item { padding: var(--sp-2) var(--sp-2); }
   .nav-label {
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
@@ -979,40 +986,40 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
   .topbar-pill { display: none; }
   .topbar-search { width: auto; }
   .topbar-search .search-label, .topbar-search .kbd { display: none; }
-  .content { padding: 22px 18px 60px; }
+  .content { padding: var(--sp-6) var(--sp-4) var(--sp-16); }
 }
 @media (max-width: 560px) {
-  .topbar { padding: 10px 12px; gap: 6px; }
+  .topbar { padding: var(--sp-2_5) var(--sp-3); gap: var(--sp-1_5); }
   /* The rail is 3px of decoration; on a phone that is 3px of a 360px viewport. */
   .scroll-rail { display: none; }
 }
 
 /* ── generic page chrome ─────────────────────────────────────────────────── */
-.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
-  flex-wrap: wrap; margin-bottom: 20px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4);
+  flex-wrap: wrap; margin-bottom: var(--sp-5); }
 .page-head h1 { font-size: var(--fs-2xl); line-height: var(--lh-2xl); letter-spacing: var(--tr-2xl);
   font-weight: var(--fw-heavy); margin: 0; }
-.page-sub { color: var(--fg-subtle); font-size: var(--fs-sm); line-height: var(--lh-sm); margin: 4px 0 0; }
+.page-sub { color: var(--fg-subtle); font-size: var(--fs-sm); line-height: var(--lh-sm); margin: var(--sp-1) 0 0; }
 
-.back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-subtle); font-size: 13px;
-  font-weight: 600; margin-bottom: 14px; }
+.back-link { display: inline-flex; align-items: center; gap: var(--sp-1_5); color: var(--fg-subtle); font-size: var(--fs-sm); line-height: var(--lh-sm);
+  font-weight: 600; margin-bottom: var(--sp-3_5); }
 .back-link:hover { color: var(--fg); }
 
 /* ── view + density toggles ──────────────────────────────────────────────── */
-.view-controls { display: flex; gap: 8px; }
+.view-controls { display: flex; gap: var(--sp-2); }
 .seg-toggle { display: inline-flex; background: var(--surface-1); border: 1px solid var(--line);
-  border-radius: var(--r-md); padding: 3px; gap: 2px; }
+  border-radius: var(--r-md); padding: var(--sp-1); gap: var(--sp-0_5); }
 .seg-toggle button { appearance: none; cursor: pointer; font-weight: var(--fw-semibold);
   font-size: var(--fs-sm); line-height: var(--lh-sm);
-  color: var(--fg-muted); background: transparent; border: 0; border-radius: var(--r-sm); padding: 6px 11px;
-  min-height: var(--hit); display: inline-flex; align-items: center; gap: 6px; }
+  color: var(--fg-muted); background: transparent; border: 0; border-radius: var(--r-sm); padding: var(--sp-1_5) var(--sp-3);
+  min-height: var(--hit); display: inline-flex; align-items: center; gap: var(--sp-1_5); }
 .seg-toggle button.on { background: var(--surface-2); color: var(--fg); box-shadow: var(--shadow-1); }
 
 /* ── filter bar ──────────────────────────────────────────────────────────── */
-.filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 22px;
-  padding: 12px 14px; background: var(--surface-1); border: 1px solid var(--line); border-radius: 12px;
+.filter-bar { display: flex; align-items: center; gap: var(--sp-2_5); flex-wrap: wrap; margin-bottom: var(--sp-6);
+  padding: var(--sp-3) var(--sp-3_5); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
   }
-.filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-chips { display: flex; gap: var(--sp-1_5); flex-wrap: wrap; }
 /* ONE .chip (design audit SYS-15). There were two, 999px round here and 8px
    further down, and the later one won every property they shared - so the pill
    radius, the surface-2 fill and the accent-bordered "on" state written here
@@ -1020,33 +1027,33 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 .chip { appearance: none; cursor: pointer; font-weight: var(--fw-semibold);
   font-size: var(--fs-sm); line-height: var(--lh-sm);
   color: var(--fg-muted); background: var(--surface-1); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 5px 12px; min-height: var(--hit);
-  display: inline-flex; align-items: center; gap: 6px; text-transform: capitalize; }
+  border-radius: var(--r-sm); padding: var(--sp-1) var(--sp-3); min-height: var(--hit);
+  display: inline-flex; align-items: center; gap: var(--sp-1_5); text-transform: capitalize; }
 .chip:hover { border-color: var(--line-strong); color: var(--fg); }
 .chip.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
 .chip.clear { text-transform: none; color: var(--st-down-fg); }
 .chip .n { font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
-.filter-select { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-subtle); }
+.filter-select { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle); }
 .filter-select select { appearance: none; font: inherit; font-weight: 600; color: var(--fg);
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--sp-1_5) var(--sp-2_5); cursor: pointer; }
 .filter-search { flex: 1; min-width: 180px; appearance: none; font: inherit; color: var(--fg);
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; }
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); }
 /* :focus-visible for the reason .search states above - one selector, so the
    tint and the ring cannot disagree, and no change for a text field. */
 .filter-search:focus-visible { border-color: var(--accent); }
 
 /* ── services groups ─────────────────────────────────────────────────────── */
-.svc-groups { display: flex; flex-direction: column; gap: 26px; }
+.svc-groups { display: flex; flex-direction: column; gap: var(--sp-6); }
 .svc-group { --acc: var(--accent); }
-.svc-group-head-row { display: flex; align-items: flex-start; gap: 8px; }
+.svc-group-head-row { display: flex; align-items: flex-start; gap: var(--sp-2); }
 /* A <button>: its type comes from the global form-control reset (it rendered in
    Arial before that existed, design audit CT-7). */
 .svc-group-head { flex: 1; min-width: 0; appearance: none; cursor: pointer; background: transparent; border: 0;
-  display: flex; align-items: center; gap: 12px; padding: 0 0 14px; color: var(--fg); text-align: left; }
+  display: flex; align-items: center; gap: var(--sp-3); padding: 0 0 var(--sp-3_5); color: var(--fg); text-align: left; }
 /* the head itself is a collapse toggle, so the system link lives beside it -
    before this there was NO path from Services to a system page at all */
 .svc-group-open { flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border-radius: 8px; color: var(--fg-subtle);
+  width: 28px; height: 28px; border-radius: var(--r-sm); color: var(--fg-subtle);
   border: 1px solid var(--line); background: var(--surface-1); }
 .svc-group-open:hover { color: var(--accent); border-color: var(--accent); }
 /* ONE disclosure chevron timing for the whole app (SYS-9): there were five
@@ -1057,19 +1064,19 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 .chev { flex: none; color: var(--fg-subtle);
   transition: transform var(--dur) var(--ease-standard), rotate var(--dur) var(--ease-standard); }
 .svc-group-head .chev.closed { transform: rotate(-90deg); }
-.svc-group-idx { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--acc);
-  border: 1px solid color-mix(in oklab, var(--acc) 40%, transparent); border-radius: 7px; padding: 3px 7px; }
-.svc-group-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
-.svc-group-sub { color: var(--fg-subtle); font-size: 12.5px; }
+.svc-group-idx { font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 700; color: var(--acc);
+  border: 1px solid color-mix(in oklab, var(--acc) 40%, transparent); border-radius: var(--r-sm); padding: var(--sp-1) var(--sp-2); }
+.svc-group-title { font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: 700; letter-spacing: var(--tr-lg); }
+.svc-group-sub { color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
 /* .tail and .cnt inside the head are the shared ones above; the scoped copies
    that restated them, the dead .svc-grid/.svc-card rules and a second .nm-text
    and .pt were deleted 2026-09-21 (SYS-15). */
 
 /* ── service table rows ──────────────────────────────────────────────────── */
 .svc-tbl td { vertical-align: middle; }
-.svc-tbl.compact td { padding: 6px 14px; }
+.svc-tbl.compact td { padding: var(--sp-1_5) var(--sp-3_5); }
 .svc-tr:hover { background: var(--surface-2); }
-.svc-td-link { display: flex; align-items: center; gap: 10px; color: inherit; }
+.svc-td-link { display: flex; align-items: center; gap: var(--sp-2_5); color: inherit; }
 .svc-td-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .svc-td-text .pt { margin-top: 0; }
 .svc-td-img { color: var(--fg-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1086,7 +1093,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 /* ── 3D scene ────────────────────────────────────────────────────────────── */
 
 
-.leg { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-muted); text-transform: capitalize; }
+.leg { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-muted); text-transform: capitalize; }
 .leg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 /* Legend swatch for a DASHED line, so "waits for" is distinguishable from the
    status dots beside it by shape as well as colour - the statuses already carry
@@ -1098,7 +1105,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 }
 
 /* ── detail pages ────────────────────────────────────────────────────────── */
-.acc-bar { width: 5px; height: 26px; border-radius: 3px; background: var(--acc); display: inline-block; }
+.acc-bar { width: 5px; height: 26px; border-radius: var(--r-2xs); background: var(--acc); display: inline-block; }
 
 
 /* A hard 96px label column wrapped "Also reachable at" onto three lines while
@@ -1106,42 +1113,42 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    label needs and no more - and because every .kv in a .kv-list is a separate
    grid, `subgrid` is what keeps them aligned with each other rather than each
    sizing independently. */
-.kv-list { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 9px 12px; }
-.kv { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; font-size: 13.5px; }
+.kv-list { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: var(--sp-2) var(--sp-3); }
+.kv { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; font-size: var(--fs-md); line-height: var(--lh-md); }
 .kv-k { color: var(--fg-subtle); }
 .kv-v { min-width: 0; overflow-wrap: anywhere; }
 
 /* Section heading INSIDE a panel - for the merged Reachability panel, where
    Route and Published ports are sections rather than panels of their own. */
-.kv-sub { grid-column: 1 / -1; margin: 16px 0 2px; font-size: 11px; font-weight: 700;
-  letter-spacing: .05em; text-transform: uppercase; color: var(--fg-subtle);
-  display: flex; align-items: center; gap: 7px; }
+.kv-sub { grid-column: 1 / -1; margin: var(--sp-4) 0 var(--sp-0_5); font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700;
+  letter-spacing: var(--label-tracking); text-transform: uppercase; color: var(--fg-subtle);
+  display: flex; align-items: center; gap: var(--sp-2); }
 .kv-sub:first-child { margin-top: 0; }
-.kv-sub-n { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0;
+.kv-sub-n { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs);
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r-full); padding: 0 6px; }
+  border-radius: var(--r-full); padding: 0 var(--sp-1_5); }
 
-.labels-scroll { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 6px;
-  border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--bg-2); }
-.label-row { display: grid; grid-template-columns: minmax(200px, 40%) 1fr; gap: 12px; font-size: 12px; }
+.labels-scroll { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-1_5);
+  border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-2_5); background: var(--bg-2); }
+.label-row { display: grid; grid-template-columns: minmax(200px, 40%) 1fr; gap: var(--sp-3); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
 .label-k { color: var(--fg-muted); overflow-wrap: anywhere; }
 .label-v { color: var(--fg-subtle); overflow-wrap: anywhere; }
 
 /* ── topology ────────────────────────────────────────────────────────────── */
-.topo-legend { display: flex; gap: 14px; flex-wrap: wrap; }
+.topo-legend { display: flex; gap: var(--sp-3_5); flex-wrap: wrap; }
 .topo-wrap { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-1);
-  padding: 10px; overflow: auto; }
+  padding: var(--sp-2_5); overflow: auto; }
 .topo-svg { width: 100%; min-width: 720px; height: auto; display: block; }
 .topo-band { fill: color-mix(in oklab, var(--fg) 3%, transparent); stroke: var(--line); }
-.topo-band-label { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); font-weight: 600; }
+.topo-band-label { fill: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-family: var(--mono); font-weight: 600; }
 .topo-edge { stroke-width: 1.5; transition: opacity var(--dur-fast) var(--ease); }
 .topo-hub-c { fill: color-mix(in oklab, var(--accent) 22%, var(--surface-2)); stroke: var(--accent); stroke-width: 1.5; }
 .topo-hub { cursor: default; }
-.topo-hub-t { fill: var(--fg); font-size: 12px; font-weight: 700; text-anchor: middle; }
-.topo-hub-sub { fill: var(--fg-subtle); font-size: 11px; text-anchor: middle; font-family: var(--mono); }
-.topo-label { fill: var(--fg-muted); font-size: 12px; }
+.topo-hub-t { fill: var(--fg); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 700; text-anchor: middle; }
+.topo-hub-sub { fill: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); text-anchor: middle; font-family: var(--mono); }
+.topo-label { fill: var(--fg-muted); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
 .topo-node:hover .topo-label { fill: var(--fg); font-weight: 600; }
-.topo-label.ctr { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); }
+.topo-label.ctr { fill: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-family: var(--mono); }
 
 /* ── responsive ──────────────────────────────────────────────────────────── */
 /* The <=860px sidebar-drawer block is gone with the sidebar: the fixed
@@ -1162,12 +1169,12 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    ══════════════════════════════════════════════════════════════════════════ */
 .panel { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
   display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-.panel-h { display: flex; align-items: center; gap: 10px; padding: 13px 16px;
+.panel-h { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line); font-weight: var(--fw-bold);
   font-size: var(--fs-md); line-height: var(--lh-md); }
 .panel-h .sub { color: var(--fg-subtle); font-weight: var(--fw-medium);
   font-size: var(--fs-xs); line-height: var(--lh-xs); margin-left: auto; }
-.panel-b { padding: 16px; min-height: 0; }
+.panel-b { padding: var(--sp-4); min-height: 0; }
 /* The per-element ::-webkit-scrollbar rules that used to live here are gone -
    the scrollbar is styled once, globally, in the SCROLLING block near the end of
    this file, and two definitions of the same thing is how they drift. */
@@ -1185,9 +1192,9 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 
 /* .dot is declared once, with the table primitives above (it was here too). */
 
-.tag { display: inline-flex; align-items: center; gap: 5px;
+.tag { display: inline-flex; align-items: center; gap: var(--sp-1);
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-weight: var(--fw-semibold);
-  padding: 2px 9px; border-radius: var(--r-full); background: var(--surface-2); border: 1px solid var(--line);
+  padding: var(--sp-0_5) var(--sp-2); border-radius: var(--r-full); background: var(--surface-2); border: 1px solid var(--line);
   color: var(--fg-muted); white-space: nowrap; }
 /* TEXT TAKES THE -fg HALF OF A STATUS, NEVER THE FILL (design audit SYS-3,
    2026-09-21). These said `color: var(--st-up)`: the fill, which the palette
@@ -1206,7 +1213,7 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    than place one. The second .chip that stood here is merged into the first. */
 
 .kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
+  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px var(--sp-1); }
 
 /* ── the theme switch: a root cross-fade (SYS-19, R14.4) ─────────────────────
    lib/theme.tsx runs a theme change inside document.startViewTransition(), and
@@ -1261,7 +1268,7 @@ html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg); box-shadow: var(--shadow-4); overflow: hidden;
   display: flex; flex-direction: column; max-height: 62vh; }
-.cmdk-in { display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+.cmdk-in { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-3) var(--sp-3_5);
   border-bottom: 1px solid var(--line); flex: none; }
 .cmdk-in svg { color: var(--fg-subtle); flex: none; }
 .cmdk-in input { appearance: none; border: 0; background: transparent; color: var(--fg);
@@ -1270,15 +1277,15 @@ html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(
    it. `:has(:focus-visible)` rather than `:focus-within` so it appears for the
    keyboard and not on every mouse click into the field. */
 .cmdk-in:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--r-sm); }
-.cmdk-list { overflow-y: auto; padding: 6px; min-height: 0; }
-.cmdk-group { padding: 8px 10px 4px; font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-bold); letter-spacing: var(--label-tracking);
+.cmdk-list { overflow-y: auto; padding: var(--sp-1_5); min-height: 0; }
+.cmdk-group { padding: var(--sp-2) var(--sp-2_5) var(--sp-1); font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-bold); letter-spacing: var(--label-tracking);
   text-transform: uppercase; color: var(--fg-subtle); }
-.cmdk-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-sm);
+.cmdk-item { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-sm);
   font-size: var(--fs-md); line-height: var(--lh-md); min-height: var(--hit); cursor: pointer; color: var(--fg-muted); }
 .cmdk-item .cmdk-sub { margin-left: auto; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--fg-subtle); }
 .cmdk-item[aria-selected='true'] { background: var(--surface-3); color: var(--fg); }
-.cmdk-empty { padding: 22px 12px; text-align: center; color: var(--fg-subtle); font-size: var(--fs-sm); }
-.cmdk-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--line);
+.cmdk-empty { padding: var(--sp-6) var(--sp-3); text-align: center; color: var(--fg-subtle); font-size: var(--fs-sm); }
+.cmdk-foot { display: flex; gap: var(--sp-3_5); padding: var(--sp-2) var(--sp-3_5); border-top: 1px solid var(--line);
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); flex: none; }
 
 

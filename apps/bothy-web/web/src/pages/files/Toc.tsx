@@ -177,7 +177,7 @@ export function Toc({ headings, box }: {
       <p className="rd-toc-h">On this page</p>
       <ul className="rd-toc-list">
         {headings.map((h, i) => (
-          <li key={`${h.slug}-${i}`} style={{ paddingLeft: `${Math.min(h.level - base, 3) * 11}px` }}>
+          <li key={`${h.slug}-${i}`} style={{ paddingLeft: `calc(${Math.min(h.level - base, 3)} * var(--sp-3))` }}>
             <button
               type="button"
               className={`rd-toc-a${h.slug === active ? ' on' : ''}`}

@@ -150,7 +150,7 @@ function DocRow({ node, root, current, depth, strip, onOpen }: {
       <button
         type="button"
         className={`rd-doc${on ? ' on' : ''}${denied ? ' denied' : ''}`}
-        style={{ paddingLeft: `${8 + depth * 13}px` }}
+        style={{ paddingLeft: `calc(var(--sp-2) + ${depth} * var(--sp-3))` }}
         // Both halves, because `home` mirrors the other roots: the same relative
         // path exists in two open sections, and a lookup on the path alone would
         // scroll to whichever rendered first.
@@ -210,7 +210,7 @@ function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, 
             <button
               type="button"
               className="rd-dir"
-              style={{ paddingLeft: `${8 + depth * 13}px` }}
+              style={{ paddingLeft: `calc(var(--sp-2) + ${depth} * var(--sp-3))` }}
               aria-expanded={isOpen}
               onClick={() => onToggle(key)}
               title={`${n.path} - ${n.files.toLocaleString()} document${n.files === 1 ? '' : 's'}`}

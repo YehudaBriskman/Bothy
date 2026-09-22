@@ -157,7 +157,7 @@ export function ProjectDetail() {
             <span className={`kind-badge kind-${system.kind}`}>{KIND_LABEL[system.kind]}</span>
           </h1>
           <div className="detail-head-row">
-            <span className="dim" style={{ fontSize: 13.5 }}>
+            <span className="dim" style={{ fontSize: 'var(--fs-sm)' }}>
               {h.up}/{h.total} up · {ports.length} {ports.length === 1 ? 'port' : 'ports'} · {routers.length} {routers.length === 1 ? 'route' : 'routes'} · {system.volumes.length} {system.volumes.length === 1 ? 'volume' : 'volumes'}
             </span>
           </div>
@@ -175,7 +175,7 @@ export function ProjectDetail() {
         </div>
       </motion.header>
 
-      <div className="dgrid" style={{ marginTop: 18 }}>
+      <div className="dgrid" style={{ marginTop: 'var(--sp-4)' }}>
         {/* The Health panel is DELETED. It restated, in a 156px panel, the
             "N/M up · N ports · N routes · N volumes" line already printed 60px
             above it in the header - the same numbers, one bar and a row of
