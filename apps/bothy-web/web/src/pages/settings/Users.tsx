@@ -10,6 +10,7 @@ import { Loading, Refusal, When, useLoad } from '../../components/settings/bits'
 import { fetchUsers, ROLES, type AdminUser } from '../../lib/admin';
 import { ROLE_MEANING, type Role } from '../../lib/me';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 export function UsersSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchUsers(signal));
@@ -84,7 +85,7 @@ function RoleCells({ u }: { u: AdminUser }) {
         const Mark = held ? CircleCheck : nobody ? Ban : Circle;
         return (
           <td key={r} className="set-role-cell" data-held={held ? 'yes' : 'no'}>
-            <Mark size={15} aria-hidden="true" />
+            <Icon icon={Mark} size="md" />
             <span className="sr-only">{held ? 'held' : 'not held'}</span>
           </td>
         );
@@ -96,7 +97,7 @@ function RoleCells({ u }: { u: AdminUser }) {
 function UserTable({ users }: { users: AdminUser[] }) {
   if (!users.length) return <p className="set-empty">The realm has no users. <span className="mono">just up-auth</span> seeds one.</p>;
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl set-users">
         <thead>
           <tr>

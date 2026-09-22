@@ -27,6 +27,7 @@ import { Search, Boxes, Layers, CornerDownLeft, ArrowUp, ArrowDown } from 'lucid
 import { usePortal } from '../lib/data';
 import { DialogSurface } from './ui/Dialog';
 import { systemsOf } from '../lib/systems';
+import { Icon } from './ui/Icon';
 
 export interface Cmd {
   id: string;
@@ -140,7 +141,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       className="cmdk"
     >
         <div className="cmdk-in">
-          <Search size={17} aria-hidden="true" />
+          <Icon icon={Search} size="md" />
           <input
             ref={inputRef}
             value={q}
@@ -178,7 +179,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                       onMouseMove={() => setActive(i)}
                       onClick={() => go(r)}
                     >
-                      {r.group === 'Systems' ? <Layers size={15} /> : r.group === 'Services' ? <Boxes size={15} /> : <CornerDownLeft size={15} />}
+                      {r.group === 'Systems' ? <Icon icon={Layers} size="md" /> : r.group === 'Services' ? <Icon icon={Boxes} size="md" /> : <Icon icon={CornerDownLeft} size="md" />}
                       {r.status && <span className="dot" data-state={r.status} />}
                       <span>{r.label}</span>
                       {r.sub && <span className="cmdk-sub">{r.sub}</span>}
@@ -191,8 +192,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         </div>
 
         <div className="cmdk-foot">
-          <span><ArrowUp size={11} /><ArrowDown size={11} /> navigate</span>
-          <span><CornerDownLeft size={11} /> open</span>
+          <span><Icon icon={ArrowUp} size="xs" /><Icon icon={ArrowDown} size="xs" /> navigate</span>
+          <span><Icon icon={CornerDownLeft} size="xs" /> open</span>
           <span><span className="kbd">esc</span> close</span>
         </div>
     </DialogSurface>

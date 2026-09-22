@@ -38,6 +38,7 @@ import { Popover } from '../../components/ui/Popover';
 import { ChevronDown, CornerDownLeft, FolderTree, Lock } from 'lucide-react';
 import type { FileRoot, TreeFile } from '../../lib/files';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 /** Directories offered at once. The list is a shortcut, not a browser - the tree
  *  below is the browser - so it stops at the point where reading it costs more
@@ -116,9 +117,9 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
             className="rd-scope-btn"
             title={`Looking in ${label} - choose a root or a folder`}
           >
-            <FolderTree size={13} aria-hidden="true" />
+            <Icon icon={FolderTree} size="sm" />
             <span className="rd-scope-lbl mono">{label}</span>
-            <ChevronDown size={12} className="rd-scope-chev" aria-hidden="true" />
+            <Icon icon={ChevronDown} size="xs" className="rd-scope-chev" />
           </button>
         )}
       >
@@ -139,7 +140,7 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
                     title={r.readOnly ? `${r.label || r.key} - read-only` : (r.label || r.key)}
                   >
                     {r.key}
-                    {r.readOnly && <Lock size={10} className="fx-rootro" aria-label="read-only" />}
+                    {r.readOnly && <Icon icon={Lock} size="xs" className="fx-rootro" aria-label="read-only" />}
                   </button>
                 ))}
               </div>
@@ -169,7 +170,7 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
               aria-label={`Go to ${draft || root}`}
               onClick={() => go(root, draft)}
             >
-              <CornerDownLeft size={13} />
+              <Icon icon={CornerDownLeft} size="sm" />
             </button>
           </div>
 

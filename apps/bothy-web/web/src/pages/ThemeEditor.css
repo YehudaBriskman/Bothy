@@ -3,20 +3,20 @@
    competes with the thing it is meant to help you judge. */
 
 .theme-editor .te-back {
-  display: inline-flex; align-items: center; gap: 5px;
-  margin-bottom: 6px; padding: 0; border: 0; background: none;
-  font: inherit; font-size: 12px; color: var(--fg-subtle); cursor: pointer;
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  margin-bottom: var(--sp-1_5); padding: 0; border: 0; background: none;
+  font: inherit; font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle); cursor: pointer;
 }
 .theme-editor .te-back:hover { color: var(--fg); }
 
-.theme-editor .te-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.theme-editor .te-actions { display: flex; gap: var(--sp-2); align-items: flex-start; flex-wrap: wrap; }
 /* .te-danger is Button variant="danger" (SYS-7). */
 
-.theme-editor .te-empty { padding: 24px 2px; color: var(--fg-muted); }
+.theme-editor .te-empty { padding: var(--sp-6) var(--sp-0_5); color: var(--fg-muted); }
 
 .theme-editor .te-note {
-  display: flex; gap: 8px; align-items: flex-start;
-  margin: 0 0 14px; padding: 9px 11px; font-size: 12.5px; line-height: 1.45;
+  display: flex; gap: var(--sp-2); align-items: flex-start;
+  margin: 0 0 var(--sp-3_5); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); line-height: var(--lh-sm);
   border-radius: var(--r-sm); border: 1px solid var(--line);
 }
 .theme-editor .te-note svg { flex: none; margin-top: 1px; }
@@ -27,16 +27,16 @@
 
 /* ── identity ─────────────────────────────────────────────────────────────── */
 .theme-editor .te-identity {
-  display: grid; gap: 12px;
+  display: grid; gap: var(--sp-3);
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 }
 .theme-editor .te-wide { grid-column: 1 / -1; }
-.theme-editor .te-field { display: flex; flex-direction: column; gap: 4px; }
-.theme-editor .te-field > span { font-size: 11.5px; font-weight: 600; color: var(--fg-muted); }
-.theme-editor .te-field small { font-size: 10.5px; color: var(--fg-subtle); overflow-wrap: anywhere; }
+.theme-editor .te-field { display: flex; flex-direction: column; gap: var(--sp-1); }
+.theme-editor .te-field > span { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-weight: 600; color: var(--fg-muted); }
+.theme-editor .te-field small { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle); overflow-wrap: anywhere; }
 .theme-editor .te-field input,
 .theme-editor .te-field select {
-  padding: 7px 9px; font: inherit; font-size: 13px;
+  padding: var(--sp-2) var(--sp-2); font: inherit; font-size: var(--fs-sm); line-height: var(--lh-sm);
   color: var(--fg); background: var(--bg-2);
   border: 1px solid var(--line); border-radius: var(--r-sm);
 }
@@ -48,23 +48,23 @@
 
 /* ── tokens ───────────────────────────────────────────────────────────────── */
 .theme-editor .te-grid {
-  display: grid; gap: 10px; margin-top: 12px;
+  display: grid; gap: var(--sp-2_5); margin-top: var(--sp-3);
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 }
-.theme-editor .te-token { display: flex; flex-direction: column; gap: 4px; }
-.theme-editor .te-token-name { font-size: 11px; color: var(--fg-muted); }
+.theme-editor .te-token { display: flex; flex-direction: column; gap: var(--sp-1); }
+.theme-editor .te-token-name { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-muted); }
 .theme-editor .te-token.is-bad .te-token-name { color: var(--st-down-fg); font-weight: 700; }
-.theme-editor .te-token-row { display: flex; gap: 6px; align-items: center; }
+.theme-editor .te-token-row { display: flex; gap: var(--sp-1_5); align-items: center; }
 /* A colour well, sized to line up with the text field beside it. The default
    rendering is a chunky button in every engine, so the padding is stripped and
    the swatch made to fill it. */
 .theme-editor .te-token-row input[type='color'] {
-  flex: none; width: 34px; height: 30px; padding: 2px;
+  flex: none; width: 34px; height: 30px; padding: var(--sp-0_5);
   background: var(--bg-2); border: 1px solid var(--line);
   border-radius: var(--r-sm); cursor: pointer;
 }
 .theme-editor .te-token-row input[type='text'] {
-  flex: 1; min-width: 0; padding: 6px 8px; font-size: 12px;
+  flex: 1; min-width: 0; padding: var(--sp-1_5) var(--sp-2); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
   color: var(--fg); background: var(--bg-2);
   border: 1px solid var(--line); border-radius: var(--r-sm);
 }
@@ -72,27 +72,27 @@
 
 /* ── the report ───────────────────────────────────────────────────────────── */
 .theme-editor .te-badge {
-  margin-left: 10px; padding: 2px 7px;
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  margin-left: var(--sp-2_5); padding: var(--sp-0_5) var(--sp-2);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: var(--label-tracking);
   border-radius: var(--r-full); vertical-align: 2px;
 }
 .theme-editor .te-badge.is-ok  { color: var(--st-up-fg);   background: var(--st-up-bg); }
 .theme-editor .te-badge.is-bad { color: var(--st-down-fg); background: var(--st-down-bg); }
 
 .theme-editor .te-finding {
-  display: flex; gap: 8px; align-items: flex-start;
-  padding: 6px 2px; font-size: 12px; line-height: 1.45;
+  display: flex; gap: var(--sp-2); align-items: flex-start;
+  padding: var(--sp-1_5) var(--sp-0_5); font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: var(--lh-xs);
   border-top: 1px solid var(--line);
 }
-.theme-editor .te-finding svg { flex: none; margin-top: 2px; }
+.theme-editor .te-finding svg { flex: none; margin-top: var(--sp-0_5); }
 .theme-editor .te-finding.is-fail  { color: var(--st-down-fg); }
 .theme-editor .te-finding.is-allow { color: var(--fg-subtle); }
 .theme-editor .te-finding.is-pass  { color: var(--fg-muted); }
 .theme-editor .te-finding b { font-weight: 600; color: inherit; }
 
 .theme-editor .te-more {
-  margin-top: 8px; padding: 0; border: 0; background: none;
-  font: inherit; font-size: 12px; color: var(--accent-fg); cursor: pointer;
+  margin-top: var(--sp-2); padding: 0; border: 0; background: none;
+  font: inherit; font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--accent-fg); cursor: pointer;
 }
 .theme-editor .te-more:hover { text-decoration: underline; }
 
@@ -104,8 +104,8 @@
    who is already looking at the box, and a box that jumps 40px as it upgrades
    reads as a bug. */
 .theme-editor .te-css {
-  width: 100%; min-height: 320px; margin-top: 10px; padding: 10px 12px;
-  font-size: 12.5px; line-height: 1.55;
+  width: 100%; min-height: 320px; margin-top: var(--sp-2_5); padding: var(--sp-2_5) var(--sp-3);
+  font-size: var(--fs-sm); line-height: var(--lh-sm);
   color: var(--fg); background: var(--bg-2);
   border: 1px solid var(--line); border-radius: var(--r-sm);
   resize: vertical; white-space: pre;
@@ -128,7 +128,7 @@
    COLOURS. Every value is a token or a colour-mix of one, including the --hl-*
    set imported by ThemeEditor.tsx. There is no second palette here. */
 .theme-editor .te-code {
-  margin-top: 10px; height: 420px; min-height: 180px;
+  margin-top: var(--sp-2_5); height: 420px; min-height: 180px;
   /* `resize` needs a non-visible overflow to do anything, and the rounded
      corners need it anyway or the gutter paints over them. */
   overflow: hidden; resize: vertical;
@@ -155,7 +155,7 @@
 .theme-editor .fx-cm, .theme-editor .fx-cm > .cm-editor { height: 100%; }
 .theme-editor .cm-editor {
   background: var(--bg-2); color: var(--fg);
-  font-family: var(--mono); font-size: 12.5px;
+  font-family: var(--mono); font-size: var(--fs-sm); line-height: var(--lh-sm);
 }
 /* NO focus ring, for the reason editor.css states at length: `.cm-focused` is
    set on a plain mouse click, so a ring here draws a rectangle around the whole
@@ -170,20 +170,20 @@
 .theme-editor .cm-content:focus-visible { outline: none; }
 .theme-editor .cm-scroller { font-family: var(--mono); line-height: 1.55; overflow: auto; }
 .theme-editor .cm-content {
-  padding: 10px 0 22px; caret-color: var(--accent-fg);
+  padding: var(--sp-2_5) 0 var(--sp-6); caret-color: var(--accent-fg);
   /* Alignment is meaning in a token table: toCss() pads the value column so the
      hexes line up, and wrapping would throw that away on the first long
      shadow recipe. */
   white-space: pre;
 }
-.theme-editor .cm-line { padding: 0 14px 0 6px; }
+.theme-editor .cm-line { padding: 0 var(--sp-3_5) 0 var(--sp-1_5); }
 
 .theme-editor .cm-gutters {
   background: var(--bg-2); color: var(--fg-subtle);
   border-right: 1px solid var(--line);
   font-variant-numeric: tabular-nums;
 }
-.theme-editor .cm-lineNumbers .cm-gutterElement { padding: 0 8px 0 12px; opacity: .65; }
+.theme-editor .cm-lineNumbers .cm-gutterElement { padding: 0 var(--sp-2) 0 var(--sp-3); opacity: .65; }
 .theme-editor .cm-gutters .cm-activeLineGutter {
   background: transparent; color: var(--fg); opacity: 1; font-weight: 600;
 }
@@ -233,18 +233,18 @@
    in one keystroke. */
 .theme-editor .cm-panels {
   background: var(--surface-2); color: var(--fg-muted);
-  border-bottom: 1px solid var(--line); font-size: 11.5px;
+  border-bottom: 1px solid var(--line); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs);
 }
 .theme-editor .cm-panels.cm-panels-bottom { border-top: 1px solid var(--line); border-bottom: 0; }
 .theme-editor .cm-panel.cm-search {
-  padding: 7px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: var(--sp-2) var(--sp-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1_5);
 }
 .theme-editor .cm-panel.cm-search br { display: none; }
 .theme-editor .cm-panel.cm-search label {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--fg-subtle);
+  display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
 }
 .theme-editor .cm-panel.cm-search input.cm-textfield {
-  font-family: var(--mono); font-size: 11.5px; padding: 3px 7px; min-width: 160px;
+  font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); padding: var(--sp-1) var(--sp-2); min-width: 160px;
   background: var(--bg-2); color: var(--fg);
   border: 1px solid var(--line); border-radius: var(--r-sm);
 }
@@ -252,7 +252,7 @@
   outline: 2px solid var(--ring); outline-offset: -1px; border-color: var(--accent);
 }
 .theme-editor .cm-panel.cm-search button:not([name='close']) {
-  font: inherit; cursor: pointer; padding: 3px 9px;
+  font: inherit; cursor: pointer; padding: var(--sp-1) var(--sp-2);
   background: var(--surface-1); color: var(--fg-muted);
   border: 1px solid var(--line); border-radius: var(--r-sm);
   background-image: none;
@@ -263,7 +263,7 @@
 .theme-editor .cm-panel.cm-search button[name='close'] {
   position: absolute; top: 4px; right: 8px;
   background: transparent; border: 0; cursor: pointer;
-  color: var(--fg-subtle); font-size: 16px; padding: 0 4px;
+  color: var(--fg-subtle); font-size: var(--fs-body); line-height: var(--lh-body); padding: 0 var(--sp-1);
 }
 .theme-editor .cm-panel.cm-search button[name='close']:hover { color: var(--fg); }
 .theme-editor .cm-specialChar { color: var(--st-warn-fg); }
@@ -275,6 +275,6 @@
    by widening the other file's selector, because these are two pages that
    happen to want the same caption, not one component. */
 .theme-editor .set-note {
-  display: block; margin: 0; font-size: 12px; line-height: 1.5;
+  display: block; margin: 0; font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: var(--lh-xs);
   color: var(--fg-subtle); max-width: 78ch;
 }

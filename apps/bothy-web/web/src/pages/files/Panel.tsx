@@ -22,6 +22,7 @@
 
 import { AlertTriangle, ChevronDown, GitCommitVertical, Info, ScrollText, TriangleAlert, X } from 'lucide-react';
 import { relDate, type ApiCall, type Commit } from '../../lib/files';
+import { Icon } from '../../components/ui/Icon';
 
 export type PanelTab = 'problems' | 'output' | 'git';
 
@@ -82,7 +83,7 @@ export function Panel({
         <span className="fx-panel-spacer" />
         {!collapsed && tab === 'output' && calls.length > 0 && (
           <button type="button" className="fx-hbtn" onClick={onClear} aria-label="Clear the output log" title="Clear">
-            <X size={14} />
+            <Icon icon={X} size="sm" />
           </button>
         )}
         <button
@@ -93,7 +94,7 @@ export function Panel({
           aria-expanded={!collapsed}
           title={collapsed ? 'Open the panel' : 'Close the panel'}
         >
-          <ChevronDown size={15} className={collapsed ? 'fx-flip' : ''} />
+          <Icon icon={ChevronDown} size="md" className={collapsed ? 'fx-flip' : ''} />
         </button>
       </div>
 
@@ -106,9 +107,9 @@ export function Panel({
                 <ul className="fx-problems">
                   {problems.map((p) => (
                     <li key={p.id} className={`fx-problem ${p.tone}`}>
-                      {p.tone === 'bad' ? <AlertTriangle size={14} aria-hidden="true" />
-                        : p.tone === 'warn' ? <TriangleAlert size={14} aria-hidden="true" />
-                        : <Info size={14} aria-hidden="true" />}
+                      {p.tone === 'bad' ? <Icon icon={AlertTriangle} size="sm" />
+                        : p.tone === 'warn' ? <Icon icon={TriangleAlert} size="sm" />
+                        : <Icon icon={Info} size="sm" />}
                       <div className="fx-problem-body">
                         <div className="fx-problem-title">{p.title}</div>
                         <div className="fx-problem-detail">{p.detail}</div>
@@ -145,14 +146,14 @@ export function Panel({
 
           {tab === 'git' && (
             !commits
-              ? <p className="fx-panel-empty"><ScrollText size={14} aria-hidden="true" /> Open a file to load its repository history.</p>
+              ? <p className="fx-panel-empty"><Icon icon={ScrollText} size="sm" /> Open a file to load its repository history.</p>
               : commits.length === 0
                 ? <p className="fx-panel-empty">No commits here - this path is untracked, or outside a repo.</p>
                 : (
                   <ol className="fx-gitlog">
                     {commits.map((c) => (
                       <li key={c.sha} className="fx-gitrow" title={new Date(c.date).toLocaleString()}>
-                        <GitCommitVertical size={13} aria-hidden="true" />
+                        <Icon icon={GitCommitVertical} size="sm" />
                         <span className="fx-gitrow-sha mono">{c.sha.slice(0, 7)}</span>
                         <span className="fx-gitrow-subject">{c.subject}</span>
                         <span className="fx-gitrow-author">{c.author}</span>

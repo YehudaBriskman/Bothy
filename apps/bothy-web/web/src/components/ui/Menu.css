@@ -2,12 +2,12 @@
    contract for everything that floats (design audit SYS-5). */
 .ui-menu {
   min-width: 220px;
-  padding: 4px;
+  padding: var(--sp-1);
 }
 
 .ui-menu-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; border-radius: var(--r-sm);
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-sm);
   font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted); min-height: var(--hit);
   white-space: nowrap; cursor: pointer; user-select: none; text-decoration: none;
   outline: none;
@@ -16,8 +16,8 @@
 .ui-menu-ico svg, .ui-menu-item > svg { flex: none; }
 .ui-menu-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ui-menu-sub { font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); white-space: normal; }
-.ui-menu-trail { flex: none; display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; }
-.ui-menu-trail .kbd { font-size: var(--fs-2xs); padding: 0 4px; }
+.ui-menu-trail { flex: none; display: inline-flex; align-items: center; gap: var(--sp-0_5); margin-left: var(--sp-2); }
+.ui-menu-trail .kbd { font-size: var(--fs-2xs); padding: 0 var(--sp-1); }
 /* A fixed gutter for the radio tick, so names line up whether or not a row is
    the chosen one - without it the list re-indents as you change theme. */
 .ui-menu-mark { flex: none; width: 13px; height: 13px; display: inline-grid; place-items: center; color: var(--accent-fg); }
@@ -31,6 +31,6 @@
 .ui-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .ui-menu-item[data-disabled], .ui-menu-item[data-soft-disabled] { color: var(--fg-subtle); cursor: not-allowed; }
 
-.ui-menu-sep { height: 1px; margin: 4px 2px; background: var(--line); }
-.ui-menu-head { padding: 8px 10px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
-.ui-menu-foot { padding: 2px 10px 4px; font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); }
+.ui-menu-sep { height: 1px; margin: var(--sp-1) var(--sp-0_5); background: var(--line); }
+.ui-menu-head { padding: var(--sp-2) var(--sp-2_5) var(--sp-2_5); margin-bottom: var(--sp-1); border-bottom: 1px solid var(--line); }
+.ui-menu-foot { padding: var(--sp-0_5) var(--sp-2_5) var(--sp-1); font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); }

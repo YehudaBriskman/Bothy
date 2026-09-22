@@ -161,6 +161,8 @@ export const STRUCTURAL = new Set([
   '--label-tracking', '--mat-chrome-blur',
   // Batch 3 (2026-09-22): the palette's material blur (the scrim no longer blurs).
   '--mat-palette-blur', '--dur-theme',
+  // Batch 4 (2026-09-22): the radius for marks, and the top bar's stated height.
+  '--r-2xs', '--topbar-h',
 ]);
 
 /** Whole FAMILIES of structural tokens, by prefix: the type scale (size,

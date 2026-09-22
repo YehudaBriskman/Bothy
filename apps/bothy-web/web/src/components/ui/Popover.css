@@ -61,14 +61,14 @@
   animation: overlay-hold var(--dur-exit) linear;
 }
 
-.ui-pop { padding: 10px; }
-.ui-pop-match { width: max(var(--radix-popper-anchor-width), 320px); padding: 4px; }
+.ui-pop { padding: var(--sp-2_5); }
+.ui-pop-match { width: max(var(--radix-popper-anchor-width), 320px); padding: var(--sp-1); }
 
 /* A tooltip: the inverted pair (foreground as background) - it reads as an
    overlay rather than another card. Never takes the pointer, never scrolls. */
 .ui-pop.ui-pop-tip {
   z-index: var(--z-tooltip);
-  padding: 6px 9px; overflow: visible;
+  padding: var(--sp-1_5) var(--sp-2); overflow: visible;
   width: max-content; max-width: min(280px, calc(100vw - 16px));
   background: var(--fg); color: var(--bg); border: 0; border-radius: var(--r-sm);
   box-shadow: var(--shadow-2);
@@ -80,8 +80,8 @@
 
 /* Rows inside a popover that behaves as a list (the Settings search listbox). */
 .ui-pop-row {
-  display: flex; gap: 9px; align-items: flex-start;
-  padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer;
+  display: flex; gap: var(--sp-2); align-items: flex-start;
+  padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-sm); cursor: pointer;
   min-height: var(--hit);
   font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
 }

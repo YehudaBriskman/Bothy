@@ -38,7 +38,9 @@
   --rail-l: 268px;
   --rail-r: 300px;
   --panel-h: 200px;
-  --code-fs: 12.5px;
+  /* The editor's code size: --fs-xs (12px; 12.5 before batch 4). A token of
+     its own so the diff, blame and highlight panes stay on one size. */
+  --code-fs: var(--fs-xs);
   --code-lh: 1.55;
 }
 
@@ -98,8 +100,8 @@
    wrong above an application. This is 40px, carries the same two facts, and puts
    the layout controls where every IDE puts them. */
 .bothy-files .fx-head {
-  flex: none; display: flex; align-items: center; gap: 14px;
-  padding: 0 14px 0 18px; height: 42px;
+  flex: none; display: flex; align-items: center; gap: var(--sp-3_5);
+  padding: 0 var(--sp-3_5) 0 var(--sp-4); height: 42px;
   border-bottom: 1px solid var(--line); background: var(--surface-2);
 }
 /* `flex: 1 1 auto` so the identity block claims the free width and everything
@@ -107,22 +109,22 @@
    invisible while `.fx-head-actions` (margin-left: auto) was the only thing to
    its right; the Reading view link is now between the two, and without this it
    floats a few pixels off the end of the subtitle. */
-.bothy-files .fx-head-id { flex: 1 1 auto; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.bothy-files .fx-head-id { flex: 1 1 auto; display: flex; align-items: baseline; gap: var(--sp-2_5); min-width: 0; }
 .bothy-files .fx-head-title {
-  margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; flex: none;
+  margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700; letter-spacing: var(--tr-md); flex: none;
 }
 .bothy-files .fx-head-sub {
-  margin: 0; color: var(--fg-subtle); font-size: 12px;
+  margin: 0; color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .fx-head-sub b { color: var(--fg-muted); font-weight: 700; }
-.bothy-files .fx-head-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.bothy-files .fx-head-actions { display: flex; align-items: center; gap: var(--sp-0_5); flex: none; }
 /* Work -> Read. A DESTINATION, so it carries its words; its neighbours are
    layout toggles and carry glyphs. The rule that separates the two is in
    docs/brand/patterns/navigation.md and it is the reason this is not a fourth
    icon in the group beside it. */
 .bothy-files .fx-head-read {
-  flex: none; gap: 6px; text-decoration: none; margin-right: 8px;
+  flex: none; gap: var(--sp-1_5); text-decoration: none; margin-right: var(--sp-2);
 }
 
 /* The small square button used by every region header. One definition, because
@@ -187,10 +189,9 @@
 .bothy-files .fx-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .bothy-files .fx-col-l { grid-column: 2; }
 .bothy-files .fx-sep-l { grid-column: 3; }
-.bothy-files .fx-col-mid { grid-column: 4; }
+.bothy-files .fx-col-mid { grid-column: 4; grid-row: 1; }
 .bothy-files .fx-sep-r { grid-column: 5; }
 .bothy-files .fx-col-r { grid-column: 6; }
-.bothy-files .fx-col-mid { grid-row: 1; }
 
 /* ── the separators ──────────────────────────────────────────────────────────
    5px of hit area around a 1px line. A 1px target is a target nobody hits; a
@@ -227,34 +228,34 @@
 .bothy-files .fx-rail-l { border-right: 1px solid var(--line); }
 .bothy-files .fx-rail-r { border-left: 1px solid var(--line); }
 .bothy-files .fx-rail-h {
-  flex: none; display: flex; align-items: center; gap: 4px;
-  height: 30px; padding: 0 6px 0 12px;
+  flex: none; display: flex; align-items: center; gap: var(--sp-1);
+  height: 30px; padding: 0 var(--sp-1_5) 0 var(--sp-3);
   border-bottom: 1px solid var(--line); background: var(--surface-2);
 }
 .bothy-files .fx-rail-title {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   color: var(--fg-subtle); flex: none;
 }
 .bothy-files .fx-rail-sub {
-  color: var(--fg-subtle); font-size: 10.5px; font-family: var(--mono);
-  margin-left: auto; padding-right: 4px; flex: none;
+  color: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-family: var(--mono);
+  margin-left: auto; padding-right: var(--sp-1); flex: none;
 }
 
 /* ── the sign-in gate ────────────────────────────────────────────────────── */
-.bothy-files .fx-gate { flex: 1; min-height: 0; overflow: auto; padding: 40px 24px; }
+.bothy-files .fx-gate { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-10) var(--sp-6); }
 .bothy-files .fx-signin { max-width: 520px; margin: 0 auto; }
 .bothy-files .fx-signin-ico {
-  display: inline-grid; place-items: center; width: 46px; height: 46px; margin-bottom: 12px;
+  display: inline-grid; place-items: center; width: 46px; height: 46px; margin-bottom: var(--sp-3);
   border-radius: var(--r-lg); color: var(--accent-fg);
   background: var(--accent-bg); border: 1px solid var(--accent-line);
 }
 .bothy-files .fx-signin p b { color: var(--fg); font-weight: 700; }
-.bothy-files .fx-signin-actions { display: flex; gap: 10px; justify-content: center; }
+.bothy-files .fx-signin-actions { display: flex; gap: var(--sp-2_5); justify-content: center; }
 
 /* Shared small controls. `.btn.sm` and `.icon-btn.sm` are used by three of the
    five regions, so they are declared once here rather than in each. */
 .bothy-files .icon-btn.sm { width: 26px; height: 26px; border-radius: var(--r-sm); }
-.bothy-files .fx-skel { display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; }
+.bothy-files .fx-skel { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-2) var(--sp-1_5); }
 .bothy-files .fx-skel .skel { height: 20px; border-radius: var(--r-sm); }
 /* No tooltip sizing here any more: the tooltip is portalled (ui/Popover since
    batch 3), so its containing block is no longer the 24px rail button it hangs

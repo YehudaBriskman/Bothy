@@ -6,6 +6,7 @@ import { ErrState } from './states';
 import './Tables.css';
 import { SortHeader } from './SortHeader';
 import { Button } from './ui/Button';
+import { Icon } from './ui/Icon';
 
 // The Routes tab is the escape hatch: it shows EVERY Traefik router, including
 // the ones that never became a service card (bothy-web-fallback, host processes,
@@ -142,7 +143,7 @@ export function RoutesTab({
       {!compact && (
         <div className="tbl-filter">
           <div className="tbl-search">
-            <Search size={15} aria-hidden="true" />
+            <Icon icon={Search} size="md" />
             <input
               type="search"
               placeholder="Filter routers, rules, targets…"

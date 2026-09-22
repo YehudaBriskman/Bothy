@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Search, AlertTriangle, ScrollText } from 'lucide-react';
 import { fetchLogs, LOG_RANGES, LOG_LIMIT, type LogSource, type LogLine, type LogRangeKey } from '../lib/logs';
 import './LogPanel.css';
+import { Icon } from './ui/Icon';
 
 const fmtTime = (ms: number) =>
   new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -67,12 +68,12 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
     <div className="logp">
       <div className="logp-bar">
         <span className="logp-src" title={source.selector}>
-          <ScrollText size={14} aria-hidden="true" />
+          <Icon icon={ScrollText} size="sm" />
           {title || (source.kind === 'container' ? 'container logs' : 'process logs')}
         </span>
 
         <form className="logp-search" onSubmit={submit} role="search">
-          <Search size={13} aria-hidden="true" />
+          <Icon icon={Search} size="sm" />
           <input
             type="search"
             value={search}
@@ -92,14 +93,14 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
         </label>
 
         <button type="button" className="logp-refresh" onClick={() => setNonce((n) => n + 1)} title="Refresh">
-          <RefreshCw size={14} className={loading ? 'spin' : undefined} aria-hidden="true" />
+          <Icon icon={RefreshCw} size="sm" className={loading ? 'spin' : undefined} />
           <span className="sr-only">Refresh logs</span>
         </button>
       </div>
 
       {truncated && (
         <div className="logp-note">
-          <AlertTriangle size={13} aria-hidden="true" />
+          <Icon icon={AlertTriangle} size="sm" />
           Showing the newest {LOG_LIMIT} lines - narrow the range or filter to see the rest.
         </div>
       )}

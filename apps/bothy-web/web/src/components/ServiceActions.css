@@ -19,7 +19,7 @@
    two columns beside it, and a table that twitches under the cursor is harder to
    read than one narrow empty column. */
 .svc-tbl th.svc-th-act,
-.svc-tbl td.svc-td-act { width: 34px; padding-left: 0; padding-right: 8px; }
+.svc-tbl td.svc-td-act { width: 34px; padding-left: 0; padding-right: var(--sp-2); }
 
 .svc-act-btn {
   appearance: none; cursor: pointer; font: inherit; padding: 0;
@@ -76,20 +76,20 @@
 /* ── the dialog ─────────────────────────────────────────────────────────────*/
 .sa-title .mono { font-size: .92em; color: var(--fg-muted); }
 
-.sa-body { display: flex; flex-direction: column; gap: 14px; }
+.sa-body { display: flex; flex-direction: column; gap: var(--sp-3_5); }
 
-.sa-note { margin: 0; color: var(--fg-muted); font-size: 13px; line-height: 1.55; }
+.sa-note { margin: 0; color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
 
 /* ── the verb list ──────────────────────────────────────────────────────────
    Each row carries three facts - the verb, what it does, and whether it costs
    you something - which is what earns a full-width row under the footprint rule.
    A row with a label alone would not, and would be a menu item. */
-.sa-verbs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sa-verbs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
 
 .sa-verb {
   appearance: none; cursor: pointer; font: inherit; text-align: left; width: 100%;
-  display: flex; align-items: flex-start; gap: 11px;
-  padding: 11px 13px; border-radius: var(--r-md);
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3); border-radius: var(--r-md);
   background: var(--surface-2); border: 1px solid var(--line); color: var(--fg);
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
@@ -105,34 +105,34 @@
 .sa-verb[aria-disabled='true']:hover { border-color: var(--line); background: var(--surface-2); }
 
 .sa-verb-ico { flex: none; margin-top: 1px; color: var(--fg-muted); }
-.sa-verb-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.sa-verb-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 700; font-size: 13.5px; }
-.sa-verb-why { color: var(--fg-muted); font-size: 12.5px; line-height: 1.5; }
+.sa-verb-text { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.sa-verb-name { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-weight: 700; font-size: var(--fs-md); line-height: var(--lh-md); }
+.sa-verb-why { color: var(--fg-muted); font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: var(--lh-xs); }
 
 /* A glyph and a word, then a colour. --st-warn is legal here for the same reason
    it is on the outcome: this is a fact about the container's role on the box,
    not a decoration on a button. */
 .sa-flag {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 600; letter-spacing: .01em;
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 600; letter-spacing: var(--tr-2xs);
   color: var(--st-warn-fg); background: var(--st-warn-bg);
   border: 1px solid var(--st-warn-line); border-radius: var(--r-full);
-  padding: 1px 8px;
+  padding: 1px var(--sp-2);
 }
 .sa-flag svg { flex: none; }
 
 /* ── the confirm step ───────────────────────────────────────────────────────*/
-.sa-consequence { display: flex; flex-direction: column; gap: 10px; }
+.sa-consequence { display: flex; flex-direction: column; gap: var(--sp-2_5); }
 .sa-warn {
-  display: flex; align-items: flex-start; gap: 10px; margin: 0;
-  padding: 12px 14px; border-radius: var(--r-md);
-  font-size: 13.5px; line-height: 1.55; font-weight: 600;
+  display: flex; align-items: flex-start; gap: var(--sp-2_5); margin: 0;
+  padding: var(--sp-3) var(--sp-3_5); border-radius: var(--r-md);
+  font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 600;
   color: var(--fg); background: var(--st-warn-bg); border: 1px solid var(--st-warn-line);
 }
-.sa-warn svg { flex: none; margin-top: 2px; color: var(--st-warn-fg); }
+.sa-warn svg { flex: none; margin-top: var(--sp-0_5); color: var(--st-warn-fg); }
 
 /* ── in flight ──────────────────────────────────────────────────────────────*/
-.sa-working { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 13.5px; color: var(--fg-muted); }
+.sa-working { display: flex; align-items: center; gap: var(--sp-2_5); margin: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted); }
 .sa-spin {
   flex: none; width: 15px; height: 15px; border-radius: var(--r-full);
   border: 2px solid var(--line-strong); border-top-color: var(--accent);
@@ -148,34 +148,34 @@
 }
 
 /* ── the outcome ────────────────────────────────────────────────────────────*/
-.sa-outcome { display: flex; flex-direction: column; gap: 8px; }
-.sa-outcome-h { margin: 0; font-size: 14.5px; font-weight: 700; line-height: 1.4; }
+.sa-outcome { display: flex; flex-direction: column; gap: var(--sp-2); }
+.sa-outcome-h { margin: 0; font-size: var(--fs-md); font-weight: 700; line-height: var(--lh-md); }
 .sa-outcome[data-ok='true'] .sa-outcome-h { color: var(--st-up-fg); }
 .sa-outcome[data-ok='false'] .sa-outcome-h { color: var(--st-down-fg); }
 
 .sa-transition {
-  display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0;
-  font-size: 13px; color: var(--fg-muted);
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin: 0;
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
 }
 .sa-transition .sa-to { color: var(--fg); font-weight: 600; }
 .sa-transition .sa-took {
-  margin-left: 4px; font-variant-numeric: tabular-nums;
-  color: var(--fg-subtle); font-size: 12px;
+  margin-left: var(--sp-1); font-variant-numeric: tabular-nums;
+  color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
 }
 
 /* ── no role ────────────────────────────────────────────────────────────────*/
 .sa-norole {
-  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
-  padding: 12px 14px; border-radius: var(--r-md);
+  display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start;
+  padding: var(--sp-3) var(--sp-3_5); border-radius: var(--r-md);
   background: var(--surface-2); border: 1px solid var(--line);
 }
-.sa-norole-h { margin: 0; font-size: 13.5px; font-weight: 700; }
+.sa-norole-h { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700; }
 
 /* align-self, not align-items on the parent: the paragraphs beside it DO want
    the full width, and a flex column that stops stretching stops wrapping its
    prose at the dialog's edge. Measured - the button was 525px wide and read as a
    banner rather than an action. */
-.sa-signin { margin-top: 2px; align-self: flex-start; }
+.sa-signin { margin-top: var(--sp-0_5); align-self: flex-start; }
 
 /* ── the footer's act button ────────────────────────────────────────────────
    Not .btn.primary. The accent is chrome and it is this app's "press me", so
@@ -193,6 +193,6 @@
 
 /* ── narrow ────────────────────────────────────────────────────────────────*/
 @media (max-width: 560px) {
-  .sa-verb { padding: 10px 11px; }
-  .sa-verb-name { font-size: 13px; }
+  .sa-verb { padding: var(--sp-2_5) var(--sp-3); }
+  .sa-verb-name { font-size: var(--fs-sm); line-height: var(--lh-sm); }
 }

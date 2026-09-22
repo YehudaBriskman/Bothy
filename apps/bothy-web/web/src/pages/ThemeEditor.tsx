@@ -41,6 +41,7 @@ import type { CodeHandle } from './files/CodeSurface';
 import '../hl.css';
 import './ThemeEditor.css';
 import { Button } from '../components/ui/Button';
+import { Icon } from '../components/ui/Icon';
 
 const ROOT = 'stacks';
 const dirOf = (id: string) => `${THEME_DIR_HOST}${id}.css`;
@@ -284,7 +285,7 @@ export function ThemeEditor() {
       <div className="page-head">
         <div>
           <button type="button" className="te-back" onClick={() => nav('/settings/appearance')}>
-            <ArrowLeft size={14} aria-hidden="true" /> Settings
+            <Icon icon={ArrowLeft} size="sm" /> Settings
           </button>
           <h1>{editing ? `Editing ${draft.name || editing}` : 'New theme'}</h1>
           <p className="page-sub">
@@ -296,16 +297,16 @@ export function ThemeEditor() {
               the canonical file again. The buffer exists to stop the surface
               fighting a caret mid-word; it is not a second draft. */}
           <Button onClick={() => { setShowCss((v) => !v); setTypedCss(null); }}>
-            <Code2 size={15} aria-hidden="true" /> {showCss ? 'Hide' : 'Show'} CSS
+            <Icon icon={Code2} size="md" /> {showCss ? 'Hide' : 'Show'} CSS
           </Button>
           {editing && (
             <Button variant="danger" disabled={!mayWrite || busy}
               onClick={remove}>
-              <Trash2 size={15} aria-hidden="true" /> Delete
+              <Icon icon={Trash2} size="md" /> Delete
             </Button>
           )}
           <Button variant="primary" onClick={save} disabled={!mayWrite || busy}>
-            <Save size={15} aria-hidden="true" /> {busy ? 'Saving…' : 'Save'}
+            <Icon icon={Save} size="md" /> {busy ? 'Saving…' : 'Save'}
           </Button>
         </div>
       </div>
@@ -314,7 +315,7 @@ export function ThemeEditor() {
           rather than a disabled button with no explanation. */}
       {!mayWrite && (
         <p className="te-note te-warn">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <Icon icon={AlertTriangle} size="md" />
           <span>
             You can build and preview a theme here, but saving needs the <b>editor</b> role.
             Everything below still works — the preview is live — you just cannot write the file.
@@ -324,7 +325,7 @@ export function ThemeEditor() {
 
       {notice && (
         <p className={`te-note te-${notice.tone}`}>
-          {notice.tone === 'ok' ? <Check size={15} /> : <AlertTriangle size={15} />}
+          {notice.tone === 'ok' ? <Icon icon={Check} size="md" /> : <Icon icon={AlertTriangle} size="md" />}
           <span>{notice.text}</span>
         </p>
       )}
@@ -542,7 +543,7 @@ function Report({ findings, problems }: { findings: Finding[]; problems: number 
         </p>
         {fails.map((f) => (
           <div className="te-finding is-fail" key={f.id}>
-            <AlertTriangle size={14} aria-hidden="true" />
+            <Icon icon={AlertTriangle} size="sm" />
             <span><b>{f.label}</b> {f.detail}</span>
           </div>
         ))}
@@ -558,7 +559,7 @@ function Report({ findings, problems }: { findings: Finding[]; problems: number 
             </button>
             {all && passes.map((f) => (
               <div className="te-finding is-pass" key={f.id}>
-                <Check size={14} aria-hidden="true" />
+                <Icon icon={Check} size="sm" />
                 <span><b>{f.label}</b> {f.detail}</span>
               </div>
             ))}

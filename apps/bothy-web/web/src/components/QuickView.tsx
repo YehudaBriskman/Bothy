@@ -37,6 +37,7 @@ import {
   fmtPercent, fmtRate, fmtSize, fmtUptimeShort, useMetrics, type Series,
 } from '../lib/metrics';
 import './QuickView.css';
+import { Icon as SizedIcon } from './ui/Icon';
 
 const lastOf = (s?: Series) => (s && s.points.length ? s.points[s.points.length - 1].v : null);
 
@@ -138,7 +139,7 @@ function Tile({
   return (
     <div className="qv-tile">
       <span className="qv-top">
-        <Icon size={12} aria-hidden="true" />
+        <SizedIcon icon={Icon} size="xs" />
         <span className="qv-label">{label}</span>
       </span>
       <span className="qv-value">{value}</span>

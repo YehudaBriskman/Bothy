@@ -5,11 +5,12 @@
 import { LogIn } from 'lucide-react';
 import { signInUrl } from '../../lib/files';
 import { Button, buttonClass } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 export function SignInCard({ what, onRetry }: { what: string; onRetry?: () => void }) {
   return (
     <div className="state fx-signin">
-      <span className="fx-signin-ico"><LogIn size={22} aria-hidden="true" /></span>
+      <span className="fx-signin-ico"><Icon icon={LogIn} size="xl" /></span>
       <h4>Sign in to {what}</h4>
       <p>
         BothyFiles reads the stack repo, the notes and <span className="mono">~/projects</span> -

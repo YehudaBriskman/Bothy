@@ -31,6 +31,7 @@
 // way "there are eleven changes" reaches someone who works with the rail shut.
 
 import { Files as FilesIcon, GitBranch, Search } from 'lucide-react';
+import { Icon as SizedIcon } from '../../components/ui/Icon';
 
 export type RailView = 'explorer' | 'search' | 'scm';
 
@@ -78,7 +79,7 @@ export function ActivityBar({ view, onPick, changes, collapsed }: {
             title={hint}
             onClick={() => onPick(id)}
           >
-            <Icon size={19} aria-hidden="true" />
+            <SizedIcon icon={Icon} size="lg" />
             {/* Only Changes carries a count, and only when there is one:
                 a badge reading 0 is a badge that has stopped meaning anything.
                 Capped at 99 so a repo mid-rebase cannot widen the strip. */}

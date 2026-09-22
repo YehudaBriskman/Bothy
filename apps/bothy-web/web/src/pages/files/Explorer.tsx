@@ -22,6 +22,7 @@ import { FileIcon } from './icons';
 import { baseName, dirName, tailPath, type Node } from './tree';
 import { toneFor, type Decorations } from './gitdeco';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 export const MAX_RESULTS = 250;
 
@@ -53,7 +54,9 @@ function TreeRows({
         // that silently vanishes is the kind of gap people debug for an hour -
         // but it is a disabled row, so it can never look openable.
         const denied = n.entry?.readable === false;
-        const pad = { paddingLeft: `${6 + depth * 12}px` };
+        // rem steps (the indent follows the text size); explorer.css draws the guide
+        // stripes from the same two tokens.
+        const pad = { paddingLeft: `calc(var(--sp-1_5) + ${depth} * var(--sp-3))` };
 
         if (n.dir) {
           const open = expanded.has(n.path);
@@ -75,10 +78,10 @@ function TreeRows({
                   title={`${n.path} - ${n.files.toLocaleString()} files, ${fmtBytes(n.bytes)}`
                     + (dd ? ` · ${dd.count} changed` : '')}
                 >
-                  <ChevronRight size={12} className={`chev fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
+                  <Icon icon={ChevronRight} size="xs" className={`chev fx-chev ${open ? 'open' : ''}`} />
                   {open
-                    ? <FolderOpen size={13} className="fx-ico t-dir" aria-hidden="true" />
-                    : <Folder size={13} className="fx-ico t-dir" aria-hidden="true" />}
+                    ? <Icon icon={FolderOpen} size="sm" className="fx-ico t-dir" />
+                    : <Icon icon={Folder} size="sm" className="fx-ico t-dir" />}
                   <span className="fx-name">{n.name}</span>
                   {/* The git count REPLACES the file count when there is one.
                       Both in the same 10px column is two numbers that look
@@ -99,7 +102,7 @@ function TreeRows({
                   title={`Download ${n.name} as an archive - ${n.files.toLocaleString()} files, ${fmtBytes(n.bytes)}`}
                   aria-label={`Download ${n.path} as an archive`}
                 >
-                  <FileDown size={12} aria-hidden="true" />
+                  <Icon icon={FileDown} size="xs" />
                 </button>
               </div>
               {/* Lazily rendered: a closed directory puts NOTHING in the DOM,
@@ -145,7 +148,7 @@ function TreeRows({
                 onClick={() => onOpenDiff(n.path)}
                 title={`${n.path} - deleted, and not yet committed. Opens the diff; the file itself is gone.`}
               >
-                <FileX2 size={13} className="fx-ico t-tomb" aria-hidden="true" />
+                <Icon icon={FileX2} size="sm" className="fx-ico t-tomb" />
                 <span className="fx-name">{n.name}</span>
                 <span className="fx-gitcode t-down" aria-label="deleted">D</span>
               </button>
@@ -171,10 +174,10 @@ function TreeRows({
                   + (d ? ` · ${d.label}${d.staged ? ', staged' : ''}` : '')}
             >
               {denied
-                ? <Lock size={13} className="fx-ico t-denied" aria-hidden="true" />
+                ? <Icon icon={Lock} size="sm" className="fx-ico t-denied" />
                 : <FileIcon name={n.name} />}
               <span className="fx-name">{n.name}</span>
-              {!writable && !denied && <Lock size={10} className="fx-ro" aria-hidden="true" />}
+              {!writable && !denied && <Icon icon={Lock} size="xs" className="fx-ro" />}
               {/* The letter, not just the colour: the state has to survive a
                   monochrome screen and a reader who cannot tell amber from
                   green. It takes the size column, which the size can spare. */}
@@ -232,7 +235,7 @@ export function Explorer({
         <span className="fx-rail-sub tnum">{shownCount}</span>
         <Tooltip label="Collapse every folder">
           <button type="button" className="fx-hbtn" onClick={onCollapseAll} aria-label="Collapse all folders">
-            <ChevronsDownUp size={14} />
+            <Icon icon={ChevronsDownUp} size="sm" />
           </button>
         </Tooltip>
         <Tooltip label="Reveal the open file in the tree">
@@ -243,12 +246,12 @@ export function Explorer({
             disabled={!current}
             aria-label="Reveal the open file in the tree"
           >
-            <Locate size={14} />
+            <Icon icon={Locate} size="sm" />
           </button>
         </Tooltip>
         <Tooltip label={`Download all of ${root} as an archive`} align="end">
           <button type="button" className="fx-hbtn" onClick={onDownloadRoot} aria-label={`Download ${root}`}>
-            <FileDown size={14} />
+            <Icon icon={FileDown} size="sm" />
           </button>
         </Tooltip>
       </div>
@@ -268,7 +271,7 @@ export function Explorer({
               {/* A whole root that cannot be written to says so on its chip -
                   otherwise the only clue is every file in it turning out to have
                   no Edit button. */}
-              {r.readOnly && <Lock size={10} className="fx-rootro" aria-label="read-only" />}
+              {r.readOnly && <Icon icon={Lock} size="xs" className="fx-rootro" aria-label="read-only" />}
             </button>
           ))}
         </div>
@@ -277,7 +280,7 @@ export function Explorer({
       {/* The primary affordance at this scale, so it is above the tree and
           always visible rather than a control you have to find. */}
       <label className="fx-filter">
-        <Search size={13} aria-hidden="true" />
+        <Icon icon={Search} size="sm" />
         <span className="sr-only">Filter files by path</span>
         <input
           ref={filterRef}
@@ -289,7 +292,7 @@ export function Explorer({
         />
         {query && (
           <button type="button" className="fx-filter-x" onClick={() => setQuery('')} aria-label="Clear filter">
-            <X size={12} />
+            <Icon icon={X} size="xs" />
           </button>
         )}
       </label>
@@ -328,7 +331,7 @@ export function Explorer({
                         title={d ? `${e.path} · ${d.label}` : e.path}
                       >
                         {e.readable === false
-                          ? <Lock size={13} className="fx-ico t-denied" aria-hidden="true" />
+                          ? <Icon icon={Lock} size="sm" className="fx-ico t-denied" />
                           : <FileIcon name={e.path} />}
                         {/* The basename with its folder under it - at this scale
                             the name alone is ambiguous (six compose.yml, four

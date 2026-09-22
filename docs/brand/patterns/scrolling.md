@@ -98,6 +98,13 @@ See [CHECKLIST.md § 18](../CHECKLIST.md#18-scrolling).
   observer, so any scroller anywhere is covered by adding a class.
 - **Scrollbars** are styled once, globally. Two earlier per-element copies had
   already drifted to different widths and thumb colours.
+- **Sticky chrome shows a scroll edge, not a hairline** (design audit SYS-16,
+  batch 4). The top bar, sticky table headers, the Settings bar on a phone, the
+  reader's index header and the diff summary have no bottom line at rest; once
+  content is under them they take `--shadow-edge` (a hairline and a soft shade),
+  from `html[data-scrolled]` for the page and the scroller's `data-shade-t` for
+  the rest. `--topbar-h` states the top bar's height, so the Settings bar can
+  stick under it rather than over it.
 - **The progress rail** is a 3px accent gradient down the **left** edge. Left,
   not right, so it does not sit under the native scrollbar and read as a second,
   disagreeing scrollbar. Hidden entirely when the page does not scroll, and on

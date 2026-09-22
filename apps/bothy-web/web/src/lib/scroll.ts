@@ -200,6 +200,29 @@ export function useScrollShades() {
   }, []);
 }
 
+// ── 2b. the page has scrolled under the chrome ───────────────────────────────
+//
+// `html[data-scrolled]` while the WINDOW is scrolled at all (design audit
+// SYS-16, batch 4). The sticky top bar - and the Settings bar that sticks under
+// it on a phone - carried a permanent 1px hairline; now they show a scroll-edge
+// shade only once content is actually under them, which is what the edge means.
+// Pages that fix their height and scroll inside (Files, Settings and Control on
+// a desktop) never scroll the window, so the bar stays clean there and their
+// inner scrollers use `.scroll-shade` above. One attribute on the root rather
+// than state in React: nothing re-renders on scroll.
+export function usePageScrolled() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      if (window.scrollY > 0) { if (!root.dataset.scrolled) root.dataset.scrolled = '1'; }
+      else if (root.dataset.scrolled) delete root.dataset.scrolled;
+    };
+    apply();
+    window.addEventListener('scroll', apply, { passive: true });
+    return () => { window.removeEventListener('scroll', apply); delete root.dataset.scrolled; };
+  }, []);
+}
+
 // ── 3. progress through the page ─────────────────────────────────────────────
 //
 // Drives the rail down the left edge. Returns 0 when the page does not scroll at

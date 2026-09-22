@@ -7,13 +7,14 @@ import {
 import { usePortal } from '../lib/data';
 import { RouteFade } from './RouteFade';
 import { freshnessOf } from '../lib/freshness';
-import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
+import { usePageScrolled, useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
 import { Tooltip } from './Tooltip';
 import { ThemeMenu } from './ThemeMenu';
 import { Brand } from './Brand';
 import { CommandPalette } from './CommandPalette';
 import { UserMenu } from './UserMenu';
 import { UpdateBanner } from './UpdateBanner';
+import { Icon as SizedIcon } from './ui/Icon';
 
 // Three destinations, and they are three DATASETS rather than three views.
 // Services, Access and Topology used to hold three of the five slots between
@@ -44,9 +45,11 @@ export function AppShell() {
   // Mounted once, for the whole app: a new page starts at the top and Back
   // returns you where you were; every `.scroll-shade` container gets inner
   // shadows on the edge it can still travel towards; the left rail tracks how
-  // far down the page you are. See lib/scroll.ts.
+  // far down the page you are; the sticky chrome shades only once the page has
+  // scrolled under it. See lib/scroll.ts.
   useScrollRestoration();
   useScrollShades();
+  usePageScrolled();
   const progress = useScrollProgress();
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Giving focus back when the palette closes is ui/Dialog's job now, as it is
@@ -153,7 +156,7 @@ export function AppShell() {
                 end={end}
                 className={({ isActive }) => `nav-item ${isActive ? 'on' : ''}`}
               >
-                <Icon size={16} />
+                <SizedIcon icon={Icon} size="md" />
                 <span className="nav-label">{label}</span>
               </NavLink>
             );
@@ -176,7 +179,7 @@ export function AppShell() {
         </Tooltip>
 
         <button className="topbar-search" onClick={openPalette} aria-label="Search (Ctrl K)" aria-haspopup="dialog">
-          <Search size={15} className="search-ico" aria-hidden="true" />
+          <SizedIcon icon={Search} size="md" className="search-ico" />
           <span className="search-label">Search…</span>
           <span className="kbd">{isMac ? '⌘' : 'Ctrl '}K</span>
         </button>

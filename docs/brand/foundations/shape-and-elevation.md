@@ -33,7 +33,9 @@ See [CHECKLIST.md § 8](../CHECKLIST.md#8-shape-and-elevation).
 
 ## What Bothy decided, and why
 
-- **Five radius steps**, from extra-small through full, mapped to size classes.
+- **Six radius steps**, `--r-2xs` (2px, marks: bar ends, meters) through full,
+  mapped to size classes. Since batch 4 every radius is a step - 8px folded into
+  `--r-sm`, 12px into `--r-lg` - and the check refuses a literal.
 - **One border width.**
 - **Three shadow steps per theme.** The dark recipes include an inset white
   hairline for the reason above; the light recipes use a dark-blue-grey rather

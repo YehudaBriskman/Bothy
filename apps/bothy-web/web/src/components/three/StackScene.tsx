@@ -276,11 +276,11 @@ function Tooltip({ node }: { node: PortalNode }) {
     <Html position={[0, SLAB_H / 2 + 0.16, SLAB_D / 2 + 0.05]} center zIndexRange={[120, 0]} className="sv-tip" occlude={false}>
       <div className="sv-tip-card">
         <div className="sv-tip-head">
-          <ServiceIcon node={node} size={15} className="sv-tip-ico" />
+          <ServiceIcon node={node} size="md" className="sv-tip-ico" />
           <span className="sv-tip-name">{node.name}</span>
         </div>
         <div className="sv-tip-row">
-          <StatusIcon status={node.status} size={13} showLabel />
+          <StatusIcon status={node.status} size="sm" showLabel />
         </div>
         {node.host && <div className="sv-tip-sub mono">{node.host}</div>}
         {node.container?.image && <div className="sv-tip-sub sv-tip-img mono">{node.container.image}</div>}

@@ -20,6 +20,7 @@ import {
 import { Dialog, type FocusTarget } from './ui/Dialog';
 import './KubeActions.css';
 import { Button } from './ui/Button';
+import { Icon } from './ui/Icon';
 
 export interface Outcome { line: string; sub?: string }
 
@@ -98,7 +99,7 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
   return (
     <form className="ka-confirm" ref={form} onSubmit={(e) => { e.preventDefault(); void run(); }}>
       <p className="sa-warn">
-        <AlertTriangle size={16} aria-hidden="true" />
+        <Icon icon={AlertTriangle} size="md" />
         <span>{consequence}</span>
       </p>
       {fields}

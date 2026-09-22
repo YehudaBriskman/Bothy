@@ -15,6 +15,7 @@ import { fmtBytes } from '../lib/systems';
 import { usePortal } from '../lib/data';
 import { BarGauge, type GaugeRow } from './viz';
 import { Tabs } from './Tabs';
+import { Icon } from './ui/Icon';
 
 const TOP_N = 6;
 
@@ -88,7 +89,7 @@ export function TopContainers() {
   return (
     <section className="ov-panel">
       <header className="ov-panel-head">
-        <Flame size={14} className="ov-panel-ico" aria-hidden="true" />
+        <Icon icon={Flame} size="sm" className="ov-panel-ico" />
         <h2 className="ov-panel-title">Busiest containers</h2>
       </header>
       <div className="ov-panel-body scroll-shade">

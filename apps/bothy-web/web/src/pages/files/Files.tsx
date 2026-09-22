@@ -90,6 +90,7 @@ import './panel.css';
 import './scm.css';
 import './search.css';
 import { buttonClass } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 const MAX_CALLS = 200;
 
@@ -1224,7 +1225,7 @@ export function Files() {
           to={filesHref('read', active ? active.root : root, active ? active.path : '')}
           title={active ? `Read ${baseName(active.path)} without the editor` : 'Open the reading view'}
         >
-          <BookOpen size={14} aria-hidden="true" /> Reading view
+          <Icon icon={BookOpen} size="sm" /> Reading view
         </Link>
         <div className="fx-head-actions" role="group" aria-label="Layout">
           <Tooltip label={`${panes.cl ? 'Show' : 'Hide'} the explorer`}>
@@ -1235,7 +1236,7 @@ export function Files() {
               onClick={() => toggle('l')}
               aria-label={`${panes.cl ? 'Show' : 'Hide'} the explorer`}
             >
-              <PanelLeft size={16} />
+              <Icon icon={PanelLeft} size="md" />
             </button>
           </Tooltip>
           <Tooltip label={`${panes.cp ? 'Show' : 'Hide'} the panel`}>
@@ -1246,7 +1247,7 @@ export function Files() {
               onClick={() => toggle('p')}
               aria-label={`${panes.cp ? 'Show' : 'Hide'} the panel`}
             >
-              <PanelBottom size={16} />
+              <Icon icon={PanelBottom} size="md" />
             </button>
           </Tooltip>
           <Tooltip label={`${panes.cr ? 'Show' : 'Hide'} the inspector`} align="end">
@@ -1257,7 +1258,7 @@ export function Files() {
               onClick={() => toggle('r')}
               aria-label={`${panes.cr ? 'Show' : 'Hide'} the inspector`}
             >
-              <PanelRight size={16} />
+              <Icon icon={PanelRight} size="md" />
             </button>
           </Tooltip>
         </div>

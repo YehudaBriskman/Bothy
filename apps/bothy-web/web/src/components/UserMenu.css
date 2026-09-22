@@ -20,8 +20,8 @@
 /* .icon-btn is a fixed 38px square built for a glyph alone. This one also
    carries a name, so it grows sideways and keeps the square as its floor: the
    control must not shift the row when the label is hidden at narrow widths. */
-.user-menu .user-btn { width: auto; min-width: 38px; grid-auto-flow: column; gap: 8px;
-  padding: 0 12px 0 10px; font: inherit; font-size: 13px; font-weight: 600; }
+.user-menu .user-btn { width: auto; min-width: 38px; grid-auto-flow: column; gap: var(--sp-2);
+  padding: 0 var(--sp-3) 0 var(--sp-2_5); font: inherit; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; }
 .user-menu .user-btn:hover { color: var(--fg); border-color: var(--line-strong); }
 .user-menu .user-btn[data-state='open'] { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
 .user-menu .user-btn:disabled { cursor: default; }
@@ -44,15 +44,15 @@
    out of .user-menu, so these are scoped to its own class instead. */
 .um-pop { min-width: 234px; }
 .um-pop .ui-menu-head { padding: 0; border: 0; margin: 0; }
-.um-pop .um-who { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px;
-  margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.um-pop .um-who { display: flex; flex-direction: column; gap: var(--sp-0_5); padding: var(--sp-2) var(--sp-2_5) var(--sp-2_5);
+  margin-bottom: var(--sp-1); border-bottom: 1px solid var(--line); }
 .um-pop .um-who-name { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-bold); color: var(--fg); }
 .um-pop .um-who-mail { font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--fg-subtle); overflow-wrap: anywhere; }
-.um-pop .um-roles { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.um-pop .um-roles { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
 .um-pop .um-noroles { font-size: var(--fs-2xs); color: var(--fg-subtle); }
 
 /* The Updates count on the Settings row: a number in the quiet chrome, pushed to
    the row's end. Neutral on purpose - it is a fact about versions, not a state. */
-.um-pop .um-count { min-width: 18px; padding: 0 6px; border-radius: 999px;
+.um-pop .um-count { min-width: 18px; padding: 0 var(--sp-1_5); border-radius: var(--r-full);
   font-size: var(--fs-2xs); font-weight: var(--fw-bold); line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
   color: var(--fg); background: var(--surface-3); border: 1px solid var(--line-strong); }

@@ -12,12 +12,14 @@
      Cards used to size to their own content - a 4-row list and a 9-row list sat
      side by side and the row bottom was wherever the taller one happened to
      end. Snapping to a unit is what makes a grid read as a grid. */
-  --tile: 316px;
+  /* rem (batch 4): at a larger text size the tile grows with its rows, so a
+     card still shows the same number of them instead of clipping at 316px. */
+  --tile: 19.75rem;
 }
-.overview .ov-body { padding: 6px 0 26px; display: flex; flex-direction: column; gap: 20px; }
+.overview .ov-body { padding: var(--sp-1_5) 0 var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-5); }
 
 /* compact glyph reused by alert / feed rows */
-.overview .ico.sm { width: 26px; height: 26px; border-radius: 7px; font-size: 0; }
+.overview .ico.sm { width: 26px; height: 26px; border-radius: var(--r-sm); font-size: 0; }
 
 /* Scrollbars are styled once, globally (index.css → SCROLLING). The copy that
    used to live here predated that and set a different width and thumb colour,
@@ -27,18 +29,18 @@
    Borderless on purpose: bordered tiles read as primary actions and competed
    with the hero for attention. These recede until hovered. */
 .ov-topline { display: flex; align-items: center; }
-.ov-ql { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-left: -8px; }
+.ov-ql { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-0_5); margin-left: calc(-1 * var(--sp-2)); }
 .ov-ql-item {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 10px; border-radius: 8px; color: var(--fg-muted);
-  font-size: 13px; font-weight: 550; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-1_5) var(--sp-2_5); border-radius: var(--r-sm); color: var(--fg-muted);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-semibold); white-space: nowrap;
   border: 1px solid transparent; background: transparent;
   transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 .ov-ql-item:hover { color: var(--fg); background: var(--surface-2); }
 .ov-ql-ico { display: inline-flex; color: var(--fg-subtle); }
 .ov-ql-item:hover .ov-ql-ico { color: var(--accent); }
-.ov-ql-item.is-primary { color: var(--fg); font-weight: 650; }
+.ov-ql-item.is-primary { color: var(--fg); font-weight: var(--fw-bold); }
 .ov-ql-item.is-primary .ov-ql-ico { color: var(--accent); }
 .ov-ql-label { overflow: hidden; text-overflow: ellipsis; }
 /* a dot only appears when a link is NOT healthy - green dots on every item are
@@ -54,42 +56,42 @@
 
    No card chrome. This is a statement, not an object: dropping the surface and
    the border is most of what makes it read as a line rather than a panel. */
-.ov-status { display: flex; flex-direction: column; gap: 7px; }
+.ov-status { display: flex; flex-direction: column; gap: var(--sp-2); }
 
 .ov-status-head {
   display: grid; grid-template-columns: auto minmax(120px, 1fr);
-  align-items: center; gap: 18px;
+  align-items: center; gap: var(--sp-4);
 }
 
 /* Reads as one sentence: "15 up · 7 unverified · 5 off". Scannable, but nothing
    here is 46px any more - the whole line now costs about what a single stat
    cell used to. */
 .ov-status-counts {
-  display: inline-flex; align-items: baseline; gap: 7px; flex-wrap: wrap; min-width: 0;
+  display: inline-flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; min-width: 0;
 }
 .ov-status-counts b {
-  font-size: 26px; font-weight: 750; letter-spacing: -0.03em; line-height: 1;
+  font-size: var(--fs-2xl); font-weight: var(--fw-bold); letter-spacing: var(--tr-2xl); line-height: 1;
   color: var(--fg); font-variant-numeric: tabular-nums;
 }
 /* Unverified and off are deliberately quieter than `up`: they are context, and
    neither of them is a fault. */
-.ov-status-counts b.is-unknown { color: var(--st-unknown-fg); font-size: 22px; }
-.ov-status-counts b.is-off { color: var(--st-off-fg); font-size: 22px; }
-.ov-status-lbl { font-size: 13px; color: var(--fg-muted); }
-.ov-status-sep { color: var(--fg-subtle); margin: 0 2px; }
+.ov-status-counts b.is-unknown { color: var(--st-unknown-fg); font-size: var(--fs-xl); line-height: var(--lh-xl); letter-spacing: var(--tr-xl); }
+.ov-status-counts b.is-off { color: var(--st-off-fg); font-size: var(--fs-xl); line-height: var(--lh-xl); letter-spacing: var(--tr-xl); }
+.ov-status-lbl { font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted); }
+.ov-status-sep { color: var(--fg-subtle); margin: 0 var(--sp-0_5); }
 
 .ov-status-note {
-  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
-  margin: 0; font-size: 12.5px; color: var(--fg-muted);
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+  margin: 0; font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-muted);
 }
-.ov-status-note a { color: var(--st-down-fg); font-weight: 650; border-bottom: 1px solid currentColor; }
+.ov-status-note a { color: var(--st-down-fg); font-weight: var(--fw-bold); border-bottom: 1px solid currentColor; }
 /* The qualifier that stops the line over-claiming when services are unverified. */
 .ov-status-sub { color: var(--fg-subtle); }
 .ov-status-sub::before { content: '· '; }
 
 .ov-status-degraded {
-  display: flex; align-items: center; gap: 7px;
-  margin: 0; font-size: 12.5px; font-weight: 600; color: var(--st-warn-fg);
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; color: var(--st-warn-fg);
 }
 
 /* ── grouped systems ──────────────────────────────────────────────────────
@@ -101,24 +103,24 @@
    inverse of what an exception list should cost. */
 .ov-attn {
   background: var(--st-down-bg); border: 1px solid var(--st-down-line);
-  border-radius: var(--r-lg); padding: 11px 13px;
+  border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-3);
 }
 .ov-attn-h {
-  display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
-  font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-2);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   color: var(--st-down-fg);
 }
 .ov-attn-n {
-  font-size: 11px; letter-spacing: 0; font-variant-numeric: tabular-nums;
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-variant-numeric: tabular-nums;
   background: var(--surface-2); border: 1px solid var(--st-down-line);
-  border-radius: var(--r-full); padding: 0 7px; color: var(--st-down-fg);
+  border-radius: var(--r-full); padding: 0 var(--sp-2); color: var(--st-down-fg);
 }
 /* Wraps rather than scrolls: an exception list should be able to state its full
    size. If it is ever long enough to need a scroller, the box has a bigger
    problem than the layout. */
-.ov-attn-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.ov-attn-list { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
 .ov-attn-list .ov-alert {
-  display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: inherit;
+  display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1_5) var(--sp-2_5); color: inherit;
   background: var(--surface-1); border: 1px solid var(--st-down-line); border-radius: var(--r-sm);
 }
 .ov-attn-list .ov-alert:hover { background: var(--surface-2); }
@@ -130,7 +132,7 @@
    units, so it still lands on the same baseline. */
 .ov-dash {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
-  gap: 12px; align-items: stretch;
+  gap: var(--sp-3); align-items: stretch;
   grid-auto-rows: var(--tile);
 }
 .ov-panel {
@@ -142,17 +144,17 @@
    up with the bottom of two stacked short ones. */
 .ov-panel.is-tall { grid-row: span 2; }
 .ov-panel-head {
-  display: flex; align-items: center; gap: 8px; flex: none;
-  padding: 10px 13px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: var(--sp-2); flex: none;
+  padding: var(--sp-2_5) var(--sp-3); border-bottom: 1px solid var(--line);
 }
 .ov-panel-ico { color: var(--fg-subtle); flex: none; }
 .ov-panel.is-warn .ov-panel-ico { color: var(--st-warn-fg); }
-.ov-panel-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; margin: 0;
+.ov-panel-title { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 700; letter-spacing: var(--tr-sm); margin: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-panel-meta {
-  margin-left: auto; flex: none; font-family: var(--mono); font-size: 11.5px; color: var(--fg-muted);
+  margin-left: auto; flex: none; font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 1px 8px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 1px var(--sp-2);
 }
 /* --warn-ink, not --warn: raw amber on white measured 1.67:1 */
 .ov-panel.is-warn .ov-panel-meta {
@@ -163,16 +165,16 @@
 /* The body takes whatever the tile leaves after the header and footer, and
    scrolls inside it. No max-height any more - the tile sets the height, so a
    cap here would fight it and reintroduce the ragged bottoms. */
-.ov-panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 7px; }
+.ov-panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--sp-2); }
 
 /* ── panel footer ───────────────────────────────────────────────────────────
    The pattern borrowed from the charts: a summary strip along the bottom that
    says what is actually in the thing above it. It also pins the panel's bottom
    edge, which is half of why the row now reads as a row. */
 .ov-panel-foot {
-  flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 7px 12px; border-top: 1px solid var(--line); background: var(--surface-2);
-  font-size: 11.5px; color: var(--fg-subtle);
+  flex: none; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-3); border-top: 1px solid var(--line); background: var(--surface-2);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
 }
 .ov-panel-foot b {
   color: var(--fg-muted); font-family: var(--mono); font-weight: 700;
@@ -182,14 +184,20 @@
 .ov-panel-foot .right { margin-left: auto; }
 
 /* ── needs-attention rows ─────────────────────────────────────────────────── */
-.ov-panel .ov-attention { display: flex; flex-direction: column; gap: 5px; }
+/* The bare row. Both places that render one (.ov-attn-list, .ov-panel) restyle
+   it; this is the floor. Moved here from index.css with the duplicates below. */
+.ov-alert { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3_5); color: inherit;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
+  border-left: 3px solid var(--st-down); }
+.ov-alert:hover { border-color: var(--line-strong); }
+.ov-panel .ov-attention { display: flex; flex-direction: column; gap: var(--sp-1); }
 .ov-panel .ov-alert {
-  display: flex; align-items: center; gap: 9px; padding: 8px 10px; color: inherit;
-  background: transparent; border: 0; border-left: 3px solid var(--st-down); border-radius: 7px;
+  display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2_5); color: inherit;
+  background: transparent; border: 0; border-left: 3px solid var(--st-down); border-radius: var(--r-sm);
 }
 .ov-panel .ov-alert:hover { background: var(--surface-2); }
-.ov-alert-name { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-alert-why { margin-left: auto; font-size: 11.5px; color: var(--fg-muted); white-space: nowrap; }
+.ov-alert-name { font-weight: 600; font-size: var(--fs-sm); line-height: var(--lh-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-alert-why { margin-left: auto; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-muted); white-space: nowrap; }
 .ov-alert-arrow { color: var(--fg-subtle); flex: none; }
 
 /* The all-clear line and the bar legend are gone with the hero: the status line
@@ -197,45 +205,54 @@
    third copy of the same numbers. */
 
 /* ── UI list (one panel, two tabs) ────────────────────────────────────────── */
-.ov-ui { display: flex; flex-direction: column; gap: 6px; }
-.ov-ui-seg { align-self: flex-start; margin: 1px 3px 0; }
+.ov-ui { display: flex; flex-direction: column; gap: var(--sp-1_5); }
+.ov-ui-seg { align-self: flex-start; margin: 1px var(--sp-1) 0; }
 .ov-uilist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.ov-uirow { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; }
+.ov-uirow { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-sm); }
 .ov-uirow:hover { background: var(--surface-2); }
-.ov-uirow-name { font-weight: 600; font-size: 13px; flex: none; max-width: 46%; color: inherit;
+.ov-uirow-name { font-weight: 600; font-size: var(--fs-sm); line-height: var(--lh-sm); flex: none; max-width: 46%; color: inherit;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-uirow-name:hover { color: var(--accent); }
-.ov-uirow-host { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--fg-subtle);
+.ov-uirow-host { margin-left: auto; font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-uirow-open { color: var(--fg-subtle); flex: none; display: inline-flex; }
 .ov-uirow-open:hover { color: var(--accent); }
-.ov-uicol-empty { padding: 12px 10px; color: var(--fg-muted); font-size: 12.5px; margin: 0; }
+.ov-uicol-empty { padding: var(--sp-3) var(--sp-2_5); color: var(--fg-muted); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); margin: 0; }
 
 /* ── data & disk ──────────────────────────────────────────────────────────── */
 .ov-disk { display: flex; flex-direction: column; }
 .vz-gauge-inner { display: contents; color: inherit; }
 .ov-disk-sep {
-  display: flex; align-items: center; gap: 8px; margin: 10px 10px 3px;
-  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-2_5) var(--sp-2_5) var(--sp-1);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   color: var(--fg-subtle);
 }
 .ov-disk-sep-n { font-family: var(--mono); font-weight: 700; letter-spacing: 0; }
-.ov-disk-sep-hint { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 11px; }
+.ov-disk-sep-hint { text-transform: none; letter-spacing: var(--tr-2xs); font-weight: 500; font-size: var(--fs-2xs); line-height: var(--lh-2xs); }
 
 /* The recent-activity feed CSS is gone with its panel: on a box that stays up
    for days its usual state was "No restarts since the box came up", which is a
    grid cell spent saying nothing. */
 
 /* ── offline floor ────────────────────────────────────────────────────────── */
-.ov-offline { margin-bottom: 4px; }
-.ov-quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+/* One copy of each rule (SYS-15). index.css carried a second, older set of
+   these eight; the values below are what rendered - this file's, plus the
+   index.css declarations it never overrode (the lift, its transition, the
+   name's size, the ext's push to the end). */
+.ov-offline { text-align: left; margin-bottom: var(--sp-1); }
+.ov-quick { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+.ov-offline .ov-quick { margin-top: var(--sp-4); }
+/* The transition lives on the element, not on :hover (SYS-9): declared only on
+   hover, the lift animated in and SNAPPED out. */
 .ov-quick-item {
-  display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
-  font-size: 13px; font-weight: 600; color: inherit;
+  display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; color: inherit;
+  transition: translate var(--dur) var(--ease-standard), border-color var(--dur-fast) var(--ease);
 }
-.ov-quick-item:hover { border-color: var(--accent); }
-.ov-quick-ext { color: var(--fg-subtle); }
+.ov-quick-item:hover { border-color: var(--accent); translate: 0 -2px; }
+.ov-quick-name { font-weight: 600; font-size: var(--fs-md); line-height: var(--lh-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-quick-ext { color: var(--fg-subtle); margin-left: auto; flex: none; }
 
 /* ── responsive ─────────────────────────────────────────────────────────────
    The hero's three breakpoints are gone with it. One line of text needs one
@@ -243,7 +260,7 @@
    to a stub. That is the whole responsive story for this section now, which is
    the clearest sign the simplification was the right call. */
 @media (max-width: 620px) {
-  .ov-status-head { grid-template-columns: 1fr; gap: 8px; }
+  .ov-status-head { grid-template-columns: 1fr; gap: var(--sp-2); }
 }
 @media (max-width: 760px) {
   .ov-dash { grid-template-columns: 1fr; }

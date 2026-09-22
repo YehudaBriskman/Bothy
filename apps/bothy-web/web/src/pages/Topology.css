@@ -7,17 +7,17 @@
 .topo-head-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--sp-4);
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .topo-view {
   display: inline-flex;
-  gap: 3px;
-  padding: 3px;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--bg-2);
 }
 .topo-view-btn {
@@ -26,10 +26,10 @@
   background: transparent;
   color: var(--fg-muted);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
   font-weight: 600;
-  padding: 5px 13px;
-  border-radius: 7px;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-sm);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
@@ -47,7 +47,7 @@
   display: flex;
   height: calc(100vh - 150px);
   min-height: 460px;
-  margin-top: 4px;
+  margin-top: var(--sp-1);
 }
 .topo-3d-loading {
   flex: 1;
@@ -59,17 +59,17 @@
   background: var(--surface-1);
   color: var(--fg-subtle);
   font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-sm); line-height: var(--lh-sm);
+  letter-spacing: var(--tr-sm);
 }
 
 /* ── flat map (SVG) interaction polish ────────────────────────────────────── */
-.topo-col { fill: var(--fg-subtle); font-size: 11px; font-family: var(--mono); font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase; text-anchor: middle; }
+.topo-col { fill: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-family: var(--mono); font-weight: 600;
+  letter-spacing: var(--label-tracking); text-transform: uppercase; text-anchor: middle; }
 
 /* Only opacity and colour animate (SYS-10, R11.1): the hover weight change is a
    one-frame step, not a stroke-width tween repainted every frame. */
-.topo-edge { transition: opacity var(--dur-fast) var(--ease); }
+.topo-edge { stroke-width: 1.5; transition: opacity var(--dur-fast) var(--ease); }
 .topo-edge.on { stroke-width: 2.4; }
 
 /* Declared dependency (com.docker.compose.depends_on).

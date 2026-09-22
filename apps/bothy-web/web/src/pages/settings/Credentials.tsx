@@ -13,6 +13,7 @@ import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Loading, Prose, Refusal, When, useLoad } from '../../components/settings/bits';
 import { fetchCredentials, type CredentialsResult, type EnvKey } from '../../lib/admin';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 export function CredentialsSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchCredentials(signal));
@@ -36,7 +37,7 @@ export function CredentialsSettings() {
 function Freshness({ d }: { d: CredentialsResult }) {
   return (
     <p className={`set-fresh ${d.stale ? 'is-stale' : ''}`} role="status">
-      {d.stale && <AlertTriangle size={14} aria-hidden="true" />}
+      {d.stale && <Icon icon={AlertTriangle} size="sm" />}
       Inventory written on the host <When iso={d.generatedAt} />
       {d.stale ? ' - older than fifteen minutes; the bothy-inventory timer may not be running. ' : '. '}
       Refresh it with <span className="mono">just admin-inventory</span>.
@@ -61,7 +62,7 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
         {modeOff && ` (expected ${d.env.expectMode})`} · changed <When iso={d.env.changed} />.
         {' '}A change date is the FILE’s: .env does not record when one key changed.
       </p>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl set-creds">
           <thead>
             <tr><th scope="col">Key</th><th scope="col">State</th><th scope="col">For, and read by</th><th scope="col">Rotate</th></tr>
@@ -75,7 +76,7 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
                   <td className="mono set-key">{k.key}</td>
                   <td>
                     <span className={`set-state ${st.warn ? 'set-warn' : ''}`}>
-                      {st.warn && <AlertTriangle size={13} aria-hidden="true" />}{st.word}
+                      {st.warn && <Icon icon={AlertTriangle} size="sm" />}{st.word}
                     </span>
                   </td>
                   <td>
@@ -100,7 +101,7 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
 
 function Files({ d }: { d: CredentialsResult }) {
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl set-creds">
         <thead>
           <tr><th scope="col">File</th><th scope="col">Mode</th><th scope="col">Changed</th><th scope="col">For, and read by</th><th scope="col">Rotate</th></tr>
@@ -114,7 +115,7 @@ function Files({ d }: { d: CredentialsResult }) {
                 <td>
                   {f.present === false ? <span className="dim">absent</span>
                     : f.present === null ? <span className="dim">unreadable</span>
-                      : <span className={`mono ${off ? 'set-warn' : ''}`}>{off && <AlertTriangle size={13} aria-hidden="true" />}{f.actualMode}</span>}
+                      : <span className={`mono ${off ? 'set-warn' : ''}`}>{off && <Icon icon={AlertTriangle} size="sm" />}{f.actualMode}</span>}
                   {off && <span className="set-cell-sub">expected {f.expectMode}</span>}
                 </td>
                 <td>{f.present ? <When iso={f.changed} /> : <span className="dim">-</span>}</td>
@@ -132,7 +133,7 @@ function Files({ d }: { d: CredentialsResult }) {
 function Clients({ d }: { d: CredentialsResult }) {
   return (
     <>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl set-creds">
           <thead>
             <tr><th scope="col">Client</th><th scope="col">Secret kept in</th><th scope="col">Changed</th><th scope="col">For</th></tr>

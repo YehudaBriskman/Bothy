@@ -19,6 +19,7 @@ import {
 import { TimeChart, ChartLegend, type ChartSeries } from './TimeChart';
 import { readData } from '../lib/prefs';
 import './Vitals.css';
+import { Icon as SizedIcon } from './ui/Icon';
 
 /**
  * peak / average over the visible window.
@@ -82,7 +83,7 @@ export function Vitals() {
     return (
       <section className="vit" aria-label="Box vitals">
         <header className="vit-head">
-          <Activity size={14} className="vit-head-ico" aria-hidden="true" />
+          <SizedIcon icon={Activity} size="sm" className="vit-head-ico" />
           <h2 className="vit-title">Box vitals</h2>
         </header>
         <p className="vit-off">
@@ -97,12 +98,12 @@ export function Vitals() {
   return (
     <section className="vit" aria-label="Box vitals">
       <header className="vit-head">
-        <Activity size={14} className="vit-head-ico" aria-hidden="true" />
+        <SizedIcon icon={Activity} size="sm" className="vit-head-ico" />
         <h2 className="vit-title">Box vitals</h2>
 
         {state === 'error' && (
           <span className="vit-err" title={reason ?? undefined}>
-            <TriangleAlert size={12} aria-hidden="true" /> stale
+            <SizedIcon icon={TriangleAlert} size="xs" /> stale
           </span>
         )}
 
@@ -168,7 +169,7 @@ function Panel({
   return (
     <article className="vit-panel">
       <header className="vit-panel-head">
-        <Icon size={13} aria-hidden="true" />
+        <SizedIcon icon={Icon} size="sm" />
         <h3>{title}</h3>
       </header>
       <div className="vit-panel-body">

@@ -15,10 +15,11 @@
    argues for in the IDE and for the same reason - a fixed centre plus a
    remainder rail is a reconciliation bug waiting for a resize.
 
-   The document STRETCHES to the column - one width for every block in it, from
-   --read-measure (editor.css applies it, index.css argues for it). It used to
-   be capped at 72ch with tables and code let out to `100%`, which is how the
-   same page came to have two widths that did not agree. */
+   The document is ONE width for every block in it, from --read-measure
+   (editor.css applies it as the column's padding, index.css argues for it). It
+   used to be capped at 72ch with tables and code let out to `100%`, which is
+   how the same page came to have two widths that did not agree; since batch 4
+   the cap is on the column, so there is still only one. */
 .bothy-files.bothy-read .rd-grid {
   flex: 1; min-height: 0;
   display: grid;
@@ -30,7 +31,7 @@
   min-width: 0; min-height: 0; display: flex; flex-direction: column;
   border-right: 1px solid var(--line); background: var(--bg-2);
 }
-.bothy-files .rd-side > .fx-sr { padding-top: 4px; }
+.bothy-files .rd-side > .fx-sr { padding-top: var(--sp-1); }
 
 /* ── the one thing the reader changes about the search rail ──────────────────
    SearchView is reused whole - same component, same debounce, same options, no
@@ -47,23 +48,30 @@
    The matched line ITSELF stays, because it is the most valuable thing in the
    list: it is the sentence you were looking for, with the match marked. */
 .bothy-files.bothy-read .fx-sr-no { display: none; }
-.bothy-files.bothy-read .fx-sr-line { padding-left: 26px; }
+/* Under the file name: the row padding, the file icon, the row gap. */
+.bothy-files.bothy-read .fx-sr-line { padding-left: calc(var(--sp-2) + var(--icon-sm) + var(--sp-1_5)); }
 
 /* ONE GUTTER FOR THE RAIL (#151). Every row in this panel used to pick its own
    horizontal padding - 10px here, 12px there, 8px on the document row - and
    with ellipsised text that put the last legible character of a long title four
    pixels from a border. One value, and the rows share a left edge. */
-.bothy-files .rd-index { --rd-gut: 12px; padding: 0 0 14px; }
+/* --rd-index-h is the sticky header's height, STATED (its padding plus a 1rem
+   line) so the root name can stick exactly under it - the header is given at
+   least that height. It was the literal 30px (6+16+7 plus a border). */
+.bothy-files .rd-index { --rd-gut: var(--sp-3); --rd-index-h: calc(var(--sp-1_5) + var(--sp-2) + 1rem); padding: 0 0 var(--sp-3_5); }
 /* Sticky, because the index lives inside the search view's scrolling result
    area (that is what puts search at the TOP of the panel rather than behind an
    icon) - and without this the All files switch scrolls away after ten rows,
    leaving no way back to it except scrolling the list you were reading. */
 .bothy-files .rd-index-h {
   position: sticky; top: 0; z-index: 2;
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px var(--rd-gut) 7px; border-bottom: 1px solid var(--line);
-  background: var(--bg-2);
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-1_5) var(--rd-gut) var(--sp-2); min-height: var(--rd-index-h);
+  background: var(--bg-2); transition: box-shadow var(--dur-fast) var(--ease-standard);
 }
+/* Its bottom edge is the scroll edge (SYS-16): a line and a shade only once
+   the list has scrolled under it, not a permanent hairline. */
+.bothy-files .fx-sr-list[data-shade-t] .rd-index-h { box-shadow: var(--shadow-edge); }
 .bothy-files .rd-index-title {
   font-size: calc(var(--rd-ui-fs) * 0.88); font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   color: var(--fg-subtle);
@@ -72,7 +80,7 @@
    put in a menu: it decides whether this is a library or a filesystem, and the
    reader has to be able to see which one they are looking at. */
 .bothy-files .rd-all {
-  margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+  margin-left: auto; display: inline-flex; align-items: center; gap: var(--sp-1);
   font-size: calc(var(--rd-ui-fs) * 0.88); color: var(--fg-muted); cursor: pointer; user-select: none;
 }
 .bothy-files .rd-all input { margin: 0; accent-color: var(--accent); }
@@ -82,15 +90,14 @@
 .bothy-files .rd-root { border-bottom: 1px solid var(--line); }
 /* The root name sticks under the index header, so a long listing never leaves
    you looking at folders without knowing which root they are in. `top` is the
-   header's own height, measured rather than guessed - 30px is 6+16+7 plus the
-   border. */
+   header's own height, --rd-index-h. */
 .bothy-files .rd-root-h {
-  position: sticky; top: 30px; z-index: 1;
+  position: sticky; top: var(--rd-index-h); z-index: 1;
   margin: 0; font-size: inherit; font-weight: inherit; background: var(--bg-2);
 }
 .bothy-files .rd-root-btn {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: var(--sp-1_5);
   border: 0; background: transparent; font: inherit; color: var(--fg);
   padding: 0 var(--rd-gut); height: 28px;
 }
@@ -119,9 +126,9 @@
    like everything else. */
 .bothy-files .rd-dir {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: var(--sp-1_5);
   border: 0; background: transparent; font: inherit; color: var(--fg-muted);
-  padding: 2px var(--rd-gut) 2px 8px; min-height: 24px; min-width: 0;
+  padding: var(--sp-0_5) var(--rd-gut) var(--sp-0_5) var(--sp-2); min-height: 24px; min-width: 0;
 }
 .bothy-files .rd-dir:hover { background: var(--surface-2); color: var(--fg); }
 .bothy-files .rd-dir-ico { flex: none; color: var(--fg-subtle); }
@@ -141,10 +148,10 @@
    these are read rather than scanned. */
 .bothy-files .rd-doc {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: var(--sp-2);
   border: 0; border-left: 2px solid transparent; background: transparent;
   font: inherit; color: var(--fg-muted);
-  padding: 3px var(--rd-gut) 3px 8px; min-height: 26px; min-width: 0;
+  padding: var(--sp-1) var(--rd-gut) var(--sp-1) var(--sp-2); min-height: 26px; min-width: 0;
 }
 .bothy-files .rd-doc:hover { background: var(--surface-2); color: var(--fg); }
 .bothy-files .rd-doc-ico { flex: none; color: var(--fg-subtle); }
@@ -171,13 +178,13 @@
 .bothy-files .rd-doc.on .rd-doc-title { font-weight: 600; }
 .bothy-files .rd-doc.denied { cursor: not-allowed; opacity: .5; }
 
-.bothy-files .rd-msg { padding: 12px 12px 14px; color: var(--fg-subtle); font-size: 12px; text-align: center; }
-.bothy-files .rd-msg p { margin: 0 0 8px; }
+.bothy-files .rd-msg { padding: var(--sp-3) var(--sp-3) var(--sp-3_5); color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); text-align: center; }
+.bothy-files .rd-msg p { margin: 0 0 var(--sp-2); }
 .bothy-files .rd-more {
-  margin: 6px 10px 8px; font-size: 10.5px; line-height: 1.45; color: var(--fg-subtle);
+  margin: var(--sp-1_5) var(--sp-2_5) var(--sp-2); font-size: var(--fs-2xs); letter-spacing: var(--tr-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle);
 }
 .bothy-files .rd-more.warn { color: var(--st-warn-fg); }
-.bothy-files .rd-skel { display: grid; gap: 6px; padding: 8px 10px 12px; }
+.bothy-files .rd-skel { display: grid; gap: var(--sp-1_5); padding: var(--sp-2) var(--sp-2_5) var(--sp-3); }
 .bothy-files .rd-skel .skel { height: 16px; }
 
 /* ── the one control that changes mode ───────────────────────────────────────
@@ -185,13 +192,13 @@
    It sits above the search box because it changes what everything below it is
    about, which is the same argument the "All files" toggle wins on. */
 .bothy-files .rd-mode {
-  flex: none; padding: 8px 12px 6px; border-bottom: 1px solid var(--line);
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  flex: none; padding: var(--sp-2) var(--sp-3) var(--sp-1_5); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
 }
 .bothy-files .rd-mode-btn {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: var(--sp-1_5);
   font-size: calc(var(--rd-ui-fs) * 0.92); font-weight: 600; color: var(--accent-fg);
-  text-decoration: none; border-radius: var(--r-xs); padding: 2px 5px; margin-left: -5px;
+  text-decoration: none; border-radius: var(--r-xs); padding: var(--sp-0_5) var(--sp-1); margin-left: calc(-1 * var(--sp-1));
 }
 .bothy-files .rd-mode-btn:hover { background: var(--accent-bg); }
 .bothy-files .rd-mode-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
@@ -205,8 +212,8 @@
    one meant scrolling past the last one's files. */
 .bothy-files .rd-scope { position: relative; margin-left: auto; }
 .bothy-files .rd-scope-btn {
-  appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
-  max-width: 190px; padding: 2px 5px;
+  appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: var(--sp-1);
+  max-width: 190px; padding: var(--sp-0_5) var(--sp-1);
   border: 1px solid var(--line); border-radius: var(--r-sm);
   background: var(--surface-2); color: var(--fg-muted);
   font: inherit; font-size: calc(var(--rd-ui-fs) * 0.84);
@@ -229,15 +236,15 @@
 /* The panel: surface, radius, shadow, layer and motion are ui/Popover's. It is
    portalled, and carries `.bothy-files` itself so the chip and path-box rules
    below still reach inside it. */
-.rd-scope-pop.ui-pop { width: 274px; max-height: min(60vh, var(--radix-popper-available-height, 60vh)); padding: 9px 10px 10px; }
+.rd-scope-pop.ui-pop { width: 274px; max-height: min(60vh, var(--radix-popper-available-height, 60vh)); padding: var(--sp-2) var(--sp-2_5) var(--sp-2_5); }
 .bothy-files .rd-scope-h {
-  margin: 0 0 5px;
-  font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   color: var(--fg-subtle);
 }
-.rd-scope-pop .fx-roots { margin: 0 0 12px; }
+.rd-scope-pop .fx-roots { margin: 0 0 var(--sp-3); }
 .bothy-files .rd-scope-path { margin: 0; }
-.bothy-files .rd-scope-path input { font-family: var(--mono); font-size: 11.5px; }
+.bothy-files .rd-scope-path input { font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
 .bothy-files .rd-scope-go {
   appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
   width: 20px; height: 20px; border: 0; border-radius: var(--r-xs);
@@ -245,20 +252,20 @@
 }
 .bothy-files .rd-scope-go:hover { color: var(--accent-fg); background: var(--surface-3); }
 
-.bothy-files .rd-scope-hints { list-style: none; margin: 8px 0 0; padding: 0; }
+.bothy-files .rd-scope-hints { list-style: none; margin: var(--sp-2) 0 0; padding: 0; }
 .bothy-files .rd-scope-hints li { margin: 0; }
 .bothy-files .rd-scope-hints button {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
   border: 0; background: transparent; border-radius: var(--r-xs);
-  font: inherit; font-family: var(--mono); font-size: 11px; color: var(--fg-muted);
-  padding: 3px 6px;
+  font: inherit; font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-muted);
+  padding: var(--sp-1) var(--sp-1_5);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .rd-scope-hints button:hover { background: var(--surface-2); color: var(--fg); }
 .bothy-files .rd-scope-none {
-  margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--fg-subtle);
+  margin: var(--sp-2) 0 0; font-size: var(--fs-2xs); letter-spacing: var(--tr-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle);
 }
-.bothy-files .rd-scope-all { margin-top: 10px; width: 100%; }
+.bothy-files .rd-scope-all { margin-top: var(--sp-2_5); width: 100%; }
 
 /* ── the document ────────────────────────────────────────────────────────── */
 .bothy-files .rd-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
@@ -268,11 +275,11 @@
    second one derived from the filename says the same words twice. See the note
    in Reader.tsx. */
 .bothy-files .rd-head {
-  flex: none; padding: 14px 28px 12px; border-bottom: 1px solid var(--line);
+  flex: none; padding: var(--sp-3_5) var(--sp-6) var(--sp-3); border-bottom: 1px solid var(--line);
 }
-.bothy-files .rd-head-row { display: flex; align-items: center; gap: 16px; }
+.bothy-files .rd-head-row { display: flex; align-items: center; gap: var(--sp-4); }
 .bothy-files .rd-crumb {
-  margin: 0; flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--fg-subtle);
+  margin: 0; flex: 1 1 auto; min-width: 0; font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .rd-crumb b { color: var(--fg); font-weight: 700; }
@@ -284,8 +291,8 @@
 .bothy-files .rd-head-row > .tip-wrap { flex: none; }
 
 .bothy-files .rd-prov {
-  display: flex; align-items: baseline; gap: 7px; margin: 7px 0 0;
-  font-size: 12px; color: var(--fg-subtle); line-height: 1.45;
+  display: flex; align-items: baseline; gap: var(--sp-2); margin: var(--sp-2) 0 0;
+  font-size: var(--fs-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle); line-height: var(--lh-xs);
 }
 .bothy-files .rd-prov svg { flex: none; align-self: center; }
 /* `flex: 1 1 0` and not `1 1 auto`. The sentence has to wrap INSIDE itself
@@ -297,9 +304,9 @@
 .bothy-files .rd-prov-t { flex: 1 1 0; min-width: 0; }
 .bothy-files .rd-prov b { color: var(--fg-muted); font-weight: 600; }
 .bothy-files .rd-sha {
-  flex: none; margin-left: auto; font-size: 10.5px;
+  flex: none; margin-left: auto; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs);
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r-xs); padding: 0 5px;
+  border-radius: var(--r-xs); padding: 0 var(--sp-1);
 }
 
 /* The wrapper FileView renders into. It is `.rd-body` and not `.rd-doc` on
@@ -321,19 +328,19 @@
    them. */
 .bothy-files .rd-start {
   flex: 1; min-height: 0; overflow: auto;
-  padding: 40px 28px 64px; max-width: 92ch; color: var(--fg-muted);
+  padding: var(--sp-10) var(--sp-6) var(--sp-16); max-width: 92ch; color: var(--fg-muted);
 }
-.bothy-files .rd-start-head { margin: 0 0 30px; max-width: 68ch; }
-.bothy-files .rd-start-head h2 { margin: 0 0 8px; font-size: 22px; color: var(--fg); }
-.bothy-files .rd-start-head p { margin: 0; line-height: 1.6; font-size: 13.5px; }
+.bothy-files .rd-start-head { margin: 0 0 var(--sp-8); max-width: 68ch; }
+.bothy-files .rd-start-head h2 { margin: 0 0 var(--sp-2); font-size: var(--fs-xl); line-height: var(--lh-xl); letter-spacing: var(--tr-xl); color: var(--fg); }
+.bothy-files .rd-start-head p { margin: 0; line-height: var(--lh-md); font-size: var(--fs-md); }
 
-.bothy-files .rd-sec { margin: 0 0 34px; }
+.bothy-files .rd-sec { margin: 0 0 var(--sp-8); }
 .bothy-files .rd-sec-h {
-  margin: 0 0 2px;
-  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  margin: 0 0 var(--sp-0_5);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   color: var(--fg-subtle);
 }
-.bothy-files .rd-sec-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--fg-subtle); }
+.bothy-files .rd-sec-sub { margin: 0 0 var(--sp-3); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle); }
 
 /* auto-fill rather than a fixed column count, so the shelf reflows on its own
    between the 296px index and the 232px outline instead of needing a breakpoint
@@ -341,36 +348,36 @@
    longest label and its glyph still share a line. */
 .bothy-files .rd-shelf {
   list-style: none; margin: 0; padding: 0;
-  display: grid; gap: 8px;
+  display: grid; gap: var(--sp-2);
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 .bothy-files .rd-shelf li { margin: 0; display: flex; }
 .bothy-files .rd-card {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
-  display: flex; flex-direction: column; gap: 5px;
+  display: flex; flex-direction: column; gap: var(--sp-1);
   border: 1px solid var(--line); border-radius: var(--r-sm);
   background: var(--surface-1); color: var(--fg-muted);
-  font: inherit; padding: 11px 13px 10px;
+  font: inherit; padding: var(--sp-3) var(--sp-3) var(--sp-2_5);
 }
 .bothy-files .rd-card:hover { border-color: var(--accent); background: var(--surface-2); }
 .bothy-files .rd-card:hover .rd-card-ico { color: var(--accent-fg); }
 .bothy-files .rd-card:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.bothy-files .rd-card-top { display: flex; align-items: center; gap: 7px; }
+.bothy-files .rd-card-top { display: flex; align-items: center; gap: var(--sp-2); }
 .bothy-files .rd-card-ico { flex: none; color: var(--fg-subtle); }
-.bothy-files .rd-card-t { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+.bothy-files .rd-card-t { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 600; color: var(--fg); }
 /* The one card that does not open a document says so. A pill rather than a
    second sentence, because the blurb already has the sentence. */
 .bothy-files .rd-card-tag {
   margin-left: auto; flex: none;
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: .03em;
+  font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs);
   color: var(--fg-subtle); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 0 5px;
+  border: 1px solid var(--line); border-radius: var(--r-xs); padding: 0 var(--sp-1);
 }
-.bothy-files .rd-card-b { font-size: 12px; line-height: 1.45; }
+.bothy-files .rd-card-b { font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: var(--lh-xs); }
 /* The address, last and quietest. Same decision as the index's folder heading:
    one piece of filesystem in a panel of titles, typeset as an address. */
 .bothy-files .rd-card-p {
-  font-size: 10.5px; color: var(--fg-subtle);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -378,9 +385,9 @@
 .bothy-files .rd-recents li { margin: 0; }
 .bothy-files .rd-recent {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
-  display: flex; align-items: center; gap: 9px;
+  display: flex; align-items: center; gap: var(--sp-2);
   border: 0; border-bottom: 1px solid var(--line); background: transparent;
-  font: inherit; color: var(--fg-muted); padding: 7px 8px; margin: 0;
+  font: inherit; color: var(--fg-muted); padding: var(--sp-2) var(--sp-2); margin: 0;
 }
 /* The last row keeps no rule under it: the footnote below already draws one,
    and two lines eight pixels apart read as a mistake. */
@@ -390,23 +397,23 @@
 .bothy-files .rd-recent-ico { flex: none; color: var(--fg-subtle); }
 .bothy-files .rd-recent-text { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 1px; }
 .bothy-files .rd-recent-t {
-  font-size: 13px; color: var(--fg);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .rd-recent-p {
-  font-size: 10.5px; color: var(--fg-subtle);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.bothy-files .rd-recent-at { flex: none; font-size: 11px; color: var(--fg-subtle); }
+.bothy-files .rd-recent-at { flex: none; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle); }
 .bothy-files .rd-recent-go { flex: none; color: var(--fg-subtle); }
 
-.bothy-files .rd-start-note { margin: 0; font-size: 12.5px; line-height: 1.6; }
+.bothy-files .rd-start-note { margin: 0; font-size: var(--fs-sm); line-height: 1.6; }
 /* A button that has to sit inside a sentence. It keeps the sentence's metrics
    and only borrows the link colour - an inline element with a border or a
    background would push the line it is in taller than its neighbours. */
 .bothy-files .rd-inline {
   appearance: none; border: 0; background: none; padding: 0;
-  font: inherit; font-family: var(--mono); font-size: 11.5px;
+  font: inherit; font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
   color: var(--accent-fg); cursor: pointer; text-decoration: underline;
 }
 /* Full width, unlike the lede above it. The rule is a divider for the whole
@@ -415,8 +422,8 @@
    is a two-sentence footnote rather than prose, so it does not need the measure
    the lede does. */
 .bothy-files .rd-start-foot {
-  margin: 30px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
-  font-size: 12px; line-height: 1.6; color: var(--fg-subtle);
+  margin: var(--sp-8) 0 0; padding-top: var(--sp-3_5); border-top: 1px solid var(--line);
+  font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: 1.6; color: var(--fg-subtle);
 }
 .bothy-files .rd-start-foot a { color: var(--accent-fg); }
 
@@ -446,10 +453,10 @@
 /* ── the outline ─────────────────────────────────────────────────────────── */
 .bothy-files .rd-toc {
   min-width: 0; min-height: 0; overflow: auto;
-  padding: 22px 12px 40px 4px; border-left: 1px solid var(--line);
+  padding: var(--sp-6) var(--sp-3) var(--sp-10) var(--sp-1); border-left: 1px solid var(--line);
 }
 .bothy-files .rd-toc-h {
-  margin: 0 0 8px 10px;
+  margin: 0 0 var(--sp-2) var(--sp-2_5);
   font-size: calc(var(--rd-ui-fs) * 0.84); font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
   color: var(--fg-subtle);
 }
@@ -459,7 +466,7 @@
   appearance: none; cursor: pointer; width: 100%; text-align: left;
   border: 0; border-left: 2px solid var(--line); background: transparent;
   font: inherit; font-size: calc(var(--rd-ui-fs) * 0.92); line-height: 1.35; color: var(--fg-subtle);
-  padding: 4px 6px 4px 10px;
+  padding: var(--sp-1) var(--sp-1_5) var(--sp-1) var(--sp-2_5);
   display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .rd-toc-a:hover { color: var(--fg); border-left-color: var(--line-strong); }
@@ -473,10 +480,10 @@
    document and a "back" that goes nowhere is furniture. */
 .bothy-files .rd-back {
   display: none;
-  appearance: none; cursor: pointer; align-items: center; gap: 4px;
+  appearance: none; cursor: pointer; align-items: center; gap: var(--sp-1);
   border: 1px solid var(--line); border-radius: var(--r-sm);
   background: var(--surface-2); color: var(--fg-muted);
-  font: inherit; font-size: 11.5px; padding: 3px 9px 3px 6px; margin: 0 0 8px;
+  font: inherit; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-1_5); margin: 0 0 var(--sp-2);
 }
 .bothy-files .rd-back:hover { color: var(--fg); border-color: var(--line-strong); }
 
@@ -504,16 +511,16 @@
   .bothy-files.bothy-read[data-pane='doc'] .rd-side { display: none; }
   .bothy-files.bothy-read[data-pane='index'] .rd-main { display: none; }
   .bothy-files .rd-back { display: inline-flex; }
-  .bothy-files .rd-head { padding: 12px 16px 10px; }
-  /* editor.css pads .fx-read at 24px 28px; at this width that is a tenth of the
+  .bothy-files .rd-head { padding: var(--sp-3) var(--sp-4) var(--sp-2_5); }
+  /* editor.css pads .fx-read at 24px (or more, centring the measure); at this width that is a tenth of the
      line. The 72ch cap is doing nothing here - the viewport is the measure. */
-  .bothy-files.bothy-read .fx-read { padding: 16px 16px 40px; }
+  .bothy-files.bothy-read .fx-read { padding: var(--sp-4) var(--sp-4) var(--sp-10); }
   /* Start on one column. The shelf's auto-fill already collapses to a single
      card per row below 250px + padding, so only the frame needs the breakpoint.
      Measured at 390px: seven cards and eight rows, all of them tappable. */
-  .bothy-files .rd-start { padding: 12px 16px 48px; }
-  .bothy-files .rd-start-head { margin-bottom: 22px; }
-  .bothy-files .rd-start-head h2 { font-size: 19px; }
+  .bothy-files .rd-start { padding: var(--sp-3) var(--sp-4) var(--sp-12); }
+  .bothy-files .rd-start-head { margin-bottom: var(--sp-6); }
+  .bothy-files .rd-start-head h2 { font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
 }
 
 /* ── callouts ────────────────────────────────────────────────────────────────
@@ -535,20 +542,20 @@
    dashboard, which is the opposite of what the reading view is for. */
 .bothy-files .md-callout {
   margin: 0 0 var(--read-gap);
-  padding: 10px 14px;
+  padding: var(--sp-2_5) var(--sp-3_5);
   border-left: 3px solid var(--st-unknown);
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
   background: var(--surface-2);
 }
 .bothy-files .md-callout-h {
-  display: flex; align-items: center; gap: 7px;
-  margin: 0; font-size: 12.5px; font-weight: 700;
-  letter-spacing: .01em; color: var(--fg);
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 700;
+  letter-spacing: var(--tr-sm); color: var(--fg);
 }
 .bothy-files .md-callout-h svg { flex: none; }
 /* The body inherits the reading scale; only its last block loses its margin, so
    a one-paragraph callout is not padded twice at the bottom. */
-.bothy-files .md-callout-b { margin-top: 6px; }
+.bothy-files .md-callout-b { margin-top: var(--sp-1_5); }
 .bothy-files .md-callout-b > *:last-child { margin-bottom: 0; }
 
 .bothy-files .md-callout.is-note { border-left-color: var(--accent); background: var(--accent-bg); }
@@ -566,26 +573,26 @@
    when a document has no inbound links - see the component. */
 /* NO max-width of its own. It is rendered INSIDE `.fx-read` now (#153 - as a
    sibling it sat below the scroll container and was docked to the bottom of the
-   pane), so `.fx-read > * { max-width: var(--read-measure) }` already gives it
-   the document's measure. Restating it here would be a second copy of a number
+   pane), so the column `.fx-read` pads to --read-measure already gives it the
+   document's measure. Restating it here would be a second copy of a number
    that has to agree, which is how the reading widths drifted in the first
    place. */
 .bothy-files .rd-backlinks {
-  margin: 34px 0 8px;
-  padding-top: 16px;
+  margin: var(--sp-8) 0 var(--sp-2);
+  padding-top: var(--sp-4);
   border-top: 1px solid var(--line);
 }
 .bothy-files .rd-backlinks h2 {
-  margin: 0 0 8px;
-  font-size: 11.5px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .05em;
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--label-tracking);
   color: var(--fg-subtle);
 }
 .bothy-files .rd-backlinks ul { margin: 0; padding: 0; list-style: none; }
 .bothy-files .rd-backlinks li { margin: 0; }
 .bothy-files .rd-backlinks button {
-  display: flex; align-items: baseline; gap: 10px;
-  width: 100%; padding: 5px 8px; margin-left: -8px;
+  display: flex; align-items: baseline; gap: var(--sp-2_5);
+  width: 100%; padding: var(--sp-1) var(--sp-2); margin-left: calc(-1 * var(--sp-2));
   border: 0; background: none; border-radius: var(--r-sm);
   font: inherit; text-align: left; cursor: pointer; color: var(--fg-muted);
 }
@@ -593,11 +600,11 @@
 .bothy-files .rd-backlinks button:focus-visible {
   outline: 2px solid var(--ring); outline-offset: -2px;
 }
-.bothy-files .rd-bl-title { font-size: 13px; font-weight: 600; }
+.bothy-files .rd-bl-title { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; }
 /* The path is the disambiguator - two notes can share a title - so it is
    present but never competes with the name. */
 .bothy-files .rd-bl-path {
-  font-size: 10.5px; color: var(--fg-subtle);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -607,16 +614,16 @@
    common one. */
 .bothy-files .rd-crumbs {
   display: flex; flex-wrap: wrap; align-items: center;
-  gap: 2px; padding: 6px var(--rd-gut) 8px;
+  gap: var(--sp-0_5); padding: var(--sp-1_5) var(--rd-gut) var(--sp-2);
   font-size: calc(var(--rd-ui-fs) * 0.92); color: var(--fg-subtle);
   border-bottom: 1px solid var(--line);
 }
 .bothy-files .rd-crumbs button {
-  padding: 1px 4px; border: 0; background: none; border-radius: var(--r-xs);
+  padding: 1px var(--sp-1); border: 0; background: none; border-radius: var(--r-xs);
   font: inherit; font-size: calc(var(--rd-ui-fs) * 0.92); color: var(--accent-fg); cursor: pointer;
 }
 .bothy-files .rd-crumbs button:hover { background: var(--accent-bg); }
-.bothy-files .rd-crumbs b { color: var(--fg); font-weight: 700; padding: 0 2px; }
+.bothy-files .rd-crumbs b { color: var(--fg); font-weight: 700; padding: 0 var(--sp-0_5); }
 .bothy-files .rd-crumb-sep { color: var(--fg-subtle); opacity: .6; }
 
 /* The `.rd-folder-h` "cd into this" control is GONE. It existed because the flat

@@ -3,20 +3,20 @@
    label, value and trajectory row, whether or not it has a sub-line. */
 
 .qv {
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sp-2);
 }
 
 .qv-tile {
-  display: grid; grid-template-rows: auto auto auto auto; gap: 3px;
-  min-width: 0; padding: 9px 11px 8px;
+  display: grid; grid-template-rows: auto auto auto auto; gap: var(--sp-1);
+  min-width: 0; padding: var(--sp-2) var(--sp-3) var(--sp-2);
   background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
   color: inherit;
 }
 
-.qv-top { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--fg-subtle); }
+.qv-top { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; color: var(--fg-subtle); }
 .qv-top svg { flex: none; }
 .qv-label {
-  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -25,7 +25,7 @@
    Tabular is for columns of numbers that must align vertically - the tables and
    the axis ticks - not for a standalone display value. */
 .qv-value {
-  font-size: 23px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.05;
+  font-size: var(--fs-xl); font-weight: 700; letter-spacing: var(--tr-xl); line-height: 1.05;
   color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -33,10 +33,10 @@
    is the same height as one with a chart. */
 .qv-trend { display: flex; align-items: center; min-height: 18px; }
 .qv-sub {
-  font-size: 10.5px; color: var(--fg-subtle);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.qv-off { font-size: 10px; color: var(--fg-subtle); font-style: italic; }
+.qv-off { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle); font-style: italic; }
 
 /* ── meter ─────────────────────────────────────────────────────────────────
    Fill carries severity; the track is the same hue at low alpha rather than a

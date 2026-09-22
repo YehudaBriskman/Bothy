@@ -13,7 +13,7 @@
 
 /* ── options row ─────────────────────────────────────────────────────────── */
 .bothy-files .fx-sr-opts {
-  flex: none; display: flex; align-items: center; gap: 6px; margin: 0 8px 6px;
+  flex: none; display: flex; align-items: center; gap: var(--sp-1_5); margin: 0 var(--sp-2) var(--sp-1_5);
 }
 /* THE GUIDE'S SEARCH BOX (#151). The options ROW is not rendered at all there -
    "every root" has nothing to choose between in one folder and a hand-typed
@@ -21,20 +21,20 @@
    box beside the input, which is the "side by side" the row never achieved at
    296px. The toggle keeps its own rule; only the padding around it changes, so
    the button does not sit on the frame. */
-.bothy-files .fx-filter-min { padding-right: 3px; }
-.bothy-files .fx-filter-min .fx-sr-toggle { margin-left: 2px; }
+.bothy-files .fx-filter-min { padding-right: var(--sp-1); }
+.bothy-files .fx-filter-min .fx-sr-toggle { margin-left: var(--sp-0_5); }
 .bothy-files .fx-sr-scope {
-  display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+  display: inline-flex; align-items: center; gap: var(--sp-1); min-width: 0;
 }
-.bothy-files .fx-sr-lbl { font-size: 11px; color: var(--fg-subtle); }
+.bothy-files .fx-sr-lbl { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle); }
 .bothy-files .fx-sr-scope select {
-  appearance: none; font: inherit; font-size: 11px; font-family: var(--mono);
+  appearance: none; font: inherit; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-family: var(--mono);
   color: var(--fg); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: 3px 6px; max-width: 110px;
+  padding: var(--sp-1) var(--sp-1_5); max-width: 110px;
 }
 .bothy-files .fx-sr-glob { margin: 0; flex: 1 1 auto; min-width: 0; }
-.bothy-files .fx-sr-glob input { font-family: var(--mono); font-size: 11px; }
+.bothy-files .fx-sr-glob input { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); }
 .bothy-files .fx-sr-toggle {
   appearance: none; cursor: pointer; flex: none; display: grid; place-items: center;
   width: 24px; height: 24px; border-radius: var(--r-sm);
@@ -51,34 +51,34 @@
 
 /* ── status + the cap notice ─────────────────────────────────────────────── */
 .bothy-files .fx-sr-status {
-  flex: none; min-height: 16px; margin: 0 9px 4px;
-  font-size: 11px; color: var(--fg-subtle);
+  flex: none; min-height: 16px; margin: 0 var(--sp-2) var(--sp-1);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
 }
 .bothy-files .fx-sr-err { color: var(--st-down-fg); }
 .bothy-files .fx-sr-cap {
-  flex: none; margin: 0 8px 6px; padding: 5px 7px;
-  font-size: 11px; line-height: 1.4; color: var(--fg-muted);
+  flex: none; margin: 0 var(--sp-2) var(--sp-1_5); padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-2xs); letter-spacing: var(--tr-2xs); line-height: var(--lh-2xs); color: var(--fg-muted);
   background: var(--surface-2); border: 1px solid var(--line);
   border-left: 2px solid var(--st-warn-fg); border-radius: var(--r-sm);
 }
 
 /* ── results ─────────────────────────────────────────────────────────────── */
 .bothy-files .fx-sr-list {
-  flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: 8px;
+  flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: var(--sp-2);
 }
-.bothy-files .fx-sr-group { margin-bottom: 2px; }
+.bothy-files .fx-sr-group { margin-bottom: var(--sp-0_5); }
 .bothy-files .fx-sr-sec {
-  margin: 10px 9px 4px; font-size: 11px; font-weight: 600; color: var(--fg-subtle);
+  margin: var(--sp-2_5) var(--sp-2) var(--sp-1); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-weight: 600; color: var(--fg-subtle);
 }
 
 .bothy-files .fx-sr-file,
 .bothy-files .fx-sr-line {
   appearance: none; cursor: pointer; width: 100%; text-align: left;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: var(--sp-1_5);
   border: 0; background: transparent; font: inherit; color: var(--fg-muted);
-  padding: 0 8px; height: 22px; min-width: 0;
+  padding: 0 var(--sp-2); height: 22px; min-width: 0;
 }
-.bothy-files .fx-sr-file { color: var(--fg); font-size: 12px; }
+.bothy-files .fx-sr-file { color: var(--fg); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
 .bothy-files .fx-sr-file:hover,
 .bothy-files .fx-sr-line:hover { background: var(--surface-2); }
 .bothy-files .fx-sr-file:focus-visible,
@@ -87,22 +87,22 @@
 }
 .bothy-files .fx-sr-base { flex: none; font-weight: 500; }
 .bothy-files .fx-sr-dir {
-  flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--fg-subtle);
+  flex: 1 1 auto; min-width: 0; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl;
   text-align: left;
 }
 .bothy-files .fx-sr-n {
-  flex: none; font-size: 10px; font-family: var(--mono); color: var(--fg-subtle);
-  background: var(--surface-3); border-radius: var(--r-full); padding: 0 6px;
+  flex: none; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-family: var(--mono); color: var(--fg-subtle);
+  background: var(--surface-3); border-radius: var(--r-full); padding: 0 var(--sp-1_5);
 }
 
-.bothy-files .fx-sr-line { padding-left: 14px; font-size: 11.5px; }
+.bothy-files .fx-sr-line { padding-left: var(--sp-3_5); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
 .bothy-files .fx-sr-no {
   flex: none; width: 34px; text-align: right; font-family: var(--mono);
-  font-size: 10px; color: var(--fg-subtle);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
 }
 .bothy-files .fx-sr-text {
-  flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: 11px;
+  flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs);
   overflow: hidden; text-overflow: ellipsis; white-space: pre;
 }
 /* The match itself. A background, and the text stays at full contrast - a
@@ -110,8 +110,8 @@
    part of the line it was drawn to point at. */
 .bothy-files .fx-sr-mark {
   background: color-mix(in oklab, var(--accent) 32%, transparent);
-  color: inherit; border-radius: 2px; padding: 0 1px;
+  color: inherit; border-radius: var(--r-2xs); padding: 0 1px;
 }
 .bothy-files .fx-sr-more {
-  margin: 0 0 2px 22px; font-size: 10.5px; color: var(--fg-subtle);
+  margin: 0 0 var(--sp-0_5) var(--sp-6); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
 }

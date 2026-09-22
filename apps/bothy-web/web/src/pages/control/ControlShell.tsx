@@ -28,6 +28,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { RouteFade } from '../../components/RouteFade';
 import { Boxes, Gauge, PanelLeftClose, PanelLeftOpen, Plug, Share2, ShipWheel, Waypoints } from 'lucide-react';
 import './control.css';
+import { Icon as SizedIcon } from '../../components/ui/Icon';
 
 // Ports before Routes, which reverses the old tab order. The tabs defaulted to
 // Routes; a LIST reads top-down and ports are the concrete thing (a number you
@@ -109,7 +110,7 @@ export function ControlShell() {
           and not Links. */}
       <nav className="ct-nav scroll-shade" aria-label="Control">
         <NavLink to="/control" end className={({ isActive }) => `ct-item ct-home ${isActive ? 'on' : ''}`} title="Control">
-          <Gauge size={16} aria-hidden="true" />
+          <SizedIcon icon={Gauge} size="md" />
           <span className="ct-label">Control</span>
         </NavLink>
 
@@ -123,7 +124,7 @@ export function ControlShell() {
             title={label}
             className={({ isActive }) => `ct-item ${isActive ? 'on' : ''}`}
           >
-            <Icon size={16} aria-hidden="true" />
+            <SizedIcon icon={Icon} size="md" />
             <span className="ct-label">{label}</span>
           </NavLink>
         ))}
@@ -136,7 +137,7 @@ export function ControlShell() {
           aria-label={collapsed ? 'Show the Control menu labels' : 'Collapse the Control menu'}
           title={collapsed ? 'Expand' : 'Collapse'}
         >
-          {collapsed ? <PanelLeftOpen size={15} aria-hidden="true" /> : <PanelLeftClose size={15} aria-hidden="true" />}
+          {collapsed ? <SizedIcon icon={PanelLeftOpen} size="md" /> : <SizedIcon icon={PanelLeftClose} size="md" />}
           <span className="ct-label">Collapse</span>
         </button>
       </nav>

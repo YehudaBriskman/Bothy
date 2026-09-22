@@ -2,9 +2,10 @@
 
 _Written 2026-09-19. Status: batch 1 (the accessibility blockers) implemented
 2026-09-21; batch 2 (tokens and the shared primitives) implemented 2026-09-22;
-batch 3 (overlays and motion) implemented 2026-09-22 - see "Batch 2 as shipped"
-and "Batch 3 as shipped" in §7. The §5 conflicts are decided in "Decisions
-(approved 2026-09-21)" below §5. Batches 4-5 are not started._
+batch 3 (overlays and motion) implemented 2026-09-22; batch 4 (the type scale
+and layout rhythm) implemented 2026-09-22 - see "Batch 2 as shipped", "Batch 3
+as shipped" and "Batch 4 as shipped" in §7. The §5 conflicts are decided in
+"Decisions (approved 2026-09-21)" below §5. Batch 5 is not started._
 
 **What was audited.** The Bothy portal: the live app on this box (`http://<box>/`) and
 its source in `apps/bothy-web/web/src`. Every page was covered: Overview; Control
@@ -567,7 +568,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
     - Add `.cl-dot` and `.ka-dot` to the block.
   - Remove the `.sv-frame` blur.
 
-### SYS-13 A closed type scale in rem, with size-specific tracking and leading - PARTLY FIXED (batch 2)
+### SYS-13 A closed type scale in rem, with size-specific tracking and leading - FIXED (tokens batch 2, sweep batch 4)
 - **Rule:** R15.1–R15.5, R16.7. Brand: `foundations/typography.md` ("Close the type
   scale"), which it lists as its largest known gap.
 - **Severity:** P1. **Effort:** L (mechanical once the tokens exist).
@@ -614,7 +615,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Themes override only `--shadow-color` and `--shadow-hairline`.
   - A `--scrim` token: `rgb(9 9 11 / .38)` in light, `rgb(0 0 0 / .6)` in dark.
 
-### SYS-15 Radii, spacing, icons and duplicated rules - PARTLY FIXED (batch 2)
+### SYS-15 Radii, spacing, icons and duplicated rules - FIXED (tokens batch 2, sweep batch 4)
 - **Rule:** R16.7, R16.4.
 - **Severity:** P2. **Effort:** M–L.
 - **Absorbs:** SY-14, SY-15, SY-16, SY-17, CT-21.
@@ -639,7 +640,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
     that uses `absoluteStrokeWidth`.
   - Delete the first copy of each duplicate and the dead rules.
 
-### SYS-16 Sticky chrome: a scroll-edge shade instead of a hairline
+### SYS-16 Sticky chrome: a scroll-edge shade instead of a hairline - FIXED (batch 4)
 - **Rule:** R12.6, R12.1.
 - **Severity:** P2. **Effort:** S.
 - **Absorbs:** SY-20, and part of ST-6 and CL-14.
@@ -1005,7 +1006,7 @@ covered by SYS-14, CL-17 by SYS-12, and CL-21 by SYS-13.
 - **Evidence:** `S/files/missing2-1440-light.png` (`pages/files/Reader.tsx:221-224`).
 - **Fix:** keep `path` when defaulting the root.
 
-**FL-5 The reading measure is uncapped: about 97 characters at 1440**
+**FL-5 The reading measure is uncapped: about 97 characters at 1440 - FIXED (batch 4)**
 - **Rule:** R15. Brand `typography.md` ("about 90ch"). **Severity:** P1.
   **Effort:** S.
 - **Evidence:** `--read-measure:100%` (`index.css:192`, applied at
@@ -1092,7 +1093,7 @@ forever**
 - **Fix:** `.theme-editor{display:flex;flex-direction:column;gap:14px}` and
   `.panel-h{margin:0}` globally.
 
-**ST-6 On phones the sticky Sections bar covers the global topbar**
+**ST-6 On phones the sticky Sections bar covers the global topbar - FIXED (batch 4)**
 - **Rule:** R16.10. **Severity:** P1. **Effort:** S.
 - **Evidence:** `S/settings/appearance-m-scrolled.png`
   (`components/settings/settings.css:415-419`).
@@ -1479,6 +1480,119 @@ area by area.
   they are touched.
 - SYS-16: the scroll-edge shade on sticky chrome and `--topbar-h`, which covers
   ST-6.
+
+**Batch 4 as shipped (2026-09-22).** The sweep was done by codemod over the whole
+tree, not area by area. That kept one rule set for every file, and the check now
+holds all of it. `checks/design-tokens.mjs` §9 has 20 assertions. Against the
+pre-batch tree (`a77330f`), 19 of them fail; against this tree, none do.
+`checks/run.sh --offline` gives 486 + 28 + 89 passes and 0 failures. Typecheck,
+build and `csp_hash` pass.
+
+| Finding | Fix |
+|---|---|
+| SYS-13 type (with SY-1, SY-2, SY-3, SH-15, FL-14, FL-15, CL-21, ST-13) | All 420 px `font-size` declarations moved to the nearest `--fs-*` step. Each also took its step's `--lh-*` leading: added where the rule had no leading, or swapped in where its leading was within 0.1 of the step's. Deliberate leadings (`1` on badges, `1.6` on prose-like notes) are kept. Each also took its step's `--tr-*` tracking, and uppercase labels take `--label-tracking`, which ends the .03-.08em spread. Ties (11.5, 12.5, 13.5 and 15px) go down for muted or uppercase text and up otherwise; 15px bold titles go to `--fs-lg`. Weights 550/650/750 became 600/700. Inline `fontSize` in TSX became tokens. |
+| SYS-13 allowlist | Two px sizes remain, each at a step's px value. The chart ticks (11px) sit in an SVG laid out in JS px (`TimeChart` PAD). The 3D nameplates (13px) are scaled by drei's `distanceFactor`. Four `em` sizes remain, all inline code or mono inside running text. The reader's panel rails stay fixed ratios of `--rd-ui-fs`, a size the user sets. The check lists all of these exceptions and fails a stale entry. |
+| FL-5 and `--read-*` | `--read-fs` is `--fs-body`; `--read-h1..h4` are `--fs-2xl`/`xl`/`lg`/`body` (27/21/17.5/15 before); `--rd-ui-fs` is `.78125rem`; `--read-gap` is `.9375rem`; `--code-fs` is `--fs-xs`. The Settings reading-size control still shows px, but `readingVars` writes rem, so the browser's text size reaches the document. The document headings take each level's leading and tracking. **The measure is `75ch` again, applied as padding:** `.fx-read` pads itself to centre a 75ch column (`max(--sp-6, (100% - 75ch) / 2)`). The scroller and its scrollbar stay full width, and every block fills the one content box. That keeps both arguments `index.css` records against the old cap: one width, and a scrollbar on the edge. |
+| SYS-15 spacing | 975 padding/margin/gap literals became `--sp-*`. The only literals left are 45 1px hairline nudges. **`--sp-3_5` (14px) was added** because it was the most common off-grid value (90 uses, the inset of nearly every panel). Snapping it would have moved every panel edge by 2px. Odd values go to their multiple-of-4 neighbour. Other ties go to the 8px grid first, then down. |
+| SYS-15 geometry | Some indents must line up with a px icon. The explorer's guide stripes, the file-icon offset, search result lines and the update banner's actions are now `calc()`s of the tokens they depend on (for example `--sp-1_5 + --icon-xs / 2`). The JS indents (Explorer, JsonView, DocIndex, Toc) are `calc(... * var(--sp-3))`, so tree and stripe still agree at 125%. The reader's sticky root name sits under a stated `--rd-index-h`, not the literal `30px`. |
+| SYS-15 radii | All 52 literals became `--r-*`: 8px folded into `--r-sm`, 6px into `--r-xs`, 9px into `--r-md` and 12px into `--r-lg`. **`--r-2xs` (2px) was added** for marks such as bar ends and meters. |
+| SYS-15 icons | All 280 lucide call sites in 57 files now draw through `ui/Icon`. The five wrappers (ServiceIcon, TypeIcon, StatusIcon, FileIcon, SectionIcon) take an `IconSize`. Fourteen sizes became five: 9-12 → xs, 13-14 → sm, 15-17 → md, 18-21 → lg, 22+ → **xl (24, new)**, for single-glyph illustrations. **The absolute stroke is 1.25px, not batch 2's 1.75.** Nothing had used 1.75 yet. 1.25 matches what the app actually drew (lucide's 2 at 24 is 1.17px at 14 and 1.33px at 16), where 1.75 would have thickened every glyph by about 40%. StatusIcon keeps its heavier line at 1.4px, which is what its old 2.2 drew at 15px. |
+| SYS-15 duplicates | The 8 `.ov-*` rules declared in both `index.css` and `Overview.css` were merged into `Overview.css`, keeping what rendered. The dead `index.css` `.ov-body` was removed. Also merged: 7 same-file pairs (Vitals, Settings, control, editor, explorer, shell, `*`) and 5 cross-file pairs (`.labels-scroll`/`.label-row`/`-k`/`-v` in `index.css` and `Detail.css`; `.topo-edge` in `index.css` and `Topology.css`). The check fails any selector declared twice, in one file or across two. A rule that only sets custom properties is exempt, because the drawer's motion parameters deliberately live with `ui/Dialog`. |
+| SYS-16 (with SY-20, part of CL-14) | Five sticky surfaces lost their permanent 1px `--line`: the top bar, sticky table headers, the Settings phone bar, the reader's index header and the diff summary. Each now takes `--shadow-edge` (a hairline plus a soft shade) only once content is under it. The page uses `html[data-scrolled]`, set by `lib/scroll.ts` `usePageScrolled`. Inner scrollers use their own `data-shade-t`, so every `.tbl-wrap` (17 more) and the Files search list are now `.scroll-shade`. This matches Apple's scroll-edge appearance: nothing at rest, an edge once something is behind. |
+| ST-6 | `--topbar-h` is `2 × --sp-2_5 + max(2.375rem, --hit)`, and the bar is given exactly that height: 58px on a fine pointer, 64 on touch, 72.5/80 at 125%. The Settings phone bar sticks at `top: var(--topbar-h)` instead of 0. Measured: it now sits at the top bar's bottom edge at every size. Before, it was hidden under the top bar once scrolled (`batch4/*/scrolled/settings-phone-*`). While both bars are stuck, the top bar hands its shade to the lower one. |
+| `--tile` | The Overview card unit is `19.75rem` rather than `316px`. At a larger text size a card grows with its rows instead of clipping them. |
+
+**Counts, pre-batch (`a77330f`) → now**, measured over every stylesheet except
+themes, with the same script both times:
+
+| | Before | After |
+|---|---|---|
+| distinct font sizes | 40 measured (the audit counted 43 at `4a5077c`) | the 8 scale steps in use (11/12/13/14/16/17/21/28), plus the documented allowlist |
+| px `font-size` declarations | 421 | 2 (the allowlist) |
+| off-scale weights | 7 | 0 |
+| raw radius literals | 52 | 0 |
+| raw spacing literals (padding/margin/gap) | 975 | 45, all 1px hairlines |
+| icon sizes / bare lucide call sites | 14 numeric sizes / ~280 | 5 named sizes / 0 |
+| duplicate selectors | 8 `.ov-*` + 7 same-file + 5 cross-file | 0 |
+| sticky hairlines | 6 rules (5 surfaces) | 0 |
+
+**Visible changes over 1px** (everything else moved by 1px or less):
+- **Type.**
+  - 9.5 → 11px (+1.5px) on seven micro labels: the Settings theme tag, the
+    Files panel badge, the reader card tag, both Files kbd hints, the SCM
+    activity badge and the breadcrumb tag.
+  - The service and system detail `h1` grows from 25 to 28px (+3), matching
+    every other page title.
+  - The health number drops from 34 to 28px (−6).
+  - The Overview "N up" count grows from 26 to 28px (+2).
+  - The Settings page title grows from 24 to 28px (+4) on desktop.
+  - The Cluster section headings, the Settings block titles and the drawer
+    title grow from 15 to 17px (+2).
+  - The QuickView value drops from 23 to 21px (−2).
+  - The reader's Start heading on a phone drops from 19 to 17px (−2).
+- **Leading.** Text that inherited the body's 1.5 now takes its step's
+  leading. Each line of 11px text is 1.65px shorter and each line of 12px text
+  1.2px shorter, so long lists come out a few pixels shorter. For example, the
+  Overview is 19px shorter at 1440 and Settings › Appearance 39px shorter at
+  390.
+- **Icons.**
+  - 10 → 12px (+2) on seven small lock, copy and check glyphs, and 9 → 12 (+3)
+    on one.
+  - 18 → 20 (+2) on the theme and account triggers; 22 → 24 (+2) on the
+    sign-in and binary-file glyphs.
+  - The service detail header glyph drops from 28 to 24 (−4).
+  - Strokes: 12px glyphs draw 1.25px instead of 1.0, and 20px glyphs 1.25
+    instead of 1.67.
+- **Spacing.** 18 → 16 (×17), 22 → 24 (×14), 26/28 → 24 (×11), 30/34/36 → 32
+  (×16), 44 → 40, 60–72 → 64 (×6). Most of these are page and section padding
+  or the space at the end of a scroll. Three radii go from 12 to 14px.
+- **Layout.**
+  - The reading column is capped at 75ch and centred (FL-5, intended). This
+    includes the Markdown preview inside the explorer.
+  - The top bar is 1px shorter: its hairline is now the scroll edge.
+  - Chart plots start 8px further right, to fit the 11px y labels.
+
+**Screenshots** are in `~/.local/state/bothy/design-audit/batch4/` (mode 700):
+- **`before/` and `after/`:** 31 pages (Overview, Services, Ports, Routes,
+  Topology in 3D and flat, all 9 Cluster tabs, Files start, reader and
+  explorer, and all 13 Settings sections). Each is in dark and light, at 1440
+  and 390 (touch). There is also a 125% root run of Overview, Services, the
+  reader and Settings › Appearance at 1440 and 390: 132 images per side.
+- **`*/scrolled/`:** the top bar, a table header and the Settings phone bar,
+  each at rest and scrolled.
+- **`harness/`:** `shots.mjs`, `scrolled.mjs`, `diff.mjs` (per-image pixel
+  difference and height change, with `diff.log`) and `probe-topbar.mjs`.
+- **What the 125% run shows:** before, nothing but the form controls grew.
+  Now every text step, spacing step, the tile unit and the top bar scale
+  together, and no page clips or overflows. The Files API was mocked. The
+  cluster was live through the dev proxy.
+
+**Deviations worth knowing.**
+- **Three new tokens:** `--sp-3_5`, `--r-2xs` and `--icon-xl`. Each is
+  explained above, and each exists to avoid a 2px-or-larger move on dozens of
+  elements or to name a size that was already in use.
+- **Icon stroke:** 1.25px, not batch 2's 1.75.
+- **The measure is padding, not `max-width`,** so the two dead ends
+  `index.css` records stay dead.
+- **Headless Chromium on this box delivers no scroll events,** because it
+  produces no frames (the same limit batch 3 hit). The scrolled screenshots
+  dispatch the `scroll` event the browser would have sent.
+- **Observed, not diagnosed:** in the harness, navigating straight from the
+  Files reader to `#/settings/appearance` in the same tab left the reader on
+  screen. This happened before and after the batch. The reader may be
+  rewriting the hash after a hash change. It is worth a look alongside FL-3 in
+  batch 5.
+
+**What batch 5 picks up:**
+- Everything §7 already lists: SYS-17 (tables as cards; CL-14's clipped action
+  column is still there at 390), CT-10/11/17/18, SYS-18, and the remaining
+  SH/CL/FL/ST items.
+- Also:
+  - the reader-to-Settings hash observation above;
+  - the reader's rail ratios, if they should snap to the scale once a
+    per-user size store exists (#157);
+  - the explorer preview inheriting the reader's centred measure, if the IDE
+    view should use the whole pane instead.
 
 **Batch 5: responsive and page-level polish.** Effort: M.
 - SYS-17: tables as cards at 640px and below (Services, Cluster, Audit and the other

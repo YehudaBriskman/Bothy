@@ -9,8 +9,8 @@
 
 /* Table density. Only the row padding moves; type size does not, because a
    compact table you cannot read is not denser, it is smaller. */
-html[data-density='compact'] .tbl td { padding-top: 3px; padding-bottom: 3px; }
-html[data-density='compact'] .tbl th { padding-top: 5px; padding-bottom: 5px; }
+html[data-density='compact'] .tbl td { padding-top: var(--sp-1); padding-bottom: var(--sp-1); }
+html[data-density='compact'] .tbl th { padding-top: var(--sp-1); padding-bottom: var(--sp-1); }
 
 /* Motion, reduced here rather than by the OS. The same rule index.css applies
    under prefers-reduced-motion (decision 3: movement goes, fades stay), for the

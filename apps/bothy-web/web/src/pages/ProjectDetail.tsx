@@ -14,6 +14,7 @@ import { Tabs, TabPanel } from '../components/Tabs';
 import { SystemName } from '../components/SystemName';
 import type { Drift } from '../lib/config';
 import './Detail.css';
+import { Icon } from '../components/ui/Icon';
 
 const KIND_LABEL: Record<'project' | 'stack' | 'infra', string> = {
   project: 'Project',
@@ -130,7 +131,7 @@ export function ProjectDetail() {
   if (!system) {
     return (
       <div className="page detail">
-        <Link to="/" className="back-link"><ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} /> Systems</Link>
+        <Link to="/" className="back-link"><Icon icon={ChevronRight} size="md" style={{ transform: 'rotate(180deg)' }} /> Systems</Link>
         <div className="state"><h4>No such system</h4><p>Nothing is grouped under “{name}”. It may have been stopped, or the name is misspelled.</p></div>
       </div>
     );
@@ -145,7 +146,7 @@ export function ProjectDetail() {
     <div className="page detail" style={accStyle}>
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link to="/">Systems</Link>
-        <ChevronRight size={13} className="sep" aria-hidden="true" />
+        <Icon icon={ChevronRight} size="sm" className="sep" />
         <span className="here">{system.title}</span>
       </nav>
 
@@ -157,7 +158,7 @@ export function ProjectDetail() {
             <span className={`kind-badge kind-${system.kind}`}>{KIND_LABEL[system.kind]}</span>
           </h1>
           <div className="detail-head-row">
-            <span className="dim" style={{ fontSize: 13.5 }}>
+            <span className="dim" style={{ fontSize: 'var(--fs-sm)' }}>
               {h.up}/{h.total} up · {ports.length} {ports.length === 1 ? 'port' : 'ports'} · {routers.length} {routers.length === 1 ? 'route' : 'routes'} · {system.volumes.length} {system.volumes.length === 1 ? 'volume' : 'volumes'}
             </span>
           </div>
@@ -175,7 +176,7 @@ export function ProjectDetail() {
         </div>
       </motion.header>
 
-      <div className="dgrid" style={{ marginTop: 18 }}>
+      <div className="dgrid" style={{ marginTop: 'var(--sp-4)' }}>
         {/* The Health panel is DELETED. It restated, in a 156px panel, the
             "N/M up · N ports · N routes · N volumes" line already printed 60px
             above it in the header - the same numbers, one bar and a row of
@@ -204,7 +205,7 @@ export function ProjectDetail() {
                 {sections.map((sec) => (
                   <section className="type-section" key={sec.type}>
                     <div className="type-head">
-                      <span className="ico sm"><TypeIcon type={sec.type} size={15} /></span>
+                      <span className="ico sm"><TypeIcon type={sec.type} size="md" /></span>
                       <span className="type-label">{sec.label}</span>
                       <span className="type-cnt">{sec.nodes.length}</span>
                     </div>
@@ -239,7 +240,7 @@ export function ProjectDetail() {
                       const size = volumeSize(df, v.name);
                       return (
                         <tr key={v.name}>
-                          <td className="vol-name"><span className="ico sm"><HardDrive size={15} /></span><span className="mono">{v.name}</span></td>
+                          <td className="vol-name"><span className="ico sm"><Icon icon={HardDrive} size="md" /></span><span className="mono">{v.name}</span></td>
                           <td className="mono dim">{v.destination || '-'}</td>
                           <td className="mono num">{df ? fmtBytes(size) : '-'}</td>
                         </tr>

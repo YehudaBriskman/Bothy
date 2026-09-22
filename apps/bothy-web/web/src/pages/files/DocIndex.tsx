@@ -42,6 +42,7 @@ import { isProse, stemOf, titleOf } from './titles';
 import { buildTree, type Node } from './tree';
 import { sortGuide } from './guide';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 /** What one root's listing is doing. Held by the Reader, one per root. */
 export interface RootTree {
@@ -150,7 +151,7 @@ function DocRow({ node, root, current, depth, strip, onOpen }: {
       <button
         type="button"
         className={`rd-doc${on ? ' on' : ''}${denied ? ' denied' : ''}`}
-        style={{ paddingLeft: `${8 + depth * 13}px` }}
+        style={{ paddingLeft: `calc(var(--sp-2) + ${depth} * var(--sp-3))` }}
         // Both halves, because `home` mirrors the other roots: the same relative
         // path exists in two open sections, and a lookup on the path alone would
         // scroll to whichever rendered first.
@@ -165,10 +166,10 @@ function DocRow({ node, root, current, depth, strip, onOpen }: {
           : `${root}/${real}${entry ? ` · ${fmtBytes(entry.size)}` : ''}`}
       >
         {denied
-          ? <Lock size={13} className="rd-doc-ico" aria-hidden="true" />
+          ? <Icon icon={Lock} size="sm" className="rd-doc-ico" />
           : prose
-            ? <FileText size={13} className="rd-doc-ico" aria-hidden="true" />
-            : <FileIcon name={name} size={13} />}
+            ? <Icon icon={FileText} size="sm" className="rd-doc-ico" />
+            : <FileIcon name={name} size="sm" />}
         <span className="rd-doc-text">
           <span className="rd-doc-title">{label}</span>
           {sub && <span className="rd-doc-name">{sub}</span>}
@@ -210,15 +211,15 @@ function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, 
             <button
               type="button"
               className="rd-dir"
-              style={{ paddingLeft: `${8 + depth * 13}px` }}
+              style={{ paddingLeft: `calc(var(--sp-2) + ${depth} * var(--sp-3))` }}
               aria-expanded={isOpen}
               onClick={() => onToggle(key)}
               title={`${n.path} - ${n.files.toLocaleString()} document${n.files === 1 ? '' : 's'}`}
             >
-              <ChevronRight size={12} className={`chev rd-chev${isOpen ? ' open' : ''}`} aria-hidden="true" />
+              <Icon icon={ChevronRight} size="xs" className={`chev rd-chev${isOpen ? ' open' : ''}`} />
               {isOpen
-                ? <FolderOpen size={13} className="rd-dir-ico" aria-hidden="true" />
-                : <Folder size={13} className="rd-dir-ico" aria-hidden="true" />}
+                ? <Icon icon={FolderOpen} size="sm" className="rd-dir-ico" />
+                : <Icon icon={Folder} size="sm" className="rd-dir-ico" />}
               <span className="rd-dir-name">{n.name}</span>
               <span className="rd-dir-n tnum">{n.files.toLocaleString()}</span>
             </button>
@@ -283,9 +284,9 @@ function RootSection({
     <section className="rd-root" aria-label={root.label || root.key}>
       <h3 className="rd-root-h">
         <button type="button" className="rd-root-btn" aria-expanded={open} onClick={onToggle}>
-          <ChevronRight size={12} className={`chev rd-chev${open ? ' open' : ''}`} aria-hidden="true" />
+          <Icon icon={ChevronRight} size="xs" className={`chev rd-chev${open ? ' open' : ''}`} />
           <span className="rd-root-name mono">{root.key}</span>
-          {root.readOnly && <Lock size={10} className="rd-root-ro" aria-label="read-only" />}
+          {root.readOnly && <Icon icon={Lock} size="xs" className="rd-root-ro" aria-label="read-only" />}
           {open && !tree?.loading && (
             <span className="rd-root-n tnum">{total > MAX_FILES ? `${MAX_FILES}+` : total}</span>
           )}
@@ -505,7 +506,7 @@ export function DocIndex({
             checked={allFiles}
             onChange={(e) => onAllFiles(e.target.checked)}
           />
-          <Layers size={12} aria-hidden="true" />
+          <Icon icon={Layers} size="xs" />
           <span>All files</span>
         </label>
       </div>

@@ -18,6 +18,7 @@
 
 import { useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { Icon } from '../../components/ui/Icon';
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 
@@ -60,7 +61,7 @@ function Row({ name, value, depth, path, budget }: {
     return true;
   });
 
-  const pad = { paddingLeft: `${6 + depth * 14}px` };
+  const pad = { paddingLeft: `calc(var(--sp-1_5) + ${depth} * var(--sp-3_5))` };
 
   if (!branch) {
     return (
@@ -86,7 +87,7 @@ function Row({ name, value, depth, path, budget }: {
         onClick={() => setOpen((o) => !o)}
         title={path}
       >
-        <ChevronRight size={12} className={`chev fx-json-chev ${open ? 'open' : ''}`} aria-hidden="true" />
+        <Icon icon={ChevronRight} size="xs" className={`chev fx-json-chev ${open ? 'open' : ''}`} />
         {name !== null && <><span className="hl-key">{name}</span><span className="fx-json-colon">:</span></>}
         <span className="fx-json-brace">{openB}</span>
         {/* A collapsed branch reports its own size. An empty {} is a different

@@ -50,6 +50,7 @@ import {
   type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
 import { Button } from '../../components/ui/Button';
+import { Icon } from '../../components/ui/Icon';
 
 export function UpdatesSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchUpdates(signal));
@@ -107,7 +108,7 @@ function Freshness({ d }: { d: UpdatesStatus }) {
   if (!d.discovery.present) {
     return (
       <p className="set-fresh is-stale" role="status">
-        <AlertTriangle size={14} aria-hidden="true" />
+        <Icon icon={AlertTriangle} size="sm" />
         <span><Prose text={d.discovery.hint ?? 'Nothing discovered yet - run `just updates-discover` on the host.'} /></span>
       </p>
     );
@@ -116,7 +117,7 @@ function Freshness({ d }: { d: UpdatesStatus }) {
   const paused = d.components.filter((r) => r.paused).length;
   return (
     <p className={`set-fresh ${d.discovery.stale ? 'is-stale' : ''}`} role="status">
-      {d.discovery.stale && <AlertTriangle size={14} aria-hidden="true" />}
+      {d.discovery.stale && <Icon icon={AlertTriangle} size="sm" />}
       <span>
         {s.components} components · {s.updates} with a newer version · <b>{s.behind}</b> a minor or more behind
         {s.drift > 0 && <> · {s.drift} drifting</>}
@@ -138,7 +139,7 @@ function Freshness({ d }: { d: UpdatesStatus }) {
 function UpdaterStaged({ u }: { u: UpdaterInfo }) {
   return (
     <p className="set-fresh is-stale upd-staged" role="status">
-      <AlertTriangle size={14} aria-hidden="true" />
+      <Icon icon={AlertTriangle} size="sm" />
       <span>
         A new updater is staged (<span className="mono">{u.staged!.slice(0, 12)}</span>, <When iso={u.stagedAt} />) beside the
         one that runs (<span className="mono">{u.current ? u.current.slice(0, 12) : 'none'}</span>). Bothy was updated; the
@@ -170,7 +171,7 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
     .filter((g) => g.rows.length > 0);
   return (
     <>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl upd-tbl">
           <thead>
             <tr>
@@ -218,11 +219,11 @@ function Row({ r, canAct, busy, onUpdate, onChanged }: { r: UpdateRow } & RowCtx
       <td data-label="Notes" className="upd-notes">
         {r.oneWay && (
           <span className="upd-oneway" title={r.oneWayWhy ?? undefined}>
-            <Lock size={12} aria-hidden="true" />one-way
+            <Icon icon={Lock} size="xs" />one-way
           </span>
         )}
         <a className="link upd-cl" href={r.changelog} target="_blank" rel="noreferrer noopener">
-          Changelog<ArrowUpRight size={12} aria-hidden="true" />
+          Changelog<Icon icon={ArrowUpRight} size="xs" />
         </a>
         <span className="set-cell-sub">{d?.checkedAt ? <>checked <When iso={d.checkedAt} /></> : 'not checked yet'}</span>
       </td>
@@ -289,7 +290,7 @@ function Running({ r }: { r: UpdateRow }) {
       )}
       {d.drift && (
         <span className="upd-drift set-warn" title={d.drift}>
-          <AlertTriangle size={12} aria-hidden="true" />drift
+          <Icon icon={AlertTriangle} size="xs" />drift
         </span>
       )}
       {d.notes.map((n) => <span key={n} className="set-cell-sub">{n}</span>)}
@@ -303,13 +304,13 @@ function Available({ r }: { r: UpdateRow }) {
   if (d.error) {
     return (
       <>
-        <span className="set-warn upd-err"><AlertTriangle size={12} aria-hidden="true" />not checked</span>
+        <span className="set-warn upd-err"><Icon icon={AlertTriangle} size="xs" />not checked</span>
         <span className="set-cell-sub upd-why" title={d.error}>{d.error}</span>
       </>
     );
   }
   if (!d.latest || !d.latest.level) {
-    return <span className="upd-current"><Check size={13} aria-hidden="true" />up to date</span>;
+    return <span className="upd-current"><Icon icon={Check} size="sm" />up to date</span>;
   }
   const moved = !!d.latest.floating;
   const others = (['patch', 'minor', 'major'] as Level[])
@@ -377,7 +378,7 @@ function Paused({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onCha
   return (
     <span className="upd-paused">
       <span className="set-warn upd-paused-h" title={p.reason.replace(/`/g, '')}>
-        <CirclePause size={12} aria-hidden="true" />auto paused
+        <Icon icon={CirclePause} size="xs" />auto paused
       </span>
       <span className="set-cell-sub upd-why">
         <Ticks text={p.reason} />
@@ -468,7 +469,7 @@ function PlanDialog({ row, onClose, onStarted }: { row: UpdateRow; onClose: () =
                 {phase.t === 'refused' && <PlanRefusal error={phase.error} />}
                 <form className="ka-confirm" onSubmit={(e) => { e.preventDefault(); void go(); }}>
                   <p className="sa-warn">
-                    <AlertTriangle size={16} aria-hidden="true" />
+                    <Icon icon={AlertTriangle} size="md" />
                     <span>
                       This recreates {plan.restarts.length > 0 ? plan.restarts.join(', ') : plan.component} on the host.
                       {' '}Signed out: {plan.signedOut}.
@@ -533,7 +534,7 @@ function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
           <span className="mono upd-tag">{plan.from.image}</span>
           <span className="mono set-cell-sub">{shortDigest(plan.from.digest)}</span>
         </div>
-        <ArrowRight size={16} aria-hidden="true" className="upd-diff-arrow" />
+        <Icon icon={ArrowRight} size="md" className="upd-diff-arrow" />
         <div className="upd-diff-side">
           <span className="upd-diff-k">main pins</span>
           <span className="mono upd-tag">{plan.to.image}</span>
@@ -551,7 +552,7 @@ function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
               <span className="mono">{plan.pin.commit.slice(0, 10)}</span> - the checkout already says this; nothing is edited.</dd>}
         <dt>Changelog</dt>
         <dd>{plan.changelog
-          ? <a className="link upd-cl" href={plan.changelog} target="_blank" rel="noreferrer noopener">{plan.to.version ?? plan.to.tag}<ArrowUpRight size={12} aria-hidden="true" /></a>
+          ? <a className="link upd-cl" href={plan.changelog} target="_blank" rel="noreferrer noopener">{plan.to.version ?? plan.to.tag}<Icon icon={ArrowUpRight} size="xs" /></a>
           : <span className="dim">none linked</span>}</dd>
         <dt>Restarts</dt>
         <dd>{plan.restarts.join(', ')} · via <span className="mono">{plan.recipe}</span></dd>
@@ -563,13 +564,13 @@ function PlanFacts({ plan, age }: { plan: Plan; age: number | null }) {
         <dd><Ticks text={plan.snapshot.what} /> <span className="set-cell-sub">
           into <span className="mono">{plan.snapshot.dir}</span>
           {plan.snapshot.estimateBytes != null && <> · about {fmtBytes(plan.snapshot.estimateBytes)}</>} · the last 3 are kept</span></dd>
-        {plan.oneWay && <><dt>One-way</dt><dd className="set-warn"><Lock size={12} aria-hidden="true" />{plan.oneWayWhy}</dd></>}
+        {plan.oneWay && <><dt>One-way</dt><dd className="set-warn"><Icon icon={Lock} size="xs" />{plan.oneWayWhy}</dd></>}
         {plan.cluster && <><dt>Cluster</dt>
           <dd>context <span className="mono">{plan.cluster.context}</span> as <span className="mono">{plan.cluster.identity}</span>
             {plan.cluster.revision != null && <> · helm revision {plan.cluster.revision} is the rollback point</>}
             {' '}· only <span className="mono">{plan.recipe}</span></dd></>}
         {plan.pgMajor && <><dt>Volumes</dt>
-          <dd><span className="mono">{plan.pgMajor.oldVolume}</span> ({plan.pgMajor.fromMajor}) <ArrowRight size={12} aria-hidden="true" />{' '}
+          <dd><span className="mono">{plan.pgMajor.oldVolume}</span> ({plan.pgMajor.fromMajor}) <Icon icon={ArrowRight} size="xs" />{' '}
             <span className="mono">{plan.pgMajor.newVolume}</span> ({plan.pgMajor.toMajor}). The old volume is never deleted by this;
             later, by hand: <span className="mono">{plan.pgMajor.deleteOld}</span></dd></>}
         {(plan.procedure?.length ?? 0) > 0 && <><dt>Procedure</dt>
@@ -607,7 +608,7 @@ function OwnFacts({ plan, own, age }: { plan: Plan; own: OwnPlan; age: number | 
           <span className="mono upd-tag">{plan.from.tag ?? plan.from.version}</span>
           <span className="mono set-cell-sub">{sha(own.fromSha)}</span>
         </div>
-        <ArrowRight size={16} aria-hidden="true" className="upd-diff-arrow" />
+        <Icon icon={ArrowRight} size="md" className="upd-diff-arrow" />
         <div className="upd-diff-side">
           <span className="upd-diff-k">green release</span>
           <span className="mono upd-tag">{own.tag ?? plan.to.tag}</span>
@@ -618,11 +619,11 @@ function OwnFacts({ plan, own, age }: { plan: Plan; own: OwnPlan; age: number | 
       <dl className="upd-dl">
         <dt>Release</dt>
         <dd>{own.releaseUrl
-          ? <a className="link upd-cl" href={own.releaseUrl} target="_blank" rel="noreferrer noopener">{own.tag} release notes<ArrowUpRight size={12} aria-hidden="true" /></a>
+          ? <a className="link upd-cl" href={own.releaseUrl} target="_blank" rel="noreferrer noopener">{own.tag} release notes<Icon icon={ArrowUpRight} size="xs" /></a>
           : <span className="dim">none linked</span>}
           {own.commits != null && <span className="set-cell-sub">{own.commits} commits{own.diffstat ? ` · ${own.diffstat}` : ''}</span>}</dd>
         <dt>CI</dt>
-        <dd><span className="upd-ci"><Check size={13} aria-hidden="true" />{own.ci.detail ?? 'verified green'}</span>
+        <dd><span className="upd-ci"><Icon icon={Check} size="sm" />{own.ci.detail ?? 'verified green'}</span>
           <span className="set-cell-sub">asked via {own.ci.via ?? 'the GitHub API'}; release.yml tags only commits whose CI passed on main</span></dd>
         <dt>Rebuilds</dt>
         <dd>{own.apps.length ? files(own.apps) : <span className="dim">no app source changed</span>}
@@ -635,7 +636,7 @@ function OwnFacts({ plan, own, age }: { plan: Plan; own: OwnPlan; age: number | 
             <span className="set-cell-sub">other stacks’ files: in the checkout afterwards, applied by their own rows or recipes, not by this update</span></dd></>
         )}
         {own.updater && (
-          <><dt>Updater</dt><dd className="set-warn upd-own-updater"><AlertTriangle size={12} aria-hidden="true" />
+          <><dt>Updater</dt><dd className="set-warn upd-own-updater"><Icon icon={AlertTriangle} size="xs" />
             <span>this release changes the updater ({files(own.updaterFiles)}): its new copy is <b>staged</b>, not switched -
               {' '}<span className="mono">just install-updater</span> afterwards</span></dd></>
         )}
@@ -750,7 +751,7 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
   if (gone) {
     return (
       <section className="upd-job" data-tone="warn" aria-label="Update job">
-        <p className="upd-job-h"><AlertTriangle size={15} aria-hidden="true" />The host has no job <span className="mono">{id.slice(0, 12)}</span>.</p>
+        <p className="upd-job-h"><Icon icon={AlertTriangle} size="md" />The host has no job <span className="mono">{id.slice(0, 12)}</span>.</p>
         <div className="ka-row"><Button variant="ghost" size="sm" onClick={onDismiss}>Dismiss</Button></div>
       </section>
     );
@@ -768,7 +769,7 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
       </header>
       {lost && !done && (
         <p className="set-note upd-lost" role="status">
-          <RotateCcw size={12} aria-hidden="true" /> Reconnecting - {lost.why}. The job runs on the host whatever this tab does;
+          <Icon icon={RotateCcw} size="xs" /> Reconnecting - {lost.why}. The job runs on the host whatever this tab does;
           an update to Bothy itself or to Traefik interrupts this page on purpose.
         </p>
       )}
@@ -803,17 +804,17 @@ const secs = (a: string, b: string) => {
 
 function StepGlyph({ state }: { state: JobStep['state'] }) {
   if (state === 'running') return <span className="sa-spin upd-step-g" aria-label="running" />;
-  if (state === 'ok') return <Check size={14} className="upd-step-g" aria-label="done" />;
-  if (state === 'failed') return <X size={14} className="upd-step-g" aria-label="failed" />;
-  if (state === 'skipped') return <Minus size={14} className="upd-step-g" aria-label="skipped" />;
-  return <CircleDashed size={14} className="upd-step-g" aria-label="pending" />;
+  if (state === 'ok') return <Icon icon={Check} size="sm" className="upd-step-g" aria-label="done" />;
+  if (state === 'failed') return <Icon icon={X} size="sm" className="upd-step-g" aria-label="failed" />;
+  if (state === 'skipped') return <Icon icon={Minus} size="sm" className="upd-step-g" aria-label="skipped" />;
+  return <Icon icon={CircleDashed} size="sm" className="upd-step-g" aria-label="pending" />;
 }
 
 function JobGlyph({ state }: { state: JobState }) {
-  if (state === 'succeeded') return <Check size={15} aria-hidden="true" />;
-  if (state === 'failed') return <X size={15} aria-hidden="true" />;
-  if (state === 'rolled_back') return <RotateCcw size={15} aria-hidden="true" />;
-  return <AlertTriangle size={15} aria-hidden="true" />;
+  if (state === 'succeeded') return <Icon icon={Check} size="md" />;
+  if (state === 'failed') return <Icon icon={X} size="md" />;
+  if (state === 'rolled_back') return <Icon icon={RotateCcw} size="md" />;
+  return <Icon icon={AlertTriangle} size="md" />;
 }
 
 // ── history ──────────────────────────────────────────────────────────────────
@@ -830,7 +831,7 @@ function History({ d }: { d: UpdatesStatus | null }) {
       <span className="mono">~/.local/state/bothy/updates/history.jsonl</span>.</p>;
   }
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl upd-tbl upd-hist">
         <thead>
           <tr>
@@ -894,7 +895,7 @@ function Channels({ d }: { d: UpdatesStatus | null }) {
         <LastNight d={d} />
       </div></div>
       <div className="kv"><div className="kv-k">One-way</div><div className="kv-v">
-        <span className="upd-oneway"><Lock size={12} aria-hidden="true" />one-way</span>{' '}
+        <span className="upd-oneway"><Icon icon={Lock} size="xs" />one-way</span>{' '}
         marks a component whose first start on a new version migrates data the old version cannot read - rolling back is
         a restore, not a re-pin. Take a backup first.
       </div></div>

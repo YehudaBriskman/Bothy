@@ -36,7 +36,7 @@ function Containers() {
   const byName = new Map(data.nodes.filter((n) => n.container).map((n) => [n.container!.name, n]));
   return (
     <>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl">
           <thead>
             <tr><th scope="col">Container</th><th scope="col">State</th><th scope="col">Image</th><th scope="col">Docker says</th></tr>

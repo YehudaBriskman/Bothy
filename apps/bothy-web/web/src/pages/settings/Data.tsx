@@ -90,7 +90,7 @@ function RetentionBlock() {
       note: 'Enforced by the compactor; deletes run two hours after a chunk expires.' },
   ];
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl">
         <thead>
           <tr><th scope="col">History</th><th scope="col">Kept for</th><th scope="col">Declared in</th></tr>
@@ -149,7 +149,7 @@ function LocalData() {
   }
   return (
     <>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl">
           <thead>
             <tr><th scope="col">Key</th><th scope="col">What it holds</th><th scope="col" className="num">Size</th><th scope="col"><span className="sr-only">Clear</span></th></tr>

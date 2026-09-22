@@ -6,32 +6,32 @@
    event, the live dot), never on a button.
    ========================================================================== */
 
-.ka-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.ka-panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.ka-stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ka-body { display: flex; flex-direction: column; gap: var(--sp-3_5); min-width: 0; }
+.ka-panel { display: flex; flex-direction: column; gap: var(--sp-3_5); min-width: 0; }
+.ka-stack { display: flex; flex-direction: column; gap: var(--sp-2_5); min-width: 0; }
 
-.ka-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ka-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .ka-row-between { justify-content: space-between; }
 /* The .ka-body .btn size overrides and .ka-small are gone: components/ui/Button
    has one small size, and it is used here (design audit SYS-7). */
 
 .ka-flag {
   display: inline-flex; align-items: center;
-  font-size: 11px; font-weight: 600; letter-spacing: .01em;
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 600; letter-spacing: var(--tr-2xs);
   color: var(--fg-muted); background: var(--surface-3);
   border: 1px solid var(--line); border-radius: var(--r-full);
-  padding: 1px 8px;
+  padding: 1px var(--sp-2);
 }
 
 /* ── confirm ────────────────────────────────────────────────────────────────*/
-.ka-confirm { display: flex; flex-direction: column; gap: 12px; }
-.ka-field { display: flex; flex-direction: column; gap: 6px; }
-.ka-label { font-size: 13px; font-weight: 600; }
-.ka-hint { font-size: 12px; color: var(--fg-subtle); }
+.ka-confirm { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ka-field { display: flex; flex-direction: column; gap: var(--sp-1_5); }
+.ka-label { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; }
+.ka-hint { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle); }
 .ka-input {
-  font: inherit; font-size: 13.5px; color: var(--fg);
+  font: inherit; font-size: var(--fs-md); line-height: var(--lh-md); color: var(--fg);
   background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
-  padding: 7px 10px; max-width: 320px;
+  padding: var(--sp-2) var(--sp-2_5); max-width: 320px;
 }
 .ka-input:focus-visible { border-color: var(--accent-line); }
 .ka-input[aria-invalid='true'] { border-color: var(--st-down-line); }
@@ -39,27 +39,27 @@
 /* ── events ─────────────────────────────────────────────────────────────────*/
 .ka-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ka-event {
-  display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 10px; align-items: baseline;
-  padding: 9px 2px; border-top: 1px solid var(--line); font-size: 13px;
+  display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: var(--sp-2_5); align-items: baseline;
+  padding: var(--sp-2) var(--sp-0_5); border-top: 1px solid var(--line); font-size: var(--fs-sm); line-height: var(--lh-sm);
 }
 .ka-event:first-child { border-top: 0; }
-.ka-ev-type { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+.ka-ev-type { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-muted); }
 .ka-event[data-type='warn'] .ka-ev-type { color: var(--st-warn-fg); font-weight: 600; }
-.ka-ev-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ka-ev-main { display: flex; flex-direction: column; gap: var(--sp-0_5); min-width: 0; }
 .ka-ev-head { overflow-wrap: anywhere; }
 .ka-ev-msg { color: var(--fg-muted); line-height: 1.5; overflow-wrap: anywhere; }
-.ka-ev-time { font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ka-ev-time { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ── logs ───────────────────────────────────────────────────────────────────*/
 .ka-log {
   margin: 0; min-height: 180px; max-height: 46vh; overflow: auto;
-  padding: 10px 12px; border-radius: var(--r-md);
+  padding: var(--sp-2_5) var(--sp-3); border-radius: var(--r-md);
   background: var(--surface-2); border: 1px solid var(--line);
-  font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
   color: var(--fg);
 }
 .ka-live {
-  display: inline-block; width: 8px; height: 8px; margin-right: 4px; vertical-align: 1px;
+  display: inline-block; width: 8px; height: 8px; margin-right: var(--sp-1); vertical-align: 1px;
   border-radius: var(--r-full); background: var(--st-up);
   animation: ka-pulse var(--loop-pulse) var(--ease) infinite;
 }
@@ -73,9 +73,9 @@
 
 /* ── 2026-09: rollout status, history/pod lists, log pickers ─────────────────*/
 .ka-status {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0;
-  font-size: 13px; color: var(--fg-muted);
-  padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin: 0;
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
+  padding: var(--sp-2) var(--sp-2_5); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
 }
 .ka-status .dim { margin-left: auto; }
 
@@ -92,17 +92,17 @@
 
 .ka-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ka-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  padding: 9px 2px; border-top: 1px solid var(--line); font-size: 13px;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2_5); flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-0_5); border-top: 1px solid var(--line); font-size: var(--fs-sm); line-height: var(--lh-sm);
 }
 .ka-item:first-child { border-top: 0; }
-.ka-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 260px; }
-.ka-item-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; overflow-wrap: anywhere; }
-.ka-item-sub { font-size: 12px; overflow-wrap: anywhere; }
+.ka-item-main { display: flex; flex-direction: column; gap: var(--sp-0_5); min-width: 0; flex: 1 1 260px; }
+.ka-item-head { display: flex; align-items: center; gap: var(--sp-1_5); flex-wrap: wrap; overflow-wrap: anywhere; }
+.ka-item-sub { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); overflow-wrap: anywhere; }
 
-.ka-inline { display: inline-flex; align-items: center; gap: 6px; }
-.ka-inline .ka-label { font-size: 12px; color: var(--fg-muted); font-weight: 600; }
-.ka-select { padding: 4px 8px; font-size: 12.5px; max-width: 220px; }
-.ka-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--fg-muted); }
+.ka-inline { display: inline-flex; align-items: center; gap: var(--sp-1_5); }
+.ka-inline .ka-label { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-muted); font-weight: 600; }
+.ka-select { padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); line-height: var(--lh-sm); max-width: 220px; }
+.ka-check { display: inline-flex; align-items: center; gap: var(--sp-1_5); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-muted); }
 .ka-wide { max-width: 440px; width: 100%; }
 .ka-bad { color: var(--st-down-fg); }

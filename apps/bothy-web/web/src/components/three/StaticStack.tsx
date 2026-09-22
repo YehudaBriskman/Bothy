@@ -46,7 +46,7 @@ export function StaticStack({ nodes }: { nodes: PortalNode[] }) {
                   title={`${n.name} - ${STATUS_LABEL[n.status]}`}
                 >
                   <span className="sv-slab-vents" aria-hidden="true" />
-                  <ServiceIcon node={n} size={13} className="sv-slab-ico" />
+                  <ServiceIcon node={n} size="sm" className="sv-slab-ico" />
                   <span className="sv-slab-name">{n.name}</span>
                   <span
                     className="sv-led sv-led-sm"

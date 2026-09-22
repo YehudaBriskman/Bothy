@@ -67,11 +67,14 @@ See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).
 **Known gaps**, tracked in
 [reference/open-questions.md](../reference/open-questions.md):
 
-- **A spacing scale exists since 2026-09-22** (`--sp-0_5` 2px through `--sp-16`
-  64px, rem, on a 4px grid with 2 and 6px half-steps); the literals migrate onto
-  it in design-audit batch 4. Until then: **no spacing scale was used.** Padding literals in use span roughly two dozen
-  distinct values. This is the largest outstanding foundations item alongside
-  the type scale.
+- **~~No spacing scale.~~ Closed and migrated 2026-09-22.** `--sp-0_5` 2px
+  through `--sp-16` 64px, rem: every 2px to 16, then 4 and 8. `--sp-3_5`
+  (14px) joined in batch 4 because it was the most common off-grid value - the
+  inset of nearly every panel. Every padding, margin and gap in the app is a
+  step (975 literals were); the one literal left is a 1px hairline nudge.
+  Indents that must line up with a px icon are `calc()`s of the tokens they
+  depend on, in CSS and in the inline styles that indent trees.
+  `checks/design-tokens.mjs` §9 holds it.
 - **Two content widths disagree** - a 1180px wrap token and a 1320px content
   maximum. One of them should win, or each should be given a named role.
 - **The z-index ladder is literals only** - seven distinct values, none named.

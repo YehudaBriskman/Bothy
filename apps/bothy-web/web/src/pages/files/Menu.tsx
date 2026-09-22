@@ -19,6 +19,7 @@
 
 import { MoreHorizontal } from 'lucide-react';
 import { Menu } from '../../components/ui/Menu';
+import { Icon } from '../../components/ui/Icon';
 
 export interface MenuItem {
   id: string;
@@ -46,7 +47,7 @@ export function OverflowMenu({ items, label = 'More actions', align = 'end' }: {
       className="fx-menu-pop"
       trigger={(
         <button type="button" className="fx-hbtn" aria-label={label} title={label}>
-          <MoreHorizontal size={14} />
+          <Icon icon={MoreHorizontal} size="sm" />
         </button>
       )}
       items={items.map((it) => ({

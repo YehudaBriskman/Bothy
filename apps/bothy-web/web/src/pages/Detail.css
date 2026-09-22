@@ -8,8 +8,8 @@
 .detail { max-width: 1160px; }
 
 /* ── breadcrumb ──────────────────────────────────────────────────────────── */
-.crumbs { display: flex; align-items: center; gap: 7px; margin-bottom: 14px;
-  font-size: 13px; font-weight: 600; color: var(--fg-subtle); flex-wrap: wrap; }
+.crumbs { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3_5);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; color: var(--fg-subtle); flex-wrap: wrap; }
 .crumbs a { color: var(--fg-muted); }
 .crumbs a:hover { color: var(--fg); }
 .crumbs .sep { color: var(--fg-subtle); opacity: 0.6; display: inline-flex; }
@@ -17,39 +17,39 @@
   white-space: nowrap; max-width: 46ch; }
 
 /* ── header ──────────────────────────────────────────────────────────────── */
-.detail-head { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
+.detail-head { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-1_5); }
 .detail-head .ico.lg { color: var(--acc, var(--accent)); }
 .detail-head-meta { flex: 1; min-width: 0; }
-.detail .detail-head-meta h1 { font-size: 25px; font-weight: 800; letter-spacing: -0.02em;
-  line-height: 1.1; margin: 0 0 9px; display: flex; align-items: center; gap: 12px;
+.detail .detail-head-meta h1 { font-size: var(--fs-2xl); font-weight: 800; letter-spacing: var(--tr-2xl);
+  line-height: var(--lh-2xl); margin: 0 0 var(--sp-2); display: flex; align-items: center; gap: var(--sp-3);
   overflow-wrap: anywhere; }
-.detail-head-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.detail-head-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 
 /* The file says one thing and the running container says another. Amber because
    that is what --st-warn means everywhere else on this box - "meant to settle
    and has not yet" - and one line rather than a banner, because the panel that
    explains it is on the same page and a second copy of the explanation is a
    second thing that can go stale. */
-.detail-drift { margin: 7px 0 0; font-size: 13px; line-height: 1.5; color: var(--st-warn-fg);
+.detail-drift { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--st-warn-fg);
   max-width: 68ch; }
 
 /* status pill - reuses StatusIcon's coloured glyph+label, framed by the reserved
    status hue (form + label, never colour alone). */
-.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px;
-  border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-strong); }
+.status-pill { display: inline-flex; align-items: center; gap: var(--sp-1_5); padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-full); background: var(--surface-2); border: 1px solid var(--line-strong); }
 .status-pill[data-state="up"]       { border-color: color-mix(in oklab, var(--st-up) 40%, transparent); }
 .status-pill[data-state="starting"] { border-color: color-mix(in oklab, var(--st-warn) 40%, transparent); }
 .status-pill[data-state="down"]     { border-color: color-mix(in oklab, var(--st-down) 45%, transparent); }
 .status-pill[data-state="unknown"]  { border-color: var(--line-strong); }
 
-.detail-lede { color: var(--fg-muted); font-size: 14px; max-width: 760px; margin: 12px 0 22px;
-  line-height: 1.55; }
+.detail-lede { color: var(--fg-muted); font-size: var(--fs-md); max-width: 760px; margin: var(--sp-3) 0 var(--sp-6);
+  line-height: var(--lh-md); }
 
 /* ── the panel grid - this is the fix ───────────────────────────────────────
    12 columns, rows stretch so panels sharing a row are the SAME height; a panel
    fills its cell (height:100%). Overflowing bodies scroll internally, so a busy
    panel never makes its row taller than the grid rhythm. */
-.dgrid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px;
+.dgrid { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--sp-4);
   align-items: stretch; }
 .dgrid > * { min-width: 0; height: 100%; }
 .dgrid > .span-4  { grid-column: span 4; }
@@ -73,38 +73,39 @@
 
 /* ── ports list (scrolls inside .panel-b.scroll) ───────────────────────────── */
 .port-list { display: flex; flex-direction: column; }
-.port-row { display: flex; align-items: center; gap: 10px; padding: 9px 2px;
-  border-bottom: 1px solid var(--line); font-size: 13px; }
+.port-row { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-2) var(--sp-0_5);
+  border-bottom: 1px solid var(--line); font-size: var(--fs-sm); line-height: var(--lh-sm); }
 .port-row:last-child { border-bottom: 0; }
-.port-map { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums;
+.port-map { font-family: var(--mono); font-size: var(--fs-sm); line-height: var(--lh-sm); font-variant-numeric: tabular-nums;
   color: var(--fg); }
-.port-map .arrow { color: var(--fg-subtle); margin: 0 5px; }
-.port-proto { font-family: var(--mono); font-size: 11px; color: var(--fg-subtle);
+.port-map .arrow { color: var(--fg-subtle); margin: 0 var(--sp-1); }
+.port-proto { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--label-tracking); color: var(--fg-subtle);
   text-transform: uppercase; }
 .port-row .tag { margin-left: auto; }
 
 /* ── container labels (scrolls inside its own region) ──────────────────────── */
-.labels-block { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
-.labels-block .labels-head { font-size: 12px; font-weight: 700; color: var(--fg-subtle);
-  margin-bottom: 9px; }
-.labels-scroll { max-height: 208px; overflow-y: auto; display: flex; flex-direction: column;
-  gap: 7px; padding-right: 4px; }
+.labels-block { margin-top: var(--sp-3_5); border-top: 1px solid var(--line); padding-top: var(--sp-3); }
+.labels-block .labels-head { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 700; color: var(--fg-subtle);
+  margin-bottom: var(--sp-2); }
+.labels-scroll { max-height: 208px; overflow: auto; display: flex; flex-direction: column;
+  gap: var(--sp-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--sp-2_5) var(--sp-1) var(--sp-2_5) var(--sp-2_5); background: var(--bg-2); }
 .labels-scroll::-webkit-scrollbar { width: 9px; }
-.labels-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 6px;
+.labels-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--r-xs);
   border: 2px solid transparent; background-clip: padding-box; }
-.label-row { display: grid; grid-template-columns: minmax(140px, 42%) 1fr; gap: 12px;
-  font-size: 12px; align-items: baseline; }
+.label-row { display: grid; grid-template-columns: minmax(140px, 42%) 1fr; gap: var(--sp-3);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); align-items: baseline; }
 .label-k { color: var(--fg-muted); font-family: var(--mono); overflow-wrap: anywhere; }
 .label-v { color: var(--fg-subtle); font-family: var(--mono); overflow-wrap: anywhere; }
 
 /* ── project: health rollup ────────────────────────────────────────────────── */
-.health-roll { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
-.health-big { display: flex; align-items: baseline; gap: 8px; }
-.health-big .n { font-size: 34px; font-weight: 800; letter-spacing: -0.02em;
+.health-roll { display: flex; align-items: center; gap: var(--sp-6); flex-wrap: wrap; }
+.health-big { display: flex; align-items: baseline; gap: var(--sp-2); }
+.health-big .n { font-size: var(--fs-2xl); font-weight: 800; letter-spacing: var(--tr-2xl);
   font-variant-numeric: tabular-nums; line-height: 1; }
-.health-big .d { color: var(--fg-subtle); font-size: 14px; }
+.health-big .d { color: var(--fg-subtle); font-size: var(--fs-md); line-height: var(--lh-md); }
 .health-roll .ov-bar { flex: 1; min-width: 160px; height: 10px; }
-.health-tags { display: flex; gap: 7px; flex-wrap: wrap; }
+.health-tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .health-tags .tag { text-transform: capitalize; }
 .health-tags .tag .n { font-variant-numeric: tabular-nums; }
 
@@ -123,8 +124,8 @@
 /* ── kind badge (header) ────────────────────────────────────────────────────
    A neutral, form-first label of what KIND of system this is (project / stack /
    infra). Tinted with the panel accent, never a status hue. */
-.detail .kind-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
-  text-transform: uppercase; padding: 3px 9px; border-radius: 999px; line-height: 1;
+.detail .kind-badge { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: var(--label-tracking);
+  text-transform: uppercase; padding: var(--sp-1) var(--sp-2); border-radius: var(--r-full); line-height: 1;
   border: 1px solid color-mix(in oklab, var(--acc, var(--accent)) 38%, var(--line-strong));
   color: color-mix(in oklab, var(--acc, var(--accent)) 78%, var(--fg));
   background: color-mix(in oklab, var(--acc, var(--accent)) 12%, var(--surface-2));
@@ -133,55 +134,55 @@
 /* ── services: type + status filter bar (mirrors Services.tsx feel) ──────────
    The base .filter-bar/.chip live in index.css; these are the same facet-count
    deltas the Services page carries, rescoped under .detail. */
-.detail .svc-filter { margin-bottom: 16px; }
+.detail .svc-filter { margin-bottom: var(--sp-4); }
 .detail .svc-filter .filters-ico { color: var(--fg-subtle); flex: none; }
-.detail .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.detail .filter-chips .chip { text-transform: none; padding-right: 7px; }
+.detail .filter-chips { display: flex; gap: var(--sp-1_5); flex-wrap: wrap; }
+.detail .filter-chips .chip { text-transform: none; padding-right: var(--sp-2); }
 /* no capitalize - see the note in Services.css */
 .detail .filter-chips .chip .n {
   font-variant-numeric: tabular-nums; color: var(--fg-subtle); background: var(--surface-1);
-  border-radius: 6px; padding: 0 6px; font-size: 11px; min-width: 20px; text-align: center; }
+  border-radius: var(--r-xs); padding: 0 var(--sp-1_5); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); min-width: 20px; text-align: center; }
 .detail .filter-chips .chip.on .n {
   color: var(--fg); background: color-mix(in oklab, var(--accent) 22%, transparent); }
 .detail .filter-div { width: 1px; align-self: stretch; min-height: 20px;
-  background: var(--line-strong); margin: 0 2px; }
+  background: var(--line-strong); margin: 0 var(--sp-0_5); }
 
 /* ── services split by type ──────────────────────────────────────────────────
    One block per ServiceType: an icon + label + count header, then the service
    table. Tables scroll internally via the shared .panel-tbl rules above. */
-.detail .type-sections { display: flex; flex-direction: column; gap: 18px; }
-.detail .type-section { display: flex; flex-direction: column; gap: 8px; }
-.detail .type-head { display: flex; align-items: center; gap: 9px; }
+.detail .type-sections { display: flex; flex-direction: column; gap: var(--sp-4); }
+.detail .type-section { display: flex; flex-direction: column; gap: var(--sp-2); }
+.detail .type-head { display: flex; align-items: center; gap: var(--sp-2); }
 .detail .type-head .ico.sm { color: var(--acc, var(--accent)); }
-.detail .type-label { font-size: 13.5px; font-weight: 700; color: var(--fg); }
-.detail .type-cnt { font-size: 12px; font-weight: 600; color: var(--fg-subtle);
+.detail .type-label { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700; color: var(--fg); }
+.detail .type-cnt { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 600; color: var(--fg-subtle);
   font-variant-numeric: tabular-nums; background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
+  border: 1px solid var(--line); border-radius: var(--r-full); padding: 1px var(--sp-2); }
 .detail .type-section .tbl-wrap { border: 1px solid var(--line); border-radius: var(--r-lg);
   background: var(--surface-1); overflow: auto; max-height: 360px; }
 .detail .type-section .tbl th { background: var(--surface-2); }
 
-.detail .svc-empty { text-align: center; padding: 30px 20px; color: var(--fg-muted);
-  display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.detail .svc-empty { text-align: center; padding: var(--sp-8) var(--sp-5); color: var(--fg-muted);
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
 .detail .svc-empty p { margin: 0; }
 
 /* ── data / volumes table ────────────────────────────────────────────────── */
 .detail .vol-tbl td, .detail .vol-tbl th { vertical-align: middle; }
 .detail .vol-tbl th.num, .detail .vol-tbl td.num { text-align: right;
   font-variant-numeric: tabular-nums; }
-.detail .vol-name { display: flex; align-items: center; gap: 9px; }
+.detail .vol-name { display: flex; align-items: center; gap: var(--sp-2); }
 .detail .vol-name .ico.sm { color: var(--acc, var(--accent)); }
 .detail .vol-tbl .dim { color: var(--fg-subtle); }
 
 /* ── not-found / empty ─────────────────────────────────────────────────────── */
-.detail .state { margin-top: 8px; }
+.detail .state { margin-top: var(--sp-2); }
 
 /* The two things you can do to a service, together in its header. The action
    control is 26px and the Open button is a full control, so they align on the
    end rather than stretching - a 26px box stretched to a 36px button's height
    reads as a broken button rather than a quiet one. */
 .detail-head-actions {
-  display: flex; align-items: center; gap: 10px; flex: none; align-self: center;
+  display: flex; align-items: center; gap: var(--sp-2_5); flex: none; align-self: center;
 }
 /* In a header there is no row to hover, so the reveal that the table relies on
    never fires. It is simply visible here. */
@@ -192,9 +193,9 @@
    command that can. Text and one code block, no controls: there is deliberately
    nothing here to press, because pressing it would mean /containers/create. */
 .detail .start-why, .detail .start-run, .detail .start-where, .detail .start-warn {
-  margin: 0; max-width: 74ch; font-size: 13.5px; line-height: 1.6; color: var(--fg-muted); }
-.detail .start-run { margin-top: 14px; color: var(--fg); }
-.detail .start-cmd { display: block; margin: 8px 0; padding: 10px 13px;
+  margin: 0; max-width: 74ch; font-size: var(--fs-sm); line-height: 1.6; color: var(--fg-muted); }
+.detail .start-run { margin-top: var(--sp-3_5); color: var(--fg); }
+.detail .start-cmd { display: block; margin: var(--sp-2) 0; padding: var(--sp-2_5) var(--sp-3);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
-  color: var(--fg); font-size: 13px; overflow-x: auto; white-space: pre; }
-.detail .start-warn { margin-top: 14px; color: var(--st-warn-fg); }
+  color: var(--fg); font-size: var(--fs-sm); line-height: var(--lh-sm); overflow-x: auto; white-space: pre; }
+.detail .start-warn { margin-top: var(--sp-3_5); color: var(--st-warn-fg); }

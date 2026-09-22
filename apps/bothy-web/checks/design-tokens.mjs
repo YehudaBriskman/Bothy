@@ -28,6 +28,12 @@
 //      the hold timer, grow from the trigger and have reduced-motion values;
 //      both global reduce blocks keep fades and drop movement; the Live pulse is
 //      finite; the theme follows the OS by default and cross-fades on a switch.
+//   9. THE SWEEP HOLDS (batch 4, 2026-09-22). Every font size is a scale token
+//      (px only for the two geometry labels, em only for inline code); weights
+//      on the five steps; no raw spacing or radius literal (1px hairlines
+//      aside); no selector declared twice; every lucide glyph drawn through
+//      ui/Icon; sticky chrome shows a scroll edge, not a hairline; the reading
+//      measure is capped by the column's padding.
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -337,7 +343,7 @@ console.log('\n── icon sizes: CSS and ui/Icon.tsx agree ──────�
   const icon = readFileSync(join(SRC, 'components', 'ui', 'Icon.tsx'), 'utf8');
   const js = Object.fromEntries([...(icon.match(/ICON\s*=\s*\{([^}]*)\}/)?.[1] ?? '').matchAll(/(\w+):\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]));
   const css = Object.fromEntries(Object.entries(ROOT).filter(([k]) => k.startsWith('--icon-')).map(([k, v]) => [k.slice(7), parseFloat(v)]));
-  say(JSON.stringify(js) === JSON.stringify(css) && Object.keys(js).length === 4, 'ICON equals --icon-xs/sm/md/lg', JSON.stringify(css));
+  say(JSON.stringify(js) === JSON.stringify(css) && Object.keys(js).length === 5, 'ICON equals --icon-xs/sm/md/lg/xl', JSON.stringify(css));
 }
 
 // ── 8. motion behaviour (batch 3) ───────────────────────────────────────────
@@ -434,6 +440,151 @@ console.log('\n── motion behaviour: overlays, pages, layout, reduce, theme �
     "the theme follows the OS by default, in the app and the pre-paint script (SYS-19, decision 5)");
   say(/startViewTransition/.test(theme) && /typeof doc\.startViewTransition !== 'function'/.test(theme) && /::view-transition-old\(root\)/.test(INDEX),
     'a theme switch is a view-transition cross-fade, guarded for browsers without it');
+}
+
+// ── 9. the sweep holds (batch 4) ────────────────────────────────────────────
+console.log('\n── batch 4: type, rhythm, icons and edges stay on the tokens ─');
+{
+  const COMPONENT_CSS = cssFiles.filter((f) => !rel(f).startsWith('themes'));
+  const all = COMPONENT_CSS.map((f) => ({ f: rel(f), rs: rules(readFileSync(f, 'utf8')) }));
+  const where = (f, sel) => `${f}: ${sel.replace(/\s+/g, ' ').slice(0, 56)}`;
+
+  // TYPE. The allowlist is the whole of it, each entry with its reason:
+  //   px  - labels whose box is geometry in another unit: the chart ticks sit
+  //         in an SVG laid out in JS px (TimeChart PAD), the 3D nameplates are
+  //         scaled by drei's distanceFactor. Both hold a step's px value.
+  //   em  - inline code/mono inside running text, sized to the text around it.
+  //   the reader - --read-* and --code-fs are tokens; --rd-ui-fs is the user's
+  //         panel size and its fixed ratios (pages/files/reading.ts).
+  const PX_OK = new Map([['.tc-ytick, .tc-xtick', 11], ['.sv-plate-txt', 13]]);
+  const EM_OK = new Set(['.sa-title .mono', ':is(.set-shell, .upd-plan) .upd-code', '.bothy-files .md .md-img-remote', '.bothy-files .md .md-code']);
+  const STEP_PX = [11, 12, 13, 14, 16, 17, 21, 28];
+  const TOKEN_FS = /^(var\(--fs-(2xs|xs|sm|md|body|lg|xl|2xl|display)\)|var\(--read-(fs|h[1-4])\)|var\(--code-fs\)|var\(--rd-ui-fs\)|calc\(var\(--rd-ui-fs\) \* 0?\.\d+\)|inherit|0)$/;
+  const badFs = [], pxKept = [], emKept = [], badFw = [];
+  let decl = 0;
+  for (const { f, rs } of all) for (const { sel, body } of rs) for (const [p, v] of decls(body)) {
+    if (p === 'font-size') {
+      decl++;
+      const s = sel.replace(/\s+/g, ' ');
+      const px = v.match(/^(\d*\.?\d+)px$/);
+      if (px && PX_OK.get(s) === Number(px[1]) && STEP_PX.includes(Number(px[1]))) pxKept.push(s);
+      else if (/^\d*\.?\d+em$/.test(v) && EM_OK.has(s)) emKept.push(s);
+      else if (!TOKEN_FS.test(v)) badFs.push(`${where(f, sel)} { font-size: ${v} }`);
+    }
+    if (p === 'font-weight' && !/^(400|500|600|700|800|normal|bold|inherit|var\(--fw-(regular|medium|semibold|bold|heavy)\))$/.test(v)) badFw.push(`${where(f, sel)} { font-weight: ${v} }`);
+    if (p === 'font' && /\d(px|rem|em)\b/.test(v)) badFs.push(`${where(f, sel)} { font: ${v} } (a size in the shorthand)`);
+  }
+  say(badFs.length === 0, 'every font-size is a scale token - px and em only on the documented allowlist (SYS-13)',
+    badFs.length ? `\n    ${badFs.join('\n    ')}` : `${decl} declarations; px kept: ${pxKept.join(', ')}; em: ${emKept.length}`);
+  say(pxKept.length === PX_OK.size, 'the px allowlist is live and on-scale (a stale entry fails)', pxKept.join(', '));
+  say(badFw.length === 0, 'font weights are the five steps (no 550/650/750)', badFw.join('; '));
+  const readPx = Object.entries(ROOT).filter(([k, v]) => /^--(read|rd|code)-/.test(k) && /\d(px)\b/.test(v)).map(([k, v]) => `${k}: ${v}`);
+  const codeFs = /--code-fs:\s*var\(--fs-/.test(stripCss(readFileSync(join(SRC, 'pages', 'files', 'shell.css'), 'utf8')));
+  say(readPx.length === 0 && codeFs && /--read-fs:\s*var\(--fs-body\)/.test(stripCss(INDEX)), 'the reader sizes are rem tokens: --read-*, --rd-ui-fs, --code-fs (FL-5)', readPx.join('; '));
+  const reading = readFileSync(join(SRC, 'pages', 'files', 'reading.ts'), 'utf8');
+  say(/'--read-fs':\s*`\$\{r\.doc \/ 16\}rem`/.test(reading) && /'--rd-ui-fs':\s*`\$\{r\.ui \/ 16\}rem`/.test(reading),
+    'the reading-size setting is written in rem, so the browser text size still reaches it');
+  const inlineFs = [];
+  for (const f of tsx) for (const m of stripTs(readFileSync(f, 'utf8')).matchAll(/fontSize:\s*(`[^`]*`|'[^']*'|[^,}]+)/g)) {
+    if (!/var\(--fs-|rem`/.test(m[1])) inlineFs.push(`${rel(f)}: fontSize: ${m[1].trim()}`);
+  }
+  say(inlineFs.length === 0, 'no inline px font size in a component', inlineFs.join('; '));
+  const used = new Set(); for (const f of COMPONENT_CSS) for (const m of stripCss(readFileSync(f, 'utf8')).matchAll(/var\((--(fs|lh|tr)-[\w-]+)\)/g)) used.add(m[1]);
+  const unknownTok = [...used].filter((t) => !(t in ROOT));
+  say(unknownTok.length === 0, 'every --fs/--lh/--tr token used exists (a typo is a size silently dropped)', unknownTok.join(', '));
+
+  // RHYTHM. padding/margin/gap: tokens only; the one literal is a 1px hairline
+  // nudge. calc() may combine tokens with unitless factors. Radii: --r-* only.
+  const SPACING = /^(padding(-[a-z]+)*|margin(-[a-z]+)*|gap|row-gap|column-gap)$/;
+  const RADIUS = /^border(-[a-z]+)*-radius$/;
+  const badSp = [], badR = [];
+  let spN = 0, rN = 0;
+  for (const { f, rs } of all) for (const { sel, body } of rs) for (const [p, v] of decls(body)) {
+    const bare = v.replace(/!important/, '').replace(/var\([^()]*\)/g, 'V');
+    if (SPACING.test(p)) {
+      spN++;
+      const lits = [...bare.matchAll(/-?\d*\.?\d+(px|rem|em|ch|vh|vw)\b/g)].map((m) => m[0]).filter((x) => !/^-?1px$/.test(x));
+      if (lits.length) badSp.push(`${where(f, sel)} { ${p}: ${v} }`);
+    }
+    if (RADIUS.test(p)) {
+      rN++;
+      if (/\d(px|rem|em)\b/.test(bare)) badR.push(`${where(f, sel)} { ${p}: ${v} }`);
+    }
+  }
+  say(badSp.length === 0, 'no raw spacing literal in component CSS - --sp-* only, 1px hairlines aside (SYS-15)',
+    badSp.length ? `\n    ${badSp.slice(0, 40).join('\n    ')}${badSp.length > 40 ? `\n    ... ${badSp.length - 40} more` : ''}` : `${spN} declarations`);
+  say(badR.length === 0, 'no raw radius literal - --r-* only (SYS-15)', badR.length ? `\n    ${badR.join('\n    ')}` : `${rN} declarations`);
+  const spSteps = Object.keys(ROOT).filter((k) => k.startsWith('--sp-'));
+  say(spSteps.every((k) => /rem$/.test(ROOT[k])) && '--sp-3_5' in ROOT && '--r-2xs' in ROOT, 'the spacing steps are rem (with --sp-3_5) and radii have --r-2xs', spSteps.join(' '));
+  const jsPad = [];
+  for (const f of tsx) for (const m of stripTs(readFileSync(f, 'utf8')).matchAll(/(padding|margin)(Left|Right|Top|Bottom)?:\s*(`[^`]*`|\d+)/g)) {
+    if (/^\d+$/.test(m[3]) && m[3] !== '0' || /px`$/.test(m[3])) jsPad.push(`${rel(f)}: ${m[0]}`);
+  }
+  say(jsPad.length === 0, 'inline paddings and indents are token calcs, not px (they must line up with the CSS)', jsPad.join('; '));
+
+  // DUPLICATES. One copy of each rule: the same whole selector twice in one
+  // stylesheet (same @media), or in two stylesheets, is a fail. A rule that
+  // only sets custom properties is a parameterisation (the drawer's motion
+  // lives with ui/Dialog), not a copy; :root blocks are token groups.
+  const seen = new Map(), dup = [];
+  for (const { f, rs } of all) for (const { sel, body, media } of rs) {
+    const s = sel.replace(/\s+/g, ' ');
+    if (/^(:root|html|body|\*)/.test(s)) continue;
+    if (decls(body).every(([p]) => p.startsWith('--')) && /--/.test(body)) continue;
+    const k = `${media}|${s}`;
+    if (seen.has(k)) dup.push(`${s}${media ? ` [${media.trim()}]` : ''}: ${seen.get(k)} and ${f}`);
+    else seen.set(k, f);
+  }
+  say(dup.length === 0, 'no selector is declared twice, in one stylesheet or across two (SYS-15: the .ov-* copies)', dup.join('; '));
+
+  // ICONS. lucide is drawn only by ui/Icon: no JSX element named after a
+  // lucide import, and no numeric size prop on any component but the brand mark.
+  const ICON_FILE = join('components', 'ui', 'Icon.tsx');
+  const direct = [], numeric = [];
+  for (const f of tsx) {
+    if (rel(f) === ICON_FILE) continue;
+    const s = stripTs(readFileSync(f, 'utf8'));
+    const imp = s.match(/import\s*\{([^}]*)\}\s*from\s*'lucide-react'/);
+    const names = imp ? imp[1].split(',').map((x) => x.trim()).filter((x) => x && !x.startsWith('type ')).map((x) => x.split(/\s+as\s+/).pop()) : [];
+    for (const n of names) if (new RegExp(`<${n}[\\s/>]`).test(s)) direct.push(`${rel(f)}: <${n}>`);
+    for (const m of s.matchAll(/<([A-Z][\w.]*|[a-z]\w*\.[A-Z][\w.]*)\b[^<>]*?\ssize=\{\d+(\.\d+)?\}/g)) if (m[1] !== 'BothyMark') numeric.push(`${rel(f)}: <${m[1]} size={n}>`);
+  }
+  say(direct.length === 0 && numeric.length === 0, 'every icon is drawn through ui/Icon - no bare lucide glyph, no numeric size (SYS-15)',
+    [...direct, ...numeric].join('; ') || `${tsx.length} files`);
+
+  // EDGES. Sticky chrome has no permanent bottom hairline; the top bar and the
+  // Settings phone bar shade when the page is under them, the in-pane ones
+  // when their scroller is. Every table wrapper can report that it scrolled.
+  const sticky = [];
+  for (const { f, rs } of all) for (const { sel, body } of rs) {
+    if (/position:\s*sticky/.test(body) && /border-bottom:\s*1px/.test(body)) sticky.push(where(f, sel));
+  }
+  say(sticky.length === 0, 'no sticky element draws a permanent bottom hairline (SYS-16)', sticky.join('; '));
+  const edgeRule = (re) => all.some(({ rs }) => rs.some((r) => re.test(r.sel.replace(/\s+/g, ' ')) && /box-shadow:\s*var\(--shadow-edge\)/.test(r.body)));
+  const edges = [
+    ['the top bar', /^html\[data-scrolled\] \.topbar$/], ['table headers', /\[data-shade-t\] \.tbl th$/],
+    ['the Settings phone bar', /^html\[data-scrolled\] \.set-shell \.set-mobile-bar$/],
+    ['the reader index header', /\[data-shade-t\] \.rd-index-h$/], ['the diff summary', /\[data-shade-t\] \.fx-diff-sum$/],
+  ].filter(([, re]) => !edgeRule(re)).map(([n]) => n);
+  say('--shadow-edge' in ROOT && edges.length === 0, 'the sticky chrome takes --shadow-edge only when something is under it', edges.join(', '));
+  const scroll = readFileSync(join(SRC, 'lib', 'scroll.ts'), 'utf8');
+  say(/export function usePageScrolled/.test(scroll) && /usePageScrolled\(\)/.test(readFileSync(join(SRC, 'components', 'AppShell.tsx'), 'utf8')),
+    'html[data-scrolled] is kept by lib/scroll.ts and mounted by the AppShell');
+  const wraps = [];
+  for (const f of tsx) for (const m of stripTs(readFileSync(f, 'utf8')).matchAll(/className=(?:"([^"]*\btbl-wrap\b[^"]*)"|\{`([^`]*\btbl-wrap\b[^`]*)`\})/g)) {
+    if (!/\bscroll-shade\b/.test(m[1] ?? m[2])) wraps.push(`${rel(f)}: ${(m[1] ?? m[2]).slice(0, 40)}`);
+  }
+  say(wraps.length === 0, 'every .tbl-wrap is a .scroll-shade', wraps.join('; '));
+  const top = rules(INDEX).find((r) => r.sel === '.topbar' && !r.media);
+  const setBar = all.flatMap(({ rs }) => rs).find((r) => r.sel.replace(/\s+/g, ' ') === '.set-shell .set-mobile-bar' && /sticky/.test(r.body));
+  say('--topbar-h' in ROOT && !!top && /height:\s*var\(--topbar-h\)/.test(top.body) && !!setBar && /top:\s*var\(--topbar-h\)/.test(setBar.body),
+    'the top bar IS --topbar-h tall, and the Settings phone bar sticks under it (ST-6)');
+
+  // MEASURE (FL-5): capped in ch, applied as the column's padding, never as a
+  // max-width on the scroller or a per-block width.
+  const ed = stripCss(readFileSync(join(SRC, 'pages', 'files', 'editor.css'), 'utf8'));
+  say(/^\d+ch$/.test(ROOT['--read-measure'] ?? '') && /\.fx-read \{[^}]*padding:[^;]*var\(--read-measure\)/.test(ed) && !/\.fx-read > \* \{[^}]*max-width/.test(ed) && !/\.fx-read \{[^}]*max-width/.test(ed),
+    'the reading measure is capped in ch by the column padding - one width, scrollbar on the edge (FL-5)', ROOT['--read-measure']);
 }
 
 // ── 7. docs ─────────────────────────────────────────────────────────────────

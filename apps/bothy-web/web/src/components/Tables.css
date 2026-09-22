@@ -4,11 +4,11 @@
    empty row, so both tables read as one instrument. */
 
 .tbl-filter {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3_5);
 }
 .tbl-search {
-  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px;
+  display: flex; align-items: center; gap: var(--sp-2); flex: 1; min-width: 200px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md); padding: 0 var(--sp-3);
 }
 .tbl-search:focus-within { border-color: var(--accent); }
 /* The inner input sets `outline: none` because it has no border of its own, so
@@ -19,9 +19,9 @@
 .tbl-search svg { color: var(--fg-subtle); flex: none; }
 .tbl-search input {
   appearance: none; border: 0; background: transparent; color: var(--fg);
-  font: inherit; padding: 9px 0; width: 100%; outline: none;
+  font: inherit; padding: var(--sp-2) 0; width: 100%; outline: none;
 }
-.tbl-filter .chips .n { font-variant-numeric: tabular-nums; color: var(--fg-subtle); margin-left: 2px; }
+.tbl-filter .chips .n { font-variant-numeric: tabular-nums; color: var(--fg-subtle); margin-left: var(--sp-0_5); }
 .tbl-filter .chips button.on .n { color: inherit; }
 .tbl-filter .cnt { margin-left: auto; }
 
@@ -34,14 +34,14 @@
   appearance: none; background: transparent; border: 0; cursor: pointer;
   font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; white-space: nowrap;
   display: inline-flex; align-items: center;
-  margin: -4px -6px; padding: 4px 6px; border-radius: var(--r-sm);
+  margin: calc(-1 * var(--sp-1)) calc(-1 * var(--sp-1_5)); padding: var(--sp-1) var(--sp-1_5); border-radius: var(--r-sm);
 }
 .tbl th .sort-btn:hover, .tbl th.sorted .sort-btn { color: var(--fg); }
-.tbl th .sort-caret { display: inline-block; width: 12px; margin-left: 2px; color: var(--accent);
+.tbl th .sort-caret { display: inline-block; width: 12px; margin-left: var(--sp-0_5); color: var(--accent);
   font-variant-numeric: tabular-nums; }
 
-.tbl-empty { text-align: center; color: var(--fg-muted); padding: 34px 16px !important; }
-.tbl-empty-clear { display: inline-flex; margin-left: 10px; vertical-align: middle; }
+.tbl-empty { text-align: center; color: var(--fg-muted); padding: var(--sp-8) var(--sp-4) !important; }
+.tbl-empty-clear { display: inline-flex; margin-left: var(--sp-2_5); vertical-align: middle; }
 
 @media (max-width: 560px) {
   .tbl-filter .cnt { margin-left: 0; }

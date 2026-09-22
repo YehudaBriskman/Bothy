@@ -10,7 +10,7 @@
    this restructure was meant to remove. */
 .sm {
   display: grid; grid-template-columns: max-content minmax(0, 1fr);
-  column-gap: 12px; row-gap: 8px; align-items: start;
+  column-gap: var(--sp-3); row-gap: var(--sp-2); align-items: start;
 }
 .sm-group { display: contents; }
 /* The section level (Bothy, Projects) dissolves into the same grid, so its
@@ -19,57 +19,57 @@
 .sm-section { display: contents; }
 .sm-section-h {
   grid-column: 1 / -1;
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0;
-  padding-bottom: 5px; border-bottom: 1px solid var(--line);
-  font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  display: flex; align-items: center; gap: var(--sp-1_5); flex-wrap: wrap; margin: 0;
+  padding-bottom: var(--sp-1); border-bottom: 1px solid var(--line);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: 700; letter-spacing: var(--tr-xs);
   color: var(--fg-muted);
 }
-.sm-section + .sm-section .sm-section-h { margin-top: 8px; }
+.sm-section + .sm-section .sm-section-h { margin-top: var(--sp-2); }
 .sm-section-t { white-space: nowrap; }
 .sm-section-h .sm-group-bad { flex-basis: auto; }
 
 .sm-group-h {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0;
+  display: flex; align-items: center; gap: var(--sp-1_5); flex-wrap: wrap; margin: 0;
   /* Aligns the label's cap-height with the first row of chips. */
-  padding-top: 8px;
-  font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  padding-top: var(--sp-2);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   color: var(--fg-subtle);
 }
 .sm-group-t { white-space: nowrap; }
 .sm-group-n {
-  font-size: 10.5px; font-weight: 700; letter-spacing: 0;
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--tr-2xs);
   color: var(--fg-subtle); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: var(--r-full); padding: 0 6px;
+  border: 1px solid var(--line); border-radius: var(--r-full); padding: 0 var(--sp-1_5);
 }
 /* Wraps under the label rather than floating to the far right of the row,
    where it sat 1000px from the chip it was talking about. */
 .sm-group-bad {
-  flex-basis: 100%; letter-spacing: 0; text-transform: none; font-size: 11.5px;
+  flex-basis: 100%; letter-spacing: var(--tr-xs); text-transform: none; font-size: var(--fs-xs); line-height: var(--lh-xs);
   color: var(--st-down-fg);
 }
 
 /* Chips wrap. They are sized by their content - a 2-service system is visibly
    narrower than an 8-service one, which is information rather than raggedness. */
-.sm-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.sm-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
 /* A button now, not a link - it opens the quick-lookup dialog. `appearance:
    none` + `font: inherit` are what stop it rendering as a UA button; without
    them the chips pick up the platform's own font and 13px control padding. */
 .sm-chip {
   appearance: none; cursor: pointer; font: inherit; text-align: left;
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 9px 6px 8px;
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-1_5) var(--sp-2) var(--sp-1_5) var(--sp-2);
   background: var(--surface-1); border: 1px solid var(--line);
   border-radius: var(--r-md); min-width: 0;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .sm-chip:hover { border-color: var(--line-strong); background: var(--surface-2); }
 .sm-chip::before {
-  content: ''; width: 3px; align-self: stretch; border-radius: 3px;
+  content: ''; width: 3px; align-self: stretch; border-radius: var(--r-2xs);
   background: var(--acc); opacity: .75; flex: none;
 }
 .sm-chip-name {
-  font-size: 13px; font-weight: 600; color: var(--fg);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; color: var(--fg);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px;
 }
 
@@ -86,12 +86,12 @@
    large enough to hold a hue at a glance. Colour is never the only encoding -
    the chip's aria-label spells out the counts, every cell has a title, and the
    system page behind the link states it in words. */
-.sm-cells { display: flex; gap: 3px; align-items: center; flex: none; }
-.sm-cell { width: 6px; height: 13px; border-radius: 2px; background: var(--st-unknown); }
+.sm-cells { display: flex; gap: var(--sp-1); align-items: center; flex: none; }
+.sm-cell { width: 6px; height: 13px; border-radius: var(--r-2xs); background: var(--st-unknown); }
 
 /* The service count. Mono + tabular so a column of chips has comparable digits. */
 .sm-chip-n {
-  font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+  font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-weight: 700;
   font-variant-numeric: tabular-nums; color: var(--fg-subtle);
   flex: none; min-width: 1.1em; text-align: right;
 }
@@ -111,10 +111,10 @@
    this breakpoint the label goes back above its row, where it costs one line
    and the chips get the full width. */
 @media (max-width: 760px) {
-  .sm { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
-  .sm-group-h { padding-top: 6px; }
+  .sm { grid-template-columns: minmax(0, 1fr); row-gap: var(--sp-1); }
+  .sm-group-h { padding-top: var(--sp-1_5); }
   /* Each group is still label-then-row; only the axis changed. */
-  .sm-group + .sm-group .sm-group-h { padding-top: 10px; }
+  .sm-group + .sm-group .sm-group-h { padding-top: var(--sp-2_5); }
   /* A row with no label costs no line at all once labels sit above rows. */
   .sm-group-h.is-empty { display: none; }
 }

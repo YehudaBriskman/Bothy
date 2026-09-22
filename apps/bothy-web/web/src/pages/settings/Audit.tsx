@@ -100,7 +100,7 @@ function AuditBody() {
               {q.who || q.outcome || q.action ? 'No record matches these filters.' : 'This log has no records yet.'}
             </p>
           ) : (
-            <div className={`tbl-wrap set-tbl set-tbl-scroll ${loading ? 'is-loading' : ''}`}>
+            <div className={`tbl-wrap scroll-shade set-tbl set-tbl-scroll ${loading ? 'is-loading' : ''}`}>
               <table className="tbl set-audit">
                 <thead>
                   <tr>

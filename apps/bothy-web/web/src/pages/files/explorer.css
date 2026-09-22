@@ -4,14 +4,14 @@
 
 /* ── root chips ──────────────────────────────────────────────────────────── */
 .bothy-files .fx-roots {
-  flex: none; display: flex; gap: 4px; padding: 7px 8px 0; flex-wrap: wrap;
+  flex: none; display: flex; gap: var(--sp-1); padding: var(--sp-2) var(--sp-2) 0; flex-wrap: wrap;
 }
 .bothy-files .fx-rootchip {
   appearance: none; cursor: pointer; font: inherit; font-family: var(--mono);
-  font-size: 11px; font-weight: 600; color: var(--fg-muted);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-weight: 600; color: var(--fg-muted);
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r-full); padding: 2px 9px;
-  display: inline-flex; align-items: center; gap: 4px;
+  border-radius: var(--r-full); padding: var(--sp-0_5) var(--sp-2);
+  display: inline-flex; align-items: center; gap: var(--sp-1);
 }
 .bothy-files .fx-rootchip:hover { border-color: var(--line-strong); color: var(--fg); }
 .bothy-files .fx-rootchip.on {
@@ -23,9 +23,9 @@
 
 /* ── the filter ──────────────────────────────────────────────────────────── */
 .bothy-files .fx-filter {
-  flex: none; display: flex; align-items: center; gap: 7px; margin: 7px 8px;
+  flex: none; display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-2) var(--sp-2);
   background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 4px 6px 4px 8px; color: var(--fg-subtle);
+  border-radius: var(--r-sm); padding: var(--sp-1) var(--sp-1_5) var(--sp-1) var(--sp-2); color: var(--fg-subtle);
 }
 /* The input inside has no border and `outline: none`, so the focus mark has to
    go on the wrapper that frames it - the same arrangement, and the same
@@ -41,7 +41,7 @@
 .bothy-files .fx-filter svg { flex: none; }
 .bothy-files .fx-filter input {
   appearance: none; border: 0; background: transparent; color: var(--fg);
-  font: inherit; font-size: 12px; width: 100%; min-width: 0; outline: none;
+  font: inherit; font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); width: 100%; min-width: 0; outline: none;
 }
 /* The native search-cancel button is a grey X that ignores the theme. */
 .bothy-files .fx-filter input::-webkit-search-cancel-button { display: none; }
@@ -60,13 +60,13 @@
    type. */
 .bothy-files .fx-tree {
   flex: 1; min-height: 0; overflow: auto;
-  padding: 3px 0 10px; border-top: 1px solid var(--line);
+  padding: var(--sp-1) 0 var(--sp-2_5); border-top: 1px solid var(--line);
 }
-.bothy-files .fx-msg { padding: 18px 12px; color: var(--fg-subtle); font-size: 12px; text-align: center; }
-.bothy-files .fx-msg p { margin: 0 0 10px; }
+.bothy-files .fx-msg { padding: var(--sp-4) var(--sp-3); color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); text-align: center; }
+.bothy-files .fx-msg p { margin: 0 0 var(--sp-2_5); }
 .bothy-files .fx-more {
-  margin: 8px 8px 0; padding-top: 8px; border-top: 1px solid var(--line);
-  color: var(--fg-subtle); font-size: 11px; text-align: center;
+  margin: var(--sp-2) var(--sp-2) 0; padding-top: var(--sp-2); border-top: 1px solid var(--line);
+  color: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); text-align: center;
 }
 
 .bothy-files .fx-list { list-style: none; margin: 0; padding: 0; }
@@ -85,19 +85,21 @@
 .bothy-files .fx-list .fx-list::before {
   content: ''; position: absolute; top: 0; bottom: 0; left: 0;
   border-left: 1px solid var(--line);
-  /* Lines up with the chevron of the parent row: 6px base padding + half of the
-     12px indent step. */
-  margin-left: 12px;
+  /* Lines up with the CENTRE of the parent row's chevron: the base padding, then
+     half the chevron glyph. Built from the same tokens Explorer.tsx indents by
+     (--sp-1_5 + depth x --sp-3), so the stripe stays under its chevron at any
+     text size - the indent is rem, the glyph is px. */
+  margin-left: calc(var(--sp-1_5) + var(--icon-xs) / 2);
   pointer-events: none;
 }
-.bothy-files .fx-list .fx-list .fx-list::before { margin-left: 24px; }
-.bothy-files .fx-list .fx-list .fx-list .fx-list::before { margin-left: 36px; }
+.bothy-files .fx-list .fx-list .fx-list::before { margin-left: calc(var(--sp-1_5) + var(--sp-3) + var(--icon-xs) / 2); }
+.bothy-files .fx-list .fx-list .fx-list .fx-list::before { margin-left: calc(var(--sp-1_5) + 2 * var(--sp-3) + var(--icon-xs) / 2); }
 
 .bothy-files .fx-rowwrap { position: relative; display: flex; align-items: stretch; }
 .bothy-files .fx-row {
   appearance: none; cursor: pointer; width: 100%; border: 0; background: transparent;
-  display: flex; align-items: center; gap: 6px; padding: 0 8px 0 0;
-  height: 22px; color: var(--fg-muted); font: inherit; font-size: 12.5px;
+  display: flex; align-items: center; gap: var(--sp-1_5); padding: 0 var(--sp-2) 0 0;
+  height: 22px; color: var(--fg-muted); font: inherit; font-size: var(--fs-xs); letter-spacing: var(--tr-xs);
   text-align: left; min-width: 0; line-height: 1;
 }
 .bothy-files .fx-row:hover { background: var(--surface-2); color: var(--fg); }
@@ -106,16 +108,16 @@
 .bothy-files .fx-chev.open { transform: rotate(90deg); }
 /* A file row has no chevron; the gap keeps its icon in the same column as the
    folder icons on the level above, which is what makes the indent readable. */
-.bothy-files .fx-file .fx-ico { margin-left: 18px; }
-.bothy-files .fx-hit .fx-ico { margin-left: 6px; }
+/* The chevron's width plus the row gap, so it holds at any text size. */
+.bothy-files .fx-file .fx-ico { margin-left: calc(var(--icon-xs) + var(--sp-1_5)); }
 .bothy-files .fx-dir .fx-name { font-weight: 600; color: var(--fg); }
 .bothy-files .fx-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bothy-files .fx-n,
 .bothy-files .fx-size {
-  margin-left: auto; flex: none; font-family: var(--mono); font-size: 10px;
-  color: var(--fg-subtle); font-variant-numeric: tabular-nums; padding-left: 6px;
+  margin-left: auto; flex: none; font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs);
+  color: var(--fg-subtle); font-variant-numeric: tabular-nums; padding-left: var(--sp-1_5);
 }
-.bothy-files .fx-ro { flex: none; color: var(--st-off-fg); margin-left: 4px; }
+.bothy-files .fx-ro { flex: none; color: var(--st-off-fg); margin-left: var(--sp-1); }
 
 /* Selection is a left bar AND weight AND a tint - never colour alone. */
 .bothy-files .fx-file.on {
@@ -156,11 +158,11 @@
    ambiguous (six compose.yml, four README.md). The leading ellipsis is applied
    in JS (tailPath) - see the comment there for why the CSS `direction: rtl`
    trick is not used. */
-.bothy-files .fx-hit { height: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 4px; }
-.bothy-files .fx-hit .fx-ico { margin-top: 1px; }
+.bothy-files .fx-hit { height: auto; align-items: flex-start; padding-top: var(--sp-1); padding-bottom: var(--sp-1); }
+.bothy-files .fx-hit .fx-ico { margin-left: var(--sp-1_5); margin-top: 1px; }
 .bothy-files .fx-hit-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .bothy-files .fx-hit-dir {
-  font-family: var(--mono); font-size: 10px; color: var(--fg-subtle);
+  font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .bothy-files .fx-hit .fx-size { margin-top: 1px; }
@@ -189,12 +191,12 @@
    listing is the one condition under which the rail is LYING, and the lie is
    invisible from the rows themselves. */
 .bothy-files .fx-rail-f {
-  flex: none; display: flex; align-items: center; gap: 6px;
-  height: 26px; padding: 0 10px;
+  flex: none; display: flex; align-items: center; gap: var(--sp-1_5);
+  height: 26px; padding: 0 var(--sp-2_5);
   border-top: 1px solid var(--line); background: var(--surface-2);
-  color: var(--fg-subtle); font-size: 10.5px; overflow: hidden; white-space: nowrap;
+  color: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); overflow: hidden; white-space: nowrap;
 }
-.bothy-files .fx-rail-f .mono { font-size: 10.5px; color: var(--fg-muted); }
+.bothy-files .fx-rail-f .mono { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-muted); }
 .bothy-files .fx-rail-f-sep { color: var(--line-strong); }
 .bothy-files .fx-rail-f-bytes { margin-left: auto; }
-.bothy-files .fx-rail-f .tag { font-size: 11px; padding: 1px 6px; flex: none; } /* scale floor, as .fx-fact .tag */
+.bothy-files .fx-rail-f .tag { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); padding: 1px var(--sp-1_5); flex: none; } /* scale floor, as .fx-fact .tag */
