@@ -39,7 +39,18 @@ export function Topology() {
           <p className="page-sub">
             {view === '3d'
               ? 'edge → rack → container floor · nodes lit by live status · click to inspect'
-              : 'declared dependencies from compose · hover a service to isolate what it needs and what needs it'}
+              : (
+                <>
+                  declared dependencies from compose ·{' '}
+                  {/* CT-10: "hover" is an instruction a finger cannot follow. Both
+                      sentences are rendered and `(hover: none)` picks - the same
+                      trick the flat map itself uses below, because a media query
+                      can change what is shown and a component cannot ask what
+                      kind of pointer is coming next. */}
+                  <span className="topo-hint-fine">hover a service to isolate what it needs and what needs it</span>
+                  <span className="topo-hint-coarse">tap a service to open it; each row lists what it waits for</span>
+                </>
+              )}
           </p>
         </div>
         <div className="topo-head-right">
@@ -149,7 +160,9 @@ function FlatMap() {
       }));
   }, [placed]);
 
-  const hubY = height / 2;
+  // CT-10: pinned. At the centre of a 40-service map the hub sat ~800px down -
+  // below the fold, on the one column the map opens on.
+  const hubY = Math.min(height / 2, 240);
   const isLit = (id: string) => hover === null || hover === id || hover === 'hub';
   // A dependency is lit when EITHER end is hovered - the question is
   // symmetrical. "What does this need" and "what breaks if I stop this" are the
@@ -161,6 +174,13 @@ function FlatMap() {
 
   return (
     <div className="topo-wrap">
+      {/* CT-10: the same graph as a LIST, for a phone. The SVG has a 720px
+          minimum - it has three columns and needs them - so at 390 it opened on
+          the empty EDGE column and everything worth reading was off to the
+          right. Both are rendered and the breakpoint picks one, which is the
+          arrangement pages/control/cluster.css already uses for the cluster
+          topology, and it keeps one source of truth for the edges. */}
+      <FlatList placed={placed} deps={deps} onOpen={go} />
       <svg viewBox={`0 0 960 ${height}`} className="topo-svg" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Service topology graph">
         {/* column captions */}
         <text x={HUB_X} y={30} className="topo-col">edge</text>
@@ -294,6 +314,73 @@ function FlatMap() {
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+/** CT-10: the flat map at phone width.
+ *
+ *  The same three facts the SVG draws - what a service is, what it waits for
+ *  and what waits on it - as rows a 390px screen can actually read. It is not a
+ *  cut-down map: the dependency edges are the only lines on that map that
+ *  describe a relationship between two different things (hub-to-service is
+ *  routing and service-to-container is a stub from a row to itself), and they
+ *  are all here.
+ */
+function FlatList({
+  placed, deps, onOpen,
+}: {
+  placed: Placed[];
+  deps: { fromId: string; toId: string; label: string; from: PortalNode; to: PortalNode }[];
+  onOpen: (n: PortalNode) => void;
+}) {
+  const byGroup = useMemo(() => {
+    const out: { title: string; rows: Placed[] }[] = [];
+    for (const pl of placed) {
+      const last = out[out.length - 1];
+      if (last && last.title === pl.group) last.rows.push(pl);
+      else out.push({ title: pl.group, rows: [pl] });
+    }
+    return out;
+  }, [placed]);
+
+  return (
+    <div className="topo-list">
+      {byGroup.map((g) => (
+        <section key={g.title} className="topo-list-group">
+          <h2 className="topo-list-gh eyebrow">{g.title}</h2>
+          <ul className="topo-list-rows">
+            {g.rows.map(({ node }) => {
+              const waits = deps.filter((d) => d.fromId === node.id);
+              const needed = deps.filter((d) => d.toId === node.id);
+              return (
+                <li key={node.id} className="topo-list-row">
+                  <button type="button" className="topo-list-open" onClick={() => onOpen(node)}>
+                    <span className="topo-list-dot" style={{ background: `var(${STATUS_VAR[node.status]})` }} aria-hidden="true" />
+                    <span className="topo-list-name">{node.name}</span>
+                    <span className="topo-list-status">{node.status}</span>
+                  </button>
+                  {(waits.length > 0 || needed.length > 0) && (
+                    <p className="topo-list-deps">
+                      {waits.map((d) => (
+                        <span key={`w-${d.toId}`} className="topo-chip" title={`${node.name} ${d.label} ${d.to.name}`}>
+                          <span className="topo-chip-k">waits for</span> {d.to.name}
+                        </span>
+                      ))}
+                      {needed.map((d) => (
+                        <span key={`n-${d.fromId}`} className="topo-chip is-in" title={`${d.from.name} ${d.label} ${node.name}`}>
+                          <span className="topo-chip-k">needed by</span> {d.from.name}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+      {placed.length === 0 && <p className="sa-note">Nothing is running to map.</p>}
     </div>
   );
 }

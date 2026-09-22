@@ -101,10 +101,52 @@
 .topo-ctr.on .topo-label { fill: var(--fg-muted); }
 
 @media (max-width: 640px) {
-  .topo-3d { height: calc(100vh - 200px); min-height: 380px; }
+  /* CT-18: see three.css - the scene is capped so the page is not one canvas. */
+  .topo-3d { height: 55svh; min-height: 300px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* Nothing here moves any more - opacity and colour only - so decision 3
      keeps these fades (the global reduce block shortens them). */
 }
+
+/* ── CT-10: the flat map on a phone ──────────────────────────────────────────
+   The SVG has a 720px minimum and three columns; at 390 it opened on the empty
+   EDGE column with everything worth reading off to the right. Below 640px the
+   same edges are a list instead. One or the other is drawn, never both. */
+.topo-list { display: none; }
+.topo-hint-coarse { display: none; }
+
+@media (hover: none) {
+  .topo-hint-fine { display: none; }
+  .topo-hint-coarse { display: inline; }
+}
+
+@media (max-width: 640px) {
+  .topology-page .topo-svg { display: none; }
+  .topology-page .topo-list { display: flex; flex-direction: column; gap: var(--sp-5); }
+}
+
+.topo-list-group { display: flex; flex-direction: column; gap: var(--sp-2); }
+.topo-list-gh { margin: 0; color: var(--fg-subtle); }
+.topo-list-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1_5); }
+.topo-list-row {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.topo-list-open {
+  appearance: none; background: transparent; border: 0; padding: 0; width: 100%;
+  display: flex; align-items: center; gap: var(--sp-2); min-height: var(--hit);
+  font: inherit; color: var(--fg); text-align: left; cursor: pointer;
+}
+.topo-list-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.topo-list-name { font-weight: var(--fw-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topo-list-status { margin-left: auto; flex: none; color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); }
+.topo-list-deps { margin: var(--sp-1) 0 0; display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.topo-chip {
+  display: inline-flex; align-items: baseline; gap: var(--sp-1);
+  padding: var(--sp-0_5) var(--sp-2); border-radius: var(--r-full);
+  background: var(--surface-2); border: 1px solid var(--line);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-muted);
+}
+.topo-chip-k { color: var(--fg-subtle); text-transform: uppercase; letter-spacing: var(--label-tracking); font-weight: var(--fw-semibold); }

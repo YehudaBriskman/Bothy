@@ -14,6 +14,7 @@ import {
   type KubeCatalog, type KubeRefusal, type LimitRangesResult, type PatchKeyResult, type PodRow, type PodsResult,
   type PoliciesResult, type QuotasResult, type RoutesResult, type RunTemplateResult, type ServicesResult,
 } from '../../lib/kube-actions';
+import { stripAnsi } from '../../lib/ansi';
 import { useKubeRead, type ReadState } from '../../lib/kube-catalog';
 import {
   ago, buildTopology, deploymentStatus, gate, jobStatus, podStatus, shortImage, valueAllowed,
@@ -506,7 +507,8 @@ function JobLogsDialog({ open, ns, job, onClose }: { open: boolean; ns: string; 
         </div>
         <p className="sa-note">{loading ? <Loader state="load" size="sm" label="Reading logs…" /> : res ? <>From <span className="mono">{res.pod} / {res.container}</span></> : null}</p>
         {refusal && <Refused r={refusal} />}
-        <pre className="ka-log mono" tabIndex={0} aria-label={`Logs of ${job}`}>{res?.lines.length ? res.lines.join('\n') : loading ? '' : 'No output.'}</pre>
+        {/* CL-13: a job's pod writes the same SGR escapes a deployment's does. */}
+        <pre className="ka-log mono" tabIndex={0} aria-label={`Logs of ${job}`}>{res?.lines.length ? res.lines.map(stripAnsi).join('\n') : loading ? '' : 'No output.'}</pre>
       </div>
     </Dialog>
   );

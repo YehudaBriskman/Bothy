@@ -26,6 +26,7 @@ import {
   type KubeCatalog, type KubeEvent, type KubeRefusal, type KubeTarget, type PauseResult, type PodsResult,
   type RestartResult, type RollbackResult, type RolloutStatusResult, type ScaleResult, type SetImageResult,
 } from '../lib/kube-actions';
+import { stripAnsi } from '../lib/ansi';
 import { useKubeCatalog, useKubeRead, useKubeRoles } from '../lib/kube-catalog';
 import { ago, gate, imageAllowed, podStatus, shortImage } from '../lib/cluster';
 import { usePortal } from '../lib/data';
@@ -546,7 +547,7 @@ function LogsTab({ target, initialPod }: { target: KubeTarget; initialPod?: stri
     kubeLogs(target, 200, { pod, container, previous })
       .then((r) => {
         if (!live) return;
-        setLines(r.lines); setPods(r.pods); setContainers(r.containers);
+        setLines(r.lines.map(stripAnsi)); setPods(r.pods); setContainers(r.containers);
         setSource(`${r.pod} / ${r.container}${r.previous ? ' (previous)' : ''}`);
       })
       .catch((e) => { if (live) { setLines([]); setRefusal(kubeRefusalOf(e, spec, target.deployment)); } })
@@ -570,7 +571,12 @@ function LogsTab({ target, initialPod }: { target: KubeTarget; initialPod?: stri
     setLines([]);
     stop.current = followLogs(target, 50, FOLLOW_SECONDS, {
       onMeta: (m) => setSource(`${m.pod} / ${m.container}`),
-      onLine: (l) => setLines((prev) => (prev.length >= KEEP_LINES ? [...prev.slice(-KEEP_LINES + 1), l] : [...prev, l])),
+      onLine: (raw) => {
+        // CL-13: the follow stream needs the same treatment as the read - it is
+        // the same pod writing the same escapes.
+        const l = stripAnsi(raw);
+        setLines((prev) => (prev.length >= KEEP_LINES ? [...prev.slice(-KEEP_LINES + 1), l] : [...prev, l]));
+      },
       onEnd: (why) => {
         setFollowing(false);
         setEnded(why.reason === 'deadline'

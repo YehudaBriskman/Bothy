@@ -639,6 +639,11 @@ function ContainerFloor({
   );
 }
 
+/** How close and how far the orbit really goes. OrbitControls is given 10%
+ *  past each of these so a gesture can overshoot and be sprung back (CT-17). */
+const DIST_MIN = 4;
+const DIST_MAX = 48;
+
 // ── camera focus + gentle idle orbit; OrbitControls owns drag + wheel-zoom ────
 function Rig({
   focus, presets, animate,
@@ -726,6 +731,28 @@ function Rig({
       if (camera.position.distanceTo(anim.current.pos) < 0.06) anim.current.active = false;
       return;
     }
+    // CT-17: a SOFT limit on distance. The clamp was hard - zoom in past the
+    // minimum and the scene simply stopped, with no sign that a limit had been
+    // reached rather than that the gesture had stopped working. OrbitControls
+    // is given 10% of give at each end, and anything inside that margin springs
+    // back to the limit once the pointer is up (the same critically damped
+    // follow the camera focus uses, so it is frame-rate independent).
+    //
+    // The resistance DURING the gesture is not here: OrbitControls owns the
+    // dolly and its step is multiplicative. What this buys is R9's other half -
+    // the boundary answers, and it answers by moving.
+    if (!paused.current) {
+      const off = new THREE.Vector3().subVectors(camera.position, c.target);
+      const d = off.length();
+      const want = d < DIST_MIN ? DIST_MIN : d > DIST_MAX ? DIST_MAX : 0;
+      if (want && Math.abs(d - want) > 0.004) {
+        camera.position.copy(c.target).addScaledVector(
+          off.normalize(),
+          d + (want - d) * followFactor(dt, CAMERA_RATE),
+        );
+        c.update();
+      }
+    }
     // Idle auto-orbit - a slow azimuth drift until the first interaction. The
     // angle is per SECOND (0.096 rad/s, the old 0.0016/frame at 60Hz), so it is
     // the same speed at 30, 60 or 144Hz.
@@ -749,8 +776,10 @@ function Rig({
       panSpeed={0.9}
       enableDamping
       dampingFactor={0.08}
-      minDistance={4}
-      maxDistance={48}
+      // The 10% of give CT-17's spring-back lives in. The real limits are
+      // DIST_MIN and DIST_MAX above; these are the walls past them.
+      minDistance={DIST_MIN * 0.9}
+      maxDistance={DIST_MAX * 1.1}
       minPolarAngle={0.2}
       maxPolarAngle={1.52}
       onStart={() => { anim.current.active = false; paused.current = true; touched.current = true; }}
@@ -935,9 +964,26 @@ function Viewport({ nodes, fill = false }: { nodes: PortalNode[]; fill?: boolean
         </Canvas>
 
         <div className="sv-vignette" aria-hidden="true" />
+        {/* CT-17: the scene is pointer-only, and deliberately so - an orbit is
+            not a thing a Tab key does. What it must not be is a dead end, so
+            the route for a keyboard and for a screen reader is named here
+            rather than left to be discovered: the Flat map above is the same
+            graph, every node a link. */}
+        <p className="sr-only">
+            This is a pointer-driven 3D view. For the same services and their
+            dependencies as links, switch to the Flat map with the view control
+            above.
+        </p>
         {/* No legend here - the Topology page header already renders one, and it
             serves the Flat map too. Two legends on one screen is just noise. */}
-        <div className="sv-hint">drag to orbit · scroll to zoom · shift / ctrl-scroll to pan · click a unit</div>
+        {/* CT-18: two hints, one for each kind of pointer, picked by a media
+            query - the touch one used to be hidden entirely below 640px, so the
+            one reader who could not guess the gestures was the one told
+            nothing. The keyboard has no path INTO this scene by design (CT-17):
+            it is a 3D orbit, and the Flat map beside it is the same data in a
+            form the keyboard and a screen reader can both use. */}
+        <div className="sv-hint sv-hint-fine">drag to orbit · scroll to zoom · shift / ctrl-scroll to pan · click a unit</div>
+        <div className="sv-hint sv-hint-coarse">drag to orbit · pinch to zoom · tap a unit</div>
       </div>
     </div>
   );

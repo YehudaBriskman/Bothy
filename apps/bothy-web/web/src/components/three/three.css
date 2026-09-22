@@ -250,8 +250,10 @@
   text-decoration: none;
   transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
+/* CT-19: the 2px sideways nudge is gone. Every other row in the app answers a
+   hover with a fill and an edge; a row that also MOVES reads as draggable, and
+   this one goes nowhere. */
 .sv-slab:hover {
-  transform: translateX(2px);
   border-color: var(--line-strong);
   background: var(--surface-2);
 }
@@ -276,7 +278,16 @@
 }
 .sv-led-sm { width: 9px; height: 9px; }
 
+.sv-hint-coarse { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .sv-hint-fine { display: none; }
+  .sv-hint-coarse { display: block; }
+}
+
 @media (max-width: 640px) {
-  .sv-viewport { height: 58vh; min-height: 360px; }
-  .sv-hint { display: none; }
+  /* CT-18: 55svh, not 58vh. The canvas took 577 of 844px - most of the phone -
+     and `vh` on a phone is the height WITHOUT the browser's own chrome, so it
+     was taller than the space it had. `svh` is the small viewport, and the cap
+     leaves the page under it visible without scrolling. */
+  .sv-viewport { height: 55svh; min-height: 300px; }
 }
