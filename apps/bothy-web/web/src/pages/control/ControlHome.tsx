@@ -34,7 +34,7 @@
 // card reads its own Source, and the shared poll already keeps its last good
 // answer.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { usePortal, needsAttention, healthOf, expectedUp } from '../../lib/data';
 import { useDataPrefs } from '../../lib/usePrefs';
@@ -59,6 +59,7 @@ import {
   type RouteProblem,
 } from './home';
 import './controlHome.css';
+import { Loader } from '../../components/ui/Loader';
 
 /** The audited reads: never more often than this, whatever the poll interval. */
 const AUDITED_MIN_MS = 5 * 60_000;
@@ -79,6 +80,21 @@ export function ControlHome() {
   const updates = usePolled(fetchUpdates, { enabled: gates.updates, everyMs: auditedMs, tick });
   const backups = usePolled(fetchBackups, { enabled: gates.backups, everyMs: auditedMs, tick });
   const audit = usePolled((s) => fetchAudit({ limit: 5 }, s), { enabled: gates.audit, everyMs: auditedMs, tick });
+
+  // Refresh in progress: from the click until the portal poll AND every card's
+  // re-read have answered - and only for a click, never for the cadence polls
+  // (those are not something anybody is waiting on). Unmounts when done.
+  const [asked, setAsked] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const cardsBusy = [cluster, edge, updates, backups, audit].some((s) => s.busy);
+  const refreshing = asked && (portalBusy || cardsBusy);
+  useEffect(() => { if (asked && !portalBusy && !cardsBusy) setAsked(false); }, [asked, portalBusy, cardsBusy]);
+  const doRefresh = () => {
+    setAsked(true);
+    setPortalBusy(true);
+    void refresh().finally(() => setPortalBusy(false));
+    setTick((t) => t + 1);
+  };
 
   const now = Math.max(data.at, cluster.at, edge.at, updates.at) || Date.now();
 
@@ -222,11 +238,14 @@ export function ControlHome() {
           {data.at > 0 && <span className="ch-asof">as of {clock(data.at)}</span>}
           <Button
             variant="ghost" size="sm"
-            onClick={() => { refresh(); setTick((t) => t + 1); }}
-            aria-label="Refresh every card now"
+            onClick={doRefresh}
+            disabled={refreshing}
+            aria-label={refreshing ? 'Refreshing every card' : 'Refresh every card now'}
           >
-            <Icon icon={RefreshCw} size="sm" />
-            Refresh
+            {refreshing
+              ? <Loader state="refresh" size="sm" label="Refreshing every card…" labelHidden />
+              : <Icon icon={RefreshCw} size="sm" />}
+            {refreshing ? 'Refreshing' : 'Refresh'}
           </Button>
         </div>
       </div>

@@ -8,7 +8,8 @@ import { usePortalData, type PortalData } from './api';
 
 interface PortalCtx {
   data: PortalData;
-  refresh: () => void;
+  /** Re-poll now; settles when that poll has answered or failed. */
+  refresh: () => Promise<void>;
 }
 
 const Ctx = createContext<PortalCtx | null>(null);

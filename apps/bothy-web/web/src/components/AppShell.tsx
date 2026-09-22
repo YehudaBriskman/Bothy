@@ -15,6 +15,7 @@ import { CommandPalette } from './CommandPalette';
 import { UserMenu } from './UserMenu';
 import { UpdateBanner } from './UpdateBanner';
 import { Icon as SizedIcon } from './ui/Icon';
+import { Loader } from './ui/Loader';
 
 // Three destinations, and they are three DATASETS rather than three views.
 // Services, Access and Topology used to hold three of the five slots between
@@ -175,6 +176,13 @@ export function AppShell() {
                 pulses three times, then stops (SH-11). */}
             <span className="pulse" key={fresh.kind} />
             <span className="pill-short">{fresh.short}</span>
+            {/* The poll failed and is retrying (lib/api.ts backs off, it never
+                gives up): that is something in progress, so the connect orb
+                sits beside the word. Silent - the tooltip and the word say it,
+                and a live region in the top bar would talk every 10 seconds. */}
+            {(fresh.kind === 'stale' || fresh.kind === 'down') && (
+              <Loader state="connect" size="sm" label="retrying" labelHidden announce={false} className="pill-orb" />
+            )}
           </div>
         </Tooltip>
 

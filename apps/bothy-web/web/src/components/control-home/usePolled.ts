@@ -22,9 +22,13 @@ export interface Source<T> {
   error: unknown;
   /** When the last successful answer landed (ms), 0 before the first. */
   at: number;
+  /** A read asked for by the page (mount, or its Refresh button bumping
+   *  `tick`) is in flight. Cadence re-reads do not set it: they are not
+   *  something anybody is waiting on. */
+  busy: boolean;
 }
 
-const OFF = { data: null, state: 'off' as const, error: null, at: 0 };
+const OFF = { data: null, state: 'off' as const, error: null, at: 0, busy: false };
 
 export function usePolled<T>(
   load: (signal: AbortSignal) => Promise<T>,
@@ -42,19 +46,20 @@ export function usePolled<T>(
 
     const schedule = () => {
       clearTimeout(timer);
-      if (!document.hidden) timer = setTimeout(run, opts.everyMs);
+      if (!document.hidden) timer = setTimeout(() => run(), opts.everyMs);
     };
-    const run = async () => {
+    const run = async (asked = false) => {
+      if (asked) setSrc((prev) => (prev.busy ? prev : { ...prev, busy: true }));
       ac?.abort();
       ac = new AbortController();
       const mine = ac;
       try {
         const data = await loadRef.current(mine.signal);
         if (cancelled || mine.signal.aborted) return;
-        setSrc({ data, state: 'ok', error: null, at: Date.now() });
+        setSrc({ data, state: 'ok', error: null, at: Date.now(), busy: false });
       } catch (error) {
         if (cancelled || mine.signal.aborted) return;
-        setSrc((prev) => ({ ...prev, state: 'error', error }));
+        setSrc((prev) => ({ ...prev, state: 'error', error, busy: false }));
       } finally {
         if (!cancelled && !mine.signal.aborted) schedule();
       }
@@ -63,7 +68,7 @@ export function usePolled<T>(
 
     setSrc((prev) => (prev.state === 'off' ? { ...prev, state: 'loading' } : prev));
     document.addEventListener('visibilitychange', onVisible);
-    run();
+    run(true);
     return () => {
       cancelled = true;
       clearTimeout(timer);
