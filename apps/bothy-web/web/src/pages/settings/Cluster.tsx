@@ -57,7 +57,18 @@ function Scope() {
                 <td><b>{a.title}</b><span className="set-cell-sub mono">{a.id}</span></td>
                 <td className="mono" data-label="On">{a.target}</td>
                 <td className="mono" data-label="Role">{a.role}</td>
-                <td data-label="Confirmation">{a.confirm === 'type-name' ? 'type the name' : a.confirm === 'click' ? 'one click' : 'none'}</td>
+                {/* The escalation is part of the answer, not a footnote: the
+                    page would otherwise say "one click" for an action that
+                    asks for the name at one of its values (CL-4). */}
+                <td data-label="Confirmation">
+                  {a.confirm === 'type-name' ? 'type the name' : a.confirm === 'click' ? 'one click' : 'none'}
+                  {a.escalate && (
+                    <span className="set-cell-sub">
+                      type the name when <span className="mono">{a.escalate.param}</span> is{' '}
+                      <span className="mono">{String(a.escalate.value)}</span>
+                    </span>
+                  )}
+                </td>
                 <td data-label="What it does">{a.meaning}</td>
               </tr>
             ))}

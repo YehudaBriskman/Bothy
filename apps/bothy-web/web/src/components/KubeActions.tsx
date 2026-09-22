@@ -135,7 +135,13 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
   const [open, setOpen] = useState<Change | null>(null);
   const status = useKubeRead<RolloutStatusResult>(findSpec(catalog, 'rollout-status') ? 'rollout-status' : null,
     { namespace: target.namespace, deployment: target.deployment }, 10_000);
-  const [replicas, setReplicas] = useState(1);
+  // CL-9: the RAW string, not a number. It used to be a number clamped on every
+  // keystroke, so typing 7 became 3 under the caret, and clearing the field
+  // became 0 - which flipped the consequence line to "stops entirely" while
+  // somebody was mid-edit. The clamp happens on blur; the range is said in
+  // words; and until the field has been touched it shows what is running now,
+  // not a hardcoded 1.
+  const [replicasRaw, setReplicasRaw] = useState<string | null>(null);
   const [container, setContainer] = useState('');
   const [image, setImage] = useState('');
   // The TEMPLATE's containers, from the deployment list - not from its pods,
@@ -154,15 +160,26 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
 
   if (open) {
     const spec = findSpec(catalog, open)!;
-    const back = () => setOpen(null);
+    const back = () => { setOpen(null); setReplicasRaw(null); };
     const req: Record<string, unknown> = open === 'delete-completed-pods'
       ? { namespace: target.namespace }
       : { namespace: target.namespace, deployment: target.deployment };
     if (open === 'scale') {
       const { min, max } = boundsOf(spec, 'replicas');
+      const now = status.data?.replicas ?? null;
+      const raw = replicasRaw ?? String(now ?? min);
+      const n = Number(raw);
+      // "" is not 0. Number('') is, which is how an empty field used to read as
+      // "stop the workload" - the one value in range that cannot be undone here.
+      const parsed = raw.trim() !== '' && Number.isInteger(n) ? n : null;
+      const inRange = parsed !== null && parsed >= min && parsed <= max;
+      const unchanged = inRange && now !== null && parsed === now;
+      const replicas = inRange ? parsed : (now ?? min);
+      const clamp = () => setReplicasRaw(String(inRange ? parsed : Math.max(min, Math.min(max, parsed ?? now ?? min))));
       return (
         <ConfirmPanel
           spec={spec} req={{ ...req, replicas }} what={target.deployment} onBack={back} onDone={done}
+          valid={inRange && !unchanged}
           goLabel={`Scale ${target.deployment} to ${replicas}`}
           consequence={replicas === 0
             ? `${target.deployment} in ${target.namespace} stops entirely. It stays at 0 until somebody scales it back.`
@@ -171,10 +188,17 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
             <label className="ka-field">
               <span className="ka-label">Replicas <span className="dim">({min} to {max})</span></span>
               <input
-                className="ka-input mono" type="number" min={min} max={max} step={1} value={replicas}
-                onChange={(e) => setReplicas(Math.max(min, Math.min(max, Number(e.target.value) || 0)))}
+                className="ka-input mono" type="number" min={min} max={max} step={1} value={raw}
+                aria-invalid={!inRange} aria-describedby="ka-scale-hint"
+                onChange={(e) => setReplicasRaw(e.target.value)} onBlur={clamp}
               />
-              {status.data && <span className="ka-hint">Now: {status.data.readyReplicas}/{status.data.replicas} ready</span>}
+              <span className="ka-hint" id="ka-scale-hint">
+                {!inRange
+                  ? <span className="ka-bad">A whole number from {min} to {max}.</span>
+                  : unchanged
+                    ? `${target.deployment} already runs ${now}. Pick a different count.`
+                    : status.data ? `Now: ${status.data.readyReplicas}/${status.data.replicas} ready` : ''}
+              </span>
             </label>
           )}
           describe={(r: ScaleResult) => ({ line: `Scaled ${target.deployment}.`, sub: `${r.from} -> ${r.to} replicas.` })}

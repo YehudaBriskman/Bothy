@@ -66,7 +66,7 @@ export function ThemeEditor() {
   const { id: routeId } = useParams<{ id: string }>();
   const nav = useNavigate();
   const { me } = useMe();
-  const { setSelection } = useTheme();
+  const { setSelection, rescan } = useTheme();
   const editing = routeId && routeId !== 'new' ? routeId : null;
 
   const names = useMemo(() => requiredNames(), []);
@@ -251,16 +251,15 @@ export function ThemeEditor() {
 
   // ── delete ────────────────────────────────────────────────────────────────
   //
-  // Confirmed, and the confirmation says where the file goes rather than asking
-  // "are you sure?" - the service snapshots the outgoing bytes first, so this is
-  // recoverable, and saying so is more useful than a warning that is not true.
+  // ACT, THEN OFFER THE UNDO (ST-15, decision 7). This used to raise a native
+  // confirm() - a modal the app cannot style, cannot place and cannot make
+  // keyboard-consistent - to guard an action that is recoverable twice over:
+  // the service snapshots the outgoing bytes, and the editor is holding the
+  // whole file in `css` as it deletes it. A confirmation is what you owe
+  // someone when you cannot give them the thing back; here we can, so
+  // Appearance is handed the bytes and shows "Deleted X - Undo".
   const remove = async () => {
     if (!editing || busy) return;
-    if (!confirm(
-      `Delete ${dirOf(editing)}?\n\n`
-      + 'The file is copied into the undo snapshot first, so it can be recovered '
-      + 'from there.\n\nAnyone currently using this theme falls back to the default.',
-    )) return;
     setBusy(true);
     const out = await deleteFile(ROOT, dirOf(editing), baseMtime);
     setBusy(false);
@@ -270,7 +269,8 @@ export function ThemeEditor() {
       // picker would show it selected until the next reload, which reads as the
       // delete not having worked.
       setSelection('bothy-dark');
-      nav('/settings/appearance');
+      rescan();
+      nav('/settings/appearance', { state: { deleted: { id: editing, name: draft?.name || editing, css } } });
       return;
     }
     setNotice({

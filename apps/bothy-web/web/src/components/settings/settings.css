@@ -463,6 +463,19 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
   color: var(--fg); background: var(--surface-3); border: 1px solid var(--line-strong);
 }
 
+/* "Deleted X - Undo" (ST-15). A line above the blocks rather than a floating
+   toast: it belongs to the page it appeared on, it cannot cover anything, and
+   it does not have to be dismissed to get at what is under it. */
+.set-shell .set-undo {
+  display: flex; align-items: center; gap: var(--sp-2_5); flex-wrap: wrap; margin: 0 0 var(--sp-4);
+  padding: var(--sp-2_5) var(--sp-3_5); border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--fg-muted);
+  font-size: var(--fs-sm); line-height: var(--lh-sm);
+}
+.set-shell .set-undo[data-tone='bad'] {
+  background: var(--st-down-bg); border-color: var(--st-down-line); color: var(--st-down-fg);
+}
+
 /* The roles list moved in from the old page; inside a block it needs no top
    padding of its own. */
 .set-shell .roles { margin: 0; }

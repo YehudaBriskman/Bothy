@@ -15,7 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { withDeclared } from './projects-mod.mjs';
 import {
-  KUBE_NAMESPACES, kubeTargetOf, confirmSatisfied, confirmNameOf, allowedFor, kubeRefusalOf,
+  KUBE_NAMESPACES, kubeTargetOf, confirmSatisfied, confirmNameOf, confirmLevelOf, allowedFor, kubeRefusalOf,
   followUrl, specOf, findSpec, boundsOf, targetField, queryOf,
 } from './kube-actions-mod.mjs';
 
@@ -38,13 +38,37 @@ check('no operator action confirms with none',
   CATALOG.actions.filter((a) => a.role === 'operator' && a.confirm === 'none').map((a) => a.id), []);
 check('every operator action is a POST', CATALOG.actions.filter((a) => a.role === 'operator' && a.method !== 'POST').map((a) => a.id), []);
 check('every viewer action is a GET', CATALOG.actions.filter((a) => a.role === 'viewer' && a.method !== 'GET').map((a) => a.id), []);
-check('scale is type-name', specOf(CATALOG, 'scale').confirm, 'type-name');
-for (const id of ['rollback-to-revision', 'set-image', 'run-template', 'patch-key', 'patch-key-and-restart']) {
+// ── the confirm levels follow REVERSIBILITY (decision 7, CL-4) ───────────────
+//
+// This table was the audit's finding, inverted: the three deletes needed one
+// click, and scale, set-image and rollback - all of which this same interface
+// undoes - asked for the name to be typed. Typing a name you type every day is
+// not a confirmation, it is a habit, and it was being trained on the actions
+// that least needed it.
+//
+// Type the name: the thing is gone, or nothing here puts it back.
+for (const id of ['delete-job', 'delete-completed-pods', 'run-template', 'patch-key', 'patch-key-and-restart']) {
   check(`${id} is operator + type-name`, [specOf(CATALOG, id).role, specOf(CATALOG, id).confirm], ['operator', 'type-name']);
 }
-for (const id of ['pause', 'resume', 'delete-pod', 'delete-job']) {
+// One click: this interface undoes it. delete-pod is here because only MANAGED
+// pods can be named, so its owner replaces it within seconds.
+for (const id of ['pause', 'resume', 'delete-pod', 'scale', 'set-image', 'rollback-to-revision', 'rollout-restart']) {
   check(`${id} is operator + click`, [specOf(CATALOG, id).role, specOf(CATALOG, id).confirm], ['operator', 'click']);
 }
+// ...except the one value of the one action that cannot be undone here.
+check('scale escalates at 0 only', specOf(CATALOG, 'scale').escalate, { param: 'replicas', value: 0 });
+check('scale to 0 asks for the name',
+  confirmLevelOf(specOf(CATALOG, 'scale'), { namespace: 'thales-dev', deployment: 'backend', replicas: 0 }), 'type-name');
+for (const n of [1, 2, 3]) {
+  check(`scale to ${n} is one click`,
+    confirmLevelOf(specOf(CATALOG, 'scale'), { namespace: 'thales-dev', deployment: 'backend', replicas: n }), 'click');
+}
+check('an action with no escalation is its own level',
+  confirmLevelOf(specOf(CATALOG, 'delete-job'), { namespace: 'thales-dev', job: 'migrate-1' }), 'type-name');
+// An escalation can only ask for MORE, so an ambiguous value lands on the
+// higher level: a "0" that arrived as text still asks for the name.
+check('a string 0 escalates too',
+  confirmLevelOf(specOf(CATALOG, 'scale'), { namespace: 'thales-dev', deployment: 'backend', replicas: '0' }), 'type-name');
 check('only logs streams', CATALOG.actions.filter((a) => a.stream).map((a) => a.id), ['logs']);
 check('nothing that reads a secret, execs or tunnels',
   ids.filter((i) => /secret|exec|attach|port-?forward|shell|impersonate/.test(i)), []);

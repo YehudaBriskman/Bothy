@@ -325,6 +325,9 @@ class Action:
     params: dict[str, Param] = field(default_factory=dict)
     meaning: str = ""
     rbac: tuple[Grant, ...] = ()
+    # One parameter value that raises the confirm level to type-name for THIS
+    # request. Declared as (param, value); None when the level is flat.
+    escalate: tuple[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -352,7 +355,7 @@ class Catalog(dict):
     policy: Policy = Policy()
 
 
-_ACTION_KEYS = {"title", "meaning", "target", "method", "role", "confirm", "stream", "params", "rbac"}
+_ACTION_KEYS = {"title", "meaning", "target", "method", "role", "confirm", "stream", "params", "rbac", "escalate"}
 _PARAM_KEYS = {"type", "required", "default", "min", "max"}
 _TOP_KEYS = {"actions", "configmaps", "image_registries", "job_templates", "configmap_keys"}
 _ID_RE = re.compile(r"[a-z][a-z0-9-]{0,39}")
@@ -546,8 +549,33 @@ def load_catalog(doc: dict) -> Catalog:
         if kinds.count("configmap-value") > 1:
             raise CatalogError(f"{where}: at most one configmap-value parameter")
 
+        # `escalate`: one PARAMETER VALUE that raises this action's confirm level
+        # to type-name for that request alone (design audit CL-4, decision 7).
+        # Scale is the case it exists for: scaling to 1 or more is undone by
+        # scaling back, and asking for the name to be typed taught people to type
+        # the name; scaling to 0 stops the workload, and only the manifest
+        # decides whether anything brings it back.
+        #
+        # It can only ever ASK FOR MORE. The base level is what the catalog and
+        # the Settings page publish, and an escalation cannot lower it, so
+        # nothing is loosened by a value the checker did not think of.
+        escalate = None
+        if "escalate" in raw:
+            e = raw["escalate"]
+            ewhere = f"{where}.escalate"
+            if not isinstance(e, dict) or set(e) != {"param", "value"}:
+                raise CatalogError(f"{ewhere}: must be a table with exactly `param` and `value`")
+            if raw["confirm"] != "click":
+                raise CatalogError(f"{ewhere}: only a `click` action escalates (from none is illegal "
+                                   "for an operator action; from type-name there is nowhere to go)")
+            if e["param"] not in params:
+                raise CatalogError(f"{ewhere}: {e['param']!r} is not a parameter of this action")
+            if not isinstance(e["value"], (int, str, bool)):
+                raise CatalogError(f"{ewhere}: value must be an int, string or bool")
+            escalate = (e["param"], e["value"])
+
         out[aid] = Action(aid, raw["title"], raw["target"], raw["method"], raw["role"],
-                          raw["confirm"], raw["stream"], params, raw["meaning"], grants)
+                          raw["confirm"], raw["stream"], params, raw["meaning"], grants, escalate)
     return out
 
 
@@ -576,6 +604,7 @@ def catalog_json(catalog: Catalog) -> dict:
         "actions": [
             {"id": a.id, "title": a.title, "meaning": a.meaning, "target": a.target,
              "method": a.method, "role": a.role, "confirm": a.confirm, "stream": a.stream,
+             **({"escalate": {"param": a.escalate[0], "value": a.escalate[1]}} if a.escalate else {}),
              "params": {p.name: {k: v for k, v in (("type", p.type), ("required", p.required),
                                                    ("default", p.default), ("min", p.min),
                                                    ("max", p.max)) if v is not None}
@@ -738,6 +767,24 @@ def confirm_name(action: Action, target: str, params: dict[str, object]) -> str:
     return target
 
 
+def confirm_level(action: Action, params: dict[str, object] | None = None) -> str:
+    """The confirm level THIS request needs: the action's, unless its `escalate`
+    value is the one being sent, which raises it to type-name (CL-4). The rule
+    is published in the catalog, so the dialog and the service agree without
+    either one copying it."""
+    if action.escalate and params is not None:
+        name, value = action.escalate
+        got = params.get(name)
+        # Compared as TEXT, deliberately. The escalation can only ask for more,
+        # so every ambiguous case must land on the higher level: a "0" that
+        # arrived as a string must not buy the cheaper confirmation because the
+        # types did not match. (check_params has already coerced it by the time
+        # this runs; that is not a reason for this function to depend on it.)
+        if got is not None and str(got) == str(value):
+            return "type-name"
+    return action.confirm
+
+
 def check_confirm(action: Action, req: dict, target: str, params: dict[str, object] | None = None) -> None:
     """Enforce `type-name` on the server as well as in the dialog.
 
@@ -746,7 +793,7 @@ def check_confirm(action: Action, req: dict, target: str, params: dict[str, obje
     dialog does, a forged or scripted request would skip the one step that level
     exists for.
     """
-    if action.confirm != "type-name":
+    if confirm_level(action, params) != "type-name":
         if "confirm" in req:
             raise Refused(f"{action.id} takes no confirm field", status=400)
         return

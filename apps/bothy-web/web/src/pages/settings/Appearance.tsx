@@ -7,10 +7,12 @@
 // single Settings page with their keys unchanged - `portal-theme*` and
 // `bothy-reading-v1` - so nobody's saved choice is lost by the move.
 
-import { Link } from 'react-router-dom';
-import { Code2, Minus, Pencil, Plus } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Code2, Minus, Pencil, Plus, Undo2 } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
 import { THEME_DIR_HOST } from '../../lib/customThemes';
+import { writeFile } from '../../lib/files';
 import { ThemeSwatch } from '../../components/ThemeSwatch';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Choice } from '../../components/settings/bits';
@@ -25,11 +27,73 @@ import { Icon } from '../../components/ui/Icon';
 export function AppearanceSettings() {
   return (
     <>
+      <DeletedTheme />
       <SettingBlock id="theme" badge="this browser"><Theme /></SettingBlock>
       <SettingBlock id="make-theme" badge="a file on the box"><MakeATheme /></SettingBlock>
       <SettingBlock id="reading" badge="this browser"><ReadingSize /></SettingBlock>
       <PrefBlocks />
     </>
+  );
+}
+
+/**
+ * "Deleted X - Undo" (ST-15, decision 7).
+ *
+ * The theme editor deletes the file and navigates here carrying the bytes it
+ * was holding; this puts them back on request. The window is ten seconds - long
+ * enough to notice the mistake, short enough that the offer is gone by the time
+ * you have moved on - and the state is cleared from history either way, so a
+ * back-and-forward through this page does not re-offer an undo for a delete
+ * that happened five minutes ago.
+ *
+ * It replaced a native confirm(). A confirmation is what you owe someone when
+ * you cannot give the thing back.
+ */
+const UNDO_MS = 10_000;
+
+function DeletedTheme() {
+  const loc = useLocation();
+  const nav = useNavigate();
+  const { rescan } = useTheme();
+  const deleted = (loc.state as { deleted?: { id: string; name: string; css: string } } | null)?.deleted;
+  const [gone, setGone] = useState(false);
+  const [state, setState] = useState<'offer' | 'working' | 'done' | 'failed'>('offer');
+
+  // The router state is consumed on arrival: it has done its job, and leaving
+  // it in history means every return to this entry offers the undo again.
+  useEffect(() => {
+    if (deleted) nav(loc.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!deleted || state !== 'offer') return;
+    const t = setTimeout(() => setGone(true), UNDO_MS);
+    return () => clearTimeout(t);
+  }, [deleted, state]);
+
+  const undo = useCallback(async () => {
+    if (!deleted) return;
+    setState('working');
+    const out = await writeFile('stacks', `${THEME_DIR_HOST}${deleted.id}.css`, deleted.css, `restore theme ${deleted.id}`);
+    if (out.kind === 'saved') { rescan(); setState('done'); } else setState('failed');
+  }, [deleted, rescan]);
+
+  if (!deleted || (gone && state === 'offer')) return null;
+  return (
+    <p className="set-undo" data-tone={state === 'failed' ? 'bad' : 'info'} role="status">
+      <span>
+        {state === 'done' ? `Restored ${deleted.name}.`
+          : state === 'failed' ? `${deleted.name} could not be written back. It is still in the undo snapshot on the box.`
+            : `Deleted ${deleted.name}.`}
+      </span>
+      {state === 'offer' && (
+        <Button variant="ghost" size="sm" onClick={() => void undo()}>
+          <Icon icon={Undo2} size="sm" /> Undo
+        </Button>
+      )}
+      {state === 'working' && <span className="dim">Putting it back…</span>}
+    </p>
   );
 }
 

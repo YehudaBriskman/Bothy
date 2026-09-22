@@ -109,6 +109,12 @@ interface ThemeCtx {
   resolved: Resolved;
   themes: readonly ThemeDef[];
   setSelection: (s: Selection) => void;
+  /** Re-read apps/bothy-web/data/themes. The list is loaded once after mount,
+   *  which is right for a directory nothing in this tab changes - except that
+   *  the theme editor writes and deletes files in it. Without this, a theme you
+   *  just deleted stayed in the picker until the next reload, which reads as
+   *  the delete not having worked (and its undo as having done nothing). */
+  rescan: () => void;
   /** Dark -> Light -> System, over the two built-ins. The header control is a
    *  one-tap toggle for the common case; the full list lives in Settings, so
    *  cycling through eight themes to get back to where you were is not a thing
@@ -132,6 +138,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // one by id, so the page it renders is correct without this. What this adds is
   // the LIST, which is only needed once somebody opens the picker.
   const [scanned, setScanned] = useState(false);
+  const [scan, setScan] = useState(0);
   useEffect(() => {
     let alive = true;
     loadCustomThemes()
@@ -145,7 +152,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // an error would freeze the page on whatever the pre-paint script guessed.
       .finally(() => { if (alive) setScanned(true); });
     return () => { alive = false; };
-  }, []);
+  }, [scan]);
 
   const all = useMemo(() => [...THEMES, ...custom], [custom]);
 
@@ -204,6 +211,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={{
       selection, theme, resolved: theme.appearance, themes: all, setSelection, cycle,
+      rescan: () => setScan((n) => n + 1),
     }}>
       {children}
     </Ctx.Provider>
