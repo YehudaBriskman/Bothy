@@ -10,6 +10,7 @@ import {
   attentionList, gatesFor, NO_GATES, portCollisions, routeCounts, backupSummary, updatesSummary,
   emptyNamespaces, severityCounts, fmtAge, BACKUP_STALE_SECONDS,
 } from './control-home-mod.mjs';
+import { uiName, productCase, productOf } from './ui-names-mod.mjs';
 
 let bad = 0;
 const check = (label, got, want) => {
@@ -131,6 +132,22 @@ check('empty namespaces: in scope, exists, zero pods',
   ['thales-dev']);
 
 check('age formatting', [fmtAge(30), fmtAge(600), fmtAge(9 * 3600), fmtAge(3 * 86400), fmtAge(null)], ['30s', '10m', '9h', '3d', 'unknown']);
+
+// ── what a UI link is called (lib/ui-names.ts, via uiPorts) ────────────────
+// The four names this box actually showed on 2026-09-22, then the edges.
+check('a proxied UI takes its system title: Oauth2 Proxy Headlamp -> Headlamp',
+  uiName('Oauth2 Proxy Headlamp', 'Headlamp', 1), 'Headlamp');
+check('a project-owned UI takes its system title: Manifests · Sonarqube -> SonarQube',
+  uiName('Manifests · Sonarqube', 'SonarQube', 1), 'SonarQube');
+check('several UIs in one system keep the service name, product-cased: Victoriametrics',
+  uiName('Victoriametrics', 'Monitoring · Grafana', 5), 'VictoriaMetrics');
+check('... and Cadvisor -> cAdvisor', uiName('Cadvisor', 'Monitoring · Grafana', 5), 'cAdvisor');
+check('several UIs: a plain name is untouched (Grafana)', uiName('Grafana', 'Monitoring · Grafana', 5), 'Grafana');
+check('a placed "Area · Product" title lends only the product: Identity · Keycloak -> Keycloak',
+  uiName('Keycloak', 'Identity · Keycloak', 1), 'Keycloak');
+check('no title (the residue group) keeps the service name', uiName('Thales E2e Cov Pg', null, 1), 'Thales E2e Cov Pg');
+check('productCase fixes each part of a compound name', productCase('Manifests · Sonarqube'), 'Manifests · SonarQube');
+check('productOf of a one-part title is the title', productOf('Headlamp'), 'Headlamp');
 
 console.log(`\n  ${bad ? `${bad} FAILED` : 'all pass'}`);
 process.exit(bad ? 1 : 0);

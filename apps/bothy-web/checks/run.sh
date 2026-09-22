@@ -307,6 +307,11 @@ echo "── what the Control landing asks for, and in what order ─"
 (cd "$WEB" && npx tsc src/pages/control/home.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/home.js" "$OUT/control-home-mod.mjs"
+# lib/ui-names.ts: what a link to a published UI is called (Quick links and the
+# Overview's "Open a UI" both read it through uiPorts). Imports nothing.
+(cd "$WEB" && npx tsc src/lib/ui-names.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/ui-names.js" "$OUT/ui-names-mod.mjs"
 cp "$HERE/control-home.mjs" "$OUT/"
 node "$OUT/control-home.mjs"
 
