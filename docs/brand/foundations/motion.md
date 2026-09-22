@@ -55,7 +55,9 @@ Implementation lands in design-audit batches 2 and 3
 `--ease` (arrive), `--ease-exit` (leave) and `--ease-standard` (a reversible
 toggle); `--spring` with `--spring-dur-s/-/-l` (critically damped, response
 .30/.35/.40) and `--spring-bounce` (damping .8, only after momentum);
-`--stagger`; `--loop-*` for spinners. The same numbers are in `lib/motion.ts`
+`--stagger`; `--loop-*` for the shimmer and the Live pulse (2026-09-22: no
+spinner is left - loading is [ui/Loader](../patterns/feedback.md#loading), whose orb
+keeps its own tuned speed and is paused under reduced motion). The same numbers are in `lib/motion.ts`
 for framer-motion, and a check fails if the two copies differ. Every literal
 duration and bare `ease` is gone. One hook, `useMotionReduced()`, answers "is
 motion reduced" for the OS setting and the in-app one; the press state keeps its
