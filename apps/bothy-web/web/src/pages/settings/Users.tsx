@@ -97,7 +97,7 @@ function RoleCells({ u }: { u: AdminUser }) {
 function UserTable({ users }: { users: AdminUser[] }) {
   if (!users.length) return <p className="set-empty">The realm has no users. <span className="mono">just up-auth</span> seeds one.</p>;
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl set-users">
         <thead>
           <tr>

@@ -64,7 +64,7 @@ function Stale<T>({ read }: { read: ReadState<T> }) {
 
 function Table({ label, head, children, empty }: { label: string; head: ReactNode; children: ReactNode; empty?: string | null }) {
   return (
-    <div className="tbl-wrap cl-tbl" role="region" aria-label={label} tabIndex={0}>
+    <div className="tbl-wrap scroll-shade cl-tbl" role="region" aria-label={label} tabIndex={0}>
       <table className="tbl">
         <thead><tr>{head}</tr></thead>
         <tbody>

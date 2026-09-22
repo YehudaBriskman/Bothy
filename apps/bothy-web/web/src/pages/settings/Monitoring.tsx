@@ -89,7 +89,7 @@ function Targets() {
         </label>
         <Button variant="ghost" size="sm" onClick={reload}>Refresh</Button>
       </div>
-      <div className="tbl-wrap set-tbl set-tbl-scroll">
+      <div className="tbl-wrap scroll-shade set-tbl set-tbl-scroll">
         <table className="tbl">
           <thead>
             <tr><th scope="col">State</th><th scope="col">Job</th><th scope="col">Instance</th><th scope="col" className="num">Scrape took</th></tr>
@@ -133,7 +133,7 @@ function Rules() {
         return (
           <div key={g} className="set-subsection">
             <h3 className="set-h3">{g} <span className="set-h3-sub">evaluated every {rules[0]?.interval ?? '?'}</span></h3>
-            <div className="tbl-wrap set-tbl">
+            <div className="tbl-wrap scroll-shade set-tbl">
               <table className="tbl">
                 <thead>
                   <tr><th scope="col">Rule</th><th scope="col">Severity</th><th scope="col">Fires after</th><th scope="col">Says</th></tr>

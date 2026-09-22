@@ -148,7 +148,7 @@ function Remembered() {
     bump((n) => n + 1);
   };
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl">
         <thead>
           <tr><th scope="col">What</th><th scope="col">Now</th><th scope="col">Where</th><th scope="col"><span className="sr-only">Reset</span></th></tr>

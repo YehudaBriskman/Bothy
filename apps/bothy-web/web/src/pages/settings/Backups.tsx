@@ -69,7 +69,7 @@ function Sets({ d }: { d: BackupsResult }) {
         managed set are kept{fewer.length > 0 && <> ({fewer.map((s) => `${s.keep} of ${s.name}`).join(', ')})</>}. Inventory written <When iso={d.generatedAt} />
         {d.stale && <span className="set-warn"> - stale; the bothy-inventory timer may not be running</span>}.
       </p>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl">
           <thead>
             <tr><th scope="col">Set</th><th scope="col">Newest</th><th scope="col" className="num">Copies</th><th scope="col">Oldest</th><th scope="col" className="num">Size</th></tr>

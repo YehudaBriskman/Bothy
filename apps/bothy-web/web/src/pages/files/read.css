@@ -55,7 +55,10 @@
    horizontal padding - 10px here, 12px there, 8px on the document row - and
    with ellipsised text that put the last legible character of a long title four
    pixels from a border. One value, and the rows share a left edge. */
-.bothy-files .rd-index { --rd-gut: 12px; padding: 0 0 var(--sp-3_5); }
+/* --rd-index-h is the sticky header's height, STATED (its padding plus a 1rem
+   line) so the root name can stick exactly under it - the header is given at
+   least that height. It was the literal 30px (6+16+7 plus a border). */
+.bothy-files .rd-index { --rd-gut: var(--sp-3); --rd-index-h: calc(var(--sp-1_5) + var(--sp-2) + 1rem); padding: 0 0 var(--sp-3_5); }
 /* Sticky, because the index lives inside the search view's scrolling result
    area (that is what puts search at the TOP of the panel rather than behind an
    icon) - and without this the All files switch scrolls away after ten rows,
@@ -63,9 +66,12 @@
 .bothy-files .rd-index-h {
   position: sticky; top: 0; z-index: 2;
   display: flex; align-items: center; gap: var(--sp-2);
-  padding: var(--sp-1_5) var(--rd-gut) var(--sp-2); border-bottom: 1px solid var(--line);
-  background: var(--bg-2);
+  padding: var(--sp-1_5) var(--rd-gut) var(--sp-2); min-height: var(--rd-index-h);
+  background: var(--bg-2); transition: box-shadow var(--dur-fast) var(--ease-standard);
 }
+/* Its bottom edge is the scroll edge (SYS-16): a line and a shade only once
+   the list has scrolled under it, not a permanent hairline. */
+.bothy-files .fx-sr-list[data-shade-t] .rd-index-h { box-shadow: var(--shadow-edge); }
 .bothy-files .rd-index-title {
   font-size: calc(var(--rd-ui-fs) * 0.88); font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   color: var(--fg-subtle);
@@ -84,10 +90,9 @@
 .bothy-files .rd-root { border-bottom: 1px solid var(--line); }
 /* The root name sticks under the index header, so a long listing never leaves
    you looking at folders without knowing which root they are in. `top` is the
-   header's own height, measured rather than guessed - 30px is 6+16+7 plus the
-   border. */
+   header's own height, --rd-index-h. */
 .bothy-files .rd-root-h {
-  position: sticky; top: 30px; z-index: 1;
+  position: sticky; top: var(--rd-index-h); z-index: 1;
   margin: 0; font-size: inherit; font-weight: inherit; background: var(--bg-2);
 }
 .bothy-files .rd-root-btn {

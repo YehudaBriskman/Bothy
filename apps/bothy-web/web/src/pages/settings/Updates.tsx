@@ -171,7 +171,7 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
     .filter((g) => g.rows.length > 0);
   return (
     <>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl upd-tbl">
           <thead>
             <tr>
@@ -831,7 +831,7 @@ function History({ d }: { d: UpdatesStatus | null }) {
       <span className="mono">~/.local/state/bothy/updates/history.jsonl</span>.</p>;
   }
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl upd-tbl upd-hist">
         <thead>
           <tr>

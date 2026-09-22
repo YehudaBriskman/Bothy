@@ -62,7 +62,7 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
         {modeOff && ` (expected ${d.env.expectMode})`} · changed <When iso={d.env.changed} />.
         {' '}A change date is the FILE’s: .env does not record when one key changed.
       </p>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl set-creds">
           <thead>
             <tr><th scope="col">Key</th><th scope="col">State</th><th scope="col">For, and read by</th><th scope="col">Rotate</th></tr>
@@ -101,7 +101,7 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
 
 function Files({ d }: { d: CredentialsResult }) {
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl set-creds">
         <thead>
           <tr><th scope="col">File</th><th scope="col">Mode</th><th scope="col">Changed</th><th scope="col">For, and read by</th><th scope="col">Rotate</th></tr>
@@ -133,7 +133,7 @@ function Files({ d }: { d: CredentialsResult }) {
 function Clients({ d }: { d: CredentialsResult }) {
   return (
     <>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl set-creds">
           <thead>
             <tr><th scope="col">Client</th><th scope="col">Secret kept in</th><th scope="col">Changed</th><th scope="col">For</th></tr>

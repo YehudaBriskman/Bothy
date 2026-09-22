@@ -106,7 +106,7 @@ function RuleTable({ rules, mtime, canEdit, onSaved }: {
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   return (
-    <div className="tbl-wrap set-tbl">
+    <div className="tbl-wrap scroll-shade set-tbl">
       <table className="tbl set-placement">
         <thead>
           <tr>

@@ -372,10 +372,22 @@
      rules. Kept as tokens so light mode can weaken them: the same shadow that
      reads as depth on near-black reads as dirt on white. */
   --scroll-shade: rgb(0 0 0 / .55);
+  /* The scroll EDGE of sticky chrome (SYS-16, batch 4): the top bar, a sticky
+     table header, a pane's sticky title. At rest they have no bottom line at
+     all; once content has scrolled under them they get a hairline and a soft
+     shade - Apple's scroll-edge appearance. It was a permanent 1px --line,
+     which drew an edge even when nothing was behind it. */
+  --shadow-edge: 0 1px 0 var(--line), 0 6px 12px -8px var(--scroll-shade);
   --scrollbar-w: 10px;
   --scrollbar-thumb:       color-mix(in oklab, var(--fg) 16%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, var(--accent) 55%, transparent);
 
+  /* The sticky top bar's height, stated rather than measured, so anything that
+     sticks UNDER it (the Settings bar on a phone, ST-6) can say where. The bar
+     is given exactly this height: its padding plus its tallest control - a
+     38px nav row, or the 44px touch target under a coarse pointer. rem, so it
+     grows with the text it holds. */
+  --topbar-h: calc(2 * var(--sp-2_5) + max(2.375rem, var(--hit)));
   --wrap: 1180px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
@@ -690,8 +702,12 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   background: var(--surface-1); }
 .tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 .tbl th { text-align: left; padding: var(--sp-2) var(--sp-3_5); color: var(--fg-subtle); font-weight: var(--fw-semibold);
-  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; background: var(--surface-2);
-  white-space: nowrap; user-select: none; }
+  position: sticky; top: 0; z-index: 1; background: var(--surface-2);
+  white-space: nowrap; user-select: none; transition: box-shadow var(--dur-fast) var(--ease-standard); }
+/* The header row's bottom edge is the scroll edge (SYS-16): its fill sets it
+   off from the rows at rest, and rows scrolled under it raise the shade.
+   Every .tbl-wrap is a .scroll-shade, so data-shade-t is set for it. */
+.tbl-wrap[data-shade-t] .tbl th { box-shadow: var(--shadow-edge); }
 .tbl th.sorted { color: var(--fg); }
 /* 32px rows (6+6 padding + a 20px line box). At 47px the Routes table needed
    two viewports to show 21 routes; the extra 15px per row carried nothing. The
@@ -793,8 +809,11 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 [data-route-fade='in'] { position: relative; z-index: 1; }
 
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--sp-2_5);
-  padding: var(--sp-2_5) var(--sp-6); border-bottom: 1px solid var(--line);
-  background: var(--mat-chrome-bg); backdrop-filter: var(--mat-chrome-blur); }
+  height: var(--topbar-h); padding: var(--sp-2_5) var(--sp-6);
+  background: var(--mat-chrome-bg); backdrop-filter: var(--mat-chrome-blur);
+  box-shadow: 0 0 0 transparent; transition: box-shadow var(--dur-fast) var(--ease-standard); }
+/* The scroll edge, only when the page is under the bar (lib/scroll.ts). */
+html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
 
 /* ── brand ───────────────────────────────────────────────────────────────────
    "an address, not a name" is gone. It named the box after a DNS name that has been

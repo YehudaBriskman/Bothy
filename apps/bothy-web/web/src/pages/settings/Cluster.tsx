@@ -45,7 +45,7 @@ function Scope() {
         {data.namespaces.map((n, i) => <span key={n}>{i > 0 && ', '}<span className="mono set-pill">{n}</span></span>)}.
         Anything else is refused before a request reaches the apiserver.
       </p>
-      <div className="tbl-wrap set-tbl">
+      <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl">
           <thead>
             <tr><th scope="col">Action</th><th scope="col">On</th><th scope="col">Role</th><th scope="col">Confirmation</th><th scope="col">What it does</th></tr>

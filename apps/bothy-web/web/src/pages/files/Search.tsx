@@ -284,7 +284,7 @@ export function SearchView({
         </p>
       )}
 
-      <div className="fx-sr-list">
+      <div className="fx-sr-list scroll-shade">
         {/* `res` and not `q`: the index stays put while a query is being typed
             and only gives way once an ANSWER exists. Swapping on the first
             keystroke would blank the panel for the whole debounce, which reads

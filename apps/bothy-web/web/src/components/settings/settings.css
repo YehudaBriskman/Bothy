@@ -224,7 +224,7 @@
 .set-shell .set-tbl .tbl { font-size: var(--fs-sm); line-height: var(--lh-sm); }
 .set-shell .set-tbl .tbl th {
   position: sticky; top: 0; z-index: 1; background: var(--surface-2);
-  font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); white-space: nowrap; border-bottom: 1px solid var(--line);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); white-space: nowrap;
 }
 .set-shell .set-tbl .tbl td { vertical-align: top; padding-top: var(--sp-2); padding-bottom: var(--sp-2); }
 html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp-1); padding-bottom: var(--sp-1); }
@@ -494,11 +494,18 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
   .set-shell { grid-template-columns: minmax(0, 1fr); height: auto; }
   .set-shell .set-side { display: none; }
   .set-shell .set-main { overflow: visible; }
+  /* Sticks UNDER the top bar, not over it (ST-6): it sat at top 0 with the
+     bar's own z-index and covered the global topbar once scrolled. Its bottom
+     edge is the scroll edge (SYS-16) - and while it is the lower of the two
+     stuck bars, the top bar gives its shade up to it. */
   .set-shell .set-mobile-bar {
     display: flex; align-items: center; gap: var(--sp-2_5);
-    position: sticky; top: 0; z-index: 20;
-    padding: var(--sp-2) var(--sp-4); background: var(--bg); border-bottom: 1px solid var(--line);
+    position: sticky; top: var(--topbar-h); z-index: 19;
+    padding: var(--sp-2) var(--sp-4); background: var(--bg);
+    transition: box-shadow var(--dur-fast) var(--ease-standard);
   }
+  html[data-scrolled] .set-shell .set-mobile-bar { box-shadow: var(--shadow-edge); }
+  html[data-scrolled] .shell:has(.set-shell) .topbar { box-shadow: none; }
   .set-shell .set-drawer-btn { min-height: 40px; }
   .set-shell .set-mobile-here { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: 600; color: var(--fg-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .set-shell .set-body { padding: var(--sp-3_5) var(--sp-4) var(--sp-12); }

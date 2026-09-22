@@ -7,7 +7,7 @@ import {
 import { usePortal } from '../lib/data';
 import { RouteFade } from './RouteFade';
 import { freshnessOf } from '../lib/freshness';
-import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
+import { usePageScrolled, useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
 import { Tooltip } from './Tooltip';
 import { ThemeMenu } from './ThemeMenu';
 import { Brand } from './Brand';
@@ -45,9 +45,11 @@ export function AppShell() {
   // Mounted once, for the whole app: a new page starts at the top and Back
   // returns you where you were; every `.scroll-shade` container gets inner
   // shadows on the edge it can still travel towards; the left rail tracks how
-  // far down the page you are. See lib/scroll.ts.
+  // far down the page you are; the sticky chrome shades only once the page has
+  // scrolled under it. See lib/scroll.ts.
   useScrollRestoration();
   useScrollShades();
+  usePageScrolled();
   const progress = useScrollProgress();
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Giving focus back when the palette closes is ui/Dialog's job now, as it is

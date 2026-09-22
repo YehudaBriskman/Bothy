@@ -255,9 +255,11 @@
 .bothy-files .fx-diff-sum {
   position: sticky; top: 0; z-index: 1;
   display: flex; align-items: center; gap: var(--sp-2); min-width: 0;
-  padding: var(--sp-2) var(--sp-3_5); border-bottom: 1px solid var(--line);
+  padding: var(--sp-2) var(--sp-3_5); transition: box-shadow var(--dur-fast) var(--ease-standard);
   background: var(--surface-2); color: var(--fg-muted); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs);
 }
+/* The scroll edge (SYS-16): shaded once the diff is under it. */
+.bothy-files .fx-diff[data-shade-t] .fx-diff-sum { box-shadow: var(--shadow-edge); }
 .bothy-files .fx-diff-sum svg { flex: none; color: var(--fg-subtle); }
 .bothy-files .fx-diff-sum .mono { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bothy-files .fx-diff-side {
