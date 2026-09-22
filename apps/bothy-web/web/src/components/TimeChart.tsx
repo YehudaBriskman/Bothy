@@ -40,7 +40,10 @@ interface Props {
   label: string;
 }
 
-const PAD = { top: 10, right: 8, bottom: 18, left: 40 };
+// left: room for the widest y label ("2.0 kB/s") at the 11px tick size -
+// 40 fitted the old 10px ticks with 2px to spare and clipped the 11px ones
+// (design audit batch 4 put the ticks on --fs-2xs's value).
+const PAD = { top: 10, right: 8, bottom: 18, left: 48 };
 
 export function TimeChart({ series, format, height = 132, yMax, area, label }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);

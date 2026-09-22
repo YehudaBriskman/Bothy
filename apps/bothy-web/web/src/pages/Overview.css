@@ -12,7 +12,9 @@
      Cards used to size to their own content - a 4-row list and a 9-row list sat
      side by side and the row bottom was wherever the taller one happened to
      end. Snapping to a unit is what makes a grid read as a grid. */
-  --tile: 316px;
+  /* rem (batch 4): at a larger text size the tile grows with its rows, so a
+     card still shows the same number of them instead of clipping at 316px. */
+  --tile: 19.75rem;
 }
 .overview .ov-body { padding: var(--sp-1_5) 0 var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-5); }
 
