@@ -137,7 +137,7 @@
 .bothy-files .fx-hbtn:disabled { opacity: var(--disabled-opacity); cursor: default; }
 /* A region that is OPEN is stated by the toggle, not only by the window - the
    toggle is the control you look at when you cannot find a rail. */
-.bothy-files .fx-hbtn.on { color: var(--accent-fg); background: var(--accent-bg); }
+.bothy-files .fx-hbtn.on, .bothy-files .fx-hbtn[data-state='open'] { color: var(--accent-fg); background: var(--accent-bg); }
 .bothy-files .fx-flip { transform: rotate(180deg); }
 
 /* ── pressed is FILLED, not outlined ─────────────────────────────────────────
@@ -256,22 +256,9 @@
 .bothy-files .icon-btn.sm { width: 26px; height: 26px; border-radius: var(--r-sm); }
 .bothy-files .fx-skel { display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; }
 .bothy-files .fx-skel .skel { height: 20px; border-radius: var(--r-sm); }
-/* The shared tooltip is one nowrap line by design (components/Tooltip.tsx); the
-   read-only explanation is a sentence, so it wraps here rather than becoming a
-   600px ribbon. */
-/* A tooltip's containing block is the element it hangs from - and in these rails
-   that is a 24px icon button. `white-space: normal` alone therefore wrapped every
-   tip into a three-character-wide ribbon; the Push tooltip rendered nine lines
-   tall. `width: max-content` lets it size to its text first, and max-width then
-   caps it, which is the order that actually produces a readable bubble.
-   
-   This was fixed for two clusters and left broken everywhere else; it belongs on
-   the base rule, because every icon button in this page has the same 24px
-   containing block. */
-.bothy-files .tip {
-  width: max-content; max-width: 260px;
-  white-space: normal; text-align: left;
-}
+/* No tooltip sizing here any more: the tooltip is portalled (ui/Popover since
+   batch 3), so its containing block is no longer the 24px rail button it hangs
+   from, and it sizes to its text with a max-width of its own. */
 
 /* ── responsive ──────────────────────────────────────────────────────────────
    A four-region IDE needs width the way a spreadsheet does. Below 1080px the

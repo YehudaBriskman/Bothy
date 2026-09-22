@@ -146,17 +146,32 @@
   border-color: color-mix(in oklab, var(--accent) 45%, var(--line-strong));
 }
 
-/* drei <Html> hover tooltip - screen-crisp, never steals the pointer */
+/* drei <Html> hover tooltip - screen-crisp, never steals the pointer.
+   THE ONE FLOATING SURFACE NOT ON ui/Popover (design audit SYS-5, batch 3), and
+   on purpose: it is anchored to a point in the 3D scene, which drei's <Html>
+   projects to the screen every frame - there is no DOM trigger for a popper to
+   measure. It takes the same contract instead: --surface-4, the strong hairline,
+   --r-lg, --shadow-3, and the popover's entrance - growing out of the point it
+   describes (transform-origin at its bottom edge, where the slab is) on the
+   spring, with the fade on the brand curve. It has no exit: it leaves because
+   the thing it describes stopped being hovered, and lingering over the next
+   slab would describe the wrong one. Reduced motion keeps the fade only. */
 .sv-tip { pointer-events: none; user-select: none; }
 .sv-tip-card {
   min-width: 168px;
   max-width: 260px;
-  transform: translateY(-8px);
-  background: var(--surface-2);
+  translate: 0 -8px;
+  background: var(--surface-4);
   border: 1px solid var(--line-strong);
-  border-radius: 11px;
+  border-radius: var(--r-lg);
   padding: 10px 12px;
   box-shadow: var(--shadow-3);
+  transform-origin: 50% 100%;
+  transition: opacity var(--dur-fast) var(--ease), scale var(--spring-dur-s) var(--spring);
+}
+@starting-style { .sv-tip-card { opacity: 0; scale: .96; } }
+@media (prefers-reduced-motion: reduce) {
+  @starting-style { .sv-tip-card { scale: 1; } }
 }
 .sv-tip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .sv-tip-ico { color: var(--accent); flex: none; }

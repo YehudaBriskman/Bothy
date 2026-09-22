@@ -339,6 +339,15 @@
      checks/design-tokens.mjs composites it over --bg and fails if it lightens. */
   --scrim: rgb(0 0 0 / .6);
 
+  /* ── layers: the floating ones, one token each (SYS-5) ─────────────────────
+     The nine hand-rolled popovers used z-index 20, 30, 40, 60 and 80 between
+     them. Now: the modal layer (scrim, then its surface), then everything
+     anchored to a control, which must draw over a dialog it was opened from,
+     then tooltips over that. */
+  --z-modal: 90;
+  --z-popover: 95;
+  --z-tooltip: 96;
+
   /* ── materials: the two translucent surfaces (decision 4) ──────────────────
      The top bar and the command palette's scrim, and nothing else. Both go solid
      under prefers-reduced-transparency (the media block near the end). */
@@ -729,7 +738,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   width: 38px; height: 38px; min-width: var(--hit); min-height: var(--hit);
   border-radius: var(--r-md); color: var(--fg-muted);
   background: none; border: 0; }
-.icon-btn:hover { color: var(--fg); }
+.icon-btn:hover, .icon-btn[data-state='open'] { color: var(--fg); }
 
 .badge { font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-semibold);
   color: var(--fg-muted); background: var(--surface-2);
@@ -1206,26 +1215,10 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
 
 /* ── tooltip ─────────────────────────────────────────────────────────────────
-   The inverted-surface pair (foreground colour as background) - the one shadcn
-   idea that carries the most weight per line, because it makes a tooltip read
-   as an overlay rather than as another card. Shows on hover AND focus: the
-   `title=` attributes this replaces were invisible to keyboard users. */
-.tip-wrap { position: relative; display: inline-flex; }
-.tip { position: absolute; z-index: 60; top: calc(100% + 8px); left: 50%; translate: -50% 0;
-  background: var(--fg); color: var(--bg); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
-  line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
-  padding: 6px 9px; border-radius: var(--r-sm); white-space: nowrap; pointer-events: none;
-  box-shadow: var(--shadow-2); }
-.tip::before { content: ''; position: absolute; top: -3px; left: 50%; translate: -50% 0; rotate: 45deg;
-  width: 8px; height: 8px; background: var(--fg); border-radius: 1px; }
-.tip[data-align='end'] { left: auto; right: 0; translate: none; }
-.tip[data-align='end']::before { left: auto; right: 12px; translate: none; }
-/* Pinned to the trigger's LEFT edge. Without it, a centred tooltip on the brand
-   - the leftmost thing in the topbar - renders half outside the window. There is
-   no collision detection here on purpose (see components/Tooltip.tsx); the two
-   corner cases get an explicit alignment instead. */
-.tip[data-align='start'] { left: 0; right: auto; translate: none; }
-.tip[data-align='start']::before { left: 12px; translate: none; }
+   The bubble is ui/Popover's (Popover.css, `.ui-pop-tip`): the inverted pair,
+   portalled, collision-aware, growing out of its control. Only the anchor is
+   drawn here. */
+.tip-wrap { display: inline-flex; }
 
 /* ── command palette ─────────────────────────────────────────────────────────
    Hand-written against the tokens - cmdk is ~14 KB for a 27-item list. The
@@ -1384,7 +1377,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   scale: var(--press-scale);
   box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--fg) 9%, transparent);
 }
-:where(.nav-item, .tabs button[role='tab'], .tm-row, .um-item, .fx-menu-item, .ui-menu-item,
+:where(.nav-item, .tabs button[role='tab'], .ui-menu-item, .ui-pop-row,
   .cmdk-item, .fx-row, .rd-doc, .rd-dir, .set-opt, .theme-card, .ct-item, .svc-group-head,
   .ov-quick-item, .fx-sr-file, .fx-sr-line):active:not(:disabled, [aria-disabled='true']) {
   background-color: var(--surface-press);

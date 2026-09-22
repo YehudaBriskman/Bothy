@@ -1,0 +1,95 @@
+/* ============================================================================
+   The floating-surface contract - ui/Popover AND ui/Menu (design audit SYS-5).
+
+   One surface for everything anchored to a control: --surface-4, the strong
+   hairline, --r-lg, --shadow-3, 6px off the trigger (set in the components),
+   8px off every viewport edge, and ONE z-index (--z-popover, above the modal
+   layer so a menu opened inside a dialog draws over it).
+
+   ── MOTION: transitions, not keyframes, and why (R3, R7, decision 1) ────────
+   The surface grows out of its trigger: transform-origin is the point on the
+   trigger Radix computed (--radix-popper-transform-origin), so a menu under a
+   right-aligned button unfolds from that button's corner, and one that flipped
+   above its trigger unfolds upwards (R7.2). It enters on the critically damped
+   spring (--spring, response 0.30) with the fade on the brand curve, and it
+   leaves along the SAME path back into the trigger (R7.1).
+
+   Written as CSS transitions between two states rather than as an in and an
+   out @keyframes, because a transition starts from the value on screen: close
+   a menu mid-open and it turns round where it is, re-open it mid-close and it
+   comes back from there (R3.2). Keyframes restart from their `from` - the
+   snap the skill forbids. The entry's start values come from @starting-style.
+
+   Radix keeps a closing surface mounted only while an ANIMATION runs on it
+   (its Presence reads animation-name), and it cannot see a transition - so the
+   closed state also runs `overlay-hold`, a keyframe that animates nothing and
+   lasts exactly as long as the exit. It is the unmount timer, nothing more.
+
+   Reduced motion (decision 3): the scale goes (--pop-from-scale: 1), the fade
+   stays. The global reduce blocks exempt `.overlay-motion` so the fade and the
+   hold survive them.
+   ========================================================================== */
+
+.ui-pop, .ui-menu {
+  z-index: var(--z-popover);
+  max-width: calc(100vw - 16px);
+  max-height: var(--radix-popper-available-height, 60vh);
+  overflow-y: auto;
+  background: var(--surface-4);
+  color: var(--fg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  transform-origin: var(--radix-popper-transform-origin);
+  --pop-from-scale: .96;
+  opacity: 1;
+  scale: 1;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    scale var(--spring-dur-s) var(--spring);
+}
+@starting-style {
+  .ui-pop[data-state='open'], .ui-menu[data-state='open'] { opacity: 0; scale: var(--pop-from-scale); }
+}
+.ui-pop[data-state='closed'], .ui-menu[data-state='closed'] {
+  opacity: 0;
+  scale: var(--pop-from-scale);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-exit) var(--ease-exit),
+    scale var(--spring-dur-s) var(--spring);
+  animation: overlay-hold var(--dur-exit) linear;
+}
+/* The unmount timer described above - shared with ui/Dialog. */
+@keyframes overlay-hold { from { visibility: visible; } to { visibility: visible; } }
+
+.ui-pop { padding: 10px; }
+.ui-pop-match { width: max(var(--radix-popper-anchor-width), 320px); padding: 4px; }
+
+/* A tooltip: the inverted pair (foreground as background) - it reads as an
+   overlay rather than another card. Never takes the pointer, never scrolls. */
+.ui-pop.ui-pop-tip {
+  z-index: var(--z-tooltip);
+  padding: 6px 9px; overflow: visible;
+  width: max-content; max-width: min(280px, calc(100vw - 16px));
+  background: var(--fg); color: var(--bg); border: 0; border-radius: var(--r-sm);
+  box-shadow: var(--shadow-2);
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
+  pointer-events: none;
+  --pop-from-scale: .98;
+}
+
+/* Rows inside a popover that behaves as a list (the Settings search listbox). */
+.ui-pop-row {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer;
+  min-height: var(--hit);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
+}
+.ui-pop-row[aria-selected='true'] { background: var(--surface-3); color: var(--fg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-pop, .ui-menu { --pop-from-scale: 1; }
+}
+html[data-motion='reduce'] :is(.ui-pop, .ui-menu) { --pop-from-scale: 1; }

@@ -16,6 +16,14 @@
 // warning that every file in it will turn out to have no Edit button) and
 // `.fx-hbtn` is the app's icon button. What is new is the path box.
 //
+// ── ON ui/Popover SINCE BATCH 3 (design audit SYS-5, 2026-09-22) ─────────────
+//
+// It was an absolutely positioned div with its own outside-press and Escape
+// listeners (and one Escape bug, FL-2, fixed in batch 1). The primitive owns all
+// of that now - Escape from anywhere inside closes it and returns focus to the
+// button - and it portals, so the panel header no longer clips it, and it grows
+// out of the button it belongs to.
+//
 // ── THE COMPLETIONS COST NOTHING ────────────────────────────────────────────
 //
 // They are drawn from the listing the panel ALREADY HOLDS - the same
@@ -26,6 +34,7 @@
 // honest; suggesting from a stale copy would not be.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Popover } from '../../components/ui/Popover';
 import { ChevronDown, CornerDownLeft, FolderTree, Lock } from 'lucide-react';
 import type { FileRoot, TreeFile } from '../../lib/files';
 import { Button } from '../../components/ui/Button';
@@ -66,40 +75,12 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(scope);
-  const box = useRef<HTMLDivElement | null>(null);
   const input = useRef<HTMLInputElement | null>(null);
-  const trigger = useRef<HTMLButtonElement | null>(null);
-  // Escape closes from ANYWHERE inside, and hands focus back to the button that
-  // opened it when focus was inside - otherwise the popover unmounts under the
-  // focused element and the keyboard lands on <body> (design audit FL-2).
-  const dismiss = () => {
-    const inside = !!box.current?.contains(document.activeElement);
-    setOpen(false);
-    if (inside) trigger.current?.focus();
-  };
 
   // The draft follows the real scope while the popover is SHUT. Reopening on a
   // half-typed path from three folders ago is the popover remembering something
   // the user abandoned; while it is open the draft is theirs.
   useEffect(() => { if (!open) setDraft(scope); }, [open, scope]);
-  useEffect(() => { if (open) input.current?.select(); }, [open]);
-
-  // Close on Escape and on a click outside. `pointerdown` rather than `click`,
-  // so pressing a control elsewhere on the page does not first have to survive a
-  // popover that is still open on top of it.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!box.current?.contains(e.target as globalThis.Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(); };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   const hints = useMemo(() => {
     const all = dirsOf(entries);
@@ -119,23 +100,28 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
   const label = scope ? `${root}/${scope}` : root;
 
   return (
-    <div className="rd-scope" ref={box}>
-      <button
-        type="button"
-        className="rd-scope-btn"
-        ref={trigger}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => setOpen((v) => !v)}
-        title={`Looking in ${label} - choose a root or a folder`}
+    <div className="rd-scope">
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        align="end"
+        label="Where to look"
+        initialFocus={input}
+        // `bothy-files` because the panel is portalled out of the page, and the
+        // chips and the path box inside it are styled under that scope.
+        className="bothy-files rd-scope-pop"
+        trigger={(
+          <button
+            type="button"
+            className="rd-scope-btn"
+            title={`Looking in ${label} - choose a root or a folder`}
+          >
+            <FolderTree size={13} aria-hidden="true" />
+            <span className="rd-scope-lbl mono">{label}</span>
+            <ChevronDown size={12} className="rd-scope-chev" aria-hidden="true" />
+          </button>
+        )}
       >
-        <FolderTree size={13} aria-hidden="true" />
-        <span className="rd-scope-lbl mono">{label}</span>
-        <ChevronDown size={12} className="rd-scope-chev" aria-hidden="true" />
-      </button>
-
-      {open && (
-        <div className="rd-scope-pop" role="dialog" aria-label="Where to look">
           {roots.length > 1 && (
             <>
               <p className="rd-scope-h">Root</p>
@@ -173,12 +159,8 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') { e.preventDefault(); go(root, draft); }
-                // Stop Escape reaching the page's own handlers, which would
-                // close something behind the popover as well - and close THIS
-                // one here, since stopping it also stops the document listener
-                // above. Stopping it without closing was the bug: Escape in the
-                // field, the one place focus always is, did nothing at all.
-                if (e.key === 'Escape') { e.stopPropagation(); dismiss(); }
+                // Escape is the primitive's: it closes from anywhere inside and
+                // puts focus back on the button (FL-2).
               }}
             />
             <button
@@ -216,8 +198,7 @@ export function ScopePicker({ roots, root, scope, entries, onGo }: {
               Show all of {root}
             </Button>
           )}
-        </div>
-      )}
+      </Popover>
     </div>
   );
 }

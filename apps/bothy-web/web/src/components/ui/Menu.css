@@ -1,46 +1,36 @@
-/* Menu - one CSS contract for menus (design audit SYS-5): the raised surface,
-   the strong hairline, the large radius, 6px off the trigger (set in Menu.tsx),
-   rows at --fs-sm-ish 13px with 8/10px padding.
-
-   z-index 95: above ui/Dialog (90/91), because a menu opened from inside a
-   dialog has to draw over it, and below nothing else - a menu is always the
-   top-most thing while it is open. */
+/* Menu rows. The surface, the z-index and the motion are Popover.css - one
+   contract for everything that floats (design audit SYS-5). */
 .ui-menu {
-  z-index: 95;
   min-width: 220px;
-  /* Never wider than the viewport minus the 8px collision padding each side,
-     and never taller than the room Radix measured on the side it chose. */
-  max-width: calc(100vw - 16px);
-  max-height: var(--radix-dropdown-menu-content-available-height);
-  overflow-y: auto;
   padding: 4px;
-  background: var(--surface-4);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-3);
-  /* Grows out of the trigger, not out of its own centre (R7.2). */
-  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
-  animation: ui-menu-in var(--dur-fast) var(--ease);
 }
 
 .ui-menu-item {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border-radius: var(--r-sm);
-  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg); min-height: var(--hit);
-  white-space: nowrap; cursor: pointer; user-select: none;
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted); min-height: var(--hit);
+  white-space: nowrap; cursor: pointer; user-select: none; text-decoration: none;
   outline: none;
 }
-.ui-menu-item svg { flex: none; color: var(--fg-muted); }
+.ui-menu-ico { flex: none; display: grid; place-items: center; width: var(--icon-sm); color: var(--fg-subtle); }
+.ui-menu-ico svg, .ui-menu-item > svg { flex: none; }
+.ui-menu-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ui-menu-sub { font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); white-space: normal; }
+.ui-menu-trail { flex: none; display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; }
+.ui-menu-trail .kbd { font-size: var(--fs-2xs); padding: 0 4px; }
+/* A fixed gutter for the radio tick, so names line up whether or not a row is
+   the chosen one - without it the list re-indents as you change theme. */
+.ui-menu-mark { flex: none; width: 13px; height: 13px; display: inline-grid; place-items: center; color: var(--accent-fg); }
+
 /* Radix moves real focus onto the highlighted row (roving focus), so the
    highlight IS the focus indicator - drawn as the row background plus an inset
    ring for the keyboard, because an outset ring would be clipped by the menu's
    own 4px padding. */
-.ui-menu-item[data-highlighted] { background: var(--surface-3); }
+.ui-menu-item[data-highlighted] { background: var(--surface-3); color: var(--fg); }
+.ui-menu-item[data-state='checked'] { color: var(--fg); }
 .ui-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.ui-menu-item[data-disabled] { color: var(--fg-subtle); cursor: not-allowed; }
+.ui-menu-item[data-disabled], .ui-menu-item[data-soft-disabled] { color: var(--fg-subtle); cursor: not-allowed; }
 
-@keyframes ui-menu-in {
-  from { opacity: 0; scale: .96; }
-  to   { opacity: 1; scale: 1; }
-}
-
+.ui-menu-sep { height: 1px; margin: 4px 2px; background: var(--line); }
+.ui-menu-head { padding: 8px 10px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.ui-menu-foot { padding: 2px 10px 4px; font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); }
