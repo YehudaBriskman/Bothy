@@ -11,6 +11,7 @@ import {
 } from '../lib/systems';
 import { SystemMatrix, type MatrixGroup } from '../components/SystemMatrix';
 import { SystemDialog } from '../components/SystemDialog';
+import { useLingering } from '../components/ui/Dialog';
 import { QuickView } from '../components/QuickView';
 import { Vitals } from '../components/Vitals';
 import { TopContainers } from '../components/TopContainers';
@@ -404,6 +405,10 @@ export function Overview() {
     () => systems.find((s) => s.key === openKey) ?? null,
     [systems, openKey],
   );
+  // What the dialog draws while it animates OUT, after openKey went null - and
+  // keeping it the same element is what lets a quick re-open reverse the exit
+  // instead of starting a new entrance (SYS-4, R3.2).
+  const shownSystem = useLingering(openSystem);
   const { stack, project } = useMemo(() => uiPorts(data.nodes), [data.nodes]);
   // Computed once and shared: the hero's count, the strip's list and the
   // matrix's per-system flag all read from this one result.
@@ -568,7 +573,7 @@ export function Overview() {
       </div>
 
       <SystemDialog
-        system={openSystem}
+        system={shownSystem}
         open={openSystem != null}
         onOpenChange={(o) => !o && setOpenKey(null)}
       />

@@ -468,15 +468,16 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; pad
 .set-shell .set-mobile-bar { display: none; }
 
 .set-drawer-overlay {
-  position: fixed; inset: 0; z-index: 90;
+  position: fixed; inset: 0; z-index: var(--z-modal);
   background: var(--scrim);
 }
 .set-drawer {
-  position: fixed; z-index: 91; top: 0; bottom: 0; left: 0;
+  position: fixed; z-index: calc(var(--z-modal) + 1); top: 0; bottom: 0; left: 0;
   width: min(320px, 88vw);
   display: flex; flex-direction: column;
   background: var(--surface-4); border-right: 1px solid var(--line-strong); box-shadow: var(--shadow-4);
-  animation: set-drawer-in var(--dur) var(--ease);
+  /* Motion: ui/Dialog.css - it slides in from this edge and back out to it on
+     the spring (decision 10: the drawer is a dialog). */
 }
 .set-drawer:focus-visible { outline: none; }
 .set-drawer .set-drawer-head {
@@ -486,7 +487,6 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; pad
 .set-drawer .set-drawer-title { margin: 0; font-size: 15px; font-weight: 700; }
 .set-drawer .set-drawer-x { width: 36px; height: 36px; }
 .set-drawer .set-drawer-body { min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 14px; }
-@keyframes set-drawer-in { from { translate: -24px 0; opacity: 0; } to { translate: 0 0; opacity: 1; } }
 
 @media (max-width: 900px) {
   .shell:has(.set-shell) { height: auto; min-height: 100vh; overflow: visible; }
@@ -515,6 +515,5 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; pad
   .set-shell .set-filters .set-field { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .set-drawer { animation: none; }
   .set-shell .set-block-chev, .set-shell .set-block { transition: none; }
 }

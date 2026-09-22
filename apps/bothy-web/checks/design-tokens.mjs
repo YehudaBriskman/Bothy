@@ -300,9 +300,9 @@ console.log('\n── hit targets, the elevation ladder, the scrim ────�
   for (const f of cssFiles) for (const { sel, body } of rules(readFileSync(f, 'utf8'))) {
     for (const [p, v] of decls(body)) if (p === 'backdrop-filter' && !/^var\(--mat-/.test(v) && v !== 'none') blur.push(`${rel(f)}: ${sel.slice(0, 40)}`);
   }
-  say(blur.length === 0, 'every backdrop-filter is a --mat-* material (top bar, palette scrim) - decision 4', blur.join('; '));
+  say(blur.length === 0, 'every backdrop-filter is a --mat-* material (top bar, palette) - decision 4', blur.join('; '));
   const rt = rules(INDEX).find((r) => /prefers-reduced-transparency/.test(r.media));
-  say(!!rt && /--mat-chrome-blur:\s*none/.test(rt.body) && /--mat-scrim-blur:\s*none/.test(rt.body), 'reduced transparency makes both materials solid');
+  say(!!rt && /--mat-chrome-blur:\s*none/.test(rt.body) && /--mat-palette-blur:\s*none/.test(rt.body) && /--mat-palette-bg:\s*var\(--surface-4\)/.test(rt.body), 'reduced transparency makes both materials solid (top bar, palette)');
   const hc = rules(INDEX).find((r) => /prefers-contrast:\s*more/.test(r.media));
   say(!!hc && /--line:/.test(hc.body) && /--line-strong:/.test(hc.body), 'prefers-contrast: more strengthens the lines');
   const oldScrim = cssFiles.filter((f) => /background:\s*color-mix\(in oklab,\s*var\(--bg\)\s*\d+%,\s*transparent\)/.test(stripCss(readFileSync(f, 'utf8')))

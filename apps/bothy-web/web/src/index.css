@@ -353,7 +353,10 @@
      under prefers-reduced-transparency (the media block near the end). */
   --mat-chrome-bg: color-mix(in oklab, var(--bg) 78%, transparent);
   --mat-chrome-blur: blur(14px) saturate(1.2);
-  --mat-scrim-blur: blur(3px);
+  /* The palette panel: --surface-4 at 82%, with a heavier blur than the bar
+     because it is the bigger, nearer surface (R12.3). */
+  --mat-palette-bg: color-mix(in oklab, var(--surface-4) 82%, transparent);
+  --mat-palette-blur: blur(24px) saturate(1.4);
 
   /* ── scroll affordance ───────────────────────────────────────────────────
      Used by .scroll-shade (the inner top/bottom shadows) and by the scrollbar
@@ -1214,6 +1217,13 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
 
+/* ── the overlay unmount timer ───────────────────────────────────────────────
+   Every overlay's motion is a TRANSITION (so it can turn round mid-flight), but
+   Radix's Presence keeps a closing surface mounted only while an ANIMATION runs
+   on it. The closed state of ui/Dialog, ui/Popover and ui/Menu therefore also
+   runs this: it animates nothing and lasts as long as the exit. */
+@keyframes overlay-hold { from { visibility: visible; } to { visibility: visible; } }
+
 /* ── tooltip ─────────────────────────────────────────────────────────────────
    The bubble is ui/Popover's (Popover.css, `.ui-pop-tip`): the inverted pair,
    portalled, collision-aware, growing out of its control. Only the anchor is
@@ -1227,10 +1237,19 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 /* The scrim and the panel are SIBLINGS since the palette moved onto ui/Dialog's
    DialogSurface (Radix renders Overlay and Content side by side), so the panel
    positions itself rather than being centred by a grid on the scrim. */
-.cmdk-scrim { position: fixed; inset: 0; z-index: 80; background: var(--scrim);
-  backdrop-filter: var(--mat-scrim-blur); }
-.cmdk { position: fixed; z-index: 81; top: 12vh; left: 50%; translate: -50% 0;
-  width: min(560px, calc(100vw - 32px)); background: var(--surface-4); border: 1px solid var(--line-strong);
+.cmdk-scrim { position: fixed; inset: 0; z-index: var(--z-modal); background: var(--scrim); }
+/* THE PALETTE IS A MATERIAL (decision 4, R12.1): one of the two translucent
+   surfaces in the app, with the top bar. The page shows through it, dimmed by
+   the scrim and blurred by the panel - which is also why the scrim no longer
+   blurs: two blurs stacked is the "light translucent on light translucent" the
+   skill warns about (R12.2). Its rows sit on --mat-palette-bg, so the selected
+   row and the text are measured against the SOLID fallback's colour, and
+   prefers-reduced-transparency swaps that fallback in (the block near the end).
+   Motion: Dialog.css. */
+.cmdk { position: fixed; z-index: calc(var(--z-modal) + 1); top: 12vh; left: 50%; translate: -50% 0;
+  width: min(560px, calc(100vw - 32px));
+  background: var(--mat-palette-bg); backdrop-filter: var(--mat-palette-blur);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-lg); box-shadow: var(--shadow-4); overflow: hidden;
   display: flex; flex-direction: column; max-height: 62vh; }
 .cmdk-in { display: flex; align-items: center; gap: 10px; padding: 12px 14px;
@@ -1479,7 +1498,8 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
   :root {
     --mat-chrome-bg: var(--bg);
     --mat-chrome-blur: none;
-    --mat-scrim-blur: none;
+    --mat-palette-bg: var(--surface-4);
+    --mat-palette-blur: none;
   }
 }
 
@@ -1496,6 +1516,8 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
     --fg-subtle: var(--fg-muted);
     --mat-chrome-bg: var(--bg);
     --mat-chrome-blur: none;
+    --mat-palette-bg: var(--surface-4);
+    --mat-palette-blur: none;
   }
 }
 

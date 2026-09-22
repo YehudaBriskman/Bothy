@@ -22,8 +22,8 @@
 
    Radix keeps a closing surface mounted only while an ANIMATION runs on it
    (its Presence reads animation-name), and it cannot see a transition - so the
-   closed state also runs `overlay-hold`, a keyframe that animates nothing and
-   lasts exactly as long as the exit. It is the unmount timer, nothing more.
+   closed state also runs `overlay-hold` (index.css), a keyframe that animates
+   nothing and lasts exactly as long as the exit. It is the unmount timer.
 
    Reduced motion (decision 3): the scale goes (--pop-from-scale: 1), the fade
    stays. The global reduce blocks exempt `.overlay-motion` so the fade and the
@@ -60,8 +60,6 @@
     scale var(--spring-dur-s) var(--spring);
   animation: overlay-hold var(--dur-exit) linear;
 }
-/* The unmount timer described above - shared with ui/Dialog. */
-@keyframes overlay-hold { from { visibility: visible; } to { visibility: visible; } }
 
 .ui-pop { padding: 10px; }
 .ui-pop-match { width: max(var(--radix-popper-anchor-width), 320px); padding: 4px; }
