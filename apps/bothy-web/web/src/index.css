@@ -731,6 +731,55 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .rule { color: var(--fg-muted); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbl a { color: var(--accent); }
 
+/* ── a narrow table is a list of cards (SYS-17) ──────────────────────────── */
+/* At 390 a seven-column table is a sideways scroll, and the columns it hides
+   are the ones that matter: Services hid Status, Group and Kind; Cluster › Pods
+   put Logs and Delete off-screen; Audit put a 647px table in a 330px scroller
+   and broke emails mid-token. Settings › Updates already solved it - the rule
+   below is that pattern, promoted out of settings.css so every table can wear
+   it by adding `as-cards`.
+   The contract for a table that opts in:
+     - every cell that needs its column name carries `data-label`;
+     - the cell that IDENTIFIES the row, and any cell holding only controls,
+       carries none, and runs the full width of the card.
+   The label is a grid item in column 1 row 1, not a `span`, so a cell with
+   several children stacks them under one label instead of breaking the grid. */
+@media (max-width: 640px) {
+  .tbl.as-cards thead { display: none; }
+  .tbl.as-cards,
+  .tbl.as-cards > tbody,
+  .tbl.as-cards > tbody > tr,
+  .tbl.as-cards > tbody > tr > td { display: block; }
+  /* A `min-width` that made the table scroll sideways inside its wrapper on a
+     wide-but-not-wide-enough screen would, once the table is a block, push the
+     PAGE that wide instead. */
+  .tbl.as-cards { min-width: 0; table-layout: auto; }
+  .tbl.as-cards > tbody > tr {
+    padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line);
+  }
+  .tbl.as-cards > tbody > tr:last-child { border-bottom: 0; }
+  .tbl.as-cards > tbody > tr > td {
+    border-bottom: 0; padding: var(--sp-1) 0; min-width: 0; width: auto;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+  .tbl.as-cards td[data-label] {
+    display: grid; grid-template-columns: minmax(0, 5.5rem) minmax(0, 1fr);
+    column-gap: var(--sp-2_5);
+  }
+  .tbl.as-cards td[data-label] > * { grid-column: 2; }
+  .tbl.as-cards td[data-label]::before {
+    content: attr(data-label); grid-column: 1; grid-row: 1;
+    font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--label-tracking);
+    text-transform: uppercase; font-weight: var(--fw-semibold); color: var(--fg-subtle);
+  }
+  /* An empty-state row is one cell talking about the whole table, so it keeps
+     its centred padding rather than becoming a card. */
+  .tbl.as-cards > tbody > tr > td.tbl-empty { padding: var(--sp-8) var(--sp-4) !important; }
+  /* A cell whose content is wider than the card (an image reference, a long
+     path) scrolls in ITSELF rather than taking the page sideways with it. */
+  .tbl.as-cards td .mono, .tbl.as-cards td.mono { max-width: 100%; }
+}
+
 /* ── states / skeleton ───────────────────────────────────────────────────── */
 /* 56px of padding made "no results" as prominent as the content it replaced -
    an empty state is a note, not an announcement. `.state.err` keeps the larger
@@ -1114,6 +1163,18 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
    and .pt were deleted 2026-09-21 (SYS-15). */
 
 /* ── service table rows ──────────────────────────────────────────────────── */
+/* `table-layout: fixed` is what makes the <colgroup> in ServiceTable binding;
+   without it the browser still sizes from content and two stacked groups do
+   not line up (CT-16). The min-width keeps the old behaviour on a narrow
+   DESKTOP - the wrapper scrolls rather than the columns crushing - and the
+   as-cards rule above resets it once the table stops being a table. */
+.svc-tbl { table-layout: fixed; min-width: 44rem; }
+.svc-col-status { width: 7.5rem; }
+.svc-col-group { width: 9rem; }
+.svc-col-kind { width: 6.5rem; }
+.svc-col-ports { width: 7rem; }
+.svc-col-act { width: 34px; }
+.svc-col-open { width: 40px; }
 .svc-tbl td { vertical-align: middle; }
 .svc-tbl.compact td { padding: var(--sp-1_5) var(--sp-3_5); }
 .svc-tr:hover { background: var(--surface-2); }
@@ -1125,6 +1186,18 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
 .svc-td-open a:hover { color: var(--accent); }
 .tag.link { color: var(--accent); }
 .tag.link:hover { border-color: var(--accent); }
+/* As a card, a service row leads with its name and ends with its two controls
+   on one line - the action button and the open-in-new link stacked one above
+   the other would read as two unrelated rows. */
+@media (max-width: 640px) {
+  .svc-tbl > tbody > tr > td.svc-td-name { padding-bottom: var(--sp-1_5); }
+  .svc-tbl > tbody > tr > td.svc-td-act,
+  .svc-tbl > tbody > tr > td.svc-td-open {
+    display: inline-block; vertical-align: middle; width: auto; padding-top: var(--sp-1_5);
+  }
+  .svc-tbl > tbody > tr > td.svc-td-open { padding-left: var(--sp-2); }
+  .svc-tbl .svc-td-img { white-space: normal; }
+}
 
 /* ── overview ──────────────────────────────────────────────────────────────
    Lives in pages/Overview.css. Eight .ov-* rules used to be declared here AND

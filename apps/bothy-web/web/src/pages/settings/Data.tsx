@@ -91,7 +91,7 @@ function RetentionBlock() {
   ];
   return (
     <div className="tbl-wrap scroll-shade set-tbl">
-      <table className="tbl">
+      <table className="tbl as-cards">
         <thead>
           <tr><th scope="col">History</th><th scope="col">Kept for</th><th scope="col">Declared in</th></tr>
         </thead>
@@ -99,11 +99,11 @@ function RetentionBlock() {
           {rows.map((x) => (
             <tr key={x.what}>
               <td><b>{x.what}</b><span className="set-cell-sub">{x.who}</span></td>
-              <td>
+              <td data-label="Kept for">
                 {x.r ? <><b className="tnum">{x.r.human}</b> <span className="mono dim">{x.r.value}</span></> : <span className="dim">not found in the file</span>}
                 <span className="set-cell-sub">{x.note}</span>
               </td>
-              <td>
+              <td data-label="Declared in">
                 <Link className="link mono" to={filesHref('read', 'stacks', x.file)}>{x.file}</Link>
                 {x.r && <span className="set-cell-sub">line {x.r.line}</span>}
               </td>
@@ -150,7 +150,7 @@ function LocalData() {
   return (
     <>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl">
+        <table className="tbl as-cards">
           <thead>
             <tr><th scope="col">Key</th><th scope="col">What it holds</th><th scope="col" className="num">Size</th><th scope="col"><span className="sr-only">Clear</span></th></tr>
           </thead>
@@ -158,8 +158,8 @@ function LocalData() {
             {present.map((p) => (
               <tr key={p.key}>
                 <td className="mono">{p.key}</td>
-                <td>{known.get(p.key)?.what ?? <span className="dim">not a key this version of Bothy uses</span>}</td>
-                <td className="num tnum">{p.bytes} B</td>
+                <td data-label="Holds">{known.get(p.key)?.what ?? <span className="dim">not a key this version of Bothy uses</span>}</td>
+                <td className="num tnum" data-label="Size">{p.bytes} B</td>
                 <td className="set-cell-act">
                   <Button variant="ghost" size="sm" onClick={() => clear([p.key])} aria-label={`Clear ${p.key}`}>Clear</Button>
                 </td>

@@ -101,7 +101,7 @@ function AuditBody() {
             </p>
           ) : (
             <div className={`tbl-wrap scroll-shade set-tbl set-tbl-scroll ${loading ? 'is-loading' : ''}`}>
-              <table className="tbl set-audit">
+              <table className="tbl as-cards set-audit">
                 <thead>
                   <tr>
                     <th scope="col">When</th><th scope="col">Who</th><th scope="col">Outcome</th>
@@ -112,11 +112,11 @@ function AuditBody() {
                   {data.entries.map((e, i) => (
                     <tr key={`${e.at}-${i}`}>
                       <td className="set-nowrap"><When iso={e.at} /><span className="set-cell-sub">{LOGS.find((l) => l.id === e.log)?.label}</span></td>
-                      <td className="set-wrap">{e.who}</td>
-                      <td><span className={`set-outcome mono ${/REFUSED|FAILED|ERROR/.test(e.outcome) ? 'is-bad' : ''}`}>{e.outcome}</span></td>
-                      <td className="mono">{e.action}{e.kind && e.kind !== 'admin' && <span className="set-cell-sub">{e.kind}</span>}</td>
-                      <td className="mono set-wrap">{e.target || <span className="dim">-</span>}</td>
-                      <td className="set-wrap set-detail">{e.detail}{e.tookMs != null && <span className="set-cell-sub tnum">{e.tookMs} ms</span>}</td>
+                      <td className="set-wrap" data-label="Who">{e.who}</td>
+                      <td data-label="Outcome"><span className={`set-outcome mono ${/REFUSED|FAILED|ERROR/.test(e.outcome) ? 'is-bad' : ''}`}>{e.outcome}</span></td>
+                      <td className="mono" data-label="Action">{e.action}{e.kind && e.kind !== 'admin' && <span className="set-cell-sub">{e.kind}</span>}</td>
+                      <td className="mono set-wrap" data-label="On">{e.target || <span className="dim">-</span>}</td>
+                      <td className="set-wrap set-detail" data-label="Detail">{e.detail}{e.tookMs != null && <span className="set-cell-sub tnum">{e.tookMs} ms</span>}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -90,7 +90,7 @@ function Targets() {
         <Button variant="ghost" size="sm" onClick={reload}>Refresh</Button>
       </div>
       <div className="tbl-wrap scroll-shade set-tbl set-tbl-scroll">
-        <table className="tbl">
+        <table className="tbl as-cards">
           <thead>
             <tr><th scope="col">State</th><th scope="col">Job</th><th scope="col">Instance</th><th scope="col" className="num">Scrape took</th></tr>
           </thead>
@@ -98,9 +98,9 @@ function Targets() {
             {rows.map((t) => (
               <tr key={`${t.job}|${t.instance}`}>
                 <td><StatusIcon status={t.up ? 'up' : 'down'} showLabel /></td>
-                <td className="mono">{t.job}</td>
-                <td className="mono set-wrap">{t.instance}</td>
-                <td className="num tnum">{t.duration == null ? '-' : `${(t.duration * 1000).toFixed(0)} ms`}</td>
+                <td className="mono" data-label="Job">{t.job}</td>
+                <td className="mono set-wrap" data-label="Instance">{t.instance}</td>
+                <td className="num tnum" data-label="Scrape took">{t.duration == null ? '-' : `${(t.duration * 1000).toFixed(0)} ms`}</td>
               </tr>
             ))}
           </tbody>
@@ -134,7 +134,7 @@ function Rules() {
           <div key={g} className="set-subsection">
             <h3 className="set-h3">{g} <span className="set-h3-sub">evaluated every {rules[0]?.interval ?? '?'}</span></h3>
             <div className="tbl-wrap scroll-shade set-tbl">
-              <table className="tbl">
+              <table className="tbl as-cards">
                 <thead>
                   <tr><th scope="col">Rule</th><th scope="col">Severity</th><th scope="col">Fires after</th><th scope="col">Says</th></tr>
                 </thead>
@@ -142,9 +142,9 @@ function Rules() {
                   {rules.map((r) => (
                     <tr key={r.uid}>
                       <td><b>{r.title}</b><span className="set-cell-sub mono">{r.uid} · line {r.line}</span></td>
-                      <td className="mono">{r.severity ?? '-'}</td>
-                      <td className="tnum">{r.for ?? 'at once'}</td>
-                      <td className="set-wrap">{r.summary ?? <span className="dim">no summary</span>}</td>
+                      <td className="mono" data-label="Severity">{r.severity ?? '-'}</td>
+                      <td className="tnum" data-label="Fires after">{r.for ?? 'at once'}</td>
+                      <td className="set-wrap" data-label="Says">{r.summary ?? <span className="dim">no summary</span>}</td>
                     </tr>
                   ))}
                 </tbody>

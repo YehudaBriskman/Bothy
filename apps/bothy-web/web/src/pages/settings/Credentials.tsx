@@ -63,7 +63,7 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
         {' '}A change date is the FILE’s: .env does not record when one key changed.
       </p>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl set-creds">
+        <table className="tbl as-cards set-creds">
           <thead>
             <tr><th scope="col">Key</th><th scope="col">State</th><th scope="col">For, and read by</th><th scope="col">Rotate</th></tr>
           </thead>
@@ -74,16 +74,16 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
               return (
                 <tr key={k.key}>
                   <td className="mono set-key">{k.key}</td>
-                  <td>
+                  <td data-label="State">
                     <span className={`set-state ${st.warn ? 'set-warn' : ''}`}>
                       {st.warn && <Icon icon={AlertTriangle} size="sm" />}{st.word}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="For">
                     {k.purpose ?? (unused ? <span className="dim">Nothing in the repository reads this key - a leftover.</span> : <span className="dim">No description.</span>)}
                     {!unused && <span className="set-cell-sub mono">{k.usedBy.slice(0, 4).join(' · ')}{k.usedBy.length > 4 ? ` +${k.usedBy.length - 4}` : ''}</span>}
                   </td>
-                  <td className="set-rotate">{k.rotate ? <Prose text={k.rotate} /> : <span className="dim">{unused ? 'Remove it from .env.' : 'No recorded procedure.'}</span>}</td>
+                  <td className="set-rotate" data-label="Rotate">{k.rotate ? <Prose text={k.rotate} /> : <span className="dim">{unused ? 'Remove it from .env.' : 'No recorded procedure.'}</span>}</td>
                 </tr>
               );
             })}
@@ -102,7 +102,7 @@ function EnvKeys({ d }: { d: CredentialsResult }) {
 function Files({ d }: { d: CredentialsResult }) {
   return (
     <div className="tbl-wrap scroll-shade set-tbl">
-      <table className="tbl set-creds">
+      <table className="tbl as-cards set-creds">
         <thead>
           <tr><th scope="col">File</th><th scope="col">Mode</th><th scope="col">Changed</th><th scope="col">For, and read by</th><th scope="col">Rotate</th></tr>
         </thead>
@@ -112,15 +112,15 @@ function Files({ d }: { d: CredentialsResult }) {
             return (
               <tr key={f.id}>
                 <td className="mono set-key">{f.path}</td>
-                <td>
+                <td data-label="Mode">
                   {f.present === false ? <span className="dim">absent</span>
                     : f.present === null ? <span className="dim">unreadable</span>
                       : <span className={`mono ${off ? 'set-warn' : ''}`}>{off && <Icon icon={AlertTriangle} size="sm" />}{f.actualMode}</span>}
                   {off && <span className="set-cell-sub">expected {f.expectMode}</span>}
                 </td>
-                <td>{f.present ? <When iso={f.changed} /> : <span className="dim">-</span>}</td>
-                <td>{f.purpose}<span className="set-cell-sub mono">{f.usedBy.join(' · ')}</span></td>
-                <td className="set-rotate"><Prose text={f.rotate} /></td>
+                <td data-label="Changed">{f.present ? <When iso={f.changed} /> : <span className="dim">-</span>}</td>
+                <td data-label="For">{f.purpose}<span className="set-cell-sub mono">{f.usedBy.join(' · ')}</span></td>
+                <td className="set-rotate" data-label="Rotate"><Prose text={f.rotate} /></td>
               </tr>
             );
           })}
@@ -134,7 +134,7 @@ function Clients({ d }: { d: CredentialsResult }) {
   return (
     <>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl set-creds">
+        <table className="tbl as-cards set-creds">
           <thead>
             <tr><th scope="col">Client</th><th scope="col">Secret kept in</th><th scope="col">Changed</th><th scope="col">For</th></tr>
           </thead>
@@ -142,9 +142,9 @@ function Clients({ d }: { d: CredentialsResult }) {
             {d.clients.map((c) => (
               <tr key={c.id}>
                 <td className="mono set-key">{c.id}<span className="set-cell-sub">realm {c.realm}</span></td>
-                <td className="mono">{c.set ? c.where : <span className="dim">{c.where} - not present</span>}</td>
-                <td>{c.set ? <When iso={c.changed} /> : <span className="dim">-</span>}</td>
-                <td>{c.purpose}</td>
+                <td className="mono" data-label="Secret kept in">{c.set ? c.where : <span className="dim">{c.where} - not present</span>}</td>
+                <td data-label="Changed">{c.set ? <When iso={c.changed} /> : <span className="dim">-</span>}</td>
+                <td data-label="For">{c.purpose}</td>
               </tr>
             ))}
           </tbody>

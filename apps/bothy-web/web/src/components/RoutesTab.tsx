@@ -171,7 +171,7 @@ export function RoutesTab({
       )}
 
       <div className="tbl-wrap scroll-shade" tabIndex={0} role="region" aria-label="Traefik routers">
-        <table className="tbl">
+        <table className="tbl as-cards">
           <thead>
             <tr>
               {COLS.map(([k, label]) => (
@@ -188,13 +188,16 @@ export function RoutesTab({
                 </td>
               </tr>
             ) : rows.map(({ router: r, name, provider: prov, service, target, state }) => (
+              // data-label drives the card layout at 640px and below (SYS-17).
+              // The router name is the row's identity, so it heads the card
+              // without a label of its own.
               <tr key={r.name}>
                 <td className="mono">{name}</td>
-                <td className="mono rule" title={r.rule}>{r.rule}</td>
-                <td className="mono">{prov}</td>
-                <td className="mono">{service}</td>
-                <td className="mono">{target}</td>
-                <td>{stateTag(state, r.status)}</td>
+                <td className="mono rule" data-label="Rule" title={r.rule}>{r.rule}</td>
+                <td className="mono" data-label="Provider">{prov}</td>
+                <td className="mono" data-label="Service">{service}</td>
+                <td className="mono" data-label="Target">{target}</td>
+                <td data-label="State">{stateTag(state, r.status)}</td>
               </tr>
             ))}
           </tbody>

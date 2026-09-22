@@ -48,7 +48,7 @@ function Sets({ d }: { d: BackupsResult }) {
     return (
       <tr key={s.name}>
         <td><b className="mono">{s.name}</b>{s.what && <span className="set-cell-sub">{s.what}</span>}</td>
-        <td>
+        <td data-label="Newest">
           {s.newest ? (
             <span className={old ? 'set-warn' : ''}>
               {old && <Icon icon={AlertTriangle} size="sm" />}<When iso={s.newest.at} />
@@ -56,9 +56,9 @@ function Sets({ d }: { d: BackupsResult }) {
           ) : <span className="dim">empty</span>}
           {s.newest && <span className="set-cell-sub mono">{s.newest.name} · {fmtBytes(s.newest.bytes)}</span>}
         </td>
-        <td className="num tnum">{s.readable === false ? <span className="dim">unreadable</span> : s.count}</td>
-        <td>{s.oldest ? <When iso={s.oldest.at} /> : <span className="dim">-</span>}</td>
-        <td className="num tnum">{fmtBytes(s.bytes)}</td>
+        <td className="num tnum" data-label="Copies">{s.readable === false ? <span className="dim">unreadable</span> : s.count}</td>
+        <td data-label="Oldest">{s.oldest ? <When iso={s.oldest.at} /> : <span className="dim">-</span>}</td>
+        <td className="num tnum" data-label="Size">{fmtBytes(s.bytes)}</td>
       </tr>
     );
   };
@@ -70,7 +70,7 @@ function Sets({ d }: { d: BackupsResult }) {
         {d.stale && <span className="set-warn"> - stale; the bothy-inventory timer may not be running</span>}.
       </p>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl">
+        <table className="tbl as-cards">
           <thead>
             <tr><th scope="col">Set</th><th scope="col">Newest</th><th scope="col" className="num">Copies</th><th scope="col">Oldest</th><th scope="col" className="num">Size</th></tr>
           </thead>

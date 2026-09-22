@@ -149,7 +149,7 @@ function Remembered() {
   };
   return (
     <div className="tbl-wrap scroll-shade set-tbl">
-      <table className="tbl">
+      <table className="tbl as-cards">
         <thead>
           <tr><th scope="col">What</th><th scope="col">Now</th><th scope="col">Where</th><th scope="col"><span className="sr-only">Reset</span></th></tr>
         </thead>
@@ -157,8 +157,8 @@ function Remembered() {
           {rows.map((r) => (
             <tr key={r.key}>
               <td>{r.what}<span className="set-cell-sub mono">{r.key}</span></td>
-              <td>{r.now}</td>
-              <td>{r.where}</td>
+              <td data-label="Now">{r.now}</td>
+              <td data-label="Where">{r.where}</td>
               <td className="set-cell-act">
                 <Button variant="ghost" size="sm" disabled={!r.set} onClick={() => reset(r.key)}
                   aria-label={`Reset ${r.what.toLowerCase()}`}>

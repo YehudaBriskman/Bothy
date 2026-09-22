@@ -173,7 +173,7 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
   return (
     <>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl upd-tbl">
+        <table className="tbl as-cards upd-tbl">
           <thead>
             <tr>
               <th scope="col">Component</th>
@@ -833,7 +833,7 @@ function History({ d }: { d: UpdatesStatus | null }) {
   }
   return (
     <div className="tbl-wrap scroll-shade set-tbl">
-      <table className="tbl upd-tbl upd-hist">
+      <table className="tbl as-cards upd-tbl upd-hist">
         <thead>
           <tr>
             <th scope="col">When</th>

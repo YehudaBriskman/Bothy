@@ -29,7 +29,10 @@ export function ServiceRow({ node, showGroup = true }: { node: PortalNode; showG
           </span>
         </Link>
       </td>
-      <td>
+      {/* data-label: at 640px and below the row becomes a card (SYS-17). The
+          name cell and the two control cells carry none, so they run the card's
+          full width; every other cell names its column. */}
+      <td data-label="Status">
         <StatusIcon
           status={node.status}
           showLabel
@@ -41,10 +44,10 @@ export function ServiceRow({ node, showGroup = true }: { node: PortalNode; showG
           system `Identity · Keycloak` - the rename reached one surface out of
           three. `groupTitle` is resolved once in discovery, so every surface
           now agrees by construction rather than by remembering. */}
-      {showGroup && <td>{node.groupTitle}</td>}
-      <td><span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span></td>
-      <td className="mono">{node.ports.map((p) => p.hostPort).join(', ') || '-'}</td>
-      <td className="mono svc-td-img">{node.container?.image || '-'}</td>
+      {showGroup && <td data-label="Group">{node.groupTitle}</td>}
+      <td data-label="Kind"><span className={`tag ${kind.bad ? 'bad' : ''}`} title={kind.hint}>{kind.label}</span></td>
+      <td className="mono" data-label="Ports">{node.ports.map((p) => p.hostPort).join(', ') || '-'}</td>
+      <td className="mono svc-td-img" data-label="Image">{node.container?.image || '-'}</td>
       {/* The action control. BEFORE the open-in-new cell rather than after it,
           because "act on this" and "go to this" are different kinds of thing and
           the row should not end on two adjacent icons that both look like exits.

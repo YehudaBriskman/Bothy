@@ -25,7 +25,22 @@ export function ServiceTable({
   return (
     // tabIndex/role so keyboard users can actually scroll the overflow container
     <div className="tbl-wrap scroll-shade" tabIndex={0} role="region" aria-label={label}>
-      <table className={`tbl svc-tbl ${compact ? 'compact' : ''} ${showGroup ? '' : 'no-group'}`}>
+      <table className={`tbl as-cards svc-tbl ${compact ? 'compact' : ''} ${showGroup ? '' : 'no-group'}`}>
+        {/* The fixed template the comment above promises, written down at last
+            (CT-16). Without a colgroup the browser sized each group's table from
+            its own contents, so Status began at x=550 in one panel and x=517 in
+            the next; a page of stacked service tables read as several tables
+            rather than one list. The name and image columns share what is left. */}
+        <colgroup>
+          <col />
+          <col className="svc-col-status" />
+          {showGroup && <col className="svc-col-group" />}
+          <col className="svc-col-kind" />
+          <col className="svc-col-ports" />
+          <col />
+          <col className="svc-col-act" />
+          <col className="svc-col-open" />
+        </colgroup>
         <thead>
           <tr>
             <th>Service</th>

@@ -2,7 +2,10 @@
 // from (topology, status, gating, the allowlist mirrors) is lib/cluster.ts, which
 // checks/run.sh tests on its own.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Children, cloneElement, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  type ReactElement, type ReactNode,
+} from 'react';
 import { History, ListTree, MoreHorizontal, Pencil, Play, RefreshCw, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react';
 import {
   findSpec, kubeGet, kubeRefusalOf,
@@ -63,13 +66,42 @@ function Stale<T>({ read }: { read: ReadState<T> }) {
   );
 }
 
-function Table({ label, head, children, empty }: { label: string; head: ReactNode; children: ReactNode; empty?: string | null }) {
+/** A column: its heading, whether it is numeric, and - for a control column
+ *  that draws no visible heading - the name a screen reader reads instead.
+ *  `label` overrides what the card form calls it, for a heading that is only
+ *  unambiguous under the one above it ("Now", twice, on Pod metrics). */
+type Col = string | { head?: string; num?: boolean; name?: string; label?: string };
+
+function Table({ label, cols, children, empty }: { label: string; cols: Col[]; children: ReactNode; empty?: string | null }) {
+  const heads = cols.map((c) => (typeof c === 'string' ? { head: c } : c));
+  // At 640px and below every .tbl.as-cards row becomes a card and each cell
+  // names its column from data-label (SYS-17). The labels are INJECTED here
+  // from the column list rather than written on each <td>: twelve tables' worth
+  // of hand-copied labels is twelve chances for a label to drift away from the
+  // header above it. The first cell names the row, so it heads the card without
+  // a label, and a column with no heading (the "…" menu) contributes none.
+  const rows = Children.map(children, (row) => {
+    if (!isValidElement(row) || row.type !== 'tr') return row;
+    const r = row as ReactElement<{ children?: ReactNode }>;
+    return cloneElement(r, undefined, Children.map(r.props.children, (cell, i) => {
+      const head = heads[i]?.label ?? heads[i]?.head;
+      if (i === 0 || !head || !isValidElement(cell)) return cell;
+      const c = cell as ReactElement<Record<string, unknown>>;
+      return c.props['data-label'] ? c : cloneElement(c, { 'data-label': head });
+    }));
+  });
   return (
     <div className="tbl-wrap scroll-shade cl-tbl" role="region" aria-label={label} tabIndex={0}>
-      <table className="tbl">
-        <thead><tr>{head}</tr></thead>
+      <table className="tbl as-cards">
+        <thead>
+          <tr>
+            {heads.map((c, i) => (
+              <th key={i} className={c.num ? 'num' : undefined} aria-label={c.head ? undefined : c.name}>{c.head}</th>
+            ))}
+          </tr>
+        </thead>
         <tbody>
-          {children}
+          {rows}
           {empty && <tr><td className="tbl-empty" colSpan={20}>{empty}</td></tr>}
         </tbody>
       </table>
@@ -221,7 +253,7 @@ export function WorkloadsTab({ ns, catalog, roles }: { ns: string; catalog: Kube
       {canChange === 'disabled' && <p className="sa-note">Read-only for you: changing workloads needs the operator role.</p>}
       <Table
         label="Deployments"
-        head={<><th>Deployment</th><th className="num">Ready</th><th>Image</th><th className="num">Rev</th><th>Age</th><th aria-label="Actions" /></>}
+        cols={['Deployment', { head: 'Ready', num: true }, 'Image', { head: 'Rev', num: true }, 'Age', { name: 'Actions' }]}
         empty={deps.data && rows.length === 0 ? 'No deployments in this namespace.' : null}
       >
         {rows.map((d) => (
@@ -295,7 +327,7 @@ export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
       <Stale read={pods} />
       <Table
         label="Pods"
-        head={<><th>Pod</th><th>Status</th><th className="num">Ready</th><th className="num">Restarts</th><th>Owner</th><th>Age</th><th aria-label="Actions" /></>}
+        cols={['Pod', 'Status', { head: 'Ready', num: true }, { head: 'Restarts', num: true }, 'Owner', 'Age', { name: 'Actions' }]}
         empty={pods.data && rows.length === 0 ? 'No pods in this namespace.' : null}
       >
         {rows.map((p) => (
@@ -372,7 +404,7 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
       <Stale read={jobs} />
       <Table
         label="Jobs"
-        head={<><th>Job</th><th>Status</th><th>Template</th><th>Image</th><th>Started</th><th aria-label="Actions" /></>}
+        cols={['Job', 'Status', 'Template', 'Image', 'Started', { name: 'Actions' }]}
         empty={jobs.data && rows.length === 0 ? 'No jobs. Completed jobs are removed a day after they finish.' : null}
       >
         {rows.map((j) => (
@@ -486,7 +518,7 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
       </div>
       <Table
         label={`ConfigMap ${name}`}
-        head={<><th>Key</th><th>Value</th><th aria-label="Edit" /></>}
+        cols={['Key', 'Value', { name: 'Edit' }]}
         empty={cm.data && rows.length === 0 ? (filter ? `No key matches "${filter}".` : 'The ConfigMap is empty.') : null}
       >
         {rows.map((e) => {
@@ -555,7 +587,7 @@ export function NetworkTab({ ns }: { ns: string }) {
   return (
     <div className="cl-stack">
       <Section title="Services" read={svcs}>
-        <Table label="Services" head={<><th>Service</th><th>Type</th><th>Cluster IP</th><th>Ports</th><th>Selector</th></>} empty={svcs.data?.services.length === 0 ? 'No services.' : null}>
+        <Table label="Services" cols={['Service', 'Type', 'Cluster IP', 'Ports', 'Selector']} empty={svcs.data?.services.length === 0 ? 'No services.' : null}>
           {svcs.data?.services.map((s) => (
             <tr key={s.name}>
               <td className="mono">{s.name}</td><td>{s.type}</td><td className="mono">{s.clusterIP}</td>
@@ -566,7 +598,7 @@ export function NetworkTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Routes" read={routes}>
-        <Table label="Routes" head={<><th>Route</th><th>Host</th><th>Service</th><th>TLS</th></>} empty={routes.data?.routes.length === 0 ? 'No routes.' : null}>
+        <Table label="Routes" cols={['Route', 'Host', 'Service', 'TLS']} empty={routes.data?.routes.length === 0 ? 'No routes.' : null}>
           {routes.data?.routes.map((r) => (
             <tr key={r.name}>
               <td className="mono">{r.name}</td><td className="mono cl-wrap">{r.host}{r.path ?? ''}</td>
@@ -576,7 +608,7 @@ export function NetworkTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Ingresses" read={ings}>
-        <Table label="Ingresses" head={<><th>Ingress</th><th>Class</th><th>Rules</th></>} empty={ings.data?.ingresses.length === 0 ? 'No ingresses.' : null}>
+        <Table label="Ingresses" cols={['Ingress', 'Class', 'Rules']} empty={ings.data?.ingresses.length === 0 ? 'No ingresses.' : null}>
           {ings.data?.ingresses.map((i) => (
             <tr key={i.name}>
               <td className="mono">{i.name}</td><td>{i.className ?? <span className="dim">default</span>}</td>
@@ -586,7 +618,7 @@ export function NetworkTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Network policies" read={pols}>
-        <Table label="Network policies" head={<><th>Policy</th><th>Pods</th><th>Types</th><th>Allows</th></>} empty={pols.data?.policies.length === 0 ? 'No network policies: every pod may reach every other.' : null}>
+        <Table label="Network policies" cols={['Policy', 'Pods', 'Types', 'Allows']} empty={pols.data?.policies.length === 0 ? 'No network policies: every pod may reach every other.' : null}>
           {pols.data?.policies.map((p) => (
             <tr key={p.name}>
               <td className="mono">{p.name}</td><td className="mono">{Object.keys(p.podSelector).length ? kv(p.podSelector) : 'all pods'}</td>
@@ -619,7 +651,7 @@ export function StorageTab({ ns }: { ns: string }) {
   return (
     <div className="cl-stack">
       <Section title="Volume claims" read={pvcs}>
-        <Table label="Volume claims" head={<><th>Claim</th><th>Status</th><th className="num">Size</th><th>Access</th><th>Class</th><th>Volume</th></>} empty={pvcs.data?.claims.length === 0 ? 'No volume claims.' : null}>
+        <Table label="Volume claims" cols={['Claim', 'Status', { head: 'Size', num: true }, 'Access', 'Class', 'Volume']} empty={pvcs.data?.claims.length === 0 ? 'No volume claims.' : null}>
           {pvcs.data?.claims.map((c) => (
             <tr key={c.name}>
               <td><span className="cl-cell-name"><Dot state={c.phase === 'Bound' ? 'up' : c.phase === 'Pending' ? 'warn' : 'down'} /><span className="mono">{c.name}</span></span></td>
@@ -631,7 +663,7 @@ export function StorageTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Resource quotas" read={quotas}>
-        <Table label="Resource quotas" head={<><th>Quota</th><th>Resource</th><th className="num">Used</th><th className="num">Limit</th></>} empty={quotas.data?.quotas.length === 0 ? 'No quotas: the namespace can use whatever the node has.' : null}>
+        <Table label="Resource quotas" cols={['Quota', 'Resource', { head: 'Used', num: true }, { head: 'Limit', num: true }]} empty={quotas.data?.quotas.length === 0 ? 'No quotas: the namespace can use whatever the node has.' : null}>
           {quotas.data?.quotas.flatMap((q) => Object.keys(q.hard).sort().map((r, i) => (
             <tr key={`${q.name}-${r}`}>
               <td className="mono">{i === 0 ? q.name : ''}</td><td className="mono">{r}</td>
@@ -641,7 +673,7 @@ export function StorageTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Limit ranges" read={limits}>
-        <Table label="Limit ranges" head={<><th>Range</th><th>Type</th><th>Default</th><th>Default request</th><th>Max</th></>} empty={limits.data?.limitRanges.length === 0 ? 'No limit ranges.' : null}>
+        <Table label="Limit ranges" cols={['Range', 'Type', 'Default', 'Default request', 'Max']} empty={limits.data?.limitRanges.length === 0 ? 'No limit ranges.' : null}>
           {limits.data?.limitRanges.flatMap((l) => l.limits.map((x, i) => (
             <tr key={`${l.name}-${i}`}>
               <td className="mono">{i === 0 ? l.name : ''}</td><td>{x.type}</td>
@@ -735,7 +767,7 @@ export function MetricsTab({ ns }: { ns: string }) {
       {!state.at && !state.err && <Loader state="load" size="md" label="Reading metrics…" />}
       {state.at && pods.length === 0 && <p className="sa-note">No pod series for {ns}. The kubelet-cadvisor scrape may be down.</p>}
       {pods.length > 0 && (
-        <Table label="Pod metrics" head={<><th>Pod</th><th>CPU</th><th className="num">Now</th><th>Memory</th><th className="num">Now</th></>}>
+        <Table label="Pod metrics" cols={['Pod', 'CPU', { head: 'Now', label: 'CPU now', num: true }, 'Memory', { head: 'Now', label: 'Memory now', num: true }]}>
           {pods.map((p) => {
             const c = cpuOf(p);
             const m = memOf(p);

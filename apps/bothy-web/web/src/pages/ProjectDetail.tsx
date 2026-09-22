@@ -234,7 +234,7 @@ export function ProjectDetail() {
             </div>
             <div className="panel-b panel-tbl">
               <div className="tbl-wrap scroll-shade">
-                <table className="tbl vol-tbl">
+                <table className="tbl as-cards vol-tbl">
                   <thead>
                     <tr>
                       <th>Volume</th>
@@ -248,8 +248,8 @@ export function ProjectDetail() {
                       return (
                         <tr key={v.name}>
                           <td className="vol-name"><span className="ico sm"><Icon icon={HardDrive} size="md" /></span><span className="mono">{v.name}</span></td>
-                          <td className="mono dim">{v.destination || '-'}</td>
-                          <td className="mono num">{df ? fmtBytes(size) : '-'}</td>
+                          <td className="mono dim" data-label="Mounted at">{v.destination || '-'}</td>
+                          <td className="mono num" data-label="Size">{df ? fmtBytes(size) : '-'}</td>
                         </tr>
                       );
                     })}

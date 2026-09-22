@@ -37,7 +37,7 @@ function Containers() {
   return (
     <>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl">
+        <table className="tbl as-cards">
           <thead>
             <tr><th scope="col">Container</th><th scope="col">State</th><th scope="col">Image</th><th scope="col">Docker says</th></tr>
           </thead>
@@ -47,9 +47,9 @@ function Containers() {
               return (
                 <tr key={b.name}>
                   <td><b className="mono">{b.name}</b><span className="set-cell-sub">{b.role}</span></td>
-                  <td>{n ? <StatusIcon status={n.status} showLabel /> : <span className="dim">not found</span>}</td>
-                  <td className="mono set-wrap">{n?.container?.image ?? '-'}</td>
-                  <td className="set-wrap">{n?.container?.statusText ?? (data.fails > 0 ? 'the Docker read failed' : 'no such container')}</td>
+                  <td data-label="State">{n ? <StatusIcon status={n.status} showLabel /> : <span className="dim">not found</span>}</td>
+                  <td className="mono set-wrap" data-label="Image">{n?.container?.image ?? '-'}</td>
+                  <td className="set-wrap" data-label="Docker says">{n?.container?.statusText ?? (data.fails > 0 ? 'the Docker read failed' : 'no such container')}</td>
                 </tr>
               );
             })}

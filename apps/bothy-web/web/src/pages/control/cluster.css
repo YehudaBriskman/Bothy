@@ -110,15 +110,28 @@
 .cl-page .cl-spark-area { fill: currentColor; opacity: .14; stroke: none; }
 
 /* ── narrow ─────────────────────────────────────────────────────────────────*/
-@media (max-width: 760px) {
-  /* Tables scroll sideways inside their own wrapper rather than crushing columns. */
+/* Tables scroll sideways inside their own wrapper rather than crushing columns
+   - but only while they are still tables. At 640px and below they are cards
+   (SYS-17), and a 640px minimum on a BLOCK is 640px of page scroll. */
+@media (max-width: 760px) and (min-width: 641px) {
   .cl-page .cl-tbl .tbl { min-width: 640px; }
+}
+@media (max-width: 760px) {
   .cl-page .cl-topo { grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
   .cl-page .cl-topo-svg { display: none; }
   .cl-page .cl-topo-links { display: block; }
 }
+@media (max-width: 640px) {
+  /* As a card a cell has the width of the phone, not of its column, so the
+     nowrap that keeps the table's columns honest has to come off - and the
+     image and value cells lose the caps that were there to stop one long
+     reference widening every other row. */
+  .cl-page .cl-tbl .tbl.as-cards td { white-space: normal; }
+  .cl-page .cl-tbl .tbl.as-cards td.cl-img { max-width: none; overflow: visible; }
+  .cl-page .cl-tbl .tbl.as-cards td.cl-val { min-width: 0; }
+  .cl-page .cl-tbl .tbl.as-cards td.cl-actions-cell { text-align: right; }
+}
 @media (max-width: 560px) {
   .cl-page .cl-head-aside { width: 100%; }
   .cl-page .cl-headlamp { margin-left: auto; }
-  .cl-page .cl-tbl .tbl td.cl-img { max-width: 140px; }
 }

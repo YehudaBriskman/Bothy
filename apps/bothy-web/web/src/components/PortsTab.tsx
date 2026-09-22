@@ -144,7 +144,7 @@ export function PortsTab({
       )}
 
       <div className="tbl-wrap scroll-shade" tabIndex={0} role="region" aria-label="Published ports">
-        <table className="tbl">
+        <table className="tbl as-cards">
           <thead>
             <tr>
               {cols.map(([k, label]) => (
@@ -167,6 +167,9 @@ export function PortsTab({
               // bind stays in the title, and the Scope tag says "exposed".
               const shown = r.hostIp === '0.0.0.0' ? location.hostname : r.hostIp;
               return (
+                // data-label drives the card layout at 640px and below
+                // (SYS-17). The bind is the row's identity, so it carries none
+                // and heads the card.
                 <tr key={`${r.hostIp}:${r.hostPort}/${r.proto}-${i}`}>
                   <td className="mono">
                     {r.scope === 'public' ? (
@@ -179,11 +182,11 @@ export function PortsTab({
                       </span>
                     )}
                   </td>
-                  <td className="mono">{r.containerPort}</td>
-                  <td>{r.container}</td>
-                  {!compact && <td>{r.groupTitle}</td>}
-                  <td className="mono">{r.proto}</td>
-                  <td>
+                  <td className="mono" data-label="Container port">{r.containerPort}</td>
+                  <td data-label="Container">{r.container}</td>
+                  {!compact && <td data-label="Group">{r.groupTitle}</td>}
+                  <td className="mono" data-label="Proto">{r.proto}</td>
+                  <td data-label="Scope">
                     <span className={`tag ${r.scope}`}>{r.scope === 'public' ? 'exposed' : 'loopback'}</span>
                   </td>
                 </tr>
