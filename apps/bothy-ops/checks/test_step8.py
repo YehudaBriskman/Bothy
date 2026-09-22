@@ -30,6 +30,7 @@ a table. What it pins down:
   GUARD     scripts/pg-volume-guard.sh refuses `up` onto an empty new volume
             (with a stand-in `docker`)
 """
+import atexit
 import json
 import os
 import shutil
@@ -62,6 +63,7 @@ def D(c: str) -> str:
 
 
 TMP = tempfile.mkdtemp(prefix="bothy-step8-unit-")
+atexit.register(shutil.rmtree, TMP, True)  # a failing run (a mutant) cleans up too
 ORIGIN = os.path.join(TMP, "origin.git")
 REPO = os.path.join(TMP, "repo")
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
