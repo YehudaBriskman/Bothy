@@ -92,8 +92,9 @@
 .ch-card-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); display: flex; flex-direction: column;
   gap: var(--sp-3); min-width: 0; }
 
-.ch-loading { display: flex; flex-direction: column; gap: var(--sp-2); }
-.ch-skel { height: var(--sp-6); }
+/* The two skeleton bars were 2 x --sp-6 plus a gap; the Loader row keeps that
+   height so a card does not jump when its source answers. */
+.ch-loading { display: flex; align-items: center; min-height: calc(var(--sp-6) * 2 + var(--sp-2)); }
 .ch-unavail { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2);
   color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
 .ch-sub-h { margin: 0; }

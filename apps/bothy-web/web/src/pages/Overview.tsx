@@ -500,7 +500,7 @@ export function Overview() {
         </div>
 
         {loading ? (
-          <Skeleton variant="overview" />
+          <Skeleton variant="overview" state="search" label="Discovering what is running…" />
         ) : (
           <>
             {/* Order is the page's hierarchy. "Is anything broken" is the

@@ -34,6 +34,12 @@
 //      aside); no selector declared twice; every lucide glyph drawn through
 //      ui/Icon; sticky chrome shows a scroll edge, not a hairline; the reading
 //      measure is capped by the column's padding.
+//  10. ONE LOADER (2026-09-22). `thinking-orbs` is imported only by
+//      components/ui/Loader.tsx, and only lazily; LOADER equals --loader-*; the
+//      Loader is paused under useMotionReduced() and speaks through role=status;
+//      and no hand-made spinner comes back - no keyframe named or shaped like a
+//      spinner, no .spin/.sa-spin class, no spun lucide glyph, no bare
+//      "Loading…" text outside a Loader label.
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -585,6 +591,62 @@ console.log('\n── batch 4: type, rhythm, icons and edges stay on the tokens 
   const ed = stripCss(readFileSync(join(SRC, 'pages', 'files', 'editor.css'), 'utf8'));
   say(/^\d+ch$/.test(ROOT['--read-measure'] ?? '') && /\.fx-read \{[^}]*padding:[^;]*var\(--read-measure\)/.test(ed) && !/\.fx-read > \* \{[^}]*max-width/.test(ed) && !/\.fx-read \{[^}]*max-width/.test(ed),
     'the reading measure is capped in ch by the column padding - one width, scrollbar on the edge (FL-5)', ROOT['--read-measure']);
+}
+
+// ── 10. one loader ──────────────────────────────────────────────────────────
+console.log('\n── one loader: ui/Loader is the only loading indicator ─────');
+{
+  const LOADER_FILE = join('components', 'ui', 'Loader.tsx');
+  const code = files.filter((p) => /\.(tsx?|mjs|js)$/.test(p));
+  const importers = code.filter((f) => /from\s+'thinking-orbs'|import\(\s*'thinking-orbs'\s*\)/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
+  say(importers.length === 1 && importers[0] === LOADER_FILE, 'thinking-orbs is imported only by components/ui/Loader.tsx', importers.join(', ') || '(nobody)');
+  const LP = join(SRC, LOADER_FILE);
+  const L = existsSync(LP) ? stripTs(readFileSync(LP, 'utf8')) : '';
+  say(/import\(\s*'thinking-orbs'\s*\)/.test(L) && !/^import\s+(?!type\b)[^;]*from\s+'thinking-orbs'/m.test(L),
+    'and only LAZILY (a dynamic import) - the orb stays out of the first paint');
+  const js = Object.fromEntries([...(L.match(/LOADER\s*=\s*\{([^}]*)\}/)?.[1] ?? '').matchAll(/(\w+):\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]));
+  const css = Object.fromEntries(Object.entries(ROOT).filter(([k]) => /^--loader-(sm|md|lg)$/.test(k)).map(([k, v]) => [k.slice(9), parseFloat(v)]));
+  say(JSON.stringify(js) === JSON.stringify(css) && JSON.stringify(Object.values(js)) === '[20,32,64]',
+    'LOADER equals --loader-sm/md/lg, and they are the orb\'s own presets (20, 32, 64)', JSON.stringify(css));
+  say(/useMotionReduced\(\)/.test(L) && /paused=\{reduced\}/.test(L), 'the orb is PAUSED under reduced motion - the OS setting or the in-app one (useMotionReduced)');
+  say(/role=\{announce \? 'status'/.test(L) && /aria-live=\{announce \? 'polite'/.test(L) && /aria-hidden="true"/.test(L),
+    'the Loader speaks through role=status / aria-live=polite, and its canvas is aria-hidden');
+  say(!/\bactive\s*[?:]/.test(L.match(/interface LoaderProps[\s\S]*?\n\}/)?.[0] ?? ''), 'no `active` prop - a Loader is mounted only while something is in progress');
+
+  // No hand-made spinner. The allowlist is the whole of it, each with a reason:
+  //   lib/icons.tsx LoaderCircle - the STATIC glyph of the `starting` status. A
+  //     status is a category (legends, filters, rows); it does not move.
+  const SPIN_KF = /^(spin|rotate|turn|loading|loader|spinner)$|(^|-)(spin|rotate|turn|spinner)(-|$)/;
+  const kf = [];
+  for (const f of cssFiles) {
+    const t = stripCss(readFileSync(f, 'utf8'));
+    for (const m of t.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^}]*\})*)\s*\}/g)) {
+      if (SPIN_KF.test(m[1]) || /rotate\(|rotate:\s/.test(m[2])) kf.push(`${rel(f)}: @keyframes ${m[1]}`);
+    }
+  }
+  say(kf.length === 0, 'no keyframe named or shaped like a spinner (spin, rotate, turn, loading; a rotate() inside)', kf.join('; '));
+  const cls = [], glyph = [], bare = [];
+  const GLYPH_OK = new Map([[join('lib', 'icons.tsx'), 'LoaderCircle']]);
+  for (const f of tsx) {
+    if (rel(f) === LOADER_FILE) continue;
+    const t = stripTs(readFileSync(f, 'utf8'));
+    for (const m of t.matchAll(/className=(?:"([^"]*)"|'([^']*)'|\{[^}]*?['"`]([^'"`]*)['"`][^}]*\})/g)) {
+      const c = m[1] ?? m[2] ?? m[3] ?? '';
+      if (/(^|\s)(spin|sa-spin|spinner|loading-spinner|ka-live)(\s|$)/.test(c)) cls.push(`${rel(f)}: "${c}"`);
+    }
+    const imp = t.match(/import\s*\{([^}]*)\}\s*from\s*'lucide-react'/)?.[1] ?? '';
+    for (const n of ['LoaderCircle', 'Loader2', 'LoaderPinwheel', 'Loader']) {
+      if (new RegExp(`\\b${n}\\b`).test(imp) && GLYPH_OK.get(rel(f)) !== n) glyph.push(`${rel(f)}: ${n}`);
+    }
+    t.split('\n').forEach((line, i) => {
+      if (/\bLoading\b[^'"`<{]*(…|\.\.\.)/.test(line) && !/\blabel\b/.test(line)) bare.push(`${rel(f)}:${i + 1}`);
+    });
+  }
+  say(cls.length === 0, 'no .spin / .sa-spin / spinner class on any element', cls.join('; '));
+  say(glyph.length === 0, 'no lucide loader glyph standing in for a spinner (lib/icons.tsx keeps the static `starting` glyph)', glyph.join('; '));
+  say(bare.length === 0, 'no bare "Loading…" text - it is a Loader label or nothing', bare.join('; '));
+  const users = tsx.filter((f) => /from '[./]*(components\/)?ui\/Loader'|from '\.\/Loader'|from '\.\/ui\/Loader'/.test(readFileSync(f, 'utf8'))).map(rel);
+  say(users.length >= 20, 'the Loader is used across the app (states, settings, cluster, files, control)', `${users.length} files`);
 }
 
 // ── 7. docs ─────────────────────────────────────────────────────────────────

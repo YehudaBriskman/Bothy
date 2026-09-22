@@ -55,6 +55,7 @@ import type { PortalNode } from '../lib/discover';
 import './SystemName.css';
 import { Button, buttonClass } from './ui/Button';
 import { Icon } from './ui/Icon';
+import { Loader } from './ui/Loader';
 
 // Loading the file, and the four things that can come back.
 type Load =
@@ -256,7 +257,7 @@ export function SystemName({
   return (
     <div className="sn">
       {load.t === 'loading' && (
-        <p className="sn-note" role="status">Reading {filePath}…</p>
+        <p className="sn-note"><Loader state="load" size="sm" label={`Reading ${filePath}…`} /></p>
       )}
 
       {load.t === 'failed' && (

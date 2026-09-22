@@ -1,0 +1,37 @@
+/* Loader - the one loading indicator (see Loader.tsx). The orb is a canvas the
+   package sizes; this sheet only lays out the orb and its words, and reserves
+   the orb's box while its code is still arriving so nothing shifts. */
+
+.ui-loader {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  color: var(--fg-muted);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); letter-spacing: var(--tr-sm);
+  vertical-align: middle;
+  /* A load that finishes in under a beat never shows an orb at all: the
+     indicator fades in after a short hold instead of flashing. Opacity only,
+     so reduced motion (which keeps fades, decision 3) keeps it too. */
+  animation: ui-loader-in var(--dur-fast) var(--ease) var(--loader-hold) both;
+}
+@keyframes ui-loader-in { from { opacity: 0; } }
+
+.ui-loader-center {
+  display: flex; flex-direction: column; justify-content: center;
+  gap: var(--sp-3); padding: var(--sp-6) var(--sp-4); text-align: center;
+}
+.ui-loader-center[data-size='md'] { flex-direction: row; padding: var(--sp-4); }
+
+.ui-loader-orb { flex: none; display: block; }
+.ui-loader-orb[data-size='sm'] { width: var(--loader-sm); height: var(--loader-sm); }
+.ui-loader-orb[data-size='md'] { width: var(--loader-md); height: var(--loader-md); }
+.ui-loader-orb[data-size='lg'] { width: var(--loader-lg); height: var(--loader-lg); }
+
+.ui-loader-label { min-width: 0; overflow-wrap: anywhere; }
+
+/* Read by Loader.tsx and handed to the canvas; never painted. */
+.ui-loader-probe { position: absolute; visibility: hidden; color: var(--loader-ink); }
+
+/* Forced colours: the canvas cannot be recoloured by the browser, so the ink is
+   asked for the system text colour, which the probe then reports. */
+@media (forced-colors: active) {
+  .ui-loader-probe { color: CanvasText; }
+}

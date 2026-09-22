@@ -15,6 +15,7 @@ import { SystemName } from '../components/SystemName';
 import type { Drift } from '../lib/config';
 import './Detail.css';
 import { Icon } from '../components/ui/Icon';
+import { Skeleton } from '../components/states';
 
 const KIND_LABEL: Record<'project' | 'stack' | 'infra', string> = {
   project: 'Project',
@@ -128,6 +129,12 @@ export function ProjectDetail() {
   // Panels rise in; they never start invisible (lib/motion.ts riseIn, SYS-11).
   const rise = (i: number) => riseIn(i, reduce);
 
+  // The first poll has not answered yet: discovery is in progress, which is
+  // not the same thing as "not found" (design audit SYS-18). Shown as the
+  // search Loader over the page's skeleton, never as a false 404.
+  if (!system && data.at === 0 && data.fails === 0) {
+    return <div className="page detail"><Skeleton variant="panels" state="search" label="Discovering what is running…" /></div>;
+  }
   if (!system) {
     return (
       <div className="page detail">

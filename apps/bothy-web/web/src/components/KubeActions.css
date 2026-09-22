@@ -58,13 +58,6 @@
   font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
   color: var(--fg);
 }
-.ka-live {
-  display: inline-block; width: 8px; height: 8px; margin-right: var(--sp-1); vertical-align: 1px;
-  border-radius: var(--r-full); background: var(--st-up);
-  animation: ka-pulse var(--loop-pulse) var(--ease) infinite;
-}
-@keyframes ka-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .ka-live { animation: none; } }
 
 @media (max-width: 560px) {
   .ka-event { grid-template-columns: minmax(0, 1fr) auto; }

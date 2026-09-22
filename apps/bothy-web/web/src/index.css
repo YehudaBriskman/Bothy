@@ -265,6 +265,17 @@
      drawn through it, and checks/design-tokens.mjs asserts both. */
   --icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px; --icon-xl: 24px;
 
+  /* ── loader ────────────────────────────────────────────────────────────────
+     The one loading indicator, components/ui/Loader.tsx, a thinking-orbs orb.
+     The orb ships three tuned designs, not a scale, so these are its presets:
+     20 inline with text, 32 in a card, 64 for a page or empty state. LOADER in
+     Loader.tsx mirrors them and checks/design-tokens.mjs asserts it. The ink is
+     read off the live theme and handed to the canvas. The hold is how long a
+     load may take before an orb appears at all - under it, nothing flashes. */
+  --loader-sm: 20px; --loader-md: 32px; --loader-lg: 64px;
+  --loader-ink: var(--fg-muted);   /* the orb's dots; depth shading keeps its ramp */
+  --loader-hold: 150ms;
+
   /* ── interaction ───────────────────────────────────────────────────────────
      --hit is the smallest box a pointer may be asked to land in: 24px under a
      fine pointer (WCAG 2.5.8), 44px under a coarse one - the owner's decision 6,
@@ -314,8 +325,9 @@
   --spring-bounce-dur: 480ms;
   --stagger: 30ms;         /* per item; clamp the index at 8 */
   /* Loop periods. A loop is not a transition, but a literal in one is still a
-     literal: these are the three speeds the app's spinners and shimmers run at. */
-  --loop-spin: .9s;
+     literal: these are the speeds the app's shimmers and pulses run at. There is
+     no spin any more - the one loading indicator is ui/Loader's orb, which keeps
+     its own tuned speed. */
   --loop-shimmer: 1.4s;
   --loop-pulse: 1.4s;
   --loop-beat: 2s;
@@ -735,9 +747,18 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
   background-size: 200% 100%; animation: shimmer var(--loop-shimmer) infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* A skeleton that carries the Loader (components/states.tsx): the shapes hold
+   the layout still and the orb is the one thing that moves - two indicators
+   side by side read as two things waiting. The orb sits over the top of the
+   reserved shape, where the eye lands first. */
+.skel-host { position: relative; }
+.skel-host .skel { animation: none; }
+.skel-host > .skel-orb {
+  position: absolute; inset: 0 0 auto 0; height: 100%; max-height: calc(var(--sp-16) * 4);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .skel, .pill .pulse::after, .spin { animation: none !important; }
+  .skel, .pill .pulse::after { animation: none !important; }
 }
 html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 
@@ -747,8 +768,8 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    ========================================================================== */
 
 /* ── primitives ──────────────────────────────────────────────────────────── */
-.spin { animation: spin var(--loop-spin) linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+/* No .spin here any more (2026-09-22): a turning glyph was one of four
+   loading indicators. ui/Loader is the one; see docs/brand/patterns/feedback.md. */
 
 /* status glyph (lucide) - coloured by the reserved palette, never colour-alone */
 .si { display: inline-flex; align-items: center; gap: var(--sp-1_5); vertical-align: middle; }

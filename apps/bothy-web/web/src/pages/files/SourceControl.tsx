@@ -48,6 +48,7 @@ import { baseName, dirName, tailPath } from './tree';
 import { groupChanges, toneFor, type Change } from './gitdeco';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
+import { Loader } from '../../components/ui/Loader';
 
 function Row({ c, onOpenDiff, open }: {
   c: Change;
@@ -177,7 +178,11 @@ export function SourceControl({
             disabled={loading}
             aria-label="Refresh the git status"
           >
-            <Icon icon={RefreshCw} size="sm" className={loading ? 'spin' : ''} />
+            {/* Re-reading a repository already shown: the silent Loader in the
+                button. With none shown yet, the line below says it. */}
+            {loading && status?.repo
+              ? <Loader state="load" size="sm" announce={false} />
+              : <Icon icon={RefreshCw} size="sm" />}
           </button>
         </Tooltip>
       </div>
@@ -196,7 +201,7 @@ export function SourceControl({
           ) : (
             <span className="fx-scm-branch dim">
               <Icon icon={GitBranch} size="sm" />
-              <span>{loading ? 'looking…' : 'no repository in scope'}</span>
+              {loading ? <Loader state="search" size="sm" label="Looking for a repository…" /> : <span>no repository in scope</span>}
             </span>
           )}
           {/* The name and the picker are the same fact. With one repo in scope

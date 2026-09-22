@@ -18,6 +18,7 @@ import { STATUS_VAR } from '../lib/icons';
 import { serviceLink } from '../lib/links';
 import { conditionLabel, resolveEdges, type PortalNode } from '../lib/discover';
 import './Topology.css';
+import { Loader } from '../components/ui/Loader';
 
 // The heavy three.js scene stays in its own lazy chunk (never in the main
 // bundle). Topology itself is imported eagerly by App, so the split lives here.
@@ -76,7 +77,7 @@ export function Topology() {
 
       {view === '3d' ? (
         <div className="topo-3d">
-          <Suspense fallback={<div className="topo-3d-loading">Loading 3D topology…</div>}>
+          <Suspense fallback={<div className="topo-3d-loading"><Loader state="load" size="lg" label="Loading the 3D topology…" /></div>}>
             <TopologyScene />
           </Suspense>
         </div>

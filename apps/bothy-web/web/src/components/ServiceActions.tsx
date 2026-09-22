@@ -21,6 +21,7 @@
 // exactly the same way. This is a courtesy that saves a round trip, and it turns
 // a bare 403 into a sentence that arrives before the click rather than after it.
 
+import { Loader } from './ui/Loader';
 import { useCallback, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CirclePlay, CircleStop, LogIn, Power, RotateCw } from 'lucide-react';
@@ -239,8 +240,7 @@ function ActionDialog({ node, onClose }: { node: PortalNode; onClose: () => void
 
         {phase.t === 'working' && (
           <p className="sa-working" aria-hidden="true">
-            <span className="sa-spin" />
-            {VERB_WORKING[phase.verb]} {name}…
+            <Loader state="act" size="sm" announce={false} label={`${VERB_WORKING[phase.verb]} ${name}…`} />
           </p>
         )}
 

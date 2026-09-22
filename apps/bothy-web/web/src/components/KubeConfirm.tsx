@@ -11,6 +11,7 @@
 // and then shows the outcome in words, or the refusal in words. It never
 // retries: a retried PATCH is a second action.
 
+import { Loader } from './ui/Loader';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import {
@@ -83,7 +84,7 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
   };
 
   if (phase.t === 'working') {
-    return <p className="sa-working" role="status"><span className="sa-spin" />{spec.title}…</p>;
+    return <p className="sa-working"><Loader state="act" size="sm" label={`${spec.title}…`} /></p>;
   }
   if (phase.t === 'done' || phase.t === 'failed') {
     return (

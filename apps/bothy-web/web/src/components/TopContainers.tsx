@@ -16,6 +16,7 @@ import { usePortal } from '../lib/data';
 import { BarGauge, type GaugeRow } from './viz';
 import { Tabs } from './Tabs';
 import { Icon } from './ui/Icon';
+import { Loader } from './ui/Loader';
 
 const TOP_N = 6;
 
@@ -105,7 +106,7 @@ export function TopContainers() {
           <BarGauge rows={rows} />
         ) : (
           <p className="ov-uicol-empty">
-            {state === 'loading' ? 'Reading metrics…' : 'No container metrics in this window.'}
+            {state === 'loading' ? <Loader state="load" size="sm" label="Reading metrics…" /> : 'No container metrics in this window.'}
           </p>
         )}
       </div>

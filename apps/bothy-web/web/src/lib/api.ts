@@ -201,10 +201,10 @@ export async function loadAll(): Promise<LoadResult> {
 // Poll every 10s; pause when document.hidden; refresh immediately on focus/
 // visibility; back off to 60s after 3 consecutive failures. Never clears data
 // on failure - a stale page with working links beats a blank one.
-export function usePortalData(): { data: PortalData; refresh: () => void } {
+export function usePortalData(): { data: PortalData; refresh: () => Promise<void> } {
   const [data, setData] = useState<PortalData>(EMPTY);
   const failsRef = useRef(0);
-  const refreshRef = useRef<() => void>(() => {});
+  const refreshRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
     let cancelled = false;
@@ -239,9 +239,9 @@ export function usePortalData(): { data: PortalData; refresh: () => void } {
       }
     };
 
-    refreshRef.current = () => {
-      if (!cancelled) run();
-    };
+    // Returns the poll it started, so a Refresh button can show the Loader
+    // until the answer lands (pages/control/ControlHome.tsx) - and no longer.
+    refreshRef.current = () => (cancelled ? Promise.resolve() : run());
 
     const onVisibility = () => {
       if (!document.hidden) run();

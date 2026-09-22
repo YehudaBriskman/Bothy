@@ -380,11 +380,10 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 .set-shell .upd-job-err { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg); overflow-wrap: anywhere; }
 .set-shell .upd-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-0_5); }
 .set-shell .upd-step {
-  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; column-gap: var(--sp-2); align-items: center;
+  display: grid; grid-template-columns: var(--loader-sm) minmax(0, 1fr) auto; column-gap: var(--sp-2); align-items: center;
   padding: var(--sp-1) 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
 }
 .set-shell .upd-step-g { justify-self: center; }
-.set-shell .upd-step .sa-spin { width: 12px; height: 12px; }
 .set-shell .upd-step[data-state='running'] .upd-step-name { color: var(--fg); font-weight: 600; }
 .set-shell .upd-step[data-state='ok'] { color: var(--fg); }
 .set-shell .upd-step[data-state='ok'] .upd-step-g { color: var(--st-up-fg); }

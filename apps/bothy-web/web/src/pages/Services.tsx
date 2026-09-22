@@ -11,7 +11,7 @@ import type { PortalNode, Status } from '../lib/discover';
 import { systemLink } from '../lib/links';
 import { ServiceTable } from '../components/ServiceTable';
 import { StatusIcon } from '../lib/icons';
-import { EmptyState } from '../components/states';
+import { EmptyState, Skeleton } from '../components/states';
 import './Services.css';
 import { Button } from '../components/ui/Button';
 import { Disclosure } from '../components/ui/Disclosure';
@@ -223,7 +223,9 @@ export function Services() {
         )}
       </div>
 
-      {!panels.length ? (
+      {!panels.length && data.at === 0 && data.fails === 0 ? (
+        <Skeleton variant="table" state="search" label="Discovering what is running…" />
+      ) : !panels.length ? (
         // Only offer "Clear filter" when there IS one - otherwise the empty
         // state invites you to clear nothing.
         <EmptyState

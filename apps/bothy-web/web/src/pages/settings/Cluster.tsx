@@ -15,6 +15,7 @@ import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Cmd, Loading, Refusal, When, useLoad } from '../../components/settings/bits';
 import { statusOf } from '../../lib/http';
 import { Button } from '../../components/ui/Button';
+import { Loader } from '../../components/ui/Loader';
 
 export function ClusterSettings() {
   return (
@@ -138,7 +139,7 @@ function Headlamp() {
           <span className="set-note">Only while the cluster runs; it joins minikube’s network.</span>
         </div></div>
       </div>
-      {data.at === 0 && <p className="set-note">Waiting for the first poll of the box.</p>}
+      {data.at === 0 && <Loader state={data.fails ? 'connect' : 'search'} size="sm" label="Waiting for the first poll of the box…" />}
     </>
   );
 }

@@ -198,6 +198,18 @@ Mirrored as `ICON` in `components/ui/Icon.tsx`.
 | `--icon-lg` | `20px` |  |
 | `--icon-xl` | `24px` |  |
 
+## Loader
+
+Mirrored as `LOADER` in `components/ui/Loader.tsx`. The orb has three tuned designs (20, 32, 64), not a scale. See [feedback](../patterns/feedback.md#loading).
+
+| Token | Value | Role |
+|---|---|---|
+| `--loader-sm` | `20px` |  |
+| `--loader-md` | `32px` |  |
+| `--loader-lg` | `64px` |  |
+| `--loader-ink` | `var(--fg-muted)` | the orb's dots; depth shading keeps its ramp |
+| `--loader-hold` | `150ms` |  |
+
 ## Interaction
 
 `--hit` is 2.75rem (44px) under `(pointer: coarse)`.
@@ -233,7 +245,6 @@ Mirrored in `lib/motion.ts` for framer-motion; the check asserts they agree. Spr
 | `--spring-bounce` | `linear(0, .052, .171, .316, .464, .598, .712, .805, .875, .927, .96...` |  |
 | `--spring-bounce-dur` | `480ms` |  |
 | `--stagger` | `30ms` | per item; clamp the index at 8 |
-| `--loop-spin` | `.9s` |  |
 | `--loop-shimmer` | `1.4s` |  |
 | `--loop-pulse` | `1.4s` |  |
 | `--loop-beat` | `2s` |  |

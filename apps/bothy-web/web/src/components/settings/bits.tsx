@@ -2,6 +2,7 @@
 // the absolute one available, a refusal in words, a labelled fact, a choice group,
 // and a hook for one async read.
 
+import { Loader } from '../ui/Loader';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, LogIn } from 'lucide-react';
 import { refusalOf, statusOf } from '../../lib/http';
@@ -153,10 +154,15 @@ export function Choice<T extends string | number>({
   );
 }
 
-export function Loading({ rows = 3 }: { rows?: number }) {
+/** A Settings section's first read: row skeletons hold the table's height, the
+ *  Loader (ui/Loader, `load`) says it is working and announces what. */
+export function Loading({ rows = 3, label = 'Loading…' }: { rows?: number; label?: string }) {
   return (
-    <div className="skel-col set-skel" aria-hidden="true">
-      {Array.from({ length: rows }, (_, i) => <div className="skel" key={i} style={{ height: 30 }} />)}
+    <div className="skel-host" aria-busy="true">
+      <div className="skel-col set-skel" aria-hidden="true">
+        {Array.from({ length: rows }, (_, i) => <div className="skel" key={i} style={{ height: 30 }} />)}
+      </div>
+      <Loader state="load" size={rows > 2 ? 'md' : 'sm'} label={label} center className="skel-orb" />
     </div>
   );
 }
