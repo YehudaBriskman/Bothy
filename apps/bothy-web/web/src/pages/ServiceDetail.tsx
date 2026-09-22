@@ -1,7 +1,9 @@
 import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, ExternalLink } from 'lucide-react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { usePortal } from '../lib/data';
+import { DUR, EASE, staggerDelay } from '../lib/motion';
+import { useMotionReduced } from '../lib/useMotionReduced';
 import { HOST_OVERRIDES, logSourceOf } from '../lib/discover';
 import { LogPanel } from '../components/LogPanel';
 import { systemsOf, findSystem } from '../lib/systems';
@@ -10,6 +12,7 @@ import { ServiceIcon, StatusIcon } from '../lib/icons';
 import { systemLink, kindLabelOf, unknownReason } from '../lib/links';
 import { ActionCell } from '../components/ServiceActions';
 import './Detail.css';
+import { buttonClass } from '../components/ui/Button';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -23,7 +26,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function ServiceDetail() {
   const { id = '' } = useParams();
   const { data } = usePortal();
-  const reduce = useReducedMotion();
+  const reduce = useMotionReduced();
   const node = data.nodes.find((n) => n.id === id);
 
   // Reveal panels on MOUNT (once). Disabled entirely under reduced motion.
@@ -33,7 +36,7 @@ export function ServiceDetail() {
       : {
           initial: { opacity: 0, y: 14 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.34, delay: 0.05 + i * 0.05, ease: [0.2, 0.7, 0.2, 1] as const },
+          transition: { duration: DUR.slow, delay: staggerDelay(i + 1), ease: EASE },
         };
 
   if (!node) {
@@ -78,7 +81,7 @@ export function ServiceDetail() {
         <span className="here">{node.name}</span>
       </nav>
 
-      <motion.header className="detail-head" {...(reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3 } })}>
+      <motion.header className="detail-head" {...(reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: DUR.slow, ease: EASE } })}>
         <span className="ico lg"><ServiceIcon node={node} size={28} /></span>
         <div className="detail-head-meta">
           <h1>{node.name}</h1>
@@ -99,7 +102,7 @@ export function ServiceDetail() {
             it at all. */}
         <div className="detail-head-actions">
           {node.browsable && node.url && (
-            <a className="btn primary" href={node.url} target="_blank" rel="noopener noreferrer">
+            <a className={buttonClass({ variant: 'primary' })} href={node.url} target="_blank" rel="noopener noreferrer">
               Open <ExternalLink size={15} />
             </a>
           )}

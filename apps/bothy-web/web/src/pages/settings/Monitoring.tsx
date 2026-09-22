@@ -17,6 +17,7 @@ import { Loading, Refusal, useLoad } from '../../components/settings/bits';
 import { StatusIcon } from '../../lib/icons';
 import { ALERT_RULES, parseAlertRules, readStackFile } from '../../lib/stack-config';
 import { filesHref } from '../files/routes';
+import { Button, buttonClass } from '../../components/ui/Button';
 
 interface Target { job: string; instance: string; up: boolean; duration: number | null }
 
@@ -66,7 +67,7 @@ function Targets() {
     return (
       <>
         <Refusal error={error} what="the scrape targets" />
-        <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+        <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
       </>
     );
   }
@@ -85,7 +86,7 @@ function Targets() {
           <input type="checkbox" checked={onlyDown} onChange={(e) => setOnlyDown(e.target.checked)} disabled={!down.length} />
           <span className="set-check-t">Only the ones that did not</span>
         </label>
-        <button type="button" className="btn ghost sm" onClick={reload}>Refresh</button>
+        <Button variant="ghost" size="sm" onClick={reload}>Refresh</Button>
       </div>
       <div className="tbl-wrap set-tbl set-tbl-scroll">
         <table className="tbl">
@@ -120,7 +121,7 @@ function Rules() {
     return (
       <>
         <Refusal error={error} needs="viewer" what="the alert rules" />
-        <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+        <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
       </>
     );
   }
@@ -153,7 +154,7 @@ function Rules() {
       })}
       {!groups.length && <p className="set-empty">The provisioning file declares no rules.</p>}
       <div className="set-actions">
-        <a className="btn ghost sm" href={grafana} target="_blank" rel="noopener noreferrer">
+        <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={grafana} target="_blank" rel="noopener noreferrer">
           <ExternalLink size={14} aria-hidden="true" /> Firing state in Grafana
         </a>
         <span className="set-note">

@@ -21,6 +21,7 @@ import { Tooltip } from '../../components/Tooltip';
 import { FileIcon } from './icons';
 import { baseName, dirName, tailPath, type Node } from './tree';
 import { toneFor, type Decorations } from './gitdeco';
+import { Button } from '../../components/ui/Button';
 
 export const MAX_RESULTS = 250;
 
@@ -74,7 +75,7 @@ function TreeRows({
                   title={`${n.path} - ${n.files.toLocaleString()} files, ${fmtBytes(n.bytes)}`
                     + (dd ? ` · ${dd.count} changed` : '')}
                 >
-                  <ChevronRight size={12} className={`fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
+                  <ChevronRight size={12} className={`chev fx-chev ${open ? 'open' : ''}`} aria-hidden="true" />
                   {open
                     ? <FolderOpen size={13} className="fx-ico t-dir" aria-hidden="true" />
                     : <Folder size={13} className="fx-ico t-dir" aria-hidden="true" />}
@@ -301,7 +302,7 @@ export function Explorer({
         ) : error ? (
           <div className="fx-msg">
             <p>{error}</p>
-            <button type="button" className="btn ghost" onClick={onRetry}>Retry</button>
+            <Button variant="ghost" onClick={onRetry}>Retry</Button>
           </div>
         ) : results ? (
           results.shown.length === 0 ? (

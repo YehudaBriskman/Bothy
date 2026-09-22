@@ -5,6 +5,7 @@ import { usePortal } from '../lib/data';
 import { ErrState, EmptyState } from './states';
 import './Tables.css';
 import { SortHeader } from './SortHeader';
+import { Button } from './ui/Button';
 
 type Filter = 'all' | 'public' | 'loopback';
 type SortKey = 'hostPort' | 'containerPort' | 'container' | 'group' | 'proto' | 'scope';
@@ -156,7 +157,7 @@ export function PortsTab({
                 <td colSpan={cols.length} className="tbl-empty">
                   {/* name every active filter, not just the text one */}
                   No ports match {[filter !== 'all' ? `scope “${filter === 'public' ? 'exposed' : 'loopback'}”` : '', query.trim() ? `“${query.trim()}”` : ''].filter(Boolean).join(' + ') || 'these filters'}.
-                  {activeFilter && <button type="button" className="btn ghost sm tbl-empty-clear" onClick={clear}>Clear filters</button>}
+                  {activeFilter && <Button variant="ghost" size="sm" className="tbl-empty-clear" onClick={clear}>Clear filters</Button>}
                 </td>
               </tr>
             ) : rows.map((r, i) => {

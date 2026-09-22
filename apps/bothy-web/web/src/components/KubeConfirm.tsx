@@ -19,6 +19,7 @@ import {
 } from '../lib/kube-actions';
 import { Dialog, type FocusTarget } from './ui/Dialog';
 import './KubeActions.css';
+import { Button } from './ui/Button';
 
 export interface Outcome { line: string; sub?: string }
 
@@ -90,7 +91,7 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
         {(phase.t === 'done' ? phase.out.sub : phase.refusal.detail) && (
           <p className="sa-note">{phase.t === 'done' ? phase.out.sub : phase.refusal.detail}</p>
         )}
-        <div className="ka-row"><button type="button" className="btn ghost" onClick={onBack}>Back</button></div>
+        <div className="ka-row"><Button variant="ghost" onClick={onBack}>Back</Button></div>
       </div>
     );
   }
@@ -111,8 +112,10 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
         </label>
       )}
       <div className="ka-row">
-        <button type="button" className="btn ghost" onClick={onBack}>Leave it alone</button>
-        <button type="submit" className="btn sa-go" disabled={!ready}>{goLabel ?? `${spec.title}: ${what}`}</button>
+        <Button variant="ghost" onClick={onBack}>Leave it alone</Button>
+        {/* Deleting cannot be undone from here, so it reads as danger; every other
+            cluster change is consequential but recoverable - caution. */}
+        <Button variant={spec.id.startsWith('delete-') ? 'danger' : 'caution'} type="submit" disabled={!ready}>{goLabel ?? `${spec.title}: ${what}`}</Button>
       </div>
     </form>
   );

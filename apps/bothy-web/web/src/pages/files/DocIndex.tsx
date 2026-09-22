@@ -41,6 +41,7 @@ import { FileIcon } from './icons';
 import { isProse, stemOf, titleOf } from './titles';
 import { buildTree, type Node } from './tree';
 import { sortGuide } from './guide';
+import { Button } from '../../components/ui/Button';
 
 /** What one root's listing is doing. Held by the Reader, one per root. */
 export interface RootTree {
@@ -214,7 +215,7 @@ function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, 
               onClick={() => onToggle(key)}
               title={`${n.path} - ${n.files.toLocaleString()} document${n.files === 1 ? '' : 's'}`}
             >
-              <ChevronRight size={12} className={`rd-chev${isOpen ? ' open' : ''}`} aria-hidden="true" />
+              <ChevronRight size={12} className={`chev rd-chev${isOpen ? ' open' : ''}`} aria-hidden="true" />
               {isOpen
                 ? <FolderOpen size={13} className="rd-dir-ico" aria-hidden="true" />
                 : <Folder size={13} className="rd-dir-ico" aria-hidden="true" />}
@@ -282,7 +283,7 @@ function RootSection({
     <section className="rd-root" aria-label={root.label || root.key}>
       <h3 className="rd-root-h">
         <button type="button" className="rd-root-btn" aria-expanded={open} onClick={onToggle}>
-          <ChevronRight size={12} className={`rd-chev${open ? ' open' : ''}`} aria-hidden="true" />
+          <ChevronRight size={12} className={`chev rd-chev${open ? ' open' : ''}`} aria-hidden="true" />
           <span className="rd-root-name mono">{root.key}</span>
           {root.readOnly && <Lock size={10} className="rd-root-ro" aria-label="read-only" />}
           {open && !tree?.loading && (
@@ -299,7 +300,7 @@ function RootSection({
         ) : tree?.err ? (
           <div className="rd-msg">
             <p>{tree.err}</p>
-            <button type="button" className="btn ghost sm" onClick={() => onRetry(root.key)}>Retry</button>
+            <Button variant="ghost" size="sm" onClick={() => onRetry(root.key)}>Retry</Button>
           </div>
         ) : !total ? (
           <div className="rd-msg">
@@ -387,7 +388,7 @@ function GuideIndex({ root, tree, strip, current, onOpen, onRetry, dirs, onToggl
     return (
       <div className="rd-msg">
         <p>{tree.err}</p>
-        <button type="button" className="btn ghost sm" onClick={() => onRetry(root)}>Retry</button>
+        <Button variant="ghost" size="sm" onClick={() => onRetry(root)}>Retry</Button>
       </div>
     );
   }

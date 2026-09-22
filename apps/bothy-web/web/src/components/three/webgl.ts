@@ -13,11 +13,9 @@ export function hasWebGL(): boolean {
   }
 }
 
-export function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined'
-    && !!window.matchMedia
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+// prefersReducedMotion() lived here and read the OS media query ONCE, at mount,
+// so neither the in-app Motion setting nor a later OS change ever reached the
+// scene. The scene now asks lib/useMotionReduced.ts, like everything else.
 
 import type { Status } from '../../lib/discover';
 

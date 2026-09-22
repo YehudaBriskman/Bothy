@@ -45,7 +45,16 @@ See [CHECKLIST.md § 6](../CHECKLIST.md#6-typography).
   lines.
 - **Break-anywhere wrapping** is used only for opaque identifiers, never prose.
 
-**Known gap.** There is no declared type scale. Seventeen distinct font sizes
+**Closed 2026-09-22 (design audit batch 2).** Nine rem steps - `--fs-2xs` 11px
+through `--fs-2xl` 28px and a clamped `--fs-display` - each with its own
+`--lh-*` leading and `--tr-*` tracking (positive on the smallest, negative on
+display), five weights, `--label-tracking` and one `.eyebrow` class. The root is
+never given a px size, so the browser's text setting reaches every step. The
+shared primitives use the scale now; the rest of the app moves page by page in
+batch 4. Form controls inherit the type (a Services heading was rendering in
+Arial). The table is in [reference/tokens.md](../reference/tokens.md).
+
+**Was the known gap.** There was no declared type scale. Seventeen distinct font sizes
 are in use, from 10.5px to 68px, chosen individually. This is the largest
 outstanding item in the foundations and is tracked in
 [reference/open-questions.md](../reference/open-questions.md). The suggested fix

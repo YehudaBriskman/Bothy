@@ -4,7 +4,7 @@
    button shape reaches this one for free.
 
    The panel is drawn to the command palette's recipe - --surface-4, a strong
-   line and --shadow-lg - because it is the same KIND of object: something that
+   line and --shadow-3 - because it is the same KIND of object: something that
    floats over the page rather than another card sitting in it.
 
    EVERY RULE IS SCOPED UNDER .user-menu, including the ones that only touch the
@@ -43,7 +43,7 @@
 .user-menu .um-panel { position: absolute; z-index: 60; top: calc(100% + 8px); right: 0;
   min-width: 234px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
   background: var(--surface-4); border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg); box-shadow: var(--shadow-lg); }
+  border-radius: var(--r-lg); box-shadow: var(--shadow-3); }
 
 .user-menu .um-who { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px;
   margin-bottom: 4px; border-bottom: 1px solid var(--line); }

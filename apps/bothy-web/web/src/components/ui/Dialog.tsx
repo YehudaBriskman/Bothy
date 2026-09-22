@@ -37,6 +37,7 @@
 
 import * as RD from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
+import { Icon } from './Icon';
 import {
   useCallback, useLayoutEffect, useRef, type ReactNode, type RefObject,
 } from 'react';
@@ -128,7 +129,7 @@ export function Dialog({
             </div>
             {headerAside && <div className="dlg-head-aside">{headerAside}</div>}
             <RD.Close className="dlg-x" aria-label="Close">
-              <X size={16} />
+              <Icon icon={X} size="md" />
             </RD.Close>
           </header>
 

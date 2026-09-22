@@ -54,6 +54,7 @@ import { SignInCard } from './SignInCard';
 import { DiffView, type DiffTarget } from './Diff';
 import { OverflowMenu, type MenuItem } from './Menu';
 import type { CodeHandle, CodeStat } from './CodeSurface';
+import { Button, buttonClass } from '../../components/ui/Button';
 
 // The whole of CodeMirror lives behind this one line. `npm run build` puts it in
 // its own chunk, and the check that it STAYED there is the entry chunk's size
@@ -804,8 +805,8 @@ export function Editor({
             <b>{pending.name}</b> has unsaved changes. Closing it discards them.
           </span>
           <span className="fx-note-actions">
-            <button type="button" className="btn ghost sm" onClick={() => resolvePending(false)}>Keep editing</button>
-            <button type="button" className="btn sm" onClick={() => resolvePending(true)}>Discard and close</button>
+            <Button variant="ghost" size="sm" onClick={() => resolvePending(false)}>Keep editing</Button>
+            <Button size="sm" onClick={() => resolvePending(true)}>Discard and close</Button>
           </span>
         </div>
       )}
@@ -826,15 +827,15 @@ export function Editor({
             {conflict.theirs.length}.
           </p>
           <div className="fx-conflict-actions">
-            <button type="button" className="btn sm primary" onClick={() => onResolveConflict('mine')}>
+            <Button variant="primary" size="sm" onClick={() => onResolveConflict('mine')}>
               Keep mine, overwrite disk
-            </button>
-            <button type="button" className="btn sm" onClick={() => onResolveConflict('theirs')}>
+            </Button>
+            <Button size="sm" onClick={() => onResolveConflict('theirs')}>
               Take the disk version, discard mine
-            </button>
-            <button type="button" className="btn sm ghost" onClick={() => onResolveConflict('dismiss')}>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onResolveConflict('dismiss')}>
               Leave it for now
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -852,7 +853,7 @@ export function Editor({
             <>
               <span>Saving needs the editor role. Your edits stay in this tab.</span>
               <span className="fx-note-actions">
-                <a className="btn sm" href={signInUrl()}>Sign in, then Save again</a>
+                <a className={buttonClass({ variant: 'primary', size: 'sm' })} href={signInUrl()}>Sign in, then Save again</a>
               </span>
             </>
           ) : (

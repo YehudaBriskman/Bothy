@@ -14,6 +14,7 @@ import { fetchCredentials } from '../../lib/admin';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Cmd, Loading, Refusal, When, useLoad } from '../../components/settings/bits';
 import { statusOf } from '../../lib/http';
+import { Button } from '../../components/ui/Button';
 
 export function ClusterSettings() {
   return (
@@ -32,7 +33,7 @@ function Scope() {
     return (
       <>
         <Refusal error={error} needs="viewer" what="the cluster catalog" />
-        <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+        <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
       </>
     );
   }

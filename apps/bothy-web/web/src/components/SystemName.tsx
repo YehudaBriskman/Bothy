@@ -53,6 +53,7 @@ import { usePortal } from '../lib/data';
 import { hasRole, signInHref } from '../lib/me';
 import type { PortalNode } from '../lib/discover';
 import './SystemName.css';
+import { Button, buttonClass } from './ui/Button';
 
 // Loading the file, and the four things that can come back.
 type Load =
@@ -320,16 +321,12 @@ export function SystemName({
               <p className="sn-sub">What Bothy can do from here</p>
               <p className="sn-note">{APPLY.restartCaveat}</p>
               <div className="sn-row">
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={onRestart}
+                <Button variant="ghost" onClick={onRestart}
                   disabled={apply.t === 'working' || !canAct}
-                  title={canAct ? undefined : 'Restarting a service needs the operator role.'}
-                >
+                  title={canAct ? undefined : 'Restarting a service needs the operator role.'}>
                   <RotateCw size={15} aria-hidden="true" />
                   {apply.t === 'working' ? 'Restarting…' : `Restart ${file.container}`}
-                </button>
+                </Button>
                 {!sessionLoading && !canAct && (
                   <span className="sn-note sn-inline">
                     Needs the operator role, which this session does not hold.
@@ -371,9 +368,9 @@ export function SystemName({
                 onChange={(e) => { touched.current = true; setDraft(e.target.value); setSave({ t: 'rest' }); }}
               />
               {canEdit && (
-                <button type="submit" className="btn" disabled={!canSave}>
+                <Button type="submit" disabled={!canSave}>
                   {save.t === 'saving' ? 'Saving…' : 'Save name'}
-                </button>
+                </Button>
               )}
             </div>
             <p className="sn-hint" id="sn-hint">
@@ -406,7 +403,7 @@ export function SystemName({
                   each one permits. They are granted in Keycloak, not here.
                 </p>
               ) : (
-                <a className="btn primary sn-signin" href={signInHref()}>
+                <a className={buttonClass({ variant: 'primary' }, 'sn-signin')} href={signInHref()}>
                   <LogIn size={15} aria-hidden="true" />
                   Sign in
                 </a>
@@ -475,12 +472,12 @@ function RefusalBlock({
           {/* The draft is deliberately kept. Reloading answers "what does it say
               now"; it does not throw away what somebody typed, because that
               would make the safe move the expensive one. */}
-          <button type="button" className="btn ghost" onClick={onReload}>Reload the file</button>
+          <Button variant="ghost" onClick={onReload}>Reload the file</Button>
           <span className="sn-note sn-inline">What you typed stays in the box.</span>
         </div>
       )}
       {refusal.needs === 'sign-in' && (
-        <a className="btn primary sn-signin" href={signInHref()}>
+        <a className={buttonClass({ variant: 'primary' }, 'sn-signin')} href={signInHref()}>
           <LogIn size={15} aria-hidden="true" />
           Sign in
         </a>

@@ -7,6 +7,7 @@ import { Check, Copy, LogIn } from 'lucide-react';
 import { refusalOf, statusOf } from '../../lib/http';
 import { signInHref } from '../../lib/me';
 import { relDate } from '../../lib/files';
+import { buttonClass } from '../ui/Button';
 
 /** A command to run on the box. Never a button that runs it: rotation and
  *  backups stay a shell's job in v1, and the page says the command out loud. */
@@ -71,7 +72,7 @@ export function Refusal({ error, needs, what }: { error: unknown; needs?: string
     return (
       <div className="set-refusal" role="status">
         <p><b>Sign in to see {what}.</b> Nothing here is shown without a session.</p>
-        <a className="btn ghost sm" href={signInHref()}><LogIn size={14} aria-hidden="true" /> Sign in</a>
+        <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={signInHref()}><LogIn size={14} aria-hidden="true" /> Sign in</a>
       </div>
     );
   }

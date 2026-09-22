@@ -4,6 +4,7 @@
 
 import { LogIn } from 'lucide-react';
 import { signInUrl } from '../../lib/files';
+import { Button, buttonClass } from '../../components/ui/Button';
 
 export function SignInCard({ what, onRetry }: { what: string; onRetry?: () => void }) {
   return (
@@ -16,8 +17,8 @@ export function SignInCard({ what, onRetry }: { what: string; onRetry?: () => vo
         the <b>viewer</b> role; saving needs <b>editor</b>.
       </p>
       <div className="fx-signin-actions">
-        <a className="btn primary" href={signInUrl()}>Sign in</a>
-        {onRetry && <button type="button" className="btn ghost" onClick={onRetry}>Retry</button>}
+        <a className={buttonClass({ variant: 'primary' })} href={signInUrl()}>Sign in</a>
+        {onRetry && <Button variant="ghost" onClick={onRetry}>Retry</Button>}
       </div>
     </div>
   );

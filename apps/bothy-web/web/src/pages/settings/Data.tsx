@@ -9,6 +9,7 @@ import { announcePref, useDataPrefs } from '../../lib/usePrefs';
 import { CHART_RANGES, KNOWN_KEYS, POLL_CHOICES, type ChartRange, type PollSeconds } from '../../lib/prefs';
 import { LOKI_CONFIG, VM_COMPOSE, lokiRetention, readStackFile, vmRetention } from '../../lib/stack-config';
 import { filesHref } from '../files/routes';
+import { Button } from '../../components/ui/Button';
 
 export function DataSettings() {
   const [data, setData] = useDataPrefs();
@@ -78,7 +79,7 @@ function RetentionBlock() {
     return (
       <>
         <Refusal error={error} needs="viewer" what="the retention settings" />
-        <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+        <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
       </>
     );
   }
@@ -160,7 +161,7 @@ function LocalData() {
                 <td>{known.get(p.key)?.what ?? <span className="dim">not a key this version of Bothy uses</span>}</td>
                 <td className="num tnum">{p.bytes} B</td>
                 <td className="set-cell-act">
-                  <button type="button" className="btn ghost sm" onClick={() => clear([p.key])} aria-label={`Clear ${p.key}`}>Clear</button>
+                  <Button variant="ghost" size="sm" onClick={() => clear([p.key])} aria-label={`Clear ${p.key}`}>Clear</Button>
                 </td>
               </tr>
             ))}
@@ -170,15 +171,15 @@ function LocalData() {
       <div className="set-actions">
         {confirmAll ? (
           <>
-            <button type="button" className="btn sm set-danger" onClick={() => { clear(present.map((p) => p.key)); setConfirmAll(false); }}>
+            <Button variant="danger" size="sm" onClick={() => { clear(present.map((p) => p.key)); setConfirmAll(false); }}>
               Yes, clear all {present.length}
-            </button>
-            <button type="button" className="btn ghost sm" onClick={() => setConfirmAll(false)}>Keep them</button>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmAll(false)}>Keep them</Button>
             <span className="set-note">Resets the theme, sizes, layout and recents in this browser. Nothing on the box changes.</span>
           </>
         ) : (
           <>
-            <button type="button" className="btn ghost sm" onClick={() => setConfirmAll(true)}>Clear all Bothy data in this browser</button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmAll(true)}>Clear all Bothy data in this browser</Button>
             <span className="set-note tnum">{present.length} keys, {total} B. Other browsers and the box are not affected.</span>
           </>
         )}

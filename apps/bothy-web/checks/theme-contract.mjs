@@ -10,9 +10,11 @@
 // fails on Bothy's own dark and light themes, the rule is wrong - not the
 // palette - and this file is where that gets found out.
 //
-// WHAT A THEME OWES. Of the 81 custom properties in :root, 16 are DERIVED
+// WHAT A THEME OWES. (Counts as of 2026-09-21; the run prints the live ones.)
+// Of the custom properties in :root, 21 are DERIVED
 // (color-mix over another token, on the same element, so they re-evaluate for
-// free) and 24 are STRUCTURAL (radii, motion, fonts, widths, the reading scale -
+// free) and the rest but 41 are STRUCTURAL (radii, motion, fonts, widths, the reading
+// scale, and since batch 2 the type, spacing and icon families by prefix -
 // not colour, and shared by every theme). The remaining 41 are the theme's own,
 // and a theme must declare all of them: a missing token silently inherits the
 // base palette, which is how you get a Gruvbox page with one blue button on it.

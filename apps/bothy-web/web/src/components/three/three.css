@@ -11,7 +11,8 @@
   background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  backdrop-filter: blur(12px);
+  /* No backdrop-filter: it blurred what is behind an OPAQUE surface, which is
+     a compositing cost for nothing (design audit SYS-12, decision 4). */
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -55,7 +56,7 @@
   padding: 5px 12px;
   border-radius: 7px;
   cursor: pointer;
-  transition: background .16s ease, color .16s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .sv-focus-btn:hover { color: var(--fg); }
 .sv-focus-btn.is-on {
@@ -131,12 +132,14 @@
   font-size: 13px;
   letter-spacing: -0.01em;
   color: var(--fg);
-  background: color-mix(in oklab, var(--surface-2) 88%, transparent);
+  /* Opaque (decision 4): translucent material is for the top bar and the
+     palette only. At 88% over a moving scene the label changed contrast with
+     every frame of the orbit. */
+  background: var(--surface-2);
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 3px 10px;
-  backdrop-filter: blur(6px);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-2);
 }
 .sv-plate-edge .sv-plate-txt {
   color: var(--accent);
@@ -153,8 +156,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 11px;
   padding: 10px 12px;
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-3);
 }
 .sv-tip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .sv-tip-ico { color: var(--accent); flex: none; }
@@ -231,7 +233,7 @@
     color-mix(in oklab, var(--surface-2) 30%, transparent));
   color: var(--fg);
   text-decoration: none;
-  transition: transform .14s ease, border-color .14s ease, background .14s ease;
+  transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .sv-slab:hover {
   transform: translateX(2px);

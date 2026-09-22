@@ -12,13 +12,14 @@ import { AlertTriangle } from 'lucide-react';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Loading, Prose, Refusal, When, useLoad } from '../../components/settings/bits';
 import { fetchCredentials, type CredentialsResult, type EnvKey } from '../../lib/admin';
+import { Button } from '../../components/ui/Button';
 
 export function CredentialsSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchCredentials(signal));
   const body = (render: (d: CredentialsResult) => React.ReactNode) => (loading ? <Loading rows={5} /> : error ? (
     <>
       <Refusal error={error} needs="operator" what="the credential inventory" />
-      <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+      <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
     </>
   ) : data ? render(data) : null);
 

@@ -8,6 +8,7 @@ import { filesHref } from '../files/routes';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Cmd, Loading, Refusal, When, fmtBytes, useLoad } from '../../components/settings/bits';
 import { fetchBackups, type BackupsResult } from '../../lib/admin';
+import { Button } from '../../components/ui/Button';
 
 const DAY = 86_400_000;
 
@@ -16,7 +17,7 @@ export function BackupsSettings() {
   const fail = (
     <>
       <Refusal error={error} needs="operator" what="the backup inventory" />
-      <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+      <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
     </>
   );
   return (

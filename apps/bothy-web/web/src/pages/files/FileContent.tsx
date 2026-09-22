@@ -33,6 +33,7 @@ import { countLines, gutterText, GUTTER_LIMIT, highlight } from './highlight';
 import { renderMd, type MdLinks } from './md';
 import { JsonView } from './JsonView';
 import { baseName, type Kind } from './tree';
+import { Button } from '../../components/ui/Button';
 
 /** Rendered, or the text itself. Lives here rather than in Editor.tsx because it
  *  is a property of the CONTENT, and this is the module that acts on it -
@@ -148,9 +149,9 @@ function DownloadCard({ path, size, kind, onDownload, canDownload }: {
           : <>These bytes are not text. It is listed because it is in the root;
               dumping the bytes into a viewer would help nobody.</>}
       </p>
-      <button type="button" className="btn primary" onClick={onDownload} disabled={!canDownload}>
+      <Button variant="primary" onClick={onDownload} disabled={!canDownload}>
         <Download size={14} aria-hidden="true" /> Download
-      </button>
+      </Button>
       {!canDownload && <p className="fx-binary-note">Sign in first - the download origin has no sign-in page of its own.</p>}
     </div>
   );

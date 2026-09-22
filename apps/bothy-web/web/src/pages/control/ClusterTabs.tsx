@@ -21,6 +21,7 @@ import { EventList, KubeDialog, Refused, type KubeDialogTab } from '../../compon
 import { ConfirmDialog } from '../../components/KubeConfirm';
 import { Dialog } from '../../components/ui/Dialog';
 import { Menu } from '../../components/ui/Menu';
+import { Button } from '../../components/ui/Button';
 
 type Roles = string[];
 
@@ -41,9 +42,9 @@ function ReadHead<T>({ read, what, children }: { read: ReadState<T>; what: strin
       </span>
       <span className="cl-sub-actions">
         {children}
-        <button type="button" className="btn ghost cl-small" onClick={read.reload} aria-label={`Refresh ${what}`}>
+        <Button variant="ghost" size="sm" onClick={read.reload} aria-label={`Refresh ${what}`}>
           <RefreshCw size={14} aria-hidden="true" /> Refresh
-        </button>
+        </Button>
       </span>
     </div>
   );
@@ -83,12 +84,10 @@ function GatedButton({ g, onClick, title, denied, children }: { g: Gate; onClick
   if (g === 'hidden') return null;
   const on = g === 'enabled';
   return (
-    <button
-      type="button" className="btn ghost cl-small" aria-disabled={on ? undefined : true}
-      title={on ? title : denied} onClick={() => { if (on) onClick(); }}
-    >
+    <Button variant="ghost" size="sm" aria-disabled={on ? undefined : true}
+      title={on ? title : denied} onClick={() => { if (on) onClick(); }}>
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -308,7 +307,7 @@ export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
             <td className="cl-actions-cell">
               <span className="cl-row-btns">
                 {(p.owner?.kind === 'Deployment' || p.owner?.kind === 'Job') && (
-                  <button type="button" className="btn ghost cl-small" onClick={() => setLogs(p)}><ScrollText size={14} aria-hidden="true" /> Logs</button>
+                  <Button variant="ghost" size="sm" onClick={() => setLogs(p)}><ScrollText size={14} aria-hidden="true" /> Logs</Button>
                 )}
                 {p.deletable && (
                   <GatedButton g={g} onClick={() => setDel(p)} title={`Delete ${p.name}`} denied="Deleting a pod needs the operator role">
@@ -383,7 +382,7 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
             <td className="dim">{ago(j.startTime ?? j.createdAt)}</td>
             <td className="cl-actions-cell">
               <span className="cl-row-btns">
-                <button type="button" className="btn ghost cl-small" onClick={() => setLogs(j.name)}><ScrollText size={14} aria-hidden="true" /> Logs</button>
+                <Button variant="ghost" size="sm" onClick={() => setLogs(j.name)}><ScrollText size={14} aria-hidden="true" /> Logs</Button>
                 <GatedButton g={gate(roles, delSpec)} onClick={() => setDel(j.name)} title={`Delete ${j.name}`} denied="Deleting a job needs the operator role">
                   <Trash2 size={14} aria-hidden="true" /> Delete
                 </GatedButton>
@@ -446,7 +445,7 @@ function JobLogsDialog({ ns, job, onClose }: { ns: string; job: string; onClose:
             )}
             <label className="ka-check"><input type="checkbox" checked={previous} onChange={(e) => setPrevious(e.target.checked)} /> Previous instance</label>
           </div>
-          <button type="button" className="btn ghost ka-small" onClick={() => setNonce((n) => n + 1)}><RefreshCw size={14} aria-hidden="true" /> Refresh</button>
+          <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
         </div>
         <p className="sa-note">{loading ? 'Reading logs… ' : res ? <>From <span className="mono">{res.pod} / {res.container}</span></> : null}</p>
         {refusal && <Refused r={refusal} />}
@@ -505,8 +504,8 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
                       aria-invalid={!ok} onChange={(ev) => setDraft(ev.target.value)}
                     />
                     <label className="ka-check"><input type="checkbox" checked={restart} onChange={(ev) => setRestart(ev.target.checked)} /> and restart</label>
-                    <button type="submit" className="btn cl-small" disabled={!ok || draft === e.value}>Save</button>
-                    <button type="button" className="btn ghost cl-small" onClick={() => setEditing(null)}>Cancel</button>
+                    <Button size="sm" type="submit" disabled={!ok || draft === e.value}>Save</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
                     {!ok && <span className="ka-hint ka-bad">Must match <span className="mono">{e.pattern}</span></span>}
                   </form>
                 ) : (

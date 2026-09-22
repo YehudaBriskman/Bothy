@@ -48,8 +48,18 @@ two seconds. Clamp the multiplier.
   invariant below is unchanged: it still never hides anything.
 
 Implementation lands in design-audit batches 2 and 3
-(`docs/plans/design-audit-apple.md`); until then the code does what the older
-bullets under "What Bothy decided" describe.
+(`docs/plans/design-audit-apple.md`).
+
+**Batch 2 (2026-09-22) - the tokens exist.** Durations `--dur-fast` 120,
+`--dur` 180, `--dur-slow` 260, `--dur-exit` 120, `--press-dur` 100; curves
+`--ease` (arrive), `--ease-exit` (leave) and `--ease-standard` (a reversible
+toggle); `--spring` with `--spring-dur-s/-/-l` (critically damped, response
+.30/.35/.40) and `--spring-bounce` (damping .8, only after momentum);
+`--stagger`; `--loop-*` for spinners. The same numbers are in `lib/motion.ts`
+for framer-motion, and a check fails if the two copies differ. Every literal
+duration and bare `ease` is gone. One hook, `useMotionReduced()`, answers "is
+motion reduced" for the OS setting and the in-app one; the press state keeps its
+dim and drops its scale under it. Springs are applied to overlays in batch 3.
 
 ## Checklist
 

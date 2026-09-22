@@ -8,6 +8,7 @@ import { StatusIcon } from '../../lib/icons';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Loading, Refusal, useLoad } from '../../components/settings/bits';
 import { filesHref } from '../files/routes';
+import { Button } from '../../components/ui/Button';
 
 // The five, in request-path order. Named, not discovered, because "is one of
 // them missing" is the question - discovery cannot report what it did not find.
@@ -89,7 +90,7 @@ function Edge() {
     return (
       <>
         <Refusal error={error} what="the edge" />
-        <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+        <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
       </>
     );
   }

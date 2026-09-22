@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, HardDrive } from 'lucide-react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { usePortal, healthOf } from '../lib/data';
+import { DUR, EASE, staggerDelay } from '../lib/motion';
+import { useMotionReduced } from '../lib/useMotionReduced';
 import { groupByType, systemsOf, findSystem, volumeSize, systemDiskBytes, fmtBytes } from '../lib/systems';
 import { TypeIcon } from '../lib/icons';
 import { ServiceTable } from '../components/ServiceTable';
@@ -22,7 +24,7 @@ const KIND_LABEL: Record<'project' | 'stack' | 'infra', string> = {
 export function ProjectDetail() {
   const { name = '' } = useParams();
   const { data } = usePortal();
-  const reduce = useReducedMotion();
+  const reduce = useMotionReduced();
 
   // Which half of the Reachability panel is showing. Not persisted: it is a
   // view of one page, not a fact about the box.
@@ -128,7 +130,7 @@ export function ProjectDetail() {
       : {
           initial: { opacity: 0, y: 14 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.34, delay: 0.05 + i * 0.05, ease: [0.2, 0.7, 0.2, 1] as const },
+          transition: { duration: DUR.slow, delay: staggerDelay(i + 1), ease: EASE },
         };
 
   if (!system) {
@@ -153,7 +155,7 @@ export function ProjectDetail() {
         <span className="here">{system.title}</span>
       </nav>
 
-      <motion.header className="detail-head" {...(reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3 } })}>
+      <motion.header className="detail-head" {...(reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: DUR.slow, ease: EASE } })}>
         <div className="detail-head-meta">
           <h1>
             <span className="acc-bar" />

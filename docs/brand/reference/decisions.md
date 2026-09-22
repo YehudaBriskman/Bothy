@@ -8,6 +8,42 @@ first. Dead ends are recorded rather than deleted - see
 
 ---
 
+## 2026-09-22 - Design tokens and the shared primitives (audit batch 2)
+
+Decisions 1, 3, 6 and 8 from the entry below, implemented, plus the token work
+they rest on. Held by `apps/bothy-web/checks/design-tokens.mjs`.
+
+- **One Button.** `components/ui/Button.tsx`: primary, secondary, ghost, danger
+  and caution, one small size, a real disabled state. A hand-written `btn` class
+  anywhere else fails the check; every other raw `<button>` must belong to a
+  registered family (tab, row, icon trigger, inline action). **Rejected:** keeping
+  `.btn` as a global utility with modifiers - it had grown five `.sm`s, six
+  disabled copies and a danger class nobody defined, because a utility cannot
+  refuse a local override and a component can. **Cost:** 101 call sites touched.
+  **Caution** is a fifth variant nobody asked for: the service and cluster
+  confirms had a deliberate amber edge (`.sa-go`), and folding it into danger
+  would have painted "Restart" red.
+- **Danger's hover tint is opaque** (`--st-down` 14% over `--bg`), not the
+  translucent `--st-down-bg`: over Gruvbox's light dialog surface the translucent
+  one took the label to 2.78:1.
+- **Press = dim + shrink** for compact controls, darken for rows; reduced motion
+  keeps the dim. **Rejected:** a press colour per component - the inset `--fg`
+  tint reads on every fill in both themes, including a filled primary.
+- **Springs are tokens, not yet motion.** `--spring` is a sampled critically
+  damped `linear()` and `lib/motion.ts` has the exact physics for framer; batch 3
+  puts them on dialogs, menus and the drawer.
+- **The type scale is closed at nine rem steps** with per-step leading and
+  tracking. Only the shared primitives moved in this batch; the page-by-page px
+  sweep is batch 4, so for now a 125% browser text size grows the controls and
+  not yet every paragraph.
+- **Elevation is four steps from two theme colours.** Themes lost the ability to
+  set shadow geometry, on purpose. Two named themes changed colour because the
+  Button rule measured their dialogs for the first time (Gruvbox's
+  `--surface-4` and `--st-down-fg`, Tokyo Night's `--st-down-fg`).
+- **`tokens.md` is generated**, so it cannot drift again.
+
+---
+
 ## 2026-09-21 - The design audit's conflicts, decided
 
 The Apple-design audit (`docs/plans/design-audit-apple.md`) recorded ten places

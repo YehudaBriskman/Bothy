@@ -49,6 +49,7 @@ import {
   type Channel, type HistoryEntry, type Job, type JobState, type JobStep, type Level, type OwnPlan, type Plan, type UpdateRow,
   type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
+import { Button } from '../../components/ui/Button';
 
 export function UpdatesSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchUpdates(signal));
@@ -74,7 +75,7 @@ export function UpdatesSettings() {
   const fail = (
     <>
       <Refusal error={error} needs="viewer" what="update checks" />
-      <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+      <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
     </>
   );
   return (
@@ -241,12 +242,10 @@ function DeployCell({ r, canAct, busy, onUpdate }: { r: UpdateRow } & Omit<RowCt
         <LevelBadge level={p.level} />
       </span>
       {canAct ? (
-        <button
-          type="button" className="btn sm upd-go" onClick={() => onUpdate(r)} disabled={busy}
-          title={busy ? 'An update is running - one at a time' : undefined}
-        >
+        <Button size="sm" className="upd-go" onClick={() => onUpdate(r)} disabled={busy}
+          title={busy ? 'An update is running - one at a time' : undefined}>
           Update…
-        </button>
+        </Button>
       ) : (
         <span className="set-cell-sub">needs <span className="mono">operator</span></span>
       )}
@@ -388,10 +387,10 @@ function Paused({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onCha
       {waiting ? (
         <span className="set-cell-sub" role="status"><span className="sa-spin" aria-hidden="true" /> unpause asked - waiting for the host</span>
       ) : canAct ? (
-        <button type="button" className="btn ghost sm upd-unpause" onClick={() => void go()} disabled={phase.t === 'sending'}
+        <Button variant="ghost" size="sm" className="upd-unpause" onClick={() => void go()} disabled={phase.t === 'sending'}
           title="Let the night job update this component again. Find out why it failed first.">
           {phase.t === 'sending' ? 'Asking the host…' : 'Unpause'}
-        </button>
+        </Button>
       ) : (
         <span className="set-cell-sub">unpause needs <span className="mono">operator</span></span>
       )}
@@ -482,10 +481,10 @@ function PlanDialog({ row, onClose, onStarted }: { row: UpdateRow; onClose: () =
                     </label>
                   )}
                   <div className="ka-row">
-                    <button type="button" className="btn ghost" onClick={onClose}>Leave it alone</button>
-                    <button type="submit" className="btn sa-go" disabled={!ready}>
+                    <Button variant="ghost" onClick={onClose}>Leave it alone</Button>
+                    <Button variant="caution" type="submit" disabled={!ready}>
                       {phase.t === 'sending' ? 'Asking the host…' : `Update ${plan.component} to ${plan.to.tag ?? plan.to.version ?? 'the pin'}`}
-                    </button>
+                    </Button>
                   </div>
                 </form>
               </>
@@ -722,7 +721,7 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
     return (
       <section className="upd-job" data-tone="warn" aria-label="Update job">
         <p className="upd-job-h"><AlertTriangle size={15} aria-hidden="true" />The host has no job <span className="mono">{id.slice(0, 12)}</span>.</p>
-        <div className="ka-row"><button type="button" className="btn ghost sm" onClick={onDismiss}>Dismiss</button></div>
+        <div className="ka-row"><Button variant="ghost" size="sm" onClick={onDismiss}>Dismiss</Button></div>
       </section>
     );
   }
@@ -735,7 +734,7 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
           <span>{job ? STATE_WORD[job.state] : 'Asking the host…'}</span>
           {job && <span className="mono upd-job-what">{job.component}{job.to ? ` → ${job.to.version ?? job.to.image}` : ''}</span>}
         </p>
-        {done && <button type="button" className="btn ghost sm" onClick={onDismiss}>Dismiss</button>}
+        {done && <Button variant="ghost" size="sm" onClick={onDismiss}>Dismiss</Button>}
       </header>
       {lost && !done && (
         <p className="set-note upd-lost" role="status">

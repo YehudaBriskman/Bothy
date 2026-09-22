@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard, Gauge, FolderTree,
   Search,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
+import { DUR, EASE } from '../lib/motion';
+import { useMotionReduced } from '../lib/useMotionReduced';
 import { freshnessOf } from '../lib/freshness';
 import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
 import { Tooltip } from './Tooltip';
@@ -87,7 +89,7 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const reduce = useReducedMotion();
+  const reduce = useMotionReduced();
   const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
   return (
@@ -198,7 +200,7 @@ export function AppShell() {
           initial={{ opacity: 0, y: reduce ? 0 : 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: reduce ? 0 : -8 }}
-          transition={{ duration: 0.22, ease: [0.2, 0.7, 0.2, 1] }}
+          transition={{ duration: DUR.base, ease: EASE }}
         >
           <Outlet />
         </motion.main>

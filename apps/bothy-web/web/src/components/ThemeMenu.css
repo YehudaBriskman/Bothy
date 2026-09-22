@@ -27,7 +27,7 @@
      fault rather than as a list. */
   min-width: 288px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
   background: var(--surface-4); border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-3);
 }
 
 .theme-menu .tm-row {

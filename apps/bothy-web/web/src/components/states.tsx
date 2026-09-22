@@ -1,3 +1,4 @@
+import { Button } from './ui/Button';
 // Shared empty / error states.
 
 // `onClear` is optional: "no services discovered" is not a filter problem, and
@@ -16,9 +17,9 @@ export function EmptyState({
       <h4>{message}</h4>
       {hint && <p>{hint}</p>}
       {onClear && (
-        <button type="button" className="btn ghost" onClick={onClear}>
+        <Button variant="ghost" onClick={onClear}>
           Clear filter
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -30,9 +31,9 @@ export function ErrState({ title, body, onRetry }: { title: string; body: string
       <h4>{title}</h4>
       <p>{body}</p>
       {onRetry && (
-        <button type="button" className="btn ghost" onClick={onRetry}>
+        <Button variant="ghost" onClick={onRetry}>
           Retry
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -24,6 +24,7 @@ import { AuditSettings } from './Audit';
 import { BackupsSettings } from './Backups';
 import { UpdatesSettings } from './Updates';
 import { AboutSettings } from './About';
+import { buttonClass } from '../../components/ui/Button';
 
 export const SETTINGS_PAGES: Record<string, () => React.ReactElement> = {
   profile: ProfileSettings,
@@ -45,7 +46,7 @@ function UnknownSection() {
   return (
     <div className="set-empty">
       <p>There is no settings section at this address.</p>
-      <Link className="btn ghost sm" to="/settings/profile">Go to Profile &amp; session</Link>
+      <Link className={buttonClass({ variant: 'ghost', size: 'sm' })} to="/settings/profile">Go to Profile &amp; session</Link>
     </div>
   );
 }

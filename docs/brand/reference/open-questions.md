@@ -13,8 +13,8 @@ decision has not been made, or has been made and not implemented.
 
 | Gap | Why it matters | Suggested default |
 |---|---|---|
-| **No spacing scale.** Padding and gap literals span roughly two dozen distinct values | Every spacing choice is made from scratch, and none of them can be changed globally | Adopt a closed ladder and migrate |
-| **No type scale.** Seventeen distinct font sizes, 10.5px to 68px | Same, plus there is no way to check a size is legitimate | Close the list to about nine steps |
+| **~~No spacing scale.~~ Declared 2026-09-22 (`--sp-*`); migration is design-audit batch 4.** Was: Padding and gap literals span roughly two dozen distinct values | Every spacing choice is made from scratch, and none of them can be changed globally | Adopt a closed ladder and migrate |
+| **~~No type scale.~~ Closed 2026-09-22 (nine rem steps, `--fs-*`); migration is batch 4.** Was: Seventeen distinct font sizes, 10.5px to 68px | Same, plus there is no way to check a size is legitimate | Close the list to about nine steps |
 | **Two content widths disagree** - a 1180px token and a 1320px maximum | They answer "how wide is this product" differently | Pick one, or give each a named role |
 | **z-index is literals only** - seven values, none named | A layering bug is a guess to debug | Name them as tokens |
 | **Literal durations bypass the motion tokens** in several places | The tokens stop being the source of truth | Route through the tokens or name the exceptions |

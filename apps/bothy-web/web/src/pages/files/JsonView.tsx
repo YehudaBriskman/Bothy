@@ -86,7 +86,7 @@ function Row({ name, value, depth, path, budget }: {
         onClick={() => setOpen((o) => !o)}
         title={path}
       >
-        <ChevronRight size={12} className={`fx-json-chev ${open ? 'open' : ''}`} aria-hidden="true" />
+        <ChevronRight size={12} className={`chev fx-json-chev ${open ? 'open' : ''}`} aria-hidden="true" />
         {name !== null && <><span className="hl-key">{name}</span><span className="fx-json-colon">:</span></>}
         <span className="fx-json-brace">{openB}</span>
         {/* A collapsed branch reports its own size. An empty {} is a different

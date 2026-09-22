@@ -85,7 +85,7 @@
   position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 6px);
   list-style: none; margin: 0; padding: 4px;
   background: var(--surface-4); border: 1px solid var(--line-strong); border-radius: var(--r-md);
-  box-shadow: var(--shadow-lg); max-height: min(60vh, 420px); overflow-y: auto;
+  box-shadow: var(--shadow-3); max-height: min(60vh, 420px); overflow-y: auto;
   width: max(100%, 320px);
 }
 .set-search .set-search-opt {
@@ -139,7 +139,7 @@
   border: 1px solid var(--line-strong); border-radius: var(--r-full); padding: 1px 8px; white-space: nowrap;
 }
 .set-shell .set-block-toggle { flex: none; }
-.set-shell .set-block-chev { transition: rotate var(--dur) var(--ease); }
+/* .set-block-chev turns on the shared .chev timing (index.css). */
 .set-shell .set-block.is-open .set-block-chev { rotate: 180deg; }
 .set-shell .set-block-b { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
 
@@ -154,10 +154,7 @@
 .set-shell .set-save-btns { display: flex; gap: 8px; margin-left: auto; }
 
 /* ── shared bits ─────────────────────────────────────────────────────────── */
-.set-shell .btn.sm { padding: 5px 11px; font-size: 12.5px; border-radius: var(--r-sm); min-height: 30px; }
-.set-shell .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.set-shell .btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
-.set-shell .btn:disabled:hover { border-color: var(--line-strong); }
+/* Settings' own .btn.sm, focus ring and disabled state went to ui/Button (SYS-7). */
 .set-shell .set-lede { margin: 0; max-width: 78ch; font-size: 13.5px; line-height: 1.55; color: var(--fg-muted); }
 .set-shell .set-note { display: block; margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--fg-subtle); max-width: 80ch; }
 .set-shell .set-empty { margin: 0; font-size: 13.5px; color: var(--fg-muted); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
@@ -356,13 +353,13 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; pad
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 :is(.set-shell, .upd-plan) .upd-code { font-size: .92em; padding: 0 4px; border-radius: var(--r-xs); background: var(--bg-2); border: 1px solid var(--line); color: var(--fg); overflow-wrap: anywhere; }
-.set-shell .btn.upd-go { display: inline-flex; }
+.set-shell .upd-go { display: inline-flex; }
 
 /* Step 7: a paused automatic channel is STATE (a rollback happened), so it takes
    .set-warn with a glyph; the actor `auto` is a fact, drawn in the neutral chrome. */
 .set-shell .upd-paused { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-top: 5px; }
 .set-shell .upd-paused-h { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
-.set-shell .btn.upd-unpause { display: inline-flex; margin-top: 2px; }
+.set-shell .upd-unpause { display: inline-flex; margin-top: 2px; }
 .set-shell .upd-actor-auto {
   font-family: var(--mono); font-size: 11px; font-weight: 600; white-space: nowrap;
   padding: 0 6px; border-radius: var(--r-full); background: var(--bg-2); border: 1px solid var(--line); color: var(--fg-muted);
@@ -480,13 +477,13 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: 4px; pad
 
 .set-drawer-overlay {
   position: fixed; inset: 0; z-index: 90;
-  background: color-mix(in oklab, var(--bg) 72%, transparent);
+  background: var(--scrim);
 }
 .set-drawer {
   position: fixed; z-index: 91; top: 0; bottom: 0; left: 0;
   width: min(320px, 88vw);
   display: flex; flex-direction: column;
-  background: var(--surface-4); border-right: 1px solid var(--line-strong); box-shadow: var(--shadow-lg);
+  background: var(--surface-4); border-right: 1px solid var(--line-strong); box-shadow: var(--shadow-4);
   animation: set-drawer-in var(--dur) var(--ease);
 }
 .set-drawer:focus-visible { outline: none; }

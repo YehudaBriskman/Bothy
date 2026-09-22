@@ -9,7 +9,7 @@
 .cl-page .cl-head { flex-wrap: wrap; margin-bottom: 14px; }
 .cl-page .cl-head-aside { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .cl-page .cl-ns button { font-family: var(--mono); font-size: 12.5px; }
-.cl-page .btn.cl-headlamp { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 6px 12px; }
+/* .cl-headlamp is a small ui/Button; only its placement is local. */
 .cl-page .tbl-filter { margin: 0; }
 .cl-page .tbl-search input { font-size: 13.5px; padding: 7px 0; }
 
@@ -26,8 +26,6 @@
 .cl-page .cl-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .cl-page .cl-fresh { font-size: 13px; }
 .cl-page .cl-sub-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cl-page .btn.cl-small { font-size: 12.5px; padding: 4px 10px; gap: 6px; display: inline-flex; align-items: center; white-space: nowrap; }
-.cl-page .btn[aria-disabled='true'] { opacity: var(--disabled-opacity); cursor: default; }
 .cl-page .cl-run { display: inline-flex; align-items: center; gap: 6px; }
 .cl-page .cl-stale { color: var(--st-warn-fg); }
 .cl-page .cl-note-wrap { display: flex; flex-direction: column; gap: 6px; }
@@ -121,6 +119,6 @@
 }
 @media (max-width: 560px) {
   .cl-page .cl-head-aside { width: 100%; }
-  .cl-page .btn.cl-headlamp { margin-left: auto; }
+  .cl-page .cl-headlamp { margin-left: auto; }
   .cl-page .cl-tbl .tbl td.cl-img { max-width: 140px; }
 }

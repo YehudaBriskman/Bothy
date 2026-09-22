@@ -22,6 +22,7 @@
 // both correct and cheap - the article changes once per document.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { scrollBehavior } from '../../lib/useMotionReduced';
 
 export interface Heading {
   slug: string;
@@ -161,7 +162,7 @@ export function Toc({ headings, box }: {
   const go = useCallback((slug: string) => {
     const el = box.current;
     const node = el?.querySelector(`[data-md-anchor="${CSS.escape(slug)}"]`);
-    node?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    node?.scrollIntoView({ block: 'start', behavior: scrollBehavior() });
   }, [box]);
 
   // Fewer than two headings is not an outline, it is a repeat of the title.

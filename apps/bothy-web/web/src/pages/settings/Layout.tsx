@@ -13,6 +13,7 @@ import {
   LANDINGS, OVERVIEW_PANELS, readRaw, type Landing, type Layout, type OverviewPanel, type SectionOrder,
 } from '../../lib/prefs';
 import { COLLAPSED_KEY, parseCollapsed } from '../../lib/collapse';
+import { Button } from '../../components/ui/Button';
 
 function useDraft<T>(saved: T): [T, (v: T) => void, boolean, () => void] {
   const [draft, setDraft] = useState<T | null>(null);
@@ -159,10 +160,10 @@ function Remembered() {
               <td>{r.now}</td>
               <td>{r.where}</td>
               <td className="set-cell-act">
-                <button type="button" className="btn ghost sm" disabled={!r.set} onClick={() => reset(r.key)}
+                <Button variant="ghost" size="sm" disabled={!r.set} onClick={() => reset(r.key)}
                   aria-label={`Reset ${r.what.toLowerCase()}`}>
                   Reset
-                </button>
+                </Button>
               </td>
             </tr>
           ))}

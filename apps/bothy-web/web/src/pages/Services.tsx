@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import { usePortal } from '../lib/data';
+import { DUR, EASE } from '../lib/motion';
+import { useMotionReduced } from '../lib/useMotionReduced';
 import { panelize } from '../lib/panels';
 import {
   pruneCollapsed, readCollapsed, setAllCollapsed, toggleCollapsed, writeCollapsed,
@@ -14,6 +16,7 @@ import { ServiceTable } from '../components/ServiceTable';
 import { StatusIcon } from '../lib/icons';
 import { EmptyState } from '../components/states';
 import './Services.css';
+import { Button } from '../components/ui/Button';
 
 // The card view and the density toggle are GONE. A ServiceCard measured the
 // same area as ~3 table rows while carrying strictly FEWER dimensions than the
@@ -40,7 +43,7 @@ export function Services() {
   const { data } = usePortal();
   const [params, setParams] = useSearchParams();
   const q = params.get('q') || '';
-  const reduced = useReducedMotion() ?? false;
+  const reduced = useMotionReduced();
 
   const [statusFilter, setStatusFilter] = useState<Set<Status>>(new Set());
   const [project, setProject] = useState('all');
@@ -167,9 +170,9 @@ export function Services() {
         </div>
         <div className="view-controls">
           {panels.length > 0 && (
-            <button className="btn ghost sm" onClick={toggleAll}>
+            <Button variant="ghost" size="sm" onClick={toggleAll}>
               {allCollapsed ? 'Expand all' : 'Collapse all'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -291,7 +294,7 @@ export function Services() {
                           initial={reduced ? false : { height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={reduced ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                          transition={{ duration: 0.24, ease: [0.2, 0.7, 0.2, 1] }}
+                          transition={{ duration: DUR.slow, ease: EASE }}
                           style={{ overflow: 'hidden' }}
                         >
                           <ServiceTable nodes={p.nodes} compact label={`${p.title} services`} />

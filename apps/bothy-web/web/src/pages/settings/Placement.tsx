@@ -23,6 +23,7 @@ import { Loading, useLoad } from '../../components/settings/bits';
 import { loadFields, patchField, refusalOf, whyRefused, type FieldSite, type FieldsResult } from '../../lib/config';
 import { useOperator } from '../../lib/session';
 import { filesHref } from '../files/routes';
+import { Button } from '../../components/ui/Button';
 
 const PATH = 'apps/bothy-collector/placement.yml';
 const KEYS = ['section', 'subgroup', 'title', 'group'] as const;
@@ -94,7 +95,7 @@ function ReadRefusal({ error, onRetry }: { error: unknown; onRetry: () => void }
   return (
     <div className="set-refusal" role="status">
       <p><b>{r.title}</b> {r.detail}</p>
-      <button type="button" className="btn ghost sm" onClick={onRetry}>Retry</button>
+      <Button variant="ghost" size="sm" onClick={onRetry}>Retry</Button>
     </div>
   );
 }
@@ -128,10 +129,10 @@ function RuleTable({ rules, mtime, canEdit, onSaved }: {
               ))}
               <td className="set-cell-act">
                 {canEdit && (
-                  <button type="button" className="btn ghost sm" onClick={() => setEditing(r.id)}
+                  <Button variant="ghost" size="sm" onClick={() => setEditing(r.id)}
                     aria-label={`Edit the rule for ${r.match.join(', ')}`}>
                     <Pencil size={13} aria-hidden="true" /> Edit
-                  </button>
+                  </Button>
                 )}
               </td>
             </tr>
@@ -198,11 +199,11 @@ function EditRow({ rule, mtime, onCancel, onSaved }: {
       ))}
       <td className="set-cell-act">
         <div className="set-edit-btns">
-          <button type="button" className="btn ghost sm" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button type="button" className="btn primary sm" onClick={save}
-            disabled={busy || !changed.length || invalid.length > 0}>
+          <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={save}
+            disabled={busy || !changed.length || invalid.length> 0}>
             {busy ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </div>
         {(invalid.length > 0 || msg) && (
           <p className={`set-edit-msg ${msg?.kind === 'err' || invalid.length ? 'is-err' : ''}`} role="status">

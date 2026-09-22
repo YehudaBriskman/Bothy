@@ -9,6 +9,7 @@ import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Loading, Refusal, When, useLoad } from '../../components/settings/bits';
 import { fetchUsers, ROLES, type AdminUser } from '../../lib/admin';
 import { ROLE_MEANING, type Role } from '../../lib/me';
+import { Button } from '../../components/ui/Button';
 
 export function UsersSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchUsers(signal));
@@ -19,7 +20,7 @@ export function UsersSettings() {
         {loading ? <Loading rows={4} /> : error ? (
           <>
             <Refusal error={error} needs="operator" what="the users" />
-            <button type="button" className="btn ghost sm" onClick={reload}>Retry</button>
+            <Button variant="ghost" size="sm" onClick={reload}>Retry</Button>
           </>
         ) : data && (
           <>

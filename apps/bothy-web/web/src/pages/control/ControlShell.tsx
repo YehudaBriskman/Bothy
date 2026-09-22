@@ -25,7 +25,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { DUR, EASE } from '../../lib/motion';
+import { useMotionReduced } from '../../lib/useMotionReduced';
 import { Boxes, Gauge, PanelLeftClose, PanelLeftOpen, Plug, Share2, ShipWheel, Waypoints } from 'lucide-react';
 import './control.css';
 
@@ -94,7 +96,7 @@ function useCollapsed(): [boolean, () => void] {
 export function ControlShell() {
   const [collapsed, toggle] = useCollapsed();
   const loc = useLocation();
-  const reduce = useReducedMotion();
+  const reduce = useMotionReduced();
 
   // There is no keyboard shortcut for the collapse, and that is a decision
   // rather than an omission: every chord this app dispatches is written down in
@@ -155,7 +157,7 @@ export function ControlShell() {
           initial={{ opacity: 0, y: reduce ? 0 : 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: reduce ? 0 : -6 }}
-          transition={{ duration: 0.18, ease: [0.2, 0.7, 0.2, 1] }}
+          transition={{ duration: DUR.base, ease: EASE }}
         >
           <Outlet />
         </motion.div>

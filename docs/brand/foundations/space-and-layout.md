@@ -67,7 +67,9 @@ See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).
 **Known gaps**, tracked in
 [reference/open-questions.md](../reference/open-questions.md):
 
-- **No spacing scale exists.** Padding literals in use span roughly two dozen
+- **A spacing scale exists since 2026-09-22** (`--sp-0_5` 2px through `--sp-16`
+  64px, rem, on a 4px grid with 2 and 6px half-steps); the literals migrate onto
+  it in design-audit batch 4. Until then: **no spacing scale was used.** Padding literals in use span roughly two dozen
   distinct values. This is the largest outstanding foundations item alongside
   the type scale.
 - **Two content widths disagree** - a 1180px wrap token and a 1320px content

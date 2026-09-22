@@ -33,7 +33,7 @@
   padding: 6px 10px; border-radius: 8px; color: var(--fg-muted);
   font-size: 13px; font-weight: 550; white-space: nowrap;
   border: 1px solid transparent; background: transparent;
-  transition: color .13s ease, background-color .13s ease;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 .ov-ql-item:hover { color: var(--fg); background: var(--surface-2); }
 .ov-ql-ico { display: inline-flex; color: var(--fg-subtle); }

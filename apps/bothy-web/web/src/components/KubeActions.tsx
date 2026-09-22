@@ -35,6 +35,7 @@ import { Dialog } from './ui/Dialog';
 import { Tabs } from './Tabs';
 import { ConfirmPanel } from './KubeConfirm';
 import './KubeActions.css';
+import { Button } from './ui/Button';
 
 /** The row cell for a cluster workload. Nothing at all outside bothy-ops' kube scope. */
 export function KubeActionCell({ node }: { node: PortalNode }) {
@@ -317,7 +318,7 @@ function HistoryTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
     <div className="ka-stack">
       <div className="ka-row ka-row-between">
         <p className="sa-note">{h.data ? `${h.data.revisions.length} revision${h.data.revisions.length === 1 ? '' : 's'}, newest first.` : 'Reading history…'}</p>
-        <button type="button" className="btn ghost ka-small" onClick={h.reload}><RefreshCw size={14} aria-hidden="true" /> Refresh</button>
+        <Button variant="ghost" size="sm" onClick={h.reload}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
       </div>
       {h.refusal && <Refused r={h.refusal} />}
       {h.data && (
@@ -334,13 +335,11 @@ function HistoryTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
                 <span className="dim ka-item-sub mono">{r.replicaset} · {r.readyReplicas}/{r.replicas} ready</span>
               </span>
               {!r.current && g !== 'hidden' && (
-                <button
-                  type="button" className="btn ghost ka-small" aria-disabled={g === 'enabled' ? undefined : true}
+                <Button variant="ghost" size="sm" aria-disabled={g === 'enabled' ? undefined : true}
                   title={g === 'enabled' ? `Roll back to revision ${r.revision}` : 'Rolling back needs the operator role'}
-                  onClick={() => { if (g === 'enabled') setRollTo(r.revision); }}
-                >
+                  onClick={() => { if (g === 'enabled') setRollTo(r.revision); }}>
                   <RotateCcw size={14} aria-hidden="true" /> Roll back
-                </button>
+                </Button>
               )}
             </li>
           ))}
@@ -392,7 +391,7 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
     <div className="ka-stack" ref={box}>
       <div className="ka-row ka-row-between">
         <p className="sa-note">{pods.data ? `${pods.data.pods.length} pod${pods.data.pods.length === 1 ? '' : 's'} of ${target.deployment}.` : 'Reading pods…'}</p>
-        <button type="button" className="btn ghost ka-small" onClick={pods.reload}><RefreshCw size={14} aria-hidden="true" /> Refresh</button>
+        <Button variant="ghost" size="sm" onClick={pods.reload}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
       </div>
       {pods.refusal && <Refused r={pods.refusal} />}
       {pods.data && pods.data.pods.length === 0 && <p className="sa-note">No pods. A deployment scaled to 0 has none.</p>}
@@ -411,16 +410,14 @@ function PodsTab({ catalog, target, onChanged, onLogs }: { catalog: KubeCatalog;
                 <span className="mono dim ka-item-sub">{p.containers.map((c) => shortImage(c.image)).join(', ')}</span>
               </span>
               <span className="ka-row">
-                <button type="button" className="btn ghost ka-small" onClick={() => onLogs(p.name)}>Logs</button>
+                <Button variant="ghost" size="sm" onClick={() => onLogs(p.name)}>Logs</Button>
                 {g !== 'hidden' && p.deletable && (
-                  <button
-                    type="button" className="btn ghost ka-small" aria-disabled={g === 'enabled' ? undefined : true}
+                  <Button variant="ghost" size="sm" aria-disabled={g === 'enabled' ? undefined : true}
                     data-pod-del={p.name}
                     title={g === 'enabled' ? `Delete ${p.name}` : 'Deleting a pod needs the operator role'}
-                    onClick={() => { if (g === 'enabled') setDel(p.name); }}
-                  >
+                    onClick={() => { if (g === 'enabled') setDel(p.name); }}>
                     <Trash2 size={14} aria-hidden="true" /> Delete
-                  </button>
+                  </Button>
                 )}
               </span>
             </li>
@@ -439,9 +436,9 @@ function EventsTab({ target }: { target: KubeTarget }) {
     <div className="ka-stack">
       <div className="ka-row ka-row-between">
         <p className="sa-note">{ev.data ? `${ev.data.events.length} event${ev.data.events.length === 1 ? '' : 's'}, newest first.` : 'Reading events…'}</p>
-        <button type="button" className="btn ghost ka-small" onClick={ev.reload}>
+        <Button variant="ghost" size="sm" onClick={ev.reload}>
           <RefreshCw size={14} aria-hidden="true" /> Refresh
-        </button>
+        </Button>
       </div>
       {ev.refusal && <Refused r={ev.refusal} />}
       {ev.data && ev.data.events.length === 0 && <p className="sa-note">The cluster has nothing recent to say about {target.deployment}. Events expire after an hour.</p>}
@@ -566,13 +563,13 @@ function LogsTab({ target, initialPod }: { target: KubeTarget; initialPod?: stri
         </div>
         <div className="ka-row">
           {following ? (
-            <button type="button" className="btn ghost ka-small" onClick={halt}><CircleStop size={14} aria-hidden="true" /> Stop</button>
+            <Button variant="ghost" size="sm" onClick={halt}><CircleStop size={14} aria-hidden="true" /> Stop</Button>
           ) : (
             <>
-              <button type="button" className="btn ghost ka-small" onClick={() => setNonce((n) => n + 1)}><RefreshCw size={14} aria-hidden="true" /> Refresh</button>
-              <button type="button" className="btn ka-small" onClick={follow} disabled={previous} title={previous ? 'A previous instance has stopped writing' : undefined}>
+              <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)}><RefreshCw size={14} aria-hidden="true" /> Refresh</Button>
+              <Button size="sm" onClick={follow} disabled={previous} title={previous ? 'A previous instance has stopped writing' : undefined}>
                 <CirclePlay size={14} aria-hidden="true" /> Follow
-              </button>
+              </Button>
             </>
           )}
         </div>

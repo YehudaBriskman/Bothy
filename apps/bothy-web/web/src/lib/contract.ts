@@ -155,7 +155,23 @@ export const STRUCTURAL = new Set([
   // a colour rule cannot measure it and the theme editor cannot offer a swatch
   // for it, so demanding it of every theme was never the right answer.
   '--rd-ui-fs',
+  // Interaction and motion singles from design-audit batch 2 (2026-09-21).
+  '--hit', '--ring-w', '--ring-offset', '--press-scale', '--press-scale-wide',
+  '--dur-exit', '--press-dur', '--ease-exit', '--ease-standard', '--stagger',
+  '--label-tracking', '--mat-chrome-blur', '--mat-scrim-blur',
 ]);
+
+/** Whole FAMILIES of structural tokens, by prefix: the type scale (size,
+ *  leading, tracking, weight), spacing, icon sizes, springs and loop periods.
+ *  A prefix rather than forty names because the family is the definition - a
+ *  tenth type step is structural the day it is written, with nothing here to
+ *  remember. None of them is a colour, so none is a theme's business. */
+export const STRUCTURAL_PREFIXES = [
+  '--fs-', '--lh-', '--tr-', '--fw-', '--sp-', '--icon-', '--spring', '--loop-',
+] as const;
+
+export const isStructural = (k: string): boolean =>
+  STRUCTURAL.has(k) || STRUCTURAL_PREFIXES.some((p) => k.startsWith(p));
 
 /** What a theme owes, derived from the base palette rather than listed: every
  *  literal token in :root that is neither DERIVED (a color-mix over another
@@ -166,7 +182,7 @@ export const STRUCTURAL = new Set([
  *  is how you get a Gruvbox page with one blue button on it. */
 export function requiredTokens(base: Record<string, string>): string[] {
   return Object.keys(base)
-    .filter((k) => !base[k].includes('var(') && !STRUCTURAL.has(k))
+    .filter((k) => !base[k].includes('var(') && !isStructural(k))
     .sort();
 }
 
@@ -230,7 +246,9 @@ export type EvaluateOptions = {
  *  cannot happen (index.css supplies a literal for all of them), but the editor
  *  is fed whatever the user has typed so far, and a crash there is not a review. */
 const MEASURED = [
-  '--surface-1', '--surface-2', '--bg-2',
+  '--bg', '--surface-1', '--surface-2', '--surface-3', '--surface-4', '--bg-2',
+  // The modal scrim, measured for "darkens the page" (rule 2b).
+  '--scrim',
   // --bg-glow carries no contrast rule; it is here so that a value which is
   // not a flat colour is REPORTED. index.css builds the page wash with
   // `radial-gradient(... var(--bg-glow) 0%, ...)`, so a gradient in this token
@@ -320,6 +338,58 @@ export function evaluateTheme(
     const o = on(C('--on-accent'), C('--accent'));
     say('contrast/--on-accent', o >= 3.0, '--on-accent >= 3:1 on --accent (button text)',
       o.toFixed(2));
+  }
+
+  // 2b. the Button primitive's variants (components/ui/Button.tsx, design audit
+  //     SYS-7). Each label is measured on every ground a button actually sits
+  //     on - the page, a card, a header strip and a dialog (surface-4) - and in
+  //     its hover state too, because a hover that drops a label under AA is a
+  //     label that fails exactly when someone is about to press it.
+  //     primary   --on-accent on --accent, and on the hover fill (the accent
+  //               mixed 14% toward --fg - always AWAY from --on-accent)
+  //     secondary --fg on --surface-2 (the rest fill), and on --surface-3
+  //     ghost     --fg on whatever is under it
+  //     danger    --st-down-fg unfilled, and on its --st-down-bg hover tint
+  //     caution   --fg; only the border is amber, so it is secondary's case
+  {
+    const bg = C('--bg'), s3 = C('--surface-3'), s4 = C('--surface-4');
+    const UNDER: [string, RGBA][] = [['bg', bg], ['surface-1', s1], ['surface-2', s2], ['surface-4', s4]];
+    const mixToward = (a: RGBA, b: RGBA, t: number): RGBA =>
+      ({ r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t, a: 1 });
+    const minOver = (fg: RGBA, grounds: [string, RGBA][]) => grounds.reduce(
+      (acc, [n, g]) => { const v = on(fg, g); return v < acc.v ? { n, v } : acc; },
+      { n: '', v: Infinity });
+
+    const acc = C('--accent'), onAcc = C('--on-accent');
+    const p = Math.min(on(onAcc, acc), on(onAcc, mixToward(acc, C('--fg'), 0.14)));
+    say('button/primary', p >= AA, `primary button label >= ${AA}:1 on --accent, at rest and hovered`, p.toFixed(2));
+
+    const sec = minOver(C('--fg'), [['surface-2', s2], ['surface-3', s3]]);
+    say('button/secondary', sec.v >= AA, `secondary button label >= ${AA}:1 on its fill, at rest and hovered`,
+      `worst ${sec.v.toFixed(2)} on ${sec.n}`);
+
+    const gh = minOver(C('--fg'), [...UNDER, ['surface-3', s3]]);
+    say('button/ghost', gh.v >= AA, `ghost button label >= ${AA}:1 on every ground it sits on`,
+      `worst ${gh.v.toFixed(2)} on ${gh.n}`);
+
+    const down = C('--st-down-fg');
+    const tint = { ...C('--st-down'), a: 0.14 };
+    // The hover fill is OPAQUE - the tint over --bg, not over whatever the
+    // button sits on - so hovering can only move the ground toward the page
+    // colour, never lighten a dialog under red text (Button.css).
+    const hovered: [string, RGBA][] = [['--st-down 14% over --bg (hover)', over(tint, bg)]];
+    const dg = minOver(down, [...UNDER, ...hovered]);
+    say('button/danger', dg.v >= AA, `danger button label >= ${AA}:1 at rest and on its hover tint`,
+      `worst ${dg.v.toFixed(2)} on ${dg.n}`);
+
+    // The scrim dims to focus (R12.4): composited over the page, it must be
+    // DARKER than the page. 72% of a white --bg was a lightening scrim.
+    const scrim = C('--scrim');
+    const dimmed = over(scrim, bg);
+    const drop = luminance(bg) - luminance(dimmed);
+    say('scrim/darkens', drop > 0 && luminance(dimmed) <= luminance(bg) * 0.8 && scrim.a < 1,
+      '--scrim darkens the page it covers (and is translucent)',
+      `page luminance ${luminance(bg).toFixed(3)} -> ${luminance(dimmed).toFixed(3)}`);
   }
 
   // 3. status: -fg is the text-safe half, the fill is not asserted where the

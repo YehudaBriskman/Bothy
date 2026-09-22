@@ -4,14 +4,16 @@
    THE REFERENCE IMPLEMENTATION OF THE THEME FORMAT. Read this before writing
    another one; everything the format requires is visible here, in order.
 
-   A theme declares all 42 of its own tokens and nothing else:
+   A theme declares all 41 of its own tokens and nothing else (counts as of
+   2026-09-21 - checks/theme-contract.mjs prints the live ones):
 
-     · NOT the 16 DERIVED tokens (--accent-bg, --st-*-bg, --st-*-line, --ring,
-       --track, the scrollbar thumbs). Those are color-mix() over the tokens
+     · NOT the 21 DERIVED tokens (--accent-bg, --st-*-bg, --st-*-line, --ring,
+       the four --shadow-* steps, the scrollbar thumbs). Those are color-mix() over the tokens
        below, defined once in index.css and evaluated on the SAME element, so
        they re-compute against whatever this file sets. Redeclaring one here
        would be a copy that stops following its source.
-     · NOT the 24 STRUCTURAL tokens (radii, motion, fonts, widths, the reading
+     · NOT the STRUCTURAL tokens (radii, motion, springs, fonts, widths, the type,
+       spacing and icon scales, --hit, the reading
        scale). Those are the product's shape, not its palette, and a theme that
        changed them would be a different application wearing the same name.
 
@@ -125,7 +127,7 @@
   /* ── status (RESERVED - never used as chrome) ───────────────────────────── */
   --st-up:      #9ece6a;  --st-up-fg:      #9ece6a;
   --st-warn:    #e0af68;  --st-warn-fg:    #e0af68;
-  --st-down:    #f7768e;  --st-down-fg:    #f7768e;
+  --st-down:    #f7768e;  --st-down-fg:    #f88499;  /* was #f7768e: 4.26 on a dialog, the Button contrast rule */
   --st-unknown: #545c7e;  --st-unknown-fg: #949dc6;  /* fg 5.48 on surface-2 */
   --st-off:     #3b4261;  --st-off-fg:     #8890b5;  /* fg 4.65 - quieter than unknown */
 
@@ -138,17 +140,20 @@
   --a4: #bb9af7;  /* H 296 */
   --a5: #cf8ae0;  /* H 320 - 51 from --st-down; #e57ce0 was 41, inside the floor */
 
-  /* ── shadows ──────────────────────────────────────────────────────────────
-     Theme-specific recipes, never a hardcoded black: the drop is tuned to the
-     page it falls on, and the inset hairline is what stops a raised surface
-     reading as a flat rectangle. */
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 42%), inset 0 1px 0 rgb(192 202 245 / 4%);
-  --shadow-md: 0 4px 14px rgb(0 0 0 / 46%), inset 0 1px 0 rgb(192 202 245 / 5%);
-  --shadow-lg: 0 18px 44px rgb(0 0 0 / 54%), inset 0 1px 0 rgb(192 202 245 / 6%);
+  /* ── depth ────────────────────────────────────────────────────────────────
+     Two COLOURS, not recipes (design audit SYS-14, 2026-09-21). index.css owns
+     the four-step shadow geometry - rest, raised, popover, modal - and mixes
+     these two into it, so a theme cannot bend the ladder out of shape by
+     accident (this file used to set its own offsets and blurs). The shadow's
+     alpha is its strength; the hairline is the inset edge that stops a raised
+     surface reading as a flat rectangle on a dark page. --scrim dims the page
+     behind a modal and must darken it (checks/theme-contract.mjs measures). */
+  --shadow-color: #000000;
+  --shadow-hairline: #c0caf5;
+  --scrim: rgb(0 0 0 / .6);
 
   /* ── scroll affordance ──────────────────────────────────────────────────── */
   --scroll-shade: rgb(22 22 30 / 82%);
-  --hover-opacity: .9;
 }
 
 /* The five syntax tokens, on the same doubled-specificity idiom shell.css uses.

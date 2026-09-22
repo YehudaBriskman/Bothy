@@ -11,6 +11,7 @@ import { ROLES, ROLE_MEANING, signInHref, signOutHref, type Me, type Role } from
 import { useMe } from '../../components/UserMenu';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Fact, Loading } from '../../components/settings/bits';
+import { buttonClass } from '../../components/ui/Button';
 
 export function ProfileSettings() {
   const { me, loading } = useMe();
@@ -36,7 +37,7 @@ function SignedOut() {
         Nothing here knows who you are yet. Signing in returns you to this page, which will then say which of the four
         roles your account holds and what each one permits.
       </p>
-      <a className="btn primary sm" href={signInHref()}>
+      <a className={buttonClass({ variant: 'primary', size: 'sm' })} href={signInHref()}>
         <LogIn size={14} aria-hidden="true" /> Sign in
       </a>
     </div>
@@ -132,11 +133,11 @@ function Session({ signedIn }: { signedIn: boolean }) {
       </div>
       <div className="set-actions">
         {signedIn ? (
-          <a className="btn ghost sm" href={signOutHref()}>
+          <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={signOutHref()}>
             <LogOut size={14} aria-hidden="true" /> Sign out
           </a>
         ) : (
-          <a className="btn ghost sm" href={signInHref()}>
+          <a className={buttonClass({ variant: 'ghost', size: 'sm' })} href={signInHref()}>
             <LogIn size={14} aria-hidden="true" /> Sign in
           </a>
         )}

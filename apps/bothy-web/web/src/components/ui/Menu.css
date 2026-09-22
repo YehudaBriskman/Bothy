@@ -17,7 +17,7 @@
   background: var(--surface-4);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-3);
   /* Grows out of the trigger, not out of its own centre (R7.2). */
   transform-origin: var(--radix-dropdown-menu-content-transform-origin);
   animation: ui-menu-in var(--dur-fast) var(--ease);
@@ -26,7 +26,7 @@
 .ui-menu-item {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border-radius: var(--r-sm);
-  font-size: 13px; line-height: 1.35; color: var(--fg);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg); min-height: var(--hit);
   white-space: nowrap; cursor: pointer; user-select: none;
   outline: none;
 }
@@ -44,6 +44,3 @@
   to   { opacity: 1; scale: 1; }
 }
 
-@media (pointer: coarse) {
-  .ui-menu-item { min-height: 44px; }
-}
