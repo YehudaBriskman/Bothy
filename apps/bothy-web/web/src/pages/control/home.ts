@@ -234,7 +234,7 @@ export function severityCounts(items: AttentionItem[]): Record<Severity, number>
 
 /** Ports claimed by two or more distinct containers - the same rule the previous
  *  landing used: by port AND protocol, across bind addresses, distinct containers. */
-export function portCollisions(ports: { hostPort: number | string; proto: string; container: string }[]): PortCollision[] {
+export function portCollisions(ports: { hostPort: number | string; proto?: string; container: string }[]): PortCollision[] {
   const by = new Map<string, Set<string>>();
   for (const p of ports) {
     const k = `${p.hostPort}/${p.proto}`;
