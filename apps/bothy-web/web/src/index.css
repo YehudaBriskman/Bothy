@@ -1229,6 +1229,23 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 .kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
 
+/* ── the theme switch: a root cross-fade (SYS-19, R14.4) ─────────────────────
+   lib/theme.tsx runs a theme change inside document.startViewTransition(), and
+   these time the cross-fade of the two root snapshots: 200ms on the symmetric
+   curve, so dark to light and light to dark feel the same (R7.3). The global
+   reduce blocks cannot reach these pseudo-elements, and decision 3 keeps fades,
+   so under reduced motion the fade stays and shortens to --dur-fast. A browser
+   without the API applies the change in one frame, as it always did. */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: var(--ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-fast); }
+}
+html[data-motion='reduce']::view-transition-old(root),
+html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(--dur-fast); }
+
 /* ── the overlay unmount timer ───────────────────────────────────────────────
    Every overlay's motion is a TRANSITION (so it can turn round mid-flight), but
    Radix's Presence keeps a closing surface mounted only while an ANIMATION runs

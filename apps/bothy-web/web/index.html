@@ -43,7 +43,7 @@
       (function () {
         var e = document.documentElement;
         try {
-          var sel = localStorage.getItem('portal-theme') || 'bothy-dark';
+          var sel = localStorage.getItem('portal-theme') || 'system';
           if (sel === 'dark') sel = 'bothy-dark';
           if (sel === 'light') sel = 'bothy-light';
           var app;
@@ -76,8 +76,9 @@
             document.head.appendChild(l);
           }
         } catch (err) {
-          e.setAttribute('data-theme', 'dark');
-          e.setAttribute('data-bothy-theme', 'bothy-dark');
+          var d = !window.matchMedia || matchMedia('(prefers-color-scheme: dark)').matches;
+          e.setAttribute('data-theme', d ? 'dark' : 'light');
+          e.setAttribute('data-bothy-theme', d ? 'bothy-dark' : 'bothy-light');
         }
       })();
     </script>
