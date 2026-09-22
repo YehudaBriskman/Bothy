@@ -38,7 +38,7 @@ import { Icon as SizedIcon } from '../../components/ui/Icon';
 //
 // THERE IS NO `Actions` ENTRY, and that is the decision rather than the backlog.
 // docs/plans/control-and-settings.md §5 sketched one alongside the row-level
-// controls, and Control.tsx above it records the test a fifth entry has to pass:
+// controls, and the landing (ControlHome.tsx) sets the test a fifth entry has to pass:
 // it has to say something the pages already here cannot. Three candidates were
 // worked through and all three fail it:
 //

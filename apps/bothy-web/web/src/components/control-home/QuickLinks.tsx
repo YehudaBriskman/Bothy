@@ -1,7 +1,7 @@
 // Quick links: every published UI on the box, plus the Bothy pages that are not
 // already in the Control sidebar two centimetres to the left (drawing Services,
 // Ports and Routes again in bigger boxes would be the footprint rule inverted -
-// see Control.tsx's old header). One click opens it.
+// the pre-2026-09-22 landing's rule). One click opens it.
 //
 // The UIs come from lib/systems.ts uiPorts(), the same source as the Overview's
 // "Open a UI" panel: discovery plus the collector's declared projects, so a
