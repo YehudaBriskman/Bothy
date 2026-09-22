@@ -19,6 +19,6 @@
   transition:
     grid-template-rows var(--dur-slow) var(--ease-standard),
     opacity var(--dur-exit) var(--ease-exit),
-    visibility 0s linear var(--dur-slow);
+    visibility var(--dur-slow) step-end;
 }
 .ui-disc-inner { min-height: 0; overflow: hidden; }

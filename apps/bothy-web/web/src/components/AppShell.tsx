@@ -168,7 +168,9 @@ export function AppShell() {
 
         <Tooltip label={fresh.text}>
           <div className={`pill ${fresh.kind} topbar-pill`}>
-            <span className="pulse" />
+            {/* Keyed on the state: a change re-mounts the dot and its ring
+                pulses three times, then stops (SH-11). */}
+            <span className="pulse" key={fresh.kind} />
             <span className="pill-short">{fresh.short}</span>
           </div>
         </Tooltip>

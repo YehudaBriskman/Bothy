@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePortal } from '../lib/data';
-import { DUR, EASE, staggerDelay } from '../lib/motion';
+import { riseIn } from '../lib/motion';
 import { useMotionReduced } from '../lib/useMotionReduced';
 import { HOST_OVERRIDES, logSourceOf } from '../lib/discover';
 import { LogPanel } from '../components/LogPanel';
@@ -29,15 +29,8 @@ export function ServiceDetail() {
   const reduce = useMotionReduced();
   const node = data.nodes.find((n) => n.id === id);
 
-  // Reveal panels on MOUNT (once). Disabled entirely under reduced motion.
-  const rise = (i: number) =>
-    reduce
-      ? {}
-      : {
-          initial: { opacity: 0, y: 14 },
-          animate: { opacity: 1, y: 0 },
-          transition: { duration: DUR.slow, delay: staggerDelay(i + 1), ease: EASE },
-        };
+  // Panels rise in; they never start invisible (lib/motion.ts riseIn, SYS-11).
+  const rise = (i: number) => riseIn(i, reduce);
 
   if (!node) {
     return (
@@ -81,7 +74,7 @@ export function ServiceDetail() {
         <span className="here">{node.name}</span>
       </nav>
 
-      <motion.header className="detail-head" {...(reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: DUR.slow, ease: EASE } })}>
+      <motion.header className="detail-head" {...riseIn(-1, reduce)}>
         <span className="ico lg"><ServiceIcon node={node} size={28} /></span>
         <div className="detail-head-meta">
           <h1>{node.name}</h1>

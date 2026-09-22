@@ -581,16 +581,28 @@ a { color: inherit; text-decoration: none; }
   font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
   background: var(--surface-1); border: 1px solid var(--line);
 }
-.pill .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--fg-subtle);
-  box-shadow: 0 0 0 0 currentColor; }
-.pill.live { color: var(--st-up-fg); } .pill.live .pulse { background: var(--st-up); animation: beat var(--loop-beat) infinite; }
+.pill .pulse { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--fg-subtle); }
+.pill.live { color: var(--st-up-fg); } .pill.live .pulse { background: var(--st-up); }
 .pill.degraded, .pill.stale { color: var(--st-warn-fg); } .pill.degraded .pulse, .pill.stale .pulse { background: var(--st-warn); }
 .pill.down { color: var(--st-down-fg); } .pill.down .pulse { background: var(--st-down); }
 .pill span:not(.pulse) { color: var(--fg-muted); }
-/* The beat ring inherits the pill's own colour, so a .pill.down pulses rose
-   rather than the hardcoded green this used to emit regardless of state. */
-@keyframes beat { 0%,100% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 50%, transparent);}
-                  50%     { box-shadow: 0 0 0 6px transparent;} }
+/* THE PULSE MARKS A CHANGE, NOT THE PASSAGE OF TIME (SH-11, batch 3). It beat
+   forever at 0.5 Hz - a slow loop in R14.4's band, on the one element that is
+   always on screen - and it animated box-shadow, a repaint every frame. Now a
+   ring drawn by ::after, in the dot's own status colour, expands and fades
+   THREE times when the state changes (AppShell keys the dot on the state, so a
+   change re-mounts it) and then the dot is still. Only scale and opacity move
+   (R11.1). Reduced motion: no ring at all - the colour and the word already
+   say what changed. */
+.pill .pulse::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: inherit; opacity: 0; pointer-events: none;
+  animation: pulse-ring var(--loop-beat) var(--ease) 3;
+}
+@keyframes pulse-ring {
+  0%   { opacity: .55; scale: 1; }
+  70%, 100% { opacity: 0; scale: 2.6; }
+}
 
 /* A page title by default. The 68px display metrics used to live on the bare
    `h1`, written for a hero that no longer exists, so every page title
@@ -701,8 +713,9 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .skel, .pill .pulse, .spin { animation: none !important; }
+  .skel, .pill .pulse::after, .spin { animation: none !important; }
 }
+html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 
 /* ============================================================================
    V2 - multi-page control-room shell. Everything below is additive; it uses the
@@ -1476,15 +1489,29 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
   .bg, .scroll-rail { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Nothing here may HIDE content. Killing transitions must never be able to
-     leave an element at opacity:0 - that was the old .reveal failure mode.
-     `iteration-count: 1` so a looping animation stops rather than strobing at
-     a hundredth of a millisecond per cycle; the in-app setting (prefs.css) has
-     always said so and this block did not. */
-  *, *::before, *::after {
+  /* Movement goes, fades stay (decision 3, design audit SYS-11/ST-11, batch 3).
+     Until batch 3 this collapsed EVERY duration to .01ms, which also removed
+     the fades that help a reader follow a change - the skill (R14.1) and now
+     the brand keep those.
+       · transitions: only opacity and colour-like properties may animate, so a
+         translate, scale or transform in any rule simply lands; the durations
+         that remain are the tokens', with --dur and --dur-slow folded to
+         --dur-fast;
+       · keyframe animations: nearly all of them move something (a spin, a
+         shimmer, a pulse ring), so they still collapse and run once - except
+         the overlays (.overlay-motion), whose closed state runs a keyframe as
+         the unmount timer and whose own rules already drop the movement;
+       · smooth scrolling off.
+     Nothing here may HIDE content: no rule sets opacity, and a collapsed
+     animation lands on its end state. */
+  :root { --dur: var(--dur-fast); --dur-slow: var(--dur-fast); }
+  *:not(.overlay-motion), *::before, *::after {
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
+  }
+  *, *::before, *::after {
+    transition-property: opacity, color, background-color, border-color, outline-color,
+      box-shadow, fill, stroke, text-decoration-color, visibility !important;
     scroll-behavior: auto !important;
   }
 }

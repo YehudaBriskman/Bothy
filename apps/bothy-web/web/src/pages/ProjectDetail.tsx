@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, HardDrive } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePortal, healthOf } from '../lib/data';
-import { DUR, EASE, staggerDelay } from '../lib/motion';
+import { riseIn } from '../lib/motion';
 import { useMotionReduced } from '../lib/useMotionReduced';
 import { groupByType, systemsOf, findSystem, volumeSize, systemDiskBytes, fmtBytes } from '../lib/systems';
 import { TypeIcon } from '../lib/icons';
@@ -124,14 +124,8 @@ export function ProjectDetail() {
       && n.status !== 'up' && n.status !== 'starting',
   );
 
-  const rise = (i: number) =>
-    reduce
-      ? {}
-      : {
-          initial: { opacity: 0, y: 14 },
-          animate: { opacity: 1, y: 0 },
-          transition: { duration: DUR.slow, delay: staggerDelay(i + 1), ease: EASE },
-        };
+  // Panels rise in; they never start invisible (lib/motion.ts riseIn, SYS-11).
+  const rise = (i: number) => riseIn(i, reduce);
 
   if (!system) {
     return (
@@ -155,7 +149,7 @@ export function ProjectDetail() {
         <span className="here">{system.title}</span>
       </nav>
 
-      <motion.header className="detail-head" {...(reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: DUR.slow, ease: EASE } })}>
+      <motion.header className="detail-head" {...riseIn(-1, reduce)}>
         <div className="detail-head-meta">
           <h1>
             <span className="acc-bar" />
