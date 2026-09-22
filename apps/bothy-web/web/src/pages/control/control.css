@@ -57,6 +57,7 @@
    empty column"; that was true when the column was empty space, and is not when
    the column is a scroll region with its own end. */
 .control-sec {
+  position: relative; /* the leaving body of a cross-fade is lifted into this */
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: stretch;
@@ -86,7 +87,9 @@
      transparent and the reference only suggested a token someone might define
      later and change this by accident. */
   background: transparent;
-  transition: width var(--dur) var(--ease);
+  /* NO width transition (SYS-10). Tweening the column's width re-laid-out the
+     body beside it - every table in it - on every frame. The width now changes
+     in one step and the labels do the moving, on opacity and translate. */
 }
 
 /* THE BODY SCROLLS, NOT THE PAGE. min-height: 0 is load-bearing - without it a
@@ -141,15 +144,19 @@
 .control-sec .ct-collapse svg { flex: none; }
 .control-sec .ct-collapse:hover { background: var(--surface-1); color: var(--fg); }
 
-/* `display: none` cannot be animated, so the collapsed label is a zero max-width
-   with hidden overflow - which can. Same trick as .nav-label in index.css. */
+/* The label arrives on opacity and translate only (SYS-10, R11.1) - it used to
+   tween max-width and margin-left, a layout pass per frame. Collapsed, it is
+   lifted out of the row (absolute, clipped by the nav) and transparent, so the
+   icon centres; expanding puts it back in the row at once and it fades in from
+   6px to the left, the direction the column just grew in (R8). */
 .control-sec .ct-label {
-  display: inline-block; overflow: hidden;
-  transition: max-width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease),
-              margin-left var(--dur) var(--ease);
+  display: inline-block;
+  opacity: 1; translate: 0 0;
+  transition: opacity var(--dur) var(--ease), translate var(--dur) var(--ease);
 }
 .control-sec[data-collapsed='true'] .ct-label {
-  max-width: 0; opacity: 0; margin-left: -10px;
+  position: absolute; opacity: 0; translate: -6px 0; pointer-events: none;
+  transition: none;
 }
 .control-sec[data-collapsed='true'] .ct-item,
 .control-sec[data-collapsed='true'] .ct-collapse { justify-content: center; padding: 8px 0; }
@@ -202,7 +209,7 @@
   .control-sec .ct-nav { box-shadow: none; }
 
   .control-sec[data-collapsed] .ct-label {
-    max-width: none; opacity: 1; margin-left: 0;
+    position: static; opacity: 1; translate: 0 0; pointer-events: auto;
   }
   .control-sec[data-collapsed] .ct-item,
   .control-sec[data-collapsed] .ct-collapse { justify-content: flex-start; padding: 7px 10px; flex: none; }
@@ -222,9 +229,8 @@
 
 /* Expanding a label is motion; a reader who asked for less of it gets the label
    instantly rather than not at all. */
-@media (prefers-reduced-motion: reduce) {
-  .control-sec .ct-nav, .control-sec .ct-label { transition: none; }
-}
+/* Reduced motion: the global reduce blocks keep the label's fade and drop the
+   slide (decision 3). */
 
 /* ── the section landing ─────────────────────────────────────────────────────
    A triage list, and nothing else. Every row carries four facts - what is

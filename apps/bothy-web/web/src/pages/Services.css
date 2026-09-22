@@ -34,10 +34,11 @@
 .services-page .filter-chips .chip.is-zero .n { background: transparent; }
 .services-page .filter-select select { font-variant-numeric: tabular-nums; }
 
-/* ── group collapse body (framer animates height) ───────────────────────── */
-/* Vertical breathing room so the cards' hover lift + shadow aren't clipped by
-   the overflow:hidden that the height animation needs. */
-.services-page .svc-group-body { padding: 6px 0; margin: -6px 0; }
+/* ── group collapse body ─────────────────────────────────────────────────
+   A ui/Disclosure since batch 3 (SYS-10). The 6px padding/negative-margin pair
+   that kept a card's hover lift clear of framer's overflow clip is gone: the
+   group body is a table now, nothing in it lifts, and padding on the region
+   would keep 12px of it showing when the rows fold to zero. */
 
 /* ── cards: framer owns the transform, so neutralise index.css's CSS keyframe
    and hover translate (which would otherwise fight the inline transform). ── */

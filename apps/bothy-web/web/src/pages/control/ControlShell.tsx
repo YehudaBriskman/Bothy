@@ -24,10 +24,8 @@
 // a page whose whole job is to carry them.
 
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { DUR, EASE } from '../../lib/motion';
-import { useMotionReduced } from '../../lib/useMotionReduced';
+import { NavLink, useLocation } from 'react-router-dom';
+import { RouteFade } from '../../components/RouteFade';
 import { Boxes, Gauge, PanelLeftClose, PanelLeftOpen, Plug, Share2, ShipWheel, Waypoints } from 'lucide-react';
 import './control.css';
 
@@ -96,7 +94,6 @@ function useCollapsed(): [boolean, () => void] {
 export function ControlShell() {
   const [collapsed, toggle] = useCollapsed();
   const loc = useLocation();
-  const reduce = useMotionReduced();
 
   // There is no keyboard shortcut for the collapse, and that is a decision
   // rather than an omission: every chord this app dispatches is written down in
@@ -150,18 +147,7 @@ export function ControlShell() {
           nav beside it does not flash on every click. A "persistent sidebar" that
           re-mounts and fades in on each navigation is not persistent, it is a
           sidebar-shaped page element. */}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={loc.pathname}
-          className="ct-body"
-          initial={{ opacity: 0, y: reduce ? 0 : 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: reduce ? 0 : -6 }}
-          transition={{ duration: DUR.base, ease: EASE }}
-        >
-          <Outlet />
-        </motion.div>
-      </AnimatePresence>
+      <RouteFade className="ct-body" routeKey={loc.pathname} />
     </div>
   );
 }

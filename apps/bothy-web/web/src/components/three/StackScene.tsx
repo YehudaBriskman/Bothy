@@ -653,6 +653,13 @@ function Rig({
   const now = useRef(0);          // live elapsed time, so event handlers can read it
   const resumeAt = useRef(0);     // elapsed time after which idle orbit may resume
   const paused = useRef(false);   // true while the user is actively driving
+  // The idle orbit ends for good at the first interaction (design audit
+  // SYS-11, batch 3). It used to pause while you drove and RESUME 2.4s after you
+  // let go - so a view you had just framed drifted away from you, forever, in a
+  // slow loop. Once someone has touched the scene, it stays where they put it.
+  // Under reduced motion there is no orbit at all: the scene is not rendered,
+  // the static rack is (see StackScene below).
+  const touched = useRef(false);
 
   // On focus change, arm a smooth fly-to.
   useEffect(() => {
@@ -690,7 +697,7 @@ function Rig({
       const c = controls.current;
       if (!c) return;
       anim.current.active = false;
-      resumeAt.current = now.current + 2.4; // hold the idle orbit while panning
+      touched.current = true;
       const dist = camera.position.distanceTo(c.target);
       const step = (e.deltaY || 0) * dist * 0.0016;
       right.setFromMatrixColumn(camera.matrix, 0); // camera's screen-right
@@ -719,10 +726,12 @@ function Rig({
       if (camera.position.distanceTo(anim.current.pos) < 0.06) anim.current.active = false;
       return;
     }
-    // Idle auto-orbit - a slow azimuth drift that pauses while the user drives.
-    if (animate && !paused.current && now.current >= resumeAt.current) {
+    // Idle auto-orbit - a slow azimuth drift until the first interaction. The
+    // angle is per SECOND (0.096 rad/s, the old 0.0016/frame at 60Hz), so it is
+    // the same speed at 30, 60 or 144Hz.
+    if (animate && !touched.current && !paused.current && now.current >= resumeAt.current) {
       const off = new THREE.Vector3().subVectors(camera.position, c.target);
-      const a = 0.0016;
+      const a = 0.096 * Math.min(dt, 0.1);
       const nx = off.x * Math.cos(a) - off.z * Math.sin(a);
       const nz = off.x * Math.sin(a) + off.z * Math.cos(a);
       off.x = nx; off.z = nz;
@@ -744,8 +753,8 @@ function Rig({
       maxDistance={48}
       minPolarAngle={0.2}
       maxPolarAngle={1.52}
-      onStart={() => { anim.current.active = false; paused.current = true; }}
-      onEnd={() => { paused.current = false; resumeAt.current = now.current + 2.4; }}
+      onStart={() => { anim.current.active = false; paused.current = true; touched.current = true; }}
+      onEnd={() => { paused.current = false; }}
     />
   );
 }

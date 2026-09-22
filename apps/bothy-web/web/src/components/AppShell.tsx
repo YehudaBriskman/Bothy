@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Gauge, FolderTree,
   Search,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
-import { DUR, EASE } from '../lib/motion';
-import { useMotionReduced } from '../lib/useMotionReduced';
+import { RouteFade } from './RouteFade';
 import { freshnessOf } from '../lib/freshness';
 import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
 import { Tooltip } from './Tooltip';
@@ -30,7 +28,15 @@ const NAV = [
   { to: '/files', label: 'Files', Icon: FolderTree, end: false },
 ];
 
+const NARROW = '(max-width: 1080px)';
+const subscribeNarrow = (cb: () => void) => {
+  const mq = window.matchMedia(NARROW);
+  mq.addEventListener('change', cb);
+  return () => mq.removeEventListener('change', cb);
+};
+
 export function AppShell() {
+  const iconsOnly = useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
   const { data, refresh } = usePortal();
   const loc = useLocation();
   const fresh = freshnessOf(data);
@@ -89,7 +95,6 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const reduce = useMotionReduced();
   const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
   return (
@@ -136,29 +141,36 @@ export function AppShell() {
           <Brand />
         </NavLink>
 
-        {/* scroll-shade drives the horizontal edge fades when the row overflows;
-            `title` is the label's third fallback, for touch, where neither hover
-            nor focus-visible fires. */}
+        {/* scroll-shade drives the horizontal edge fades when the row overflows.
+            On touch, where neither hover nor focus-visible fires, the icon's
+            accessible name is the label and the page title says where you are. */}
         <nav className="nav scroll-shade" aria-label="Primary">
-          {NAV.map(({ to, label, Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              title={label}
-              className={({ isActive }) => `nav-item ${isActive ? 'on' : ''}`}
-            >
-              <Icon size={16} />
-              <span className="nav-label">{label}</span>
-            </NavLink>
-          ))}
+          {NAV.map(({ to, label, Icon, end }) => {
+            const link = (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) => `nav-item ${isActive ? 'on' : ''}`}
+              >
+                <Icon size={16} />
+                <span className="nav-label">{label}</span>
+              </NavLink>
+            );
+            // Icons only below 1080px: the label is visually hidden (still the
+            // link's name) and floats in a Tooltip on hover and focus, instead
+            // of reopening inside the row and shoving its neighbour (SYS-10).
+            return iconsOnly ? <Tooltip key={to} label={label}>{link}</Tooltip> : link;
+          })}
         </nav>
 
         <span className="topbar-spacer" />
 
         <Tooltip label={fresh.text}>
           <div className={`pill ${fresh.kind} topbar-pill`}>
-            <span className="pulse" />
+            {/* Keyed on the state: a change re-mounts the dot and its ring
+                pulses three times, then stops (SH-11). */}
+            <span className="pulse" key={fresh.kind} />
             <span className="pill-short">{fresh.short}</span>
           </div>
         </Tooltip>
@@ -180,31 +192,16 @@ export function AppShell() {
         <UserMenu />
       </header>
 
-      {/* Route/page transition - a short fade+rise keyed on the SECTION, not on
-          the path. `mode:wait` lets the outgoing page finish before the next
-          mounts, so pages never overlap. Reduced-motion collapses the offset to
-          a plain fade.
+      {/* The page transition: a cross-fade keyed on the SECTION, not on the
+          path (components/RouteFade.tsx, SYS-8). The next page mounts at once
+          and fades in over the leaving one; nothing waits for an exit.
 
           Keying on the full pathname re-mounted everything under <main> on every
           navigation, and once Control had a sidebar in there that meant the
-          "persistent" nav faded out and back in on each of its own links - a
-          sidebar-shaped page element rather than a sidebar. The section shell
-          runs the same transition around its own <Outlet>, so moving within
-          Control still animates; it just animates the part that changed. */}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.main
-          key={loc.pathname.split('/')[1] ?? ''}
-          id="content"
-          tabIndex={-1}
-          className="content"
-          initial={{ opacity: 0, y: reduce ? 0 : 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: reduce ? 0 : -8 }}
-          transition={{ duration: DUR.base, ease: EASE }}
-        >
-          <Outlet />
-        </motion.main>
-      </AnimatePresence>
+          "persistent" nav faded out and back in on each of its own links. The
+          section shell runs the same fade around its own body, so moving within
+          Control still animates the part that changed. */}
+      <RouteFade as="main" id="content" className="content" routeKey={loc.pathname.split('/')[1] ?? ''} />
 
       <CommandPalette open={paletteOpen} onClose={closePalette} />
       {/* "Bothy updated - reload": the served build is no longer this tab's. */}

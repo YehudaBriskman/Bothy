@@ -23,7 +23,7 @@
 .user-menu .user-btn { width: auto; min-width: 38px; grid-auto-flow: column; gap: 8px;
   padding: 0 12px 0 10px; font: inherit; font-size: 13px; font-weight: 600; }
 .user-menu .user-btn:hover { color: var(--fg); border-color: var(--line-strong); }
-.user-menu .user-btn.on { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
+.user-menu .user-btn[data-state='open'] { color: var(--fg); background: var(--surface-2); border-color: var(--line-strong); }
 .user-menu .user-btn:disabled { cursor: default; }
 .user-menu .user-btn svg { flex: none; }
 
@@ -39,31 +39,20 @@
   .user-menu .user-btn { width: 38px; padding: 0; }
 }
 
-/* ── the panel ───────────────────────────────────────────────────────────── */
-.user-menu .um-panel { position: absolute; z-index: 60; top: calc(100% + 8px); right: 0;
-  min-width: 234px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
-  background: var(--surface-4); border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg); box-shadow: var(--shadow-3); }
-
-.user-menu .um-who { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px;
+/* ── the panel ───────────────────────────────────────────────────────────
+   Surface, motion and rows are ui/Menu's (Popover.css). The menu is portalled
+   out of .user-menu, so these are scoped to its own class instead. */
+.um-pop { min-width: 234px; }
+.um-pop .ui-menu-head { padding: 0; border: 0; margin: 0; }
+.um-pop .um-who { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px;
   margin-bottom: 4px; border-bottom: 1px solid var(--line); }
-.user-menu .um-who-name { font-size: 13.5px; font-weight: 700; color: var(--fg); }
-.user-menu .um-who-mail { font-size: 12px; color: var(--fg-subtle); overflow-wrap: anywhere; }
-.user-menu .um-roles { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-.user-menu .um-noroles { font-size: 11.5px; color: var(--fg-subtle); }
-
-.user-menu .um-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  border-radius: var(--r-sm); font-size: 13.5px; color: var(--fg-muted); cursor: pointer; }
-.user-menu .um-item svg { flex: none; }
-.user-menu .um-item:hover { background: var(--surface-3); color: var(--fg); }
-/* The rows are inside a menu that traps Tab, so focus is the ONLY way most of
-   this panel is reached by keyboard. It gets the same weight as hover plus the
-   ring, not less. */
-.user-menu .um-item:focus-visible { background: var(--surface-3); color: var(--fg);
-  outline: 2px solid var(--ring); outline-offset: -2px; }
+.um-pop .um-who-name { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-bold); color: var(--fg); }
+.um-pop .um-who-mail { font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--fg-subtle); overflow-wrap: anywhere; }
+.um-pop .um-roles { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.um-pop .um-noroles { font-size: var(--fs-2xs); color: var(--fg-subtle); }
 
 /* The Updates count on the Settings row: a number in the quiet chrome, pushed to
    the row's end. Neutral on purpose - it is a fact about versions, not a state. */
-.user-menu .um-count { margin-left: auto; min-width: 18px; padding: 0 6px; border-radius: 999px;
-  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
+.um-pop .um-count { min-width: 18px; padding: 0 6px; border-radius: 999px;
+  font-size: var(--fs-2xs); font-weight: var(--fw-bold); line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
   color: var(--fg); background: var(--surface-3); border: 1px solid var(--line-strong); }

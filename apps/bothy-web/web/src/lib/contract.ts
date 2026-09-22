@@ -158,7 +158,9 @@ export const STRUCTURAL = new Set([
   // Interaction and motion singles from design-audit batch 2 (2026-09-21).
   '--hit', '--ring-w', '--ring-offset', '--press-scale', '--press-scale-wide',
   '--dur-exit', '--press-dur', '--ease-exit', '--ease-standard', '--stagger',
-  '--label-tracking', '--mat-chrome-blur', '--mat-scrim-blur',
+  '--label-tracking', '--mat-chrome-blur',
+  // Batch 3 (2026-09-22): the palette's material blur (the scrim no longer blurs).
+  '--mat-palette-blur', '--dur-theme',
 ]);
 
 /** Whole FAMILIES of structural tokens, by prefix: the type scale (size,
@@ -167,7 +169,7 @@ export const STRUCTURAL = new Set([
  *  tenth type step is structural the day it is written, with nothing here to
  *  remember. None of them is a colour, so none is a theme's business. */
 export const STRUCTURAL_PREFIXES = [
-  '--fs-', '--lh-', '--tr-', '--fw-', '--sp-', '--icon-', '--spring', '--loop-',
+  '--fs-', '--lh-', '--tr-', '--fw-', '--sp-', '--icon-', '--spring', '--loop-', '--z-',
 ] as const;
 
 export const isStructural = (k: string): boolean =>

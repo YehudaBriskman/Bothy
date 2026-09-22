@@ -99,7 +99,11 @@ export const THEMES: readonly ThemeDef[] = [
  *  it being offered as something a stylesheet could target. */
 export type Selection = 'system' | (string & {});
 
-export const DEFAULT_SELECTION: Selection = 'bothy-dark';
+/** FOLLOW THE OS by default (design audit SYS-19, the owner's decision 5,
+ *  2026-09-21; batch 3). It was 'bothy-dark', so a first visit from a light
+ *  desktop got a dark page. A stored choice - light, dark, a named theme, or
+ *  'system' itself - still wins, under the same localStorage key as ever. */
+export const DEFAULT_SELECTION: Selection = 'system';
 
 /** `all` defaults to the built-ins and is widened at runtime to include the user
  *  themes loaded from /data/themes. It is a PARAMETER rather than mutable module
@@ -138,5 +142,7 @@ export function resolveSelection(
   // theme was selected and then its file was deleted from the box. The selection
   // survives in localStorage and now names nothing, and the honest answer is the
   // default palette rather than a page with no colours at all.
-  return byId(sel, all) ?? byId(DEFAULT_SELECTION, all) ?? THEMES[0];
+  // (The default is 'system', which is not an id, so the fallback resolves it
+  // against the OS rather than looking it up.)
+  return byId(sel, all) ?? byId(prefersDark ? 'bothy-dark' : 'bothy-light', all) ?? THEMES[0];
 }

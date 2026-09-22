@@ -34,12 +34,30 @@
 //      the dialog's own action deletes);
 //   3. else, when a dialog is still open underneath (a nested confirm whose
 //      trigger was a row that has since gone), into THAT dialog - never behind it.
+//
+// MOTION (design audit SYS-4 part 2, batch 3, 2026-09-22; decision 1). A dialog
+// enters on the critically damped spring and leaves along the same path - the
+// motion itself is in Dialog.css, as transitions, so it runs from the value on
+// screen whichever way it is going. There are two ways a dialog closes here, and
+// both get the exit:
+//   · `open` goes false while the component stays mounted (the palette, the
+//     Settings drawer, the Overview system dialog). Radix's Presence keeps the
+//     surface while the closed state's hold animation runs, and re-opening it
+//     mid-close REVERSES it from where it is - the same element, turning round.
+//   · the consumer unmounts it (`{target && <XDialog/>}` - most of the kube and
+//     service dialogs). React removes the DOM in the same commit, so there is
+//     nothing left to animate. For that case the surface and its scrim leave a
+//     GHOST: at unmount the two nodes are cloned, inert and aria-hidden, pinned
+//     at their current on-screen opacity and transform, and then sent to the
+//     closed state, so the clone runs the same exit and removes itself. The
+//     ghost holds no focus, no trap, no scroll lock and no pointer block - input
+//     is live again the moment the dialog closes (R3.1).
 
 import * as RD from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { Icon } from './Icon';
 import {
-  useCallback, useLayoutEffect, useRef, type ReactNode, type RefObject,
+  useCallback, useLayoutEffect, useRef, useState, type ReactNode, type RefObject,
 } from 'react';
 import './Dialog.css';
 
@@ -86,6 +104,56 @@ function useFocusReturn(open: boolean, returnFocusTo?: FocusTarget) {
   }, []);
 }
 
+/** Leave an inert copy of a surface that is being unmounted while open, and
+ *  play the closed state on it from wherever it is right now. See the header. */
+function ghostOut(el: HTMLElement | null) {
+  if (!el || !el.isConnected || el.getAttribute('data-state') !== 'open') return;
+  const cs = getComputedStyle(el);
+  const g = el.cloneNode(true) as HTMLElement;
+  g.removeAttribute('id');
+  g.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+  g.setAttribute('inert', '');
+  g.setAttribute('aria-hidden', 'true');
+  g.removeAttribute('role');
+  g.classList.add('overlay-ghost');
+  // Pin the presentation value, flush it, then let go: the transition to the
+  // closed state starts from exactly what was on screen (R3.2).
+  g.style.transition = 'none';
+  g.style.opacity = cs.opacity;
+  g.style.transform = cs.transform;
+  g.style.scale = cs.scale;
+  el.after(g);
+  void g.getBoundingClientRect();
+  g.style.transition = '';
+  g.style.opacity = '';
+  g.style.transform = '';
+  g.style.scale = '';
+  g.setAttribute('data-state', 'closed');
+  let done = false;
+  const bye = () => { if (!done) { done = true; g.remove(); } };
+  g.addEventListener('animationend', (e) => { if (e.target === g) bye(); });
+  window.setTimeout(bye, 1000); // an animation that never ran must not leave a ghost
+}
+
+/** Ghost both parts of a dialog if it is unmounted while open. */
+function useExitGhost() {
+  const overlay = useRef<HTMLDivElement | null>(null);
+  const content = useRef<HTMLDivElement | null>(null);
+  // A LAYOUT cleanup: React runs it before it removes the portal's DOM, so the
+  // nodes are still attached and still have their computed style.
+  useLayoutEffect(() => () => { ghostOut(overlay.current); ghostOut(content.current); }, []);
+  return { overlay, content };
+}
+
+/** The last non-null value, kept while it goes null - so a dialog driven by
+ *  `open={value != null}` still has something to draw while it animates out,
+ *  and stays the SAME element, which is what lets a re-open reverse it. */
+export function useLingering<T>(value: T | null | undefined): T | null {
+  const [kept, setKept] = useState<T | null>(value ?? null);
+  if (value != null && value !== kept) setKept(value);
+  return value ?? kept;
+}
+
 interface Shared {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -110,11 +178,12 @@ export function Dialog({
   open, onOpenChange, returnFocusTo, title, description, headerAside, footer, size = 'md', children,
 }: DialogProps) {
   const onCloseAutoFocus = useFocusReturn(open, returnFocusTo);
+  const ghost = useExitGhost();
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
-        <RD.Overlay className="dlg-overlay" />
-        <RD.Content className={`dlg dlg-${size}`} onCloseAutoFocus={onCloseAutoFocus}>
+        <RD.Overlay className="dlg-overlay overlay-motion" ref={ghost.overlay} />
+        <RD.Content className={`dlg dlg-${size} overlay-motion`} ref={ghost.content} onCloseAutoFocus={onCloseAutoFocus}>
           <header className="dlg-head">
             <div className="dlg-head-text">
               <RD.Title className="dlg-title">{title}</RD.Title>
@@ -159,13 +228,14 @@ export function DialogSurface({
   open, onOpenChange, returnFocusTo, title, titleVisible = false, overlayClassName, className, children,
 }: DialogSurfaceProps) {
   const onCloseAutoFocus = useFocusReturn(open, returnFocusTo);
+  const ghost = useExitGhost();
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
-        <RD.Overlay className={overlayClassName} />
+        <RD.Overlay className={`${overlayClassName} overlay-motion`} ref={ghost.overlay} />
         {/* No description: the surfaces that use this are a search box and a
             list of links, and a description would only restate the title. */}
-        <RD.Content className={className} aria-describedby={undefined} onCloseAutoFocus={onCloseAutoFocus}>
+        <RD.Content className={`${className} overlay-motion`} ref={ghost.content} aria-describedby={undefined} onCloseAutoFocus={onCloseAutoFocus}>
           {!titleVisible && <RD.Title className="sr-only">{title}</RD.Title>}
           {children}
         </RD.Content>

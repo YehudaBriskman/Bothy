@@ -226,19 +226,16 @@
 }
 .bothy-files .rd-scope-chev { margin-left: auto; }
 
-.bothy-files .rd-scope-pop {
-  position: absolute; top: calc(100% + 5px); right: 0; z-index: 30;
-  width: 274px; max-height: 60vh; overflow: auto;
-  padding: 9px 10px 10px;
-  background: var(--surface-1); border: 1px solid var(--line-strong);
-  border-radius: var(--r-md); box-shadow: var(--shadow-3);
-}
+/* The panel: surface, radius, shadow, layer and motion are ui/Popover's. It is
+   portalled, and carries `.bothy-files` itself so the chip and path-box rules
+   below still reach inside it. */
+.rd-scope-pop.ui-pop { width: 274px; max-height: min(60vh, var(--radix-popper-available-height, 60vh)); padding: 9px 10px 10px; }
 .bothy-files .rd-scope-h {
   margin: 0 0 5px;
   font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
   color: var(--fg-subtle);
 }
-.bothy-files .rd-scope-pop .fx-roots { margin: 0 0 12px; }
+.rd-scope-pop .fx-roots { margin: 0 0 12px; }
 .bothy-files .rd-scope-path { margin: 0; }
 .bothy-files .rd-scope-path input { font-family: var(--mono); font-size: 11.5px; }
 .bothy-files .rd-scope-go {

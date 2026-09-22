@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import type { System, SectionOf } from '../lib/systems';
 import { PLACED_BY_LABEL, sectionTitle, subgroupTitle } from '../lib/systems';
 import type { Status } from '../lib/discover';
@@ -123,11 +124,45 @@ export type MatrixGroup = SectionOf;
 // it, keeping the label-column layout the single-level matrix was measured
 // into. A section with no subgroups (Projects, by default) is one row with an
 // empty label cell, so its chips line up with the subgroup rows above.
+//
+// THE ORDER HOLDS STILL UNDER THE POINTER (design audit SH-20, batch 3). The
+// page repolls every ten seconds and the matrix sorts by severity, so a chip
+// you were reaching for could move from 2nd to 11th between the moment you
+// aimed and the moment you pressed - measured, "Thales" did exactly that. While
+// the pointer is over the matrix, or focus is inside it, each row keeps the
+// order it had when you arrived: statuses and counts still update in place, a
+// new system joins at the END of its row, and a removed one simply goes. The
+// moment you leave, the rows re-sort to the live severity order (R16.4, R3.1).
 export function SystemMatrix({
   groups, attentionIds, onOpen,
 }: { groups: MatrixGroup[]; attentionIds: Set<string>; onOpen: (s: System) => void }) {
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const held = hover || focus;
+  const frozen = useRef(new Map<string, string[]>());
+  const order = (rowKey: string, live: System[]) => {
+    const prev = frozen.current.get(rowKey);
+    if (held && prev) {
+      const at = new Map(prev.map((k, i) => [k, i]));
+      const kept = live.filter((x) => at.has(x.key)).sort((a, b) => at.get(a.key)! - at.get(b.key)!);
+      const fresh = live.filter((x) => !at.has(x.key));
+      const out = [...kept, ...fresh];
+      frozen.current.set(rowKey, out.map((x) => x.key));
+      return out;
+    }
+    frozen.current.set(rowKey, live.map((x) => x.key));
+    return live;
+  };
   return (
-    <section className="sm" aria-label="Systems">
+    <section
+      className="sm"
+      aria-label="Systems"
+      data-held={held || undefined}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      onFocus={() => setFocus(true)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false); }}
+    >
       {groups.map((sec) => {
         const all = sec.subgroups.flatMap((g) => g.systems);
         const secBad = all.filter((s) => isBad(s, attentionIds)).length;
@@ -139,7 +174,7 @@ export function SystemMatrix({
               {secBad > 0 && <span className="sm-group-bad">{secBad} need{secBad === 1 ? 's' : ''} a look</span>}
             </h2>
             {sec.subgroups.map((g) => {
-              const sorted = [...g.systems].sort(bySeverity(attentionIds));
+              const sorted = order(`${sec.key}/${g.key ?? '-'}`, [...g.systems].sort(bySeverity(attentionIds)));
               const bad = sorted.filter((s) => isBad(s, attentionIds)).length;
               return (
                 <div className="sm-group" key={g.key ?? '-'}>

@@ -21,6 +21,13 @@
 //   6. ICONS. --icon-* equals ui/Icon.tsx's ICON.
 //   7. DOCS. docs/brand/reference/tokens.md is what scripts/gen-tokens-doc.mjs
 //      generates from index.css today.
+//   8. MOTION BEHAVIOUR (batch 3, 2026-09-22). No `mode="wait"` and one
+//      AnimatePresence (the route cross-fade); no transition or keyframe of a
+//      layout property (grid rows only in ui/Disclosure); no framer entrance
+//      from opacity 0 or of height/width; the overlays move on transitions with
+//      the hold timer, grow from the trigger and have reduced-motion values;
+//      both global reduce blocks keep fades and drop movement; the Live pulse is
+//      finite; the theme follows the OS by default and cross-fades on a switch.
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -300,9 +307,9 @@ console.log('\n── hit targets, the elevation ladder, the scrim ────�
   for (const f of cssFiles) for (const { sel, body } of rules(readFileSync(f, 'utf8'))) {
     for (const [p, v] of decls(body)) if (p === 'backdrop-filter' && !/^var\(--mat-/.test(v) && v !== 'none') blur.push(`${rel(f)}: ${sel.slice(0, 40)}`);
   }
-  say(blur.length === 0, 'every backdrop-filter is a --mat-* material (top bar, palette scrim) - decision 4', blur.join('; '));
+  say(blur.length === 0, 'every backdrop-filter is a --mat-* material (top bar, palette) - decision 4', blur.join('; '));
   const rt = rules(INDEX).find((r) => /prefers-reduced-transparency/.test(r.media));
-  say(!!rt && /--mat-chrome-blur:\s*none/.test(rt.body) && /--mat-scrim-blur:\s*none/.test(rt.body), 'reduced transparency makes both materials solid');
+  say(!!rt && /--mat-chrome-blur:\s*none/.test(rt.body) && /--mat-palette-blur:\s*none/.test(rt.body) && /--mat-palette-bg:\s*var\(--surface-4\)/.test(rt.body), 'reduced transparency makes both materials solid (top bar, palette)');
   const hc = rules(INDEX).find((r) => /prefers-contrast:\s*more/.test(r.media));
   say(!!hc && /--line:/.test(hc.body) && /--line-strong:/.test(hc.body), 'prefers-contrast: more strengthens the lines');
   const oldScrim = cssFiles.filter((f) => /background:\s*color-mix\(in oklab,\s*var\(--bg\)\s*\d+%,\s*transparent\)/.test(stripCss(readFileSync(f, 'utf8')))
@@ -331,6 +338,102 @@ console.log('\n── icon sizes: CSS and ui/Icon.tsx agree ──────�
   const js = Object.fromEntries([...(icon.match(/ICON\s*=\s*\{([^}]*)\}/)?.[1] ?? '').matchAll(/(\w+):\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]));
   const css = Object.fromEntries(Object.entries(ROOT).filter(([k]) => k.startsWith('--icon-')).map(([k, v]) => [k.slice(7), parseFloat(v)]));
   say(JSON.stringify(js) === JSON.stringify(css) && Object.keys(js).length === 4, 'ICON equals --icon-xs/sm/md/lg', JSON.stringify(css));
+}
+
+// ── 8. motion behaviour (batch 3) ───────────────────────────────────────────
+console.log('\n── motion behaviour: overlays, pages, layout, reduce, theme ─');
+{
+  const srcOf = (f) => stripTs(readFileSync(f, 'utf8'));
+  // A missing primitive is a FAIL below, not a crash here.
+  const readSafe = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
+  const waits = tsx.filter((f) => /mode\s*=\s*\{?\s*["']wait["']/.test(srcOf(f))).map(rel);
+  say(waits.length === 0, 'no AnimatePresence mode="wait" - pages cross-fade, never a blank frame (SYS-8, decision 2)', waits.join(', '));
+  const presence = tsx.filter((f) => /<AnimatePresence\b/.test(srcOf(f))).map(rel);
+  say(presence.length === 1 && presence[0] === join('components', 'RouteFade.tsx'),
+    'AnimatePresence lives only in components/RouteFade.tsx', presence.join(', '));
+  const rf = readSafe(join(SRC, 'components', 'RouteFade.tsx'));
+  const exitDur = /exit=\{\{[^}]*duration:\s*DUR\.exit/.test(rf), enterDur = /duration:\s*reduce \? DUR\.fast : DUR\.base/.test(rf);
+  say(/mode="popLayout"/.test(rf) && exitDur && enterDur && Math.max(DUR.base, DUR.exit) <= 0.2,
+    'the route fade overlaps (popLayout) and ends by 200ms', `enter ${DUR.base * 1000}ms, exit ${DUR.exit * 1000}ms`);
+
+  // Layout properties never animate. Transitions are read per declaration;
+  // keyframes are read from their bodies (rules() skips @keyframes).
+  const LAYOUT = /^(width|height|min-width|min-height|max-width|max-height|top|left|right|bottom|inset|margin(-[a-z]+)?|padding(-[a-z]+)?|gap|flex(-basis|-grow|-shrink)?|font-size|line-height|stroke-width|r|cx|cy|border-width|grid-template-columns|grid-template-rows)$/;
+  const moved = [];
+  for (const f of cssFiles) {
+    const css = stripCss(readFileSync(f, 'utf8'));
+    for (const { sel, body } of rules(css)) for (const [p, v] of decls(body)) {
+      if (p === 'transition-property') { for (const x of v.replace(/!important/, '').split(',').map((t) => t.trim())) if (LAYOUT.test(x)) moved.push(`${rel(f)}: ${sel.slice(0, 40)} { transition-property: ${x} }`); continue; }
+      if (p !== 'transition') continue;
+      for (const part of v.split(/,(?![^(]*\))/)) {
+        const prop = part.trim().split(/\s+/)[0];
+        if (!LAYOUT.test(prop)) continue;
+        if (prop === 'grid-template-rows' && rel(f) === join('components', 'ui', 'Disclosure.css')) continue;
+        moved.push(`${rel(f)}: ${sel.replace(/\s+/g, ' ').slice(0, 40)} { transition: ${prop} }`);
+      }
+    }
+    for (const m of css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^}]*\})*)\s*\}/g)) {
+      for (const d of m[2].matchAll(/([a-z-]+)\s*:/g)) if (LAYOUT.test(d[1])) moved.push(`${rel(f)}: @keyframes ${m[1]} animates ${d[1]}`);
+    }
+  }
+  say(moved.length === 0, 'no transition or keyframe animates a layout property (SYS-10, R11.1) - grid rows only in ui/Disclosure',
+    moved.length ? `\n    ${moved.join('\n    ')}` : '');
+  const fm = [];
+  for (const f of tsx) {
+    const t = srcOf(f);
+    for (const m of t.matchAll(/(initial|animate|exit)\s*=\s*\{\{([^}]*)\}/g)) {
+      if (/\b(height|width|top|left)\s*:/.test(m[2])) fm.push(`${rel(f)}: framer ${m[1]} animates a layout property`);
+      if (m[1] === 'initial' && /opacity:\s*0\b/.test(m[2]) && rel(f) !== join('components', 'RouteFade.tsx')) fm.push(`${rel(f)}: a framer entrance from opacity 0`);
+    }
+    if (/from 'framer-motion'/.test(t) && !/useMotionReduced|riseIn\(|reduce\b/.test(t) && !/MotionConfig/.test(t)) fm.push(`${rel(f)}: framer without a reduced-motion branch`);
+  }
+  say(fm.length === 0, 'framer: no height/width tweens, no entrance from opacity 0 outside the cross-fade, and every user asks useMotionReduced (SYS-11)', fm.join('; '));
+  say(/--z-modal:\s*\d+/.test(stripCss(INDEX)) && /--z-popover:\s*\d+/.test(stripCss(INDEX)), 'the floating layers are tokens (--z-modal, --z-popover, --z-tooltip)');
+
+  // Overlays: transitions + the hold timer, from the trigger, reduce values.
+  const POP = readSafe(join(SRC, 'components', 'ui', 'Popover.css'));
+  const DLG = readSafe(join(SRC, 'components', 'ui', 'Dialog.css'));
+  const popR = rules(POP), dlgR = rules(DLG);
+  say(popR.some((r) => /\.ui-pop\b/.test(r.sel) && /transform-origin:\s*var\(--radix-popper-transform-origin\)/.test(r.body)),
+    'popovers and menus grow out of their trigger (transform-origin at the popper origin, R7.2)');
+  const closed = (rs) => rs.find((r) => /\[data-state='closed'\]/.test(r.sel) && /animation:\s*overlay-hold/.test(r.body) && /transition:/.test(r.body));
+  say(!!closed(popR) && !!closed(dlgR), 'popover and dialog closed states are TRANSITIONS back along the path, held by overlay-hold (R3.2, R7.1)');
+  say(/@starting-style/.test(POP) && /@starting-style/.test(DLG), 'both enter from @starting-style (no in-keyframe to restart from)');
+  say(/var\(--spring\)/.test(POP) && /var\(--spring\)/.test(DLG), 'both move on the critically damped --spring (decision 1)');
+  say(!/@keyframes\s+(dlg-in|dlg-out|ui-menu-in|set-drawer-in)/.test(cssFiles.map((f) => readFileSync(f, 'utf8')).join('\n')),
+    'the old enter-only keyframes (dlg-in, ui-menu-in, set-drawer-in) are gone');
+  const reduceBoth = (css, v) => rules(css).some((r) => /prefers-reduced-motion:\s*reduce/.test(r.media) && r.body.includes(v))
+    && rules(css).some((r) => /html\[data-motion='reduce'\]/.test(r.sel) && r.body.includes(v));
+  say(reduceBoth(POP, '--pop-from-scale: 1') && reduceBoth(DLG, '--ov-from: none'),
+    'the overlays drop scale and rise under BOTH reduce sources, and keep the fade (decision 3)');
+  const dlgTsx = readSafe(join(SRC, 'components', 'ui', 'Dialog.tsx'));
+  say(/function ghostOut/.test(dlgTsx) && (dlgTsx.match(/useExitGhost\(\)/g) ?? []).length >= 2,
+    'a dialog unmounted while open leaves a ghost that plays the exit (both shapes)');
+
+  // The global reduce blocks: fades stay, movement goes.
+  const PREFS = readFileSync(join(SRC, 'prefs.css'), 'utf8');
+  const fadeList = (body) => { const m = body.match(/transition-property:\s*([^;]+)/); if (!m) return null; return m[1].replace(/!important/, '').split(',').map((x) => x.trim()); };
+  const osBlock = rules(INDEX).filter((r) => /prefers-reduced-motion:\s*reduce/.test(r.media) && /transition-property/.test(r.body));
+  const appBlock = rules(PREFS).filter((r) => /html\[data-motion='reduce'\]/.test(r.sel) && /transition-property/.test(r.body));
+  const ok = (bl) => bl.length > 0 && bl.every((r) => { const l = fadeList(r.body); return l && l.includes('opacity') && !l.some((x) => /transform|translate|scale|rotate|all/.test(x)); });
+  say(ok(osBlock) && ok(appBlock), 'OS and in-app reduce: transitions limited to opacity and colour - movement lands, fades stay (decision 3)');
+  const reduceRules = [...rules(INDEX).filter((r) => /prefers-reduced-motion:\s*reduce/.test(r.media)), ...rules(PREFS).filter((r) => /data-motion='reduce'/.test(r.sel))];
+  const noZero = reduceRules.every((r) => !/transition-duration:\s*\.01ms/.test(r.body));
+  say(noZero, 'neither reduce block zeroes transition durations any more (that removed the fades too, ST-11)');
+  const exempt = (css, sel) => rules(css).some((r) => r.sel.includes(sel) && /animation-duration:\s*\.01ms/.test(r.body));
+  say(exempt(INDEX, ':not(.overlay-motion)') && exempt(PREFS, ':not(.overlay-motion)'), 'both reduce blocks leave the overlays\' hold timer running');
+  const pulse = stripCss(INDEX);
+  say(/\.pill \.pulse::after\s*\{[^}]*animation:[^;]*\b3\s*;/.test(pulse) && !/infinite[^;]*;\s*\}[^{]*\.pill/.test(pulse) && !/\.pill\.live \.pulse \{[^}]*infinite/.test(pulse),
+    'the Live pulse runs 3 times on a change, not forever (SH-11)');
+
+  // The theme follows the OS, and a switch cross-fades.
+  const themes = readFileSync(join(SRC, 'lib', 'themes.ts'), 'utf8');
+  const html = readFileSync(join(SRC, '..', 'index.html'), 'utf8');
+  const theme = readFileSync(join(SRC, 'lib', 'theme.tsx'), 'utf8');
+  say(/DEFAULT_SELECTION:\s*Selection\s*=\s*'system'/.test(themes) && /getItem\('portal-theme'\)\s*\|\|\s*'system'/.test(html),
+    "the theme follows the OS by default, in the app and the pre-paint script (SYS-19, decision 5)");
+  say(/startViewTransition/.test(theme) && /typeof doc\.startViewTransition !== 'function'/.test(theme) && /::view-transition-old\(root\)/.test(INDEX),
+    'a theme switch is a view-transition cross-fade, guarded for browsers without it');
 }
 
 // ── 7. docs ─────────────────────────────────────────────────────────────────

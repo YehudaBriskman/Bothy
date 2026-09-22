@@ -218,6 +218,7 @@ Mirrored in `lib/motion.ts` for framer-motion; the check asserts they agree. Spr
 | `--dur` | `180ms` | transform, elevation |
 | `--dur-slow` | `260ms` | a large surface arriving |
 | `--dur-exit` | `120ms` | leaving is quicker than arriving |
+| `--dur-theme` | `200ms` | the theme-switch cross-fade (SYS-19) |
 | `--press-dur` | `100ms` | the press itself - under the 100ms "instant" line |
 | `--ease` | `cubic-bezier(.2,.7,.2,1)` |  |
 | `--ease-exit` | `cubic-bezier(.4,0,.9,.4)` |  |
@@ -249,7 +250,8 @@ Four steps with fixed meanings: 1 rest, 2 raised, 3 popover, 4 modal. A theme se
 | `--scrim` | `rgb(0 0 0 / .6)` | `rgb(9 9 11 / .38)` |  |
 | `--mat-chrome-bg` | `color-mix(in oklab, var(--bg) 78%, transparent)` | same |  |
 | `--mat-chrome-blur` | `blur(14px) saturate(1.2)` | same |  |
-| `--mat-scrim-blur` | `blur(3px)` | same |  |
+| `--mat-palette-bg` | `color-mix(in oklab, var(--surface-4) 82%, transparent)` | same |  |
+| `--mat-palette-blur` | `blur(24px) saturate(1.4)` | same |  |
 
 ## Scroll
 
@@ -284,3 +286,11 @@ The rendered-document scale in Files.
 | `--font` | `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter,...` |  |
 | `--mono` | `ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace` |  |
 | `--font-serif` | `ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia...` |  |
+
+## Other
+
+| Token | Value |
+|---|---|
+| `--z-modal` | `90` |
+| `--z-popover` | `95` |
+| `--z-tooltip` | `96` |

@@ -22,10 +22,18 @@
 //      <button> inside the <th>.
 //   4. THE FOCUS RING never sets a radius. `*:focus-visible { border-radius }`
 //      reshaped 19 of 30 controls on Services the moment they were focused.
+//   5. EVERY FLOATING SURFACE THROUGH A PRIMITIVE (batch 3, SYS-5). Nine
+//      hand-rolled popovers had nine behaviours; they are on ui/Menu and
+//      ui/Popover now, and this keeps a tenth from being written: no Radix
+//      popper-family import outside components/ui/, no intrinsic element
+//      carrying a popup role (menu, menuitem*, listbox, tooltip) outside ui/
+//      except the palette's inline list, no document-level outside-press
+//      listener (the hand-rolled popover's tell), no dropdown positioned by
+//      hand under its trigger, and no literal z-index in the floating range.
 //
 // Run through checks/run.sh (it needs the compiled lib/contract.ts beside it).
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseColour, over, contrast, STATUSES, AA } from './contract.mjs';
@@ -166,13 +174,10 @@ console.log('\n── every modal goes through components/ui/Dialog ────
 {
   const DIALOG = join('components', 'ui', 'Dialog.tsx');
   const MENU = join('components', 'ui', 'Menu.tsx');
-  // Non-modal popovers that legitimately carry role="dialog". Each is a
-  // disclosure anchored to its button with no scrim and no focus trap - the
-  // APG "non-modal dialog" - and each is due to move onto a shared Popover
-  // (audit SYS-5, batch 3). A new entry needs a reason as good as these.
-  const NON_MODAL = new Map([
-    [join('pages', 'files', 'ScopePicker.tsx'), 'the Files "where to look" popover: non-modal, Escape returns to its button'],
-  ]);
+  // Non-modal popovers that carry role="dialog" on an element of their own.
+  // Empty since batch 3: the last one (the Files scope picker) is a ui/Popover
+  // now, and a new non-modal popover should be one too.
+  const NON_MODAL = new Map([]);
   const tsx = files.filter((p) => /\.tsx?$/.test(p));
   const offenders = { radix: [], modal: [], role: [], menu: [] };
   for (const f of tsx) {
@@ -185,14 +190,66 @@ console.log('\n── every modal goes through components/ui/Dialog ────
   }
   say(offenders.radix.length === 0, 'only ui/Dialog.tsx imports @radix-ui/react-dialog', offenders.radix.join(', '));
   say(offenders.modal.length === 0, 'nothing outside ui/Dialog.tsx writes aria-modal', offenders.modal.join(', '));
-  say(offenders.role.length === 0, 'role="dialog" outside ui/Dialog.tsx only on a listed non-modal popover',
-    offenders.role.length ? offenders.role.join(', ') : [...NON_MODAL].map(([k, v]) => `${k} (${v})`).join('; '));
+  say(offenders.role.length === 0, 'no role="dialog" outside ui/Dialog.tsx (non-modal popovers are ui/Popover)',
+    offenders.role.join(', '));
   say(offenders.menu.length === 0, 'only ui/Menu.tsx imports @radix-ui/react-dropdown-menu', offenders.menu.join(', '));
 
   // The primitive itself still does the thing it exists for.
   const d = readFileSync(join(SRC, DIALOG), 'utf8');
   say(/onCloseAutoFocus=\{onCloseAutoFocus\}/.test(d) && (d.match(/onCloseAutoFocus=\{onCloseAutoFocus\}/g) ?? []).length >= 2,
     'both Dialog shapes route close-focus through useFocusReturn');
+}
+
+// ── 5. every floating surface through ui/Menu or ui/Popover ─────────────────
+console.log('\n── every popover and menu goes through ui/Menu or ui/Popover ─');
+{
+  const UI = join('components', 'ui');
+  const inUi = (r) => r.startsWith(UI + '/') || r.startsWith(UI + '\\');
+  const tsx = files.filter((p) => /\.tsx?$/.test(p));
+  const radix = [], roles = [], outside = [];
+  // The palette's result list is a listbox INSIDE the modal palette (a
+  // combobox's own list, not a popup), so it is the one intrinsic popup role
+  // allowed outside the primitives.
+  const ROLE_OK = new Set([join('components', 'CommandPalette.tsx')]);
+  for (const f of tsx) {
+    const r = rel(f);
+    const src = stripTs(readFileSync(f, 'utf8'));
+    if (!inUi(r) && /@radix-ui\/react-(popover|popper|tooltip|hover-card|select|menubar|context-menu|navigation-menu)/.test(src)) radix.push(r);
+    if (!inUi(r) && !ROLE_OK.has(r)) {
+      for (const m of src.matchAll(/<([a-z][a-z0-9]*)\b[^>]*\brole=["{']+(menu|menuitem|menuitemradio|menuitemcheckbox|listbox|tooltip)["}']/g)) roles.push(`${r}: <${m[1]} role="${m[2]}">`);
+    }
+    if (!inUi(r) && /document\.addEventListener\(\s*['"]pointerdown['"]/.test(src)) outside.push(r);
+  }
+  say(radix.length === 0, 'no Radix popper-family import outside components/ui/', radix.join(', '));
+  say(roles.length === 0, 'no hand-drawn popup role (menu, listbox, tooltip) outside components/ui/', roles.join('; '));
+  say(outside.length === 0, 'no document-level outside-press listener outside components/ui/ (a hand-rolled popover)', outside.join(', '));
+
+  const cssFiles = files.filter((p) => p.endsWith('.css'));
+  const byHand = [], z = [];
+  // A fixed banner and the skip link are not floating surfaces; they are the
+  // only literal layers allowed at 40 and above.
+  const Z_OK = /\.upd-banner|\.skip-link/;
+  for (const f of cssFiles) {
+    const css = stripCss(readFileSync(f, 'utf8'));
+    for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const sel = m[1].trim().split('\n').pop().trim(), body = m[2];
+      if (/(top|bottom):\s*calc\(100%\s*\+/.test(body) && /position:\s*absolute/.test(body)) byHand.push(`${rel(f)}: ${sel.slice(0, 50)}`);
+      const zv = body.match(/z-index:\s*(\d+)/);
+      if (zv && Number(zv[1]) >= 40 && !Z_OK.test(sel)) z.push(`${rel(f)}: ${sel.slice(0, 40)} z-index ${zv[1]}`);
+    }
+  }
+  say(byHand.length === 0, 'no dropdown positioned by hand under its trigger (top: calc(100% + …))', byHand.join('; '));
+  say(z.length === 0, 'no literal z-index in the floating range - overlays use --z-modal / --z-popover / --z-tooltip', z.join('; '));
+
+  // The primitives themselves: portalled, collision-aware, focus handled.
+  const readSafe = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : ''); // missing = FAIL, not a crash
+  const pop = readSafe(join(SRC, UI, 'Popover.tsx'));
+  const menu = readSafe(join(SRC, UI, 'Menu.tsx'));
+  say(/<RP\.Portal>/.test(pop) && /collisionPadding=\{8\}/.test(pop) && /<DM\.Portal>/.test(menu) && /collisionPadding=\{8\}/.test(menu),
+    'ui/Popover and ui/Menu portal out of clipping ancestors and keep 8px off the viewport edge');
+  say(/onCloseAutoFocus/.test(pop) && /onCloseAutoFocus/.test(menu), 'both decide where focus goes on close');
+  const users = tsx.filter((f) => /from ['"][./]+(components\/)?ui\/(Popover|Menu)['"]|from ['"]\.\/ui\/(Popover|Menu)['"]|from ['"]\.\.\/ui\/(Popover|Menu)['"]|from ['"]\.\/(Popover)['"]/.test(readFileSync(f, 'utf8'))).map(rel);
+  say(users.length >= 7, 'the migrated surfaces import the primitives', users.join(', '));
 }
 
 // ── 3. sortable headers are buttons ─────────────────────────────────────────

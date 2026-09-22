@@ -1,0 +1,24 @@
+/* Disclosure (SYS-10): rows fold from 1fr to 0fr, the content fades. The
+   inner box is the single grid row; `min-height: 0` lets it shrink below its
+   content and `overflow: hidden` clips what is folded away. Visibility flips
+   only after the fold, so the content is visible while it closes and gone
+   (unreachable) once it has. Reduced motion: the global reduce blocks allow
+   only fade and colour transitions, so the rows snap and the fade stays. */
+.ui-disc {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--dur-slow) var(--ease),
+    opacity var(--dur) var(--ease);
+}
+.ui-disc[data-open='false'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--dur-slow) var(--ease-standard),
+    opacity var(--dur-exit) var(--ease-exit),
+    visibility var(--dur-slow) step-end;
+}
+.ui-disc-inner { min-height: 0; overflow: hidden; }

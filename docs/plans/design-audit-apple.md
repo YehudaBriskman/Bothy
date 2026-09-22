@@ -1,9 +1,10 @@
 # Design audit: Bothy against the "apple-design" skill
 
 _Written 2026-09-19. Status: batch 1 (the accessibility blockers) implemented
-2026-09-21; batch 2 (tokens and the shared primitives) implemented 2026-09-22 -
-see "Batch 2 as shipped" in §7. The §5 conflicts are decided in "Decisions
-(approved 2026-09-21)" below §5. Batches 3-5 are not started._
+2026-09-21; batch 2 (tokens and the shared primitives) implemented 2026-09-22;
+batch 3 (overlays and motion) implemented 2026-09-22 - see "Batch 2 as shipped"
+and "Batch 3 as shipped" in §7. The §5 conflicts are decided in "Decisions
+(approved 2026-09-21)" below §5. Batches 4-5 are not started._
 
 **What was audited.** The Bothy portal: the live app on this box (`http://<box>/`) and
 its source in `apps/bothy-web/web/src`. Every page was covered: Overview; Control
@@ -327,7 +328,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Add a lint to `checks/theme-contract.mjs`: a `--st-*` fill token may never be a
     `color:`.
 
-### SYS-4 Dialogs: keep them mounted, return focus, add a mirrored exit
+### SYS-4 Dialogs: keep them mounted, return focus, add a mirrored exit - FIXED (batch 1 focus, batch 3 motion)
 - **Rule:** R16.10, R7.1, R7.3, R12.4.
 - **Severity:** **P0**. **Effort:** M.
 - **Absorbs:** CL-2, CT-5, SH-5, CT-12, CL-7, ST-10, and part of CL-3.
@@ -357,7 +358,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Anchor tall dialogs at the top (`top:max(8vh,24px); translate:-50% 0`) so their
     header doesn't jump when the content changes height (CL-8).
 
-### SYS-5 One popover/menu primitive
+### SYS-5 One popover/menu primitive - FIXED (batch 3)
 - **Rule:** R7.1, R7.2, R4.2, R16.4, R16.10.
 - **Severity:** **P0** (it carries CL-1). **Effort:** M–L.
 - **Absorbs:** SY-11, SH-12, FL-16, CL-1, CL-6.
@@ -443,7 +444,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Transitions: `var(--dur-fast) var(--ease)`.
   - Delete the 6 scoped disabled copies and `.te-danger`.
 
-### SYS-8 Page transitions: stop waiting for the exit
+### SYS-8 Page transitions: stop waiting for the exit - FIXED (batch 3)
 - **Rule:** R1.2, R3.1, R14.1. **Conflicts with the brand** (§5).
 - **Severity:** P1. **Effort:** S.
 - **Absorbs:** SY-10, SH-9.
@@ -480,7 +481,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - Replace every literal and use one `.chev` rule.
   - The 3D lerp becomes `1-Math.exp(-dt*ω)`, with ω≈18 for a 0.35 s response.
 
-### SYS-10 Stop animating layout properties
+### SYS-10 Stop animating layout properties - FIXED (batch 3)
 - **Rule:** R11.1. Brand: `motion.md` says the same thing.
 - **Severity:** P1. **Effort:** M.
 - **Absorbs:** SY-8, SH-8, CT-13.
@@ -505,7 +506,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
   - `.ct-nav` uses `translate` or `clip-path: inset()`.
   - `.skip-link` uses `translate`.
 
-### SYS-11 One reduced-motion source; stop the perpetual loops - PARTLY FIXED (batch 2)
+### SYS-11 One reduced-motion source; stop the perpetual loops - FIXED (hook batch 2, the rest batch 3)
 - **Rule:** R14.1, R14.4, R16.4. Brand: `motion.md` invariant.
 - **Severity:** P1. **Effort:** M.
 - **Absorbs:** SY-13, ST-7, FL-13, CT-15, SH-11, and the loop part of CT-17.
@@ -704,7 +705,7 @@ Each item names the area findings it absorbs. Severity is the highest of those.
     value shown in mono. Use it for routes, settings sections, the theme editor and
     files.
 
-### SYS-19 Theme: follow the OS, and ease the switch
+### SYS-19 Theme: follow the OS, and ease the switch - FIXED (batch 3)
 - **Rule:** R16.5, R16.7, R14.4. **Conflicts with the brand** (§5).
 - **Severity:** P2. **Effort:** S.
 - **Absorbs:** SH-18, SH-10.
@@ -801,7 +802,7 @@ back to the probe data in `work/<area>/`.
 **SH-17 The 404 and unknown section have no h1 or title**
 - Covered by SYS-18.
 
-**SH-20 Live data re-sorts the system matrix under the pointer**
+**SH-20 Live data re-sorts the system matrix under the pointer - FIXED (batch 3)**
 - **Rule:** R16.4, R3.1. **Severity:** P2. **Effort:** M.
 - **Evidence:** in `S/shell/user-menu-open.png` against
   `S/shell/timechart-hover-edge.png`, "Thales" moves from 2nd to 11th between polls
@@ -915,7 +916,7 @@ covered by SYS-14, CL-17 by SYS-12, and CL-21 by SYS-13.
   - pause and resume become `none`, with an inline Resume/Undo;
   - scale to 1 or more becomes `click`, and scale to 0 stays `type-name`.
 
-**CL-8 The dialog jumps vertically when its content changes**
+**CL-8 The dialog jumps vertically when its content changes - FIXED (batch 3)**
 - **Rule:** R7, R16.7. **Severity:** P2. **Effort:** S.
 - **Evidence:** the header top sits at 155, 230, 183 and 304px across the same
   dialog's states (`components/ui/Dialog.css:11-13`, which centres at 50%).
@@ -1063,7 +1064,7 @@ forever**
   a split" exists as the non-drag path.
 - **Fix:** fade in the drop edge with a slight translate in its direction.
 
-**FL-21 The Files menu cycles Tab instead of closing**
+**FL-21 The Files menu cycles Tab instead of closing - FIXED (batch 3)**
 - **Rule:** R16.10, the APG menu pattern. **Severity:** P2. **Effort:** S.
 - **Evidence:** `pages/files/Menu.tsx:108-110`.
 - **Fix:** Tab closes the menu. This is solved by SYS-5.
@@ -1097,7 +1098,7 @@ forever**
   (`components/settings/settings.css:415-419`).
 - **Fix:** `top:var(--topbar-h)` (SYS-16).
 
-**ST-11 Reduced motion removes fades as well as slides**
+**ST-11 Reduced motion removes fades as well as slides - FIXED (batch 3)**
 - **Rule:** R14.1. **Severity:** P2. **Effort:** M.
 - **Evidence:** `prefs.css:19-25` and `index.css:1297-1301` zero every duration.
 - **Fix:** see the conflict in §5. Collapse transforms, and keep opacity and colour
@@ -1392,6 +1393,83 @@ light/dark × 1440/390 touch, plus pressed frames) are at
   decided.
 - SH-11: the Live pulse.
 - SH-20: freeze the matrix order under the pointer.
+
+**Batch 3 as shipped (2026-09-22).** Overlays and motion. Held by two new
+sections in the checks - `checks/a11y-contract.mjs` §5 (8 assertions: every
+floating surface through a primitive) and `checks/design-tokens.mjs` §8 (19
+assertions: motion behaviour) - which report **29 failures run against the
+pre-batch tree and 0 on this one**. `checks/run.sh --offline`: 486 + 28 + 70
+pass, 0 fail.
+
+| Finding | Fix |
+|---|---|
+| SYS-5 one popover primitive (with SY-11, SH-12, FL-16, CL-6) | `components/ui/Popover.tsx` (Radix Popover) beside `ui/Menu`: portalled, collision-aware (8px off every edge), a `trigger` or an `anchor`, `role` dialog/listbox/tooltip, `initialFocus`, focus return decided per use. ONE surface contract in `ui/Popover.css` for both primitives (--surface-4, --line-strong, --r-lg, --shadow-3, 6px offset) and one layer token each: `--z-modal` 90, `--z-popover` 95, `--z-tooltip` 96. All nine surfaces moved: the theme menu (radio items; see below), the account menu (link items, so middle-click still works), the Files overflow menu (a disabled row with a note stays reachable by the arrows), the Files scope picker, the Settings search listbox (focus stays in the input), the shared `Tooltip` (portalled, so the three Files rules stopping a nine-line ribbon are gone), the Cluster row menu and the palette (both batch 1). The 3D hover tip is the one exception, by necessity - it is anchored to a projected 3D point, not a DOM trigger - and takes the surface contract and the popover's entrance without the primitive. |
+| SYS-5 motion | Popovers and menus grow out of the trigger (`transform-origin: var(--radix-popper-transform-origin)`), scale .96 to 1 on `--spring` (response 0.30, 440ms) with the fade on `--ease`, and leave along the same path (fade on `--ease-exit`, 120ms). |
+| FL-21 | `ui/Menu` closes on Tab and returns focus to the trigger. Radix traps Tab by default - the same trap the hand-rolled menus had. |
+| SYS-4 part 2 (with CL-8) | Every modal surface - ui/Dialog, the palette, the Settings drawer - enters on `--spring` (dialog and palette: rise 8px out of .98 from the top edge; drawer: slides in from its edge) and leaves along the same path on the same spring; the scrim fades with it. Dialogs are TOP-anchored (`top: max(8vh, 24px)`): 300px more body moves the header 0px. |
+| SYS-4 interruptibility | All overlay motion is CSS **transitions** between two states, not in/out keyframes, so it always starts from the on-screen value (R3.2). Radix's Presence only waits for animations, so the closed state also runs `overlay-hold` (index.css), a keyframe that animates nothing and lasts the exit - the unmount timer. Dialogs that stay mounted (the palette, the drawer, the Overview system dialog via the new `useLingering`) REVERSE when re-opened mid-close: measured, paused at 40% of the exit (opacity .88), the re-open transition runs .88 to 1 on the same element. Dialogs whose consumer unmounts them (`{x && <XDialog/>}` - the service and kube dialogs) leave a **ghost**: at unmount the surface and scrim are cloned, inert and aria-hidden, pinned at their on-screen opacity and transform, and played through the closed state; it holds no focus, trap, scroll lock or pointer block, so input is live the moment the dialog closes. |
+| SYS-8 | `components/RouteFade.tsx` replaces both `AnimatePresence mode="wait"` blocks. The next page mounts at once (`popLayout`) and fades in over the leaving one, which keeps its frozen outlet, gives up its id and landmark and turns inert. Enter 180ms on `--ease`, exit 120ms on `--ease-exit` - one starts fast, the other slow, so one layer is always substantially opaque. Measured frame by frame (below): **0 blank frames, done at 180ms**; before, 18 of 35 frames under the content threshold and 350ms of animation (plus framer's own gap between the two phases). |
+| SYS-10 | `components/ui/Disclosure.tsx`: grid-template-rows 0fr/1fr plus a fade, the region always in the DOM (aria-controls resolves while collapsed), content mounted on first open, inert when closed. Services groups (were framer `height: 0 <-> auto`) and Settings blocks use it. The topbar nav label no longer tweens max-width/margin-left (it shoved its neighbour ~60px under the pointer): below 1080px it is visually hidden and shown in a Tooltip. The Control nav column width changes in one step and its labels move on opacity and translate. Topology's stroke-width and `r` transitions are gone. `.skip-link` was already on translate. |
+| SYS-11 remainder (with ST-11, decision 3) | Both global reduce blocks (OS and in-app) limit transitions to opacity and colour-like properties - every translate, scale and transform lands, fades stay - fold `--dur`/`--dur-slow` to `--dur-fast`, still collapse keyframe animations (except the overlays' hold timer, `.overlay-motion`), and turn off smooth scroll. The overlays drop their rise, scale and slide under both sources and keep the fade; RouteFade keeps a 120ms opacity cross-fade (it runs under `reducedMotion="never"` because framer's own reduced mode turned it into an instant swap). Detail-page panels and headers rise in and never start at opacity 0 (`lib/motion.ts` `riseIn`). The 3D idle orbit stops for good at the first interaction and is per-second, not per-frame; under reduced motion the static rack renders, as before. |
+| SH-11 | The Live pulse is a `::after` ring on scale and opacity that runs three times when the freshness state changes (the dot is keyed on it), then stops - not a 0.5 Hz box-shadow loop forever. None under reduced motion. |
+| SYS-19 (decision 5) | `DEFAULT_SELECTION = 'system'` in `lib/themes.ts` and in the pre-paint script (its catch branch asks the OS too); nginx.conf carries the new CSP hash. The `portal-theme*` keys are unchanged, so every stored choice still wins. A theme change - chosen, or an OS flip while on System - runs in `document.startViewTransition` as a 200ms root cross-fade (`--dur-theme`, `--ease-standard`); a browser without the API applies it in one frame; under reduced motion the fade stays at `--dur-fast` (decision 3 keeps fades, and a cross-fade has no movement - this is the brightness jump R14.4 asks to ease). |
+| Materials (decision 4) | The command palette PANEL is the second material (`--mat-palette-bg` = surface-4 at 82%, `--mat-palette-blur` 24px), and its scrim no longer blurs - two stacked blurs is R12.2's warning. Reduced transparency makes the bar and the palette solid (measured: `rgb(9,9,11)` / `rgb(38,38,43)`, no blur). SYS-16 (the scroll-edge shade) stays in batch 4 as planned. |
+| SH-20 | The system matrix holds each row's order while the pointer is over it or focus is inside it: statuses update in place, a new system joins at the end, and leaving re-sorts to live severity. |
+
+**Deviations worth knowing.**
+- **The theme menu no longer opens on hover.** The hand-rolled one opened after
+  90ms of hover. A shared menu opens on the press (pointer-down, R1.1), like the
+  account menu beside it; hover was an accelerator over a control that always
+  worked without it.
+- **The ghost** is how a dialog its consumer unmounts still gets an exit;
+  converting every kube/service consumer to stay mounted was the alternative.
+  Those dialogs therefore fade out on the mirrored path but cannot be *reversed*
+  mid-close (a re-open is a fresh entrance while the ghost finishes); the
+  palette, the drawer and the Overview system dialog can.
+- **Menus are not springs on `framer`**, they are the same critically damped
+  curve as a CSS `linear()` (`--spring`), which is what lets one transition
+  both enter and reverse.
+
+**How it was verified, and the frame-clock problem.** This box's headless
+Chromium produces **no animation frames on its own**: one `requestAnimationFrame`
+in 40s on chrome-headless-shell 1223, one in 4.5s on the full chromium build,
+with every GL/vsync/backgrounding flag tried; begin-frame control crashed the
+target. Real-time sampling (20 screenshots inside 200ms) is impossible here and
+would measure the box, not the app. So every motion measurement **seeks**: the
+CDP Animation clock is frozen (or the animations paused), and each animation's
+`currentTime` is stepped while a CDP screenshot and computed style are taken per
+step - frame-by-frame review with an exact clock (R17). Exits are then finished
+with `Animation.finish()`, which fires the same events a real frame would.
+Harness and logs: `~/.local/state/bothy/design-audit/batch3/` (`harness/`,
+`walk.log` - 23 walkthrough assertions, `media.log` - 19 emulated-media
+assertions, both 0 failures).
+- Route change Overview to Control, 10ms steps (`frames/after-overview-to-control/`):
+  both layers' opacity per step; the higher is never below .82, and the
+  screenshot's content spread never drops below 97% of the destination page's
+  own settled level; done at 180ms. Before
+  (`frames/before-overview-to-control/`): opacity falls to 0 at 180ms and the
+  next page starts from 0 after it.
+- Dialog open (`frames/after-dialog-open/`): opacity .56 at 20ms, 1.0 by 120ms;
+  rise 8.0 to 0.1px and scale .98 to 1.0 by 360ms on the spring. Close
+  (`frames/after-dialog-close/`): the same path back, gone at 120ms. Before: the
+  close had no frames at all (`frames/before-dialog-close/`).
+- Menu open (`frames/after-menu-open/`): scale .96 to 1 by ~300ms from the
+  trigger's corner; before, no motion.
+- Focus return after close, for every dialog and popover reachable here (theme,
+  account and Files menus, Tab-close, choosing an item, tooltip, service and
+  system dialogs, palette by button and Ctrl+K, Settings search, the drawer at
+  390, the scope picker): all pass. The Cluster row menu could not be walked -
+  no cluster was reachable from the dev server - and the Files API needs a
+  session the dev proxy lacks, so its two pages ran against mocked reads.
+- Emulated media: first visit follows the OS (light and dark), a stored choice
+  still wins, an OS flip re-themes through one view transition, the switch is
+  200ms (`frames/theme-crossfade-100ms.png`); OS and in-app reduced motion both
+  keep the fades and drop rise/scale/pulse; reduced transparency makes both
+  materials solid.
+- Stills before/after: `before/` and `after/` (Overview, the palette and the
+  theme menu at 1440 dark/light and 390, the Settings search; after also has
+  every dialog and popover open, the drawer, first visits under each OS scheme
+  and the palette with and without reduced transparency).
 
 **Batch 4: the type scale and layout rhythm.** Effort: L, mechanical, and best done
 area by area.

@@ -73,3 +73,20 @@ export const staggerDelay = (i: number) => Math.min(Math.max(i, 0), STAGGER.max)
  *  is 2.4x faster on a 144Hz screen than on a 60Hz one. `rate` is per second;
  *  2pi/response gives the spring's own rate. */
 export const followFactor = (dt: number, rate: number) => 1 - Math.exp(-dt * rate);
+
+/** A panel's entrance on a detail page: it RISES into place and never starts
+ *  invisible (design audit SYS-11, batch 3). These started at opacity 0 - the
+ *  brand's forbidden Reveal pattern, the one that has left this app a blank page
+ *  twice when an animation did not run. The page cross-fade (RouteFade) already
+ *  fades the page in; each panel only adds a short rise, staggered and capped.
+ *  Under reduced motion there is no rise and nothing else: decision 3 removes
+ *  movement, and the fade that stays is the page's. `i` is the panel's index;
+ *  -1 is the page header, which goes first. */
+export function riseIn(i: number, reduced: boolean) {
+  if (reduced) return {};
+  return {
+    initial: { y: 12 },
+    animate: { y: 0 },
+    transition: { duration: DUR.slow, delay: staggerDelay(i + 1), ease: EASE },
+  };
+}

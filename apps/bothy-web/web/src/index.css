@@ -279,6 +279,7 @@
   --dur:      180ms;   /* transform, elevation */
   --dur-slow: 260ms;   /* a large surface arriving */
   --dur-exit: 120ms;   /* leaving is quicker than arriving */
+  --dur-theme: 200ms;  /* the theme-switch cross-fade (SYS-19) */
   --press-dur: 100ms;  /* the press itself - under the 100ms "instant" line */
   /* The brand curve: an ease-OUT, for things arriving and settling. */
   --ease:          cubic-bezier(.2,.7,.2,1);
@@ -339,12 +340,24 @@
      checks/design-tokens.mjs composites it over --bg and fails if it lightens. */
   --scrim: rgb(0 0 0 / .6);
 
+  /* ── layers: the floating ones, one token each (SYS-5) ─────────────────────
+     The nine hand-rolled popovers used z-index 20, 30, 40, 60 and 80 between
+     them. Now: the modal layer (scrim, then its surface), then everything
+     anchored to a control, which must draw over a dialog it was opened from,
+     then tooltips over that. */
+  --z-modal: 90;
+  --z-popover: 95;
+  --z-tooltip: 96;
+
   /* ── materials: the two translucent surfaces (decision 4) ──────────────────
      The top bar and the command palette's scrim, and nothing else. Both go solid
      under prefers-reduced-transparency (the media block near the end). */
   --mat-chrome-bg: color-mix(in oklab, var(--bg) 78%, transparent);
   --mat-chrome-blur: blur(14px) saturate(1.2);
-  --mat-scrim-blur: blur(3px);
+  /* The palette panel: --surface-4 at 82%, with a heavier blur than the bar
+     because it is the bigger, nearer surface (R12.3). */
+  --mat-palette-bg: color-mix(in oklab, var(--surface-4) 82%, transparent);
+  --mat-palette-blur: blur(24px) saturate(1.4);
 
   /* ── scroll affordance ───────────────────────────────────────────────────
      Used by .scroll-shade (the inner top/bottom shadows) and by the scrollbar
@@ -569,16 +582,28 @@ a { color: inherit; text-decoration: none; }
   font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
   background: var(--surface-1); border: 1px solid var(--line);
 }
-.pill .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--fg-subtle);
-  box-shadow: 0 0 0 0 currentColor; }
-.pill.live { color: var(--st-up-fg); } .pill.live .pulse { background: var(--st-up); animation: beat var(--loop-beat) infinite; }
+.pill .pulse { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--fg-subtle); }
+.pill.live { color: var(--st-up-fg); } .pill.live .pulse { background: var(--st-up); }
 .pill.degraded, .pill.stale { color: var(--st-warn-fg); } .pill.degraded .pulse, .pill.stale .pulse { background: var(--st-warn); }
 .pill.down { color: var(--st-down-fg); } .pill.down .pulse { background: var(--st-down); }
 .pill span:not(.pulse) { color: var(--fg-muted); }
-/* The beat ring inherits the pill's own colour, so a .pill.down pulses rose
-   rather than the hardcoded green this used to emit regardless of state. */
-@keyframes beat { 0%,100% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 50%, transparent);}
-                  50%     { box-shadow: 0 0 0 6px transparent;} }
+/* THE PULSE MARKS A CHANGE, NOT THE PASSAGE OF TIME (SH-11, batch 3). It beat
+   forever at 0.5 Hz - a slow loop in R14.4's band, on the one element that is
+   always on screen - and it animated box-shadow, a repaint every frame. Now a
+   ring drawn by ::after, in the dot's own status colour, expands and fades
+   THREE times when the state changes (AppShell keys the dot on the state, so a
+   change re-mounts it) and then the dot is still. Only scale and opacity move
+   (R11.1). Reduced motion: no ring at all - the colour and the word already
+   say what changed. */
+.pill .pulse::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: inherit; opacity: 0; pointer-events: none;
+  animation: pulse-ring var(--loop-beat) var(--ease) 3;
+}
+@keyframes pulse-ring {
+  0%   { opacity: .55; scale: 1; }
+  70%, 100% { opacity: 0; scale: 2.6; }
+}
 
 /* A page title by default. The 68px display metrics used to live on the bare
    `h1`, written for a hero that no longer exists, so every page title
@@ -689,8 +714,9 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .skel, .pill .pulse, .spin { animation: none !important; }
+  .skel, .pill .pulse::after, .spin { animation: none !important; }
 }
+html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 
 /* ============================================================================
    V2 - multi-page control-room shell. Everything below is additive; it uses the
@@ -729,7 +755,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   width: 38px; height: 38px; min-width: var(--hit); min-height: var(--hit);
   border-radius: var(--r-md); color: var(--fg-muted);
   background: none; border: 0; }
-.icon-btn:hover { color: var(--fg); }
+.icon-btn:hover, .icon-btn[data-state='open'] { color: var(--fg); }
 
 .badge { font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-semibold);
   color: var(--fg-muted); background: var(--surface-2);
@@ -752,7 +778,12 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
    The row it leaves behind is a single sticky topbar: brand · nav · search
    trigger · actions. Search is now a trigger for the command palette rather
    than an input that router-pushed on every keystroke. */
-.shell { display: flex; flex-direction: column; min-height: 100vh; }
+/* position: relative - the leaving page of a route cross-fade is lifted out of
+   the flow into this box, where it was (components/RouteFade.tsx). */
+.shell { position: relative; display: flex; flex-direction: column; min-height: 100vh; }
+/* The arriving page draws OVER the leaving one, so the cross-fade reads as the
+   new page coming up rather than the old one lingering on top. */
+[data-route-fade='in'] { position: relative; z-index: 1; }
 
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px;
   padding: 10px 22px; border-bottom: 1px solid var(--line);
@@ -899,13 +930,12 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: -11px; height: 2px;
   border-radius: 2px 2px 0 0; background: var(--accent); }
 
-/* The label. `display: none` cannot be animated, so the collapsed state is a
-   zero max-width with hidden overflow - which can. */
-.nav-label {
-  display: inline-block; white-space: nowrap;
-  transition: max-width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease),
-              margin-left var(--dur) var(--ease);
-}
+/* The label. Below 1080px it is not drawn at all (visually hidden, still the
+   link's accessible name) and a Tooltip carries it on hover and focus - see
+   AppShell. It used to reopen IN the row by tweening max-width and margin-left,
+   which reflowed the whole bar every frame and pushed the neighbouring item
+   ~60px sideways under the pointer (SYS-10). */
+.nav-label { display: inline-block; white-space: nowrap; }
 
 .topbar-spacer { flex: 1; min-width: 8px; }
 /* No max-width. The old `max-width: 30%` was sized against .topbar as a flex
@@ -932,15 +962,15 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 
 .content { flex: 1; padding: 26px 30px 70px; width: 100%; max-width: 1320px; margin: 0 auto; }
 
-/* Icons only, labels on demand. The label collapses to zero width and reopens
-   on hover OR keyboard focus - focus matters as much as hover here, because
-   without it a keyboard user tabbing the nav gets four unlabelled squares.
-   `title` on the link is the third fallback, for touch, where neither fires. */
+/* Icons only, labels on demand: the label is visually hidden and a Tooltip
+   shows it on hover OR keyboard focus - focus matters as much as hover here,
+   because without it a keyboard user tabbing the nav gets unlabelled squares. */
 @media (max-width: 1080px) {
   .nav-item { padding: 7px 9px; }
-  .nav-label { max-width: 0; opacity: 0; margin-left: -7px; overflow: hidden; }
-  .nav-item:hover .nav-label,
-  .nav-item:focus-visible .nav-label { max-width: 10ch; opacity: 1; margin-left: 0; }
+  .nav-label {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
   .nav-item.on::after { left: 9px; right: 9px; }
 }
 @media (max-width: 900px) {
@@ -956,11 +986,6 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   .topbar { padding: 10px 12px; gap: 6px; }
   /* The rail is 3px of decoration; on a phone that is 3px of a 360px viewport. */
   .scroll-rail { display: none; }
-}
-/* Expanding a label on hover is motion; a user who asked for less of it gets the
-   label instantly instead of not at all. */
-@media (prefers-reduced-motion: reduce) {
-  .nav-label { transition: none; }
 }
 
 /* ── generic page chrome ─────────────────────────────────────────────────── */
@@ -1205,27 +1230,36 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: var(--r-xs); padding: 1px 5px; }
 
+/* ── the theme switch: a root cross-fade (SYS-19, R14.4) ─────────────────────
+   lib/theme.tsx runs a theme change inside document.startViewTransition(), and
+   these time the cross-fade of the two root snapshots: 200ms on the symmetric
+   curve, so dark to light and light to dark feel the same (R7.3). The global
+   reduce blocks cannot reach these pseudo-elements, and decision 3 keeps fades,
+   so under reduced motion the fade stays and shortens to --dur-fast. A browser
+   without the API applies the change in one frame, as it always did. */
+::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: var(--dur-theme);
+  animation-timing-function: var(--ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-fast); }
+}
+html[data-motion='reduce']::view-transition-group(root),
+html[data-motion='reduce']::view-transition-old(root),
+html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(--dur-fast); }
+
+/* ── the overlay unmount timer ───────────────────────────────────────────────
+   Every overlay's motion is a TRANSITION (so it can turn round mid-flight), but
+   Radix's Presence keeps a closing surface mounted only while an ANIMATION runs
+   on it. The closed state of ui/Dialog, ui/Popover and ui/Menu therefore also
+   runs this: it animates nothing and lasts as long as the exit. */
+@keyframes overlay-hold { from { visibility: visible; } to { visibility: visible; } }
+
 /* ── tooltip ─────────────────────────────────────────────────────────────────
-   The inverted-surface pair (foreground colour as background) - the one shadcn
-   idea that carries the most weight per line, because it makes a tooltip read
-   as an overlay rather than as another card. Shows on hover AND focus: the
-   `title=` attributes this replaces were invisible to keyboard users. */
-.tip-wrap { position: relative; display: inline-flex; }
-.tip { position: absolute; z-index: 60; top: calc(100% + 8px); left: 50%; translate: -50% 0;
-  background: var(--fg); color: var(--bg); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
-  line-height: var(--lh-xs); letter-spacing: var(--tr-xs);
-  padding: 6px 9px; border-radius: var(--r-sm); white-space: nowrap; pointer-events: none;
-  box-shadow: var(--shadow-2); }
-.tip::before { content: ''; position: absolute; top: -3px; left: 50%; translate: -50% 0; rotate: 45deg;
-  width: 8px; height: 8px; background: var(--fg); border-radius: 1px; }
-.tip[data-align='end'] { left: auto; right: 0; translate: none; }
-.tip[data-align='end']::before { left: auto; right: 12px; translate: none; }
-/* Pinned to the trigger's LEFT edge. Without it, a centred tooltip on the brand
-   - the leftmost thing in the topbar - renders half outside the window. There is
-   no collision detection here on purpose (see components/Tooltip.tsx); the two
-   corner cases get an explicit alignment instead. */
-.tip[data-align='start'] { left: 0; right: auto; translate: none; }
-.tip[data-align='start']::before { left: 12px; translate: none; }
+   The bubble is ui/Popover's (Popover.css, `.ui-pop-tip`): the inverted pair,
+   portalled, collision-aware, growing out of its control. Only the anchor is
+   drawn here. */
+.tip-wrap { display: inline-flex; }
 
 /* ── command palette ─────────────────────────────────────────────────────────
    Hand-written against the tokens - cmdk is ~14 KB for a 27-item list. The
@@ -1234,10 +1268,19 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 /* The scrim and the panel are SIBLINGS since the palette moved onto ui/Dialog's
    DialogSurface (Radix renders Overlay and Content side by side), so the panel
    positions itself rather than being centred by a grid on the scrim. */
-.cmdk-scrim { position: fixed; inset: 0; z-index: 80; background: var(--scrim);
-  backdrop-filter: var(--mat-scrim-blur); }
-.cmdk { position: fixed; z-index: 81; top: 12vh; left: 50%; translate: -50% 0;
-  width: min(560px, calc(100vw - 32px)); background: var(--surface-4); border: 1px solid var(--line-strong);
+.cmdk-scrim { position: fixed; inset: 0; z-index: var(--z-modal); background: var(--scrim); }
+/* THE PALETTE IS A MATERIAL (decision 4, R12.1): one of the two translucent
+   surfaces in the app, with the top bar. The page shows through it, dimmed by
+   the scrim and blurred by the panel - which is also why the scrim no longer
+   blurs: two blurs stacked is the "light translucent on light translucent" the
+   skill warns about (R12.2). Its rows sit on --mat-palette-bg, so the selected
+   row and the text are measured against the SOLID fallback's colour, and
+   prefers-reduced-transparency swaps that fallback in (the block near the end).
+   Motion: Dialog.css. */
+.cmdk { position: fixed; z-index: calc(var(--z-modal) + 1); top: 12vh; left: 50%; translate: -50% 0;
+  width: min(560px, calc(100vw - 32px));
+  background: var(--mat-palette-bg); backdrop-filter: var(--mat-palette-blur);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-lg); box-shadow: var(--shadow-4); overflow: hidden;
   display: flex; flex-direction: column; max-height: 62vh; }
 .cmdk-in { display: flex; align-items: center; gap: 10px; padding: 12px 14px;
@@ -1384,7 +1427,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   scale: var(--press-scale);
   box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--fg) 9%, transparent);
 }
-:where(.nav-item, .tabs button[role='tab'], .tm-row, .um-item, .fx-menu-item, .ui-menu-item,
+:where(.nav-item, .tabs button[role='tab'], .ui-menu-item, .ui-pop-row,
   .cmdk-item, .fx-row, .rd-doc, .rd-dir, .set-opt, .theme-card, .ct-item, .svc-group-head,
   .ov-quick-item, .fx-sr-file, .fx-sr-line):active:not(:disabled, [aria-disabled='true']) {
   background-color: var(--surface-press);
@@ -1465,15 +1508,29 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
   .bg, .scroll-rail { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Nothing here may HIDE content. Killing transitions must never be able to
-     leave an element at opacity:0 - that was the old .reveal failure mode.
-     `iteration-count: 1` so a looping animation stops rather than strobing at
-     a hundredth of a millisecond per cycle; the in-app setting (prefs.css) has
-     always said so and this block did not. */
-  *, *::before, *::after {
+  /* Movement goes, fades stay (decision 3, design audit SYS-11/ST-11, batch 3).
+     Until batch 3 this collapsed EVERY duration to .01ms, which also removed
+     the fades that help a reader follow a change - the skill (R14.1) and now
+     the brand keep those.
+       · transitions: only opacity and colour-like properties may animate, so a
+         translate, scale or transform in any rule simply lands; the durations
+         that remain are the tokens', with --dur and --dur-slow folded to
+         --dur-fast;
+       · keyframe animations: nearly all of them move something (a spin, a
+         shimmer, a pulse ring), so they still collapse and run once - except
+         the overlays (.overlay-motion), whose closed state runs a keyframe as
+         the unmount timer and whose own rules already drop the movement;
+       · smooth scrolling off.
+     Nothing here may HIDE content: no rule sets opacity, and a collapsed
+     animation lands on its end state. */
+  :root { --dur: var(--dur-fast); --dur-slow: var(--dur-fast); }
+  *:not(.overlay-motion), *::before, *::after {
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
+  }
+  *, *::before, *::after {
+    transition-property: opacity, color, background-color, border-color, outline-color,
+      box-shadow, fill, stroke, text-decoration-color, visibility !important;
     scroll-behavior: auto !important;
   }
 }
@@ -1486,7 +1543,8 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
   :root {
     --mat-chrome-bg: var(--bg);
     --mat-chrome-blur: none;
-    --mat-scrim-blur: none;
+    --mat-palette-bg: var(--surface-4);
+    --mat-palette-blur: none;
   }
 }
 
@@ -1503,6 +1561,8 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
     --fg-subtle: var(--fg-muted);
     --mat-chrome-bg: var(--bg);
     --mat-chrome-blur: none;
+    --mat-palette-bg: var(--surface-4);
+    --mat-palette-blur: none;
   }
 }
 

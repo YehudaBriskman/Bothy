@@ -2,15 +2,18 @@
    raised surface one step above the page, a hairline border, generous header. */
 
 .dlg-overlay {
-  position: fixed; inset: 0; z-index: 90;
+  position: fixed; inset: 0; z-index: var(--z-modal);
   background: var(--scrim);
   /* No blur (decision 4): the dialog scrim dims, it is not a material. */
-  animation: dlg-fade var(--dur) var(--ease);
 }
 
 .dlg {
-  position: fixed; z-index: 91;
-  left: 50%; top: 50%; translate: -50% -50%;
+  position: fixed; z-index: calc(var(--z-modal) + 1);
+  /* TOP-anchored, not centred (SYS-4, CL-8). Centred at 50%, a dialog whose
+     body changes height - a tab switch, a loaded list, an inline confirm -
+     moved its header 75px up and down under the reader's eye. Anchored at the
+     top, only the bottom edge moves. */
+  left: 50%; top: max(8vh, 24px); translate: -50% 0;
   width: min(560px, calc(100vw - 32px));
   /* The dialog is a column so the BODY scrolls, not the whole box: a header
      that scrolls away takes the close button with it. */
@@ -20,7 +23,6 @@
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-4);
-  animation: dlg-in var(--dur) var(--ease);
 }
 .dlg-lg { width: min(880px, calc(100vw - 32px)); }
 
@@ -54,14 +56,79 @@
   border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
-@keyframes dlg-fade { from { opacity: 0; } to { opacity: 1; } }
-/* Rises 6px and settles. Never animates FROM opacity 0 without also animating
-   to 1 in the same declaration - see the .reveal note in index.css for why that
-   distinction has cost this app a blank page twice. */
-@keyframes dlg-in {
-  from { opacity: 0; translate: -50% calc(-50% + 6px); scale: .985; }
-  to   { opacity: 1; translate: -50% -50%; scale: 1; }
+/* ── motion (SYS-4 part 2, decision 1) ───────────────────────────────────────
+   Every modal surface - the framed dialog here, the command palette and the
+   Settings drawer (both DialogSurface) - enters on the critically damped spring
+   (--spring) and LEAVES ALONG THE SAME PATH on the same spring (R7.1, R7.3);
+   fades ride the brand curves, and the scrim fades with its surface.
+
+     dialog, palette   rise 8px out of a .98 scale, growing from the top edge
+                       they are anchored by
+     drawer            slides in from the edge it lives on, and back out to it
+
+   Transitions, not keyframes - the reason is in Popover.css: a transition
+   starts from the on-screen value, so closing a dialog that is still opening
+   turns it round where it is, and re-opening one that is still closing brings
+   it back from there (R3.2). The closed state runs `overlay-hold` (index.css)
+   as the unmount timer Radix's Presence can see; the ghost of an unmounted
+   dialog (Dialog.tsx) runs the same closed state.
+
+   Reduced motion (decision 3): the rise, the scale and the slide go; the fades
+   stay, at --dur-fast. */
+:is(.dlg, .cmdk, .set-drawer) {
+  --ov-from: translateY(8px) scale(.98);
+  --ov-from-opacity: 0;
+  --ov-spring: var(--spring-dur);
+  --ov-hold: var(--dur-exit);
+  transform-origin: 50% 0;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--ov-spring) var(--spring);
 }
+:is(.dlg-overlay, .cmdk-scrim, .set-drawer-overlay) {
+  --ov-hold: var(--dur-exit);
+  opacity: 1;
+  transition: opacity var(--dur) var(--ease);
+}
+@starting-style {
+  :is(.dlg-overlay, .cmdk-scrim, .set-drawer-overlay)[data-state='open'] { opacity: 0; }
+  :is(.dlg, .cmdk, .set-drawer)[data-state='open'] { opacity: var(--ov-from-opacity); transform: var(--ov-from); }
+}
+:is(.dlg-overlay, .cmdk-scrim, .set-drawer-overlay)[data-state='closed'] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-exit) var(--ease-exit);
+  animation: overlay-hold var(--ov-hold) linear;
+}
+:is(.dlg, .cmdk, .set-drawer)[data-state='closed'] {
+  opacity: var(--ov-from-opacity);
+  transform: var(--ov-from);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-exit) var(--ease-exit),
+    transform var(--ov-spring) var(--spring);
+  animation: overlay-hold var(--ov-hold) linear;
+}
+/* The drawer is opaque the whole way: it is a sheet sliding off the edge, and
+   it has to be SEEN leaving, so its hold is the spring's own settle time (the
+   short spring, response 0.30), and its scrim waits for it. */
+.set-drawer {
+  --ov-from: translateX(-100%);
+  --ov-from-opacity: 1;
+  --ov-spring: var(--spring-dur-s);
+  --ov-hold: var(--spring-dur-s);
+}
+.set-drawer-overlay { --ov-hold: var(--spring-dur-s); }
+.set-drawer-overlay[data-state='closed'] { transition: opacity var(--spring-dur-s) var(--ease-exit); }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.dlg, .cmdk, .set-drawer) { --ov-from: none; --ov-from-opacity: 0; --ov-hold: var(--dur-exit); }
+  .set-drawer-overlay { --ov-hold: var(--dur-exit); }
+}
+html[data-motion='reduce'] :is(.dlg, .cmdk, .set-drawer) { --ov-from: none; --ov-from-opacity: 0; --ov-hold: var(--dur-exit); }
+html[data-motion='reduce'] .set-drawer-overlay { --ov-hold: var(--dur-exit); }
 
 @media (max-width: 560px) {
   .dlg { width: calc(100vw - 20px); max-height: 88vh; }

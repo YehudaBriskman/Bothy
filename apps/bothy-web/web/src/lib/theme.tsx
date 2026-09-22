@@ -67,6 +67,22 @@ function paintChrome() {
   tag.setAttribute('content', bg);
 }
 
+/** Run a theme change as a cross-fade (SYS-19, R14.4: ease brightness jumps).
+ *  A switch used to change the whole page from near-black to white in one
+ *  frame. The View Transitions API snapshots the old page, applies the change,
+ *  and cross-fades the two root snapshots - 200ms, set in index.css.
+ *
+ *  Guarded twice: a browser without the API just applies the change (the old
+ *  behaviour, no error); and under reduced motion - the OS or Settings - the
+ *  fade still runs but at --dur-fast, because decision 3 keeps fades and a
+ *  cross-fade has no movement in it. It is a whole-page brightness change that
+ *  is being softened, which is exactly the reader reduced motion is for. */
+function withFade(change: () => void) {
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  if (typeof doc.startViewTransition !== 'function') { change(); return; }
+  try { doc.startViewTransition(change); } catch { change(); }
+}
+
 function apply(sel: Selection, all?: readonly ThemeDef[]) {
   const t = resolve(sel, all);
   const el = document.documentElement;
@@ -152,7 +168,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // pre-paint script stamped it, which is the one place that already knows the
     // right answer.
     if (!scanned && selection !== 'system' && !byId(selection, THEMES)) return;
-    apply(selection, all);
+    // Only a CHANGE fades: the first application after mount re-stamps what the
+    // pre-paint script already painted, and has nothing to cross-fade from.
+    const next = resolve(selection, all);
+    const cur = document.documentElement.getAttribute('data-bothy-theme');
+    if (cur && cur !== next.id) withFade(() => apply(selection, all));
+    else apply(selection, all);
     setTheme(resolve(selection, all));
   }, [selection, all, scanned]);
 
@@ -162,7 +183,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (selection !== 'system' || typeof matchMedia === 'undefined') return;
     const mq = matchMedia(DARK_QUERY);
-    const onChange = () => { apply('system', all); setTheme(resolve('system', all)); };
+    const onChange = () => { withFade(() => apply('system', all)); setTheme(resolve('system', all)); };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, [selection, all]);
