@@ -1,0 +1,203 @@
+/* ============================================================================
+   The Control landing (pages/control/ControlHome.tsx).
+
+   TOKENS ONLY. Every size is a --sp-*, --fs-*, --r-*, --icon-* or --border-w
+   step, or a multiple of one; every colour is a surface, line, fg or status
+   token; every duration and curve is a motion token. The one kind of literal
+   left is the container-query breakpoints, because a custom property cannot be
+   used inside an @container condition - they are in rem so they follow the
+   reader's text size.
+
+   Status colour rule (index.css, principles.md rule 1): the -fg half for
+   glyphs and words, the fill only for areas and marks. Chrome takes --accent
+   or nothing.
+   ========================================================================== */
+
+.ch { container: ch / inline-size; display: flex; flex-direction: column; gap: var(--sp-6); min-width: 0; }
+.ch-head { flex-wrap: wrap; row-gap: var(--sp-3); margin-bottom: 0; }
+.ch-head h1 { margin: 0; }
+.ch-head-aside { display: flex; align-items: center; gap: var(--sp-3); }
+.ch-asof { color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums; }
+
+.ch-num { font-variant-numeric: tabular-nums; font-weight: var(--fw-bold); }
+.ch-dim { color: var(--fg-muted); }
+.ch-inline { display: inline-flex; align-items: center; gap: var(--sp-1_5); min-width: 0; }
+.ch-empty { margin: 0; color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+
+/* ── tone glyph ───────────────────────────────────────────────────────────── */
+.ch-tone { display: inline-flex; flex: none; align-items: center; }
+.ch-tone svg { display: block; }
+.ch-tone[data-tone='ok'] { color: var(--st-up-fg); }
+.ch-tone[data-tone='warn'] { color: var(--st-warn-fg); }
+.ch-tone[data-tone='bad'] { color: var(--st-down-fg); }
+.ch-tone[data-tone='off'] { color: var(--st-off-fg); }
+.ch-tone[data-tone='unknown'] { color: var(--st-unknown-fg); }
+
+/* ── the health strip ─────────────────────────────────────────────────────
+   The largest type on the page after the title, on the page's own ground: a
+   row of numbers that is the answer, not a row of cards competing with it. */
+.ch-strip { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--sp-16) * 2.5)), 1fr)); }
+.ch-tile { position: relative; display: flex; flex-direction: column; gap: var(--sp-1); height: 100%;
+  padding: var(--sp-3) var(--sp-4); border-radius: var(--r-lg);
+  background: var(--surface-1); border: var(--border-w) solid var(--line); color: var(--fg);
+  text-decoration: none; overflow: hidden;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+/* the status mark: a fill used as an AREA (a bar along the tile's edge), which
+   is what the fill is for; the words and the glyph carry the state in text. */
+.ch-tile::before { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--sp-1); background: transparent; }
+.ch-tile[data-tone='bad']::before { background: var(--st-down); }
+.ch-tile[data-tone='warn']::before { background: var(--st-warn); }
+.ch-tile:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.ch-tile-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.ch-tile-value { font-size: var(--fs-xl); line-height: var(--lh-xl); letter-spacing: var(--tr-xl);
+  font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.ch-of { color: var(--fg-muted); font-weight: var(--fw-medium); font-size: var(--fs-md); letter-spacing: var(--tr-md); }
+.ch-tile-sub { color: var(--fg-muted); font-size: var(--fs-xs); line-height: var(--lh-xs);
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* ── the grid ─────────────────────────────────────────────────────────────
+   One column on a phone; two from a tablet; at desk width Needs attention and
+   Quick links share the first row (attention the wider, it is the one to act
+   on) and the three glance cards share the second. */
+.ch-grid { display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr); align-items: start; }
+@container ch (min-width: 40rem) {
+  .ch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ch-att, .ch-links { grid-column: 1 / -1; }
+}
+@container ch (min-width: 64rem) {
+  .ch-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .ch-att { grid-column: span 7; }
+  .ch-links { grid-column: span 5; }
+  .ch-grid > .ch-card:nth-child(n + 3) { grid-column: span 4; }
+}
+
+/* ── the card frame ───────────────────────────────────────────────────────── */
+.ch-card { min-width: 0; display: flex; flex-direction: column;
+  background: var(--surface-1); border: var(--border-w) solid var(--line); border-radius: var(--r-lg); }
+.ch-card-head { display: flex; align-items: center; gap: var(--sp-2); min-width: 0;
+  padding: var(--sp-3) var(--sp-4); border-bottom: var(--border-w) solid var(--line); }
+.ch-card-ico { flex: none; color: var(--fg-subtle); }
+.ch-card-title { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); letter-spacing: var(--tr-md);
+  font-weight: var(--fw-bold); white-space: nowrap; }
+.ch-card-meta { color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums; min-width: 0; }
+.ch-card-link { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: var(--sp-1);
+  min-height: var(--hit); padding: 0 var(--sp-1); border-radius: var(--r-sm);
+  color: var(--accent-fg); font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-semibold);
+  text-decoration: none; }
+.ch-card-link:hover { color: var(--fg); background: var(--surface-2); }
+.ch-card-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); display: flex; flex-direction: column;
+  gap: var(--sp-3); min-width: 0; }
+
+.ch-loading { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ch-skel { height: var(--sp-6); }
+.ch-unavail { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2);
+  color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ch-sub-h { margin: 0; }
+
+/* ── facts (a <dl>) ───────────────────────────────────────────────────────── */
+.ch-facts { margin: 0; display: grid; gap: var(--sp-2) var(--sp-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--sp-16) * 1.75)), 1fr)); }
+.ch-fact { min-width: 0; }
+.ch-fact-k { color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.ch-fact-v { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); color: var(--fg); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-fact-v a { color: inherit; text-decoration: none; border-bottom: var(--border-w) solid var(--line-strong); }
+.ch-fact-v a:hover { color: var(--accent-fg); border-bottom-color: currentColor; }
+
+/* ── link rows (namespaces, routes, activity) ─────────────────────────────── */
+.ch-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ch-row { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; min-height: var(--hit);
+  padding: var(--sp-1) var(--sp-2); margin: 0 calc(var(--sp-2) * -1); border-radius: var(--r-sm);
+  color: var(--fg); text-decoration: none; font-size: var(--fs-sm); line-height: var(--lh-sm);
+  transition: background var(--dur-fast) var(--ease); }
+.ch-row:hover { background: var(--surface-2); }
+.ch-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-semibold); }
+.ch-row-mid { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.ch-row-val { margin-left: auto; flex: none; color: var(--fg-muted); font-size: var(--fs-xs); line-height: var(--lh-xs);
+  font-variant-numeric: tabular-nums; }
+.ch-row .mono { font-size: var(--fs-xs); }
+
+/* ── Needs attention ──────────────────────────────────────────────────────── */
+.ch-sev-counts { display: inline-flex; flex-wrap: wrap; gap: var(--sp-1); }
+.ch-sev { padding: 0 var(--sp-1_5); border-radius: var(--r-full); border: var(--border-w) solid var(--line);
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: var(--fw-semibold); color: var(--fg-muted); }
+.ch-sev[data-sev='critical'] { color: var(--st-down-fg); border-color: var(--st-down-line); background: var(--st-down-bg); }
+.ch-sev[data-sev='warning'] { color: var(--st-warn-fg); border-color: var(--st-warn-line); background: var(--st-warn-bg); }
+
+.ch-degraded, .ch-clear { margin: 0; display: flex; align-items: flex-start; gap: var(--sp-2);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ch-degraded { color: var(--st-warn-fg); }
+.ch-degraded svg { flex: none; }
+.ch-clear { color: var(--fg-muted); }
+.ch-clear strong { color: var(--fg); }
+
+.ch-scroll { max-height: calc(var(--sp-16) * 5); overflow-y: auto; margin: 0 calc(var(--sp-4) * -1); padding: 0 var(--sp-4); }
+.ch-att-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ch-att-item { display: flex; align-items: center; gap: var(--sp-2_5); min-width: 0;
+  padding: var(--sp-2) 0; border-bottom: var(--border-w) solid var(--line); }
+.ch-att-item:last-child { border-bottom: 0; }
+.ch-att-text { flex: 1; min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--sp-2); }
+.ch-att-subject { font-weight: var(--fw-bold); font-size: var(--fs-md); line-height: var(--lh-md);
+  overflow-wrap: anywhere; }
+.ch-att-what { color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); overflow-wrap: anywhere; }
+.ch-att-acts { flex: none; display: inline-flex; align-items: center; gap: var(--sp-1_5); }
+/* The row verb is visible at rest here: on this page it IS the point of the row. */
+.ch-att-acts .svc-act-btn { opacity: 1; }
+
+/* ── Quick links ──────────────────────────────────────────────────────────── */
+.ch-ql-groups { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ch-ql-group { display: flex; flex-direction: column; gap: var(--sp-1_5); }
+.ch-ql-h { margin: 0; }
+.ch-ql-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1_5);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--sp-16) * 2.25)), 1fr)); }
+.ch-ql { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; min-height: var(--hit);
+  padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-md);
+  border: var(--border-w) solid var(--line); background: var(--surface-2); color: var(--fg); text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.ch-ql:hover { border-color: var(--line-strong); background: var(--surface-3); }
+.ch-ql[data-status='stopped'] .ch-ql-name { color: var(--fg-muted); }
+.ch-ql-ico { flex: none; color: var(--fg-subtle); }
+.ch-ql:hover .ch-ql-ico { color: var(--accent-fg); }
+.ch-ql-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-ql-name { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-semibold);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-ql-sub { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-ql-ext { flex: none; color: var(--fg-subtle); }
+
+/* ── the sparkline ────────────────────────────────────────────────────────── */
+.ch-spark { display: block; width: 100%; height: var(--sp-10); }
+.ch-spark.is-empty { border-bottom: var(--border-w) dashed var(--line); }
+.ch-spark-line { fill: none; stroke: var(--accent); stroke-width: calc(var(--border-w) * 1.5);
+  vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.ch-spark-area { fill: var(--accent-bg); stroke: none; }
+
+/* ── Recent activity ──────────────────────────────────────────────────────── */
+.ch-act { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ch-act-block { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.ch-act-h { margin: 0; font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: var(--fw-bold);
+  letter-spacing: var(--label-tracking); text-transform: uppercase; }
+.ch-act-h a { color: var(--fg-subtle); text-decoration: none; }
+.ch-act-h a:hover { color: var(--accent-fg); }
+
+/* ── Services by group ────────────────────────────────────────────────────
+   The Services page's group head, tightened for a summary: the shared rules
+   give it its look; these only close the spacing up. */
+.ch-groups.svc-groups { gap: var(--sp-1); }
+.ch-group-head.svc-group-head { padding: var(--sp-1_5) 0; gap: var(--sp-2_5); min-height: var(--hit); }
+.ch-group-title { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); white-space: nowrap; }
+.ch-group-sub { color: var(--fg-subtle); font-size: var(--fs-xs); line-height: var(--lh-xs); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-group .svc-group-body { padding-bottom: var(--sp-2); }
+
+@container ch (max-width: 30rem) {
+  .ch-att-item { flex-wrap: wrap; }
+  .ch-att-acts { margin-left: calc(var(--icon-sm) + var(--sp-2_5)); }
+  .ch-group-head .tail { display: none; }
+  .ch-head-aside { width: 100%; justify-content: space-between; }
+}
