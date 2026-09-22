@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Gauge, FolderTree,
   Search,
 } from 'lucide-react';
 import { usePortal } from '../lib/data';
-import { DUR, EASE } from '../lib/motion';
-import { useMotionReduced } from '../lib/useMotionReduced';
+import { RouteFade } from './RouteFade';
 import { freshnessOf } from '../lib/freshness';
 import { useScrollProgress, useScrollRestoration, useScrollShades } from '../lib/scroll';
 import { Tooltip } from './Tooltip';
@@ -89,7 +87,6 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const reduce = useMotionReduced();
   const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
   return (
@@ -180,31 +177,16 @@ export function AppShell() {
         <UserMenu />
       </header>
 
-      {/* Route/page transition - a short fade+rise keyed on the SECTION, not on
-          the path. `mode:wait` lets the outgoing page finish before the next
-          mounts, so pages never overlap. Reduced-motion collapses the offset to
-          a plain fade.
+      {/* The page transition: a cross-fade keyed on the SECTION, not on the
+          path (components/RouteFade.tsx, SYS-8). The next page mounts at once
+          and fades in over the leaving one; nothing waits for an exit.
 
           Keying on the full pathname re-mounted everything under <main> on every
           navigation, and once Control had a sidebar in there that meant the
-          "persistent" nav faded out and back in on each of its own links - a
-          sidebar-shaped page element rather than a sidebar. The section shell
-          runs the same transition around its own <Outlet>, so moving within
-          Control still animates; it just animates the part that changed. */}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.main
-          key={loc.pathname.split('/')[1] ?? ''}
-          id="content"
-          tabIndex={-1}
-          className="content"
-          initial={{ opacity: 0, y: reduce ? 0 : 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: reduce ? 0 : -8 }}
-          transition={{ duration: DUR.base, ease: EASE }}
-        >
-          <Outlet />
-        </motion.main>
-      </AnimatePresence>
+          "persistent" nav faded out and back in on each of its own links. The
+          section shell runs the same fade around its own body, so moving within
+          Control still animates the part that changed. */}
+      <RouteFade as="main" id="content" className="content" routeKey={loc.pathname.split('/')[1] ?? ''} />
 
       <CommandPalette open={paletteOpen} onClose={closePalette} />
       {/* "Bothy updated - reload": the served build is no longer this tab's. */}

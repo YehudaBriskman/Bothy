@@ -764,7 +764,12 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
    The row it leaves behind is a single sticky topbar: brand · nav · search
    trigger · actions. Search is now a trigger for the command palette rather
    than an input that router-pushed on every keystroke. */
-.shell { display: flex; flex-direction: column; min-height: 100vh; }
+/* position: relative - the leaving page of a route cross-fade is lifted out of
+   the flow into this box, where it was (components/RouteFade.tsx). */
+.shell { position: relative; display: flex; flex-direction: column; min-height: 100vh; }
+/* The arriving page draws OVER the leaving one, so the cross-fade reads as the
+   new page coming up rather than the old one lingering on top. */
+[data-route-fade='in'] { position: relative; z-index: 1; }
 
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px;
   padding: 10px 22px; border-bottom: 1px solid var(--line);

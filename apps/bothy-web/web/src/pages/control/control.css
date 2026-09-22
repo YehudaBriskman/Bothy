@@ -57,6 +57,7 @@
    empty column"; that was true when the column was empty space, and is not when
    the column is a scroll region with its own end. */
 .control-sec {
+  position: relative; /* the leaving body of a cross-fade is lifted into this */
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: stretch;
