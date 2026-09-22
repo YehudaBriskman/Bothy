@@ -1237,13 +1237,14 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    reduce blocks cannot reach these pseudo-elements, and decision 3 keeps fades,
    so under reduced motion the fade stays and shortens to --dur-fast. A browser
    without the API applies the change in one frame, as it always did. */
-::view-transition-old(root), ::view-transition-new(root) {
+::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) {
   animation-duration: var(--dur-theme);
   animation-timing-function: var(--ease-standard);
 }
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-fast); }
+  ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-fast); }
 }
+html[data-motion='reduce']::view-transition-group(root),
 html[data-motion='reduce']::view-transition-old(root),
 html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(--dur-fast); }
 

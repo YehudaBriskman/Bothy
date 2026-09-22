@@ -26,7 +26,7 @@
 // Nothing here can leave a page invisible: framer runs opacity on the Web
 // Animations API, which finishes on time whether or not the main thread paints.
 
-import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
+import { AnimatePresence, MotionConfig, motion, useIsPresent } from 'framer-motion';
 import type { ReactNode, Ref } from 'react';
 import { useOutlet } from 'react-router-dom';
 import { DUR, EASE, EASE_EXIT } from '../lib/motion';
@@ -77,11 +77,16 @@ export function RouteFade({ routeKey, as = 'div', id, className }: {
 }) {
   const outlet = useOutlet();
   const reduce = useMotionReduced();
+  // reducedMotion="never" HERE ONLY: this component already drops the rise
+  // when motion is reduced, and framer's own reduced mode (PrefsRuntime) made
+  // the route change an instant swap - removing the fade that decision 3 keeps.
   return (
-    <AnimatePresence mode="popLayout" initial={false}>
-      <Page key={routeKey} as={as} id={id} className={className} reduce={reduce}>
-        {outlet}
-      </Page>
-    </AnimatePresence>
+    <MotionConfig reducedMotion="never">
+      <AnimatePresence mode="popLayout" initial={false}>
+        <Page key={routeKey} as={as} id={id} className={className} reduce={reduce}>
+          {outlet}
+        </Page>
+      </AnimatePresence>
+    </MotionConfig>
   );
 }

@@ -13,9 +13,9 @@
 // would run off the viewport. That is Radix Popper's whole job. It also brings
 // the menu keyboard model three hand-rolled menus had each re-implemented
 // slightly differently: focus moves into the menu, arrows and Home/End walk it,
-// typeahead jumps, Escape and Tab close it and give focus back to the trigger.
-// (The old ones TRAPPED Tab inside the menu; the APG pattern, and Radix, close
-// on it - audit FL-21.)
+// typeahead jumps, Escape closes it and gives focus back to the trigger. Tab
+// closes it too - that one is ours: the old menus TRAPPED Tab, and so does
+// Radix by default (audit FL-21).
 //
 // THE CHOSEN ITEM RUNS AFTER FOCUS IS BACK ON THE TRIGGER. An item that opens a
 // dialog is the common case here, and ui/Dialog returns focus to whatever had
@@ -35,7 +35,7 @@
 // Surface and motion: Popover.css - one contract for everything that floats.
 
 import * as DM from '@radix-ui/react-dropdown-menu';
-import { Fragment, useRef, type ReactNode } from 'react';
+import { Fragment, useRef, useState, type ReactNode } from 'react';
 import './Popover.css';
 import './Menu.css';
 
@@ -96,6 +96,8 @@ export function Menu({
 }: MenuProps) {
   const chosen = useRef<(() => void) | null>(null);
   const radio = selected !== undefined;
+  const [open, setOpenState] = useState(false);
+  const setOpen = (o: boolean) => { setOpenState(o); onOpenChange?.(o); };
 
   const itemProps = (it: MenuItem) => {
     const soft = !!(it.disabled && it.note); // reachable but refuses
@@ -132,7 +134,7 @@ export function Menu({
   );
 
   return (
-    <DM.Root onOpenChange={onOpenChange}>
+    <DM.Root open={open} onOpenChange={setOpen}>
       <DM.Trigger asChild>{trigger}</DM.Trigger>
       <DM.Portal>
         <DM.Content
@@ -145,6 +147,11 @@ export function Menu({
           // Keep 8px off every viewport edge, flip above when there is no room
           // below, and slide along the edge rather than overflow it.
           collisionPadding={8}
+          // Tab CLOSES the menu (APG menu pattern; audit FL-21) and focus goes
+          // back to the trigger, one Tab from where it was. Radix's default
+          // swallows Tab and leaves the menu open, which is the trap the three
+          // hand-rolled menus had.
+          onKeyDown={(e) => { if (e.key === 'Tab') { e.preventDefault(); setOpen(false); } }}
           onCloseAutoFocus={() => {
             const run = chosen.current;
             chosen.current = null;
