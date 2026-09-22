@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Gauge, FolderTree,
@@ -28,7 +28,15 @@ const NAV = [
   { to: '/files', label: 'Files', Icon: FolderTree, end: false },
 ];
 
+const NARROW = '(max-width: 1080px)';
+const subscribeNarrow = (cb: () => void) => {
+  const mq = window.matchMedia(NARROW);
+  mq.addEventListener('change', cb);
+  return () => mq.removeEventListener('change', cb);
+};
+
 export function AppShell() {
+  const iconsOnly = useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
   const { data, refresh } = usePortal();
   const loc = useLocation();
   const fresh = freshnessOf(data);
@@ -133,22 +141,27 @@ export function AppShell() {
           <Brand />
         </NavLink>
 
-        {/* scroll-shade drives the horizontal edge fades when the row overflows;
-            `title` is the label's third fallback, for touch, where neither hover
-            nor focus-visible fires. */}
+        {/* scroll-shade drives the horizontal edge fades when the row overflows.
+            On touch, where neither hover nor focus-visible fires, the icon's
+            accessible name is the label and the page title says where you are. */}
         <nav className="nav scroll-shade" aria-label="Primary">
-          {NAV.map(({ to, label, Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              title={label}
-              className={({ isActive }) => `nav-item ${isActive ? 'on' : ''}`}
-            >
-              <Icon size={16} />
-              <span className="nav-label">{label}</span>
-            </NavLink>
-          ))}
+          {NAV.map(({ to, label, Icon, end }) => {
+            const link = (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) => `nav-item ${isActive ? 'on' : ''}`}
+              >
+                <Icon size={16} />
+                <span className="nav-label">{label}</span>
+              </NavLink>
+            );
+            // Icons only below 1080px: the label is visually hidden (still the
+            // link's name) and floats in a Tooltip on hover and focus, instead
+            // of reopening inside the row and shoving its neighbour (SYS-10).
+            return iconsOnly ? <Tooltip key={to} label={label}>{link}</Tooltip> : link;
+          })}
         </nav>
 
         <span className="topbar-spacer" />

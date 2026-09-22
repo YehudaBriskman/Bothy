@@ -20,6 +20,7 @@
 // its description - two save models on one page is only confusing when they
 // look the same.
 
+import { Disclosure } from '../ui/Disclosure';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
@@ -110,8 +111,10 @@ export function SettingBlock({ id, children, badge, dirty, saving, onSave, onDis
           <ChevronDown size={14} aria-hidden="true" className="chev set-block-chev" />
         </Button>
       </header>
-      {open && (
-        <div className="set-block-b" id={`${uid}-b`}>
+      {/* A Disclosure (SYS-10): folds on grid rows, fades, and keeps the id
+          aria-controls names in the DOM while collapsed. */}
+      <Disclosure open={open} id={`${uid}-b`}>
+        <div className="set-block-b">
           {children}
           {onSave && dirty && (
             <div className="set-save" role="region" aria-label={`Unsaved changes to ${title}`}>
@@ -127,7 +130,7 @@ export function SettingBlock({ id, children, badge, dirty, saving, onSave, onDis
             </div>
           )}
         </div>
-      )}
+      </Disclosure>
     </section>
   );
 }

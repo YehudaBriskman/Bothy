@@ -916,13 +916,12 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: -11px; height: 2px;
   border-radius: 2px 2px 0 0; background: var(--accent); }
 
-/* The label. `display: none` cannot be animated, so the collapsed state is a
-   zero max-width with hidden overflow - which can. */
-.nav-label {
-  display: inline-block; white-space: nowrap;
-  transition: max-width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease),
-              margin-left var(--dur) var(--ease);
-}
+/* The label. Below 1080px it is not drawn at all (visually hidden, still the
+   link's accessible name) and a Tooltip carries it on hover and focus - see
+   AppShell. It used to reopen IN the row by tweening max-width and margin-left,
+   which reflowed the whole bar every frame and pushed the neighbouring item
+   ~60px sideways under the pointer (SYS-10). */
+.nav-label { display: inline-block; white-space: nowrap; }
 
 .topbar-spacer { flex: 1; min-width: 8px; }
 /* No max-width. The old `max-width: 30%` was sized against .topbar as a flex
@@ -949,15 +948,15 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 
 .content { flex: 1; padding: 26px 30px 70px; width: 100%; max-width: 1320px; margin: 0 auto; }
 
-/* Icons only, labels on demand. The label collapses to zero width and reopens
-   on hover OR keyboard focus - focus matters as much as hover here, because
-   without it a keyboard user tabbing the nav gets four unlabelled squares.
-   `title` on the link is the third fallback, for touch, where neither fires. */
+/* Icons only, labels on demand: the label is visually hidden and a Tooltip
+   shows it on hover OR keyboard focus - focus matters as much as hover here,
+   because without it a keyboard user tabbing the nav gets unlabelled squares. */
 @media (max-width: 1080px) {
   .nav-item { padding: 7px 9px; }
-  .nav-label { max-width: 0; opacity: 0; margin-left: -7px; overflow: hidden; }
-  .nav-item:hover .nav-label,
-  .nav-item:focus-visible .nav-label { max-width: 10ch; opacity: 1; margin-left: 0; }
+  .nav-label {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
   .nav-item.on::after { left: 9px; right: 9px; }
 }
 @media (max-width: 900px) {
@@ -973,11 +972,6 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
   .topbar { padding: 10px 12px; gap: 6px; }
   /* The rail is 3px of decoration; on a phone that is 3px of a 360px viewport. */
   .scroll-rail { display: none; }
-}
-/* Expanding a label on hover is motion; a user who asked for less of it gets the
-   label instantly instead of not at all. */
-@media (prefers-reduced-motion: reduce) {
-  .nav-label { transition: none; }
 }
 
 /* ── generic page chrome ─────────────────────────────────────────────────── */

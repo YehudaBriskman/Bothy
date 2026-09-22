@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import { usePortal } from '../lib/data';
-import { DUR, EASE } from '../lib/motion';
-import { useMotionReduced } from '../lib/useMotionReduced';
 import { panelize } from '../lib/panels';
 import {
   pruneCollapsed, readCollapsed, setAllCollapsed, toggleCollapsed, writeCollapsed,
@@ -17,6 +14,7 @@ import { StatusIcon } from '../lib/icons';
 import { EmptyState } from '../components/states';
 import './Services.css';
 import { Button } from '../components/ui/Button';
+import { Disclosure } from '../components/ui/Disclosure';
 
 // The card view and the density toggle are GONE. A ServiceCard measured the
 // same area as ~3 table rows while carrying strictly FEWER dimensions than the
@@ -43,7 +41,6 @@ export function Services() {
   const { data } = usePortal();
   const [params, setParams] = useSearchParams();
   const q = params.get('q') || '';
-  const reduced = useMotionReduced();
 
   const [statusFilter, setStatusFilter] = useState<Set<Status>>(new Set());
   const [project, setProject] = useState('all');
@@ -280,28 +277,14 @@ export function Services() {
                     )}
                   </div>
 
-                  {/* The id lives on a wrapper that is ALWAYS in the DOM, not on
-                      the animated body. The body unmounts when the group is
-                      collapsed, so putting it there leaves `aria-controls`
-                      pointing at nothing in exactly the state where a screen
-                      reader most needs the association to resolve. */}
-                  <div id={bodyId}>
-                    <AnimatePresence initial={false}>
-                      {!isCollapsed && (
-                        <motion.div
-                          className="svc-group-body"
-                          key="body"
-                          initial={reduced ? false : { height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={reduced ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                          transition={{ duration: DUR.slow, ease: EASE }}
-                          style={{ overflow: 'hidden' }}
-                        >
-                          <ServiceTable nodes={p.nodes} compact label={`${p.title} services`} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                  {/* A Disclosure, not a framer height animation (SYS-10): the
+                      rows fold on grid-template-rows and the table fades. The
+                      region, and so the id aria-controls names, is always in
+                      the DOM - collapsed is exactly when a screen reader most
+                      needs that association to resolve. */}
+                  <Disclosure open={!isCollapsed} id={bodyId} className="svc-group-body">
+                    <ServiceTable nodes={p.nodes} compact label={`${p.title} services`} />
+                  </Disclosure>
                 </section>
               );
             })}
