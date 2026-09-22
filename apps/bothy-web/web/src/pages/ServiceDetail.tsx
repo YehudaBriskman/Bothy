@@ -14,6 +14,7 @@ import { ActionCell } from '../components/ServiceActions';
 import './Detail.css';
 import { buttonClass } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
+import { Skeleton } from '../components/states';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -33,6 +34,12 @@ export function ServiceDetail() {
   // Panels rise in; they never start invisible (lib/motion.ts riseIn, SYS-11).
   const rise = (i: number) => riseIn(i, reduce);
 
+  // The first poll has not answered yet: discovery is in progress, which is
+  // not the same thing as "not found" (design audit SYS-18). Shown as the
+  // search Loader over the page's skeleton, never as a false 404.
+  if (!node && data.at === 0 && data.fails === 0) {
+    return <div className="page detail"><Skeleton variant="panels" state="search" label="Discovering what is running…" /></div>;
+  }
   if (!node) {
     return (
       <div className="page detail">
