@@ -303,12 +303,15 @@ export function uiPorts(nodes: PortalNode[]): UiPortGroups {
   // title to a link.
   const perGroup = new Map<string, number>();
   for (const l of raw) perGroup.set(l.group, (perGroup.get(l.group) ?? 0) + 1);
-  const titleOf = new Map(vis.map((n) => [n.group, n.groupTitle] as const));
+  // The link's OWN node's title, not the last one seen in its group: a group
+  // can mix a discovered container with a collector-declared service whose
+  // title came from the project (SonarQube's group also holds "Manifests").
+  const titleOf = new Map(vis.map((n) => [n.id, n.groupTitle] as const));
   const links = raw.map((l) => ({
     ...l,
     name: uiName(
       l.name,
-      isResidue(l.group) ? null : titleOf.get(l.group),
+      isResidue(l.group) ? null : titleOf.get(l.id),
       perGroup.get(l.group) ?? 0,
     ),
   }));
