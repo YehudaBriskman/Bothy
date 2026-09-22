@@ -1044,7 +1044,11 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
 .nav-item:hover { background: var(--surface-1); color: var(--fg); }
 .nav-item.on { color: var(--fg); }
 .nav-item.on svg { opacity: 1; }
-.nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: -11px; height: 2px;
+/* SH-2: at the BOTTOM OF THE ITEM, not 11px below it. `.nav` is a scroller
+   (overflow-y: hidden, to keep a horizontal scrollbar off a 34px row), so a bar
+   drawn outside the item's box was clipped by it - "you are here" was two
+   pixels of accent, or none. */
+.nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: 0; height: 2px;
   border-radius: var(--r-2xs) var(--r-2xs) 0 0; background: var(--accent); }
 
 /* The label. Below 1080px it is not drawn at all (visually hidden, still the
@@ -1089,12 +1093,25 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
   }
   .nav-item.on::after { left: 9px; right: 9px; }
+  /* With no label, "you are here" was an icon at opacity 1 against 0.85 - a
+     difference nobody can see, and one that is invisible in forced colours.
+     The item takes a fill as well. */
+  .nav-item.on { background: var(--surface-2); }
 }
 @media (max-width: 900px) {
   /* `.brand-text` used to be hidden here, leaving the hut tile as the whole
      brand on a narrow screen. There is no tile now, so hiding the wordmark
      would leave the corner empty - it stays, and only the freshness pill goes. */
-  .topbar-pill { display: none; }
+  /* SH-4: the WORD goes, the dot stays. Hiding the whole pill meant a phone
+     or a tablet could not tell that the data on screen was minutes old - the
+     one fact the top bar is there to carry. The dot keeps the tooltip and the
+     accessible name, which is the same sentence the word carried. */
+  .topbar-pill .pill-orb { display: none; }
+  .topbar-pill .pill-short {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
+  .topbar-pill { padding: var(--sp-1) var(--sp-2); }
   .topbar-search { width: auto; }
   .topbar-search .search-label, .topbar-search .kbd { display: none; }
   .content { padding: var(--sp-6) var(--sp-4) var(--sp-16); }

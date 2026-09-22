@@ -70,4 +70,11 @@
    Five across, then three, then two. Never one: a single full-width tile is a
    row carrying one number, which is the footprint rule inverted. */
 @media (max-width: 1180px) { .qv { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 620px)  { .qv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* SH-21: five tiles in two columns left Uptime alone on a row of its own, which
+   reads as a tile that did not fit rather than as a row. Six columns with spans
+   of 3/3/2/2/2 gives two rows that are both full: two wide, then three. */
+@media (max-width: 620px) {
+  .qv { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .qv > .qv-tile:nth-child(-n+2) { grid-column: span 3; }
+  .qv > .qv-tile:nth-child(n+3) { grid-column: span 2; }
+}

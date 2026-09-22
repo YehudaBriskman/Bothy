@@ -24,6 +24,7 @@ import { useLayout } from '../lib/usePrefs';
 import { orderSections } from '../lib/prefs';
 import './Overview.css';
 import { Icon as SizedIcon } from '../components/ui/Icon';
+import { Button } from '../components/ui/Button';
 
 const STATUS_LABEL: Record<Status, string> = {
   up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown',
@@ -185,8 +186,13 @@ function StatusLine({
 }) {
   // The claim is scoped to what actually reported in. Saying "everything is up"
   // while a third of the box is unverified is the bug this wording fixes.
+  //
+  // `verified > 0` is SH-3: with nothing reporting in, `up >= verified` is
+  // 0 >= 0, and the line read "All 0 services that report in are up" under a
+  // green check - the page's most confident state, produced by knowing nothing
+  // at all. Zero verified services is not good news.
   const verified = expected - unknown;
-  const allVerifiedUp = up >= verified && attentionN === 0;
+  const allVerifiedUp = verified > 0 && up >= verified && attentionN === 0;
 
   return (
     <section className={`ov-status ${attentionN ? 'is-warn' : ''}`}>
@@ -227,7 +233,9 @@ function StatusLine({
             <StatusIcon status={allVerifiedUp ? 'up' : 'unknown'} size="sm" />
             {allVerifiedUp
               ? `All ${verified} services that report in are up.`
-              : `${up} of ${verified} confirmed up.`}
+              : verified === 0
+                ? 'Nothing has reported in yet.'
+                : `${up} of ${verified} confirmed up.`}
           </>
         )}
         {unknown > 0 && (
@@ -395,7 +403,7 @@ function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof us
 
 // ── page ─────────────────────────────────────────────────────────────────────
 export function Overview() {
-  const { data } = usePortal();
+  const { data, refresh } = usePortal();
   const systems = useMemo(() => systemsOf(data.nodes), [data.nodes]);
   // The system whose quick-lookup dialog is open. Held by key rather than by
   // object so the dialog follows the LIVE system across a poll - holding the
@@ -482,6 +490,13 @@ export function Overview() {
         <div className="state err ov-offline">
           <h4>Can't reach the APIs</h4>
           <p>Showing known service names only - live status, ports and projects are unavailable. The links below still work if the services do.</p>
+          {/* SH-3: a way to ask again. The poll backs off and retries by
+              itself, but a reader looking at a page that says "can't reach"
+              has no way to find out whether that is still true, and reloading
+              the tab is the thing this button exists to make unnecessary. */}
+          <div className="state-acts ov-offline-acts">
+            <Button variant="ghost" onClick={refresh}>Try again</Button>
+          </div>
           <div className="ov-quick">
             {floorLinks.map((n) => (
               <a key={n.id} className="ov-quick-item" href={n.url} target="_blank" rel="noopener noreferrer">
@@ -542,7 +557,7 @@ export function Overview() {
                 footer={
                   <>
                     <span><b>{project.length}</b> project</span>
-                    <span className="sep">·</span>
+                    <span className="sep" aria-hidden="true">·</span>
                     <span><b>{stack.length}</b> stack</span>
                     <span className="right">opens in a new tab</span>
                   </>
@@ -558,7 +573,7 @@ export function Overview() {
                 footer={
                   <>
                     <span><b>{volumeCount}</b> volumes</span>
-                    <span className="sep">·</span>
+                    <span className="sep" aria-hidden="true">·</span>
                     <span>total <b>{diskTotal != null ? fmtBytes(diskTotal) : '-'}</b></span>
                     {!data.df && <span className="right">sizes unavailable</span>}
                   </>
