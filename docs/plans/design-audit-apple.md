@@ -1,11 +1,14 @@
 # Design audit: Bothy against the "apple-design" skill
 
-_Written 2026-09-19. Status: batch 1 (the accessibility blockers) implemented
-2026-09-21; batch 2 (tokens and the shared primitives) implemented 2026-09-22;
-batch 3 (overlays and motion) implemented 2026-09-22; batch 4 (the type scale
-and layout rhythm) implemented 2026-09-22 - see "Batch 2 as shipped", "Batch 3
-as shipped" and "Batch 4 as shipped" in §7. The §5 conflicts are decided in
-"Decisions (approved 2026-09-21)" below §5. Batch 5 is not started._
+_Written 2026-09-19. **All five batches are shipped.** Batch 1 (the
+accessibility blockers) 2026-09-21; batch 2 (tokens and the shared primitives),
+batch 3 (overlays and motion) and batch 4 (the type scale and layout rhythm)
+2026-09-22; batch 5 (responsive tables, the shared states and the page-level
+items) 2026-09-23 - see the "as shipped" sections in §7. The §5 conflicts are
+decided in "Decisions (approved 2026-09-21)" below §5. What is deliberately
+left is listed under "Not done, and why" in batch 5: CT-11, FL-8, FL-10 and
+SH-14, all of which need a frame clock this box's headless Chromium does not
+provide._
 
 **What was audited.** The Bothy portal: the live app on this box (`http://<box>/`) and
 its source in `apps/bothy-web/web/src`. Every page was covered: Overview; Control
@@ -1610,3 +1613,72 @@ themes, with the same script both times:
 FL-1 (the list parser), ST-1 (the stale draft) and CL-13 (ANSI escapes) are small,
 self-contained correctness bugs. They can ride along in any batch, and they don't
 need to wait for batch 5.
+
+**Batch 5 as shipped (2026-09-23).** The last batch. Held by
+`checks/design-tokens.mjs` §10 (15 assertions: every table becomes cards, the
+five states are written once) and `checks/log-escapes.mjs` (19 assertions over
+lib/ansi.ts), plus six new cases in `checks/md-render.tsx` and a rewritten
+confirm-level table in `checks/kube-actions.mjs`. `checks/run.sh --offline`:
+486 + 28 + 115 passes and 0 failures. `apps/bothy-ops/checks/run.sh`: every unit
+section passes (its e2e sections need a live registry). Typecheck, build and
+`csp_hash` pass.
+
+| Finding | Fix |
+|---|---|
+| SYS-17 tables as cards (with CT-8, CL-14, ST-5, CT-16) | `.tbl.as-cards` in index.css, at 640px and below, promoted out of the one rule Settings › Updates already had. The contract: a cell that needs its column name carries `data-label`; the cell that IDENTIFIES the row, and any cell holding only controls, carries none and runs the card's full width. All 21 tables wear it. The twelve Cluster tables get their labels INJECTED by the shared `Table` component from a new `cols` list rather than hand-written per `<td>` - twelve tables of copied labels is twelve chances for one to drift from its header - which also gave that component a real column model instead of a `<th>` blob. ServiceTable gained the `<colgroup>` its own comment had claimed since it was written (CT-16): Status began at x=550 in one group and x=517 in the next. Services passes `showGroup={false}`. Two minimum widths had to learn the difference between a table that scrolls inside its wrapper and a block that takes the page with it. |
+| SYS-18 shared states (with CT-4, SH-16, SH-17, ST-17, ST-18, FL-17) | `components/states.tsx` owns all five. `firstPoll(data)` replaces six copies of `at === 0 && fails === 0`, two of which were the finding: a real service page said "Service not found" for the 3-4s of a cold load. `NotFound` is an `<h1>`, a document title and the value asked for in mono - the app 404 and the unknown settings section had no heading at all. `ErrState` gained `actions`, so a missing file offers "Back to Start" instead of a Retry that repeats a failure. `NeedsRole` replaced three hand-rolled refusals, and its CSS moved to index.css because the shared component renders on pages that never import ServiceActions.css. The check found a fourth: Updates' "No update to deploy" was wearing the no-role block, which says "you are not allowed to do this" where nobody is refused. |
+| CL-4 + decision 7 | The catalog was inverted. delete-job and delete-completed-pods now ask for the name typed; set-image and rollback-to-revision are one click (History → Roll back is the undo); delete-pod stays one click and is not an exception - only MANAGED pods can be named, so the owner replaces it in seconds; pause and resume stay one click rather than "none", which `guard.py` refuses for an operator action. **Scale is one click at 1-3 and asks for the name at 0**, through a new catalog key `escalate = { param, value }`: it can only ask for MORE, it is compared as text so an ambiguous value lands high, and the rule runs in `guard.py` and `lib/kube-actions.ts` from the one declaration the catalog publishes. Settings › Cluster prints it beside the level. |
+| CL-9, CL-10 | The Scale field holds a raw string and clamps on blur (typing 7 became 3 under the caret; clearing it became 0, which flipped the consequence line to "stops entirely" mid-edit), starts from what is running, and refuses the count already set. A typed-name mismatch says so, linked to the field - the whole message used to be a red border under the focus ring. |
+| ST-15 | Deleting a theme no longer raises a native `confirm()`. The editor holds the file as it deletes it, so Appearance is handed the bytes and offers "Deleted X - Undo" for ten seconds. The theme list gained a `rescan()`, without which a deleted theme stayed in the picker until reload. |
+| SYS-4's loose end | The kube and service dialogs are driven by `open` instead of being conditionally mounted, so they animate out for real and REVERSE a close that is interrupted; batch 3's ghost clone was the workaround and could not be reversed. The row cells keep the reason they were conditional (forty rows' worth of hooks per poll): the dialog is mounted from the FIRST open of that row. Three things had to learn that a dialog outlives one use: the service dialog resets to the verb list, the cluster dialog takes the tab and pod it was OPENED for (keyed on primitives - `target` is a fresh object every render), and the job-logs dialog does not re-read while closed. |
+| The reader hash observation | Diagnosed and general. `RouteFade` froze the exiting page's ELEMENT but not the URL it reads, so the leaving copy answered with the location that replaced it: `FilesLanding` re-read the query of `/settings/appearance`, concluded it was a bare `/files`, and issued `<Navigate to="/files/guide">`. A leaving page now gets a location pinned to the last URL it was present at and a navigator whose push, replace and go do nothing - both providers always rendered, so nothing remounts on the way out. Measured over three starting URLs: all three land on Settings and stay. **The rule: a page on its way out shows what it showed, and does not steer.** |
+| FL-3 | The same probe showed it: `/files?path=x` with no `?root=` had its path DELETED on arrival, because defaulting the root built a fresh query with `root` alone. |
+| FL-1 | A hard-wrapped list item was rendering as its first source line plus a paragraph - nearly every list in `docs/` and the notes. A continuation joins the item's text; a nested MARKER, and anything after a blank line, still starts a block. |
+| CL-13 | New `lib/ansi.ts` (imports nothing, so the checks run a truth table over it). Stripped rather than mapped to `--st-*`: that would hand a service's idea of red authority over the app's palette. Applied to the kube read, the follow stream, the job-logs dialog and the Loki panel. |
+| CT-10 | Below 640px the flat map is a LIST - one row per service with chips for what it waits for and what waits on it - rendered from the same edges, with the SVG hidden by the breakpoint. The hub is pinned to `min(h/2, 240)`; on a 40-service map it sat 800px down. The hint is written twice and the media query picks. |
+| CT-17, CT-18, CT-19, CT-20 | A 10% soft limit on the orbit's distance with a critically damped spring back (the resistance DURING the gesture is not there and the comment says why: OrbitControls owns the dolly); the scene names the keyboard's route through the same data rather than being a dead end. Two touch hints, and 55svh rather than 58vh. The static rack paints its LEDs from the tokens, not the 3D scene's dark-palette hexes, and drops the hover translate. The log filter applies on a 300ms debounce with a ↵ hint that appears exactly while what is typed is not what is applied. |
+| SH-2, SH-3, SH-4, SH-13, SH-21, SH-22 | The active underline was drawn 11px below its own item inside a scroller that clipped it. `allVerifiedUp` was `0 >= 0` with nothing reporting in, so the page's most confident sentence came from knowing nothing; the offline block also gained a Retry and lost its centred paragraph under a left heading. The freshness pill keeps its dot below 900px. The palette RANKS (exact, prefix, word, substring, then the subtitle) instead of filtering, and its selected row moved off 1.1:1. Five QuickView tiles no longer leave Uptime alone on a row. The footer "·" was a border token at 1.69:1. |
+| CL-12, CL-18, CL-19, CL-22 to CL-25 | Tab ids are per tablist (`useId`, and a `TabGroup` for the panels), because the page and the dialog it opens both have tabs called "pods". The tablist scrolls instead of wrapping. The namespace radios are one tab stop with arrow keys. An unresolvable `?ns=`/`?tab=` is written back and said rather than swapped underneath. Metrics has a Refresh. A card that opens something has a chevron and a press state. The ConfigMap editor answers Escape, returns focus to the row's Edit button, and stays on one line above 760px. |
+| ST-1, ST-2, ST-3, ST-12, ST-14, ST-16, ST-19 | The theme editor drops its draft BEFORE a read, so a bad id no longer shows the last theme's tokens under "Editing does-not-exist" with Save live; its error state has a way back. An unsaved palette survives a navigation in sessionStorage and is OFFERED back rather than applied or guarded by a leave prompt. Panels have a gap and `.panel-h` has no UA margin. `.set-note` is declared once (two copies at equal specificity in two files, order deciding). The theme name is validated on blur and Save focuses it. The picker is one tab stop, and its Edit link is a sibling rather than a link inside a button. The audit log leads with an absolute HH:MM:SS. |
+| FL-7, FL-9, FL-11, FL-18, FL-19 | Gutter line numbers were 3.19:1. A splitter click with 3px of hand shake resized the rail; 4px of slop for a mouse, 10 for a finger, and a rebase when it is crossed. The tree's indent guides came from three hand-written levels, so depth 4 drew at depth 3's position - one rule from the list's own `--depth`. The reader search's root select was clipped at 110px with no chevron. The drag-to-split drop zone fades in from the edge it opens from. |
+
+**Deviations worth knowing.**
+- **`escalate` is a new catalog concept**, not a UI-only rule. It was that or a
+  second action id for "scale to zero"; one action with one dialog is what the
+  decision describes, and putting the rule in the catalog is what keeps the
+  service and the dialog from having separate copies of it.
+- **Pause and resume stayed a click.** §4's CL-4 asked for `none` plus an inline
+  undo; decision 7, which supersedes it, says one click for reversible - and
+  `guard.py` refuses `none` for an operator action, deliberately.
+- **Dialogs are mounted from a row's first open**, not always. `ActionCell`'s
+  comment gave the reason and it still holds: forty rows' worth of hooks on
+  every poll.
+- **The Files missing-file state offers no "Search for X".** There is no URL
+  that opens the reader's search with a query, and inventing `?q=` would be a
+  parameter the page ignores - the exact defect `pages/files/routes.ts` exists
+  to prevent.
+- **The Audit block keeps its own title** (ST-19 asked for a bare variant). A
+  `SettingBlock` header IS its collapse control, its search target and its
+  accessible name; a variant without one leaves the settings registry the checks
+  hold. One repeated word does not pay for that.
+
+**Not done, and why.**
+- **CT-11** (drei `<Bounds fit clip observe>` for the default 3D framing) and
+  **FL-8** / **FL-10** (splitter rubber-banding, and the whole-IDE re-render per
+  move). Each needs interactive iteration to judge, and this box's headless
+  Chromium produces no animation frames (the limit batches 3 and 4 both hit), so
+  a change to 3D framing or to drag feel could be shipped but not SEEN. They are
+  the honest remainder of the audit.
+- **SH-14** (TimeChart y-label width and a touch readout). The chart's padding
+  is JS px in an SVG; measuring tick widths is a chart change, not a design one,
+  and it wants the same frame clock.
+
+**Screenshots** are in `~/.local/state/bothy/design-batch5/` (mode 700):
+`after/` has 24 pages × 1440/390 × dark/light (96 images) - Overview, Services,
+Ports, Routes, the flat map, seven Cluster tabs, the Files reader and eleven
+Settings sections. `assert-after.log` records, per capture, that
+`documentElement.scrollWidth <= clientWidth` and that there was no console or
+page error: **96 PASS, 0 FAIL.** `harness/` has `shots.mjs`, `probe-dialogs.mjs`
+(what a dialog leaves behind when it closes: 0 dialogs, 0 overlays, 0 ghosts, 0
+inert nodes, body pointer-events back to auto, focus on the button that opened
+it) and `probe-reader-hash.mjs` (the three starting URLs above).
