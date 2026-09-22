@@ -30,6 +30,7 @@
 // a failed check and a job's outcome ARE state and take the reserved palette,
 // always with a glyph and a word beside it.
 
+import { Loader } from '../../components/ui/Loader';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -386,7 +387,7 @@ function Paused({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onCha
         {p.requestedBy && <> · job asked by <Actor who={p.requestedBy} /></>}
       </span>
       {waiting ? (
-        <span className="set-cell-sub" role="status"><span className="sa-spin" aria-hidden="true" /> unpause asked - waiting for the host</span>
+        <span className="set-cell-sub"><Loader state="connect" size="sm" label="unpause asked - waiting for the host" /></span>
       ) : canAct ? (
         <Button variant="ghost" size="sm" className="upd-unpause" onClick={() => void go()} disabled={phase.t === 'sending'}
           title="Let the night job update this component again. Find out why it failed first.">
@@ -456,7 +457,7 @@ function PlanDialog({ row, onClose, onStarted }: { row: UpdateRow; onClose: () =
       description="The plan the host wrote. Approving it approves this plan id - the host re-derives it and refuses one that is no longer current."
     >
       <div className="ka-body upd-plan">
-        {loading ? <p className="sa-working" role="status"><span className="sa-spin" />Reading the plan…</p>
+        {loading ? <p className="sa-working"><Loader state="load" size="sm" label="Reading the plan…" /></p>
           : error ? <PlanRefusal error={error} />
             : !plan ? (
               <div className="sa-norole">
@@ -761,7 +762,7 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
     <section ref={ref} className="upd-job" data-tone={tone} aria-label="Update job" aria-live="polite">
       <header className="upd-job-head">
         <p className="upd-job-h">
-          {!job || !done ? <span className="sa-spin" aria-hidden="true" /> : <JobGlyph state={job.state} />}
+          {!job || !done ? <Loader state="work" size="sm" announce={false} /> : <JobGlyph state={job.state} />}
           <span>{job ? STATE_WORD[job.state] : 'Asking the host…'}</span>
           {job && <span className="mono upd-job-what">{job.component}{job.to ? ` → ${job.to.version ?? job.to.image}` : ''}</span>}
         </p>
@@ -769,7 +770,7 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
       </header>
       {lost && !done && (
         <p className="set-note upd-lost" role="status">
-          <Icon icon={RotateCcw} size="xs" /> Reconnecting - {lost.why}. The job runs on the host whatever this tab does;
+          <Loader state="connect" size="sm" announce={false} /> Reconnecting - {lost.why}. The job runs on the host whatever this tab does;
           an update to Bothy itself or to Traefik interrupts this page on purpose.
         </p>
       )}
@@ -803,7 +804,7 @@ const secs = (a: string, b: string) => {
 };
 
 function StepGlyph({ state }: { state: JobStep['state'] }) {
-  if (state === 'running') return <span className="sa-spin upd-step-g" aria-label="running" />;
+  if (state === 'running') return <Loader state="work" size="sm" label="running" labelHidden announce={false} className="upd-step-g" />;
   if (state === 'ok') return <Icon icon={Check} size="sm" className="upd-step-g" aria-label="done" />;
   if (state === 'failed') return <Icon icon={X} size="sm" className="upd-step-g" aria-label="failed" />;
   if (state === 'skipped') return <Icon icon={Minus} size="sm" className="upd-step-g" aria-label="skipped" />;

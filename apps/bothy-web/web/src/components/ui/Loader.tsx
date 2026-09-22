@@ -156,10 +156,13 @@ export interface LoaderProps {
   labelHidden?: boolean;
   /** Centre the loader in its container (the page and card states). Default: sm inline, md/lg centred. */
   center?: boolean;
+  /** false when an enclosing live region already says it (the orb is then
+   *  decoration beside those words): no role=status, no second announcement. */
+  announce?: boolean;
   className?: string;
 }
 
-export function Loader({ state, size = 'sm', label, labelHidden = false, center, className }: LoaderProps) {
+export function Loader({ state, size = 'sm', label, labelHidden = false, center, announce = true, className }: LoaderProps) {
   const reduced = useMotionReduced();
   const { color, dark } = useInk();
   const px = LOADER[size];
@@ -168,7 +171,7 @@ export function Loader({ state, size = 'sm', label, labelHidden = false, center,
   const centred = center ?? size !== 'sm';
   const cls = ['ui-loader', centred ? 'ui-loader-center' : '', className ?? ''].filter(Boolean).join(' ');
   return (
-    <span className={cls} role="status" aria-live="polite" data-size={size} data-state={state}>
+    <span className={cls} role={announce ? 'status' : undefined} aria-live={announce ? 'polite' : undefined} data-size={size} data-state={state}>
       <span className="ui-loader-orb" data-size={size}>
         <Suspense fallback={null}>
           <ThinkingOrb
@@ -182,7 +185,9 @@ export function Loader({ state, size = 'sm', label, labelHidden = false, center,
           />
         </Suspense>
       </span>
-      <span className={hidden ? 'sr-only' : 'ui-loader-label'}>{text}</span>
+      {/* Silent (announce=false) with no words of its own: the orb is pure
+          decoration beside text that already says it. */}
+      {announce || label !== undefined ? <span className={hidden ? 'sr-only' : 'ui-loader-label'}>{text}</span> : null}
     </span>
   );
 }

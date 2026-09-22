@@ -14,6 +14,7 @@ import { signInHref } from '../../lib/me';
 import { fmtAge, type Gates } from '../../pages/control/home';
 import type { Source } from './usePolled';
 import { Card, SourceNote, ToneIcon, type Tone } from './parts';
+import { Loader } from '../ui/Loader';
 
 const JOB_TONE: Record<JobState, Tone> = {
   queued: 'unknown', running: 'unknown', succeeded: 'ok', rolled_back: 'warn', aborted: 'warn', failed: 'bad', refused: 'warn',
@@ -65,7 +66,11 @@ export function ActivityCard({
               {jobs.map((j) => (
                 <li key={j.id}>
                   <Link className="ch-row" to="/settings/updates">
-                    <ToneIcon tone={JOB_TONE[j.state]} label={j.state.replace('_', ' ')} />
+                    {/* A job the host is still running is in progress, not a
+                        tone: the one Loader, silent - the row's words say it. */}
+                    {j.state === 'running' || j.state === 'queued'
+                      ? <Loader state="work" size="sm" label={j.state} labelHidden announce={false} />
+                      : <ToneIcon tone={JOB_TONE[j.state]} label={j.state.replace('_', ' ')} />}
                     <span className="ch-row-name">{j.component}</span>
                     <span className="ch-row-mid ch-dim">{j.to?.version ?? j.state.replace('_', ' ')}{j.requestedBy === 'auto' ? ' · night job' : ''}</span>
                     <span className="ch-row-val">{ago(j.endedAt ?? j.startedAt ?? j.requestedAt, now)}</span>
