@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import type { PortalNode, Status } from '../../lib/discover';
 import { uiPorts, type UiLink } from '../../lib/systems';
-import { ServiceIcon } from '../../lib/icons';
-import { ICON, Icon } from '../ui/Icon';
+import { iconForNode } from '../../lib/icons';
+import { Icon } from '../ui/Icon';
 import { Card, ToneIcon, type Tone } from './parts';
 import type { Gates } from '../../pages/control/home';
 
@@ -46,7 +46,7 @@ export function QuickLinks({ nodes, gates }: { nodes: PortalNode[]; gates: Gates
     return (
       <li key={l.id}>
         <a className="ch-ql" href={l.url} target="_blank" rel="noopener noreferrer" data-status={l.status}>
-          {node ? <ServiceIcon node={node} size={ICON.md} className="ch-ql-ico" /> : <Icon icon={Link2} className="ch-ql-ico" />}
+          {node ? <Icon icon={iconForNode(node)} className="ch-ql-ico" /> : <Icon icon={Link2} className="ch-ql-ico" />}
           <span className="ch-ql-text">
             <span className="ch-ql-name">{l.name}</span>
             <span className="ch-ql-sub">{l.port ? `:${l.port}` : l.host ?? l.group}</span>

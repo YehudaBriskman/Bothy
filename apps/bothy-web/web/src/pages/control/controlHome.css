@@ -154,7 +154,7 @@
 .ch-ql-group { display: flex; flex-direction: column; gap: var(--sp-1_5); }
 .ch-ql-h { margin: 0; }
 .ch-ql-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1_5);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--sp-16) * 2.25)), 1fr)); }
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--sp-16) * 2.75)), 1fr)); }
 .ch-ql { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; min-height: var(--hit);
   padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-md);
   border: var(--border-w) solid var(--line); background: var(--surface-2); color: var(--fg); text-decoration: none;
