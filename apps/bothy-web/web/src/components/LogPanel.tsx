@@ -12,6 +12,7 @@ import { RefreshCw, Search, AlertTriangle, ScrollText } from 'lucide-react';
 import { fetchLogs, LOG_RANGES, LOG_LIMIT, type LogSource, type LogLine, type LogRangeKey } from '../lib/logs';
 import './LogPanel.css';
 import { Icon } from './ui/Icon';
+import { Loader } from './ui/Loader';
 
 const fmtTime = (ms: number) =>
   new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -93,7 +94,11 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
         </label>
 
         <button type="button" className="logp-refresh" onClick={() => setNonce((n) => n + 1)} title="Refresh">
-          <Icon icon={RefreshCw} size="sm" className={loading ? 'spin' : undefined} />
+          {/* A re-read over lines already on screen: the one Loader, silent (the
+              body is a role=log region and the lines are what change). */}
+          {loading && lines.length
+            ? <Loader state="load" size="sm" announce={false} />
+            : <Icon icon={RefreshCw} size="sm" />}
           <span className="sr-only">Refresh logs</span>
         </button>
       </div>
@@ -109,7 +114,7 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
         {error ? (
           <div className="logp-empty">{error}</div>
         ) : loading && !lines.length ? (
-          <div className="logp-empty">reading…</div>
+          <div className="logp-empty"><Loader state="load" size="sm" label="Reading logs…" /></div>
         ) : !lines.length ? (
           <div className="logp-empty">
             Nothing logged in this window.

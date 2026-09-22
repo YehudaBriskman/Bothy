@@ -245,7 +245,6 @@ Mirrored in `lib/motion.ts` for framer-motion; the check asserts they agree. Spr
 | `--spring-bounce` | `linear(0, .052, .171, .316, .464, .598, .712, .805, .875, .927, .96...` |  |
 | `--spring-bounce-dur` | `480ms` |  |
 | `--stagger` | `30ms` | per item; clamp the index at 8 |
-| `--loop-spin` | `.9s` |  |
 | `--loop-shimmer` | `1.4s` |  |
 | `--loop-pulse` | `1.4s` |  |
 | `--loop-beat` | `2s` |  |

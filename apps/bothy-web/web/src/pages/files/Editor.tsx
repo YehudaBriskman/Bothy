@@ -35,7 +35,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CircleCheck, Code2, Columns2, Crosshair, Download, Eye, FileArchive,
-  GitCommitVertical, Info, Keyboard, LoaderCircle, Lock, LogIn, Pencil,
+  GitCommitVertical, Info, Keyboard, Lock, LogIn, Pencil,
   Save, Search, Undo2, X,
 } from 'lucide-react';
 import {
@@ -56,6 +56,7 @@ import { OverflowMenu, type MenuItem } from './Menu';
 import type { CodeHandle, CodeStat } from './CodeSurface';
 import { Button, buttonClass } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
+import { Loader } from '../../components/ui/Loader';
 
 // The whole of CodeMirror lives behind this one line. `npm run build` puts it in
 // its own chunk, and the check that it STAYED there is the entry chunk's size
@@ -766,7 +767,7 @@ export function Editor({
                 <button type="button" className="fx-hbtn is-primary" onClick={onSave}
                         disabled={saving} aria-label={saving ? 'Saving' : 'Save to disk'}>
                   {saving
-                    ? <Icon icon={LoaderCircle} size="sm" className="spin" />
+                    ? <Loader state="act" size="sm" announce={false} />
                     : <Icon icon={Save} size="sm" />}
                 </button>
               </Tooltip>

@@ -117,7 +117,10 @@ const STATUS_LABEL: Record<Status, string> = {
 };
 
 // Status glyph - coloured by the reserved status palette, never colour-alone
-// (always carries an accessible label). `spin` animates the starting spinner.
+// (always carries an accessible label). `starting` is a STATIC glyph: a status
+// is a category (it labels legends and filters as well as rows), and the
+// one moving in-progress indicator is ui/Loader - a table of starting
+// containers must not become a table of spinners.
 export function StatusIcon({
   status, size = 'md', showLabel = false, title,
 }: {
@@ -136,7 +139,6 @@ export function StatusIcon({
         icon={STATUS_ICON[status]}
         size={size}
         strokeWidth={1.4}
-        className={status === 'starting' ? 'spin' : undefined}
       />
       {showLabel ? <span className="si-label">{label}</span> : <span className="sr-only">{label}</span>}
     </span>

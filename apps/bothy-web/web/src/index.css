@@ -325,8 +325,9 @@
   --spring-bounce-dur: 480ms;
   --stagger: 30ms;         /* per item; clamp the index at 8 */
   /* Loop periods. A loop is not a transition, but a literal in one is still a
-     literal: these are the three speeds the app's spinners and shimmers run at. */
-  --loop-spin: .9s;
+     literal: these are the speeds the app's shimmers and pulses run at. There is
+     no spin any more - the one loading indicator is ui/Loader's orb, which keeps
+     its own tuned speed. */
   --loop-shimmer: 1.4s;
   --loop-pulse: 1.4s;
   --loop-beat: 2s;
@@ -758,7 +759,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skel, .pill .pulse::after, .spin { animation: none !important; }
+  .skel, .pill .pulse::after { animation: none !important; }
 }
 html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 
@@ -768,8 +769,8 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    ========================================================================== */
 
 /* ── primitives ──────────────────────────────────────────────────────────── */
-.spin { animation: spin var(--loop-spin) linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+/* No .spin here any more (2026-09-22): a turning glyph was one of four
+   loading indicators. ui/Loader is the one; see docs/brand/patterns/feedback.md. */
 
 /* status glyph (lucide) - coloured by the reserved palette, never colour-alone */
 .si { display: inline-flex; align-items: center; gap: var(--sp-1_5); vertical-align: middle; }

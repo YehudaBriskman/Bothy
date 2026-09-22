@@ -25,6 +25,7 @@ import { Tooltip } from '../../components/Tooltip';
 import { FileIcon } from './icons';
 import { baseName, dirName } from './tree';
 import { Icon } from '../../components/ui/Icon';
+import { Loader } from '../../components/ui/Loader';
 
 const MIN_CHARS = 3;
 const DEBOUNCE_MS = 500;
@@ -264,7 +265,7 @@ export function SearchView({
       )}
 
       <div className="fx-sr-status" aria-live="polite">
-        {busy ? 'Searching…'
+        {busy ? <Loader state="search" size="sm" label="Searching…" announce={false} />
           : short ? `${MIN_CHARS} characters or more`
           : err ? <span className="fx-sr-err">{err}</span>
           : res ? (

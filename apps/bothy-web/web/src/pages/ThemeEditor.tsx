@@ -42,6 +42,7 @@ import '../hl.css';
 import './ThemeEditor.css';
 import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
+import { Loader } from '../components/ui/Loader';
 
 const ROOT = 'stacks';
 const dirOf = (id: string) => `${THEME_DIR_HOST}${id}.css`;
@@ -273,7 +274,7 @@ export function ThemeEditor() {
     return (
       <div className="page theme-editor">
         <div className="page-head"><div><h1>Theme</h1></div></div>
-        <p className="te-empty">{notice?.text ?? 'Loading…'}</p>
+        {notice ? <p className="te-empty">{notice.text}</p> : <Loader state="load" size="lg" label="Reading the theme…" />}
       </div>
     );
   }
