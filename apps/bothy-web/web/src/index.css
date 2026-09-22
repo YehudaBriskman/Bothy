@@ -755,7 +755,6 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .skel-host .skel { animation: none; }
 .skel-host > .skel-orb {
   position: absolute; inset: 0 0 auto 0; height: 100%; max-height: calc(var(--sp-16) * 4);
-  background: color-mix(in oklab, var(--bg) 55%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

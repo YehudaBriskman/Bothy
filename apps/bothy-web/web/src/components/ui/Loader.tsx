@@ -105,7 +105,7 @@ function readInk(): Ink {
       ctx.fillStyle = raw;
       ctx.fillRect(0, 0, 1, 1);
       const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-      color = `rgb(${r}, ${g}, ${b})`;
+      color = `rgb(${r}, ${g}, ${b})`; // stray-colour-ok: the --loader-ink token itself, resolved for a canvas
     }
   } catch { color = undefined; /* stock grayscale ink */ }
   return { color, dark: root.getAttribute('data-theme') !== 'light' };
