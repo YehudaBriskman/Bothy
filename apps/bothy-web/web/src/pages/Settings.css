@@ -137,6 +137,7 @@
 }
 
 .settings-page .theme-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -180,7 +181,6 @@
 /* The card is a <button>; this is a <Link> inside it. It sits in the corner and
    only shows on hover or focus, so it is present without competing with the
    swatches - the row you are actually reading. */
-.settings-page .theme-card { position: relative; }
 .settings-page .theme-edit {
   position: absolute; top: 8px; right: 8px;
   display: inline-flex; align-items: center; gap: 4px;

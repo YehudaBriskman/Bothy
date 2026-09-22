@@ -182,6 +182,12 @@
 .ov-panel-foot .right { margin-left: auto; }
 
 /* ── needs-attention rows ─────────────────────────────────────────────────── */
+/* The bare row. Both places that render one (.ov-attn-list, .ov-panel) restyle
+   it; this is the floor. Moved here from index.css with the duplicates below. */
+.ov-alert { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: inherit;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px;
+  border-left: 3px solid var(--st-down); }
+.ov-alert:hover { border-color: var(--line-strong); }
 .ov-panel .ov-attention { display: flex; flex-direction: column; gap: 5px; }
 .ov-panel .ov-alert {
   display: flex; align-items: center; gap: 9px; padding: 8px 10px; color: inherit;
@@ -227,15 +233,24 @@
    grid cell spent saying nothing. */
 
 /* ── offline floor ────────────────────────────────────────────────────────── */
-.ov-offline { margin-bottom: 4px; }
+/* One copy of each rule (SYS-15). index.css carried a second, older set of
+   these eight; the values below are what rendered - this file's, plus the
+   index.css declarations it never overrode (the lift, its transition, the
+   name's size, the ext's push to the end). */
+.ov-offline { text-align: left; margin-bottom: 4px; }
 .ov-quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ov-offline .ov-quick { margin-top: 16px; }
+/* The transition lives on the element, not on :hover (SYS-9): declared only on
+   hover, the lift animated in and SNAPPED out. */
 .ov-quick-item {
   display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
   font-size: 13px; font-weight: 600; color: inherit;
+  transition: translate var(--dur) var(--ease-standard), border-color var(--dur-fast) var(--ease);
 }
-.ov-quick-item:hover { border-color: var(--accent); }
-.ov-quick-ext { color: var(--fg-subtle); }
+.ov-quick-item:hover { border-color: var(--accent); translate: 0 -2px; }
+.ov-quick-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-quick-ext { color: var(--fg-subtle); margin-left: auto; flex: none; }
 
 /* ── responsive ─────────────────────────────────────────────────────────────
    The hero's three breakpoints are gone with it. One line of text needs one

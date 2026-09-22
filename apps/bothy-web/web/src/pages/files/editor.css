@@ -360,7 +360,6 @@
   /* Alignment is meaning in code - the same reason .fx-src does not wrap. */
   white-space: pre;
 }
-.bothy-files .cm-line { padding: 0 20px 0 8px; }
 
 /* ── gutter ──────────────────────────────────────────────────────────────── */
 .bothy-files .cm-gutters {
@@ -410,7 +409,7 @@
    defaults to -99 on every line so the calc() is always valid: an invalid calc
    would drop the whole background-position declaration, taking the ordinary
    guides down with it. */
-.bothy-files .cm-line { --fx-guides: 0; --fx-guide-on: -99; }
+.bothy-files .cm-line { padding: 0 20px 0 8px; --fx-guides: 0; --fx-guide-on: -99; }
 .bothy-files .cm-line.cm-fxGuides {
   background-image:
     linear-gradient(to right, var(--fx-guide-hi) 0 1px, transparent 1px),

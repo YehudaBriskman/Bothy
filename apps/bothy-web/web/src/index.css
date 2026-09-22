@@ -516,7 +516,6 @@
   --scrim: rgb(9 9 11 / .38);
 }
 
-* { box-sizing: border-box; }
 /* NO font-size on html or body, in any unit but a percentage (SYS-13): the
    root is the user's text-size setting, and every --fs-* step is a rem of it.
    A px here would silently switch that setting off for the whole app.
@@ -1079,30 +1078,10 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
 .tag.link { color: var(--accent); }
 .tag.link:hover { border-color: var(--accent); }
 
-/* ── overview ────────────────────────────────────────────────────────────── */
-.ov-body { padding: 40px 0 20px; display: flex; flex-direction: column; gap: 44px; }
-
-.ov-alert { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: inherit;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px;
-  border-left: 3px solid var(--st-down); }
-.ov-alert:hover { border-color: var(--line-strong); }
-.ov-alert-name { font-weight: 700; }
-.ov-alert-why { color: var(--fg-subtle); font-size: 12.5px; margin-left: auto; }
-.ov-alert-arrow { color: var(--fg-subtle); flex: none; }
-
-
-.ov-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-/* The transition lives on the element, not on :hover (SYS-9): declared only on
-   hover, the lift animated in and SNAPPED out. */
-.ov-quick-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; color: inherit;
-  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
-  transition: translate var(--dur) var(--ease-standard), border-color var(--dur-fast) var(--ease); }
-.ov-quick-item:hover { border-color: var(--accent); translate: 0 -2px; }
-.ov-quick-name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-quick-ext { color: var(--fg-subtle); margin-left: auto; flex: none; }
-
-.ov-offline { text-align: left; }
-.ov-offline .ov-quick { margin-top: 16px; }
+/* ── overview ──────────────────────────────────────────────────────────────
+   Lives in pages/Overview.css. Eight .ov-* rules used to be declared here AND
+   there with different values, and the page file won by load order (design
+   audit SYS-15, batch 4): one copy now, merged to what rendered. */
 
 /* ── 3D scene ────────────────────────────────────────────────────────────── */
 
@@ -1172,7 +1151,6 @@ html[data-motion='reduce'] .pill .pulse::after { animation: none !important; }
    by making the topbar denser. (.ov-stats and .scene-* here styled nothing that
    renders; deleted 2026-09-21.) */
 @media (max-width: 640px) {
-  .ov-body { padding-top: 26px; gap: 34px; }
   /* One step down the closed scale; 23px was between two steps. */
   .page-head h1 { font-size: var(--fs-xl); line-height: var(--lh-xl); letter-spacing: var(--tr-xl); }
   .filter-search { min-width: 120px; }
@@ -1317,7 +1295,7 @@ html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(
    Firefox gets `scrollbar-width`/`scrollbar-color` (no pseudo-elements); every
    Chromium/WebKit browser gets the ::-webkit rules. Both are declared: they are
    not alternatives, they are different engines. */
-* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
 *::-webkit-scrollbar { width: var(--scrollbar-w); height: var(--scrollbar-w); }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {

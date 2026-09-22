@@ -187,10 +187,9 @@
 .bothy-files .fx-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .bothy-files .fx-col-l { grid-column: 2; }
 .bothy-files .fx-sep-l { grid-column: 3; }
-.bothy-files .fx-col-mid { grid-column: 4; }
+.bothy-files .fx-col-mid { grid-column: 4; grid-row: 1; }
 .bothy-files .fx-sep-r { grid-column: 5; }
 .bothy-files .fx-col-r { grid-column: 6; }
-.bothy-files .fx-col-mid { grid-row: 1; }
 
 /* ── the separators ──────────────────────────────────────────────────────────
    5px of hit area around a 1px line. A 1px target is a target nobody hits; a

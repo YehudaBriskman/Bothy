@@ -107,7 +107,6 @@
 /* A file row has no chevron; the gap keeps its icon in the same column as the
    folder icons on the level above, which is what makes the indent readable. */
 .bothy-files .fx-file .fx-ico { margin-left: 18px; }
-.bothy-files .fx-hit .fx-ico { margin-left: 6px; }
 .bothy-files .fx-dir .fx-name { font-weight: 600; color: var(--fg); }
 .bothy-files .fx-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bothy-files .fx-n,
@@ -157,7 +156,7 @@
    in JS (tailPath) - see the comment there for why the CSS `direction: rtl`
    trick is not used. */
 .bothy-files .fx-hit { height: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 4px; }
-.bothy-files .fx-hit .fx-ico { margin-top: 1px; }
+.bothy-files .fx-hit .fx-ico { margin-left: 6px; margin-top: 1px; }
 .bothy-files .fx-hit-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .bothy-files .fx-hit-dir {
   font-family: var(--mono); font-size: 10px; color: var(--fg-subtle);

@@ -186,6 +186,9 @@
   .control-sec .ct-nav {
     height: auto; overflow-y: hidden; padding: 0;
     border-right: 0; border-bottom: 1px solid var(--line);
+    /* The mask below paints the inset shadows `.scroll-shade` would otherwise
+       draw out of existence anyway; off, so the two affordances do not stack. */
+    box-shadow: none;
   }
   .control-sec .ct-body { overflow-y: visible; padding: 0; }
   .control-sec[data-collapsed] .ct-nav {
@@ -204,9 +207,6 @@
   .control-sec .ct-nav[data-shade-l][data-shade-r] {
     mask-image: linear-gradient(90deg, transparent, #000 22px, #000 calc(100% - 22px), transparent);
   }
-  /* The mask above paints the inset shadows `.scroll-shade` would otherwise draw
-     out of existence anyway; turn them off so the two affordances do not stack. */
-  .control-sec .ct-nav { box-shadow: none; }
 
   .control-sec[data-collapsed] .ct-label {
     position: static; opacity: 1; translate: 0 0; pointer-events: auto;
