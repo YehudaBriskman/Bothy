@@ -105,6 +105,34 @@ waits). The Files panes' row skeletons (tree, git status, history, the document
 index) and the Vitals chart skeleton stay as they were: dense side panes and
 charts, where the reserved rows say more than an orb would.
 
+**A loader OVER content is plated. A loader IN something is bare.**
+_2026-09-23._ Pass `plate` when the Loader floats over anything - a skeleton, a
+table still showing its last answer, a chart, the 3D map. Do not pass it when the
+Loader is inline: in a button, in a table row, beside a pill, or alone in an
+otherwise empty box. It is a prop rather than something the component guesses,
+because those two cases look identical from inside it.
+
+The plate is the **floating-surface material** `ui/Popover` and `ui/Menu` already
+use - `--surface-4`, `--line-strong`, `--r-lg`, `--shadow-3`, padding off the
+spacing scale - because a loader over a placeholder *is* that: a higher plane. It
+sizes to its own words and is never full width.
+
+**It is opaque, and that is the design, not a fallback.** No `backdrop-filter`,
+no `--mat-*`: [decision 4](../../plans/design-audit-apple.md) reserves translucent
+material for the top bar and the command palette, and a translucent plate over
+skeleton bars is the very defect the plate was added to fix - the orb printed onto
+a grey bar with its label crossing the next one down. So there is nothing for
+`prefers-reduced-transparency` or reduced motion to take away, and forced colours
+only restates it in `Canvas` / `CanvasText`. Everything else the Loader guarantees
+is unchanged: `role="status"`, the polite label, the `aria-hidden` canvas, paused
+under reduced motion, and the 150ms hold before it fades in.
+
+**The placeholder underneath is quieted** to `--quiet-opacity` while a plate is
+over it - one rule, on `.skel-host:has(> .ui-loader-plate)`, so no skeleton
+variant has to know a plate may be there. That is also why the plate went on the
+*Loader* rather than as a hole carved out of each variant: a hole moves with each
+page's layout and breaks the skeleton's one job.
+
 **Cost.** The package is about 26 KB minified (11 KB gzip) after tree-shaking and
 is loaded lazily - never in the first paint's critical path. The chunk is warmed
 when the browser is idle; until it arrives the orb's box is reserved, empty, with

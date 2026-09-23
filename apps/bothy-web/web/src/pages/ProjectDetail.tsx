@@ -134,7 +134,7 @@ export function ProjectDetail() {
   // not the same thing as "not found" (design audit SYS-18). Shown as the
   // search Loader over the page's skeleton, never as a false 404.
   if (!system && firstPoll(data)) {
-    return <div className="page detail"><Skeleton variant="panels" state="search" label="Discovering what is running…" /></div>;
+    return <div className="page detail"><Skeleton variant="detail" state="search" label="Discovering what is running…" /></div>;
   }
   if (!system) {
     return (

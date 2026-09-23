@@ -88,8 +88,8 @@ export function Vitals() {
         </header>
         <p className="vit-off">
           No metrics route on this box. Run <code>just bothy-prom-route</code> in{' '}
-          <code>~/stacks</code> to point the portal at Prometheus - nothing else on this
-          page depends on it.
+          <code>~/stacks</code> to point the portal at VictoriaMetrics - nothing else on
+          this page depends on it.
         </p>
       </section>
     );

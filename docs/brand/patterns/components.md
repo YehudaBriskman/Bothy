@@ -47,7 +47,7 @@ styles are co-located files that build on it and never edit it.
 | Tabs | A real ARIA tablist with roving tabindex |
 | Table | One implementation, with a density variant |
 | Panel / card | The surface primitives |
-| Skeleton | Shape-matched, three variants |
+| Skeleton | Shape-matched, one variant per page shape; `variant` is required |
 | Empty state / error state | With optional clear and retry |
 | Filter bar | Search, chips, selects |
 | Nav item, breadcrumb, back link, skip link | Navigation |

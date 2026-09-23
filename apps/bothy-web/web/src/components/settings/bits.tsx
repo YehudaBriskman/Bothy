@@ -182,7 +182,7 @@ export function Loading({ rows = 3, label = 'Loading…' }: { rows?: number; lab
       <div className="skel-col set-skel" aria-hidden="true">
         {Array.from({ length: rows }, (_, i) => <div className="skel" key={i} style={{ height: 30 }} />)}
       </div>
-      <Loader state="load" size={rows > 2 ? 'md' : 'sm'} label={label} center className="skel-orb" />
+      <Loader state="load" size={rows > 2 ? 'md' : 'sm'} label={label} center plate className="skel-orb" />
     </div>
   );
 }

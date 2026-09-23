@@ -298,7 +298,7 @@ function DocBody({
     return <div className="fx-pad"><SignInCard what="read this file" onRetry={onRetryOpen} /></div>;
   }
   if (doc.state !== 'ready' && doc.state !== 'error') {
-    return <div className="fx-pad"><Skeleton variant="table" size="md" label="Opening the file…" /></div>;
+    return <div className="fx-pad"><Skeleton variant="reader" size="md" label="Opening the file…" /></div>;
   }
   if (doc.state === 'error' || !file) {
     return (

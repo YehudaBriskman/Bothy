@@ -69,7 +69,7 @@ export function DiffView({ target, res, loading, err }: {
     return { add, del };
   }, [lines]);
 
-  if (loading) return <div className="fx-pad"><Skeleton variant="table" size="md" label="Reading the diff…" /></div>;
+  if (loading) return <div className="fx-pad"><Skeleton variant="reader" size="md" label="Reading the diff…" /></div>;
   if (err) {
     return (
       <div className="fx-pad">

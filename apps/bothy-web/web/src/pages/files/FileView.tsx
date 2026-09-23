@@ -125,7 +125,7 @@ export function FileView({
 
   const retry = () => setTick((n) => n + 1);
 
-  if (state.at === 'loading') return <div className="fx-pad"><Skeleton variant="table" size="md" label="Reading the file…" /></div>;
+  if (state.at === 'loading') return <div className="fx-pad"><Skeleton variant="reader" size="md" label="Reading the file…" /></div>;
   if (state.at === 'auth') {
     return <div className="fx-pad"><SignInCard what="read this file" onRetry={retry} /></div>;
   }

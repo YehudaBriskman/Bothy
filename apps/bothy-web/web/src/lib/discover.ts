@@ -1672,7 +1672,14 @@ export const HOST_OVERRIDES: Record<string, { icon: string; desc: string }> = {
 // Ports, not names, and built against `location.hostname` so the links work from
 // whichever address the reader actually typed. Only things that run: this is a
 // floor, and a floor with a hole in it is worse than a bare one.
+//
+// `['Prometheus', 9090]` was the hole, found 2026-09-23: VictoriaMetrics took
+// the metrics job on 2026-09-17 (monitoring/compose.yml) and nothing has
+// answered on 9090 since. Headlamp (8110) and node-exporter (9100) are
+// deliberately NOT here - Headlamp runs only while the minikube cluster does,
+// so it would be the next hole, and node-exporter is a metrics endpoint with
+// no page to open.
 export const KNOWN_SERVICES: [string, number][] = [
-  ['Grafana', 3000], ['Prometheus', 9090], ['cAdvisor', 8082],
+  ['Grafana', 3000], ['Metrics', 8428], ['cAdvisor', 8082],
   ['Keycloak', 8090], ['Loki', 3100],
 ];

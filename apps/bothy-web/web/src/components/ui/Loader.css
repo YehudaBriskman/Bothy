@@ -35,3 +35,43 @@
 @media (forced-colors: active) {
   .ui-loader-probe { color: CanvasText; }
 }
+
+/* ── the plate: a Loader that FLOATS OVER content (`plate`) ─────────────────
+   Before 2026-09-23 a Loader laid over a skeleton had no surface of its own:
+   `.skel-host > .skel-orb` stretched it across the reserved shape and the orb
+   landed on a grey bar with its label crossing the next one down. The thing on
+   screen whose whole job is to say "wait" was the least legible thing on it.
+
+   The plate is the floating-surface material ui/Popover and ui/Menu already
+   use - --surface-4, the strong hairline, --r-lg, --shadow-3 - because a loader
+   over a placeholder IS that: a higher plane, not a mark drawn into the page.
+   One rule here works over ANY content (a skeleton, a stale table, a chart, the
+   3D map) and keeps the skeleton free to reserve the true incoming shape, which
+   carving a hole into each variant would not.
+
+   OPAQUE, ALWAYS, and that is the point rather than a fallback. Decision 4
+   reserves translucent material for the top bar and the command palette, so
+   there is no --mat-* token and no backdrop-filter here; a blurred plate over
+   skeleton bars would be the original defect with a blur on it. So it needs no
+   @supports, and `prefers-reduced-transparency` and reduced motion have nothing
+   to take away. Under forced colours it is restated in system colours, because
+   --surface-4 is not a colour the browser will keep.
+
+   It sizes to its CONTENT and is never full width - the clear area is a plate
+   with the words on it, not a band across the page. */
+.ui-loader-plate {
+  background: var(--surface-4);
+  border: var(--border-w) solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  padding: var(--sp-5) var(--sp-6);
+  max-width: min(100%, calc(var(--sp-16) * 7));
+}
+/* md centres in a row, so the plate is a pill of the same material; sm is the
+   inline size and takes the smallest step that still clears the orb. */
+.ui-loader-plate[data-size='md'] { padding: var(--sp-3_5) var(--sp-5); }
+.ui-loader-plate[data-size='sm'] { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); }
+
+@media (forced-colors: active) {
+  .ui-loader-plate { background: Canvas; border-color: CanvasText; }
+}
