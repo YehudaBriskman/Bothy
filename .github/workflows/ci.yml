@@ -190,6 +190,16 @@ jobs:
         if: always()
         run: bash scripts/checks/installer-pin.sh
 
+      # SECURITY.md section 1 states how far the SSO boundary reaches as a
+      # count, and the count has gone stale twice - "nine routers across three
+      # files", then "fourteen", while the truth grew to forty-eight across
+      # five. Adding a gated router is the right thing to do and happens in a
+      # different file from the one that counts them, so the drift is invisible
+      # and always understates the boundary a reader is trying to judge.
+      - name: SECURITY.md counts the role-gated routers correctly
+        if: always()
+        run: bash scripts/checks/router-gates.sh
+
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
   # Everything above answers "is the tree healthy". This answers the question

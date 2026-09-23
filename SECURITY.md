@@ -28,9 +28,10 @@ Traefik on `:80` serves the portal and its read-only data plane.
 was removed, and its configuration was **deleted on 2026-08-12**: Traefik holds
 zero `Host()` rules, and the Traefik dashboard router was deleted with them.
 Identity was rebuilt on Keycloak + oauth2-proxy and **now enforces on the tiers
-that can change things**: fourteen routers across three files carry a role
-requirement - `viewer` to read a file or a config field, `editor` to write one,
-`operator` to restart, stop or start a service or change a cluster workload.
+that can change things**: forty-eight routers across five files carry a role
+requirement - `viewer` to read a file, a config field or anything in the
+cluster, `editor` to write one, `operator` to restart, stop or start a service,
+change a cluster workload, run an update or read the admin tier.
 Everything else is still reached
 without passing an edge auth boundary, so "SSO is running" must not be read as
 "everything is behind SSO".
@@ -126,13 +127,26 @@ security change, and should be reviewed as one.
 
 ### 1. SSO enforces on the tiers that change things, and nowhere else yet
 
-> **Status: ENFORCED, narrowly.** Fourteen role-gated routers, in three files
-> (counted 2026-09 from `edge/dynamic/*.yml`):
-> `edge/dynamic/bothy-files.yml` (four: `viewer` for reads and downloads,
-> `editor` for writes and deletes), `bothy-config.yml` (two: the same pair over
-> config fields) and `bothy-ops.yml` (eight: `operator` on the three container
-> verbs and the three cluster changes, `viewer` on cluster events and logs). The
-> gates themselves - `sso-viewer`, `sso-editor`, `sso-operator` - are defined
+> **Status: ENFORCED, narrowly.** Forty-eight role-gated routers, in five files.
+> **`scripts/checks/router-gates.sh` holds these two tables against
+> `edge/dynamic/*.yml`** - the count went stale twice before it existed, always
+> in the direction that makes this section understate the boundary.
+>
+> | file | gated routers | what they gate |
+> |---|---|---|
+> | `edge/dynamic/bothy-files.yml` | 4 | `viewer` for reads and downloads, `editor` for writes and deletes |
+> | `edge/dynamic/bothy-config.yml` | 2 | the same pair, over config fields |
+> | `edge/dynamic/bothy-admin.yml` | 4 | `operator` on the audit log, backups, credentials and users |
+> | `edge/dynamic/bothy-ops.yml` | 33 | `operator` on the three container verbs and every cluster change, `viewer` on every cluster read |
+> | `edge/dynamic/bothy-updates.yml` | 5 | `operator` to request or pause an update, `viewer` to read its state |
+>
+> | role | routers | |
+> |---|---|---|
+> | `viewer` | 24 | read a file, a config field, or anything in the cluster |
+> | `editor` | 3 | write a file, delete one, patch a config field |
+> | `operator` | 21 | change a container, a workload, an update, or read the admin tier |
+>
+> The gates themselves - `sso-viewer`, `sso-editor`, `sso-operator` - are defined
 > once, in `edge/dynamic/bothy-gates.yml`, and in no router file. The fourth role,
 > `shell`, is defined in the realm and referenced by no router at all - see
 > [A shell in the browser](#a-shell-in-the-browser-90-before-it-exists).
@@ -156,12 +170,17 @@ host port `8090`) so the callback is an IP:port URL and depends on no name.
 
 **Defining a middleware does not enforce it** - that takes a router referencing
 it, which is the distinction this section existed to make while nothing did.
-Fourteen routers do now, across three files - `edge/dynamic/bothy-files.yml`
-(four), `bothy-config.yml` (two) and `bothy-ops.yml` (eight) - using
+Forty-eight routers do now, across the five files tabled above, using
 `sso-viewer`, `sso-editor` and `sso-operator`: the same `forwardAuth`, differing
-only in `?allowed_groups=`. (The statement this replaces said "nine routers
-across three files" and went stale the day the cluster tier added five more in a
-fourth file.) Since 2026-09 all three gates live in
+only in `?allowed_groups=`.
+
+This number has now been wrong twice. It said "nine routers across three files"
+and went stale the day the cluster tier added five more in a fourth file; it
+then said "fourteen across three" while the truth grew to forty-eight across
+five. Both times the drift was invisible, because adding a gated router is the
+correct thing to do and is done in a different file from the one that counts
+them - so `scripts/checks/router-gates.sh` now counts them in CI instead of a
+reader taking this paragraph's word for it. Since 2026-09 all three gates live in
 `edge/dynamic/bothy-gates.yml`: before that each was defined inside the first
 tier file that needed it and borrowed by the others, so deleting one tier file
 would have errored another tier's routers. The auth stack also owns `oauth2-endpoints`
