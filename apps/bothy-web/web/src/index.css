@@ -832,12 +832,19 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
    own minimum, set by the shape that uses it. */
 .skel-row { display: grid; gap: var(--sp-2);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--skel-min, 280px)), 1fr)); }
-/* A reader's column: a heading and then ragged lines. `--read-measure` is in
-   `ch` against the reader's own font size, which this host does not have, so the
-   column is capped in the spacing scale instead - the point is that the lines
-   stop where the prose will, not that they stop at exactly 75 characters. */
+/* A reader's column: a heading and then ragged lines, CENTRED at about the
+   reading measure. `--read-measure` is 75ch against the reader's own font size,
+   which this host does not have, so the column is capped in the spacing scale
+   instead: 48rem measured 768px against the real column's 760px at 1440. The
+   point is that the lines start and stop where the prose will - uncentred and
+   full-bleed, the skeleton drew a column 50px to the left of the one that
+   arrived, which is a jump the reader can see even though nothing moved
+   vertically. */
+/* `width: 100%` before the cap, because .skel-host is a grid and an auto inline
+   margin on a grid item shrink-wraps it - which with percentage line widths
+   inside collapsed the whole column to 2px. */
 .skel-read { display: flex; flex-direction: column; gap: var(--sp-2_5);
-  max-width: calc(var(--sp-16) * 14); }
+  width: 100%; max-width: calc(var(--sp-16) * 12); margin-inline: auto; }
 .skel-gap { height: var(--sp-3); }
 /* A LINE, not a block. --r-lg on a 14px bar reads as a pill, and what is
    arriving there is a line of text. */
@@ -861,14 +868,24 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .skel-host > * { grid-area: 1 / 1; min-width: 0; }
 .skel-host .skel { animation: none; }
 .skel-host > .skel-orb {
-  /* Centred in the reserved area, in both axes. The grid row is as tall as the
-     TALLER of the two, so the plate can never be clipped by a short skeleton
-     (Settings' three 30px rows) and never stretches a tall one. */
-  justify-self: center; align-self: center;
+  /* Centred across the reserved area, and near the top of it. The grid row is as
+     tall as the TALLER of the two, so the plate can never be clipped by a short
+     skeleton and never stretches a tall one.
+
+     Vertically centred is the wrong answer for a page skeleton, and the phone
+     proves it: the Control landing's skeleton is 1703px at 390, so the middle of
+     it is 850px down and the words "Discovering what is running…" were below the
+     fold on an 844px viewport. A loading message you have to scroll to is not a
+     message. 192px down is where the eye already is, at every size measured. */
+  justify-self: center; align-self: start;
+  margin-block-start: calc(var(--sp-16) * 3);
   /* Nothing under a skeleton is interactive yet, but the plate must never be
      the thing that swallows a click once the real page arrives under it. */
   pointer-events: none;
 }
+/* A pane or a Settings section, not a page: a few short rows, where 192px would
+   be past the bottom of the shape. Centred outright. */
+.skel-host > .skel-orb:not([data-size='lg']) { align-self: center; margin-block-start: 0; }
 /* The placeholder behind a PLATED loader is quieted. One rule, in one place, so
    no skeleton variant has to know a plate may be over it - which is the whole
    reason the plate went on the Loader rather than a hole into each variant. */
