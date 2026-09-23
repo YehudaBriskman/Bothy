@@ -85,9 +85,9 @@ carries HTTP basic auth on **all** endpoints as its boundary, and Grafana its
 own login, both on the shared `DEV_LOGIN_*` credential from `.env`.
 
 > [!warning] "SSO is running" does not mean "this is behind SSO"
-> Only three tiers are. Grafana, Prometheus and Keycloak's own console each
-> carry a separate login, and the tailnet is the rest of the control. See
-> [Roles](roles.md).
+> Only 5 tiers are behind single sign-on. Grafana, VictoriaMetrics and
+> Keycloak's own console each carry a separate login, and the tailnet is the rest
+> of the control. See [Roles](roles.md).
 
 ## What to look at first
 

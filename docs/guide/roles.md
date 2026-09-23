@@ -5,18 +5,18 @@ and deliberately **non-composite** - holding one never implies another - because
 `shell` grants an arbitrary terminal and must never be reachable by holding one
 of the other three. Composites are how that happens by accident.
 
-They gate exactly three tiers. Everything else on the box is protected by the
-tailnet plus, where a service has one, its own login on the shared
-`DEV_LOGIN_*` credential. **"SSO is running" does not mean "this is behind
-SSO".**
+They gate five tiers - files, config, admin, ops and updates. Everything else on
+the box is protected by the tailnet plus, where a service has one, its own login
+on the shared `DEV_LOGIN_*` credential. **"SSO is running" does not mean "this is
+behind SSO".**
 
 ## What each role actually gets you
 
 | Role | What holding it lets you do, today |
 |---|---|
-| `viewer` | read through Bothy Files - browse, search, follow links, see history and diffs, download raw bytes and archives. Also read which compose fields are patchable in Settings |
+| `viewer` | read through Bothy Files - browse, search, follow links, see history and diffs, download raw bytes and archives. Read which compose fields are patchable in Settings. Read anything in the cluster - deployments, pods, jobs, events, logs - and read what an update is doing |
 | `editor` | write and delete a file through Bothy Files, and patch a declared field through a Settings form |
-| `operator` | restart, stop and start a container |
+| `operator` | restart, stop and start a container; **change a cluster workload** - the 29 actions in `apps/bothy-ops/catalog.toml`, including scale, rollback, set-image, delete a pod or job and patch a ConfigMap key; request or pause an update; and read the admin tier (audit log, backups, credentials, users) |
 | `shell` | nothing. It is defined, granted to nobody, and referenced by no router |
 
 The Settings page renders `shell` as **"Granted to nobody"** rather than as an
@@ -26,30 +26,37 @@ will say so rather than keep insisting.
 
 ## Where each role is enforced
 
-Nine routers carry a role requirement, across three files in `edge/dynamic/`.
+48 routers carry a role requirement, across 5 files in `edge/dynamic/`.
 The requirement lives in the **middleware**, not in the service, and the three
 middlewares are identical but for one word in a query string - which is the
 property that makes the design worth having: adding a tier is four lines of
 YAML, not another container.
 
-| Router | Role | Path |
+| File | Gated routers | Requires |
 |---|---|---|
-| `bothy-files-read` | `viewer` | roots, tree, read, search, links, history, repos, status, git diff |
-| `bothy-files-download` | `viewer` | raw and archive, on the `:8100` sandbox entrypoint only |
-| `bothy-files-write` | `editor` | write |
-| `bothy-files-delete` | `editor` | delete |
-| `bothy-config-read` | `viewer` | config fields |
-| `bothy-config-write` | `editor` | config patch |
-| `bothy-ops-control-restart` | `operator` | container restart |
-| `bothy-ops-control-stop` | `operator` | container stop |
-| `bothy-ops-control-start` | `operator` | container start |
-| `bothy-ops-kube-rollout-restart` | `operator` | cluster rollout restart |
-| `bothy-ops-kube-scale` | `operator` | cluster scale (type the name) |
-| `bothy-ops-kube-delete-completed-pods` | `operator` | cluster clean-up |
-| `bothy-ops-kube-events` | `viewer` | cluster events |
-| `bothy-ops-kube-logs` | `viewer` | cluster logs |
+| `edge/dynamic/bothy-files.yml` | 4 | `viewer` to read and download, `editor` to write and delete |
+| `edge/dynamic/bothy-config.yml` | 2 | the same pair, over config fields |
+| `edge/dynamic/bothy-admin.yml` | 4 | `operator` on the audit log, backups, credentials and users |
+| `edge/dynamic/bothy-ops.yml` | 33 | `operator` on the three container verbs and every cluster change, `viewer` on every cluster read |
+| `edge/dynamic/bothy-updates.yml` | 5 | `operator` to request or pause an update, `viewer` to read its state |
 
-Two structural choices in that table are worth reading rather than skimming.
+| Role | Routers require it |
+|---|---|
+| `viewer` | 24 |
+| `editor` | 3 |
+| `operator` | 21 |
+
+**This page used to list all fourteen routers by name.** That table was written
+when fourteen was the whole truth, and it stayed at fourteen while the tree grew
+to forty-eight - so a reader asking "is this the whole list" got *yes* from a
+document that had stopped counting in 2026-09. It is a counts table now, and
+`scripts/checks/router-gates.sh` holds every row of it against
+`edge/dynamic/*.yml`. The live table is always at
+`http://<node-ip>/-/api/traefik/http/routers`; `bothy-ops.yml`'s 33 routers are
+**generated** from `apps/bothy-ops/catalog.toml` by `scripts/gen-ops-wiring.py`,
+one per action, which is why naming them here could never have kept up.
+
+Two structural choices behind that table are worth reading rather than skimming.
 
 **Delete is `editor`, not a role of its own**, because removing a file *is* a
 write, and a separate role would be a second thing to grant, a second thing to
@@ -201,11 +208,12 @@ closer, but it is scoped to the file tier and predates the config tier:
 gates reading config fields; `editor` reads "change a file on disk" and also
 gates deleting one and patching a compose label through a form.
 
-**The README** is the third, and it undercounts. Its single-sign-on table lists
-**three** routers, all in `bothy-files.yml` - read, download and write -
-omitting `bothy-files-delete`, omitting `/links` from the read router's paths,
-and omitting the config and control tiers entirely. The prose beside it says
-"three routers require a role today". Nine do.
+**The README** was the third, and it undercounted - twice, the same way. It
+first listed **three** routers, all in `bothy-files.yml`, omitting
+`bothy-files-delete`, `/links`, and the config and control tiers entirely; the
+replacement listed **fourteen** and went stale in turn. Since 2026-09-23 it
+carries the same checked counts tables as this page, so the three sources can no
+longer disagree about *how many* - only about what the roles mean.
 
 `SECURITY.md` disagreed with itself in the same way and in one section: the
 status blockquote at the top of § 1 said *nine role-gated routers in three
