@@ -15,12 +15,12 @@ flowchart TB
     T -->|"PathPrefix(/) - answers everything"| PORTAL["<b>Bothy</b> - React, served static"]
     T -->|"exact Path /-/api/traefik/…"| TAPI["Traefik API<br/>api@internal · dashboard OFF"]
     T -->|"exact Path /-/api/docker/…"| SP["bothy-socket-read<br/>read-only · no auth · socketnet"]
-    T -->|"exact Path /-/api/loki, /-/api/prom"| OBS2["Loki · Prometheus"]
+    T -->|"exact Path /-/api/loki, /-/api/prom"| OBS2["Loki · VictoriaMetrics"]
     T -->|"PathPrefix(/oauth2/)"| O2P["oauth2-proxy<br/>--provider=oidc · no host port"]
     SP --> SOCK[("/var/run/docker.sock :ro")]
 
     T -->|"viewer / editor<br/>4 + 2 config routers · filesnet"| FILES["<b>bothy-files</b><br/>read, write, delete, download<br/>config fields and patch"]
-    T -->|"operator / viewer<br/>8 routers · opsnet"| OPS["<b>bothy-ops</b><br/>restart · stop · start · 5 cluster actions<br/><i>no exec, no kill</i>"]
+    T -->|"operator / viewer<br/>33 routers · opsnet"| OPS["<b>bothy-ops</b><br/>restart · stop · start · 29 cluster actions<br/><i>no exec, no kill</i>"]
     OPS -->|"controlsocknet"| SW["bothy-socket-write<br/>restart / start / stop only"]
     OPS -->|"controlsocknet - inspect"| SP
     SW --> SOCK
