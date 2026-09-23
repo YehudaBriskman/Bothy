@@ -907,7 +907,14 @@ def kubectl_json(read_id: str) -> dict[str, Any] | None:
     a CRD of the same plural it can pick the wrong one.
     """
     read = K8S_READS.get(read_id)
-    if not KUBECTL or read is None:
+    if read is None:
+        # A typo in a call site would otherwise be indistinguishable from an
+        # absent CRD: no items, no error, one discovery source quietly gone.
+        if K8S_READS:
+            print(f"k8s: `{read_id}` is not declared in {K8S_READS_FILE.name} - "
+                  f"call skipped", file=sys.stderr)
+        return None
+    if not KUBECTL:
         return None
     target = f"{read['resource']}.{read['group']}" if read["group"] else read["resource"]
     argv = [KUBECTL, "--context", K8S_CONTEXT, "get", target]
