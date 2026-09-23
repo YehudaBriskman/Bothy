@@ -47,9 +47,9 @@ YAML, not another container.
 | `operator` | 21 |
 
 **This page used to list all fourteen routers by name.** That table was written
-when fourteen was the whole truth, and it stayed at fourteen while the tree grew
-to forty-eight - so a reader asking "is this the whole list" got *yes* from a
-document that had stopped counting in 2026-09. It is a counts table now, and
+when fourteen was the whole truth, and it was still at fourteen on 2026-09-23,
+by which point the tree held forty-eight - so a reader asking "is this the whole
+list" got *yes* from a document that had stopped counting. It is a counts table now, and
 `scripts/checks/router-gates.sh` holds every row of it against
 `edge/dynamic/*.yml`. The live table is always at
 `http://<node-ip>/-/api/traefik/http/routers`; `bothy-ops.yml`'s 33 routers are
