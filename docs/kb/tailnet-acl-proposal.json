@@ -1,0 +1,50 @@
+// PROPOSAL, not applied. Paste into the Tailscale admin console
+// (https://login.tailscale.com/admin/acls), use "Preview" before "Save", and
+// read the warning in docs/kb/tailnet-acl.md first.
+//
+// WHY: the box publishes its whole inventory to any tailnet device with no
+// login (SECURITY.md, "Accepted risks"). Four of the five nodes are physically
+// yours. `oci-free-arm` is an Oracle free-tier VM - the one node not in your
+// hands, and the one that would be attacked from the internet. This policy
+// keeps every device working exactly as it does today, except that the cloud
+// VM can no longer reach anything on the tailnet. It can still be used AS an
+// exit node, because that is traffic leaving through it, not into the tailnet.
+//
+// Tailscale ACLs are ALLOW-ONLY - there is no deny rule. You express "everyone
+// but oci" by granting everyone else, so the shape below is the only shape
+// available. Adding any `acls` block REPLACES the default allow-all, which is
+// why a mistake here is a lockout rather than a warning.
+{
+  "hosts": {
+    "devbox":   "100.117.176.85",
+    "thinkpad": "100.108.35.26",
+    "winhost":  "100.93.197.10",
+    "phone":    "100.101.204.32",
+    "oci":      "100.79.242.82"
+  },
+
+  "acls": [
+    // Your four personal devices keep exactly what they have today: everything.
+    {
+      "action": "accept",
+      "src": ["devbox", "thinkpad", "winhost", "phone"],
+      "dst": ["*:*"]
+    }
+
+    // `oci` appears in no src rule, so it can reach nothing on the tailnet.
+    // It is NOT listed here at all - that absence IS the control.
+  ],
+
+  // Tailscale SSH to the box, unchanged: devssh only, from your own devices.
+  // Without this block the existing SSH access stops working the moment the
+  // ACLs above replace the default policy - that is the single most likely way
+  // to lock yourself out with this change.
+  "ssh": [
+    {
+      "action": "accept",
+      "src": ["autogroup:member"],
+      "dst": ["autogroup:self"],
+      "users": ["autogroup:nonroot", "devssh"]
+    }
+  ]
+}
