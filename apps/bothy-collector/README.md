@@ -194,6 +194,48 @@ compose file lives. Rules match `container:<name>`, `project:<name>` or
 skipped with a warning on stderr. Override the path with
 `BOTHY_COLLECTOR_PLACEMENT`. The truth table is `apps/bothy-web/checks/placement.mjs`.
 
+## The cluster credential
+
+The fourth discovery source is the cluster itself: one portal project per
+non-system namespace, its Deployments as services. That is five calls, all
+`kubectl get <plural> --all-namespaces`, never by name, never a write.
+
+Until **2026-09-23** those calls went out as **devssh with `~/.kube/config`**,
+because the collector had no cluster identity of its own. On minikube that file
+is the *admin client certificate* - user `minikube-user`, group
+**`system:masters`**, which is checked before RBAC and short-circuits it. A
+30-second timer that writes a JSON file could read every Secret in the cluster,
+exec into any pod, and delete the cluster. It used none of that.
+
+It now runs as `bothy/bothy-collector`, whose entire grant is `list` on
+**namespaces, services, deployments, ingresses, routes**:
+
+| | |
+|---|---|
+| declaration | `reads.toml` - id, resource, apiGroup, scope, and why |
+| generated Role | `k8s/rbac/bothy-collector.yaml` (`just ops-wiring`, CI checks for drift) |
+| generated proof | `scripts/lib/bothy-collector-probes.sh` - the can-i rows `just collector-token` prints, every declared read then 33 refusals |
+| credential | `apps/bothy-collector/secrets/kubeconfig`, mode 600 in a 700 gitignored directory, from `just collector-token` (`--rotate` / `--revoke`) |
+
+**`reads.toml` is executed, not just described.** `kubectl_json()` takes an id
+from it and builds the argv from the row, so a call that is not declared cannot
+be made, and a call that is declared is in the Role - in the same commit, because
+the Role is generated from the same rows. No `get` is granted, so the account
+cannot even fetch one named object; no `watch`, because a timer does not need a
+stream.
+
+It is a ClusterRole where `bothy-kube` deliberately has none, and that is forced:
+`--all-namespaces` is **one** cluster-scoped LIST that no namespaced Role can
+authorise, and the namespaces are *discovered*, so there is no allow-list to bind
+Roles in. The consequence, said out loud: the account can enumerate those four
+kinds in `kube-system` too, and `K8S_SKIP_NS` drops them client-side.
+
+Run `just collector-token` once per cluster **rebuild** - a new cluster has a new
+CA and no `bothy` namespace. Until it has run, the collector reads with the
+ambient kubeconfig and says so on stderr, naming the admin certificate: a fresh
+clone must still render a cluster panel, but a silent fall-back to an admin
+credential is exactly how the old one survived unnoticed.
+
 ## Notes
 
 - A missing `projects.json` is a supported state, not an error - the portal
