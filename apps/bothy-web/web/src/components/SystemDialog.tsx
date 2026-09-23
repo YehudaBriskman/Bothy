@@ -13,7 +13,7 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Cpu, ExternalLink, HardDrive, MemoryStick, Workflow } from 'lucide-react';
+import { ArrowRight, Cpu, ExternalLink, HardDrive, MemoryStick, Workflow } from 'lucide-react';
 import { conditionLabel, resolveEdges, sharedNamespace } from '../lib/discover';
 import type { System } from '../lib/systems';
 import { fmtBytes, fmtUptime, PLACED_BY_LABEL, sectionTitle, subgroupTitle } from '../lib/systems';
@@ -153,19 +153,17 @@ export function SystemDialog({
             <Link className="sd-row-name" to={serviceLink(n)} onClick={() => onOpenChange(false)}>
               {n.name}
             </Link>
-            {/* A one-shot that exited 0 did its job. `stopped` is technically
-                true and operationally misleading - it reads as "somebody
-                switched this off", which invites someone to start it. The
-                status icon still carries the real state for colour and
-                counting; only the WORD changes, and only where the compose
-                file declared the intent. */}
-            {n.completesOnPurpose && n.status === 'stopped' ? (
-              <span className="sd-done" title="Ran to completion - a dependent waits on service_completed_successfully">
-                <Icon icon={CheckCircle2} size="sm" /> completed
-              </span>
-            ) : (
-              <StatusIcon status={n.status} />
-            )}
+            {/* One StatusIcon, like every other row in the app (2026-09-23).
+                This used to special-case `completesOnPurpose && stopped` into a
+                hand-drawn "completed" chip, because a one-shot that had done its
+                job read as "somebody switched this off" and invited a restart.
+                That word is now a STATUS - `done` - decided once in discover.ts
+                and counted everywhere, so the local patch is not just redundant,
+                it was subtly wrong: it printed "completed" for a one-shot killed
+                by SIGTERM (exit 143) too, which is the one case where the
+                container did NOT complete. A status the whole app agrees on
+                cannot drift from the count beside it; a chip on one row can. */}
+            <StatusIcon status={n.status} />
             <span className="sd-row-meta">
               {n.host ?? (n.ports[0] ? `:${n.ports[0].hostPort}` : '-')}
             </span>

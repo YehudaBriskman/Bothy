@@ -31,9 +31,15 @@ import './SystemMatrix.css';
 // time regardless of how many cells there are - which is why this scales to a
 // box with 60 services, and a list of rows does not.
 
-const ORDER: Status[] = ['down', 'unknown', 'starting', 'up', 'stopped'];
+// Worst first, so the eye lands on the cell that needs it. The three tail
+// states are the ones that are NOT claims about health, ordered by how much of a
+// statement they make: `done` finished well, `stopped` was switched off, and
+// `dormant` has not been touched in a fortnight - the last cell in the last row
+// of the quietest system on the page, which is exactly where it belongs.
+const ORDER: Status[] = ['down', 'unknown', 'starting', 'up', 'done', 'stopped', 'dormant'];
 const LABEL: Record<Status, string> = {
   down: 'down', unknown: 'unknown', starting: 'starting', up: 'up', stopped: 'stopped',
+  done: 'done', dormant: 'dormant',
 };
 
 // ONE definition of "needs a look", shared with the hero.

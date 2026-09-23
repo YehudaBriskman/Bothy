@@ -156,6 +156,7 @@ function nodeOf(
   project: CollectorProject,
   svc: CollectorService,
   live: ReadonlyMap<string, NodeContainer>,
+  discovered: ReadonlyMap<string, Status>,
   place: PlaceFn = fallbackPlace,
 ): PortalNode {
   const groupKind = project.kind === 'stack' || project.kind === 'infra' ? project.kind : 'project';
@@ -167,7 +168,27 @@ function nodeOf(
     groupKind,
     project.key,
   );
-  const status = STATE_TO_STATUS[svc.state] ?? 'unknown';
+  let status = STATE_TO_STATUS[svc.state] ?? 'unknown';
+  // THE DECLARATION WINS ON IDENTITY, NOT ON FACTS - the same rule that hands
+  // this node docker's real container object, applied to the word beside it.
+  //
+  // The collector's vocabulary has five words and none of them is "put away".
+  // `mpeg-redis` and `mpeg-keycloak` are `docker run` containers declared by
+  // Shvil TV, exited six weeks ago, with nothing of that project running; the
+  // classifier in discover.ts already worked that out from the whole container
+  // list and said `dormant`, and then withDeclared() threw the node away and
+  // replaced it with one that says `stopped`. Two containers on this box would
+  // have read "off, like prometheus" purely because somebody wrote a
+  // project.dev.yml for them.
+  //
+  // Only ever ADOPTED, never inferred here, and only over a state the collector
+  // itself calls not-running: a declared service the collector says is `up`
+  // keeps `up`, because the collector probed the port and the classifier only
+  // read a container.
+  const inherited = svc.container ? discovered.get(svc.container) : undefined;
+  if ((inherited === 'dormant' || inherited === 'done') && (status === 'stopped' || status === 'down')) {
+    status = inherited;
+  }
   // Only offer a link to something actually listening - a link to a stopped
   // port is a browser error page dressed up as a feature.
   const url = svc.ui && svc.port && status === 'up' ? `http://${location.hostname}:${svc.port}` : null;
@@ -281,9 +302,15 @@ export function withDeclared(
   // created must find nothing here, and the only way to be sure of that is to look
   // at the whole list docker actually returned.
   const live = new Map<string, NodeContainer>();
-  for (const n of nodes) if (n.container?.name) live.set(n.container.name, n.container);
+  // The status discovery reached for the same container, kept for the same
+  // reason the container itself is: it is a fact, and facts survive the swap.
+  const discovered = new Map<string, Status>();
+  for (const n of nodes) if (n.container?.name) {
+    live.set(n.container.name, n.container);
+    discovered.set(n.container.name, n.status);
+  }
 
   const kept = nodes.filter((n) => !(n.container?.name && claimed.has(n.container.name)));
-  const declared = projects.flatMap((p) => p.services.map((s) => nodeOf(p, s, live, place)));
+  const declared = projects.flatMap((p) => p.services.map((s) => nodeOf(p, s, live, discovered, place)));
   return [...kept, ...declared];
 }

@@ -32,8 +32,16 @@ const INTERNAL: Internal[] = [
   { key: 'audit', label: 'Audit log', sub: 'Settings', to: '/settings/audit', icon: History, needs: 'audit' },
 ];
 
-const TONE: Record<Status, Tone> = { up: 'ok', starting: 'warn', down: 'bad', stopped: 'off', unknown: 'unknown' };
-const WORD: Record<Status, string> = { up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Not verified' };
+const TONE: Record<Status, Tone> = {
+  up: 'ok', starting: 'warn', down: 'bad', stopped: 'off', unknown: 'unknown',
+  // A finished one-shot is a success, so it reads in the ok tone; a dormant one
+  // is quieter still than off, and there is no quieter tone to give it.
+  done: 'ok', dormant: 'off',
+};
+const WORD: Record<Status, string> = {
+  up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Not verified',
+  done: 'Done', dormant: 'Dormant',
+};
 
 export function QuickLinks({ nodes, gates }: { nodes: PortalNode[]; gates: Gates }) {
   const { stack, project } = uiPorts(nodes);

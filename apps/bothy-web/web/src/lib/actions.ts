@@ -87,7 +87,11 @@ export function verbsFor(status: string, dockerState?: string): Verb[] {
   // act on.
   switch (status) {
     case 'up': case 'starting': return ['restart', 'stop'];
-    case 'stopped': return ['start'];
+    // All three are "there, and not running". `done` and `dormant` are not
+    // faults, but Start is still the one useful thing to offer: re-running a
+    // finished one-shot is exactly how you re-apply it, and waking a dormant
+    // container is exactly how you stop it being dormant.
+    case 'stopped': case 'done': case 'dormant': return ['start'];
     // `down` with no readable state: it exists and it is wrong, and either
     // restarting it or stopping the flapping is a defensible next move.
     case 'down': return ['restart', 'stop'];

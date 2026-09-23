@@ -60,8 +60,10 @@ export interface System {
   down: number;
   starting: number;
   stopped: number; // switched off on purpose - never an alert
+  done: number; // one-shots that ran to completion - a success, never an alert
+  dormant: number; // put away: no run in a fortnight, nothing of it left running
   unknown: number;
-  isOff: boolean; // entirely stopped, nothing broken
+  isOff: boolean; // nothing running, nothing broken - off, finished or put away
   uiLinks: UiLink[];
   volumes: VolumeRef[];
   newestUptime: number | null; // smallest uptime = most recently (re)started
@@ -169,12 +171,14 @@ export function systemsOf(nodes: PortalNode[]): System[] {
 
   const systems: System[] = [];
   for (const [key, ns] of byGroup) {
-    let up = 0, down = 0, starting = 0, stopped = 0, unknown = 0;
+    let up = 0, down = 0, starting = 0, stopped = 0, done = 0, dormant = 0, unknown = 0;
     for (const n of ns) {
       if (n.status === 'up') up++;
       else if (n.status === 'down') down++;
       else if (n.status === 'starting') starting++;
       else if (n.status === 'stopped') stopped++;
+      else if (n.status === 'done') done++;
+      else if (n.status === 'dormant') dormant++;
       else unknown++;
     }
     const uptimes = ns.map((n) => n.uptimeSecs).filter((s): s is number => s != null);
@@ -196,10 +200,17 @@ export function systemsOf(nodes: PortalNode[]): System[] {
       nodes: ns,
       total: ns.length,
       running: up + starting,
-      up, down, starting, stopped, unknown,
+      up, down, starting, stopped, done, dormant, unknown,
       // Off in full, and nothing wrong with it - the state a project sits in
       // between sessions. Rendered muted and kept out of every alert count.
-      isOff: up + starting === 0 && down === 0 && stopped > 0,
+      // `done` and `dormant` count towards "off in full" alongside `stopped`
+      // (2026-09-23). Without them a whole project whose containers are now
+      // dormant - cvops, monorepo-inherited - stopped being `isOff` the moment
+      // the classifier got more precise, so it lost its muted treatment and
+      // sorted back up among the live systems: a page that says less after being
+      // told more. All three mean the same thing at system level, which is the
+      // only thing this flag is asked.
+      isOff: up + starting === 0 && down === 0 && stopped + done + dormant > 0,
       uiLinks,
       volumes,
       newestUptime: uptimes.length ? Math.min(...uptimes) : null,

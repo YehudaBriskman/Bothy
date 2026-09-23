@@ -45,13 +45,11 @@
 .sd-row-open { color: var(--fg-subtle); flex: none; display: inline-flex; }
 .sd-row-open:hover { color: var(--accent-fg); }
 
-/* A one-shot that finished. Reads as a quiet fact, not a status: it is the one
-   row in the list that needs no action, so it must not compete with the ones
-   that do. --ok at reduced weight, never the alarm colours. */
-.sd-done {
-  display: inline-flex; align-items: center; gap: var(--sp-1); flex: none;
-  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--st-up-fg); opacity: 0.75;
-}
+/* `.sd-done` lived here: a hand-drawn "completed" chip for a one-shot that had
+   finished. Deleted 2026-09-23 - finishing is a STATUS now (`done`), so this row
+   renders the same StatusIcon as every other row, from the same table, in the
+   same green. A local chip that says what a status says is one more place for
+   the two to disagree. */
 
 /* The wiring. Deliberately a list and not a graph: with 2–4 edges per system a
    drawing costs layout and reads slower than a sentence. The Topology page is
