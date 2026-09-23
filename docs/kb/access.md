@@ -78,22 +78,26 @@ Canonical base: `http://100.117.176.85:<port>` (MagicDNS alias
 
 **Logins (since 2026-08-08): one unified dev login everywhere a login exists** -
 username is the owner's gmail address; the password is `DEV_LOGIN_PASSWORD` in the
-box's gitignored `~/stacks/.env` (never in this KB or the public repo). Applies to
-Grafana, Portainer, Dozzle, Kafka-UI, Prometheus (basic auth).
+box's gitignored `~/stacks/.env` (never in this KB or the public repo).
 
-| Port | Service | Note |
-|---|---|---|
-| 80 | Portal (bothy-web) | Traefik catch-all; **200 expected - a 401 now means regression**. It answers *every* path/host, so a 200 here proves nothing about any other service |
-| 3000 | Grafana | unified dev login |
-| 3001 | Wiki.js | stack currently down |
-| 8080 | Dozzle | unified dev login (simple-auth users file) |
-| 8081 | Kafka-UI | unified dev login (LOGIN_FORM) |
-| 8082 | cAdvisor | 307 at / is normal |
-| 8084/8086/8091/8092 | keycloak / monorepo services | not portproxied |
-| 9000 | Portainer | unified dev login (username = the email) |
-| 9090 | Prometheus | unified dev login (basic auth; unauth = 401); 302 → /query is normal |
-| 9100 / 3100 | node-exporter / Loki | Loki 404 at / is normal |
-| 10350 | Tilt | only while `tilt up --host=0.0.0.0` runs |
+> **The port table that stood here is RETIRED (2026-09-23).** It listed Wiki.js
+> on 3001, Dozzle on 8080, Kafka-UI on 8081, Portainer on 9000 and Prometheus on
+> 9090. Wiki.js, Dozzle, Kafka-UI and Portainer were deleted on 2026-08-18 and
+> Prometheus was replaced by VictoriaMetrics on 8428 on 2026-09-17, so five of
+> its eleven rows sent a reader at a port nothing answers, while Headlamp (8110)
+> and the file sandbox (8100) were missing from it entirely.
+>
+> **`just urls`, run on the box, is the authority** - it reads the address from
+> `tailscale` at run time and is maintained beside the compose files that publish
+> the ports. A second copy here could only ever be a snapshot of it, and this one
+> proved the point by going a month out of date without anybody noticing. The two
+> facts from that table worth keeping are below.
+
+- **Port 80 is the Traefik catch-all** serving the portal. **200 is expected; a
+  401 means regression.** It answers *every* path and host, so a 200 there proves
+  nothing about any other service - verify a service on its own published port,
+  and check the bytes as well as the status code.
+- **The LAN is deliberately not served.** Everything is tailnet or loopback.
 
 Test with `curl.exe`, never `Invoke-WebRequest` ([lessons.md](lessons.md)), and check
 **bytes, not just codes** - "200 with 0 bytes" is the large-packet blackhole

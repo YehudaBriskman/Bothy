@@ -12,6 +12,14 @@
 # 2026.9.2, so a bug report names the wrong release and the maintainer looks at
 # the wrong code.
 #
+# THERE IS A THIRD COPY, and it is the one most people read: the release badge at
+# the top of README.md. It drifted from a FOURTH copy - the `VERSION` row in the
+# README's repo map still said `2026.8.1` on 2026-09-23, with the badge four
+# hundred lines above it already reading v2026.9.0, so the same file answered the
+# question two ways. The row has been deleted (a fact nobody acts on should stop
+# existing rather than be checked) and the badge, which people do act on, is
+# held here.
+#
 # ── the scheme, and why ─────────────────────────────────────────────────────
 #
 # YYYY.M.PATCH, e.g. 2026.8.1. It is a date, which is what actually matters for
@@ -47,6 +55,21 @@ case "$v" in
   [0-9][0-9][0-9][0-9].0*) check "the month has no leading zero (semver would reject it)" no "got '$v'" ;;
   *) check "the month has no leading zero (semver would reject it)" ok ;;
 esac
+
+# The README badge. `shields.io/badge/release-v<version>-<colour>` - the version
+# is the middle field, and a badge URL is not something anybody re-reads when
+# they bump VERSION.
+badge=$(grep -oE 'img\.shields\.io/badge/release-v[0-9]+\.[0-9]+\.[0-9]+-' README.md | head -1)
+if [ -z "$badge" ]; then
+  check "README.md carries a release badge" no "none found - it was renamed or removed, so nothing holds it to VERSION any more"
+else
+  badge=${badge#*release-v}; badge=${badge%-}
+  if [ "$badge" = "$v" ]; then
+    check "README.md's release badge is v$v" ok
+  else
+    check "README.md's release badge is v$v" no "the badge says v$badge"
+  fi
+fi
 
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   echo
