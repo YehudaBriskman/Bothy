@@ -103,6 +103,21 @@
 /* Hollow, not filled: "switched off" is the absence of a signal, so it reads as
    an empty slot rather than as a fifth colour competing for attention. */
 .sm-cell[data-state='stopped'] { background: transparent; box-shadow: inset 0 0 0 1px var(--st-off); }
+/* The same grammar for the two statuses added 2026-09-23: a cell that is filled
+   is running, a cell that is only outlined is not. `done` outlines in the up
+   token because finishing was the job; `dormant` outlines fainter than `stopped`
+   because it is the quietest thing in the matrix.
+
+   These two had no rule at all for an hour, and the failure is worth recording:
+   a missing [data-state] rule does not throw, it falls through to `.sm-cell`'s
+   own `background: var(--st-unknown)` - so four dormant cvops containers
+   rendered in the grey that means "we could not check", which is a different
+   and worse claim than either the old answer or the new one. */
+.sm-cell[data-state='done'] { background: transparent; box-shadow: inset 0 0 0 1px var(--st-up); }
+.sm-cell[data-state='dormant'] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--st-off) 55%, transparent);
+}
 
 /* The label column is a WIDE-SCREEN optimisation and has to hand back the
    width when there isn't any. Measured at 390px: a 141px label column left

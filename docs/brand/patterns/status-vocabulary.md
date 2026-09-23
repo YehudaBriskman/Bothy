@@ -64,10 +64,16 @@ Bothy watches containers. Seven statuses, from
 | `up` | Up | `--st-up` | filled dot **with glow** · `CircleCheck` | Running, and healthy if it has a healthcheck |
 | `starting` | Starting | `--st-warn` | filled dot with glow · `LoaderCircle` | Running, healthcheck has not passed yet |
 | `down` | Down | `--st-down` | filled dot with glow · `CircleX` | **Meant to be up and is not.** The only alarm |
-| `stopped` | Off | `--st-off` | filled dot, no glow · `CirclePause` | Somebody switched it off, and it is meant to stay off |
+| `stopped` | Off / Stopped | `--st-off` | filled dot, no glow · `CirclePause` | Somebody switched it off, and it is meant to stay off |
 | `done` | Done | `--st-up` | filled dot, **no glow** · `CheckCheck` | A one-shot that ran to completion. A success |
 | `dormant` | Dormant | `--st-off` | **hollow** ring · `CircleDashed` | Put away: no run in a fortnight, nothing of its project running |
 | `unknown` | Unknown | `--st-unknown` | filled dot, no glow · `CircleHelp` | We could not check. Neither a pass nor a fault |
+
+`stopped` is the one word with two spellings, and that predates these two: the
+health strip counts it as "off" because a strip is a row of one-word counts, and
+rows, filters and detail pages say "Stopped". Recorded rather than papered over -
+if it ever becomes a defect, the strip is the one that changes, because "off" is
+the word the sentence beneath it uses.
 
 Only `up` and `starting` and `down` are claims about whether something should be
 running right now. `stopped`, `done` and `dormant` are not, and are excluded from
