@@ -196,9 +196,22 @@ jobs:
       # five. Adding a gated router is the right thing to do and happens in a
       # different file from the one that counts them, so the drift is invisible
       # and always understates the boundary a reader is trying to judge.
-      - name: SECURITY.md counts the role-gated routers correctly
+      #
+      # It holds README.md and docs/guide/roles.md too, since 2026-09-23: both
+      # carried their own stale copy of the same number while this step was
+      # green, which is the exact failure mode of guarding one document out of
+      # four.
+      - name: SECURITY.md, README.md and the guide count the role-gated routers correctly
         if: always()
         run: bash scripts/checks/router-gates.sh
+
+      # The same defect in the other number a reader sizes a blast radius with:
+      # "five cluster actions" in four documents, when catalog.toml declared 29.
+      # Understating is the direction this drift always runs in, because the
+      # thing being counted only ever grows.
+      - name: The documents state the cluster actions, router files and devnet recipe correctly
+        if: always()
+        run: bash scripts/checks/doc-facts.sh
 
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
