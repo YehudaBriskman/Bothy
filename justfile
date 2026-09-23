@@ -487,11 +487,15 @@ files-check mode="":
 ops-check mode="":
     @bash apps/bothy-ops/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
 
-# apps/bothy-ops/catalog.toml is the only hand-written cluster wiring. This
-# regenerates what is derived from it: the edge routers, the RBAC Role, the
-# can-i rows of `just kube-token`, and the UI's dev catalog. `check` fails on
-# drift instead of writing (CI runs that). Apply RBAC with `just kube-token`.
-# Regenerate the kube edge routers, RBAC Role and can-i rows from catalog.toml. `check` only diffs.
+# Two declarations are the only hand-written cluster wiring, one per account that
+# reaches the cluster from this box. This regenerates everything derived from them:
+#   apps/bothy-ops/catalog.toml      -> the edge routers, bothy-kube's Role, the
+#                                      can-i rows of `just kube-token`, the UI's dev catalog
+#   apps/bothy-collector/reads.toml  -> bothy-collector's ClusterRole and the
+#                                      can-i rows of `just collector-token`
+# `check` fails on drift instead of writing (CI runs that). Apply the RBAC with
+# `just kube-token` / `just collector-token`.
+# Regenerate the kube edge routers, both Roles and both can-i row sets from their declarations. `check` only diffs.
 ops-wiring mode="":
     @python3 scripts/gen-ops-wiring.py {{ if mode == "check" { "--check" } else { "" } }}
 
