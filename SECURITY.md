@@ -550,6 +550,44 @@ exits non-zero if any row is unexpected), `just ops-wiring check` proves the
 generated files match the catalog, and `apps/bothy-ops/checks/run.sh --offline`
 (`just ops-check offline`) runs the offline suite.
 
+**The third cluster identity: `bothy/bothy-collector` (2026-09-23).** The
+cluster tier is not the only thing on this box that talks to the apiserver. The
+portal's discovery timer (`apps/bothy-collector/collect.py`, every 30 s, host
+systemd) reads the cluster to draw the cluster panel, and until 2026-09-23 it did
+so as **devssh with `~/.kube/config`** - which on minikube is the admin client
+certificate, user `minikube-user` in group **`system:masters`**. That group is
+checked *before* RBAC and short-circuits it, so the widest credential on the box
+belonged to the one component with the narrowest job. Nothing in `collect.py`
+ever used it: five `kubectl get <plural> --all-namespaces` calls, no name, no
+write.
+
+It now runs as a ServiceAccount whose whole grant is **`list` on namespaces,
+services, deployments, ingresses and routes** - no `get` (so not even one named
+object), no `watch`, no pods, no pod logs, no ConfigMaps, no Secrets, no verb
+that changes anything, anywhere. Declared in
+`apps/bothy-collector/reads.toml`, which `scripts/gen-ops-wiring.py` renders into
+`k8s/rbac/bothy-collector.yaml` **and** the can-i rows `just collector-token`
+prints, so the Role cannot drift from the calls and CI fails on either
+(`gen-ops-wiring.py --check`). `collect.py` builds each kubectl argv from the
+same rows, so a call that is not declared cannot be made.
+
+It is a **ClusterRole**, unlike `bothy-kube`'s per-namespace Roles, and that is
+forced rather than convenient: `--all-namespaces` is one cluster-scoped LIST that
+no namespaced Role can authorise, and the namespaces themselves are *discovered*
+(any namespace that is not a Kubernetes system namespace), so there is no
+allow-list to bind Roles in. The cost, stated rather than hidden: the account can
+enumerate those four namespaced kinds in `kube-system` too, which `collect.py`
+throws away client-side. It still cannot read a Secret, a ConfigMap, a Pod or a
+log there, and cannot change one byte in any namespace.
+
+The credential is a kubeconfig at `apps/bothy-collector/secrets/kubeconfig` (mode
+600 in a 700 gitignored directory), issued by `just collector-token`
+(`--rotate`/`--revoke`), for the same long-lived-token reasons as `bothy-kube`
+above. `collect.py` falls back to the ambient kubeconfig when that file is absent
+- a fresh clone must still render a cluster panel - but **prints a line saying it
+is doing so**, naming the admin certificate. A silent fall-back is how the
+original privilege survived unnoticed.
+
 ### 7. The Settings admin reads (in `bothy-ops`) disclose metadata, never a secret
 
 Added 2026-09-17 with Settings v2 (`docs/plans/settings-v2.md`). Four exact
@@ -779,6 +817,7 @@ Recorded 2026-08-12 so nobody re-files it and nobody reintroduces it.
 | Was | Why it was a real finding | Fix |
 |---|---|---|
 | The Traefik dashboard router served `api@internal` unauthenticated | `/api/rawdata` renders middleware configuration verbatim, including the live `Authorization: Basic` header that `bothy-prom.yml`'s `customRequestHeaders` middleware injects. A read-only dashboard was handing out a credential | Router deleted; `--api.dashboard=true` became `--api=true`. `api@internal` survives only as the backend for four exact `Path()` rules |
+| The portal's discovery timer read the cluster as `minikube-user` / `system:masters` (2026-09-23) | `bothy-collector` had no cluster identity, so it inherited devssh's `~/.kube/config`: the minikube admin certificate. `system:masters` is checked before RBAC and skips it, so a 30-second timer that lists five kinds of object held every Secret in the cluster, `pods/exec` on every pod, delete on everything, and the cluster itself - permanently, and while `bothy-ops` and Headlamp next to it were carefully scoped. **Nothing used any of it**: no `get` by name, no pod, no log, no ConfigMap, no Secret, no write - see `apps/bothy-collector/reads.toml` for the whole of what was used | ServiceAccount `bothy/bothy-collector`, a ClusterRole holding `list` on five kinds and nothing else, generated from `reads.toml` with the can-i proof beside it (`just collector-token`). Output before and after is byte-identical |
 
 ---
 

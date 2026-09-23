@@ -84,6 +84,7 @@ import socket
 import subprocess
 import sys
 import time
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -793,6 +794,36 @@ K8S_SKIP_NS = {
 K8S_CONTEXT = "thales-scc"
 K8S_TIMEOUT = float(os.environ.get("BOTHY_COLLECTOR_K8S_TIMEOUT") or os.environ.get("PORTAL_COLLECTOR_K8S_TIMEOUT", "4"))
 
+# The collector's OWN cluster credential: ServiceAccount bothy/bothy-collector,
+# written here by `just collector-token` (mode 600 in a mode 700 gitignored
+# directory, beside the script like placement.yml, so a checkout anywhere uses
+# its own).
+#
+# Until 2026-09-23 there was no such file and no such account. This ran as devssh
+# with ~/.kube/config, which for minikube is the cluster's admin client
+# certificate - user `minikube-user`, group `system:masters`, which does not
+# merely hold cluster-admin but BYPASSES RBAC entirely. A 30-second timer that
+# lists five kinds of object held, permanently, the right to read every Secret in
+# the cluster and to delete the cluster. Nothing in collect.py ever used one byte
+# of that; see reads.toml for the whole of what it does use.
+#
+# When the file is absent the ambient kubeconfig is still used, because a fresh
+# clone must render a cluster panel before anybody has issued a token - but it
+# SAYS SO on stderr, once per run. A silent fall-back to an admin certificate is
+# how a privilege gets left in place for a year.
+KUBECONFIG = Path(
+    os.environ.get("BOTHY_COLLECTOR_KUBECONFIG")
+    or str(Path(__file__).resolve().parent / "secrets/kubeconfig")
+)
+
+# What the collector may ask the cluster, and the only source of its Role -
+# see reads.toml. `just ops-wiring` renders k8s/rbac/bothy-collector.yaml from
+# the same rows, so a call that is not declared here is neither made nor granted.
+K8S_READS_FILE = Path(
+    os.environ.get("BOTHY_COLLECTOR_READS")
+    or str(Path(__file__).resolve().parent / "reads.toml")
+)
+
 # Cluster workloads that a HOST port forwards to, so the portal can offer a link
 # that actually opens. Keyed (namespace, deployment) -> host port.
 #
@@ -841,17 +872,71 @@ def _find_kubectl() -> str | None:
 KUBECTL = _find_kubectl()
 
 
-def kubectl_json(args: list[str]) -> dict[str, Any] | None:
+def load_reads(path: Path = K8S_READS_FILE) -> dict[str, dict[str, Any]]:
+    """reads.toml, keyed by id. Empty on any problem - cluster discovery then
+    makes no calls at all, which is the same end state as "no cluster" and the
+    one the rest of this module is already written for. A half-understood
+    declaration must never become a kubectl argv."""
+    try:
+        with path.open("rb") as fh:
+            raw = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        print(f"reads: cannot read {path}: {e} - cluster discovery skipped", file=sys.stderr)
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for i, r in enumerate(raw.get("read") or []):
+        if (not isinstance(r, dict) or not isinstance(r.get("id"), str)
+                or not isinstance(r.get("resource"), str) or not isinstance(r.get("group"), str)
+                or r.get("scope") not in ("cluster", "all-namespaces")):
+            print(f"reads: row {i} is malformed - skipped", file=sys.stderr)
+            continue
+        out[r["id"]] = r
+    return out
+
+
+K8S_READS = load_reads()
+
+
+def kubectl_json(read_id: str) -> dict[str, Any] | None:
+    """Run the declared read `read_id` and parse its JSON.
+
+    The argv is BUILT from reads.toml rather than passed in, so the set of calls
+    this process can make is exactly the set the generated ClusterRole grants.
+    The resource is always spelled `<resource>.<group>`, never the bare plural:
+    the bare form asks the discovery cache to pick a group, and on a cluster with
+    a CRD of the same plural it can pick the wrong one.
+    """
+    read = K8S_READS.get(read_id)
+    if read is None:
+        # A typo in a call site would otherwise be indistinguishable from an
+        # absent CRD: no items, no error, one discovery source quietly gone.
+        if K8S_READS:
+            print(f"k8s: `{read_id}` is not declared in {K8S_READS_FILE.name} - "
+                  f"call skipped", file=sys.stderr)
+        return None
     if not KUBECTL:
         return None
+    target = f"{read['resource']}.{read['group']}" if read["group"] else read["resource"]
+    argv = [KUBECTL, "--context", K8S_CONTEXT, "get", target]
+    if read["scope"] == "all-namespaces":
+        argv.append("--all-namespaces")
+    argv += ["-o", "json"]
+    env = dict(os.environ)
+    if KUBECONFIG.is_file():
+        env["KUBECONFIG"] = str(KUBECONFIG)
     try:
         out = subprocess.run(
-            [KUBECTL, "--context", K8S_CONTEXT, *args, "-o", "json"],
-            capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False,
+            argv, capture_output=True, text=True, timeout=K8S_TIMEOUT, check=False, env=env,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
     if out.returncode != 0 or not out.stdout.strip():
+        # A permission refusal and an absent CRD both land here and both end as
+        # "no items", which is right for the CRD and wrong for the refusal - so
+        # say which. Without this a revoked token renders as an empty cluster.
+        err = (out.stderr or "").strip().splitlines()
+        if err and "forbidden" in err[0].lower():
+            print(f"k8s: {read_id}: {err[0]}", file=sys.stderr)
         return None
     try:
         return json.loads(out.stdout)
@@ -863,7 +948,14 @@ def k8s_projects(
     listeners: dict[int, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     """One portal project per non-system namespace that holds a Deployment."""
-    ns_doc = kubectl_json(["get", "namespaces"])
+    if not KUBECONFIG.is_file():
+        # Not fatal - see the KUBECONFIG comment. Loud, though: the alternative
+        # is running every 30 seconds as an admin certificate and nobody
+        # noticing, which is precisely what this file used to do.
+        print(f"k8s: {KUBECONFIG} is absent - reading the cluster with the ambient "
+              f"kubeconfig (on minikube that is an ADMIN certificate). "
+              f"Run `just collector-token`.", file=sys.stderr)
+    ns_doc = kubectl_json("namespaces")
     if not ns_doc:
         # Say WHICH of the two it is. journalctl carries this; a portal with no
         # cluster section is otherwise indistinguishable from a box with no
@@ -877,12 +969,12 @@ def k8s_projects(
     # happened to point at rather than the one every call above just queried.
     cluster = K8S_CONTEXT
 
-    deploys = kubectl_json(["get", "deployments", "--all-namespaces"]) or {"items": []}
-    svcs = kubectl_json(["get", "services", "--all-namespaces"]) or {"items": []}
+    deploys = kubectl_json("deployments") or {"items": []}
+    svcs = kubectl_json("services") or {"items": []}
     # Routes are an OpenShift kind. On a plain cluster the CRD may not exist,
     # which is a None here rather than an error - Ingress covers that case.
-    routes = kubectl_json(["get", "routes.route.openshift.io", "--all-namespaces"]) or {"items": []}
-    ingresses = kubectl_json(["get", "ingresses", "--all-namespaces"]) or {"items": []}
+    routes = kubectl_json("routes") or {"items": []}
+    ingresses = kubectl_json("ingresses") or {"items": []}
 
     by_ns: dict[str, list[dict[str, Any]]] = {}
     for d in deploys.get("items", []):

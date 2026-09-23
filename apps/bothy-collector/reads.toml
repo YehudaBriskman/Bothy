@@ -1,0 +1,78 @@
+# What bothy-collector reads from the cluster - the WHOLE of it, and the only
+# source for its Role.
+#
+# Two consumers, one list, so they cannot disagree:
+#
+#   collect.py            kubectl_json() takes an `id` from below and builds the
+#                         argv from the row. A read that is not declared here
+#                         cannot be made at all.
+#   just ops-wiring       scripts/gen-ops-wiring.py renders
+#                           k8s/rbac/bothy-collector.yaml
+#                           scripts/lib/bothy-collector-probes.sh
+#                         and CI fails on drift (`gen-ops-wiring.py --check`),
+#                         exactly as it does for bothy-ops' catalog.toml.
+#
+# Adding a kubectl call therefore means adding a row, and adding a row updates
+# the Role in the same commit. Nothing hand-maintains the grant.
+#
+# ── why every verb here is `list`, and the generator refuses any other ──────
+#
+# The collector renders a PICTURE of the cluster. It has never written to it,
+# and it never reads an object by name: every call is a plural `kubectl get`
+# with no name, which is one LIST request. `get` is not granted, so the account
+# cannot fetch a single named object either - the can-i table proves that row by
+# row. `watch` is not granted because a 30-second timer does not need a stream,
+# and an open watch is a connection the apiserver holds for an account that is
+# supposed to be asleep between runs.
+#
+# ── why `scope = "all-namespaces"` still means a ClusterRole ────────────────
+#
+# `kubectl get deployments --all-namespaces` is ONE cluster-scoped LIST
+# (GET /apis/apps/v1/deployments), not a loop of namespaced ones, so a namespaced
+# Role cannot authorise it however many namespaces it is created in. And the
+# namespaces themselves are discovered, not declared: the collector's whole point
+# is that "any namespace that is not a Kubernetes system namespace is reported",
+# so there is no allow-list to bind Roles in - a new namespace has to be visible
+# the first time the timer runs after it is created, with nobody editing RBAC.
+#
+# The honest consequence, stated rather than hidden: this account can enumerate
+# Deployments, Services, Ingresses and Routes in kube-system too, and collect.py
+# throws those away client-side (K8S_SKIP_NS). What it gets there is the same
+# metadata any `kubectl get deploy -n kube-system` prints. It cannot read a
+# Secret or a ConfigMap anywhere, cannot read a Pod or its log, and cannot change
+# one byte in any namespace.
+
+[[read]]
+id = "namespaces"
+resource = "namespaces"
+group = ""
+scope = "cluster"
+why = "one portal project per non-system namespace - this IS the discovery"
+
+[[read]]
+id = "deployments"
+resource = "deployments"
+group = "apps"
+scope = "all-namespaces"
+why = "a namespace's services, and replicas ready/wanted -> up/starting/stuck/stopped"
+
+[[read]]
+id = "services"
+resource = "services"
+group = ""
+scope = "all-namespaces"
+why = "the in-cluster port shown in each service's detail line"
+
+[[read]]
+id = "routes"
+resource = "routes"
+group = "route.openshift.io"
+scope = "all-namespaces"
+why = "the host a browser would use. An OpenShift kind; absent CRD is not an error"
+
+[[read]]
+id = "ingresses"
+resource = "ingresses"
+group = "networking.k8s.io"
+scope = "all-namespaces"
+why = "the same, on a cluster that has no Routes"

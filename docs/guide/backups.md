@@ -151,8 +151,9 @@ docker compose -f monitoring/compose.yml start alloy
 
 ### The generated secrets are re-issued, not restored
 
-`apps/bothy-ops/secrets`, `apps/headlamp/secrets` and `monitoring/kube-auth` are
-deliberately **not** backed up. Three of the four are ServiceAccount tokens bound
+`apps/bothy-ops/secrets`, `apps/headlamp/secrets`,
+`apps/bothy-collector/secrets` and `monitoring/kube-auth` are
+deliberately **not** backed up. Four of the five are ServiceAccount tokens bound
 to one minikube cluster - after a rebuild, a saved copy is a credential for
 something that no longer exists - and `monitoring/kube-auth/token` is owned by uid
 65534 mode 600, so the backup (running as you) could not read it anyway. Every one
@@ -164,6 +165,7 @@ is re-issued by a recipe:
 | `apps/bothy-ops/secrets/{token,ca.crt}` | `just kube-token` |
 | `apps/bothy-ops/secrets/keycloak-admin-client-secret` | `just admin-client --rotate` (the client itself lives in Keycloak, i.e. in the Postgres dump) |
 | `apps/headlamp/secrets/kubeconfig` | `just headlamp-token` |
+| `apps/bothy-collector/secrets/kubeconfig` | `just collector-token` - and until it has run, the portal's collector reads the cluster with the ambient kubeconfig (the minikube **admin** certificate) and says so on stderr |
 
 Then `just up-apps` / `just up-headlamp` to pick them up.
 

@@ -327,10 +327,11 @@ else
 fi
 
 # The generated SECRETS are deliberately NOT here: apps/bothy-ops/secrets,
-# apps/headlamp/secrets, monitoring/kube-auth. Every one is re-issued by a
-# recipe (docs/guide/backups.md lists which), and three of the four are
+# apps/headlamp/secrets, apps/bothy-collector/secrets, monitoring/kube-auth.
+# Every one is re-issued by a
+# recipe (docs/guide/backups.md lists which), and four of the five are
 # ServiceAccount tokens bound to ONE cluster - after a rebuild a saved copy is a
-# credential for something that no longer exists. The fourth, the Keycloak
+# credential for something that no longer exists. The fifth, the Keycloak
 # admin-client secret, is also inside the postgres dump (Keycloak's client
 # table). monitoring/kube-auth/token is uid 65534 mode 600, so this script,
 # running as the user, could not read it anyway.
