@@ -48,3 +48,5 @@ host/systemd/bothy-updater.path	home-path	2
 host/systemd/bothy-updater.service	home-path	3
 host/systemd/bothy-updater-auto.service	home-path	3
 host/systemd/bothy-updater-auto.timer	home-path	1
+docs/kb/tailnet-acl.md	tailnet-ip	2
+docs/kb/tailnet-acl-proposal.json	tailnet-ip	1
