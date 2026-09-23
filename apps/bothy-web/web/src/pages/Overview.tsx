@@ -94,7 +94,12 @@ interface QuickItem {
 const QUICK_ITEMS: QuickItem[] = [
   { key: 'files', label: 'Files', Icon: FolderTree, to: '#/files', primary: true },
   { key: 'grafana', label: 'Grafana', Icon: BarChart3, port: 3000, primary: true },
-  { key: 'prometheus', label: 'Prometheus', port: 9090 },
+  // Prometheus:9090 REMOVED 2026-09-23, four days after VictoriaMetrics replaced
+  // it (monitoring/compose.yml; the old service survives only behind a
+  // `legacy-prometheus` profile, so nothing listens on 9090). It is the same
+  // defect as kafka-ui below, and it outlived the rule written to stop it
+  // because the rule was applied to the list and not to the entries in it.
+  { key: 'victoriametrics', label: 'Metrics', port: 8428 },
   // dozzle:8080 and portainer:9000 came out on 2026-08-17 with those services.
   // The quick strip already has a rule for this - it only links what discovery
   // can SEE, so a stopped service silently drops out and no link 404s. Removing
@@ -105,7 +110,7 @@ const QUICK_ITEMS: QuickItem[] = [
   { key: 'cadvisor', label: 'cAdvisor', port: 8082 },
 ];
 
-function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
+function QuickLinks({ nodes, discoveryFailed }: { nodes: PortalNode[]; discoveryFailed: boolean }) {
   const links = useMemo(
     () =>
       QUICK_ITEMS.map((item) => {
@@ -127,14 +132,20 @@ function QuickLinks({ nodes }: { nodes: PortalNode[] }) {
         //
         // If we have nodes at all, discovery is working, so a service missing
         // from them is genuinely absent and gets no link. Only when the node list
-        // is empty - the APIs failed, and we know nothing - is guessing better
-        // than showing an empty bar.
-        const fallback = item.port && nodes.length === 0
+        // is empty AND the APIs have actually failed is guessing better than
+        // showing an empty bar.
+        //
+        // `discoveryFailed` was `nodes.length === 0` alone until 2026-09-23, and
+        // an empty node list is also what the first poll looks like - so the bar
+        // guessed on EVERY cold load, for the 3-4 s before discovery answered,
+        // which is exactly when a reader is most likely to click it. The guess
+        // belongs to the broken box, not to the loading one.
+        const fallback = item.port && nodes.length === 0 && discoveryFailed
           ? `http://${location.hostname}:${item.port}`
           : null;
         return { ...item, node, url: node?.url ?? fallback, status: node?.status ?? null };
       }).filter((l) => l.url),
-    [nodes],
+    [nodes, discoveryFailed],
   );
   return (
     <nav className="ov-ql" aria-label="Quick links">
@@ -511,7 +522,7 @@ export function Overview() {
       <div className="ov-body">
         <div className="ov-topline">
           <h1 className="sr-only">Overview</h1>
-          <QuickLinks nodes={data.nodes} />
+          <QuickLinks nodes={data.nodes} discoveryFailed={bothDown} />
         </div>
 
         {loading ? (
