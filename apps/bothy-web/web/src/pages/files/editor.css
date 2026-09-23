@@ -115,11 +115,19 @@
    Rendered only while a tab is actually in the air. A permanent drop zone on the
    side of the editor is a 40% strip of nothing for the whole of the time nobody
    is dragging, and it would eat pointer events from the document under it. */
+/* FL-19: it FADES IN from the direction it opens from, rather than appearing
+   whole. An in-between frame that points at the outcome is the difference
+   between "a panel appeared" and "this is where it will land" (R8). */
 .bothy-files .fx-dropedge {
   position: absolute; top: 0; right: 0; bottom: 0; width: 38%;
   z-index: 5; display: grid; place-items: center;
   background: color-mix(in oklab, var(--accent) 14%, transparent);
   border-left: 2px dashed var(--accent);
+  animation: fx-dropedge-in var(--dur) var(--ease) both;
+}
+@keyframes fx-dropedge-in {
+  from { opacity: 0; translate: var(--sp-3) 0; }
+  to { opacity: 1; translate: 0 0; }
 }
 .bothy-files .fx-dropedge-hint {
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
@@ -191,7 +199,7 @@
 .bothy-files .fx-gutter {
   position: sticky; left: 0; z-index: 1; flex: none; margin: 0;
   padding: var(--sp-3_5) var(--sp-2_5) var(--sp-8) var(--sp-3_5); text-align: right;
-  font: inherit; color: var(--fg-subtle); opacity: .65;
+  font: inherit; color: var(--fg-subtle);
   background: var(--bg-2); border-right: 1px solid var(--line);
   font-variant-numeric: tabular-nums; user-select: none;
 }
@@ -367,7 +375,11 @@
   border-right: 1px solid var(--line);
   font-variant-numeric: tabular-nums;
 }
-.bothy-files .cm-lineNumbers .cm-gutterElement { padding: 0 var(--sp-2_5) 0 var(--sp-3_5); opacity: .65; }
+/* FL-7: --fg-subtle, and NO opacity. `.65` on top of the gutter's own colour
+   measured 3.19:1 - below AA for text somebody reads a line number off while
+   comparing it with a stack trace. The token is the quietest colour in the
+   palette that still clears 4.5:1. */
+.bothy-files .cm-lineNumbers .cm-gutterElement { padding: 0 var(--sp-2_5) 0 var(--sp-3_5); color: var(--fg-subtle); }
 .bothy-files .cm-gutters .cm-activeLineGutter {
   background: transparent; color: var(--fg); opacity: 1; font-weight: 600;
 }

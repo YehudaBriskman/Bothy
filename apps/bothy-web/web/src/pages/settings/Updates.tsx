@@ -51,6 +51,7 @@ import {
   type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
 import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/states';
 import { Icon } from '../../components/ui/Icon';
 
 export function UpdatesSettings() {
@@ -173,7 +174,7 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
   return (
     <>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl upd-tbl">
+        <table className="tbl as-cards upd-tbl">
           <thead>
             <tr>
               <th scope="col">Component</th>
@@ -460,10 +461,13 @@ function PlanDialog({ row, onClose, onStarted }: { row: UpdateRow; onClose: () =
         {loading ? <p className="sa-working"><Loader state="load" size="sm" label="Reading the plan…" /></p>
           : error ? <PlanRefusal error={error} />
             : !plan ? (
-              <div className="sa-norole">
-                <p className="sa-norole-h">No update to deploy.</p>
-                <p className="sa-note"><Prose text={data?.reason ?? 'The host wrote no plan for this component.'} /></p>
-              </div>
+              // The shared empty state (SYS-18). It wore the NO-ROLE block,
+              // which says "you are not allowed to do this" - and nobody is
+              // being refused here: there is simply nothing to deploy.
+              <EmptyState
+                message="No update to deploy."
+                hint={<Prose text={data?.reason ?? 'The host wrote no plan for this component.'} />}
+              />
             ) : (
               <>
                 <PlanFacts plan={plan} age={data?.ageSeconds ?? null} />
@@ -833,7 +837,7 @@ function History({ d }: { d: UpdatesStatus | null }) {
   }
   return (
     <div className="tbl-wrap scroll-shade set-tbl">
-      <table className="tbl upd-tbl upd-hist">
+      <table className="tbl as-cards upd-tbl upd-hist">
         <thead>
           <tr>
             <th scope="col">When</th>

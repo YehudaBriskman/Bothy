@@ -10,12 +10,13 @@ import { TypeIcon } from '../lib/icons';
 import { ServiceTable } from '../components/ServiceTable';
 import { PortsTab } from '../components/PortsTab';
 import { RoutesTab } from '../components/RoutesTab';
-import { Tabs, TabPanel } from '../components/Tabs';
+import { Tabs, TabGroup, TabPanel } from '../components/Tabs';
 import { SystemName } from '../components/SystemName';
 import type { Drift } from '../lib/config';
 import './Detail.css';
 import { Icon } from '../components/ui/Icon';
-import { Skeleton } from '../components/states';
+import { buttonClass } from '../components/ui/Button';
+import { NotFound, Skeleton, firstPoll } from '../components/states';
 
 const KIND_LABEL: Record<'project' | 'stack' | 'infra', string> = {
   project: 'Project',
@@ -132,14 +133,20 @@ export function ProjectDetail() {
   // The first poll has not answered yet: discovery is in progress, which is
   // not the same thing as "not found" (design audit SYS-18). Shown as the
   // search Loader over the page's skeleton, never as a false 404.
-  if (!system && data.at === 0 && data.fails === 0) {
+  if (!system && firstPoll(data)) {
     return <div className="page detail"><Skeleton variant="panels" state="search" label="Discovering what is running…" /></div>;
   }
   if (!system) {
     return (
       <div className="page detail">
         <Link to="/" className="back-link"><Icon icon={ChevronRight} size="md" style={{ transform: 'rotate(180deg)' }} /> Systems</Link>
-        <div className="state"><h4>No such system</h4><p>Nothing is grouped under “{name}”. It may have been stopped, or the name is misspelled.</p></div>
+        <NotFound
+          title="No such system"
+          what="Nothing running here is grouped under"
+          value={name}
+          hint="It may have been stopped, or the name is misspelled."
+          actions={<Link className={buttonClass({ variant: 'ghost' })} to="/">All systems</Link>}
+        />
       </div>
     );
   }
@@ -234,7 +241,7 @@ export function ProjectDetail() {
             </div>
             <div className="panel-b panel-tbl">
               <div className="tbl-wrap scroll-shade">
-                <table className="tbl vol-tbl">
+                <table className="tbl as-cards vol-tbl">
                   <thead>
                     <tr>
                       <th>Volume</th>
@@ -248,8 +255,8 @@ export function ProjectDetail() {
                       return (
                         <tr key={v.name}>
                           <td className="vol-name"><span className="ico sm"><Icon icon={HardDrive} size="md" /></span><span className="mono">{v.name}</span></td>
-                          <td className="mono dim">{v.destination || '-'}</td>
-                          <td className="mono num">{df ? fmtBytes(size) : '-'}</td>
+                          <td className="mono dim" data-label="Mounted at">{v.destination || '-'}</td>
+                          <td className="mono num" data-label="Size">{df ? fmtBytes(size) : '-'}</td>
                         </tr>
                       );
                     })}
@@ -270,7 +277,11 @@ export function ProjectDetail() {
             <div className="panel-h">
               Reachability <span className="sub">{routers.length + ports.length}</span>
             </div>
+            {/* TabGroup: the tablist and its panels share one id prefix, so a
+                page that has these tabs AND a dialog with tabs of the same
+                names cannot end up with two elements carrying one id (CL-18). */}
             <div className="panel-b panel-tbl">
+              <TabGroup>
               <Tabs
                 label="How this system is reached"
                 value={reach}
@@ -288,6 +299,7 @@ export function ProjectDetail() {
               <TabPanel tabKey="ports" active={reach === 'ports' && ports.length > 0}>
                 <PortsTab ports={ports} query="" compact />
               </TabPanel>
+              </TabGroup>
             </div>
           </motion.section>
         )}

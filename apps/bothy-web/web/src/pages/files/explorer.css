@@ -89,11 +89,14 @@
      half the chevron glyph. Built from the same tokens Explorer.tsx indents by
      (--sp-1_5 + depth x --sp-3), so the stripe stays under its chevron at any
      text size - the indent is rem, the glyph is px. */
-  margin-left: calc(var(--sp-1_5) + var(--icon-xs) / 2);
+  /* FL-11: from the list's OWN depth, not from a selector per level. There
+     were three of these, hand-written, so a tree deeper than three folders drew
+     every guide past that at the depth-3 position - which is worse than no
+     guide, because it says the wrong parent. Explorer.tsx sets --depth on each
+     <ul>; the arithmetic is the same one it indents its rows by. */
+  margin-left: calc(var(--sp-1_5) + (var(--depth, 1) - 1) * var(--sp-3) + var(--icon-xs) / 2);
   pointer-events: none;
 }
-.bothy-files .fx-list .fx-list .fx-list::before { margin-left: calc(var(--sp-1_5) + var(--sp-3) + var(--icon-xs) / 2); }
-.bothy-files .fx-list .fx-list .fx-list .fx-list::before { margin-left: calc(var(--sp-1_5) + 2 * var(--sp-3) + var(--icon-xs) / 2); }
 
 .bothy-files .fx-rowwrap { position: relative; display: flex; align-items: stretch; }
 .bothy-files .fx-row {

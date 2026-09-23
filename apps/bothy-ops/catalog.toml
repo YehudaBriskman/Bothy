@@ -35,6 +35,12 @@
 #             "none". "type-name" is checked by the SERVICE too: the request body
 #             must carry confirm = <the target's name> - or, for a configmap
 #             action that takes a `key`, confirm = <the key>.
+#             The level follows REVERSIBILITY, not loudness (design decision 7,
+#             2026-09-21): type the name only when the thing is gone or cannot be
+#             put back from this interface; one click when it can.
+#   escalate  optional { param, value } on a `click` action: THIS value of that
+#             parameter needs the name typed instead. It can only ask for more,
+#             never less. `scale` is the one use - see there.
 #   stream    true when the action can answer as text/event-stream
 #   rbac      what the HANDLER calls, as [{resource, verbs, subresource?}]. The
 #             generator merges these into the Role, so a grant exists only
@@ -129,13 +135,15 @@ rbac = [
   { resource = "replicasets", verbs = ["list"] },
 ]
 
+# One click: a rollback is itself the undo of the rollout it undoes, and the
+# revision it left is still in the history list to go back to (decision 7).
 [actions.rollback-to-revision]
 title = "Roll back"
 meaning = "Run an earlier revision's pod template again. Pods are replaced one at a time."
 target = "deployment"
 method = "POST"
 role = "operator"
-confirm = "type-name"
+confirm = "click"
 stream = false
 rbac = [
   { resource = "deployments", verbs = ["get", "patch"] },
@@ -148,6 +156,9 @@ required = true
 min = 1
 max = 999999
 
+# Pause and resume are each other's undo, so one click - and they stay a click
+# rather than dropping to "none", which guard.py refuses for an operator action
+# and which would be a change to the cluster with no moment of thought at all.
 [actions.pause]
 title = "Pause rollout"
 meaning = "Stop this deployment reacting to template changes until it is resumed."
@@ -168,13 +179,15 @@ confirm = "click"
 stream = false
 rbac = [{ resource = "deployments", verbs = ["get", "patch"] }]
 
+# One click: the previous image is a rollback away, and the allowlist already
+# decides which images may be named at all (decision 7).
 [actions.set-image]
 title = "Set image"
 meaning = "Run a different image in one container. Only thales/ images are accepted."
 target = "deployment"
 method = "POST"
 role = "operator"
-confirm = "type-name"
+confirm = "click"
 stream = false
 rbac = [{ resource = "deployments", verbs = ["get", "patch"] }]
 
@@ -196,13 +209,18 @@ confirm = "click"
 stream = false
 rbac = [{ resource = "deployments", verbs = ["get", "patch"] }]
 
+# Scaling between 1 and 3 is undone by scaling back, so it is one click.
+# Scaling to 0 stops the workload, and whether anything starts it again is the
+# manifest's business, not this interface's - so that one value, and only that
+# one, asks for the deployment's name (CL-4).
 [actions.scale]
 title = "Scale"
 meaning = "Set how many pods run, from 0 to 3. Scaling to 0 stops the workload."
 target = "deployment"
 method = "POST"
 role = "operator"
-confirm = "type-name"
+confirm = "click"
+escalate = { param = "replicas", value = 0 }
 stream = false
 # The subresource, so scale cannot also rewrite the pod spec.
 rbac = [{ resource = "deployments", subresource = "scale", verbs = ["get", "patch"] }]
@@ -302,6 +320,9 @@ rbac = [
 [actions.pods.params.deployment]
 type = "name"
 
+# One click, and this is not an exception to decision 7: only MANAGED pods can
+# be named here, so the owner replaces the pod within seconds. Deleting one is
+# how you restart it, not how you remove it.
 [actions.delete-pod]
 title = "Delete pod"
 meaning = "Delete one pod so its deployment or job replaces it. Only managed pods."
@@ -317,13 +338,15 @@ rbac = [
   { resource = "jobs", verbs = ["get"] },
 ]
 
+# Type the namespace: a finished pod's record and its logs are gone, this acts
+# on every one of them at once, and nothing here puts them back (CL-4).
 [actions.delete-completed-pods]
 title = "Delete completed pods"
 meaning = "Remove pods that finished successfully. Running pods are never touched."
 target = "namespace"
 method = "POST"
 role = "operator"
-confirm = "click"
+confirm = "type-name"
 stream = false
 rbac = [{ resource = "pods", verbs = ["list", "delete"] }]
 
@@ -366,13 +389,15 @@ type = "name"
 type = "bool"
 default = false
 
+# Type the job's name: it and its logs are gone, and the only way back is to run
+# the template again - which is a different job with a different record (CL-4).
 [actions.delete-job]
 title = "Delete job"
 meaning = "Delete a job and, in the background, its pods and their logs."
 target = "job"
 method = "POST"
 role = "operator"
-confirm = "click"
+confirm = "type-name"
 stream = false
 rbac = [{ resource = "jobs", verbs = ["get", "delete"] }]
 

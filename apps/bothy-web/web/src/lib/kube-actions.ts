@@ -43,6 +43,11 @@ export interface KubeActionSpec {
   method: 'GET' | 'POST';
   role: KubeRole;
   confirm: ConfirmLevel;
+  /** One parameter VALUE that raises `confirm` to type-name for that request
+   *  alone (design audit CL-4). Declared in apps/bothy-ops/catalog.toml and
+   *  enforced by the service; published here so the dialog asks for exactly
+   *  what the service will check. */
+  escalate?: { param: string; value: number | string | boolean };
   stream: boolean;
   params: Record<string, KubeParamSpec>;
 }
@@ -121,6 +126,23 @@ export function kubeTargetOf(node: { kube?: { namespace?: string | null; deploym
   const dep = node.kube?.deployment;
   if (!ns || !dep || !KUBE_NAMESPACES.includes(ns)) return null;
   return { namespace: ns, deployment: dep };
+}
+
+/**
+ * The level THIS request needs: the action's, unless it carries the value the
+ * catalog escalates on (CL-4). Scale is the one use - scaling to 1, 2 or 3 is
+ * undone by scaling back, so it is one click; scaling to 0 stops the workload,
+ * so that value alone asks for the deployment's name.
+ *
+ * The same function, from the same declaration, runs in guard.py - so the
+ * dialog cannot ask for less than the service will check, nor more.
+ */
+export function confirmLevelOf(spec: KubeActionSpec, req: Record<string, unknown>): ConfirmLevel {
+  const e = spec.escalate;
+  // Compared as TEXT: an escalation can only ask for MORE, so an ambiguous
+  // value must land on the higher level rather than buy the cheaper one.
+  if (e && req[e.param] !== undefined && String(req[e.param]) === String(e.value)) return 'type-name';
+  return spec.confirm;
 }
 
 /** Whether the confirm step has been satisfied for this level. */

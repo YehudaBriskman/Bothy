@@ -466,7 +466,7 @@ print()
 print("── scale ────────────────────────────────────────────────────────")
 SEEN.clear()
 st, _, b = call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm",
-                                         "replicas": 1, "confirm": "algorithm"})
+                                         "replicas": 1})
 d = js(b)
 ok(st == 200 and d.get("from") == 1 and d.get("to") == 1, f"no-op scale reports 1 -> 1 ({st} {d})")
 ok(any(s[0] == "PATCH" and s[1].endswith("/deployments/algorithm/scale")
@@ -474,15 +474,28 @@ ok(any(s[0] == "PATCH" and s[1].endswith("/deployments/algorithm/scale")
 ok(not any(s[0] == "PATCH" and s[1].endswith("/deployments/algorithm") for s in SEEN),
    "the deployment spec itself is never patched")
 st, _, b = call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm",
-                                         "replicas": 2, "confirm": "algorithm"})
+                                         "replicas": 2})
 ok(st == 200 and js(b).get("from") == 1 and js(b).get("to") == 2, "scale 1 -> 2")
 REPLICAS["algorithm"] = 1
-untouched("scale without confirm", lambda: ok(
-    call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 1})[0] == 400,
-    "scale without type-name confirm -> 400"))
+# 0 is the escalated value (CL-4): the name is checked here, not only in the
+# dialog, so the level means the same thing from curl.
+untouched("scale to 0 without the name", lambda: ok(
+    call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 0})[0] == 400,
+    "scale to 0 without type-name confirm -> 400"))
+untouched("scale to 0 with the wrong name", lambda: ok(
+    call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 0,
+                                 "confirm": "frontend"})[0] == 400, "scale to 0, wrong name -> 400"))
+untouched("scale to 1 given a confirm", lambda: ok(
+    call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 1,
+                                 "confirm": "algorithm"})[0] == 400,
+    "a click-level scale takes no confirm field -> 400"))
+st, _, b = call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm",
+                                        "replicas": 0, "confirm": "algorithm"})
+ok(st == 200 and js(b).get("to") == 0, f"scale to 0, confirmed by name ({st} {js(b)})")
+REPLICAS["algorithm"] = 1
 untouched("scale to 4", lambda: ok(
-    call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 4,
-                                 "confirm": "algorithm"})[0] == 400, "scale to 4 -> 400"))
+    call("POST", "/kube/scale", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 4})[0] == 400,
+    "scale to 4 -> 400"))
 
 print()
 print("── events ───────────────────────────────────────────────────────")
@@ -530,7 +543,7 @@ kube._STREAMS.release()
 print()
 print("── delete-completed-pods ────────────────────────────────────────")
 SEEN.clear()
-st, _, b = call("POST", "/kube/delete-completed-pods", {"namespace": "thales-dev"})
+st, _, b = call("POST", "/kube/delete-completed-pods", {"namespace": "thales-dev", "confirm": "thales-dev"})
 d = js(b)
 dels = [s for s in SEEN if s[0] == "DELETE"]
 ok(st == 200 and d.get("deleted") == ["migrate-1", "migrate-2"], f"only Succeeded pods deleted: {d.get('deleted')}")
@@ -586,7 +599,7 @@ ok(st == 404, f"history of a missing deployment -> 404 ({st})")
 print()
 print("── rollback-to-revision ─────────────────────────────────────────")
 SEEN.clear()
-RB = {"namespace": "thales-dev", "deployment": "backend", "confirm": "backend"}
+RB = {"namespace": "thales-dev", "deployment": "backend"}
 st, _, b = call("POST", "/kube/rollback-to-revision", {**RB, "revision": 4})
 d = js(b)
 patches = [x for x in SEEN if x[0] == "PATCH"]
@@ -625,9 +638,9 @@ st, _, b = call("POST", "/kube/rollback-to-revision", {**RB, "revision": 3})
 kube.kube = _real_kube
 RV["backend"] = 100
 ok(st == 409, f"a deployment changed under the rollback -> 409, not an overwrite ({st})")
-untouched("rollback without confirm", lambda: ok(
-    call("POST", "/kube/rollback-to-revision", {k: v for k, v in RB.items() if k != "confirm"} | {"revision": 4})[0] == 400,
-    "rollback without type-name confirm -> 400"))
+untouched("rollback given a confirm", lambda: ok(
+    call("POST", "/kube/rollback-to-revision", {**RB, "revision": 4, "confirm": "backend"})[0] == 400,
+    "a click-level rollback takes no confirm field -> 400"))
 
 print()
 print("── pause / resume ───────────────────────────────────────────────")
@@ -644,7 +657,7 @@ untouched("pause in kube-system", lambda: ok(
 print()
 print("── set-image ────────────────────────────────────────────────────")
 SEEN.clear()
-SI = {"namespace": "thales-dev", "deployment": "backend", "confirm": "backend", "container": "backend"}
+SI = {"namespace": "thales-dev", "deployment": "backend", "container": "backend"}
 st, _, b = call("POST", "/kube/set-image", {**SI, "image": "thales/backend:0.1.7"})
 d = js(b)
 ok(st == 200 and d.get("from") == "thales/backend:0.1.7" and d.get("to") == "thales/backend:0.1.7",
@@ -729,11 +742,12 @@ ok(st == 404, f"a job with no pods -> 404 ({st})")
 st, _, _ = call("GET", f"/kube/job-logs?{NS}&job=thales-migrate-abc&container=other")
 ok(st == 404, f"job logs, a container not in the pod -> 404 ({st})")
 DELETED.clear()
-st, _, b = call("POST", "/kube/delete-job", {"namespace": "thales-dev", "job": "thales-migrate-abc"})
+st, _, b = call("POST", "/kube/delete-job", {"namespace": "thales-dev", "job": "thales-migrate-abc",
+                                             "confirm": "thales-migrate-abc"})
 ok(st == 200 and len(DELETED) == 1 and DELETED[0][1].get("propagationPolicy") == "Background"
    and DELETED[0][1].get("preconditions") == {"uid": "uid-job-migrate"},
    f"delete-job: Background, uid precondition ({st})")
-st, _, _ = call("POST", "/kube/delete-job", {"namespace": "thales-dev", "job": "nope"})
+st, _, _ = call("POST", "/kube/delete-job", {"namespace": "thales-dev", "job": "nope", "confirm": "nope"})
 ok(st == 404, f"delete a job that does not exist -> 404 ({st})")
 
 print()

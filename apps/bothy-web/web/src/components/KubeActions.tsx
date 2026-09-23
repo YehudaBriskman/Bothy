@@ -26,6 +26,7 @@ import {
   type KubeCatalog, type KubeEvent, type KubeRefusal, type KubeTarget, type PauseResult, type PodsResult,
   type RestartResult, type RollbackResult, type RolloutStatusResult, type ScaleResult, type SetImageResult,
 } from '../lib/kube-actions';
+import { stripAnsi } from '../lib/ansi';
 import { useKubeCatalog, useKubeRead, useKubeRoles } from '../lib/kube-catalog';
 import { ago, gate, imageAllowed, podStatus, shortImage } from '../lib/cluster';
 import { usePortal } from '../lib/data';
@@ -38,10 +39,13 @@ import './KubeActions.css';
 import { Button } from './ui/Button';
 import { Icon as SizedIcon } from './ui/Icon';
 import { Loader } from './ui/Loader';
+import { NeedsRole } from './states';
 
 /** The row cell for a cluster workload. Nothing at all outside bothy-ops' kube scope. */
 export function KubeActionCell({ node }: { node: PortalNode }) {
   const [open, setOpen] = useState(false);
+  // See the dialog below: mounted from the first open, not on every row.
+  const [mounted, setMounted] = useState(false);
   const target = kubeTargetOf(node);
   const { refresh } = usePortal();
   if (!target) return null;
@@ -51,15 +55,24 @@ export function KubeActionCell({ node }: { node: PortalNode }) {
       <button
         type="button"
         className="svc-act-btn"
-        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); setMounted(true); }}
         data-open={open ? 'true' : 'false'}
         aria-label={label}
         title={label}
       >
         <SizedIcon icon={Boxes} size="md" />
       </button>
-      {open && (
+      {/* // STAYS MOUNTED ONCE OPENED (SYS-4, batch 3's loose end). A dialog the
+      // consumer unmounts cannot animate out - React removes the DOM in the
+      // same commit - so ui/Dialog leaves an inert clone to play the exit. A
+      // dialog that stays mounted needs no clone and, better, REVERSES when it
+      // is re-opened mid-close: the same element turns round from where it is.
+      // `mounted` is what keeps the other thirty-nine rows free: a row whose
+      // dialog has never been opened renders nothing at all, which is the
+      // reason this was conditional in the first place. */}
+      {mounted && (
         <KubeDialog
+          open={open}
           target={target}
           onClose={() => setOpen(false)}
           onChanged={refresh}
@@ -72,7 +85,10 @@ export function KubeActionCell({ node }: { node: PortalNode }) {
 
 export type KubeDialogTab = 'actions' | 'history' | 'pods' | 'events' | 'logs';
 
-export function KubeDialog({ target, onClose, onChanged, aside, initialTab = 'actions', initialPod }: {
+export function KubeDialog({ open, target, onClose, onChanged, aside, initialTab = 'actions', initialPod }: {
+  /** Driven, not conditionally mounted, so the dialog can animate out and can
+   *  reverse a close that is interrupted (SYS-4). */
+  open: boolean;
   target: KubeTarget;
   onClose: () => void;
   /** After any successful change - the caller re-reads whatever it draws. */
@@ -85,9 +101,20 @@ export function KubeDialog({ target, onClose, onChanged, aside, initialTab = 'ac
   const [tab, setTab] = useState<KubeDialogTab>(initialTab);
   const [logPod, setLogPod] = useState<string | undefined>(initialPod);
   const { catalog, refusal } = useKubeCatalog();
+  // The dialog outlives one use of it now, so an OPENING sets the tab and the
+  // pod it was opened for - the row menu picks the tab, and the pods table
+  // opens the logs of one pod. Keyed on the primitives: `target` is a fresh
+  // object every render, and depending on it would reset the tab on every poll.
+  const ns = target.namespace;
+  const dep = target.deployment;
+  useEffect(() => {
+    if (!open) return;
+    setTab(initialTab);
+    setLogPod(initialPod);
+  }, [open, ns, dep, initialTab, initialPod]);
   return (
     <Dialog
-      open
+      open={open}
       size="lg"
       onOpenChange={(o) => { if (!o) onClose(); }}
       title={<span className="sa-title">Cluster <span className="mono">{target.namespace}/{target.deployment}</span></span>}
@@ -134,7 +161,13 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
   const [open, setOpen] = useState<Change | null>(null);
   const status = useKubeRead<RolloutStatusResult>(findSpec(catalog, 'rollout-status') ? 'rollout-status' : null,
     { namespace: target.namespace, deployment: target.deployment }, 10_000);
-  const [replicas, setReplicas] = useState(1);
+  // CL-9: the RAW string, not a number. It used to be a number clamped on every
+  // keystroke, so typing 7 became 3 under the caret, and clearing the field
+  // became 0 - which flipped the consequence line to "stops entirely" while
+  // somebody was mid-edit. The clamp happens on blur; the range is said in
+  // words; and until the field has been touched it shows what is running now,
+  // not a hardcoded 1.
+  const [replicasRaw, setReplicasRaw] = useState<string | null>(null);
   const [container, setContainer] = useState('');
   const [image, setImage] = useState('');
   // The TEMPLATE's containers, from the deployment list - not from its pods,
@@ -153,15 +186,26 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
 
   if (open) {
     const spec = findSpec(catalog, open)!;
-    const back = () => setOpen(null);
+    const back = () => { setOpen(null); setReplicasRaw(null); };
     const req: Record<string, unknown> = open === 'delete-completed-pods'
       ? { namespace: target.namespace }
       : { namespace: target.namespace, deployment: target.deployment };
     if (open === 'scale') {
       const { min, max } = boundsOf(spec, 'replicas');
+      const now = status.data?.replicas ?? null;
+      const raw = replicasRaw ?? String(now ?? min);
+      const n = Number(raw);
+      // "" is not 0. Number('') is, which is how an empty field used to read as
+      // "stop the workload" - the one value in range that cannot be undone here.
+      const parsed = raw.trim() !== '' && Number.isInteger(n) ? n : null;
+      const inRange = parsed !== null && parsed >= min && parsed <= max;
+      const unchanged = inRange && now !== null && parsed === now;
+      const replicas = inRange ? parsed : (now ?? min);
+      const clamp = () => setReplicasRaw(String(inRange ? parsed : Math.max(min, Math.min(max, parsed ?? now ?? min))));
       return (
         <ConfirmPanel
           spec={spec} req={{ ...req, replicas }} what={target.deployment} onBack={back} onDone={done}
+          valid={inRange && !unchanged}
           goLabel={`Scale ${target.deployment} to ${replicas}`}
           consequence={replicas === 0
             ? `${target.deployment} in ${target.namespace} stops entirely. It stays at 0 until somebody scales it back.`
@@ -170,10 +214,17 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
             <label className="ka-field">
               <span className="ka-label">Replicas <span className="dim">({min} to {max})</span></span>
               <input
-                className="ka-input mono" type="number" min={min} max={max} step={1} value={replicas}
-                onChange={(e) => setReplicas(Math.max(min, Math.min(max, Number(e.target.value) || 0)))}
+                className="ka-input mono" type="number" min={min} max={max} step={1} value={raw}
+                aria-invalid={!inRange} aria-describedby="ka-scale-hint"
+                onChange={(e) => setReplicasRaw(e.target.value)} onBlur={clamp}
               />
-              {status.data && <span className="ka-hint">Now: {status.data.readyReplicas}/{status.data.replicas} ready</span>}
+              <span className="ka-hint" id="ka-scale-hint">
+                {!inRange
+                  ? <span className="ka-bad">A whole number from {min} to {max}.</span>
+                  : unchanged
+                    ? `${target.deployment} already runs ${now}. Pick a different count.`
+                    : status.data ? `Now: ${status.data.readyReplicas}/${status.data.replicas} ready` : ''}
+              </span>
             </label>
           )}
           describe={(r: ScaleResult) => ({ line: `Scaled ${target.deployment}.`, sub: `${r.from} -> ${r.to} replicas.` })}
@@ -235,10 +286,11 @@ function ActionsTab({ catalog, target, onChanged }: { catalog: KubeCatalog; targ
         </p>
       )}
       {!loading && !anyEnabled && (
-        <div className="sa-norole">
-          <p className="sa-norole-h">These are read-only for you.</p>
-          <p className="sa-note">Changing cluster workloads needs the operator role. History, Pods, Events and Logs need viewer.</p>
-        </div>
+        <NeedsRole
+          what="Changing cluster workloads"
+          role="operator"
+          detail="History, Pods, Events and Logs need viewer, which this session has."
+        />
       )}
       <ul className="sa-verbs">
         {specs.map(([id, spec]) => {
@@ -495,7 +547,7 @@ function LogsTab({ target, initialPod }: { target: KubeTarget; initialPod?: stri
     kubeLogs(target, 200, { pod, container, previous })
       .then((r) => {
         if (!live) return;
-        setLines(r.lines); setPods(r.pods); setContainers(r.containers);
+        setLines(r.lines.map(stripAnsi)); setPods(r.pods); setContainers(r.containers);
         setSource(`${r.pod} / ${r.container}${r.previous ? ' (previous)' : ''}`);
       })
       .catch((e) => { if (live) { setLines([]); setRefusal(kubeRefusalOf(e, spec, target.deployment)); } })
@@ -519,7 +571,12 @@ function LogsTab({ target, initialPod }: { target: KubeTarget; initialPod?: stri
     setLines([]);
     stop.current = followLogs(target, 50, FOLLOW_SECONDS, {
       onMeta: (m) => setSource(`${m.pod} / ${m.container}`),
-      onLine: (l) => setLines((prev) => (prev.length >= KEEP_LINES ? [...prev.slice(-KEEP_LINES + 1), l] : [...prev, l])),
+      onLine: (raw) => {
+        // CL-13: the follow stream needs the same treatment as the read - it is
+        // the same pod writing the same escapes.
+        const l = stripAnsi(raw);
+        setLines((prev) => (prev.length >= KEEP_LINES ? [...prev.slice(-KEEP_LINES + 1), l] : [...prev, l]));
+      },
       onEnd: (why) => {
         setFollowing(false);
         setEnded(why.reason === 'deadline'

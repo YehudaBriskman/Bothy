@@ -44,7 +44,7 @@
       "target": "deployment",
       "method": "POST",
       "role": "operator",
-      "confirm": "type-name",
+      "confirm": "click",
       "stream": false,
       "params": {
         "revision": {
@@ -84,7 +84,7 @@
       "target": "deployment",
       "method": "POST",
       "role": "operator",
-      "confirm": "type-name",
+      "confirm": "click",
       "stream": false,
       "params": {
         "container": {
@@ -115,8 +115,12 @@
       "target": "deployment",
       "method": "POST",
       "role": "operator",
-      "confirm": "type-name",
+      "confirm": "click",
       "stream": false,
+      "escalate": {
+        "param": "replicas",
+        "value": 0
+      },
       "params": {
         "replicas": {
           "type": "int",
@@ -223,7 +227,7 @@
       "target": "namespace",
       "method": "POST",
       "role": "operator",
-      "confirm": "click",
+      "confirm": "type-name",
       "stream": false,
       "params": {}
     },
@@ -273,7 +277,7 @@
       "target": "job",
       "method": "POST",
       "role": "operator",
-      "confirm": "click",
+      "confirm": "type-name",
       "stream": false,
       "params": {}
     },

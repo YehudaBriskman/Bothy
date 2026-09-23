@@ -14,7 +14,7 @@ import { ActionCell } from '../components/ServiceActions';
 import './Detail.css';
 import { buttonClass } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
-import { Skeleton } from '../components/states';
+import { NotFound, Skeleton, firstPoll } from '../components/states';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -37,14 +37,20 @@ export function ServiceDetail() {
   // The first poll has not answered yet: discovery is in progress, which is
   // not the same thing as "not found" (design audit SYS-18). Shown as the
   // search Loader over the page's skeleton, never as a false 404.
-  if (!node && data.at === 0 && data.fails === 0) {
+  if (!node && firstPoll(data)) {
     return <div className="page detail"><Skeleton variant="panels" state="search" label="Discovering what is running…" /></div>;
   }
   if (!node) {
     return (
       <div className="page detail">
         <Link to="/control/services" className="back-link"><Icon icon={ChevronRight} size="md" style={{ transform: 'rotate(180deg)' }} /> Services</Link>
-        <div className="state"><h4>Service not found</h4><p>It may have stopped, or the page was reloaded from a stale link.</p></div>
+        <NotFound
+          title="Service not found"
+          what="Nothing running here answers to"
+          value={id}
+          hint="It may have stopped, or the page was reloaded from a stale link."
+          actions={<Link className={buttonClass({ variant: 'ghost' })} to="/control/services">All services</Link>}
+        />
       </div>
     );
   }

@@ -47,7 +47,7 @@ function Scope() {
         Anything else is refused before a request reaches the apiserver.
       </p>
       <div className="tbl-wrap scroll-shade set-tbl">
-        <table className="tbl">
+        <table className="tbl as-cards">
           <thead>
             <tr><th scope="col">Action</th><th scope="col">On</th><th scope="col">Role</th><th scope="col">Confirmation</th><th scope="col">What it does</th></tr>
           </thead>
@@ -55,10 +55,21 @@ function Scope() {
             {data.actions.map((a) => (
               <tr key={a.id}>
                 <td><b>{a.title}</b><span className="set-cell-sub mono">{a.id}</span></td>
-                <td className="mono">{a.target}</td>
-                <td className="mono">{a.role}</td>
-                <td>{a.confirm === 'type-name' ? 'type the name' : a.confirm === 'click' ? 'one click' : 'none'}</td>
-                <td>{a.meaning}</td>
+                <td className="mono" data-label="On">{a.target}</td>
+                <td className="mono" data-label="Role">{a.role}</td>
+                {/* The escalation is part of the answer, not a footnote: the
+                    page would otherwise say "one click" for an action that
+                    asks for the name at one of its values (CL-4). */}
+                <td data-label="Confirmation">
+                  {a.confirm === 'type-name' ? 'type the name' : a.confirm === 'click' ? 'one click' : 'none'}
+                  {a.escalate && (
+                    <span className="set-cell-sub">
+                      type the name when <span className="mono">{a.escalate.param}</span> is{' '}
+                      <span className="mono">{String(a.escalate.value)}</span>
+                    </span>
+                  )}
+                </td>
+                <td data-label="What it does">{a.meaning}</td>
               </tr>
             ))}
           </tbody>

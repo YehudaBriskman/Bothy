@@ -7,10 +7,12 @@
 // single Settings page with their keys unchanged - `portal-theme*` and
 // `bothy-reading-v1` - so nobody's saved choice is lost by the move.
 
-import { Link } from 'react-router-dom';
-import { Code2, Minus, Pencil, Plus } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Code2, Minus, Pencil, Plus, Undo2 } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
 import { THEME_DIR_HOST } from '../../lib/customThemes';
+import { writeFile } from '../../lib/files';
 import { ThemeSwatch } from '../../components/ThemeSwatch';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Choice } from '../../components/settings/bits';
@@ -25,6 +27,7 @@ import { Icon } from '../../components/ui/Icon';
 export function AppearanceSettings() {
   return (
     <>
+      <DeletedTheme />
       <SettingBlock id="theme" badge="this browser"><Theme /></SettingBlock>
       <SettingBlock id="make-theme" badge="a file on the box"><MakeATheme /></SettingBlock>
       <SettingBlock id="reading" badge="this browser"><ReadingSize /></SettingBlock>
@@ -33,9 +36,89 @@ export function AppearanceSettings() {
   );
 }
 
+/**
+ * "Deleted X - Undo" (ST-15, decision 7).
+ *
+ * The theme editor deletes the file and navigates here carrying the bytes it
+ * was holding; this puts them back on request. The window is ten seconds - long
+ * enough to notice the mistake, short enough that the offer is gone by the time
+ * you have moved on - and the state is cleared from history either way, so a
+ * back-and-forward through this page does not re-offer an undo for a delete
+ * that happened five minutes ago.
+ *
+ * It replaced a native confirm(). A confirmation is what you owe someone when
+ * you cannot give the thing back.
+ */
+const UNDO_MS = 10_000;
+
+function DeletedTheme() {
+  const loc = useLocation();
+  const nav = useNavigate();
+  const { rescan } = useTheme();
+  const deleted = (loc.state as { deleted?: { id: string; name: string; css: string } } | null)?.deleted;
+  const [gone, setGone] = useState(false);
+  const [state, setState] = useState<'offer' | 'working' | 'done' | 'failed'>('offer');
+
+  // The router state is consumed on arrival: it has done its job, and leaving
+  // it in history means every return to this entry offers the undo again.
+  useEffect(() => {
+    if (deleted) nav(loc.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!deleted || state !== 'offer') return;
+    const t = setTimeout(() => setGone(true), UNDO_MS);
+    return () => clearTimeout(t);
+  }, [deleted, state]);
+
+  const undo = useCallback(async () => {
+    if (!deleted) return;
+    setState('working');
+    const out = await writeFile('stacks', `${THEME_DIR_HOST}${deleted.id}.css`, deleted.css, `restore theme ${deleted.id}`);
+    if (out.kind === 'saved') { rescan(); setState('done'); } else setState('failed');
+  }, [deleted, rescan]);
+
+  if (!deleted || (gone && state === 'offer')) return null;
+  return (
+    <p className="set-undo" data-tone={state === 'failed' ? 'bad' : 'info'} role="status">
+      <span>
+        {state === 'done' ? `Restored ${deleted.name}.`
+          : state === 'failed' ? `${deleted.name} could not be written back. It is still in the undo snapshot on the box.`
+            : `Deleted ${deleted.name}.`}
+      </span>
+      {state === 'offer' && (
+        <Button variant="ghost" size="sm" onClick={() => void undo()}>
+          <Icon icon={Undo2} size="sm" /> Undo
+        </Button>
+      )}
+      {state === 'working' && <span className="dim">Putting it back…</span>}
+    </p>
+  );
+}
+
 function Theme() {
   const { selection, theme, themes, setSelection } = useTheme();
   const custom = themes.filter((t) => t.user).length;
+  // ST-16: a roving tabindex over the radio group. Eight themes were eight tab
+  // stops plus their Edit links - seventeen presses to get past a control that
+  // is one choice. The keys are the ones a radiogroup answers to.
+  const box = useRef<HTMLDivElement>(null);
+  const ids: string[] = ['system', ...themes.map((t) => t.id)];
+  const focusAt = (id: string) => {
+    setSelection(id === 'system' ? 'system' : id);
+    requestAnimationFrame(() => box.current?.querySelector<HTMLElement>(`[data-theme-id="${CSS.escape(id)}"]`)?.focus());
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1
+        : e.key === 'Home' ? 'home' : e.key === 'End' ? 'end' : 0;
+    if (!d) return;
+    e.preventDefault();
+    const at = Math.max(0, ids.indexOf(selection));
+    const j = d === 'home' ? 0 : d === 'end' ? ids.length - 1 : (at + d + ids.length) % ids.length;
+    focusAt(ids[j]);
+  };
   return (
     <>
       <p className="set-lede">
@@ -44,10 +127,12 @@ function Theme() {
           <> A theme tagged <span className="theme-tag">yours</span> came from a file on the box rather than from the app.</>
         )}
       </p>
-      <div className="theme-grid" role="radiogroup" aria-label="Theme">
+      <div className="theme-grid" role="radiogroup" aria-label="Theme" ref={box} onKeyDown={onKey}>
         <button
           type="button"
           role="radio"
+          data-theme-id="system"
+          tabIndex={selection === 'system' ? 0 : -1}
           aria-checked={selection === 'system'}
           className={`theme-card ${selection === 'system' ? 'is-on' : ''}`}
           onClick={() => setSelection('system')}
@@ -56,31 +141,36 @@ function Theme() {
           <span className="theme-note">Follow the desktop. Currently {theme.name.replace(/^Bothy /, '').toLowerCase()}.</span>
         </button>
         {themes.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="radio"
-            aria-checked={selection === t.id}
-            className={`theme-card ${selection === t.id ? 'is-on' : ''}`}
-            onClick={() => setSelection(t.id)}
-          >
-            <span className="theme-name">
-              {t.name}
-              {t.user && <span className="theme-tag">yours</span>}
-            </span>
-            <span className="theme-note">{t.note}</span>
-            <ThemeSwatch id={t.id} />
+          // ST-16: the Edit link is a SIBLING of the radio, not a link nested
+          // inside a button - which is invalid, and which browsers resolve by
+          // guessing. `.theme-slot` is the positioned box both sit in.
+          <div className="theme-slot" key={t.id}>
+            <button
+              type="button"
+              role="radio"
+              data-theme-id={t.id}
+              tabIndex={selection === t.id ? 0 : -1}
+              aria-checked={selection === t.id}
+              className={`theme-card ${selection === t.id ? 'is-on' : ''}`}
+              onClick={() => setSelection(t.id)}
+            >
+              <span className="theme-name">
+                {t.name}
+                {t.user && <span className="theme-tag">yours</span>}
+              </span>
+              <span className="theme-note">{t.note}</span>
+              <ThemeSwatch id={t.id} />
+            </button>
             {t.user && (
               <Link
                 to={`/settings/theme/${t.id}`}
                 className="theme-edit"
-                onClick={(e) => e.stopPropagation()}
                 aria-label={`Edit ${t.name}`}
               >
                 <Icon icon={Pencil} size="xs" /> Edit
               </Link>
             )}
-          </button>
+          </div>
         ))}
       </div>
     </>

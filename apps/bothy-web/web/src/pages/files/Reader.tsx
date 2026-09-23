@@ -78,6 +78,11 @@ export function Reader({ mode = 'read' }: {
   mode?: Extract<FilesMode, 'read' | 'guide'>;
 } = {}) {
   const [params, setParams] = useSearchParams();
+  // Read by the roots effect below, which deliberately does not DEPEND on the
+  // query (its default-root write would re-fire on its own result) but does
+  // have to preserve it.
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   const guide = mode === 'guide';
   // In guide mode both of these come from the ROUTE, not the query - filesHref
   // does not write them and filesTarget does not read them, so a hand-typed
@@ -220,7 +225,13 @@ export function Reader({ mode = 'read' }: {
         // the reasoning is not the reader's.
         const pick = known ? urlRoot : defaultRoot(r.roots);
         if (!known) {
-          const next = new URLSearchParams();
+          // FL-3: KEEP THE REST OF THE QUERY. This built a fresh
+          // URLSearchParams with `root` alone, so `/files?path=docs/x.md` - a
+          // link written before the roots existed, or one somebody typed - had
+          // its path deleted on arrival and opened the Start surface instead.
+          // The reader then looked like it had worked. Defaulting the root is a
+          // correction to ONE parameter, so it edits one parameter.
+          const next = new URLSearchParams(paramsRef.current);
           next.set('root', pick);
           setParams(next, { replace: true });
         }

@@ -2,7 +2,13 @@ import { panelize } from '../../lib/panels';
 import type { PortalNode } from '../../lib/discover';
 import { serviceLink } from '../../lib/links';
 import { ServiceIcon } from '../../lib/icons';
-import { STATUS_HEX, STATUS_LABEL } from './webgl';
+// CT-19: the LED colours come from the TOKENS, not from the 3D scene's hex
+// mirror. STATUS_HEX is written for real materials under real lights, which is
+// why the 3D scene has it at all - and it is the dark palette's hexes, so this
+// fallback painted dark-theme LEDs on a white page. An element in the document
+// can read CSS, so it should (the same correction pages/Topology.tsx records).
+import { STATUS_VAR } from '../../lib/icons';
+import { STATUS_LABEL } from './webgl';
 import './three.css';
 
 // The no-WebGL / reduced-motion fallback. Not a placeholder: it renders the same
@@ -26,7 +32,7 @@ export function StaticStack({ nodes }: { nodes: PortalNode[] }) {
                 key={n.id}
                 className="sv-led"
                 title={`${n.name} - ${STATUS_LABEL[n.status]}`}
-                style={{ ['--led' as string]: STATUS_HEX[n.status] }}
+                style={{ ['--led' as string]: `var(${STATUS_VAR[n.status]})` }}
               />
             ))}
           </div>
@@ -50,7 +56,7 @@ export function StaticStack({ nodes }: { nodes: PortalNode[] }) {
                   <span className="sv-slab-name">{n.name}</span>
                   <span
                     className="sv-led sv-led-sm"
-                    style={{ ['--led' as string]: STATUS_HEX[n.status] }}
+                    style={{ ['--led' as string]: `var(${STATUS_VAR[n.status]})` }}
                     aria-hidden="true"
                   />
                 </a>

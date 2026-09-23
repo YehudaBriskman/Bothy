@@ -69,3 +69,8 @@
   color: var(--fg-subtle); font-family: var(--font); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); text-align: center;
   padding: 0 var(--sp-4);
 }
+
+/* CT-20: shown only while what is typed is not what is applied - a key hint
+   that is always there is decoration, and one that appears exactly when it is
+   true is the affordance. */
+.logp-enter { flex: none; opacity: .75; }

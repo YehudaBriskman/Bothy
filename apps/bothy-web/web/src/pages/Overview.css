@@ -180,7 +180,11 @@
   color: var(--fg-muted); font-family: var(--mono); font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.ov-panel-foot .sep { color: var(--line-strong); }
+/* SH-22: it was --line-strong, a BORDER token, which measured 1.69:1 as text.
+   A separator between two facts is decoration - hidden from the reading order
+   (the markup carries aria-hidden) and painted in a text colour that can
+   actually be seen. */
+.ov-panel-foot .sep { color: var(--fg-subtle); }
 .ov-panel-foot .right { margin-left: auto; }
 
 /* ── needs-attention rows ─────────────────────────────────────────────────── */
@@ -239,7 +243,11 @@
    these eight; the values below are what rendered - this file's, plus the
    index.css declarations it never overrode (the lift, its transition, the
    name's size, the ext's push to the end). */
+/* SH-3: left, and its paragraph with it. `.state p` centres itself with
+   `margin: 0 auto`, so a left-aligned heading sat over a centred sentence. */
 .ov-offline { text-align: left; margin-bottom: var(--sp-1); }
+.ov-offline p { margin-left: 0; }
+.ov-offline-acts { justify-content: flex-start; }
 .ov-quick { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
 .ov-offline .ov-quick { margin-top: var(--sp-4); }
 /* The transition lives on the element, not on :hover (SYS-9): declared only on

@@ -39,6 +39,15 @@ export function Resizer({
   // The gesture's origin, held in a ref because nothing about it should cause a
   // render - the whole point is that a drag writes one CSS variable per frame.
   const from = useRef({ pos: 0, size: 0 });
+  // FL-9: a threshold before the rail moves at all, and a REBASE when it is
+  // crossed. Without it a click with 3px of hand shake resized the rail (180 to
+  // 183px measured), because every pointermove was a resize. Without the
+  // rebase, crossing the threshold would jump the rail by the threshold - the
+  // gesture would start 4px behind the pointer and stay there.
+  //
+  // 4px for a mouse and 10px for a finger: R10.2's number, and a finger's
+  // contact patch moves further than a mouse's before anybody calls it a drag.
+  const moved = useRef(false);
   // Which side of the handle the region is on. The right rail and the bottom
   // panel grow as the pointer moves TOWARDS the origin, so their delta is
   // inverted; getting this wrong is the classic "the rail runs away from the
@@ -50,11 +59,20 @@ export function Resizer({
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     from.current = { pos: axis === 'x' ? e.clientX : e.clientY, size: value };
+    moved.current = false;
   }, [axis, value]);
 
   const onPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
     const now = axis === 'x' ? e.clientX : e.clientY;
+    if (!moved.current) {
+      const slop = e.pointerType === 'mouse' ? 4 : 10;
+      if (Math.abs(now - from.current.pos) < slop) return;
+      moved.current = true;
+      // Rebase, so the rail is under the pointer from here rather than `slop`
+      // pixels behind it for the rest of the drag.
+      from.current.pos = now;
+    }
     onSize(pane, from.current.size + (now - from.current.pos) * sign);
   }, [axis, onSize, pane, sign]);
 

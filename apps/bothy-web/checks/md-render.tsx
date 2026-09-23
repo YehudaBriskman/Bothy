@@ -221,6 +221,30 @@ console.log('\n── the rest of the renderer still renders ──────�
   const out = html('| a | b |\n|---|---|\n| 1 | 2 |\n', links(''));
   check('table', out.includes('md-tbl') && out.includes('<td'), out.slice(0, 160));
 }
+
+// ── a hard-wrapped list item is ONE item (FL-1) ─────────────────────────────
+//
+// Nearly every list in docs/ and in ~/claude-notes is wrapped at 80 columns.
+// Each continuation line used to become a nested block inside the <li>, so the
+// item rendered as its first source line with a paragraph under it.
+console.log('\n── a hard-wrapped list item is one item ────────────────────');
+{
+  const out = html('- first line\n  continued here\n- second\n', links(''));
+  check('the continuation joins the item', out.includes('first line continued here'), out.slice(0, 300));
+  check('and does not become a paragraph', !out.includes('md-p'), out.slice(0, 300));
+  check('the next item is still its own item', (out.match(/<li/g) ?? []).length === 2, out.slice(0, 300));
+}
+{
+  // A nested MARKER still nests, which is the whole distinction.
+  const out = html('- outer\n  - inner\n', links(''));
+  check('a nested marker still nests', (out.match(/md-list/g) ?? []).length === 2, out.slice(0, 300));
+  check('and does not join the outer text', !out.includes('outer - inner'), out.slice(0, 300));
+}
+{
+  // After a blank line, an indented block is a block again.
+  const out = html('- item\n\n  a second paragraph of it\n', links(''));
+  check('a blank line inside an item starts a block', out.includes('md-p'), out.slice(0, 300));
+}
 {
   const out = html('```js\nconst x = 1;\n```\n', links(''));
   check('fenced code', out.includes('md-pre') && out.includes('const'), out.slice(0, 160));

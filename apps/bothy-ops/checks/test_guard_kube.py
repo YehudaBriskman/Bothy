@@ -72,24 +72,30 @@ CAT = guard.load_catalog(RAW)
 print("── the shipped catalog ──────────────────────────────────────────")
 # id: (role, confirm, method, target, stream). Written out, not derived: this is
 # the table a reviewer approves, and the catalog has to match it.
+#
+# The confirm column follows REVERSIBILITY, not loudness (design decision 7,
+# 2026-09-21, design-audit-apple.md CL-4). It used to be the other way round -
+# the three deletes were one click and scale, set-image and rollback asked for
+# the name - which trained the typing on the actions that least needed it.
 want = {
     "deployments": ("viewer", "none", "GET", "namespace", False),
     "rollout-status": ("viewer", "none", "GET", "deployment", False),
     "rollout-history": ("viewer", "none", "GET", "deployment", False),
-    "rollback-to-revision": ("operator", "type-name", "POST", "deployment", False),
+    "rollback-to-revision": ("operator", "click", "POST", "deployment", False),
     "pause": ("operator", "click", "POST", "deployment", False),
     "resume": ("operator", "click", "POST", "deployment", False),
-    "set-image": ("operator", "type-name", "POST", "deployment", False),
+    "set-image": ("operator", "click", "POST", "deployment", False),
     "rollout-restart": ("operator", "click", "POST", "deployment", False),
-    "scale": ("operator", "type-name", "POST", "deployment", False),
+    # scale is one click, EXCEPT at 0 - see the escalation assertions below.
+    "scale": ("operator", "click", "POST", "deployment", False),
     "events": ("viewer", "none", "GET", "deployment", False),
     "logs": ("viewer", "none", "GET", "deployment", True),
     "pods": ("viewer", "none", "GET", "namespace", False),
     "delete-pod": ("operator", "click", "POST", "pod", False),
-    "delete-completed-pods": ("operator", "click", "POST", "namespace", False),
+    "delete-completed-pods": ("operator", "type-name", "POST", "namespace", False),
     "jobs": ("viewer", "none", "GET", "namespace", False),
     "job-logs": ("viewer", "none", "GET", "job", False),
-    "delete-job": ("operator", "click", "POST", "job", False),
+    "delete-job": ("operator", "type-name", "POST", "job", False),
     "run-template": ("operator", "type-name", "POST", "template", False),
     "configmap": ("viewer", "none", "GET", "configmap", False),
     "patch-key": ("operator", "type-name", "POST", "configmap", False),
@@ -109,6 +115,18 @@ for aid, (role, confirm, method, target, stream) in want.items():
     ok(a is not None and (a.role, a.confirm, a.method, a.target, a.stream)
        == (role, confirm, method, target, stream),
        f"{aid}: {role}, confirm {confirm}, {method}, target {target}, stream {stream}")
+# The escalation: one action, one parameter, one value (CL-4).
+ok([a.id for a in CAT.values() if a.escalate] == ["scale"], "scale is the only action that escalates")
+ok(CAT["scale"].escalate == ("replicas", 0), f"scale escalates at replicas=0: {CAT['scale'].escalate}")
+ok(guard.confirm_level(CAT["scale"], {"replicas": 0}) == "type-name", "scale to 0 asks for the name")
+ok(all(guard.confirm_level(CAT["scale"], {"replicas": n}) == "click" for n in (1, 2, 3)),
+   "scale to 1, 2 or 3 is one click")
+# An escalation can only ask for MORE, so every ambiguous case lands high.
+ok(guard.confirm_level(CAT["scale"], {"replicas": "0"}) == "type-name", "a string 0 escalates too")
+ok(guard.confirm_level(CAT["scale"], {}) == "click", "an absent parameter cannot escalate")
+ok(guard.confirm_level(CAT["delete-job"], {}) == "type-name", "an action with no escalation keeps its level")
+ok(all(a.confirm == "click" for a in CAT.values() if a.escalate),
+   "only a click action escalates (from none is illegal, from type-name pointless)")
 ok(all(a.meaning for a in CAT.values()), "every action carries a meaning for the UI")
 ok(all(a.rbac for a in CAT.values()), "every action declares what it calls (rbac)")
 ok(all(v in ("get", "list") for a in CAT.values() if a.role == "viewer" for g in a.rbac for v in g.verbs),
@@ -171,6 +189,9 @@ catalog_error(one(rol="viewer"), "typo'd key `rol`")
 catalog_error(one(role="admin"), "unknown role")
 catalog_error(one(method="GET"), "operator action over GET")
 catalog_error(one(confirm="none"), "operator action with confirm=none")
+catalog_error(one(escalate={"param": "nope", "value": 0}), "escalate on a parameter the action has not got")
+catalog_error(one(escalate={"param": "x"}), "escalate without a value")
+catalog_error(one(confirm="type-name", escalate={"param": "x", "value": 0}), "escalate from type-name")
 catalog_error(one(role="viewer", confirm="none"), "viewer action over POST")
 catalog_error(one(role="viewer", method="GET", confirm="none", target="cluster"), "unknown target")
 catalog_error(one(stream=True), "a POST that streams")
@@ -294,22 +315,32 @@ def req_no(aid, method, req, label, status):
 
 
 req_ok("rollout-restart", "POST", {"namespace": "thales-dev", "deployment": "frontend"}, "rollout-restart")
+# One click at 1: no confirm field, and sending one is refused (below).
 p = req_ok("scale", "POST", {"namespace": "thales-dev", "deployment": "algorithm",
-                             "replicas": 1, "confirm": "algorithm"}, "scale 1 with confirm")
+                             "replicas": 1}, "scale to 1, no confirm")
 ok(p == {"replicas": 1}, "scale params coerced")
+p = req_ok("scale", "POST", {"namespace": "thales-dev", "deployment": "algorithm",
+                             "replicas": 0, "confirm": "algorithm"}, "scale to 0, with the name")
+ok(p == {"replicas": 0}, "scale to 0 params coerced")
+req_no("scale", "POST", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 0},
+       "scale to 0 without the name", 400)
+req_no("scale", "POST", {"namespace": "thales-dev", "deployment": "algorithm", "replicas": 1,
+                         "confirm": "algorithm"}, "scale to 1 given a confirm it does not take", 400)
 p = req_ok("events", "GET", {"namespace": "thales-dev", "deployment": "frontend"}, "events, defaults")
 ok(p == {"limit": 50}, "events default limit applied")
 p = req_ok("logs", "GET", {"namespace": "thales-pre-prod", "deployment": "backend", "tail": "500",
                            "follow": "true", "seconds": "30"}, "logs from a query string")
 ok(p == {"tail": 500, "follow": True, "seconds": 30, "pod": None, "container": None, "previous": False},
    "logs params coerced from strings")
-req_ok("delete-completed-pods", "POST", {"namespace": "thales-dev"}, "delete-completed-pods")
+req_ok("delete-completed-pods", "POST", {"namespace": "thales-dev", "confirm": "thales-dev"},
+       "delete-completed-pods, confirmed with the namespace")
+req_no("delete-completed-pods", "POST", {"namespace": "thales-dev"}, "delete-completed-pods unconfirmed", 400)
 
 for aid in ("exec", "port-forward", "secrets", "get-secret", "apply", "delete", "Scale",
             "scale ", "scale/../exec", "", "healthz", "rollout-restart/x"):
     req_no(aid, "POST", {"namespace": "thales-dev", "deployment": "frontend"},
            f"unknown action {aid!r}", 404)
-req_no("scale", "GET", {"namespace": "thales-dev", "deployment": "x", "replicas": "1", "confirm": "x"},
+req_no("scale", "GET", {"namespace": "thales-dev", "deployment": "x", "replicas": "1"},
        "a change over GET", 405)
 req_no("events", "POST", {"namespace": "thales-dev", "deployment": "x"}, "a read over POST", 405)
 req_no("rollout-restart", "POST", {"namespace": "kube-system", "deployment": "coredns"},
@@ -322,11 +353,14 @@ req_no("delete-completed-pods", "POST", {"namespace": "thales-dev", "deployment"
 
 print()
 print("── parameters: declared, typed, bounded ─────────────────────────")
-S = {"namespace": "thales-dev", "deployment": "algorithm", "confirm": "algorithm"}
+S = {"namespace": "thales-dev", "deployment": "algorithm"}
 for r in (-1, 4, 10, 10000, "4", "-1", "1.0", "1e1", " 1", "0x1", True, False, None, 1.0, [1], "one"):
     req_no("scale", "POST", {**S, "replicas": r}, f"replicas={r!r}", 400)
-for r in (0, 3, "0", "3"):
+for r in (3, "3"):
     req_ok("scale", "POST", {**S, "replicas": r}, f"replicas={r!r}")
+# 0 is in range, and is the one value that also needs the name (CL-4).
+for r in (0, "0"):
+    req_ok("scale", "POST", {**S, "replicas": r, "confirm": "algorithm"}, f"replicas={r!r}")
 req_no("scale", "POST", {k: v for k, v in S.items()}, "replicas missing", 400)
 req_no("rollout-restart", "POST", {"namespace": "thales-dev", "deployment": "x", "image": "evil"},
        "an undeclared parameter", 400)
@@ -350,13 +384,12 @@ req_no("logs", "GET", {**L, "sinceSeconds": "1"}, "undeclared logs param `sinceS
 
 print()
 print("── type-name is enforced by the service too ─────────────────────")
+# replicas=0, the escalated value: everything but the exact name is refused.
 for c in (None, "", "algorithm ", "Algorithm", "frontend", "thales-dev", 1):
-    body = {**S, "replicas": 1}
-    if c is None:
-        body.pop("confirm")
-    else:
+    body = {**S, "replicas": 0}
+    if c is not None:
         body["confirm"] = c
-    req_no("scale", "POST", body, f"scale with confirm={c!r}", 400)
+    req_no("scale", "POST", body, f"scale to 0 with confirm={c!r}", 400)
 
 print()
 print("── image: an OCI reference, from an allowed registry ────────────")
@@ -379,11 +412,12 @@ for img, status in (
     ("thales/backend:" + "a" * 129, 400), ("thales/" + "a" * 260 + ":1", 400), ("", 400), (None, 400), (7, 400),
 ):
     refuses(guard.valid_image, img, REG, label=f"image {str(img)[:50]!r} refused", status=status)
-SI = {"namespace": "thales-dev", "deployment": "backend", "confirm": "backend", "container": "backend"}
+SI = {"namespace": "thales-dev", "deployment": "backend", "container": "backend"}
 p = req_ok("set-image", "POST", {**SI, "image": "thales/backend:0.1.7"}, "set-image to a thales image")
 ok(p == {"container": "backend", "image": "thales/backend:0.1.7"}, "set-image params")
 req_no("set-image", "POST", {**SI, "image": "docker.io/library/busybox:1"}, "set-image from docker.io", 403)
-req_no("set-image", "POST", {**SI, "image": "thales/backend:1", "confirm": "frontend"}, "set-image, wrong confirm", 400)
+req_no("set-image", "POST", {**SI, "image": "thales/backend:1", "confirm": "backend"},
+       "set-image given a confirm it does not take", 400)
 for cn in ("../backend", "Backend", "backend/x", "", None):
     body = {**SI, "image": "thales/backend:1", "container": cn}
     req_no("set-image", "POST", body, f"set-image container={cn!r}", 400)
@@ -432,7 +466,10 @@ req_ok("delete-pod", "POST", {"namespace": "thales-dev", "pod": "frontend-6d9f8-
 req_no("delete-pod", "POST", {"namespace": "thales-dev", "pod": "../x"}, "delete-pod traversal", 400)
 req_no("delete-pod", "POST", {"namespace": "thales-dev"}, "delete-pod with no pod", 400)
 req_no("delete-pod", "POST", {"namespace": "thales-dev", "pod": "x", "confirm": "x"}, "delete-pod given confirm", 400)
-req_ok("delete-job", "POST", {"namespace": "thales-dev", "job": "thales-migrate-abcde"}, "delete-job")
+req_ok("delete-job", "POST", {"namespace": "thales-dev", "job": "thales-migrate-abcde",
+                              "confirm": "thales-migrate-abcde"}, "delete-job, confirmed with the job")
+req_no("delete-job", "POST", {"namespace": "thales-dev", "job": "thales-migrate-abcde"},
+       "delete-job unconfirmed", 400)
 p = req_ok("job-logs", "GET", {"namespace": "thales-dev", "job": "thales-migrate-abcde", "previous": "1"}, "job-logs")
 ok(p == {"tail": 200, "container": None, "previous": True}, f"job-logs params {p}")
 p = req_ok("pods", "GET", {"namespace": "thales-dev", "deployment": "frontend"}, "pods of a deployment")
@@ -440,12 +477,12 @@ ok(p == {"deployment": "frontend"}, "pods takes deployment as a PARAMETER")
 p = req_ok("pods", "GET", {"namespace": "thales-dev"}, "pods of the namespace")
 ok(p == {"deployment": None}, "pods, no deployment")
 req_no("pods", "GET", {"namespace": "thales-dev", "deployment": "../x"}, "pods deployment traversal", 400)
-p = req_ok("rollback-to-revision", "POST", {"namespace": "thales-dev", "deployment": "backend", "revision": "4",
-                                            "confirm": "backend"}, "rollback to 4")
+p = req_ok("rollback-to-revision", "POST", {"namespace": "thales-dev", "deployment": "backend",
+                                            "revision": "4"}, "rollback to 4")
 ok(p == {"revision": 4}, "revision coerced")
 for rv in ("0", "-1", "1000000", "x", True):
-    req_no("rollback-to-revision", "POST", {"namespace": "thales-dev", "deployment": "backend", "revision": rv,
-                                            "confirm": "backend"}, f"revision={rv!r}", 400)
+    req_no("rollback-to-revision", "POST", {"namespace": "thales-dev", "deployment": "backend", "revision": rv},
+           f"revision={rv!r}", 400)
 for aid in ("services", "routes", "ingresses", "persistentvolumeclaims", "networkpolicies", "resourcequotas",
             "limitranges", "namespace-events", "deployments", "jobs"):
     req_ok(aid, "GET", {"namespace": "thales-pre-prod"}, f"view {aid}")

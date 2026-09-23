@@ -21,6 +21,11 @@
 //   6. ICONS. --icon-* equals ui/Icon.tsx's ICON.
 //   7. DOCS. docs/brand/reference/tokens.md is what scripts/gen-tokens-doc.mjs
 //      generates from index.css today.
+//  10. RESPONSIVE AND STATE (batch 5, 2026-09-23). Every `.tbl` becomes cards at
+//      640px and below, and the rule they wear is declared once; the five
+//      shared states are written once, so no page hand-rolls an empty, an
+//      error, a 404 or a "needs a role"; and "the first poll has not answered"
+//      is one function, not six copies of the same two comparisons.
 //   8. MOTION BEHAVIOUR (batch 3, 2026-09-22). No `mode="wait"` and one
 //      AnimatePresence (the route cross-fade); no transition or keyframe of a
 //      layout property (grid rows only in ui/Disclosure); no framer entrance
@@ -121,7 +126,7 @@ console.log('── every button look comes from components/ui/Button ───�
     'row or card (a whole list item is the target; presses darken, never scale)': [
       'fx-row', 'fx-scm-row', 'fx-scm-grouph', 'fx-json-row', 'fx-sr-file', 'fx-sr-line', 'rd-dir', 'rd-doc',
       'rd-card', 'rd-recent', 'rd-toc-a', 'tm-row', 'fx-menu-item', 'theme-card', 'svc-group-head',
-      'cl-topo-node', 'sa-verb',
+      'cl-topo-node', 'sa-verb', 'topo-list-open',
     ],
     'icon trigger (a glyph with an aria-label; hit slop to --hit)': [
       'icon-btn', 'fx-hbtn', 'svc-act-btn', 'fx-filter-x', 'fx-tab-x', 'fx-rowbtn', 'sn-copy', 'set-cmd-copy',
@@ -660,6 +665,71 @@ console.log('\n── the token reference is generated from the code ───�
     const want = render(INDEX);
     say(readFileSync(doc, 'utf8') === want, 'docs/brand/reference/tokens.md is current (run web/scripts/gen-tokens-doc.mjs)');
   }
+}
+
+// ── 10. responsive tables and the shared states (batch 5) ───────────────────
+console.log('\n── batch 5: tables become cards, states are written once ─────');
+{
+  // SYS-17. A `.tbl` that has not opted in is a table that still scrolls
+  // sideways at 390 with its last columns off-screen, which is the finding.
+  // `.md-tbl` is not a `.tbl`: its columns are somebody's markdown and the
+  // renderer has no headers to label cards with.
+  const tables = [];
+  for (const f of tsx) {
+    const src = stripTs(readFileSync(f, 'utf8'));
+    for (const m of src.matchAll(/<table\b[^>]*className=(?:"([^"]*)"|\{`([^`]*)`\})/gs)) {
+      const cls = (m[1] ?? m[2]).replace(/\$\{[^}]*\}/g, ' ');
+      if (!/(^|\s)tbl(\s|$)/.test(cls)) continue;
+      tables.push({ at: `${rel(f)}:${src.slice(0, m.index).split('\n').length}`, cards: /\bas-cards\b/.test(cls) });
+    }
+  }
+  say(tables.length >= 20, 'the tables are found', `${tables.length} .tbl tables`);
+  const notCards = tables.filter((t) => !t.cards).map((t) => t.at);
+  say(notCards.length === 0, 'every .tbl also carries as-cards (SYS-17)', notCards.join(', '));
+
+  // The rule itself, once, in index.css - and the media query it lives in.
+  const cardsRule = /@media \(max-width: 640px\)[\s\S]*?\.tbl\.as-cards thead \{[^}]*display:\s*none/.test(INDEX);
+  say(cardsRule, '.tbl.as-cards is declared in index.css, at 640px and below');
+  say(/\.tbl\.as-cards td\[data-label\]::before\s*\{[^}]*content:\s*attr\(data-label\)/.test(INDEX),
+    'a card cell names its column from data-label');
+  // The trap this rule was written around: a min-width that makes a TABLE
+  // scroll inside its wrapper makes a BLOCK push the page that wide.
+  say(/\.tbl\.as-cards \{[^}]*min-width:\s*0/.test(INDEX),
+    'the cards rule resets min-width, so a block cannot widen the page');
+
+  // SYS-18. The five states live in components/states.tsx. A page that writes
+  // `.state` markup by hand is a page whose 404 has no heading, whose error has
+  // no way out, or whose "loading" is spelled "not found".
+  const STATES = join('components', 'states.tsx');
+  const hand = [];
+  for (const f of tsx) {
+    if (rel(f) === STATES) continue;
+    const src = stripTs(readFileSync(f, 'utf8'));
+    for (const m of src.matchAll(/className="(state|state err|sa-norole)"/g)) {
+      hand.push(`${rel(f)}:${src.slice(0, m.index).split('\n').length}`);
+    }
+  }
+  say(hand.length === 0, 'no hand-rolled .state / .sa-norole markup outside components/states.tsx', hand.join(', '));
+
+  const states = readFileSync(join(SRC, STATES), 'utf8');
+  for (const fn of ['EmptyState', 'ErrState', 'NotFound', 'NeedsRole', 'Skeleton', 'firstPoll']) {
+    say(new RegExp(`export function ${fn}\\b`).test(states), `components/states.tsx exports ${fn}`);
+  }
+  say(/<h1>/.test(states.slice(states.indexOf('export function NotFound'))),
+    'NotFound draws an h1 (the 404 had no heading at all)');
+  say(/useDocTitle\(/.test(states.slice(states.indexOf('export function NotFound'))),
+    'NotFound sets the document title');
+
+  // The first-poll test, in one place. Two pages got it wrong in the same
+  // direction: a real service page said "not found" for the 3-4s a cold load
+  // takes.
+  const firstPollHand = [];
+  for (const f of tsx) {
+    if (rel(f) === STATES) continue;
+    const src = stripTs(readFileSync(f, 'utf8'));
+    if (/\.at === 0 && [a-z]*\.?fails === 0/.test(src)) firstPollHand.push(rel(f));
+  }
+  say(firstPollHand.length === 0, 'no hand-written `at === 0 && fails === 0` (use firstPoll)', firstPollHand.join(', '));
 }
 
 console.log(`\n  ${passes} pass · ${failures} fail`);

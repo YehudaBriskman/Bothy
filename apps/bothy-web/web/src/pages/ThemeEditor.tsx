@@ -21,7 +21,7 @@
 // stop you making a decision.
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, Check, Code2, Save, Trash2 } from 'lucide-react';
 import { evaluateTheme, type Finding } from '../lib/contract';
 import {
@@ -40,9 +40,10 @@ import type { CodeHandle } from './files/CodeSurface';
 // that must not load that shell - see src/hl.css.
 import '../hl.css';
 import './ThemeEditor.css';
-import { Button } from '../components/ui/Button';
+import { Button, buttonClass } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 import { Loader } from '../components/ui/Loader';
+import { ErrState, NeedsRole } from '../components/states';
 
 const ROOT = 'stacks';
 const dirOf = (id: string) => `${THEME_DIR_HOST}${id}.css`;
@@ -61,15 +62,53 @@ const CodeSurface = lazy(() => import('./files/CodeSurface'));
 // one that never changes identity is one less thing to reason about.
 const NO_STAT = () => {};
 
+// ── ST-2: an unsaved palette survives a navigation ───────────────────────────
+//
+// Leaving the editor threw the draft away without a word, and building a
+// palette is twenty minutes of work - one mistaken click on the breadcrumb and
+// it was gone. The brand's answer to a slip is an undo rather than a
+// confirmation ("are you sure you want to leave?" on every navigation trains
+// people to click through it), so the draft is KEPT and offered back.
+//
+// sessionStorage, not local: the draft belongs to this tab and this sitting.
+// Keyed by the route id, so the new-theme draft and an edit of `deep-ocean` do
+// not overwrite each other, and cleared the moment it has been saved or
+// deliberately dropped.
+const DRAFT_KEY = 'bothy-theme-draft-v1';
+
+function draftKey(editing: string | null) {
+  return `${DRAFT_KEY}:${editing ?? 'new'}`;
+}
+
+function readDraft(editing: string | null): Draft | null {
+  try {
+    const raw = sessionStorage.getItem(draftKey(editing));
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Draft;
+    // Shape-checked rather than trusted: this is storage a person can edit, and
+    // a draft missing `tokens` would take the preview effect down with it.
+    return d && typeof d === 'object' && d.tokens && typeof d.tokens === 'object' ? d : null;
+  } catch { return null; }
+}
+
+function writeDraft(editing: string | null, d: Draft | null) {
+  try {
+    if (d) sessionStorage.setItem(draftKey(editing), JSON.stringify(d));
+    else sessionStorage.removeItem(draftKey(editing));
+  } catch { /* private mode: the draft is simply not kept */ }
+}
+
 export function ThemeEditor() {
   const { id: routeId } = useParams<{ id: string }>();
   const nav = useNavigate();
   const { me } = useMe();
-  const { setSelection } = useTheme();
+  const { setSelection, rescan } = useTheme();
   const editing = routeId && routeId !== 'new' ? routeId : null;
 
   const names = useMemo(() => requiredNames(), []);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // The draft found in storage for this route, if it is not what the file says.
+  const [kept, setKept] = useState<Draft | null>(null);
   const [baseMtime, setBaseMtime] = useState<number | undefined>();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'bad' | 'info'; text: string } | null>(null);
@@ -112,6 +151,13 @@ export function ThemeEditor() {
 
   const mayWrite = hasRole(me, 'editor');
 
+  // ST-14: "touched" so an empty field is not scolded before it has been
+  // filled in once. Save sets it, which is how a straight-to-Save attempt gets
+  // the message.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const [nameTouched, setNameTouched] = useState(false);
+  const nameBad = nameTouched && !(draft?.id || slugify(draft?.name ?? ''));
+
   // ── load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     let alive = true;
@@ -120,18 +166,34 @@ export function ThemeEditor() {
       // fixed palette would put you on Bothy Dark while the page showed
       // something else, and the first thing you would do is undo that.
       setTypedCss(null);
-      setDraft({
+      const back = readDraft(null);
+      setDraft(back ?? {
         id: '', name: '', note: '', tokens: activeValues(names),
         appearance: document.documentElement.getAttribute('data-theme') === 'light'
           ? 'light' : 'dark',
       });
+      setKept(null);
       return;
     }
+    // ST-1: the draft is dropped BEFORE the read, not left standing until one
+    // succeeds. Without this, navigating from a theme to an id that does not
+    // exist kept the previous theme's tokens on screen under the heading
+    // "Editing does-not-exist", with Save and Delete live over a file that was
+    // never opened. `notice` is cleared with it, or the last read's error
+    // outlives the read that replaced it.
+    setDraft(null);
+    setNotice(null);
     readFile(ROOT, dirOf(editing))
       .then((f) => {
         if (!alive) return;
         setTypedCss(null);
-        setDraft(fromCss(editing, f.content));
+        const fromFile = fromCss(editing, f.content);
+        setDraft(fromFile);
+        // ST-2: offered, never applied behind your back. The file is what the
+        // page shows; the draft is a button that says there is another version
+        // of this, and what it was.
+        const back = readDraft(editing);
+        setKept(back && JSON.stringify(back) !== JSON.stringify(fromFile) ? back : null);
         // Carried so the save can send it back as baseMtime. Without it, two
         // tabs editing the same theme would silently overwrite each other -
         // the conflict check is the reason the write path is worth using.
@@ -139,6 +201,7 @@ export function ThemeEditor() {
       })
       .catch((e) => {
         if (!alive) return;
+        setDraft(null);
         setNotice({
           tone: 'bad',
           text: isAuthError(e) ? 'Your session expired. Sign in and reload.'
@@ -147,6 +210,14 @@ export function ThemeEditor() {
       });
     return () => { alive = false; };
   }, [editing, names]);
+
+  // ST-2: the draft is written as it changes, so leaving the page - by the
+  // breadcrumb, the back button, a link in the top bar - does not throw it
+  // away. A `null` draft is the moment before the file has loaded, which is
+  // not a draft and must not overwrite one.
+  useEffect(() => {
+    if (draft) writeDraft(editing, draft);
+  }, [draft, editing]);
 
   // ── live preview ──────────────────────────────────────────────────────────
   //
@@ -204,7 +275,13 @@ export function ThemeEditor() {
   const save = async () => {
     if (!draft || busy) return;
     const id = draft.id || slugify(draft.name);
-    if (!id) { setNotice({ tone: 'bad', text: 'Give the theme a name first.' }); return; }
+    if (!id) {
+      // ST-14: the field, not a notice at the top of the page. Focus goes to
+      // the thing that has to change.
+      setNameTouched(true);
+      nameRef.current?.focus();
+      return;
+    }
     setBusy(true);
     setNotice(null);
     const out = await writeFile(
@@ -214,6 +291,8 @@ export function ThemeEditor() {
     setBusy(false);
     switch (out.kind) {
       case 'saved':
+        writeDraft(editing, null);
+        setKept(null);
         setBaseMtime(out.res.mtime);
         // Selecting it is the confirmation that it worked: the page you are
         // looking at is now painted by the FILE rather than by the preview.
@@ -241,16 +320,15 @@ export function ThemeEditor() {
 
   // ── delete ────────────────────────────────────────────────────────────────
   //
-  // Confirmed, and the confirmation says where the file goes rather than asking
-  // "are you sure?" - the service snapshots the outgoing bytes first, so this is
-  // recoverable, and saying so is more useful than a warning that is not true.
+  // ACT, THEN OFFER THE UNDO (ST-15, decision 7). This used to raise a native
+  // confirm() - a modal the app cannot style, cannot place and cannot make
+  // keyboard-consistent - to guard an action that is recoverable twice over:
+  // the service snapshots the outgoing bytes, and the editor is holding the
+  // whole file in `css` as it deletes it. A confirmation is what you owe
+  // someone when you cannot give them the thing back; here we can, so
+  // Appearance is handed the bytes and shows "Deleted X - Undo".
   const remove = async () => {
     if (!editing || busy) return;
-    if (!confirm(
-      `Delete ${dirOf(editing)}?\n\n`
-      + 'The file is copied into the undo snapshot first, so it can be recovered '
-      + 'from there.\n\nAnyone currently using this theme falls back to the default.',
-    )) return;
     setBusy(true);
     const out = await deleteFile(ROOT, dirOf(editing), baseMtime);
     setBusy(false);
@@ -260,7 +338,8 @@ export function ThemeEditor() {
       // picker would show it selected until the next reload, which reads as the
       // delete not having worked.
       setSelection('bothy-dark');
-      nav('/settings/appearance');
+      rescan();
+      nav('/settings/appearance', { state: { deleted: { id: editing, name: draft?.name || editing, css } } });
       return;
     }
     setNotice({
@@ -274,7 +353,17 @@ export function ThemeEditor() {
     return (
       <div className="page theme-editor">
         <div className="page-head"><div><h1>Theme</h1></div></div>
-        {notice ? <p className="te-empty">{notice.text}</p> : <Loader state="load" size="lg" label="Reading the theme…" />}
+        {/* The shared error state, with a way out (SYS-18). This used to be a
+            bare sentence: a page whose only content was "Could not open X" and
+            no link anywhere - the reader's only exit was the browser's back
+            button, on a route they may have arrived at directly. */}
+        {notice ? (
+          <ErrState
+            title="Could not open that theme"
+            body={notice.text}
+            actions={<Link className={buttonClass({ variant: 'ghost' })} to="/settings/appearance">Back to Appearance</Link>}
+          />
+        ) : <Loader state="load" size="lg" label="Reading the theme…" />}
       </div>
     );
   }
@@ -315,11 +404,23 @@ export function ThemeEditor() {
       {/* Role first, because it changes what the rest of the page can do. Absent
           rather than a disabled button with no explanation. */}
       {!mayWrite && (
-        <p className="te-note te-warn">
+        <NeedsRole
+          title="You can build and preview a theme here, but not save it."
+          what="Writing a theme file"
+          role="editor"
+          detail="Everything below still works - the preview is live - you just cannot write the file."
+        />
+      )}
+
+      {kept && (
+        <p className="te-note te-info" role="status">
           <Icon icon={AlertTriangle} size="md" />
           <span>
-            You can build and preview a theme here, but saving needs the <b>editor</b> role.
-            Everything below still works — the preview is live — you just cannot write the file.
+            There is an unsaved version of this theme from earlier in this tab.
+          </span>
+          <span className="te-note-acts">
+            <Button size="sm" onClick={() => { setTypedCss(null); setDraft(kept); setKept(null); }}>Restore it</Button>
+            <Button variant="ghost" size="sm" onClick={() => { writeDraft(editing, null); setKept(null); }}>Discard it</Button>
           </span>
         </p>
       )}
@@ -334,12 +435,22 @@ export function ThemeEditor() {
       <section className="panel">
         <h2 className="panel-h">Identity</h2>
         <div className="panel-b te-identity">
+          {/* ST-14: named BEFORE Save, not after. A theme with no name cannot
+              be written (the id is derived from it), and the only place that
+              was said was a red notice at the top of the page after a save you
+              had already committed to - by which point you had filled in a
+              palette. The field says it on blur, and Save focuses it. */}
           <label className="te-field">
             <span>Name</span>
             <input
+              ref={nameRef}
               type="text" value={draft.name} placeholder="Deep Ocean"
-              onChange={(e) => set({ name: e.target.value })}
+              aria-invalid={nameBad || undefined}
+              aria-describedby={nameBad ? 'te-name-why' : undefined}
+              onChange={(e) => { set({ name: e.target.value }); setNameTouched(false); }}
+              onBlur={() => setNameTouched(true)}
             />
+            {nameBad && <small id="te-name-why" className="te-bad-hint">A theme needs a name - it is what the file is called.</small>}
           </label>
           <label className="te-field">
             <span>File</span>

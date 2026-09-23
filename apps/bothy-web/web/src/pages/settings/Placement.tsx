@@ -107,7 +107,7 @@ function RuleTable({ rules, mtime, canEdit, onSaved }: {
   const [editing, setEditing] = useState<string | null>(null);
   return (
     <div className="tbl-wrap scroll-shade set-tbl">
-      <table className="tbl set-placement">
+      <table className="tbl as-cards set-placement">
         <thead>
           <tr>
             <th scope="col">Matches</th>
@@ -126,7 +126,7 @@ function RuleTable({ rules, mtime, canEdit, onSaved }: {
                 <span className="set-cell-sub">line {r.line}</span>
               </td>
               {KEYS.map((k) => (
-                <td key={k}>{r.sites[k] ? <span>{r.sites[k]!.value}</span> : <span className="dim">not set</span>}</td>
+                <td key={k} data-label={k[0].toUpperCase() + k.slice(1)}>{r.sites[k] ? <span>{r.sites[k]!.value}</span> : <span className="dim">not set</span>}</td>
               ))}
               <td className="set-cell-act">
                 {canEdit && (

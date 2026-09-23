@@ -15,6 +15,7 @@ import { Cluster } from './pages/control/Cluster';
 import { LEGACY_PATHS, legacyTarget } from './pages/control/redirects';
 import { GUIDE_PATH } from './pages/files/routes';
 import { buttonClass } from './components/ui/Button';
+import { NotFound as NotFoundState } from './components/states';
 
 // Multi-page, one shared poll (lifted into <DataProvider> in main.tsx). The
 // AppShell is the persistent layout (one topbar - the global sidebar was
@@ -104,16 +105,21 @@ function Legacy() {
   return to ? <Navigate to={to} replace /> : <NotFound />;
 }
 
+// The shared 404 (components/states.tsx, SYS-18). It was a bare <h4> in a card
+// with no document title, so a tab open on a dead link was named after
+// whatever page the reader came from.
 function NotFound() {
   return (
     <div className="page">
-      <div className="state">
-        <h4>Page not found</h4>
-        <p>
-          <span className="mono">{location.hash || '/'}</span> isn’t a page here.
-        </p>
-        <Link className={buttonClass({ variant: 'ghost' })} to="/">Back to the Overview</Link>
-      </div>
+      <NotFoundState
+        title="Page not found"
+        what="There is no page at"
+        value={location.hash || '/'}
+        actions={<>
+          <Link className={buttonClass({ variant: 'ghost' })} to="/">Back to the Overview</Link>
+          <Link className={buttonClass({ variant: 'ghost' })} to="/control">Control</Link>
+        </>}
+      />
     </div>
   );
 }

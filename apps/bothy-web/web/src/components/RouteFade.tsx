@@ -22,13 +22,35 @@
 // as the NEW page and fade out the wrong content. `useOutlet()` captures the
 // element for this key, and the exiting child keeps the element it was given.
 //
+// AND SO IS THE URL IT READS (2026-09-22, the batch-4 observation). Freezing the
+// ELEMENT is not enough: the exiting copy is still mounted inside the live
+// router, so every `useLocation`, `useSearchParams` and `useParams` in it
+// answers with the URL of the page that replaced it. That is not cosmetic. It
+// cost a page: navigating from the Files reader to #/settings/appearance landed
+// back in Files. `FilesLanding` decides between the reader and a redirect to the
+// guide by looking at `?root=`/`?path=`; on the way out it re-read the query of
+// /settings/appearance, found none, concluded it was a bare /files, and issued
+// <Navigate to="/files/guide">. The reader then wrote the guide's `?path=` and
+// the navigation the reader asked for was gone.
+//
+// So a leaving page gets a location context pinned to the last URL it was
+// PRESENT at, and a navigator whose push, replace and go do nothing. Both
+// providers are always rendered - switching the VALUE, never the element - so
+// nothing in the subtree remounts as it leaves. The rule this encodes is worth
+// stating on its own: a page on its way out shows what it showed, and does not
+// steer.
+//
 // Reduced motion (decision 3): the fade stays, at DUR.fast; the 6px rise goes.
 // Nothing here can leave a page invisible: framer runs opacity on the Web
 // Animations API, which finishes on time whether or not the main thread paints.
 
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from 'framer-motion';
-import type { ReactNode, Ref } from 'react';
-import { useOutlet } from 'react-router-dom';
+import { useContext, useMemo, useRef, type ReactNode, type Ref } from 'react';
+import {
+  useOutlet,
+  UNSAFE_LocationContext as LocationContext,
+  UNSAFE_NavigationContext as NavigationContext,
+} from 'react-router-dom';
 import { DUR, EASE, EASE_EXIT } from '../lib/motion';
 import { useMotionReduced } from '../lib/useMotionReduced';
 
@@ -45,9 +67,29 @@ interface PageProps {
  *  landmark and becomes inert: for those 120ms there are two <main>s on screen,
  *  and the skip link, the keyboard and a screen reader must only find the new
  *  one. */
+const NOOP = () => {};
+
 function Page({ as, id, className, reduce, children, ref }: PageProps) {
   const present = useIsPresent();
   const M = as === 'main' ? motion.main : motion.div;
+
+  // The URL this page last rendered AT. `present` goes false in the same commit
+  // that brings the new location, so the last value written here is the old one
+  // - which is exactly the URL the leaving page should keep answering with.
+  const loc = useContext(LocationContext);
+  const nav = useContext(NavigationContext);
+  const keptLoc = useRef(loc);
+  if (present) keptLoc.current = loc;
+  // Object.create, not a spread: the history object's `location` and `action`
+  // are getters, and spreading would freeze them to whatever they were when
+  // this memo ran. Only the three ways to steer are replaced.
+  const inertNav = useMemo(() => {
+    const navigator = Object.create(nav.navigator as object) as typeof nav.navigator;
+    navigator.push = NOOP;
+    navigator.replace = NOOP;
+    navigator.go = NOOP;
+    return { ...nav, navigator };
+  }, [nav]);
   return (
     <M
       ref={ref as Ref<HTMLDivElement>}
@@ -61,7 +103,11 @@ function Page({ as, id, className, reduce, children, ref }: PageProps) {
       animate={{ opacity: 1, y: 0, transition: { duration: reduce ? DUR.fast : DUR.base, ease: EASE } }}
       exit={{ opacity: 0, transition: { duration: DUR.exit, ease: EASE_EXIT } }}
     >
-      {children}
+      <LocationContext.Provider value={present ? loc : keptLoc.current}>
+        <NavigationContext.Provider value={present ? nav : inertNav}>
+          {children}
+        </NavigationContext.Provider>
+      </LocationContext.Provider>
     </M>
   );
 }

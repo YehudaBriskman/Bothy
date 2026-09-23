@@ -84,7 +84,7 @@ function RoleCells({ u }: { u: AdminUser }) {
         const nobody = r === 'shell' && !held;
         const Mark = held ? CircleCheck : nobody ? Ban : Circle;
         return (
-          <td key={r} className="set-role-cell" data-held={held ? 'yes' : 'no'}>
+          <td key={r} className="set-role-cell" data-label={r} data-held={held ? 'yes' : 'no'}>
             <Icon icon={Mark} size="md" />
             <span className="sr-only">{held ? 'held' : 'not held'}</span>
           </td>
@@ -98,7 +98,7 @@ function UserTable({ users }: { users: AdminUser[] }) {
   if (!users.length) return <p className="set-empty">The realm has no users. <span className="mono">just up-auth</span> seeds one.</p>;
   return (
     <div className="tbl-wrap scroll-shade set-tbl">
-      <table className="tbl set-users">
+      <table className="tbl as-cards set-users">
         <thead>
           <tr>
             <th scope="col">Account</th>
@@ -116,15 +116,15 @@ function UserTable({ users }: { users: AdminUser[] }) {
                 <span className="set-cell-sub">{u.email ?? 'no email'}{u.emailVerified ? '' : u.email ? ' · unverified' : ''}</span>
               </td>
               <RoleCells u={u} />
-              <td>
+              <td data-label="Password set">
                 {u.credentials.includes('password') ? <When iso={u.passwordSetAt} empty="unknown" /> : <span className="dim">no password</span>}
                 <span className="set-cell-sub">{u.otp ? 'with a second factor' : 'no second factor'}</span>
               </td>
-              <td className="tnum">
+              <td className="tnum" data-label="Sessions">
                 {u.sessions}
                 {u.lastSeenAt && <span className="set-cell-sub">last <When iso={u.lastSeenAt} /></span>}
               </td>
-              <td>
+              <td data-label="State">
                 {u.enabled ? 'Enabled' : <b>Disabled</b>}
                 {u.requiredActions.length > 0 && (
                   <span className="set-cell-sub">must {u.requiredActions.map((a) => a.toLowerCase().replace(/_/g, ' ')).join(', ')}</span>

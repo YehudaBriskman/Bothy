@@ -22,7 +22,7 @@
 // a bare 403 into a sentence that arrives before the click rather than after it.
 
 import { Loader } from './ui/Loader';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CirclePlay, CircleStop, LogIn, Power, RotateCw } from 'lucide-react';
 import {
@@ -40,6 +40,7 @@ import { KubeActionCell } from './KubeActions';
 import './ServiceActions.css';
 import { Button, buttonClass } from './ui/Button';
 import { Icon as SizedIcon } from './ui/Icon';
+import { NeedsRole } from './states';
 
 // Three circles. lucide's bare `Square` was the first choice for stop and had to
 // go: rendered at 16px on the left of a list row it is a 16px empty box beside a
@@ -85,6 +86,8 @@ type Phase =
  *  affordance that could only ever fail is worse than an empty cell. */
 export function ActionCell({ node }: { node: PortalNode }) {
   const [open, setOpen] = useState(false);
+  // See the dialog below: mounted from the first open, not on every row.
+  const [mounted, setMounted] = useState(false);
   // A cluster workload has no container but may have a deployment bothy-ops acts on.
   if (!node.container) return node.kube ? <KubeActionCell node={node} /> : null;
 
@@ -96,7 +99,7 @@ export function ActionCell({ node }: { node: PortalNode }) {
         className="svc-act-btn"
         // The row itself navigates to the detail page. Without this, opening the
         // dialog also leaves the page it was opened from.
-        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); setMounted(true); }}
         // Kept visible while its own dialog is open, or the trigger vanishes
         // under the overlay and reappears on close for no reason the reader can
         // see. Also the hook for the focus ring, since opacity alone would
@@ -111,15 +114,20 @@ export function ActionCell({ node }: { node: PortalNode }) {
       >
         <SizedIcon icon={Power} size="md" />
       </button>
-      {/* Mounted only while open. Radix renders no portal content for a closed
-          dialog, but the hooks inside would still run once per row on every
-          poll, and there are forty rows. */}
-      {open && <ActionDialog node={node} onClose={() => setOpen(false)} />}
+      {/* // STAYS MOUNTED ONCE OPENED (SYS-4, batch 3's loose end). A dialog the
+      // consumer unmounts cannot animate out - React removes the DOM in the
+      // same commit - so ui/Dialog leaves an inert clone to play the exit. A
+      // dialog that stays mounted needs no clone and, better, REVERSES when it
+      // is re-opened mid-close: the same element turns round from where it is.
+      // `mounted` is what keeps the other thirty-nine rows free: a row whose
+      // dialog has never been opened renders nothing at all, which is the
+      // reason this was conditional in the first place. */}
+      {mounted && <ActionDialog open={open} node={node} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function ActionDialog({ node, onClose }: { node: PortalNode; onClose: () => void }) {
+function ActionDialog({ open, node, onClose }: { open: boolean; node: PortalNode; onClose: () => void }) {
   const name = node.container?.name ?? node.name;
   const { canAct, me, loading } = useOperator();
   const { refresh } = usePortal();
@@ -187,9 +195,13 @@ function ActionDialog({ node, onClose }: { node: PortalNode; onClose: () => void
     : phase.t === 'failed' ? `${phase.refusal.title} ${phase.refusal.detail}`
     : '';
 
+  // The dialog outlives one use of it now, so each opening starts from the
+  // verb list rather than from the outcome of the last one.
+  useEffect(() => { if (open) setPhase({ t: 'choose' }); }, [open]);
+
   return (
     <Dialog
-      open
+      open={open}
       // Escape and the close button both land here. Closing mid-flight does not
       // cancel anything - the daemon was already asked - so the poll is what
       // tells the reader how it ended, and the row is where they will see it.
@@ -317,21 +329,22 @@ function VerbRow({
   );
 }
 
+// The shared refusal (states.tsx NeedsRole, SYS-18). The words below are this
+// page's; the shape - heading, "X needs the Y role", then the way forward - is
+// every page's.
 function NoRole({ signedIn }: { signedIn: boolean }) {
   return (
-    <div className="sa-norole">
-      <p className="sa-norole-h">
-        {signedIn ? 'These are read-only for you.' : 'Sign in to act on what is running.'}
-      </p>
-      <p className="sa-note">
-        {signedIn
-          ? 'Acting on what is running needs the operator role, and this session does not hold it. '
-            + 'The edge would refuse the request before it reached anything.'
-          : 'Nothing here knows who you are yet, so the edge would refuse these before they reached '
-            + 'anything. Signing in returns you to this page.'}
-      </p>
+    <NeedsRole
+      title={signedIn ? undefined : 'Sign in to act on what is running.'}
+      what="Acting on what is running"
+      role="operator"
+      detail={signedIn
+        ? 'This session does not hold it, so the edge would refuse the request before it reached anything.'
+        : 'Nothing here knows who you are yet, so the edge would refuse these before they reached '
+          + 'anything. Signing in returns you to this page.'}
+    >
       <RoleLinks signedIn={signedIn} />
-    </div>
+    </NeedsRole>
   );
 }
 

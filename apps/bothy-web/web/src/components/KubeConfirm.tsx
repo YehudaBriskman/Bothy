@@ -8,6 +8,10 @@
 //               (lib/kube-actions.ts confirmNameOf) - so the level means the
 //               same thing from curl
 //
+// The level is read per REQUEST, not per action (confirmLevelOf, CL-4): scale
+// is one click at 1 to 3 and asks for the name at 0, so this form grows and
+// loses its type-name field as the replica count changes under it.
+//
 // and then shows the outcome in words, or the refusal in words. It never
 // retries: a retried PATCH is a second action.
 
@@ -15,7 +19,7 @@ import { Loader } from './ui/Loader';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import {
-  confirmNameOf, confirmSatisfied, kubeCall, kubeRefusalOf,
+  confirmLevelOf, confirmNameOf, confirmSatisfied, kubeCall, kubeRefusalOf,
   type KubeActionSpec, type KubeRefusal,
 } from '../lib/kube-actions';
 import { Dialog, type FocusTarget } from './ui/Dialog';
@@ -55,7 +59,8 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
   const [typed, setTyped] = useState('');
   const firing = useRef(false);
   const name = confirmNameOf(spec, req);
-  const ready = valid && confirmSatisfied(spec.confirm, typed, name);
+  const level = confirmLevelOf(spec, req);
+  const ready = valid && confirmSatisfied(level, typed, name);
   // The panel REPLACES the list whose button opened it, so that button is gone
   // and focus has fallen to the dialog container. Put it on the first thing the
   // reader has to deal with - the first field, else the way out.
@@ -71,7 +76,7 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
     firing.current = true;
     setPhase({ t: 'working' });
     try {
-      const body = spec.confirm === 'type-name' ? { ...req, confirm: typed } : req;
+      const body = level === 'type-name' ? { ...req, confirm: typed } : req;
       const r = await kubeCall<never>(spec, body);
       setPhase({ t: 'done', out: describe(r) });
       onDone?.();
@@ -104,13 +109,23 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
         <span>{consequence}</span>
       </p>
       {fields}
-      {spec.confirm === 'type-name' && (
+      {level === 'type-name' && (
         <label className="ka-field">
           <span className="ka-label">Type <span className="mono">{name || '…'}</span> to confirm</span>
           <input
             className="ka-input mono" autoComplete="off" spellCheck={false} value={typed}
             onChange={(e) => setTyped(e.target.value)} aria-invalid={typed.length > 0 && typed !== name}
+            aria-describedby="ka-confirm-hint"
           />
+          {/* CL-10: a red border was the WHOLE message, and the focus ring -
+              which is over the field while you are typing in it - covered it.
+              The mismatch is now said, and linked to the field so a screen
+              reader gets it with the field rather than somewhere on the page. */}
+          <span className="ka-hint" id="ka-confirm-hint">
+            {typed.length > 0 && typed !== name
+              ? <span className="ka-bad">That is not {name}. The service checks the same string.</span>
+              : `The name of what this acts on: ${name || 'the target'}.`}
+          </span>
         </label>
       )}
       <div className="ka-row">
@@ -123,19 +138,29 @@ export function ConfirmPanel({ spec, req, what, consequence, fields, valid = tru
   );
 }
 
-/** The same panel in its own dialog, for a control that lives in a table row. */
-export function ConfirmDialog(props: Omit<ConfirmPanelProps, 'onBack'> & { onClose: () => void; title?: ReactNode; returnFocusTo?: FocusTarget }) {
-  const { onClose, title, returnFocusTo, ...panel } = props;
+/** The same panel in its own dialog, for a control that lives in a table row.
+ *
+ *  `open` is a prop rather than a mount: a dialog its consumer unmounts cannot
+ *  animate out, because React takes the DOM away in the same commit (SYS-4).
+ *  The panel is keyed on the opening, so each one starts at the question rather
+ *  than at the outcome of the last one - while the exit runs, the key is
+ *  unchanged and the panel keeps saying whatever it said. */
+export function ConfirmDialog(props: Omit<ConfirmPanelProps, 'onBack'> & {
+  open: boolean; onClose: () => void; title?: ReactNode; returnFocusTo?: FocusTarget;
+}) {
+  const { open, onClose, title, returnFocusTo, ...panel } = props;
+  const [opening, setOpening] = useState(0);
+  useEffect(() => { if (open) setOpening((n) => n + 1); }, [open]);
   return (
     <Dialog
-      open
+      open={open}
       returnFocusTo={returnFocusTo}
       onOpenChange={(o) => { if (!o) onClose(); }}
       title={title ?? <span className="sa-title">{panel.spec.title} <span className="mono">{panel.what}</span></span>}
       description={panel.spec.meaning}
     >
       <div className="ka-body">
-        <ConfirmPanel {...panel} onBack={onClose} />
+        <ConfirmPanel key={opening} {...panel} onBack={onClose} />
       </div>
     </Dialog>
   );

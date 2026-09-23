@@ -2,6 +2,11 @@
    and the preview is the whole app behind it - so anything decorative here
    competes with the thing it is meant to help you judge. */
 
+/* ST-3: a column with a gap. `.page` is display:block, so the panels sat edge
+   to edge with 0px between them - two bordered cards touching read as one card
+   with a line through it. */
+.theme-editor { display: flex; flex-direction: column; gap: var(--sp-3_5); }
+
 .theme-editor .te-back {
   display: inline-flex; align-items: center; gap: var(--sp-1);
   margin-bottom: var(--sp-1_5); padding: 0; border: 0; background: none;
@@ -34,6 +39,10 @@
 .theme-editor .te-field { display: flex; flex-direction: column; gap: var(--sp-1); }
 .theme-editor .te-field > span { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-weight: 600; color: var(--fg-muted); }
 .theme-editor .te-field small { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle); overflow-wrap: anywhere; }
+/* ST-14: the field's own message, in the status colour, beside the field that
+   has to change - not a notice at the top of the page after a save. */
+.theme-editor .te-field .te-bad-hint { color: var(--st-down-fg); }
+.theme-editor .te-field input[aria-invalid='true'] { border-color: var(--st-down-line); }
 .theme-editor .te-field input,
 .theme-editor .te-field select {
   padding: var(--sp-2) var(--sp-2); font: inherit; font-size: var(--fs-sm); line-height: var(--lh-sm);
@@ -278,3 +287,7 @@
   display: block; margin: 0; font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: var(--lh-xs);
   color: var(--fg-subtle); max-width: 78ch;
 }
+
+/* ST-2: the unsaved-draft offer. Two buttons at the end of the note, so the
+   sentence and the way out of it are one line. */
+.theme-editor .te-note-acts { display: inline-flex; gap: var(--sp-2); margin-left: auto; flex: none; }

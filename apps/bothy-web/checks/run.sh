@@ -116,6 +116,10 @@ mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 (cd "$WEB" && npx tsc src/pages/files/tree.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
+# lib/ansi.ts - imports nothing - for the log-escape truth table below.
+(cd "$WEB" && npx tsc src/lib/ansi.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/ansi.js" "$OUT/ansi.mjs"
 # lib/motion.ts, the JS copy of the motion tokens - imports nothing - for the
 # design-tokens check, which asserts it equals the CSS copy.
 (cd "$WEB" && npx tsc src/lib/motion.ts --ignoreConfig \
@@ -127,7 +131,7 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
    "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" \
-   "$HERE/settings.mjs" "$HERE/a11y-contract.mjs" "$OUT/"
+   "$HERE/settings.mjs" "$HERE/a11y-contract.mjs" "$HERE/log-escapes.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -168,6 +172,12 @@ echo "── what a declared project can be acted on ─────────
 # does not know would have to be CREATED, and /containers/create is the one call
 # the two-proxy split in apps/bothy/compose.socket-proxy.yml exists to refuse.
 node "$OUT/declared-actions.mjs"
+
+echo
+echo "── an escape in a log line never reaches the pane ──────"
+# lib/ansi.ts: a pod that thinks it is writing to a terminal emits SGR codes,
+# and they used to arrive as literal text in the log panes (CL-13).
+node "$OUT/log-escapes.mjs"
 
 echo
 echo "── what a cluster workload can be acted on ─────────────"

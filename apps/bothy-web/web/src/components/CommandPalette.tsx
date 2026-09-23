@@ -89,13 +89,30 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const hit = needle
-      ? items.filter(
-          (i) => i.label.toLowerCase().includes(needle) || (i.sub ?? '').toLowerCase().includes(needle),
-        )
-      : items;
-    // Stable group order regardless of the order they were concatenated in.
-    return [...hit].sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
+    if (!needle) return [...items].sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
+    // SH-13: RANKED, not filtered. A substring test over the label AND the
+    // subtitle put four rows labelled "Grafana" above Loki for the query
+    // "graf" - the four being the service, its system, its UI and its
+    // container, each matching on a different field, in whatever order they
+    // were concatenated. The order is the order the answer is likely to be in:
+    // an exact label, then a label that starts with it, then a word inside the
+    // label, then anywhere in the label, and only then the subtitle.
+    const rank = (i: Cmd) => {
+      const label = i.label.toLowerCase();
+      if (label === needle) return 0;
+      if (label.startsWith(needle)) return 1;
+      if (new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(label)) return 2;
+      if (label.includes(needle)) return 3;
+      return (i.sub ?? '').toLowerCase().includes(needle) ? 4 : 5;
+    };
+    return items
+      .map((i) => ({ i, r: rank(i) }))
+      .filter((x) => x.r < 5)
+      .sort((a, b) => a.r - b.r
+        || GROUPS.indexOf(a.i.group) - GROUPS.indexOf(b.i.group)
+        || a.i.label.length - b.i.label.length
+        || a.i.label.localeCompare(b.i.label))
+      .map((x) => x.i);
   }, [items, q]);
 
   // Reset per opening, not per keystroke - reopening should not remember a

@@ -12,6 +12,8 @@
 // scrapes ~/.local/state/devbox-logs/*.log and labels each file host_service=…,
 // so a `just dev` harness queries identically to a container.
 
+import { stripAnsi } from './ansi';
+
 export interface LogSource {
   kind: 'container' | 'host';
   selector: string; // a LogQL stream selector, e.g. {container="grafana"}
@@ -84,7 +86,8 @@ export async function fetchLogs(
   const lines: LogLine[] = [];
   for (const s of body.data?.result ?? []) {
     for (const [ns, text] of s.values ?? []) {
-      lines.push({ ts: Number(ns) / 1e6, text, stream: s.stream?.stream });
+      // CL-13: the same escapes reach this panel from the same containers.
+      lines.push({ ts: Number(ns) / 1e6, text: stripAnsi(text), stream: s.stream?.stream });
     }
   }
   // Loki returns one array per stream (stdout and stderr are separate streams),

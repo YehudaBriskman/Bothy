@@ -2,8 +2,11 @@
 // from (topology, status, gating, the allowlist mirrors) is lib/cluster.ts, which
 // checks/run.sh tests on its own.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { History, ListTree, MoreHorizontal, Pencil, Play, RefreshCw, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react';
+import {
+  Children, cloneElement, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  type ReactElement, type ReactNode,
+} from 'react';
+import { ChevronRight, History, ListTree, MoreHorizontal, Pencil, Play, RefreshCw, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react';
 import {
   findSpec, kubeGet, kubeRefusalOf,
   type ClaimsResult, type ConfigMapResult, type DeleteJobResult, type DeletePodResult,
@@ -11,6 +14,7 @@ import {
   type KubeCatalog, type KubeRefusal, type LimitRangesResult, type PatchKeyResult, type PodRow, type PodsResult,
   type PoliciesResult, type QuotasResult, type RoutesResult, type RunTemplateResult, type ServicesResult,
 } from '../../lib/kube-actions';
+import { stripAnsi } from '../../lib/ansi';
 import { useKubeRead, type ReadState } from '../../lib/kube-catalog';
 import {
   ago, buildTopology, deploymentStatus, gate, jobStatus, podStatus, shortImage, valueAllowed,
@@ -19,7 +23,7 @@ import {
 import { queryRange, fmtCores, fmtSize, type Series } from '../../lib/metrics';
 import { EventList, KubeDialog, Refused, type KubeDialogTab } from '../../components/KubeActions';
 import { ConfirmDialog } from '../../components/KubeConfirm';
-import { Dialog } from '../../components/ui/Dialog';
+import { Dialog, useLingering } from '../../components/ui/Dialog';
 import { Menu } from '../../components/ui/Menu';
 import { Button } from '../../components/ui/Button';
 import { Icon as SizedIcon } from '../../components/ui/Icon';
@@ -63,13 +67,42 @@ function Stale<T>({ read }: { read: ReadState<T> }) {
   );
 }
 
-function Table({ label, head, children, empty }: { label: string; head: ReactNode; children: ReactNode; empty?: string | null }) {
+/** A column: its heading, whether it is numeric, and - for a control column
+ *  that draws no visible heading - the name a screen reader reads instead.
+ *  `label` overrides what the card form calls it, for a heading that is only
+ *  unambiguous under the one above it ("Now", twice, on Pod metrics). */
+type Col = string | { head?: string; num?: boolean; name?: string; label?: string };
+
+function Table({ label, cols, children, empty }: { label: string; cols: Col[]; children: ReactNode; empty?: string | null }) {
+  const heads = cols.map((c) => (typeof c === 'string' ? { head: c } : c));
+  // At 640px and below every .tbl.as-cards row becomes a card and each cell
+  // names its column from data-label (SYS-17). The labels are INJECTED here
+  // from the column list rather than written on each <td>: twelve tables' worth
+  // of hand-copied labels is twelve chances for a label to drift away from the
+  // header above it. The first cell names the row, so it heads the card without
+  // a label, and a column with no heading (the "…" menu) contributes none.
+  const rows = Children.map(children, (row) => {
+    if (!isValidElement(row) || row.type !== 'tr') return row;
+    const r = row as ReactElement<{ children?: ReactNode }>;
+    return cloneElement(r, undefined, Children.map(r.props.children, (cell, i) => {
+      const head = heads[i]?.label ?? heads[i]?.head;
+      if (i === 0 || !head || !isValidElement(cell)) return cell;
+      const c = cell as ReactElement<Record<string, unknown>>;
+      return c.props['data-label'] ? c : cloneElement(c, { 'data-label': head });
+    }));
+  });
   return (
     <div className="tbl-wrap scroll-shade cl-tbl" role="region" aria-label={label} tabIndex={0}>
-      <table className="tbl">
-        <thead><tr>{head}</tr></thead>
+      <table className="tbl as-cards">
+        <thead>
+          <tr>
+            {heads.map((c, i) => (
+              <th key={i} className={c.num ? 'num' : undefined} aria-label={c.head ? undefined : c.name}>{c.head}</th>
+            ))}
+          </tr>
+        </thead>
         <tbody>
-          {children}
+          {rows}
           {empty && <tr><td className="tbl-empty" colSpan={20}>{empty}</td></tr>}
         </tbody>
       </table>
@@ -105,6 +138,7 @@ export function TopologyTab({ ns }: { ns: string }) {
     [deps.data, svcs.data, routes.data, ings.data],
   );
   const [open, setOpen] = useState<string | null>(null);
+  const shownOpen = useLingering(open);
   const loading = !deps.data && deps.loading;
   const refusal = deps.refusal ?? svcs.refusal ?? routes.refusal ?? ings.refusal;
 
@@ -119,7 +153,14 @@ export function TopologyTab({ ns }: { ns: string }) {
           <span key={s}><Dot state={s} /> {STATE_WORD[s]}</span>
         ))}
       </p>
-      {open && <KubeDialog target={{ namespace: ns, deployment: open }} onClose={() => setOpen(null)} onChanged={deps.reload} />}
+      {/* Mounted from the first open and driven by `open` after that (SYS-4):
+          a dialog the consumer unmounts cannot animate out, and one that stays
+          reverses a close that is interrupted. `shown` is what it draws while
+          it is leaving, once `open` has already gone null. */}
+      {shownOpen && (
+        <KubeDialog open={open != null} target={{ namespace: ns, deployment: shownOpen }}
+          onClose={() => setOpen(null)} onChanged={deps.reload} />
+      )}
     </div>
   );
 }
@@ -179,9 +220,15 @@ function TopoGraph({ topo, onOpen }: { topo: ReturnType<typeof buildTopology>; o
             <span className="sr-only">{STATE_WORD[n.status]}</span>
           </>
         );
+        // CL-23: a card that opens a dialog and a card that is a label read the
+        // same - same surface, same border, same padding - so the only way to
+        // find out which was which was to click. The clickable one carries a
+        // chevron, which is the mark this app uses everywhere else for "there
+        // is more of this through here".
         return n.kind === 'deployment' ? (
-          <button key={n.id} type="button" className="cl-topo-node" data-node={n.id} data-state={n.status} onClick={() => onOpen(n.name)} title={`Open ${n.name}`}>
+          <button key={n.id} type="button" className="cl-topo-node is-open" data-node={n.id} data-state={n.status} onClick={() => onOpen(n.name)} title={`Open ${n.name}`}>
             {body}
+            <SizedIcon icon={ChevronRight} size="sm" className="cl-topo-go" aria-hidden />
           </button>
         ) : (
           <div key={n.id} className="cl-topo-node" data-node={n.id} data-state={n.status}>{body}</div>
@@ -207,6 +254,7 @@ function TopoGraph({ topo, onOpen }: { topo: ReturnType<typeof buildTopology>; o
 export function WorkloadsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatalog; roles: Roles }) {
   const deps = useKubeRead<DeploymentsResult>('deployments', { namespace: ns }, 10_000);
   const [open, setOpen] = useState<{ dep: string; tab: KubeDialogTab } | null>(null);
+  const shownOpen = useLingering(open);
   const rows = useMemo(() => {
     const rank: Record<ClusterStatus, number> = { down: 0, warn: 1, unknown: 2, off: 3, up: 4 };
     // Exception-first (docs/brand/patterns/data-display.md): what is wrong goes on top.
@@ -221,7 +269,7 @@ export function WorkloadsTab({ ns, catalog, roles }: { ns: string; catalog: Kube
       {canChange === 'disabled' && <p className="sa-note">Read-only for you: changing workloads needs the operator role.</p>}
       <Table
         label="Deployments"
-        head={<><th>Deployment</th><th className="num">Ready</th><th>Image</th><th className="num">Rev</th><th>Age</th><th aria-label="Actions" /></>}
+        cols={['Deployment', { head: 'Ready', num: true }, 'Image', { head: 'Rev', num: true }, 'Age', { name: 'Actions' }]}
         empty={deps.data && rows.length === 0 ? 'No deployments in this namespace.' : null}
       >
         {rows.map((d) => (
@@ -241,9 +289,9 @@ export function WorkloadsTab({ ns, catalog, roles }: { ns: string; catalog: Kube
           </tr>
         ))}
       </Table>
-      {open && (
+      {shownOpen && (
         <KubeDialog
-          key={`${open.dep}-${open.tab}`} target={{ namespace: ns, deployment: open.dep }} initialTab={open.tab}
+          open={open != null} target={{ namespace: ns, deployment: shownOpen.dep }} initialTab={shownOpen.tab}
           onClose={() => setOpen(null)} onChanged={deps.reload}
         />
       )}
@@ -281,7 +329,9 @@ function RowMenu({ name, onPick }: { name: string; onPick: (tab: KubeDialogTab) 
 export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatalog; roles: Roles }) {
   const pods = useKubeRead<PodsResult>('pods', { namespace: ns }, 8_000);
   const [del, setDel] = useState<PodRow | null>(null);
+  const shownDel = useLingering(del);
   const [logs, setLogs] = useState<PodRow | null>(null);
+  const shownLogs = useLingering(logs);
   const spec = findSpec(catalog, 'delete-pod');
   const g = gate(roles, spec);
   const rows = useMemo(() => {
@@ -295,7 +345,7 @@ export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
       <Stale read={pods} />
       <Table
         label="Pods"
-        head={<><th>Pod</th><th>Status</th><th className="num">Ready</th><th className="num">Restarts</th><th>Owner</th><th>Age</th><th aria-label="Actions" /></>}
+        cols={['Pod', 'Status', { head: 'Ready', num: true }, { head: 'Restarts', num: true }, 'Owner', 'Age', { name: 'Actions' }]}
         empty={pods.data && rows.length === 0 ? 'No pods in this namespace.' : null}
       >
         {rows.map((p) => (
@@ -321,23 +371,27 @@ export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
           </tr>
         ))}
       </Table>
-      {del && spec && (
+      {shownDel && spec && (
         <ConfirmDialog
-          spec={spec} req={{ namespace: ns, pod: del.name }} what={del.name} onClose={() => setDel(null)} onDone={pods.reload}
+          open={del != null}
+          spec={spec} req={{ namespace: ns, pod: shownDel.name }} what={shownDel.name} onClose={() => setDel(null)} onDone={pods.reload}
           // A deleted pod takes its row, and the Delete button that opened
           // this, with it: fall back to the table rather than to <body>.
           returnFocusTo={() => document.querySelector<HTMLElement>('[role="region"][aria-label="Pods"]')}
           goLabel="Delete this pod"
-          consequence={del.owner
-            ? `${del.name} is deleted and ${del.owner.kind} ${del.owner.name} replaces it. With one replica, requests fail until the new pod is ready.`
-            : `${del.name} is deleted.`}
+          consequence={shownDel.owner
+            ? `${shownDel.name} is deleted and ${shownDel.owner.kind} ${shownDel.owner.name} replaces it. With one replica, requests fail until the new pod is ready.`
+            : `${shownDel.name} is deleted.`}
           describe={(r: DeletePodResult) => ({ line: `Deleted ${r.deleted}.`, sub: r.owner ? `${r.owner.kind} ${r.owner.name} replaces it.` : undefined })}
         />
       )}
-      {logs?.owner?.kind === 'Deployment' && (
-        <KubeDialog target={{ namespace: ns, deployment: logs.owner.name }} initialTab="logs" initialPod={logs.name} onClose={() => setLogs(null)} onChanged={pods.reload} />
+      {shownLogs?.owner?.kind === 'Deployment' && (
+        <KubeDialog open={logs != null} target={{ namespace: ns, deployment: shownLogs.owner.name }}
+          initialTab="logs" initialPod={shownLogs.name} onClose={() => setLogs(null)} onChanged={pods.reload} />
       )}
-      {logs?.owner?.kind === 'Job' && <JobLogsDialog ns={ns} job={logs.owner.name} onClose={() => setLogs(null)} />}
+      {shownLogs?.owner?.kind === 'Job' && (
+        <JobLogsDialog open={logs != null} ns={ns} job={shownLogs.owner.name} onClose={() => setLogs(null)} />
+      )}
     </div>
   );
 }
@@ -347,8 +401,11 @@ export function PodsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
 export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatalog; roles: Roles }) {
   const jobs = useKubeRead<JobsResult>('jobs', { namespace: ns }, 8_000);
   const [logs, setLogs] = useState<string | null>(null);
+  const shownLogs = useLingering(logs);
   const [del, setDel] = useState<string | null>(null);
+  const shownDel = useLingering(del);
   const [run, setRun] = useState<string | null>(null);
+  const shownRun = useLingering(run);
   const [template, setTemplate] = useState(catalog.jobTemplates[0] ?? '');
   const delSpec = findSpec(catalog, 'delete-job');
   const runSpec = findSpec(catalog, 'run-template');
@@ -372,7 +429,7 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
       <Stale read={jobs} />
       <Table
         label="Jobs"
-        head={<><th>Job</th><th>Status</th><th>Template</th><th>Image</th><th>Started</th><th aria-label="Actions" /></>}
+        cols={['Job', 'Status', 'Template', 'Image', 'Started', { name: 'Actions' }]}
         empty={jobs.data && rows.length === 0 ? 'No jobs. Completed jobs are removed a day after they finish.' : null}
       >
         {rows.map((j) => (
@@ -393,21 +450,23 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
           </tr>
         ))}
       </Table>
-      {logs && <JobLogsDialog ns={ns} job={logs} onClose={() => setLogs(null)} />}
-      {del && delSpec && (
+      {shownLogs && <JobLogsDialog open={logs != null} ns={ns} job={shownLogs} onClose={() => setLogs(null)} />}
+      {shownDel && delSpec && (
         <ConfirmDialog
-          spec={delSpec} req={{ namespace: ns, job: del }} what={del} onClose={() => setDel(null)} onDone={jobs.reload}
+          open={del != null}
+          spec={delSpec} req={{ namespace: ns, job: shownDel }} what={shownDel} onClose={() => setDel(null)} onDone={jobs.reload}
           returnFocusTo={() => document.querySelector<HTMLElement>('[role="region"][aria-label="Jobs"]')}
           goLabel="Delete this job"
-          consequence={`${del} is deleted, and its pods and their logs with it (in the background). A job that is still running is stopped.`}
+          consequence={`${shownDel} is deleted, and its pods and their logs with it (in the background). A job that is still running is stopped.`}
           describe={(r: DeleteJobResult) => ({ line: `Deleted ${r.deleted}.`, sub: 'Its pods are removed in the background.' })}
         />
       )}
-      {run && runSpec && (
+      {shownRun && runSpec && (
         <ConfirmDialog
-          spec={runSpec} req={{ namespace: ns, template: run }} what={run} onClose={() => setRun(null)} onDone={jobs.reload}
-          goLabel={`Run ${run} in ${ns}`}
-          consequence={`A new Job is created in ${ns} from the ${run} template shipped with Bothy, on the backend deployment's current image.${run === 'migrate' ? ' It changes the database schema.' : ' It writes to the database.'}`}
+          open={run != null}
+          spec={runSpec} req={{ namespace: ns, template: shownRun }} what={shownRun} onClose={() => setRun(null)} onDone={jobs.reload}
+          goLabel={`Run ${shownRun} in ${ns}`}
+          consequence={`A new Job is created in ${ns} from the ${shownRun} template shipped with Bothy, on the backend deployment's current image.${shownRun === 'migrate' ? ' It changes the database schema.' : ' It writes to the database.'}`}
           describe={(r: RunTemplateResult) => ({ line: `Started ${r.job}.`, sub: `Template ${r.template}, image ${r.image}. Its logs are on the Jobs tab.` })}
         />
       )}
@@ -415,7 +474,7 @@ export function JobsTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatal
   );
 }
 
-function JobLogsDialog({ ns, job, onClose }: { ns: string; job: string; onClose: () => void }) {
+function JobLogsDialog({ open, ns, job, onClose }: { open: boolean; ns: string; job: string; onClose: () => void }) {
   const [container, setContainer] = useState<string | undefined>(undefined);
   const [previous, setPrevious] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -423,6 +482,9 @@ function JobLogsDialog({ ns, job, onClose }: { ns: string; job: string; onClose:
   const [refusal, setRefusal] = useState<KubeRefusal | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
+    // Not while it is closed: the dialog stays mounted between uses now, and a
+    // closed dialog re-reading a job's logs is a request nobody asked for.
+    if (!open) return;
     let live = true;
     setLoading(true);
     setRefusal(null);
@@ -431,9 +493,9 @@ function JobLogsDialog({ ns, job, onClose }: { ns: string; job: string; onClose:
       .catch((e) => { if (live) { setRes(null); setRefusal(kubeRefusalOf(e, { title: 'Read the logs of', role: 'viewer' }, job)); } })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, [ns, job, container, previous, nonce]);
+  }, [open, ns, job, container, previous, nonce]);
   return (
-    <Dialog open size="lg" onOpenChange={(o) => { if (!o) onClose(); }} title={<span className="sa-title">Job logs <span className="mono">{job}</span></span>} description="The last 500 lines the job's pod wrote.">
+    <Dialog open={open} size="lg" onOpenChange={(o) => { if (!o) onClose(); }} title={<span className="sa-title">Job logs <span className="mono">{job}</span></span>} description="The last 500 lines the job's pod wrote.">
       <div className="ka-body">
         <div className="ka-row ka-row-between">
           <div className="ka-row">
@@ -451,7 +513,8 @@ function JobLogsDialog({ ns, job, onClose }: { ns: string; job: string; onClose:
         </div>
         <p className="sa-note">{loading ? <Loader state="load" size="sm" label="Reading logs…" /> : res ? <>From <span className="mono">{res.pod} / {res.container}</span></> : null}</p>
         {refusal && <Refused r={refusal} />}
-        <pre className="ka-log mono" tabIndex={0} aria-label={`Logs of ${job}`}>{res?.lines.length ? res.lines.join('\n') : loading ? '' : 'No output.'}</pre>
+        {/* CL-13: a job's pod writes the same SGR escapes a deployment's does. */}
+        <pre className="ka-log mono" tabIndex={0} aria-label={`Logs of ${job}`}>{res?.lines.length ? res.lines.map(stripAnsi).join('\n') : loading ? '' : 'No output.'}</pre>
       </div>
     </Dialog>
   );
@@ -466,12 +529,27 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
   const [draft, setDraft] = useState('');
   const [restart, setRestart] = useState(true);
   const [confirm, setConfirm] = useState<{ key: string; value: string; restart: boolean; from: string } | null>(null);
+  // What the dialog draws while it animates out, after the state went null.
+  const shownConfirm = useLingering(confirm);
   const [filter, setFilter] = useState('');
   const patchG = gate(roles, findSpec(catalog, 'patch-key'));
   const rows = (cm.data?.data ?? []).filter((e) => !filter || e.key.toLowerCase().includes(filter.toLowerCase()));
   const editable = (cm.data?.data ?? []).filter((e) => e.editable).length;
 
   const start = (key: string, value: string) => { setEditing(key); setDraft(value); };
+  // CL-12: leaving the editor puts focus back on the Edit button of the row it
+  // was opened from. Cancel REPLACES that button with itself, so without this
+  // focus fell to <body> - the same defect the dialogs had, one row down. The
+  // row is found by its key rather than held as a ref, because a poll can
+  // replace the row between opening the editor and closing it.
+  const stop = () => {
+    const key = editing;
+    setEditing(null);
+    if (!key) return;
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`tr[data-cm-key="${CSS.escape(key)}"] .cl-actions-cell button`)?.focus();
+    });
+  };
   const spec = confirm ? findSpec(catalog, confirm.restart ? 'patch-key-and-restart' : 'patch-key') : null;
 
   return (
@@ -486,7 +564,7 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
       </div>
       <Table
         label={`ConfigMap ${name}`}
-        head={<><th>Key</th><th>Value</th><th aria-label="Edit" /></>}
+        cols={['Key', 'Value', { name: 'Edit' }]}
         empty={cm.data && rows.length === 0 ? (filter ? `No key matches "${filter}".` : 'The ConfigMap is empty.') : null}
       >
         {rows.map((e) => {
@@ -500,14 +578,21 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
               </td>
               <td className="mono cl-val">
                 {isEditing ? (
-                  <form className="cl-edit" onSubmit={(ev) => { ev.preventDefault(); if (ok && draft !== e.value) setConfirm({ key: e.key, value: draft, restart, from: e.value }); }}>
+                  <form
+                    className="cl-edit"
+                    onSubmit={(ev) => { ev.preventDefault(); if (ok && draft !== e.value) setConfirm({ key: e.key, value: draft, restart, from: e.value }); }}
+                    // Escape cancels, wherever the caret is inside the row. An
+                    // inline editor that only closes through a button is one
+                    // the reader has to aim at to get out of (CL-12).
+                    onKeyDown={(ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); stop(); } }}
+                  >
                     <input
                       className="ka-input mono" value={draft} autoFocus spellCheck={false} aria-label={`New value for ${e.key}`}
                       aria-invalid={!ok} onChange={(ev) => setDraft(ev.target.value)}
                     />
                     <label className="ka-check"><input type="checkbox" checked={restart} onChange={(ev) => setRestart(ev.target.checked)} /> and restart</label>
                     <Button size="sm" type="submit" disabled={!ok || draft === e.value}>Save</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
+                    <Button variant="ghost" size="sm" onClick={stop}>Cancel</Button>
                     {!ok && <span className="ka-hint ka-bad">Must match <span className="mono">{e.pattern}</span></span>}
                   </form>
                 ) : (
@@ -526,15 +611,16 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
         })}
       </Table>
       <p className="sa-note">Only {Object.keys(catalog.configmapKeys).join(', ')} can be changed here; everything else belongs in the manifests. Pods read the ConfigMap when they start, so a change without a restart applies on their next restart.</p>
-      {confirm && spec && (
+      {shownConfirm && spec && (
         <ConfirmDialog
-          spec={spec} req={{ namespace: ns, configmap: name, key: confirm.key, value: confirm.value }} what={confirm.key}
-          onClose={() => { setConfirm(null); setEditing(null); }} onDone={cm.reload}
+          open={confirm != null}
+          spec={spec} req={{ namespace: ns, configmap: name, key: shownConfirm.key, value: shownConfirm.value }} what={shownConfirm.key}
+          onClose={() => { setConfirm(null); stop(); }} onDone={cm.reload}
           // The Save button that opened this is gone once editing ends; the
           // row's Edit button comes back in its place.
-          returnFocusTo={() => document.querySelector<HTMLElement>(`tr[data-cm-key="${CSS.escape(confirm.key)}"] .cl-actions-cell button`)}
-          goLabel={confirm.restart ? `Set ${confirm.key} and restart` : `Set ${confirm.key}`}
-          consequence={`${confirm.key} in ${ns}/${name} changes from "${confirm.from}" to "${confirm.value}".${confirm.restart ? ' Every deployment that reads this ConfigMap is then restarted, one pod at a time.' : ' Running pods keep the old value until they restart.'}`}
+          returnFocusTo={() => document.querySelector<HTMLElement>(`tr[data-cm-key="${CSS.escape(shownConfirm.key)}"] .cl-actions-cell button`)}
+          goLabel={shownConfirm.restart ? `Set ${shownConfirm.key} and restart` : `Set ${shownConfirm.key}`}
+          consequence={`${shownConfirm.key} in ${ns}/${name} changes from "${shownConfirm.from}" to "${shownConfirm.value}".${shownConfirm.restart ? ' Every deployment that reads this ConfigMap is then restarted, one pod at a time.' : ' Running pods keep the old value until they restart.'}`}
           describe={(r: PatchKeyResult) => ({
             line: `${r.key} is now ${r.to}.`,
             sub: r.restarted ? `Restarting ${r.restarted.join(', ') || 'nothing'}.` : `Was ${r.from ?? '(unset)'}. Applies when the pods next restart.`,
@@ -555,7 +641,7 @@ export function NetworkTab({ ns }: { ns: string }) {
   return (
     <div className="cl-stack">
       <Section title="Services" read={svcs}>
-        <Table label="Services" head={<><th>Service</th><th>Type</th><th>Cluster IP</th><th>Ports</th><th>Selector</th></>} empty={svcs.data?.services.length === 0 ? 'No services.' : null}>
+        <Table label="Services" cols={['Service', 'Type', 'Cluster IP', 'Ports', 'Selector']} empty={svcs.data?.services.length === 0 ? 'No services.' : null}>
           {svcs.data?.services.map((s) => (
             <tr key={s.name}>
               <td className="mono">{s.name}</td><td>{s.type}</td><td className="mono">{s.clusterIP}</td>
@@ -566,7 +652,7 @@ export function NetworkTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Routes" read={routes}>
-        <Table label="Routes" head={<><th>Route</th><th>Host</th><th>Service</th><th>TLS</th></>} empty={routes.data?.routes.length === 0 ? 'No routes.' : null}>
+        <Table label="Routes" cols={['Route', 'Host', 'Service', 'TLS']} empty={routes.data?.routes.length === 0 ? 'No routes.' : null}>
           {routes.data?.routes.map((r) => (
             <tr key={r.name}>
               <td className="mono">{r.name}</td><td className="mono cl-wrap">{r.host}{r.path ?? ''}</td>
@@ -576,7 +662,7 @@ export function NetworkTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Ingresses" read={ings}>
-        <Table label="Ingresses" head={<><th>Ingress</th><th>Class</th><th>Rules</th></>} empty={ings.data?.ingresses.length === 0 ? 'No ingresses.' : null}>
+        <Table label="Ingresses" cols={['Ingress', 'Class', 'Rules']} empty={ings.data?.ingresses.length === 0 ? 'No ingresses.' : null}>
           {ings.data?.ingresses.map((i) => (
             <tr key={i.name}>
               <td className="mono">{i.name}</td><td>{i.className ?? <span className="dim">default</span>}</td>
@@ -586,7 +672,7 @@ export function NetworkTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Network policies" read={pols}>
-        <Table label="Network policies" head={<><th>Policy</th><th>Pods</th><th>Types</th><th>Allows</th></>} empty={pols.data?.policies.length === 0 ? 'No network policies: every pod may reach every other.' : null}>
+        <Table label="Network policies" cols={['Policy', 'Pods', 'Types', 'Allows']} empty={pols.data?.policies.length === 0 ? 'No network policies: every pod may reach every other.' : null}>
           {pols.data?.policies.map((p) => (
             <tr key={p.name}>
               <td className="mono">{p.name}</td><td className="mono">{Object.keys(p.podSelector).length ? kv(p.podSelector) : 'all pods'}</td>
@@ -619,7 +705,7 @@ export function StorageTab({ ns }: { ns: string }) {
   return (
     <div className="cl-stack">
       <Section title="Volume claims" read={pvcs}>
-        <Table label="Volume claims" head={<><th>Claim</th><th>Status</th><th className="num">Size</th><th>Access</th><th>Class</th><th>Volume</th></>} empty={pvcs.data?.claims.length === 0 ? 'No volume claims.' : null}>
+        <Table label="Volume claims" cols={['Claim', 'Status', { head: 'Size', num: true }, 'Access', 'Class', 'Volume']} empty={pvcs.data?.claims.length === 0 ? 'No volume claims.' : null}>
           {pvcs.data?.claims.map((c) => (
             <tr key={c.name}>
               <td><span className="cl-cell-name"><Dot state={c.phase === 'Bound' ? 'up' : c.phase === 'Pending' ? 'warn' : 'down'} /><span className="mono">{c.name}</span></span></td>
@@ -631,7 +717,7 @@ export function StorageTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Resource quotas" read={quotas}>
-        <Table label="Resource quotas" head={<><th>Quota</th><th>Resource</th><th className="num">Used</th><th className="num">Limit</th></>} empty={quotas.data?.quotas.length === 0 ? 'No quotas: the namespace can use whatever the node has.' : null}>
+        <Table label="Resource quotas" cols={['Quota', 'Resource', { head: 'Used', num: true }, { head: 'Limit', num: true }]} empty={quotas.data?.quotas.length === 0 ? 'No quotas: the namespace can use whatever the node has.' : null}>
           {quotas.data?.quotas.flatMap((q) => Object.keys(q.hard).sort().map((r, i) => (
             <tr key={`${q.name}-${r}`}>
               <td className="mono">{i === 0 ? q.name : ''}</td><td className="mono">{r}</td>
@@ -641,7 +727,7 @@ export function StorageTab({ ns }: { ns: string }) {
         </Table>
       </Section>
       <Section title="Limit ranges" read={limits}>
-        <Table label="Limit ranges" head={<><th>Range</th><th>Type</th><th>Default</th><th>Default request</th><th>Max</th></>} empty={limits.data?.limitRanges.length === 0 ? 'No limit ranges.' : null}>
+        <Table label="Limit ranges" cols={['Range', 'Type', 'Default', 'Default request', 'Max']} empty={limits.data?.limitRanges.length === 0 ? 'No limit ranges.' : null}>
           {limits.data?.limitRanges.flatMap((l) => l.limits.map((x, i) => (
             <tr key={`${l.name}-${i}`}>
               <td className="mono">{i === 0 ? l.name : ''}</td><td>{x.type}</td>
@@ -706,6 +792,10 @@ export function clusterQueries(ns: string): { cpu: string; mem: string } {
 
 export function MetricsTab({ ns }: { ns: string }) {
   const [state, setState] = useState<{ cpu: Series[]; mem: Series[]; err: string | null; at: number | null }>({ cpu: [], mem: [], err: null, at: null });
+  // CL-22: every other tab has a Refresh, through ReadHead. This one polls
+  // every 30s and offered no way to ask NOW - which is the thing you want after
+  // a restart, and the one moment a 30s wait feels like a broken page.
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     const ac = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -718,7 +808,7 @@ export function MetricsTab({ ns }: { ns: string }) {
     };
     run();
     return () => { ac.abort(); clearTimeout(timer); };
-  }, [ns]);
+  }, [ns, nonce]);
 
   const pods = [...new Set([...state.cpu, ...state.mem].map((s) => s.label))].sort();
   const cpuOf = (p: string) => state.cpu.find((s) => s.label === p);
@@ -730,12 +820,17 @@ export function MetricsTab({ ns }: { ns: string }) {
     <div className="cl-stack">
       <div className="cl-sub">
         <span className="dim cl-fresh">CPU and memory per pod, last hour · kubelet cAdvisor{state.at ? ` · updated ${ago(new Date(state.at).toISOString())}` : ''}</span>
+        <span className="cl-sub-actions">
+          <Button variant="ghost" size="sm" onClick={() => setNonce((n) => n + 1)} aria-label="Refresh metrics">
+            <SizedIcon icon={RefreshCw} size="sm" /> Refresh
+          </Button>
+        </span>
       </div>
       {state.err && <p className="sa-note cl-stale">Metrics are not available right now ({state.err}).{state.at ? ' Showing the last answer.' : ''}</p>}
       {!state.at && !state.err && <Loader state="load" size="md" label="Reading metrics…" />}
       {state.at && pods.length === 0 && <p className="sa-note">No pod series for {ns}. The kubelet-cadvisor scrape may be down.</p>}
       {pods.length > 0 && (
-        <Table label="Pod metrics" head={<><th>Pod</th><th>CPU</th><th className="num">Now</th><th>Memory</th><th className="num">Now</th></>}>
+        <Table label="Pod metrics" cols={['Pod', 'CPU', { head: 'Now', label: 'CPU now', num: true }, 'Memory', { head: 'Now', label: 'Memory now', num: true }]}>
           {pods.map((p) => {
             const c = cpuOf(p);
             const m = memOf(p);

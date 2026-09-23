@@ -55,7 +55,15 @@
 .cl-page .cl-key-why { display: block; font-family: var(--font); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); white-space: normal; max-width: 280px; }
 .cl-page .cl-val { white-space: normal; overflow-wrap: break-word; min-width: 160px; }
 .cl-page tr[data-editable='true'] .cl-key { color: var(--accent-fg); }
+/* CL-12: it wraps only when it has to. At 760px and above the field, the
+   restart checkbox and the two buttons fit on the row they were opened on, so
+   the row grows from 32px to 66px and everything under it jumps a line down
+   for no reason. The hint is what wraps first, on a line of its own. */
 .cl-page .cl-edit { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+@media (min-width: 761px) {
+  .cl-page .cl-edit { flex-wrap: nowrap; }
+  .cl-page .cl-edit .ka-hint { flex-basis: 100%; }
+}
 .cl-page .cl-edit .ka-input { max-width: 220px; padding: var(--sp-1) var(--sp-2); }
 .cl-page .ka-input {
   font: inherit; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg);
@@ -90,8 +98,21 @@
   background: var(--surface-2); border: 1px solid var(--line);
   border-left: 3px solid var(--st-unknown);
 }
-.cl-page button.cl-topo-node { cursor: pointer; }
+/* CL-23: a card that opens something looks like one. It reserves room on the
+   right for the chevron, which sits against the card's own edge rather than
+   under the text, and dims until the card is hovered or focused - present
+   enough to distinguish the two kinds of card at rest, quiet enough not to be
+   five arrows down a column. */
+.cl-page button.cl-topo-node { cursor: pointer; position: relative; padding-right: var(--sp-8); }
 .cl-page button.cl-topo-node:hover { border-color: var(--line-strong); background: var(--surface-3); }
+.cl-page .cl-topo-go {
+  position: absolute; right: var(--sp-2_5); top: 50%; translate: 0 -50%;
+  color: var(--fg-subtle); opacity: .6;
+  transition: opacity var(--dur-fast) var(--ease), translate var(--dur-fast) var(--ease);
+}
+.cl-page button.cl-topo-node:hover .cl-topo-go,
+.cl-page button.cl-topo-node:focus-visible .cl-topo-go { opacity: 1; translate: 2px -50%; }
+.cl-page button.cl-topo-node:active { background: var(--surface-press); }
 .cl-page .cl-topo-node[data-state='up'] { border-left-color: var(--st-up); }
 .cl-page .cl-topo-node[data-state='warn'] { border-left-color: var(--st-warn); }
 .cl-page .cl-topo-node[data-state='down'] { border-left-color: var(--st-down); }
@@ -110,15 +131,35 @@
 .cl-page .cl-spark-area { fill: currentColor; opacity: .14; stroke: none; }
 
 /* ── narrow ─────────────────────────────────────────────────────────────────*/
-@media (max-width: 760px) {
-  /* Tables scroll sideways inside their own wrapper rather than crushing columns. */
+/* Tables scroll sideways inside their own wrapper rather than crushing columns
+   - but only while they are still tables. At 640px and below they are cards
+   (SYS-17), and a 640px minimum on a BLOCK is 640px of page scroll. */
+@media (max-width: 760px) and (min-width: 641px) {
   .cl-page .cl-tbl .tbl { min-width: 640px; }
+}
+@media (max-width: 760px) {
   .cl-page .cl-topo { grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
   .cl-page .cl-topo-svg { display: none; }
   .cl-page .cl-topo-links { display: block; }
 }
+@media (max-width: 640px) {
+  /* As a card a cell has the width of the phone, not of its column, so the
+     nowrap that keeps the table's columns honest has to come off - and the
+     image and value cells lose the caps that were there to stop one long
+     reference widening every other row. */
+  .cl-page .cl-tbl .tbl.as-cards td { white-space: normal; }
+  .cl-page .cl-tbl .tbl.as-cards td.cl-img { max-width: none; overflow: visible; }
+  .cl-page .cl-tbl .tbl.as-cards td.cl-val { min-width: 0; }
+  .cl-page .cl-tbl .tbl.as-cards td.cl-actions-cell { text-align: right; }
+  /* A pod's name is the card's title and is longer than a phone is wide, so it
+     wraps rather than being cut off mid-hash. */
+  .cl-page .cl-tbl .tbl.as-cards .cl-cell-name { display: flex; align-items: flex-start; }
+  .cl-page .cl-tbl .tbl.as-cards .cl-cell-name .mono { overflow-wrap: anywhere; }
+  /* A number right-aligned against a column edge reads as a column; against the
+     card's edge, with its label at the other end, it reads as two things. */
+  .cl-page .cl-tbl .tbl.as-cards td.num { text-align: left; }
+}
 @media (max-width: 560px) {
   .cl-page .cl-head-aside { width: 100%; }
   .cl-page .cl-headlamp { margin-left: auto; }
-  .cl-page .cl-tbl .tbl td.cl-img { max-width: 140px; }
 }

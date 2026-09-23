@@ -31,7 +31,16 @@
   appearance: none; font: inherit; font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); font-family: var(--mono);
   color: var(--fg); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: var(--sp-1) var(--sp-1_5); max-width: 110px;
+  /* FL-18: it sizes to its longest option and does not shrink. The 110px cap
+     clipped "every root" - the one option whose name has to be read to be
+     understood - and `appearance: none` had taken the platform's own chevron
+     with it, so nothing said it was a menu at all. */
+  padding: var(--sp-1) var(--sp-6) var(--sp-1) var(--sp-1_5); flex: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 11px top 55%, right 6px top 55%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
 .bothy-files .fx-sr-glob { margin: 0; flex: 1 1 auto; min-width: 0; }
 .bothy-files .fx-sr-glob input { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); }

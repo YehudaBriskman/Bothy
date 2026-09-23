@@ -42,7 +42,7 @@ import { useOperator } from '../../lib/session';
 import { fetchUpdates } from '../../lib/updates';
 import { fetchAudit, fetchBackups } from '../../lib/admin';
 import { KUBE_NAMESPACES } from '../../lib/kube-actions';
-import { Skeleton } from '../../components/states';
+import { Skeleton, firstPoll } from '../../components/states';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
 import { usePolled } from '../../components/control-home/usePolled';
@@ -225,7 +225,7 @@ export function ControlHome() {
     });
   }
 
-  const loading = data.at === 0 && data.fails === 0;
+  const loading = firstPoll(data);
 
   return (
     <div className="page control-page ch">

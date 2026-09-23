@@ -65,6 +65,18 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
     setApplied(search);
   }, [search]);
 
+  // CT-20: the filter applies on its own, 300ms after the typing stops. It used
+  // to apply on Enter ALONE, with nothing on screen saying so - so a reader
+  // typed a word, watched the log not change, and concluded the filter was
+  // broken. Enter still works and still applies immediately (the form's submit
+  // above), which is what the ↵ in the field promises for anyone who does not
+  // want to wait.
+  useEffect(() => {
+    if (search === applied) return;
+    const t = setTimeout(() => setApplied(search), 300);
+    return () => clearTimeout(t);
+  }, [search, applied]);
+
   return (
     <div className="logp">
       <div className="logp-bar">
@@ -82,6 +94,7 @@ export function LogPanel({ source, title }: { source: LogSource; title?: string 
             aria-label="Filter log lines"
             onChange={(e) => setSearch(e.target.value)}
           />
+          {search !== applied && <kbd className="kbd logp-enter" aria-hidden="true">↵</kbd>}
         </form>
 
         <label className="logp-range">

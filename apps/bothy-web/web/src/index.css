@@ -731,6 +731,58 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .rule { color: var(--fg-muted); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbl a { color: var(--accent); }
 
+/* ── a narrow table is a list of cards (SYS-17) ──────────────────────────── */
+/* At 390 a seven-column table is a sideways scroll, and the columns it hides
+   are the ones that matter: Services hid Status, Group and Kind; Cluster › Pods
+   put Logs and Delete off-screen; Audit put a 647px table in a 330px scroller
+   and broke emails mid-token. Settings › Updates already solved it - the rule
+   below is that pattern, promoted out of settings.css so every table can wear
+   it by adding `as-cards`.
+   The contract for a table that opts in:
+     - every cell that needs its column name carries `data-label`;
+     - the cell that IDENTIFIES the row, and any cell holding only controls,
+       carries none, and runs the full width of the card.
+   The label is a grid item in column 1 row 1, not a `span`, so a cell with
+   several children stacks them under one label instead of breaking the grid. */
+@media (max-width: 640px) {
+  .tbl.as-cards thead { display: none; }
+  .tbl.as-cards,
+  .tbl.as-cards > tbody,
+  .tbl.as-cards > tbody > tr,
+  .tbl.as-cards > tbody > tr > td { display: block; }
+  /* A `min-width` that made the table scroll sideways inside its wrapper on a
+     wide-but-not-wide-enough screen would, once the table is a block, push the
+     PAGE that wide instead. */
+  .tbl.as-cards { min-width: 0; table-layout: auto; }
+  .tbl.as-cards > tbody > tr {
+    padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line);
+  }
+  .tbl.as-cards > tbody > tr:last-child { border-bottom: 0; }
+  .tbl.as-cards > tbody > tr > td {
+    border-bottom: 0; padding: var(--sp-1) 0; min-width: 0; width: auto;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+  .tbl.as-cards td[data-label] {
+    display: grid; grid-template-columns: minmax(0, 5.5rem) minmax(0, 1fr);
+    column-gap: var(--sp-2_5);
+  }
+  .tbl.as-cards td[data-label] > * { grid-column: 2; }
+  .tbl.as-cards td[data-label]::before {
+    content: attr(data-label); grid-column: 1; grid-row: 1;
+    font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--label-tracking);
+    text-transform: uppercase; font-weight: var(--fw-semibold); color: var(--fg-subtle);
+  }
+  /* An empty-state row is one cell talking about the whole table, so it keeps
+     its centred padding rather than becoming a card. */
+  .tbl.as-cards > tbody > tr > td.tbl-empty { padding: var(--sp-8) var(--sp-4) !important; }
+  /* A cell whose content is wider than the card (an image reference, a long
+     path) wraps inside it rather than taking the page sideways. */
+  .tbl.as-cards td .mono, .tbl.as-cards td.mono { max-width: 100%; }
+  /* Same reason as above: the numbers are no longer in a column, so aligning
+     them to the card's right edge only puts them far from their label. */
+  .tbl.as-cards td.num, .tbl.as-cards .num { text-align: left; }
+}
+
 /* ── states / skeleton ───────────────────────────────────────────────────── */
 /* 56px of padding made "no results" as prominent as the content it replaced -
    an empty state is a note, not an announcement. `.state.err` keeps the larger
@@ -740,6 +792,27 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .state.err { padding: var(--sp-10) var(--sp-5); border-color: color-mix(in oklab, var(--st-down) 26%, var(--line)); }
 .state h4 { margin: 0 0 var(--sp-1_5); font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
 .state p { color: var(--fg-muted); max-width: 520px; margin: 0 auto var(--sp-4); }
+/* A 404 is a PAGE, so its heading is the page's h1 - the audit found the 404
+   and the unknown settings section with no heading at all. It is drawn at the
+   same weight as the h4 above it, because "not found" is not a hero. */
+.state-404 h1 { margin: 0 0 var(--sp-1_5); font-size: var(--fs-lg); line-height: var(--lh-lg); letter-spacing: var(--tr-lg); }
+.state-404 p:last-of-type { margin-bottom: var(--sp-4); }
+/* More than one way out, side by side and centred with the prose above them. */
+.state-acts { display: flex; gap: var(--sp-2); justify-content: center; flex-wrap: wrap; }
+
+/* ── the no-role refusal (components/states.tsx NeedsRole) ───────────────── */
+/* Here rather than in ServiceActions.css, where it used to live: the shared
+   component renders on pages that never import that file, and in dev an
+   unimported stylesheet is simply absent. */
+.sa-note { margin: 0; color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.sa-norole {
+  display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start;
+  padding: var(--sp-3) var(--sp-3_5); border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line); text-align: left;
+}
+.sa-norole-h { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700;
+  display: flex; align-items: center; gap: var(--sp-2); }
+.sa-norole-h svg { color: var(--st-warn-fg); flex: none; }
 .skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-3_5); }
 /* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
 .skel-col { display: flex; flex-direction: column; gap: var(--sp-3_5); }
@@ -974,7 +1047,11 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
 .nav-item:hover { background: var(--surface-1); color: var(--fg); }
 .nav-item.on { color: var(--fg); }
 .nav-item.on svg { opacity: 1; }
-.nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: -11px; height: 2px;
+/* SH-2: at the BOTTOM OF THE ITEM, not 11px below it. `.nav` is a scroller
+   (overflow-y: hidden, to keep a horizontal scrollbar off a 34px row), so a bar
+   drawn outside the item's box was clipped by it - "you are here" was two
+   pixels of accent, or none. */
+.nav-item.on::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: 0; height: 2px;
   border-radius: var(--r-2xs) var(--r-2xs) 0 0; background: var(--accent); }
 
 /* The label. Below 1080px it is not drawn at all (visually hidden, still the
@@ -1019,12 +1096,25 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
   }
   .nav-item.on::after { left: 9px; right: 9px; }
+  /* With no label, "you are here" was an icon at opacity 1 against 0.85 - a
+     difference nobody can see, and one that is invisible in forced colours.
+     The item takes a fill as well. */
+  .nav-item.on { background: var(--surface-2); }
 }
 @media (max-width: 900px) {
   /* `.brand-text` used to be hidden here, leaving the hut tile as the whole
      brand on a narrow screen. There is no tile now, so hiding the wordmark
      would leave the corner empty - it stays, and only the freshness pill goes. */
-  .topbar-pill { display: none; }
+  /* SH-4: the WORD goes, the dot stays. Hiding the whole pill meant a phone
+     or a tablet could not tell that the data on screen was minutes old - the
+     one fact the top bar is there to carry. The dot keeps the tooltip and the
+     accessible name, which is the same sentence the word carried. */
+  .topbar-pill .pill-orb { display: none; }
+  .topbar-pill .pill-short {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
+  .topbar-pill { padding: var(--sp-1) var(--sp-2); }
   .topbar-search { width: auto; }
   .topbar-search .search-label, .topbar-search .kbd { display: none; }
   .content { padding: var(--sp-6) var(--sp-4) var(--sp-16); }
@@ -1114,6 +1204,18 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
    and .pt were deleted 2026-09-21 (SYS-15). */
 
 /* ── service table rows ──────────────────────────────────────────────────── */
+/* `table-layout: fixed` is what makes the <colgroup> in ServiceTable binding;
+   without it the browser still sizes from content and two stacked groups do
+   not line up (CT-16). The min-width keeps the old behaviour on a narrow
+   DESKTOP - the wrapper scrolls rather than the columns crushing - and the
+   as-cards rule above resets it once the table stops being a table. */
+.svc-tbl { table-layout: fixed; min-width: 44rem; }
+.svc-col-status { width: 7.5rem; }
+.svc-col-group { width: 9rem; }
+.svc-col-kind { width: 6.5rem; }
+.svc-col-ports { width: 7rem; }
+.svc-col-act { width: 34px; }
+.svc-col-open { width: 40px; }
 .svc-tbl td { vertical-align: middle; }
 .svc-tbl.compact td { padding: var(--sp-1_5) var(--sp-3_5); }
 .svc-tr:hover { background: var(--surface-2); }
@@ -1125,6 +1227,18 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
 .svc-td-open a:hover { color: var(--accent); }
 .tag.link { color: var(--accent); }
 .tag.link:hover { border-color: var(--accent); }
+/* As a card, a service row leads with its name and ends with its two controls
+   on one line - the action button and the open-in-new link stacked one above
+   the other would read as two unrelated rows. */
+@media (max-width: 640px) {
+  .svc-tbl > tbody > tr > td.svc-td-name { padding-bottom: var(--sp-1_5); }
+  .svc-tbl > tbody > tr > td.svc-td-act,
+  .svc-tbl > tbody > tr > td.svc-td-open {
+    display: inline-block; vertical-align: middle; width: auto; padding-top: var(--sp-1_5);
+  }
+  .svc-tbl > tbody > tr > td.svc-td-open { padding-left: var(--sp-2); }
+  .svc-tbl .svc-td-img { white-space: normal; }
+}
 
 /* ── overview ──────────────────────────────────────────────────────────────
    Lives in pages/Overview.css. Eight .ov-* rules used to be declared here AND
@@ -1206,7 +1320,11 @@ html[data-scrolled] .topbar { box-shadow: var(--shadow-edge); }
    ══════════════════════════════════════════════════════════════════════════ */
 .panel { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg);
   display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-.panel-h { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-3) var(--sp-4);
+/* `margin: 0` is ST-3: this rule sets the spacing a panel head has, and where
+   the head is an <h2> - the theme editor, and anywhere else a panel titles
+   itself - the UA's own heading margins were added on top of it, so the head's
+   box was 1.5em taller than the rule says and the border sat away from it. */
+.panel-h { display: flex; align-items: center; gap: var(--sp-2_5); margin: 0; padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line); font-weight: var(--fw-bold);
   font-size: var(--fs-md); line-height: var(--lh-md); }
 .panel-h .sub { color: var(--fg-subtle); font-weight: var(--fw-medium);
@@ -1320,7 +1438,17 @@ html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(
 .cmdk-item { display: flex; align-items: center; gap: var(--sp-2_5); padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-sm);
   font-size: var(--fs-md); line-height: var(--lh-md); min-height: var(--hit); cursor: pointer; color: var(--fg-muted); }
 .cmdk-item .cmdk-sub { margin-left: auto; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--fg-subtle); }
-.cmdk-item[aria-selected='true'] { background: var(--surface-3); color: var(--fg); }
+/* SH-13: the selection was --surface-3 on the palette's --surface-4, about
+   1.1:1 - on a list you drive with the arrow keys, where "which row am I on"
+   is the only question. The accent tint plus a 2px bar says it in two ways,
+   neither of them colour alone. */
+.cmdk-item[aria-selected='true'] {
+  background: var(--accent-bg); color: var(--fg); position: relative;
+}
+.cmdk-item[aria-selected='true']::before {
+  content: ''; position: absolute; left: 0; top: var(--sp-1); bottom: var(--sp-1);
+  width: 2px; border-radius: 0 var(--r-2xs) var(--r-2xs) 0; background: var(--accent);
+}
 .cmdk-empty { padding: var(--sp-6) var(--sp-3); text-align: center; color: var(--fg-subtle); font-size: var(--fs-sm); }
 .cmdk-foot { display: flex; gap: var(--sp-3_5); padding: var(--sp-2) var(--sp-3_5); border-top: 1px solid var(--line);
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); flex: none; }

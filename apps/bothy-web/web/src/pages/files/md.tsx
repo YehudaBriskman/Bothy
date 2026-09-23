@@ -481,18 +481,34 @@ export function renderMd(src: string, k = 'b', links?: MdLinks): ReactNode[] {
       const ordered = /\d/.test(item[2]);
       const base = item[1].length;
       const items: { text: string; sub: string[] }[] = [];
+      // `lazy` is "we are still inside this item's own sentence" - true from the
+      // item's marker until a blank line, or until the item starts a block.
+      let lazy = false;
       while (i < lines.length) {
         const m = RE_ITEM.exec(lines[i]);
-        if (m && m[1].length <= base) { items.push({ text: m[3], sub: [] }); i++; continue; }
+        if (m && m[1].length <= base) { items.push({ text: m[3], sub: [] }); lazy = true; i++; continue; }
         // A deeper-indented or continuation line belongs to the item above it.
         if (lines[i].trim() && lines[i].search(/\S/) > base && items.length) {
-          items[items.length - 1].sub.push(lines[i].slice(base + 2));
+          const cur = items[items.length - 1];
+          // FL-1: A HARD-WRAPPED ITEM IS ONE SENTENCE, NOT TWO BLOCKS. Every
+          // indented line used to become a nested block, so an item wrapped at
+          // 80 columns - which is nearly every list in docs/ and in the notes -
+          // rendered as its first source line followed by a paragraph under it,
+          // with that paragraph's own leading and margin. A continuation joins
+          // the item's text now; a nested LIST MARKER, and anything after a
+          // blank line inside the item, still starts a block.
+          if (lazy && !m && !cur.sub.length) {
+            cur.text += ` ${lines[i].trim()}`;
+            i++;
+            continue;
+          }
+          cur.sub.push(lines[i].slice(base + 2));
           i++;
           continue;
         }
         // A blank line only ends the list if what follows is not another item.
         if (!lines[i].trim() && i + 1 < lines.length
-            && (RE_ITEM.test(lines[i + 1]) || lines[i + 1].search(/\S/) > base)) { i++; continue; }
+            && (RE_ITEM.test(lines[i + 1]) || lines[i + 1].search(/\S/) > base)) { lazy = false; i++; continue; }
         break;
       }
       const lk = key();
