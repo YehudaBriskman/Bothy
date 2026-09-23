@@ -818,7 +818,11 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .sa-norole-h { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700;
   display: flex; align-items: center; gap: var(--sp-2); }
 .sa-norole-h svg { color: var(--st-warn-fg); flex: none; }
-.skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-3_5); }
+/* Table rows, stacked and close together - a header bar and then rows. The
+   table skeleton used to draw into a `.skel-wrap` CARD GRID, so at 1440 it was
+   four grey cards across standing in for a nine-row table; `.skel-wrap` itself
+   went with the generic `panels` variant that was its only other user. */
+.skel-rows { display: flex; flex-direction: column; gap: var(--sp-1_5); }
 /* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
 .skel-col { display: flex; flex-direction: column; gap: var(--sp-3_5); }
 /* A row of tiles or cards - the Control landing's health strip, its card rows.

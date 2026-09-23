@@ -590,6 +590,57 @@ mutant "the installer's pinned sha drifts" \
   -- bash scripts/checks/installer-pin.sh
 
 echo
+echo "── what the app shows while it is waiting ──────────────────────────"
+# Four rows, one per fault found on 2026-09-23, each anchored on REAL MARKUP
+# rather than on a comment. A check that strips comments - and this one does,
+# first thing - will happily "pass" a mutation planted in prose, and a no-op
+# mutation makes a decorative check look vigilant.
+
+# 1. The plate is what gives the loader a clear area over a skeleton. Make it
+#    translucent and the orb is back on the grey bars with a blur over them,
+#    which is the original defect wearing the fix's name. Decision 4 also
+#    reserves translucent material for the top bar and the palette.
+mutant "the loader's plate goes translucent" \
+  apps/bothy-web/web/src/components/ui/Loader.css \
+  '.ui-loader-plate {
+  background: var(--surface-4);' \
+  '.ui-loader-plate {
+  background: color-mix(in oklab, var(--surface-4) 70%, transparent);
+  backdrop-filter: blur(12px);' \
+  -- "${WEB_CHECKS[@]}"
+
+# 2. The Skeleton is the one Loader in the app that is laid OVER content, so it
+#    is the one call site that must pass `plate`. Dropping the prop restores the
+#    exact screenshot this batch started from.
+mutant "the skeleton's loader loses its plate" \
+  apps/bothy-web/web/src/components/states.tsx \
+  'label={label} plate className="skel-orb"' \
+  'label={label} className="skel-orb"' \
+  -- "${WEB_CHECKS[@]}"
+
+# 3. The defect itself: the Control landing standing under the Overview's
+#    skeleton - a status line and chip rows reserved for a page that is a health
+#    strip over a card grid. Nothing in the tree related a page to its shape
+#    until the register in checks/loading-states.mjs, which is why this went
+#    unnoticed through a whole design batch.
+mutant "a page is pointed at another page's skeleton" \
+  apps/bothy-web/web/src/pages/control/ControlHome.tsx \
+  '<Skeleton variant="control"' \
+  '<Skeleton variant="overview"' \
+  -- "${WEB_CHECKS[@]}"
+
+# 4. The quick-links strip inventing a link to a port nothing listens on. The
+#    port index is built from the compose files and skips anything behind a
+#    `profiles:` key - `prometheus` is still IN monitoring/compose.yml under
+#    `legacy-prometheus`, so a check that merely grepped the repo for 9090 would
+#    have called this link fine.
+mutant "a fallback link points at a retired service" \
+  apps/bothy-web/web/src/pages/Overview.tsx \
+  "{ key: 'victoriametrics', label: 'Metrics', port: 8428 }," \
+  "{ key: 'prometheus', label: 'Prometheus', port: 9090 }," \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is

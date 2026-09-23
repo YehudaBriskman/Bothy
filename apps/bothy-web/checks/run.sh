@@ -131,7 +131,8 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
    "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" \
-   "$HERE/settings.mjs" "$HERE/a11y-contract.mjs" "$HERE/log-escapes.mjs" "$OUT/"
+   "$HERE/settings.mjs" "$HERE/a11y-contract.mjs" "$HERE/log-escapes.mjs" \
+   "$HERE/loading-states.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
 node "$OUT/status-classifier.mjs"
@@ -264,6 +265,18 @@ echo "── the design audit's tokens and shared primitives hold ──"
 # elevation ladder and a scrim that darkens, Button contrast in every palette,
 # and a token reference generated from the code.
 node "$OUT/design-tokens.mjs" "$WEB/src" "$WEB/../../.."
+
+echo
+echo "── what the app shows while it is waiting ──────────"
+# The skeletons, the plate over them, and the links a loading or broken page
+# offers. Three faults it exists for, all found on 2026-09-23: a Loader laid
+# bare over a skeleton so the orb printed onto a grey bar; four pages standing
+# under a skeleton shaped like a different page; and the quick-links strip
+# offering :9090 on every cold load, months after VictoriaMetrics replaced
+# Prometheus. The port index is built from the compose files, and a service
+# behind a `profiles:` key does not count - which is why grepping the repo for
+# 9090 would have said the link was fine.
+node "$OUT/loading-states.mjs" "$WEB/src" "$WEB/../../.."
 
 echo
 echo "── a theme dropped in by hand is read correctly ────────"

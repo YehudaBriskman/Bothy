@@ -170,12 +170,16 @@ export function useDocTitle(title: string) {
 // wore `panels` (two generic 132px boxes); and the three file readers wore
 // `table` - a header row over eight even rows, for a column of ragged prose.
 export function Skeleton({
-  variant = 'panels',
+  variant,
   state = 'load',
   label = 'Loading…',
   size = 'lg',
 }: {
-  variant?: SkelVariant;
+  /** Which page's shape is arriving. REQUIRED, and it used to default to
+   *  `panels` - two generic 132px boxes - which is how four pages ended up
+   *  reserving a shape nobody had chosen for them. A skeleton you get by saying
+   *  nothing is a skeleton nobody has checked against its page. */
+  variant: SkelVariant;
   /** What kind of waiting (ui/Loader): `search` for the discovery poll, `load` otherwise. */
   state?: LoaderState;
   /** What is being waited on - announced, and shown under the orb. */
@@ -198,7 +202,7 @@ export function Skeleton({
   );
 }
 
-export type SkelVariant = 'panels' | 'overview' | 'table' | 'control' | 'detail' | 'reader';
+export type SkelVariant = 'overview' | 'control' | 'detail' | 'table' | 'reader';
 
 /** `--skel-min` for a .skel-row: the cell width below which the row wraps, set
  *  to whatever the real row uses so the skeleton collapses where the page does. */
@@ -289,17 +293,20 @@ function Shapes({ variant }: { variant: SkelVariant }) {
     );
   }
   if (variant === 'table') {
+    // A header row and then rows, stacked and close together. It drew into
+    // `.skel-wrap` - the auto-fill CARD GRID the deleted `panels` variant used -
+    // so at 1440 the Services skeleton was four grey cards across standing in
+    // for a table nine rows deep. The same defect, one file further down.
     return (
-      <div className="skel-wrap" aria-hidden="true">
-        <div className="skel" style={{ height: 34 }} />
+      <div className="skel-rows" aria-hidden="true">
+        <div className="skel skel-line" style={{ height: 34 }} />
         {bars(8, 32)}
       </div>
     );
   }
-  return (
-    <div className="skel-wrap" aria-hidden="true">
-      <div className="skel" />
-      <div className="skel" />
-    </div>
-  );
+  // Every variant is returned above. This is the compiler saying so: add a
+  // member to SkelVariant without a shape and `variant` is no longer `never`
+  // here, so the build fails rather than the page rendering nothing.
+  const exhaustive: never = variant;
+  return exhaustive;
 }
