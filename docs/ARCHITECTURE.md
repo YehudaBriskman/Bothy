@@ -20,7 +20,12 @@ but it is not how the box works today.
 
 Traefik still owns `:80`, and still matters, but for a smaller job than before:
 it serves the portal's catch-all and the portal's read-only `/-/api/*` data
-plane, all on host-less exact `Path()` rules - and the role-gated routes of Bothy's two backends. Nineteen committed routers exist in total (fourteen of them role-gated, counted 2026-09), plus the generated Prometheus route.
+plane, all on host-less exact `Path()` rules - and the role-gated routes of
+Bothy's two backends. 52 committed routers exist in total, 48 of them role-gated,
+plus the generated Prometheus route. Those two numbers are held against
+`edge/dynamic/*.yml` by `scripts/checks/router-gates.sh`; before 2026-09-23 this
+sentence said nineteen and fourteen, having been written when that was true and
+never revisited when the cluster, admin and updates tiers arrived.
 
 **The stack is a helper, not a platform.** It provides what projects *don't*
 ship - routing, dashboards, log aggregation. It never provides what projects
@@ -172,7 +177,7 @@ projects (and separate project repos under `~/projects`) share one edge.
 
 | Network | Members | Purpose |
 |---|---|---|
-| `devnet` | ~24 containers: the whole stack plus any project container that opts in | The shared bus. Traefik discovers here (`--providers.docker.network=devnet`), Prometheus scrapes here, containers resolve each other by service name here. |
+| `devnet` | 16 of the stack's 20 services, plus any project container that opts in - **everything except the four isolated Bothy backends** below | The shared bus. Traefik discovers here (`--providers.docker.network=devnet`), VictoriaMetrics scrapes here, containers resolve each other by service name here. |
 | `socketnet` | **Exactly two**: `traefik` and `bothy-socket-read` | Isolation for the read-only Docker socket proxy. |
 | `filesnet` | **Exactly two**: `traefik` and `bothy-files` | The only way into the file editor and the config forms. |
 | `opsnet` | **Exactly two**: `traefik` and `bothy-ops` | The only way into container and cluster actions. |
@@ -287,7 +292,7 @@ numbers below are repeated here only so this table is readable on its own.
 | `apps/bothy` | `bothy` | `bothy-socket-read` (the read-only Docker socket the portal's data plane and bothy-ops' inspects go through) and `bothy-socket-write` (three verbs, bothy-ops only) | none - socketnet / controlsocknet only | n/a |
 | `apps/bothy-web` | `bothy` | `bothy-web` | the `:80` catch-all | **none** |
 | `apps/bothy-files` | `bothy` | `bothy-files` (the file editor and, since 2026-09, the config forms) | none - filesnet only | `viewer` to read, `editor` to write, enforced at the edge |
-| `apps/bothy-ops` | `bothy` | `bothy-ops` (container restart/stop/start and five cluster actions) | none - opsnet only | `operator` to act, `viewer` for cluster events and logs, enforced at the edge |
+| `apps/bothy-ops` | `bothy` | `bothy-ops` (container restart/stop/start, the 29 cluster actions in `catalog.toml`, the updates tier and the admin reads) | none - opsnet only | `operator` to act, `viewer` for cluster reads, enforced at the edge |
 | `apps/bothy-common` | - | none - the library both backends COPY in (audit, http/CSRF, names, safepath) | - | - |
 | `host/` | - | none | - | - |
 
@@ -422,8 +427,8 @@ The portal - **Bothy**, at `http://<node-ip>/` - **discovers what is running**.
 It is not a hand-written list and must never become one again.
 
 Note what the retirement did to that claim, recorded 2026-08-12: the discovery
-mechanism is unchanged and still correct, but its *input* shrank. Traefik now
-reports seven routers instead of twenty-two, so the Docker half of the join
+mechanism is unchanged and still correct, but its *input* shrank. Traefik's table
+fell from twenty-two routers to seven overnight, so the Docker half of the join
 (containers, ports, health, images, disk) carries nearly all the weight, and a
 service that publishes a port but has no router still appears - it is discovered
 from `/containers/json`, not from a route. The route table is no longer the
@@ -691,8 +696,15 @@ Then, in order:
 ### A container nothing browses
 
 Publish nothing. Join `devnet` and let other containers reach it by service
-name. This is still the correct default for exporters, sidecars and proxies -
-`bothy-socket-read`, `bothy-socket-write`, `oauth2-proxy`, `bothy-files`, `bothy-ops` and every `*-exporter` do it.
+name. This is still the correct default for exporters and sidecars -
+`oauth2-proxy` and every `*-exporter` do it.
+
+It is **not** the default for anything that holds power. `bothy-files`,
+`bothy-ops`, `bothy-socket-read` and `bothy-socket-write` are each on a private
+two-member network instead (§ 2 above), because `devnet` holds every third-party
+image on the box. This paragraph listed all four as examples to copy until
+2026-09-23, which would have put a socket proxy that has no authentication of any
+kind on the one network everything else can reach.
 
 ### A host process
 

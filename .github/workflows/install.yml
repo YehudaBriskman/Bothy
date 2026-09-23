@@ -2,7 +2,7 @@
 #
 # The one claim this project makes that had never been executed by a machine.
 # Everything else in CI reads the source; this clones the repo into an empty
-# directory, follows README.md exactly, starts all 26 containers and then runs
+# directory, follows README.md exactly, starts the whole stack and then runs
 # every suite in the repo against the running stack.
 #
 # WHY IT IS ITS OWN FILE. It is the only job that needs a docker daemon with

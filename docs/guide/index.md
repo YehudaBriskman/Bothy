@@ -78,10 +78,12 @@ the four reasons somebody opens this directory.
   root on the machine, so the Control tier has no `exec` verb and the `shell`
   role is granted to nobody. See [Operating it from the console](the-console.md)
   and [Roles](roles.md).
-- **Only three tiers are behind single sign-on.** Everything else - Grafana,
-  Prometheus, Keycloak's own console - carries its own login on one shared dev
-  credential, and the tailnet is the rest of the control. "SSO is running" does
-  not mean "this is behind SSO".
+- **Only 5 tiers are behind single sign-on** - files, config, admin, ops and
+  updates. Everything else - Grafana, VictoriaMetrics, Keycloak's own console -
+  carries its own login on one shared dev credential, and the tailnet is the rest
+  of the control. "SSO is running" does not mean "this is behind SSO".
+  (`scripts/checks/router-gates.sh` holds that number; this line said *three*
+  from 2026-08 until 2026-09-23, two tiers after it stopped being true.)
 
 ## A note on addresses
 

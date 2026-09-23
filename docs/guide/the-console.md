@@ -96,10 +96,11 @@ hand-written `curl` is refused at the edge exactly the same way. See
 
 ### Two refusals, and they are different in kind
 
-**Foot-gun warnings.** Seven containers carry a sentence said *before* the act,
+**Foot-gun warnings.** Eight containers carry a sentence said *before* the act,
 because stopping them takes away the page you are acting from - Traefik,
-`bothy-web`, the read socket proxy, `bothy-files` (which also serves the config
-forms since 2026-09), `bothy-ops`, Keycloak and oauth2-proxy. Stopping Keycloak means nobody can sign in again, including you.
+`bothy-web`, both socket proxies, `bothy-files` (which also serves the config
+forms since 2026-09), `bothy-ops`, Keycloak and oauth2-proxy. Stopping Keycloak
+means nobody can sign in again, including you.
 These are warnings. You may proceed, and the interface says the sentence rather
 than overruling the decision.
 

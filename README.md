@@ -268,21 +268,21 @@ cannot be skipped, then write the test that proves it was not.**
 | Path | What lives there |
 |---|---|
 | `edge/` | **Traefik v3.7** on `:80`, plus the `:8100` sandbox entrypoint that serves raw file bytes from a different origin. No Host-name routing and no dashboard (`--api=true`, never `--api.dashboard=true` - it served the merged config, credentials included). Exports Prometheus metrics on an internal entrypoint with no host port. Traefik must be **≥ v3.6**: older builds hardcode Docker API v1.24 and silently load zero routes against a modern daemon. |
-| `edge/dynamic/` | Eight watched file-provider files. `bothy-api.yml` is the security boundary and is worth reading in full; `bothy-files.yml`, `bothy-config.yml` and `bothy-ops.yml` carry the role-gated routers, and `bothy-gates.yml` is the only definition of the gates they use; `auth.yml` holds `sso` / `sso-errors` and the host-less `` PathPrefix(`/oauth2/`) `` router; `project.example.yml` and `bothy-prom.example.yml` are annotated templates. |
+| `edge/dynamic/` | 10 committed files, all watched, plus the generated `bothy-prom.yml`. `bothy-api.yml` is the security boundary and is worth reading in full; `bothy-files.yml`, `bothy-config.yml`, `bothy-admin.yml`, `bothy-ops.yml` and `bothy-updates.yml` carry the role-gated routers (`bothy-ops.yml` is itself generated, from `apps/bothy-ops/catalog.toml`), and `bothy-gates.yml` is the only definition of the gates they use; `auth.yml` holds `sso` / `sso-errors` and the host-less `` PathPrefix(`/oauth2/`) `` router; `project.example.yml` and `bothy-prom.example.yml` are annotated templates. |
 | `auth/` | **Keycloak 26.7.1 + oauth2-proxy 7.15.3** - the local identity layer. Keycloak publishes `:8090` and stores its data in the shared Postgres under its own `keycloak` role; oauth2-proxy runs `--provider=oidc` and publishes no port. This compose file also carries the OIDC reasoning that could not live inside `auth/realm-devbox.json`. |
 | `monitoring/` | VictoriaMetrics, Grafana, Loki + Alloy, cAdvisor, node-exporter. `provisioning/` wires datasources, dashboards and email alert rules; `dashboards/` holds the provisioned dashboards. |
 | `data/postgres/` | Postgres 17 plus `postgres-exporter`. Binds **loopback only**. The dev database and Keycloak both live here. |
 | `apps/bothy/` | The one compose project over Bothy's five containers, via `include:`. Also **owns the two socket proxies**: `bothy-socket-read` (read-only; the `/-/api/docker` data plane and bothy-ops' inspects) and `bothy-socket-write` (three verbs, bothy-ops only). |
 | `apps/bothy-web/` | The web tier - React 19 + Vite + TypeScript, built by a multi-stage image and served static by nginx. Owns `bothy-web-fallback`, the catch-all on `:80`. |
 | `apps/bothy-files/` | Bothy Files - the read/write file API over four named roots, with full-text search, and the config forms that change one declared field in a YAML file without destroying the file. Its `policy.toml` declares the roots, what is never served, and (`[config]`) what a form may patch. No published port. |
-| `apps/bothy-ops/` | Bothy Ops - container `restart`, `stop`, `start` and five cluster actions, one audit log, and `guard.py`, whose three-element verb tuple is the only thing refusing `kill`. Talks to the daemon only through the two proxies, on a network Traefik cannot reach; joins the cluster only through `compose.cluster.yml`. No published port. |
+| `apps/bothy-ops/` | Bothy Ops - container `restart`, `stop`, `start`, the **29 cluster actions** declared in `catalog.toml`, the updates tier and the admin reads, one audit log, and `guard.py`, whose three-element verb tuple is the only thing refusing `kill`. Talks to the daemon only through the two proxies, on a network Traefik cannot reach; joins the cluster only through `compose.cluster.yml`. No published port. |
 | `apps/bothy-common/` | The library both backends copy in: the audit writer, the HTTP/CSRF gate, `fullmatch` name rules and `safepath`. Standard library only. |
 | `apps/bothy-collector/` | Turns each project's `project.dev.yml` into `projects.json`, so a project that is switched off reads as *off* rather than absent, and a project made of host processes is visible at all. |
 | `host/` | Copies of the host configuration git cannot see: dnsmasq, `daemon.json`, `wsl.conf`, the systemd units, the Windows keepalive task. Required to rebuild the box - see [`host/README.md`](host/README.md). |
-| `scripts/` | [`bothy`](scripts/bothy) (the CLI) and `bothy.sh` (the installer that fetches it), plus `bootstrap.sh`, `backup.sh`, `doctor.sh`, `verify-access.sh`, `ci-install.sh`, two generators and `lib/`. `scripts/checks/` holds the tree-only checks CI runs first: links, diagrams, portability, recipe descriptions, the installer pin, bash 3.2 compatibility and the version. |
+| `scripts/` | [`bothy`](scripts/bothy) (the CLI) and `bothy.sh` (the installer that fetches it), plus `bootstrap.sh`, `backup.sh`, `doctor.sh`, `verify-access.sh`, `ci-install.sh`, the `gen-*` generators and `lib/`. `scripts/checks/` holds the tree-only checks CI runs first - no container starts, so they gate a PR in two minutes - and `mutants.sh`, which proves each of them can still fail. |
 | `docs/` | [`guide/`](docs/guide/index.md) for people who have not read the source, [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the request path and the discovery join, [`kb/`](docs/kb/README.md) for this specific machine's operational history, `brand/` for the design system, `diagrams/` for the mermaid sources and `plans/` for the design arguments. |
 | `justfile` | Every operation. Start here. |
-| `VERSION` | `2026.8.1`, and `scripts/checks/installer-pin.sh` refuses to let the installer's pinned release and commit drift from it. |
+| `VERSION` | The one place the release number is written. `scripts/checks/installer-pin.sh` refuses to let the installer's pinned release and commit drift from it, and `scripts/checks/version.sh` holds the release badge at the top of this file to it - that badge and a second copy in this table disagreed for a month. |
 
 ---
 
@@ -292,29 +292,45 @@ _As it actually is. Traffic goes browser → `http://<node-ip>:<port>` straight 
 each service; only Bothy, its data plane and the `/oauth2/` sign-in endpoints pass
 through Traefik._
 
-![Traefik on :80 fans out to the catch-all serving Bothy, to exact-Path data-plane routes for the Traefik API, the Docker socket proxy and Loki/Prometheus, and to the oauth2-proxy prefix. oauth2-proxy talks OIDC to Keycloak on :8090, which stores its realm in the loopback-only Postgres. Every other service is reached directly on its own published port.](docs/assets/diagrams/readme-overview.svg)
+![Traefik on :80 fans out to the catch-all serving Bothy, to exact-Path data-plane routes for the Traefik API, the Docker socket proxy and Loki/VictoriaMetrics, and to the oauth2-proxy prefix. oauth2-proxy talks OIDC to Keycloak on :8090, which stores its realm in the loopback-only Postgres. Every other service is reached directly on its own published port.](docs/assets/diagrams/readme-overview.svg)
 
 The picture is generated from `docs/diagrams/readme-overview.mmd` by `just
-diagrams`, and it shows the **shape** rather than a census: it was redrawn for the
-2026-09 consolidation (five Bothy containers), and the router count drawn in it
-is a snapshot. Prefer the
-counts below - and note what actually checks them. `just verify` asserts **zero
-`Host()` routers**, and only that. Every other number on this page is prose, and
-prose goes stale silently; this README has twice described services that had
-already been deleted. That is the honest state rather than an aspiration.
+diagrams`, and it shows the **shape** rather than a census: the numbers drawn on
+it are a snapshot, redrawn by hand when the tree moves. Prefer the counts below -
+and note what checks them. `just verify`
+asserts **zero `Host()` routers**; `scripts/checks/router-gates.sh` asserts the
+two tables underneath this paragraph, row by row, against `edge/dynamic/*.yml`.
 
-**Fourteen routers require a role**, across three files, counted from the tree
-(2026-09):
+It did not always, and this page was wrong for it. Until 2026-09-23 the table
+below enumerated **fourteen** routers across **three** files by name, when the
+tree held forty-eight across five: the admin and updates tiers had arrived, and
+the cluster tier had grown to 33 routers. None of that was a mistake - adding a
+gated router is the correct thing to do, and it is done in a different file from
+the one that counts them. So the enumeration is gone and the counts are checked.
+Numbers on this page that no check holds are still prose, and prose goes stale
+silently; this README has twice described services that had already been deleted.
 
-| File | Routers | Requires |
+**48 routers require a role**, across 5 files:
+
+| File | Gated routers | Requires |
 |---|---|---|
-| `edge/dynamic/bothy-files.yml` | `bothy-files-read`, `bothy-files-download` | `viewer` |
-| `edge/dynamic/bothy-files.yml` | `bothy-files-write`, `bothy-files-delete` | `editor` |
-| `edge/dynamic/bothy-config.yml` | `bothy-config-read` | `viewer` |
-| `edge/dynamic/bothy-config.yml` | `bothy-config-write` | `editor` |
-| `edge/dynamic/bothy-ops.yml` | `bothy-ops-control-restart`, `-stop`, `-start` | `operator` |
-| `edge/dynamic/bothy-ops.yml` | `bothy-ops-kube-rollout-restart`, `-scale`, `-delete-completed-pods` | `operator` |
-| `edge/dynamic/bothy-ops.yml` | `bothy-ops-kube-events`, `-logs` | `viewer` |
+| `edge/dynamic/bothy-files.yml` | 4 | `viewer` to read and download, `editor` to write and delete |
+| `edge/dynamic/bothy-config.yml` | 2 | the same pair, over config fields |
+| `edge/dynamic/bothy-admin.yml` | 4 | `operator` on the audit log, backups, credentials and users |
+| `edge/dynamic/bothy-ops.yml` | 33 | `operator` on the three container verbs and every cluster change, `viewer` on every cluster read |
+| `edge/dynamic/bothy-updates.yml` | 5 | `operator` to request or pause an update, `viewer` to read its state |
+
+| Role | Routers require it |
+|---|---|
+| `viewer` | 24 |
+| `editor` | 3 |
+| `operator` | 21 |
+
+`bothy-ops.yml` is **generated** - `scripts/gen-ops-wiring.py` renders one exact
+`Path()` router per action in `apps/bothy-ops/catalog.toml` - so a hand-written
+list of its routers here was never going to hold for long.
+[`SECURITY.md` § 1](SECURITY.md#1-sso-enforces-on-the-tiers-that-change-things-and-nowhere-else-yet)
+carries the same two tables with what every row gates.
 
 `sso-viewer`, `sso-editor` and `sso-operator` are all defined in
 `edge/dynamic/bothy-gates.yml` and in no router file, so deleting one tier's file

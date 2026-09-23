@@ -1,8 +1,9 @@
 # Installing Bothy
 
 Two supported paths. Both end at the same place: a checkout you can read, a
-`.env` full of secrets that were generated rather than typed, and about
-twenty-six containers running.
+`.env` full of secrets that were generated rather than typed, and about twenty
+containers running - two of which are one-shots that do their work and exit, and
+two of which (`prometheus`, `promtail`) are rollback profiles that stay down.
 
 The install is exercised on every pull request by
 [`.github/workflows/install.yml`](../../.github/workflows/install.yml) - clone
