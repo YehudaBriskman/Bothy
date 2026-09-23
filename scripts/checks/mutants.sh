@@ -270,14 +270,20 @@ mutant "a doc points at a file that was deleted" \
 
 # The regression this was written for is the one that already happened twice: a
 # gated router is added in edge/dynamic/ and SECURITY.md's count is not. The
-# mutation runs it the other way round - drop one gate from the file - because
-# it is the same disagreement and it does not need a router invented to plant
-# it. Either direction means the security document no longer describes the
-# boundary.
+# mutation runs it the other way round - ungate one router - because it is the
+# same disagreement and it does not need a router invented to plant it. Either
+# direction means the security document no longer describes the boundary.
+#
+# THE ANCHOR IS THE `middlewares:` LINE, not the bare gate name. Every one of
+# these files discusses its gates at length in the prose above the rules, so
+# `sso-viewer` alone hits a COMMENT first - and the check strips comments before
+# counting, exactly as it should. The mutation then applies cleanly, changes
+# nothing the check looks at, and reports the check as decorative. Caught here
+# on the first run; it is the no-op this file's own header warns about.
 mutant "a gated router stops matching SECURITY.md's count" \
   edge/dynamic/bothy-config.yml \
-  'sso-viewer' \
-  'sso-nothing' \
+  'middlewares: [bothy-config-strip, config-deidentify, sso-viewer, sso-errors]' \
+  'middlewares: [bothy-config-strip, config-deidentify, sso-errors]' \
   -- bash scripts/checks/router-gates.sh
 
 echo
