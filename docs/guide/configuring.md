@@ -22,10 +22,13 @@ variable. Every group has a recipe:
 | `just up-data` | `data/postgres/compose.yml` |
 | `just up-auth` | `auth/compose.yml` |
 | `just up-monitoring` | `monitoring/compose.yml` |
-| `just up-apps` | `apps/bothy/compose.yml`, plus the config and control tiers |
+| `just up-apps` | `apps/bothy/compose.yml`, plus the cluster overlay when `thales-scc` exists |
 
-`apps/bothy/compose.yml` is a stub that pulls three fragments together with
-`include:` - the web tier, the editor tier and the socket proxy. It is
+`apps/bothy/compose.yml` is a stub that pulls four fragments together with
+`include:` - the web tier (`bothy-web`), the files tier (`bothy-files`, which
+absorbed the config forms in 2026-09), the ops tier (`bothy-ops`, which absorbed
+the control and cluster tiers in the same consolidation) and the socket proxy. It
+is
 `include:` and not repeated `-f` for a specific reason worth knowing before you
 reach for the shorter form: with repeated `-f`, every relative path in every
 file resolves against the **first** file's directory. That built the editor tier
@@ -101,7 +104,9 @@ What is committed:
 | `bothy-gates.yml` | the ONLY definitions of the `sso-viewer`, `sso-editor` and `sso-operator` role gates. Every router file borrows them; deleting this file errors every gated router |
 | `bothy-files.yml` | four role-gated routers for the file tier |
 | `bothy-config.yml` | two role-gated routers for the config forms, served by `bothy-files` |
-| `bothy-ops.yml` | eight role-gated routers on `bothy-ops`: one per container verb (`operator`) and one per cluster action (`operator` for changes, `viewer` for events and logs) |
+| `bothy-admin.yml` | four role-gated routers for the admin reads - audit log, backups, credentials, users (`operator`) |
+| `bothy-ops.yml` | **generated.** 33 role-gated routers on `bothy-ops`: one per container verb, one per cluster action in `apps/bothy-ops/catalog.toml`, `operator` for a change and `viewer` for a read. Edit the catalog and run `just ops-wiring`; never edit this file |
+| `bothy-updates.yml` | five role-gated routers for the updates tier - `operator` to request or pause, `viewer` to read state |
 | `project.example.yml` | the annotated template, entirely commented out |
 | `bothy-prom.example.yml` | the template for the generated Prometheus route |
 
