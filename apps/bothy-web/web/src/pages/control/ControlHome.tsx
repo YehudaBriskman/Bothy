@@ -251,7 +251,7 @@ export function ControlHome() {
       </div>
 
       {loading ? (
-        <Skeleton variant="overview" state="search" label="Discovering what is running…" />
+        <Skeleton variant="control" state="search" label="Discovering what is running…" />
       ) : (
         <>
           <HealthStrip tiles={tiles} />

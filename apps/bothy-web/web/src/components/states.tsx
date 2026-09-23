@@ -157,13 +157,25 @@ export function useDocTitle(title: string) {
 // and a wrapping row of chips, so the layout moved twice - once when the
 // skeleton appeared and again when it was replaced by something a different
 // height. `variant` costs a few lines and makes the placeholder honest.
+//
+// EVERY HEIGHT BELOW WAS MEASURED on the live page at 1440x900 (2026-09-23),
+// not estimated. An invented height is the same defect as an out-of-date one.
+// Where a block's height is genuinely data-dependent - the Control landing's
+// Quick links grows with the number of published UIs - the comment says so
+// rather than a number pretending to be exact.
+//
+// 2026-09-23: four pages stood under a skeleton shaped like a different page.
+// The Control landing wore `overview` (a status line and chip rows, for a page
+// that is a health strip over a card grid); the service and system detail pages
+// wore `panels` (two generic 132px boxes); and the three file readers wore
+// `table` - a header row over eight even rows, for a column of ragged prose.
 export function Skeleton({
   variant = 'panels',
   state = 'load',
   label = 'Loading…',
   size = 'lg',
 }: {
-  variant?: 'panels' | 'overview' | 'table';
+  variant?: SkelVariant;
   /** What kind of waiting (ui/Loader): `search` for the discovery poll, `load` otherwise. */
   state?: LoaderState;
   /** What is being waited on - announced, and shown under the orb. */
@@ -174,28 +186,105 @@ export function Skeleton({
   // The skeleton reserves the shape; the Loader is the one thing that says
   // "working" (and the only thing that moves - .skel-host stills the shimmer).
   // aria-busy marks the region, role=status (inside Loader) announces it.
+  //
+  // `plate` because this Loader is OVER the shapes. Without it the orb printed
+  // straight onto a grey bar and the label crossed the next one down; the clear
+  // area the plate carves is the whole reason it exists (ui/Loader.tsx).
   return (
     <div className="skel-host" aria-busy="true">
       <Shapes variant={variant} />
-      <Loader state={state} size={size} label={label} className="skel-orb" />
+      <Loader state={state} size={size} label={label} plate className="skel-orb" />
     </div>
   );
 }
 
-function Shapes({ variant }: { variant: 'panels' | 'overview' | 'table' }) {
+export type SkelVariant = 'panels' | 'overview' | 'table' | 'control' | 'detail' | 'reader';
+
+/** `--skel-min` for a .skel-row: the cell width below which the row wraps, set
+ *  to whatever the real row uses so the skeleton collapses where the page does. */
+const rowMin = (v: string) => ({ ['--skel-min' as string]: v }) as React.CSSProperties;
+const bars = (n: number, h: number) =>
+  Array.from({ length: n }, (_, i) => <div className="skel" key={i} style={{ height: h }} />);
+
+function Shapes({ variant }: { variant: SkelVariant }) {
   if (variant === 'overview') {
-    // Reserves the CURRENT shape of the page, which is the only thing a
-    // skeleton is for: a 55px status line, three wrapping chip rows, then the
-    // vitals charts. It used to reserve a 152px hero that no longer exists -
-    // an out-of-date skeleton is worse than none, because it moves the layout
-    // in the exact moment it was added to keep it still.
+    // The five blocks of .ov-body under the quick-links strip, which renders
+    // ABOVE the skeleton and so is not reserved here. Measured at 1440:
+    // .ov-status 56, .qv 100, .ov-attn 91, .sm 182, .vit 244.
+    //
+    // It used to reserve a 152px hero that no longer exists, and then
+    // 55/40/40/40/172 for blocks that are 56/100/91/182/244 - an out-of-date
+    // skeleton is worse than none, because it moves the layout in the exact
+    // moment it was added to keep it still. The trailing .ov-dash (316 at 1440)
+    // is left out on purpose: it is the last block, below the fold, and one a
+    // reader can switch off in Settings.
     return (
       <div className="skel-col" aria-hidden="true">
-        <div className="skel" style={{ height: 55 }} />
-        <div className="skel" style={{ height: 40 }} />
-        <div className="skel" style={{ height: 40 }} />
-        <div className="skel" style={{ height: 40 }} />
-        <div className="skel" style={{ height: 172 }} />
+        <div className="skel" style={{ height: 56 }} />
+        <div className="skel" style={{ height: 100 }} />
+        <div className="skel" style={{ height: 92 }} />
+        <div className="skel" style={{ height: 184 }} />
+        <div className="skel" style={{ height: 244 }} />
+      </div>
+    );
+  }
+  if (variant === 'control') {
+    // The Control landing (pages/control/ControlHome.tsx), which stood under the
+    // `overview` skeleton until 2026-09-23 and so reserved a status line and
+    // three chip rows for a page that has neither.
+    //
+    // Measured: six .ch-tile at 109 each - at 390 too, where the tile keeps its
+    // height and the strip rewraps to 2x3, which --skel-min 160px reproduces
+    // because 160px is the floor .ch-strip itself uses. Then the .ch-grid: row
+    // one is Needs attention beside Quick links, row two the three glance cards
+    // (Cluster 255, Edge 277, Activity 479).
+    //
+    // Attention measured 263 and Quick links 606 on this box. Quick links is one
+    // row per published UI, so its height is a property of the BOX and not of
+    // the page; both cells take attention's height rather than a number that is
+    // exact here and wrong everywhere else. .ch-groups (921) is left out for the
+    // same reason, only more so - it grows with the number of systems, and a
+    // fixed guess there is wrong by hundreds of pixels either way.
+    return (
+      <div className="skel-col" aria-hidden="true">
+        <div className="skel-row" style={rowMin('160px')}>{bars(6, 109)}</div>
+        <div className="skel-row" style={rowMin('22rem')}>{bars(2, 264)}</div>
+        <div className="skel-row" style={rowMin('17rem')}>{bars(3, 260)}</div>
+      </div>
+    );
+  }
+  if (variant === 'detail') {
+    // A service or system page (ServiceDetail, ProjectDetail), which both stood
+    // under `panels` - two generic 132px boxes - for a page that opens with a
+    // breadcrumb and a header.
+    //
+    // Measured at 1440 on a real service: .crumbs 19, .detail-head 67, then the
+    // .dgrid - a span-12 Reachability panel at 231 and a span-6 pair at 246. The
+    // Logs panel between them (499) is left out because it exists only for a
+    // node with somewhere to read logs from, and reserving a panel half these
+    // pages do not have moves the layout on the other half.
+    return (
+      <div className="skel-col" aria-hidden="true">
+        <div className="skel skel-line" style={{ height: 20, maxWidth: 280 }} />
+        <div className="skel" style={{ height: 68 }} />
+        <div className="skel" style={{ height: 232 }} />
+        <div className="skel-row" style={rowMin('22rem')}>{bars(2, 248)}</div>
+      </div>
+    );
+  }
+  if (variant === 'reader') {
+    // A text reader: the file view, the diff and the editor's document pane. All
+    // three stood under `table` - a header row over eight even rows - for
+    // something that has neither a header nor an even row in it. What arrives is
+    // a heading and then ragged lines, so that is what is reserved. The widths
+    // are a plausible right edge; a 0 is the gap between paragraphs.
+    const LINES = [92, 98, 84, 96, 71, 0, 100, 88, 94, 62, 0, 90, 97, 78, 55];
+    return (
+      <div className="skel-read" aria-hidden="true">
+        <div className="skel skel-line" style={{ height: 28, maxWidth: 320 }} />
+        {LINES.map((w, i) => (w
+          ? <div className="skel skel-line" key={i} style={{ height: 14, width: `${w}%` }} />
+          : <div className="skel-gap" key={i} />))}
       </div>
     );
   }
@@ -203,7 +292,7 @@ function Shapes({ variant }: { variant: 'panels' | 'overview' | 'table' }) {
     return (
       <div className="skel-wrap" aria-hidden="true">
         <div className="skel" style={{ height: 34 }} />
-        {Array.from({ length: 8 }, (_, i) => <div className="skel" key={i} style={{ height: 32 }} />)}
+        {bars(8, 32)}
       </div>
     );
   }

@@ -165,6 +165,11 @@
      component-local `var(--rest-opacity, .55)` describing a token that does not
      exist reads as configurable when nothing can configure it. */
   --rest-opacity: .55;
+  /* A placeholder that has something laid OVER it - a skeleton under a plated
+     Loader (ui/Loader.css). The bars are already a stand-in; dimming them gives
+     the plate something calm to sit on instead of a field of grey bars fighting
+     the one thing on screen that is real. */
+  --quiet-opacity: .4;
 
   /* ── reading ──────────────────────────────────────────────────────────────
      The rendered-document scale, tokenised 2026-08-17. It was ~30 literal
@@ -816,6 +821,23 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .skel-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-3_5); }
 /* Stacked variant - for a page whose incoming shape is rows, not a card grid. */
 .skel-col { display: flex; flex-direction: column; gap: var(--sp-3_5); }
+/* A row of tiles or cards - the Control landing's health strip, its card rows.
+   auto-fit with a `min(100%, ...)` floor so the row collapses on a phone exactly
+   as the real row does (.ch-strip, .ch-grid): a skeleton that stays six-across
+   at 390 reserves a shape the page will never take. `--skel-min` is the cell's
+   own minimum, set by the shape that uses it. */
+.skel-row { display: grid; gap: var(--sp-2);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--skel-min, 280px)), 1fr)); }
+/* A reader's column: a heading and then ragged lines. `--read-measure` is in
+   `ch` against the reader's own font size, which this host does not have, so the
+   column is capped in the spacing scale instead - the point is that the lines
+   stop where the prose will, not that they stop at exactly 75 characters. */
+.skel-read { display: flex; flex-direction: column; gap: var(--sp-2_5);
+  max-width: calc(var(--sp-16) * 14); }
+.skel-gap { height: var(--sp-3); }
+/* A LINE, not a block. --r-lg on a 14px bar reads as a pill, and what is
+   arriving there is a line of text. */
+.skel-line { border-radius: var(--r-sm); }
 .skel { height: 132px; border-radius: var(--r-lg); border: 1px solid var(--line);
   background: linear-gradient(100deg, var(--surface-1) 30%, var(--surface-2) 50%, var(--surface-1) 70%);
   background-size: 200% 100%; animation: shimmer var(--loop-shimmer) infinite; }
@@ -823,12 +845,30 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 /* A skeleton that carries the Loader (components/states.tsx): the shapes hold
    the layout still and the orb is the one thing that moves - two indicators
    side by side read as two things waiting. The orb sits over the top of the
-   reserved shape, where the eye lands first. */
-.skel-host { position: relative; }
+   reserved shape, where the eye lands first.
+
+   ONE GRID CELL holds both, rather than a relative host and an absolute orb.
+   Until 2026-09-23 this was `position: absolute; inset: 0 0 auto 0; height:
+   100%`, which stretched the Loader across the whole reserved shape: the orb
+   landed on a grey bar and its label crossed the next one down, which is the
+   defect the plate was added to fix. In a grid cell the shapes still stretch
+   and the Loader sizes to its own words. */
+.skel-host { display: grid; }
+.skel-host > * { grid-area: 1 / 1; min-width: 0; }
 .skel-host .skel { animation: none; }
 .skel-host > .skel-orb {
-  position: absolute; inset: 0 0 auto 0; height: 100%; max-height: calc(var(--sp-16) * 4);
+  /* Centred in the reserved area, in both axes. The grid row is as tall as the
+     TALLER of the two, so the plate can never be clipped by a short skeleton
+     (Settings' three 30px rows) and never stretches a tall one. */
+  justify-self: center; align-self: center;
+  /* Nothing under a skeleton is interactive yet, but the plate must never be
+     the thing that swallows a click once the real page arrives under it. */
+  pointer-events: none;
 }
+/* The placeholder behind a PLATED loader is quieted. One rule, in one place, so
+   no skeleton variant has to know a plate may be over it - which is the whole
+   reason the plate went on the Loader rather than a hole into each variant. */
+.skel-host:has(> .ui-loader-plate) .skel { opacity: var(--quiet-opacity); }
 
 @media (prefers-reduced-motion: reduce) {
   .skel, .pill .pulse::after { animation: none !important; }

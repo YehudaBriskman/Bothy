@@ -140,7 +140,9 @@ export const STRUCTURAL = new Set([
   // The document serif, offered by Settings > Appearance > Document font. A font
   // stack, not a colour - same family as --font and --mono.
   '--font-serif',
-  '--disabled-opacity', '--rest-opacity',
+  // --quiet-opacity joins them (2026-09-23): the dimming of a placeholder that
+  // has a plated Loader over it. Same family - a ratio, not a colour.
+  '--disabled-opacity', '--rest-opacity', '--quiet-opacity',
   // The reading scale. index.css says out loud that these are STRUCTURAL - "a
   // theme inherits these unless it opts in - the same treatment radii and motion
   // get" - and this list did not agree, so all eight were being demanded of every

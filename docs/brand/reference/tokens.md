@@ -124,6 +124,7 @@ Five, spaced across the one hue window that clears every status by 45°.
 | `--border-w` | `1px` |  |
 | `--disabled-opacity` | `.5` |  |
 | `--rest-opacity` | `.55` |  |
+| `--quiet-opacity` | `.4` |  |
 
 ## Type scale
 

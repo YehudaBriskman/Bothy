@@ -34,6 +34,13 @@
 //     useMotionReduced() - renders the orb PAUSED: a still frame, no animation.
 //   - Colour comes from the --loader-ink token, read off the live theme, and the
 //     orb's substrate from html[data-theme]; both re-read on a theme change.
+//   - OVER CONTENT IT GETS A PLATE (`plate`, 2026-09-23). Bare over a skeleton
+//     it was unreadable: the orb printed onto a grey bar, the label crossing the
+//     next one. Over content the loader is a higher plane and is drawn like one
+//     - opaque --surface-4, the strong hairline, --r-lg, --shadow-3, sized to
+//     its words. Opaque and never translucent: decision 4 keeps translucent
+//     material for the top bar and the palette, and a blurred plate over
+//     skeleton bars is the same defect with a blur on it.
 //
 // The package is about 50KB, so it is loaded lazily and kept out of the first
 // paint's critical path: the placeholder is an empty box of the orb's size, and
@@ -159,17 +166,31 @@ export interface LoaderProps {
   /** false when an enclosing live region already says it (the orb is then
    *  decoration beside those words): no role=status, no second announcement. */
   announce?: boolean;
+  /** Draw the loader on its own plate, for when it FLOATS OVER content - a
+   *  skeleton, a table still showing the last answer, a chart, a map.
+   *
+   *  Until 2026-09-23 a Loader laid over a skeleton was printed straight onto
+   *  it: the orb sat on a grey bar and its words overlapped the next one down,
+   *  so the one thing on screen that says "wait" was the least legible thing on
+   *  screen. The plate is the same material a popover and a menu use, because a
+   *  loader over a placeholder IS the same thing - a higher plane - and it
+   *  gives the clear area without every skeleton variant having to carry a hole
+   *  that moves with the layout.
+   *
+   *  It is a PROP and not a guess: a loader inline in a button, in a table row
+   *  or beside a pill must not grow a plate. */
+  plate?: boolean;
   className?: string;
 }
 
-export function Loader({ state, size = 'sm', label, labelHidden = false, center, announce = true, className }: LoaderProps) {
+export function Loader({ state, size = 'sm', label, labelHidden = false, center, announce = true, plate = false, className }: LoaderProps) {
   const reduced = useMotionReduced();
   const { color, dark } = useInk();
   const px = LOADER[size];
   const text = label ?? DEFAULT_LABEL[state];
   const hidden = labelHidden || label === undefined;
   const centred = center ?? size !== 'sm';
-  const cls = ['ui-loader', centred ? 'ui-loader-center' : '', className ?? ''].filter(Boolean).join(' ');
+  const cls = ['ui-loader', centred ? 'ui-loader-center' : '', plate ? 'ui-loader-plate' : '', className ?? ''].filter(Boolean).join(' ');
   return (
     <span className={cls} role={announce ? 'status' : undefined} aria-live={announce ? 'polite' : undefined} data-size={size} data-state={state}>
       <span className="ui-loader-orb" data-size={size}>
