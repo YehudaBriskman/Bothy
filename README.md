@@ -292,12 +292,12 @@ _As it actually is. Traffic goes browser → `http://<node-ip>:<port>` straight 
 each service; only Bothy, its data plane and the `/oauth2/` sign-in endpoints pass
 through Traefik._
 
-![Traefik on :80 fans out to the catch-all serving Bothy, to exact-Path data-plane routes for the Traefik API, the Docker socket proxy and Loki/Prometheus, and to the oauth2-proxy prefix. oauth2-proxy talks OIDC to Keycloak on :8090, which stores its realm in the loopback-only Postgres. Every other service is reached directly on its own published port.](docs/assets/diagrams/readme-overview.svg)
+![Traefik on :80 fans out to the catch-all serving Bothy, to exact-Path data-plane routes for the Traefik API, the Docker socket proxy and Loki/VictoriaMetrics, and to the oauth2-proxy prefix. oauth2-proxy talks OIDC to Keycloak on :8090, which stores its realm in the loopback-only Postgres. Every other service is reached directly on its own published port.](docs/assets/diagrams/readme-overview.svg)
 
 The picture is generated from `docs/diagrams/readme-overview.mmd` by `just
-diagrams`, and it shows the **shape** rather than a census: it was redrawn for the
-2026-09 consolidation (five Bothy containers), and the router count drawn in it
-is a snapshot. Prefer the counts below - and note what checks them. `just verify`
+diagrams`, and it shows the **shape** rather than a census: the numbers drawn on
+it are a snapshot, redrawn by hand when the tree moves. Prefer the counts below -
+and note what checks them. `just verify`
 asserts **zero `Host()` routers**; `scripts/checks/router-gates.sh` asserts the
 two tables underneath this paragraph, row by row, against `edge/dynamic/*.yml`.
 
