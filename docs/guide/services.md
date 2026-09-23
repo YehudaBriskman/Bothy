@@ -53,9 +53,15 @@ Then, in order:
 ## A container nothing browses
 
 Publish nothing. Join `devnet` and let other containers reach it by service
-name. This is the correct default for exporters, sidecars and proxies -
-`bothy-socket-read`, `bothy-socket-write`, `oauth2-proxy`, `bothy-files`, `bothy-ops` and every `*-exporter` do
-exactly this.
+name. This is the correct default for exporters and sidecars - `oauth2-proxy`
+and every `*-exporter` do exactly this.
+
+**It is not the default for anything that holds power.** `bothy-files`,
+`bothy-ops`, `bothy-socket-read` and `bothy-socket-write` are each on a private
+two-member network instead, because `devnet` holds every third-party image on the
+box and a proxy with no authentication is protected by nothing else - see
+[`SECURITY.md` section 2](../../SECURITY.md#2-docker-socket-proxy-network-reachability-is-authorisation).
+This paragraph listed all four as examples to copy until 2026-09-23.
 
 ## A database
 

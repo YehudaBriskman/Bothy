@@ -276,7 +276,7 @@ kept, not merged away:
 |---|---|---|---|
 | `bothy-web` | `devnet` (Traefik's catch-all) | - | none: static nginx |
 | `bothy-files` | `filesnet` (Traefik only) | - | read-write on the stack repo and the notes, read-only on `$HOME` and `~/projects`; the config forms (`/-/api/config/*`) since 2026-09 |
-| `bothy-ops` | `opsnet` (Traefik only) | `controlsocknet`; `thales-scc` only via `apps/bothy-ops/compose.cluster.yml` | container restart/stop/start through the proxies; five cluster actions with a namespaced token |
+| `bothy-ops` | `opsnet` (Traefik only) | `controlsocknet`; `thales-scc` only via `apps/bothy-ops/compose.cluster.yml` | container restart/stop/start through the proxies; **29 cluster actions** with a namespaced token, declared in `apps/bothy-ops/catalog.toml` and counted by `scripts/checks/doc-facts.sh` - this cell said *five* from 2026-08 until 2026-09-23, which is the direction that understates the blast radius |
 | `bothy-socket-read` | `socketnet` (Traefik), `controlsocknet` (bothy-ops) | the docker socket, `:ro` | `CONTAINERS=1 SYSTEM=1 POST=0` |
 | `bothy-socket-write` | `controlsocknet` (bothy-ops only) | the docker socket, `:ro` | `CONTAINERS=0 POST=1`, three verbs (plus `kill`, refused in code) |
 
