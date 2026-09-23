@@ -268,6 +268,18 @@ mutant "a doc points at a file that was deleted" \
   'assets/portal-overview.png' \
   -- bash scripts/checks/doc-links.sh
 
+# The regression this was written for is the one that already happened twice: a
+# gated router is added in edge/dynamic/ and SECURITY.md's count is not. The
+# mutation runs it the other way round - drop one gate from the file - because
+# it is the same disagreement and it does not need a router invented to plant
+# it. Either direction means the security document no longer describes the
+# boundary.
+mutant "a gated router stops matching SECURITY.md's count" \
+  edge/dynamic/bothy-config.yml \
+  'sso-viewer' \
+  'sso-nothing' \
+  -- bash scripts/checks/router-gates.sh
+
 echo
 echo "── the grant that would make a browser root ────────────────────────"
 # THE most dangerous single character in this repository. The socket-proxy
