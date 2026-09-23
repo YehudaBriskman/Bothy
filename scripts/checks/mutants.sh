@@ -641,6 +641,103 @@ mutant "a fallback link points at a retired service" \
   -- "${WEB_CHECKS[@]}"
 
 echo
+echo "── the two statuses that are allowed to be quiet ───────────────────"
+# `done` and `dormant` exist to STOP the page shouting, which makes every one of
+# them a way to hush something real. Each row below is the precise inversion of a
+# rule the classifier states, and each is anchored on the executable line rather
+# than on the comment above it - a mutation planted in a comment applies cleanly,
+# changes nothing, and reports the check as decorative when the check is fine.
+# That no-op has already cost this repo a run.
+#
+# `done` needs a DECLARATION. Drop it and every clean exit on the box is a
+# success story, prometheus and promtail included.
+mutant "done is inferred from exit 0 alone" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  "      if (code === 0 && ctx.oneShot) return 'done';" \
+  "      if (code === 0) return 'done';" \
+  -- "${WEB_CHECKS[@]}"
+
+# `dormant` needs BOTH halves. Without the sibling test, age alone reaches
+# prometheus - parked on purpose six days ago, and parked for good reason.
+mutant "dormant forgets to ask about siblings" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  '      if (ago != null && ago >= DORMANT_AFTER_SECONDS && ctx.projectAlive === false) {' \
+  '      if (ago != null && ctx.projectAlive === false) {' \
+  -- "${WEB_CHECKS[@]}"
+
+# Without the age test, every container in a switched-off project is history the
+# moment the last sibling stops - including the one that crashed on the way out,
+# thirty seconds ago.
+mutant "dormant forgets to ask how old it is" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  '      if (ago != null && ago >= DORMANT_AFTER_SECONDS && ctx.projectAlive === false) {' \
+  '      if (ago != null && ago >= 0 && ctx.projectAlive === false) {' \
+  -- "${WEB_CHECKS[@]}"
+
+# The threshold itself. A day is still "a while ago" to a reader and is nowhere
+# near a fortnight, which is the whole argument in the constant's comment.
+mutant "the fortnight becomes a day" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  'export const DORMANT_AFTER_SECONDS = 14 * 86_400;' \
+  'export const DORMANT_AFTER_SECONDS = 1 * 86_400;' \
+  -- "${WEB_CHECKS[@]}"
+
+# THE RULE THAT MUST NOT WEAKEN, planted as the tempting version of it: "it
+# exited non-zero in a project where nothing is running, so it probably does not
+# matter". A crash five minutes ago is an alarm whatever owns it.
+mutant "a crash in a dead project is quietly filed as history" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  "      return code === 0 || code === 143 ? 'stopped' : 'down';" \
+  "      return code === 0 || code === 143 ? 'stopped' : (ctx.projectAlive === false ? 'dormant' : 'down');" \
+  -- "${WEB_CHECKS[@]}"
+
+# Absence of evidence becoming evidence of absence, in one character. `undefined`
+# means nobody resolved the fact; `!undefined` is true, so every caller that does
+# not pass the whole-list facts would start producing dormant containers.
+mutant "not knowing counts as abandoned" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  '      if (ago != null && ago >= DORMANT_AFTER_SECONDS && ctx.projectAlive === false) {' \
+  '      if (ago != null && ago >= DORMANT_AFTER_SECONDS && !ctx.projectAlive) {' \
+  -- "${WEB_CHECKS[@]}"
+
+# Every bare `docker run` container filed under one project. `thales-scc` is up
+# and `mpeg-redis` has been dead six weeks; put them in the same bucket and the
+# live one vouches for the dead one forever.
+mutant "unlabelled containers all share one project" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  "  return container.Labels?.['com.docker.compose.project'] || \`container:\${container.Id}\`;" \
+  "  return container.Labels?.['com.docker.compose.project'] || 'unmanaged';" \
+  -- "${WEB_CHECKS[@]}"
+
+# A crash loop is a project being run right now, badly. Stop counting it as alive
+# and the loop's siblings start going dormant around it.
+mutant "a crash loop no longer keeps its project alive" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  "    if (s === 'running' || s === 'restarting') out.add(projectKeyOf(c));" \
+  "    if (s === 'running') out.add(projectKeyOf(c));" \
+  -- "${WEB_CHECKS[@]}"
+
+# The wire. statusOf() is pure and takes both facts as arguments, so every truth
+# -table row passes whether or not merge() resolves them - which is exactly how
+# the live section of run.sh printed a perfectly healthy table while reporting
+# every dormant container on the box as `stopped`.
+mutant "merge stops handing the classifier its whole-list facts" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  '    status: statusOf(container, kind, { oneShot: completesOnPurpose, projectAlive }),' \
+  '    status: statusOf(container, kind),' \
+  -- "${WEB_CHECKS[@]}"
+
+# The clock the threshold reads. A 0 where a null belongs reads as "it stopped
+# just now" and keeps a six-week-old corpse out of `dormant` for good - the same
+# shape as the parseUptime bug that put unparseable containers at the top of
+# "recently started" as "0s ago".
+mutant "an unreadable exit time becomes zero instead of null" \
+  apps/bothy-web/web/src/lib/discover.ts \
+  '  return m ? humanDurationSecs(m[1]) : null;' \
+  '  return m ? humanDurationSecs(m[1]) ?? 0 : 0;' \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is
