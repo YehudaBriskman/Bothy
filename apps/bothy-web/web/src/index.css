@@ -699,6 +699,22 @@ kbd { font-family: var(--mono); font-size: var(--fs-2xs); line-height: var(--lh-
 .dot[data-state="down"] { background: var(--st-down); box-shadow: 0 0 8px color-mix(in oklab, var(--st-down) 65%, transparent); }
 .dot[data-state="stopped"] { background: var(--st-off); }
 .dot[data-state="unknown"] { background: var(--st-unknown); }
+/* `done` and `dormant` (2026-09-23) have no token of their own - the status
+   palette is five colours and a sixth would break the accent/status separation
+   rule 130 lines up - so the distinction is carried by FILL and GLOW, which is
+   the same grammar the four rules above already use.
+
+   `done` takes the up token and NO glow: a one-shot that ran to completion is a
+   success, so green is the honest colour, but it is not running, and the glow in
+   this file means "live signal". Filled-green-without-a-halo is precisely "it
+   was fine, and it is finished".
+
+   `dormant` is hollow: the off token drawn as a ring with nothing inside it.
+   Solid-off is "somebody switched this off"; an empty outline is "there is a
+   space here where a service used to be", which is what four weeks of nobody
+   running cvops actually looks like. */
+.dot[data-state="done"] { background: var(--st-up); }
+.dot[data-state="dormant"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--st-off); }
 
 /* ── tables ─────────────────────────────────────────────────────────────────
    ONE .tbl, where there were two copies of it in this file (the first set a
@@ -1700,9 +1716,13 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
     box-shadow: none;
   }
   /* Hollow means "not a signal" in this design. */
-  :is(.dot, .sm-cell, .cl-dot):is([data-state='stopped'], [data-state='unknown'], [data-state='off']),
+  :is(.dot, .sm-cell, .cl-dot):is([data-state='stopped'], [data-state='unknown'], [data-state='off'],
+      [data-state='dormant']),
   .ka-status:is([data-state='stopped'], [data-state='unknown'], [data-state='off']) .ka-dot,
-  .vz-bar-seg:is(.is-aside, .is-empty, .seg-stopped, .seg-unknown) { background: Canvas; }
+  .vz-bar-seg:is(.is-aside, .is-empty, .seg-stopped, .seg-unknown, .seg-dormant) { background: Canvas; }
+  /* `done` stays FILLED here, unlike the other two additions: it is a signal
+     (something reported success), and in a forced palette filled-vs-hollow is
+     the only distinction left. */
   /* The focus ring must not be the accent the OS just discarded. */
   *:focus-visible { outline-color: Highlight; }
   /* Surfaces lose their borders when backgrounds are forced flat. */

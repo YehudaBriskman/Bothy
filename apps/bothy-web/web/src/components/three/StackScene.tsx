@@ -72,7 +72,13 @@ type Focus = 'edge' | 'projects' | 'containers';
 type Hover = { id: string; node: PortalNode } | null;
 
 const rackPostH = (count: number) => Math.max(1, count) * SLAB_PITCH + 0.7;
-const emissiveFor = (s: Status) => (s === 'up' ? 0.9 : s === 'unknown' ? 0.3 : 1.35);
+// `done` and `dormant` reuse another status's hex (there are five status tokens
+// and seven statuses), so in the rack the pair is told apart by how hard the LED
+// is driven: a finished one-shot glows like `up` but no brighter, and a dormant
+// slab is the dimmest thing in the scene - below `unknown`, which at least means
+// somebody is still asking.
+const emissiveFor = (s: Status) =>
+  (s === 'up' || s === 'done' ? 0.9 : s === 'dormant' ? 0.18 : s === 'unknown' ? 0.3 : 1.35);
 
 // Decorative per-type accent (3D only - not a text/surface token, so a literal
 // palette is fine here; it just tints a slab's spine + a machine's band).
