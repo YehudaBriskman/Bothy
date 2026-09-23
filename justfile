@@ -645,6 +645,19 @@ kube-prom-token:
 kube-token *args:
     ./scripts/gen-kube-token.sh {{args}}
 
+# The portal collector's cluster credential: applies k8s/rbac/bothy-collector.yaml
+# (a ClusterRole holding `list` on five kinds and nothing else, generated from
+# apps/bothy-collector/reads.toml), then writes
+# apps/bothy-collector/secrets/kubeconfig (mode 600, gitignored) and prints the
+# can-i table. `--rotate` revokes and reissues; `--revoke` stops.
+#
+# Run it once per cluster REBUILD: a new cluster has a new CA and no bothy
+# namespace, and until this runs the collector falls back to ~/.kube/config -
+# which on minikube is the admin certificate, and says so on stderr.
+# Issue (or rotate/revoke) the portal collector's read-only ServiceAccount kubeconfig.
+collector-token *args:
+    ./scripts/gen-collector-token.sh {{args}}
+
 # Headlamp's cluster credential: applies k8s/rbac/bothy-browse.yaml (the built-in
 # `view` ClusterRole - no secrets, exec or port-forward), then writes
 # apps/headlamp/secrets/kubeconfig (mode 600, gitignored) and prints the can-i
