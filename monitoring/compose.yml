@@ -94,7 +94,7 @@ services:
   # in prometheus.yml also targets VM now; expect that one target DOWN.
   prometheus:
     profiles: [legacy-prometheus]
-    image: prom/prometheus:v3.14.0
+    image: prom/prometheus:v3.15.0
     container_name: prometheus
     # No Traefik router - reached directly on published port 9090.
     # Prometheus runs with --web.enable-lifecycle; its own basic auth
