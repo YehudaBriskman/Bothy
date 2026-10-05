@@ -254,7 +254,7 @@ services:
   # verified with a side-by-side test container writing test="alloy" streams.
   # See alloy/config.alloy for the docker-access note and first-start behaviour.
   alloy:
-    image: grafana/alloy:v1.19.2
+    image: grafana/alloy:v1.20.1
     container_name: alloy
     restart: unless-stopped
     # The UI/API stays on 127.0.0.1 (the image default): the healthcheck is the
