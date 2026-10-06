@@ -55,6 +55,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 python3 - "$@" <<'PY'
 import pathlib
 import re
+import subprocess
 import sys
 import tomllib
 
@@ -74,7 +75,15 @@ catalog = tomllib.loads(pathlib.Path('apps/bothy-ops/catalog.toml')
 # Every *.yml Traefik's file provider loads from the directory, as committed.
 # bothy-prom.yml is generated and gitignored (it carries a credential), so the
 # tree cannot count it and neither may the sentence that states this number.
-dynamic_files = sorted(p.name for p in pathlib.Path('edge/dynamic').glob('*.yml'))
+#
+# THE COMMENT ABOVE WAS RIGHT AND THE CODE BELOW WAS A GLOB, which counted the
+# generated file anyway. Net effect: this check PASSED IN CI, where a fresh
+# clone has never generated it, and failed on every box that had - reading as
+# drift in README.md rather than as a bug here. `git ls-files` is the only
+# spelling of "committed" that cannot drift from the word.
+_ls = subprocess.run(['git', 'ls-files', '-z', 'edge/dynamic/*.yml'],
+                     capture_output=True, text=True, check=True).stdout
+dynamic_files = sorted(pathlib.PurePosixPath(p).name for p in _ls.split('\0') if p)
 
 TRUTH = {
     'cluster actions': len(catalog['actions']),
