@@ -3,11 +3,45 @@
 # Images here are pinned - an exact tag, or a digest for third-party images
 # (see CONTRIBUTING.md, "Pin images"). Pinning is what keeps a surprise
 # `:latest` out of a socket-holding container; Dependabot is what stops pinning
-# from turning into rot. Two of these containers ARE the security boundary:
-#   • tecnativa/docker-socket-proxy  (apps/bothy/compose.socket-proxy.yml)
-#   • quay.io/oauth2-proxy           (auth/compose.yml)
-# Review their PRs by hand and re-run the boundary check in SECURITY.md before
-# merging. Do not let them be batched into a group.
+# from turning into rot.
+#
+# ── the boundary images ─────────────────────────────────────────────
+#
+# FOUR pins across THREE files are the security boundary (class `boundary` in
+# apps/bothy-ops/updates.toml):
+#   • tecnativa/docker-socket-proxy  apps/bothy/compose.socket-proxy.yml, TWICE
+#                                    (socket-read and socket-write)
+#   • quay.io/oauth2-proxy           auth/compose.yml
+#   • quay.io/oauth2-proxy           apps/headlamp/compose.yml
+# Until 2026-10-06 this header named two containers and one oauth2-proxy file.
+# The Headlamp copy has been a boundary pin since the Headlamp tier landed, and
+# naming only /auth here is how a reviewer concludes the second one is ordinary.
+#
+# Review their PRs BY HAND and re-run the boundary check in SECURITY.md before
+# merging - the `curl` pair in rule 3, which asserts the CONTENT TYPE and not the
+# status code, because the portal catch-all answers every blocked path 200.
+#
+# AND THE GROUP RULE, which is not "no groups" - it is narrower than that, and the
+# difference matters because reading it as "no groups" is what left oauth2-proxy
+# arriving as two PRs that could merge apart (#228 and #230, 2026-10-05):
+#
+#   A group holding MORE THAN ONE dependency name must hold no boundary image.
+#   That is the real rule. The harm is a PR titled "bump the <x> group with 5
+#   updates" whose diff moves the auth boundary - nobody reviews what the title
+#   does not name, and the SECURITY.md check never gets run.
+#
+#   A group holding EXACTLY ONE dependency name across several directories is the
+#   OPPOSITE of that, and is required rather than forbidden. The PR is still
+#   titled for that one image, its diff contains that image and nothing else, so
+#   it gets exactly the hand review the rule is protecting - once instead of
+#   twice, for the same version of the same image. What it buys is that the
+#   copies cannot merge apart: two oauth2-proxy versions on one boundary means
+#   the check above was run against one of them and the other is unexamined.
+#   `postgres` has worked this way since 2026-09-19; `oauth2-proxy` now does too.
+#
+#   `patterns` in every group below is an exact allowlist of names, never a bare
+#   wildcard, which is what makes the first paragraph hold mechanically: nothing
+#   can join a group by being renamed or by appearing in a new directory.
 
 version: 2
 
@@ -36,10 +70,22 @@ updates:
       prefix: "chore(portal)"
       include: scope
     labels: [dependencies, portal]
-    # HOLD react/react-dom below 19.3 until @react-three/fiber allows it. fiber
-    # 9.7.0 (newest, checked 2026-09-21) peers `react >=19 <19.3`, so every group
-    # PR carrying 19.3 fails `npm ci` with ERESOLVE (#188, #199). Remove this
-    # block once `npm view @react-three/fiber peerDependencies` accepts 19.3.
+    # HOLD react/react-dom below 19.3 until @react-three/fiber allows it. The
+    # LOCKED fiber is 9.7.0, which peers `react >=19 <19.3`, so every group PR
+    # carrying 19.3 fails `npm ci` with ERESOLVE (#188, #199). react 19.3.0 is
+    # out, so the hold is load-bearing today.
+    #
+    # NARROW IT TO >=19.4.0, DO NOT DELETE IT, AND NOT BEFORE fiber MOVES.
+    # Measured 2026-10-06: fiber 9.8.1 (newest) peers `react >=19 <19.4`, so
+    # 19.3.x becomes legal - but only once the lockfile holds fiber >= 9.8.1, and
+    # #236 is the PR that puts it there. Narrowing this block while 9.7.0 is
+    # locked re-opens #188/#199 exactly: Dependabot offers 19.3.0 against a fiber
+    # that refuses it and the group PR fails `npm ci`. So the order is #236 first,
+    # then `>=19.3.0` -> `>=19.4.0` here.
+    #
+    # The bound tracks fiber's upper peer, one minor above it; it is never
+    # removed, because the next React minor will be held by the next fiber the
+    # same way. Re-measure with `npm view @react-three/fiber peerDependencies`.
     ignore:
       - dependency-name: "react"
         versions: [">=19.3.0"]
@@ -66,15 +112,30 @@ updates:
       include: scope
     labels: [dependencies, docker]
 
-  # bothy-files and bothy-ops share one base (python:3.13-alpine), pinned by
-  # digest in both - and until 2026-09-18 nothing ever proposed moving it, so
-  # the pin was a freeze. Each directory holds its Dockerfile even though the
-  # BUILD context is apps/ (compose `context: ..`); Dependabot reads the file,
-  # not the context.
+  # bothy-files and bothy-ops share ONE base - python:3.14-alpine, the same tag
+  # and the same digest in both Dockerfiles - and until 2026-09-18 nothing ever
+  # proposed moving it, so the pin was a freeze. (This comment said 3.13-alpine
+  # until 2026-10-06; the bases went to 3.14 and the comment did not.) Each
+  # directory holds its own Dockerfile even though the BUILD context is apps/
+  # (compose `context: ..`); Dependabot reads the file, not the context.
+  #
+  # ONE GROUP, holding the one name, for the reason the header gives: two
+  # directories pinning one base by digest emitted TWO PRs for one digest
+  # (#221 and #224, 2026-09-28), and either could merge without the other. The
+  # halves are not independently valid - the two images are built from the same
+  # base on purpose, and a tree where bothy-files is on one digest and bothy-ops
+  # on another is a state nobody chose and nothing checks. `group-by:
+  # dependency-name` is what collapses a single name across directories into one
+  # PR; it is the same key the `postgres` group uses, and that group has been
+  # proved to do it (#222's title says "/auth" and its diff moves both files).
   - package-ecosystem: docker
     directories:
       - "/apps/bothy-files"
       - "/apps/bothy-ops"
+    groups:
+      python-base:
+        patterns: ["python"]
+        group-by: dependency-name
     schedule:
       interval: weekly
       day: monday
@@ -96,9 +157,10 @@ updates:
   # same way.
   #
   # Boundary images appear in this block (oauth2-proxy in /auth and
-  # /apps/headlamp, the socket proxies in /apps/bothy). That is why it groups
-  # nothing but postgres - see the header. If this ecosystem is ever unavailable to the
-  # repo, delete this block - the pins above and the `docker` block still stand.
+  # /apps/headlamp, the socket proxies in /apps/bothy), so every group below is a
+  # named allowlist and the header's group rule is what decides what may join one.
+  # If this ecosystem is ever unavailable to the repo, delete this block - the
+  # pins above and the `docker` block still stand.
   - package-ecosystem: docker-compose
     directories:
       - "/edge"
@@ -125,14 +187,126 @@ updates:
     ignore:
       - dependency-name: "postgres"
         update-types: ["version-update:semver-major"]
-    # The ONE group here, and it holds no boundary image: postgres is pinned in
-    # /data/postgres (server) and /auth (keycloak-db-init, same major by rule),
-    # and `group-by: dependency-name` makes that one PR across both directories
-    # instead of two halves that each fail on their own.
+      # ── the two frozen rollback targets ───────────────────────────────────
+      # prometheus and promtail are RETIRED. Both sit behind a `legacy-*`
+      # profile in monitoring/compose.yml (`profiles: [legacy-prometheus]` and
+      # `[legacy-promtail]`), neither is started, and neither is a component in
+      # apps/bothy-ops/updates.toml - that file says so itself: "Not listed:
+      # prometheus and promtail (monitoring/compose.yml, behind the legacy-*
+      # profiles - kept for rollback and never started)".
+      #
+      # They are the rollback TARGETS of the two 2026-09 migrations - Prometheus
+      # for VictoriaMetrics, promtail for Alloy - which is the whole reason the
+      # lines still exist. A rollback target that moves is not a rollback target:
+      # rolling back to a version that was never the version you ran is a second
+      # untested change on top of an outage.
+      #
+      # #226 (prom/prometheus v3.14.0 -> v3.15.0, 2026-09-28) is the PR this
+      # entry should have prevented. Nothing was wrong with the bump; there was
+      # simply nothing it could be right about, and it cost a review either way.
+      # promtail has not produced one yet and would the week 3.6.9 ships.
+      - dependency-name: "prom/prometheus"
+      - dependency-name: "grafana/promtail"
+    # ── groups ──────────────────────────────────────────────────────────────
+    #
+    # Three, and the header states the rule they obey. Two of them hold exactly
+    # ONE dependency name across directories (anti-drift); one holds four names
+    # in one directory (anti-noise).
     groups:
+      # ONE NAME, TWO DIRECTORIES. postgres is pinned in /data/postgres (the
+      # server) and /auth (keycloak-db-init, which must be the server's major -
+      # psql talks to it). `group-by: dependency-name` makes that one PR across
+      # both directories instead of two halves that each break "both postgres
+      # pins agree" on their own: 17 -> 18.4 came as #189/#190 on 2026-09-19 and
+      # did exactly that. Verified working 2026-10-06 - #222's title says
+      # "in /auth" and its diff moves BOTH files, so trust the diff, not the
+      # title, when reading one of these.
       postgres:
         patterns: ["postgres"]
         group-by: dependency-name
+
+      # ONE NAME, TWO DIRECTORIES, AND IT IS A BOUNDARY IMAGE. The same pin is
+      # in auth/compose.yml (every role-gated route) and apps/headlamp/compose.yml
+      # (the cluster UI), and a comment beside the directory list has asked for
+      # years that "both PRs" be reviewed together so the two never drift. Asking
+      # is not a mechanism: on 2026-10-05 v7.15.5 arrived as #228 and #230 and
+      # either could have merged alone, leaving two versions of the thing that
+      # fails closed - with the SECURITY.md boundary check run against one of
+      # them and the other unexamined.
+      #
+      # This is the case the header's group rule PERMITS, and it is worth being
+      # explicit about why, because "do not group the boundary images" read
+      # literally forbids it. The harm a group does is hiding an image inside a
+      # title that does not name it. This group cannot do that: `patterns` is the
+      # single exact name, so the PR is titled for oauth2-proxy, its diff is two
+      # identical pin lines, and it still gets the hand review and the boundary
+      # check - once, rather than twice for the same version of the same image.
+      # The harm it PREVENTS is a split boundary, which is strictly worse than
+      # one careful review.
+      #
+      # If a second name is ever added to this group, that is the forbidden
+      # thing, not this.
+      oauth2-proxy:
+        patterns: ["oauth2-proxy/oauth2-proxy"]
+        group-by: dependency-name
+
+      # FOUR NAMES, ONE DIRECTORY, NO BOUNDARY IMAGE. The owner's complaint on
+      # 2026-10-05 was volume: sixteen open PRs across two weekly batches. This
+      # is the part of that volume a group can legitimately absorb.
+      #
+      # THE RULE FOR MEMBERSHIP, so this does not become a list somebody extends
+      # by feel. Every member must, per apps/bothy-ops/updates.toml:
+      #   1. have `channel = "auto"`. That is the catalog's own statement that a
+      #      patch of this may be deployed with NO person in the loop, so a batch
+      #      of them deserves one review between them. It is also why `grafana`
+      #      is NOT here: `notify`, class app-db, `one_way = true` - its deploy
+      #      needs a volume copy first, and a group PR erases the title's ability
+      #      to say that. Same for `traefik` (notify, the edge), `keycloak` and
+      #      `postgres` (manual).
+      #   2. share one `apply` recipe - all four are `just up-monitoring`. One PR
+      #      should be one recipe. `postgres-exporter` and `headlamp` are `auto`
+      #      too and are deliberately absent: `just up-data` and
+      #      `just up-headlamp`, and the Headlamp directory also holds a boundary
+      #      pin, which is adjacency this group has no reason to acquire.
+      #   3. have its pin in EXACTLY ONE ecosystem. This is why `alloy` is not
+      #      here, and it is the sharpest of the three. grafana/alloy is pinned
+      #      twice - monitoring/compose.yml (this ecosystem) and
+      #      k8s/monitoring/alloy.yaml (the `docker` ecosystem below) - and a
+      #      group cannot span ecosystems, so the group alloy actually needs is
+      #      the one groups cannot express. Putting it in this group would make
+      #      this PR red until the k8s half merged too
+      #      (scripts/checks/alloy-pins.sh now holds that), blocking four
+      #      unrelated patches on an unrelated merge. It arrives on its own and
+      #      is merged WITH the k8s PR.
+      #
+      # WHAT IT WOULD AND WOULD NOT HAVE DONE to the batch that prompted it: it
+      # collapses nothing, because the three /monitoring PRs that week were
+      # victoriametrics (#231, a member), alloy (#232, excluded by rule 3) and
+      # grafana (#233, excluded by rule 1). Said plainly rather than left to be
+      # discovered: the win is the ordinary week in which two or three of these
+      # four move together, which is most weeks.
+      #
+      # Majors stay on their own - `update-types` excludes them - because a
+      # VictoriaMetrics or Loki major is a retention and schema question, and
+      # `updates.effective_channel()` makes any major manual anyway.
+      #
+      # ON THE PATTERNS. Dependabot strips the registry host from a docker
+      # dependency name (#230's compatibility badge says
+      # `dependency-name=oauth2-proxy/oauth2-proxy` for an image written
+      # `quay.io/oauth2-proxy/oauth2-proxy`), so cadvisor is matched with a
+      # leading `*` to hold whether or not `gcr.io/` is stripped. A pattern that
+      # MISSES costs one extra PR and nothing else - it is the behaviour this
+      # group replaces. A pattern that OVER-matches is the one that could pull in
+      # an image nobody reviewed, which is why none of them is a bare wildcard
+      # and why `*cadvisor/cadvisor` can only match something ending in that.
+      monitoring-auto-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "victoriametrics/victoria-metrics"
+          - "grafana/loki"
+          - "prom/node-exporter"
+          - "*cadvisor/cadvisor"
     schedule:
       interval: weekly
       day: monday
@@ -151,8 +325,19 @@ updates:
   # that file, or Dependabot silently stops reading it.
   #
   # The same alloy version is pinned in monitoring/compose.yml (docker-compose
-  # block above). The two arrive as separate PRs, and groups cannot span
-  # ecosystems: merge them together - one shipper, one version on both sides.
+  # block above). The two arrive as SEPARATE PRs and always will: a group cannot
+  # span ecosystems, so there is no configuration that collapses them. Merge them
+  # TOGETHER - one shipper, one version on both sides.
+  #
+  # Since 2026-10-06 that is held rather than asked for: scripts/checks/alloy-pins.sh
+  # (CI tier 0, two seconds, offline) fails when the two pins differ, so merging
+  # one half turns CI red on `main` with a message naming the other half. Before
+  # it, merging one half alone was caught only by the 25-minute live install job,
+  # as `docker image inspect grafana/alloy:v1.19.2: No such image` from
+  # apps/bothy-ops/checks/e2e_cluster.py - which is what #232 failed on, and which
+  # names neither alloy pin nor the word drift. That check also holds
+  # e2e_cluster.py's own copy of the version, because there are THREE copies of
+  # this fact, not two.
   - package-ecosystem: docker
     directory: "/k8s/monitoring"
     schedule:
