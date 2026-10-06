@@ -39,9 +39,17 @@
 #   the check above was run against one of them and the other is unexamined.
 #   `postgres` has worked this way since 2026-09-19; `oauth2-proxy` now does too.
 #
+#   AND IT HOLDS MECHANICALLY, not by care. `group-by: dependency-name` means
+#   "one PR per dependency name", so a group carrying it is INCAPABLE of putting
+#   two images in one PR however many patterns it lists - which is why both of
+#   the one-name groups below carry it and why listing two spellings of one image
+#   (Dependabot strips the registry host from a docker name; see the monitoring
+#   group) is still one name. The group that holds four names does NOT carry it,
+#   on purpose, and that is the one whose membership is argued for in full.
+#
 #   `patterns` in every group below is an exact allowlist of names, never a bare
-#   wildcard, which is what makes the first paragraph hold mechanically: nothing
-#   can join a group by being renamed or by appearing in a new directory.
+#   wildcard, so nothing can join a group by being renamed or by appearing in a
+#   new directory - and a malformed glob cannot take the whole file down with it.
 
 version: 2
 
@@ -246,8 +254,14 @@ updates:
       #
       # If a second name is ever added to this group, that is the forbidden
       # thing, not this.
+      # Both spellings, for the reason the monitoring group below gives: the
+      # registry-host-stripped form is what #230's badge showed, and a name this
+      # group misses is a boundary image back to arriving as two PRs - the exact
+      # thing it exists to stop. Listing the unstripped form costs nothing.
       oauth2-proxy:
-        patterns: ["oauth2-proxy/oauth2-proxy"]
+        patterns:
+          - "oauth2-proxy/oauth2-proxy"
+          - "quay.io/oauth2-proxy/oauth2-proxy"
         group-by: dependency-name
 
       # FOUR NAMES, ONE DIRECTORY, NO BOUNDARY IMAGE. The owner's complaint on
@@ -290,15 +304,19 @@ updates:
       # VictoriaMetrics or Loki major is a retention and schema question, and
       # `updates.effective_channel()` makes any major manual anyway.
       #
-      # ON THE PATTERNS. Dependabot strips the registry host from a docker
-      # dependency name (#230's compatibility badge says
-      # `dependency-name=oauth2-proxy/oauth2-proxy` for an image written
-      # `quay.io/oauth2-proxy/oauth2-proxy`), so cadvisor is matched with a
-      # leading `*` to hold whether or not `gcr.io/` is stripped. A pattern that
-      # MISSES costs one extra PR and nothing else - it is the behaviour this
-      # group replaces. A pattern that OVER-matches is the one that could pull in
-      # an image nobody reviewed, which is why none of them is a bare wildcard
-      # and why `*cadvisor/cadvisor` can only match something ending in that.
+      # ON THE PATTERNS, AND WHY BOTH SPELLINGS OF cadvisor ARE LISTED.
+      # Dependabot strips the registry host from a docker dependency name - #230's
+      # compatibility badge says `dependency-name=oauth2-proxy/oauth2-proxy` for an
+      # image written `quay.io/oauth2-proxy/oauth2-proxy` - but that was measured
+      # on quay.io and gcr.io is the only other prefix in the repo, so cadvisor is
+      # listed BOTH ways rather than matched with a leading `*`.
+      #
+      # Two exact names, not one glob, deliberately. A pattern that MISSES costs
+      # one extra PR and nothing else, which is the behaviour this group replaces -
+      # so a near-miss is cheap. A malformed pattern is not cheap: GitHub rejects
+      # the whole FILE and reports it as a repository warning, which is precisely
+      # the kind of warning this file's own history records going unread for a
+      # fortnight. Nothing here is worth spending a glob on.
       monitoring-auto-minor-and-patch:
         applies-to: version-updates
         update-types: [minor, patch]
@@ -306,7 +324,8 @@ updates:
           - "victoriametrics/victoria-metrics"
           - "grafana/loki"
           - "prom/node-exporter"
-          - "*cadvisor/cadvisor"
+          - "cadvisor/cadvisor"
+          - "gcr.io/cadvisor/cadvisor"
     schedule:
       interval: weekly
       day: monday
