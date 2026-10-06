@@ -7,29 +7,54 @@
 // cheapest thing that does (one border on a pseudo-element, no extra DOM).
 //
 // The lazy tree is unchanged and is the reason this scales: a closed directory
-// renders NOTHING, so the 2,748-file `projects` root costs about one DOM row
-// until someone opens something. Search switches the rail to a flat ranked list
-// capped at 250 with a count of what was left out - at this scale search IS the
-// navigation, and an uncapped result list is a second way to render everything.
+// renders NOTHING, so the 19,273-file `projects` root costs about one DOM row
+// until someone opens something.
+//
+// WHAT CHANGED IN 2026-10 is the other half of that sentence: the LISTING went
+// lazy too. It used to be one request per root for every file under it, which the
+// service capped at 4,000 entries - so the rail rendered a handful of rows out of
+// 1.18 MB of JSON and ~15,000 files per big root had no path this page had ever
+// seen. Two consequences are visible here:
+//
+//   · a folder row now knows whether its own listing has arrived, so "nobody has
+//     opened this" and "this folder is empty" are different states on screen. The
+//     subtree file count and byte total are GONE with the rollup that fed them -
+//     see tree.ts - and what a folder costs is asked when Download is clicked.
+//   · the filter is a SERVER search (/find), so it reaches every file in the root
+//     rather than the first 4,000. It still renders as a flat ranked list capped
+//     at 250 with a count of what was left out: at this scale search IS the
+//     navigation, and an uncapped result list is a second way to render
+//     everything.
 
 import { useMemo } from 'react';
 import {
   ChevronRight, ChevronsDownUp, FileDown, FileX2, Folder, FolderOpen, Lock, Locate, Search, X,
 } from 'lucide-react';
-import { fmtBytes, type FileRoot, type TreeFile } from '../../lib/files';
+import { fmtBytes, type FileRoot, type Stopped, type TreeFile } from '../../lib/files';
 import { Tooltip } from '../../components/Tooltip';
 import { FileIcon } from './icons';
 import { baseName, dirName, tailPath, type Node } from './tree';
 import { toneFor, type Decorations } from './gitdeco';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
+import { Loader } from '../../components/ui/Loader';
 
 export const MAX_RESULTS = 250;
 
-export interface Results { total: number; shown: TreeFile[] }
+export interface Results {
+  total: number;
+  shown: TreeFile[];
+  /** The SERVICE's bound, reported rather than inferred from a length - a list
+   *  exactly `limit` long is not proof it was cut. Null when the walk finished. */
+  stopped?: Stopped | null;
+  /** The search itself failed. Shown in the rail where the query was typed, not in
+   *  the Problems panel: a search that errors is about the box you are typing in. */
+  err?: string;
+}
 
 function TreeRows({
   nodes, depth, expanded, onToggle, current, onPick, onDownloadDir, deco, tombs, onOpenDiff,
+  pending, sizing,
 }: {
   nodes: Node[];
   depth: number;
@@ -45,6 +70,12 @@ function TreeRows({
    *  below - the alternative is a file that silently is not there. */
   tombs: Set<string>;
   onOpenDiff: (path: string) => void;
+  /** Folders whose listing is in flight. */
+  pending: ReadonlySet<string>;
+  /** The folder being weighed for a download, if any. The walk takes up to two
+   *  seconds on the biggest subtree here, and a button that looks dead for two
+   *  seconds reads as a broken button. */
+  sizing: string | null;
 }) {
   return (
     // --depth: explorer.css draws this list's guide stripe from it, so a tree of
@@ -64,11 +95,21 @@ function TreeRows({
 
         if (n.dir) {
           const open = expanded.has(n.path);
+          const busy = pending.has(n.path);
           // The propagation that makes a change visible without expanding
           // anything. A closed folder is one row and no children, so without
           // this the only way to find a modification is to already know where
           // it is.
           const dd = deco.dirs.get(n.path);
+          // The count is the entries DIRECTLY INSIDE, and only once the listing
+          // has arrived. It used to be the number of files in the whole subtree,
+          // which no client can know without holding the subtree - see tree.ts on
+          // the rollups this replaced. An unlisted folder shows nothing rather
+          // than a 0, because 0 is a claim and "not asked yet" is not.
+          const kids = n.loaded ? n.children.length : null;
+          const what = n.loaded
+            ? `${kids?.toLocaleString()} ${kids === 1 ? 'entry' : 'entries'} here`
+            : 'not listed yet - open it to see';
           return (
             <li key={n.path} className="fx-li">
               <div className={`fx-rowwrap ${open ? 'open' : ''}`}>
@@ -79,34 +120,43 @@ function TreeRows({
                   aria-expanded={open}
                   data-git={dd ? toneFor(dd.state) : undefined}
                   onClick={() => onToggle(n.path)}
-                  title={`${n.path} - ${n.files.toLocaleString()} files, ${fmtBytes(n.bytes)}`
-                    + (dd ? ` · ${dd.count} changed` : '')}
+                  title={`${n.path} - ${what}` + (dd ? ` · ${dd.count} changed` : '')}
                 >
                   <Icon icon={ChevronRight} size="xs" className={`chev fx-chev ${open ? 'open' : ''}`} />
                   {open
                     ? <Icon icon={FolderOpen} size="sm" className="fx-ico t-dir" />
                     : <Icon icon={Folder} size="sm" className="fx-ico t-dir" />}
                   <span className="fx-name">{n.name}</span>
-                  {/* The git count REPLACES the file count when there is one.
+                  {/* The git count REPLACES the entry count when there is one.
                       Both in the same 10px column is two numbers that look
                       alike and mean nothing alike, and at this width one of
                       them has to go - the changed count is the one you are
                       looking for. The full pair stays in the title. */}
                   {dd
                     ? <span className="fx-gitn tnum">{dd.count}</span>
-                    : <span className="fx-n">{n.files.toLocaleString()}</span>}
+                    : busy
+                      ? <Loader state="load" label={`Listing ${n.name}`} labelHidden />
+                      : kids !== null && <span className="fx-n">{kids.toLocaleString()}</span>}
                 </button>
                 {/* Per-directory download. On the row rather than in a menu
                     because it is the only action a directory HAS, and a menu for
-                    one item is a click spent on nothing. */}
+                    one item is a click spent on nothing.
+                    NO SIZE IN THE LABEL: what the folder weighs is asked when this
+                    is clicked, by the service that is about to build the archive -
+                    see /dirsize. A number here would be the rollup again. */}
                 <button
                   type="button"
                   className="fx-rowbtn"
                   onClick={(e) => { e.stopPropagation(); onDownloadDir(n); }}
-                  title={`Download ${n.name} as an archive - ${n.files.toLocaleString()} files, ${fmtBytes(n.bytes)}`}
+                  disabled={sizing !== null}
+                  title={sizing === n.path
+                    ? `Working out what ${n.name} weighs…`
+                    : `Download ${n.name} as an archive`}
                   aria-label={`Download ${n.path} as an archive`}
                 >
-                  <Icon icon={FileDown} size="xs" />
+                  {sizing === n.path
+                    ? <Loader state="work" label={`Weighing ${n.name}`} labelHidden />
+                    : <Icon icon={FileDown} size="xs" />}
                 </button>
               </div>
               {/* Lazily rendered: a closed directory puts NOTHING in the DOM,
@@ -123,7 +173,17 @@ function TreeRows({
                   deco={deco}
                   tombs={tombs}
                   onOpenDiff={onOpenDiff}
+                  pending={pending}
+                  sizing={sizing}
                 />
+              )}
+              {/* An OPEN folder with nothing in it says which kind of nothing.
+                  The eager listing never had to: a folder it did not describe did
+                  not exist. */}
+              {open && n.children.length === 0 && (
+                <p className="fx-nodir" style={pad}>
+                  {busy ? 'Listing…' : n.loaded ? 'Empty' : 'Not listed'}
+                </p>
               )}
             </li>
           );
@@ -174,7 +234,7 @@ function TreeRows({
               onClick={() => !denied && onPick(n.path)}
               title={denied
                 ? `${n.path} - this session may not read it`
-                : `${n.path}${n.entry ? ` · ${fmtBytes(n.entry.size)}` : ''}${writable ? '' : ' · read-only'}`
+                : `${n.path}${n.entry?.size != null ? ` · ${fmtBytes(n.entry.size)}` : ''}${writable ? '' : ' · read-only'}`
                   + (d ? ` · ${d.label}${d.staged ? ', staged' : ''}` : '')}
             >
               {denied
@@ -187,7 +247,7 @@ function TreeRows({
                   green. It takes the size column, which the size can spare. */}
               {d
                 ? <span className={`fx-gitcode t-${toneFor(d.state)} ${d.staged ? 'staged' : ''}`} aria-label={d.label}>{d.letter}</span>
-                : n.entry && !denied && <span className="fx-size">{fmtBytes(n.entry.size)}</span>}
+                : n.entry?.size != null && !denied && <span className="fx-size">{fmtBytes(n.entry.size)}</span>}
             </button>
           </li>
         );
@@ -199,7 +259,8 @@ function TreeRows({
 export function Explorer({
   roots, root, tree, results, query, setQuery, expanded, onToggleDir, current,
   onPick, onPickRoot, onCollapseAll, onReveal, onDownloadDir, onDownloadRoot,
-  loading, error, onRetry, truncated, fileCount, filterRef, deco, tombs, onOpenDiff,
+  loading, pending, searching, sizing, error, onRetry, loadedCount, filterRef,
+  deco, tombs, onOpenDiff,
 }: {
   roots: FileRoot[];
   root: string;
@@ -216,11 +277,23 @@ export function Explorer({
   onReveal: () => void;
   onDownloadDir: (n: Node) => void;
   onDownloadRoot: () => void;
+  /** The ROOT's own listing is in flight - the one skeleton this rail draws. A
+   *  folder deeper in gets a spinner on its own row instead, because replacing the
+   *  whole rail with a skeleton to open one folder loses your place. */
   loading: boolean;
+  /** Every folder with a listing in flight. */
+  pending: ReadonlySet<string>;
+  /** The name search is in flight. Its own flag, because the tree being loaded and
+   *  the search being slow are different waits with different answers. */
+  searching: boolean;
+  /** The folder whose archive size is being worked out, if any. */
+  sizing: string | null;
   error: string | null;
   onRetry: () => void;
-  truncated: boolean;
-  fileCount: number;
+  /** Entries this rail HAS, not the root's total. The total is unknowable without
+   *  the recursive listing that was removed, and the number it used to print was
+   *  wrong anyway - it was the 4,000 the service's cap allowed. */
+  loadedCount: number;
   filterRef: React.RefObject<HTMLInputElement | null>;
   deco: Decorations;
   tombs: Set<string>;
@@ -228,7 +301,7 @@ export function Explorer({
 }) {
   const shownCount = results
     ? `${Math.min(results.total, MAX_RESULTS).toLocaleString()} of ${results.total.toLocaleString()}`
-    : fileCount.toLocaleString();
+    : loadedCount.toLocaleString();
 
   const rootMeta = useMemo(() => roots.find((r) => r.key === root), [roots, root]);
 
@@ -282,20 +355,25 @@ export function Explorer({
       )}
 
       {/* The primary affordance at this scale, so it is above the tree and
-          always visible rather than a control you have to find. */}
+          always visible rather than a control you have to find.
+          IT IS A SERVER SEARCH NOW, over every file in the root (/find). It used
+          to filter the listing the browser held, which stopped at the service's
+          4,000-entry cap - so a name past the cap printed "Nothing matches". */}
       <label className="fx-filter">
-        <Icon icon={Search} size="sm" />
-        <span className="sr-only">Filter files by path</span>
+        {searching
+          ? <Loader state="search" label="Searching this root" labelHidden />
+          : <Icon icon={Search} size="sm" />}
+        <span className="sr-only">Search every file name in this root</span>
         <input
           ref={filterRef}
           type="search"
           value={query}
-          placeholder="Search paths…"
+          placeholder="Search names in this root…"
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.stopPropagation(); setQuery(''); } }}
         />
         {query && (
-          <button type="button" className="fx-filter-x" onClick={() => setQuery('')} aria-label="Clear filter">
+          <button type="button" className="fx-filter-x" onClick={() => setQuery('')} aria-label="Clear search">
             <Icon icon={X} size="xs" />
           </button>
         )}
@@ -312,8 +390,19 @@ export function Explorer({
             <Button variant="ghost" onClick={onRetry}>Retry</Button>
           </div>
         ) : results ? (
-          results.shown.length === 0 ? (
-            <div className="fx-msg"><p>Nothing matches “{query}”.</p></div>
+          results.err ? (
+            <div className="fx-msg">
+              <p>The search failed: {results.err}</p>
+              <Button variant="ghost" onClick={onRetry}>Retry</Button>
+            </div>
+          ) : results.shown.length === 0 ? (
+            // "In this root", because that is the claim the server answered - and
+            // it is now a claim worth making. The old filter could only say
+            // "nothing in the 4,000 entries this browser happens to hold", which
+            // it said as "Nothing matches".
+            <div className="fx-msg">
+              <p>No file name in <span className="mono">{root}</span> contains “{query}”.</p>
+            </div>
           ) : (
             <>
               <ul className="fx-list">
@@ -346,15 +435,21 @@ export function Explorer({
                         </span>
                         {d
                           ? <span className={`fx-gitcode t-${toneFor(d.state)} ${d.staged ? 'staged' : ''}`} aria-label={d.label}>{d.letter}</span>
-                          : <span className="fx-size">{fmtBytes(e.size)}</span>}
+                          : <span className="fx-size">{fmtBytes(e.size ?? 0)}</span>}
                       </button>
                     </li>
                   );
                 })}
               </ul>
-              {results.total > MAX_RESULTS && (
+              {/* THE SERVICE's bound, reported as the service reported it. This
+                  used to be `total > MAX_RESULTS` over a list the browser had
+                  scored itself; now the walk happens there, so the only honest
+                  source for "there were more" is the `stopped` field. */}
+              {results.stopped && (
                 <p className="fx-more">
-                  {(results.total - MAX_RESULTS).toLocaleString()} more match - narrow the search.
+                  Stopped at {(results.stopped.limit ?? results.total).toLocaleString()} matches
+                  ({results.stopped.reason}), out of {results.stopped.scanned.toLocaleString()} files
+                  looked at - narrow the search.
                 </p>
               )}
             </>
@@ -373,17 +468,21 @@ export function Explorer({
             deco={deco}
             tombs={tombs}
             onOpenDiff={onOpenDiff}
+            pending={pending}
+            sizing={sizing}
           />
         )}
       </div>
 
+      {/* WHAT THIS RAIL HOLDS, not what the root contains. The byte total is gone
+          with the subtree rollup that produced it (tree.ts): a figure for a root
+          nobody has walked is not a figure, and walking one to print it is the cost
+          this page stopped paying. `truncated` is gone with the listing cap. */}
       <footer className="fx-rail-f">
         <span className="mono">{root}</span>
         <span className="fx-rail-f-sep" aria-hidden="true">·</span>
-        <span className="tnum">{fileCount.toLocaleString()} files</span>
-        <span className="tnum fx-rail-f-bytes">{fmtBytes(tree.bytes)}</span>
+        <span className="tnum">{loadedCount.toLocaleString()} loaded</span>
         {rootMeta?.readOnly && <span className="tag">read-only</span>}
-        {truncated && <span className="tag warn">truncated</span>}
       </footer>
     </aside>
   );

@@ -69,6 +69,19 @@
   color: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); text-align: center;
 }
 
+/* An OPEN folder with nothing in it. It is a state the eager listing could not
+   have: a folder it did not describe did not exist, so there was never a row to
+   put "this has not been listed yet" under. Indented to the children's position,
+   because that is what it stands in for.
+   NOT `.fx-empty` - editor.css already owns that name for the empty EDITOR PANE,
+   and two stylesheets declaring one selector is the duplicate the design-token
+   check exists to catch. */
+.bothy-files .fx-nodir {
+  margin: 0; padding: var(--sp-0_5) var(--sp-2);
+  color: var(--fg-subtle); font-size: var(--fs-2xs); line-height: var(--lh-2xs);
+  letter-spacing: var(--tr-2xs); font-style: italic;
+}
+
 .bothy-files .fx-list { list-style: none; margin: 0; padding: 0; }
 
 /* ── indent guides ───────────────────────────────────────────────────────────
