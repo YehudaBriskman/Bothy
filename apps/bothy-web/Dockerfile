@@ -9,7 +9,7 @@
 #   - `npm ci`, not `npm install`: it installs exactly package-lock.json and
 #     FAILS if the lock and package.json disagree, where `install` silently
 #     re-resolved and could rewrite the lock inside the image.
-FROM node:26.9.0-alpine@sha256:dbaa92e5758cbbcf85d65d5403fdb530fe3442cbe8c6dbfb7ef23365450d5070 AS build
+FROM node:26.10.0-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS build
 WORKDIR /app
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
