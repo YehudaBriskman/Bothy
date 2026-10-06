@@ -310,7 +310,7 @@ the one that counts them. So the enumeration is gone and the counts are checked.
 Numbers on this page that no check holds are still prose, and prose goes stale
 silently; this README has twice described services that had already been deleted.
 
-**48 routers require a role**, across 5 files:
+**50 routers require a role**, across 5 files:
 
 | File | Gated routers | Requires |
 |---|---|---|
@@ -318,13 +318,13 @@ silently; this README has twice described services that had already been deleted
 | `edge/dynamic/bothy-config.yml` | 2 | the same pair, over config fields |
 | `edge/dynamic/bothy-admin.yml` | 4 | `operator` on the audit log, backups, credentials and users |
 | `edge/dynamic/bothy-ops.yml` | 33 | `operator` on the three container verbs and every cluster change, `viewer` on every cluster read |
-| `edge/dynamic/bothy-updates.yml` | 5 | `operator` to request or pause an update, `viewer` to read its state |
+| `edge/dynamic/bothy-updates.yml` | 7 | `operator` to request or pause an update, to check for updates or to run the night job; `viewer` to read its state |
 
 | Role | Routers require it |
 |---|---|
 | `viewer` | 24 |
 | `editor` | 3 |
-| `operator` | 21 |
+| `operator` | 23 |
 
 `bothy-ops.yml` is **generated** - `scripts/gen-ops-wiring.py` renders one exact
 `Path()` router per action in `apps/bothy-ops/catalog.toml` - so a hand-written

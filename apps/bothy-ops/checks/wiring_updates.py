@@ -6,12 +6,17 @@ Run: python3 checks/wiring_updates.py      (needs PyYAML - the system python3 ha
 Static, and apart from wiring.py for wiring_admin.py's reason: these routers are
 hand-written, those are generated.
 
-  EDGE     edge/dynamic/bothy-updates.yml: exactly five routers, each an exact
+  EDGE     edge/dynamic/bothy-updates.yml: exactly seven routers, each an exact
            `Path() && Method()`: status, plan and job are GET behind sso-viewer;
-           request and unpause are POST behind sso-OPERATOR; all strip, deidentify, then the
+           request, unpause, discover and autorun are POST behind sso-OPERATOR; all
+           strip, deidentify, then the
            gate, then sso-errors; its own middlewares and service; no gate
            redefined; no doubled brace; allow-listed in edge/dynamic/.gitignore;
            and NOT in the generated bothy-ops.yml
+  ASKS     the two asks of 2026-10-06 (discover, autorun) are wired end to end: a
+           router, a POST route in app.py, a writer in updates.py, a spool file
+           kind the executor's loop does NOT remove as junk, a drain that claims
+           it, ONE rate-limit constant read by both halves, and a button in the UI
   COMPOSE  bothy-ops mounts the updates state dir READ-ONLY and the spool - its
            ONLY read-write mount besides the audit dir - both never
            auto-created; node-exporter has the textfile collector on a
@@ -53,7 +58,7 @@ def read(rel: str) -> str:
     return open(os.path.join(REPO, rel), encoding="utf-8").read()
 
 
-print("── EDGE: five exact paths, each with its method and its gate ──")
+print("── EDGE: seven exact paths, each with its method and its gate ─")
 src = read("edge/dynamic/bothy-updates.yml")
 ok("{{" not in src and "}}" not in src, "no doubled brace anywhere")
 edge = yaml.safe_load(src)["http"]
@@ -64,8 +69,15 @@ WANT = {  # router -> (path, method, gate)
     "bothy-updates-job": ("/-/api/updates/job", "GET", "sso-viewer"),
     "bothy-updates-request": ("/-/api/updates/request", "POST", "sso-operator"),
     "bothy-updates-unpause": ("/-/api/updates/unpause", "POST", "sso-operator"),
+    # 2026-10-06: "check for updates now" and "run the night job now". Both make the
+    # HOST run something, so both are POST behind operator - never viewer, which is
+    # the mutation scripts/checks/mutants.sh plants.
+    "bothy-updates-discover": ("/-/api/updates/discover", "POST", "sso-operator"),
+    "bothy-updates-autorun": ("/-/api/updates/autorun", "POST", "sso-operator"),
 }
-ok(set(routers) == set(WANT), f"exactly five routers: {sorted(routers)}")
+# Derived, so the UI assertion below cannot drift from the router table above.
+WANTED_PATHS = sorted(p.rsplit("/", 1)[-1] for p, _, _ in WANT.values())
+ok(set(routers) == set(WANT), f"exactly seven routers: {sorted(routers)}")
 for name, (path, method, gate) in WANT.items():
     r = routers.get(name, {})
     ok(r.get("rule") == f"Path(`{path}`) && Method(`{method}`)", f"{name}: exact Path and {method} only")
@@ -73,11 +85,12 @@ for name, (path, method, gate) in WANT.items():
     ok(r.get("middlewares") == ["bothy-updates-strip", "updates-deidentify", gate, "sso-errors"],
        f"{name}: strip, deidentify, {gate}, sso-errors - in that order")
     ok(r.get("service") == "bothy-updates" and r.get("entryPoints") == ["web"], f"{name}: its own service, on web")
-WRITES = ["bothy-updates-request", "bothy-updates-unpause"]
+WRITES = sorted(f"bothy-updates-{n}" for n in ("request", "unpause", "discover", "autorun"))
 ok(sorted(n for n, r in routers.items() if "sso-operator" in r.get("middlewares", [])) == WRITES,
-   "the TWO routes that ask the host for anything are the only ones behind operator")
+   "the FOUR routes that ask the host for anything are the only ones behind operator")
 ok(all("POST" not in r["rule"] for n, r in routers.items() if n not in WRITES),
    "no read accepts a POST")
+ok(all("GET" not in routers[n]["rule"] for n in WRITES), "no ask answers a GET")
 mws = edge.get("middlewares", {})
 ok(set(mws) == {"bothy-updates-strip", "updates-deidentify"}, f"defines only its own middlewares: {sorted(mws)}")
 ok(mws["bothy-updates-strip"] == {"stripPrefix": {"prefixes": ["/-/api"]}}, "strip removes /-/api only")
@@ -144,8 +157,9 @@ app = read("apps/bothy-ops/app.py")
 ok('route in ("/updates/status", "/updates/plan", "/updates/job")' in app and "updates.CATALOG = updates.load()" in app,
    "app.py routes the three GETs and refuses to start on a bad catalog")
 post = app.split("def do_POST", 1)[1].split("def main", 1)[0]
-ok(re.findall(r'"/updates/[a-z]+"', post) == ['"/updates/request"', '"/updates/unpause"'],
-   "the only POSTs under /updates are /updates/request and /updates/unpause")
+ok(re.findall(r'"/updates/[a-z]+"', post) == [f'"/updates/{n}"' for n in
+                                              ("request", "unpause", "discover", "autorun")],
+   "the only POSTs under /updates are request, unpause, discover and autorun")
 upd = read("apps/bothy-ops/updates.py")
 ok(not re.search(r"^\s*(import|from)\s+(subprocess|socket|http\.client|urllib\.request)\b", upd, re.M),
    "updates.py imports nothing that starts a process or opens a connection")
@@ -206,8 +220,55 @@ print()
 print("── UI: the client calls exactly these paths ─────────────────────")
 ts = read("apps/bothy-web/web/src/lib/updates.ts")
 paths = set(re.findall(r"['`](/-/api/updates/[a-z/-]+)", ts))
-ok(paths == {f"/-/api/updates/{p}" for p in ("status", "plan", "request", "job", "unpause")},
-   f"lib/updates.ts calls exactly the five routed paths: {sorted(paths)}")
+ok(paths == {f"/-/api/updates/{p}" for p in WANTED_PATHS},
+   f"lib/updates.ts calls exactly the seven routed paths: {sorted(paths)}")
+# The point of the page is that every endpoint has a control and every control has
+# an endpoint. A route nothing calls is dead surface behind an operator gate; a
+# button with no route is a dead control, which is the thing a viewer must never
+# see (components/states.tsx NeedsRole exists for the other case).
+page = read("apps/bothy-web/web/src/pages/settings/Updates.tsx")
+ok(all(f"{fn}(" in page for fn in ("requestUpdate", "unpauseAuto", "askDiscover", "askNightJob")),
+   "Settings > Updates calls every writing client function - no route without a control")
+
+print()
+print("── ASKS: discover and autorun, end to end (2026-10-06) ──────────")
+# The failure this holds: a spool file kind the executor's loop does not KNOW is
+# removed as junk, with an audit line, and the ask it carried silently never
+# happens. The name has to be in three places that do not import each other.
+sp = read("apps/bothy-ops/updater/spool.py")
+ok(re.search(r'^DISCOVER_FILE = re\.compile\(r"discover-\(\[a-f0-9\]\{32\}\)\\\.json"\)$', sp, re.M) is not None
+   and re.search(r'^AUTORUN_FILE = re\.compile\(r"autorun-\(\[a-f0-9\]\{32\}\)\\\.json"\)$', sp, re.M) is not None,
+   "spool.py knows both ask file names")
+ok(re.search(r"^OTHER_KINDS = \(UNPAUSE_FILE, DISCOVER_FILE, AUTORUN_FILE\)$", sp, re.M) is not None
+   and "any(p.fullmatch(n) for p in OTHER_KINDS)" in sp,
+   "…and entries() skips every one of them rather than filing it as junk")
+ex = read("apps/bothy-ops/updater/executor.py")
+ok('_hook(cfg, "asks", "drain_discover")' in ex and '_hook(cfg, "asks", "drain_autorun")' in ex
+   and ex.index('_hook(cfg, "asks", "drain_discover")') < ex.index('_hook(cfg, "asks", "drain_autorun")'),
+   "the drain loop claims both, discovery first (the night job picks from its plans)")
+ok(ex.index('_hook(cfg, "asks", "drain_autorun")') < ex.index("reqs, junk = spool.entries(cfg.spool)"),
+   "…and both before it looks for update requests, so one turn covers the ask and the job it writes")
+asks = read("apps/bothy-ops/updater/asks.py")
+ok("updates.DISCOVER_MIN_SECONDS" in asks and "DISCOVER_MIN_SECONDS = 300" in upd
+   and "DISCOVER_MIN_SECONDS" not in re.sub(r"updates\.DISCOVER_MIN_SECONDS", "", asks),
+   "ONE rate-limit constant, defined in updates.py and read by the host half")
+ok("updates.AUTO_ACTOR" in asks and 'raise spool.Invalid("requestedBy is malformed' in asks,
+   "the host refuses an ask that names the system actor, like an unpause")
+ok("spool.remove(cfg.spool, n)  # claimed before it acts" in asks and asks.count("spool.remove(cfg.spool, n)") >= 3,
+   "every ask is claimed (unlinked) before it acts - at most once, like a request")
+ok("discover_updates.py" in asks and "sys.executable" in asks and '"--state-dir", cfg.state' in asks
+   and not re.search(r"shell\s*=\s*True", asks),
+   "discovery runs as a fixed argv built from Config - nothing from the ask is in it")
+ok(re.search(r"^from \. import OPS, hostio, spool$", asks, re.M) is not None,
+   "…from the INSTALLED copy's own directory (updater.OPS), like the timer's unit")
+ok('"asks.json"' in asks and "0o600" in asks,
+   "asks.json - the host's record of each run - is 600 in the directory bothy-ops reads only")
+ok('"asks.json"' in upd and "_asks_state" in upd and '"askedBy"' in upd,
+   "updates.py re-filters asks.json to an allow-list and serves who asked")
+ok("UPDATES_SPOOL" not in asks, "the host half never reads bothy-ops' environment")
+ok('"discover"' in post and '"autorun"' in post, "app.py routes both POSTs")
+ok(re.search(r"^WRITES = \(\"request\", \"unpause\", \"discover\", \"autorun\"\)$", upd, re.M) is not None,
+   "updates.py's method table names all four writes, so none of them is served over GET")
 
 print()
 if fails:

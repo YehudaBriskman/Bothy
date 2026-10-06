@@ -292,24 +292,30 @@ mutant "a gated router stops matching SECURITY.md's count" \
 # mutate the copies, not the original. Each anchor is real prose from the
 # document, never a comment; a comment anchor would apply cleanly, change
 # nothing the check reads, and report the check as decorative.
+#
+# THESE THREE ANCHORS CARRY THE COUNT, so they move whenever a gated router is
+# added - the same edit as the documents. A stale anchor here does not fail
+# quietly: plant() cannot find it, and the row is reported as ERROR rather than
+# PASS. That is the right direction to be wrong in, and it is how the two asks
+# of 2026-10-06 (48 -> 50) were caught.
 mutant "README's router table loses a tier's routers" \
   README.md \
-  '| `edge/dynamic/bothy-updates.yml` | 5 |' \
-  '| `edge/dynamic/bothy-updates.yml` | 4 |' \
+  '| `edge/dynamic/bothy-updates.yml` | 7 |' \
+  '| `edge/dynamic/bothy-updates.yml` | 6 |' \
   -- bash scripts/checks/router-gates.sh
 
 mutant "the guide's router sentence goes stale" \
   docs/guide/roles.md \
-  '48 routers carry a role requirement, across 5 files' \
-  '47 routers carry a role requirement, across 5 files' \
+  '50 routers carry a role requirement, across 5 files' \
+  '49 routers carry a role requirement, across 5 files' \
   -- bash scripts/checks/router-gates.sh
 
 # The prose two lines above a table the check already held. Written out in
 # words, which is why it was never compared to anything until 2026-09-23.
 mutant "SECURITY.md's spelled-out count leaves its own table" \
   SECURITY.md \
-  'Forty-eight role-gated routers, in five files.' \
-  'Forty-seven role-gated routers, in five files.' \
+  'Fifty role-gated routers, in five files.' \
+  'Forty-nine role-gated routers, in five files.' \
   -- bash scripts/checks/router-gates.sh
 
 # The exact sentence that was wrong: "Only three tiers are behind single
@@ -555,6 +561,64 @@ mutant "the unpause is gated on viewer" \
       service: bothy-updates
       middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
   -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+# 2026-10-06, the two asks. The first two rows are the gates. The next two are the
+# HOST's copies of a refusal bothy-ops also makes - the copies that hold when the
+# asking process is the thing that is wrong. The last two are the wiring, and the
+# `entries()` one is the row this set exists for: removing an ask kind from
+# OTHER_KINDS reads as tidying up, and the update loop then deletes every ask as
+# junk, so both controls go quiet with no error anywhere.
+mutant "check-for-updates is gated on viewer" \
+  edge/dynamic/bothy-updates.yml \
+  'rule: "Path(`/-/api/updates/discover`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]' \
+  'rule: "Path(`/-/api/updates/discover`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "the night-job button is gated on viewer" \
+  edge/dynamic/bothy-updates.yml \
+  'rule: "Path(`/-/api/updates/autorun`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]' \
+  'rule: "Path(`/-/api/updates/autorun`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "the host stops rate-limiting discovery" \
+  apps/bothy-ops/updater/asks.py \
+  'if age is not None and age < updates.DISCOVER_MIN_SECONDS:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_asks.py
+
+mutant "an ask may name the night job as its asker" \
+  apps/bothy-ops/updater/asks.py \
+  'if not isinstance(who, str) or not 0 < len(who) <= 200 or who == updates.AUTO_ACTOR:' \
+  'if not isinstance(who, str) or not 0 < len(who) <= 200:' \
+  -- python3 apps/bothy-ops/checks/test_asks.py
+
+mutant "the drain loop stops claiming discoveries" \
+  apps/bothy-ops/updater/executor.py \
+  '            _hook(cfg, "asks", "drain_discover")' \
+  '' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "an ask kind is removed as junk by the update loop" \
+  apps/bothy-ops/updater/spool.py \
+  'OTHER_KINDS = (UNPAUSE_FILE, DISCOVER_FILE, AUTORUN_FILE)' \
+  'OTHER_KINDS = (UNPAUSE_FILE,)' \
+  -- python3 apps/bothy-ops/checks/test_asks.py
 
 mutant "a missed night is caught up at boot" \
   host/systemd/bothy-updater-auto.timer \

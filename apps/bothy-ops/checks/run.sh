@@ -45,6 +45,13 @@
 #                        edit; the global lock; the result metric.
 #   api_updates_apply.py plan / request / job through the real handler: one
 #                        spool file per 202 and nothing else; every refusal.
+#   api_updates_asks.py  discover / autorun through the real handler: one spool
+#                        file per 202, the rate limit, the body shapes, the
+#                        allow-list over the host's asks.json; every refusal.
+#   test_asks.py         THE HOST HALF of those two: an ask kind survives the
+#                        update loop's junk sweep, discovery's argv is fixed, the
+#                        night job still keeps every gate, and the actor on the
+#                        request it writes is still `auto`.
 #   test_auto.py         THE AUTOMATIC CHANNEL (step 7), with a fake clock and a
 #                        fake backup: the window, tonight's backup, doctor, one a
 #                        night, stop at the first failure, pause after a
@@ -153,6 +160,12 @@ check "$PY" checks/test_updater.py
 
 section "updates: plan, request and job - one spool file, and nothing else"
 check "$PY" checks/api_updates_apply.py 2>/dev/null
+
+section "updates: discover and autorun - one spool file, the rate limit, refusals"
+check "$PY" checks/api_updates_asks.py 2>/dev/null
+
+section "updates: the HOST half of the two asks - a fixed argv, every gate kept"
+check "$PY" checks/test_asks.py
 
 section "auto: the night window, the backup gate, one a night, pause and unpause"
 check "$PY" checks/test_auto.py

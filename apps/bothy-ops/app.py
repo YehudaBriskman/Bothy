@@ -7,6 +7,8 @@
     GET  /updates/{status,plan,job}          Settings > Updates   updates.py
     POST /updates/request                    one spool file       updates.py
     POST /updates/unpause                    one spool file       updates.py
+    POST /updates/discover                   one spool file       updates.py
+    POST /updates/autorun                    one spool file       updates.py
     GET  /healthz                            local only, no edge route
 
 Until 2026-09 these were two services, bothy-control and bothy-kube, each with
@@ -103,6 +105,14 @@ class Handler(JsonHandler):
         if route == "/updates/unpause":
             # Asks the host to clear an automatic-update pause; the host decides.
             return updates.handle(self, "unpause")
+        if route == "/updates/discover":
+            # Asks the host to run discovery now - read-only, and rate-limited by
+            # the host as well as here. This process reaches no registry at all.
+            return updates.handle(self, "discover")
+        if route == "/updates/autorun":
+            # Asks the host's night job to decide now, under every one of its own
+            # gates. It can end in one update the HOST chose, never one named here.
+            return updates.handle(self, "autorun")
         return self._send(404, {"error": "no such endpoint"})
 
 

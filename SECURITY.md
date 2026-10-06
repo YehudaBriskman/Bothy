@@ -28,7 +28,7 @@ Traefik on `:80` serves the portal and its read-only data plane.
 was removed, and its configuration was **deleted on 2026-08-12**: Traefik holds
 zero `Host()` rules, and the Traefik dashboard router was deleted with them.
 Identity was rebuilt on Keycloak + oauth2-proxy and **now enforces on the tiers
-that can change things**: forty-eight routers across five files carry a role
+that can change things**: fifty routers across five files carry a role
 requirement - `viewer` to read a file, a config field or anything in the
 cluster, `editor` to write one, `operator` to restart, stop or start a service,
 change a cluster workload, run an update or read the admin tier.
@@ -127,7 +127,7 @@ security change, and should be reviewed as one.
 
 ### 1. SSO enforces on the tiers that change things, and nowhere else yet
 
-> **Status: ENFORCED, narrowly.** Forty-eight role-gated routers, in five files.
+> **Status: ENFORCED, narrowly.** Fifty role-gated routers, in five files.
 > **`scripts/checks/router-gates.sh` holds these two tables against
 > `edge/dynamic/*.yml`** - the count went stale twice before it existed, always
 > in the direction that makes this section understate the boundary.
@@ -138,13 +138,13 @@ security change, and should be reviewed as one.
 > | `edge/dynamic/bothy-config.yml` | 2 | the same pair, over config fields |
 > | `edge/dynamic/bothy-admin.yml` | 4 | `operator` on the audit log, backups, credentials and users |
 > | `edge/dynamic/bothy-ops.yml` | 33 | `operator` on the three container verbs and every cluster change, `viewer` on every cluster read |
-> | `edge/dynamic/bothy-updates.yml` | 5 | `operator` to request or pause an update, `viewer` to read its state |
+> | `edge/dynamic/bothy-updates.yml` | 7 | `operator` to request or pause an update, to check for updates or to run the night job; `viewer` to read its state |
 >
 > | role | routers | |
 > |---|---|---|
 > | `viewer` | 24 | read a file, a config field, or anything in the cluster |
 > | `editor` | 3 | write a file, delete one, patch a config field |
-> | `operator` | 21 | change a container, a workload, an update, or read the admin tier |
+> | `operator` | 23 | change a container, a workload, an update, or read the admin tier |
 >
 > The gates themselves - `sso-viewer`, `sso-editor`, `sso-operator` - are defined
 > once, in `edge/dynamic/bothy-gates.yml`, and in no router file. The fourth role,
@@ -170,7 +170,7 @@ host port `8090`) so the callback is an IP:port URL and depends on no name.
 
 **Defining a middleware does not enforce it** - that takes a router referencing
 it, which is the distinction this section existed to make while nothing did.
-Forty-eight routers do now, across the five files tabled above, using
+Fifty routers do now, across the five files tabled above, using
 `sso-viewer`, `sso-editor` and `sso-operator`: the same `forwardAuth`, differing
 only in `?allowed_groups=`.
 
@@ -630,11 +630,12 @@ operator routes, a type-the-name confirmation and a `manage-users` client first.
 
 Added 2026-09-19 (build steps 3, 4, 5 and 7 of `docs/plans/updates.md`; step 6,
 Bothy updating itself to a green release tag, the same day; step 8, the cluster
-add-ons and the Postgres major, 2026-09-22). Five exact
+add-ons and the Postgres major, 2026-09-22; the two asks below, 2026-10-06). Seven exact
 `Path() && Method()` routers in the hand-written `edge/dynamic/bothy-updates.yml`
 (kept out of the generated `bothy-ops.yml`): `GET /-/api/updates/status`, `/plan`
-and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
-`POST /-/api/updates/unpause` behind **`sso-operator`**. Every request, refusals included, is a line in
+and `/job` behind `sso-viewer`, and `POST /-/api/updates/request`,
+`POST /-/api/updates/unpause`, `POST /-/api/updates/discover` and
+`POST /-/api/updates/autorun` behind **`sso-operator`**. Every request, refusals included, is a line in
 `apps/bothy-ops/audit/admin.log`.
 
 - **Discovery and plans run on the host**, not in a container:
@@ -774,6 +775,39 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request` and
 - **The own-code rollback timer is not a channel.** It only ever restores the
   previous version of a job someone (or the night job, which never picks own
   code) asked for, and it disarms when verify passes.
+- **The two asks that make the host RUN something read-only (2026-10-06)** are the
+  same shape and widen nothing. `POST /-/api/updates/discover` writes one
+  `discover-<32 hex>.json`; the executor's drain (`updater/asks.py`) claims it the
+  way it claims an unpause - `O_NOFOLLOW`, a regular file of at most 4 KiB, an exact
+  key set, never the actor `auto`, unlinked before it acts - and runs
+  `discover_updates.py` as a **fixed argv built from `Config` alone**: nothing from
+  the request reaches it, not even the id. Discovery pulls nothing and restarts
+  nothing, so what a compromised bothy-ops gains is timing plus ONE bounded resource,
+  the anonymous registry quota (per public IP, shared with every pull this box
+  makes) - which is why the host refuses an ask inside `DISCOVER_MIN_SECONDS`, read
+  off `available.json`'s own mtime in the directory bothy-ops mounts read-only.
+  `POST /-/api/updates/autorun` carries one boolean and runs `auto.decide()`
+  unchanged: the window, tonight's backup, one a night, the pauses and the narrow
+  doctor, and only an `auto`-channel component's **patch** plan with
+  `confirm: click` - a strict SUBSET of what the request route already queues; a dry
+  run writes nothing at all. A real run's update request still carries the actor
+  `auto`, because `auto` names who CHOSE the component, the level and the plan, and
+  that is still the night job under its own gates; who asked it to run early is
+  recorded beside it in `asks.json` (600, host-written, read-only to bothy-ops) and in
+  `admin.log`. So the rule above holds unchanged: bothy-ops never writes the actor
+  `auto` itself, and a record naming it is one the host wrote. **Neither route is
+  `viewer`**, although neither deploys by itself: discovery rewrites `available.json`
+  and every plan file - the facts the whole page is drawn from - and the night job's
+  chain ends in a deploy.
+- **Still not reachable from the browser, deliberately.** A component's **channel**
+  is not editable from the page: moving one to `auto` arms unattended deployment, and
+  `updates.toml` is `COPY`'d into bothy-ops' image, so writing it would need a
+  read-write mount of the checkout - precisely what this section says bothy-ops does
+  not have. Routing it through the `editor` config tier would be worse: a *lower*
+  tier granting a privilege `operator` holds. A deliberate **rollback of a finished
+  job** is not reachable either, because the host has no such plan kind - only the
+  automatic rollback a failed verify runs. And `just install-updater` stays a person
+  on the host, which is the whole reason a release only *stages* a new updater.
 
 ---
 

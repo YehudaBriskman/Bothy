@@ -21,7 +21,7 @@ but it is not how the box works today.
 Traefik still owns `:80`, and still matters, but for a smaller job than before:
 it serves the portal's catch-all and the portal's read-only `/-/api/*` data
 plane, all on host-less exact `Path()` rules - and the role-gated routes of
-Bothy's two backends. 52 committed routers exist in total, 48 of them role-gated,
+Bothy's two backends. 54 committed routers exist in total, 50 of them role-gated,
 plus the generated Prometheus route. Those two numbers are held against
 `edge/dynamic/*.yml` by `scripts/checks/router-gates.sh`; before 2026-09-23 this
 sentence said nineteen and fourteen, having been written when that was true and

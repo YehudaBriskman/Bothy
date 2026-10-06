@@ -9,6 +9,10 @@
                              file into the spool and answers 202. Runs nothing.
     POST /updates/unpause    {component} - operator. Writes ONE unpause file into
                              the spool (step 7); the host clears the pause.
+    POST /updates/discover   {} - operator. Writes ONE discover file into the
+                             spool; the HOST runs discovery (read-only, rate-limited).
+    POST /updates/autorun    {dry_run} - operator. Writes ONE autorun file into the
+                             spool; the HOST's night job decides, under all its gates.
 
 Build steps 3 and 4 of docs/plans/updates.md. This process never pulls, never
 edits a pin and never restarts anything for an update: the host executor
@@ -487,6 +491,7 @@ def _row_plan(cid: str) -> dict | None:
 def status(catalog: Catalog) -> dict:
     doc, meta = _available()
     auto_state = _auto_state()
+    asks = _asks_state()
     unpausing = {d["component"] for d in _unpause_queued()}
     found = doc["components"] if doc else {}
     rows = []
@@ -531,6 +536,13 @@ def status(catalog: Catalog) -> dict:
             "history": _history(20),
             "auto": {"enabled": p.max_auto_per_night > 0, "actor": AUTO_ACTOR,
                      "paused": sorted(auto_state["paused"]), "last": auto_state["last"]},
+            # The two asks (POST /updates/discover, /updates/autorun): whether one
+            # is waiting in the spool, and what the HOST said about the last one.
+            # `discoverMinSeconds` is the rate limit, so the page can say "in 3 min"
+            # rather than offering a button that will be refused.
+            "asks": {"discoverQueued": bool(_ask_queued(_DISCOVER_FILE, "discover-")),
+                     "autorunQueued": bool(_ask_queued(_AUTORUN_FILE, "autorun-")),
+                     "discoverMinSeconds": DISCOVER_MIN_SECONDS, **asks},
             "components": rows}
 
 
@@ -826,6 +838,30 @@ def _queued_job(d: dict) -> dict:
             "from": None, "to": None, "steps": [], "error": None, "snapshot": None, "note": None}
 
 
+def _spool_ready() -> None:
+    if not os.path.isdir(SPOOL_DIR) or not os.access(SPOOL_DIR, os.W_OK):
+        raise UpdatesError("the update spool is not mounted - `just up-apps` creates it", status=503)
+
+
+def _spool_write(rid: str, name: str, doc: dict) -> None:
+    """The ONE write this process makes, in one place: a dot-named temp file the
+    path unit's glob (`*.json`) cannot match, then a rename. The executor never
+    sees half a request. 600, O_EXCL, O_NOFOLLOW.
+
+    One function for all four kinds of ask, so "what bothy-ops can put in the
+    spool" is a list of callers rather than four copies of an open() that could
+    drift apart. Nothing else here writes anywhere.
+    """
+    tmp = os.path.join(SPOOL_DIR, f".{rid}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        os.write(fd, json.dumps(doc, sort_keys=True).encode())
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(tmp, os.path.join(SPOOL_DIR, name))
+
+
 def _one_param(h, name: str) -> str:
     q = urlparse(h.path).query
     try:
@@ -907,8 +943,7 @@ def request_update(h, who: str) -> tuple[dict, str]:
         note = flat(note.strip())[:NOTE_MAX]
     elif note is not None:
         raise Refused("a maintenance note is only for a plan that asks for one", status=400)
-    if not os.path.isdir(SPOOL_DIR) or not os.access(SPOOL_DIR, os.W_OK):
-        raise UpdatesError("the update spool is not mounted - `just up-apps` creates it", status=503)
+    _spool_ready()
     queue = _queued()
     if len(queue) >= MAX_QUEUE:
         raise Refused(f"{len(queue)} requests are already waiting - is bothy-updater.path running?", status=429)
@@ -923,16 +958,7 @@ def request_update(h, who: str) -> tuple[dict, str]:
            "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     if note is not None:
         req["note"] = note
-    # Atomic: a dot-named temp file the path unit's glob (*.json) cannot match,
-    # then a rename. The executor never sees half a request.
-    tmp = os.path.join(SPOOL_DIR, f".{job}.tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    try:
-        os.write(fd, json.dumps(req, sort_keys=True).encode())
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.rename(tmp, os.path.join(SPOOL_DIR, f"{job}.json"))
+    _spool_write(job, f"{job}.json", req)
     return ({"jobId": job, "component": cid, "planId": pid},
             f"{cid} plan {pid} job {job}: {p['from']['image']} -> {p['to']['image']}"
             + (f" note: {note}" if note is not None else ""))
@@ -1008,8 +1034,7 @@ def request_unpause(h, who: str) -> tuple[dict, str]:
         raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
     if cid not in _auto_state()["paused"]:
         raise Refused(f"automatic updates are not paused for {cid}", status=409)
-    if not os.path.isdir(SPOOL_DIR) or not os.access(SPOOL_DIR, os.W_OK):
-        raise UpdatesError("the update spool is not mounted - `just up-apps` creates it", status=503)
+    _spool_ready()
     queue = _unpause_queued()
     if any(q.get("component") == cid for q in queue):
         raise Refused(f"an unpause of {cid} is already waiting for the host", status=409)
@@ -1017,18 +1042,157 @@ def request_unpause(h, who: str) -> tuple[dict, str]:
         raise Refused(f"{len(queue)} unpause requests are already waiting - is bothy-updater.path running?",
                       status=429)
     rid = secrets.token_hex(16)
-    req = {"v": 1, "kind": "unpause", "id": rid, "component": cid, "requestedBy": flat(who)[:200] or "unknown",
-           "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    # Atomic, like a request: a dot-named temp file, then a rename.
-    tmp = os.path.join(SPOOL_DIR, f".{rid}.tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    try:
-        os.write(fd, json.dumps(req, sort_keys=True).encode())
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.rename(tmp, os.path.join(SPOOL_DIR, f"unpause-{rid}.json"))
+    _spool_write(rid, f"unpause-{rid}.json",
+                 {"v": 1, "kind": "unpause", "id": rid, "component": cid,
+                  "requestedBy": flat(who)[:200] or "unknown",
+                  "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
     return {"id": rid, "component": cid}, f"{cid} unpause {rid}"
+
+
+# ══ the two asks that make the host RUN something (2026-10-06) ═══════════════
+#
+# Until now the page could read everything and ask for exactly two things: an
+# update, and an unpause. The CLI could do more, and two of those were the only
+# cure for a state this page SHOWS and could not change:
+#
+#   `just updates-discover`   discovery is a six-hourly timer, so the page can be
+#                             six hours stale and say so, and the only way to
+#                             refresh it was a shell.
+#   `just update-auto`        "why did nothing happen last night?" The page shows
+#                             the decision; it could not ask for a new one, nor
+#                             preview tonight's.
+#
+# Both keep the shape: ONE file in the spool, and the HOST decides. Neither is a
+# new power over this box.
+#
+#   * Discovery pulls nothing and changes nothing running. It reads the pins, runs
+#     `docker inspect` / `kubectl get` / `helm list` read-only, and asks public
+#     registries with anonymous tokens. What a compromised bothy-ops gains is
+#     timing, plus one bounded resource: Docker Hub's anonymous quota is per public
+#     IP and shared with every pull this box makes. So the ask is RATE-LIMITED -
+#     here as a courtesy, and again on the host, which is the copy that counts
+#     (DISCOVER_MIN_SECONDS, one constant, read by both).
+#   * The night job is the host's own gate chain, run early. It still keeps to the
+#     window, tonight's backup, one a night, the pauses and the narrow doctor, and
+#     it can still only pick an `auto`-channel component's PATCH plan with
+#     `confirm: click` - a strict SUBSET of what POST /updates/request already
+#     queues. `dry_run` writes nothing whatsoever.
+#
+# Both are `operator`, not `viewer`. Discovery rewrites available.json and every
+# plan file - the facts the whole page is drawn from - and the night job may end in
+# a deploy. A read is a read; neither of these is one.
+#
+# THE ACTOR STAYS HONEST. A real night-job run still writes its update request as
+# `auto`, because the night job chose the component, the level and the plan under
+# its own gates - that is what the actor means. Who asked it to run early is
+# recorded beside it, in asks.json and in admin.log. bothy-ops still refuses to
+# write the actor `auto` itself (below), so a record naming `auto` is still only
+# ever one the HOST wrote.
+#
+# What came back is not this process's word for it either: the host records each
+# run in asks.json, 600, in the directory bothy-ops mounts READ-ONLY, and this
+# re-filters it to an allow-list like every other record here.
+
+# How soon discovery may run again. Both halves read this one constant:
+# bothy-ops to refuse early with a number the page can show, and
+# updater/asks.py - the half that matters - to refuse a file that got past it.
+DISCOVER_MIN_SECONDS = 300
+MAX_ASKS_BYTES = 256 * 1024
+_DISCOVER_FILE = re.compile(r"discover-([a-f0-9]{32})\.json")
+_AUTORUN_FILE = re.compile(r"autorun-([a-f0-9]{32})\.json")
+# `ok` discovery ran / the night job requested something; `skipped` a gate said no
+# (which is the answer, not a fault); `refused` the file itself was not acceptable;
+# `failed` it ran and broke.
+ASK_OUTCOMES = ("ok", "skipped", "refused", "failed")
+
+
+def _ask_queued(pattern: re.Pattern, prefix: str) -> list[dict]:
+    """The asks of one kind waiting in the spool. This process wrote them and still
+    reads them as untrusted, like _queued()."""
+    try:
+        names = sorted(n for n in os.listdir(SPOOL_DIR) if pattern.fullmatch(n))
+    except OSError:
+        return []
+    out = []
+    for n in names[:MAX_QUEUE * 2]:
+        d = _read_json(os.path.join(SPOOL_DIR, n), MAX_SPOOL_BYTES)
+        if isinstance(d, dict) and d.get("id") == n[len(prefix):-len(".json")]:
+            out.append(d)
+    return out
+
+
+def _asks_state() -> dict:
+    """asks.json, allow-listed: the host's record of the last discovery and the last
+    night-job run it was ASKED for (the timer's own runs are auto.json's)."""
+    doc = _read_json(os.path.join(UPDATES_DIR, "asks.json"), MAX_ASKS_BYTES)
+    out: dict = {"discover": None, "autorun": None}
+    if not isinstance(doc, dict) or doc.get("version") != 1:
+        return out
+    for kind in out:
+        e = doc.get(kind)
+        if not isinstance(e, dict) or e.get("outcome") not in ASK_OUTCOMES:
+            continue
+        entry = {"at": _iso_or_none(e.get("at")), "askedBy": _s(e.get("askedBy"), 200),
+                 "outcome": e["outcome"], "reason": _s(e.get("reason"), 500), "tookMs": _num(e.get("tookMs"))}
+        if kind == "autorun":
+            comp, jid = e.get("component"), e.get("jobId")
+            sk = e.get("skipped") if isinstance(e.get("skipped"), list) else []
+            entry.update({
+                "dryRun": e.get("dryRun") is True,
+                "component": comp if isinstance(comp, str) and _ID.fullmatch(comp) else None,
+                "jobId": jid if isinstance(jid, str) and _JOB.fullmatch(jid) else None,
+                "skipped": [{"component": d["component"], "why": _s(d.get("why"), 200) or ""}
+                            for d in sk[:20] if isinstance(d, dict) and isinstance(d.get("component"), str)
+                            and _ID.fullmatch(d["component"])],
+            })
+        out[kind] = entry
+    return out
+
+
+def request_discover(h, who: str) -> tuple[dict, str]:
+    """POST /updates/discover: ask the host to run discovery now. Runs nothing."""
+    if h.read_json_object(512):
+        raise Refused("the body is exactly {} - discovery takes no parameters", status=400)
+    if flat(who) == AUTO_ACTOR:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
+    age = _available()[1]["ageSeconds"]
+    if age is not None and age < DISCOVER_MIN_SECONDS:
+        raise Refused(f"discovery ran {age}s ago and may run again in {DISCOVER_MIN_SECONDS - age}s - it asks "
+                      "public registries on an anonymous quota shared with every pull this box makes", status=429)
+    _spool_ready()
+    if _ask_queued(_DISCOVER_FILE, "discover-"):
+        raise Refused("a discovery is already waiting for the host", status=409)
+    rid = secrets.token_hex(16)
+    _spool_write(rid, f"discover-{rid}.json",
+                 {"v": 1, "kind": "discover", "id": rid, "requestedBy": flat(who)[:200] or "unknown",
+                  "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+    return {"id": rid}, f"discovery {rid} (last ran {age if age is not None else 'never'})"
+
+
+def request_autorun(h, who: str) -> tuple[dict, str]:
+    """POST /updates/autorun: ask the host's night job to decide now. Decides nothing."""
+    body = h.read_json_object(512)
+    if set(body) != {"dry_run"} or not isinstance(body["dry_run"], bool):
+        raise Refused("the body is exactly {dry_run: true|false}", status=400)
+    dry = body["dry_run"]
+    if flat(who) == AUTO_ACTOR:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
+    _spool_ready()
+    if _ask_queued(_AUTORUN_FILE, "autorun-"):
+        raise Refused("a night-job run is already waiting for the host", status=409)
+    if not dry:
+        # The night job's own fourth gate, said early so the page can explain it:
+        # a night job never queues behind a person's update. The host checks it
+        # again, against the spool and status.json it owns.
+        cur = _current_job()
+        if _queued() or (cur and cur["state"] == "running"):
+            raise Refused("an update is queued or running - the night job never queues behind one", status=409)
+    rid = secrets.token_hex(16)
+    _spool_write(rid, f"autorun-{rid}.json",
+                 {"v": 1, "kind": "autorun", "id": rid, "dryRun": dry,
+                  "requestedBy": flat(who)[:200] or "unknown",
+                  "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+    return {"id": rid, "dryRun": dry}, f"night job {rid}" + (" (dry run)" if dry else "")
 
 
 def job_read(h) -> tuple[dict, str]:
@@ -1067,11 +1231,17 @@ def audit(who: str, outcome: str, endpoint: str, detail: str = "", took_ms: int 
     LOG.write(*fields)
 
 
+WRITES = ("request", "unpause", "discover", "autorun")
+
+
 def handle(h, endpoint: str = "status") -> None:
-    """GET /updates/{status,plan,job}, POST /updates/{request,unpause}. `h` is the JsonHandler."""
+    """GET /updates/{status,plan,job}, POST /updates/{request,unpause,discover,autorun}.
+
+    `h` is the JsonHandler: it holds the CSRF gate, the body ceiling and the actor.
+    """
     who = h.actor()
     t0 = time.monotonic()
-    method = "POST" if endpoint in ("request", "unpause") else "GET"
+    method = "POST" if endpoint in WRITES else "GET"
     try:
         h.check_csrf(method)
         if CATALOG is None:
@@ -1093,6 +1263,12 @@ def handle(h, endpoint: str = "status") -> None:
             code, outcome = 202, "REQUESTED"
         elif endpoint == "unpause":
             result, detail = request_unpause(h, who)
+            code, outcome = 202, "REQUESTED"
+        elif endpoint == "discover":
+            result, detail = request_discover(h, who)
+            code, outcome = 202, "REQUESTED"
+        elif endpoint == "autorun":
+            result, detail = request_autorun(h, who)
             code, outcome = 202, "REQUESTED"
         else:
             raise Refused("no such endpoint", status=404)

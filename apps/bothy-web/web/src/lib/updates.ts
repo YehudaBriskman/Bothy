@@ -10,9 +10,14 @@
 //   GET  /-/api/updates/job       viewer    one job's steps (?id=)
 //   POST /-/api/updates/unpause   operator  {component} - asks the HOST to clear an
 //                                           automatic-update pause (step 7); 202
+//   POST /-/api/updates/discover  operator  {} - asks the HOST to run discovery now
+//                                           (read-only, rate-limited there); 202
+//   POST /-/api/updates/autorun   operator  {dry_run} - asks the HOST's night job to
+//                                           decide now, under all its gates; 202
 //
-// apps/bothy-ops/checks/wiring_updates.py asserts this file names exactly those
-// five paths. Build step 4 of docs/plans/updates.md: the browser approves a PLAN
+// apps/bothy-web/checks/run.sh and apps/bothy-ops/checks/wiring_updates.py assert
+// this file names exactly those
+// seven paths. Build step 4 of docs/plans/updates.md: the browser approves a PLAN
 // ID the host wrote, never a version. The updater deploys only what the checked-
 // out `main` already pins - there is no version picker to send, on purpose.
 //
@@ -119,6 +124,41 @@ export interface AutoDecision {
 /** requestedBy on every record the night job wrote. bothy-ops refuses it from a person. */
 export const AUTO_ACTOR = 'auto';
 
+/** What the HOST said about the last run of one of the two asks (2026-10-06).
+ *
+ *  Both of them can finish with nothing visibly different - a discovery that found
+ *  no newer version leaves available.json saying the same thing, and a night job
+ *  that skipped leaves no job at all - so the outcome has to be recorded rather
+ *  than inferred. The host writes it; this is its allow-listed copy. */
+export interface AskRecord {
+  at: string | null;
+  /** The person who asked, from X-Auth-Request-Email. Null when the ask itself was refused. */
+  askedBy: string | null;
+  /** `ok` it ran · `skipped` a gate said no, which is an answer · `refused` the ask
+   *  was not acceptable · `failed` it ran and broke. */
+  outcome: 'ok' | 'skipped' | 'refused' | 'failed';
+  reason: string | null;
+  tookMs: number | null;
+}
+
+/** A night-job run, which also says what it decided and what it passed over. */
+export interface AutorunRecord extends AskRecord {
+  dryRun: boolean;
+  component: string | null;
+  jobId: string | null;
+  skipped: { component: string; why: string }[];
+}
+
+export interface Asks {
+  /** An ask of that kind is in the spool, waiting for the host. */
+  discoverQueued: boolean;
+  autorunQueued: boolean;
+  /** How soon discovery may run again - a registry quota, not a UI preference. */
+  discoverMinSeconds: number;
+  discover: AskRecord | null;
+  autorun: AutorunRecord | null;
+}
+
 export interface UpdatesStatus {
   discovery: {
     present: boolean;
@@ -145,6 +185,9 @@ export interface UpdatesStatus {
   history?: HistoryEntry[];
   /** Step 7: the automatic channel. Absent from an older service. */
   auto?: { enabled: boolean; actor: string; paused: string[]; last: AutoDecision | null };
+  /** The two asks, and the host's record of each. Absent from an older service, so
+   *  every control behind it draws only when the field is there. */
+  asks?: Asks;
   /** Step 6: which copy of the host updater runs, and a newer one staged by an
    *  update of Bothy itself, waiting for `just install-updater`. Null: not installed. */
   updater?: UpdaterInfo | null;
@@ -339,6 +382,25 @@ export interface UnpauseAnswer { ok: true; id: string; component: string }
 export async function unpauseAuto(component: string): Promise<UnpauseAnswer> {
   if (import.meta.env.DEV) return (await import('./updates.dev')).unpauseMock(component);
   return apiFetch<UnpauseAnswer>('/-/api/updates/unpause', { method: 'POST', body: { component }, ...WIRE });
+}
+
+export interface AskAnswer { ok: true; id: string }
+export interface AutorunAnswer extends AskAnswer { dryRun: boolean }
+
+/** Ask the host to run discovery now. It reads the pins, asks the public registries
+ *  anonymously and rewrites available.json and the plans - on the HOST, which also
+ *  rate-limits it: the quota it spends is per public IP, not per person. */
+export async function askDiscover(): Promise<AskAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).discoverMock();
+  return apiFetch<AskAnswer>('/-/api/updates/discover', { method: 'POST', body: {}, ...WIRE });
+}
+
+/** Ask the host's night job to decide now - the same gate chain the 03:30 timer runs.
+ *  `dryRun` writes nothing at all; a real run may end in ONE update the HOST chose,
+ *  recorded as the night job's because the night job chose it. */
+export async function askNightJob(dryRun: boolean): Promise<AutorunAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).autorunMock(dryRun);
+  return apiFetch<AutorunAnswer>('/-/api/updates/autorun', { method: 'POST', body: { dry_run: dryRun }, ...WIRE });
 }
 
 export async function fetchJob(id: string, signal?: AbortSignal): Promise<Job> {

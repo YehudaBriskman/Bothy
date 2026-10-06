@@ -34,10 +34,19 @@ from . import classes
 
 JOB_ID = re.compile(r"[a-f0-9]{32}")
 FILE = re.compile(r"([a-f0-9]{32})\.json")
-# The one other kind of file a spool may hold (step 7): an operator's request to
-# clear an automatic-update pause. auto.drain_unpause() claims these; the update
-# loop below leaves them alone rather than removing them as junk.
+# The other kinds of file a spool may hold. Each has an owner that claims it, and
+# the update loop below leaves it alone rather than removing it as junk - which is
+# why a new kind is TWO edits, here and in the loop: a name this does not know is
+# removed, with an audit line, and the ask it carried silently never happens.
+#   unpause-  (step 7)      an operator's request to clear an automatic-update pause
+#                           -> auto.drain_unpause()
+#   discover- (2026-10-06)  "check for updates now" -> asks.drain_discover()
+#   autorun-  (2026-10-06)  "run the night job now" -> asks.drain_autorun()
 UNPAUSE_FILE = re.compile(r"unpause-([a-f0-9]{32})\.json")
+DISCOVER_FILE = re.compile(r"discover-([a-f0-9]{32})\.json")
+AUTORUN_FILE = re.compile(r"autorun-([a-f0-9]{32})\.json")
+# Every regex above, for entries() and for the checks that assert the set.
+OTHER_KINDS = (UNPAUSE_FILE, DISCOVER_FILE, AUTORUN_FILE)
 PLAN_ID = re.compile(r"[a-f0-9]{24}")
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 COMPONENT = re.compile(r"[a-z][a-z0-9-]{0,39}")
@@ -70,8 +79,8 @@ def entries(spool: str) -> tuple[list[tuple[float, str]], list[str]]:
             continue
         if FILE.fullmatch(n) and stat.S_ISREG(st.st_mode):
             reqs.append((st.st_mtime, n))
-        elif UNPAUSE_FILE.fullmatch(n) and stat.S_ISREG(st.st_mode):
-            continue  # auto.drain_unpause() owns it
+        elif stat.S_ISREG(st.st_mode) and any(p.fullmatch(n) for p in OTHER_KINDS):
+            continue  # another drain owns it - see OTHER_KINDS
         elif n.startswith(".") and n.endswith(".tmp") and stat.S_ISREG(st.st_mode) and now - st.st_mtime < STALE_TMP:
             continue  # a write in progress
         else:

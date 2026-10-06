@@ -10,8 +10,10 @@ and helm replaced by a table that records every argv; docker inspect replaced by
 a table. What it pins down:
 
   CLUSTER   a plan is "what the cluster runs -> what main pins": kube-state-metrics
-            8.4.0 -> 8.5.0 (helm, with the revision to roll back to), alloy
-            v1.19.1 -> v1.19.2 (DaemonSet, with discovery's digest); the narrow
+            one minor below the chart pin -> the chart pin (helm, with the revision to
+            roll back to), alloy one patch below the manifest pin -> the manifest pin
+            (DaemonSet, with discovery's digest). Both versions are DERIVED from the
+            real pin lines, never written here - see KSM_NEW below; the narrow
             recipe part; EVERY kubectl/helm argv names the context; and every
             refusal - a ServiceAccount identity (rule 6), no context configured,
             not installed, a failed release, nothing to deploy, a downgrade, a
@@ -33,6 +35,7 @@ a table. What it pins down:
 import atexit
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -60,6 +63,54 @@ def ok(cond: bool, label: str) -> None:
 
 def D(c: str) -> str:
     return "sha256:" + c * 64
+
+
+_SEMVER = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+
+
+def _step(version: str, by: int) -> str:
+    """`version` with its last decrementable component moved by `by`, in place.
+
+    Keeps everything around the number - `grafana/alloy:v1.20.1` keeps its
+    repository and its `v`. Going down from a `.0` borrows from the minor, so the
+    result is always a real, older version rather than a `-1`.
+    """
+    m = _SEMVER.search(version)
+    if not m:
+        raise AssertionError(f"not a version this test can step: {version!r}")
+    a, b, c = (int(x) for x in m.groups())
+    if by > 0:
+        b, c = b + by, 0
+    elif c:
+        c -= 1
+    elif b:
+        b, c = b - 1, 9
+    else:
+        a, b, c = a - 1, 9, 9
+    return version[:m.start()] + f"{a}.{b}.{c}" + version[m.end():]
+
+
+def _below(version: str) -> str:
+    return _step(version, -1)
+
+
+def _above(version: str) -> str:
+    return _step(version, +1)
+
+
+def _tag(image: str) -> str:
+    """`grafana/alloy:v1.20.1` -> `v1.20.1` - discovery records the tag, not the ref."""
+    return image.rsplit(":", 1)[-1]
+
+
+def _ver(image: str) -> str:
+    return _SEMVER.search(image).group(0)
+
+
+def _level(old: str, new: str) -> str:
+    """patch / minor, by the same arithmetic every badge on the page uses."""
+    a, b = updates.parse_version(_SEMVER.search(old).group(0)), updates.parse_version(_SEMVER.search(new).group(0))
+    return updates.classify(a, b)
 
 
 TMP = tempfile.mkdtemp(prefix="bothy-step8-unit-")
@@ -140,19 +191,48 @@ merge("pins")
 
 cfg = Config(repo=REPO, catalog=os.path.join(REPO, "updates.toml"), state=os.path.join(TMP, "state"),
              backups=os.path.join(TMP, "backups"), textfile=None, kube_context="test-ctx")
-KSM_PIN = cluster._value(cluster.chart_line(REPO, "k8s/monitoring/Chart.yaml", "kube-state-metrics"))
-ALLOY_PIN = cluster._value(cluster.manifest_line(REPO, "k8s/monitoring/alloy.yaml", "alloy"))
-ok(KSM_PIN == "8.5.0" and ALLOY_PIN == "grafana/alloy:v1.19.2",
-   f"the pin lines of the REAL files are found: {KSM_PIN}, {ALLOY_PIN}")
+KSM_NEW = cluster._value(cluster.chart_line(REPO, "k8s/monitoring/Chart.yaml", "kube-state-metrics"))
+ALLOY_NEW = cluster._value(cluster.manifest_line(REPO, "k8s/monitoring/alloy.yaml", "alloy"))
+ok(bool(_SEMVER.search(KSM_NEW or "")) and bool(_SEMVER.search(ALLOY_NEW or "")),
+   f"the pin lines of the REAL files are found and parse: {KSM_NEW}, {ALLOY_NEW}")
+
+# ── the versions this file used to WRITE DOWN, and now derives ────────────────
+#
+# It held `KSM_PIN == "8.5.0"` and `ALLOY_PIN == "grafana/alloy:v1.19.2"`, plus
+# those two literals in eighteen more places, as "what main pins". The Dependabot
+# batch of 2026-10-05 moved both pins (kube-state-metrics 8.6.0, #223; Alloy
+# v1.20.1, #232 and #235) and this file went red, naming a version rather than the
+# relation it had lost - the same drift, in the same week, as e2e_cluster.py's.
+#
+# scripts/checks/e2e-pins.sh holds e2e_cluster.py's four copies of the same pins
+# against the tree, for exactly this. A copy held by a check is better than a bare
+# copy; NO COPY is better still, so these are read off the lines themselves. The
+# silent half matters most: `CHART.replace("version: 8.5.0", …)` below is a no-op
+# when the literal is stale - `str.replace` does not raise - so the "dirty pin
+# file" case went on testing a file it had not edited, and passed.
+#
+#   NEW    what main pins, off the line
+#   OLD    one version below it - what the cluster is pretending to run
+#   AHEAD  one minor above it - a version main does not pin (a downgrade, a bad --target)
+KSM_OLD = _below(KSM_NEW)
+KSM_AHEAD = _above(KSM_NEW)
+KSM_MAJOR_BEHIND = f"{int(KSM_NEW.split('.')[0]) - 1}.9.0"
+ALLOY_OLD = _below(ALLOY_NEW)
+# The level the plan must report is the catalog's own arithmetic over those two,
+# not a word: _below() yields a patch step or a minor one depending on where the
+# pin sits, and asserting "patch" would be asserting today's pin again.
+KSM_LEVEL = _level(KSM_OLD, KSM_NEW)
+ALLOY_LEVEL = _level(ALLOY_OLD, ALLOY_NEW)
 
 
 def avail(**over) -> dict:
     comps = {
         "kube-state-metrics": {"image": "https://prometheus-community.github.io/helm-charts#kube-state-metrics",
-                               "current": {"tag": "8.5.0", "version": "8.5.0", "float": False}},
+                               "current": {"tag": KSM_NEW, "version": KSM_NEW, "float": False}},
         "alloy-cluster": {"image": "docker.io/grafana/alloy",
-                          "current": {"tag": "v1.19.2", "version": "1.19.2", "float": False, "resolved": D("a")}},
-        "ksm-deploy": {"image": "docker.io/grafana/alloy", "current": {"tag": "v1.19.2", "resolved": D("a")}},
+                          "current": {"tag": _tag(ALLOY_NEW), "version": _ver(ALLOY_NEW), "float": False,
+                                      "resolved": D("a")}},
+        "ksm-deploy": {"image": "docker.io/grafana/alloy", "current": {"tag": _tag(ALLOY_NEW), "resolved": D("a")}},
         "postgres": {"image": "docker.io/library/postgres",
                      "current": {"tag": "18.1", "version": "18.1", "digest": D("8"), "float": True}},
     }
@@ -163,9 +243,10 @@ def avail(**over) -> dict:
 
 # ── kubectl and helm, replaced by a table ─────────────────────────────────────
 KUBE = {"who": "minikube-user", "helm": [{"name": "kube-state-metrics", "namespace": "monitoring",
-                                          "revision": "4", "status": "deployed", "chart": "kube-state-metrics-8.4.0",
+                                          "revision": "4", "status": "deployed",
+                                          "chart": f"kube-state-metrics-{KSM_OLD}",
                                           "app_version": "2.19.0"}],
-        "ds_image": "grafana/alloy:v1.19.1", "ds_kind": "daemonset"}
+        "ds_image": ALLOY_OLD, "ds_kind": "daemonset"}
 CALLS: list[list[str]] = []
 
 
@@ -209,8 +290,9 @@ A = avail()
 print("── CLUSTER: what the cluster runs -> what main pins ─────────────")
 p = plans.plan("kube-state-metrics", cfg=cfg, available=A)
 ok(p["class"] == "cluster" and p["kind"] == "cluster" and p["cluster"]["kind"] == "helm"
-   and p["from"]["tag"] == "8.4.0" and p["to"]["tag"] == "8.5.0" and p["level"] == "minor",
-   f"kube-state-metrics: chart 8.4.0 -> 8.5.0, a minor ({p['from']['image']} -> {p['to']['image']})")
+   and p["from"]["tag"] == KSM_OLD and p["to"]["tag"] == KSM_NEW and p["level"] == KSM_LEVEL,
+   f"kube-state-metrics: chart {KSM_OLD} -> {KSM_NEW}, a {KSM_LEVEL} "
+   f"({p['from']['image']} -> {p['to']['image']})")
 ok(p["cluster"]["revision"] == 4 and p["from"]["revision"] == 4 and "helm rollback kube-state-metrics 4" in p["rollback"],
    "the revision to roll back to is in the plan, and in its rollback words")
 ok(p["recipe"] == "just k8s-monitoring ksm" and p["cluster"]["part"] == "ksm",
@@ -221,7 +303,7 @@ ok(any("kube_node_info" in v for v in p["verify"]) and any('up{job="kube-state-m
    "verify: kube_node_info through the NodePort, and VictoriaMetrics' up{job=kube-state-metrics}")
 ok(p["cluster"]["identity"] == "minikube-user" and any("never a ServiceAccount" in x for x in p["preflight"]),
    "the identity is recorded, and the pre-flight says whose")
-ok(p["pin"]["file"] == "k8s/monitoring/Chart.yaml" and p["pin"]["text"].strip() == "version: 8.5.0",
+ok(p["pin"]["file"] == "k8s/monitoring/Chart.yaml" and p["pin"]["text"].strip() == f"version: {KSM_NEW}",
    f"the pin: Chart.yaml line {p['pin']['line']}")
 ok(plans.plan("kube-state-metrics", cfg=cfg, available=A)["id"] == p["id"] and len(p["id"]) == 24,
    "the id is stable for the same facts")
@@ -230,8 +312,8 @@ ok(plans.plan("kube-state-metrics", cfg=cfg, available=A)["id"] != p["id"], "…
 KUBE["helm"][0]["revision"] = "4"
 
 d = plans.plan("alloy-cluster", cfg=cfg, available=A)
-ok(d["cluster"]["kind"] == "daemonset" and d["from"]["image"] == "grafana/alloy:v1.19.1"
-   and d["to"]["image"] == "grafana/alloy:v1.19.2" and d["to"]["digest"] == D("a") and d["level"] == "patch",
+ok(d["cluster"]["kind"] == "daemonset" and d["from"]["image"] == ALLOY_OLD
+   and d["to"]["image"] == ALLOY_NEW and d["to"]["digest"] == D("a") and d["level"] == ALLOY_LEVEL,
    "alloy-cluster: the DaemonSet's image -> main's pin, with discovery's digest (verify checks the node pulled it)")
 ok(d["recipe"] == "just k8s-monitoring alloy" and d["cluster"]["configMaps"] == ["alloy"]
    and d["snapshot"]["kind"] == "daemonset", "the narrow `alloy` part; the ConfigMap it mounts is snapshotted too")
@@ -260,32 +342,36 @@ KUBE["helm"] = []
 refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=A), "not installed", "the release is not installed")
 KUBE["helm"] = [{**saved[0], "status": "pending-upgrade"}]
 refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=A), "not deployed", "a release stuck mid-upgrade")
-KUBE["helm"] = [{**saved[0], "chart": "kube-state-metrics-8.5.0"}]
+KUBE["helm"] = [{**saved[0], "chart": f"kube-state-metrics-{KSM_NEW}"}]
 refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=A), "nothing to deploy", "it already runs main's pin")
-KUBE["helm"] = [{**saved[0], "chart": "kube-state-metrics-8.6.0"}]
+KUBE["helm"] = [{**saved[0], "chart": f"kube-state-metrics-{KSM_AHEAD}"}]
 refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=A), "not newer", "a downgrade")
-KUBE["helm"] = [{**saved[0], "chart": "kube-state-metrics-7.9.0"}]
-refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=A), "major", "a major (7.9.0 -> 8.5.0)")
+KUBE["helm"] = [{**saved[0], "chart": f"kube-state-metrics-{KSM_MAJOR_BEHIND}"}]
+refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=A), "major",
+        f"a major ({KSM_MAJOR_BEHIND} -> {KSM_NEW})")
 KUBE["helm"] = saved
-refused(lambda: plans.plan("kube-state-metrics", "8.6.0", cfg=cfg, available=A), "not what main pins",
+refused(lambda: plans.plan("kube-state-metrics", KSM_AHEAD, cfg=cfg, available=A), "not what main pins",
         "a --target main does not pin")
 refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=avail(kube_state_metrics={
-    "current": {"tag": "8.4.0"}})), "older than the checkout", "discovery saw another pin than the checkout has")
+    "current": {"tag": KSM_OLD}})), "older than the checkout", "discovery saw another pin than the checkout has")
 refused(lambda: plans.plan("alloy-cluster", cfg=cfg, available=avail(alloy_cluster={
-    "image": "docker.io/grafana/alloy", "current": {"tag": "v1.19.2", "resolved": None}})), "digest",
+    "image": "docker.io/grafana/alloy", "current": {"tag": _tag(ALLOY_NEW), "resolved": None}})), "digest",
     "the DaemonSet's target digest is unknown")
 refused(lambda: plans.plan("alloy-cluster", cfg=cfg, available=avail(alloy_cluster={
-    "image": "docker.io/grafana/alloy", "current": {"tag": "v1.19.2", "float": True, "resolved": D("a")}})),
+    "image": "docker.io/grafana/alloy", "current": {"tag": _tag(ALLOY_NEW), "float": True,
+                                                    "resolved": D("a")}})),
     "floating", "a floating pin")
-KUBE["ds_image"] = "grafana/alloy:v1.19.2"
+KUBE["ds_image"] = ALLOY_NEW
 refused(lambda: plans.plan("alloy-cluster", cfg=cfg, available=A), "nothing to deploy", "the DaemonSet runs main's pin")
-KUBE["ds_image"] = "example.invalid/other:v1.19.1"
+KUBE["ds_image"] = f"example.invalid/other:{_tag(ALLOY_OLD)}"
 refused(lambda: plans.plan("alloy-cluster", cfg=cfg, available=A), "different image", "another image")
 KUBE["ds_image"] = None
 refused(lambda: plans.plan("alloy-cluster", cfg=cfg, available=A), "notfound", "no DaemonSet in the cluster")
-KUBE["ds_image"] = "grafana/alloy:v1.19.1"
+KUBE["ds_image"] = ALLOY_OLD
 refused(lambda: plans.plan("ksm-deploy", cfg=cfg, available=A), "daemonset", "a Deployment workload is not this class")
-put("k8s/monitoring/Chart.yaml", CHART.replace("version: 8.5.0", "version: 8.5.1"))
+dirty = CHART.replace(f"version: {KSM_NEW}", "version: 9.9.9")
+ok(dirty != CHART, f"the Chart.yaml edit below lands (its pin line reads version: {KSM_NEW})")
+put("k8s/monitoring/Chart.yaml", dirty)
 refused(lambda: plans.plan("kube-state-metrics", cfg=cfg, available=A), "local changes", "a dirty pin file")
 git("checkout", "-q", "--", "k8s/monitoring/Chart.yaml")
 git("checkout", "-q", "-b", "side")
@@ -295,23 +381,23 @@ git("checkout", "-q", "main")
 print()
 print("── WRITE-BACK: the rollback's one line, strictly ────────────────")
 ln = cluster.chart_line(REPO, "k8s/monitoring/Chart.yaml", "kube-state-metrics")
-pins.write_line(REPO, ln, pins.swap(ln, "8.5.0", "8.4.0"))
+pins.write_line(REPO, ln, pins.swap(ln, KSM_NEW, KSM_OLD))
 diff = git("diff", "--numstat")
-ok(diff.startswith("1\t1\t") and "version: 8.4.0" in open(os.path.join(REPO, ln.file)).read(),
+ok(diff.startswith("1\t1\t") and f"version: {KSM_OLD}" in open(os.path.join(REPO, ln.file)).read(),
    f"Chart.yaml: exactly one line changed, the comment and indentation kept ({diff})")
 try:
-    pins.write_line(REPO, ln, pins.swap(ln, "8.5.0", "8.3.0"))
+    pins.write_line(REPO, ln, pins.swap(ln, KSM_NEW, KSM_MAJOR_BEHIND))
     ok(False, "a stale line is refused (was WRITTEN)")
 except hostio.HostError as e:
     ok("no longer reads exactly" in str(e), f"a stale line is refused ({e})")
 git("checkout", "-q", "--", ".")
 ml = cluster.manifest_line(REPO, "k8s/monitoring/alloy.yaml", "alloy")
 try:
-    pins.swap(ml, "grafana/alloy:v1.19.9", "x")
+    pins.swap(ml, _step(ALLOY_NEW, +9), "x")
     ok(False, "a value the line does not carry is refused (SWAPPED)")
 except hostio.HostError:
     ok(True, "a value the line does not carry is refused")
-pins.write_line(REPO, ml, pins.swap(ml, "grafana/alloy:v1.19.2", "grafana/alloy:v1.19.1"))
+pins.write_line(REPO, ml, pins.swap(ml, ALLOY_NEW, ALLOY_OLD))
 ok(git("diff", "--numstat").startswith("1\t1\t"), "alloy.yaml: exactly one line changed")
 git("checkout", "-q", "--", ".")
 try:

@@ -367,6 +367,28 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 }
 .set-shell .upd-path { overflow-wrap: anywhere; }
 
+/* Controls (2026-10-06): the two asks. Each control owns a column, so its own
+   loader, its "waiting for the host" line and its refusal sit under the button
+   that caused them rather than in one shared place where the reader has to work
+   out which button spoke. A disabled Check is never a mystery - the reason, and
+   how long is left, is the line beneath it. */
+.set-shell .upd-ctl { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.set-shell .upd-ask { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1_5); min-width: 0; }
+.set-shell .upd-ask-why { max-width: 32ch; }
+/* An ask's outcome IS state - it is what the host did - so the reserved palette is
+   legal, with a glyph and a word beside it. `skipped` is drawn OFF, not warn: a
+   gate that said no is the answer, and colouring it amber would make the usual
+   daytime answer look like a fault. */
+.set-shell .upd-ask-out { display: inline-flex; align-items: center; gap: var(--sp-1); font-weight: 700; white-space: nowrap; }
+.set-shell .upd-ask-out[data-tone='up'] { color: var(--st-up-fg); }
+.set-shell .upd-ask-out[data-tone='off'] { color: var(--st-off-fg); }
+.set-shell .upd-ask-out[data-tone='warn'] { color: var(--st-warn-fg); }
+.set-shell .upd-ask-out[data-tone='down'] { color: var(--st-down-fg); }
+.set-shell .upd-ask-skipped { margin-top: var(--sp-1); color: var(--fg-subtle); }
+/* The viewer's one note takes the block's full width - it is a sentence, not a
+   control, and it must not be squeezed into a button's column. */
+.set-shell .upd-ctl-norole { margin-bottom: var(--sp-4); }
+
 /* The live job. Its tone IS state - a job's outcome - so the reserved palette is
    legal here, on the edge and the heading only, always beside a glyph and words. */
 .set-shell .upd-job {
