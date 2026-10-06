@@ -15,12 +15,23 @@
 // available. Adding any `acls` block REPLACES the default allow-all, which is
 // why a mistake here is a lockout rather than a warning.
 {
+  // FILL THESE IN BEFORE PASTING. `tailscale status` prints the address of
+  // every node in the first column; substitute each placeholder below.
+  //
+  // The addresses are placeholders on purpose: this repository is public, and
+  // the four peers are a phone, a laptop, a desktop and a cloud VM - personal
+  // machines whose addresses do not belong in it (scripts/checks/portability.sh
+  // refuses them, which is how this file was caught). The box's own address is
+  // already published throughout docs/kb, so it stays.
+  //
+  // The console will reject the policy until every placeholder is replaced,
+  // which is the intended behaviour: it cannot be pasted half-understood.
   "hosts": {
     "devbox":   "100.117.176.85",
-    "thinkpad": "100.108.35.26",
-    "winhost":  "100.93.197.10",
-    "phone":    "100.101.204.32",
-    "oci":      "100.79.242.82"
+    "thinkpad": "100.0.0.0",
+    "winhost":  "100.0.0.0",
+    "phone":    "100.0.0.0",
+    "oci":      "100.0.0.0"
   },
 
   "acls": [
