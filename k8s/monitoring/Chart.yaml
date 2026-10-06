@@ -17,5 +17,5 @@ version: 0.1.0
 dependencies:
   # 8.5.0 is app v2.20.0. Bump deliberately, never float.
   - name: kube-state-metrics
-    version: 8.5.0
+    version: 8.6.0
     repository: https://prometheus-community.github.io/helm-charts
