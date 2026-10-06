@@ -140,11 +140,17 @@ removal.
 silences a real outage. Two weeks is longer than any plausible gap between
 sessions on a personal box — longer than a holiday weekend, longer than a week
 off. Fourteen days in which not one container of a whole project has run even
-once is not downtime anybody is waiting out. It is also well clear of the live
-counter-example: `prometheus` and `promtail` are rollback profiles stopped six
-days ago, so **neither** test reaches them — not the age one, and not the sibling
-one. Two independent reasons a parked service stays `Off` is the margin the
-number is chosen to buy.
+once is not downtime anybody is waiting out.
+
+**And watch which half does the work over time.** `prometheus` and `promtail`
+are rollback profiles, stopped on purpose. On 2026-09-23 they had been stopped
+six days, so the age test alone kept them out of `dormant`. Thirteen days later
+they had crossed the fortnight — and they are still `Off`, because nothing of
+`monitoring` has been put away. Age goes stale by definition: everything crosses
+a threshold if you wait. Abandonment is the half that actually tells a parked
+service from a put-away one, and the age test is only there to stop a project
+switched off this morning counting as history. Neither half may be dropped for
+looking redundant.
 
 **Where the age comes from.** Docker's human `Status` string
 (`"Exited (0) 6 weeks ago"`), for the same reason the exit code does: there is no

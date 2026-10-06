@@ -1316,13 +1316,20 @@ export function isBrowsable(host: string | null, container?: Container | null): 
  * in which not one container of a whole project has run even once is not
  * downtime anybody is waiting out; it is a project that has been put away.
  *
- * It is also deliberately well clear of the live counter-example. `prometheus`
- * and `promtail` are the monitoring rollback profiles, stopped six days ago and
- * meant to stay stopped - and six days is less than half of this. So NEITHER of
- * `dormant`'s two tests reaches them: not the age one, and not the sibling one
- * (grafana, loki and four more of `monitoring` are up). Two independent reasons
- * a deliberately-parked service stays `stopped` rather than disappearing into
- * history is the margin this threshold is chosen to buy.
+ * THE LIVE COUNTER-EXAMPLE, AND WHY THE SIBLING TEST CARRIES IT IN THE END.
+ * `prometheus` and `promtail` are the monitoring rollback profiles: stopped on
+ * purpose, meant to stay stopped, and never dormant. When this was written
+ * (2026-09-23) they had been stopped six days, so the age test alone kept them
+ * out. Thirteen days later they had crossed this threshold, and they are STILL
+ * `stopped` - because nothing has been put away: grafana, loki, alloy, cadvisor,
+ * node-exporter and victoriametrics are all up in the same project.
+ *
+ * That is the pairing earning its keep rather than a coincidence, and it is the
+ * reason neither half may be dropped for being redundant. Age goes stale by
+ * definition - everything crosses a threshold if you wait - so abandonment is
+ * the half that actually distinguishes a parked service from a put-away one,
+ * and age is only there to stop a project switched off this morning counting as
+ * history.
  */
 export const DORMANT_AFTER_SECONDS = 14 * 86_400;
 
