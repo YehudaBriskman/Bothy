@@ -43,8 +43,9 @@
 // looked at: the ask shows as waiting for the host, then the host's record appears.
 // The seed is a discovery an hour ago and no night-job run at all. Force one:
 //
-//   localStorage['bothy-dev-updates-asks'] = 'fresh'    discovery a minute ago, so
-//                                                       Check for updates is rate-limited
+//   localStorage['bothy-dev-updates-asks'] = 'fresh'    discovery a minute ago - so
+//                                                       Check for updates is disabled
+//                                                       with the time left beside it
 //                                          | 'refused'  the last discovery was refused
 //                                          | 'failed'   the last discovery broke
 //                                          | 'skipped'  the last night job skipped, with
@@ -322,7 +323,11 @@ export async function updatesMock(): Promise<UpdatesStatus> {
   if (forced === 'silence') refuse(0, 'no answer', false);
   const discovered = forced !== 'undiscovered';
   const stale = forced === 'stale';
-  const age = stale ? 86400 + 3600 : 3600 * 2 + 780;
+  // `asks = 'fresh'` makes DISCOVERY a minute old, not just its record: the rate
+  // limit the Check control reads is computed from available.json's age, in the
+  // browser and in bothy-ops alike, so a mock that aged only the record would draw
+  // an enabled button the real service would refuse.
+  const age = stale ? 86400 + 3600 : read(ASKS_KEY) === 'fresh' ? 60 : 3600 * 2 + 780;
   const at = ago(age);
   let rows = SPECS.map((s) => row(s, at, discovered));
   if (forced === 'current') {

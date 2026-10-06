@@ -385,6 +385,9 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 .set-shell .upd-ask-out[data-tone='warn'] { color: var(--st-warn-fg); }
 .set-shell .upd-ask-out[data-tone='down'] { color: var(--st-down-fg); }
 .set-shell .upd-ask-skipped { margin-top: var(--sp-1); color: var(--fg-subtle); }
+/* The viewer's one note takes the block's full width - it is a sentence, not a
+   control, and it must not be squeezed into a button's column. */
+.set-shell .upd-ctl-norole { margin-bottom: var(--sp-4); }
 
 /* The live job. Its tone IS state - a job's outcome - so the reserved palette is
    legal here, on the edge and the heading only, always beside a glyph and words. */

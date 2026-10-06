@@ -292,24 +292,30 @@ mutant "a gated router stops matching SECURITY.md's count" \
 # mutate the copies, not the original. Each anchor is real prose from the
 # document, never a comment; a comment anchor would apply cleanly, change
 # nothing the check reads, and report the check as decorative.
+#
+# THESE THREE ANCHORS CARRY THE COUNT, so they move whenever a gated router is
+# added - the same edit as the documents. A stale anchor here does not fail
+# quietly: plant() cannot find it, and the row is reported as ERROR rather than
+# PASS. That is the right direction to be wrong in, and it is how the two asks
+# of 2026-10-06 (48 -> 50) were caught.
 mutant "README's router table loses a tier's routers" \
   README.md \
-  '| `edge/dynamic/bothy-updates.yml` | 5 |' \
-  '| `edge/dynamic/bothy-updates.yml` | 4 |' \
+  '| `edge/dynamic/bothy-updates.yml` | 7 |' \
+  '| `edge/dynamic/bothy-updates.yml` | 6 |' \
   -- bash scripts/checks/router-gates.sh
 
 mutant "the guide's router sentence goes stale" \
   docs/guide/roles.md \
-  '48 routers carry a role requirement, across 5 files' \
-  '47 routers carry a role requirement, across 5 files' \
+  '50 routers carry a role requirement, across 5 files' \
+  '49 routers carry a role requirement, across 5 files' \
   -- bash scripts/checks/router-gates.sh
 
 # The prose two lines above a table the check already held. Written out in
 # words, which is why it was never compared to anything until 2026-09-23.
 mutant "SECURITY.md's spelled-out count leaves its own table" \
   SECURITY.md \
-  'Forty-eight role-gated routers, in five files.' \
-  'Forty-seven role-gated routers, in five files.' \
+  'Fifty role-gated routers, in five files.' \
+  'Forty-nine role-gated routers, in five files.' \
   -- bash scripts/checks/router-gates.sh
 
 # The exact sentence that was wrong: "Only three tiers are behind single

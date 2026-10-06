@@ -261,45 +261,52 @@ function Controls({ d, canAct, onChanged }: { d: UpdatesStatus | null; canAct: b
   const left = age == null ? 0 : Math.max(0, a.discoverMinSeconds - age);
   return (
     <>
-      <div className="upd-ctl">
-        {canAct ? (
-          <>
-            <Ask
-              label="Check for updates"
-              busy="search"
-              title="Ask the host to look at every pin, the registries, GitHub releases and the helm index, and rewrite the plans."
-              queued={a.discoverQueued}
-              waiting="checking - waiting for the host"
-              disabledWhy={left > 0
-                ? `Checked ${mins(age ?? 0)} ago. Again in ${mins(left)} - it asks public registries on an `
-                  + 'anonymous quota shared with every pull this box makes.'
-                : null}
-              send={() => askDiscover()}
-              onChanged={onChanged}
-            />
-            <Ask
-              label="What would tonight do?"
-              variant="ghost"
-              busy="act"
-              title="Run the night job's gates and say what it would pick. Writes nothing at all."
-              queued={a.autorunQueued}
-              waiting="deciding - waiting for the host"
-              send={() => askNightJob(true)}
-              onChanged={onChanged}
-            />
-            <Button variant="caution" onClick={() => setConfirming(true)} disabled={a.autorunQueued}>
+      {canAct ? (
+        <div className="upd-ctl">
+          <Ask
+            label="Check for updates"
+            busy="search"
+            title="Ask the host to look at every pin, the registries, GitHub releases and the helm index, and rewrite the plans."
+            queued={a.discoverQueued}
+            waiting="checking - waiting for the host"
+            disabledWhy={left > 0
+              ? `Checked ${mins(age ?? 0)} ago. Again in ${mins(left)} - it asks public registries on an `
+                + 'anonymous quota shared with every pull this box makes.'
+              : null}
+            send={() => askDiscover()}
+            onChanged={onChanged}
+          />
+          <Ask
+            label="What would tonight do?"
+            variant="ghost"
+            busy="act"
+            title="Run the night job's gates and say what it would pick. Writes nothing at all."
+            queued={a.autorunQueued}
+            waiting="deciding - waiting for the host"
+            send={() => askNightJob(true)}
+            onChanged={onChanged}
+          />
+          {/* The same wrapper as the other two, so that when it is disabled - a run
+              is already waiting for the host - the reason is the line underneath
+              rather than a tooltip nobody hovers. */}
+          <div className="upd-ask">
+            <Button variant="caution" onClick={() => setConfirming(true)} disabled={a.autorunQueued}
+              title="Ask the night job to decide now. It keeps its window, its backup and all its gates.">
               Run the night job…
             </Button>
-          </>
-        ) : (
+            {a.autorunQueued && <Loader state="connect" size="sm" label="a night-job run is waiting for the host" />}
+          </div>
+        </div>
+      ) : (
+        <div className="upd-ctl-norole">
           <NeedsRole
             what="Checking for updates and running the night job"
             role="operator"
             detail={'Both make the host run something, so the edge would refuse them before they reached '
               + 'bothy-ops. Everything below is readable without it.'}
           />
-        )}
-      </div>
+        </div>
+      )}
       <div className="kv-list">
         <div className="kv"><div className="kv-k">Last check</div><div className="kv-v">
           {a.discover
