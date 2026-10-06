@@ -1,19 +1,40 @@
 // The tree model, and the path helpers every region shares.
 //
-// A REAL tree, built once from the flat listing, rendered lazily.
+// A REAL tree, built from the listings that have ARRIVED, rendered lazily.
 //
-// The old flat "group by directory" list was right for 57 files in 9 folders and
-// is wrong for thousands: it renders every row in the root whether or not anyone
-// looks at it, and it cannot express nesting deeper than one level.
+// ── what changed, and why the old shape could not stay ───────────────────────
 //
-// Two properties make this survive the scale without a virtualiser:
-//   · children of a COLLAPSED directory are never rendered - the DOM holds only
-//     what is open, so a 2,748-entry root costs the handful of rows at its top
-//     until someone opens something;
-//   · the filter switches to a flat, capped result list, so the worst case is
-//     MAX_RESULTS rows and not "every match in the repo".
-// If a single directory ever holds thousands of siblings, THAT is the case that
-// needs windowing - and it is a different fix from this one.
+// It was built once, from ONE flat list: the whole root, recursive, which the
+// service capped at 4,000 entries and flagged `truncated`. Rendering was already
+// lazy - a collapsed directory puts nothing in the DOM - and that is still the
+// property that makes this scale without a virtualiser. It was the LOADING that
+// stayed eager, and the measurement is what settled it: `projects` holds 19,273
+// files and the service returned 4,000 of them in 1.18 MB of JSON, while the
+// MEDIAN directory on this box holds ONE entry (p95: 10). So the algorithm loaded
+// 19,273 files to draw one row, and ~15,000 files per big root had no path the
+// client had ever seen - they could not be opened, found or linked at all.
+//
+// ── the model is now the accumulated listings, not one list ──────────────────
+//
+// `buildTree` takes a MAP of folder -> that folder's direct children, keyed on the
+// root-relative directory path ('' for the root). Each /tree response adds one
+// entry to that map and the tree is rebuilt from it.
+//
+// REBUILT RATHER THAN MUTATED, and that is the decision worth stating. The
+// obvious "incremental" shape is to splice arriving children into the live node
+// graph, which means the model is mutable, React cannot see the change without a
+// manufactured version counter, and "which parents are still valid" becomes a
+// question somebody has to answer. Rebuilding from the map keeps this function
+// pure and keeps every already-built parent, because the map still holds its
+// listing - and it is cheap for exactly the reason the eager version was not: the
+// map holds the handful of folders somebody opened, not the root's 19,273 files.
+//
+// A node knows whether its OWN listing has arrived (`loaded`). That is what lets
+// the UI tell "nobody has opened this folder yet" apart from "this folder is
+// empty", which the eager tree never had to express and a lazy one must.
+//
+// Finding a file by name is no longer a filter over this tree - the tree does not
+// hold the whole root any more. It is /find, server-side. See Files.tsx.
 
 import type { TreeFile } from '../../lib/files';
 
@@ -23,37 +44,47 @@ export interface Node {
   dir: boolean;
   entry: TreeFile | null;
   children: Node[];
-  /** Files at or below this node, and their total bytes. Computed once when the
-   *  tree is built, because the explorer's per-directory download has to answer
-   *  "is this folder over the archive cap?" before it opens a tab, and walking
-   *  the subtree on every hover would do it thousands of times. */
-  files: number;
-  bytes: number;
+  /** Has THIS directory's own listing arrived? False on a folder nobody has
+   *  opened, true on one that was listed and turned out to be empty. The two look
+   *  identical in `children` and mean opposite things on screen.
+   *
+   *  Always true on a file node; the question is not about it. */
+  loaded: boolean;
 }
 
+/** A folder path -> the entries directly inside it, as /tree sent them. '' is the
+ *  root. This is the explorer's whole model: what has been asked for so far. */
+export type Loaded = ReadonlyMap<string, readonly TreeFile[]>;
+
 function newNode(name: string, path: string, dir: boolean): Node {
-  return { name, path, dir, entry: null, children: [], files: 0, bytes: 0 };
+  return { name, path, dir, entry: null, children: [], loaded: !dir };
 }
 
 /**
- * @param entries the listing, as the service sent it.
- * @param tombs   paths that git says have been DELETED. They are not on disk,
- *                so they are not in `entries` - they are grafted in here so a
- *                deletion has a row where files live, and they are counted as
- *                ZERO files and ZERO bytes: the per-directory archive check
- *                reads those totals to decide whether a download would be
- *                refused, and a file that no longer exists must not move that
- *                answer.
+ * The tree, out of every listing that has arrived.
+ *
+ * NO `files`/`bytes` ROLLUPS ANY MORE. They were computed here, once, so the
+ * explorer's per-directory download could answer "is this folder over the archive
+ * cap?" without walking the subtree on every hover. That was the right trade when
+ * the client already held every file under every folder - and it is exactly the
+ * holding this change removes. The question is asked once now, at the moment
+ * Download is clicked, by the service that is about to build the archive anyway
+ * (`dirSize` in lib/files.ts). Reinstating a rollup here would quietly reinstate
+ * the recursive listing it needs.
+ *
+ * @param loaded folder -> its direct children. Missing key means "not asked yet".
+ * @param tombs  paths git says have been DELETED. They are not on disk, so no
+ *               listing carries them - they are grafted in so a deletion has a row
+ *               where files live. They are NOT marked loaded and carry no entry,
+ *               which is how the tombstone row recognises itself.
  */
-export function buildTree(entries: TreeFile[], tombs?: ReadonlySet<string>): Node {
+export function buildTree(loaded: Loaded, tombs?: ReadonlySet<string>): Node {
   const root = newNode('', '', true);
   const index = new Map<string, Node>([['', root]]);
 
-  // Directories are taken from the `dir` flag when the backend sends it as a
-  // boolean, and INFERRED from the path separators otherwise - the live service
-  // sends `dir` as the entry's PARENT PATH (a string), so the inference is what
-  // actually runs. Both shapes work, which is why the tree cannot be broken by
-  // the field settling on one meaning later.
+  // Creates every missing ancestor on the way down. Needed because a listing can
+  // arrive for a folder whose parents were never listed - a deep link reveals
+  // `a/b/c/d.md` by asking for the folders on its path, and the answers race.
   const ensureDir = (path: string): Node => {
     const found = index.get(path);
     if (found) { found.dir = true; return found; }
@@ -65,17 +96,33 @@ export function buildTree(entries: TreeFile[], tombs?: ReadonlySet<string>): Nod
     return node;
   };
 
-  for (const e of entries) {
-    if (!e.path) continue;
-    if (e.dir === true) { ensureDir(e.path).entry = e; continue; }
-    const cut = e.path.lastIndexOf('/');
+  const addFile = (e: TreeFile) => {
     const existing = index.get(e.path);
-    if (existing) { existing.entry = e; continue; }
+    if (existing) { existing.entry = e; return; }
+    const cut = e.path.lastIndexOf('/');
     const parent = ensureDir(cut === -1 ? '' : e.path.slice(0, cut));
     const node = newNode(e.path.slice(cut + 1), e.path, false);
     node.entry = e;
     parent.children.push(node);
     index.set(e.path, node);
+  };
+
+  // Shallowest folder first, so a parent exists before its children's listing is
+  // merged and `ensureDir` is only ever filling a genuine gap.
+  const dirs = [...loaded.keys()].sort((a, b) => a.split('/').length - b.split('/').length);
+  for (const dir of dirs) {
+    const node = ensureDir(dir);
+    node.loaded = true;
+    for (const e of loaded.get(dir) ?? []) {
+      if (!e.path) continue;
+      // `dir === true` is the service saying "this entry is a folder". It is
+      // load-bearing rather than defensive now: a client holding one folder's
+      // listing cannot infer a SUBfolder from a path separator, because it has
+      // seen nothing inside it. A string value is the entry's parent path, which
+      // the path already carries - ignored, as it always was.
+      if (e.dir === true) { ensureDir(e.path).entry = e; continue; }
+      addFile(e);
+    }
   }
 
   // The graft. After the real entries, so a path that is somehow BOTH listed and
@@ -97,18 +144,41 @@ export function buildTree(entries: TreeFile[], tombs?: ReadonlySet<string>): Nod
   const finish = (n: Node) => {
     n.children.sort((a, b) =>
       a.dir !== b.dir ? (a.dir ? -1 : 1) : a.name.localeCompare(b.name, undefined, { numeric: true }));
-    for (const c of n.children) {
-      if (c.dir) finish(c);
-      // `entry === null` on a FILE node means a tombstone and nothing else -
-      // every listed file is given its entry above. It counts as no file and no
-      // bytes, because it is not there.
-      else { c.files = c.entry ? 1 : 0; c.bytes = c.entry?.size ?? 0; }
-      n.files += c.files;
-      n.bytes += c.bytes;
-    }
+    for (const c of n.children) if (c.dir) finish(c);
   };
   finish(root);
   return root;
+}
+
+/** A tree out of ONE flat list of file paths, with every folder on the way
+ *  synthesised. For the two views that legitimately hold a complete list and have
+ *  no folder to expand: the reader's document index (/docs, every document in the
+ *  root) and anything else built from a search result.
+ *
+ *  Every directory it invents is marked `loaded`, because the list IS the whole
+ *  answer for the question that produced it - there is nothing further to fetch,
+ *  and a chevron offering to load more would be offering a request nobody can
+ *  make. */
+export function treeOfPaths(entries: readonly TreeFile[], tombs?: ReadonlySet<string>): Node {
+  const byDir = new Map<string, TreeFile[]>([['', []]]);
+  const touch = (d: string) => {
+    if (!byDir.has(d)) byDir.set(d, []);
+    return byDir.get(d) as TreeFile[];
+  };
+  for (const e of entries) {
+    if (!e.path || e.dir === true) continue;
+    const cut = e.path.lastIndexOf('/');
+    const dir = cut === -1 ? '' : e.path.slice(0, cut);
+    touch(dir).push(e);
+    // Every ancestor gets a key too, so each one counts as loaded and none
+    // renders a chevron that leads to a request nobody can make.
+    for (let at = dir; at; ) {
+      const up = at.lastIndexOf('/');
+      at = up === -1 ? '' : at.slice(0, up);
+      touch(at);
+    }
+  }
+  return buildTree(byDir, tombs);
 }
 
 /** Every directory above `path`, deepest first. */
