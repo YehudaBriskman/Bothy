@@ -29,6 +29,40 @@
 // Colour: a level badge is NOT state, so it is drawn in the neutral chrome. Drift,
 // a failed check and a job's outcome ARE state and take the reserved palette,
 // always with a glyph and a word beside it.
+//
+// ── Controls (2026-10-06): the two things the CLI could do and the page could not ─
+//
+// POST /-/api/updates/discover and /-/api/updates/autorun, both operator, both the
+// same shape as everything else here: one file in the spool, and the HOST decides.
+// They exist because the page SHOWED two states and could not change them - "checked
+// 5 h ago" (discovery is a six-hourly timer) and "nothing done last night" (the
+// night job's decision was readable, not re-askable). A shell is not an answer to a
+// stale page.
+//
+//   Check for updates    discovery, read-only, rate-limited BY THE HOST - so the
+//                        button says how long is left rather than being refused.
+//   What would tonight    the night job in dry-run: writes nothing at all. This is
+//   do?                   the one that answers "why nothing last night?".
+//   Run the night job     the night job for real. It keeps its window, its backup,
+//                         one a night, the pauses and the narrow doctor, so outside
+//                         03:30-05:00 the honest answer IS "outside the window" -
+//                         that reason is the point, not a failure. It confirms in a
+//                         dialog because it can end in a deploy, and takes a click
+//                         rather than the typed name, because what it may deploy is
+//                         a patch of a two-way class (design batch 5: typing the
+//                         name is for the irreversible).
+//
+// WHAT IS NOT HERE, on purpose. Editing a component's channel (the plan's §8 extra)
+// would let a click arm unattended deployment - and `updates.toml` is COPY'd into
+// bothy-ops' image, so writing it would need a read-write mount of the checkout,
+// which is exactly what SECURITY.md rule 8 says bothy-ops does not have. A history
+// row's Roll back is not here either: the host has no deliberate-rollback plan to
+// ask for yet, only the automatic one a failed verify runs. `just install-updater`
+// and `just release` are not update operations - the first is the person's step that
+// switches the program validating the next request, and the page says so above when
+// one is staged.
+//
+// A viewer sees all three as one NeedsRole note, never as disabled buttons.
 
 import { Loader } from '../../components/ui/Loader';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -45,13 +79,15 @@ import '../../components/KubeActions.css';
 import { useOperator } from '../../lib/session';
 import { statusOf } from '../../lib/http';
 import {
-  AUTO_ACTOR, fetchJob, fetchPlan, fetchUpdates, isTerminal, pinFile, publishBehind, rememberJob, rememberedJob,
+  AUTO_ACTOR, askDiscover, askNightJob, fetchJob, fetchPlan, fetchUpdates, isTerminal, pinFile, publishBehind,
+  rememberJob, rememberedJob,
   requestUpdate, unpauseAuto,
+  type AskRecord, type AutorunRecord,
   type Channel, type HistoryEntry, type Job, type JobState, type JobStep, type Level, type OwnPlan, type Plan, type UpdateRow,
   type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
 import { Button } from '../../components/ui/Button';
-import { EmptyState } from '../../components/states';
+import { EmptyState, NeedsRole } from '../../components/states';
 import { Icon } from '../../components/ui/Icon';
 
 export function UpdatesSettings() {
@@ -86,6 +122,9 @@ export function UpdatesSettings() {
       {data && <Freshness d={data} />}
       {data?.updater?.staged && <UpdaterStaged u={data.updater} />}
       {jobId && <JobPanel id={jobId} key={jobId} onFinished={reload} onDismiss={dismiss} />}
+      <SettingBlock id="update-controls" badge="operator">
+        {loading && !data ? <Loading rows={2} /> : <Controls d={data} canAct={canAct} onChanged={reload} />}
+      </SettingBlock>
       <SettingBlock id="update-components" badge="viewer · update: operator">
         {loading && !data ? <Loading rows={8} /> : error ? fail : data && (
           <Components d={data} canAct={canAct} busy={!!jobId && !!data.applying} onUpdate={setPlanFor} onChanged={reload} />
@@ -148,6 +187,269 @@ function UpdaterStaged({ u }: { u: UpdaterInfo }) {
         program that updates it switches only when you say so: <Cmd>just install-updater</Cmd> on the host.
       </span>
     </p>
+  );
+}
+
+// ── Controls: the two asks ───────────────────────────────────────────────────
+//
+// Both answer the same way: the ask lands in the spool, the row says it is waiting
+// for the host, and the host's own record replaces that a moment later. Neither
+// control claims an outcome itself - `asks.discover` and `asks.autorun` are what the
+// HOST wrote, and a discovery that found nothing new looks identical to one that was
+// refused unless the host says which.
+
+type Phase =
+  | { t: 'idle' }
+  | { t: 'sending' }
+  | { t: 'asked' }
+  | { t: 'refused'; error: unknown };
+
+const ASK_WORD: Record<AskRecord['outcome'], string> = {
+  ok: 'Ran', skipped: 'Nothing done', refused: 'Refused', failed: 'Failed',
+};
+
+// What an outcome means in the reserved palette. `skipped` is deliberately NOT a
+// warning: a gate that said no is the answer, not a fault.
+const ASK_TONE: Record<AskRecord['outcome'], 'up' | 'off' | 'warn' | 'down'> = {
+  ok: 'up', skipped: 'off', refused: 'warn', failed: 'down',
+};
+
+function AskGlyph({ outcome }: { outcome: AskRecord['outcome'] }) {
+  if (outcome === 'ok') return <Icon icon={Check} size="sm" />;
+  if (outcome === 'skipped') return <Icon icon={Minus} size="sm" />;
+  if (outcome === 'failed') return <Icon icon={X} size="sm" />;
+  return <Icon icon={AlertTriangle} size="sm" />;
+}
+
+/** The host's record of one ask: a glyph, a word, when, who, and why. */
+function AskOutcome({ r, what }: { r: AskRecord; what: string }) {
+  return (
+    <>
+      <span className="upd-ask-out" data-tone={ASK_TONE[r.outcome]}>
+        <AskGlyph outcome={r.outcome} />{ASK_WORD[r.outcome]}
+      </span>
+      <span className="set-cell-sub">
+        {what} <When iso={r.at} />
+        {r.askedBy && <> · asked by {r.askedBy}</>}
+        {r.tookMs != null && r.tookMs >= 1000 && <> · took {Math.round(r.tookMs / 1000)} s</>}
+      </span>
+      {r.reason && <span className="set-cell-sub upd-why"><Ticks text={r.reason} /></span>}
+    </>
+  );
+}
+
+const mins = (s: number) => (s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`);
+
+function Controls({ d, canAct, onChanged }: { d: UpdatesStatus | null; canAct: boolean; onChanged: () => void }) {
+  const a = d?.asks;
+  const [confirming, setConfirming] = useState(false);
+  if (!d) return null;
+  if (!a) {
+    // The partial state: a bothy-ops from before these routes existed still serves
+    // every read, so the page is whole except for this block.
+    return (
+      <EmptyState
+        message="This bothy-ops does not serve the update controls."
+        hint={<Prose text={'They arrived with the routes `/-/api/updates/discover` and `/-/api/updates/autorun`. '
+          + 'On the host: `just updates-discover` and `just update-auto --dry-run`.'} />}
+      />
+    );
+  }
+  // The rate limit is the HOST's, off available.json's mtime; this is the same
+  // arithmetic, so the control can say how long is left instead of being refused.
+  const age = d.discovery.ageSeconds;
+  const left = age == null ? 0 : Math.max(0, a.discoverMinSeconds - age);
+  return (
+    <>
+      <div className="upd-ctl">
+        {canAct ? (
+          <>
+            <Ask
+              label="Check for updates"
+              busy="search"
+              title="Ask the host to look at every pin, the registries, GitHub releases and the helm index, and rewrite the plans."
+              queued={a.discoverQueued}
+              waiting="checking - waiting for the host"
+              disabledWhy={left > 0
+                ? `Checked ${mins(age ?? 0)} ago. Again in ${mins(left)} - it asks public registries on an `
+                  + 'anonymous quota shared with every pull this box makes.'
+                : null}
+              send={() => askDiscover()}
+              onChanged={onChanged}
+            />
+            <Ask
+              label="What would tonight do?"
+              variant="ghost"
+              busy="act"
+              title="Run the night job's gates and say what it would pick. Writes nothing at all."
+              queued={a.autorunQueued}
+              waiting="deciding - waiting for the host"
+              send={() => askNightJob(true)}
+              onChanged={onChanged}
+            />
+            <Button variant="caution" onClick={() => setConfirming(true)} disabled={a.autorunQueued}>
+              Run the night job…
+            </Button>
+          </>
+        ) : (
+          <NeedsRole
+            what="Checking for updates and running the night job"
+            role="operator"
+            detail={'Both make the host run something, so the edge would refuse them before they reached '
+              + 'bothy-ops. Everything below is readable without it.'}
+          />
+        )}
+      </div>
+      <div className="kv-list">
+        <div className="kv"><div className="kv-k">Last check</div><div className="kv-v">
+          {a.discover
+            ? <AskOutcome r={a.discover} what="on the host" />
+            : <span className="dim">Nothing has been asked for from here. The timer checks every{' '}
+              {d.policy.discoverEveryHours} hours.</span>}
+          <span className="set-note">Discovery reads the pins and asks upstream; it pulls nothing and restarts
+            nothing. From a shell: <Cmd>just updates-discover</Cmd></span>
+        </div></div>
+        <div className="kv"><div className="kv-k">Last night job asked from here</div><div className="kv-v">
+          {a.autorun ? <NightRun r={a.autorun} /> : (
+            <span className="dim">Nothing has been asked for from here. The timer runs it at{' '}
+              {d.policy.windowStart}; its own last decision is under <b>Channels</b>.</span>
+          )}
+          <span className="set-note">From a shell: <Cmd>just update-auto --dry-run</Cmd></span>
+        </div></div>
+      </div>
+      {confirming && (
+        <NightJobDialog
+          d={d}
+          onClose={() => setConfirming(false)}
+          onAsked={() => { setConfirming(false); onChanged(); }}
+        />
+      )}
+    </>
+  );
+}
+
+/** One ask button, with its own in-flight and waiting-for-the-host states. */
+function Ask({ label, title, busy, queued, waiting, disabledWhy, send, onChanged, variant }: {
+  label: string;
+  title: string;
+  busy: 'search' | 'act';
+  queued: boolean;
+  waiting: string;
+  disabledWhy?: string | null;
+  send: () => Promise<unknown>;
+  onChanged: () => void;
+  variant?: 'secondary' | 'ghost';
+}) {
+  const [phase, setPhase] = useState<Phase>({ t: 'idle' });
+  const pending = queued || phase.t === 'asked';
+  // The host answers a moment after the file lands. Look again until the row says
+  // so, rather than claiming an outcome here.
+  useEffect(() => {
+    if (!pending) return undefined;
+    const t = setTimeout(onChanged, 3000);
+    return () => clearTimeout(t);
+  }, [pending, onChanged, queued]);
+  useEffect(() => { if (!queued && phase.t === 'asked') setPhase({ t: 'idle' }); }, [queued, phase.t]);
+  const go = async () => {
+    setPhase({ t: 'sending' });
+    try {
+      await send();
+      setPhase({ t: 'asked' });
+      onChanged();
+    } catch (e) {
+      setPhase({ t: 'refused', error: e });
+    }
+  };
+  return (
+    <div className="upd-ask">
+      <Button variant={variant ?? 'secondary'} onClick={() => void go()}
+        disabled={phase.t === 'sending' || pending || !!disabledWhy} title={title}>
+        {label}
+      </Button>
+      {phase.t === 'sending' && <Loader state={busy} size="sm" label="Asking the host…" />}
+      {pending && phase.t !== 'sending' && <Loader state="connect" size="sm" label={waiting} />}
+      {disabledWhy && <span className="set-cell-sub upd-ask-why">{disabledWhy}</span>}
+      {phase.t === 'refused' && <PlanRefusal error={phase.error} />}
+    </div>
+  );
+}
+
+/** A night-job run: its outcome, and every component it passed over, with why. */
+function NightRun({ r }: { r: AutorunRecord }) {
+  return (
+    <>
+      <AskOutcome r={r} what={r.dryRun ? 'a dry run on the host' : 'on the host'} />
+      {r.component && (
+        <span className="set-cell-sub">
+          {r.dryRun ? 'would pick' : 'picked'} <span className="mono">{r.component}</span>
+          {r.jobId && <> · job <span className="mono">{r.jobId.slice(0, 12)}</span></>}
+        </span>
+      )}
+      {r.skipped.length > 0 && (
+        <ul className="upd-list upd-ask-skipped">
+          {r.skipped.map((s) => (
+            <li key={s.component}><span className="mono">{s.component}</span> - <Ticks text={s.why} /></li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// A click, not the typed name: what the night job may deploy is a PATCH of a
+// stateless or time-series component - reversible by re-pinning the old digest
+// (docs/brand/patterns/feedback.md, "confirmation weight follows reversibility").
+// The dialog exists because it can end in a deploy at all, and it names what it
+// cannot do, because that is the question somebody clicking this actually has.
+function NightJobDialog({ d, onClose, onAsked }: { d: UpdatesStatus; onClose: () => void; onAsked: () => void }) {
+  const [phase, setPhase] = useState<Phase>({ t: 'idle' });
+  const p = d.policy;
+  const go = async () => {
+    setPhase({ t: 'sending' });
+    try {
+      await askNightJob(false);
+      onAsked();
+    } catch (e) {
+      setPhase({ t: 'refused', error: e });
+    }
+  };
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title="Run the night job now"
+      description="The host runs the same gates the 03:30 timer runs. This asks for a decision; it does not make one."
+    >
+      <div className="ka-body upd-plan">
+        <dl className="upd-dl">
+          <dt>What it may do</dt>
+          <dd>Deploy <b>at most one</b> update: an <span className="mono">auto</span>-channel component whose plan is
+            a <b>patch</b> of what <span className="mono">main</span> already pins. Never a minor, never a major,
+            never a one-way component, never Bothy itself.</dd>
+          <dt>What stops it</dt>
+          <dd><ul className="upd-list">
+            <li>Outside <span className="mono">{p.windowStart}</span>–<span className="mono">{p.windowEnd}</span> it
+              does nothing and says so. <b>That is the usual answer by day</b>, and it is not a failure.</li>
+            <li>Tonight&rsquo;s <span className="mono">{p.requireBackup}</span> must have succeeded and left a fresh
+              dump.</li>
+            <li>At most {p.maxAutoPerNight} a night, stopping at the first failure.</li>
+            <li>A paused component is skipped; the component must be healthy now, its canaries green.</li>
+          </ul></dd>
+          <dt>Who it is recorded as</dt>
+          <dd>The job is the night job&rsquo;s, so its actor is <span className="mono">{AUTO_ACTOR}</span> - the host
+            chose the component, the level and the plan. That you asked for it early is recorded beside it.</dd>
+          <dt>From a shell</dt>
+          <dd><Cmd>just update-auto</Cmd></dd>
+        </dl>
+        {phase.t === 'refused' && <PlanRefusal error={phase.error} />}
+        <div className="ka-row">
+          <Button variant="ghost" onClick={onClose}>Leave it alone</Button>
+          <Button variant="caution" onClick={() => void go()} disabled={phase.t === 'sending'}>
+            {phase.t === 'sending' ? 'Asking the host…' : 'Ask the night job to run'}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

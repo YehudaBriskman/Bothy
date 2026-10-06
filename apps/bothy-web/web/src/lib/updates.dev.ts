@@ -37,9 +37,25 @@
 // own-code steps (build, arm, switch, stage). The installed updater:
 //
 //   localStorage['bothy-dev-updates-updater'] = 'staged' | 'none'
+//
+// The two asks (2026-10-06) - "Check for updates now" and the night job. Both are
+// recorded in this browser and read back, so the control's own round trip can be
+// looked at: the ask shows as waiting for the host, then the host's record appears.
+// The seed is a discovery an hour ago and no night-job run at all. Force one:
+//
+//   localStorage['bothy-dev-updates-asks'] = 'fresh'    discovery a minute ago, so
+//                                                       Check for updates is rate-limited
+//                                          | 'refused'  the last discovery was refused
+//                                          | 'failed'   the last discovery broke
+//                                          | 'skipped'  the last night job skipped, with
+//                                                       the rows it passed over
+//
+// Clear what this browser asked for with
+// localStorage.removeItem('bothy-dev-updates-asked').
 
 import type {
-  AutoDecision, Channel, Discovered, HistoryEntry, Job, JobState, JobStep, Level, Pause, Plan, PlanAnswer, PlanSummary,
+  AskAnswer, AskRecord, Asks, AutorunAnswer, AutorunRecord, AutoDecision, Channel, Discovered, HistoryEntry, Job,
+  JobState, JobStep, Level, Pause, Plan, PlanAnswer, PlanSummary,
   RequestAnswer, StepName, UnpauseAnswer, UpdateRow, UpdaterInfo, UpdatesStatus, VersionRef,
 } from './updates';
 
@@ -49,6 +65,8 @@ const REQUEST_KEY = 'bothy-dev-updates-request';
 const JOBS_KEY = 'bothy-dev-updates-jobs';
 const UNPAUSED_KEY = 'bothy-dev-updates-unpaused';
 const UPDATER_KEY = 'bothy-dev-updates-updater';
+const ASKS_KEY = 'bothy-dev-updates-asks';
+const ASKED_KEY = 'bothy-dev-updates-asked';
 
 const read = (k: string): string | null => {
   try { return localStorage.getItem(k); } catch { return null; }
@@ -209,6 +227,87 @@ export async function unpauseMock(component: string): Promise<UnpauseAnswer> {
   return { ok: true, id: 'a'.repeat(32), component };
 }
 
+// ── the two asks (2026-10-06) ────────────────────────────────────────────────
+//
+// `asked()` is what THIS browser asked for; the "host" answers it after 4 s, the
+// same wall-clock trick pauseOf() uses - a timer would not survive the reload the
+// panel is built to survive.
+
+const DISCOVER_MIN = 300;
+
+function asked(): { discover?: number; autorun?: number; dryRun?: boolean } {
+  try { return JSON.parse(read(ASKED_KEY) ?? '{}') as { discover?: number; autorun?: number; dryRun?: boolean }; }
+  catch { return {}; }
+}
+
+function remember(patch: object): void {
+  try { localStorage.setItem(ASKED_KEY, JSON.stringify({ ...asked(), ...patch })); } catch { /* per-tab */ }
+}
+
+const ANSWERED_MS = 4000;
+
+function asksOf(): Asks {
+  const forced = read(ASKS_KEY);
+  const a = asked();
+  const discoverWaiting = !!a.discover && Date.now() - a.discover < ANSWERED_MS;
+  const autorunWaiting = !!a.autorun && Date.now() - a.autorun < ANSWERED_MS;
+  let discover: AskRecord | null = { at: ago(forced === 'fresh' ? 60 : 3600), askedBy: 'you@example.com',
+    outcome: 'ok', reason: '3 with a newer version, 1 drifting, 1 unchecked', tookMs: 4200 };
+  if (forced === 'refused') {
+    discover = { ...discover, outcome: 'refused',
+      reason: 'discovery ran 12s ago; the limit is one every 300s (an anonymous registry quota, per public IP)' };
+  }
+  if (forced === 'failed') {
+    discover = { ...discover, outcome: 'failed', reason: 'updates.toml is invalid - nothing discovered' };
+  }
+  if (a.discover && !discoverWaiting) {
+    discover = { at: ago(Math.round((Date.now() - a.discover) / 1000)), askedBy: 'you@example.com',
+      outcome: 'ok', reason: '3 with a newer version, 1 drifting, 1 unchecked', tookMs: 5100 };
+  }
+  let autorun: AutorunRecord | null = forced === 'skipped'
+    ? { at: ago(900), askedBy: 'you@example.com', outcome: 'skipped', tookMs: 180, dryRun: true, component: null,
+      jobId: null, reason: 'nothing eligible: no auto component has a deployable patch plan that is not paused',
+      skipped: [{ component: 'victoriametrics', why: 'paused since 5 days ago' },
+        { component: 'loki', why: 'minor - only patches are automatic' }] }
+    : null;
+  if (a.autorun && !autorunWaiting) {
+    autorun = { at: ago(Math.round((Date.now() - a.autorun) / 1000)), askedBy: 'you@example.com',
+      outcome: 'skipped', tookMs: 210, dryRun: a.dryRun !== false, component: null, jobId: null,
+      reason: 'outside the window (03:30-05:00; it is 14:12) - a missed night is skipped, never caught up',
+      skipped: [] };
+  }
+  return { discoverQueued: discoverWaiting, autorunQueued: autorunWaiting,
+    discoverMinSeconds: DISCOVER_MIN, discover, autorun };
+}
+
+export async function discoverMock(): Promise<AskAnswer> {
+  await new Promise((r) => setTimeout(r, 300));
+  if (read(REQUEST_KEY) === 'no-operator') refuse(403, 'Forbidden', false);
+  const a = asksOf();
+  if (a.discoverQueued) refuse(409, 'a discovery is already waiting for the host', true);
+  const age = read(ASKS_KEY) === 'fresh' ? 60 : 3600;
+  if (age < DISCOVER_MIN) {
+    refuse(429, `discovery ran ${age}s ago and may run again in ${DISCOVER_MIN - age}s - it asks public `
+      + 'registries on an anonymous quota shared with every pull this box makes', true);
+  }
+  remember({ discover: Date.now() });
+  return { ok: true, id: 'b'.repeat(32) };
+}
+
+export async function autorunMock(dryRun: boolean): Promise<AutorunAnswer> {
+  await new Promise((r) => setTimeout(r, 300));
+  if (read(REQUEST_KEY) === 'no-operator') refuse(403, 'Forbidden', false);
+  if (asksOf().autorunQueued) refuse(409, 'a night-job run is already waiting for the host', true);
+  const job = current();
+  if (!dryRun && job && !TERMINAL_STATES.includes(job.state)) {
+    // The night job's own fourth gate. A DRY run is still allowed, which is the
+    // distinction the page needs while something is running.
+    refuse(409, 'an update is queued or running - the night job never queues behind one', true);
+  }
+  remember({ autorun: Date.now(), dryRun });
+  return { ok: true, id: 'c'.repeat(32), dryRun };
+}
+
 const LAST_NIGHT: AutoDecision = {
   at: ago(3600 * 6), outcome: 'skipped', component: null, jobId: null,
   reason: 'nothing eligible: no auto component has a deployable patch plan that is not paused',
@@ -248,6 +347,7 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     job: current(),
     history: history(),
     auto: { enabled: true, actor: 'auto', paused: rows.filter((r) => r.paused).map((r) => r.id), last: LAST_NIGHT },
+    asks: asksOf(),
     updater: updaterInfo(),
     components: rows,
   };
