@@ -25,7 +25,7 @@ services:
   # ROLLBACK: the Prometheus service is kept below under the `legacy-prometheus`
   # profile, and its volume `monitoring_prometheus_data` is kept, untouched.
   victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.152.0
+    image: victoriametrics/victoria-metrics:v1.153.0
     container_name: victoriametrics
     restart: unless-stopped
     # CREDENTIALS WITHOUT LEAKING THEM INTO `docker inspect`. The password flag
