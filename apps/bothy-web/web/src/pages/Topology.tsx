@@ -14,7 +14,7 @@ import { panelize } from '../lib/panels';
 // the right half here for the same reason it is right for StatusIcon: these are
 // 7px dots and 14px squares, not the large filled areas the bare fills were
 // measured for.
-import { STATUS_VAR } from '../lib/icons';
+import { STATUS_LABEL, STATUS_VAR } from '../lib/icons';
 import { serviceLink } from '../lib/links';
 import { conditionLabel, resolveEdges, type PortalNode } from '../lib/discover';
 import './Topology.css';
@@ -73,8 +73,17 @@ export function Topology() {
             </button>
           </div>
           <div className="topo-legend">
-            {(['up', 'starting', 'down', 'unknown'] as const).map((s) => (
-              <span key={s} className="leg"><span className="leg-dot" style={{ background: `var(${STATUS_VAR[s]})` }} /> {s}</span>
+            {/* All seven, and drawn with the shared `.dot` rather than a local
+                swatch (2026-09-23). The legend used to list four and paint them
+                from an inline `background`, which was survivable while every
+                status had a colour to itself. It stopped being survivable when
+                `done` and `dormant` arrived sharing the up and off tokens: a
+                hand-painted swatch cannot show the fill-and-glow distinction
+                that is now carrying half the meaning, so a legend built that way
+                would have shown two identical green dots labelled differently.
+                `.dot` already encodes it, in one place, for the whole app. */}
+            {(['up', 'starting', 'down', 'unknown', 'done', 'stopped', 'dormant'] as const).map((s) => (
+              <span key={s} className="leg"><span className="dot" data-state={s} /> {STATUS_LABEL[s]}</span>
             ))}
             {/* Only meaningful on the flat map - the 3D scene has no dependency
                 lines to explain, and a legend for something not on screen is

@@ -10,7 +10,7 @@ import { accentVar } from '../lib/accents';
 import type { PortalNode, Status } from '../lib/discover';
 import { systemLink } from '../lib/links';
 import { ServiceTable } from '../components/ServiceTable';
-import { StatusIcon } from '../lib/icons';
+import { StatusIcon, STATUS_LABEL } from '../lib/icons';
 import { EmptyState, Skeleton, firstPoll } from '../components/states';
 import './Services.css';
 import { Button } from '../components/ui/Button';
@@ -25,8 +25,16 @@ import { Icon } from '../components/ui/Icon';
 // Rows are now one height, chosen to be the dense one.
 type KindFilter = 'all' | 'routed' | 'no-container' | 'unrouted' | 'host';
 
-const STATUSES: Status[] = ['up', 'starting', 'down', 'stopped', 'unknown'];
-const STATUS_LABEL: Record<Status, string> = { up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown' };
+// The chip row's order is the reading order of the statuses themselves: what is
+// running, what is wrong, then the three that are not claims about health at all
+// (finished, switched off, put away), then what we could not check. These MUST
+// partition the node set exactly as the Kind options below do - the counts are
+// printed beside the chips, and a status missing from this list would be a
+// population no chip can reach.
+const STATUSES: Status[] = ['up', 'starting', 'down', 'done', 'stopped', 'dormant', 'unknown'];
+// The words themselves come from lib/icons.tsx, which is where StatusIcon reads
+// them: this file had its own copy, Overview.tsx had a third, and seven statuses
+// across three hand-kept tables is three chances for one of them to drift.
 // These MUST partition the node set. 'Orphan' and 'Host process' used to select
 // the same 7 nodes under two names, so the four counts summed to 34 of 27 and
 // "Orphan (7)" implied 7 broken routes when they were ordinary host processes.
@@ -93,7 +101,9 @@ export function Services() {
 
     const filtered = vis.filter((n) => mStatus(n) && mProject(n) && mKind(n, kind) && mText(n));
 
-    const statusCounts: Record<Status, number> = { up: 0, starting: 0, down: 0, stopped: 0, unknown: 0 };
+    const statusCounts: Record<Status, number> = {
+      up: 0, starting: 0, down: 0, stopped: 0, unknown: 0, done: 0, dormant: 0,
+    };
     for (const n of vis) if (mProject(n) && mKind(n, kind) && mText(n)) statusCounts[n.status]++;
 
     const projectCounts = new Map<string, number>();

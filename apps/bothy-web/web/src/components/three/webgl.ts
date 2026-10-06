@@ -37,6 +37,12 @@ export const STATUS_HEX: Record<Status, string> = {
   // Dimmer than 'unknown': a stopped unit should read as an unlit slab in the
   // rack, not as another thing demanding attention.
   stopped: '#4a5568',
+  // Mirrors of --st-up and --st-off, matching lib/icons.tsx: `done` is a success
+  // and `dormant` is the quietest thing on the page. There is no sixth status
+  // token to mirror, and the rack tells the pairs apart by brightness rather
+  // than hue - see emissiveFor() in StackScene.tsx.
+  done: '#34d399',
+  dormant: '#4a5568',
   unknown: '#64748b',
 };
 
@@ -45,6 +51,8 @@ export const STATUS_LABEL: Record<Status, string> = {
   starting: 'Starting',
   down: 'Down',
   stopped: 'Stopped',
+  done: 'Done',
+  dormant: 'Dormant',
   unknown: 'Unknown',
 };
 
@@ -65,6 +73,7 @@ export const STATUS_LABEL: Record<Status, string> = {
 const STATUS_VAR: Record<Status, string> = {
   up: '--st-up', starting: '--st-warn', down: '--st-down',
   stopped: '--st-off', unknown: '--st-unknown',
+  done: '--st-up', dormant: '--st-off',
 };
 
 // Read a CSS custom property off :root, trimmed. Returns '' if unavailable.
@@ -167,11 +176,13 @@ export const scenePalette = (): ScenePalette => (isLightTheme() ? LIGHT : DARK);
 // mirrored hexes above). Read once at scene mount so the LEDs are guaranteed to
 // match the page even if the tokens are edited later.
 export function statusHexes(): Record<Status, string> {
-  return {
-    up: cssVar(STATUS_VAR.up) || STATUS_HEX.up,
-    starting: cssVar(STATUS_VAR.starting) || STATUS_HEX.starting,
-    down: cssVar(STATUS_VAR.down) || STATUS_HEX.down,
-    stopped: cssVar(STATUS_VAR.stopped) || STATUS_HEX.stopped,
-    unknown: cssVar(STATUS_VAR.unknown) || STATUS_HEX.unknown,
-  };
+  // Built by walking STATUS_VAR rather than by naming each status, so a status
+  // added to the union cannot be added to the two tables above and forgotten
+  // here - which is the shape of the bug that left this whole map falling back
+  // to drifted literals for months.
+  const out = {} as Record<Status, string>;
+  for (const k of Object.keys(STATUS_VAR) as Status[]) {
+    out[k] = cssVar(STATUS_VAR[k]) || STATUS_HEX[k];
+  }
+  return out;
 }

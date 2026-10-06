@@ -35,16 +35,24 @@ export interface HealthCounts {
   down: number;
   starting: number;
   stopped: number;
+  /** One-shots that ran to completion. A success, and never a fault. */
+  done: number;
+  /** Exited a fortnight or more ago with nothing of their project running. */
+  dormant: number;
   unknown: number;
 }
 
 export function healthOf(nodes: { status: string }[]): HealthCounts {
-  const c: HealthCounts = { total: nodes.length, up: 0, down: 0, starting: 0, stopped: 0, unknown: 0 };
+  const c: HealthCounts = {
+    total: nodes.length, up: 0, down: 0, starting: 0, stopped: 0, done: 0, dormant: 0, unknown: 0,
+  };
   for (const n of nodes) {
     if (n.status === 'up') c.up++;
     else if (n.status === 'down') c.down++;
     else if (n.status === 'starting') c.starting++;
     else if (n.status === 'stopped') c.stopped++;
+    else if (n.status === 'done') c.done++;
+    else if (n.status === 'dormant') c.dormant++;
     else c.unknown++;
   }
   return c;
@@ -53,7 +61,21 @@ export function healthOf(nodes: { status: string }[]): HealthCounts {
 // Services that are meant to be up right now. A deliberately-stopped service is
 // not part of the denominator: with it in, switching a project off dragged the
 // healthy % down and made an idle box look broken.
-export const expectedUp = (c: HealthCounts) => c.total - c.stopped;
+//
+// `done` and `dormant` leave it for the same reason and more strongly. A
+// one-shot that finished is not something that failed to be up - counting
+// `keycloak-db-init` against the box's health meant the strip reported a fault
+// on every single deploy, forever. A container from a project nobody has run in
+// six weeks is not a service at all any more.
+//
+// RESTS ON THE PARTITION, so it cannot silently start subtracting something
+// twice: every node has exactly one status, and this subtracts the three that
+// are not claims about whether something should be running.
+export const expectedUp = (c: HealthCounts) => c.total - c.stopped - c.done - c.dormant;
+
+/** The three statuses that are NOT a claim about whether a thing should be up:
+ *  shown, countable, and deliberately outside every health measurement. */
+export const notExpected = (c: HealthCounts) => c.stopped + c.done + c.dormant;
 
 // "Needs attention" - anything a human should actually look at.
 //
@@ -78,11 +100,18 @@ export const expectedUp = (c: HealthCounts) => c.total - c.stopped;
 //      A non-zero exit inside a LIVE system is still a real fault and still
 //      shouts - that distinction is the whole rule, and it is why this is scoped
 //      by system rather than by "is it old".
+//   4. (2026-09-23) Anything `done` or `dormant`. Both are now their own status
+//      rather than a flavour of stopped/down, and neither can ever be an alert:
+//      `done` is a one-shot reporting success, `dormant` is a container that has
+//      not run in a fortnight in a project with nothing running. Stated here as
+//      an explicit refusal rather than left to fall out of the filters below,
+//      because "it happens not to match any rule today" is not a guarantee.
 export function needsAttention(nodes: import('./discover').PortalNode[]): import('./discover').PortalNode[] {
   const liveGroups = new Set(
     nodes.filter((n) => n.status === 'up' || n.status === 'starting').map((n) => n.group),
   );
   return nodes.filter((n) => {
+    if (n.status === 'done' || n.status === 'dormant') return false;
     // Both cases now ask the same question: is anything in this system alive?
     // If the whole system is off, its wreckage is not news.
     if (n.status === 'down') return liveGroups.has(n.group);

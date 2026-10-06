@@ -99,6 +99,7 @@ knows what depends on what.
 | [patterns/navigation.md](patterns/navigation.md) | How someone gets anywhere, and how they know where they are |
 | [patterns/forms.md](patterns/forms.md) | How input works, fails and recovers |
 | [patterns/data-display.md](patterns/data-display.md) | How a row of facts is drawn |
+| [patterns/status-vocabulary.md](patterns/status-vocabulary.md) | Which words are allowed about health, and what each must never mean |
 | [patterns/dataviz.md](patterns/dataviz.md) | How a number is drawn so it cannot lie |
 | [patterns/feedback.md](patterns/feedback.md) | How the system talks back |
 | [patterns/scrolling.md](patterns/scrolling.md) | What happens when there is more than fits |

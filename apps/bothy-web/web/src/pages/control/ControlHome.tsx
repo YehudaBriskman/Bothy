@@ -152,11 +152,20 @@ export function ControlHome() {
     {
       key: 'services', label: 'Services', to: '/control/services',
       value: <><span className="ch-num">{counts.up}</span><span className="ch-of"> / {expected} up</span></>,
+      // Each of the last three is named separately (2026-09-23). They used to be
+      // one word - "stopped" - covering a service parked on purpose, an init
+      // container reporting success and a container from a project nobody has
+      // run in six weeks. The tile's own fraction already excludes all three
+      // (expectedUp), so this line is the only place a reader can find out what
+      // was excluded and check the sum: up + down + unverified = the
+      // denominator, and off + done + dormant is everything else on the box.
       sub: [
         `${liveDown} down`,
         counts.unknown ? `${counts.unknown} unverified` : '',
         offDown ? `${offDown} failed in switched-off systems` : '',
-        counts.stopped ? `${counts.stopped} stopped` : '',
+        counts.stopped ? `${counts.stopped} off` : '',
+        counts.done ? `${counts.done} done` : '',
+        counts.dormant ? `${counts.dormant} dormant` : '',
       ].filter(Boolean).join(' · '),
       tone: liveDown ? 'bad' : counts.unknown ? 'unknown' : 'ok',
       toneLabel: liveDown ? 'Some down' : counts.unknown ? 'Some unverified' : 'All up',

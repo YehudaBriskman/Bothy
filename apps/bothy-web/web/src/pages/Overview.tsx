@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ExternalLink, AlertTriangle, ArrowRight, HardDrive,
@@ -19,16 +19,12 @@ import { StatusBar, BarGauge, type Seg, type GaugeRow } from '../components/viz'
 import { KNOWN_SERVICES, type PortalNode, type Status } from '../lib/discover';
 import { serviceLink, systemLink, kindLabelOf } from '../lib/links';
 import { Skeleton, firstPoll } from '../components/states';
-import { ServiceIcon, StatusIcon } from '../lib/icons';
+import { ServiceIcon, StatusIcon, STATUS_LABEL } from '../lib/icons';
 import { useLayout } from '../lib/usePrefs';
 import { orderSections } from '../lib/prefs';
 import './Overview.css';
 import { Icon as SizedIcon } from '../components/ui/Icon';
 import { Button } from '../components/ui/Button';
-
-const STATUS_LABEL: Record<Status, string> = {
-  up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown',
-};
 
 // A bare colour dot is not a status. StatusIcon does this correctly elsewhere;
 // these lists used raw <span className="dot"> with no accessible name at all.
@@ -189,10 +185,20 @@ function QuickLinks({ nodes, discoveryFailed }: { nodes: PortalNode[]; discovery
 // CHECKED - those are the @file host routes with no container to inspect - so
 // it is neither a pass nor a fault, and the old copy silently treated it as
 // both. Unverified services now get their own count and their own sentence.
+//
+// AND IT COLLAPSED THREE THINGS INTO ONE WORD (2026-09-23). "29 up · 19 off"
+// counted, as a single number called "off": two services parked on purpose
+// (prometheus and promtail, the monitoring rollback profiles), one init
+// container that had just reported success, and ten containers from projects
+// nobody has run since August. Only the first is "off". The strip now names all
+// three, and says in one line that none of them is counted against the box's
+// health - which is the sentence that makes the numbers checkable against the
+// systems below rather than merely large.
 function StatusLine({
-  up, unknown, stopped, expected, attentionN, segs, aside, degraded,
+  up, unknown, stopped, done, dormant, expected, attentionN, segs, aside, degraded,
 }: {
-  up: number; unknown: number; stopped: number; expected: number; attentionN: number;
+  up: number; unknown: number; stopped: number; done: number; dormant: number;
+  expected: number; attentionN: number;
   segs: Seg[]; aside: Seg[]; degraded: string[];
 }) {
   // The claim is scoped to what actually reported in. Saying "everything is up"
@@ -204,6 +210,14 @@ function StatusLine({
   // at all. Zero verified services is not good news.
   const verified = expected - unknown;
   const allVerifiedUp = verified > 0 && up >= verified && attentionN === 0;
+
+  // The three states that are not a claim about health, in the order they are
+  // read out below. Built as a list so the sentence and the counts cannot
+  // disagree about which of them is non-zero.
+  const asideCounts = ([
+    [stopped, 'off'], [done, 'done'], [dormant, 'dormant'],
+  ] as const).filter(([n]) => n > 0);
+  const asideTotal = stopped + done + dormant;
 
   return (
     <section className={`ov-status ${attentionN ? 'is-warn' : ''}`}>
@@ -218,13 +232,13 @@ function StatusLine({
               <span className="ov-status-lbl">unverified</span>
             </>
           )}
-          {stopped > 0 && (
-            <>
+          {asideCounts.map(([n, word]) => (
+            <Fragment key={word}>
               <span className="ov-status-sep">·</span>
-              <b className="tnum is-off">{stopped}</b>
-              <span className="ov-status-lbl">off</span>
-            </>
-          )}
+              <b className="tnum is-off">{n}</b>
+              <span className="ov-status-lbl">{word}</span>
+            </Fragment>
+          ))}
         </span>
         {/* `aside` keeps switched-off services OUT of the bar's whole, so the
             bar and the counts beside it describe the same population. */}
@@ -252,6 +266,21 @@ function StatusLine({
         {unknown > 0 && (
           <span className="ov-status-sub">
             {unknown} can’t be verified - host routes with no container to ask.
+          </span>
+        )}
+        {/* The half of the population the fraction above deliberately excludes,
+            named rather than lumped. Without this line the reader has no way to
+            check the big number against the systems below: `up / expected`
+            leaves out a third of the box, and until it says which third and why,
+            the honest reaction to it is suspicion. */}
+        {asideTotal > 0 && (
+          <span className="ov-status-sub">
+            {asideCounts.map(([n, w]) => `${n} ${w}`).join(', ')} - not counted:{' '}
+            {[
+              stopped ? 'switched off on purpose' : '',
+              done ? 'a one-shot that finished' : '',
+              dormant ? 'not run in over a fortnight' : '',
+            ].filter(Boolean).join(', ')}.
           </span>
         )}
       </p>
@@ -460,7 +489,14 @@ export function Overview() {
     { key: 'down', n: counts.down, label: 'down' },
     { key: 'unknown', n: counts.unknown, label: 'unknown' },
   ];
-  const aside: Seg[] = [{ key: 'stopped', n: counts.stopped, label: 'stopped' }];
+  // Three segments, not one. They are all outside the bar's whole - none of them
+  // is a service failing to be up - but they are outside it for three different
+  // reasons, and a single grey block saying "19" was the whole of the problem.
+  const aside: Seg[] = [
+    { key: 'stopped', n: counts.stopped, label: 'off' },
+    { key: 'done', n: counts.done, label: 'done' },
+    { key: 'dormant', n: counts.dormant, label: 'dormant' },
+  ];
 
   const degraded = useMemo(
     () => [...new Set(data.errors.map((e) => e.src.split(' ')[0]))],
@@ -537,6 +573,8 @@ export function Overview() {
               up={counts.up}
               unknown={counts.unknown}
               stopped={counts.stopped}
+              done={counts.done}
+              dormant={counts.dormant}
               expected={expected}
               attentionN={attentionN}
               segs={segs}

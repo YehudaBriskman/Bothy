@@ -8,6 +8,52 @@ first. Dead ends are recorded rather than deleted - see
 
 ---
 
+## 2026-09-23 - Two more statuses, and a vocabulary rule to stop the next collapse
+
+`up | down | starting | stopped | unknown`, collapsed by the health strip to
+"up / off". That "off" was holding three unrelated facts at once, all of them
+live on this box: two services parked on purpose, one init container reporting
+success, and ten containers from projects nobody had run in four to six weeks.
+`down` had the same problem from the other end - a crash five minutes old and a
+six-week-old corpse were both alarms.
+
+- **`done`** - a one-shot that ran to completion. **Decided from a
+  DECLARATION**, compose's `service_completed_successfully` read off a sibling's
+  `depends_on`, and from nothing else. **Rejected:** `restart: "no"` (not on the
+  wire - `/containers/json`'s whole `HostConfig` is `{NetworkMode}`, and the
+  inspect that carries `RestartPolicy` is unroutable to the browser because its
+  body has `Env`); a short lifetime (`Created` is creation, not start);
+  `com.docker.compose.oneoff` (`False` on real init containers); and every
+  heuristic over health/ports/mounts/project-liveness, because a finished
+  one-shot and a hand-stopped service in a live project are identical in every
+  field the API returns. **Cost:** coverage is partial by design. A terminal
+  one-shot nothing waits on reads as `Off`, and the fix for that is a
+  declaration, not a cleverer guess.
+- **`dormant`** - exited **a fortnight or more** ago **and** nothing of its
+  compose project running. Both halves required. **The exit code is not
+  consulted and must never be**: a crash today is `down` whatever owns it.
+  **Rejected:** age alone (reaches `prometheus`, parked six days ago on
+  purpose); abandonment alone (reaches the container that crashed on the way
+  out of a `just down`). **Cost:** one magic number, argued in its own comment
+  and pinned from both sides in the truth table.
+- **No new colour.** `done` takes `--st-up` with **no glow**; `dormant` takes
+  `--st-off` drawn **hollow**. **Rejected:** a sixth status token - the palette
+  is a set of volumes, and the accent rule already forbids the only hue windows
+  left. Form carries the distinction, which is the grammar the status dots
+  already used.
+- **Words: "Done" and "Dormant".** **Rejected:** "Completed"/"Finished" (longer,
+  no clearer, and it has to fit a chip in a row of seven); "Idle" (implies
+  running and unused - the opposite); "Stale" (already this app's word for an
+  old backup and an old poll); "Abandoned" (a judgement about the reader rather
+  than a fact about the container).
+- **The rule itself is now written down**, in
+  [patterns/status-vocabulary.md](../patterns/status-vocabulary.md), because a
+  status vocabulary only ever rots towards fewer words: nobody adds a status
+  they cannot justify, but a word already on the page will happily absorb a
+  case it nearly fits.
+
+---
+
 ## 2026-09-22 - Design tokens and the shared primitives (audit batch 2)
 
 Decisions 1, 3, 6 and 8 from the entry below, implemented, plus the token work

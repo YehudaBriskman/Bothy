@@ -227,13 +227,39 @@ if [ "$OFFLINE" = 1 ]; then
   echo "  SKIPPED (--offline): needs a docker daemon"
 else
 curl -s --unix-socket /var/run/docker.sock "http://localhost/containers/json?all=1" > "$OUT/containers.json"
+# Through merge(), NOT through a bare statusOf() per container - and that is the
+# point of this section rather than a detail of it. Two of the seven statuses are
+# decided from WHOLE-LIST facts (is this service declared a one-shot; is anything
+# of its project still running), so a loop that classifies each container on its
+# own reports the answer the app would give if merge() had resolved nothing. It
+# did exactly that for the first hour this section existed: every dormant
+# container on the box printed as `stopped`, and the table looked fine.
 node --input-type=module -e "
-import { statusOf } from '$OUT/discover.mjs';
 import { readFileSync } from 'node:fs';
+// merge() builds an open-this URL from location.hostname for anything with a
+// published port. Browser global, node runtime - and the import has to be
+// dynamic so the stub is in place before the module body runs.
+globalThis.location ??= { hostname: 'box.example' };
+const { merge, exitCodeOf, exitedAgoSecs } = await import('$OUT/discover.mjs');
 const cs = JSON.parse(readFileSync('$OUT/containers.json'));
+const nodes = merge([], [], cs).filter((n) => n.container);
+const age = (t) => { const s = exitedAgoSecs(t); return s == null ? '-' : s >= 86400 ? \`\${Math.round(s / 86400)}d\` : s >= 3600 ? \`\${Math.round(s / 3600)}h\` : \`\${Math.round(s / 60)}m\`; };
 const n = {};
-for (const c of cs) { const s = statusOf(c); (n[s] ??= []).push(c.Names?.[0]?.replace(/^\//, '')); }
-for (const [k, v] of Object.entries(n)) console.log(\`  \${k.padEnd(9)} \${v.length}  \${v.slice(0, 6).join(', ')}\`);
+for (const x of nodes) (n[x.status] ??= []).push(x.container.name);
+for (const [k, v] of Object.entries(n).sort()) console.log(\`  \${k.padEnd(9)} \${String(v.length).padStart(2)}  \${v.slice(0, 6).join(', ')}\`);
+console.log('');
+const W = [36, 11, 6, 6, 22, 9];
+console.log('  ' + ['container', 'state', 'exit', 'ago', 'project', 'status'].map((h, i) => h.padEnd(W[i])).join(''));
+for (const x of nodes.slice().sort((a, b) => a.status.localeCompare(b.status) || a.container.name.localeCompare(b.container.name))) {
+  const L = x.container.labels || {};
+  console.log('  '
+    + x.container.name.padEnd(W[0])
+    + String(x.container.state).padEnd(W[1])
+    + String(exitCodeOf(x.container.statusText) ?? '-').padEnd(W[2])
+    + age(x.container.statusText).padEnd(W[3])
+    + (L['com.docker.compose.project'] || '-').padEnd(W[4])
+    + x.status);
+}
 "
 fi
 

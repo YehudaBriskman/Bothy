@@ -15,6 +15,11 @@
    states that mean something is wrong. */
 .vz-bar-seg.seg-stopped { background: var(--st-off); }
 .vz-bar-seg.seg-unknown { background: var(--st-unknown); }
+/* Reuse the up and off tokens - there is no sixth status colour, and the bar
+   tells these two apart by being drawn in the `aside` run below rather than by
+   hue. See lib/icons.tsx for why `done` is allowed to be green. */
+.vz-bar-seg.seg-done { background: var(--st-up); }
+.vz-bar-seg.seg-dormant { background: var(--st-off); }
 .vz-bar-seg.is-empty { background: color-mix(in oklab, var(--fg) 10%, transparent); }
 /* Outside the measured whole (see StatusBar's `aside`): pushed away by a wider
    gap and drawn hollow, so it cannot be misread as part of the fraction the
@@ -22,6 +27,13 @@
 .vz-bar-seg.is-aside { margin-left: var(--sp-2); background: transparent;
   box-shadow: inset 0 0 0 1px var(--st-off); }
 .vz-bar-seg.is-aside ~ .vz-bar-seg.is-aside { margin-left: var(--sp-0_5); }
+/* Three asides since 2026-09-23, and they are not the same statement, so the
+   outline says which: `done` in the up token (it finished, and finishing was the
+   job), `dormant` in a faded off (put away), `stopped` keeps the plain off. */
+.vz-bar-seg.seg-done.is-aside { box-shadow: inset 0 0 0 1px var(--st-up); }
+.vz-bar-seg.seg-dormant.is-aside {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--st-off) 55%, transparent);
+}
 
 /* ── horizontal bar gauge ─────────────────────────────────────────────────── */
 .vz-gauge { display: flex; flex-direction: column; }

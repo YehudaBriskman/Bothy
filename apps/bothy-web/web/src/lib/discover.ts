@@ -140,7 +140,24 @@ export interface Container {
 // anything was idle. `down` now means "this is meant to be up and isn't" -
 // non-zero exit, restart loop, failing healthcheck. `stopped` means somebody
 // turned it off: a state, not a problem, and never an alert.
-export type Status = 'up' | 'down' | 'starting' | 'stopped' | 'unknown';
+//
+// `done` and `dormant` (2026-09-23) split two more things back out of that pair,
+// for the same reason and from the same evidence. `stopped` had become a bag
+// holding three unrelated facts, and the box showed all three at once:
+//
+//   · `keycloak-db-init` exits 0 on every deploy BECAUSE THAT IS ITS JOB. It is
+//     a success. Counting it as "off" made the health strip report a fault that
+//     did not exist, every single day.  ->  `done`
+//   · `prometheus` and `promtail` are the monitoring rollback profiles: switched
+//     off on purpose, kept on purpose. This, and only this, is what "off" means.
+//   · ten containers from three projects nobody has run in four to six weeks.
+//     They are history, not services, and `monorepo-inherited-channellink-1`
+//     (exit 255, six weeks ago) had been an alarm every day since.  -> `dormant`
+//
+// The rule `dormant` must never weaken: it is about AGE AND ABANDONMENT, never
+// about the exit code. A service that died five minutes ago is an alarm whatever
+// project owns it - see DORMANT_AFTER_SECONDS.
+export type Status = 'up' | 'down' | 'starting' | 'stopped' | 'done' | 'dormant' | 'unknown';
 export type Kind = 'routed' | 'orphan-route' | 'unrouted' | 'host';
 
 // What a service *is*, so the domain page can split services into meaningful
@@ -258,6 +275,38 @@ export function declaredOneShots(containers: Container[]): Set<string> {
   return out;
 }
 
+/**
+ * The compose project a container belongs to, for the purpose of asking "is
+ * anything of this still running".
+ *
+ * A container started by a bare `docker run` carries no project label, and it is
+ * NOT a member of some crowd of unlabelled containers. `thales-scc` (up 40
+ * hours), `mpeg-redis` (dead six weeks) and a throwaway `alpine` share nothing
+ * but the absence of a label, so keying them together would let the running one
+ * vouch for the dead one as a live sibling - the exact opposite of the truth,
+ * and it would have kept both mpeg containers out of `dormant` forever. Each
+ * unlabelled container is therefore its own project of one.
+ */
+export function projectKeyOf(container: Container): string {
+  return container.Labels?.['com.docker.compose.project'] || `container:${container.Id}`;
+}
+
+/**
+ * Projects with at least one container the daemon is still holding up.
+ *
+ * `restarting` counts as alive on purpose: a project with a member in a crash
+ * loop is being run right now, badly. Reading it as abandoned would silence its
+ * siblings, which is precisely the failure `dormant` must not cause.
+ */
+export function livingProjects(containers: Container[]): Set<string> {
+  const out = new Set<string>();
+  for (const c of containers) {
+    const s = c.State;
+    if (s === 'running' || s === 'restarting') out.add(projectKeyOf(c));
+  }
+  return out;
+}
+
 export function volumesOf(container?: Container | null): VolumeRef[] {
   if (!container?.Mounts) return [];
   const out: VolumeRef[] = [];
@@ -277,13 +326,14 @@ export function volumesOf(container?: Container | null): VolumeRef[] {
 const UNIT_SECS: Record<string, number> = {
   second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000,
 };
-export function parseUptime(status?: string): number | null {
-  if (!status) return null;
-  const m = /^Up\s+(.*)$/.exec(status.trim());
-  if (!m) return null;
-  const rest = m[1].toLowerCase();
-  // "Up 21 minutes (Paused)" is not running, whatever the elapsed time says.
-  if (/\(paused\)/.test(rest)) return null;
+
+// One human duration ("3 days", "About an hour", "6 weeks", "Less than a
+// second") in seconds. Factored out of parseUptime when the exit clock below
+// needed the identical grammar: docker formats BOTH halves of its Status string
+// with the same go-units helper, so two copies of this would have been two
+// chances for one of them to stop understanding "About a minute".
+function humanDurationSecs(text: string): number | null {
+  const rest = text.toLowerCase();
   if (/less than a second|about a second/.test(rest)) return 1;
   const num = /about (an?|one)\s/.test(rest) ? 1 : parseInt(rest, 10);
   const n = Number.isFinite(num) ? num : 1;
@@ -291,6 +341,35 @@ export function parseUptime(status?: string): number | null {
   // No recognised unit means we did not understand the string - null, not 0.
   // Returning 0 put the node at the top of "recently started" as "0s ago".
   return unit ? n * UNIT_SECS[unit] : null;
+}
+
+export function parseUptime(status?: string): number | null {
+  if (!status) return null;
+  const m = /^Up\s+(.*)$/.exec(status.trim());
+  if (!m) return null;
+  // "Up 21 minutes (Paused)" is not running, whatever the elapsed time says.
+  if (/\(paused\)/i.test(m[1])) return null;
+  return humanDurationSecs(m[1]);
+}
+
+/**
+ * How long ago this container exited, in seconds, or null.
+ *
+ * `/containers/json` HAS NO FINISH TIME. `Created` is when the container was
+ * created, which for anything compose has restarted is nowhere near when it last
+ * ran: `cvops-postgres-1` was created 69 days ago and exited four weeks ago, and
+ * `keycloak-init` was created four days ago and exited five hours ago. Using
+ * `Created` as an age would have called a container that stopped this morning
+ * two months old. So the human Status string is the only evidence of WHEN, in
+ * the same way it is already the only evidence of the exit CODE.
+ *
+ * Its resolution is coarse on purpose and that is fine here: the one consumer is
+ * a fortnight-scale threshold, and docker's own rounding ("4 weeks", "6 weeks")
+ * is never wrong by anything close to that.
+ */
+export function exitedAgoSecs(statusText?: string): number | null {
+  const m = /^Exited\s*\(\d+\)\s+(.+?)\s+ago$/i.exec(statusText?.trim() ?? '');
+  return m ? humanDurationSecs(m[1]) : null;
 }
 
 export interface Nesting {
@@ -1225,10 +1304,91 @@ export function isBrowsable(host: string | null, container?: Container | null): 
 
 // ── Pure: status ────────────────────────────────────────────────────────────
 
+/**
+ * How long a container must have been exited before `dormant` will look at it.
+ *
+ * A FORTNIGHT, and the number is a judgement, so here is the judgement.
+ *
+ * The risk of a threshold that is too short is the only one that matters: it
+ * silences a real outage. Two weeks is longer than any gap this box's owner can
+ * plausibly leave between sessions - longer than a holiday weekend, longer than
+ * a week off, longer than "I'll come back to it after the sprint". Fourteen days
+ * in which not one container of a whole project has run even once is not
+ * downtime anybody is waiting out; it is a project that has been put away.
+ *
+ * THE LIVE COUNTER-EXAMPLE, AND WHY THE SIBLING TEST CARRIES IT IN THE END.
+ * `prometheus` and `promtail` are the monitoring rollback profiles: stopped on
+ * purpose, meant to stay stopped, and never dormant. When this was written
+ * (2026-09-23) they had been stopped six days, so the age test alone kept them
+ * out. Thirteen days later they had crossed this threshold, and they are STILL
+ * `stopped` - because nothing has been put away: grafana, loki, alloy, cadvisor,
+ * node-exporter and victoriametrics are all up in the same project.
+ *
+ * That is the pairing earning its keep rather than a coincidence, and it is the
+ * reason neither half may be dropped for being redundant. Age goes stale by
+ * definition - everything crosses a threshold if you wait - so abandonment is
+ * the half that actually distinguishes a parked service from a put-away one,
+ * and age is only there to stop a project switched off this morning counting as
+ * history.
+ */
+export const DORMANT_AFTER_SECONDS = 14 * 86_400;
+
+/**
+ * Whole-list facts about the container this status is being decided for. Neither
+ * can be read off the container itself, which is why they are passed in: `merge`
+ * resolves both once per poll from the full list.
+ */
+export interface StatusContext {
+  /**
+   * A sibling declares `depends_on: <this>: service_completed_successfully`, so
+   * finishing is this container's job (see `declaredOneShots`).
+   *
+   * WHY THIS AND NOT THE OTHER CANDIDATES, all of which were tried against the
+   * live socket proxy on 2026-09-23 before this one was chosen:
+   *
+   *   · THE RESTART POLICY IS NOT ON THE WIRE. `restart: "no"` is the compose
+   *     author saying "this finishes", and `/containers/json` does not carry it:
+   *     the whole of `HostConfig` in that response is `{"NetworkMode": "..."}`.
+   *     Only the per-container inspect has `RestartPolicy`, and that endpoint is
+   *     deliberately unroutable from the browser because its body contains `Env`
+   *     (SECURITY.md; portal.md "the boundary is the Traefik rule").
+   *   · THERE IS NO LIFETIME TO MEASURE. `Created` is creation, not start, so a
+   *     one-shot compose has restarted a dozen times looks months old.
+   *   · `com.docker.compose.oneoff` IS `False` ON REAL INIT CONTAINERS - it
+   *     means "started by `compose run`".
+   *   · NOTHING ELSE SEPARATES THE TWO CASES. A finished one-shot and a service
+   *     somebody stopped by hand inside a live project are identical on state,
+   *     exit code, health, ports, mounts and project liveness - checked field by
+   *     field against `keycloak-init` and `prometheus`, which differ in none of
+   *     them. Every heuristic that lands `keycloak-init` on `done` also lands a
+   *     hand-stopped `oauth2-proxy` there, and calling a service somebody just
+   *     switched off "Done" is a worse lie than calling an init "Off".
+   *
+   * So `done` requires a DECLARATION, and this is the only declaration that
+   * reaches the browser. Coverage is partial by design, exactly as
+   * `completesOnPurpose` already says: `keycloak-db-init` has it because
+   * `keycloak` waits on it; `keycloak-init` does not, because nothing waits on
+   * it, and inventing intent the compose file never expressed is the one thing
+   * this classifier has always refused to do.
+   */
+  oneShot?: boolean;
+  /**
+   * Whether ANY container of this one's compose project is running or
+   * restarting. Undefined means the caller did not resolve it - and that is not
+   * the same as `false`: `dormant` requires POSITIVE evidence of abandonment,
+   * never the mere absence of evidence, so only an explicit `false` qualifies.
+   */
+  projectAlive?: boolean;
+}
+
 // Health IS a top-level field on /containers/json (docker 29 / API 1.55).
 // Strictly better than a no-cors probe, which can't tell a 502 error page from
 // success. The probe is kept ONLY for @file routes with no container.
-export function statusOf(container?: Container | null, _kind?: string): Status {
+export function statusOf(
+  container?: Container | null,
+  _kind?: string,
+  ctx: StatusContext = {},
+): Status {
   if (!container) return 'unknown'; // resolved by probe if routed
   // Health is an OBJECT here - {Status, FailingStreak} - not a string, so
   // comparing it directly to 'healthy' was always false and every container
@@ -1245,7 +1405,7 @@ export function statusOf(container?: Container | null, _kind?: string): Status {
   // called every stopped postgres/redis/garage "down" while a stopped nginx (no
   // healthcheck, Health.Status "none") correctly came out "stopped": the exact
   // split observed on this box. Health is only meaningful while it is running.
-  if (typeof s === 'string' && s !== 'running') return stateToStatus(s, container.Status);
+  if (typeof s === 'string' && s !== 'running') return stateToStatus(s, container.Status, ctx);
 
   // Health is an OBJECT here - {Status, FailingStreak} - not a string, so
   // comparing it directly to 'healthy' was always false and every container
@@ -1257,7 +1417,7 @@ export function statusOf(container?: Container | null, _kind?: string): Status {
   // to 'running' directly was dead whenever the object shape the type permits
   // arrived - every container would have reported 'down'. Narrow first, and say
   // 'unknown' rather than 'down' when there is genuinely nothing to read.
-  if (typeof s === 'string') return stateToStatus(s, container.Status);
+  if (typeof s === 'string') return stateToStatus(s, container.Status, ctx);
   return 'unknown';
 }
 
@@ -1272,12 +1432,22 @@ export function exitCodeOf(statusText?: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-export function stateToStatus(state: string, statusText?: string): Status {
+export function stateToStatus(
+  state: string,
+  statusText?: string,
+  ctx: StatusContext = {},
+): Status {
   switch (state) {
     case 'running':
       return 'up';
     // Turned off on purpose. `created` never started, `paused` was suspended by
     // hand, and `exited` is judged by its code just below.
+    //
+    // Neither can ever be `dormant`, and that is the parser's doing rather than
+    // a policy: "Created" and "Up 2 hours (Paused)" carry no elapsed-since-stop
+    // time at all, so there is no age to weigh. Age is the whole of the dormancy
+    // claim, and a claim with no evidence behind it is the guess this file
+    // refuses everywhere else.
     case 'created':
     case 'paused':
       return 'stopped';
@@ -1286,6 +1456,31 @@ export function stateToStatus(state: string, statusText?: string): Status {
       // Unreadable status text is the only ambiguous case: don't invent a
       // failure, but don't claim it stopped cleanly either.
       if (code == null) return 'unknown';
+
+      // A one-shot that ran to completion. Ahead of the dormancy test on
+      // purpose: `done` is a statement about what this container was FOR, and
+      // age cannot make it less true. Dormancy is a statement about something
+      // that was supposed to keep running and no longer does - applying it to a
+      // task that was never supposed to keep running is a category error, and it
+      // would relabel a perfectly good `keycloak-db-init` as wreckage the moment
+      // its project had been off for a fortnight.
+      if (code === 0 && ctx.oneShot) return 'done';
+
+      // Long gone, and nothing of its project is left running.
+      //
+      // BOTH HALVES ARE REQUIRED, and the pairing is the rule. Age alone would
+      // swallow `prometheus`, parked deliberately; abandonment alone would
+      // swallow a crash that happened four minutes after somebody stopped the
+      // rest of the project by hand. And note what this test does NOT look at:
+      // the exit code. `monorepo-inherited-channellink-1` exited 255 and is
+      // dormant; a container that exits 255 today is `down` and shouts, in any
+      // project, however dead the rest of it is. "It failed a while ago so it
+      // probably does not matter" is not a thing this may ever come to mean.
+      const ago = exitedAgoSecs(statusText);
+      if (ago != null && ago >= DORMANT_AFTER_SECONDS && ctx.projectAlive === false) {
+        return 'dormant';
+      }
+
       // 143 = 128+SIGTERM, i.e. exactly what `docker stop` sends. Landing on 0
       // vs 143 is a property of the application's shutdown code, not of whether
       // anything went wrong - redis handles SIGTERM and exits 0, the Keycloak
@@ -1323,6 +1518,7 @@ export function merge(
   const names = projectNames(containers);
   // Whole-list facts, so they are resolved once here rather than re-derived per node.
   const oneShots = declaredOneShots(containers);
+  const alive = livingProjects(containers);
   const stackRoot = stackRootFrom(containers);
 
   // devnet ONLY. Traefik runs --providers.docker.network=devnet so every
@@ -1417,6 +1613,7 @@ export function merge(
         container: canonical.container,
         names,
         oneShots,
+        alive,
         stackRoot,
         placement,
         kind: canonical.container ? 'routed' : 'orphan-route',
@@ -1450,7 +1647,7 @@ export function merge(
   // visually, so honesty costs less than the blind spot did.
   for (const c of containers) {
     if (claimed.has(c.Id)) continue;
-    nodes.push(makeNode({ route: null, host: null, container: c, names, oneShots, stackRoot, placement, kind: 'unrouted' }));
+    nodes.push(makeNode({ route: null, host: null, container: c, names, oneShots, alive, stackRoot, placement, kind: 'unrouted' }));
   }
 
   return nodes;
@@ -1472,6 +1669,15 @@ interface MakeNodeArgs {
    */
   oneShots?: Set<string>;
   /**
+   * Compose projects with something running (`livingProjects`). The third
+   * whole-list fact, and it exists for the same reason as `oneShots`: a
+   * container cannot tell you whether its SIBLINGS are up, only the full list
+   * can. An empty set therefore has to mean "nothing is running", not "nobody
+   * asked", so callers that do not resolve it get `undefined` for
+   * `projectAlive` rather than a false one - see StatusContext.
+   */
+  alive?: Set<string>;
+  /**
    * Where this repository is checked out on the host, or null if no running
    * container reports it. The other whole-list fact, resolved once in merge()
    * for the same reason as `oneShots`: it comes from a bind mount on ONE
@@ -1491,6 +1697,7 @@ function makeNode({
   names = new Map(),
   aliases = [],
   oneShots = new Set(),
+  alive,
   stackRoot = null,
   placement = null,
 }: MakeNodeArgs): PortalNode {
@@ -1512,6 +1719,17 @@ function makeNode({
   // why allPorts() - which calls classify() and nothing else - disagreed with
   // this function about which system a labelled container was in.
   const group = cls.group;
+
+  // The two whole-list facts the classifier needs, resolved here so the node
+  // literal below reads as one thing. `completesOnPurpose` is the same lookup and
+  // is kept as its own field because the service dialog prints it as prose.
+  const completesOnPurpose = oneShots.has(
+    `${L['com.docker.compose.project']}/${L['com.docker.compose.service']}`,
+  );
+  // `undefined`, not `false`, when merge() did not pass a set: not knowing
+  // whether anything of a project is running must never read as knowing that
+  // nothing is. See StatusContext.projectAlive.
+  const projectAlive = container && alive ? alive.has(projectKeyOf(container)) : undefined;
 
   const node: PortalNode = {
     id: route ? route.name : `container:${container?.Id?.slice(0, 12)}`,
@@ -1560,13 +1778,11 @@ function makeNode({
         }
       : null,
     ports: portsOf(container),
-    status: statusOf(container, kind),
+    status: statusOf(container, kind, { oneShot: completesOnPurpose, projectAlive }),
     serviceType: 'other',
     volumes: volumesOf(container),
     dependsOn: dependsOnOf(container),
-    completesOnPurpose: oneShots.has(
-      `${L['com.docker.compose.project']}/${L['com.docker.compose.service']}`,
-    ),
+    completesOnPurpose,
     uptimeSecs: parseUptime(container?.Status),
     icon: '',
     desc: '',

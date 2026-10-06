@@ -11,7 +11,7 @@ import {
   Database, BarChart3, Target, ScrollText, Waypoints, Container as ContainerIcon,
   Waves, BookOpen, Boxes, MemoryStick, HardDrive, Globe, Wrench, Plug, Gauge,
   Server, Box, Activity, Layers,
-  CircleCheck, LoaderCircle, CircleX, CircleHelp, CirclePause,
+  CircleCheck, LoaderCircle, CircleX, CircleHelp, CirclePause, CheckCheck, CircleDashed,
   type LucideIcon,
 } from 'lucide-react';
 import type { PortalNode, Status, ServiceType } from './discover';
@@ -85,6 +85,15 @@ export const STATUS_ICON: Record<Status, LucideIcon> = {
   // Pause, not a cross: the glyph has to read "someone switched this off",
   // because form (not colour) is what carries status here.
   stopped: CirclePause,
+  // The only two glyphs in this table that are not circles, and deliberately so.
+  // `done` and `dormant` share their COLOUR with `up` and `stopped` - the palette
+  // has five status tokens and no sixth may be invented - so the whole of the
+  // distinction has to be carried by form, which is the rule this table already
+  // works to. A double tick reads "finished" the way no circled mark does, and a
+  // dashed ring reads "the outline of something that is not there": present on
+  // the page, nothing running inside it.
+  done: CheckCheck,
+  dormant: CircleDashed,
   unknown: CircleHelp,
 };
 
@@ -110,10 +119,21 @@ export const STATUS_VAR: Record<Status, string> = {
   // with the things that are actually broken.
   up: '--st-up-fg', starting: '--st-warn-fg', down: '--st-down-fg',
   stopped: '--st-off-fg', unknown: '--st-unknown-fg',
+  // `done` is a SUCCESS - a one-shot that ran to completion is the happy path,
+  // not a degraded one - so it takes the same green as `up`. `dormant` takes the
+  // quietest token there is, for the same reason `stopped` does and more so.
+  done: '--st-up-fg', dormant: '--st-off-fg',
 };
 
-const STATUS_LABEL: Record<Status, string> = {
+export const STATUS_LABEL: Record<Status, string> = {
   up: 'Up', starting: 'Starting', down: 'Down', stopped: 'Stopped', unknown: 'Unknown',
+  // "Done", not "Completed" or "Finished": the shortest word that means "ran and
+  // ended well", and this label has to fit a filter chip in a row of seven.
+  // "Dormant", not "Idle" (which implies running and unused, the opposite),
+  // "Stale" (already this app's word for an old backup and an old poll) or
+  // "Abandoned" (a judgement about the reader, not a fact about the container).
+  // Dormant says the true thing: not running, not broken, wakes if you start it.
+  done: 'Done', dormant: 'Dormant',
 };
 
 // Status glyph - coloured by the reserved status palette, never colour-alone

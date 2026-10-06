@@ -41,6 +41,12 @@
 .status-pill[data-state="starting"] { border-color: color-mix(in oklab, var(--st-warn) 40%, transparent); }
 .status-pill[data-state="down"]     { border-color: color-mix(in oklab, var(--st-down) 45%, transparent); }
 .status-pill[data-state="unknown"]  { border-color: var(--line-strong); }
+/* `stopped`, `done` and `dormant` keep the neutral frame. The frame is an
+   accent on a signal, and none of the three is one - a finished one-shot least
+   of all, since a green ring around "Done" would read as "running". */
+.status-pill[data-state="stopped"],
+.status-pill[data-state="done"],
+.status-pill[data-state="dormant"] { border-color: var(--line-strong); }
 
 .detail-lede { color: var(--fg-muted); font-size: var(--fs-md); max-width: 760px; margin: var(--sp-3) 0 var(--sp-6);
   line-height: var(--lh-md); }
