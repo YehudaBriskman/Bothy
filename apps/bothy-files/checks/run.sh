@@ -130,12 +130,25 @@ echo; echo "── backlinks: the graph, and what must not be in it ────
 python3 checks/links_index.py || fail=1
 
 echo
-echo "── /tree?path= scopes, and cannot leave the root ────────────"
-# `path` was accepted and silently ignored: a client asking for a subtree got
+echo "── /tree?path= names ONE folder, and cannot leave the root ───"
+# `path` was accepted and silently ignored once: a client asking for a subtree got
 # the whole root and no way to tell. It names a DIRECTORY, which resolve() does
-# not answer for, so listing() does its own containment check - and that is the
-# half worth asserting.
+# not answer for, so safepath.resolve_dir() checks the type as well as the
+# containment - and that is the half worth asserting.
 python3 checks/tree_scope.py || fail=1
+
+echo; echo "── no endpoint returns an unbounded recursive listing ────────"
+# /tree walked a whole root and stopped at 4,000 of 19,273 files, which hid
+# ~15,000 of them from everything - the explorer, the search, the reader's index
+# and wikilink resolution. It lists ONE DIRECTORY now, uncapped. That property
+# comes back by accident ("I just need the whole tree for this one feature"), so
+# every GET is asked here: a listing is one level, and the two endpoints that DO
+# walk (/find, /docs) carry a reported bound on MATCHES rather than a cap on rows.
+#
+# Runs after tree_scope.py because it is the wider claim: that one is about `path`
+# being honoured, this one about depth, containment at every level of a lazy walk,
+# and the bounds that replaced the cap.
+python3 checks/lazy_tree.py || fail=1
 
 echo; echo "── does anything SERVED look like a credential? ─────────────"
 # Baseline diff, not "fail on any hit" - the detector flags 40 files and the top
