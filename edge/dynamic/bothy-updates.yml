@@ -9,7 +9,7 @@
 # anywhere, INCLUDING INSIDE A COMMENT, voids the whole file. `just verify` check
 # 5b catches it; apps/bothy-ops/checks/wiring_updates.py does too.
 #
-# ── five exact Paths, each with its method and its role ────────────────────
+# ── seven exact Paths, each with its method and its role ───────────────────
 #
 #   GET  /-/api/updates/status    viewer    every component in updates.toml: pinned,
 #                                           running and available versions, drift,
@@ -26,12 +26,25 @@
 #   POST /-/api/updates/unpause   OPERATOR  {component}. bothy-ops writes ONE
 #                                           unpause file into the spool; the host
 #                                           clears the automatic-update pause
+#   POST /-/api/updates/discover  OPERATOR  {}. bothy-ops writes ONE discover file
+#                                           into the spool; the HOST runs discovery
+#                                           (read-only, and rate-limited there)
+#   POST /-/api/updates/autorun   OPERATOR  {dry_run}. bothy-ops writes ONE autorun
+#                                           file into the spool; the HOST's night
+#                                           job decides, under all its own gates
 #
 # The reads are `viewer`: versions of public images and the steps of a job - the
-# same facts About & health already shows - and they change nothing. The request
-# and the unpause are `operator`, like every other verb that acts on something running
+# same facts About & health already shows - and they change nothing. The four
+# writes are `operator`, like every other verb that acts on something running
 # (bothy-ops.yml). Path() matches the path alone, so ?component= and ?id= reach
 # the service, which accepts exactly one parameter each.
+#
+# WHY DISCOVER AND AUTORUN ARE WRITES, not reads (2026-10-06). Neither deploys
+# anything by itself, and both were tempting as `viewer`. Discovery REWRITES
+# available.json and every plan file - the facts the whole page is drawn from -
+# and spends a registry quota that is per public IP; the night job runs the gate
+# chain that ends in a deploy the host chooses. A `viewer` gate on either would let
+# anyone who can read the page change what it says, so they sit with the request.
 #
 # `Method(...)` is part of every rule: a POST never reaches a read, and a GET
 # never reaches the request or the unpause.
@@ -76,6 +89,20 @@ http:
 
     bothy-updates-unpause:
       rule: "Path(`/-/api/updates/unpause`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]
+
+    bothy-updates-discover:
+      rule: "Path(`/-/api/updates/discover`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]
+
+    bothy-updates-autorun:
+      rule: "Path(`/-/api/updates/autorun`) && Method(`POST`)"
       entryPoints: [web]
       priority: 110
       service: bothy-updates

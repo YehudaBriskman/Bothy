@@ -40,6 +40,7 @@ old image is not put back: the result is `failed`, and a person decides.
 from __future__ import annotations
 
 import fcntl
+import importlib
 import os
 import re
 import shutil
@@ -87,6 +88,12 @@ def run_spool(cfg: Config | None = None, *, log=print) -> int:
         done = 0
         while done < cfg.max_jobs_per_run:
             _auto_hook(cfg, "drain_unpause")
+            # The two asks (updater/asks.py). Discovery first: a "check now"
+            # followed by an Update must see the plan the check wrote, and the
+            # night job picks from those plans too. Each may leave ONE update
+            # request behind, which this loop then finds on the same turn.
+            _hook(cfg, "asks", "drain_discover")
+            _hook(cfg, "asks", "drain_autorun")
             reqs, junk = spool.entries(cfg.spool)
             for n in junk:
                 spool.remove(cfg.spool, n)
@@ -103,19 +110,27 @@ def run_spool(cfg: Config | None = None, *, log=print) -> int:
         os.close(fd)
 
 
-def _auto_hook(cfg: Config, what: str) -> None:
-    """Step 7's two calls into the drain loop (updater/auto.py): claim unpause
-    requests, and pause a component the moment one of its jobs rolls back or
-    fails. A fault in either is audited and never stops an update or a rollback."""
+def _hook(cfg: Config, module: str, what: str) -> None:
+    """One call into the drain loop from a sibling module, failing softly.
+
+    Step 7's two (updater/auto.py: claim unpause requests, and pause a component the
+    moment one of its jobs rolls back or fails) and 2026-10-06's two
+    (updater/asks.py: run discovery, run the night job). A fault in any of them is
+    audited and never stops an update or - which is the point - a rollback.
+    """
     try:
-        from . import auto
-        getattr(auto, what)(cfg)
+        mod = importlib.import_module(f".{module}", __package__)
+        getattr(mod, what)(cfg)
     except Exception as e:  # noqa: BLE001
         try:
-            hostio.append_line(cfg.audit_file, "\t".join((iso(), "-", "-", "auto", what, "failed",
+            hostio.append_line(cfg.audit_file, "\t".join((iso(), "-", "-", module, what, "failed",
                                                           f"{type(e).__name__}: {e}"[:300])))
         except OSError:
             pass
+
+
+def _auto_hook(cfg: Config, what: str) -> None:
+    return _hook(cfg, "auto", what)
 
 
 def _audit_junk(cfg: Config, name: str) -> None:
