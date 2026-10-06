@@ -62,10 +62,30 @@ python3 - "$@" <<'PY'
 import collections
 import pathlib
 import re
+import subprocess
 import sys
 
 GATES = ('sso-viewer', 'sso-editor', 'sso-operator')
 DYNAMIC = pathlib.Path('edge/dynamic')
+
+
+def dynamic_yml():
+    """The COMMITTED .yml files, which is what every document counts.
+
+    Not `DYNAMIC.glob('*.yml')`. That directory also holds `bothy-prom.yml`,
+    which `scripts/gen-bothy-prom-route.sh` generates and `.gitignore` excludes
+    because it carries a credential - and it contains a router of its own. So a
+    glob counts 11 files and 53 routers on any box that has ever generated it,
+    while the documents say 10 and 52 and mean `committed`.
+
+    The result was a check that PASSED IN CI - a fresh clone has no generated
+    file - and failed on every real box. That is the worst shape a check can
+    have: green where the thing it guards does not exist, red where it does, and
+    read as drift in the document rather than a bug in the counting.
+    """
+    out = subprocess.run(['git', 'ls-files', '-z', 'edge/dynamic/*.yml'],
+                         capture_output=True, text=True, check=True).stdout
+    return sorted(pathlib.Path(p) for p in out.split('\0') if p)
 
 # Every document that carries the two counts tables. All of them must, and all
 # of them must agree - see the header for what happened when only one did.
@@ -165,7 +185,7 @@ def routers_of(text):
 live = collections.defaultdict(collections.Counter)
 host_rules = []
 defines = []
-for path in sorted(DYNAMIC.glob('*.yml')):
+for path in dynamic_yml():
     if path.name.endswith('.example.yml'):
         continue  # a template is not a route; it ships commented out on purpose
     text = path.read_text(encoding='utf-8')
@@ -246,7 +266,7 @@ totals = {
     'gated': sum(by_role.values()),
     'files': len(live),
     'routers': sum(len(routers_of(re.sub(r'#.*', '', p.read_text(encoding='utf-8'))))
-                   for p in sorted(DYNAMIC.glob('*.yml'))
+                   for p in dynamic_yml()
                    if not p.name.endswith('.example.yml')),
 }
 for path, pattern, kinds in STATEMENTS:
