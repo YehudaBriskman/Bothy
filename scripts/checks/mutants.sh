@@ -348,6 +348,27 @@ mutant "the devnet recipe offers an isolated backend to copy" \
   'name. This is the correct default for exporters and sidecars - `bothy-ops`' \
   -- bash scripts/checks/doc-facts.sh
 
+# The foot-gun warnings. `consequenceOf` is an exact-match lookup on the live
+# container name and a miss FAILS OPEN - no warning, no error, just a missing
+# sentence before an action that takes the page away. This mutation is the rename
+# that moves `container_name:` and forgets this map: the key count is unchanged, so
+# only the half that holds every key to the compose files can catch it. Anchored on
+# the map line, not on the paragraph above it.
+mutant "a SELF key stops naming a live container" \
+  apps/bothy-web/web/src/lib/actions.ts \
+  "  'bothy-socket-read': 'Bothy reads Docker" \
+  "  'bothy-control-socket-read': 'Bothy reads Docker" \
+  -- bash scripts/checks/doc-facts.sh
+
+# And the count itself, which until 2026-10-06 was uncheckable: the map held nine
+# dead migration aliases against eight live keys, so the guide's "Eight" described
+# the box correctly and the map not at all.
+mutant "the guide miscounts the foot-gun warnings" \
+  docs/guide/the-console.md \
+  '**Foot-gun warnings.** Eight containers carry a sentence' \
+  '**Foot-gun warnings.** Nine containers carry a sentence' \
+  -- bash scripts/checks/doc-facts.sh
+
 # `just urls` is the authority four documents defer to instead of keeping their
 # own port table. Moving one port there is both failures at once: the published
 # port is now unlisted, and the listed port is now published by nothing.

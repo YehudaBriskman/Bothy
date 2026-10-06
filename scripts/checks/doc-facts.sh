@@ -85,13 +85,47 @@ _ls = subprocess.run(['git', 'ls-files', '-z', 'edge/dynamic/*.yml'],
                      capture_output=True, text=True, check=True).stdout
 dynamic_files = sorted(pathlib.PurePosixPath(p).name for p in _ls.split('\0') if p)
 
+# The foot-gun warnings: the SELF map in apps/bothy-web/web/src/lib/actions.ts,
+# whose KEYS are live Docker container names and whose values are the sentence the
+# console says before the act. Counting it was pointless until 2026-10-06, because
+# nine of its seventeen keys were migration aliases of containers that no longer
+# exist - so the guide's "Eight" was right about the box and could not be held to
+# the map. With the aliases gone the two agree, and the count is worth holding for
+# the reason the map's own comment gives: a lookup MISS fails open, so a key that
+# stops matching deletes a warning silently, and the number in the guide is the
+# only place a reader is told how many of these sentences the console has.
+_self_src = pathlib.Path('apps/bothy-web/web/src/lib/actions.ts').read_text(encoding='utf-8')
+_self = re.search(r'^const SELF: Record<string, string> = \{\n(.*?)^\};', _self_src,
+                  re.M | re.S)
+self_keys = []
+if not _self:
+    fail('apps/bothy-web/web/src/lib/actions.ts no longer declares `const SELF: '
+         'Record<string, string>` - the map this check counts was renamed or moved, '
+         'so nothing holds the guide to it')
+else:
+    self_keys = re.findall(r"^  '?([A-Za-z0-9][\w.-]*)'?:", _self.group(1), re.M)
+    if not self_keys:
+        fail('the SELF map in apps/bothy-web/web/src/lib/actions.ts parsed as EMPTY - '
+             'its entries are not one-per-line any more, and a count of nothing would '
+             'pass this check by never matching a key')
+
 TRUTH = {
     'cluster actions': len(catalog['actions']),
     'edge/dynamic files': len(dynamic_files),
+    'foot-gun warnings': len(self_keys),
 }
+
+# the-console.md spells its number as a word, because the paragraph it sits in is
+# an argument about two kinds of refusal and "8 containers carry a sentence" reads
+# like a changelog. Every other document here uses a digit. Both are accepted:
+# editing English to suit a regex is how a held sentence becomes a worse sentence.
+WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7,
+         'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12}
 
 # (document, key into TRUTH, regex with exactly one capture group)
 STATEMENTS = (
+    ('docs/guide/the-console.md', 'foot-gun warnings',
+     r'\*\*Foot-gun warnings\.\*\* (\w+) containers carry a sentence'),
     ('SECURITY.md', 'cluster actions',
      r'\*\*(\d+) cluster actions\*\* with a namespaced token'),
     ('README.md', 'cluster actions',
@@ -111,13 +145,21 @@ for path, key, pattern in STATEMENTS:
         fail('%-22s no longer contains the sentence this check holds (/%s/) - '
              'it was reworded or deleted, so its number is unguarded again'
              % (path, pattern))
-    elif len(matches) > 1:
+        continue
+    if len(matches) > 1:
         fail('%-22s states "%s" %d times; the anchor must match exactly one '
              'sentence or a stale second copy hides behind a correct first'
              % (path, key, len(matches)))
-    elif int(matches[0]) != TRUTH[key]:
+        continue
+    said = matches[0]
+    n = int(said) if said.isdigit() else WORDS.get(said.lower())
+    if n is None:
+        fail('%-22s states "%s" as "%s", which is neither a digit nor a word this '
+             'check can read as a number - use a digit, or add the word to WORDS'
+             % (path, key, said))
+    elif n != TRUTH[key]:
         fail('%-22s says %s %s; the tree has %d'
-             % (path, matches[0], key, TRUTH[key]))
+             % (path, said, key, TRUTH[key]))
     else:
         print('PASS  %-22s %-20s %d' % (path, key, TRUTH[key]))
 
@@ -143,6 +185,7 @@ INLINE_NETS_RE = re.compile(r'^    networks:\s*\[([^\]]*)\]')
 NAME_RE = re.compile(r'^    container_name:\s*(\S+)')
 
 on_devnet = {}
+declared_names = set()
 for path in sorted(pathlib.Path('.').glob('**/compose*.yml')):
     if any(part in ('node_modules', '.git') for part in path.parts):
         continue
@@ -151,6 +194,7 @@ for path in sorted(pathlib.Path('.').glob('**/compose*.yml')):
     nets = set()
 
     def flush():
+        declared_names.update(names)
         for n in names or ([service] if service else []):
             on_devnet[n] = on_devnet.get(n, False) or ('devnet' in nets)
 
@@ -214,6 +258,35 @@ for doc in ('docs/ARCHITECTURE.md', 'docs/guide/services.md'):
             fail('%-22s devnet recipe offers `%s` as an example to copy, and it '
                  'is deliberately NOT on devnet - see SECURITY.md section 2'
                  % (doc, name))
+
+# ── and the number counted above counts containers that exist ───────────────
+#
+# The count held against the-console.md is only a fact about the box if every key
+# in SELF names a container something here declares. Until 2026-10-06 nine of the
+# seventeen did not - the pre-2026-09 container names, kept deliberately through
+# three renames and then kept past their own stated drop condition - and that is
+# precisely why the number could not be checked: the map counted ghosts.
+#
+# This is the other direction of the same failure, and the dangerous one.
+# `consequenceOf` is an exact-match lookup and a miss returns
+# {selfAffecting: false}: no warning, no error, just a missing sentence before an
+# action that can take the page away. A rename that moves `container_name:` and
+# forgets this map does not break anything loudly; it deletes a guard. Nothing
+# held it before - grants.py holds guard.SEVERING's four names to compose, and
+# four of these eight are not in that list at all.
+#
+# It belongs in this file because the keys and the count are one fact: a number in
+# a document, and the thing it counts. Compose is already parsed above for devnet.
+if self_keys:
+    dead = [n for n in self_keys if n not in declared_names]
+    for name in dead:
+        fail('actions.ts\'s SELF warns about `%s` and no compose file in this tree '
+             'declares a container by that name - an exact-match lookup that can '
+             'never match is a warning deleted, and the count above counted it'
+             % name)
+    if not dead:
+        print('PASS  %-22s %-20s %s' % ('actions.ts (SELF)', 'all keys declared',
+                                        ' '.join(sorted(self_keys))))
 
 # ── `just urls` is the port authority, so it has to be right ────────────────
 #
@@ -300,7 +373,9 @@ if fails:
     print('describes it did not - which here means a reader is told the blast')
     print('radius is smaller than it is, or handed a recipe that widens it.')
     sys.exit(1)
-print('ok - %d cluster actions, %d edge/dynamic files, %d published ports, and '
-      'every document that states them agrees'
-      % (TRUTH['cluster actions'], TRUTH['edge/dynamic files'], len(published)))
+print('ok - %d cluster actions, %d edge/dynamic files, %d foot-gun warnings (each '
+      'naming a container this tree declares), %d published ports, and every '
+      'document that states them agrees'
+      % (TRUTH['cluster actions'], TRUTH['edge/dynamic files'],
+         TRUTH['foot-gun warnings'], len(published)))
 PY

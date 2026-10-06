@@ -184,44 +184,49 @@ export interface Consequence {
 // warning, no error, just a missing sentence. So a key that stops matching does
 // not break loudly; it deletes the guard.
 //
-// WHY THE SOCKET PROXY HAS TWO KEYS (#97). It is being renamed
-// portal-socket-proxy -> bothy-socket-proxy, and this SPA is a BUILT ARTIFACT.
-// `container_name` is immutable on a running container, so the daemon carries
-// the old name until somebody force-recreates it, and a browser carries the
-// previously-built bundle until it reloads. Those two clocks are independent,
-// which means either single key leaves a window where the live name is not the
-// key and the warning silently vanishes - before the one action that blinds
-// every page in the product. Both keys cost a line and close the window in both
-// directions. Drop 'portal-socket-proxy' once a rebuilt bothy-web image has
-// shipped AND the container has been recreated.
+// THE NINE MIGRATION ALIASES ARE GONE (2026-10-06), and the reason they were
+// here is worth keeping, because the next rename needs it. A rename has TWO
+// INDEPENDENT CLOCKS: `container_name` is immutable on a running container, so
+// the daemon carries the old name until something force-recreates it, and this
+// SPA is a BUILT ARTIFACT, so a browser carries the previously-built bundle
+// until it reloads. Either single key therefore leaves a window in which the
+// live name is not a key and the sentence silently vanishes - before the one
+// action that blinds every page in the product. So both names were carried
+// through #97 (portal-socket-proxy -> bothy-socket-proxy), through the 2026-09
+// renames (portal-next -> bothy-web, portal-files -> bothy-files) and through
+// the 2026-09 consolidation (bothy-control + bothy-kube -> bothy-ops,
+// bothy-config -> bothy-files, bothy-socket-proxy + bothy-control-socket-read ->
+// bothy-socket-read), each to be dropped once the new images had shipped and the
+// old containers were gone.
 //
-// THE SAME TWO-CLOCK WINDOW, AGAIN (2026-09): portal-next -> bothy-web and
-// portal-files -> bothy-files. Same reasoning, same cost, same drop condition.
+// Both halves of that condition are now readable off the tree instead of
+// remembered. No compose file declares any of those nine names - not one is a
+// `container_name:` anywhere - and scripts/doctor.sh has reported seven of them
+// as RED ("retired 2026-09; remove it") since the consolidation, which `just
+// doctor strict` gates the install job on. So a box still answering to one is
+// already failing its own health sweep: these keys were not holding a window
+// open, they were nine of seventeen keys that could never fire. (`bothy-kube`
+// lives on as the CLUSTER ServiceAccount's name - k8s/rbac/bothy-kube.yaml says
+// why - but this map keys on Docker container names, and no container has that
+// name.)
 //
-// AND AGAIN, the consolidation (2026-09): bothy-control + bothy-kube became
-// bothy-ops, bothy-config merged into bothy-files, and bothy-socket-proxy +
-// bothy-control-socket-read became bothy-socket-read. The old keys stay for the
-// same window - a not-yet-migrated box still runs those containers - and are
-// dropped once the new images have shipped and the old containers are removed.
+// Which is also what makes the map countable at last: nine ghosts against eight
+// live keys is why docs/guide/the-console.md's "Eight containers carry a
+// sentence" could not be held to the map it describes. scripts/checks/doc-facts.sh
+// now holds both ends - that number, and that every key below names a container
+// some compose file in this tree declares, which is the only mechanical guard
+// against the fails-open paragraph above.
+//
 // Stopping the ACTION tier or its proxies is also refused outright by
 // bothy-ops' guard.SEVERING; the sentence here is what the operator reads first.
 // checks/declared-actions.mjs asserts every key below still warns.
 const SELF: Record<string, string> = {
   traefik: 'Bothy is served through Traefik. Stopping it takes this page down, and the way back is a terminal.',
   'bothy-web': 'This page is served by bothy-web. Stopping it takes this page down.',
-  'portal-next': 'This page is served by this container. Stopping it takes this page down.',
-  'bothy-socket-proxy': 'Bothy reads Docker through this. Stopping it blinds every page that shows what is running.',
-  'portal-socket-proxy': 'Bothy reads Docker through this. Stopping it blinds every page that shows what is running.',
   'bothy-files': 'Bothy Files reads and writes through this. Stopping it leaves the editor unable to load or save.',
-  'portal-files': 'Bothy Files reads and writes through this. Stopping it leaves the editor unable to load or save.',
-  'bothy-config': 'Settings writes configuration through this.',
   'bothy-socket-read': 'Bothy reads Docker through this, and every action begins by inspecting through it. Stopping it blinds every page that shows what is running.',
   'bothy-socket-write': 'Every container action goes through this. Stopping it leaves Bothy unable to start anything again, including this.',
   'bothy-ops': 'Container and cluster actions run through this. Stopping it removes every action button, including the one that would start it again.',
-  'bothy-control': 'Container actions run through this. Stopping it removes every action button, including the one that would start it again.',
-  'bothy-control-socket-read': 'Every action begins by inspecting through this. Stopping it leaves actions unable to answer.',
-  'bothy-control-socket-write': 'Every container action goes through this. Stopping it leaves Bothy unable to start anything again, including this.',
-  'bothy-kube': 'Cluster actions run through this. Stopping it removes every cluster action button.',
   keycloak: 'Keycloak issues the session you are using. Stopping it means nobody can sign in again, including you.',
   'oauth2-proxy': 'Every role check goes through oauth2-proxy. Stopping it locks the editor and settings tiers.',
 };

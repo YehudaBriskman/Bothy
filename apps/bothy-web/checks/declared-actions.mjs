@@ -255,19 +255,22 @@ console.log('\n── nothing declared changes nothing ────────�
     withDeclared(input, []) === input, true);
 }
 
-console.log('\n── the self-affecting warning survives the rename ─────');
+console.log('\n── the self-affecting warning, on every live name ──────');
 
 // consequenceOf() is an exact-match lookup on the LIVE container name and a miss
 // FAILS OPEN - no warning, no error. The 2026-09 rename (portal-next -> bothy-web,
 // portal-files -> bothy-files) changed exactly those keys, and so did the
 // consolidation (bothy-control/bothy-kube -> bothy-ops, bothy-config -> bothy-files,
-// bothy-socket-proxy/bothy-control-socket-read -> bothy-socket-read). Assert the
-// new names and the legacy ones a not-yet-migrated box may still carry.
+// bothy-socket-proxy/bothy-control-socket-read -> bothy-socket-read).
+//
+// The nine legacy names were asserted here too, for the box that had not migrated
+// yet. They went with the SELF keys on 2026-10-06: no compose file declares any of
+// them, and doctor.sh calls seven of them RED on sight, so there is no such box
+// that is not already failing its own health sweep. What remains is the live set,
+// and scripts/checks/doc-facts.sh is what now holds it to the compose files - this
+// loop proves each key WARNS, that one proves each key still names something.
 for (const name of ['bothy-web', 'bothy-files', 'bothy-ops', 'bothy-socket-read',
-                    'bothy-socket-write', 'traefik',
-                    'portal-next', 'portal-files', 'bothy-socket-proxy', 'portal-socket-proxy',
-                    'bothy-control', 'bothy-control-socket-read', 'bothy-control-socket-write',
-                    'bothy-kube', 'bothy-config']) {
+                    'bothy-socket-write', 'traefik', 'keycloak', 'oauth2-proxy']) {
   check(`stop ${name} warns before it takes the page down`,
     consequenceOf(name, 'stop').selfAffecting, true);
   check(`restart ${name} warns too`, consequenceOf(name, 'restart').selfAffecting, true);
