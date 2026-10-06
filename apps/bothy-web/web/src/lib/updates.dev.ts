@@ -236,6 +236,14 @@ export async function unpauseMock(component: string): Promise<UnpauseAnswer> {
 
 const DISCOVER_MIN = 300;
 
+/** The age of available.json, which is what the rate limit is computed from in the
+ *  browser AND in bothy-ops. `asks = 'fresh'` moves THIS, not just the record, or the
+ *  mock would draw an enabled Check that the real service answers with a 429. */
+function discoveredAgo(): number {
+  if (read(OUTCOME_KEY) === 'stale') return 86400 + 3600;
+  return read(ASKS_KEY) === 'fresh' ? 60 : 3600 * 2 + 780;
+}
+
 function asked(): { discover?: number; autorun?: number; dryRun?: boolean } {
   try { return JSON.parse(read(ASKED_KEY) ?? '{}') as { discover?: number; autorun?: number; dryRun?: boolean }; }
   catch { return {}; }
@@ -247,12 +255,16 @@ function remember(patch: object): void {
 
 const ANSWERED_MS = 4000;
 
-function asksOf(): Asks {
+// `discoveredAgo` is the age of available.json, and the seeded `ok` record is dated
+// from the SAME moment: a successful check IS the discovery, and a mock where the two
+// disagree reads as a defect in the page rather than as two facts. They part company
+// only where they really do - a refused or failed check has a time and moved nothing.
+function asksOf(discoveredAgo: number): Asks {
   const forced = read(ASKS_KEY);
   const a = asked();
   const discoverWaiting = !!a.discover && Date.now() - a.discover < ANSWERED_MS;
   const autorunWaiting = !!a.autorun && Date.now() - a.autorun < ANSWERED_MS;
-  let discover: AskRecord | null = { at: ago(forced === 'fresh' ? 60 : 3600), askedBy: 'you@example.com',
+  let discover: AskRecord | null = { at: ago(discoveredAgo), askedBy: 'you@example.com',
     outcome: 'ok', reason: '3 with a newer version, 1 drifting, 1 unchecked', tookMs: 4200 };
   if (forced === 'refused') {
     discover = { ...discover, outcome: 'refused',
@@ -284,7 +296,7 @@ function asksOf(): Asks {
 export async function discoverMock(): Promise<AskAnswer> {
   await new Promise((r) => setTimeout(r, 300));
   if (read(REQUEST_KEY) === 'no-operator') refuse(403, 'Forbidden', false);
-  const a = asksOf();
+  const a = asksOf(discoveredAgo());
   if (a.discoverQueued) refuse(409, 'a discovery is already waiting for the host', true);
   const age = read(ASKS_KEY) === 'fresh' ? 60 : 3600;
   if (age < DISCOVER_MIN) {
@@ -298,7 +310,7 @@ export async function discoverMock(): Promise<AskAnswer> {
 export async function autorunMock(dryRun: boolean): Promise<AutorunAnswer> {
   await new Promise((r) => setTimeout(r, 300));
   if (read(REQUEST_KEY) === 'no-operator') refuse(403, 'Forbidden', false);
-  if (asksOf().autorunQueued) refuse(409, 'a night-job run is already waiting for the host', true);
+  if (asksOf(discoveredAgo()).autorunQueued) refuse(409, 'a night-job run is already waiting for the host', true);
   const job = current();
   if (!dryRun && job && !TERMINAL_STATES.includes(job.state)) {
     // The night job's own fourth gate. A DRY run is still allowed, which is the
@@ -323,11 +335,7 @@ export async function updatesMock(): Promise<UpdatesStatus> {
   if (forced === 'silence') refuse(0, 'no answer', false);
   const discovered = forced !== 'undiscovered';
   const stale = forced === 'stale';
-  // `asks = 'fresh'` makes DISCOVERY a minute old, not just its record: the rate
-  // limit the Check control reads is computed from available.json's age, in the
-  // browser and in bothy-ops alike, so a mock that aged only the record would draw
-  // an enabled button the real service would refuse.
-  const age = stale ? 86400 + 3600 : read(ASKS_KEY) === 'fresh' ? 60 : 3600 * 2 + 780;
+  const age = discoveredAgo();
   const at = ago(age);
   let rows = SPECS.map((s) => row(s, at, discovered));
   if (forced === 'current') {
@@ -352,7 +360,7 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     job: current(),
     history: history(),
     auto: { enabled: true, actor: 'auto', paused: rows.filter((r) => r.paused).map((r) => r.id), last: LAST_NIGHT },
-    asks: asksOf(),
+    asks: asksOf(age),
     updater: updaterInfo(),
     components: rows,
   };
