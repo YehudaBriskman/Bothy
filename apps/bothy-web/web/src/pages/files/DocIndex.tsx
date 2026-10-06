@@ -28,46 +28,65 @@
 //     both list, and the property that makes it scale - a closed directory puts
 //     NOTHING in the DOM - is exactly the property this panel needs.
 //
-// A ROOT IS LOADED WHEN IT IS OPENED, not on mount. /tree is capped at 4,000
-// entries per root (bothy-files/app.py MAX_LISTING) and there are four roots,
-// so listing all of them up front is up to 16,000 entries of JSON to render a
-// panel whose first screen is eighteen notes. The root the URL names is open on
-// arrival; the others are one click.
+// A ROOT IS LOADED WHEN IT IS OPENED, not on mount. The root the URL names is
+// open on arrival; the others are one click.
+//
+// ── TWO SOURCES, BECAUSE THERE ARE TWO QUESTIONS (2026-10) ──────────────────
+//
+// Both halves used to come from /tree, which returned every file under a root
+// recursively and stopped at 4,000 entries. That was wrong for both:
+//
+//   · THE LIBRARY (the default) is prose. It got it by filtering the full
+//     listing, so a note past the cap was simply not in the library - and on the
+//     two big roots the cap bit permanently: 4,000 of 19,273 files in `projects`.
+//     It now comes from /docs, which walks for DOCUMENTS and opens nothing:
+//     measured, 3,340 documents in 0.51s and 587 KB, complete, against 4,000
+//     files in 1.25 MB and a lie. There is no laziness here on purpose - the
+//     answer is small enough to be whole, and a library you have to click
+//     through folder by folder is a filesystem browser.
+//
+//   · ALL FILES is the filesystem, and that one IS lazy - one request per folder,
+//     the same listings the Explorer holds (see lazy.ts). The cost of that is
+//     visible and accepted: a folder has to be opened to know what is in it, and
+//     a folder with no documents in it still shows. The alternative is a
+//     recursive walk of 19,273 files to decide which folders to hide.
+//
+// The toggle therefore changes the SOURCE as well as the filter, which is exactly
+// what its label has always claimed.
 
 import { useEffect, useMemo, useRef } from 'react';
 import { ChevronRight, FileText, Folder, FolderOpen, Layers, Lock } from 'lucide-react';
-import { fmtBytes, type FileRoot, type TreeFile } from '../../lib/files';
+import { fmtBytes, type FileRoot, type Stopped, type TreeFile } from '../../lib/files';
 import { FileIcon } from './icons';
 import { isProse, stemOf, titleOf } from './titles';
-import { buildTree, type Node } from './tree';
+import { buildTree, treeOfPaths, type Node } from './tree';
+import { emptyDirs, type RootDirs } from './lazy';
 import { sortGuide } from './guide';
 import { Button } from '../../components/ui/Button';
 import { Icon } from '../../components/ui/Icon';
+import { Loader } from '../../components/ui/Loader';
 
-/** What one root's listing is doing. Held by the Reader, one per root. */
+/** What one root's DOCUMENT index is doing. Held by the Reader, one per root. */
 export interface RootTree {
+  /** Every document in the root, from /docs. Complete, not a filtered listing. */
   entries: TreeFile[];
-  truncated: boolean;
   loading: boolean;
   err: string | null;
+  /** The /docs walk's own bound, null when it ran to the end - which is the
+   *  ordinary case on every root here. Reported rather than inferred from a
+   *  length, because a list exactly `limit` long is not proof it was cut. */
+  stopped: Stopped | null;
 }
-
-/** Files fed to the tree for one root before the panel gives up and says so.
- *
- *  Only reachable with "All files" on: prose tops out at 69 files in the largest
- *  root. It is the same refusal the Explorer's search results make at 250 and
- *  the tree listing makes at 4,000 - a list that silently stops is how someone
- *  concludes a file is not there.
- *
- *  It caps the ENTRIES fed to the tree rather than the ROWS rendered, which the
- *  flat list used to do. A tree renders only what is open, so a row cap would
- *  cut a different set of files every time a folder was toggled. */
-const MAX_FILES = 1200;
 
 /** Lowercase, and every separator run collapsed to one space - so `a-b_c.md`
  *  and "A b c" compare equal. Used only to decide whether a row's title and its
  *  filename are the same string wearing different punctuation. */
 const fold = (s: string) => s.toLowerCase().replace(/[-_.\s]+/g, ' ').trim();
+
+/** A stable "this root has no listings yet", so a section whose All-files state has
+ *  never been asked for does not get a fresh object - and a fresh Map - on every
+ *  render of the panel. */
+const EMPTY_DIRS = emptyDirs();
 
 /** The key an expand/collapse state is held under. Both halves, because `home`
  *  aliases every other root: the same relative directory exists in two open
@@ -85,7 +104,7 @@ export function openTo(root: string, path: string): string[] {
 }
 
 /**
- * The entries this panel will draw, as a tree.
+ * The LIBRARY for one root, as a tree: every document /docs returned.
  *
  * `strip` removes a leading folder from every path BEFORE the tree is built,
  * which is what stops the guide rendering as `docs` > `guide` > seven files: the
@@ -100,22 +119,54 @@ export function openTo(root: string, path: string): string[] {
  * do exactly because the prefix is one known string. Read from `entry.path`
  * instead and a guide row opens `?path=index.md`, which is a real file in
  * neither place - caught exactly that way.
+ *
+ * NO MAX_FILES ANY MORE. There was one - 1,200 entries fed to the tree, with "N
+ * more in this root" under it - and it existed because "All files" poured a whole
+ * filesystem listing through here. All files is the lazy tree now, and the library
+ * is a complete walk for documents (3,340 in the largest root here, 587 KB), so
+ * the only bound left is the service's, which it reports.
+ *
+ * `isProse` still filters, although /docs already answered for suffixes: the two
+ * lists are asserted equal by checks/lazy_tree.py, and a row the client cannot
+ * title is a row it should not claim is a document.
  */
-function treeOf(
-  entries: TreeFile[], prose: boolean, strip: string,
-): { root: Node; total: number; hidden: number } {
+function libraryOf(
+  entries: TreeFile[], strip: string,
+): { root: Node; total: number } {
   const cut = strip ? `${strip.replace(/\/+$/, '')}/` : '';
   const keep: TreeFile[] = [];
-  let total = 0;
-  let hidden = 0;
   for (const e of entries) {
-    if (e.dir === true) continue;
-    if (prose && !isProse(e.path)) { hidden++; continue; }
-    total++;
-    if (total > MAX_FILES) continue;
+    if (e.dir === true || !isProse(e.path)) continue;
     keep.push(cut && e.path.startsWith(cut) ? { ...e, path: e.path.slice(cut.length) } : e);
   }
-  return { root: buildTree(keep), total, hidden };
+  return { root: treeOfPaths(keep), total: keep.length };
+}
+
+/** ALL FILES for one root: the lazy per-folder listings, as a tree.
+ *
+ * `strip` is applied to the LISTING KEYS as well as to the paths, because the keys
+ * are what makes a folder `loaded` - stripping only the paths would leave every
+ * folder claiming it had never been listed. Guide mode is the only caller that
+ * strips, and it never turns All files on, so this is the general case written
+ * once rather than a branch that is never taken. */
+function filesOf(dirs: RootDirs, strip: string): { root: Node; total: number } {
+  const cut = strip ? `${strip.replace(/\/+$/, '')}/` : '';
+  if (!cut) {
+    let total = 0;
+    for (const es of dirs.loaded.values()) for (const e of es) if (e.dir !== true) total += 1;
+    return { root: buildTree(dirs.loaded), total };
+  }
+  const short = new Map<string, TreeFile[]>();
+  let total = 0;
+  for (const [dir, es] of dirs.loaded) {
+    if (dir !== strip.replace(/\/+$/, '') && !dir.startsWith(cut)) continue;
+    const key = dir === strip.replace(/\/+$/, '') ? '' : dir.slice(cut.length);
+    short.set(key, es.map((e) => {
+      if (e.dir !== true) total += 1;
+      return e.path.startsWith(cut) ? { ...e, path: e.path.slice(cut.length) } : e;
+    }));
+  }
+  return { root: buildTree(short), total };
 }
 
 /** A node's path as the SERVICE knows it - the prefix treeOf took off, put back.
@@ -163,7 +214,7 @@ function DocRow({ node, root, current, depth, strip, onOpen }: {
         onClick={() => onOpen(root, real)}
         title={denied
           ? `${real} - this session may not read it`
-          : `${root}/${real}${entry ? ` · ${fmtBytes(entry.size)}` : ''}`}
+          : `${root}/${real}${entry?.size != null ? ` · ${fmtBytes(entry.size)}` : ''}`}
       >
         {denied
           ? <Icon icon={Lock} size="sm" className="rd-doc-ico" />
@@ -182,21 +233,29 @@ function DocRow({ node, root, current, depth, strip, onOpen }: {
 /** One level of the tree. Recursive, and a CLOSED directory renders nothing -
  *  the property tree.ts's header calls out, and the reason this scales to "All
  *  files" on a 3,500-entry root with no virtualiser. */
-function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, strip }: {
+function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, strip, pending }: {
   nodes: Node[];
   depth: number;
   root: string;
   /** The open document's TRUE path, to mark the row that is it. */
   current: string;
-  /** The prefix treeOf removed, so rows can put it back. '' when none was. */
+  /** The prefix libraryOf/filesOf removed, so rows can put it back. '' when none. */
   strip: string;
   open: ReadonlySet<string>;
-  onToggle: (key: string) => void;
+  /** `key` is the expand-state key, which is built from the STRIPPED path (it is a
+   *  display key - see libraryOf). `realDir` is the same folder as the SERVICE
+   *  knows it, which is what a listing has to be asked for by. Both, because they
+   *  differ in guide mode and handing out one of them meant either an expand state
+   *  that moves when the scope does or a request for a folder that is not there. */
+  onToggle: (key: string, realDir: string) => void;
   onOpen: (root: string, path: string) => void;
   /** Reorder the FILES at each level. The guide has a reading order; every other
    *  listing keeps buildTree's directories-then-alphabetical, which is what
    *  every file explorer does and what makes a deep path predictable to scan. */
   order?: (nodes: Node[]) => Node[];
+  /** Folders with a listing in flight, by their REAL path. Only ever non-empty in
+   *  All-files mode - the library arrives whole, so nothing in it can be waiting. */
+  pending?: ReadonlySet<string>;
 }) {
   const dirs = nodes.filter((n) => n.dir);
   const plain = nodes.filter((n) => !n.dir);
@@ -206,6 +265,13 @@ function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, 
       {dirs.map((n) => {
         const key = dirKey(root, n.path);
         const isOpen = open.has(key);
+        const realDir = realPath(n, strip);
+        const busy = pending?.has(realDir) ?? false;
+        // The entries DIRECTLY INSIDE, once they are known. It was the number of
+        // documents in the whole subtree, computed from a rollup that only existed
+        // because the browser held every file under every folder - see tree.ts.
+        // A folder nobody has listed shows no number rather than a 0.
+        const kids = n.loaded ? n.children.length : null;
         return (
           <li key={n.path} className="rd-li">
             <button
@@ -213,15 +279,19 @@ function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, 
               className="rd-dir"
               style={{ paddingLeft: `calc(var(--sp-2) + ${depth} * var(--sp-3))` }}
               aria-expanded={isOpen}
-              onClick={() => onToggle(key)}
-              title={`${n.path} - ${n.files.toLocaleString()} document${n.files === 1 ? '' : 's'}`}
+              onClick={() => onToggle(key, realDir)}
+              title={n.loaded
+                ? `${n.path} - ${kids?.toLocaleString()} ${kids === 1 ? 'entry' : 'entries'} here`
+                : `${n.path} - not listed yet; open it to see`}
             >
               <Icon icon={ChevronRight} size="xs" className={`chev rd-chev${isOpen ? ' open' : ''}`} />
               {isOpen
                 ? <Icon icon={FolderOpen} size="sm" className="rd-dir-ico" />
                 : <Icon icon={Folder} size="sm" className="rd-dir-ico" />}
               <span className="rd-dir-name">{n.name}</span>
-              <span className="rd-dir-n tnum">{n.files.toLocaleString()}</span>
+              {busy
+                ? <Loader state="load" label={`Listing ${n.name}`} labelHidden />
+                : kids !== null && <span className="rd-dir-n tnum">{kids.toLocaleString()}</span>}
             </button>
             {isOpen && n.children.length > 0 && (
               <TreeRows
@@ -234,7 +304,15 @@ function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, 
                 onOpen={onOpen}
                 order={order}
                 strip={strip}
+                pending={pending}
               />
+            )}
+            {/* An open folder with nothing in it says WHICH nothing. The eager
+                listing never had to: a folder it did not describe did not exist. */}
+            {isOpen && n.children.length === 0 && (
+              <p className="rd-more" style={{ paddingLeft: `calc(var(--sp-2) + ${depth + 1} * var(--sp-3))` }}>
+                {busy ? 'Listing…' : n.loaded ? 'Empty' : 'Not listed'}
+              </p>
             )}
           </li>
         );
@@ -255,11 +333,14 @@ function TreeRows({ nodes, depth, root, current, open, onToggle, onOpen, order, 
 }
 
 function RootSection({
-  root, tree, open, onToggle, allFiles, current, currentRoot, onOpen, onRetry, dirs, onToggleDir,
-  strip = '',
+  root, tree, files, open, onToggle, allFiles, current, currentRoot, onOpen, onRetry,
+  dirs, onToggleDir, strip = '',
 }: {
   root: FileRoot;
+  /** The LIBRARY: /docs for this root. Used while All files is off. */
   tree: RootTree | undefined;
+  /** ALL FILES: the lazy per-folder listings for this root. Used while it is on. */
+  files: RootDirs;
   open: boolean;
   onToggle: () => void;
   allFiles: boolean;
@@ -268,17 +349,23 @@ function RootSection({
   onOpen: (root: string, path: string) => void;
   onRetry: (root: string) => void;
   dirs: ReadonlySet<string>;
-  onToggleDir: (key: string) => void;
+  onToggleDir: (key: string, realDir: string) => void;
   /** A folder prefix to remove from every path before the tree is built - see
-   *  treeOf. Set while this root is the scoped one, so a scoped listing does not
-   *  redraw the folder the breadcrumb above already names. */
+   *  libraryOf. Set while this root is the scoped one, so a scoped listing does
+   *  not redraw the folder the breadcrumb above already names. */
   strip?: string;
 }) {
   const entries = tree?.entries ?? [];
-  const { root: node, total, hidden } = useMemo(
-    () => treeOf(entries, !allFiles, strip),
-    [entries, allFiles, strip],
-  );
+  const library = useMemo(() => libraryOf(entries, strip), [entries, strip]);
+  const filesTree = useMemo(() => filesOf(files, strip), [files, strip]);
+  const { root: node, total } = allFiles ? filesTree : library;
+  // The LIBRARY's loading state is the root's one request; ALL FILES has no single
+  // one - the root folder is the only part that can keep the section empty, and
+  // everything deeper waits on its own row.
+  const waiting = allFiles
+    ? (files.pending.has(strip) && !files.loaded.has(strip))
+    : !!tree?.loading;
+  const err = allFiles ? files.err : (tree?.err ?? null);
 
   return (
     <section className="rd-root" aria-label={root.label || root.key}>
@@ -287,23 +374,25 @@ function RootSection({
           <Icon icon={ChevronRight} size="xs" className={`chev rd-chev${open ? ' open' : ''}`} />
           <span className="rd-root-name mono">{root.key}</span>
           {root.readOnly && <Icon icon={Lock} size="xs" className="rd-root-ro" aria-label="read-only" />}
-          {open && !tree?.loading && (
-            <span className="rd-root-n tnum">{total > MAX_FILES ? `${MAX_FILES}+` : total}</span>
-          )}
+          {/* The count is the DOCUMENTS in the library, which is a complete number,
+              and the files LOADED when All files is on, which is not a total and is
+              not claimed to be - the root's real total is unknowable without the
+              recursive walk this panel stopped doing. */}
+          {open && !waiting && <span className="rd-root-n tnum">{total.toLocaleString()}</span>}
         </button>
       </h3>
 
       {open && (
-        tree?.loading ? (
+        waiting ? (
           <div className="rd-skel" aria-hidden="true">
             {Array.from({ length: 6 }, (_, i) => <span className="skel" key={i} />)}
           </div>
-        ) : tree?.err ? (
+        ) : err ? (
           <div className="rd-msg">
-            <p>{tree.err}</p>
+            <p>{err}</p>
             <Button variant="ghost" size="sm" onClick={() => onRetry(root.key)}>Retry</Button>
           </div>
-        ) : !total ? (
+        ) : !node.children.length ? (
           <div className="rd-msg">
             <p>{allFiles ? 'This root is empty.' : 'No documents in this root - try All files.'}</p>
           </div>
@@ -318,23 +407,27 @@ function RootSection({
               onToggle={onToggleDir}
               onOpen={onOpen}
               strip={strip}
+              pending={allFiles ? files.pending : undefined}
             />
-            {total > MAX_FILES && (
-              <p className="rd-more">
-                {(total - MAX_FILES).toLocaleString()} more in this root - use the search above.
-              </p>
-            )}
-            {/* The listing cap, carried through from /tree. The Explorer says
-                this in the Problems panel, which the reader does not have. */}
-            {tree?.truncated && (
+            {/* The /docs walk's own bound. It has never fired on this box - the
+                largest root holds 3,340 documents against a limit of 8,000 - and it
+                is printed anyway, because a reader who hits it would otherwise
+                conclude a note is not there. The cap this replaces was the /tree
+                listing's, which fired on two roots out of four, permanently, and
+                could only be reported as "files below it are missing". */}
+            {!allFiles && tree?.stopped && (
               <p className="rd-more warn">
-                The file service stopped listing this root at its own cap, so files
-                below it are missing here. A search still reaches them.
+                The index stopped at {(tree.stopped.limit ?? total).toLocaleString()} documents
+                ({tree.stopped.reason}), so some are missing here. A search still reaches them.
               </p>
             )}
-            {!allFiles && hidden > 0 && (
+            {/* All files is LAZY, and saying so is the honest version of what used
+                to be "N more files that are not documents" - a count only a
+                recursive listing could produce. */}
+            {allFiles && (
               <p className="rd-more">
-                {hidden.toLocaleString()} more file{hidden === 1 ? '' : 's'} that are not documents.
+                Folders are listed as you open them, so a count is what has been
+                loaded rather than what is there.
               </p>
             )}
           </>
@@ -367,10 +460,10 @@ function GuideIndex({ root, tree, strip, current, onOpen, onRetry, dirs, onToggl
   onOpen: (root: string, path: string) => void;
   onRetry: (root: string) => void;
   dirs: ReadonlySet<string>;
-  onToggleDir: (key: string) => void;
+  onToggleDir: (key: string, realDir: string) => void;
 }) {
   const { root: node, total } = useMemo(
-    () => treeOf(tree?.entries ?? [], true, strip),
+    () => libraryOf(tree?.entries ?? [], strip),
     [tree, strip],
   );
   // Ranked on the node's own (stripped) name, which is all guideRank reads -
@@ -420,11 +513,14 @@ function GuideIndex({ root, tree, strip, current, onOpen, onRetry, dirs, onToggl
 }
 
 export function DocIndex({
-  roots, trees, openRoots, onToggleRoot, allFiles, onAllFiles,
+  roots, trees, listings, openRoots, onToggleRoot, allFiles, onAllFiles,
   currentRoot, currentPath, onOpen, onRetry, dirs, onToggleDir, guide, scope = '', onScope,
 }: {
   roots: FileRoot[];
+  /** The LIBRARY per root: /docs. What the panel draws with All files off. */
   trees: Record<string, RootTree | undefined>;
+  /** The FILESYSTEM per root: the lazy per-folder listings, for All files on. */
+  listings: Readonly<Record<string, RootDirs | undefined>>;
   openRoots: ReadonlySet<string>;
   onToggleRoot: (root: string) => void;
   allFiles: boolean;
@@ -437,7 +533,7 @@ export function DocIndex({
    *  Reader, because following a cross-document link has to open the route down
    *  to the new file and that is the Reader's event, not this panel's. */
   dirs: ReadonlySet<string>;
-  onToggleDir: (key: string) => void;
+  onToggleDir: (key: string, realDir: string) => void;
   /** Present in GUIDE mode, and its presence IS the mode: one root, one folder,
    *  no chooser. Absent is the reader over every root. The caller resolves the
    *  scoped listing into `trees[guide.root]` before handing it over, because the
@@ -541,6 +637,7 @@ export function DocIndex({
           key={r.key}
           root={r}
           tree={trees[r.key]}
+          files={listings[r.key] ?? EMPTY_DIRS}
           open={openRoots.has(r.key)}
           onToggle={() => onToggleRoot(r.key)}
           allFiles={allFiles}

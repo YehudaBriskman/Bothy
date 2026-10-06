@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { BookOpen, ChevronLeft, FolderTree, GitCommitHorizontal, Pencil } from 'lucide-react';
 import {
-  isAuthError, listRoots, listTree, relDate,
+  isAuthError, listDocs, listRoots, relDate,
   type FileRead, type FileRoot,
 } from '../../lib/files';
 import { ErrState } from '../../components/states';
@@ -46,6 +46,7 @@ import { GUIDE_DIR, GUIDE_ROOT, defaultRoot, filesHref, type FilesMode } from '.
 import { readingVars, useReading } from './reading';
 import { ScopePicker } from './ScopePicker';
 import { baseName, dirName, resolveWikiIn } from './tree';
+import { dirsDownTo, useLazyDirs } from './lazy';
 import { fetchLinks, type LinkIndex } from '../../lib/files';
 
 // shell.css carries the section scope (the full-height escape from `.content`,
@@ -64,7 +65,7 @@ import './search.css';
 import './read.css';
 import { Icon } from '../../components/ui/Icon';
 
-const LOADING: RootTree = { entries: [], truncated: false, loading: true, err: null };
+const LOADING: RootTree = { entries: [], loading: true, err: null, stopped: null };
 
 export function Reader({ mode = 'read' }: {
   /** Which of the section's two reading destinations this is (routes.ts).
@@ -102,7 +103,23 @@ export function Reader({ mode = 'read' }: {
   const [roots, setRoots] = useState<FileRoot[]>([]);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [rootsErr, setRootsErr] = useState<string | null>(null);
+  // THE LIBRARY, per root: every DOCUMENT in it (/docs), not every file.
+  //
+  // It was /tree - every file under the root, recursively, which the service
+  // capped at 4,000 entries. The reader then threw away everything that was not
+  // prose, which on this box is ~84% of it, so the panel paid 1.25 MB of JSON for
+  // a list of notes AND still could not see the 15,000 files past the cap. Three
+  // things read this and all three were wrong in the same way: the index, the
+  // root's front page, and wikilink resolution - a `[[note]]` whose target was
+  // past the cap resolved to nothing and rendered as grey text.
+  //
+  // Measured on the largest root here: 3,340 documents in 0.51s and 587 KB,
+  // complete, against 4,000 files in 1.25 MB and a lie.
   const [trees, setTrees] = useState<Record<string, RootTree | undefined>>({});
+  // THE FILESYSTEM, per root, loaded one folder at a time. Only "All files" draws
+  // it; the library above is the default. See lazy.ts.
+  const onAuth = useCallback(() => setNeedsAuth(true), []);
+  const { dirs: listings, ensure, reset: resetListings } = useLazyDirs(onAuth);
   // The link graph for the open root. One request per root, not per document:
   // the service builds it from a walk either way, and asking per-document would
   // repeat the expensive half while still not answering "what links here".
@@ -127,13 +144,20 @@ export function Reader({ mode = 'read' }: {
   // happen to be in a tree, and restoring it a day later would reopen folders
   // for a document you are no longer reading.
   const [dirs, setDirs] = useState<Set<string>>(new Set());
-  const toggleDir = useCallback((key: string) => {
+  // Opening a folder is also what FETCHES it, in All-files mode - the listing is
+  // lazy now. `realDir` rather than the expand key, because the key is built from
+  // the stripped display path and the service only knows the real one.
+  //
+  // Unconditional, not `if (allFiles)`: `ensure` is idempotent, and a toggle while
+  // the library is showing is a folder somebody is about to look at either way.
+  const toggleDir = useCallback((key: string, realDir: string) => {
+    ensure(key.slice(0, key.indexOf(' ')), realDir);
     setDirs((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
-  }, []);
+  }, [ensure]);
 
   // The `#heading` of a followed cross-document link. State and NOT the URL:
   // main.tsx mounts a HashRouter, so the whole route already lives after a `#`
@@ -270,12 +294,17 @@ export function Reader({ mode = 'read' }: {
   // scoped index simply has no offer to make: `trees[root]` is not fetched while
   // `?in=` is set (the listing lives under a composite key), and '' renders as
   // no offer rather than as a broken one.
+  //
+  // `frontPageOf` wants the root's TOP-LEVEL names, and the document index answers
+  // that completely: every front page it looks for (README.md, index.md, …) is
+  // prose, so /docs carries all of them. It is also the half the 4,000-entry
+  // listing cap could silently take away on a root whose README sorted late.
   const frontPage = useMemo(
     () => frontPageOf((trees[root]?.entries ?? []).map((e) => e.path)),
     [trees, root],
   );
 
-  // ── one listing per opened root ────────────────────────────────────────────
+  // ── one document index per opened root ─────────────────────────────────────
   //
   // Fetched when the section opens and kept for the life of the page. Nothing
   // here mutates a file, so a listing cannot go stale under this page's own
@@ -306,13 +335,13 @@ export function Reader({ mode = 'read' }: {
     for (const k of want) {
       const ac = new AbortController();
       inflight.current.set(keyOf(k), ac);
-      listTree(k, ac.signal, k === root ? scope : '')
+      listDocs(k, ac.signal, k === root ? scope : '')
         .then((r) => {
           if (ac.signal.aborted) return;
           inflight.current.delete(keyOf(k));
           setTrees((prev) => ({
             ...prev,
-            [keyOf(k)]: { entries: r.files, truncated: !!r.truncated, loading: false, err: null },
+            [keyOf(k)]: { entries: r.files, loading: false, err: null, stopped: r.stopped },
           }));
         })
         .catch((e: unknown) => {
@@ -321,7 +350,7 @@ export function Reader({ mode = 'read' }: {
           if (isAuthError(e)) { setNeedsAuth(true); return; }
           setTrees((prev) => ({
             ...prev,
-            [keyOf(k)]: { entries: [], truncated: false, loading: false, err: e instanceof Error ? e.message : String(e) },
+            [keyOf(k)]: { entries: [], loading: false, stopped: null, err: e instanceof Error ? e.message : String(e) },
           }));
         });
     }
@@ -381,7 +410,25 @@ export function Reader({ mode = 'read' }: {
       delete next[k];
       return next;
     });
-  }, []);
+    // Both halves, because the Retry button is one button and the reader cannot
+    // see which of the two sources failed. Clearing the listings is also what
+    // makes `ensure` ask again rather than hand back what it already has.
+    resetListings(k);
+  }, [resetListings]);
+
+  // ── All files: the folders the filesystem view needs ──────────────────────
+  //
+  // The root's own folder for every open section, plus the folders on the way down
+  // to the open document, so turning the toggle on does not show four collapsed
+  // roots and no sign of where you are.
+  //
+  // Only while the toggle is ON. The library is the default and needs none of
+  // this, so a reader who never opens All files never pays for a single listing.
+  useEffect(() => {
+    if (!allFiles) return;
+    for (const k of openRoots) ensure(k, k === root && scope ? scope : '');
+    if (root && path) for (const d of dirsDownTo(path)) ensure(root, d);
+  }, [allFiles, openRoots, root, scope, path, ensure]);
 
   // ── reveal the route down to the open document (#150) ─────────────────────
   //
@@ -434,6 +481,7 @@ export function Reader({ mode = 'read' }: {
       // business and not the panel's - so it is resolved into the plain root key
       // before it crosses the boundary.
       trees={scope ? { ...trees, [root]: trees[`${root}\u0000${scope}`] } : trees}
+      listings={listings}
       openRoots={openRoots}
       onToggleRoot={toggleRoot}
       allFiles={allFiles}
@@ -640,12 +688,28 @@ export function Reader({ mode = 'read' }: {
                     // ~/claude-notes is built out of relative links, and a
                     // documentation site whose links do not click is not one.
                     onOpen={(p, at) => openDoc(root, p, at)}
-                    // Wikilinks resolve against the CURRENT root's listing,
-                    // which this page already has for the index beside it. Only
+                    // Wikilinks resolve against the CURRENT root's DOCUMENT INDEX,
+                    // which this page already has for the library beside it. Only
                     // that root: `[[dns]]` in a note means the note called dns,
                     // and reaching into another root to find one would make the
                     // same link mean different things depending on what happened
                     // to be loaded.
+                    //
+                    // RESOLUTION STAYS HERE, in resolveWikiIn, and only the
+                    // CANDIDATE SET moved. That was the decision worth making
+                    // carefully: `[[dns]]` is answered by a basename search with a
+                    // precedence order (exact, +.md, /index.md, then shortest
+                    // path), checks/wikilinks.mjs holds that order against the
+                    // real function compiled out of tree.ts, and moving the
+                    // resolver server-side would have left the check holding a
+                    // copy. What was actually broken was the list: it was the
+                    // explorer's full listing, capped at 4,000 entries, so a
+                    // wikilink to anything past the cap resolved to NOTHING and
+                    // rendered as inert grey text - the same silent failure the
+                    // `../` wikilinks had. /docs is complete (3,340 documents in
+                    // the largest root here, measured) and it is the set a
+                    // wikilink can name: a wikilink only ever points at a
+                    // document.
                     resolveWiki={(t) => resolveWikiIn(
                       (trees[root]?.entries ?? []).map((e) => e.path), t,
                     )}
