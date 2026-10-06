@@ -22,15 +22,19 @@ NEVER thales-scc. Everything here is its own, and every name starts with
 and it drives the REAL executor, with the real canaries plus one injected
 failure:
 
-  1  KSM      chart 8.4.2 -> 8.5.0 with a forced verify failure -> `helm rollback`
-              to the recorded revision, 8.4.2 answers again, the old version back
-              on Chart.yaml's line (uncommitted); then, the tree reset, 8.5.0
-              succeeds: kube_node_info through the NodePort, up == 1 in VM from a
-              scrape after the upgrade
-  2  ALLOY    v1.19.1 -> v1.19.2 with a forced failure -> the saved DaemonSet and
-              ConfigMap replaced, v1.19.1 rolled out again; then v1.19.2
+  1  KSM      KSM_OLD -> KSM_NEW with a forced verify failure -> `helm rollback`
+              to the recorded revision, KSM_OLD answers again, the old version
+              back on Chart.yaml's line (uncommitted); then, the tree reset,
+              KSM_NEW succeeds: kube_node_info through the NodePort, up == 1 in
+              VM from a scrape after the upgrade
+  2  ALLOY    ALLOY_OLD -> ALLOY_NEW with a forced failure -> the saved DaemonSet
+              and ConfigMap replaced, ALLOY_OLD rolled out again; then ALLOY_NEW
               succeeds: rolled out on every node on the planned DIGEST, fresh
               {cluster="bothy-cluster-e2e"} lines in Loki
+
+              (The versions are NAMED here, not spelled out. They moved three
+              times while this paragraph said 8.4.2 and v1.19.1, and a docstring
+              that contradicts the code is worse than one that points at it.)
   3  RULE 6   every kubectl/helm the executor ran named the throwaway context
 """
 import json
@@ -53,10 +57,26 @@ from updater.config import Config  # noqa: E402
 
 P = "bothy-cluster-e2e"
 VM, LOKI = f"{P}-vm", f"{P}-loki"
-VM_IMG = "victoriametrics/victoria-metrics:v1.152.0"
+# THESE FOUR ARE COPIES OF THE TREE'S PINS, and they go stale silently.
+#
+# The test pulls these images from the local daemon and rewrites the real
+# manifest by substituting the literal `image: <NEW>`. When a Dependabot PR
+# moves a pin and these do not, the substitution matches nothing - a SILENT
+# no-op - and the run dies 25 minutes in with
+# `docker image inspect grafana/alloy:v1.19.2: No such image`, naming neither
+# pin, neither file, nor the word drift. That is how v1.19.2 survived #232.
+#
+# `scripts/checks/e2e-pins.sh` holds VM_IMG, LOKI_IMG and KSM_NEW against the
+# tree, and `alloy-pins.sh` holds the Alloy pair (it also has to compare the
+# compose and DaemonSet copies with each other, which is its own relation).
+# Both run in CI tier 0, offline, in under a second. Move a pin, move these.
+#
+# _OLD is the version a rollback lands on, so it is the PREVIOUS pin, not an
+# arbitrary older one: the test asserts the rollback restores exactly it.
+VM_IMG = "victoriametrics/victoria-metrics:v1.153.0"
 LOKI_IMG = "grafana/loki:3.7.8"
-KSM_OLD, KSM_NEW = "8.4.2", "8.5.0"
-ALLOY_OLD, ALLOY_NEW = "grafana/alloy:v1.19.1", "grafana/alloy:v1.19.2"
+KSM_OLD, KSM_NEW = "8.5.0", "8.6.0"
+ALLOY_OLD, ALLOY_NEW = "grafana/alloy:v1.19.2", "grafana/alloy:v1.20.1"
 assert P != "thales-scc"
 
 fails: list[str] = []
@@ -219,8 +239,12 @@ def main() -> int:
             hostio.write_json(cfg.available, {"version": 1, "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
                                               "components": {
                 "kube-state-metrics": {"image": "x", "current": {"tag": KSM_NEW, "float": False}},
+                # Derived, not written out: this was the literal "v1.19.2" while
+                # the constant above it moved, so the fixture and the pin it is
+                # meant to mirror could disagree with nothing to notice.
                 "alloy-cluster": {"image": "docker.io/grafana/alloy",
-                                  "current": {"tag": "v1.19.2", "float": False, "resolved": digest}}}})
+                                  "current": {"tag": ALLOY_NEW.split(":")[1],
+                                              "float": False, "resolved": digest}}}})
             got = plans.write_all(cfg)
             doc = plans.read_plan(cfg, cid)
             if not doc.get("ok"):

@@ -136,19 +136,30 @@ else:
     check('ALLOY_OLD is a different version from ALLOY_NEW', old != new,
           'both are %s, so the rollback half of the test asserts nothing' % new)
 
-    # The fourth copy: the fake available.json the test writes for alloy-cluster
-    # carries the tag as a bare string instead of the constant.
-    t = re.search(r'"alloy-cluster".*?"tag":\s*"(?P<tag>[\w.-]+)"', e2e, re.S)
-    if not t:
-        check('%s states alloy-cluster\'s offered tag' % E2E, False,
-              'the available.json fixture no longer carries a "tag" - if the '
-              'constant is now used directly, delete this assertion')
-    else:
+    # The fourth copy: the fake available.json the test writes for alloy-cluster.
+    #
+    # It WAS a bare string, and this check used to assert it equalled ALLOY_NEW.
+    # It is derived from the constant now (2026-10-06), which is strictly better
+    # - a derived value cannot disagree with its source - so the assertion moved
+    # from "the two literals match" to "it is still derived". A literal coming
+    # back is the regression; the equality it would then need is unenforceable
+    # without re-reading the file the constant already states.
+    derived = re.search(r'"alloy-cluster".*?"tag":\s*ALLOY_NEW\.split\(', e2e, re.S)
+    literal = re.search(r'"alloy-cluster".*?"tag":\s*"(?P<tag>[\w.-]+)"', e2e, re.S)
+    if derived:
+        check('the available.json fixture derives its tag from ALLOY_NEW', True)
+    elif literal:
         check('the available.json fixture\'s tag is ALLOY_NEW (%s)' % new,
-              t.group('tag') == new,
+              literal.group('tag') == new,
               'the fixture offers %s while ALLOY_NEW is %s - a fourth copy of '
-              'one version, and the plan would be built for the wrong one'
-              % (t.group('tag'), new))
+              'one version, and the plan would be built for the wrong one. It '
+              'was derived from the constant until somebody wrote the version '
+              'out again; derive it instead of matching it.'
+              % (literal.group('tag'), new))
+    else:
+        check('%s states alloy-cluster\'s offered tag' % E2E, False,
+              'the available.json fixture carries neither a "tag" literal nor '
+              'ALLOY_NEW - the plan the test builds no longer names a version')
 
 print()
 if fails:
