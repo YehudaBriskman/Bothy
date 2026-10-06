@@ -373,11 +373,47 @@ echo "── one log shipper, one version ────────────�
 # on a sentence about v1.19.2 would apply cleanly, change nothing the check
 # reads, and report the check as decorative. That is this file's own warning, and
 # it is the mistake the router-gates row above was caught making.
+# The anchor is the CURRENT pin, and it has to be re-read at every bump - which
+# is the one maintenance cost of anchoring on a version string. It said v1.19.2
+# for exactly as long as the tree did; after #232/#235 the mutation stopped
+# applying at all, and `plant` reports that as ERROR rather than passing it off
+# as caught. The substitute version just has to differ from the pin.
 mutant "Alloy moves in compose but not in the manifest" \
   monitoring/compose.yml \
-  'image: grafana/alloy:v1.19.2' \
   'image: grafana/alloy:v1.20.1' \
+  'image: grafana/alloy:v1.21.0' \
   -- bash scripts/checks/alloy-pins.sh
+
+# The cluster e2e's constants, one row per source they are copied from. Each is
+# the real Dependabot batch of 2026-10-05 landing without its companion edit.
+mutant "VictoriaMetrics moves but the e2e constant does not" \
+  monitoring/compose.yml \
+  'image: victoriametrics/victoria-metrics:v1.153.0' \
+  'image: victoriametrics/victoria-metrics:v1.154.0' \
+  -- bash scripts/checks/e2e-pins.sh
+
+mutant "the kube-state-metrics chart moves but the e2e constant does not" \
+  k8s/monitoring/Chart.yaml \
+  'version: 8.6.0' \
+  'version: 8.7.0' \
+  -- bash scripts/checks/e2e-pins.sh
+
+# A rollback test whose two versions are equal passes by asserting nothing: it
+# "rolls back" to the version it is already on and every assertion holds.
+mutant "the e2e rollback target equals the version it upgrades to" \
+  apps/bothy-ops/checks/e2e_cluster.py \
+  'KSM_OLD, KSM_NEW = "8.5.0", "8.6.0"' \
+  'KSM_OLD, KSM_NEW = "8.6.0", "8.6.0"' \
+  -- bash scripts/checks/e2e-pins.sh
+
+# The fixture was a literal while the constant moved, so the plan the test built
+# named a version the tree had stopped pinning. Writing it out again is the
+# regression; deriving it is what makes the fourth copy stop being a copy.
+mutant "the e2e fixture writes the version out instead of deriving it" \
+  apps/bothy-ops/checks/e2e_cluster.py \
+  '"current": {"tag": ALLOY_NEW.split(":")[1],' \
+  '"current": {"tag": "v1.19.2",' \
+  -- bash scripts/checks/e2e-pins.sh
 
 echo
 echo "── the grant that would make a browser root ────────────────────────"

@@ -223,6 +223,17 @@ jobs:
         if: always()
         run: bash scripts/checks/alloy-pins.sh
 
+      # The same defect, three more times over, in the same file. The cluster
+      # e2e copies four of the tree's pins into constants, rewrites real
+      # manifests by substituting the literal it holds, and reads that literal's
+      # digest off the local daemon. A stale one is a SILENT no-op and then an
+      # opaque `No such image` 25 minutes into the live install job. One
+      # Dependabot batch moved all three at once on 2026-10-05 - and nothing was
+      # watching the VictoriaMetrics one at all.
+      - name: The cluster e2e's constants are the versions the tree pins
+        if: always()
+        run: bash scripts/checks/e2e-pins.sh
+
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
   # Everything above answers "is the tree healthy". This answers the question
