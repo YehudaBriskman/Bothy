@@ -213,6 +213,16 @@ jobs:
         if: always()
         run: bash scripts/checks/doc-facts.sh
 
+      # One log shipper, two deployments, three copies of its version - and no
+      # Dependabot group can span the two ecosystems they live in, so the same
+      # bump always arrives as two PRs (#232 and #235). Merge one and the box
+      # ships logs from two versions of Alloy into one Loki, both halves healthy.
+      # The only thing that noticed before was the 25-minute live install job,
+      # failing as `docker image inspect grafana/alloy:v1.19.2: No such image`.
+      - name: The Alloy pins agree with each other
+        if: always()
+        run: bash scripts/checks/alloy-pins.sh
+
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
   # Everything above answers "is the tree healthy". This answers the question

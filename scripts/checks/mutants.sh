@@ -361,6 +361,25 @@ mutant "the README release badge drifts from VERSION" \
   -- bash scripts/checks/version.sh
 
 echo
+echo "── one log shipper, one version ────────────────────────────────────"
+# THE MUTATION IS #232 MERGING ALONE: grafana/alloy moved in monitoring/compose.yml
+# and not in k8s/monitoring/alloy.yaml. It is not invented damage - it is the
+# half-merge those two PRs make available every time Alloy releases, because a
+# group cannot span the `docker-compose` and `docker` ecosystems and never will.
+#
+# THE ANCHOR IS THE `image:` LINE, which is real content. That version is also
+# discussed in the prose above the service in the same file and in comments in
+# three others, and alloy-pins.sh strips comments before matching - so anchoring
+# on a sentence about v1.19.2 would apply cleanly, change nothing the check
+# reads, and report the check as decorative. That is this file's own warning, and
+# it is the mistake the router-gates row above was caught making.
+mutant "Alloy moves in compose but not in the manifest" \
+  monitoring/compose.yml \
+  'image: grafana/alloy:v1.19.2' \
+  'image: grafana/alloy:v1.20.1' \
+  -- bash scripts/checks/alloy-pins.sh
+
+echo
 echo "── the grant that would make a browser root ────────────────────────"
 # THE most dangerous single character in this repository. The socket-proxy
 # image's granular ALLOW_* lines are `allow` rules with a broad `^/containers`
