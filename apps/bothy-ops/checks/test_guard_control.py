@@ -156,25 +156,24 @@ for name in sorted(guard.SEVERING):
 # Stopping any of these degrades the interface; the action still completes and
 # reports its own outcome truthfully, which is the line this service draws.
 #
-# BOTH SOCKET-PROXY NAMES (#97). The proxy is being renamed portal-socket-proxy
-# -> bothy-socket-proxy. This is a NEGATIVE list - it asserts guard.severed()
-# stays None - so unlike actions.ts's SELF map nothing fails open here, and the
-# extra name costs nothing while the daemon may still be carrying either. It
-# does earn its place during the rename: it would catch somebody "helpfully"
-# adding the new name to guard.SEVERING, which would be a real regression (the
-# service would start refusing an action it can perform and report truthfully -
-# the exact line guard.py:102-110 draws). This list should mirror actions.ts's
-# SELF map, so drop 'portal-socket-proxy' here in the same change that drops the
-# legacy key there, and not before.
-# portal-next / portal-files: the same, for the 2026-09 rename to bothy-web /
-# bothy-files - mirrors the legacy keys added to SELF in that change.
-# The pre-2026-09 names are listed too (bothy-control, its two proxies,
-# bothy-kube, bothy-config): they no longer run anything, and a deny list that
-# kept refusing a name nothing answers to would be a list nobody can reason about.
-for name in ("bothy-web", "portal-next", "bothy-socket-proxy", "portal-socket-proxy",
-             "bothy-files", "portal-files", "bothy-config", "bothy-kube",
-             "bothy-control", "bothy-control-socket-read", "bothy-control-socket-write",
-             "keycloak", "oauth2-proxy", "grafana", "postgres"):
+# THIS LIST MIRRORS actions.ts's SELF MAP, by instruction: the nine migration
+# aliases (#97's portal-socket-proxy, the 2026-09 renames portal-next /
+# portal-files, and the consolidation's bothy-control, its two proxies,
+# bothy-kube and bothy-config) were listed here while they were keys there, and
+# the comment that put them here said to drop them "in the same change that drops
+# the legacy key there, and not before". That change is 2026-10-06; this is the
+# same change.
+#
+# What they were worth is worth recording, because it is not the same as what the
+# SELF keys were worth. This is a NEGATIVE list - it asserts guard.severed() stays
+# None - so nothing here fails open, and during a rename it would catch somebody
+# "helpfully" adding a name to guard.SEVERING, which would be a real regression
+# (the service would start refusing an action it can perform and report
+# truthfully - the exact line guard.py:102-110 draws). What it cannot be is a
+# list of names nothing answers to: guard.SEVERING deliberately holds no old name
+# either, for the reason guard.py states, so a refusal nobody can reason about is
+# the thing both halves are avoiding.
+for name in ("bothy-web", "bothy-files", "keycloak", "oauth2-proxy", "grafana", "postgres"):
     for verb in guard.VERBS:
         ok(guard.severed(name, verb) is None,
            f"{verb} {name} is allowed (the UI warns; the service does not refuse)")
