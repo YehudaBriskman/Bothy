@@ -556,6 +556,64 @@ mutant "the unpause is gated on viewer" \
       middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
   -- python3 apps/bothy-ops/checks/wiring_updates.py
 
+# 2026-10-06, the two asks. The first two rows are the gates. The next two are the
+# HOST's copies of a refusal bothy-ops also makes - the copies that hold when the
+# asking process is the thing that is wrong. The last two are the wiring, and the
+# `entries()` one is the row this set exists for: removing an ask kind from
+# OTHER_KINDS reads as tidying up, and the update loop then deletes every ask as
+# junk, so both controls go quiet with no error anywhere.
+mutant "check-for-updates is gated on viewer" \
+  edge/dynamic/bothy-updates.yml \
+  'rule: "Path(`/-/api/updates/discover`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]' \
+  'rule: "Path(`/-/api/updates/discover`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "the night-job button is gated on viewer" \
+  edge/dynamic/bothy-updates.yml \
+  'rule: "Path(`/-/api/updates/autorun`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]' \
+  'rule: "Path(`/-/api/updates/autorun`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-viewer, sso-errors]' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "the host stops rate-limiting discovery" \
+  apps/bothy-ops/updater/asks.py \
+  'if age is not None and age < updates.DISCOVER_MIN_SECONDS:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_asks.py
+
+mutant "an ask may name the night job as its asker" \
+  apps/bothy-ops/updater/asks.py \
+  'if not isinstance(who, str) or not 0 < len(who) <= 200 or who == updates.AUTO_ACTOR:' \
+  'if not isinstance(who, str) or not 0 < len(who) <= 200:' \
+  -- python3 apps/bothy-ops/checks/test_asks.py
+
+mutant "the drain loop stops claiming discoveries" \
+  apps/bothy-ops/updater/executor.py \
+  '            _hook(cfg, "asks", "drain_discover")' \
+  '' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+mutant "an ask kind is removed as junk by the update loop" \
+  apps/bothy-ops/updater/spool.py \
+  'OTHER_KINDS = (UNPAUSE_FILE, DISCOVER_FILE, AUTORUN_FILE)' \
+  'OTHER_KINDS = (UNPAUSE_FILE,)' \
+  -- python3 apps/bothy-ops/checks/test_asks.py
+
 mutant "a missed night is caught up at boot" \
   host/systemd/bothy-updater-auto.timer \
   'Persistent=false' \

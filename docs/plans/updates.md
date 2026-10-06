@@ -207,6 +207,10 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 
 ## 8. Settings → Updates (UI)
 
+- **Controls** (built 2026-10-06, see
+  [the two asks](#the-two-asks-2026-10-06-check-for-updates-now-and-run-the-night-job-now)): Check for updates,
+  What would tonight do?, Run the night job. Each shows the host's own record of the last run, because both can
+  finish with nothing visibly different.
 - **A table per component:** current version, available version, a patch/minor/major badge, a one-way badge, the channel (editable by editor, and written to `updates.toml` through the config tier), and when it was last updated.
 - **Row → plan view:** the diff, the changelog, what restarts, who is signed out, the downtime, and the snapshot that will be taken. **Update** asks for type-the-name confirmation when the plan is one-way or major.
 - **A running job** shows its steps live from `status.json`, and survives the UI restarting under it.
@@ -534,12 +538,57 @@ success); `checks/e2e_cluster.py` (a throwaway `minikube -p bothy-cluster-e2e` i
 throwaway VictoriaMetrics and Loki: kube-state-metrics 8.4.2 -> 8.5.0 and Alloy v1.19.1 -> v1.19.2, each forced to
 roll back, then deployed). Seven `mutants.sh` rows.
 
+### The two asks (2026-10-06): "check for updates now" and "run the night job now"
+
+The ask was "all the updates commands available from the UI, via buttons". `just --list` held six update
+commands; two of them were the only cure for a state the page **showed and could not change**, and that is
+the whole argument for adding a route:
+
+- `just updates-discover` - discovery is a six-hourly timer, so the page can say "checked 5 h ago" and
+  offer no way to fix it. A shell is not an answer to a stale page.
+- `just update-auto` - the night job's decision was readable ("nothing eligible", "backup failed") and
+  not re-askable, and there was no way to ask "what would tonight do?" at all.
+
+**What was built.** Two more exact `Path() && Method()` routers, both `operator`:
+`POST /-/api/updates/discover` (`{}`) and `POST /-/api/updates/autorun` (`{dry_run}`). Both keep shape 1 →
+shape 3: bothy-ops writes ONE file into the spool and answers 202; the host executor's drain
+(`updater/asks.py`) claims it, re-checks it and runs it. Three controls in Settings → Updates: **Check for
+updates**, **What would tonight do?** (the dry run) and **Run the night job…** (a dialog, a click rather than
+the typed name, because what it may deploy is a *patch* of a two-way class).
+
+**Why they are writes, not reads.** Neither deploys anything by itself, and `viewer` was tempting for both.
+Discovery rewrites `available.json` and every plan file - the facts the whole page is drawn from - and spends a
+registry quota that is per public IP. The night job runs the gate chain that ends in a deploy. A `viewer` gate
+on either would let anyone who can read the page change what it says.
+
+**Why the night-job button is not a bypass.** It runs `auto.decide()` unchanged, so by day the honest answer is
+"outside the window (03:30-05:00)" - and that reason is the feature. Its update request still carries the actor
+`auto`, because `auto` names who *chose* the component, the level and the plan; who asked it to run early is
+recorded beside it. bothy-ops still refuses to write that actor itself.
+
+**The rate limit is the host's.** `DISCOVER_MIN_SECONDS` (300) lives in `updates.py`, which both halves import.
+bothy-ops refuses early so the button can say how long is left; the host refuses again off `available.json`'s
+own mtime, in the directory bothy-ops mounts read-only - the copy that holds if the asking process is the thing
+that is wrong.
+
+**What was deliberately left out, and why.**
+
+| Not built | Why |
+|---|---|
+| **Editing a component's channel** (a §8 extra) | Moving one to `auto` arms unattended deployment: a privilege change, not a preference. And `updates.toml` is `COPY`'d into bothy-ops' image, so writing it needs a read-write mount of the checkout - exactly what SECURITY.md rule 8 says bothy-ops does not have. Routing it through the `editor` config tier is worse: a *lower* tier granting a privilege `operator` holds. `load_catalog()` already refuses `auto` outside `AUTO_CLASSES`, so the catalog cannot widen the classes - but a click arming an eligible one is still a privilege change, and it belongs in a reviewed commit. |
+| **A history row's "Roll back"** (a §8 extra) | There is no host plan to ask for. The updater rolls back only inside a job whose verify failed; a deliberate rollback of a *finished* job is a new plan kind (and for a one-way component, a restore that discards everything written since). That is a build step, not a button. `just update-rollback` does not exist either. |
+| **`just update-pauses`** | Already displayed, so this would be a second copy of one fact: every paused row carries its pause, its reason and **Unpause**, and Channels shows the list and the night job's last decision. The gap was display and it was already closed. |
+| **`just install-updater`** | A host operation, and the point of it is that it is *not* clickable: a release that changes the updater only stages the new copy, so the program that validates the next request changes when a person says so. The page already says this when one is staged. |
+| **`just release`** | A repository operation - it cuts and pushes a tag. It changes nothing about this box, and the box deploys a tag only once CI has marked it green. |
+
 ## What is left
 
 - **The auth boundary and the edge** (oauth2-proxy, the socket proxies, Traefik) are still updated by hand (§4).
 - **A Postgres minor** is still `just up-data` by hand; the updater moves Postgres only across a major.
 - **Host tooling** (minikube, kubectl, helm) stays out of scope until it is pinned in mise (§4).
 - **§8 extras:** editing a channel from the page (through the config tier) and a history row's "Roll back" as a plan.
+  Both were looked at on 2026-10-06 and deliberately left out - see
+  [the two asks](#the-two-asks-2026-10-06-check-for-updates-now-and-run-the-night-job-now) for why.
 - **Editor saves committed to a `local/edits` branch** (§6): the updater still refuses a dirty tree instead.
 
 ## Sources

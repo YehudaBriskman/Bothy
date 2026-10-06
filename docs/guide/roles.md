@@ -26,7 +26,7 @@ will say so rather than keep insisting.
 
 ## Where each role is enforced
 
-48 routers carry a role requirement, across 5 files in `edge/dynamic/`.
+50 routers carry a role requirement, across 5 files in `edge/dynamic/`.
 The requirement lives in the **middleware**, not in the service, and the three
 middlewares are identical but for one word in a query string - which is the
 property that makes the design worth having: adding a tier is four lines of
@@ -38,13 +38,13 @@ YAML, not another container.
 | `edge/dynamic/bothy-config.yml` | 2 | the same pair, over config fields |
 | `edge/dynamic/bothy-admin.yml` | 4 | `operator` on the audit log, backups, credentials and users |
 | `edge/dynamic/bothy-ops.yml` | 33 | `operator` on the three container verbs and every cluster change, `viewer` on every cluster read |
-| `edge/dynamic/bothy-updates.yml` | 5 | `operator` to request or pause an update, `viewer` to read its state |
+| `edge/dynamic/bothy-updates.yml` | 7 | `operator` to request or pause an update, to check for updates or to run the night job; `viewer` to read its state |
 
 | Role | Routers require it |
 |---|---|
 | `viewer` | 24 |
 | `editor` | 3 |
-| `operator` | 21 |
+| `operator` | 23 |
 
 **This page used to list all fourteen routers by name.** That table was written
 when fourteen was the whole truth, and it was still at fourteen on 2026-09-23,
