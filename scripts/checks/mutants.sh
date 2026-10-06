@@ -286,6 +286,80 @@ mutant "a gated router stops matching SECURITY.md's count" \
   'middlewares: [bothy-config-strip, config-deidentify, sso-errors]' \
   -- bash scripts/checks/router-gates.sh
 
+# THE OTHER THREE DOCUMENTS. Guarding SECURITY.md left README.md, the guide's
+# roles page and ARCHITECTURE.md each carrying their own stale copy of the same
+# number while this row was green - which is the point of the rows below: they
+# mutate the copies, not the original. Each anchor is real prose from the
+# document, never a comment; a comment anchor would apply cleanly, change
+# nothing the check reads, and report the check as decorative.
+mutant "README's router table loses a tier's routers" \
+  README.md \
+  '| `edge/dynamic/bothy-updates.yml` | 5 |' \
+  '| `edge/dynamic/bothy-updates.yml` | 4 |' \
+  -- bash scripts/checks/router-gates.sh
+
+mutant "the guide's router sentence goes stale" \
+  docs/guide/roles.md \
+  '48 routers carry a role requirement, across 5 files' \
+  '47 routers carry a role requirement, across 5 files' \
+  -- bash scripts/checks/router-gates.sh
+
+# The prose two lines above a table the check already held. Written out in
+# words, which is why it was never compared to anything until 2026-09-23.
+mutant "SECURITY.md's spelled-out count leaves its own table" \
+  SECURITY.md \
+  'Forty-eight role-gated routers, in five files.' \
+  'Forty-seven role-gated routers, in five files.' \
+  -- bash scripts/checks/router-gates.sh
+
+# The exact sentence that was wrong: "Only three tiers are behind single
+# sign-on", in the page a new reader opens first, two tiers after it stopped
+# being true.
+mutant "the guide undercounts the tiers behind SSO" \
+  docs/guide/index.md \
+  'Only 5 tiers are behind single sign-on' \
+  'Only 3 tiers are behind single sign-on' \
+  -- bash scripts/checks/router-gates.sh
+
+echo
+echo "── facts a document states about the tree ──────────────────────────"
+# The bug this replays verbatim: SECURITY.md's power table said `bothy-ops` could
+# take "five cluster actions" while catalog.toml declared twenty-nine, in the
+# cell a reader uses to size the blast radius of the `operator` role.
+mutant "a document undercounts the cluster actions" \
+  SECURITY.md \
+  '**29 cluster actions** with a namespaced token' \
+  '**5 cluster actions** with a namespaced token' \
+  -- bash scripts/checks/doc-facts.sh
+
+# "A container nothing browses: publish nothing, join devnet" ended with five
+# containers to copy, four of which had been moved OFF devnet precisely because
+# being reachable there IS authorisation for a socket proxy that has no auth of
+# any kind. The recipe was telling a reader to undo the boundary.
+mutant "the devnet recipe offers an isolated backend to copy" \
+  docs/guide/services.md \
+  'name. This is the correct default for exporters and sidecars - `oauth2-proxy`' \
+  'name. This is the correct default for exporters and sidecars - `bothy-ops`' \
+  -- bash scripts/checks/doc-facts.sh
+
+# `just urls` is the authority four documents defer to instead of keeping their
+# own port table. Moving one port there is both failures at once: the published
+# port is now unlisted, and the listed port is now published by nothing.
+mutant "\`just urls\` names a port nothing publishes" \
+  justfile \
+  'http://$IP:3000' \
+  'http://$IP:3009' \
+  -- bash scripts/checks/doc-facts.sh
+
+# The third copy of VERSION, and the one most people read. The anchor carries no
+# version number on purpose - a mutant that has to be edited at every release is
+# a mutant that breaks the release.
+mutant "the README release badge drifts from VERSION" \
+  README.md \
+  'badge/release-v' \
+  'badge/release-v9' \
+  -- bash scripts/checks/version.sh
+
 echo
 echo "── the grant that would make a browser root ────────────────────────"
 # THE most dangerous single character in this repository. The socket-proxy
