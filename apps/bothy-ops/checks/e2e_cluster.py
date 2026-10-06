@@ -96,6 +96,54 @@ def sh(*argv: str, cwd: str | None = None, check: bool = True, env: dict | None 
     return p
 
 
+def wait_for_default_sa(ns: str, env: dict, timeout: int = 180) -> None:
+    """Block until namespace `ns` has its `default` ServiceAccount.
+
+    A namespace is servable the moment the apiserver has it; its `default`
+    ServiceAccount arrives later, written by a controller in
+    kube-controller-manager. A pod that names no ServiceAccount of its own is
+    REFUSED in that gap, not queued:
+
+        Error from server (Forbidden): pods "logger" is forbidden: error looking
+        up service account default/default: serviceaccount "default" not found
+
+    That is a race on a FRESH profile, and it cost four CI runs in the 2026-10-05
+    Dependabot batch - each one ~25 minutes into the live install job, and each
+    one reading like a bump problem (a busybox pod the PR had not touched) rather
+    than a timing problem, which is the expensive part. `minikube start
+    --wait=apiserver,system_pods,node_ready` does not cover it: the controller
+    manager being READY is not the same as it having written this namespace's SA.
+
+    A `sleep` before the pod would be the same race with a longer fuse, so this
+    polls and says which namespace it gave up on. `kubectl wait --for=create
+    serviceaccount/default` would be one line, but `--for=create` is a recent
+    kubectl flag and this suite runs against whatever kubectl the host has - on an
+    older one it exits immediately on an unknown flag, which is this race again
+    wearing a more confusing error.
+
+    Only the `default` namespace needs this. Everything this test puts in
+    `monitoring` names a ServiceAccount created by the same release or apply: the
+    kube-state-metrics chart creates its own, and alloy.yaml's DaemonSet names
+    `alloy`, defined above it in the same file.
+    """
+    t0 = time.monotonic()
+    while True:
+        p = sh("kubectl", "--context", P, "-n", ns, "get", "serviceaccount", "default",
+               "-o", "name", env=env, check=False, timeout=60)
+        if p.returncode == 0:
+            break
+        waited = time.monotonic() - t0
+        if waited >= timeout:
+            raise RuntimeError(
+                f"namespace {ns} still has no `default` ServiceAccount after {int(waited)}s "
+                f"(last: {p.stderr.strip()[-300:] or 'no error output'}) - nothing has written one, and "
+                "every pod here that names no identity of its own is refused until something does")
+        time.sleep(1)
+    waited = int(time.monotonic() - t0)
+    if waited:
+        print(f"  (waited {waited}s for {ns}/default, the ServiceAccount the pods below rely on)", flush=True)
+
+
 def main() -> int:
     if not (shutil.which("minikube") and shutil.which("helm") and shutil.which("kubectl")):
         print("SKIPPED: needs minikube, helm and kubectl on PATH")
@@ -199,6 +247,9 @@ def main() -> int:
         merge("the old add-ons")
         e = {**kenv, "KUBE_CONTEXT": P}
         sh("kubectl", "--context", P, "apply", "-f", os.path.join(repo, "k8s/monitoring/namespace.yaml"), env=e)
+        # Before the first pod that does not name a ServiceAccount, not after it
+        # has been refused: see wait_for_default_sa.
+        wait_for_default_sa("default", e)
         sh("kubectl", "--context", P, "-n", "default", "run", "logger", "--image=busybox:1.37", "--restart=Never",
            "--", "sh", "-c", "while true; do echo tick; sleep 2; done", env=e)
         for part in ("ksm", "alloy"):
