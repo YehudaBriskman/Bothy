@@ -768,6 +768,40 @@ console.log('\n── batch A: a one-ratio bar is capped, dashboard cards keep t
   //     wrapped in a Tooltip that owns its accessible name. TabSpec has no
   //     per-tab label or tooltip slot, and growing the shared primitive to fit
   //     one toolbar is the wrong direction of travel.
+  // A4. The tile unit is ONE constant in :root and both dashboards read it.
+  // Two copies of one number is how the two content widths came to disagree
+  // (space-and-layout.md's own known gap), and the failure is invisible: the
+  // grids simply stop lining up with each other.
+  const chCss = rules(readFileSync(join(SRC, 'pages', 'control', 'controlHome.css'), 'utf8'));
+  const grid = one(chCss, '.ch-grid');
+  const gridD = grid ? Object.fromEntries(decls(grid.body)) : {};
+  say('--tile' in ROOT && !/--tile\s*:/.test(stripCss(readFileSync(join(SRC, 'pages', 'Overview.css'), 'utf8'))),
+    'the tile unit is declared once, in :root (space-and-layout.md: "declare ONE tile height")', ROOT['--tile']);
+  say(gridD['grid-auto-rows'] === 'var(--tile)' && gridD['align-items'] === 'stretch',
+    'the Control landing is on the tile unit, not `align-items: start` with content-sized cards',
+    `${gridD['grid-auto-rows']} / ${gridD['align-items']}`);
+  const chBody = one(chCss, '.ch-card-body');
+  const bodyD = chBody ? Object.fromEntries(decls(chBody.body)) : {};
+  say(bodyD['overflow-y'] === 'auto' && bodyD['min-height'] === '0',
+    'and its card body is the scroller, so a long card scrolls instead of growing the row');
+  // The trap the Overview's own comment records: a max-height inside a tile
+  // fights the tile and brings the ragged bottoms back.
+  const capped = chCss.filter((r) => /max-height/.test(r.body) && !/ch-tile|ch-spark/.test(r.sel)).map((r) => r.sel.replace(/\s+/g, ' '));
+  say(capped.length === 0, 'no max-height left inside a tile (it would fight the tile - see .ov-panel-body)', capped.join('; '));
+  // The structural-footer corollary, held from the "none does" side: these cards
+  // state their size in the header `meta`, so a footer would restate it.
+  say(!/ch-card-foot/.test(stripCss(readFileSync(join(SRC, 'pages', 'control', 'controlHome.css'), 'utf8'))),
+    'no Control card has a footer - either every card in a row has one or none does, and none does');
+  // The grid's spans are keyed on `nth-child`, so the JSX order IS the layout.
+  // Reorder the cards and the spans land on the wrong ones silently: nothing
+  // throws, the page just stops being two full rows. checks/control-home.mjs
+  // holds which cards a role is shown; this holds the order they are drawn in.
+  const chTs = stripTs(readFileSync(join(SRC, 'pages', 'control', 'ControlHome.tsx'), 'utf8'));
+  const inGrid = chTs.slice(chTs.indexOf('<div className="ch-grid">'), chTs.indexOf('</div>', chTs.indexOf('<div className="ch-grid">')));
+  const order = [...inGrid.matchAll(/<([A-Z]\w+)/g)].map((m) => m[1]);
+  say(JSON.stringify(order) === JSON.stringify(['AttentionList', 'QuickLinks', 'ClusterCard', 'EdgeCard', 'ActivityCard']),
+    'the Control grid draws its cards in the order its nth-child spans assume', order.join(' '));
+
   const SEG_OK = [join('pages', 'settings', 'Audit.tsx'), join('pages', 'files', 'Editor.tsx')];
   const segs = tsx.filter((f) => /className="[^"]*\bseg-toggle\b/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
   say(segs.length === SEG_OK.length && segs.every((f) => SEG_OK.includes(f)),

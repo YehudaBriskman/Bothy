@@ -92,7 +92,10 @@ export function Card({
           </button>
         )}
       </header>
-      <div className="ch-card-body">{children}</div>
+      {/* The body is the scroller now that the card is one tile tall, so it
+          carries the shared edge cue (lib/scroll.ts drives every .scroll-shade
+          from one observer - no per-card wiring). */}
+      <div className="ch-card-body scroll-shade">{children}</div>
     </section>
   );
 }

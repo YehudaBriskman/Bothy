@@ -1116,6 +1116,34 @@ mutant "a third hand-rolled .seg-toggle appears" \
   '    <div className="ov-ui seg-toggle">' \
   -- "${WEB_CHECKS[@]}"
 
+# A4. The declaration that made the Control landing ragged, planted back. Every
+# card sizes to its own content again: Needs attention ends ~260px down and
+# Quick links ~530px beside it, and the row stops reading as a row.
+mutant "the Control landing's cards size to their own content again" \
+  apps/bothy-web/web/src/pages/control/controlHome.css \
+  '  align-items: stretch; grid-auto-rows: var(--tile);' \
+  '  align-items: start;' \
+  -- "${WEB_CHECKS[@]}"
+
+# The trap the Overview's own comment records: a cap INSIDE a tile fights the
+# tile. `.ch-scroll` carried exactly this one before the tile arrived, which is
+# why Needs attention was the only card that did not run away.
+mutant "a max-height comes back inside a tile" \
+  apps/bothy-web/web/src/pages/control/controlHome.css \
+  '.ch-scroll { margin: 0 calc(var(--sp-4) * -1); padding: 0 var(--sp-4); }' \
+  '.ch-scroll { max-height: calc(var(--sp-16) * 5); margin: 0 calc(var(--sp-4) * -1); padding: 0 var(--sp-4); }' \
+  -- "${WEB_CHECKS[@]}"
+
+# A second copy of the tile constant. Nothing looks broken and nothing throws:
+# the two dashboards simply stop lining up with each other, which is how the two
+# content widths came to disagree.
+mutant "the tile unit is declared a second time, per page" \
+  apps/bothy-web/web/src/pages/Overview.css \
+  '.overview .ov-body {' \
+  '.overview { --tile: 20rem; }
+.overview .ov-body {' \
+  -- "${WEB_CHECKS[@]}"
+
 echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran

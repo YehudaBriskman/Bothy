@@ -65,7 +65,7 @@ const GROUPS = [
   ['Elevation and materials', (k) => /^--(shadow|scrim|mat-)/.test(k), 'Four steps with fixed meanings: 1 rest, 2 raised, 3 popover, 4 modal. A theme sets only `--shadow-color`, `--shadow-hairline` and `--scrim`.'],
   ['Scroll', (k) => /^--(scroll|scrollbar)/.test(k), ''],
   ['Reading', (k) => /^--(read|rd)-/.test(k), 'The rendered-document scale in Files.'],
-  ['Families and layout', (k) => /^--(font|mono|font-serif|wrap)$/.test(k), ''],
+  ['Families and layout', (k) => /^--(font|mono|font-serif|wrap|tile)$/.test(k), ''],
 ];
 
 const cell = (v) => `\`${v.replace(/\|/g, '\\|')}\``;

@@ -298,6 +298,7 @@ The rendered-document scale in Files.
 
 | Token | Value | Role |
 |---|---|---|
+| `--tile` | `19.75rem` | one dashboard card; a card that needs more spans an exact multiple |
 | `--wrap` | `1180px` |  |
 | `--font` | `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter,...` |  |
 | `--mono` | `ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace` |  |
