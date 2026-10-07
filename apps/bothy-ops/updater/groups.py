@@ -1,7 +1,10 @@
 """Groups: apply everything `main` pins for ONE recipe, in one `docker compose up`.
 
-    plan("up-monitoring")   -> dict, or raises plans.PlanRefused(reason)
-    GroupExecution(...).go() -> the result, like any other job
+    plan("up-monitoring")      -> the group plan, or raises plans.PlanRefused(reason)
+    resolve("up-monitoring")   -> the same, with its members' FULL plans (the executor's)
+    write_all()                -> groups/<recipe>.json, beside plans/<component>.json
+    GroupExecution(...).go()   -> the result, like any other job
+    instead(component, cfg)    -> what a scope refusal should tell a person to DO
 
 ── why this exists ──────────────────────────────────────────────────────────
 
@@ -317,7 +320,8 @@ def resolve(group: str, *, cfg: Config | None = None, catalog: updates.Catalog |
             f"`{anchor.apply}` recreates exactly {', '.join(sorted(mine))} in project {pj['project']} and "
             "nothing else (compose config hashes) - the same check a single component gets, over the union",
             f"the newest backup in ~/backups/{{{','.join(backup_kinds)}}} is under 24 h old",
-            "the actor is a person, never the night job",
+            "the request was made by a person, never the night job - re-checked when the executor claims it, "
+            "and the night job has no way to write a group request at all",
             "no other update is running (one global lock)",
         ],
         "verify": [f"{p['container']} runs the pulled image and is healthy" for _, p in members]

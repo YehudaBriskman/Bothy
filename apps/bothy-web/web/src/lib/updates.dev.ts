@@ -669,7 +669,9 @@ const GROUP: GroupPlan = {
     '`just up-monitoring` recreates exactly alloy, grafana, loki in project monitoring and nothing else '
     + '(compose config hashes) - the same check a single component gets, over the union',
     'the newest backup in ~/backups/{grafana,loki,postgres} is under 24 h old',
-    'the actor is a person, never the night job', 'no other update is running (one global lock)'],
+    'the request was made by a person, never the night job - re-checked when the executor claims it, and the '
+    + 'night job has no way to write a group request at all',
+    'no other update is running (one global lock)'],
   verify: ['grafana runs the pulled image and is healthy', 'alloy runs the pulled image and is healthy',
     'loki runs the pulled image and is healthy',
     'grafana: /api/health says database ok and names the expected version',

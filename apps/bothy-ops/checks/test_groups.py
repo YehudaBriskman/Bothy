@@ -307,7 +307,7 @@ ok(g["services"] == ["grafana", "loki", "web"], f"the services one compose up re
 ok(g["project"] == "t" and g["recipe"] == "just up-web", "the project is read from a member's container")
 ok("ALL OR NOTHING" in g["rollback"] and "no partial rollback" in g["rollback"],
    "the rollback says plainly that it is all of them, together")
-ok(any("the actor is a person, never the night job" in x for x in g["preflight"]),
+ok(any("never the night job" in x for x in g["preflight"]),
    "pre-flight says a group is never automatic")
 ok(all(any(m["component"] in v for v in g["verify"]) for m in g["memberRows"]),
    "verify covers EVERY member's canaries, not just one")
