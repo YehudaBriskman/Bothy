@@ -9,10 +9,34 @@ import { Tooltip } from './Tooltip';
 // light on, and the lit doorway is the only coloured part, so the logo says the
 // same thing the page does: something is running in there.
 //
-// The geometry is duplicated in exactly two other places, both generated from
-// the same numbers - public/favicon.svg and scripts/gen-icons.py. If you move a
-// coordinate here, move it there; there is no build step that would catch a
-// drift, because a favicon is never rendered by this app.
+// THIS IS THE OUTLINE RENDERING, AND IT IS NOT THE SOURCE OF THE MARK'S
+// GEOMETRY. public/favicon.svg is - it is what the browser tab, the PWA
+// manifest and the iOS home screen all show, and the repo-root
+// scripts/gen-icons.py rasterises it (and its 0.72-scale sibling
+// icon-maskable.svg) into all four PNGs. This component is a SECOND, deliberate
+// rendering of the same mark for a different job, and its coordinates differ
+// from the favicon's on purpose:
+//
+//   · favicon.svg is a SOLID silhouette on a dark tile, in three hard colours,
+//     drawn to survive 16 device pixels in a tab strip and an OS launcher,
+//     where a 2px stroke fills in and a thin outline disappears;
+//   · this is a 2px `currentColor` OUTLINE with the door on `--accent`, for the
+//     one place in this app that shows the mark - a 72px watermark at 13%
+//     opacity in the Files empty state (pages/files/Editor.tsx). It has to work
+//     in seven themes, which a fixed-colour silhouette cannot, and at 13% a
+//     filled mark is a grey slab rather than a drawing.
+//
+// The lockup in the topbar carries NO mark at all - see .brand-wordmark in
+// index.css, 2026-08-18.
+//
+// Neither rendering derives from the other; an inward offset of one does not
+// produce the other, and the roof pitches genuinely differ. What they must
+// share - the 24-unit box, the apex at (12, 4.2), a door centred on x=12 and
+// standing on that rendering's own ground line, a semicircular arch, exactly one
+// accent element, left-right symmetry - is asserted by checks/mark-geometry.mjs,
+// which also pins the differences that are allowed, so that moving a coordinate
+// here fails the suite until the difference is re-declared there and in
+// docs/brand/foundations/logo-and-app-icons.md.
 
 export function BothyMark({ size = 20 }: { size?: number }) {
   return (
