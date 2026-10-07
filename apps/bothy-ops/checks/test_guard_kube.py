@@ -136,8 +136,37 @@ ok(CAT.policy.image_registries == ("thales/", "localhost:5000/thales/"),
    f"image registries: {CAT.policy.image_registries}")
 ok(CAT.policy.job_templates == ("migrate", "seed-identity", "seed-reference"),
    f"job templates: {CAT.policy.job_templates}")
-ok(set(CAT.policy.configmap_keys) == {"LOG_LEVEL", "DB_POOL_MAX", "JOB_MAX_WORKERS"},
-   f"configmap keys: {sorted(CAT.policy.configmap_keys)}")
+# 22 since 2026-10-07, and the three originals are still among them. The names
+# are a product decision that will move again; what this holds is that the three
+# that were argued over first did not quietly fall out of the table.
+ok(len(CAT.policy.configmap_keys) == 22
+   and {"LOG_LEVEL", "DB_POOL_MAX", "JOB_MAX_WORKERS"} <= set(CAT.policy.configmap_keys),
+   f"22 configmap keys, the original three included: {sorted(CAT.policy.configmap_keys)}")
+# Every pattern is a BOUNDED range, not `[0-9]+`. The dangerous input for a
+# solver budget or a timeout was never a non-number - it is an order-of-magnitude
+# typo, which starts the pod and then answers after the gateway gave up. Asserted
+# generically so a key added later cannot skip it.
+for _k, _rule in CAT.policy.configmap_keys.items():
+    ok(not _rule.pattern.fullmatch("9" * 12) and not _rule.pattern.fullmatch("0" * 12),
+       f"{_k}: refuses a twelve-digit number")
+    ok(not _rule.pattern.fullmatch("9" * 65) and not _rule.pattern.fullmatch("a" * 65),
+       f"{_k}: refuses a 65-character value")
+    ok(not any(_rule.pattern.fullmatch(x) for x in ("", " ", "\n", "a\nb")),
+       f"{_k}: refuses an empty, blank or multi-line value")
+# The reason categories, and the resolution a row's sentence comes from.
+ok([r.name for r in CAT.policy.configmap_reasons][-1] == "manifests"
+   and not CAT.policy.configmap_reasons[-1].patterns,
+   "the catch-all reason is declared last")
+ok(CAT.policy.reason_for("GATEWAY_TIMEOUT_S").name == "mirrored"
+   and CAT.policy.reason_for("SSO_IDP_DESCRIPTOR_URL").name == "address"
+   and CAT.policy.reason_for("SSO_PROVIDER_ID").name == "identity"
+   and CAT.policy.reason_for("NODE_ENV").name == "manifests"
+   and CAT.policy.reason_for("A_KEY_NOBODY_HAS_ADDED_YET").name == "manifests",
+   "reasons resolve first-match-first, and nothing falls off the end")
+ok(all(CAT.policy.reason_for(k) is None or True for k in CAT.policy.configmap_keys)
+   and not any(r.patterns and r.matches(k) for k in CAT.policy.configmap_keys
+               for r in CAT.policy.configmap_reasons),
+   "no editable key also carries a reason it cannot be edited")
 ok(CAT["scale"].params["replicas"].min == 0 and CAT["scale"].params["replicas"].max == 3,
    "scale.replicas is bounded 0..3")
 ok(CAT["logs"].params["tail"].max == 500, "logs.tail is bounded at 500")
@@ -261,6 +290,38 @@ catalog_error(pol(configmap_keys={"LOG_LEVEL": {"pattern": "[a-z\\n]+", "meaning
 catalog_error(pol(configmap_keys={"LOG_LEVEL": {"pattern": "(", "meaning": "x"}}), "a key pattern that does not compile")
 catalog_error(pol(configmap_keys={"LOG LEVEL": {"pattern": "a", "meaning": "x"}}), "a malformed key")
 catalog_error(pol(configmap_keys={"LOG_LEVEL": {"pattern": "a"}}), "a key without meaning")
+
+# [configmap_reasons]: the three ways the first draft of that table went wrong.
+_R = {"label": "L", "meaning": "M"}
+catalog_error(pol(configmap_reasons={"a": {**_R, "keys": ["X"]}}),
+              "reasons with no catch-all - a key could resolve to no sentence at all")
+catalog_error(pol(configmap_reasons={"a": {**_R, "keys": []}, "b": {**_R, "keys": []}}),
+              "two catch-alls")
+catalog_error(pol(configmap_reasons={"a": {**_R, "keys": []}, "b": {**_R, "keys": ["X"]}}),
+              "a catch-all declared before another category, which it would shadow")
+catalog_error(pol(configmap_keys={"LOG_LEVEL": {"pattern": "info", "meaning": "x"}},
+                  configmap_reasons={"a": {**_R, "keys": ["LOG_LEVEL"]},
+                                     "z": {**_R, "keys": []}}),
+              "a reason for LOG_LEVEL, which is editable - a row cannot do both")
+# The shape that actually shipped as a bug for one draft: a WILDCARD that also
+# catches an editable key. `SSO_.*` as an identity reason swallows the editable
+# SSO_IDP_REFRESH_MS, which is why the identity category names its keys instead.
+catalog_error(pol(configmap_keys={"SSO_IDP_REFRESH_MS": {"pattern": "60000", "meaning": "x"}},
+                  configmap_reasons={"a": {**_R, "keys": ["SSO_.*"]},
+                                     "z": {**_R, "keys": []}}),
+              "a wildcard reason that also matches an editable key")
+catalog_error(pol(configmap_reasons={"a": {**_R, "keys": ["X"]}, "b": {**_R, "keys": ["X"]},
+                                     "z": {**_R, "keys": []}}),
+              "two categories claiming the same key, which first-match-wins hides")
+catalog_error(pol(configmap_reasons={"a": {**_R, "keys": ["("]}, "z": {**_R, "keys": []}}),
+              "a reason key that does not compile")
+catalog_error(pol(configmap_reasons={"a": {**_R, "keys": ["NOT A KEY"]},
+                                     "z": {**_R, "keys": []}}),
+              "a literal reason key that is not a ConfigMap key")
+catalog_error(pol(configmap_reasons={"a": {"label": "", "meaning": "M", "keys": []}}),
+              "a reason with an empty label")
+catalog_error(pol(configmap_reasons={"a": {"label": "L", "keys": []}}),
+              "a reason without a meaning")
 catalog_error(pol(image_registries=["docker.io"]), "a registry prefix without a trailing slash")
 catalog_error(pol(image_registries=[""]), "an empty registry prefix (would allow everything)")
 catalog_error(pol(image_registries=["thales/", "thales/"]), "a repeated registry prefix")

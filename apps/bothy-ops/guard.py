@@ -339,11 +339,43 @@ class ConfigKey:
 
 
 @dataclass(frozen=True)
+class ConfigReason:
+    """Why a ConfigMap key is NOT editable, said in one sentence.
+
+    `keys` are regexes fullmatched against the key name, and an EMPTY tuple is
+    the catch-all - the reason a key gets when no more specific one fits. The
+    UI reads these over the catalog rather than keeping a list of its own; a
+    list in the UI that disagrees with the catalog is the drift this repo keeps
+    writing checks about.
+    """
+    name: str
+    label: str
+    meaning: str
+    sources: tuple[str, ...]
+    patterns: tuple[re.Pattern[str], ...]
+
+    def matches(self, key: str) -> bool:
+        """The catch-all matches everything; anything else, only its own keys."""
+        return not self.patterns or any(p.fullmatch(key) for p in self.patterns)
+
+
+@dataclass(frozen=True)
 class Policy:
     configmaps: tuple[str, ...] = ()
     image_registries: tuple[str, ...] = ()
     job_templates: tuple[str, ...] = ()
     configmap_keys: dict[str, ConfigKey] = field(default_factory=dict)
+    configmap_reasons: tuple[ConfigReason, ...] = ()
+
+    def reason_for(self, key: str) -> ConfigReason | None:
+        """The FIRST declared reason whose keys match - declaration order is
+        meaning, not style (`address` before `identity`, because
+        SSO_IDP_DESCRIPTOR_URL is an address that happens to start with SSO_).
+        None only when no reasons are declared at all."""
+        for r in self.configmap_reasons:
+            if r.matches(key):
+                return r
+        return None
 
 
 class Catalog(dict):
@@ -357,7 +389,8 @@ class Catalog(dict):
 
 _ACTION_KEYS = {"title", "meaning", "target", "method", "role", "confirm", "stream", "params", "rbac", "escalate"}
 _PARAM_KEYS = {"type", "required", "default", "min", "max"}
-_TOP_KEYS = {"actions", "configmaps", "image_registries", "job_templates", "configmap_keys"}
+_TOP_KEYS = {"actions", "configmaps", "image_registries", "job_templates", "configmap_keys",
+             "configmap_reasons"}
 _ID_RE = re.compile(r"[a-z][a-z0-9-]{0,39}")
 _CM_KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]{0,62}")
 _PREFIX_RE = re.compile(r"(?:[a-z0-9.-]+(?::[0-9]{1,5})?/)?[a-z0-9]+(?:[._-][a-z0-9]+)*/")
@@ -398,7 +431,79 @@ def _policy(doc: dict) -> Policy:
         if pat.fullmatch("") or pat.fullmatch("\n") or any(pat.fullmatch(s) for s in ("a\nb", " ")):
             raise CatalogError(f"{where}: pattern must not accept an empty, blank or multi-line value")
         keys[k] = ConfigKey(k, v["pattern"], pat, v["meaning"])
-    return Policy(cms, regs, tpls, keys)
+    return Policy(cms, regs, tpls, keys, _reasons(doc, keys))
+
+
+def _reasons(doc: dict, keys: dict[str, ConfigKey]) -> tuple[ConfigReason, ...]:
+    """[configmap_reasons] - the sentence the UI puts on a row it will not let
+    you edit. Validated here rather than in the UI for the usual reason: this is
+    the only hand-written copy, and the UI reads it off the catalog.
+
+    The three rules worth having, each of which the first draft of the table
+    broke at least once:
+
+      · exactly ONE catch-all (`keys = []`), declared LAST. Without it a key
+        could resolve to nothing and the row would be back to no reason at all;
+        declared anywhere but last it would shadow every category after it,
+        because the resolution is first-match-wins.
+      · a key in [configmap_keys] matches NO category. A row cannot both offer
+        an Edit button and explain why it has none, and the contradiction is
+        easy to write: `SSO_.*` as an identity reason also matches the editable
+        SSO_IDP_REFRESH_MS, which is how this check earned its place.
+      · no two categories claim the same key explicitly. First-match-wins makes
+        that silent, and a reader of the table would have to know the order to
+        predict which sentence appears.
+    """
+    raw = doc.get("configmap_reasons", {})
+    if not isinstance(raw, dict):
+        raise CatalogError("configmap_reasons must be a table of [configmap_reasons.<name>]")
+    out: list[ConfigReason] = []
+    claimed: dict[str, str] = {}
+    for name, v in raw.items():
+        where = f"configmap_reasons.{name}"
+        if not _ID_RE.fullmatch(name):
+            raise CatalogError(f"{where}: not a reason name (lower case, dashes)")
+        if not isinstance(v, dict) or set(v) != {"label", "keys", "meaning"}:
+            raise CatalogError(f"{where}: needs exactly `label`, `keys` and `meaning`")
+        if not isinstance(v["label"], str) or not v["label"].strip():
+            raise CatalogError(f"{where}: label must be a non-empty string")
+        if not isinstance(v["meaning"], str) or not v["meaning"].strip():
+            raise CatalogError(f"{where}: meaning must be a non-empty string")
+        if not isinstance(v["keys"], list) or not all(isinstance(x, str) and x for x in v["keys"]):
+            raise CatalogError(f"{where}: keys must be a list of non-empty strings")
+        pats = []
+        for src in v["keys"]:
+            try:
+                pats.append(re.compile(src))
+            except re.error as e:
+                raise CatalogError(f"{where}: {src!r} does not compile ({e})") from None
+            if "*" not in src and "?" not in src and "." not in src and "|" not in src:
+                # A literal key name: hold it to the shape a ConfigMap key has,
+                # so a typo is caught here instead of matching nothing forever.
+                if not _CM_KEY_RE.fullmatch(src):
+                    raise CatalogError(f"{where}: {src!r} is not a ConfigMap key")
+                if src in claimed:
+                    raise CatalogError(f"{where}: {src!r} is already claimed by "
+                                       f"configmap_reasons.{claimed[src]}")
+                claimed[src] = name
+        out.append(ConfigReason(name, v["label"], v["meaning"], tuple(v["keys"]), tuple(pats)))
+
+    if not out:
+        return ()
+    catchall = [r.name for r in out if not r.patterns]
+    if len(catchall) != 1:
+        raise CatalogError("configmap_reasons needs exactly one catch-all (`keys = []`), "
+                           f"and {len(catchall)} were declared: {', '.join(catchall) or 'none'}")
+    if out[-1].patterns:
+        raise CatalogError(f"configmap_reasons.{catchall[0]} is the catch-all and must be "
+                           "declared LAST - the first match wins, so anything after it is dead")
+    for k in keys:
+        hit = next((r.name for r in out if r.patterns and r.matches(k)), None)
+        if hit:
+            raise CatalogError(f"configmap_keys.{k} is editable and configmap_reasons.{hit} "
+                               "also states why it is not - a row cannot both offer an Edit "
+                               "button and explain why it has none")
+    return tuple(out)
 
 
 def _grants(where: str, raw: object, role: str) -> tuple[Grant, ...]:
@@ -614,6 +719,12 @@ def catalog_json(catalog: Catalog) -> dict:
         "configmaps": list(pol.configmaps),
         "configmapKeys": {k.key: {"pattern": k.source, "meaning": k.meaning}
                           for k in pol.configmap_keys.values()},
+        # Published so the Config tab can state a reason per non-editable row
+        # without keeping a second list. The row's own reason is resolved by the
+        # SERVICE (kube.py's h_configmap) against the live key names; this is
+        # here so the UI can name the categories it is about to render.
+        "configmapReasons": [{"name": r.name, "label": r.label, "meaning": r.meaning,
+                              "keys": list(r.sources)} for r in pol.configmap_reasons],
         "imageRegistries": list(pol.image_registries),
         "jobTemplates": list(pol.job_templates),
     }

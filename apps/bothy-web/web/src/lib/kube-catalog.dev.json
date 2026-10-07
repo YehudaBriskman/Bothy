@@ -455,8 +455,161 @@
     "JOB_MAX_WORKERS": {
       "pattern": "[1-4]",
       "meaning": "Solver jobs the algorithm runs at once (1 to 4)."
+    },
+    "CPSAT_TIME_LIMIT": {
+      "pattern": "[1-9]|[1-9][0-9]|[1-4][0-9]{2}|5[0-6][0-9]|570",
+      "meaning": "Seconds CP-SAT may search, phase 1 and 2 together (1 to 570; live 540). It must finish 30 s before SYNC_OPTIMIZE_TIMEOUT_MS or the caller gets a 504 while the solve runs on."
+    },
+    "CPSAT_PHASE2_TIME_LIMIT": {
+      "pattern": "[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-7][0-9]|28[0-5]",
+      "meaning": "Seconds reserved out of CPSAT_TIME_LIMIT for the phase-2 merge (0 to 285; live 120). Above half of CPSAT_TIME_LIMIT it is silently clamped; 0 reserves nothing."
+    },
+    "CPSAT_SEARCH_WORKERS": {
+      "pattern": "[1-8]",
+      "meaning": "CP-SAT search threads per solve (1 to 8; live 8). Times JOB_MAX_WORKERS against the pod's 2 CPUs, so 8 is already oversubscribed - this is the dial for turning it down."
+    },
+    "CPSAT_RANDOM_SEED": {
+      "pattern": "0|[1-9][0-9]{0,8}",
+      "meaning": "The fixed seed that makes two solves of one input agree (0 to 999999999; live 42). OR-Tools takes a 32-bit seed, and a larger number fails at solve time, not at start."
+    },
+    "CPSAT_RELATIVE_GAP_LIMIT": {
+      "pattern": "0|0\\.[0-9]{1,6}",
+      "meaning": "How far from proven-optimal CP-SAT may stop, as a fraction (0 to 0.999999; live 0.001). 0 means prove it exactly; 1 would accept the first answer found, so it is refused."
+    },
+    "CPSAT_LEX_MERGE": {
+      "pattern": "0|1",
+      "meaning": "Whether CP-SAT runs its phase-2 lexicographic merge (1 on, 0 off). Any other word, 2 included, stops the algorithm pod starting."
+    },
+    "MILP_TIME_LIMIT": {
+      "pattern": "[1-9]|[1-9][0-9]|[1-4][0-9]{2}|5[0-6][0-9]|570",
+      "meaning": "Seconds the MILP solver may run (1 to 570; live 540). Bounded by SYNC_OPTIMIZE_TIMEOUT_MS the same way CPSAT_TIME_LIMIT is."
+    },
+    "MILP_GAP_ABS": {
+      "pattern": "[0-9](\\.[0-9]{1,3})?",
+      "meaning": "How far from optimal the MILP solver may stop, in objective units - absolute, not a fraction (0 to 9.999; live 0.5). Above about 1 it can trade away a real decision."
+    },
+    "DB_CONNECTION_TIMEOUT_MS": {
+      "pattern": "[1-9][0-9]{3}|[1-5][0-9]{4}|60000",
+      "meaning": "Milliseconds to wait for a database connection before failing (1000 to 60000; live 10000). 0 would mean wait forever, so it is refused."
+    },
+    "DB_STATEMENT_TIMEOUT_MS": {
+      "pattern": "[1-9][0-9]{3}|[1-9][0-9]{4}|[1-5][0-9]{5}|600000",
+      "meaning": "Milliseconds any one SQL statement may run, set on the server through the connection (1000 to 600000; live 60000). Migrations are bounded by it too."
+    },
+    "DB_WAIT_TIMEOUT_S": {
+      "pattern": "[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600",
+      "meaning": "Seconds the backend's entrypoint waits for the database before exiting non-zero (1 to 600; live 60). A leading zero would be read as octal by the shell that uses it."
+    },
+    "JOB_CONTROL_TIMEOUT_MS": {
+      "pattern": "[1-9][0-9]{3}|[1-9][0-9]{4}|[1-5][0-9]{5}|600000",
+      "meaning": "Milliseconds the backend waits on a job start, poll or cancel before answering 504 (1000 to 600000; live 30000). It must stay under GATEWAY_TIMEOUT_S."
+    },
+    "JOB_TTL_SECONDS": {
+      "pattern": "[1-9]|[1-9][0-9]|[1-9][0-9]{2}|[1-9][0-9]{3}|[1-7][0-9]{4}|8[0-5][0-9]{3}|86[0-3][0-9]{2}|86400",
+      "meaning": "Seconds a finished solver job stays readable before the algorithm forgets it (1 to 86400; live 900). Its result is held in memory until then."
+    },
+    "SHUTDOWN_GRACE_MS": {
+      "pattern": "[1-9][0-9]{3}|[1-2][0-9]{4}|30000",
+      "meaning": "Milliseconds the backend has to drain, flush and close on shutdown (1000 to 30000; live 10000). Above 30000 the pod is killed mid-sequence; 0 is legal to the code and refused here, because it abandons every step."
+    },
+    "SYNC_OPTIMIZE_TIMEOUT_MS": {
+      "pattern": "6[0-5][0-9]{4}|660000",
+      "meaning": "Milliseconds the backend waits for a synchronous solve before answering 504 (600000 to 660000; live 600000). It has to sit above every solver limit plus 30 s and at or below GATEWAY_TIMEOUT_S, which leaves this window."
+    },
+    "MIGRATION_LOCK_TIMEOUT_MS": {
+      "pattern": "[1-9][0-9]{3}|[1-9][0-9]{4}|[1-5][0-9]{5}|600000",
+      "meaning": "Milliseconds a migration waits for the migration lock before giving up and applying nothing (1000 to 600000; live 120000). DB_STATEMENT_TIMEOUT_MS caps it in practice."
+    },
+    "MAX_REQUEST_BODY_BYTES": {
+      "pattern": "[1-6][0-9]{7}",
+      "meaning": "Largest request body the backend accepts, in bytes (10000000 to 69999999; live 10485760). It refuses to start below 7056044, the base64 cost of one 5 MiB attachment."
+    },
+    "SSO_IDP_REFRESH_MS": {
+      "pattern": "[3-9][0-9]{4}|[1-9][0-9]{5,6}",
+      "meaning": "Milliseconds between re-reads of the identity provider's descriptor (30000 to 9999999; live 60000). The live parser accepts any positive number, so this bound is the only thing between a typo and a poll loop against AD-FS."
+    },
+    "ENABLED_ALGORITHMS": {
+      "pattern": "(?!.*(heuristic|milp|cpsat).*\\1)(heuristic|milp|cpsat)(,(heuristic|milp|cpsat)){0,2}",
+      "meaning": "Which solvers the scheduler offers, in order (heuristic, milp, cpsat; live heuristic,milp,cpsat). The FIRST one is the default for any request that does not name a solver, so reordering changes the default. An unknown or repeated name, or an empty list, stops the backend starting."
     }
   },
+  "configmapReasons": [
+    {
+      "name": "mirrored",
+      "label": "Mirrored elsewhere",
+      "meaning": "One stated number for the Route, the frontend's nginx and the registry they are both checked against. Changing it here alone desyncs three places.",
+      "keys": [
+        "GATEWAY_TIMEOUT_S"
+      ]
+    },
+    {
+      "name": "paired",
+      "label": "Only legal with another key",
+      "meaning": "Its legal values depend on another key's value, and this interface changes one key at a time.",
+      "keys": [
+        "ENABLE_OTLP_EXPORT",
+        "OTLP_ENDPOINT"
+      ]
+    },
+    {
+      "name": "address",
+      "label": "An address",
+      "meaning": "Where something else is. It follows the deployment, so it is stated in the manifests with the rest of the topology.",
+      "keys": [
+        ".*_URL",
+        "CORS_ORIGIN",
+        ".*_ENDPOINT",
+        "SSO_ACS_PATH",
+        "BOOTSTRAP_BASES"
+      ]
+    },
+    {
+      "name": "identity",
+      "label": "An identity setting",
+      "meaning": "It decides who the system thinks you are, or which tenant you are in. Changing it from a browser is the loop this interface must not close.",
+      "keys": [
+        "AUTH_IDP",
+        "AUTH_MODE",
+        "AUTH_ROLES_FIELD_OVERRIDE",
+        "CLIENT_ID",
+        "GUEST_.*",
+        "KEYCLOAK_REALM",
+        "SSO_DEFAULT_ROLE",
+        "SSO_DOMAIN",
+        "SSO_GLOBAL_SCOPE_ROLES",
+        "SSO_GROUP_ROLE_MAP",
+        "SSO_IDP_ENTITY_ID",
+        "SSO_NAMEID_FORMAT",
+        "SSO_PROVIDER_ID",
+        "SSO_SP_ENTITY_ID",
+        "SUPERADMIN_EMAIL",
+        "SUPER_ADMIN_WHITELIST",
+        "ADMIN_EMAIL_WHITELIST",
+        "REALITY_ID"
+      ]
+    },
+    {
+      "name": "security",
+      "label": "A security switch",
+      "meaning": "It decides who gets in, or how hard it is. It belongs to review, not to a table cell.",
+      "keys": [
+        "AUTH_RATE_LIMIT_.*",
+        "BREAK_GLASS_.*",
+        "DB_SSL",
+        "DEMO_LOGINS",
+        "MIN_PASSWORD_LENGTH",
+        "REQUIRE_EMAIL_VERIFICATION",
+        "SESSION_.*",
+        "TRUSTED_PROXY_HOPS"
+      ]
+    },
+    {
+      "name": "manifests",
+      "label": "Set in the manifests",
+      "meaning": "It states which build this is, or something the release decides. It changes with a deployment, not at runtime.",
+      "keys": []
+    }
+  ],
   "imageRegistries": [
     "thales/",
     "localhost:5000/thales/"
