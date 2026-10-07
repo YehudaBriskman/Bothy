@@ -32,7 +32,7 @@ import { fetchMe, signInHref, signOutHref, type Me } from '../lib/me';
 import { useUpdatesBehind } from './settings/useUpdatesBehind';
 import { Menu } from './ui/Menu';
 import './UserMenu.css';
-import { Icon } from './ui/Icon';
+import { Icon, MENU_ICON } from './ui/Icon';
 
 export function useMe(): { me: Me | null; loading: boolean } {
   const [me, setMe] = useState<Me | null>(null);
@@ -118,14 +118,14 @@ export function UserMenu() {
               // A real link (HashRouter: the fragment IS the route), so
               // middle-click opens Settings in a new tab as it always did.
               key: 'settings', href: '#/settings', label: 'Settings',
-              icon: <Icon icon={Settings2} size="md" />,
+              icon: <Icon icon={Settings2} size={MENU_ICON} />,
               trailing: behind !== null && behind > 0 ? (
                 <span className="um-count" title={`Updates: ${behind} a minor version or more behind`}>
                   {behind}<span className="sr-only"> updates a minor version or more behind</span>
                 </span>
               ) : undefined,
             },
-            { key: 'signout', href: signOutHref(), label: 'Sign out', icon: <Icon icon={LogOut} size="md" /> },
+            { key: 'signout', href: signOutHref(), label: 'Sign out', icon: <Icon icon={LogOut} size={MENU_ICON} /> },
           ]}
         />
       )}

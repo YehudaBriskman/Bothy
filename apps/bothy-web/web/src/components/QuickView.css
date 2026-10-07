@@ -7,6 +7,7 @@
 }
 
 .qv-tile {
+  position: relative; overflow: hidden;
   display: grid; grid-template-rows: auto auto auto auto; gap: var(--sp-1);
   min-width: 0; padding: var(--sp-2) var(--sp-3) var(--sp-2);
   background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-md);
@@ -15,6 +16,47 @@
 
 .qv-top { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; color: var(--fg-subtle); }
 .qv-top svg { flex: none; }
+
+/* ── the primary tile ───────────────────────────────────────────────────────
+   Chosen by the reader and kept per browser (lib/prefs.ts). The emphasis is a
+   spine, a step of surface and a bigger number - CONTRAST, not geometry:
+   the tile does not change cell, does not change column count and does not
+   move when a metric degrades (space-and-layout.md). A strip whose tiles are
+   all one shape is a strip whose tiles can be compared, and the moment one of
+   them is a different size that is gone.
+
+   --accent, not a status colour, and that is the rule rather than an exception:
+   "primary" is a choice the reader made, not something the box is doing, so it
+   belongs to the chrome palette (principles.md rule 2). Painting it --st-warn
+   would make "the one I watch" and "the one that is wrong" the same colour. */
+.qv-tile.is-primary { background: var(--surface-2); border-color: var(--accent-line); }
+.qv-tile.is-primary::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: var(--sp-0_5); background: var(--accent);
+}
+.qv-tile.is-primary .qv-value { font-size: var(--fs-2xl); letter-spacing: var(--tr-2xl); }
+.qv-tile.is-primary .qv-label { color: var(--fg-muted); }
+
+/* The pin. Muted at rest on EVERY tile, not revealed on hover: .svc-act-btn
+   already paid for that lesson - an opacity-0 affordance was unfindable by the
+   person who asked for the feature, and hover does not exist on a phone at all.
+   DRAWN at 16px and given the shared hit SLOP (index.css, SYS-6) rather than a
+   `min-height: var(--hit)` box: under a coarse pointer --hit is 44px, and a
+   44px control inside a 114px tile at 390 took enough of the label row that
+   both "Ethernet" and "Uptime" ellipsed to four letters. The slop reaches 44px
+   without the box doing so, and the negative right margin spends the tile's own
+   padding rather than the label's width.
+   It is still not free: 74px of label row, "Ethernet" wants 70, so that one
+   label ellipses at 390 whatever the control costs. Measured, decided, and the
+   label carries a `title` - see the comment at the call site. */
+.qv-pick {
+  appearance: none; cursor: pointer; font: inherit; padding: 0; margin-left: auto; flex: none;
+  display: grid; place-items: center;
+  width: var(--sp-4); height: var(--sp-4); margin-right: calc(-1 * var(--sp-1));
+  border: 0; border-radius: var(--r-xs); background: transparent; color: var(--fg-subtle);
+}
+.qv-pick svg { display: block; }
+.qv-pick:hover { color: var(--fg); }
+.qv-tile.is-primary .qv-pick { color: var(--accent-fg); }
 .qv-label {
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

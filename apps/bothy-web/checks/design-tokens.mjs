@@ -122,6 +122,9 @@ console.log('── every button look comes from components/ui/Button ───�
   const FAMILIES = {
     'tab or segment (selection within a group; carries aria-selected/pressed)': [
       'topo-view-btn', 'sv-focus-btn', 'fx-sr-toggle', 'fx-panel-tab', 'fx-actbtn', 'chip', 'fx-rootchip',
+      // The primary-tile and primary-card pins: at most one of a group is
+      // pressed, and pressing the pressed one clears it.
+      'qv-pick', 'ch-pick',
     ],
     'row or card (a whole list item is the target; presses darken, never scale)': [
       'fx-row', 'fx-scm-row', 'fx-scm-grouph', 'fx-json-row', 'fx-sr-file', 'fx-sr-line', 'rd-dir', 'rd-doc',
@@ -141,9 +144,11 @@ console.log('── every button look comes from components/ui/Button ───�
   // Buttons whose className is a pure state expression (`on` / '') inside a
   // group container that carries the look (.chips, .seg-toggle, .tabs,
   // .vit-ranges), and the few with no class inside a styled parent.
+  // pages/Overview.tsx left this list when its last hand-rolled `.seg-toggle`
+  // became a <Tabs> - it now renders no raw <button> at all.
   const STATE_ONLY_FILES = new Set([
     'components/PortsTab.tsx', 'components/RoutesTab.tsx', 'pages/control/Cluster.tsx', 'pages/settings/Audit.tsx',
-    'components/Vitals.tsx', 'components/Tabs.tsx', 'pages/Overview.tsx', 'pages/control/ClusterTabs.tsx',
+    'components/Vitals.tsx', 'components/Tabs.tsx', 'pages/control/ClusterTabs.tsx',
     'pages/files/Editor.tsx', 'components/SystemMatrix.tsx', 'pages/files/DocIndex.tsx', 'pages/files/Reader.tsx',
   ]);
   const unknown = [];
@@ -351,10 +356,59 @@ console.log('\n── hit targets, the elevation ladder, the scrim ────�
 // ── 6. icons ────────────────────────────────────────────────────────────────
 console.log('\n── icon sizes: CSS and ui/Icon.tsx agree ───────────────────');
 {
-  const icon = readFileSync(join(SRC, 'components', 'ui', 'Icon.tsx'), 'utf8');
+  const ICON_FILE = join('components', 'ui', 'Icon.tsx');
+  const icon = readFileSync(join(SRC, ICON_FILE), 'utf8');
   const js = Object.fromEntries([...(icon.match(/ICON\s*=\s*\{([^}]*)\}/)?.[1] ?? '').matchAll(/(\w+):\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]));
   const css = Object.fromEntries(Object.entries(ROOT).filter(([k]) => k.startsWith('--icon-')).map(([k, v]) => [k.slice(7), parseFloat(v)]));
   say(JSON.stringify(js) === JSON.stringify(css) && Object.keys(js).length === 5, 'ICON equals --icon-xs/sm/md/lg/xl', JSON.stringify(css));
+
+  // ── 6b. a CONTAINER and its GLYPH cannot be set apart (batch A, A5) ───────
+  // Nothing bound them before, and two defects followed: `.ico.sm` (26px) was
+  // handed `size="md"` at four call sites and `size="sm"` at a fifth, so two
+  // optical rings appeared on adjacent surfaces; and `.ui-menu-ico` was 14px
+  // wide with no height while UserMenu passed 16px glyphs into it, so this
+  // app's two menus aligned their rows differently. ICON_BOX and MENU_ICON in
+  // ui/Icon.tsx are the binding; these four assertions are what keeps it one.
+  const BOX = Object.fromEntries([...(icon.match(/ICON_BOX\s*=\s*\{([\s\S]*?)\n\}/)?.[1] ?? '')
+    .matchAll(/(\w+):\s*\{\s*px:\s*(\d+),\s*glyph:\s*'(\w+)'/g)].map((m) => [m[1], { px: Number(m[2]), glyph: m[3] }]));
+  say(Object.keys(BOX).length === 3, 'ICON_BOX names the three .ico containers', JSON.stringify(BOX));
+  // The CSS squares equal ICON_BOX's px, and each is a square.
+  const boxCss = [['md', '.ico'], ['sm', '.ico.sm'], ['lg', '.ico.lg']].map(([k, sel]) => {
+    const r = rules(INDEX).find((x) => x.sel === sel && !x.media);
+    const d = r ? Object.fromEntries(decls(r.body)) : {};
+    return [k, sel, d.width, d.height ?? (k === 'md' ? d.height : undefined)];
+  });
+  const boxBad = boxCss.filter(([k, , w, h]) => {
+    const want = `${BOX[k]?.px}px`;
+    return w !== want || (h !== undefined && h !== want);
+  }).map(([, sel, w, h]) => `${sel} ${w}/${h}`);
+  // `.ico.sm` and `.ico.lg` override only the width in the shorthand they
+  // inherit, so a height that is PRESENT must match; `.ico` sets both.
+  say(boxBad.length === 0, 'every .ico container is the square ICON_BOX says it is', boxBad.join('; ') || boxCss.map(([k, , w]) => `${k} ${w}`).join(' '));
+  // Nobody renders one by hand any more - that is what let the glyph drift.
+  const handBox = [];
+  for (const f of tsx) {
+    if (rel(f) === ICON_FILE) continue;
+    const s = stripTs(readFileSync(f, 'utf8'));
+    for (const m of s.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\}|\{'([^']*)'\})/g)) {
+      const txt = (m[1] ?? m[2] ?? m[3]).replace(/\$\{[^}]*\}/g, ' ');
+      if (/(^|\s)ico(\s|$)/.test(txt)) handBox.push(`${rel(f)}: "${txt.trim()}"`);
+    }
+  }
+  say(handBox.length === 0, 'no hand-written `ico` container outside ui/Icon.tsx (use <IconBox>, which hands the glyph its size)',
+    handBox.join('; ') || `${tsx.length} files read`);
+  // The menu gutter: both dimensions, equal, and equal to the glyph MENU_ICON
+  // names - and every menu item passing exactly that.
+  const menuCss = rules(readFileSync(join(SRC, 'components', 'ui', 'Menu.css'), 'utf8')).find((r) => r.sel === '.ui-menu-ico');
+  const md = menuCss ? Object.fromEntries(decls(menuCss.body)) : {};
+  const menuGlyph = icon.match(/MENU_ICON:\s*IconSize\s*=\s*'(\w+)'/)?.[1];
+  say(!!menuGlyph && md.width === `var(--icon-${menuGlyph})` && md.height === md.width,
+    'the menu gutter is a square the size of the glyph MENU_ICON names', `${md.width} x ${md.height} vs --icon-${menuGlyph}`);
+  const literalMenu = [];
+  for (const f of tsx) for (const m of stripTs(readFileSync(f, 'utf8')).matchAll(/icon:\s*<\w+\s[^>]*size=(?:"(\w+)"|\{(\w+)\})/g)) {
+    if (m[2] !== 'MENU_ICON') literalMenu.push(`${rel(f)}: size=${m[1] ?? `{${m[2]}}`}`);
+  }
+  say(literalMenu.length === 0, 'every menu item\'s glyph is MENU_ICON, not a size typed at the call site', literalMenu.join('; '));
 }
 
 // ── 8. motion behaviour (batch 3) ───────────────────────────────────────────
@@ -730,6 +784,78 @@ console.log('\n── batch 5: tables become cards, states are written once ─�
     if (/\.at === 0 && [a-z]*\.?fails === 0/.test(src)) firstPollHand.push(rel(f));
   }
   say(firstPollHand.length === 0, 'no hand-written `at === 0 && fails === 0` (use firstPoll)', firstPollHand.join(', '));
+}
+
+// ── 11. batch A: the footprint rule, applied to the dashboards ──────────────
+console.log('\n── batch A: a one-ratio bar is capped, dashboard cards keep the tile ─');
+{
+  const ovCss = rules(readFileSync(join(SRC, 'pages', 'Overview.css'), 'utf8'));
+  const one = (rs, want) => rs.find((r) => r.sel.replace(/\s+/g, ' ') === want && !r.media);
+
+  // A1. The counts were always `auto`; the BAR held the `1fr`, so in a 1320px
+  // column it drew ~1100px of 8px ribbon for a single ratio. Reverting the cap
+  // is one token, and nothing on the page would look broken - which is exactly
+  // the kind of regression this file exists for.
+  const head = one(ovCss, '.ov-status-head');
+  const cols = head ? (decls(head.body).find(([p]) => p === 'grid-template-columns')?.[1] ?? '') : '';
+  const just = head ? (decls(head.body).find(([p]) => p === 'justify-content')?.[1] ?? '') : '';
+  say(!!head && /minmax\([^)]*rem\s*\)/.test(cols) && !/\b1fr\b/.test(cols),
+    'the status strip\'s bar is capped, never 1fr (principles.md §3: one ratio is not a page-wide row)', cols);
+  // Without this the `auto` counts column stretches - a grid stretches auto
+  // tracks and only auto tracks - and the capped bar lands on the right edge.
+  say(just === 'start', 'and the strip is start-justified, so the cap is not undone by the auto track stretching', just);
+
+  // A3. `.seg-toggle` is the hand-rolled selector components/Tabs.tsx was
+  // written to replace: `role="group"` plus `aria-pressed`, so a screen reader
+  // hears N unrelated toggles rather than "tab 1 of 2" and the arrow keys do
+  // nothing. Two survive, and each is a DIFFERENT CONTROL rather than one
+  // nobody got round to - which is exactly why the registry names the reason:
+  //   settings/Audit.tsx - a filter among filters, inside role="search". A
+  //     tablist there would claim the table below is N panels while three other
+  //     controls narrow that one table.
+  //   files/Editor.tsx - an icon-only pair in a dense toolbar, each button
+  //     wrapped in a Tooltip that owns its accessible name. TabSpec has no
+  //     per-tab label or tooltip slot, and growing the shared primitive to fit
+  //     one toolbar is the wrong direction of travel.
+  // A4. The tile unit is ONE constant in :root and both dashboards read it.
+  // Two copies of one number is how the two content widths came to disagree
+  // (space-and-layout.md's own known gap), and the failure is invisible: the
+  // grids simply stop lining up with each other.
+  const chCss = rules(readFileSync(join(SRC, 'pages', 'control', 'controlHome.css'), 'utf8'));
+  const grid = one(chCss, '.ch-grid');
+  const gridD = grid ? Object.fromEntries(decls(grid.body)) : {};
+  say('--tile' in ROOT && !/--tile\s*:/.test(stripCss(readFileSync(join(SRC, 'pages', 'Overview.css'), 'utf8'))),
+    'the tile unit is declared once, in :root (space-and-layout.md: "declare ONE tile height")', ROOT['--tile']);
+  say(gridD['grid-auto-rows'] === 'var(--tile)' && gridD['align-items'] === 'stretch',
+    'the Control landing is on the tile unit, not `align-items: start` with content-sized cards',
+    `${gridD['grid-auto-rows']} / ${gridD['align-items']}`);
+  const chBody = one(chCss, '.ch-card-body');
+  const bodyD = chBody ? Object.fromEntries(decls(chBody.body)) : {};
+  say(bodyD['overflow-y'] === 'auto' && bodyD['min-height'] === '0',
+    'and its card body is the scroller, so a long card scrolls instead of growing the row');
+  // The trap the Overview's own comment records: a max-height inside a tile
+  // fights the tile and brings the ragged bottoms back.
+  const capped = chCss.filter((r) => /max-height/.test(r.body) && !/ch-tile|ch-spark/.test(r.sel)).map((r) => r.sel.replace(/\s+/g, ' '));
+  say(capped.length === 0, 'no max-height left inside a tile (it would fight the tile - see .ov-panel-body)', capped.join('; '));
+  // The structural-footer corollary, held from the "none does" side: these cards
+  // state their size in the header `meta`, so a footer would restate it.
+  say(!/ch-card-foot/.test(stripCss(readFileSync(join(SRC, 'pages', 'control', 'controlHome.css'), 'utf8'))),
+    'no Control card has a footer - either every card in a row has one or none does, and none does');
+  // The grid's spans are keyed on `nth-child`, so the JSX order IS the layout.
+  // Reorder the cards and the spans land on the wrong ones silently: nothing
+  // throws, the page just stops being two full rows. checks/control-home.mjs
+  // holds which cards a role is shown; this holds the order they are drawn in.
+  const chTs = stripTs(readFileSync(join(SRC, 'pages', 'control', 'ControlHome.tsx'), 'utf8'));
+  const inGrid = chTs.slice(chTs.indexOf('<div className="ch-grid">'), chTs.indexOf('</div>', chTs.indexOf('<div className="ch-grid">')));
+  const order = [...inGrid.matchAll(/<([A-Z]\w+)/g)].map((m) => m[1]);
+  say(JSON.stringify(order) === JSON.stringify(['AttentionList', 'QuickLinks', 'ClusterCard', 'EdgeCard', 'ActivityCard']),
+    'the Control grid draws its cards in the order its nth-child spans assume', order.join(' '));
+
+  const SEG_OK = [join('pages', 'settings', 'Audit.tsx'), join('pages', 'files', 'Editor.tsx')];
+  const segs = tsx.filter((f) => /className="[^"]*\bseg-toggle\b/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
+  say(segs.length === SEG_OK.length && segs.every((f) => SEG_OK.includes(f)),
+    'the only hand-rolled `.seg-toggle` left are the two registered exceptions (a new one, or a stale entry, fails)',
+    segs.join(', ') || '(none)');
 }
 
 console.log(`\n  ${passes} pass · ${failures} fail`);

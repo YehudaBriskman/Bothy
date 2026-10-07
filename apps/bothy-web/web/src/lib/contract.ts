@@ -165,6 +165,10 @@ export const STRUCTURAL = new Set([
   '--mat-palette-blur', '--dur-theme',
   // Batch 4 (2026-09-22): the radius for marks, and the top bar's stated height.
   '--r-2xs', '--topbar-h',
+  // 2026-10-07: the dashboard tile unit, promoted from `.overview` to :root when
+  // the Control landing adopted it. A height, not a colour - nothing a theme is
+  // asked for, and its default has to reach a theme that never heard of it.
+  '--tile',
   // 2026-09-22: ui/Loader's three orb sizes and its show-after hold. Named, not a
   // prefix: --loader-ink is a colour, and a theme MAY set it (it derives from
   // --fg-muted until one does).

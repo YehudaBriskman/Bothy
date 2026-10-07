@@ -13,7 +13,7 @@ import type { AuditResult, BackupsResult } from '../../lib/admin';
 import { signInHref } from '../../lib/me';
 import { fmtAge, type Gates } from '../../pages/control/home';
 import type { Source } from './usePolled';
-import { Card, SourceNote, ToneIcon, type Tone } from './parts';
+import { Card, SourceNote, ToneIcon, type Pick, type Tone } from './parts';
 import { Loader } from '../ui/Loader';
 
 const JOB_TONE: Record<JobState, Tone> = {
@@ -25,7 +25,7 @@ const ago = (iso: string | null | undefined, now: number) => {
 };
 
 export function ActivityCard({
-  gates, signedIn, updates, backups, audit, now,
+  gates, signedIn, updates, backups, audit, now, pick,
 }: {
   gates: Gates;
   signedIn: boolean;
@@ -33,10 +33,11 @@ export function ActivityCard({
   backups: Source<BackupsResult>;
   audit: Source<AuditResult>;
   now: number;
+  pick: Pick;
 }) {
   if (!gates.updates) {
     return (
-      <Card id="ch-act" title="Recent activity" icon={Activity}>
+      <Card id="ch-act" title="Recent activity" icon={Activity} pick={pick}>
         <p className="ch-empty">
           {signedIn
             ? 'Update, backup and audit history need the viewer role or above.'
@@ -55,7 +56,7 @@ export function ActivityCard({
     .slice(0, 4);
 
   return (
-    <Card id="ch-act" title="Recent activity" icon={Activity}>
+    <Card id="ch-act" title="Recent activity" icon={Activity} pick={pick}>
       <div className="ch-act">
         <div className="ch-act-block">
           <h3 className="ch-act-h"><Link to="/settings/updates">Update jobs</Link></h3>

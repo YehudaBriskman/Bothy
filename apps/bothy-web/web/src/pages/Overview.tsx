@@ -15,6 +15,7 @@ import { useLingering } from '../components/ui/Dialog';
 import { QuickView } from '../components/QuickView';
 import { Vitals } from '../components/Vitals';
 import { TopContainers } from '../components/TopContainers';
+import { Tabs, TabGroup, TabPanel } from '../components/Tabs';
 import { StatusBar, BarGauge, type Seg, type GaugeRow } from '../components/viz';
 import { KNOWN_SERVICES, type PortalNode, type Status } from '../lib/discover';
 import { serviceLink, systemLink, kindLabelOf } from '../lib/links';
@@ -23,7 +24,7 @@ import { ServiceIcon, StatusIcon, STATUS_LABEL } from '../lib/icons';
 import { useLayout } from '../lib/usePrefs';
 import { orderSections } from '../lib/prefs';
 import './Overview.css';
-import { Icon as SizedIcon } from '../components/ui/Icon';
+import { Icon as SizedIcon, IconBox } from '../components/ui/Icon';
 import { Button } from '../components/ui/Button';
 
 // A bare colour dot is not a status. StatusIcon does this correctly elsewhere;
@@ -313,7 +314,7 @@ function AttentionStrip({ attention }: { attention: PortalNode[] }) {
       <div className="ov-attn-list">
         {attention.map((n) => (
           <Link to={serviceLink(n)} className="ov-alert" key={n.id}>
-            <span className="ico sm"><ServiceIcon node={n} size="md" /></span>
+            <IconBox size="sm">{(g) => <ServiceIcon node={n} size={g} />}</IconBox>
             <span className="ov-alert-name">{n.name}</span>
             <StatusIcon status={n.status} />
             <span className="ov-alert-why">{n.status === 'down' ? 'down' : n.status === 'stopped' ? 'stopped' : kindLabelOf(n).label}</span>
@@ -337,30 +338,45 @@ function UiBody({ stack, project }: { stack: UiLink[]; project: UiLink[] }) {
   const links = tab === 'project' ? project : stack;
   return (
     <div className="ov-ui">
-      <div className="seg-toggle ov-ui-seg" role="group" aria-label="Which UIs">
-        <button className={tab === 'project' ? 'on' : ''} aria-pressed={tab === 'project'} onClick={() => setTab('project')}>
-          Projects <span className="ov-seg-n">{project.length}</span>
-        </button>
-        <button className={tab === 'stack' ? 'on' : ''} aria-pressed={tab === 'stack'} onClick={() => setTab('stack')}>
-          Stack <span className="ov-seg-n">{stack.length}</span>
-        </button>
-      </div>
-      {!links.length ? (
-        <p className="ov-uicol-empty">Nothing browsable here.</p>
-      ) : (
-        <ul className="ov-uilist">
-          {links.map((l) => (
-            <li key={l.id} className="ov-uirow">
-              <Dot status={l.status} />
-              <Link className="ov-uirow-name" to={serviceLink({ id: l.id })}>{l.name}</Link>
-              <span className="ov-uirow-host">{l.host ?? (l.port != null ? `:${l.port}` : '-')}</span>
-              <a className="ov-uirow-open" href={l.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${l.name} in a new tab`}>
-                <SizedIcon icon={ExternalLink} size="sm" />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* A REAL TABLIST, not the hand-rolled `.seg-toggle` this used to be. That
+          was a row of buttons with `role="group"` and `aria-pressed`, so a screen
+          reader heard two unrelated toggles instead of "tab 1 of 2" and the arrow
+          keys did nothing - the exact pattern components/Tabs.tsx's own header
+          says it was written to replace. Its count also rode in `.ov-seg-n`,
+          which has NO rule anywhere in the tree, so it rendered unstyled; `Tabs`
+          gives it `.tab-n`.
+          The panel one cell to the right (Busiest containers) has been on `Tabs`
+          since it was written, so until now this row of the dashboard carried two
+          selectors that did the same job and looked and behaved differently. */}
+      <TabGroup>
+        <Tabs
+          label="Which UIs"
+          value={tab}
+          onChange={(k) => setTab(k as 'project' | 'stack')}
+          tabs={[
+            { key: 'project', label: 'Projects', count: project.length },
+            { key: 'stack', label: 'Stack', count: stack.length },
+          ]}
+        />
+        <TabPanel tabKey={tab} active>
+          {!links.length ? (
+            <p className="ov-uicol-empty">Nothing browsable here.</p>
+          ) : (
+            <ul className="ov-uilist">
+              {links.map((l) => (
+                <li key={l.id} className="ov-uirow">
+                  <Dot status={l.status} />
+                  <Link className="ov-uirow-name" to={serviceLink({ id: l.id })}>{l.name}</Link>
+                  <span className="ov-uirow-host">{l.host ?? (l.port != null ? `:${l.port}` : '-')}</span>
+                  <a className="ov-uirow-open" href={l.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${l.name} in a new tab`}>
+                    <SizedIcon icon={ExternalLink} size="sm" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </TabPanel>
+      </TabGroup>
     </div>
   );
 }

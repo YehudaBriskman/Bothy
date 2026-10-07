@@ -26,7 +26,7 @@ import { ConfirmDialog } from '../../components/KubeConfirm';
 import { Dialog, useLingering } from '../../components/ui/Dialog';
 import { Menu } from '../../components/ui/Menu';
 import { Button } from '../../components/ui/Button';
-import { Icon as SizedIcon } from '../../components/ui/Icon';
+import { Icon as SizedIcon, MENU_ICON } from '../../components/ui/Icon';
 import { Loader } from '../../components/ui/Loader';
 
 type Roles = string[];
@@ -318,7 +318,7 @@ function RowMenu({ name, onPick }: { name: string; onPick: (tab: KubeDialogTab) 
         </button>
       )}
       items={MENU.map(({ tab, label, Icon }) => ({
-        key: tab, label, icon: <SizedIcon icon={Icon} size="sm" />, onSelect: () => onPick(tab),
+        key: tab, label, icon: <SizedIcon icon={Icon} size={MENU_ICON} />, onSelect: () => onPick(tab),
       }))}
     />
   );

@@ -2,24 +2,21 @@
    Structure, top to bottom: a borderless link strip, ONE hero that answers "is
    everything ok", three grouped system cards (progressive disclosure), then a
    small set of panels that visualise rather than list. Co-located: builds on
-   tokens + shared utilities in index.css (.seg-toggle .dot .ico .tag .state)
+   tokens + shared utilities in index.css (.tabs .dot .ico .tag .state)
    and the chart primitives in components/viz.css.
    Theme-aware via tokens - no hardcoded text/surface colours. */
 
-.overview {
-  /* THE TILE UNIT. Every dashboard card is either one of these tall or an exact
-     multiple, so a row of cards has one baseline instead of three ragged ones.
-     Cards used to size to their own content - a 4-row list and a 9-row list sat
-     side by side and the row bottom was wherever the taller one happened to
-     end. Snapping to a unit is what makes a grid read as a grid. */
-  /* rem (batch 4): at a larger text size the tile grows with its rows, so a
-     card still shows the same number of them instead of clipping at 316px. */
-  --tile: 19.75rem;
-}
+/* The tile unit this grid is built on is now `--tile` in index.css :root - it
+   was declared here until the Control landing adopted the same unit, and two
+   dashboards with two copies of one constant is how the two content widths came
+   to disagree. The reasoning moved with it. */
 .overview .ov-body { padding: var(--sp-1_5) 0 var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-5); }
 
-/* compact glyph reused by alert / feed rows */
-.overview .ico.sm { width: 26px; height: 26px; border-radius: var(--r-sm); font-size: 0; }
+/* The alert and feed rows' glyph box. It used to restate `.ico.sm`'s width,
+   height and radius here as well - a second copy of the container size, which is
+   half of what let the container and its glyph drift apart in the first place.
+   Only the one thing index.css does not say is left. */
+.overview .ico.sm { font-size: 0; }
 
 /* Scrollbars are styled once, globally (index.css → SCROLLING). The copy that
    used to live here predated that and set a different width and thumb colour,
@@ -58,8 +55,23 @@
    the border is most of what makes it read as a line rather than a panel. */
 .ov-status { display: flex; flex-direction: column; gap: var(--sp-2); }
 
+/* THE BAR IS CAPPED, and that is the whole of this rule. The counts have always
+   been `auto`; the bar took the `1fr`, so inside the 1320px content column it
+   drew about 1100px of 8px ribbon - the widest footprint on the page spent on
+   ONE ratio, which is the shape principles.md §3 had the hero deleted for
+   (reference/decisions.md, 2026-08-10: 160px -> 55px). Capping rather than
+   removing, because the bar is one of the three things that REPLACED the hero
+   and it reads a part-to-whole at a glance in a way the counts do not.
+   20rem is about one quick-view tile wide, so the strip and the tiles under it
+   read as one block instead of two different page widths.
+   `justify-content: start` is load-bearing: an `auto` track is the one kind a
+   grid stretches, so without it the counts would spread and push the capped bar
+   to the right edge - the same full-width line, drawn the other way round.
+   CAPPED HERE, NOT IN viz.css: StatusBar is shared (components/viz.tsx), and
+   the other callers want their own width. */
 .ov-status-head {
-  display: grid; grid-template-columns: auto minmax(120px, 1fr);
+  display: grid; grid-template-columns: auto minmax(7.5rem, 20rem);
+  justify-content: start;
   align-items: center; gap: var(--sp-4);
 }
 
@@ -209,8 +221,11 @@
    third copy of the same numbers. */
 
 /* ── UI list (one panel, two tabs) ────────────────────────────────────────── */
-.ov-ui { display: flex; flex-direction: column; gap: var(--sp-1_5); }
-.ov-ui-seg { align-self: flex-start; margin: 1px var(--sp-1) 0; }
+/* No gap, and no `.ov-ui-seg` rule any more: the tablist carries its own bottom
+   margin (index.css `.tabs`), which is the spacing Busiest containers has always
+   had in the cell beside this one. The deleted rule nudged a pill-shaped
+   `.seg-toggle` back into line; there is no pill to nudge. */
+.ov-ui { display: flex; flex-direction: column; }
 .ov-uilist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ov-uirow { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2_5); border-radius: var(--r-sm); }
 .ov-uirow:hover { background: var(--surface-2); }

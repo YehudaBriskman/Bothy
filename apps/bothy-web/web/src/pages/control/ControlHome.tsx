@@ -37,7 +37,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { usePortal, needsAttention, healthOf, expectedUp } from '../../lib/data';
-import { useDataPrefs } from '../../lib/usePrefs';
+import { useDataPrefs, useLayout } from '../../lib/usePrefs';
+import { togglePrimary, type ControlCard } from '../../lib/prefs';
 import { useOperator } from '../../lib/session';
 import { fetchUpdates } from '../../lib/updates';
 import { fetchAudit, fetchBackups } from '../../lib/admin';
@@ -70,6 +71,15 @@ export function ControlHome() {
   const { data, refresh } = usePortal();
   const [prefs] = useDataPrefs();
   const { me, loading: sessionLoading } = useOperator();
+  // The card this reader watches, chosen here and kept per browser - the same
+  // preference and the same hook as the Overview's primary tile. The three
+  // glance cards are one shape by construction, which is what makes them
+  // comparable and also why none of them is first until somebody says so.
+  const [layout, setLayout] = useLayout();
+  const pickCard = (id: ControlCard) => ({
+    on: layout.primaryCard === id,
+    onPick: () => setLayout({ ...layout, primaryCard: togglePrimary(layout.primaryCard, id) }),
+  });
   const gates = gatesFor(me?.roles ?? null, sessionLoading);
   const [tick, setTick] = useState(0);
 
@@ -267,10 +277,11 @@ export function ControlHome() {
           <div className="ch-grid">
             <AttentionList items={items} nodes={data.nodes} canAct={gates.act} degraded={degraded} pending={pending} />
             <QuickLinks nodes={data.nodes} gates={gates} />
-            <ClusterCard src={cluster} projects={data.projects} />
-            <EdgeCard counts={rc} src={edge} />
+            <ClusterCard src={cluster} projects={data.projects} pick={pickCard('cluster')} />
+            <EdgeCard counts={rc} src={edge} pick={pickCard('edge')} />
             <ActivityCard
               gates={gates} signedIn={!!me} updates={updates} backups={backups} audit={audit} now={now}
+              pick={pickCard('activity')}
             />
           </div>
           <ServiceGroups nodes={data.nodes} attention={attentionNodes} />

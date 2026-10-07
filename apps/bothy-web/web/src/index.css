@@ -405,6 +405,16 @@
      38px nav row, or the 44px touch target under a coarse pointer. rem, so it
      grows with the text it holds. */
   --topbar-h: calc(2 * var(--sp-2_5) + max(2.375rem, var(--hit)));
+  /* THE TILE UNIT. Every dashboard card is exactly one of these tall or an exact
+     multiple, so a row of cards has one baseline instead of three ragged ones -
+     cards that size to their own content put a four-row list beside a nine-row
+     list and the row's bottom edge ends wherever the taller one happened to.
+     ONE declaration, in :root, because space-and-layout.md says "declare ONE
+     tile height" and two dashboards with two constants is how the two content
+     widths came to disagree. It lived on `.overview` until the Control landing
+     needed it too (2026-10-07). rem, so at a larger text size the tile grows
+     with its rows and a card still shows the same number of them. */
+  --tile: 19.75rem;   /* one dashboard card; a card that needs more spans an exact multiple */
   --wrap: 1180px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
@@ -1679,9 +1689,9 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
    Where two slops overlap, the later control wins the overlap, which on touch
    is a far smaller error than a 17px target. */
 :where(.svc-act-btn, .svc-group-open, .set-cmd-copy, .sn-copy, .ov-uirow-open, .fx-hbtn,
-  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn) { position: relative; }
+  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn, .qv-pick) { position: relative; }
 :where(.svc-act-btn, .svc-group-open, .set-cmd-copy, .sn-copy, .ov-uirow-open, .fx-hbtn,
-  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn)::after {
+  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn, .qv-pick)::after {
   content: ''; position: absolute;
   inset: min(0px, calc((100% - var(--hit)) / 2));
 }

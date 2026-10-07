@@ -43,6 +43,24 @@ must carry at least three information dimensions.
 **Do not let layout depend on a JavaScript-measured height.** A measurement race
 is a layout bug waiting for a slower device.
 
+**A grid of equals needs a primary, and the reader picks it - but nothing
+moves.** A strip or a card row whose cells are uniform by construction has no
+most-important thing, so one is marked. Two rules come with it, and both are
+about the same failure:
+
+- **The choice is the reader's and it persists.** Never derived from the numbers.
+  A dashboard that promotes whatever is currently worst re-draws itself under the
+  reader, and the thing they came for is wherever the box's mood put it - which
+  is this document's own rule about layout depending on measured state, arriving
+  by a different door.
+- **The emphasis is contrast, not geometry.** A spine, a step of surface, the next
+  type step. Not a wider cell: the row's worth is that its cells share one shape
+  and can be read against each other, and a cell of a different size has left that
+  set. A degraded metric is badged where it stands and does not move.
+
+See [reference/decisions.md](../reference/decisions.md), 2026-10-07, for the
+rejected two-column version and what it would have cost.
+
 ## Checklist
 
 See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).

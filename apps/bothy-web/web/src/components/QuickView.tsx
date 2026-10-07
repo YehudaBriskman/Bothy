@@ -31,7 +31,9 @@
 // repeat the current value, so each fact appears once.
 
 import { useMemo, type ReactNode } from 'react';
-import { Cpu, HardDrive, MemoryStick, Network, Timer } from 'lucide-react';
+import { Cpu, HardDrive, MemoryStick, Network, Pin, Timer } from 'lucide-react';
+import { togglePrimary, type QuickTile } from '../lib/prefs';
+import { useLayout } from '../lib/usePrefs';
 import {
   Q_CPU, Q_MEM, Q_DISK_PCT, Q_DISK_FREE, Q_NET_RX, Q_NET_TX, Q_LOAD, Q_UPTIME,
   fmtPercent, fmtRate, fmtSize, fmtUptimeShort, useMetrics, type Series,
@@ -72,6 +74,14 @@ export function QuickView() {
   const { series, state } = useMetrics(specs, '1h', 30_000);
   const by = (k: string) => series.find((s) => s.key === k);
 
+  // THE ONE TILE THIS READER WATCHES. Five tiles of one shape is what the strip
+  // is for - they are comparable - and it is also why nothing in it is first.
+  // The choice is the reader's and it persists per browser (lib/prefs.ts), on the
+  // same key and the same hook as the hidden-panel list.
+  const [layout, setLayout] = useLayout();
+  const primary = layout.primaryTile;
+  const pick = (id: QuickTile) => setLayout({ ...layout, primaryTile: togglePrimary(primary, id) });
+
   const cpu = lastOf(by('cpu'));
   const mem = lastOf(by('mem'));
   const disk = lastOf(by('disk'));
@@ -85,40 +95,51 @@ export function QuickView() {
 
   return (
     <section className="qv" aria-label="At a glance">
-      <Tile Icon={Cpu} label="CPU" value={cpu == null ? '-' : fmtPercent(cpu)} off={off}>
+      <Tile id="cpu" Icon={Cpu} label="CPU" value={cpu == null ? '-' : fmtPercent(cpu)} off={off}
+        primary={primary} onPick={pick}>
         <Spark series={by('cpu')} tone={toneOf(cpu)} />
       </Tile>
 
-      <Tile Icon={MemoryStick} label="Memory" value={mem == null ? '-' : fmtPercent(mem)} off={off}>
+      <Tile id="mem" Icon={MemoryStick} label="Memory" value={mem == null ? '-' : fmtPercent(mem)} off={off}
+        primary={primary} onPick={pick}>
         <Meter pct={mem ?? 0} tone={toneOf(mem)} />
       </Tile>
 
       <Tile
+        id="disk"
         Icon={HardDrive}
         label="Disk"
         value={disk == null ? '-' : fmtPercent(disk)}
         sub={free == null ? undefined : `${fmtSize(free)} free`}
         off={off}
+        primary={primary}
+        onPick={pick}
       >
         <Meter pct={disk ?? 0} tone={toneOf(disk)} />
       </Tile>
 
       <Tile
+        id="net"
         Icon={Network}
         label="Ethernet"
         value={tx == null ? '-' : fmtRate(tx)}
         sub={rx == null ? undefined : `${fmtRate(rx)} in`}
         off={off}
+        primary={primary}
+        onPick={pick}
       >
         <Spark series={by('tx')} tone="ok" />
       </Tile>
 
       <Tile
+        id="uptime"
         Icon={Timer}
         label="Uptime"
         value={uptime == null ? '-' : fmtUptimeShort(uptime)}
         sub={load == null ? undefined : `load ${load.toFixed(2)}`}
         off={off}
+        primary={primary}
+        onPick={pick}
       >
         <Spark series={by('load')} tone="ok" />
       </Tile>
@@ -127,20 +148,49 @@ export function QuickView() {
 }
 
 function Tile({
-  Icon, label, value, sub, off, children,
+  id, Icon, label, value, sub, off, primary, onPick, children,
 }: {
+  id: QuickTile;
   Icon: typeof Cpu;
   label: string;
   value: string;
   sub?: string;
   off?: boolean;
+  /** The strip's chosen tile, or null - passed whole rather than as a boolean so
+   *  the tile can tell "I am the one" from "somebody else is". */
+  primary: QuickTile | null;
+  onPick: (id: QuickTile) => void;
   children?: ReactNode;
 }) {
+  const on = primary === id;
   return (
-    <div className="qv-tile">
+    // NOTHING MOVES. The tile keeps its cell whether it is primary or not, and
+    // whatever the metric is doing - see space-and-layout.md. The emphasis is a
+    // spine, a raised surface and a bigger number: contrast, not geometry. The
+    // strip's whole worth is that five tiles share one shape and can therefore
+    // be compared, and a tile of a different size is no longer in that set.
+    <div className={`qv-tile${on ? ' is-primary' : ''}`}>
       <span className="qv-top">
         <SizedIcon icon={Icon} size="xs" />
-        <span className="qv-label">{label}</span>
+        {/* `title` because of a MEASURED cost of the pin beside it: at 390 a tile
+            is 114px, its label row 74px, and "Ethernet" wants 70 - so an
+            always-visible 16px control ellipses that one label and no other.
+            The tile still names itself three other ways (the glyph, the value
+            and the sub-line) and the full word is in the DOM for a screen
+            reader; this puts it back within reach of a pointer too. */}
+        <span className="qv-label" title={label}>{label}</span>
+        {/* A toggle, not a radio group: pressing the one that is already primary
+            clears it, so "none" - the state every browser starts in - stays
+            reachable without a sixth control to reach it with. */}
+        <button
+          type="button"
+          className="qv-pick"
+          aria-pressed={on}
+          aria-label={on ? `${label} is the tile you watch - clear it` : `Watch ${label}: make it the primary tile`}
+          onClick={() => onPick(id)}
+        >
+          <SizedIcon icon={Pin} size="xs" fill={on ? 'currentColor' : 'none'} />
+        </button>
       </span>
       <span className="qv-value">{value}</span>
       {/* The trajectory row is always present, even when empty, so the tiles

@@ -316,9 +316,44 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    three levels are neutral chrome told apart by their WORD, with a heavier
    outline for a major - never the status palette (principles.md rule 1). Drift
    and "not checked" are state, and use .set-warn with a glyph beside the word. */
+/* MEASURED, and the reason the columns changed (2026-10-07). Seven columns
+   carried min-widths summing to a ~800px floor; `.set-cell-sub` was emitted in
+   five of the seven, over a `vertical-align: top` that settings.css sets, so a
+   nominal 32px row ran three to four lines. The Notes and Deploy floors go with
+   the Notes column; the row now carries identity, four one-mark states and the
+   one action, and everything else is in the disclosure below it. */
 .set-shell .upd-tbl td { min-width: 96px; }
 .set-shell .upd-tbl td.upd-name { min-width: 150px; }
-.set-shell .upd-tbl td.upd-notes { min-width: 120px; }
+.set-shell .upd-tbl td.upd-acts { width: 1%; white-space: nowrap; min-width: 0; }
+.set-shell .upd-acts { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); }
+.set-shell .upd-noact { padding: 0 var(--sp-1); }
+
+/* ── a row's disclosure ──────────────────────────────────────────────────────
+   A SECOND <tr>, because a cell cannot span the row it is in. It carries no
+   padding of its own at rest, so a collapsed row costs the pair nothing: the
+   Disclosure's own `grid-template-rows: 0fr` closes it. */
+.set-shell .upd-det-tr > td { padding: 0; border-bottom: 0; min-width: 0; }
+.set-shell .upd-tr > td { border-bottom: 0; }
+.set-shell .upd-det-d { border-bottom: 1px solid var(--line); }
+.set-shell .upd-det {
+  margin: 0; padding: var(--sp-2) var(--sp-3) var(--sp-3) var(--sp-4);
+  display: grid; gap: var(--sp-1) var(--sp-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--sp-16) * 4)), 1fr));
+  background: var(--bg-2);
+}
+.set-shell .upd-det-row { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-0_5); padding: var(--sp-1) 0; }
+.set-shell .upd-det-k {
+  font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--label-tracking);
+  text-transform: uppercase; font-weight: var(--fw-semibold); color: var(--fg-subtle);
+}
+.set-shell .upd-det-v {
+  margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1);
+  font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg); overflow-wrap: anywhere;
+}
+/* The chevron is the one thing on this page that may rotate: it is the state of
+   the control, not a layout property. */
+.set-shell .upd-more .chev { transition: rotate var(--dur-fast) var(--ease); }
+.set-shell .upd-more.is-open .chev { rotate: 180deg; }
 :is(.set-shell, .upd-plan) .upd-tag { font-weight: 600; color: var(--fg); }
 :is(.set-shell, .upd-plan) .upd-avail { display: inline-flex; align-items: center; gap: var(--sp-1_5); flex-wrap: wrap; }
 :is(.set-shell, .upd-plan) .upd-level {
@@ -334,25 +369,18 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 }
 .set-shell .upd-drift, .set-shell .upd-err { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 700; margin-left: var(--sp-1_5); }
 .set-shell .upd-err { margin-left: 0; }
-.set-shell .upd-why {
-  max-width: 240px; overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
+.set-shell .upd-why { overflow-wrap: anywhere; }
 .set-shell .upd-current { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--fg-subtle); white-space: nowrap; }
 .set-shell .upd-channel { font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 600; color: var(--fg); }
-.set-shell .upd-notes .upd-oneway { margin-right: var(--sp-1_5); }
 :is(.set-shell, .upd-plan) .upd-cl { display: inline-flex; align-items: center; gap: var(--sp-0_5); font-size: var(--fs-sm); line-height: var(--lh-sm); white-space: nowrap; }
 .set-shell .upd-todo { margin: 0; padding-left: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); line-height: 1.6; }
 .set-shell .upd-todo .upd-level { margin-left: var(--sp-0_5); }
 
-/* Deploy: what main pins and is not running yet. The button is the one accent
-   in the row; a reason is quiet prose - "nothing to deploy" is not a problem. */
-.set-shell .upd-tbl td.upd-deploy { min-width: 150px; }
-.set-shell .upd-deploy .upd-avail { margin-bottom: var(--sp-1); }
-.set-shell .upd-reason {
-  max-width: 220px; overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
+/* Deploy: what main pins and is not running yet. The reason a component cannot
+   be deployed is prose - "nothing to deploy" is not a problem - and it is in the
+   disclosure now, so it is read in full rather than clamped to three lines in a
+   220px cell. Both clamps are gone with the cells they were defending. */
+.set-shell .upd-reason { overflow-wrap: anywhere; }
 :is(.set-shell, .upd-plan) .upd-code { font-size: .92em; padding: 0 var(--sp-1); border-radius: var(--r-xs); background: var(--bg-2); border: 1px solid var(--line); color: var(--fg); overflow-wrap: anywhere; }
 .set-shell .upd-go { display: inline-flex; }
 
@@ -468,10 +496,22 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 @media (max-width: 640px) {
   .set-shell .set-tbl .upd-tbl td { min-width: 0; }
   .set-shell .upd-tbl tr.set-tbl-sep { padding: 0; }
-  .set-shell .upd-tbl .upd-why { max-width: none; }
   .set-shell .upd-tbl .upd-drift { margin-left: 0; }
-  .set-shell .upd-reason { max-width: none; -webkit-line-clamp: 4; }
   .set-shell .upd-job-head .btn { margin-left: 0; }
+
+  /* ONE COMPONENT IS ONE CARD, even though it is two <tr>s. `as-cards` turns
+     every row into a card with its own padding and bottom rule, so without this
+     a component's detail would be a card of its own sitting under a card, with
+     nothing saying the two belong together. The pair is welded: the row keeps
+     its top padding and loses its rule, the detail keeps the rule and loses its
+     top padding. */
+  .set-shell .upd-tbl > tbody > tr.upd-tr { padding-bottom: 0; border-bottom: 0; }
+  .set-shell .upd-tbl > tbody > tr.upd-det-tr { padding-top: 0; }
+  .set-shell .upd-det { padding: var(--sp-2) 0 var(--sp-1); background: transparent; }
+  .set-shell .upd-det-d { border-bottom: 0; }
+  /* The action cell is a row of its own in a card, so the controls sit at the
+     right edge where a thumb reaches them. */
+  .set-shell .upd-acts { justify-content: flex-end; }
 
   /* A cell that only carries a control keeps it at the card's right edge
      rather than centred on a line of its own. */

@@ -1054,6 +1054,145 @@ mutant "an unreadable exit time becomes zero instead of null" \
   -- "${WEB_CHECKS[@]}"
 
 echo
+echo "── batch A: the footprint rule, on the pages that had not adopted it ─"
+# Every row here is anchored on the DECLARATION, never on the comment above it.
+# A mutation planted in prose applies cleanly, changes nothing, and reports a
+# healthy check as decorative - a no-op this repo has paid for twice, and both
+# of the checks these rows guard strip comments before they read anything.
+
+# A1. The defect as it shipped: the counts are `auto`, so the `1fr` is the BAR,
+# and in a 1320px column that is ~1100px of 8px ribbon for one ratio. Nothing
+# about the page looks broken afterwards, which is why it survived two batches.
+mutant "the health strip's bar spans the page again" \
+  apps/bothy-web/web/src/pages/Overview.css \
+  '  display: grid; grid-template-columns: auto minmax(7.5rem, 20rem);' \
+  '  display: grid; grid-template-columns: auto minmax(7.5rem, 1fr);' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the half of the cap that is not the cap. A grid stretches `auto` tracks
+# and only `auto` tracks, so dropping this leaves the bar 20rem wide and pinned
+# to the right edge: the same full-width line, drawn the other way round.
+mutant "the capped bar drifts to the right edge" \
+  apps/bothy-web/web/src/pages/Overview.css \
+  '  justify-content: start;
+  align-items: center; gap: var(--sp-4);' \
+  '  align-items: center; gap: var(--sp-4);' \
+  -- "${WEB_CHECKS[@]}"
+
+# A2. A stored primary is read back as itself instead of being checked against
+# the list this build draws. The preference then persists perfectly and reaches
+# nothing: a renamed tile leaves a strip with a primary no tile matches, which
+# looks exactly like the preference having been lost.
+mutant "a stored primary tile is trusted unchecked" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  '    (typeof v === '"'"'string'"'"' && (allowed as readonly string[]).includes(v) ? (v as T) : null);' \
+  '    (typeof v === '"'"'string'"'"' ? (v as T) : null);' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the other end of the same wire: the list and the page disagreeing about
+# an id. Nothing throws, nothing looks broken, and the pin simply never lights.
+mutant "a quick-view tile id drifts from the one the strip renders" \
+  apps/bothy-web/web/src/components/QuickView.tsx \
+  '        id="net"' \
+  '        id="eth"' \
+  -- "${WEB_CHECKS[@]}"
+
+# The toggle. Without the clear, "no primary" - the state every browser starts
+# in - becomes unreachable the moment anybody presses anything.
+mutant "the primary can be moved but never cleared" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  '  return current === id ? null : id;' \
+  '  return id;' \
+  -- "${WEB_CHECKS[@]}"
+
+# A3. A third hand-rolled `.seg-toggle` appearing somewhere. That is the whole
+# regression: the class still exists and still looks fine, so nothing is visibly
+# wrong - a screen reader just hears N unrelated toggles again and the arrow keys
+# do nothing. The registry's two survivors each have a stated reason; a third has
+# to earn one.
+mutant "a third hand-rolled .seg-toggle appears" \
+  apps/bothy-web/web/src/pages/Overview.tsx \
+  '    <div className="ov-ui">' \
+  '    <div className="ov-ui seg-toggle">' \
+  -- "${WEB_CHECKS[@]}"
+
+# A4. The declaration that made the Control landing ragged, planted back. Every
+# card sizes to its own content again: Needs attention ends ~260px down and
+# Quick links ~530px beside it, and the row stops reading as a row.
+mutant "the Control landing's cards size to their own content again" \
+  apps/bothy-web/web/src/pages/control/controlHome.css \
+  '  align-items: stretch; grid-auto-rows: var(--tile);' \
+  '  align-items: start;' \
+  -- "${WEB_CHECKS[@]}"
+
+# The trap the Overview's own comment records: a cap INSIDE a tile fights the
+# tile. `.ch-scroll` carried exactly this one before the tile arrived, which is
+# why Needs attention was the only card that did not run away.
+mutant "a max-height comes back inside a tile" \
+  apps/bothy-web/web/src/pages/control/controlHome.css \
+  '.ch-scroll { margin: 0 calc(var(--sp-4) * -1); padding: 0 var(--sp-4); }' \
+  '.ch-scroll { max-height: calc(var(--sp-16) * 5); margin: 0 calc(var(--sp-4) * -1); padding: 0 var(--sp-4); }' \
+  -- "${WEB_CHECKS[@]}"
+
+# A second copy of the tile constant. Nothing looks broken and nothing throws:
+# the two dashboards simply stop lining up with each other, which is how the two
+# content widths came to disagree.
+mutant "the tile unit is declared a second time, per page" \
+  apps/bothy-web/web/src/pages/Overview.css \
+  '.overview .ov-body {' \
+  '.overview { --tile: 20rem; }
+.overview .ov-body {' \
+  -- "${WEB_CHECKS[@]}"
+
+# A5. The bug exactly as it shipped: a gutter with a width and no height. The
+# glyph then overflows it by a pixel each side and this app's two menus align
+# their rows differently - nothing errors, nothing is obviously wrong, and it
+# survived every design batch so far.
+mutant "the menu gutter loses its height again" \
+  apps/bothy-web/web/src/components/ui/Menu.css \
+  '  width: var(--icon-sm); height: var(--icon-sm); color: var(--fg-subtle); }' \
+  '  width: var(--icon-sm); color: var(--fg-subtle); }' \
+  -- "${WEB_CHECKS[@]}"
+
+# The other half: a size typed at a menu call site instead of MENU_ICON. This is
+# the literal that was there (UserMenu passed "md" into a 14px gutter), planted
+# somewhere else so the binding is what is being tested rather than one file.
+mutant "a menu item types its own glyph size" \
+  apps/bothy-web/web/src/pages/control/ClusterTabs.tsx \
+  'icon: <SizedIcon icon={Icon} size={MENU_ICON} />' \
+  'icon: <SizedIcon icon={Icon} size="md" />' \
+  -- "${WEB_CHECKS[@]}"
+
+# And an `.ico` box rendered by hand, which is how a container and its glyph got
+# to be set independently in the first place.
+mutant "an .ico container is rendered by hand again" \
+  apps/bothy-web/web/src/components/ServiceRow.tsx \
+  '          <IconBox size="sm">{(g) => <ServiceIcon node={node} size={g} />}</IconBox>' \
+  '          <span className="ico sm"><ServiceIcon node={node} size="md" /></span>' \
+  -- "${WEB_CHECKS[@]}"
+
+# A6. An icon-only toggle with no accessible name. On screen it is identical -
+# a chevron - and to a screen reader it is "button", which is the whole reason
+# the plan said the actions must become icon buttons WITH a real name.
+mutant "the row's disclosure toggle loses its name" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '            aria-label={open ? `Hide the detail for ${r.title}` : `Show the detail for ${r.title}`}
+' \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the pointer from the toggle to the region. ui/Disclosure keeps its
+# region in the DOM while collapsed precisely so this resolves in the state a
+# screen reader most needs it; without the attribute that costs nothing and buys
+# nothing.
+mutant "the toggle stops naming the region it opens" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '            aria-controls={bodyId}
+' \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is

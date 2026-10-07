@@ -24,7 +24,7 @@ import { BarGauge, type GaugeRow } from './viz';
 import { Dialog } from './ui/Dialog';
 import './SystemDialog.css';
 import { buttonClass } from './ui/Button';
-import { Icon } from './ui/Icon';
+import { Icon, IconBox } from './ui/Icon';
 
 export function SystemDialog({
   system, open, onOpenChange,
@@ -149,7 +149,7 @@ export function SystemDialog({
       <ul className="sd-list">
         {system.nodes.map((n) => (
           <li className="sd-row" key={n.id}>
-            <span className="ico sm"><ServiceIcon node={n} size="sm" /></span>
+            <IconBox size="sm">{(g) => <ServiceIcon node={n} size={g} />}</IconBox>
             <Link className="sd-row-name" to={serviceLink(n)} onClick={() => onOpenChange(false)}>
               {n.name}
             </Link>

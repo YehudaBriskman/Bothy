@@ -8,6 +8,66 @@ first. Dead ends are recorded rather than deleted - see
 
 ---
 
+## 2026-10-07 - One tile is primary, the reader says which, and it never moves
+
+Two dashboards here are uniform **by construction**. The Overview's quick-view
+strip has fixed row tracks and emits its trend row even when it is empty, so all
+five tiles are the same object; the Control landing's three glance cards are one
+frame with one header. That uniformity is what makes them comparable, and it is
+also why neither page has a most-important thing. A reader who opens the page
+every morning for the disk reads five identical tiles every morning.
+
+**Decision.** The reader marks one tile and one card as primary. The choice
+persists per browser, on the existing `bothy-layout-v1` key and through the
+existing `useLayout()` hook - the mechanism that already remembers hidden panels,
+not a new store. `null` is the default and stays a first-class state.
+
+**This is a new axis in this app, and it was worth checking that.** `is-primary`
+on the Overview's quick links is *navigation* emphasis - which link is the way
+in. `Tone` is *severity* - what the box is doing. Neither is importance to the
+reader, and nothing else here was either. Saying so is the point: an axis nobody
+names gets absorbed into the nearest one that nearly fits, which is exactly what
+[patterns/status-vocabulary](../patterns/status-vocabulary.md) records happening
+to status words.
+
+**It is chosen, never derived.** A dashboard that promotes whatever is currently
+worst re-draws itself under the reader, and the tile they came for is wherever
+the box's mood put it. It also breaks
+[space-and-layout](../foundations/space-and-layout.md)'s standing rule that
+layout must not depend on measured state. A degraded metric is badged where it
+stands, in the status vocabulary, and does not move.
+
+**Emphasis is contrast, not geometry - and this was the argued one.** The
+tempting version gives the primary tile two columns. It was rejected: the strip's
+worth is that five tiles share one shape and can be read against each other, and
+a tile of a different size has left that set. It also costs a six-column variant
+at three breakpoints, which is the breakpoint tree
+[space-and-layout](../foundations/space-and-layout.md) already records as a dead
+end. So the primary tile keeps its cell and takes a spine, a step of surface and
+the next type step; the primary card takes a spine and a raised header.
+
+**The mark is `--accent`, by rule rather than in spite of it.** "The one I watch"
+is a choice the reader made, not something the box is doing, so it belongs to the
+chrome palette ([principles](../foundations/principles.md) rule 2). Painting it
+`--st-warn` would make the card you chose and the card that is broken the same
+colour - precisely the confusion rules 1 and 2 exist to prevent.
+
+**The control is a toggle, not a radio group.** Pressing the tile that is already
+primary clears it, so "none" stays reachable without a sixth control to reach it
+with. The pin is drawn at rest on every tile rather than revealed on hover:
+`.svc-act-btn` already paid for that lesson - an `opacity: 0` affordance was
+unfindable by the person who had asked for the feature, and on a phone hover does
+not exist at all.
+
+**Cost.** Five tiles and three cards gained a control they did not have, which is
+eight more things in the tab order on the Overview and the Control landing. A
+stored id that a later build stops drawing is read back as `null` rather than as
+itself, so a renamed tile loses the preference instead of leaving a strip with a
+primary nothing matches - `checks/settings.mjs` holds both halves, including that
+every id in the list is actually rendered.
+
+---
+
 ## 2026-09-23 - Two more statuses, and a vocabulary rule to stop the next collapse
 
 `up | down | starting | stopped | unknown`, collapsed by the health strip to

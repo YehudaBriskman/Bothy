@@ -13,7 +13,8 @@ import {
 } from './settings-index.mjs';
 import {
   parseAppearance, parseLayout, parseData, appearanceAttrs, landingRedirect, orderSections,
-  APPEARANCE_DEFAULT, LAYOUT_DEFAULT, DATA_DEFAULT, LANDINGS, KNOWN_KEYS,
+  togglePrimary, APPEARANCE_DEFAULT, LAYOUT_DEFAULT, DATA_DEFAULT, LANDINGS, KNOWN_KEYS,
+  QUICK_TILES, CONTROL_CARDS,
 } from './prefs.mjs';
 import { LIVE_PATHS } from './redirects.mjs';
 
@@ -78,6 +79,32 @@ ok(landingRedirect('#/files?root=notes', L) === null, 'a deep link is never redi
 ok(landingRedirect('', LAYOUT_DEFAULT) === null, 'the default landing redirects nothing');
 ok(orderSections([{ key: 'bothy' }, { key: 'projects' }, { key: 'x' }], 'projects-first').map((s) => s.key).join() === 'projects,bothy,x',
   'projects-first reorders, unknown sections stay last');
+// ── prefs: the primary tile and the primary card (batch A) ──────────────────
+// The failure this guards is silent in both directions: a stored id this build
+// no longer draws would leave a strip with a preference and no primary, and an
+// id in the list that nothing renders would leave a pin that never lights.
+ok(parseLayout(null).primaryTile === null && parseLayout(null).primaryCard === null,
+  'no primary is the default, and it is a real state the pages must look right in');
+ok(parseLayout('{"primaryTile":"disk"}').primaryTile === 'disk', 'a chosen primary tile survives a reload');
+ok(parseLayout('{"primaryCard":"cluster"}').primaryCard === 'cluster', 'a chosen primary card survives a reload');
+ok(parseLayout('{"primaryTile":"gpu"}').primaryTile === null, 'a primary tile this build does not draw comes back as none');
+ok(parseLayout('{"primaryTile":7,"primaryCard":{}}').primaryTile === null && parseLayout('{"primaryCard":{}}').primaryCard === null,
+  'a non-string primary comes back as none');
+ok(parseLayout('{"primaryCard":"attention"}').primaryCard === null,
+  'the exception list and the quick links are not choosable (they are not things to watch)');
+ok(parseLayout(JSON.stringify({ ...LAYOUT_DEFAULT, primaryTile: 'mem', primaryCard: 'edge' })).primaryTile === 'mem',
+  'what the page writes is what the next load reads (the round trip)');
+ok(togglePrimary('disk', 'disk') === null && togglePrimary('disk', 'cpu') === 'cpu' && togglePrimary(null, 'cpu') === 'cpu',
+  'pressing the current primary clears it; pressing another moves it');
+// THE WIRE. A list and a page that disagree about an id is the whole failure:
+// the preference persists perfectly and reaches nothing.
+const qv = readFileSync(join(SRC, 'components/QuickView.tsx'), 'utf8');
+const chome = readFileSync(join(SRC, 'pages/control/ControlHome.tsx'), 'utf8');
+ok(QUICK_TILES.every((t) => new RegExp(`id="${t.id}"`).test(qv)),
+  'every quick-view tile id in prefs.ts is rendered by QuickView.tsx', QUICK_TILES.map((t) => t.id).join(','));
+ok(CONTROL_CARDS.every((c) => chome.includes(`pickCard('${c.id}')`)),
+  'every control-card id in prefs.ts is handed to a card by ControlHome.tsx', CONTROL_CARDS.map((c) => c.id).join(','));
+
 const keys = KNOWN_KEYS.map((k) => k.key);
 for (const k of ['portal-theme', 'portal-theme-appearance', 'portal-theme-is-user', 'bothy-reading-v1', 'bothy-collapsed-groups-v1', 'bothy-control-nav-v1']) {
   ok(keys.includes(k), `the existing key ${k} keeps its name`);

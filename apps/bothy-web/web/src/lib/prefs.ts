@@ -111,13 +111,62 @@ export const OVERVIEW_PANELS = [
 ] as const;
 export type OverviewPanel = (typeof OVERVIEW_PANELS)[number]['id'];
 
+/**
+ * THE PRIMARY ONE. Two dashboards here are uniform BY CONSTRUCTION - the
+ * quick-view strip has fixed row tracks and emits a trend row even when it is
+ * empty, and the Control landing's three glance cards are one shape - so neither
+ * has a most-important thing, and a reader who opens the page for the disk every
+ * morning reads five identical tiles every morning.
+ *
+ * The reader says which one that is, and it persists per browser, like every
+ * other layout preference. NOT derived from the numbers: see
+ * docs/brand/foundations/space-and-layout.md - a dashboard that promotes
+ * whatever is worst re-draws itself under the reader, and the tile you were
+ * looking for is wherever the box's mood put it. A degraded metric is badged
+ * where it stands.
+ *
+ * `null` means no choice, which is the default and must stay a real state: it is
+ * what every browser that has never touched this has, and the pages must look
+ * right in it.
+ */
+export const QUICK_TILES = [
+  { id: 'cpu', label: 'CPU' },
+  { id: 'mem', label: 'Memory' },
+  { id: 'disk', label: 'Disk' },
+  { id: 'net', label: 'Ethernet' },
+  { id: 'uptime', label: 'Uptime' },
+] as const;
+export type QuickTile = (typeof QUICK_TILES)[number]['id'];
+
+/** The Control landing's three glance cards. Needs attention and Quick links are
+ *  deliberately not here: one is the page's exception list and the other its
+ *  navigation, and neither is a thing to watch. */
+export const CONTROL_CARDS = [
+  { id: 'cluster', label: 'Cluster' },
+  { id: 'edge', label: 'Edge and routes' },
+  { id: 'activity', label: 'Recent activity' },
+] as const;
+export type ControlCard = (typeof CONTROL_CARDS)[number]['id'];
+
 export interface Layout {
   landing: Landing;
   sectionOrder: SectionOrder;
   hiddenPanels: OverviewPanel[];
+  /** The quick-view tile the reader watches, or null for "none of them". */
+  primaryTile: QuickTile | null;
+  /** The Control landing card the reader watches, or null. */
+  primaryCard: ControlCard | null;
 }
 
-export const LAYOUT_DEFAULT: Layout = { landing: '/', sectionOrder: 'bothy-first', hiddenPanels: [] };
+export const LAYOUT_DEFAULT: Layout = {
+  landing: '/', sectionOrder: 'bothy-first', hiddenPanels: [], primaryTile: null, primaryCard: null,
+};
+
+/** Pressing the control on the tile that is already primary CLEARS it, so "none"
+ *  stays reachable without a second control to reach it with. */
+export function togglePrimary<T extends string>(current: T | null, id: T): T | null {
+  return current === id ? null : id;
+}
 
 export function parseLayout(raw: string | null): Layout {
   const j = parseObject(raw);
@@ -126,10 +175,18 @@ export function parseLayout(raw: string | null): Layout {
   const hidden = Array.isArray(j.hiddenPanels)
     ? [...new Set(j.hiddenPanels.filter((x): x is OverviewPanel => typeof x === 'string' && panelIds.includes(x)))].sort()
     : [];
+  // A stored primary that is not one of the ids this build draws comes back as
+  // null, not as itself: the value reaches a className and an aria-pressed, and
+  // a renamed tile must leave the strip with NO primary rather than with one
+  // nothing matches - which would look exactly like the preference being lost.
+  const oneOfOrNull = <T extends string>(v: unknown, allowed: readonly T[]): T | null =>
+    (typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : null);
   return {
     landing: oneOf(j.landing, LANDINGS.map((l) => l.path), LAYOUT_DEFAULT.landing),
     sectionOrder: oneOf(j.sectionOrder, SECTION_ORDERS, LAYOUT_DEFAULT.sectionOrder),
     hiddenPanels: hidden,
+    primaryTile: oneOfOrNull(j.primaryTile, QUICK_TILES.map((t) => t.id)),
+    primaryCard: oneOfOrNull(j.primaryCard, CONTROL_CARDS.map((c) => c.id)),
   };
 }
 
@@ -218,7 +275,7 @@ export const KNOWN_KEYS: readonly KnownKey[] = [
   { key: 'portal-theme-appearance', what: "The picked theme's light or dark, for the first frame", resettable: false },
   { key: 'portal-theme-is-user', what: 'Whether the picked theme is a file on the box', resettable: false },
   { key: APPEARANCE_KEY, what: 'Density, motion, accent and document font', resettable: true },
-  { key: LAYOUT_KEY, what: 'Landing page, Overview order and hidden panels', resettable: true },
+  { key: LAYOUT_KEY, what: 'Landing page, Overview order, hidden panels and the primary tile', resettable: true },
   { key: DATA_KEY, what: 'Poll interval and default chart range', resettable: true },
   { key: 'bothy-reading-v1', what: 'Reading size in Files', resettable: true },
   { key: 'bothy-collapsed-groups-v1', what: 'Service groups you collapsed', resettable: true },

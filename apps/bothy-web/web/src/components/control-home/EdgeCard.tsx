@@ -8,15 +8,15 @@ import { Waypoints } from 'lucide-react';
 import type { RouteCounts } from '../../pages/control/home';
 import type { Source } from './usePolled';
 import type { EdgeMetrics } from './sources';
-import { Card, Fact, SourceNote, Sparkline, ToneIcon } from './parts';
+import { Card, Fact, SourceNote, Sparkline, ToneIcon, type Pick } from './parts';
 
 const fmtRps = (v: number) => (v >= 10 ? v.toFixed(0) : v >= 0.1 ? v.toFixed(2) : v.toFixed(3));
 
-export function EdgeCard({ counts, src }: { counts: RouteCounts; src: Source<EdgeMetrics> }) {
+export function EdgeCard({ counts, src, pick }: { counts: RouteCounts; src: Source<EdgeMetrics>; pick: Pick }) {
   const e = src.data;
   const now = e?.rps?.points.at(-1)?.v ?? null;
   return (
-    <Card id="ch-edge" title="Edge and routes" icon={Waypoints} to="/control/routes" toLabel="Routes">
+    <Card id="ch-edge" title="Edge and routes" icon={Waypoints} to="/control/routes" toLabel="Routes" pick={pick}>
       <dl className="ch-facts">
         <Fact label="Routers enabled" to="/control/routes">
           <span className="ch-num">{counts.enabled}</span> / {counts.total}

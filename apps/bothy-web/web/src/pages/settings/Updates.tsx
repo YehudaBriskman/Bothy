@@ -65,15 +65,16 @@
 // A viewer sees all three as one NeedsRole note, never as disabled buttons.
 
 import { Loader } from '../../components/ui/Loader';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowRight, ArrowUpRight, Check, CircleDashed, CirclePause, Lock, Minus, RotateCcw, X,
+  AlertTriangle, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleArrowUp, CircleDashed, CirclePause, Lock, Minus, RotateCcw, X,
 } from 'lucide-react';
 import { filesHref } from '../files/routes';
 import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Cmd, Loading, Prose, Refusal, When, fmtBytes, useLoad } from '../../components/settings/bits';
 import { Dialog } from '../../components/ui/Dialog';
+import { Disclosure } from '../../components/ui/Disclosure';
 import '../../components/ServiceActions.css';
 import '../../components/KubeActions.css';
 import { useOperator } from '../../lib/session';
@@ -491,13 +492,15 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
               <th scope="col">Running</th>
               <th scope="col">Available</th>
               <th scope="col">Channel</th>
-              <th scope="col">Notes</th>
-              <th scope="col">Deploy</th>
+              {/* The Notes column moved into each row's disclosure - it held the
+                  one-way badge, a changelog link and a freshness line, none of
+                  which is state, in a cell with a 120px floor. */}
+              <th scope="col"><span className="sr-only">Deploy and detail</span></th>
             </tr>
           </thead>
           {groups.map((g) => (
             <tbody key={g.ch}>
-              <tr className="set-tbl-sep"><td colSpan={7}>{GROUP_TITLE[g.ch]}</td></tr>
+              <tr className="set-tbl-sep"><td colSpan={6}>{GROUP_TITLE[g.ch]}</td></tr>
               {g.rows.map((r) => <Row key={r.id} r={r} {...ctx} />)}
             </tbody>
           ))}
@@ -513,72 +516,183 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
   );
 }
 
+// ── one component, as a row plus a disclosure ────────────────────────────────
+//
+// MEASURED, which is why this changed. settings.css overrides the global
+// `vertical-align: middle` with `top` and `.set-cell-sub` was emitted in FIVE OF
+// SEVEN cells, so a nominal 32px row ran three to four lines; the seven columns
+// carried `min-width`s summing to a ~800px floor; two cells were line-clamped to
+// two and three lines; and one row could carry nine distinct mark families at
+// once. A table that dense is not read, it is scanned past.
+//
+// The split is the rule, not a judgement call about each sub-line: THE ROW KEEPS
+// IDENTITY, STATE AND THE ONE ACTION. Everything that is a note, a warning, a
+// reason or plan detail moves into `ui/Disclosure` - the only component in this
+// app allowed to animate a layout property, because it folds `grid-template-rows`
+// from 1fr to 0fr rather than measuring a height in script (SYS-10).
+//
+// The Notes column is gone with its contents, so the table is six columns rather
+// than seven. `as-cards` then follows its documented contract (index.css SYS-17):
+// `data-label` on the four cells that need their column name, and none on the
+// identifying cell or on the controls-only cell.
 function Row({ r, canAct, busy, onUpdate, onChanged }: { r: UpdateRow } & RowCtx) {
-  const d = r.discovered;
+  const [open, setOpen] = useState(false);
+  const uid = useId();
+  const bodyId = `${uid}-det`;
   return (
-    <tr>
-      <td className="upd-name">
-        <b>{r.title}</b>
-        <span className="set-cell-sub mono">{r.id} · {r.class}</span>
-      </td>
-      {/* data-label: below 640px the table becomes one card per component, and
-          a cell names itself because the header row is no longer beside it. */}
-      <td data-label="Pinned"><Pinned r={r} /></td>
-      <td data-label="Running"><Running r={r} /></td>
-      <td data-label="Available"><Available r={r} /></td>
-      <td data-label="Channel"><ChannelCell r={r} canAct={canAct} onChanged={onChanged} /></td>
-      <td data-label="Notes" className="upd-notes">
-        {r.oneWay && (
-          <span className="upd-oneway" title={r.oneWayWhy ?? undefined}>
-            <Icon icon={Lock} size="xs" />one-way
-          </span>
-        )}
-        <a className="link upd-cl" href={r.changelog} target="_blank" rel="noreferrer noopener">
-          Changelog<Icon icon={ArrowUpRight} size="xs" />
-        </a>
-        <span className="set-cell-sub">{d?.checkedAt ? <>checked <When iso={d.checkedAt} /></> : 'not checked yet'}</span>
-      </td>
-      <td data-label="Deploy" className="upd-deploy"><DeployCell r={r} canAct={canAct} busy={busy} onUpdate={onUpdate} /></td>
-    </tr>
+    <>
+      <tr className="upd-tr">
+        <td className="upd-name">
+          <b>{r.title}</b>
+          <span className="set-cell-sub mono">{r.id} · {r.class}</span>
+        </td>
+        {/* data-label: below 640px the table becomes one card per component, and
+            a cell names itself because the header row is no longer beside it. */}
+        <td data-label="Pinned"><Pinned r={r} /></td>
+        <td data-label="Running"><Running r={r} /></td>
+        <td data-label="Available"><Available r={r} /></td>
+        <td data-label="Channel"><ChannelCell r={r} /></td>
+        {/* NO data-label: a controls-only cell runs the full width of the card
+            and has no column name worth printing (index.css, the as-cards
+            contract). */}
+        <td className="upd-acts set-cell-act">
+          <DeployCell r={r} canAct={canAct} busy={busy} onUpdate={onUpdate} />
+          <Button
+            variant="ghost" size="sm" iconOnly className={`upd-more${open ? ' is-open' : ''}`}
+            aria-expanded={open}
+            aria-controls={bodyId}
+            aria-label={open ? `Hide the detail for ${r.title}` : `Show the detail for ${r.title}`}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <Icon icon={ChevronDown} size="sm" className="chev" />
+          </Button>
+        </td>
+      </tr>
+      {/* A SECOND <tr>, not a nested table: a cell cannot span the row it is in.
+          Below 640px the pair is welded into one card (settings.css) - without
+          that, `as-cards` would make a component's detail a card of its own,
+          sitting under a card with no visible relationship to it. */}
+      <tr className="upd-det-tr">
+        <td colSpan={6}>
+          <Disclosure open={open} id={bodyId} className="upd-det-d">
+            <RowDetail r={r} canAct={canAct} onChanged={onChanged} />
+          </Disclosure>
+        </td>
+      </tr>
+    </>
   );
 }
 
+/** One label/value pair inside a row's disclosure. `dt`/`dd` rather than two
+ *  spans, because that is what this is: a field of a record (patterns/data-display). */
+function Det({ k, children }: { k: string; children: ReactNode }) {
+  return (
+    <div className="upd-det-row">
+      <dt className="upd-det-k">{k}</dt>
+      <dd className="upd-det-v">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Everything the row used to say in its margins. Nothing here is new; it is the
+ * same text, out of the cells and into named fields, so each one has a label
+ * instead of relying on which column it happened to be under.
+ */
+function RowDetail({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onChanged: () => void }) {
+  const d = r.discovered;
+  const c = d?.current;
+  const p = r.plan;
+  const where = pinFile(r.pins[0]);
+  const eff = r.effectiveChannel;
+  const others = d && !d.error
+    ? (['patch', 'minor', 'major'] as Level[]).map((lv) => d.candidates[lv]).filter((x) => x && x.tag !== d.latest?.tag)
+    : [];
+  return (
+    <dl className="upd-det">
+      <Det k="Pinned in">
+        <span className="mono upd-path">{where}</span>
+        {r.pins.length > 1 && <span className="set-cell-sub">and {r.pins.length - 1} more</span>}
+        {c?.float && <span className="set-cell-sub">floating{c.floatTarget ? `, now ${c.floatTarget}` : ''} - a floating pin can move under you and is never deployed by the updater</span>}
+        {c && !c.tag && <span className="set-cell-sub">pinned by digest</span>}
+      </Det>
+
+      {d?.drift && (
+        <Det k="Drift">
+          <span className="set-warn"><Icon icon={AlertTriangle} size="xs" />what runs is not what the repository pins</span>
+          <span className="set-cell-sub">{d.drift}</span>
+        </Det>
+      )}
+      {d?.notes.map((n) => <Det k="Note" key={n}>{n}</Det>)}
+
+      {d?.error && (
+        <Det k="Not checked">
+          <span className="set-cell-sub upd-why">{d.error}</span>
+        </Det>
+      )}
+      {others.length > 0 && (
+        <Det k="Also available">
+          {others.map((x, i) => (
+            <span key={x!.tag}>{i > 0 && ', '}<span className="mono">{x!.tag}</span> ({x!.level})</span>
+          ))}
+        </Det>
+      )}
+      {d?.latest?.floating && <Det k="The tag moved">to a newer image than the one this pin first named</Det>}
+      {d?.latest?.publishedAt && <Det k="Released"><When iso={d.latest.publishedAt} /></Det>}
+
+      {eff && eff !== r.channel && (
+        <Det k="Channel">
+          a <span className="mono">{r.channel}</span> component;{' '}
+          {r.level === 'major' ? 'a major is always manual' : 'only its patches are automatic'}
+        </Det>
+      )}
+      {r.paused && <Det k="Automatic updates"><Paused r={r} canAct={canAct} onChanged={onChanged} /></Det>}
+
+      {r.oneWay && (
+        <Det k="One-way">
+          <span className="upd-oneway"><Icon icon={Lock} size="xs" />cannot be rolled back</span>
+          {r.oneWayWhy && <span className="set-cell-sub">{r.oneWayWhy}</span>}
+        </Det>
+      )}
+      {p && !p.deployable && (
+        <Det k="Not deployable"><span className="upd-reason"><Ticks text={p.reason} /></span></Det>
+      )}
+      {p?.deployable && <Det k="Deploy would run"><span className="mono upd-tag">{p.from} → {p.to}</span> <LevelBadge level={p.level} /></Det>}
+      {p?.deployable && !canAct && <Det k="Deploy">needs the <span className="mono">operator</span> role</Det>}
+
+      <Det k="Checked">{d?.checkedAt ? <When iso={d.checkedAt} /> : 'not checked yet'}</Det>
+      <Det k="Changelog">
+        <a className="link upd-cl" href={r.changelog} target="_blank" rel="noreferrer noopener">
+          {r.title}<Icon icon={ArrowUpRight} size="xs" />
+        </a>
+      </Det>
+    </dl>
+  );
+}
+
+/** THE ONE ACTION. An icon button with a real accessible name - which is the
+ *  whole point of the change: "Update…" in a cell was one of nine mark families
+ *  competing in a row, and a glyph with a name says the same thing in a square. */
 function DeployCell({ r, canAct, busy, onUpdate }: { r: UpdateRow } & Omit<RowCtx, 'onChanged'>) {
   const p = r.plan;
-  if (!p) return <span className="dim">no plan</span>;
-  if (!p.deployable) return <span className="set-cell-sub upd-reason" title={p.reason.replace(/`/g, '')}><Ticks text={p.reason} /></span>;
+  // `no plan` and `not deployable` are states, and the REASON is in the
+  // disclosure; the cell itself says only that there is nothing to press.
+  if (!p || !p.deployable || !canAct) return <span className="dim upd-noact" aria-hidden="true">-</span>;
   return (
-    <>
-      <span className="upd-avail">
-        <span className="mono upd-tag">{p.from} → {p.to}</span>
-        <LevelBadge level={p.level} />
-      </span>
-      {canAct ? (
-        <Button size="sm" className="upd-go" onClick={() => onUpdate(r)} disabled={busy}
-          title={busy ? 'An update is running - one at a time' : undefined}>
-          Update…
-        </Button>
-      ) : (
-        <span className="set-cell-sub">needs <span className="mono">operator</span></span>
-      )}
-    </>
+    <Button
+      size="sm" iconOnly className="upd-go" onClick={() => onUpdate(r)} disabled={busy}
+      aria-label={`Update ${r.title} from ${p.from} to ${p.to} - a ${LEVEL_WORD[p.level]} release`}
+      title={busy ? 'An update is running - one at a time' : `Update ${r.title}: ${p.from} → ${p.to}`}
+    >
+      <Icon icon={CircleArrowUp} size="sm" />
+    </Button>
   );
 }
 
 function Pinned({ r }: { r: UpdateRow }) {
   const c = r.discovered?.current;
-  const where = pinFile(r.pins[0]);
-  if (!c) return <><span className="dim">-</span><span className="set-cell-sub mono">{where}</span></>;
-  return (
-    <>
-      <span className="mono upd-tag">{c.tag ?? c.identifiedAs ?? c.version ?? 'a digest'}</span>
-      <span className="set-cell-sub">
-        {c.float ? `floating${c.floatTarget ? `, now ${c.floatTarget}` : ''} · ` : !c.tag ? 'by digest · ' : ''}
-        <span className="mono">{where}</span>
-        {r.pins.length > 1 && ` +${r.pins.length - 1}`}
-      </span>
-    </>
-  );
+  if (!c) return <span className="dim">-</span>;
+  return <span className="mono upd-tag">{c.tag ?? c.identifiedAs ?? c.version ?? 'a digest'}</span>;
 }
 
 const tagOf = (image: string | null): string | null => {
@@ -589,6 +703,10 @@ const tagOf = (image: string | null): string | null => {
   return last.includes(':') ? last.split(':').pop() ?? null : null;
 };
 
+// The three state cells. Each keeps the ONE mark that says what the thing is
+// doing - a tag, a chip, a word - and hands its explanation to the disclosure.
+// `drift`, `not checked` and `paused` stay in the row because they are state,
+// not notes: what they MEAN is a sentence, and a sentence is what moved.
 function Running({ r }: { r: UpdateRow }) {
   const d = r.discovered;
   if (!d) return <span className="dim">-</span>;
@@ -600,11 +718,10 @@ function Running({ r }: { r: UpdateRow }) {
         <span className="dim">{r.source === 'github' ? 'this checkout' : r.class === 'cluster' ? 'cluster not reached' : 'not running'}</span>
       )}
       {d.drift && (
-        <span className="upd-drift set-warn" title={d.drift}>
+        <span className="upd-drift set-warn">
           <Icon icon={AlertTriangle} size="xs" />drift
         </span>
       )}
-      {d.notes.map((n) => <span key={n} className="set-cell-sub">{n}</span>)}
     </>
   );
 }
@@ -613,52 +730,32 @@ function Available({ r }: { r: UpdateRow }) {
   const d = r.discovered;
   if (!d) return <span className="dim">not checked yet</span>;
   if (d.error) {
-    return (
-      <>
-        <span className="set-warn upd-err"><Icon icon={AlertTriangle} size="xs" />not checked</span>
-        <span className="set-cell-sub upd-why" title={d.error}>{d.error}</span>
-      </>
-    );
+    return <span className="set-warn upd-err"><Icon icon={AlertTriangle} size="xs" />not checked</span>;
   }
   if (!d.latest || !d.latest.level) {
     return <span className="upd-current"><Icon icon={Check} size="sm" />up to date</span>;
   }
   const moved = !!d.latest.floating;
-  const others = (['patch', 'minor', 'major'] as Level[])
-    .map((lv) => d.candidates[lv])
-    .filter((c) => c && c.tag !== d.latest!.tag);
   return (
-    <>
-      <span className="upd-avail">
-        <span className="mono upd-tag">{moved ? `${d.latest.tag} → ${d.latest.version ?? 'newer'}` : d.latest.tag}</span>
-        <LevelBadge level={d.latest.level} />
-      </span>
-      {others.length > 0 && (
-        <span className="set-cell-sub">
-          also {others.map((c, i) => (
-            <span key={c!.tag}>{i > 0 && ', '}<span className="mono">{c!.tag}</span> ({c!.level})</span>
-          ))}
-        </span>
-      )}
-      {moved && <span className="set-cell-sub">the tag moved to a newer image</span>}
-      {d.latest.publishedAt && <span className="set-cell-sub">released <When iso={d.latest.publishedAt} /></span>}
-    </>
+    <span className="upd-avail">
+      <span className="mono upd-tag">{moved ? `${d.latest.tag} → ${d.latest.version ?? 'newer'}` : d.latest.tag}</span>
+      <LevelBadge level={d.latest.level} />
+    </span>
   );
 }
 
 const CHANNEL_WORD: Record<Channel, string> = { auto: 'auto', notify: 'notify', manual: 'manual' };
 
-function ChannelCell({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onChanged: () => void }) {
+function ChannelCell({ r }: { r: UpdateRow }) {
   const eff = r.effectiveChannel;
   return (
     <>
       <span className="upd-channel" data-channel={eff ?? r.channel}>{CHANNEL_WORD[eff ?? r.channel]}</span>
-      {eff && eff !== r.channel && (
-        <span className="set-cell-sub">
-          {r.channel} component; {r.level === 'major' ? 'a major is always manual' : 'only its patches are automatic'}
+      {r.paused && (
+        <span className="set-warn upd-paused-h">
+          <Icon icon={CirclePause} size="xs" />paused
         </span>
       )}
-      {r.paused && <Paused r={r} canAct={canAct} onChanged={onChanged} />}
     </>
   );
 }

@@ -61,8 +61,33 @@
 /* ── the grid ─────────────────────────────────────────────────────────────
    One column on a phone; two from a tablet; at desk width Needs attention and
    Quick links share the first row (attention the wider, it is the one to act
-   on) and the three glance cards share the second. */
-.ch-grid { display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr); align-items: start; }
+   on) and the three glance cards share the second.
+
+   THE TILE UNIT, adopted from the Overview rather than invented here. This grid
+   was `align-items: start` with `.ch-card` carrying no height, so every card
+   sized to its own content: Needs attention ended ~260px down and Quick links
+   ~530px beside it, and the row stopped reading as a row. `grid-auto-rows:
+   var(--tile)` + `stretch` + `height: 100%` on the card is the whole mechanism,
+   and it is the same mechanism `.ov-dash` has had since 2026-08-10.
+
+   NO FOOTERS, deliberately, and that is the structural-footer corollary being
+   obeyed rather than ignored: "either every card in a row has one or none
+   does". None does. The Overview needed footers because the footer was half of
+   what pinned its bottom edge; here the tile does that on its own, and these
+   cards already state their size in the header (`meta`: 12 links, 4 findings,
+   13 systems) - a footer would say it again one row down, which is the
+   duplication the Overview hero was deleted for.
+
+   NO `.is-tall` either. It exists on `.ov-dash` for a card that genuinely needs
+   two units; no card here does, and at desk width a two-row span in the second
+   column would leave the three glance cards 7 of 12 columns to fit 12 into. A
+   modifier nothing uses is dead CSS - the Overview's own copy is currently
+   unused - so it is not copied across on spec. */
+.ch-grid {
+  display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr);
+  align-items: stretch; grid-auto-rows: var(--tile);
+}
+.ch-grid > .ch-card { height: 100%; }
 @container ch (min-width: 40rem) {
   .ch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ch-att, .ch-links { grid-column: 1 / -1; }
@@ -75,7 +100,7 @@
 }
 
 /* ── the card frame ───────────────────────────────────────────────────────── */
-.ch-card { min-width: 0; display: flex; flex-direction: column;
+.ch-card { position: relative; overflow: hidden; min-width: 0; display: flex; flex-direction: column;
   background: var(--surface-1); border: var(--border-w) solid var(--line); border-radius: var(--r-lg); }
 .ch-card-head { display: flex; align-items: center; gap: var(--sp-2); min-width: 0;
   padding: var(--sp-3) var(--sp-4); border-bottom: var(--border-w) solid var(--line); }
@@ -89,8 +114,45 @@
   color: var(--accent-fg); font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-semibold);
   text-decoration: none; }
 .ch-card-link:hover { color: var(--fg); background: var(--surface-2); }
+/* The body takes whatever the tile leaves after the header and scrolls inside
+   it. No max-height anywhere below this line: the tile sets the height, so a cap
+   inside would fight it and bring the ragged bottoms back - the note `.ov-panel-body`
+   carries, for the same reason. `.scroll-shade` in the markup gets the edge cue
+   every other scroller in the app has, driven by the one observer in lib/scroll.ts. */
 .ch-card-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); display: flex; flex-direction: column;
-  gap: var(--sp-3); min-width: 0; }
+  gap: var(--sp-3); min-width: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* ── the primary card ─────────────────────────────────────────────────────
+   The same idea as the Overview's primary tile, and deliberately the same
+   shape of answer: the reader chooses it, it persists per browser, and NOTHING
+   MOVES - not its cell, not its span, and not when one of its numbers goes bad
+   (space-and-layout.md). Three cards of one shape is what makes them
+   comparable; a card of a different size has left that set.
+
+   --accent and not a status colour, by the rule rather than in spite of it:
+   "the one I watch" is a choice the reader made, not something the box is
+   doing (principles.md rule 2). Painting it --st-warn would make the card you
+   chose and the card that is broken the same colour. */
+.ch-card.is-primary { border-color: var(--accent-line); }
+.ch-card.is-primary::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: var(--sp-1); background: var(--accent);
+}
+.ch-card.is-primary .ch-card-head { background: var(--surface-2); }
+
+/* The pin, after the link because `.ch-card-link` owns the header's one
+   `margin-left: auto`. Visible at rest on every card, for the reason
+   .svc-act-btn records: a hover-revealed affordance is unfindable, and on a
+   phone it does not exist. --hit as a MINIMUM, never a height: 24px under a
+   fine pointer, 44px under a coarse one. */
+.ch-pick {
+  appearance: none; cursor: pointer; font: inherit; padding: 0; flex: none;
+  display: grid; place-items: center;
+  min-width: var(--hit); min-height: var(--hit);
+  border: 0; border-radius: var(--r-xs); background: transparent; color: var(--fg-subtle);
+}
+.ch-pick svg { display: block; }
+.ch-pick:hover { color: var(--fg); }
+.ch-card.is-primary .ch-pick { color: var(--accent-fg); }
 
 /* The two skeleton bars were 2 x --sp-6 plus a gap; the Loader row keeps that
    height so a card does not jump when its source answers. */
@@ -137,7 +199,12 @@
 .ch-clear { color: var(--fg-muted); }
 .ch-clear strong { color: var(--fg); }
 
-.ch-scroll { max-height: calc(var(--sp-16) * 5); overflow-y: auto; margin: 0 calc(var(--sp-4) * -1); padding: 0 var(--sp-4); }
+/* Full-bleed hover rows, and nothing else. It used to be the one card that
+   capped itself (`max-height: calc(var(--sp-16) * 5)`), which is why Needs
+   attention was the only one that did not run away - the cap is gone because the
+   card now ends where the tile ends and a second scroller inside the first would
+   be two bars for one list. */
+.ch-scroll { margin: 0 calc(var(--sp-4) * -1); padding: 0 var(--sp-4); }
 .ch-att-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ch-att-item { display: flex; align-items: center; gap: var(--sp-2_5); min-width: 0;
   padding: var(--sp-2) 0; border-bottom: var(--border-w) solid var(--line); }
