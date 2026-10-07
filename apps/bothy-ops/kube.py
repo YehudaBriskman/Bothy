@@ -943,15 +943,42 @@ def _cm_path(ns: str, name: str) -> str:
 
 
 def h_configmap(c: Ctx) -> dict:
-    cm = kube("GET", _cm_path(c.ns, c.target))
-    keys = CATALOG.policy.configmap_keys if isinstance(CATALOG, guard.Catalog) else {}
+    """Every key, and for each one either the rule for changing it or the reason
+    it cannot be changed here.
+
+    `exists` is false rather than a 404 when the namespace simply has no
+    ConfigMap by this name. That is a real, legitimate state - `thales-dev` has
+    no `thales` ConfigMap and no workloads at all, so before 2026-10-07 its
+    Config tab could only ever render the apiserver's "not found" and read as
+    BROKEN when the honest answer is EMPTY. The write path is untouched: the
+    PATCH in _patch_key still 404s, because changing a key of a ConfigMap that
+    is not there is a different question with a different answer.
+    """
+    policy = CATALOG.policy if isinstance(CATALOG, guard.Catalog) else guard.Policy()
+    keys = policy.configmap_keys
+    try:
+        cm = kube("GET", _cm_path(c.ns, c.target))
+    except KubeError as e:
+        if e.status != 404:
+            raise
+        return {"configmap": c.target, "resourceVersion": "", "exists": False, "data": []}
     rows = []
     for k, v in sorted((cm.get("data") or {}).items()):
         row: dict[str, object] = {"key": k, "value": v, "editable": k in keys}
         if k in keys:
             row["pattern"], row["meaning"] = keys[k].source, keys[k].meaning
+        else:
+            # The reason is resolved HERE, against the live key names, so the UI
+            # never carries a second list of which keys are addresses and which
+            # are identity settings. See [configmap_reasons] in catalog.toml.
+            reason = policy.reason_for(k)
+            if reason is not None:
+                row["reason"] = reason.name
+                row["reasonLabel"] = reason.label
+                row["reasonWhy"] = reason.meaning
         rows.append(row)
-    return {"configmap": c.target, "resourceVersion": _m(cm).get("resourceVersion", ""), "data": rows}
+    return {"configmap": c.target, "resourceVersion": _m(cm).get("resourceVersion", ""),
+            "exists": True, "data": rows}
 
 
 def _patch_key(c: Ctx) -> tuple[dict, dict]:

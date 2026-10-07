@@ -372,6 +372,81 @@ mutant "the guide miscounts the foot-gun warnings" \
 # `just urls` is the authority four documents defer to instead of keeping their
 # own port table. Moving one port there is both failures at once: the published
 # port is now unlisted, and the listed port is now published by nothing.
+# The confirm level, in the direction that reads as a guard rail existing when it
+# does not. This is one of the five that were actually wrong on 2026-10-07 - the
+# table said `set-image` needed the deployment's name typed, and the catalog has
+# said `click` since design decision 7. Anchored on the table row, which is an
+# executable line of the document in the only sense that matters here: the check
+# parses it, so an edit that reworded it away would fail rather than go quiet.
+mutant "SECURITY.md overstates a confirm level" \
+  SECURITY.md \
+  '`set-image` (click), `rollback-to-revision` (click)' \
+  '`set-image` (type-name), `rollback-to-revision` (type-name)' \
+  -- bash scripts/checks/doc-facts.sh
+
+# And the other direction, which is the one a runbook trips over: the table
+# promising one click where the service will stop and ask for the name.
+mutant "SECURITY.md understates a confirm level" \
+  SECURITY.md \
+  '`delete-job` (type-name)' \
+  '`delete-job` (click)' \
+  -- bash scripts/checks/doc-facts.sh
+
+# `scale` is the only action with an `escalate`, and the escalation is the half
+# that matters: scaling to 1..3 is undone by scaling back, scaling to 0 stops the
+# workload and only the manifest decides whether anything restarts it. A table
+# that states the base level and omits the escalation understates it, so dropping
+# the clause has to fail - a level that is "click" is not wrong enough on its own.
+mutant "the table drops \`scale\`'s escalation at 0" \
+  SECURITY.md \
+  '`scale` 0..3 (click; the name typed to scale to 0)' \
+  '`scale` 0..3 (click)' \
+  -- bash scripts/checks/doc-facts.sh
+
+# The completeness half. An action lands in catalog.toml, nobody adds it to the
+# table, and the only thing that used to notice was the action COUNT - which is
+# exactly how "five cluster actions" survived to twenty-nine. Deleting a row's id
+# from the Changes cell is that omission, with the count left correct.
+mutant "an operator action vanishes from the rule 6 table" \
+  SECURITY.md \
+  ', `run-template` (type-name) |' \
+  ' |' \
+  -- bash scripts/checks/doc-facts.sh
+
+# The ConfigMap key count, which unlike the others does NOT only grow: the
+# widening from 3 to 22 was a product decision and a reversible one, so the
+# document can now be wrong in either direction.
+mutant "SECURITY.md miscounts the allowlisted ConfigMap keys" \
+  SECURITY.md \
+  'change only the **22 allowlisted keys**' \
+  'change only the **3 allowlisted keys**' \
+  -- bash scripts/checks/doc-facts.sh
+
+echo
+echo "── the key allowlist and the Role it needs ─────────────────────────"
+# Lock 2 (the key allowlist) and lock 3 (the generated Role) have to agree on
+# whether a key can be changed at all, and nothing held them together until
+# 2026-10-07. The widening showed why it matters: the Role ALREADY granted
+# `configmaps: patch`, so all 67 refusals came from the allowlist and none from
+# the cluster. Emptying the table leaves a patch verb nothing can reach - the
+# kind of grant a reader of SECURITY.md counts against this tier and nobody can
+# account for. Anchored on the first key's table header, an executable line.
+mutant "the key allowlist empties and the Role keeps patch" \
+  apps/bothy-ops/catalog.toml \
+  '[configmap_keys.LOG_LEVEL]' \
+  '[configmap_keys_disabled.LOG_LEVEL]' \
+  -- python3 apps/bothy-ops/checks/wiring.py
+
+# And the half that would draw 22 Edit buttons whose every save is a 502 naming
+# the Role: a pattern that is "a number" rather than a bounded range. 5400 is as
+# much an outage as "abc" - the pod starts, and the solve answers long after the
+# gateway 504'd the caller.
+mutant "a pattern stops being a bounded range" \
+  apps/bothy-ops/catalog.toml \
+  'pattern = "[1-9]|[1-9][0-9]|[1-4][0-9]{2}|5[0-6][0-9]|570"' \
+  'pattern = "[0-9]+"' \
+  -- python3 apps/bothy-ops/checks/wiring.py
+
 mutant "\`just urls\` names a port nothing publishes" \
   justfile \
   'http://$IP:3000' \

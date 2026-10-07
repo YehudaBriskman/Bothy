@@ -55,6 +55,45 @@
 .cl-page .cl-key-why { display: block; font-family: var(--font); font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); white-space: normal; max-width: 280px; }
 .cl-page .cl-val { white-space: normal; overflow-wrap: break-word; min-width: 160px; }
 .cl-page tr[data-editable='true'] .cl-key { color: var(--accent-fg); }
+
+/* CL-21: the reason a row is not editable, in the cell where its Edit button
+   would be. Text, not a badge: 48 of 70 rows carry one, and 48 badges would make
+   the 22 that ARE actionable the quiet ones - which is the hierarchy exactly
+   backwards. It wraps rather than truncating, because the labels are short and a
+   clipped reason is no reason. */
+/* min-width, not only max: the cell is a `width: 1%` controls column, so without
+   a floor the table squeezed it and EVERY locked row wrapped to two lines - 48 of
+   70 rows twice as tall, on the table whose complaint was density. 132px fits
+   the four common labels on one line; the two one-key categories still wrap, and
+   two rows wrapping is not a pattern anybody reads as one. */
+.cl-page .cl-why {
+  display: inline-block; font-size: var(--fs-xs); line-height: var(--lh-xs);
+  letter-spacing: var(--tr-xs); white-space: normal; text-align: right;
+  min-width: 132px; max-width: 170px;
+}
+/* ...except in the card form, where there is no column to reserve and the label
+   sits under its own heading. */
+@media (max-width: 640px) {
+  .cl-page .cl-why { min-width: 0; }
+}
+/* Each category's sentence ONCE, under the table, rather than repeated down
+   every row that falls in it ("say it once"). Also the provenance block, which
+   is the same shape: a term and what it means. */
+.cl-page .cl-why-legend {
+  display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-3); margin: 0; font-size: var(--fs-xs);
+  line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-subtle);
+}
+.cl-page .cl-why-legend > div { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+.cl-page .cl-why-legend dt { color: var(--fg); white-space: nowrap; }
+.cl-page .cl-why-legend dd { margin: 0; min-width: 0; }
+.cl-page .cl-prov { padding-top: var(--sp-2); border-top: 1px solid var(--line); }
+.cl-page .cl-cm-absent { max-width: 60ch; }
+@media (max-width: 560px) {
+  /* subgrid cannot help a column that has nowhere to go: stack the pairs. */
+  .cl-page .cl-why-legend, .cl-page .cl-why-legend > div { grid-template-columns: minmax(0, 1fr); }
+  .cl-page .cl-why-legend dt { white-space: normal; }
+}
 /* CL-12: it wraps only when it has to. At 760px and above the field, the
    restart checkbox and the two buttons fit on the row they were opened on, so
    the row grows from 32px to 66px and everything under it jumps a line down

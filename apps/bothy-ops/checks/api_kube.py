@@ -225,8 +225,14 @@ JOB_PODS = {"uid-job-migrate": [POD_OBJS["migrate-abc-x1"],
                                 pod("impostor", ("Job", "other", "uid-other-job"))]}
 CREATED: list[dict] = []
 DELETED: list[tuple[str, dict | None]] = []
+# One key per reason category plus three editable ones, so the per-row reasons
+# and the solver patterns are both exercised rather than asserted in the abstract.
 CM = {"data": {"LOG_LEVEL": "info", "DB_POOL_MAX": "10", "JOB_MAX_WORKERS": "2",
-               "DATABASE_HOST": "postgres", "DEMO_LOGINS": "true"}, "rv": 700}
+               "CPSAT_TIME_LIMIT": "540", "CPSAT_LEX_MERGE": "1",
+               "ENABLED_ALGORITHMS": "heuristic,milp,cpsat",
+               "DATABASE_HOST": "postgres", "DEMO_LOGINS": "true",
+               "GATEWAY_TIMEOUT_S": "660", "APP_BASE_URL": "http://example",
+               "AUTH_MODE": "saml", "OTLP_ENDPOINT": ""}, "rv": 700}
 VIEWS = {
     "services": [{"metadata": {"name": "frontend"}, "spec": {"type": "ClusterIP", "clusterIP": "10.0.0.1",
                   "ports": [{"name": "http", "port": 8080, "targetPort": 8080, "protocol": "TCP"}],
@@ -336,7 +342,11 @@ class Fake(BaseHTTPRequestHandler):
         if parts[:2] == ["api", "v1"] and len(parts) >= 5 and parts[4] in VIEWS:
             return self._json(200, {"items": VIEWS[parts[4]]})
         if parts[:2] == ["api", "v1"] and len(parts) >= 5 and parts[4] == "configmaps":
-            if parts[5] != "thales":
+            # Only thales-dev has it here, mirroring the live cluster, where one
+            # of the two namespaces has no `thales` ConfigMap and no workloads.
+            # That asymmetry is the whole of the "reads as empty, not broken"
+            # case below, so the stand-in has to have it too.
+            if parts[5] != "thales" or parts[3] != "thales-dev":
                 return self._json(404, {"message": "configmaps not found"})
             if method == "PATCH":
                 if body["metadata"]["resourceVersion"] != str(CM["rv"]):
@@ -561,8 +571,15 @@ import guard  # noqa: E402
 ok(st == 200 and ctype.startswith("application/json") and d == guard.catalog_json(kube.CATALOG),
    f"GET /kube/catalog is the catalog ({st}, {len(d.get('actions', []))} actions)")
 ok(d.get("namespaces") == ["thales-dev", "thales-pre-prod"] and d.get("jobTemplates") == ["migrate", "seed-identity", "seed-reference"]
-   and set(d.get("configmapKeys", {})) == {"LOG_LEVEL", "DB_POOL_MAX", "JOB_MAX_WORKERS"},
+   and set(d.get("configmapKeys", {})) == set(kube.CATALOG.policy.configmap_keys),
    "it carries the namespaces, templates and editable keys")
+# 22 since 2026-10-07; the number is held here rather than the names, because the
+# names are a product decision that will move and the COUNT is what a reader of
+# SECURITY.md is given. scripts/checks/doc-facts.sh holds the document to it.
+ok(len(d.get("configmapKeys", {})) == 22, f"22 editable keys ({len(d.get('configmapKeys', {}))})")
+ok([r["name"] for r in d.get("configmapReasons", [])][-1:] == ["manifests"]
+   and all({"name", "label", "meaning", "keys"} == set(r) for r in d.get("configmapReasons", [])),
+   "it carries the reason categories, catch-all last")
 ok(not any("rbac" in a for a in d.get("actions", [])), "it does not publish the rbac declarations")
 ok(len(SEEN) == 0, "the catalog asks the apiserver nothing")
 st, _, _ = call("GET", "/kube/catalog", headers={"Sec-Fetch-Site": "cross-site"})
@@ -790,6 +807,35 @@ st, _, b = call("GET", f"/kube/configmap?{NS}&configmap=thales")
 rows = {r["key"]: r for r in js(b).get("data", [])}
 ok(st == 200 and rows.get("LOG_LEVEL", {}).get("editable") is True and rows["LOG_LEVEL"].get("pattern") == "debug|info|warn|error"
    and rows.get("DEMO_LOGINS", {}).get("editable") is False, f"keys and values, editable marked ({st})")
+ok(js(b).get("exists") is True, "a ConfigMap that is there says so")
+# Every non-editable row carries a stated reason, and no editable row does. The
+# 67 unexplained rows were most of what "fix cluster env" was asking for, and a
+# row that is silently immovable is the defect, not the refusal.
+_locked = [r for r in rows.values() if not r["editable"]]
+ok(_locked and all(r.get("reason") and r.get("reasonLabel") and r.get("reasonWhy")
+                   for r in _locked),
+   f"all {len(_locked)} non-editable rows state a reason")
+ok(not any(r.get("reason") for r in rows.values() if r["editable"]),
+   "no editable row states a reason it cannot be changed")
+ok([rows[k]["reason"] for k in ("GATEWAY_TIMEOUT_S", "OTLP_ENDPOINT", "APP_BASE_URL",
+                                "AUTH_MODE", "DEMO_LOGINS", "DATABASE_HOST")]
+   == ["mirrored", "paired", "address", "identity", "security", "manifests"],
+   "every reason category resolves, and the catch-all takes the rest")
+ok(rows["GATEWAY_TIMEOUT_S"]["editable"] is False
+   and "three places" in rows["GATEWAY_TIMEOUT_S"]["reasonWhy"],
+   "GATEWAY_TIMEOUT_S is refused and says why: it is mirrored into the Route and nginx")
+
+# thales-dev has no `thales` ConfigMap and no workloads, so before 2026-10-07 its
+# Config tab could only render the apiserver's 404 and read as broken. A read of
+# an absent ConfigMap is EMPTY; only the write path still 404s.
+st, _, b = call("GET", "/kube/configmap?namespace=thales-pre-prod&configmap=thales")
+ok(st == 200 and js(b).get("exists") is False and js(b).get("data") == [],
+   f"a namespace with no such ConfigMap reads as empty, not 404 ({st})")
+_before = len(SEEN)
+st, _, b = call("POST", "/kube/patch-key", {"namespace": "thales-pre-prod", "configmap": "thales",
+                                            "key": "LOG_LEVEL", "confirm": "LOG_LEVEL", "value": "warn"})
+ok(st == 404 and not any(x[0] == "PATCH" for x in SEEN[_before:]),
+   f"changing a key of an absent ConfigMap still -> 404, and nothing was written ({st})")
 untouched("configmap kube-root-ca", lambda: ok(
     call("GET", f"/kube/configmap?{NS}&configmap=kube-root-ca.crt")[0] == 400, "view kube-root-ca.crt -> 400"))
 untouched("configmap other", lambda: ok(
@@ -820,9 +866,41 @@ for body, want, label in (
     ({**PK, "confirm": "thales", "value": "info"}, 400, "confirmed with the configmap, not the key"),
     ({**PK, "configmap": "other", "value": "info"}, 403, "another configmap"),
     ({**PK, "namespace": "kube-system", "value": "info"}, 403, "kube-system"),
+    # The widened keys, each refused for the reason its pattern was derived to
+    # catch. A non-number was never the dangerous input here: an
+    # order-of-magnitude typo is, because the pod starts fine and the solve
+    # answers long after the gateway already 504'd the caller.
+    ({**PK, "key": "CPSAT_TIME_LIMIT", "confirm": "CPSAT_TIME_LIMIT", "value": "5400"},
+     400, "CPSAT_TIME_LIMIT one order of magnitude out"),
+    ({**PK, "key": "CPSAT_TIME_LIMIT", "confirm": "CPSAT_TIME_LIMIT", "value": "571"},
+     400, "CPSAT_TIME_LIMIT past the gateway's 30 s margin"),
+    ({**PK, "key": "CPSAT_TIME_LIMIT", "confirm": "CPSAT_TIME_LIMIT", "value": "0"},
+     400, "CPSAT_TIME_LIMIT of 0, which the solver refuses at import"),
+    # `2` is not a bigger boolean: config.py's _boolean makes it a ConfigError.
+    ({**PK, "key": "CPSAT_LEX_MERGE", "confirm": "CPSAT_LEX_MERGE", "value": "2"},
+     400, "CPSAT_LEX_MERGE as an integer rather than a flag"),
+    ({**PK, "key": "ENABLED_ALGORITHMS", "confirm": "ENABLED_ALGORITHMS", "value": ""},
+     400, "an empty ENABLED_ALGORITHMS, which crash-loops the backend"),
+    ({**PK, "key": "ENABLED_ALGORITHMS", "confirm": "ENABLED_ALGORITHMS",
+      "value": "heuristic,greedy"}, 400, "an unknown algorithm name"),
+    ({**PK, "key": "ENABLED_ALGORITHMS", "confirm": "ENABLED_ALGORITHMS", "value": "MILP"},
+     400, "the algorithm name as the UI spells it, which the parser never lowercases"),
+    ({**PK, "key": "ENABLED_ALGORITHMS", "confirm": "ENABLED_ALGORITHMS", "value": "milp,milp"},
+     400, "a repeated algorithm name"),
+    ({**PK, "key": "GATEWAY_TIMEOUT_S", "confirm": "GATEWAY_TIMEOUT_S", "value": "600"},
+     403, "GATEWAY_TIMEOUT_S, which is mirrored into the Route and nginx"),
 ):
     st, _, b = untouched(f"patch-key {label}", lambda: call("POST", "/kube/patch-key", body))
     ok(st == want, f"patch-key {label} -> {st} (want {want})")
+for key, value in (("CPSAT_TIME_LIMIT", "570"), ("CPSAT_TIME_LIMIT", "1"),
+                   ("CPSAT_LEX_MERGE", "0"), ("ENABLED_ALGORITHMS", "cpsat"),
+                   ("ENABLED_ALGORITHMS", "milp,heuristic,cpsat")):
+    st, _, b = call("POST", "/kube/patch-key",
+                    {**PK, "key": key, "confirm": key, "value": value})
+    ok(st == 200 and CM["data"][key] == value, f"patch-key {key}={value} -> {st}")
+CM["data"].update({"CPSAT_TIME_LIMIT": "540", "CPSAT_LEX_MERGE": "1",
+                   "ENABLED_ALGORITHMS": "heuristic,milp,cpsat"})
+
 del CM["data"]["JOB_MAX_WORKERS"]
 SEEN.clear()
 st, _, b = call("POST", "/kube/patch-key", {**PK, "key": "JOB_MAX_WORKERS", "confirm": "JOB_MAX_WORKERS", "value": "2"})

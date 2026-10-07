@@ -73,10 +73,68 @@ image_registries = ["thales/", "localhost:5000/thales/"]
 # deliberately absent: it wipes the database.
 job_templates = ["migrate", "seed-identity", "seed-reference"]
 
-# The keys patch-key may change, and what each may be set to. SMALL ON PURPOSE:
-# everything else in ConfigMap `thales` is an address, an identity setting or a
-# security switch, and belongs in the manifests. Each pattern is the
-# INTERSECTION of what every consumer accepts, checked against the Tals source:
+# The keys patch-key may change, and what each may be set to. Each pattern is the
+# INTERSECTION of what every consumer accepts, read off the Tals source at
+# ~/projects/army/Tals - and then TIGHTENED wherever the code accepts a value
+# nobody should be able to type into a table cell. Tightening is the safe
+# direction: a refused value is a 400 the operator can read, an accepted bad one
+# is a crash-looping pod or a solve that answers after the gateway gave up.
+#
+# ── widened from 3 keys to 22 on 2026-10-07 ──────────────────────────────────
+#
+# The three were chosen this way too; what changed is the measurement behind
+# them. Of the 79 environment names that reach a Thales process, 70 come from
+# this ConfigMap and 3 were changeable - 3.8%. The other 67 were refused by THIS
+# TABLE, not by the Role (which already grants `configmaps: patch` on `thales`)
+# and not by the cluster. That made the narrowness a product decision wearing a
+# security costume, so it is now taken as a product decision: 22 keys that are
+# solver budgets, timeouts and sizes, and 48 that are an address, an identity
+# setting, a security switch, mirrored elsewhere or pinned to the release - see
+# [configmap_reasons], which is where the per-row sentence in the UI comes from.
+#
+# Two rules every pattern below obeys, and each has a check:
+#
+#   1. It refuses an ORDER-OF-MAGNITUDE TYPO, not merely a non-number. A
+#      CPSAT_TIME_LIMIT of 5400 is as much an outage as "abc" - the solver burns
+#      CPU producing an answer long after the gateway 504'd the caller, which
+#      reads to everyone as "the optimiser hangs". So every numeric pattern is a
+#      bounded range and never `[0-9]+`. checks/wiring.py asserts the bound
+#      generically: no pattern here may accept a twelve-digit number or a value
+#      over 64 characters.
+#   2. It accepts the value that is LIVE. A pattern that refuses the running
+#      value leaves a row un-editable in practice while the UI draws an Edit
+#      button on it, which is worse than not allowlisting the key at all.
+#
+# guard.py additionally refuses a pattern that would accept an empty, blank or
+# multi-line value, and kube.py refuses a key that is not already present in the
+# ConfigMap - "it edits keys, it does not add them". Neither depends on anything
+# written here.
+#
+# ── what is deliberately NOT here ────────────────────────────────────────────
+#
+#   GATEWAY_TIMEOUT_S   ONE stated number for THREE places: the OpenShift Route's
+#                       `haproxy.router.openshift.io/timeout`, the frontend
+#                       nginx's `proxy_read_timeout`/`proxy_send_timeout` (which
+#                       nginx-start.sh renders from it and refuses to start
+#                       without), and the registry row both are verified against -
+#                       Tals manifests/scripts/verify-config.py's
+#                       check_gateway_timeout asserts exact string equality in
+#                       both directions. Changing it in the ConfigMap alone
+#                       desyncs all three and nothing here would notice. It moves
+#                       in the manifests or it does not move.
+#   ENABLE_OTLP_EXPORT  `true` with OTLP_ENDPOINT empty is a config refusal, so
+#                       the algorithm pod would stop starting. A key whose legal
+#                       values depend on another key's value is not a one-key
+#                       edit, and this table only knows one key at a time.
+#   a Secret's value    refused three times over - a catalog-load error, no Role
+#                       verb, and a Kyverno `Enforce` policy that denies
+#                       `secretKeyRef` and `envFrom.secretRef` outright, so not
+#                       even cluster-admin can inject one as env. Permanent.
+#   a pod-spec `env:`   the 9 literal names (backend's 5, postgres's 4) have no
+#                       handler and no param type, and patching a pod template is
+#                       SECURITY.md's worst case for this tier. Its own decision.
+#
+# ── the three that were already here ─────────────────────────────────────────
 #
 #   LOG_LEVEL        pino (backend) takes debug|info|warn|error; Python logging
 #                    (algorithm) takes those too (WARN is an alias). trace/fatal
@@ -85,9 +143,6 @@ job_templates = ["migrate", "seed-identity", "seed-reference"]
 #                    and every Job opens its own pool against one small Postgres.
 #   JOB_MAX_WORKERS  algorithm solver processes. 1..4: each runs
 #                    CPSAT_SEARCH_WORKERS threads on a 6-CPU node.
-#
-# ENABLE_OTLP_EXPORT was considered and left out: `true` with OTLP_ENDPOINT empty
-# is a config refusal, so the algorithm pod would stop starting.
 [configmap_keys.LOG_LEVEL]
 pattern = "debug|info|warn|error"
 meaning = "How much the backend and algorithm log."
@@ -99,6 +154,275 @@ meaning = "Database connections each backend replica may hold (1 to 20)."
 [configmap_keys.JOB_MAX_WORKERS]
 pattern = "[1-4]"
 meaning = "Solver jobs the algorithm runs at once (1 to 4)."
+
+# ── solver tuning (8) ────────────────────────────────────────────────────────
+#
+# All eight are read in ONE place, at import of the algorithm service:
+# algorithm/app/config.py. Nothing is defaulted there, and `_raw` treats an
+# empty or whitespace-only value as unset, so every malformed value is a
+# ConfigError raised at import - i.e. a pod with no ASGI app, crash-looping.
+# There is no warn-and-skip anywhere in that file. The TS backend reads none of
+# them and says so in a deny-list (backend/src/__tests__/env-example.test.ts).
+#
+# The ceiling on the two time limits is not invented. Tals'
+# manifests/scripts/verify-config.py fails the build when a solver limit is
+# within MARGIN_SECONDS = 30 of SYNC_OPTIMIZE_TIMEOUT_MS: "A solver must finish
+# at least 30s before the gateway gives up". With SYNC_OPTIMIZE_TIMEOUT_MS at
+# 600000 that is 570 seconds, and 570 is therefore the bound - a registry-level
+# check, so it would NOT catch a hand-edit here, which is exactly why the
+# pattern carries it. Both live at 540.
+
+# `_decimal(positive=True)`: a float, > 0 and finite. Integer seconds only here;
+# a fractional solver budget is not a thing anybody means to type.
+[configmap_keys.CPSAT_TIME_LIMIT]
+pattern = "[1-9]|[1-9][0-9]|[1-4][0-9]{2}|5[0-6][0-9]|570"
+meaning = "Seconds CP-SAT may search, phase 1 and 2 together (1 to 570; live 540). It must finish 30 s before SYNC_OPTIMIZE_TIMEOUT_MS or the caller gets a 504 while the solve runs on."
+
+# `_decimal(non_negative=True)`, so 0 is legal and means "reserve nothing" - it
+# is a pinned boundary value in algorithm/tests/test_config_refusals.py. The
+# reserve is then `min(this, CPSAT_TIME_LIMIT / 2)` (cpsat_scheduler.py), so
+# anything above half of CPSAT_TIME_LIMIT's own ceiling is silently clamped and
+# states a budget that is not taken. 285 is that half.
+[configmap_keys.CPSAT_PHASE2_TIME_LIMIT]
+pattern = "[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-7][0-9]|28[0-5]"
+meaning = "Seconds reserved out of CPSAT_TIME_LIMIT for the phase-2 merge (0 to 285; live 120). Above half of CPSAT_TIME_LIMIT it is silently clamped; 0 reserves nothing."
+
+# `_integer(minimum=1)` - an int literal, so 8.0 is a ConfigError. No upper
+# bound in the code at all; the real ceiling is the pod's. The algorithm
+# Deployment is limited to 2 CPUs (Tals manifests/deploy/40-algorithm.yaml) and
+# the worst case is JOB_MAX_WORKERS x this many solver threads, so the live 8
+# already runs 16 threads on 2 CPUs - which the Tals registry itself calls "not
+# a crash, a solve that quietly takes far longer than its budget suggests". The
+# live value is therefore the ceiling: this key is for turning DOWN.
+[configmap_keys.CPSAT_SEARCH_WORKERS]
+pattern = "[1-8]"
+meaning = "CP-SAT search threads per solve (1 to 8; live 8). Times JOB_MAX_WORKERS against the pod's 2 CPUs, so 8 is already oversubscribed - this is the dial for turning it down."
+
+# `_integer()` with NO bound in config.py. The bound is OR-Tools': random_seed
+# is a protobuf int32, so a larger number raises at SOLVE time - a 500 on every
+# optimize request rather than a crash-loop, which is the harder fault to read.
+# Nine digits cannot reach int32.
+[configmap_keys.CPSAT_RANDOM_SEED]
+pattern = "0|[1-9][0-9]{0,8}"
+meaning = "The fixed seed that makes two solves of one input agree (0 to 999999999; live 42). OR-Tools takes a 32-bit seed, and a larger number fails at solve time, not at start."
+
+# `_decimal(non_negative=True)`; 0 is legal and documented as "exact proof", and
+# the parameter is simply not set when it is 0. Nothing in the code refuses a
+# value >= 1, but a RELATIVE gap of 1 is 100% - it accepts the first feasible
+# solution found - so the pattern keeps it below 1 by construction.
+[configmap_keys.CPSAT_RELATIVE_GAP_LIMIT]
+pattern = "0|0\\.[0-9]{1,6}"
+meaning = "How far from proven-optimal CP-SAT may stop, as a fraction (0 to 0.999999; live 0.001). 0 means prove it exactly; 1 would accept the first answer found, so it is refused."
+
+# `_boolean()`, NOT an integer: the code takes 1/true/yes/on and 0/false/no/off
+# case-insensitively and makes anything else - `2` included - a ConfigError. The
+# registry, all four ConfigMaps and both .env.example files emit "1", so 0|1 is
+# tighter than the code and is every spelling the repo actually ships.
+[configmap_keys.CPSAT_LEX_MERGE]
+pattern = "0|1"
+meaning = "Whether CP-SAT runs its phase-2 lexicographic merge (1 on, 0 off). Any other word, 2 included, stops the algorithm pod starting."
+
+# Same shape and the same verify-config ceiling as CPSAT_TIME_LIMIT; it reaches
+# CBC as `-sec <n>` on a command line (PuLP).
+[configmap_keys.MILP_TIME_LIMIT]
+pattern = "[1-9]|[1-9][0-9]|[1-4][0-9]{2}|5[0-6][0-9]|570"
+meaning = "Seconds the MILP solver may run (1 to 570; live 540). Bounded by SYNC_OPTIMIZE_TIMEOUT_MS the same way CPSAT_TIME_LIMIT is."
+
+# `_decimal(non_negative=True)`, 0 = exact proof. ABSOLUTE, in objective units,
+# not a fraction - milp_scheduler.py's own comment is that above about 1 it
+# risks trading away a real decision. Nothing in the code bounds it, so the
+# pattern does: one digit and up to three decimals.
+[configmap_keys.MILP_GAP_ABS]
+pattern = "[0-9](\\.[0-9]{1,3})?"
+meaning = "How far from optimal the MILP solver may stop, in objective units - absolute, not a fraction (0 to 9.999; live 0.5). Above about 1 it can trade away a real decision."
+
+# ── timeouts, budgets and sizes (10) ─────────────────────────────────────────
+#
+# Seven of these go through the backend's `requireInt` (env.ts), which is
+# `^-?\d+$` on the trimmed value plus Number.isSafeInteger plus the ENV_SPEC
+# min/max - so no sign, no decimal point, no `1e5`, no unit suffix, and an empty
+# value is a boot failure rather than a silent NaN. The exceptions are called out
+# on their own rows. Every pattern below is a bounded range for rule 1 above.
+
+# pg Pool `connectionTimeoutMillis` (backend/src/db/index.ts). ENV_SPEC min 1,
+# because pg reads 0 as "wait forever", and env.test.ts pins 0 and -5 as
+# refusals. No max in the code; a minute is already a fault rather than a budget
+# against a Postgres in the same namespace.
+[configmap_keys.DB_CONNECTION_TIMEOUT_MS]
+pattern = "[1-9][0-9]{3}|[1-5][0-9]{4}|60000"
+meaning = "Milliseconds to wait for a database connection before failing (1000 to 60000; live 10000). 0 would mean wait forever, so it is refused."
+
+# Sent to Postgres as `statement_timeout` on every pooled connection, and the
+# migration runner shares the pool deliberately. ENV_SPEC min 1 (Postgres reads
+# 0 as "no limit"). Capped at the longest request the backend will itself wait
+# for, SYNC_OPTIMIZE_TIMEOUT_MS: a statement budget beyond that cannot help.
+[configmap_keys.DB_STATEMENT_TIMEOUT_MS]
+pattern = "[1-9][0-9]{3}|[1-9][0-9]{4}|[1-5][0-9]{5}|600000"
+meaning = "Milliseconds any one SQL statement may run, set on the server through the connection (1000 to 600000; live 60000). Migrations are bounded by it too."
+
+# The ONLY key here with no code consumer: backend/entrypoint.sh reads it, and
+# nothing else does. That matters for the pattern, because POSIX `$(( ))` is
+# base-prefix-aware - `060` is parsed as OCTAL 48 - so this is the one key where
+# a leading zero silently means a different number. No pattern in this table
+# accepts a leading zero, and for this key that is load-bearing rather than tidy.
+[configmap_keys.DB_WAIT_TIMEOUT_S]
+pattern = "[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600"
+meaning = "Seconds the backend's entrypoint waits for the database before exiting non-zero (1 to 600; live 60). A leading zero would be read as octal by the shell that uses it."
+
+# Bounds the SHORT backend-to-algorithm proxies (start a job, poll it, cancel
+# it), not the solve. ENV_SPEC min 1. verify-config.py requires
+# GATEWAY_TIMEOUT_S * 1000 > this, STRICTLY - so with GATEWAY_TIMEOUT_S fixed at
+# 660 the ceiling is below 660000, and 600000 keeps the inequality true for
+# every value this table can produce.
+[configmap_keys.JOB_CONTROL_TIMEOUT_MS]
+pattern = "[1-9][0-9]{3}|[1-9][0-9]{4}|[1-5][0-9]{5}|600000"
+meaning = "Milliseconds the backend waits on a job start, poll or cancel before answering 504 (1000 to 600000; live 30000). It must stay under GATEWAY_TIMEOUT_S."
+
+# Python, not TypeScript: `_decimal(positive=True)` in algorithm/app/config.py,
+# and it is not in the backend's ENV_SPEC at all. So the code would take `9e2`
+# and `.5`; integer seconds is tighter and is what every ConfigMap emits. 0 is
+# refused by the code (a pinned refusal), so there is no "forget it at once"
+# mode. A finished job's result is held in memory until it is swept, which is
+# what bounds the top end at a day.
+[configmap_keys.JOB_TTL_SECONDS]
+pattern = "[1-9]|[1-9][0-9]|[1-9][0-9]{2}|[1-9][0-9]{3}|[1-7][0-9]{4}|8[0-5][0-9]{3}|86[0-3][0-9]{2}|86400"
+meaning = "Seconds a finished solver job stays readable before the algorithm forgets it (1 to 86400; live 900). Its result is held in memory until then."
+
+# The budget for the WHOLE three-step shutdown, not per step. ENV_SPEC `min: 0`
+# makes this the one key whose contract allows 0 - and 0 is not a no-op: every
+# step reports TIMED_OUT at once, so the drain is not awaited, queued incidents
+# are abandoned and the pool is not closed. That is a data-loss setting with no
+# room in a table cell to say so, so the pattern starts at 1000 instead. Stated
+# here rather than silently narrowed. The ceiling is the pod's
+# terminationGracePeriodSeconds, which no Tals manifest sets, so it is
+# Kubernetes' 30 s default; above it the tail of the sequence is SIGKILLed.
+[configmap_keys.SHUTDOWN_GRACE_MS]
+pattern = "[1-9][0-9]{3}|[1-2][0-9]{4}|30000"
+meaning = "Milliseconds the backend has to drain, flush and close on shutdown (1000 to 30000; live 10000). Above 30000 the pod is killed mid-sequence; 0 is legal to the code and refused here, because it abandons every step."
+
+# Pinned between two inequalities that verify-config.py enforces:
+# GATEWAY_TIMEOUT_S * 1000 >= this (so at most 660000, and GATEWAY_TIMEOUT_S is
+# not editable), and this >= (the larger solver limit + 30) * 1000. Because
+# CPSAT_TIME_LIMIT and MILP_TIME_LIMIT are themselves editable up to 570, the
+# floor that holds for EVERY combination this table allows is 600000, not the
+# 570000 the live 540 would permit. A narrow window is the honest answer here.
+[configmap_keys.SYNC_OPTIMIZE_TIMEOUT_MS]
+pattern = "6[0-5][0-9]{4}|660000"
+meaning = "Milliseconds the backend waits for a synchronous solve before answering 504 (600000 to 660000; live 600000). It has to sit above every solver limit plus 30 s and at or below GATEWAY_TIMEOUT_S, which leaves this window."
+
+# `SET lock_timeout = <n>` around `pg_advisory_lock`, string-interpolated into
+# SQL because SET takes no bind parameters - so the integer shape is a safety
+# property here and not only a correctness one. ENV_SPEC `optional` + min 1: the
+# server boots without it, the migrate Job does not. Note it is shadowed by
+# DB_STATEMENT_TIMEOUT_MS on the same pool, and the live pair already is
+# (120000 under 60000), so raising this alone changes nothing observable.
+[configmap_keys.MIGRATION_LOCK_TIMEOUT_MS]
+pattern = "[1-9][0-9]{3}|[1-9][0-9]{4}|[1-5][0-9]{5}|600000"
+meaning = "Milliseconds a migration waits for the migration lock before giving up and applying nothing (1000 to 600000; live 120000). DB_STATEMENT_TIMEOUT_MS caps it in practice."
+
+# Hono's `bodyLimit`, registered before every auth gate. ENV_SPEC min 1, and
+# then a SECOND validator the ConfigMap does not express:
+# assertBodyLimitFitsAttachments refuses to start below
+# ceil(5 MiB / 3) * 4 + 64 KiB = 7056044, the base64 cost of one attachment.
+# (Tals' own runbook says 7059048; the code is the authority and the runbook is
+# 3004 bytes high.) Eight digits put the floor comfortably above that and the
+# ceiling at ~66 MiB. Worth knowing: the frontend nginx caps the attachment
+# path at a LITERAL `client_max_body_size 8m` that nothing renders from this
+# key, so nginx is the binding ceiling in front of the Route either way.
+[configmap_keys.MAX_REQUEST_BODY_BYTES]
+pattern = "[1-6][0-9]{7}"
+meaning = "Largest request body the backend accepts, in bytes (10000000 to 69999999; live 10485760). It refuses to start below 7056044, the base64 cost of one 5 MiB attachment."
+
+# The one key read with TWO parses, and the stricter one is DEAD in production:
+# ENV_SPEC declares min 1 but nothing calls requireInt for it; the live parse is
+# sso.config.ts's `positiveNumber`, which is Number() + isFinite + > 0. So the
+# running server would accept 1 - a 1 ms metadata poll against AD-FS, with a 5 s
+# timeout per fetch and nothing clamping the overlap. This pattern is the only
+# guard that exists, and its floor is six times the per-fetch timeout.
+[configmap_keys.SSO_IDP_REFRESH_MS]
+pattern = "[3-9][0-9]{4}|[1-9][0-9]{5,6}"
+meaning = "Milliseconds between re-reads of the identity provider's descriptor (30000 to 9999999; live 60000). The live parser accepts any positive number, so this bound is the only thing between a typo and a poll loop against AD-FS."
+
+# The one NON-numeric addition, and the one that needed the most reading before
+# it was safe to offer. Backend only (the algorithm service never reads it); the
+# parse is envList(): split on ",", trim each member, drop empty members, and NO
+# lowercasing. The legal set is ALL_ALGORITHMS = heuristic, milp, cpsat, matched
+# case-SENSITIVELY with Array.includes - so `MILP`, which is how the UI spells it
+# on screen, is an unknown key. An unknown key and an empty list are each a raw
+# throw from module scope at import, which is a CrashLoopBackOff, not a warning:
+# "an empty list used to mean all, which is the opposite of what setting it
+# says". The pattern is therefore an explicit whitelist, and it also refuses
+# duplicates - `heuristic,heuristic` boots fine but reaches the operator menu as
+# two identical radio items with the same React key.
+#
+# The one thing a pattern CANNOT guard, so the sentence says it: the list is not
+# a fallback chain, but its FIRST member is DEFAULT_ALGORITHM, used by every
+# optimize request that omits `algorithm`. Reordering is a silent change of
+# default solver. Whitespace is tolerated by envList and refused here, because
+# two spellings of one value is not something this table should mint.
+[configmap_keys.ENABLED_ALGORITHMS]
+pattern = "(?!.*(heuristic|milp|cpsat).*\\1)(heuristic|milp|cpsat)(,(heuristic|milp|cpsat)){0,2}"
+meaning = "Which solvers the scheduler offers, in order (heuristic, milp, cpsat; live heuristic,milp,cpsat). The FIRST one is the default for any request that does not name a solver, so reordering changes the default. An unknown or repeated name, or an empty list, stops the backend starting."
+
+# ── why a key is NOT editable, said per row ──────────────────────────────────
+#
+# The Config tab renders all 70 keys. Until 2026-10-07 the 67 it would not let
+# you change got no affordance and no reason - one footer sentence for all of
+# them - which is most of what "fixing cluster env" was actually asking for.
+# Each row now carries a reason, and it comes from HERE rather than from a second
+# list in the UI: a list in the UI that disagrees with the catalog is exactly the
+# drift this repo keeps writing checks about.
+#
+# A category's `keys` are REGEXES, fullmatched against the key name, and the
+# FIRST category that matches wins - so declaration order is meaning, not style.
+# `address` is before `identity` on purpose: SSO_IDP_DESCRIPTOR_URL and
+# SSO_ACS_PATH are addresses that happen to start with SSO_.
+#
+# Exactly one category carries `keys = []`. That is the catch-all - "everything
+# else" - and guard.py requires exactly one of them and requires it last, so
+# every key resolves to a sentence and no key can fall off the end. A key that
+# is in [configmap_keys] must NOT match any category: a row cannot both offer an
+# Edit button and state why it has none, and guard.py refuses a catalog where
+# one does.
+[configmap_reasons.mirrored]
+label = "Mirrored elsewhere"
+keys = ["GATEWAY_TIMEOUT_S"]
+meaning = "One stated number for the Route, the frontend's nginx and the registry they are both checked against. Changing it here alone desyncs three places."
+
+[configmap_reasons.paired]
+label = "Only legal with another key"
+keys = ["ENABLE_OTLP_EXPORT", "OTLP_ENDPOINT"]
+meaning = "Its legal values depend on another key's value, and this interface changes one key at a time."
+
+[configmap_reasons.address]
+label = "An address"
+keys = [".*_URL", "CORS_ORIGIN", ".*_ENDPOINT", "SSO_ACS_PATH", "BOOTSTRAP_BASES"]
+meaning = "Where something else is. It follows the deployment, so it is stated in the manifests with the rest of the topology."
+
+[configmap_reasons.identity]
+label = "An identity setting"
+# Not `SSO_.*`: SSO_IDP_REFRESH_MS is an interval, and it is editable. The first
+# draft used the wildcard and guard.py refused the catalog for exactly that -
+# a row cannot both offer an Edit button and explain why it has none. Named keys
+# instead, so a future SSO_ key lands in the catch-all, which is still true of it.
+keys = ["AUTH_IDP", "AUTH_MODE", "AUTH_ROLES_FIELD_OVERRIDE", "CLIENT_ID", "GUEST_.*",
+        "KEYCLOAK_REALM", "SSO_DEFAULT_ROLE", "SSO_DOMAIN", "SSO_GLOBAL_SCOPE_ROLES",
+        "SSO_GROUP_ROLE_MAP", "SSO_IDP_ENTITY_ID", "SSO_NAMEID_FORMAT",
+        "SSO_PROVIDER_ID", "SSO_SP_ENTITY_ID", "SUPERADMIN_EMAIL",
+        "SUPER_ADMIN_WHITELIST", "ADMIN_EMAIL_WHITELIST", "REALITY_ID"]
+meaning = "It decides who the system thinks you are, or which tenant you are in. Changing it from a browser is the loop this interface must not close."
+
+[configmap_reasons.security]
+label = "A security switch"
+keys = ["AUTH_RATE_LIMIT_.*", "BREAK_GLASS_.*", "DB_SSL", "DEMO_LOGINS",
+        "MIN_PASSWORD_LENGTH", "REQUIRE_EMAIL_VERIFICATION", "SESSION_.*",
+        "TRUSTED_PROXY_HOPS"]
+meaning = "It decides who gets in, or how hard it is. It belongs to review, not to a table cell."
+
+[configmap_reasons.manifests]
+label = "Set in the manifests"
+keys = []
+meaning = "It states which build this is, or something the release decides. It changes with a deployment, not at runtime."
 
 # ══ deployments ══════════════════════════════════════════════════════════════
 

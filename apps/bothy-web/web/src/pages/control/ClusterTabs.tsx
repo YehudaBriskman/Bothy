@@ -17,11 +17,12 @@ import {
 import { stripAnsi } from '../../lib/ansi';
 import { useKubeRead, type ReadState } from '../../lib/kube-catalog';
 import {
-  ago, buildTopology, deploymentStatus, gate, jobStatus, podStatus, shortImage, valueAllowed,
-  type ClusterStatus, type Gate, type TopoNode,
+  ago, buildTopology, deploymentStatus, envProvenance, gate, jobStatus, podStatus, shortImage,
+  valueAllowed, type ClusterStatus, type Gate, type TopoNode,
 } from '../../lib/cluster';
 import { queryRange, fmtCores, fmtSize, type Series } from '../../lib/metrics';
 import { EventList, KubeDialog, Refused, type KubeDialogTab } from '../../components/KubeActions';
+import { Tabs } from '../../components/Tabs';
 import { ConfirmDialog } from '../../components/KubeConfirm';
 import { Dialog, useLingering } from '../../components/ui/Dialog';
 import { Menu } from '../../components/ui/Menu';
@@ -523,8 +524,18 @@ function JobLogsDialog({ open, ns, job, onClose }: { open: boolean; ns: string; 
 // ── config ──────────────────────────────────────────────────────────────────
 
 export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCatalog; roles: Roles }) {
-  const name = catalog.configmaps[0] ?? '';
+  // CL-21: this was `catalog.configmaps[0]` with no picker, so a second entry in
+  // the catalog's allowlist would have been unreachable from the page that exists
+  // to show it. One ConfigMap draws no selector - a tablist over one tab is
+  // furniture - and the name is already stated in the heading either way.
+  const [asked, setAsked] = useState('');
+  const name = catalog.configmaps.includes(asked) ? asked : catalog.configmaps[0] ?? '';
   const cm = useKubeRead<ConfigMapResult>(name ? 'configmap' : null, { namespace: ns, configmap: name }, 30_000);
+  // Only for provenance: which deployments read this ConfigMap, so "why can't I
+  // change this" can answer "this comes from here, and here is what reads it".
+  // h_deployments has shipped `configmaps` per deployment since 2026-09 and the
+  // UI never read it. No new grant - `deployments` is a viewer action already.
+  const deps = useKubeRead<DeploymentsResult>('deployments', { namespace: ns }, 60_000);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [restart, setRestart] = useState(true);
@@ -533,8 +544,19 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
   const shownConfirm = useLingering(confirm);
   const [filter, setFilter] = useState('');
   const patchG = gate(roles, findSpec(catalog, 'patch-key'));
-  const rows = (cm.data?.data ?? []).filter((e) => !filter || e.key.toLowerCase().includes(filter.toLowerCase()));
-  const editable = (cm.data?.data ?? []).filter((e) => e.editable).length;
+  const all = cm.data?.data ?? [];
+  const rows = all.filter((e) => !filter || e.key.toLowerCase().includes(filter.toLowerCase()));
+  const editable = all.filter((e) => e.editable).length;
+  // `exists: false` is a namespace with no ConfigMap by this name - a real state
+  // (thales-dev has none and no workloads either), so the tab reads as EMPTY. It
+  // used to render the apiserver's 404 and read as broken.
+  const absent = cm.data?.exists === false;
+  const prov = envProvenance(name, deps.data?.deployments ?? []);
+  // Only the categories this ConfigMap actually uses, each explained ONCE. A row
+  // carries its short label; repeating the same sentence down 48 rows is noise,
+  // and the brand's "say it once" is the rule that settles it.
+  const used = new Set(all.filter((e) => !e.editable && e.reason).map((e) => e.reason as string));
+  const legend = catalog.configmapReasons.filter((r) => used.has(r.name));
 
   const start = (key: string, value: string) => { setEditing(key); setDraft(value); };
   // CL-12: leaving the editor puts focus back on the Edit button of the row it
@@ -554,8 +576,37 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
 
   return (
     <div className="cl-stack">
-      <ReadHead read={cm} what={`ConfigMap ${name} · ${cm.data?.data.length ?? 0} keys, ${editable} editable here`} />
-      <Stale read={cm} />
+      {catalog.configmaps.length > 1 && (
+        <Tabs
+          label="ConfigMap" value={name} onChange={setAsked}
+          tabs={catalog.configmaps.map((c) => ({ key: c, label: c }))}
+        />
+      )}
+      <ReadHead read={cm} what={absent
+        ? `No ConfigMap ${name} in ${ns}`
+        : `ConfigMap ${name} · ${all.length} keys, ${editable} editable here`}
+      />
+      {/* A 404 from the read is not a fault here, so it is not drawn as one. Any
+          other refusal still is. */}
+      {!absent && <Stale read={cm} />}
+      {absent ? (
+        // Three different situations, and only one of them is quiet. A
+        // deployment whose pod template NAMES a ConfigMap that is not there has
+        // pods that cannot start, so that case is the loud one and must not be
+        // worded as "nothing reads it" - which is what the first draft said,
+        // while three deployments declared it.
+        <p className="sa-note cl-cm-absent">
+          <span className="mono">{ns}</span> has no ConfigMap <span className="mono">{name}</span>
+          {prov.readers.length > 0
+            ? <>, and <span className="mono">{prov.readers.join(', ')}</span> {prov.readers.length === 1 ? 'declares' : 'declare'} it.
+                {' '}{prov.readers.length === 1 ? 'Its pods' : 'Their pods'} cannot start until it exists.</>
+            : prov.others.length > 0
+              ? `, and none of the ${prov.others.length} deployments here declares one.`
+              : ', and no workloads that would read one.'}
+          {' '}Its keys live in the manifests until something is deployed here.
+        </p>
+      ) : (
+      <>
       <div className="tbl-filter">
         <label className="tbl-search">
           <span className="sr-only">Filter keys</span>
@@ -564,7 +615,7 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
       </div>
       <Table
         label={`ConfigMap ${name}`}
-        cols={['Key', 'Value', { name: 'Edit' }]}
+        cols={['Key', 'Value', { name: 'Edit or why not' }]}
         empty={cm.data && rows.length === 0 ? (filter ? `No key matches "${filter}".` : 'The ConfigMap is empty.') : null}
       >
         {rows.map((e) => {
@@ -600,17 +651,60 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
                 )}
               </td>
               <td className="cl-actions-cell">
-                {e.editable && !isEditing && (
+                {e.editable ? (!isEditing && (
                   <GatedButton g={patchG} onClick={() => start(e.key, e.value)} title={`Change ${e.key}`} denied="Changing a key needs the operator role">
                     <SizedIcon icon={Pencil} size="sm" /> Edit
                   </GatedButton>
+                )) : (
+                  // The affordance 48 rows did not have. The short label only -
+                  // the sentence behind it is in the legend below, once per
+                  // category, and both come from the catalog rather than from a
+                  // list here that could disagree with it.
+                  <span className="cl-why dim">{e.reasonLabel ?? 'Set in the manifests'}</span>
                 )}
               </td>
             </tr>
           );
         })}
       </Table>
-      <p className="sa-note">Only {Object.keys(catalog.configmapKeys).join(', ')} can be changed here; everything else belongs in the manifests. Pods read the ConfigMap when they start, so a change without a restart applies on their next restart.</p>
+      <p className="sa-note">
+        {editable} of {all.length} keys can be changed here. Pods read the ConfigMap when they
+        start, so a change without a restart applies on their next restart.
+      </p>
+      {legend.length > 0 && (
+        <dl className="cl-why-legend">
+          {legend.map((r) => (
+            <div key={r.name}>
+              <dt>{r.label}</dt>
+              <dd>{r.meaning}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {/* Where a value a process sees actually comes from. Two of the three
+          answers are invisible in a ConfigMap listing, so they are stated rather
+          than left to be discovered. */}
+      <dl className="cl-why-legend cl-prov">
+        <div>
+          <dt>From this ConfigMap</dt>
+          <dd>
+            {prov.readers.length
+              ? <>Read by <span className="mono">{prov.readers.join(', ')}</span>.{prov.others.length
+                  ? <> <span className="mono">{prov.others.join(', ')}</span> {prov.others.length === 1 ? 'does' : 'do'} not read it, so a change here leaves {prov.others.length === 1 ? 'it' : 'them'} alone.</> : null}</>
+              : 'No deployment in this namespace reads it.'}
+          </dd>
+        </div>
+        <div>
+          <dt>From a pod spec</dt>
+          <dd>Some names are set literally in a deployment&apos;s pod template and are in no ConfigMap. Nothing here edits a pod template, so those are not on this tab at all.</dd>
+        </div>
+        <div>
+          <dt>From a Secret</dt>
+          <dd>A Secret&apos;s value reaches a process only as a FILE. A Kyverno policy denies <span className="mono">secretKeyRef</span> and <span className="mono">envFrom.secretRef</span> in these namespaces, so not even a cluster administrator can inject one as an environment variable.</dd>
+        </div>
+      </dl>
+      </>
+      )}
       {shownConfirm && spec && (
         <ConfirmDialog
           open={confirm != null}

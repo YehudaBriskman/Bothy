@@ -195,6 +195,39 @@ export function gateOf(roles: readonly string[], catalog: KubeCatalog | null | u
 
 // ── what the service will accept, checked before the click ──────────────────
 
+// ── where a value a process sees actually comes from ────────────────────────
+
+export interface EnvProvenance {
+  /** Deployments whose POD TEMPLATE reads this ConfigMap - env, envFrom, volumes
+   *  and projected volumes all count. h_deployments has shipped this per
+   *  deployment since 2026-09 and nothing read it until 2026-10-07. */
+  readers: string[];
+  /** Deployments in the namespace that do not read it, so a change here does
+   *  nothing to them. postgres is the live example. */
+  others: string[];
+}
+
+/**
+ * Which workloads a ConfigMap change would actually reach.
+ *
+ * "Why can't I change this" has three different answers on this page, and only
+ * one of them is the allowlist. The other two are provenance: a name can be
+ * LITERAL in a pod spec (no handler, no param type - nothing here edits a pod
+ * template), and a Secret's value reaches a process only as a FILE, because a
+ * Kyverno Enforce policy denies `secretKeyRef` and `envFrom.secretRef` across
+ * these namespaces - not even cluster-admin can inject one as env. Neither is
+ * visible in a ConfigMap listing, so the tab has to say so rather than let it be
+ * discovered.
+ *
+ * Sorted, because the order a list arrives in is not a fact about the cluster.
+ */
+export function envProvenance(configmap: string, deployments: readonly DeploymentRow[]): EnvProvenance {
+  const readers: string[] = [];
+  const others: string[] = [];
+  for (const d of deployments) (d.configmaps ?? []).includes(configmap) ? readers.push(d.name) : others.push(d.name);
+  return { readers: readers.sort(), others: others.sort() };
+}
+
 /** Whether a ConfigMap value matches the key's catalog pattern, the way the
  *  service checks it: the WHOLE value (Python fullmatch), never a prefix. */
 export function valueAllowed(catalog: Pick<KubeCatalog, 'configmapKeys'>, key: string, value: string): boolean {

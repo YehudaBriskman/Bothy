@@ -57,6 +57,10 @@ export interface KubeCatalog {
   actions: KubeActionSpec[];
   configmaps: string[];
   configmapKeys: Record<string, { pattern: string; meaning: string }>;
+  /** Why a key is NOT editable, in declaration order - the catch-all last. The
+   *  per-row reason comes from the service; this is here so the UI can name the
+   *  categories it is about to render without holding a list of its own. */
+  configmapReasons: { name: string; label: string; meaning: string; keys: string[] }[];
   imageRegistries: string[];
   jobTemplates: string[];
 }
@@ -252,8 +256,21 @@ export interface JobsResult extends KubeBase { jobs: JobRow[] }
 export interface JobLogsResult extends KubeBase { job: string; pod: string; container: string; pods: string[]; containers: string[]; previous: boolean; lines: string[] }
 export interface DeleteJobResult extends KubeBase { deleted: string; propagationPolicy: string }
 export interface RunTemplateResult extends KubeBase { job: string; template: string; image: string }
-export interface ConfigEntry { key: string; value: string; editable: boolean; pattern?: string; meaning?: string }
-export interface ConfigMapResult extends KubeBase { configmap: string; resourceVersion: string; data: ConfigEntry[] }
+export interface ConfigEntry {
+  key: string; value: string; editable: boolean;
+  /** Editable rows only: the rule the service will check the new value against. */
+  pattern?: string; meaning?: string;
+  /** Non-editable rows only: which [configmap_reasons] category the key fell in,
+   *  its short label, and the one sentence that category states. Resolved by the
+   *  SERVICE against the catalog, so nothing here keeps a second list. */
+  reason?: string; reasonLabel?: string; reasonWhy?: string;
+}
+export interface ConfigMapResult extends KubeBase {
+  configmap: string; resourceVersion: string; data: ConfigEntry[];
+  /** False when the namespace has no ConfigMap by this name - a real state
+   *  (`thales-dev` has none), not a fault, so the tab reads as empty. */
+  exists?: boolean;
+}
 export interface PatchKeyResult extends KubeBase { key: string; from: string | null; to: string; restarted?: string[]; restartedAt?: string }
 export interface ServiceRow { name: string; type: string; clusterIP: string; ports: { name?: string | null; port: number; targetPort: string | number; protocol: string; nodePort?: number | null }[]; selector: Record<string, string> }
 export interface ServicesResult extends KubeBase { services: ServiceRow[] }

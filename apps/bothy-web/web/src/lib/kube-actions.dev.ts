@@ -10,7 +10,8 @@
 // never offer an action the service does not declare.
 //
 // Not a happy path. Force an outcome from the console:
-//   localStorage['bothy-dev-kube-outcome'] = 'role' | 'scope' | 'fault' | 'silence' | 'unavailable'
+//   localStorage['bothy-dev-kube-outcome'] = 'role' | 'scope' | 'fault' | 'silence'
+//                                          | 'unavailable' | 'empty'
 // and grant roles for drawing with the existing key:
 //   localStorage['bothy-dev-roles'] = 'viewer,operator'
 
@@ -103,13 +104,45 @@ function makeState(ns: string): NsState {
     { name: 'thales-migrate-7k2qp', template: 'migrate', status: 'Complete', active: 0, succeeded: 1, failed: 0, startTime: iso(20000), completionTime: iso(19950), createdAt: iso(20000), images: [{ container: 'migrate', image: 'thales/backend:0.1.7' }] },
     { name: 'thales-seed-reference-p9vtd', template: 'seed-reference', status: 'Failed', active: 0, succeeded: 0, failed: 1, startTime: iso(19000), completionTime: null, createdAt: iso(19000), images: [{ container: 'seed', image: 'thales/backend:0.1.7' }] },
   ];
+  // All 70 keys the live ConfigMap carries, with the live values - 24 of them
+  // until 2026-10-07, which was fine while 3 were editable and stopped being
+  // fine when 22 are and the other 48 each have to state a reason. A sample
+  // cannot show "70 keys, 22 editable here" or exercise all six reason
+  // categories, and that sentence is the thing being designed.
+  //
+  // No secret is in here, because no secret is in the real one either: a
+  // Secret's value reaches a Thales process only as a file (Kyverno
+  // thales-secret-handling denies secretKeyRef and envFrom.secretRef).
   const config: Record<string, string> = {
-    API_VERSION: 'v1', APP_BASE_URL: `http://box.example:${pre ? 31080 : 31081}`, AUTH_IDP: 'keycloak', AUTH_MODE: pre ? 'saml' : 'both',
-    AUTH_RATE_LIMIT_ENABLED: 'true', AUTH_RATE_LIMIT_MAX: '100', CPSAT_SEARCH_WORKERS: '8', CPSAT_TIME_LIMIT: '540',
-    DB_CONNECTION_TIMEOUT_MS: '10000', DB_POOL_MAX: '10', DB_SSL: 'false', DEMO_LOGINS: pre ? 'false' : 'true',
-    DEPLOY_ENV: pre ? 'pre-prod' : 'dev', ENABLED_ALGORITHMS: 'heuristic,milp,cpsat', ENABLE_OTLP_EXPORT: 'false',
-    JOB_MAX_WORKERS: '2', JOB_TTL_SECONDS: '900', LOG_LEVEL: 'info', MAX_REQUEST_BODY_BYTES: '10485760',
-    NODE_ENV: 'production', SESSION_EXPIRES_IN_S: '604800', SSO_DEFAULT_ROLE: 'viewer', TRUSTED_PROXY_HOPS: '1',
+    ADMIN_EMAIL_WHITELIST: '[]', API_VERSION: 'v1',
+    APP_BASE_URL: `http://box.example:${pre ? 31080 : 31081}`, AUTH_IDP: 'adfs',
+    AUTH_MODE: pre ? 'saml' : 'both', AUTH_RATE_LIMIT_ENABLED: 'true', AUTH_RATE_LIMIT_MAX: '100',
+    AUTH_RATE_LIMIT_WINDOW_S: '10', AUTH_ROLES_FIELD_OVERRIDE: 'memberOf',
+    BETTER_AUTH_URL: `http://box.example:${pre ? 31080 : 31081}`, BOOTSTRAP_BASES: '',
+    BREAK_GLASS_LOCKOUT_MS: '900000', BREAK_GLASS_MAX_ATTEMPTS: '5', CLIENT_ID: '',
+    CORS_ORIGIN: `http://box.example:${pre ? 31080 : 31081}`,
+    CPSAT_LEX_MERGE: '1', CPSAT_PHASE2_TIME_LIMIT: '120', CPSAT_RANDOM_SEED: '42',
+    CPSAT_RELATIVE_GAP_LIMIT: '0.001', CPSAT_SEARCH_WORKERS: '8', CPSAT_TIME_LIMIT: '540',
+    DB_CONNECTION_TIMEOUT_MS: '10000', DB_POOL_MAX: '10', DB_SSL: 'false',
+    DB_STATEMENT_TIMEOUT_MS: '60000', DB_WAIT_TIMEOUT_S: '60', DEMO_LOGINS: pre ? 'false' : 'true',
+    DEPLOY_ENV: pre ? 'pre-prod' : 'dev', ENABLED_ALGORITHMS: 'heuristic,milp,cpsat',
+    ENABLE_OTLP_EXPORT: 'false', FRONTEND_URL: `http://box.example:${pre ? 31080 : 31081}`,
+    GATEWAY_TIMEOUT_S: '660', GUEST_APP_URL: '', GUEST_REALM: '', GUEST_SP_ENTITY_ID: '',
+    ISSUER_BASE_URL: 'https://idp.example/adfs/ls', JOB_CONTROL_TIMEOUT_MS: '30000',
+    JOB_MAX_WORKERS: '2', JOB_TTL_SECONDS: '900', KEYCLOAK_INTERNAL_URL: '',
+    KEYCLOAK_PUBLIC_URL: '', KEYCLOAK_REALM: '', LOG_LEVEL: 'info',
+    MAX_REQUEST_BODY_BYTES: '10485760', MIGRATION_LOCK_TIMEOUT_MS: '120000',
+    MILP_GAP_ABS: '0.5', MILP_TIME_LIMIT: '540', MIN_PASSWORD_LENGTH: '12',
+    NODE_ENV: 'production', OTLP_ENDPOINT: '', REALITY_ID: '1',
+    REQUIRE_EMAIL_VERIFICATION: 'false', SESSION_EXPIRES_IN_S: '604800',
+    SESSION_UPDATE_AGE_S: '86400', SHUTDOWN_GRACE_MS: '10000', SSO_ACS_PATH: '',
+    SSO_DEFAULT_ROLE: 'viewer', SSO_DOMAIN: '', SSO_GLOBAL_SCOPE_ROLES: '["superadmin"]',
+    SSO_GROUP_ROLE_MAP: '', SSO_IDP_DESCRIPTOR_URL: 'https://idp.example/FederationMetadata.xml',
+    SSO_IDP_ENTITY_ID: 'http://idp.example/adfs/services/trust', SSO_IDP_REFRESH_MS: '60000',
+    SSO_NAMEID_FORMAT: 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified',
+    SSO_PROVIDER_ID: 'adfs', SSO_SP_ENTITY_ID: '', SUPERADMIN_EMAIL: 'admin@example.test',
+    SUPER_ADMIN_WHITELIST: '["admin"]', SYNC_OPTIMIZE_TIMEOUT_MS: '600000',
+    TRUSTED_PROXY_HOPS: '1',
   };
   return { deployments, history, pods, jobs, config, rv: 48213 };
 }
@@ -283,11 +316,29 @@ export async function kubeMock(id: KubeActionId, body: Record<string, unknown>):
     }
     case 'configmap': {
       if (!CATALOG.configmaps.includes(target)) refuse(403, `configmap '${target}' is not one bothy-ops may read`);
+      // `empty` is the live thales-dev: a namespace with no ConfigMap by this
+      // name. The service answers `exists: false` with no rows rather than a 404,
+      // because having none is a state and not a fault. It is a forced outcome
+      // and not a property of the pretend namespaces, so one page can be seen
+      // both ways without the shim growing a second cluster.
+      if (read(OUTCOME_KEY) === 'empty') {
+        return { ...base, configmap: target, resourceVersion: '', exists: false, data: [] };
+      }
       const data: ConfigEntry[] = Object.keys(s.config).sort().map((key) => {
         const rule = CATALOG.configmapKeys[key];
-        return rule ? { key, value: s.config[key], editable: true, pattern: rule.pattern, meaning: rule.meaning } : { key, value: s.config[key], editable: false };
+        if (rule) return { key, value: s.config[key], editable: true, pattern: rule.pattern, meaning: rule.meaning };
+        // The same resolution the service does (guard.Policy.reason_for): the
+        // FIRST declared category whose keys match, and the catch-all last. Done
+        // from the generated catalog, so the dev page cannot state a reason the
+        // service would not.
+        const r = CATALOG.configmapReasons.find(
+          (c) => !c.keys.length || c.keys.some((k) => new RegExp(`^(?:${k})$`).test(key)));
+        return {
+          key, value: s.config[key], editable: false,
+          ...(r ? { reason: r.name, reasonLabel: r.label, reasonWhy: r.meaning } : {}),
+        };
       });
-      return { ...base, configmap: target, resourceVersion: String(s.rv), data };
+      return { ...base, configmap: target, resourceVersion: String(s.rv), exists: true, data };
     }
     case 'patch-key':
     case 'patch-key-and-restart': {

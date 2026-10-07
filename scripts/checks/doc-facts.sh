@@ -113,6 +113,11 @@ TRUTH = {
     'cluster actions': len(catalog['actions']),
     'edge/dynamic files': len(dynamic_files),
     'foot-gun warnings': len(self_keys),
+    # 3 until 2026-10-07, then 22. This one does NOT only grow - the whole point
+    # of the widening was that the number is a product decision and reversible -
+    # so it is held in both directions, and understating it is still the
+    # dangerous direction for a cell a reader sizes a blast radius with.
+    'allowlisted ConfigMap keys': len(catalog['configmap_keys']),
 }
 
 # the-console.md spells its number as a word, because the paragraph it sits in is
@@ -136,6 +141,8 @@ STATEMENTS = (
      r'the (\d+) actions in `apps/bothy-ops/catalog\.toml`'),
     ('README.md', 'edge/dynamic files',
      r'\| `edge/dynamic/` \| (\d+) committed files, all watched'),
+    ('SECURITY.md', 'allowlisted ConfigMap keys',
+     r'change only the \*\*(\d+) allowlisted keys\*\*'),
 )
 
 for path, key, pattern in STATEMENTS:
@@ -287,6 +294,116 @@ if self_keys:
     if not dead:
         print('PASS  %-22s %-20s %s' % ('actions.ts (SELF)', 'all keys declared',
                                         ' '.join(sorted(self_keys))))
+
+# ── the confirm level a document states is the level the service asks for ───
+#
+# SECURITY.md rule 6's action table is the one place a reader is told how hard it
+# is to take each cluster action, and on 2026-10-07 it disagreed with
+# catalog.toml about FIVE of the twelve: `scale`, `set-image` and
+# `rollback-to-revision` were written `type-name` and are `click`;
+# `delete-completed-pods` and `delete-job` were written `click` and are
+# `type-name`. Every one of those sentences was correct while design decision 7
+# was still being argued; the catalog then moved to "the level follows
+# REVERSIBILITY, not loudness" (2026-09-21) and the table did not move with it.
+#
+# Unlike the counts above, this drift runs in BOTH directions and both hurt:
+#   · stated harder than it is - a reviewer believes a guard rail exists that
+#     does not, and reads a change as though a careless click were impossible;
+#   · stated softer than it is - an operator writes a runbook step that will
+#     stop and ask for a name to be typed, and learns that mid-incident.
+#
+# It stays a CHECK rather than a generator for this file's stated reason: the
+# cell has to read as English inside a security argument. But the COMPLETENESS
+# half is mechanical, so it is asserted too - every action in the catalog must
+# appear in the table, in the column its `role` puts it in. An action added to
+# catalog.toml and left out of the table fails here; the action COUNT above could
+# only ever notice that as a number, which is how it went unnoticed before.
+#
+# Parsing: a Changes cell is `id`(, `id`)* (level) entries separated by "), ", so
+# a grouped entry (`pause`/`resume`; `patch-key`, `patch-key-and-restart`) is
+# read as the one level its ids share. An action with `escalate` must state that
+# after a semicolon, naming the value and the word "name" - a base level alone
+# understates `scale`, which is the half of CL-4 that matters.
+LEVEL_WORDS = {
+    'click': 'click',
+    'type-name': 'type-name',
+    'type the name': 'type-name',
+    # patch-key is confirmed with the KEY, not the ConfigMap's name
+    # (guard.confirm_name) - a distinction the table is right to keep in words.
+    'type the key': 'type-name',
+}
+
+_sec = pathlib.Path('SECURITY.md').read_text(encoding='utf-8')
+_rule6 = re.search(r'^\| Group \| Reads \(`viewer`\) \| Changes \(`operator`, confirm\) \|\n'
+                   r'\|---\|---\|---\|\n((?:\|.*\n)+)', _sec, re.M)
+_actions = catalog['actions']
+if not _rule6:
+    fail('SECURITY.md  rule 6 no longer has its "| Group | Reads (`viewer`) | '
+         'Changes (`operator`, confirm) |" table - the confirm levels a reader '
+         'sizes this tier with are unguarded again')
+else:
+    read_ids, said_level = set(), {}
+    for row in _rule6.group(1).splitlines():
+        cells = [c.strip() for c in row.strip().strip('|').split('|')]
+        if len(cells) != 3:
+            fail('SECURITY.md  rule 6 row %r does not have three cells' % row[:60])
+            continue
+        _, reads, changes = cells
+        read_ids |= {t for t in re.findall(r'`([a-z][a-z0-9-]*)`', reads) if t in _actions}
+        if changes == '-':
+            continue
+        for entry in changes.split('), '):
+            ids = [t for t in re.findall(r'`([a-z][a-z0-9-]*)`', entry) if t in _actions]
+            phrase = entry.rsplit('(', 1)[-1].rstrip(')').strip() if '(' in entry else ''
+            if not ids:
+                fail('SECURITY.md  rule 6 entry %r names no catalog action' % entry[:60])
+            elif not phrase:
+                fail('SECURITY.md  rule 6 states no confirm level for %s - an '
+                     'operator action with no level in the table is the whole gap '
+                     'this check exists for' % ', '.join(ids))
+            else:
+                for i in ids:
+                    said_level[i] = phrase
+
+    want_reads = {i for i, a in _actions.items() if a['role'] == 'viewer'}
+    want_changes = {i for i, a in _actions.items() if a['role'] == 'operator'}
+    for missing in sorted(want_reads - read_ids):
+        fail('SECURITY.md  rule 6 does not list the read `%s`, which catalog.toml '
+             'declares role = "viewer"' % missing)
+    for missing in sorted(want_changes - set(said_level)):
+        fail('SECURITY.md  rule 6 does not list the change `%s` with a confirm '
+             'level, and catalog.toml declares it role = "operator" - a reader is '
+             'told this tier cannot do something it can' % missing)
+    for extra in sorted(read_ids & want_changes):
+        fail('SECURITY.md  rule 6 lists `%s` as a READ; catalog.toml declares it '
+             'role = "operator"' % extra)
+    for extra in sorted(set(said_level) & want_reads):
+        fail('SECURITY.md  rule 6 lists `%s` as a CHANGE; catalog.toml declares '
+             'it role = "viewer"' % extra)
+
+    for i in sorted(set(said_level) & want_changes):
+        base, _, esc = said_level[i].partition(';')
+        got = LEVEL_WORDS.get(base.strip().lower())
+        want = _actions[i]['confirm']
+        escalate = _actions[i].get('escalate')
+        if got is None:
+            fail('SECURITY.md  rule 6 states `%s` as "%s", which is not a confirm '
+                 'level this check can read - write click, type-name, type the '
+                 'name, or type the KEY' % (i, base.strip()))
+        elif got != want:
+            fail('SECURITY.md  rule 6 says `%s` confirms with "%s"; catalog.toml '
+                 'says %s' % (i, said_level[i], want))
+        elif escalate and not (str(escalate['value']) in esc and 'name' in esc.lower()):
+            fail('SECURITY.md  rule 6 states `%s` as "%s" and says nothing of its '
+                 'escalation; catalog.toml raises it to type-name at %s = %s, so '
+                 'the table understates it'
+                 % (i, said_level[i], escalate['param'], escalate['value']))
+        elif not escalate and esc.strip():
+            fail('SECURITY.md  rule 6 states an escalation for `%s` ("%s") and '
+                 'catalog.toml declares none' % (i, esc.strip()))
+        else:
+            print('PASS  %-22s %-20s %s' % ('SECURITY.md (rule 6)', i, said_level[i]))
+
 
 # ── `just urls` is the port authority, so it has to be right ────────────────
 #

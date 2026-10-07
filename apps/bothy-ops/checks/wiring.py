@@ -26,6 +26,10 @@ the RBAC is applied or the edge file lands in a watched directory.
             Path(); no Host, no PathPrefix, no doubled brace; the role
             middleware matches the catalog; the gates are defined in
             bothy-gates.yml and NOT redefined here
+  ALLOWLIST the ConfigMap key allowlist (lock 2) and the generated Role (lock 3)
+            agree on whether a key can be changed at all, in both directions;
+            every pattern is a bounded range rather than `[0-9]+`; and every key
+            resolves to a stated reason with the catch-all declared last
   PROBES    the can-i rows name every forbidden thing, and never spell a
             subresource as TYPE/NAME (which can-i silently misreads)
   COMPOSE   no ports; networks exactly opsnet + controlsocknet, and thales-scc
@@ -151,6 +155,65 @@ for b in bindings:
     ok(b["roleRef"] == {"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": "bothy-kube"}
        and b["subjects"] == [{"kind": "ServiceAccount", "name": "bothy-kube", "namespace": "bothy"}],
        f"{b['metadata']['namespace']}: binds Role bothy-kube to bothy/bothy-kube only")
+
+# ── ALLOWLIST ───────────────────────────────────────────────────────────────
+#
+# The ConfigMap allowlist (lock 2) and the generated Role (lock 3) have to stay
+# in step, and they drift in both directions.
+#
+# This matters because of what the 2026-10-07 widening showed: the Role ALREADY
+# granted `configmaps: patch` on `thales`, so all 67 refusals came from the
+# allowlist and none from the cluster. Nothing held the two together. Either half
+# can now go wrong on its own:
+#
+#   · the table lists keys and the Role grants no patch - the UI draws an Edit
+#     button on 22 rows and every save is a 502 naming the Role, which reads as a
+#     cluster fault rather than as a missing grant;
+#   · the Role grants patch and the table is empty - a write verb nothing can
+#     reach, which is the kind of grant a reader of SECURITY.md counts against
+#     this tier and nobody can account for.
+#
+# Asserted on the OUTPUT (the committed Role), not on the generator, for the same
+# reason the rest of this file is.
+print()
+print("── ALLOWLIST: the keys and the generated Role stay in step ──────")
+_cm_rules = [rule for r in roles for rule in r.get("rules", [])
+             if "configmaps" in rule.get("resources", [])]
+_cm_verbs = set().union(*(set(r.get("verbs", [])) for r in _cm_rules)) if _cm_rules else set()
+ok(bool(CAT.policy.configmap_keys) == ("patch" in _cm_verbs),
+   f"{len(CAT.policy.configmap_keys)} allowlisted keys and configmaps verbs "
+   f"{sorted(_cm_verbs)} agree on whether a key can be changed at all")
+ok(all(r.get("resourceNames") == list(CAT.policy.configmaps) for r in _cm_rules),
+   f"every configmaps rule is resourceNames-limited to {list(CAT.policy.configmaps)}")
+# A key is only reachable through an action that takes a configmap-key param, and
+# that action can only name a ConfigMap on the `configmaps` list - which is also
+# the Role's resourceNames. So an allowlist entry with no action to carry it is a
+# promise nothing keeps.
+_key_actions = [a.id for a in CAT.values()
+                if any(q.type == "configmap-key" for q in a.params.values())]
+ok(bool(CAT.policy.configmap_keys) == bool(_key_actions),
+   f"the allowlist is reachable: {_key_actions or 'no action takes a configmap-key'}")
+ok(all(a.target == "configmap" and a.role == "operator" and a.confirm == "type-name"
+       for a in CAT.values() if a.id in _key_actions),
+   "every action that names a key is an operator action confirmed by typing it")
+
+# Each pattern is a BOUNDED range, asserted generically so a key added later
+# cannot skip it. The dangerous input for a solver budget or a timeout was never
+# a non-number: it is an order-of-magnitude typo, which starts the pod and then
+# answers after the gateway already gave up on the caller.
+for _k, _rule in sorted(CAT.policy.configmap_keys.items()):
+    _holes = [repr(x) for x in ("", " ", "\n", "a\nb", "9" * 12, "0" * 12, "9" * 65, "a" * 65)
+              if _rule.pattern.fullmatch(x)]
+    ok(not _holes, f"{_k}: bounded - refuses empty, blank, multi-line, twelve digits "
+                   f"and 65 characters{' / ACCEPTS ' + ', '.join(_holes) if _holes else ''}")
+
+# And every non-editable key resolves to a stated reason, with the catch-all last
+# so nothing can fall off the end. The UI reads these rather than keeping a list.
+ok(len(CAT.policy.configmap_reasons) > 1 and not CAT.policy.configmap_reasons[-1].patterns,
+   f"{len(CAT.policy.configmap_reasons)} reason categories, catch-all last")
+ok(CAT.policy.reason_for("SOMETHING_TALS_ADDS_LATER") is not None,
+   "a key nobody has written down yet still resolves to a reason")
+
 
 # ── PROBES ──────────────────────────────────────────────────────────────────
 print()
