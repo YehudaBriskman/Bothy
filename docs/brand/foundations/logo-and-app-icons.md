@@ -1,6 +1,6 @@
 # Logo and app icons
 
-_Status as of 2026-10-07._
+_Status as of 2026-10-08._
 
 The mark, and every icon file that has to ship with a web product.
 
@@ -119,7 +119,7 @@ this box" - but it could only do it by holding its own copy of the coordinates,
 and that copy is what drifted: it was still drawing the **outline** mark long
 after every shipped icon had become the silhouette, in RGB where two of the
 shipped icons are RGBA, so running it would have overwritten three live icons
-with a different logo. Deleted 2026-10-07. The lesson is the general one: a
+with a different logo. Deleted 2026-10-08. The lesson is the general one: a
 generator that re-declares the geometry is a second source of truth wearing a
 build step's clothes.
 
@@ -145,7 +145,7 @@ image. The maskable icon that used to be listed beside it now ships.
   it drifted into drawing a different mark. See above. The fix is not "keep the
   copies in step", it is "do not keep a copy".
 - **Forcing the outline and the silhouette into one geometry.** Considered and
-  rejected 2026-10-07: at 16px the stroke fills in, and at 13% opacity on seven
+  rejected 2026-10-08: at 16px the stroke fills in, and at 13% opacity on seven
   themes the fill is a slab. Two renderings is the right answer; what was wrong
   was that nobody had written down that there were two.
 
@@ -160,13 +160,20 @@ browser:
   a coordinate moved in either file fails until this document is updated too.
 - `icon-maskable.svg`'s two paths are compared to `favicon.svg`'s as text.
 - Each committed PNG is decoded and its ink and accent bounding boxes are
-  measured and compared with what its source SVG says they should be, at the
-  declared dimensions, with the declared colour type. That is what catches a
-  hand-edited or stale raster, and it is a stronger claim than "re-run the
-  generator and diff", which needs a browser and which nobody runs.
-- No file but `favicon.svg` and `icon-maskable.svg` may carry the mark's
-  coordinates.
-- `scripts/checks/mutants.sh` plants three breakages - the arch radius, the
-  apex, a re-hardcoded coordinate - and requires the check to catch all three.
+  measured against what its source SVG predicts, to two device pixels, at the
+  declared dimensions, with a see-through corner where and only where the source
+  tile is rounded. That is what catches a hand-edited or stale raster, and it is
+  a stronger claim than "re-run the generator and diff the bytes", which needs a
+  browser and which nobody runs.
+- Every PNG the manifest declares really is the size the manifest says.
+- No file but `favicon.svg`, `icon-maskable.svg` and `Brand.tsx` may carry four
+  or more of the mark's coordinates - the rule that would have caught the
+  deleted generator, phrased so that it covers a file nobody has heard of.
+- `scripts/checks/mutants.sh` plants four breakages - the arch radius in the
+  favicon, the apex in `Brand.tsx`, a generator that starts carrying its own
+  coordinates, and an SVG the committed rasters have stopped matching - and
+  requires the check to catch all four. Every anchor there is markup or an
+  executable line: the check comment-strips its inputs, so a mutation planted in
+  prose is a no-op that would report a decorative check as working.
 
 By hand, once, when the mark changes: render at 16px and look at it.

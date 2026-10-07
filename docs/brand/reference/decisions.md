@@ -1,10 +1,108 @@
 # Decision log
 
-_Status as of 2026-08-10._
+_Status as of 2026-10-08._
 
 Dated decisions, with the alternatives considered and what each cost. Newest
 first. Dead ends are recorded rather than deleted - see
 [governance](../quality/governance.md).
+
+---
+
+## 2026-10-08 - The mark is drawn twice, and the second one is declared
+
+The Bothy mark existed in two geometries and nothing in the repo compared them.
+`public/favicon.svg` and its sibling `public/icon-maskable.svg` are a **solid
+silhouette** - door arch radius 3, three hard colours. `components/Brand.tsx` is
+a **2px `currentColor` outline** - arch radius 1.85, a different roof pitch, and
+walls 0.6 of a unit further in. Four statements said otherwise: the favicon's own
+comment, the comment in `index.html`, the comment in `Brand.tsx`, and
+[logo-and-app-icons](../foundations/logo-and-app-icons.md), which claimed the
+geometry lived in "exactly three places, all generated from the same numbers".
+
+**The silhouette is the source, and it was not a close call.** Every icon that
+ships is the silhouette - established by decoding all four committed PNGs and
+measuring the mark inside them, not by reading the comments. The outline, by
+then, had exactly one live surface left: the 72px watermark at 13% opacity in the
+Files empty state. The topbar lockup has carried no mark at all since
+2026-08-18; it is the wordmark alone. So the question "which rendering is the
+brand" had already been answered by what the files do, and the only thing
+missing was anybody saying so.
+
+**Both are kept, because the two jobs really do conflict.** At 16 device pixels
+in a tab strip a 2px stroke fills in and the hut becomes a blob; a thin outline
+at that size disappears. At 13% opacity over seven themes a filled mark is a grey
+slab rather than a drawing, and it cannot inherit `currentColor` at all. Forcing
+either onto the other was considered and rejected: it would have traded a
+declared difference for a worse mark in one of the two places.
+
+**So the deliverable is the declaration, not the reconciliation.** What both must
+share - the 24-unit box, the apex at exactly `(12, 4.2)`, left-right symmetry, a
+door centred on the mark and standing on that rendering's own ground line, a
+semicircular arch of half the opening, exactly one accent element - is asserted
+as equality. Every way in which they differ is written into a table in
+[logo-and-app-icons](../foundations/logo-and-app-icons.md) **and pinned to that
+value in the check**, so moving a coordinate in either file fails the suite until
+the table is updated too. An undeclared difference is the thing that is banned;
+a difference is not.
+
+**A fourth copy was deleted, and it was the actual hazard.**
+`apps/bothy-web/web/scripts/gen-icons.py` was a superseded standalone rasteriser
+holding the **outline** coordinates and writing three of the four shipped
+filenames. Running it, as its own docstring invited, would have overwritten three
+live icons with a different logo in a different colour type. The generator that
+reads the SVGs already existed one directory up, at `scripts/gen-icons.py`, so
+the fix was deletion rather than teaching the duplicate to parse SVG. **The
+general form is worth keeping: a generator that re-declares the geometry is a
+second source of truth wearing a build step's clothes.**
+
+**The verification claim was replaced because it had never been run.** The
+document offered "re-run the generator and confirm the output is byte-identical".
+That needs headless Chromium and a minute, so nobody ran it, and in fact the
+committed PNGs did not match the generator that claimed them - different mark,
+different colour type, different byte count. `checks/mark-geometry.mjs` decodes
+each PNG with `zlib` instead and measures the ink and accent bounding boxes
+against what the source SVG predicts, to two device pixels. It needs no build and
+no browser, it runs in the offline suite, and it makes a stronger claim than a
+byte diff: a byte diff only tells you the generator is deterministic.
+
+**It also refuses a fifth copy.** No file outside the three may carry four or
+more of the mark's coordinates. A rule phrased as "these three must agree" has
+nothing to say about a fourth file nobody has heard of, which is exactly how the
+deleted generator survived; this one is phrased the other way round. Restoring
+that file fails the line with its own numbers printed back at it.
+
+**The colour literals in `public/*.svg` stay literals.** Those files are static
+assets the app never imports, and a favicon sits on the browser's tab strip where
+there is no page theme to read - the tile is dark in both themes precisely
+because a mark that inverts is a mark nobody recognises. `checks/stray-colour.mjs`
+scans `web/src` only, so it never saw them; rather than widen its scope and have
+to carve out an exemption, `mark-geometry.mjs` asserts the three values are equal
+to the dark palette's `--bg`, `--fg` and `--accent`. That keeps them honest
+without pretending the file can read a token.
+
+**Not changed, deliberately.** `apple-touch-icon.png` is rasterised from the
+maskable art, so the mark sits at 0.72 inside an opaque tile. That is right for
+Android's circular crop and generous for iOS, which masks with a squircle and
+needs far less inset - so the iOS icon is smaller than it has to be. It is a
+legitimate design question, it is not a drift, and changing it would have altered
+a shipped icon under cover of a consistency fix. Left alone and recorded here.
+
+**Nothing visible changed.** Every path and every PNG is byte-identical before
+and after; the before/after captures of the lockup, the watermark and the tab
+icon at 16, 32 and 64px in both themes are indistinguishable, which is the
+intended result.
+
+### Dead ends
+
+- **Making `Brand.tsx` derive from `favicon.svg`.** There is no derivation: an
+  inward offset of the filled mark does not produce the stroked one, and the roof
+  pitches differ by six degrees because a filled roof is a shape and a stroked
+  one is a line with a 1-unit halo.
+- **Teaching the duplicate generator to read the SVG.** Correct in isolation,
+  wrong here - it would have left two generators writing the same four files.
+- **Banning the literals in `public/*.svg`.** They have no theme to read. The
+  honest version is an equality assertion against the tokens they are a snapshot
+  of.
 
 ---
 
