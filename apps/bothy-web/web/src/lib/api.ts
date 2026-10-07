@@ -63,6 +63,33 @@ const FETCH_TIMEOUT = 5000;
 // so in words instead of claiming the box has no volumes.
 const DF_TIMEOUT = 8000;
 
+// AND IT IS NOT ON THE TEN-SECOND LOOP AT ALL (2026-10-07).
+//
+// The budget above was sized against a measured 1.7s. On 2026-10-07 the same
+// call took **2.0-10.2s**, because the cost it warned about - "grows with the
+// box" - did exactly that: 93 images, 28 containers, 19 volumes, every layer of
+// every one of them walked on every request.
+//
+// At a 10s poll and a ~10s answer, the next request left before the last one
+// landed. dockerd was never idle, and that is not a portal problem: EVERY
+// container's healthcheck runs through `docker exec`, which needs the same busy
+// daemon. Traefik's healthcheck (a 3s timeout on a ping that answers in
+// milliseconds) went unhealthy four times in a row while Traefik itself was
+// routing perfectly - measured: the ping returns OK in 0.0s run directly, and
+// `docker exec` into the same container took 1.4-1.7s. One page's disk panel
+// was making the whole box look sick.
+//
+// So df gets its own cadence, and a slow one. Disk usage changes when something
+// is built, pulled or deleted - events on the scale of minutes, not of a poll
+// loop. Between refreshes the last answer is reused, which is why the panel does
+// not flicker; `force` skips the cache so the Refresh button still means "now".
+//
+// The other four calls stay on POLL_OK. They are lists, they answer in ~85ms,
+// and the whole point of this split is that the expensive one stopped setting
+// the pace for them.
+const DF_EVERY = 120_000;
+let dfCache: { at: number; value: SystemDf } | null = null;
+
 export interface LoadError {
   src: string;
   e: unknown;
@@ -130,11 +157,18 @@ export interface LoadResult {
   errors: LoadError[];
 }
 
-export async function loadAll(): Promise<LoadResult> {
+export async function loadAll(force = false): Promise<LoadResult> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT);
   const dfAc = new AbortController();
   const dfT = setTimeout(() => dfAc.abort(), DF_TIMEOUT);
+  // The cached df is reused until it ages out (DF_EVERY). `Promise.resolve` so
+  // the allSettled shape below is identical either way - a cached read must not
+  // become a second code path through the join.
+  const dfFresh = force || !dfCache || Date.now() - dfCache.at >= DF_EVERY;
+  const dfReq = dfFresh
+    ? getJSON<SystemDf>('/-/api/docker/system/df', dfAc.signal)
+    : Promise.resolve(dfCache!.value);
   try {
     // allSettled, not all: partial results are first-class. Traefik is the
     // skeleton, docker is enrichment - either can die alone. df is the LEAST
@@ -156,7 +190,7 @@ export async function loadAll(): Promise<LoadResult> {
       // The socket proxy's CONTAINERS=1 already covers this endpoint, and POST=0
       // still blocks every mutating call.
       getJSON<Container[]>('/-/api/docker/containers/json?all=1', ac.signal),
-      getJSON<SystemDf>('/-/api/docker/system/df', dfAc.signal),
+      dfReq,
       // Static file written by the host-side collector and bind-mounted into
       // this container - NOT an /-/api/* route, so it needs no edge config and
       // its absence (collector not installed yet) is a normal, silent no-op.
@@ -171,6 +205,9 @@ export async function loadAll(): Promise<LoadResult> {
     // df failing is intentionally silent-ish: record it, but never let it fail
     // the load. Sizes just don't render.
     const D = df.status === 'fulfilled' ? df.value : (errors.push({ src: 'docker df', e: df.reason }), null);
+    // Cache only a FRESH success. Re-stamping `at` on a cache hit would hold a
+    // stale answer forever, since every poll would renew the thing it just read.
+    if (dfFresh && D) dfCache = { at: Date.now(), value: D };
     // Deliberately NOT pushed to `errors`: a box with no collector installed is
     // a supported configuration, and flagging it would put a permanent warning
     // on the page for a feature nobody asked for.
@@ -219,9 +256,12 @@ export function usePortalData(): { data: PortalData; refresh: () => Promise<void
       timer = setTimeout(run, failsRef.current >= MAX_BACKOFF ? POLL_FAIL : readData().pollSeconds * 1000);
     };
 
-    const run = async () => {
+    // `force` reaches loadAll's df cache: a scheduled poll reuses it, an
+    // explicit Refresh does not. Pressing Refresh and being handed a
+    // two-minute-old number is the one case the cache must not cover.
+    const run = async (force = false) => {
       try {
-        const d = await loadAll();
+        const d = await loadAll(force);
         if (cancelled) return;
         failsRef.current = 0;
         setData(() => ({
@@ -241,7 +281,7 @@ export function usePortalData(): { data: PortalData; refresh: () => Promise<void
 
     // Returns the poll it started, so a Refresh button can show the Loader
     // until the answer lands (pages/control/ControlHome.tsx) - and no longer.
-    refreshRef.current = () => (cancelled ? Promise.resolve() : run());
+    refreshRef.current = () => (cancelled ? Promise.resolve() : run(true));
 
     const onVisibility = () => {
       if (!document.hidden) run();
