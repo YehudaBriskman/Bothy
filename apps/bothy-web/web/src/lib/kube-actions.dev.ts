@@ -10,7 +10,8 @@
 // never offer an action the service does not declare.
 //
 // Not a happy path. Force an outcome from the console:
-//   localStorage['bothy-dev-kube-outcome'] = 'role' | 'scope' | 'fault' | 'silence' | 'unavailable'
+//   localStorage['bothy-dev-kube-outcome'] = 'role' | 'scope' | 'fault' | 'silence'
+//                                          | 'unavailable' | 'empty'
 // and grant roles for drawing with the existing key:
 //   localStorage['bothy-dev-roles'] = 'viewer,operator'
 
@@ -283,11 +284,29 @@ export async function kubeMock(id: KubeActionId, body: Record<string, unknown>):
     }
     case 'configmap': {
       if (!CATALOG.configmaps.includes(target)) refuse(403, `configmap '${target}' is not one bothy-ops may read`);
+      // `empty` is the live thales-dev: a namespace with no ConfigMap by this
+      // name. The service answers `exists: false` with no rows rather than a 404,
+      // because having none is a state and not a fault. It is a forced outcome
+      // and not a property of the pretend namespaces, so one page can be seen
+      // both ways without the shim growing a second cluster.
+      if (read(OUTCOME_KEY) === 'empty') {
+        return { ...base, configmap: target, resourceVersion: '', exists: false, data: [] };
+      }
       const data: ConfigEntry[] = Object.keys(s.config).sort().map((key) => {
         const rule = CATALOG.configmapKeys[key];
-        return rule ? { key, value: s.config[key], editable: true, pattern: rule.pattern, meaning: rule.meaning } : { key, value: s.config[key], editable: false };
+        if (rule) return { key, value: s.config[key], editable: true, pattern: rule.pattern, meaning: rule.meaning };
+        // The same resolution the service does (guard.Policy.reason_for): the
+        // FIRST declared category whose keys match, and the catch-all last. Done
+        // from the generated catalog, so the dev page cannot state a reason the
+        // service would not.
+        const r = CATALOG.configmapReasons.find(
+          (c) => !c.keys.length || c.keys.some((k) => new RegExp(`^(?:${k})$`).test(key)));
+        return {
+          key, value: s.config[key], editable: false,
+          ...(r ? { reason: r.name, reasonLabel: r.label, reasonWhy: r.meaning } : {}),
+        };
       });
-      return { ...base, configmap: target, resourceVersion: String(s.rv), data };
+      return { ...base, configmap: target, resourceVersion: String(s.rv), exists: true, data };
     }
     case 'patch-key':
     case 'patch-key-and-restart': {
