@@ -339,5 +339,40 @@ console.log('\n── a disclosure has a named toggle that says it is open ─�
     problems.join('; '));
 }
 
+// ── 7. every detail hint is named, at the call site ─────────────────────────
+// ui/InfoHint cannot be rendered without a `label` - TypeScript sees to that -
+// but it CAN be rendered with a useless one, and the two useless shapes are the
+// ones somebody writes in a hurry: an empty string, and the word "info"/"more"
+// repeated down a page so a screen reader hears "more, button" eight times with
+// nothing to tell them apart. The name is the whole accessibility story here,
+// because the trigger is a 12px glyph with no text beside it.
+console.log('\n── every detail hint carries a name worth reading ─────────');
+{
+  const CALLS = /<InfoHint\b([^>]*)>/g;
+  const BAD_NAME = /^(info|more|details?|help|\?|more info|more detail)$/i;
+  const bad = [], names = [];
+  for (const f of files.filter((p) => p.endsWith('.tsx'))) {
+    const r = rel(f);
+    if (r === join('components', 'ui', 'InfoHint.tsx')) continue;
+    const src = stripTs(readFileSync(f, 'utf8'));
+    for (const m of src.matchAll(CALLS)) {
+      const at = `${r}:${src.slice(0, m.index).split('\n').length}`;
+      const lit = /\slabel="([^"]*)"/.exec(m[1]);
+      const tpl = /\slabel=\{`([^`]*)`\}/.exec(m[1]);
+      const name = (lit?.[1] ?? tpl?.[1] ?? '').replace(/\$\{[^}]*\}/g, 'X').trim();
+      if (!lit && !tpl) { bad.push(`${at}: label is not a readable literal`); continue; }
+      if (name.length < 8 || BAD_NAME.test(name)) { bad.push(`${at}: "${name}"`); continue; }
+      names.push(name);
+    }
+  }
+  say(names.length > 0, 'the hints are found', `${names.length} named`);
+  say(bad.length === 0, 'no hint is named "info", "more" or nothing - the glyph has no text beside it',
+    bad.join('; '));
+  // And they differ from each other: eight identical names on one page is one
+  // name, as far as somebody tabbing through it is concerned.
+  const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+  say(dupes.length === 0, 'and no two hints share a name', [...new Set(dupes)].join('; '));
+}
+
 console.log(`\n  ${passes} pass · ${failures} fail`);
 process.exit(failures ? 1 : 0);
