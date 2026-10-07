@@ -273,5 +273,71 @@ console.log('\n── the focus ring never sets a radius ───────�
     'it draws an outline and sets no border-radius', rule ? rule[1].trim() : '');
 }
 
+// ── 6. every disclosure is opened by a control that says so ─────────────────
+// `ui/Disclosure` keeps its region in the DOM while collapsed precisely so a
+// toggle's `aria-controls` resolves in the state a screen reader most needs it -
+// and that is worth nothing if no control names the region, if the control does
+// not say whether it is open, or if the control is a bare chevron with no name.
+// All three are invisible on screen: the page looks identical either way.
+console.log('\n── a disclosure has a named toggle that says it is open ───');
+{
+  /** The end of the opening tag that starts at `at`, counting braces.
+   *  `indexOf('>')` is wrong here and wrongly PASSES things: an attribute like
+   *  `onClick={() => setOpen(...)}` carries a `>` inside the arrow, so a naive
+   *  split stops before the aria-* attributes and reports them missing. */
+  const openEnd = (src, at) => {
+    let depth = 0;
+    for (let i = at; i < src.length; i++) {
+      const c = src[i];
+      if (c === '{') depth++;
+      else if (c === '}') depth--;
+      else if (c === '>' && depth === 0) return i;
+    }
+    return src.length;
+  };
+  /** The element at `at`: its opening tag, and its children through the matching
+   *  close by tag name. Naive on the nesting, which is fine - these are
+   *  hand-written toggles a few lines long. */
+  const element = (src, at) => {
+    const tag = src.slice(at).match(/^<([A-Za-z][\w.]*)/)?.[1];
+    if (!tag) return { open: '', all: '' };
+    const end = openEnd(src, at);
+    const open = src.slice(at, end + 1);
+    if (src[end - 1] === '/') return { open, all: open };
+    const close = src.indexOf(`</${tag}>`, end);
+    return { open, all: close < 0 ? open : src.slice(at, close) };
+  };
+  // A name is an aria-label, or letters the element actually RENDERS. The
+  // children's own tags are stripped first, which is the whole trick: without
+  // that, `<Icon size="sm" className="chev" />` reads as a name because of its
+  // attribute values, and an unlabelled chevron passes.
+  const named = (el) => /\saria-label[=\s]/.test(el.open)
+    || /[A-Za-z]{2}/.test(el.all.slice(el.open.length).replace(/<[^<>]*>/g, ' '));
+
+  const problems = [];
+  let discs = 0;
+  for (const f of files.filter((p) => p.endsWith('.tsx'))) {
+    const src = stripTs(readFileSync(f, 'utf8'));
+    if (!/<Disclosure\b/.test(src)) continue;
+    for (const m of src.matchAll(/<Disclosure\b[^>]*?\sid=\{([^}]+)\}/g)) {
+      discs++;
+      const want = m[1].replace(/\s+/g, '');
+      const ctl = [...src.matchAll(/aria-controls=\{([^}]+)\}/g)].find((c) => c[1].replace(/\s+/g, '') === want);
+      if (!ctl) { problems.push(`${rel(f)}: no aria-controls names ${want}`); continue; }
+      const start = src.lastIndexOf('<', ctl.index);
+      const el = element(src, start);
+      if (!/\saria-expanded[=\s]/.test(el.open)) problems.push(`${rel(f)}: the toggle for ${want} has no aria-expanded`);
+      if (!named(el)) problems.push(`${rel(f)}: the toggle for ${want} has no accessible name`);
+    }
+    // A <Disclosure> with no id at all cannot be named by anything.
+    for (const m of src.matchAll(/<Disclosure\b([^>]*)>/g)) {
+      if (!/\sid=/.test(m[1])) problems.push(`${rel(f)}: a <Disclosure> with no id - nothing can point at it`);
+    }
+  }
+  say(discs >= 4, 'the disclosures are found', `${discs} with an id`);
+  say(problems.length === 0, 'every disclosure has a toggle with aria-expanded, aria-controls and a real name',
+    problems.join('; '));
+}
+
 console.log(`\n  ${passes} pass · ${failures} fail`);
 process.exit(failures ? 1 : 0);

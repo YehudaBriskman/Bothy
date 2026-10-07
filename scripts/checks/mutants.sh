@@ -1171,6 +1171,27 @@ mutant "an .ico container is rendered by hand again" \
   '          <span className="ico sm"><ServiceIcon node={node} size="md" /></span>' \
   -- "${WEB_CHECKS[@]}"
 
+# A6. An icon-only toggle with no accessible name. On screen it is identical -
+# a chevron - and to a screen reader it is "button", which is the whole reason
+# the plan said the actions must become icon buttons WITH a real name.
+mutant "the row's disclosure toggle loses its name" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '            aria-label={open ? `Hide the detail for ${r.title}` : `Show the detail for ${r.title}`}
+' \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the pointer from the toggle to the region. ui/Disclosure keeps its
+# region in the DOM while collapsed precisely so this resolves in the state a
+# screen reader most needs it; without the attribute that costs nothing and buys
+# nothing.
+mutant "the toggle stops naming the region it opens" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '            aria-controls={bodyId}
+' \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
 echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
