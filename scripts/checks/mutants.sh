@@ -836,10 +836,27 @@ mutant "the night job ignores a pause" \
   'if False:' \
   -- python3 apps/bothy-ops/checks/test_auto.py
 
+# `plant` replaces the FIRST occurrence, and this line appears in all five write
+# handlers, so each anchor carries enough of its own handler to be unique. It was
+# NOT, until 2026-10-07: the group writer was added above request_update() and
+# silently took the mutation, leaving request_update's check intact and this row
+# passing with nothing broken - the decorative-check failure this file exists for.
 mutant "bothy-ops may write as the night job" \
   apps/bothy-ops/updates.py \
-  'if flat(who) == AUTO_ACTOR:' \
-  'if False:' \
+  'if flat(who) == AUTO_ACTOR:
+        # The night job'"'"'s name (updater/auto.py).' \
+  'if False:
+        # The night job'"'"'s name (updater/auto.py).' \
+  -- python3 apps/bothy-ops/checks/api_updates_apply.py
+
+mutant "bothy-ops may ask for a GROUP as the night job" \
+  apps/bothy-ops/updates.py \
+  'if flat(who) == AUTO_ACTOR:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel'"'"'s name, not a person'"'"'s", status=403)
+    doc = _read_group(gid)' \
+  'if False:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel'"'"'s name, not a person'"'"'s", status=403)
+    doc = _read_group(gid)' \
   -- python3 apps/bothy-ops/checks/api_updates_apply.py
 
 echo

@@ -392,14 +392,16 @@ class Execution:
         return img["id"]
 
     # ── apply: the component's own recipe (dependency order, .env, --wait) ──
-    def _recipe(self) -> None:
+    def _recipe(self, timeout: int | None = None) -> None:
+        """`timeout` is a GROUP's longer budget (groups.py): one `docker compose up`
+        that recreates several services, each with its own `--wait`."""
         just = hostio.which("just")
         if not just:
             raise StepError("`just` is not on PATH")
         recipe = self.comp.apply.split()[1]
         rc, out, err = run([just, "--justfile", os.path.join(self.cfg.repo, "justfile"),
                             "--working-directory", self.cfg.repo, recipe],
-                           timeout=self.cfg.apply_timeout, cwd=self.cfg.repo)
+                           timeout=timeout or self.cfg.apply_timeout, cwd=self.cfg.repo)
         if rc != 0:
             raise StepError(f"`{self.comp.apply}` exited {rc}: {tail(err or out, 300)}")
 

@@ -499,7 +499,7 @@ class GroupExecution:
 
     # ── apply: the recipe, ONCE ──
     def apply(self) -> str:
-        self.execs[0]._recipe()
+        self.execs[0]._recipe(self.cfg.group_apply_timeout)
         return f"`{self.recipe}` done - one compose up for {', '.join(self.plan['services'])}"
 
     # ── verify: every member's image, health and canaries ──
@@ -533,7 +533,7 @@ class GroupExecution:
             for x in self.execs:
                 for q in x.pins:
                     pins.replace(self.cfg.repo, q, x.plan["from"]["image"])
-            self.execs[0]._recipe()
+            self.execs[0]._recipe(self.cfg.group_apply_timeout)
         except Exception as e:  # noqa: BLE001 - HostError, StepError, OSError
             self.rec.step("rollback", "failed", str(e))
             return self.rec.finish("failed", f"{cause}; and the rollback failed: {e}",

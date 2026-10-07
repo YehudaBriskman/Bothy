@@ -478,8 +478,10 @@ def fake_pull(self):
     return "sha256:" + "e" * 64
 
 
-def fake_recipe(self):
-    LOG.append(f"recipe:{self.comp.id}")
+def fake_recipe(self, timeout=None):
+    # The group passes its own longer budget (Config.group_apply_timeout): one
+    # compose up recreating several services, each with its own `--wait`.
+    LOG.append(f"recipe:{self.comp.id}:{timeout}")
 
 
 patched("snapshot", fake_snapshot)
@@ -512,7 +514,8 @@ ok(len(snaps) == 3 and len(pulls) == 3 and max(snaps) < min(pulls),
    f"EVERY member's snapshot is taken before ANY image is pulled: {LOG}")
 ok(LOG[snaps[0]] == "snapshot:grafana",
    "the one-way member is snapshotted FIRST - its snapshot is the one that cannot be re-taken")
-ok(len([x for x in LOG if x.startswith("recipe:")]) == 1, "ONE recipe run applies all three")
+ok([x for x in LOG if x.startswith("recipe:")] == [f"recipe:grafana:{cfg.group_apply_timeout}"],
+   "ONE recipe run applies all three, on the GROUP's longer budget (several --waits in one up)")
 ok(len([x for x in LOG if x.startswith("check:verify:")]) == 3, "every member is verified, not only one")
 ok(rec.job["component"] == "up-web" and sorted(rec.job["members"]) == ["grafana", "loki", "web"],
    "the record is about the RECIPE, and names the components it moved")

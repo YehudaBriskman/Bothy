@@ -1366,7 +1366,7 @@ function OwnFacts({ plan, own, age }: { plan: Plan; own: OwnPlan; age: number | 
 const STATE_WORD: Record<JobState, string> = {
   queued: 'Queued - waiting for the host',
   running: 'Running on the host',
-  succeeded: 'Updated',
+  succeeded: 'Applied',
   rolled_back: 'Rolled back',
   aborted: 'Aborted - nothing running was changed',
   failed: 'Failed - a person is needed',
@@ -1527,7 +1527,7 @@ function JobGlyph({ state }: { state: JobState }) {
 // ── history ──────────────────────────────────────────────────────────────────
 
 const HIST_WORD: Record<JobState, string> = {
-  queued: 'queued', running: 'running', succeeded: 'updated', rolled_back: 'rolled back', aborted: 'aborted',
+  queued: 'queued', running: 'running', succeeded: 'applied', rolled_back: 'rolled back', aborted: 'aborted',
   failed: 'failed', refused: 'refused',
 };
 

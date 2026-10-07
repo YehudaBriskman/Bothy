@@ -16,7 +16,7 @@ installed (`just install-updater`, which puts it in
 `~/.local/lib/bothy-updater/current`):
 
 - **Installed** - the normal case on a box that runs Settings > Updates. It is
-  the **same** plan and executor the Update button drives
+  the **same** plan and executor the Apply button drives
   ([docs/plans/updates.md](../plans/updates.md) step 6), from a shell:
   1. `git fetch`, then pick the newest **release tag** on `origin/main` that is
      ahead of the checkout and whose commit's CI check runs all passed (asked
@@ -109,6 +109,43 @@ keeps each image's three newest commits and never removes one a container runs.
 An open tab notices an update by itself: it polls `/version.json` and shows
 **"Bothy updated - reload"** when the served revision is no longer the one it
 loaded. A lazy-loaded page part that no longer exists reloads the tab once.
+
+## Update, and Apply
+
+Two different actions, and confusing them is the other common way to be unsure
+what version you are on:
+
+- **Update** moves a pin in `main` - a Dependabot PR, reviewed and merged. It
+  happens on GitHub. The box takes no part in it, deliberately: git stays the
+  only record of what this box should run
+  ([docs/plans/updates.md](../plans/updates.md), step 4).
+- **Apply** makes this box run what `main` already pins. That is what
+  Settings > Updates does, and all it does.
+
+A box can be fully up to date on the first and far behind on the second - that
+is the normal state the morning after a batch of Dependabot PRs merges - so the
+page counts them separately and leads with the second.
+
+## Several pins in one recipe
+
+`just up-<recipe>` is one `docker compose up` over the whole project, and it
+recreates **every** service whose definition or image changed. That is why
+Settings > Updates refuses to apply ONE component while another service of the
+same project also has a merged pin waiting: that other one would be recreated
+too, with no snapshot of it - and if it is Grafana or Keycloak, its first start
+migrates a database that the old version cannot read.
+
+Where that happens the page offers the **group**: the whole recipe at once, with
+every member's own snapshot taken first (the one-way ones first of all), the
+strictest confirmation any member needs, and a rollback that puts all of them
+back **together** - there is no keeping the ones that worked, because that would
+be a combination of versions no commit on `main` describes.
+
+From a shell, `just update-groups` prints what each recipe would apply and, for
+one it refuses, exactly which service it will not carry and why. `just backup`
+then `just up-<recipe>` by hand is the other answer, and the only one for a
+recipe whose other services are things the updater does not deploy at all (the
+auth boundary, the edge).
 
 ## Your data survives and the new code runs, and both are tested
 

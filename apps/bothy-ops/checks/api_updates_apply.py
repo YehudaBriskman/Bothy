@@ -71,6 +71,9 @@ srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 BASE = f"http://127.0.0.1:{srv.server_address[1]}"
 WHO = "operator@example.com"
+# The automatic channel's actor (updates.AUTO_ACTOR). Nobody signs in as it, and
+# every write route refuses it so that a record naming it is only ever the host's.
+AUTO = "auto"
 
 
 def call(path: str, *, method: str = "GET", body: object = None, ctype: str = "application/json",
@@ -495,6 +498,10 @@ GG = {"group": GID, "plan_id": GPID, "confirm": GID}
 n = len(log_lines())
 gcases = [
     (dict(body=GG, headers={"Sec-Fetch-Site": "cross-site"}), 403, "cross-site"),
+    # The night job's actor, on the group writer's OWN copy of that check: a group
+    # is neither one component nor one patch, so no unattended channel may choose
+    # it, and bothy-ops must not be able to write a record that says one did.
+    (dict(body=GG, headers={"X-Auth-Request-Email": AUTO}), 403, "the night job's actor"),
     (dict(body=GG, ctype="text/plain"), 415, "text/plain"),
     (dict(body={**GG, "note": "a maintenance note"}), 400, "a note on a group"),
     (dict(body={**GG, "component": "loki"}), 400, "both a component and a group"),
