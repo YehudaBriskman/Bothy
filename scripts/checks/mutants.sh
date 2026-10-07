@@ -1381,6 +1381,67 @@ mutant "the toggle stops naming the region it opens" \
   -- "${WEB_CHECKS[@]}"
 
 echo
+echo "── one mark, two declared renderings ───────────────────────────────"
+# The mark is drawn twice on purpose - a solid silhouette in public/favicon.svg
+# for the 16px tab strip and the OS launcher, a 2px currentColor outline in
+# Brand.tsx for a 72px watermark on seven themes - and until 2026-10-07 nothing
+# compared them, three comments and the brand document all said there was one
+# set of numbers, and a fourth copy of the coordinates sat in a generator that
+# would have written the WRONG mark over three shipped icons.
+#
+# EVERY ANCHOR HERE IS MARKUP OR AN EXECUTABLE LINE, never a comment. The check
+# strips comments from every input before it parses anything, deliberately, so a
+# comment anchor would apply cleanly, change nothing, and report a decorative
+# check as working. That exact mistake has been made in this repo twice; it is
+# why the first row below mutates the `d` attribute rather than the paragraph
+# above it that states the same number in prose.
+
+# The door's arch radius, which is the single number the two renderings most
+# visibly disagree on (3 against 1.85) and therefore the one most likely to be
+# "reconciled" by somebody tidying up.
+mutant "the mark's arch radius moves in the favicon" \
+  apps/bothy-web/web/public/favicon.svg \
+  '<path fill="#60a5fa" d="M9 20.2 V17.2 a3 3 0 0 1 6 0 V20.2 Z"/>' \
+  '<path fill="#60a5fa" d="M9 20.2 V17.2 a2 2 0 0 1 6 0 V20.2 Z"/>' \
+  -- "${WEB_CHECKS[@]}"
+
+# The apex is the one coordinate the two renderings share exactly, and it is what
+# makes them recognisably the same hut. Move it in the component and the
+# silhouette is untouched, the app looks fine, and the two marks have parted.
+mutant "the outline's apex leaves the silhouette's" \
+  apps/bothy-web/web/src/components/Brand.tsx \
+  '<path d="M2.4 11.6 L12 4.2 L21.6 11.6" />' \
+  '<path d="M2.4 11.6 L12 5.2 L21.6 11.6" />' \
+  -- "${WEB_CHECKS[@]}"
+
+# A fourth copy of the coordinates, which is how this started: a generator that
+# re-declares the geometry is a second source of truth wearing a build step's
+# clothes. Planted in the repo-root generator - the one that is CORRECT today
+# precisely because it reads the SVGs rather than carrying numbers.
+mutant "a generator starts carrying its own coordinates" \
+  scripts/gen-icons.py \
+  'JOBS = [' \
+  'ROOF = [(2.4, 11.6), (12.0, 4.2), (21.6, 11.6)]
+BODY = [(5.6, 10.6), (5.6, 20.4), (18.4, 20.4), (18.4, 10.6)]
+DOOR_X = (10.15, 13.85)
+
+JOBS = [' \
+  -- "${WEB_CHECKS[@]}"
+
+# And the raster half: the SVG changes and the committed PNGs do not, which is
+# the failure the brand document claimed to verify by re-running the generator
+# and diffing bytes - a step that needs a browser, takes a minute, and had
+# therefore never been run, which is how all four PNGs came to disagree with the
+# generator that claimed them. Dropping the tile's rounding here leaves
+# icon-192/512 with see-through corners the source no longer asks for. Nothing
+# renders; the PNGs are decoded.
+mutant "the rasters stop matching the SVG they came from" \
+  apps/bothy-web/web/public/favicon.svg \
+  '<rect width="24" height="24" rx="5.4" fill="#09090b"/>' \
+  '<rect width="24" height="24" fill="#09090b"/>' \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is

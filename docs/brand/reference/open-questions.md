@@ -43,7 +43,6 @@ decision has not been made, or has been made and not implemented.
 | **Titles are not per-route** - every page shares one | Browser history and bookmarks are unusable |
 | **No `robots.txt`, no Open Graph tags, no social image** | No policy stated; link previews are blank |
 | **Manifest has no `id`** | Changing the start URL later creates a second installed app |
-| **No maskable icon** | Android crops the icon, probably through the mark |
 
 ## Security
 

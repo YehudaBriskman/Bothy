@@ -1,12 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="512" height="512">
-  <!-- Bothy - MASKABLE variant. Rasterise to icon-maskable-512.png and declare
-       it in site.webmanifest with "purpose": "maskable".
+  <!-- Bothy - MASKABLE variant. `scripts/gen-icons.py` at the repo root
+       rasterises this file into icon-maskable-512.png (declared in
+       site.webmanifest with "purpose": "maskable") AND into
+       apple-touch-icon.png, because iOS ignores `purpose` and applies its own
+       mask to whatever it is handed.
+
+       THE TWO PATHS BELOW ARE A COPY OF favicon.svg'S, under one transform.
+       favicon.svg is the source; checks/mark-geometry.mjs fails if this copy
+       stops matching it character for character.
 
        Two differences from favicon.svg, both required by the platform:
          · FULL BLEED. No rx. Android applies its own shape (circle, squircle,
            teardrop, ...). Baking our own rounding inside theirs produces a
-           visibly inset, double-rounded tile - which is exactly what the
-           current apple-touch-icon.png does.
+           visibly inset, double-rounded tile - which is what apple-touch-icon.png
+           looked like until it was rasterised from THIS file instead.
          · The mark is scaled to 0.72 about (12, 12.2). The maskable safe zone
            is the centred circle of diameter 80% of the canvas, i.e. radius 9.6
            in this 24-unit box. The mark's furthest point from its own centre is

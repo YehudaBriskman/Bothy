@@ -8,9 +8,14 @@
 
     <!-- Icons. The SVG is the real one and every current desktop browser
          prefers it; the PNGs exist because iOS home-screen icons and the PWA
-         manifest still cannot take an SVG. All of them are generated from ONE
-         set of coordinates - see scripts/gen-icons.py, which is also the only
-         way to regenerate the PNGs on a box with no ImageMagick. -->
+         manifest still cannot take an SVG. Every one of them is RASTERISED FROM
+         public/favicon.svg or from its 0.72-scale sibling public/icon-maskable.svg
+         by scripts/gen-icons.py AT THE REPO ROOT (not under web/ - that copy was
+         a duplicate holding a different mark, and it is deleted), which is also
+         the only way to regenerate them on a box with no ImageMagick.
+         checks/mark-geometry.mjs asserts the committed PNGs still match those
+         two SVGs, so a hand-edited or stale raster is a red line rather than a
+         thing somebody notices a year later. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />

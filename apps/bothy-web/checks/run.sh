@@ -386,6 +386,19 @@ echo "── a brand asset is small, vector, and follows the theme ─"
 node "$HERE/brand-assets.mjs"
 
 echo
+echo "── one mark, two declared renderings, four rasters ─────"
+# Reads web/public, components/Brand.tsx and the repo-root generator - no build
+# and no browser. The mark is drawn twice on purpose (a 2px stroke fills in at
+# 16px; a filled mark cannot inherit currentColor at 13% opacity on seven
+# themes), and until 2026-10-07 nothing compared the two, three comments and a
+# brand document said there was only one set of numbers, and a FOURTH copy under
+# web/scripts/ was still drawing the old mark over three shipped icons. This
+# holds the shared geometry, pins every declared difference to the table in
+# docs/brand/foundations/logo-and-app-icons.md, decodes each committed PNG and
+# measures it against the SVG it came from, and refuses a fifth copy.
+node "$HERE/mark-geometry.mjs"
+
+echo
 echo "── the CSP and the inline script must agree ────────────"
 # Needs web/dist, so it runs after a build. Skipped rather than failed when there
 # is none: an unbuilt tree is not a broken policy.
