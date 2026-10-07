@@ -530,10 +530,20 @@ updates-discover *args:
 # host/systemd/bothy-updater.path runs it; these are the same program by hand,
 # over Tailscale SSH, when the browser is not an option.
 #   just update-plan loki     the plan for one component (read-only)
+#   just update-groups        what each recipe would apply all at once (read-only)
 #   just update-status        the current job, the last ten and the queue
 # Show the plan the host updater would run for a component (read-only).
 update-plan component:
     cd apps/bothy-ops && python3 -m updater plan --component {{quote(component)}}
+
+# Show what each `apply` recipe would apply ALL AT ONCE (updater/groups.py), and
+# for each one that is refused, why. Read-only: when two services of one compose
+# project are behind, no single-component apply can succeed (the scope check,
+# rightly, refuses both), and the group is the action that closes that - a click
+# in Settings > Updates, because the union of its members' classes may need the
+# recipe's name typed. From a shell the answer stays `just up-<recipe>`.
+update-groups *group:
+    cd apps/bothy-ops && python3 -m updater groups {{ if group == "" { "" } else { "--group " + quote(group) } }}
 
 # Show the updater's current job, recent history and queue.
 update-status:

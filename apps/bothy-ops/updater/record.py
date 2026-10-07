@@ -50,7 +50,10 @@ def new_job(req: dict, name: str, steps: tuple[str, ...] = STEPS) -> dict:
     g = (lambda k, n=200: flat(req.get(k))[:n] if ok and isinstance(req.get(k), str) else None)
     return {
         "id": name[:-5] if name.endswith(".json") else name[:32],
-        "component": g("component", 40) or "?",
+        # A GROUP request (updater/groups.py) names a recipe instead: `up-monitoring`
+        # is what the job is ABOUT, so it is what every record calls it, and
+        # `members` beside it says which components moved.
+        "component": g("component", 40) or g("group", 40) or "?",
         "planId": g("planId", 24),
         "state": "running",
         "requestedBy": g("requestedBy") or "unknown",

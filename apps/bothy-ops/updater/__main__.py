@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None, cfg: Config | None = None) -> int:
     p.add_argument("--component", help="one component id (default: all)")
     p.add_argument("--target", help="refuse unless this is what main pins")
     p.add_argument("--write", action="store_true", help="write plans/<component>.json for every component")
+    g = sub.add_parser("groups", help="what each `apply` recipe would apply all at once (updater/groups.py)")
+    g.add_argument("--group", help="one group id (an `apply` recipe, e.g. up-monitoring)")
     sub.add_parser("status", help="the current job, the last ten, and the queue")
     auto.add_parsers(sub)
     sub.add_parser("install", help="copy HEAD's updater to ~/.local/lib/bothy-updater/<sha> and switch to it")
@@ -42,6 +44,8 @@ def main(argv: list[str] | None = None, cfg: Config | None = None) -> int:
 
     if a.cmd == "run":
         return executor.run_spool(cfg)
+    if a.cmd == "groups":
+        return main_groups(cfg, a.group)
     if a.cmd == "status":
         return executor.main_status(cfg)
     if a.cmd == "install":
@@ -63,6 +67,41 @@ def main(argv: list[str] | None = None, cfg: Config | None = None) -> int:
         print(f"no plan for {a.component}: {e}", file=sys.stderr)
         return 3
     return 0
+
+
+def main_groups(cfg: Config, only: str | None) -> int:
+    """Print every group plan, or one. READ-ONLY: applying a group is a click in
+    Settings > Updates (a group is the union of its members' treatments, so it may
+    need the recipe's name typed), and the shell's answer stays `just <recipe>`."""
+    from . import groups
+    try:
+        catalog = updates.load(cfg.catalog)
+    except (updates.CatalogError, OSError, ValueError) as e:
+        print(f"updates.toml is invalid: {e}", file=sys.stderr)
+        return 2
+    known = groups.groups_of(catalog)
+    if only and only not in known:
+        print(f"{only!r} is not a group; the groups are {', '.join(known) or 'none'}", file=sys.stderr)
+        return 3
+    bad = 0
+    for gid in ([only] if only else list(known)):
+        print(f"== {gid}  (`just {gid}`: {', '.join(known[gid])})")
+        try:
+            p = groups.plan(gid, cfg=cfg, catalog=catalog)
+        except plans.PlanRefused as e:
+            print(f"   nothing to apply: {e}")
+            bad += 1
+            continue
+        print(f"   plan {p['id']}  {p['level']}  confirm {p['confirm']}"
+              + (f" (type `{p['confirmWord']}`)" if p["confirm"] == "type-name" else ""))
+        for m in p["memberRows"]:
+            print(f"   - {m['component']:18} {m['from']['version']} -> {m['to']['version']}  {m['level']}"
+                  + ("  ONE-WAY" if m["oneWay"] else ""))
+        print(f"   one compose up over {p['project']}: {', '.join(p['services'])}")
+        print(f"   snapshots -> {p['snapshot']['dir']}")
+        for s in p["skipped"]:
+            print(f"   (skipped {s['component']}: {s['reason']})")
+    return 0 if (only is None or bad == 0) else 3
 
 
 def upgrade(cfg: Config, yes: bool) -> int:

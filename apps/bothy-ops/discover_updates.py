@@ -893,8 +893,15 @@ def main(argv: list[str]) -> int:
         from updater.config import Config
         try:
             got = plans.write_all(Config(state=state_dir), catalog, doc)
-            n = sum(1 for v in got.values() if not v.startswith("- "))
-            print(f"plans: {n} deployable of {len(got)} -> {os.path.join(state_dir, 'plans')}", file=sys.stderr)
+            # The keys prefixed `just ` are the GROUP plans (updater/groups.py):
+            # one per `apply` recipe with two or more components to apply at once.
+            comp = {k: v for k, v in got.items() if not k.startswith("just ")}
+            grp = {k: v for k, v in got.items() if k.startswith("just ")}
+            n = sum(1 for v in comp.values() if not v.startswith("- "))
+            g = sum(1 for v in grp.values() if not v.startswith("- "))
+            print(f"plans: {n} deployable of {len(comp)} -> {os.path.join(state_dir, 'plans')}; "
+                  f"{g} group{'' if g == 1 else 's'} of {len(grp)} -> {os.path.join(state_dir, 'groups')}",
+                  file=sys.stderr)
         except (OSError, ValueError, updates.CatalogError) as e:
             print(f"note: plans could not be written ({e})", file=sys.stderr)
     try:

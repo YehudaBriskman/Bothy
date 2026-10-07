@@ -51,6 +51,13 @@ PLAN_ID = re.compile(r"[a-f0-9]{24}")
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 COMPONENT = re.compile(r"[a-z][a-z0-9-]{0,39}")
 KEYS = {"v", "jobId", "component", "planId", "confirm", "requestedBy", "requestedAt"}
+# A GROUP request (updater/groups.py): "apply everything `just up-monitoring` pins,
+# in one compose up". It names a RECIPE instead of a component, carries `kind` so
+# the two shapes can never be confused for one another, and never a note. It goes
+# in the same <jobId>.json, so the path unit, the lock, the claim-before-run rule
+# and every record are the single-component ones, unchanged.
+GROUP_KEYS = {"v", "jobId", "kind", "group", "planId", "confirm", "requestedBy", "requestedAt"}
+GROUP_KIND = "group"
 # The one optional key (step 8): the maintenance note a postgres-major plan
 # requires. Any other plan refuses a request that carries one (pgmajor.validate_note).
 OPTIONAL = {"note"}
@@ -128,9 +135,20 @@ def read(spool: str, name: str) -> dict:
     return doc
 
 
+def is_group(doc: object) -> bool:
+    """A group request, by its own `kind`. One reader, so "which shape is this?"
+    is never answered by guessing from which key happens to be present."""
+    return isinstance(doc, dict) and doc.get("kind") == GROUP_KIND
+
+
 def validate_shape(doc: dict, name: str) -> dict:
     """Exact keys, exact types, exact formats. Returns the request."""
-    if not KEYS <= set(doc) <= KEYS | OPTIONAL:
+    if is_group(doc):
+        if set(doc) != GROUP_KEYS:
+            raise Invalid(f"the group request's keys are {sorted(doc)}, not {sorted(GROUP_KEYS)}")
+        if not isinstance(doc["group"], str) or not COMPONENT.fullmatch(doc["group"]):
+            raise Invalid("the group id is malformed")
+    elif not KEYS <= set(doc) <= KEYS | OPTIONAL:
         raise Invalid(f"the request's keys are {sorted(doc)}, not {sorted(KEYS)} (+ an optional note)")
     if "note" in doc and (not isinstance(doc["note"], str) or not 0 < len(doc["note"]) <= MAX_NOTE):
         raise Invalid("the note is malformed")
@@ -139,7 +157,8 @@ def validate_shape(doc: dict, name: str) -> dict:
     job = doc["jobId"]
     if not isinstance(job, str) or not JOB_ID.fullmatch(job) or f"{job}.json" != name:
         raise Invalid("the job id is malformed or does not match the file name")
-    if not isinstance(doc["component"], str) or not COMPONENT.fullmatch(doc["component"]):
+    if not is_group(doc) and (not isinstance(doc["component"], str)
+                              or not COMPONENT.fullmatch(doc["component"])):
         raise Invalid("the component id is malformed")
     if not isinstance(doc["planId"], str) or not PLAN_ID.fullmatch(doc["planId"]):
         raise Invalid("the plan id is malformed")
@@ -176,6 +195,35 @@ def validate_against(doc: dict, catalog: updates.Catalog, plan_doc: dict | None)
         raise Invalid("the confirmation does not match what the plan requires")
     if p.get("requiresNote") and not (isinstance(doc.get("note"), str) and doc["note"].strip()):
         raise Invalid("this plan requires a maintenance note, and the request carries none")
+    return p
+
+
+def validate_against_group(doc: dict, catalog: updates.Catalog, group_doc: dict | None) -> dict:
+    """A group request against the catalog and the host's own groups/<group>.json.
+
+    The same "never trusts bothy-ops" half as validate_against(), and three rules
+    a group adds: the actor is never the night job (a group is neither one
+    component nor one patch, so no unattended channel may ever choose it), the
+    typed confirmation is the GROUP's id, and a group request carries no note.
+    """
+    from . import groups
+    gid = doc["group"]
+    if gid not in groups.groups_of(catalog):
+        raise Invalid(f"{gid!r} is not a recipe with two or more components the updater deploys")
+    if doc.get("requestedBy") == updates.AUTO_ACTOR:
+        raise Invalid("a group is never automatic: the night job deploys one component's patch a night")
+    if "note" in doc:
+        raise Invalid("a maintenance note is only for a plan that asks for one")
+    if not group_doc or group_doc.get("group") != gid:
+        raise Invalid(f"there is no group plan file for {gid}")
+    if not group_doc.get("ok"):
+        raise Invalid(f"there is no deployable group plan for {gid}: {group_doc.get('reason')}")
+    p = group_doc.get("plan") or {}
+    if p.get("id") != doc["planId"]:
+        raise Invalid(f"group plan {doc['planId']} is not the current plan for {gid} (that is {p.get('id')})")
+    want = gid if p.get("confirm") == "type-name" else True
+    if doc["confirm"] != want:
+        raise Invalid("the confirmation does not match what the group plan requires")
     return p
 
 

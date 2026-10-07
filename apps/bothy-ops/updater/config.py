@@ -141,6 +141,13 @@ class Config:
         return os.path.join(self.state, "plans")
 
     @property
+    def groups(self) -> str:
+        """One plan per `apply` recipe with two or more components to apply at once
+        (updater/groups.py), keyed by the recipe. Beside plans/, written by the same
+        discovery run, read by bothy-ops through the same read-only mount."""
+        return os.path.join(self.state, "groups")
+
+    @property
     def status_file(self) -> str:
         return os.path.join(self.state, "status.json")
 

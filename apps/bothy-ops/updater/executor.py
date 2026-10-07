@@ -164,6 +164,26 @@ def run_one(cfg: Config, name: str) -> str:
             catalog = updates.load(cfg.catalog)
         except (updates.CatalogError, OSError, ValueError) as e:
             raise spool.Invalid(f"updates.toml is invalid: {e}") from None
+        if spool.is_group(doc):
+            # A GROUP (updater/groups.py): one `docker compose up` for several
+            # components, each keeping its own class's snapshot, canaries and
+            # restore. Validated against the host's groups/<group>.json, then
+            # recomputed here - the whole group plan, and every member's plan -
+            # and refused unless the id comes out the same.
+            from . import groups
+            gid = doc["group"]
+            gp = spool.validate_against_group(doc, catalog, groups.read_group(cfg, gid))
+            try:
+                fresh_g, members = groups.resolve(gid, cfg=cfg, catalog=catalog)
+            except plans.PlanRefused as e:
+                raise spool.Invalid(f"the group plan no longer holds: {e}") from None
+            if fresh_g["id"] != gp["id"]:
+                raise spool.Invalid(f"group plan {gp['id']} is stale - recomputed now it is {fresh_g['id']} "
+                                    "(main, a container or discovery changed); ask again")
+            rec.set(members=[c.id for c, _ in members])
+            what = ", ".join(f"{c.id} {q['from']['version']}->{q['to']['version']}" for c, q in members)
+            rec.step("validate", "ok", f"group {fresh_g['id']}: `{fresh_g['recipe']}` applies {what}")
+            return groups.GroupExecution(cfg, rec, fresh_g, members).go()
         p = spool.validate_against(doc, catalog, plans.read_plan(cfg, doc["component"]))
         try:
             fresh = plans.plan(doc["component"], cfg=cfg, catalog=catalog)
@@ -299,8 +319,10 @@ class Execution:
         return f"{self.container} {c['health'] or 'running'}"
 
     def _scope(self) -> str:
+        from . import groups
         mine = {q.service for q in self.pins if q.file == self.pin.file}
-        return compose_scope(self.cfg, self.container, self.pin.file, self.pin.service, mine, self.comp.apply)
+        return compose_scope(self.cfg, self.container, self.pin.file, self.pin.service, mine, self.comp.apply,
+                             instead=groups.instead(self.comp, self.cfg))
 
     def _baseline(self) -> str:
         self.ctx.phase = "preflight"
@@ -318,12 +340,16 @@ class Execution:
         return f"canaries green now ({len(done)})"
 
     # ── snapshot ──
-    def snapshot(self) -> str:
+    def snapshot(self, into: str | None = None) -> str:
+        """`into`: a directory a GROUP job hands this member (groups.py), instead of
+        the component's own `<time>-<component>/`. The job's snapshot field and the
+        per-component rotation are then the group's, not this member's."""
         cid = self.comp.id
         hostio.ensure_dir(self.cfg.snapshots, 0o700)
-        d = os.path.join(self.cfg.snapshots, f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{cid}")
+        d = into or os.path.join(self.cfg.snapshots, f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{cid}")
         os.mkdir(d, 0o700)
-        self.rec.set(snapshot=d)
+        if into is None:
+            self.rec.set(snapshot=d)
         old = hostio.image(self.plan["from"]["imageId"]) or {}
         hostio.write_json(os.path.join(d, "plan.json"), self.plan)
         hostio.write_json(os.path.join(d, "pin.json"), {
@@ -341,7 +367,8 @@ class Execution:
         self.artefact, detail = self.klass.take_snapshot(self.cfg, cid, self.container, d)
         if self.klass.snapshot_kind(cid) != "image" and not self.artefact:
             raise StepError(f"the {self.klass.snapshot_kind(cid)} snapshot failed: {detail}")
-        self._rotate()
+        if into is None:
+            self._rotate()
         return f"{d}: {detail}"
 
     def _rotate(self) -> None:
@@ -478,7 +505,8 @@ class Execution:
         return s
 
 
-def compose_scope(cfg: Config, container: str, pin_file: str, pin_service: str, mine: set, apply: str) -> str:
+def compose_scope(cfg: Config, container: str, pin_file: str, pin_service: str, mine: set, apply: str,
+                  *, instead: str | None = None) -> str:
     """`just <recipe>` must recreate the services in `mine` and nothing else.
 
     The recipe runs `docker compose up` over a whole project. If any OTHER
@@ -487,43 +515,26 @@ def compose_scope(cfg: Config, container: str, pin_file: str, pin_service: str, 
     migration along with no snapshot. Compose recreates a container exactly
     when its config hash differs from the `com.docker.compose.config-hash`
     label it was created with, so compare the two, with the same files the
-    container was created from. Raises Refuse.
+    container was created from (hostio.compose_project). Raises Refuse.
+
+    `instead` is what to do about it - the GROUP that applies the whole recipe
+    together (groups.py). A refusal that only says "by hand" is the defect this
+    check had for its first three weeks: the product stated what had to happen
+    and offered no way to do it, and on a box where several services of one
+    project are behind at once, no single-component apply can ever succeed.
     """
-    c = hostio.container(container) or {}
-    lab = c.get("labels") or {}
-    project = lab.get("com.docker.compose.project")
-    files = [f for f in (lab.get("com.docker.compose.project.config_files") or "").split(",") if f]
-    wd = lab.get("com.docker.compose.project.working_dir")
-    if not project or not files or not wd or lab.get("com.docker.compose.service") != pin_service:
-        raise Refuse(f"{container} carries no compose labels for service {pin_service}")
-    repo = cfg.repo + os.sep
-    if not all(os.path.realpath(f).startswith(repo) for f in files):
-        raise Refuse(f"{container} was created from files outside {cfg.repo}")
-    if os.path.realpath(os.path.join(cfg.repo, pin_file)) not in {os.path.realpath(f) for f in files}:
-        raise Refuse(f"{container} was not created from {pin_file}")
-    argv = ["docker", "compose", "-p", project, "--project-directory", wd]
-    for f in files:
-        argv += ["-f", f]
-    rc, out, err = run([*argv, "config", "--hash", "*"], env=hostio.dotenv(cfg.repo), cwd=cfg.repo)
-    if rc != 0:
-        raise Refuse(f"cannot prove the recipe touches only {container}: compose config failed "
-                     f"({tail(err, 200)})")
-    want = dict(ln.split(None, 1) for ln in out.splitlines() if len(ln.split()) == 2)
-    rc, names, _ = run(["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={project}",
-                        "--format", "{{.Names}}"])
-    have: dict[str, str] = {}
-    for n in names.split():
-        o = hostio.container(n) or {}
-        ol = o.get("labels") or {}
-        if ol.get("com.docker.compose.oneoff") == "True":
-            continue
-        have[ol.get("com.docker.compose.service", "")] = ol.get("com.docker.compose.config-hash", "")
+    try:
+        pj = hostio.compose_project(cfg.repo, container, pin_file, pin_service)
+    except HostError as e:
+        raise Refuse(f"cannot prove the recipe touches only {container}: {e}") from None
+    want, have = pj["want"], pj["have"]
     others = [s for s in want if s not in mine and have.get(s) != want[s]]
     if others:
         raise Refuse(f"`{apply}` would also recreate or create {', '.join(sorted(others))} "
-                     "(its configuration changed since it was started) - apply that first, by hand if "
-                     "the updater does not handle it")
-    return f"scope: only {', '.join(sorted(mine))} change in project {project}"
+                     "(its configuration changed since it was started)"
+                     + (f" - {instead}" if instead
+                        else " - apply that first, by hand if the updater does not handle it"))
+    return f"scope: only {', '.join(sorted(mine))} change in project {pj['project']}"
 
 
 def main_status(cfg: Config) -> int:
