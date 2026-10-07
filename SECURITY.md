@@ -440,9 +440,9 @@ Cluster page (`/control/cluster`). Since 2026-09-17 that is 29 actions:
 
 | Group | Reads (`viewer`) | Changes (`operator`, confirm) |
 |---|---|---|
-| Deployments | `deployments`, `rollout-status`, `rollout-history`, `events`, `logs` (tail <= 500, `previous`, `container`, SSE follow <= 300 s) | `rollout-restart` (click), `pause`/`resume` (click), `scale` 0..3 (type-name), `set-image` (type-name), `rollback-to-revision` (type-name) |
-| Pods | `pods` (namespace or one deployment) | `delete-pod` (click), `delete-completed-pods` (click) |
-| Jobs | `jobs`, `job-logs` | `delete-job` (click), `run-template` (type-name) |
+| Deployments | `deployments`, `rollout-status`, `rollout-history`, `events`, `logs` (tail <= 500, `previous`, `container`, SSE follow <= 300 s) | `rollout-restart` (click), `pause`/`resume` (click), `scale` 0..3 (click; the name typed to scale to 0), `set-image` (click), `rollback-to-revision` (click) |
+| Pods | `pods` (namespace or one deployment) | `delete-pod` (click), `delete-completed-pods` (type-name) |
+| Jobs | `jobs`, `job-logs` | `delete-job` (type-name), `run-template` (type-name) |
 | ConfigMap `thales` | `configmap` | `patch-key`, `patch-key-and-restart` (type the KEY) |
 | Views | `services`, `routes`, `ingresses`, `persistentvolumeclaims`, `networkpolicies`, `resourcequotas`, `limitranges`, `namespace-events` (polled) | - |
 
@@ -451,8 +451,8 @@ It is built so that any one lock failing still leaves the other two:
 | Lock | What it enforces | Where |
 |---|---|---|
 | **Edge** | One exact `Path()` per action plus one for `GET /-/api/kube/catalog` - no `PathPrefix`, no `Host()`. Reads behind `sso-viewer`, changes behind `sso-operator` (both defined in `bothy-gates.yml`). Client `X-Auth-Request-*` stripped. | `edge/dynamic/bothy-ops.yml` (`bothy-ops-kube-*`, generated) |
-| **Service** | Catalog ids must map 1:1 to hard-coded handlers, and every catalog job template must be in the image, or the service **refuses to start**. Namespace enum; RFC 1123 names (`fullmatch`, no dots, no slashes); declared params with bounds; `image` params must be an OCI reference with a tag or digest **and** start with `thales/` or `localhost:5000/thales/` (a rollback may not restore what set-image would refuse); ConfigMap actions name only `thales`, change only `LOG_LEVEL`, `DB_POOL_MAX`, `JOB_MAX_WORKERS`, each value fullmatching its own pattern; `run-template` names one of `migrate`, `seed-identity`, `seed-reference` and the Job body is a file baked into the image - a request that carries a body or an image is refused; `delete-pod` only deletes a pod whose controller chain (walked on the apiserver, by uid) ends at a Deployment or a Job; `type-name` checked server-side; JSON-only POST; cross-site `Sec-Fetch-Site` refused; one TSV audit line per request, including refusals. | `apps/bothy-ops/{guard.py,catalog.toml,kube.py}`, `k8s/job-templates/`, `apps/bothy-common/bothy_common/{http,names,audit}.py` |
-| **Cluster** | ServiceAccount `bothy/bothy-kube` with a Role in **each target namespace only**, **generated** from the `rbac` each action declares: deployments get/list/patch, deployments/scale get/patch, replicasets get/list, pods get/list/delete, pods/log get, jobs get/list/create/delete, configmaps get/patch **by resourceNames `thales` only**, and list on events, services, routes, ingresses, persistentvolumeclaims, networkpolicies, resourcequotas, limitranges. **No** pods/exec, pods/attach, pods/portforward, secrets, watch, update, deletecollection, escalate, bind, impersonate, wildcard, namespace, or ClusterRole. | `k8s/rbac/bothy-kube.yaml` |
+| **Service** | Catalog ids must map 1:1 to hard-coded handlers, and every catalog job template must be in the image, or the service **refuses to start**. Namespace enum; RFC 1123 names (`fullmatch`, no dots, no slashes); declared params with bounds; `image` params must be an OCI reference with a tag or digest **and** start with `thales/` or `localhost:5000/thales/` (a rollback may not restore what set-image would refuse); ConfigMap actions name only `thales` and change only the **22 allowlisted keys**, each value fullmatching its own pattern and each pattern a bounded range rather than "a number" (so an order-of-magnitude typo is refused, not only a non-number) - and `kube.py` refuses a key the ConfigMap does not already have, so an action that edits keys cannot add one; `run-template` names one of `migrate`, `seed-identity`, `seed-reference` and the Job body is a file baked into the image - a request that carries a body or an image is refused; `delete-pod` only deletes a pod whose controller chain (walked on the apiserver, by uid) ends at a Deployment or a Job; `type-name` checked server-side; JSON-only POST; cross-site `Sec-Fetch-Site` refused; one TSV audit line per request, including refusals. | `apps/bothy-ops/{guard.py,catalog.toml,kube.py}`, `k8s/job-templates/`, `apps/bothy-common/bothy_common/{http,names,audit}.py` |
+| **Cluster** | ServiceAccount `bothy/bothy-kube` with a Role in **each target namespace only**, **generated** from the `rbac` each action declares: deployments get/list/patch, deployments/scale get/patch, replicasets get/list, pods get/list/delete, pods/log get, jobs get/list/create/delete, configmaps get/patch **by resourceNames `thales` only**, and list on events, services, routes, ingresses, persistentvolumeclaims, networkpolicies, resourcequotas, limitranges. **No** pods/exec, pods/attach, pods/portforward, secrets, watch, update, deletecollection, escalate, bind, impersonate, wildcard, namespace, or ClusterRole. And **above** the Role, a Kyverno admission policy no account here can get around - see below. | `k8s/rbac/bothy-kube.yaml` |
 
 **One hand-written file.** `apps/bothy-ops/catalog.toml` is the only place the
 actions, their roles, their params, the allowlists and the grants are written.
@@ -481,6 +481,45 @@ service-account token), no ConfigMap but `thales`, no RBAC change, nothing
 outside the two namespaces and nothing cluster-scoped. `deployments: patch` was
 already granted before (rollout-restart), so the widening is `jobs: create`,
 `configmaps: patch` and what the service now chooses to send.
+
+**A fourth lock nobody here can unlock: Kyverno denies a Secret as an
+environment variable.** This is arguably the strongest single constraint on this
+tier, and until 2026-10-07 it was written down only in a comment in
+`k8s/rbac/bothy-kube.yaml`. The ClusterPolicy `thales-secret-handling`, rule
+`no-secret-env-vars`, with `Enforce` as its failure action, matches Pods in
+`thales`, `thales-dev`, `thales-pre-prod` and `thales-prod`, and denies both
+`env[].valueFrom.secretKeyRef` and `envFrom[].secretRef`. It is an **admission**
+policy, so it is not a grant that could be widened: **not even cluster-admin can
+inject a Secret as env in these namespaces**, and neither can a total compromise
+of this process holding `deployments: patch`. A Secret's value reaches a Thales
+process only as a **file** under `SECRETS_DIR`. (Its stated reason is not
+primarily this boundary: an env var is frozen at process start, so a rotated
+Secret never reaches the running pod, and it shows up in `oc describe pod`. The
+boundary is the side effect, and it is the side effect that matters here.) The
+same policy's `no-subpath-mounts` rule exists for the other half of that
+argument - a `subPath` mount is never refreshed by the kubelet.
+
+That is why "make the cluster env editable" has a floor. Of the 79 environment
+names that reach a Thales process, 70 come from ConfigMap `thales` (22 of them
+editable here), **9 are literal in a pod template** - no handler, no param type,
+and patching a pod template is the worst case above, so widening toward it is its
+own decision - and every Secret value is a file by policy, permanently.
+
+**The confirm levels in the table above are checked, not retyped.**
+`scripts/checks/doc-facts.sh` reads `catalog.toml` and holds every row of it:
+each operator action must appear with the level the catalog declares, each
+`escalate` must be stated, and **every** action in the catalog must appear in the
+column its `role` puts it in. It is held rather than generated for this
+document's usual reason - the cell has to read as English inside an argument -
+and it earned the check on 2026-10-07, when five of the twelve were wrong:
+`scale`, `set-image` and `rollback-to-revision` were written `type-name` and are
+`click`, and `delete-completed-pods` and `delete-job` were written `click` and
+are `type-name`. Every one of those sentences was correct while design decision 7
+was being argued; the catalog moved to "the level follows REVERSIBILITY, not
+loudness" and the table did not move with it. This drift runs in both directions,
+and both hurt: stated harder than it is, a reviewer believes a guard rail exists
+that does not; stated softer, an operator writes a runbook step that stops
+mid-incident to ask for a name to be typed.
 
 **The cluster is optional, and its absence is a 503, not an outage.** minikube's
 `thales-scc` network and the token mount live in
