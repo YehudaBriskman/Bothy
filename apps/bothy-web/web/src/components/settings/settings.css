@@ -380,7 +380,13 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    be deployed is prose - "nothing to deploy" is not a problem - and it is in the
    disclosure now, so it is read in full rather than clamped to three lines in a
    220px cell. Both clamps are gone with the cells they were defending. */
-.set-shell .upd-reason { overflow-wrap: anywhere; }
+/* A reason is prose about a row, so it is sized and coloured like one. It was
+   inheriting the body size, which made the group's reason the LARGEST thing in
+   its card - bigger than the recipe name it was about (2026-10-07). */
+.set-shell .upd-reason {
+  overflow-wrap: anywhere; margin: 0;
+  font-size: var(--fs-sm); line-height: 1.6; color: var(--fg-muted);
+}
 :is(.set-shell, .upd-plan) .upd-code { font-size: .92em; padding: 0 var(--sp-1); border-radius: var(--r-xs); background: var(--bg-2); border: 1px solid var(--line); color: var(--fg); overflow-wrap: anywhere; }
 .set-shell .upd-go { display: inline-flex; }
 
