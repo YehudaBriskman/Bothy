@@ -1488,6 +1488,132 @@ mutant "the landing page points at nothing" \
   -- "${DASH_CHECK[@]}"
 
 echo
+echo "── D1/D2/D3: the sentence, the hint, and the slot that cannot move ──"
+# Anchored on executable lines inside the FUNCTION each one is about, never on a
+# comment: every check below strips comments before it reads anything, so a
+# mutation planted in prose applies cleanly, changes nothing, and reports a
+# healthy check as decorative. `plant()` also replaces only the FIRST occurrence
+# of its anchor, so each anchor here is a line that appears once in the tree.
+
+# D1. The defect exactly as the owner met it. The sentence and the per-component
+# list were ONE string, every writer of a refusal caps a reason at 300 characters,
+# and the cap landed mid-word: Settings > Updates said "...grafana: noth". Glue
+# them back together and nothing errors - the page simply truncates a reason the
+# host wrote perfectly well, which is the state that had the owner asking twice.
+mutant "the group refusal glues its list back onto the sentence" \
+  apps/bothy-ops/updater/groups.py \
+  '                          f"something to apply; a group is for two or more (one is its own row)."[:300],
+                          per=[{"component": cid, "reason": r} for cid, r in sorted(refusals.items())])' \
+  '                          f"something to apply; a group is for two or more (one is its own row). "
+                          + "; ".join(f"{cid}: {r}" for cid, r in sorted(refusals.items()))[:300])' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+# ...and the other end of the same wire. The host writes the list; bothy-ops has
+# to let it through its allowlist, and dropping a field there is the quietest
+# possible failure: the page renders, with nothing behind the hint.
+mutant "bothy-ops drops the per-component half of a refusal" \
+  apps/bothy-ops/updates.py \
+  '                        "skipped": [{"component": s["component"], "reason": _s(s.get("reason"), 300) or ""}
+                                    for s in (doc.get("skipped") or [])[:16]' \
+  '                        "skipped": [{"component": s["component"], "reason": _s(s.get("reason"), 300) or ""}
+                                    for s in []' \
+  -- python3 apps/bothy-ops/checks/api_updates_apply.py
+
+# ...and the group file itself. write_all is where the two halves are recorded,
+# and a group that is NOT deployable is the state this box is in most of the time.
+mutant "the group file records the sentence and forgets the list" \
+  apps/bothy-ops/updater/groups.py \
+  '                   "skipped": [{"component": s["component"], "reason": str(s["reason"])[:300]}
+                               for s in getattr(e, "per", [])][:16],' \
+  '                   "skipped": [],' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+# D2. Hover-only, which is the request misread. It looks identical on a desktop
+# with a mouse and is unreachable by keyboard and on the owner's phone - the exact
+# failure the brief called out as non-negotiable.
+mutant "the hint stops opening on focus" \
+  apps/bothy-web/web/src/components/ui/InfoHint.tsx \
+  '          onFocus={show}' \
+  '          onFocus={() => {}}' \
+  -- "${WEB_CHECKS[@]}"
+
+# A tap is eaten. pointerenter and click arrive in the same gesture on a touch
+# screen, so honouring pointerenter for every pointer type opens the panel and
+# then the click toggles it shut again: on a phone the hint does nothing at all,
+# and on the desktop it is perfect. This is the defect that disqualified
+# components/Tooltip.tsx for this job, planted back.
+mutant "the hint honours hover for every pointer, so a tap closes it again" \
+  apps/bothy-web/web/src/components/ui/InfoHint.tsx \
+  '          onPointerEnter={(e) => { if (e.pointerType === '"'"'mouse'"'"') show(); }}' \
+  '          onPointerEnter={() => show()}' \
+  -- "${WEB_CHECKS[@]}"
+
+# The accessible name. On screen it is identical - a 12px glyph - and to a screen
+# reader it is "button", with no text beside it to recover from.
+mutant 'a hint is named "more info" instead of what it reveals' \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  'label="Why a recipe is applied as a whole"' \
+  'label="more info"' \
+  -- "${WEB_CHECKS[@]}"
+
+# Two hints with one name. A page of eight identical "Details" is one name as far
+# as somebody tabbing through it is concerned, and it reads fine on screen.
+mutant "two hints on one page share a name" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  'label="What Apply does, step by step"' \
+  'label="How Update and Apply differ"' \
+  -- "${WEB_CHECKS[@]}"
+
+# A control inside a hint. Focus never enters the panel - that is what lets it be
+# a description rather than a destination - so a link in there is unreachable by
+# keyboard while looking completely normal to a mouse.
+mutant "a hint holds a link nothing can reach" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '            <p>Discovery reads the pins and asks upstream. It pulls nothing and restarts nothing.</p>' \
+  '            <p>Discovery reads the pins and asks upstream. <a href="/x">What it asks</a></p>' \
+  -- "${WEB_CHECKS[@]}"
+
+# THE D2 FAILURE MODE ITSELF: the hint is added and the paragraph is left where it
+# was. Every individual diff looks like an improvement, the page gets busier one
+# hint at a time, and the thing the owner actually asked for never happens.
+mutant "a paragraph that moved behind a hint is left on the surface too" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '      <p className="upd-legend">
+        <b>Apply</b> makes this box run what <span className="mono">main</span> already pins.' \
+  '      <p className="upd-legend">
+        <b>Apply</b> makes this box run what <span className="mono">main</span> already pins. <b>Available</b>
+        is what is newer <i>upstream</i>; to get that, merge its Dependabot PR first.' \
+  -- "${WEB_CHECKS[@]}"
+
+# D3. The jump, put straight back. An absolutely positioned child contributes no
+# height, which is the whole no-shift guarantee; in normal flow the panel grows the
+# grid row as its steps arrive and pushes every block below it down. Nothing looks
+# wrong until a job runs, which is the one moment nobody is taking screenshots.
+mutant "the activity card goes back into the page flow" \
+  apps/bothy-web/web/src/components/settings/settings.css \
+  '  position: absolute; inset: 0;
+  overflow-y: auto; overscroll-behavior: contain;' \
+  '  overflow-y: auto; overscroll-behavior: contain;' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the slot itself disappearing when nothing is running, which is the shape
+# the jump had before: no rail, then a rail.
+mutant "the activity slot is only drawn once a job exists" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '              : <RestingJob d={data} />}' \
+  '              : null}' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the narrow case losing its reserved height, so the band grows from one
+# line to a panel the moment a job starts - the same jump, on the device the owner
+# actually reads this on.
+mutant "below 1100px the reserved band sizes to its content" \
+  apps/bothy-web/web/src/components/settings/settings.css \
+  '  .set-shell .upd-rail { order: -1; height: var(--upd-rail-h); }' \
+  '  .set-shell .upd-rail { order: -1; }' \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is
