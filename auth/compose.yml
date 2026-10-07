@@ -454,6 +454,24 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
+      # AND the seeding, which is a real dependency this file did not state.
+      #
+      # keycloak-init sets the master realm's sslRequired=NONE, turns
+      # VERIFY_PROFILE off and seeds the one dev identity - and its own comment
+      # says "VERIFY_PROFILE off, or the seeded user cannot finish a login". So
+      # an oauth2-proxy that starts first is an auth boundary pointed at a realm
+      # that cannot complete a login: the failure is a login loop, not a crash,
+      # which is the kind nobody reads as a dependency problem.
+      #
+      # It also makes the portal tell the truth about keycloak-init. Bothy calls
+      # a one-shot `done` only when a sibling declares it with
+      # service_completed_successfully - the one declaration of intent that
+      # exists on the wire (there is no restart policy on /containers/json).
+      # Without this line keycloak-init exits 0 every deploy and is counted as
+      # `off`, i.e. as something switched off rather than something that
+      # finished.
+      keycloak-init:
+        condition: service_completed_successfully
     command:
       # --- provider: github -> oidc (2026-08-12) ---
       - --provider=oidc
