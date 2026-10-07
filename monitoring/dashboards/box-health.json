@@ -1,0 +1,508 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "The landing page: six panels that answer 'is the box well?' without scrolling. Each one is here because nothing else on this box answers it, and nothing is restated twice.",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "tags": [
+    "summary",
+    "home"
+  ],
+  "timezone": "browser",
+  "title": "Box health",
+  "uid": "box-health",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "alertlist",
+      "title": "Alerts firing",
+      "description": "Grafana's own alert state - the eight rules in monitoring/provisioning/alerting/rules.yml, filtered to the ones that are firing, pending or erroring. Empty means empty: a rule sitting in 'normal' is deliberately not listed, because a list of eight healthy rules is eight lines that say nothing and it would push the thing you came for off the page. This panel carries a count, an identity and an age, which is why it is the widest thing in the band.",
+      "gridPos": {
+        "h": 7,
+        "w": 9,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "datasource",
+        "uid": "grafana"
+      },
+      "options": {
+        "alertInstanceLabelFilter": "",
+        "alertName": "",
+        "dashboardAlerts": false,
+        "folder": null,
+        "groupBy": [],
+        "groupMode": "default",
+        "maxItems": 20,
+        "showInactiveAlerts": false,
+        "sortOrder": 3,
+        "stateFilter": {
+          "error": true,
+          "firing": true,
+          "noData": false,
+          "normal": false,
+          "pending": true
+        },
+        "viewMode": "list"
+      }
+    },
+    {
+      "type": "state-timeline",
+      "title": "Scrape targets",
+      "description": "One band per scrape job: five from monitoring/prometheus.yml and three from scrape.d/kubernetes.yml, which is mounted only when the thales-scc network exists. The count IS the denominator - there is no 'N of M' to go stale, because every job that exists has a band and a job with no band does not exist.\n\nA timeline rather than eight cells because of what it catches that nothing else does: `instance_down` needs a target to stay down for two full minutes, so a target that flaps every ninety seconds never pages and is invisible everywhere else. Here it is a dashed band. `min by (job)` so a job with two targets reads DOWN when either is - the pessimistic reduction is the only honest one for a question asked this way. A blank stretch is not 'up': it is a window with no sample at all, which is what you see before the box booted.",
+      "gridPos": {
+        "h": 7,
+        "w": 9,
+        "x": 9,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "maxDataPoints": 300,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#fb7185",
+                "value": null
+              },
+              {
+                "color": "#34d399",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "index": 0
+                },
+                "1": {
+                  "text": "up",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "perPage": 20,
+        "legend": {
+          "displayMode": "hidden",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min by (job) (up)",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Host headroom",
+      "description": "Three percentages of the same host, so one axis and one scale.\n\nMemory and disk use the alert expressions from monitoring/provisioning/alerting/rules.yml CHARACTER FOR CHARACTER, and their threshold marks are those alerts' own numbers - 90% and 85%. That is the point of the panel: a bar that said 87% beside an alert that was silent at 85% would be two graphics within sight of each other disagreeing about the same population, which is the way a dashboard lies without anyone meaning it to. Disk is the fullest real filesystem, with tmpfs, overlay, squashfs and ramfs excluded, exactly as the alert excludes them.\n\nCPU carries NO threshold colour, on purpose. There is no CPU alert on this box, so there is no number anybody has decided is bad, and colouring it would claim a state nobody defined. It is here as a reading, not a verdict.",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory used"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#34d399",
+                      "value": null
+                    },
+                    {
+                      "color": "#fb7185",
+                      "value": 90
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Disk used"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#34d399",
+                      "value": null
+                    },
+                    {
+                      "color": "#fb7185",
+                      "value": 85
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100)",
+          "legendFormat": "CPU busy",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+          "legendFormat": "Memory used",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs\"}) * 100)",
+          "legendFormat": "Disk used",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Log lines per second",
+      "description": "Whether the log pipeline is alive, which no alert on this box watches: Alloy can stop shipping while every container stays healthy, and the first anyone would know is an empty Explore query during an incident.\n\nTwo populations, both counted, neither folded into the other: compose containers (the `stack` label, which Alloy sets from the compose project) and cluster pods (`job=\"kubernetes-pods\"`). Host-process logs are a THIRD population and are deliberately absent - Alloy's `host_service` label is not present in Loki at all right now, so there is nothing to draw and a zero line would claim a measurement that is not being taken.\n\nThe two colours are chart slots 1 and 4 of the validated palette rather than the adjacent pair, for the reason given in docs/brand/foundations/colour.md: the adjacent pair measures dE 6.3 under tritanopia. Pinning them by name is safe here because both names are literals in this file, not values out of the data.",
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 0,
+        "y": 7
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 1,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "compose containers"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6366f1"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cluster pods"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#a855f7"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(rate({stack=~\".+\"}[5m]))",
+          "legendFormat": "compose containers",
+          "queryType": "range"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(rate({job=\"kubernetes-pods\"}[5m]))",
+          "legendFormat": "cluster pods",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Updates",
+      "description": "Three counts out of the eight bothy_update_* families the host updater writes through node-exporter's textfile collector. Two of them have no alert behind them at all:\n\n  · pins drifted - what runs is not what the repository pins, per component. Nothing watches this, and it is the number that tells you a `docker compose up` somewhere diverged from main.\n  · could not check - the last discovery run could not reach a component's upstream, so that component's 'no update available' is not a finding, it is a gap.\n  · updates on offer - components with a newer patch, minor or major. This one DOES have an alert, but only after fourteen days (`update_stale`), so the number here is ahead of the alert rather than a restatement of it.\n\nNo colour: there is no threshold anybody has set for any of these, and a count that turns amber at a number nobody chose is a colour pretending to be a decision. The number is the encoder.",
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 9,
+        "y": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(bothy_update_drift == 1) or vector(0)",
+          "legendFormat": "pins drifted",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(bothy_update_check_error == 1) or vector(0)",
+          "legendFormat": "could not check",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(count by (component) (bothy_update_available)) or vector(0)",
+          "legendFormat": "updates on offer",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "How current this is",
+      "description": "Two ages, because every other panel on this page is only as true as these.\n\n  · box up - time since the host booted. A box that came up twenty minutes ago when nobody rebooted it is the most alarming thing on this page, and it is the one fact here that no alert and no other panel carries.\n  · updates checked - time since discover_updates.py last wrote its textfile. The three counts to the left are read from that file, so if this age starts growing, those counts are stale and still look fine.\n\nNeither is coloured: nothing on this box defines how old is too old for either, and the third timestamp family (`bothy_update_auto_last_run_timestamp_seconds`, the night job) is deliberately left off for the same reason taken further - it carries no component label and its meaning depends on whether the automatic channel is enabled at all, so an age for it would invite a judgement the number cannot support.",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "noValue": "never",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "vertical",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "time() - node_boot_time_seconds",
+          "legendFormat": "box up",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "time() - bothy_update_discover_last_run_timestamp_seconds",
+          "legendFormat": "updates checked",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}
