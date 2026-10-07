@@ -173,6 +173,27 @@ services:
       GF_SECURITY_ADMIN_EMAIL: ${GRAFANA_ADMIN_EMAIL:-admin@localhost}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # THE LANDING PAGE. Until this line, Grafana opened on its stock Home - the
+      # "Welcome to Grafana" page with a tutorial carousel and a link to add a
+      # datasource - and /api/org/preferences returned `{}`, so there was nothing
+      # to override it: no grafana.ini was mounted and no preference had ever been
+      # set. Four dashboards existed and the one somebody actually wanted on
+      # opening the tab was always two clicks away.
+      #
+      # The PATH form rather than the UID form (GF_USERS_DEFAULT_HOME_DASHBOARD or
+      # a row in the preferences table) on purpose: a uid lives in Grafana's
+      # database, which means the landing page would survive a dashboard file being
+      # renamed and then silently point at nothing, and it would not come back
+      # after a `docker volume rm monitoring_grafana_data`. A path is resolved
+      # against the same read-only bind mount the dashboards are provisioned from,
+      # so the landing page is a FILE in this repository like everything else, and
+      # scripts/checks/dashboards.sh asserts the file this names exists.
+      #
+      # NEEDS A RESTART. This is an environment variable, so unlike the dashboards
+      # themselves - which the file provider re-reads every 30s - Grafana only
+      # reads it at start. Until grafana is recreated, box-health.json is a normal
+      # dashboard in the list and Home is still the stock page.
+      GF_USERS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/box-health.json
       GF_SMTP_ENABLED: ${GF_SMTP_ENABLED:-false}
       GF_SMTP_HOST: ${GF_SMTP_HOST:-}
       GF_SMTP_USER: ${GF_SMTP_USER:-}

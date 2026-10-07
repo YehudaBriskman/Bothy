@@ -448,6 +448,25 @@ verify mode="":
 portability:
     @bash scripts/checks/portability.sh
 
+# Re-apply the mechanical half of docs/brand/patterns/dataviz.md to
+# monitoring/dashboards/*.json - one datasource syntax, one refresh interval,
+# series coloured by entity rather than by rank, gaps left as gaps.
+#
+# THE WORKFLOW THIS EXISTS FOR. Three of the five dashboards are upstream imports
+# (grafana.com 193, 455 and 1860) and the supported way to update one is to
+# re-import it whole, which only stays cheap while nobody has hand-edited it. So:
+# drop the new export in, run this, read the diff, commit. It is idempotent, so
+# running it on an already-normalised tree prints "already normalised" and writes
+# nothing.
+#
+# It refuses one rule rather than fixing it - a series drawn against a second
+# y-axis - because the fix is to SPLIT the panel, which is a judgement about what
+# the two halves are for. scripts/checks/dashboards.sh runs the same rules with
+# --check and holds them in CI.
+# Re-apply the chart conventions to the Grafana dashboard files.
+dash-normalise:
+    @python3 scripts/normalise-dashboards.py
+
 # Re-render docs/diagrams/*.mmd to docs/assets/diagrams/*.svg. Only the stale
 # ones; pass `all` to force every one.
 #
