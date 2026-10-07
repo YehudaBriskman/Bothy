@@ -336,7 +336,12 @@ hand-kept target list, so *every* container is covered with no per-service setup
 | The edge | `traefik` Prometheus metrics on an **internal** entrypoint `:8899` | Request rate, latency and error rate per router / service / entrypoint. No host port - Prometheus reaches it by name over devnet. |
 
 Grafana auto-provisions the Prometheus and Loki datasources, five dashboards, and
-alerting (instance down, host memory > 90%, disk > 85%).
+eight alert rules in three groups (core: instance down, host memory > 90%, disk >
+85%; cluster: thales-scc down, node NotReady; update: rolled back or failed, auto
+paused, waiting over 14 days). It lands on **Box health**, a six-panel summary set
+by `GF_USERS_DEFAULT_HOME_DASHBOARD_PATH` - see
+[the monitoring guide](guide/monitoring.md) for which three of the five dashboards
+are upstream imports and what that exempts them from.
 
 ### Lifecycle
 
