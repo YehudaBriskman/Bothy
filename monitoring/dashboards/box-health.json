@@ -40,7 +40,6 @@
         "alertInstanceLabelFilter": "",
         "alertName": "",
         "dashboardAlerts": false,
-        "folder": null,
         "groupBy": [],
         "groupMode": "default",
         "maxItems": 20,
@@ -59,7 +58,7 @@
     {
       "type": "state-timeline",
       "title": "Scrape targets",
-      "description": "One band per scrape job: five from monitoring/prometheus.yml and three from scrape.d/kubernetes.yml, which is mounted only when the thales-scc network exists. The count IS the denominator - there is no 'N of M' to go stale, because every job that exists has a band and a job with no band does not exist.\n\nA timeline rather than eight cells because of what it catches that nothing else does: `instance_down` needs a target to stay down for two full minutes, so a target that flaps every ninety seconds never pages and is invisible everywhere else. Here it is a dashed band. `min by (job)` so a job with two targets reads DOWN when either is - the pessimistic reduction is the only honest one for a question asked this way. A blank stretch is not 'up': it is a window with no sample at all, which is what you see before the box booted.",
+      "description": "One band per scrape job: five from monitoring/prometheus.yml and three from scrape.d/kubernetes.yml, which is mounted only when the thales-scc network exists. The count IS the denominator - there is no 'N of M' to go stale, because every job that exists has a band and a job with no band does not exist.\n\nA timeline rather than eight cells because of what it catches that nothing else does: `instance_down` needs a target to stay down for two full minutes, so a target that flaps every ninety seconds never pages and is invisible everywhere else. Here it is a dashed band. `min by (job)` so a job with two targets reads DOWN when either is - the pessimistic reduction is the only honest one for a question asked this way. The word 'up' or 'DOWN' is printed in every band (showValue: always) rather than left to the colour, because colour is the second encoder here and never the only one. A blank stretch is neither: it is a window with no sample at all, which is what you see before the box booted.",
       "gridPos": {
         "h": 7,
         "w": 9,
@@ -114,12 +113,11 @@
       },
       "options": {
         "mergeValues": true,
-        "showValue": "auto",
+        "showValue": "always",
         "alignValue": "left",
         "rowHeight": 0.85,
         "perPage": 20,
         "legend": {
-          "displayMode": "hidden",
           "showLegend": false
         },
         "tooltip": {

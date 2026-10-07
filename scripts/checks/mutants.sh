@@ -1440,7 +1440,6 @@ mutant "the rasters stop matching the SVG they came from" \
   '<rect width="24" height="24" rx="5.4" fill="#09090b"/>' \
   '<rect width="24" height="24" fill="#09090b"/>' \
   -- "${WEB_CHECKS[@]}"
-||||||| parent of 4b0eb51 (a check reads the dashboards, because nothing ever read the standard on their behalf)
 
 echo
 echo "── the dashboards keep to the data-visualisation standard ──────────"
