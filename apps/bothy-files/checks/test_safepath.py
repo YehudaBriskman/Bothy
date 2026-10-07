@@ -427,7 +427,15 @@ for d in ("docs/deep", "node_modules/pkg", ".cache/junk", "backups/old", "src"):
     os.makedirs(os.path.join(lz, d), exist_ok=True)
 for rel in ("docs/a.md", "docs/deep/b.md", "docs/.env", "src/main.ts",
             "node_modules/pkg/index.js", ".cache/junk/x", "backups/old/dump.sql",
-            "top.md"):
+            "top.md",
+            # A top-level dot FILE, and it is here for one reason: prune_dirs only
+            # filters DIRECTORIES, so this walks straight past it and nothing but
+            # the per-entry resolve() refuses it. That is not hypothetical - it is
+            # how .bash_history was being served the first time the `home` root was
+            # surveyed, past a dot-DIRECTORY-only rule. It is what makes the
+            # resolve() call in both new walks observably load-bearing rather than
+            # redundant with the prune.
+            ".bash_history"):
     open(os.path.join(lz, rel), "w").write("x")
 # Three symlinks, each a different shape of the same attack:
 #   out      -> outside the root entirely
@@ -462,6 +470,10 @@ _, top = safepath.list_dir("lz", "")
 # listing that still carried it would be the recursive walk with a filter on it.
 expect("the root lists its own level only", names(top),
        ["docs", "src", "top.md"])
+# .bash_history is NOT in that list, and the only thing that excluded it is the
+# per-entry resolve(): prune_dirs filters directories, and this is a file.
+expect("a top-level dot FILE is refused, not merely not-descended",
+       any(".bash_history" in n for n in names(top)), False)
 expect("...and subdirectories come back as entries",
        sorted(e.res.relpath for e in top if e.is_dir), ["docs", "src"])
 # node_modules is a DENY_COMPONENT, .cache is a top-level dot, backups is named -
@@ -519,6 +531,10 @@ expect("find returns no path collect() would not",
        sorted(set(names(hits)) - {m.res.relpath for m in members}), [])
 expect("...and finds every one of them", set(names(hits)),
        {m.res.relpath for m in members})
+# ONCE EACH, and not as a set: a symlink resolves to its target's path, so
+# following one returns the same bytes a second time under a name the caller did
+# not ask about - and a set comparison cannot see that at all.
+expect("...each exactly once", len(names(hits)), len(set(names(hits))))
 expect("find is recursive where list_dir is not",
        "docs/deep/b.md" in names(hits), True)
 expect("find skips the symlinks too",

@@ -1403,6 +1403,17 @@ def list_dir(root_key: str, rel: str = "") -> tuple[Resolved, list[Entry]]:
     # root - which is what `here` is. Passing anything else makes a subtree's own
     # first level look like the root's, and that bug already cost a whole class of
     # dot directories inside `projects` once (see the long note in collect()).
+    #
+    # IT IS THE COST GUARD, NOT THE CONTROL, and that is worth stating here because
+    # the recursive walk's version of this line reads as if it were the control: at
+    # ONE level the resolve() below refuses every directory prune_dirs would drop,
+    # so removing this changes nothing a caller can see. (Proved by trying: the
+    # mutant that removes it is not caught by anything, because there is nothing to
+    # catch. scripts/checks/mutants.sh therefore has no row for it.) It stays
+    # because prune_dirs' whole reason for existing is that one function answers
+    # "where may a walk look" for every walk in this module, and because a listing
+    # that resolved 923 entries to discard half of them would be paying the 1.4s bug
+    # again in miniature.
     dirnames = [e.name for e in kids if e.is_dir(follow_symlinks=False)]
     keep = set(prune_dirs(root_key, here or ".", dirnames))
 
@@ -1413,13 +1424,23 @@ def list_dir(root_key: str, rel: str = "") -> tuple[Resolved, list[Entry]]:
             continue
         if e.is_symlink():
             continue
+        # THE CONTROL. prune_dirs filters DIRECTORIES, so a top-level dot FILE walks
+        # straight past it and only this refuses it - which is not hypothetical:
+        # .bash_history was being served the first time the `home` root was
+        # surveyed, past a dot-DIRECTORY-only rule.
         try:
             res = resolve(root_key, os.path.relpath(e.path, real))
         except PathRefused:
             continue
-        # The child test, and it is the containment proof AT THIS LEVEL: whatever
-        # resolve() allowed, this listing only ever describes names directly
-        # inside the folder it was asked about.
+        # The child test: whatever resolve() allowed, this listing only ever
+        # describes names directly inside the folder it was asked about, which is
+        # what lets a client file each row under the parent it opened.
+        #
+        # BELT AND BRACES, honestly: the symlink skip above is what makes it
+        # unreachable today, since a symlink is the only entry whose resolved path
+        # can sit somewhere else. It is here as the invariant stated at the point
+        # that depends on it, and it has no mutant row for the same reason the
+        # prune above does not - nothing can observe its removal.
         if os.path.dirname(res.relpath).strip("/") != here:
             continue
         try:

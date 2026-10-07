@@ -535,6 +535,108 @@ mutant "resolve() stops containing paths" \
   'if False:' \
   -- bash apps/bothy-files/checks/run.sh --offline
 
+# A directory listed as a folder has to BE a folder. resolve() answers for a PATH
+# and does not check the type, which is how listing `README.md` as a folder used to
+# reach os.walk and come back empty - a folder that renders as empty rather than as
+# refused, which reads as a missing file.
+mutant "a file can be listed as a folder again" \
+  apps/bothy-common/bothy_common/safepath.py \
+  '    if not os.path.isdir(res.abspath):' \
+  '    if False:' \
+  -- bash apps/bothy-files/checks/run.sh --offline
+
+# resolve() per entry, in the one-level listing. prune_dirs only filters
+# DIRECTORIES, so a top-level dot FILE walks straight past it - which is exactly how
+# .bash_history was being served the first time the `home` root was surveyed. The
+# unit corpus plants one for this row.
+mutant "the lazy listing stops resolving its entries" \
+  apps/bothy-common/bothy_common/safepath.py \
+  '            res = resolve(root_key, os.path.relpath(e.path, real))
+        except PathRefused:
+            continue' \
+  '            res = Resolved(root_key=root_key, root_dir=real, abspath=e.path,
+                           relpath=os.path.relpath(e.path, real),
+                           git_root=None, git_relpath=None)
+        except PathRefused:
+            continue' \
+  -- bash apps/bothy-files/checks/run.sh --offline
+
+# ...and in the name search, where it matters more: find() resolves only the names
+# that MATCH, which is what makes it 17x faster than filtering collect(), so the
+# property that has to survive is that everything it RETURNS still went through
+# resolve(). Same planted .bash_history catches it.
+mutant "the name search stops resolving what it returns" \
+  apps/bothy-common/bothy_common/safepath.py \
+  '                res = resolve(root_key, os.path.relpath(full, real))
+            except PathRefused:
+                continue' \
+  '                res = Resolved(root_key=root_key, root_dir=real, abspath=full,
+                               relpath=os.path.relpath(full, real),
+                               git_root=None, git_relpath=None)
+            except PathRefused:
+                continue' \
+  -- bash apps/bothy-files/checks/run.sh --offline
+
+# The symlink skip, in the listing. resolve() returns the path a name RESOLVES to,
+# so a symlink's row carries the TARGET's path - which a tree builder then files
+# under a parent nobody asked about, and which is a duplicate of the row the target
+# already has. Dropping it is how a listing of `docs` describes something that is
+# not in docs.
+mutant "a lazy listing follows a symlink" \
+  apps/bothy-common/bothy_common/safepath.py \
+  '        if e.is_symlink():
+            continue' \
+  '        if False:
+            continue' \
+  -- bash apps/bothy-files/checks/run.sh --offline
+
+# The same skip in the name search, where the symptom is a hit list carrying the
+# same file twice under two names.
+mutant "the name search follows symlinks" \
+  apps/bothy-common/bothy_common/safepath.py \
+  '            if os.path.islink(full):
+                continue
+            try:
+                res = resolve(root_key, os.path.relpath(full, real))' \
+  '            if False:
+                continue
+            try:
+                res = resolve(root_key, os.path.relpath(full, real))' \
+  -- bash apps/bothy-files/checks/run.sh --offline
+
+# The bound that REPLACED MAX_LISTING, and the half that makes it a replacement
+# rather than the same mistake: a search that stops has still seen the whole tree
+# and says so. Stop silently and "no results" is indistinguishable from "I gave up",
+# which is exactly how the 4,000-row listing made 15,000 files look absent.
+mutant "a bounded search stops saying it was bounded" \
+  apps/bothy-common/bothy_common/safepath.py \
+  '                stopped = {"reason": "too many matches", "limit": limit,
+                           "scanned": scanned}
+                break' \
+  '                break' \
+  -- bash apps/bothy-files/checks/run.sh --offline
+
+echo
+echo "── the tree the browser builds out of those listings ───────────────"
+# The listings that have already arrived, dropped on the next rebuild. It looks
+# exactly like a collapse - the rows are gone, nothing errors - and it is the
+# obvious wrong simplification of "rebuild from the map".
+mutant "a rebuild keeps only the newest listing" \
+  apps/bothy-web/web/src/pages/files/tree.ts \
+  'const dirs = [...loaded.keys()].sort((a, b) => a.split('"'"'/'"'"').length - b.split('"'"'/'"'"').length);' \
+  'const dirs = [...loaded.keys()].slice(-1);' \
+  -- "${WEB_CHECKS[@]}"
+
+# "Nobody has opened this folder" and "this folder is empty" are the same empty
+# children array. Mark everything loaded and the reader is told a directory is
+# empty when it has simply not been asked for - the one state the eager tree never
+# had to express.
+mutant "an unopened folder claims to be empty" \
+  apps/bothy-web/web/src/pages/files/tree.ts \
+  'return { name, path, dir, entry: null, children: [], loaded: !dir };' \
+  'return { name, path, dir, entry: null, children: [], loaded: true };' \
+  -- "${WEB_CHECKS[@]}"
+
 echo
 echo "── what a browser can make the host updater do ─────────────────────"
 # The update request is the one route whose effect lands on the HOST. Its gate is
