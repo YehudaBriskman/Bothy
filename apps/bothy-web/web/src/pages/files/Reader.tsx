@@ -317,15 +317,38 @@ export function Reader({ mode = 'read' }: {
   // own state change - and the section would sit on its skeleton forever with a
   // net::ERR_ABORTED in the log and no error on screen. Measured, on `home`.
   // The only abort that is correct here is the one on unmount.
+  //
+  // THE UNMOUNT ALSO HAS TO FORGET WHAT IT ABORTED, and the index above has to
+  // forget its LOADING marker with it. An aborted request never reaches either
+  // handler, so without this the key stays in the map and `trees[key]` stays the
+  // LOADING marker - and the filter below reads both as "already asked for". The
+  // section then sits on its skeleton forever with nothing in flight. React's
+  // StrictMode mounts, unmounts and remounts on the same fiber in development, so
+  // the ref survives and this fires on the very first render; in production it is
+  // leaving Files and coming back.
   const inflight = useRef(new Map<string, AbortController>());
-  useEffect(() => () => { for (const ac of inflight.current.values()) ac.abort(); }, []);
+  useEffect(() => () => {
+    for (const ac of inflight.current.values()) ac.abort();
+    inflight.current.clear();
+  }, []);
 
   useEffect(() => {
     // Keyed by root AND scope: the same root narrowed to two different folders
     // is two different listings, and keying on the root alone would show the
     // first one forever.
     const keyOf = (k: string) => (k === root && scope ? `${k}\u0000${scope}` : k);
-    const want = [...openRoots].filter((k) => !trees[keyOf(k)] && !inflight.current.has(keyOf(k)));
+    // "Nothing is in flight, and either nothing has been fetched or what is there
+    // is still the LOADING marker." The second half is the self-heal: the marker is
+    // written before the request, so an abort that never reaches either handler
+    // used to leave it in place forever and this filter read it as "already asked
+    // for". It cannot loop - the body re-registers in `inflight` synchronously, so
+    // the next run of this effect skips what it just started.
+    const want = [...openRoots].filter((k) => {
+      const key = keyOf(k);
+      if (inflight.current.has(key)) return false;
+      const at = trees[key];
+      return !at || at.loading;
+    });
     if (!want.length) return;
     setTrees((prev) => {
       const next = { ...prev };

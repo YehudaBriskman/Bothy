@@ -69,7 +69,19 @@ export function useLazyDirs(onAuthError?: () => void): {
   // leave the rail on its skeleton forever, with a net::ERR_ABORTED in the log and
   // nothing on screen. The only abort that is correct is the one on unmount.
   const inflight = useRef(new Map<string, AbortController>());
-  useEffect(() => () => { for (const ac of inflight.current.values()) ac.abort(); }, []);
+  useEffect(() => () => {
+    for (const ac of inflight.current.values()) ac.abort();
+    // CLEARED, not only aborted. An aborted request never reaches `settle`, so its
+    // key would stay in the map forever - and `ensure` treats a key in the map as
+    // "already asked for" and returns. The rail then sits on its skeleton with the
+    // folder permanently `pending` and no request in flight.
+    //
+    // This is not a hypothetical: React's StrictMode mounts, unmounts and remounts
+    // in development, on the same fiber, so the ref survives - and the very first
+    // run of the explorer against the real service wedged on exactly this. The
+    // production path is the same shape: leave Files and come back.
+    inflight.current.clear();
+  }, []);
 
   // `ensure` is called from effects, so it must not change identity on every
   // listing that arrives - otherwise every arrival re-runs every effect that

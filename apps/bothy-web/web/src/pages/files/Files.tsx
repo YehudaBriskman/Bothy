@@ -716,13 +716,18 @@ export function Files() {
 
   // How many entries this rail is currently holding. It used to be the root's
   // total file count, which is a number nothing can know any more without the
-  // recursive listing that was removed - and which was WRONG for the two big
-  // roots anyway, because it counted the 4,000 the cap allowed rather than the
-  // 19,273 that are there. The honest number is what has been loaded, and the
-  // footer labels it as such.
+  // recursive listing that was removed - and which was WRONG for the two big roots
+  // anyway, because it counted the 4,000 the cap allowed rather than the 19,273
+  // that are there. The honest number is what has been loaded, and both the header
+  // and the footer label it as such.
+  //
+  // EVERY ENTRY, folders included, because "loaded" is a statement about this rail
+  // and a folder row is a row. Counting files only printed "0 loaded" beside a
+  // visible `army` folder on the `projects` root, whose top level is one directory
+  // and no files - a number that is true about files and reads as a broken panel.
   const loadedCount = useMemo(() => {
     let n = 0;
-    for (const es of dirs.loaded.values()) for (const e of es) if (e.dir !== true) n += 1;
+    for (const es of dirs.loaded.values()) n += es.length;
     return n;
   }, [dirs.loaded]);
 
