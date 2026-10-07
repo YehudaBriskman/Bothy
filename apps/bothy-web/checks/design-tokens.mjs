@@ -893,8 +893,10 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   // component this replaces (components/Tooltip.tsx) closes on pointerdown - so
   // its tip opens and shuts in one tap.
   say(/onFocus=\{show\}/.test(hintTs), 'the hint opens on FOCUS, so a keyboard reaches it');
-  say(/pointerType === 'mouse'/.test(hintTs),
-    'and hover is honoured for a mouse only, so a TAP reaches the toggle instead of being eaten by it');
+  const gated = (hintTs.match(/onPointer(?:Enter|Leave)=\{\(e\)\s*=>\s*\{\s*if\s*\(e\.pointerType === 'mouse'\)/g) ?? []).length;
+  say(gated === 2,
+    'and hover is honoured for a mouse only ON BOTH pointer handlers, so a TAP reaches the toggle instead of being eaten by it',
+    `${gated} of 2 gated`);
   say(/aria-label=\{label\}/.test(hintTs) && /label\?: never/.test(hintTs) === false && /label: string;/.test(hintTs),
     'the trigger carries a required accessible name (a bare glyph is "button" to a screen reader)');
   say(/aria-describedby=\{open \? id : undefined\}/.test(hintTs),
