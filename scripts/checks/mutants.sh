@@ -1054,6 +1054,32 @@ mutant "an unreadable exit time becomes zero instead of null" \
   -- "${WEB_CHECKS[@]}"
 
 echo
+echo "── batch A: the footprint rule, on the pages that had not adopted it ─"
+# Every row here is anchored on the DECLARATION, never on the comment above it.
+# A mutation planted in prose applies cleanly, changes nothing, and reports a
+# healthy check as decorative - a no-op this repo has paid for twice, and both
+# of the checks these rows guard strip comments before they read anything.
+
+# A1. The defect as it shipped: the counts are `auto`, so the `1fr` is the BAR,
+# and in a 1320px column that is ~1100px of 8px ribbon for one ratio. Nothing
+# about the page looks broken afterwards, which is why it survived two batches.
+mutant "the health strip's bar spans the page again" \
+  apps/bothy-web/web/src/pages/Overview.css \
+  '  display: grid; grid-template-columns: auto minmax(7.5rem, 20rem);' \
+  '  display: grid; grid-template-columns: auto minmax(7.5rem, 1fr);' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the half of the cap that is not the cap. A grid stretches `auto` tracks
+# and only `auto` tracks, so dropping this leaves the bar 20rem wide and pinned
+# to the right edge: the same full-width line, drawn the other way round.
+mutant "the capped bar drifts to the right edge" \
+  apps/bothy-web/web/src/pages/Overview.css \
+  '  justify-content: start;
+  align-items: center; gap: var(--sp-4);' \
+  '  align-items: center; gap: var(--sp-4);' \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is

@@ -58,8 +58,23 @@
    the border is most of what makes it read as a line rather than a panel. */
 .ov-status { display: flex; flex-direction: column; gap: var(--sp-2); }
 
+/* THE BAR IS CAPPED, and that is the whole of this rule. The counts have always
+   been `auto`; the bar took the `1fr`, so inside the 1320px content column it
+   drew about 1100px of 8px ribbon - the widest footprint on the page spent on
+   ONE ratio, which is the shape principles.md §3 had the hero deleted for
+   (reference/decisions.md, 2026-08-10: 160px -> 55px). Capping rather than
+   removing, because the bar is one of the three things that REPLACED the hero
+   and it reads a part-to-whole at a glance in a way the counts do not.
+   20rem is about one quick-view tile wide, so the strip and the tiles under it
+   read as one block instead of two different page widths.
+   `justify-content: start` is load-bearing: an `auto` track is the one kind a
+   grid stretches, so without it the counts would spread and push the capped bar
+   to the right edge - the same full-width line, drawn the other way round.
+   CAPPED HERE, NOT IN viz.css: StatusBar is shared (components/viz.tsx), and
+   the other callers want their own width. */
 .ov-status-head {
-  display: grid; grid-template-columns: auto minmax(120px, 1fr);
+  display: grid; grid-template-columns: auto minmax(7.5rem, 20rem);
+  justify-content: start;
   align-items: center; gap: var(--sp-4);
 }
 

@@ -732,5 +732,25 @@ console.log('\n── batch 5: tables become cards, states are written once ─�
   say(firstPollHand.length === 0, 'no hand-written `at === 0 && fails === 0` (use firstPoll)', firstPollHand.join(', '));
 }
 
+// ── 11. batch A: the footprint rule, applied to the dashboards ──────────────
+console.log('\n── batch A: a one-ratio bar is capped, dashboard cards keep the tile ─');
+{
+  const ovCss = rules(readFileSync(join(SRC, 'pages', 'Overview.css'), 'utf8'));
+  const one = (rs, want) => rs.find((r) => r.sel.replace(/\s+/g, ' ') === want && !r.media);
+
+  // A1. The counts were always `auto`; the BAR held the `1fr`, so in a 1320px
+  // column it drew ~1100px of 8px ribbon for a single ratio. Reverting the cap
+  // is one token, and nothing on the page would look broken - which is exactly
+  // the kind of regression this file exists for.
+  const head = one(ovCss, '.ov-status-head');
+  const cols = head ? (decls(head.body).find(([p]) => p === 'grid-template-columns')?.[1] ?? '') : '';
+  const just = head ? (decls(head.body).find(([p]) => p === 'justify-content')?.[1] ?? '') : '';
+  say(!!head && /minmax\([^)]*rem\s*\)/.test(cols) && !/\b1fr\b/.test(cols),
+    'the status strip\'s bar is capped, never 1fr (principles.md §3: one ratio is not a page-wide row)', cols);
+  // Without this the `auto` counts column stretches - a grid stretches auto
+  // tracks and only auto tracks - and the capped bar lands on the right edge.
+  say(just === 'start', 'and the strip is start-justified, so the cap is not undone by the auto track stretching', just);
+}
+
 console.log(`\n  ${passes} pass · ${failures} fail`);
 process.exit(failures ? 1 : 0);
