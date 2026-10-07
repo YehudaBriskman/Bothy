@@ -1679,9 +1679,9 @@ html[data-motion='reduce'] :where(.btn, .chip, .chips button, .icon-btn, .seg-to
    Where two slops overlap, the later control wins the overlap, which on touch
    is a far smaller error than a 17px target. */
 :where(.svc-act-btn, .svc-group-open, .set-cmd-copy, .sn-copy, .ov-uirow-open, .fx-hbtn,
-  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn) { position: relative; }
+  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn, .qv-pick) { position: relative; }
 :where(.svc-act-btn, .svc-group-open, .set-cmd-copy, .sn-copy, .ov-uirow-open, .fx-hbtn,
-  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn)::after {
+  .fx-filter-x, .fx-tab-x, .fx-rowbtn, .logp-refresh, .rd-root-btn, .qv-pick)::after {
   content: ''; position: absolute;
   inset: min(0px, calc((100% - var(--hit)) / 2));
 }

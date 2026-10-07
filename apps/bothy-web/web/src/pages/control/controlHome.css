@@ -75,7 +75,7 @@
 }
 
 /* ── the card frame ───────────────────────────────────────────────────────── */
-.ch-card { min-width: 0; display: flex; flex-direction: column;
+.ch-card { position: relative; overflow: hidden; min-width: 0; display: flex; flex-direction: column;
   background: var(--surface-1); border: var(--border-w) solid var(--line); border-radius: var(--r-lg); }
 .ch-card-head { display: flex; align-items: center; gap: var(--sp-2); min-width: 0;
   padding: var(--sp-3) var(--sp-4); border-bottom: var(--border-w) solid var(--line); }
@@ -91,6 +91,38 @@
 .ch-card-link:hover { color: var(--fg); background: var(--surface-2); }
 .ch-card-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); display: flex; flex-direction: column;
   gap: var(--sp-3); min-width: 0; }
+
+/* ── the primary card ─────────────────────────────────────────────────────
+   The same idea as the Overview's primary tile, and deliberately the same
+   shape of answer: the reader chooses it, it persists per browser, and NOTHING
+   MOVES - not its cell, not its span, and not when one of its numbers goes bad
+   (space-and-layout.md). Three cards of one shape is what makes them
+   comparable; a card of a different size has left that set.
+
+   --accent and not a status colour, by the rule rather than in spite of it:
+   "the one I watch" is a choice the reader made, not something the box is
+   doing (principles.md rule 2). Painting it --st-warn would make the card you
+   chose and the card that is broken the same colour. */
+.ch-card.is-primary { border-color: var(--accent-line); }
+.ch-card.is-primary::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: var(--sp-1); background: var(--accent);
+}
+.ch-card.is-primary .ch-card-head { background: var(--surface-2); }
+
+/* The pin, after the link because `.ch-card-link` owns the header's one
+   `margin-left: auto`. Visible at rest on every card, for the reason
+   .svc-act-btn records: a hover-revealed affordance is unfindable, and on a
+   phone it does not exist. --hit as a MINIMUM, never a height: 24px under a
+   fine pointer, 44px under a coarse one. */
+.ch-pick {
+  appearance: none; cursor: pointer; font: inherit; padding: 0; flex: none;
+  display: grid; place-items: center;
+  min-width: var(--hit); min-height: var(--hit);
+  border: 0; border-radius: var(--r-xs); background: transparent; color: var(--fg-subtle);
+}
+.ch-pick svg { display: block; }
+.ch-pick:hover { color: var(--fg); }
+.ch-card.is-primary .ch-pick { color: var(--accent-fg); }
 
 /* The two skeleton bars were 2 x --sp-6 plus a gap; the Loader row keeps that
    height so a card does not jump when its source answers. */

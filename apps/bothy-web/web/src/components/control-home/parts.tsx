@@ -8,7 +8,7 @@ import { Loader } from '../ui/Loader';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, CircleAlert, CircleCheck, CircleHelp, CirclePause, CircleX, type LucideIcon,
+  ArrowRight, CircleAlert, CircleCheck, CircleHelp, CirclePause, CircleX, Pin, type LucideIcon,
 } from 'lucide-react';
 import { Icon } from '../ui/Icon';
 import type { Series } from '../../lib/metrics';
@@ -34,9 +34,19 @@ export function ToneIcon({ tone, label }: { tone: Tone; label?: string }) {
   );
 }
 
+/**
+ * The reader's "this is the one I watch" control. Three glance cards of one
+ * shape is what makes them comparable and also why none of them is first, so the
+ * choice is the reader's and it persists per browser (lib/prefs.ts) - the same
+ * idea, and the same storage key, as the Overview's quick-view strip.
+ *
+ * `on` toggles OFF when it is already the primary, so "none" stays reachable.
+ */
+export interface Pick { on: boolean; onPick: () => void }
+
 /** A section card: an h2, an optional glance value, and the link onward. */
 export function Card({
-  id, title, icon, to, toLabel, meta, children, className,
+  id, title, icon, to, toLabel, meta, pick, children, className,
 }: {
   id: string;
   title: string;
@@ -45,11 +55,18 @@ export function Card({
   to?: string;
   toLabel?: string;
   meta?: ReactNode;
+  pick?: Pick;
   children: ReactNode;
   className?: string;
 }) {
   return (
-    <section className={`ch-card${className ? ` ${className}` : ''}`} aria-labelledby={`${id}-h`}>
+    // NOTHING MOVES when a card is chosen, and nothing moves when one of its
+    // numbers goes bad: the emphasis is a spine and a raised header, never a
+    // different cell or a different span (space-and-layout.md).
+    <section
+      className={`ch-card${pick?.on ? ' is-primary' : ''}${className ? ` ${className}` : ''}`}
+      aria-labelledby={`${id}-h`}
+    >
       <header className="ch-card-head">
         <Icon icon={icon} size="sm" className="ch-card-ico" />
         <h2 id={`${id}-h`} className="ch-card-title">{title}</h2>
@@ -59,6 +76,20 @@ export function Card({
             {toLabel ?? 'Open'}
             <Icon icon={ArrowRight} size="xs" />
           </Link>
+        )}
+        {/* After the link, not before it: `.ch-card-link` carries the row's one
+            `margin-left: auto`, and a second auto margin would split the free
+            space between them and strand the pin mid-header. */}
+        {pick && (
+          <button
+            type="button"
+            className="ch-pick"
+            aria-pressed={pick.on}
+            aria-label={pick.on ? `${title} is the card you watch - clear it` : `Watch ${title}: make it the primary card`}
+            onClick={pick.onPick}
+          >
+            <Icon icon={Pin} size="xs" fill={pick.on ? 'currentColor' : 'none'} />
+          </button>
         )}
       </header>
       <div className="ch-card-body">{children}</div>

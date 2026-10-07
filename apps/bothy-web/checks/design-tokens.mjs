@@ -122,6 +122,9 @@ console.log('── every button look comes from components/ui/Button ───�
   const FAMILIES = {
     'tab or segment (selection within a group; carries aria-selected/pressed)': [
       'topo-view-btn', 'sv-focus-btn', 'fx-sr-toggle', 'fx-panel-tab', 'fx-actbtn', 'chip', 'fx-rootchip',
+      // The primary-tile and primary-card pins: at most one of a group is
+      // pressed, and pressing the pressed one clears it.
+      'qv-pick', 'ch-pick',
     ],
     'row or card (a whole list item is the target; presses darken, never scale)': [
       'fx-row', 'fx-scm-row', 'fx-scm-grouph', 'fx-json-row', 'fx-sr-file', 'fx-sr-line', 'rd-dir', 'rd-doc',

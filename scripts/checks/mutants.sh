@@ -1079,6 +1079,32 @@ mutant "the capped bar drifts to the right edge" \
   '  align-items: center; gap: var(--sp-4);' \
   -- "${WEB_CHECKS[@]}"
 
+# A2. A stored primary is read back as itself instead of being checked against
+# the list this build draws. The preference then persists perfectly and reaches
+# nothing: a renamed tile leaves a strip with a primary no tile matches, which
+# looks exactly like the preference having been lost.
+mutant "a stored primary tile is trusted unchecked" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  '    (typeof v === '"'"'string'"'"' && (allowed as readonly string[]).includes(v) ? (v as T) : null);' \
+  '    (typeof v === '"'"'string'"'"' ? (v as T) : null);' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the other end of the same wire: the list and the page disagreeing about
+# an id. Nothing throws, nothing looks broken, and the pin simply never lights.
+mutant "a quick-view tile id drifts from the one the strip renders" \
+  apps/bothy-web/web/src/components/QuickView.tsx \
+  '        id="net"' \
+  '        id="eth"' \
+  -- "${WEB_CHECKS[@]}"
+
+# The toggle. Without the clear, "no primary" - the state every browser starts
+# in - becomes unreachable the moment anybody presses anything.
+mutant "the primary can be moved but never cleared" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  '  return current === id ? null : id;' \
+  '  return id;' \
+  -- "${WEB_CHECKS[@]}"
+
 echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran

@@ -9,11 +9,11 @@ import { KUBE_NAMESPACES } from '../../lib/kube-actions';
 import type { CollectorProject } from '../../lib/projects';
 import type { Source } from './usePolled';
 import type { ClusterMetrics } from './sources';
-import { Card, Fact, SourceNote, ToneIcon } from './parts';
+import { Card, Fact, SourceNote, ToneIcon, type Pick } from './parts';
 
 const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
 
-export function ClusterCard({ src, projects }: { src: Source<ClusterMetrics>; projects: CollectorProject[] }) {
+export function ClusterCard({ src, projects, pick }: { src: Source<ClusterMetrics>; projects: CollectorProject[]; pick: Pick }) {
   const c = src.data;
   // The collector knows whether a cluster PROJECT is live even when nothing
   // scrapes it - the difference between "the cluster is off" and "it is on and
@@ -22,7 +22,7 @@ export function ClusterCard({ src, projects }: { src: Source<ClusterMetrics>; pr
   const declaredLive = declared.some((p) => p.state === 'live' || p.state === 'degraded');
 
   return (
-    <Card id="ch-cluster" title="Cluster" icon={ShipWheel} to="/control/cluster" toLabel="Cluster">
+    <Card id="ch-cluster" title="Cluster" icon={ShipWheel} to="/control/cluster" toLabel="Cluster" pick={pick}>
       {!c ? (
         <SourceNote state={src.state} what="cluster metrics" />
       ) : !c.reporting ? (
