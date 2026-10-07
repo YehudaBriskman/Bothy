@@ -144,9 +144,11 @@ console.log('── every button look comes from components/ui/Button ───�
   // Buttons whose className is a pure state expression (`on` / '') inside a
   // group container that carries the look (.chips, .seg-toggle, .tabs,
   // .vit-ranges), and the few with no class inside a styled parent.
+  // pages/Overview.tsx left this list when its last hand-rolled `.seg-toggle`
+  // became a <Tabs> - it now renders no raw <button> at all.
   const STATE_ONLY_FILES = new Set([
     'components/PortsTab.tsx', 'components/RoutesTab.tsx', 'pages/control/Cluster.tsx', 'pages/settings/Audit.tsx',
-    'components/Vitals.tsx', 'components/Tabs.tsx', 'pages/Overview.tsx', 'pages/control/ClusterTabs.tsx',
+    'components/Vitals.tsx', 'components/Tabs.tsx', 'pages/control/ClusterTabs.tsx',
     'pages/files/Editor.tsx', 'components/SystemMatrix.tsx', 'pages/files/DocIndex.tsx', 'pages/files/Reader.tsx',
   ]);
   const unknown = [];
@@ -753,6 +755,24 @@ console.log('\n── batch A: a one-ratio bar is capped, dashboard cards keep t
   // Without this the `auto` counts column stretches - a grid stretches auto
   // tracks and only auto tracks - and the capped bar lands on the right edge.
   say(just === 'start', 'and the strip is start-justified, so the cap is not undone by the auto track stretching', just);
+
+  // A3. `.seg-toggle` is the hand-rolled selector components/Tabs.tsx was
+  // written to replace: `role="group"` plus `aria-pressed`, so a screen reader
+  // hears N unrelated toggles rather than "tab 1 of 2" and the arrow keys do
+  // nothing. Two survive, and each is a DIFFERENT CONTROL rather than one
+  // nobody got round to - which is exactly why the registry names the reason:
+  //   settings/Audit.tsx - a filter among filters, inside role="search". A
+  //     tablist there would claim the table below is N panels while three other
+  //     controls narrow that one table.
+  //   files/Editor.tsx - an icon-only pair in a dense toolbar, each button
+  //     wrapped in a Tooltip that owns its accessible name. TabSpec has no
+  //     per-tab label or tooltip slot, and growing the shared primitive to fit
+  //     one toolbar is the wrong direction of travel.
+  const SEG_OK = [join('pages', 'settings', 'Audit.tsx'), join('pages', 'files', 'Editor.tsx')];
+  const segs = tsx.filter((f) => /className="[^"]*\bseg-toggle\b/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
+  say(segs.length === SEG_OK.length && segs.every((f) => SEG_OK.includes(f)),
+    'the only hand-rolled `.seg-toggle` left are the two registered exceptions (a new one, or a stale entry, fails)',
+    segs.join(', ') || '(none)');
 }
 
 console.log(`\n  ${passes} pass · ${failures} fail`);

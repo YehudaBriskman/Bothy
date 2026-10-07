@@ -1105,6 +1105,17 @@ mutant "the primary can be moved but never cleared" \
   '  return id;' \
   -- "${WEB_CHECKS[@]}"
 
+# A3. A third hand-rolled `.seg-toggle` appearing somewhere. That is the whole
+# regression: the class still exists and still looks fine, so nothing is visibly
+# wrong - a screen reader just hears N unrelated toggles again and the arrow keys
+# do nothing. The registry's two survivors each have a stated reason; a third has
+# to earn one.
+mutant "a third hand-rolled .seg-toggle appears" \
+  apps/bothy-web/web/src/pages/Overview.tsx \
+  '    <div className="ov-ui">' \
+  '    <div className="ov-ui seg-toggle">' \
+  -- "${WEB_CHECKS[@]}"
+
 echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
