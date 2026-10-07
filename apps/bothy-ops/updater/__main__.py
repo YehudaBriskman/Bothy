@@ -90,6 +90,11 @@ def main_groups(cfg: Config, only: str | None) -> int:
             p = groups.plan(gid, cfg=cfg, catalog=catalog)
         except plans.PlanRefused as e:
             print(f"   nothing to apply: {e}")
+            # The per-component half, printed as its own lines rather than glued
+            # onto the sentence above - the same split the page makes, and the
+            # reason the sentence is no longer truncated at 300 characters.
+            for s in getattr(e, "per", []):
+                print(f"   - {s['component']:18} {s['reason']}")
             bad += 1
             continue
         print(f"   plan {p['id']}  {p['level']}  confirm {p['confirm']}"

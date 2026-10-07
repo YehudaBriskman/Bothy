@@ -229,9 +229,16 @@ def resolve(group: str, *, cfg: Config | None = None, catalog: updates.Catalog |
         except PlanRefused as e:
             refusals[cid] = str(e)[:200]
     if len(members) < MIN_MEMBERS:
-        why = "; ".join(f"{cid}: {r}" for cid, r in sorted(refusals.items()))
+        # THE SENTENCE AND THE LIST ARE SEPARATE, and that is the fix rather than a
+        # tidy-up (2026-10-07). They used to be one string, and every writer of a
+        # refusal caps it at 300 characters, so on this box the page ended
+        # "...grafana: noth" - a reason the host had written perfectly well and the
+        # UI then showed mid-word. The sentence is what belongs on the surface; the
+        # per-component list is what belongs behind the page's detail hint, and
+        # `per` is the same shape a deployable plan's `skipped` already uses.
         raise PlanRefused(f"{len(members)} of {len(all_groups[group])} components of `just {group}` have "
-                          f"something to apply; a group is for two or more (one is its own row). {why}"[:300])
+                          f"something to apply; a group is for two or more (one is its own row)."[:300],
+                          per=[{"component": cid, "reason": r} for cid, r in sorted(refusals.items())])
 
     # The project, read once from the first member's container - every member must
     # be in the same one, or `just <recipe>` is not one `docker compose up`.
@@ -374,6 +381,11 @@ def write_all(cfg: Config | None = None, catalog: updates.Catalog | None = None,
             out[gid] = p["id"]
         except PlanRefused as e:
             doc = {"version": GROUP_VERSION, "group": gid, "ok": False, "reason": str(e)[:300],
+                   # The per-component half, where the refusal has one. A
+                   # non-deployable group is the state this box is in most of the
+                   # time, so it is the one the page has to be able to explain.
+                   "skipped": [{"component": s["component"], "reason": str(s["reason"])[:300]}
+                               for s in getattr(e, "per", [])][:16],
                    "createdAt": iso(), "discoveredAt": (available or {}).get("generatedAt"),
                    "members": known[gid]}
             out[gid] = f"- {e}"

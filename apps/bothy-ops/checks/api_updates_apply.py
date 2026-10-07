@@ -517,7 +517,11 @@ gcases = [
 for kw, want, label in gcases:
     st, b = call("/updates/request", method="POST", **kw)
     ok(st == want and spool() == [], f"group: {label} -> {want}, no file ({st}: {b.get('error', '')[:70]})")
-gwrite({"version": 1, "group": GID, "ok": False, "reason": "`just up-monitoring` would also recreate promtail"})
+gwrite({"version": 1, "group": GID, "ok": False, "reason": "`just up-monitoring` would also recreate promtail",
+        # The per-component half of the refusal, which the page keeps behind its
+        # detail hint. It has to survive the allowlist, and nothing else may.
+        "skipped": [{"component": "alloy", "reason": "nothing to deploy: alloy runs what main pins"},
+                    {"component": "NOT a component id", "reason": "dropped"}]})
 st, b = call("/updates/request", method="POST", body=GG)
 ok(st == 409 and "promtail" in b.get("error", "") and spool() == [],
    f"a group the HOST refused -> 409, with the host's own reason ({st})")
@@ -525,6 +529,9 @@ st, b = call("/updates/status")
 g0 = {g["group"]: g for g in (b.get("groups") or [])}[GID]
 ok(g0["deployable"] is False and "promtail" in (g0["reason"] or "") and b["summary"]["groups"] == 0,
    "status: a refused group is a row with its reason, and is not counted")
+ok([x["component"] for x in g0.get("skipped") or []] == ["alloy"]
+   and "runs what main pins" in g0["skipped"][0]["reason"],
+   f"…and the per-component half comes through the allowlist, bad ids dropped: {g0.get('skipped')}")
 ok({r["id"]: r for r in b["components"]}["loki"]["applyWithGroup"] is False,
    "…and its members no longer claim a group would carry them")
 gwrite(group_plan(discovered="2026-09-19T04:00:00Z"))
