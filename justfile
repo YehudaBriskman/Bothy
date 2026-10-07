@@ -536,12 +536,15 @@ updates-discover *args:
 update-plan component:
     cd apps/bothy-ops && python3 -m updater plan --component {{quote(component)}}
 
-# Show what each `apply` recipe would apply ALL AT ONCE (updater/groups.py), and
-# for each one that is refused, why. Read-only: when two services of one compose
-# project are behind, no single-component apply can succeed (the scope check,
-# rightly, refuses both), and the group is the action that closes that - a click
-# in Settings > Updates, because the union of its members' classes may need the
-# recipe's name typed. From a shell the answer stays `just up-<recipe>`.
+# When two services of one compose project are behind, no single-component apply
+# can succeed - the scope check, rightly, refuses both. The group is the action
+# that closes that, and it is a click in Settings > Updates rather than a recipe
+# here, because the union of its members' classes may need the recipe's name
+# typed. From a shell the answer stays `just up-<recipe>`.
+#
+# `just` takes the LAST comment line as the description, so the summary goes
+# here and the reasoning stays above it.
+# Show what each `apply` recipe would apply all at once, and why one is refused (read-only).
 update-groups *group:
     cd apps/bothy-ops && python3 -m updater groups {{ if group == "" { "" } else { "--group " + quote(group) } }}
 
