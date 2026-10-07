@@ -1,0 +1,49 @@
+/* ============================================================================
+   ui/InfoHint - the glyph that stands where a paragraph used to be.
+
+   It has to be small enough that a row of six of them down a page reads as
+   punctuation rather than as six controls, and still be a 24/44px target. So:
+   a 12px glyph in --fg-subtle, and the invisible hit slop every other small
+   drawn control in this app gets (index.css, PRESS AND HIT) - the same `inset:
+   min(0px, ...)` arithmetic, declared here under this component's own selector
+   rather than added to that shared `:where()` list, because the duplicate-rule
+   check in design-tokens.mjs §9 is right to forbid one selector in two files.
+
+   NOT in the shared :active list, deliberately: --press-scale on a 12px glyph
+   moves it by a third of a pixel. The state that is worth drawing is "this one
+   is open", and it is drawn by colour plus the panel itself.
+   ========================================================================== */
+
+.ui-hint {
+  appearance: none; cursor: pointer;
+  display: inline-grid; place-items: center;
+  position: relative;
+  width: var(--icon-md); height: var(--icon-md);
+  padding: 0; margin: 0;
+  vertical-align: -2px;
+  color: var(--fg-subtle);
+  background: none; border: 0;
+  border-radius: var(--r-full);
+  transition: color var(--dur-fast) var(--ease);
+}
+.ui-hint::after { content: ''; position: absolute; inset: min(0px, calc((100% - var(--hit)) / 2)); }
+.ui-hint:hover, .ui-hint[data-state='open'] { color: var(--fg); }
+
+/* The panel. Narrower than a generic popover (a hint is read, not scanned) and
+   at the body-adjacent size, because what moved in here is prose that used to
+   be laid out as prose. ui/Popover already gives it the surface, the layer, the
+   hairline, the shadow and the motion. */
+.ui-hint-pop.ui-pop {
+  width: max-content; max-width: min(34rem, calc(100vw - var(--sp-4)));
+  padding: var(--sp-2_5) var(--sp-3);
+}
+.ui-hint-body {
+  font-size: var(--fs-sm); line-height: 1.6; color: var(--fg-muted);
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  min-width: 0; overflow-wrap: anywhere;
+}
+.ui-hint-body > :first-child { margin-top: 0; }
+.ui-hint-body > :last-child { margin-bottom: 0; }
+.ui-hint-body p { margin: 0; }
+.ui-hint-body b, .ui-hint-body strong { color: var(--fg); }
+.ui-hint-body ul, .ui-hint-body ol { margin: 0; padding-left: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-1); }

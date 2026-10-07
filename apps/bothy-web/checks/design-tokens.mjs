@@ -134,6 +134,11 @@ console.log('── every button look comes from components/ui/Button ───�
     'icon trigger (a glyph with an aria-label; hit slop to --hit)': [
       'icon-btn', 'fx-hbtn', 'svc-act-btn', 'fx-filter-x', 'fx-tab-x', 'fx-rowbtn', 'sn-copy', 'set-cmd-copy',
       'logp-refresh', 'rd-root-btn', 'rd-scope-btn', 'rd-scope-go', 'ct-collapse', 'sort-btn', 'fx-dlbtn',
+      // ui/InfoHint's trigger (2026-10-07): the 12px glyph that stands where a
+      // paragraph used to be. A <Button iconOnly> was the alternative and is
+      // wrong here - it is a bordered 24px control, and a page with eight of
+      // them reads as eight things to press rather than as eight footnotes.
+      'ui-hint',
     ],
     'inline text action (reads as a link inside prose or a breadcrumb)': [
       'cl-link', 'md-reflink', 'mono', 'rd-inline', 'rd-crumb-root', 'rd-back', 'te-back', 'te-more', 'fx-sha',
