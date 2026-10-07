@@ -234,6 +234,22 @@ jobs:
         if: always()
         run: bash scripts/checks/e2e-pins.sh
 
+      # docs/brand/patterns/dataviz.md has been the standard since 2026-08-10 and
+      # three of the five Grafana dashboards obeyed none of it, because nothing
+      # ever read it on their behalf. The things that survived a year are the
+      # shape of the problem: 110 panels coloured series by their position in the
+      # list, three drew a missing sample as zero, and a PSI bargauge had
+      # thresholds at 70 and 90 on a field declared `max: 1`, so it had been
+      # permanently green since the day it was imported. None of that produces an
+      # error, a warning, or a visibly broken page.
+      #
+      # It also holds the landing page, which is the one failure here with no
+      # symptom at all: an unresolvable home-dashboard path makes Grafana fall
+      # back to its stock Home - exactly the state the setting was added to fix.
+      - name: The Grafana dashboards keep to the data-visualisation standard
+        if: always()
+        run: bash scripts/checks/dashboards.sh
+
   # ── the checks must be able to fail ─────────────────────────────────────────
   #
   # Everything above answers "is the tree healthy". This answers the question

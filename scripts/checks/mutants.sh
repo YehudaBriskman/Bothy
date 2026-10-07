@@ -1440,6 +1440,53 @@ mutant "the rasters stop matching the SVG they came from" \
   '<rect width="24" height="24" rx="5.4" fill="#09090b"/>' \
   '<rect width="24" height="24" fill="#09090b"/>' \
   -- "${WEB_CHECKS[@]}"
+||||||| parent of 4b0eb51 (a check reads the dashboards, because nothing ever read the standard on their behalf)
+
+echo
+echo "── the dashboards keep to the data-visualisation standard ──────────"
+# Four rules from docs/brand/patterns/dataviz.md, each one a defect this repo
+# actually shipped and none of which produces an error, a warning or a visibly
+# broken page. Every anchor below is a DATA line in a JSON or YAML file, which
+# matters here: scripts/checks/dashboards.sh reads the files whole and strips
+# nothing, but the habit this directory enforces is to anchor on something the
+# check can actually see, and a comment would not be.
+DASH_CHECK=(bash scripts/checks/dashboards.sh)
+
+# What 110 panels of Node Exporter Full did: colour assigned by a series' INDEX,
+# so filtering one mount out repaints every mount after it.
+mutant "a panel colours series by rank again" \
+  monitoring/dashboards/node-exporter-full.json \
+  '"mode": "palette-classic-by-name"' \
+  '"mode": "palette-classic"' \
+  -- "${DASH_CHECK[@]}"
+
+# What the Cadvisor import did to its CPU and both memory panels: a missing
+# sample drawn as zero, which is a cliff that never happened, on exactly the
+# panels somebody opens when a container is behaving oddly.
+mutant "a missing sample is drawn as zero again" \
+  monitoring/dashboards/cadvisor.json \
+  '"nullPointMode": "null"' \
+  '"nullPointMode": "null as zero"' \
+  -- "${DASH_CHECK[@]}"
+
+# What traefik.json did for a year: #4d9bff and #9fabbe, neither of them in
+# docs/brand/reference/tokens.md. A near-token reads as deliberate and is
+# invisible in one of the five themes.
+mutant "an off-token hex lands in a dashboard" \
+  monitoring/dashboards/traefik.json \
+  '"fixedColor": "text"' \
+  '"fixedColor": "#4d9bff"' \
+  -- "${DASH_CHECK[@]}"
+
+# The landing page, which is the one failure here with NO symptom: Grafana logs
+# an unresolvable home-dashboard path and falls back to the stock Home page -
+# which is precisely the state the setting was added to fix, so the fallback is
+# indistinguishable from the bug.
+mutant "the landing page points at nothing" \
+  monitoring/compose.yml \
+  'GF_USERS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/box-health.json' \
+  'GF_USERS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/box-healht.json' \
+  -- "${DASH_CHECK[@]}"
 
 echo
 echo "── the check harness itself ────────────────────────────────────────"
