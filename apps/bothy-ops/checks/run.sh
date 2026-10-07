@@ -44,7 +44,15 @@
 #                        (tampered plan ids, symlinks, junk); the strict pin
 #                        edit; the global lock; the result metric.
 #   api_updates_apply.py plan / request / job through the real handler: one
-#                        spool file per 202 and nothing else; every refusal.
+#                        spool file per 202 and nothing else; every refusal -
+#                        including a GROUP ask, which rides the same route.
+#   test_groups.py       APPLYING A WHOLE RECIPE AT ONCE: who may be a member,
+#                        the UNION of their treatments (one one-way member types
+#                        the recipe's name), the scope rule over that union with
+#                        every leftover named, the group id's staleness, the
+#                        spool shape, a job whose snapshots all precede any pull
+#                        and whose rollback is all-or-nothing, and the pause of
+#                        every `auto` member a rolled-back group moved.
 #   api_updates_asks.py  discover / autorun through the real handler: one spool
 #                        file per 202, the rate limit, the body shapes, the
 #                        allow-list over the host's asks.json; every refusal.
@@ -160,6 +168,9 @@ check "$PY" checks/test_updater.py
 
 section "updates: plan, request and job - one spool file, and nothing else"
 check "$PY" checks/api_updates_apply.py 2>/dev/null
+
+section "groups: a whole recipe at once - the union, the scope, all-or-nothing"
+check "$PY" checks/test_groups.py
 
 section "updates: discover and autorun - one spool file, the rate limit, refusals"
 check "$PY" checks/api_updates_asks.py 2>/dev/null

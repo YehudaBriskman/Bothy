@@ -472,6 +472,39 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 .upd-dl dt { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 600; color: var(--fg-subtle); padding-top: 1px; }
 .upd-dl dd { margin: 0; color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
 .upd-list { margin: 0; padding-left: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-0_5); }
+
+/* ── groups: one recipe, several components, one apply ───────────────────────
+   A deployable group is the ACTION for every member below it, so its card is a
+   plain bordered block in the neutral chrome with one caution button - not a
+   status panel. A group with nothing to apply is dimmed to its reason: "nothing
+   to apply together" is not a fault, so it takes no status colour (rule 1). */
+.set-shell .upd-groups { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--sp-2); }
+.set-shell .upd-group {
+  display: flex; flex-direction: column; gap: var(--sp-1_5); min-width: 0;
+  padding: var(--sp-2_5) var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2);
+}
+.set-shell .upd-group[data-deployable='false'] { background: none; }
+.set-shell .upd-group-h { display: flex; align-items: center; gap: var(--sp-2) var(--sp-3); flex-wrap: wrap; min-width: 0; }
+.set-shell .upd-group-n {
+  display: inline-flex; align-items: center; gap: var(--sp-1_5); min-width: 0;
+  font-weight: var(--fw-semibold); font-size: var(--fs-sm); line-height: var(--lh-sm);
+}
+.set-shell .upd-group-n svg { color: var(--fg-subtle); flex: none; }
+.set-shell .upd-group-sub {
+  display: inline-flex; align-items: center; gap: var(--sp-1_5); flex-wrap: wrap; min-width: 0;
+  font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); color: var(--fg-muted);
+}
+/* `margin-inline-start: auto` and not `justify-content: space-between`: the
+   button sits at the end of the LAST line when the header wraps, which at phone
+   width it does. */
+.set-shell .upd-group-act { margin-inline-start: auto; display: inline-flex; align-items: center; gap: var(--sp-2); }
+.set-shell .upd-group-m { font-size: var(--fs-sm); line-height: 1.6; }
+.set-shell .upd-group-m .upd-level, .set-shell .upd-group-m .upd-oneway { margin-left: var(--sp-1); }
+/* The dialog's per-member diff, which is portalled out of .set-shell. */
+.upd-group-diff { font-size: var(--fs-sm); line-height: 1.6; gap: var(--sp-2); }
+.upd-group-diff > li { min-width: 0; overflow-wrap: anywhere; }
+.upd-group-diff svg { color: var(--fg-subtle); margin: 0 var(--sp-1); vertical-align: -1px; }
+
 /* Bothy itself (step 6). CI's verdict IS state - a pass - so it takes the up
    colour, on the glyph only and beside the words. */
 .upd-ci { display: inline-flex; align-items: center; gap: var(--sp-1); font-weight: 600; }

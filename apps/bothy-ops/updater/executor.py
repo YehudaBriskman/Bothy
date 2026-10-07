@@ -180,7 +180,6 @@ def run_one(cfg: Config, name: str) -> str:
             if fresh_g["id"] != gp["id"]:
                 raise spool.Invalid(f"group plan {gp['id']} is stale - recomputed now it is {fresh_g['id']} "
                                     "(main, a container or discovery changed); ask again")
-            rec.set(members=[c.id for c, _ in members])
             what = ", ".join(f"{c.id} {q['from']['version']}->{q['to']['version']}" for c, q in members)
             rec.step("validate", "ok", f"group {fresh_g['id']}: `{fresh_g['recipe']}` applies {what}")
             return groups.GroupExecution(cfg, rec, fresh_g, members).go()

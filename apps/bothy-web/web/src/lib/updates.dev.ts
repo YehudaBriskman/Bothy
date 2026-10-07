@@ -55,7 +55,8 @@
 // localStorage.removeItem('bothy-dev-updates-asked').
 
 import type {
-  AskAnswer, AskRecord, Asks, AutorunAnswer, AutorunRecord, AutoDecision, Channel, Discovered, HistoryEntry, Job,
+  AskAnswer, AskRecord, Asks, AutorunAnswer, AutorunRecord, AutoDecision, Channel, Discovered,
+  GroupAnswer, GroupMember, GroupPlan, GroupRequestAnswer, GroupRow, HistoryEntry, Job,
   JobState, JobStep, Level, Pause, Plan, PlanAnswer, PlanSummary,
   RequestAnswer, StepName, UnpauseAnswer, UpdateRow, UpdaterInfo, UpdatesStatus, VersionRef,
 } from './updates';
@@ -68,6 +69,7 @@ const UNPAUSED_KEY = 'bothy-dev-updates-unpaused';
 const UPDATER_KEY = 'bothy-dev-updates-updater';
 const ASKS_KEY = 'bothy-dev-updates-asks';
 const ASKED_KEY = 'bothy-dev-updates-asked';
+const GROUPS_KEY = 'bothy-dev-updates-groups';
 
 const read = (k: string): string | null => {
   try { return localStorage.getItem(k); } catch { return null; }
@@ -342,6 +344,12 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     rows = SPECS.map((s) => row({ ...s, cands: {}, drift: undefined, floatMoved: false, error: undefined }, at, true));
   }
   const d = rows.map((r) => r.discovered);
+  const gs = forced === 'current' ? [] : groupRows();
+  const inGroup = new Set(gs.filter((g) => g.deployable).flatMap((g) => g.candidates));
+  for (const r of rows) {
+    r.group = gs.find((g) => g.candidates.includes(r.id))?.group ?? null;
+    r.applyWithGroup = inGroup.has(r.id);
+  }
   return {
     discovery: discovered
       ? { present: true, generatedAt: at, ageSeconds: age, stale, hint: null }
@@ -353,6 +361,8 @@ export async function updatesMock(): Promise<UpdatesStatus> {
       behind: rows.filter((r) => r.behind).length,
       drift: d.filter((x) => x?.drift).length,
       errors: d.filter((x) => x?.error).length,
+      toApply: rows.filter((r) => r.plan?.deployable).length,
+      groups: gs.filter((g) => g.deployable).length,
     },
     policy: { windowStart: '03:30', windowEnd: '05:00', requireBackup: 'stacks-backup.service', requireDoctor: true,
       maxAutoPerNight: 1, pauseOnFailure: true, discoverEveryHours: 6 },
@@ -362,6 +372,7 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     auto: { enabled: true, actor: 'auto', paused: rows.filter((r) => r.paused).map((r) => r.id), last: LAST_NIGHT },
     asks: asksOf(age),
     updater: updaterInfo(),
+    groups: gs,
     components: rows,
   };
 }
@@ -604,6 +615,136 @@ function summaryOf(id: string): PlanSummary {
   };
 }
 
+// ── groups: everything one recipe pins, in one compose up ────────────────────
+//
+// The three deployable rows of `monitoring/` - Loki (time-series), Alloy
+// (stateless) and Grafana (app-db, ONE-WAY) - are one compose project, so on the
+// real box none of them can be applied alone: `just up-monitoring` would recreate
+// the other two. The group is the action, and because Grafana is in it the whole
+// group is type-the-name and the rollback is all-or-nothing.
+//
+//   localStorage['bothy-dev-updates-groups'] = 'blocked'   the group is refused,
+//                                                          with the leftovers named
+
+const GROUP_MEMBERS: GroupMember[] = (['grafana', 'alloy', 'loki'] as const).map((id) => {
+  const p = PLANS[id];
+  return {
+    component: id, title: p.title, class: p.class, container: p.from.container, planId: p.id,
+    level: p.level, oneWay: p.oneWay,
+    from: { image: p.from.image, version: p.from.version, tag: p.from.tag, digest: p.from.digest },
+    to: { image: p.to.image, version: p.to.version, tag: p.to.tag, digest: p.to.digest },
+    pins: p.pins ?? [{ file: p.pin.file, service: p.pin.service, line: p.pin.line }],
+    snapshot: p.snapshot.kind, changelog: p.changelog,
+  };
+});
+
+const GROUP: GroupPlan = {
+  group: 'up-monitoring', kind: 'group', id: 'b1c2d3e4f5061728394a5b6c',
+  title: 'Everything `just up-monitoring` pins', recipe: 'just up-monitoring', project: 'monitoring',
+  services: ['alloy', 'grafana', 'loki'],
+  createdAt: ago(3600 * 2 + 700), discoveredAt: null,
+  level: 'minor', confirm: 'type-name', confirmWord: 'up-monitoring',
+  oneWay: true,
+  oneWayWhy: "grafana: grafana.db's schema migrates on first start and cannot be downgraded.",
+  members: GROUP_MEMBERS,
+  skipped: [
+    { component: 'cadvisor', reason: 'a major (0.55.1 -> 1.0.0) is a manual procedure' },
+    { component: 'node-exporter', reason: 'nothing to deploy: node-exporter runs what main pins' },
+    { component: 'victoriametrics', reason: 'nothing to deploy: victoriametrics runs what main pins' },
+  ],
+  restarts: ['grafana', 'alloy', 'loki', 'grafana (log panels)'],
+  downtime: 'grafana: ~30-90 s, STOPPED for the volume tar then recreated, migrating grafana.db before it answers; '
+    + 'alloy: ~10 s, resumed from its positions file; loki: ~30 s including the ring delay',
+  signedOut: 'nobody',
+  snapshot: {
+    kinds: ['grafana', 'image', 'loki'],
+    what: "every member's own snapshot, the one-way ones first, all of them BEFORE anything is pulled: "
+      + 'grafana - STOPPED and its whole volume tarred and integrity-checked; alloy - the pin line, the compose '
+      + 'file and the image digest; loki - flushed, STOPPED and /loki tarred',
+    dir: '~/backups/pre-update/<time>-group-up-monitoring/<component>/', estimateBytes: 37_200_000,
+  },
+  preflight: ["the group plan is still current: every member's plan recomputed here, and this group id",
+    'free disk: at least twice (every image + every snapshot) on the backup disk and on Docker\'s',
+    "every member's container is running and healthy on the image its plan recorded, and every member's canaries pass NOW",
+    '`just up-monitoring` recreates exactly alloy, grafana, loki in project monitoring and nothing else '
+    + '(compose config hashes) - the same check a single component gets, over the union',
+    'the newest backup in ~/backups/{grafana,loki,postgres} is under 24 h old',
+    'the actor is a person, never the night job', 'no other update is running (one global lock)'],
+  verify: ['grafana runs the pulled image and is healthy', 'alloy runs the pulled image and is healthy',
+    'loki runs the pulled image and is healthy',
+    'grafana: /api/health says database ok and names the expected version',
+    'alloy: /-/ready says ready', 'loki: fresh lines in query_range within 2 minutes'],
+  rollback: 'ALL OR NOTHING. The apply is one `just up-monitoring`, so a rollback is one too: every member\'s '
+    + 'previous image goes back on EVERY pin line (edits of the working tree, left uncommitted on purpose) and the '
+    + 'recipe runs once, and every member must then pass its own canaries on its old image. A one-way member\'s '
+    + 'data snapshot is restored FIRST, with its container stopped - grafana - and anything written since the '
+    + 'snapshot is lost. If a restore fails, the old images are NOT put back and a person is needed. There is no '
+    + 'partial rollback: the members that worked do not stay on their new images, because that is a combination no '
+    + 'commit on main describes.',
+  backupKinds: ['grafana', 'loki', 'postgres'],
+};
+
+const GROUP_BLOCKED = '`just up-monitoring` would also recreate or create promtail (no component in updates.toml '
+  + 'owns it) - the group moves image pins only, so those are still by hand (back up first)';
+
+// The group job renders through the same machinery as a component's: `render()`
+// looks its "component" up in PLANS, and a group's name IS its component in every
+// record (updater/record.new_job), so one synthetic entry is all it needs.
+PLANS[GROUP.group] = {
+  id: GROUP.id, component: GROUP.group, title: GROUP.title!, class: 'timeseries', createdAt: GROUP.createdAt!,
+  level: GROUP.level, confirm: GROUP.confirm,
+  from: { image: 'alloy v1.19.2, grafana 13.1.4, loki 3.7.6', tag: null, version: 'three components',
+    digest: null, container: 'alloy, grafana, loki' },
+  to: { image: 'alloy v1.19.3, grafana 13.2.2, loki 3.7.7', tag: null, version: 'what main pins', digest: null },
+  pin: { file: 'monitoring/compose.yml', service: null, line: 167, commit: HEAD },
+  pins: GROUP_MEMBERS.flatMap((m) => m.pins) as { file: string; service: string; line: number }[],
+  changelog: null, oneWay: GROUP.oneWay, oneWayWhy: GROUP.oneWayWhy,
+  restarts: GROUP.restarts, recipe: GROUP.recipe!, downtime: GROUP.downtime!, signedOut: GROUP.signedOut!,
+  snapshot: { kind: 'grafana', what: GROUP.snapshot.what!, dir: GROUP.snapshot.dir!,
+    estimateBytes: GROUP.snapshot.estimateBytes },
+  preflight: GROUP.preflight, verify: GROUP.verify, rollback: GROUP.rollback!,
+};
+
+function groupRows(): GroupRow[] {
+  const blocked = read(GROUPS_KEY) === 'blocked';
+  return [blocked
+    ? { group: GROUP.group, deployable: false, recipe: 'just up-monitoring', plan: null, reason: GROUP_BLOCKED,
+      candidates: ['alloy', 'grafana', 'loki'], createdAt: GROUP.createdAt }
+    : { group: GROUP.group, deployable: true, recipe: GROUP.recipe, plan: GROUP, reason: null,
+      candidates: GROUP.members.map((m) => m.component), createdAt: GROUP.createdAt }];
+}
+
+export async function groupMock(group: string): Promise<GroupAnswer> {
+  await new Promise((r) => setTimeout(r, 200));
+  const g = groupRows().find((x) => x.group === group);
+  if (!g) refuse(404, `unknown group ${group}`, true);
+  return { ok: true, group, plan: g.plan, reason: g.reason, ageSeconds: 3600 * 2 + 700 };
+}
+
+export async function groupRequestMock(body: { group: string; plan_id: string; confirm: true | string }): Promise<GroupRequestAnswer> {
+  await new Promise((r) => setTimeout(r, 300));
+  const forced = read(REQUEST_KEY);
+  if (forced === 'no-operator') refuse(403, 'Forbidden', false);
+  const g = groupRows().find((x) => x.group === body.group);
+  if (!g?.plan) refuse(409, `${body.group} has no deployable group plan: ${g?.reason ?? 'none'}`, true);
+  if (forced === 'stale' || body.plan_id !== g.plan.id) {
+    refuse(409, 'the group plan is no longer current - a member\'s plan, the checkout or discovery changed since '
+      + 'it was written. Reload to see the new plan.', true);
+  }
+  if (g.plan.confirm === 'type-name' ? body.confirm !== g.plan.group : body.confirm !== true) {
+    refuse(400, `type the recipe's name (${g.plan.group}) to confirm`, true);
+  }
+  if (forced === 'busy' || busyWith(g.plan.group)) refuse(409, `an apply of ${g.plan.group} is already queued`, true);
+  const want = read(JOB_OUTCOME_KEY) as JobState | null;
+  const j: DevJob = {
+    id: hex(32), component: g.plan.group, planId: g.plan.id, requestedAt: Date.now(),
+    outcome: want && TERMINAL_STATES.includes(want) ? want : 'succeeded',
+  };
+  saveJobs([...jobs(), j]);
+  return { ok: true, jobId: j.id, group: j.component, planId: j.planId,
+    components: g.plan.members.map((m) => m.component) };
+}
+
 export async function planMock(component: string): Promise<PlanAnswer> {
   await new Promise((r) => setTimeout(r, 200));
   if (!SPECS.some((s) => s.id === component)) refuse(404, `unknown component ${component}`, true);
@@ -721,6 +862,7 @@ function render(j: DevJob, now = Date.now()): Job {
   const state: JobState = t < 2 ? 'queued' : done ? j.outcome : 'running';
   return {
     id: j.id, component: j.component, planId: j.planId, state,
+    members: GROUP.group === j.component ? GROUP.members.map((m) => m.component) : [],
     requestedBy: 'operator@example.com', requestedAt: iso(j.requestedAt),
     startedAt: t >= 2 ? at(2) : null, endedAt: done ? at(end) : null,
     from: { image: p.from.image, version: p.from.version }, to: { image: p.to.image, version: p.to.version },

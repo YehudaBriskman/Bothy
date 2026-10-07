@@ -422,6 +422,142 @@ st, _ = call("/updates/unpause")
 ok(st == 404, f"a GET to the unpause -> 404 ({st})")
 
 print()
+print("── group: a whole recipe, on the SAME route and the same gate ───")
+# A group adds no route and no gate - it is the power /updates/request already
+# holds, over a plan the host wrote about a recipe (updater/groups.py). So every
+# refusal of the component shape has to hold for this shape too, and the 202 has
+# to leave exactly one spool file whose `kind` tells the executor which it is.
+GID, GPID = "up-monitoring", "feedfacefeedfacefeedface"
+
+
+def group_plan(pid: str = GPID, discovered: str = GEN, **extra) -> dict:
+    members = [
+        {"component": "grafana", "title": "Grafana", "class": "app-db", "container": "grafana",
+         "planId": "a" * 24, "level": "minor", "oneWay": True,
+         "from": {"image": "grafana/grafana:13.1.4", "version": "13.1.4", "tag": "13.1.4", "digest": D("c")},
+         "to": {"image": "grafana/grafana:13.2.2", "version": "13.2.2", "tag": "13.2.2", "digest": D("e")},
+         "pins": [{"file": "monitoring/compose.yml", "service": "grafana", "line": 167}],
+         "snapshot": "grafana", "changelog": "https://example.invalid/g", "imageId": "sha256:" + "9" * 64},
+        {"component": "loki", "title": "Loki", "class": "timeseries", "container": "loki",
+         "planId": "b" * 24, "level": "patch", "oneWay": False,
+         "from": {"image": "grafana/loki:3.7.6", "version": "3.7.6", "tag": "3.7.6", "digest": D("a")},
+         "to": {"image": "grafana/loki:3.7.7", "version": "3.7.7", "tag": "3.7.7", "digest": D("b")},
+         "pins": [{"file": "monitoring/compose.yml", "service": "loki", "line": 228}],
+         "snapshot": "loki", "changelog": None},
+    ]
+    return {"version": 1, "group": GID, "ok": True, "plan": {
+        "group": GID, "kind": "group", "id": pid, "title": "Everything `just up-monitoring` pins",
+        "recipe": "just up-monitoring", "project": "monitoring", "services": ["grafana", "loki"],
+        "createdAt": GEN, "discoveredAt": discovered, "level": "minor", "confirm": "type-name",
+        "confirmWord": GID, "oneWay": True, "oneWayWhy": "grafana: its schema migrates on first start",
+        "memberRows": members, "skipped": [{"component": "alloy", "reason": "nothing to deploy"}],
+        "restarts": ["grafana", "loki"], "downtime": "~90 s", "signedOut": "nobody",
+        "snapshot": {"kinds": ["grafana", "loki"], "what": "each member's own, one-way first",
+                     "dir": "~/backups/pre-update/<time>-group-up-monitoring/<component>/",
+                     "estimateBytes": 37_000_000},
+        "preflight": ["the actor is a person, never the night job"], "verify": ["grafana healthy", "loki ready"],
+        "rollback": "ALL OR NOTHING - there is no partial rollback.", "backupKinds": ["grafana", "loki", "postgres"],
+        **extra}}
+
+
+os.makedirs(os.path.join(UPD, "groups"))
+
+
+def gwrite(doc: object) -> None:
+    with open(os.path.join(UPD, "groups", f"{GID}.json"), "w") as fh:
+        fh.write(doc if isinstance(doc, str) else json.dumps(doc))
+
+
+gwrite(group_plan(secret=SENT))
+st, b = call(f"/updates/plan?group={GID}")
+gp = b.get("plan") or {}
+ok(st == 200 and gp.get("id") == GPID and len(gp.get("members") or []) == 2 and gp["confirmWord"] == GID,
+   f"200: the group plan, with its members and the name to type ({st})")
+ok(SENT not in json.dumps(b) and "imageId" not in gp["members"][0]["from"],
+   "fields outside the allow-list are dropped here too")
+ok(gp["skipped"] == [{"component": "alloy", "reason": "nothing to deploy"}],
+   "the components it is NOT carrying are served with their reasons")
+st, b = call("/updates/plan?group=nope")
+ok(st == 200 and b["plan"] is None and "just updates-discover" in b["reason"], "an unknown group: what to run")
+st, _ = call("/updates/plan?group=../etc")
+ok(st == 400, "a path for a group id -> 400")
+st, _ = call(f"/updates/plan?component=loki&group={GID}")
+ok(st == 400, "component AND group together -> 400: exactly one parameter")
+st, b = call("/updates/status")
+grow = {g["group"]: g for g in (b.get("groups") or [])}
+ok(grow.get(GID, {}).get("deployable") is True and b["summary"]["groups"] == 1,
+   "status: the group is a row of its own, and counted")
+rows = {r["id"]: r for r in b["components"]}
+ok(rows["loki"]["group"] == GID and rows["loki"]["applyWithGroup"] is True,
+   "status: a member's row says which group would carry it, and that it cannot be applied alone")
+
+GG = {"group": GID, "plan_id": GPID, "confirm": GID}
+n = len(log_lines())
+gcases = [
+    (dict(body=GG, headers={"Sec-Fetch-Site": "cross-site"}), 403, "cross-site"),
+    (dict(body=GG, ctype="text/plain"), 415, "text/plain"),
+    (dict(body={**GG, "note": "a maintenance note"}), 400, "a note on a group"),
+    (dict(body={**GG, "component": "loki"}), 400, "both a component and a group"),
+    (dict(body={"group": GID, "plan_id": GPID}), 400, "a missing key"),
+    (dict(body={**GG, "group": "Up-Monitoring"}), 400, "a malformed group id"),
+    (dict(body={**GG, "group": "../etc"}), 400, "a path for a group id"),
+    (dict(body={**GG, "plan_id": "zz"}), 400, "a malformed plan id"),
+    (dict(body={**GG, "group": "up-nothing"}), 404, "a group with no plan file"),
+    (dict(body={**GG, "plan_id": "f" * 24}), 409, "a TAMPERED group plan id"),
+    (dict(body={**GG, "confirm": True}), 400, "a click on a group with a one-way member"),
+    (dict(body={**GG, "confirm": "grafana"}), 400, "a MEMBER's name instead of the recipe's"),
+]
+for kw, want, label in gcases:
+    st, b = call("/updates/request", method="POST", **kw)
+    ok(st == want and spool() == [], f"group: {label} -> {want}, no file ({st}: {b.get('error', '')[:70]})")
+gwrite({"version": 1, "group": GID, "ok": False, "reason": "`just up-monitoring` would also recreate promtail"})
+st, b = call("/updates/request", method="POST", body=GG)
+ok(st == 409 and "promtail" in b.get("error", "") and spool() == [],
+   f"a group the HOST refused -> 409, with the host's own reason ({st})")
+st, b = call("/updates/status")
+g0 = {g["group"]: g for g in (b.get("groups") or [])}[GID]
+ok(g0["deployable"] is False and "promtail" in (g0["reason"] or "") and b["summary"]["groups"] == 0,
+   "status: a refused group is a row with its reason, and is not counted")
+ok({r["id"]: r for r in b["components"]}["loki"]["applyWithGroup"] is False,
+   "…and its members no longer claim a group would carry them")
+gwrite(group_plan(discovered="2026-09-19T04:00:00Z"))
+st, b = call("/updates/request", method="POST", body=GG)
+ok(st == 409 and "discovery ran again" in b.get("error", ""), f"a group plan older than discovery -> 409 ({st})")
+gwrite(group_plan())
+ok(len([ln for ln in log_lines()[n:] if ln.split("\t")[2] == "REFUSED"]) == len(gcases) + 2,
+   "every group refusal is one admin.log line")
+# A running job on a MEMBER refuses the group - the status.json the job section
+# above left behind says loki is running, which is exactly the case to assert.
+st, b = call("/updates/request", method="POST", body=GG)
+ok(st == 409 and "running now" in b.get("error", "") and spool() == [],
+   f"a group one of whose members is being updated right now -> 409 ({st}: {b.get('error', '')[:70]})")
+write("status.json", {"version": 1, "job": None})
+
+st, b = call("/updates/request", method="POST", body=GG)
+gjid = b.get("jobId", "")
+files = spool()
+ok(st == 202 and files == [f"{gjid}.json"] and b.get("components") == ["grafana", "loki"],
+   f"202, exactly one file, and the answer names the components it will apply: {files}")
+greq = json.load(open(os.path.join(SPOOL, files[0]))) if files else {}
+ok(set(greq) == {"v", "jobId", "kind", "group", "planId", "confirm", "requestedBy", "requestedAt"}
+   and greq["kind"] == "group" and greq["group"] == GID and greq["confirm"] == GID and greq["requestedBy"] == WHO,
+   f"the file is exactly the group request, with `kind` telling the executor which shape it is: {sorted(greq)}")
+ok(stat.S_IMODE(os.stat(os.path.join(SPOOL, files[0])).st_mode) == 0o600, "mode 600")
+last = log_lines()[-1].split("\t")
+ok(last[1:4] == [WHO, "REQUESTED", "updates-request"] and GID in last[4],
+   f"admin.log: one REQUESTED line naming the group: {last[1:5]}")
+st, b = call("/updates/request", method="POST", body=GG)
+ok(st == 409 and "already queued" in b.get("error", "") and len(spool()) == 1, f"a duplicate group -> 409 ({st})")
+st, b = call("/updates/request", method="POST", body=GOOD)
+ok(st == 409 and "already queued" in b.get("error", "") and len(spool()) == 1,
+   f"a MEMBER's own apply while its group waits -> 409 ({st}: {b.get('error', '')[:80]})")
+st, b = call(f"/updates/job?id={gjid}")
+ok(st == 200 and b["job"]["component"] == GID and b["job"]["group"] == GID and b["job"]["state"] == "queued",
+   "the queued group job is readable, and the recipe is what it is called")
+for n_ in spool():
+    os.unlink(os.path.join(SPOOL, n_))
+
+print()
 if fails:
     print(f"FAILED: {len(fails)}")
     sys.exit(1)

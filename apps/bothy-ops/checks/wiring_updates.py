@@ -227,8 +227,46 @@ ok(paths == {f"/-/api/updates/{p}" for p in WANTED_PATHS},
 # button with no route is a dead control, which is the thing a viewer must never
 # see (components/states.tsx NeedsRole exists for the other case).
 page = read("apps/bothy-web/web/src/pages/settings/Updates.tsx")
-ok(all(f"{fn}(" in page for fn in ("requestUpdate", "unpauseAuto", "askDiscover", "askNightJob")),
+ok(all(f"{fn}(" in page for fn in ("requestUpdate", "unpauseAuto", "askDiscover", "askNightJob", "applyGroup")),
    "Settings > Updates calls every writing client function - no route without a control")
+
+print()
+print("── GROUPS: a whole recipe at once, on the routes already there ──")
+# The point of the group riding /updates/plan?group= and /updates/request is that
+# it adds NO surface at the edge: a group is the power that route already holds,
+# over a plan the host wrote about a recipe. If a new router ever appears for it,
+# the seven-router assertion above fails and this says why it must not.
+grp = read("apps/bothy-ops/updater/groups.py")
+spl = read("apps/bothy-ops/updater/spool.py")
+exe = read("apps/bothy-ops/updater/executor.py")
+ok("/-/api/updates/group" not in ts and "/-/api/updates/apply" not in ts,
+   "the client adds no new /-/api/updates path for a group - it uses plan?group= and request")
+ok("?group=${encodeURIComponent(group)}" in ts and "'/-/api/updates/request'" in ts,
+   "…fetchGroup reads through plan, applyGroup writes through request")
+ok('_one_param(h, "component", "group")' in upd and 'if what == "group"' in upd,
+   "/updates/plan takes exactly one parameter, component OR group, from a closed set")
+ok('if "group" in body:' in upd and "def request_group" in upd,
+   "/updates/request branches to the group writer on the one key that tells them apart")
+ok(re.search(r'_GROUP_?CLASSES|GROUP_CLASSES = frozenset\(\{"stateless", "timeseries", "app-db"\}\)', grp)
+   is not None,
+   "a group carries only the compose image-pin classes - never cluster, database or own-code")
+ok("MIN_MEMBERS = 2" in grp, "a group is two or more members: one component's own Apply is the answer")
+ok('doc.get("requestedBy") == updates.AUTO_ACTOR' in spl and "never automatic" in spl,
+   "the executor refuses a group request from the night job's actor")
+ok("assert set(req) == spool.KEYS" in read("apps/bothy-ops/updater/auto.py"),
+   "…and the night job can only WRITE the single-component shape, so it cannot ask for a group at all")
+ok('if "note" in doc:' in spl and "only for a plan that asks for one" in spl,
+   "a group request carries no maintenance note")
+ok("instead=groups.instead(self.comp, self.cfg)" in exe,
+   "a single component's scope refusal names the ACTION (the group), not a shell")
+ok("ALL OR NOTHING" in grp and "no partial rollback" in grp,
+   "the group's rollback words say it is all of them, together - the UI shows this before the button")
+ok('hostio.compose_project(' in exe and 'hostio.compose_project(' in grp
+   and "def compose_project" in read("apps/bothy-ops/updater/hostio.py"),
+   "ONE reader of what a recipe would recreate, used by the single-component rule and the group's union")
+ok('os.path.join(self.state, "groups")' in read("apps/bothy-ops/updater/config.py")
+   and "from . import groups" in read("apps/bothy-ops/updater/plans.py"),
+   "the group plans are written beside plans/ by the same discovery run, in the read-only mount")
 
 print()
 print("── ASKS: discover and autorun, end to end (2026-10-06) ──────────")

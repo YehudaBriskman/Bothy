@@ -2,7 +2,8 @@
 
 Status: **steps 0-8 built** (step 4, the updater for the stateless and time-series classes; step 5, the one-way
 app-db class for Grafana and Keycloak; step 6, Bothy updating itself; step 7, the automatic channel - all 2026-09-19;
-step 8, the cluster add-ons and the Postgres major - 2026-09-22; see [Decisions](#decisions)). What remains is listed
+step 8, the cluster add-ons and the Postgres major - 2026-09-22; applying a whole `apply` recipe at once, and the
+Update/Apply distinction - 2026-10-07; see [Decisions](#decisions)). What remains is listed
 under [What is left](#what-is-left). Written 2026-09-18 from two read-only surveys:
 - the repo and live box: every pin, volume, backup and restart;
 - the tooling and patterns available, with sources at the end.
@@ -207,6 +208,14 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 
 ## 8. Settings → Updates (UI)
 
+- **Update and Apply are different words** (2026-10-07, see
+  [Update, and Apply](#update-and-apply-2026-10-07-the-distinction-the-page-was-missing)): Update moves a
+  pin in `main` (a PR, elsewhere); Apply makes this box run what `main` already pins, which is all this
+  page does. The headline leads with how many pins are **not applied**.
+- **A group row per `apply` recipe** (2026-10-07, see
+  [Applying a whole recipe](#applying-a-whole-recipe-2026-10-07-the-refusal-had-no-action-behind-it)):
+  where one recipe has more than one merged pin waiting, no single component can be applied, so the group
+  applies them together - and a member's own button opens the group rather than a refusal.
 - **Controls** (built 2026-10-06, see
   [the two asks](#the-two-asks-2026-10-06-check-for-updates-now-and-run-the-night-job-now)): Check for updates,
   What would tonight do?, Run the night job. Each shows the host's own record of the last run, because both can
@@ -581,9 +590,125 @@ that is wrong.
 | **`just install-updater`** | A host operation, and the point of it is that it is *not* clickable: a release that changes the updater only stages the new copy, so the program that validates the next request changes when a person says so. The page already says this when one is staged. |
 | **`just release`** | A repository operation - it cuts and pushes a tag. It changes nothing about this box, and the box deploys a tag only once CI has marked it green. |
 
+### Applying a whole recipe (2026-10-07): the refusal had no action behind it
+
+**What happened.** Every click in Settings > Updates was refused with the same words:
+
+> `` `just up-monitoring` would also recreate or create alloy, grafana (its configuration changed since it was started) - apply that first, by hand if the updater does not handle it ``
+
+Three requests in four minutes - alloy, grafana, victoriametrics - each naming the other two
+(`history.jsonl`, 12:17-12:22). The check that refused them is step 4's `_scope`, and it is **right**:
+`just up-monitoring` is one `docker compose up` over the whole project, so applying Loki's merged pin
+would recreate Grafana on its merged pin too - a one-way migration, with no snapshot of Grafana.
+
+The defect was not the check. It was that **the product stated what had to happen and gave no way to do
+it**, and the state it named is not one a single-component updater can ever leave: with two services of
+one project behind, *no* component can be applied first. On 2026-10-07 ten components were behind on
+apply and three of them were in `monitoring/`. Nine minutes later someone did what the message said and
+ran `just up-monitoring` by hand - which recreated all of monitoring at once, Grafana included, with no
+snapshot, and left Grafana `created` and never started. That is precisely the outcome `_scope` exists to
+prevent, reached by following the product's own advice.
+
+**The decision: a GROUP is the missing action, and the scope rule does not move.** `updater/groups.py`.
+A group is one `apply` recipe (`just up-monitoring` -> the group id `up-monitoring`) and, as its members,
+every component that shares that recipe, is one of `GROUP_CLASSES` (`stateless`, `timeseries`, `app-db` -
+the plain compose image pipeline) and has a deployable single-component plan now. Two or more, or there is
+no group: with one member the component's own Apply is the answer. The scope check is then run
+**unchanged**, over the UNION of the members' pinned services, and anything still left over refuses - with
+the service named, whose it is, and why the group will not carry it.
+
+| | one component (step 4) | a group (this) |
+|---|---|---|
+| What is approved | a component and its plan id | a recipe and its group plan id |
+| Confirmation | the plan's (`click`, or the component typed) | the strictest any member needs, and the **recipe's** name is what is typed |
+| Snapshot | that component's class snapshot | **every** member's, one-way first, all before any pull |
+| Pre-flight | that component healthy, its canaries green, scope = its services | every member healthy, every member's canaries green, scope = the union; **and the actor is never `auto`** |
+| Verify | its canaries | every member's |
+| Rollback | its pin line, its data if the probe says so | every pin line, every one-way member's data first - **all or nothing** |
+| Channel | `auto` possible for a patch of an auto class | never automatic, by rule and by construction |
+
+**Why the union and not the loosest.** A group must never be a way to get a strict component applied under
+a lax rule, and the only safe reading of "several classes in one apply" is the strictest of them. So one
+`app-db` member (Grafana) makes the whole group type-the-name, takes its stop-and-tar snapshot first, and
+makes the rollback a restore; the required backup ages, the snapshot kinds and the disk estimate are
+unions; the level is the largest step. `checks/test_groups.py` asserts each of those, and
+`scripts/checks/mutants.sh` plants "the group is the LOOSEST of its members" to prove the check notices.
+
+**What is typed is the GROUP's name**, not a member's: a component's id would misname what is being
+approved. bothy-ops and the executor both refuse anything else - a click, or a member's id.
+
+**Rollback is all-or-nothing, and the UI says so before the button.** The apply is one
+`docker compose up`, so the rollback is one too: every member's previous image goes back on every pin line
+(uncommitted, on purpose) and the recipe runs once. A one-way member's data snapshot is restored FIRST,
+with its container stopped, exactly as the single-component path does; if that restore fails, no old image
+is put back and the result is `failed`.
+
+A *partial* rollback is mechanically possible - write one member's pin back and run the recipe, and compose
+recreates only that service - and it is **deliberately not offered**. Verify failing for one member does not
+say the others are healthy together; the result would be a combination of versions no commit on `main`
+describes and nobody reviewed; and it would be reached by a second recipe run subject to the same scope trap.
+The operator approved one apply, so one apply comes back. The plan's `rollback` words and the confirm dialog
+both state this in those terms.
+
+**Never automatic, twice over.** `AUTO_CLASSES` is irrelevant here because the night job cannot reach a
+group at all: `auto.decide()` picks from `plans/<component>.json`, groups live in `groups/<recipe>.json`,
+and `auto._write_request()` still asserts its spool keys are exactly the single-component ones. On top of
+that, `spool.validate_against_group()` refuses the actor `auto` outright, and bothy-ops refuses to write it.
+
+**Config-only changes stay out, named.** A service whose compose config hash differs for a reason that is
+*not* an image pin (its environment changed in `main`) is refused rather than carried, because a rollback
+could not put that change back: the updater writes pin lines, strictly, and nothing else. The refusal says
+which service and that the group moves image pins only. That is the honest limit, and it keeps the rollback
+true.
+
+**No new route and no new gate.** The group read is `GET /-/api/updates/plan?group=<recipe>` and the ask is
+`POST /-/api/updates/request` with `{group, plan_id, confirm}`. A group is not a new *kind* of power over
+this box - it is the one `/updates/request` already holds, over a plan the host wrote about a recipe rather
+than about one component - so it gets no new surface at the edge: still seven routers, still `operator`,
+CSRF, the de-identify middleware, one audit line, one spool file, and the host deciding. The spool file is
+the same `<jobId>.json` with `kind: "group"`, so the path unit, the global lock, claim-before-run and every
+record are unchanged. `mutants.sh` plants an eighth router to prove `wiring_updates.py` would catch one.
+
+**A group job's records name the recipe**, because that is what the job is about, with `members` beside it.
+That also closes a gap the pause would otherwise have had: `auto.sync_pauses()` reads `members`, so a group
+that rolled back pauses every `auto` component it moved - which it could not have done from `component`
+(`up-monitoring`) alone.
+
+### Update, and Apply (2026-10-07): the distinction the page was missing
+
+Every button said **Update**, and the page's only headline count was `updates` - "what is newer upstream".
+They are two different actions:
+
+- **Update** moves a pin in `main`: a Dependabot PR, reviewed and merged. It happens on GitHub, not on this
+  page, and the updater deliberately cannot do it (step 4's decision).
+- **Apply** makes this box run what `main` already pins. It is the *only* thing this page does.
+
+On 2026-10-07 the headline read "2 with a newer version" while **ten** components were behind on apply. The
+one number nobody could see was the one that mattered, which is how three refusals in a row came to read as
+a fault rather than as a state with a cause. So: `summary.toApply` joins the status payload and leads the
+headline ("N components have pins this box has not applied"), the row action and its accessible name say
+**Apply**, the table note explains both words, and `update-apply` opens with "Update, and Apply". Where a
+recipe has more than one pin waiting the row's button opens its **group** instead of a request the host is
+certain to refuse, and the row's disclosure says why in a field called "Not on its own".
+
+This was the deeper fix, and it is cheap: the page already used "deploy what main pins" in prose while
+labelling the button "Update". Naming the two actions differently is what stops the confusion arising,
+rather than explaining it afterwards.
+
+**Tests.** `checks/test_groups.py` (membership, the union, the scope over it with every leftover named, the
+id's staleness, the spool shape and its refusals, a job whose snapshots all precede any pull and whose
+rollback is all-or-nothing, and the pause of every `auto` member); `checks/api_updates_apply.py`'s group
+section (the real handler: the allow-listed group plan, twelve refusals, a member's own apply refused while
+its group waits, and one 202 leaving exactly one spool file); `wiring_updates.py`'s GROUPS section; twelve
+`mutants.sh` rows.
+
 ## What is left
 
 - **The auth boundary and the edge** (oauth2-proxy, the socket proxies, Traefik) are still updated by hand (§4).
+  This is now the one case a group cannot help with either: `just up-auth` holds Keycloak (app-db) **and**
+  oauth2-proxy (boundary), so Keycloak's apply is refused and no group can carry it - the refusal says exactly
+  that. Bringing `boundary` into the updater (its probes, and dependabot.yml's "review by hand" rule) is what
+  would close it.
 - **A Postgres minor** is still `just up-data` by hand; the updater moves Postgres only across a major.
 - **Host tooling** (minikube, kubectl, helm) stays out of scope until it is pinned in mise (§4).
 - **§8 extras:** editing a channel from the page (through the config tier) and a history row's "Roll back" as a plan.

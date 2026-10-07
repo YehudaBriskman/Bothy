@@ -408,6 +408,10 @@ class GroupExecution:
         self.group = plan_["group"]
         self.recipe = plan_["recipe"]
         self.execs = [Execution(cfg, rec, comp, p) for comp, p in members]
+        # The job's `component` is the RECIPE, so the components it moved have to
+        # be recorded beside it - this is what a history row shows and what
+        # auto.sync_pauses reads to pause an `auto` member after a rollback.
+        rec.set(members=[comp.id for comp, _ in members])
         # The one-way members first everywhere it matters: their snapshot is the one
         # that cannot be taken again afterwards, and their restore is the rollback.
         self.ordered = sorted(self.execs, key=lambda x: (not x.klass.always_restore, x.comp.id))
@@ -462,9 +466,18 @@ class GroupExecution:
     # ── snapshot: every member, into one group directory, one-way first ──
     def snapshot(self) -> str:
         hostio.ensure_dir(self.cfg.snapshots, 0o700)
-        self.dir = os.path.join(self.cfg.snapshots,
-                                f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-group-{self.group}")
-        os.mkdir(self.dir, 0o700)
+        base = os.path.join(self.cfg.snapshots,
+                            f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-group-{self.group}")
+        # A second attempt inside the same second (a refusal, then a retry) must
+        # not abort on the directory it is about to create.
+        for n in range(1, 10):
+            self.dir = base if n == 1 else f"{base}-{n}"
+            try:
+                os.mkdir(self.dir, 0o700)
+                break
+            except FileExistsError:
+                if n == 9:
+                    raise
         self.rec.set(snapshot=self.dir)
         out = []
         for x in self.ordered:
@@ -473,7 +486,7 @@ class GroupExecution:
         return " | ".join(out)
 
     def _rotate(self) -> None:
-        rx = re.compile(rf"\d{{8}}T\d{{6}}Z-group-{re.escape(self.group)}")
+        rx = re.compile(rf"\d{{8}}T\d{{6}}Z-group-{re.escape(self.group)}(?:-\d)?")
         mine = sorted(n for n in os.listdir(self.cfg.snapshots) if rx.fullmatch(n))
         for n in mine[:-self.cfg.keep_snapshots]:
             shutil.rmtree(os.path.join(self.cfg.snapshots, n), ignore_errors=True)
