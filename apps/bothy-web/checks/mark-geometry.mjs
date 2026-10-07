@@ -435,7 +435,15 @@ console.log('\n── the manifest, the page and the generator agree ───�
 const manifest = JSON.parse(readFileSync(join(PUBLIC, 'site.webmanifest'), 'utf8'));
 for (const icon of manifest.icons) {
   const f = icon.src.replace(/^\//, '');
-  check(`the manifest's ${f} exists`, existsSync(join(PUBLIC, f)));
+  const there = existsSync(join(PUBLIC, f));
+  check(`the manifest's ${f} exists`, there);
+  // And is the size it says it is. A manifest that declares 512x512 over a
+  // 256px file is not a broken build - the installer takes the declaration, not
+  // the pixels, and the icon is simply upscaled on somebody's home screen.
+  if (there && f.endsWith('.png')) {
+    const img = decodePng(readFileSync(join(PUBLIC, f)));
+    check(`  ...and really is ${icon.sizes}`, icon.sizes === `${img.w}x${img.h}`, `${img.w}x${img.h}`);
+  }
 }
 check('the manifest\'s colours are the tile colour',
   manifest.background_color === '#09090b' && manifest.theme_color === '#09090b',
@@ -460,6 +468,10 @@ for (const [name, src] of RASTERS) {
 console.log('\n── no fourth copy of the mark ───────────────────────────');
 const COORDS = new Set(['1.6', '2.4', '4.2', '5.4', '5.6', '10.15', '10.6', '11.6', '11.8',
   '13.85', '15.3', '17.2', '18.4', '20.2', '20.4', '21.6', '22.4', '1.85', '3.7']);
+// The last two are this check and the mutation harness, both of which have to
+// name the coordinates in order to assert on them. That is a real hole - a
+// fourth copy hidden in either file would not be caught - and it is the smallest
+// one available: the alternative is a check that cannot state what it checks.
 const ALLOWED = new Set(['apps/bothy-web/web/public/favicon.svg',
   'apps/bothy-web/web/public/icon-maskable.svg',
   'apps/bothy-web/web/src/components/Brand.tsx',
