@@ -137,7 +137,12 @@ ok(rows["cadvisor"]["effectiveChannel"] == "manual", "cadvisor: an auto componen
 ok(rows["traefik"]["discovered"]["error"].startswith("RateLimited") and rows["traefik"]["level"] is None,
    "traefik: the error is served, and no level is invented")
 ok(rows["keycloak"]["discovered"] is None, "keycloak: not in the file -> not discovered, still listed")
-ok(body["summary"] == {"components": len(rows), "updates": 3, "behind": 2, "drift": 1, "errors": 1},
+ok(body["summary"] == {"components": len(rows), "updates": 3, "behind": 2, "drift": 1, "errors": 1,
+                       # `toApply` is the count the page was missing: pins this box
+                       # has NOT applied, which is a different question from
+                       # `updates` (what is newer upstream). No plans are written
+                       # here, so both it and `groups` are 0.
+                       "toApply": 0, "groups": 0},
    f"the summary: {body['summary']}")
 lines = log_lines()
 ok(lines and lines[-1].split("\t")[1:4] == ["viewer@example.com", "READ", "updates-status"],

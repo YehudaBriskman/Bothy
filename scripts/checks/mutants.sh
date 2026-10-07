@@ -836,10 +836,27 @@ mutant "the night job ignores a pause" \
   'if False:' \
   -- python3 apps/bothy-ops/checks/test_auto.py
 
+# `plant` replaces the FIRST occurrence, and this line appears in all five write
+# handlers, so each anchor carries enough of its own handler to be unique. It was
+# NOT, until 2026-10-07: the group writer was added above request_update() and
+# silently took the mutation, leaving request_update's check intact and this row
+# passing with nothing broken - the decorative-check failure this file exists for.
 mutant "bothy-ops may write as the night job" \
   apps/bothy-ops/updates.py \
-  'if flat(who) == AUTO_ACTOR:' \
-  'if False:' \
+  'if flat(who) == AUTO_ACTOR:
+        # The night job'"'"'s name (updater/auto.py).' \
+  'if False:
+        # The night job'"'"'s name (updater/auto.py).' \
+  -- python3 apps/bothy-ops/checks/api_updates_apply.py
+
+mutant "bothy-ops may ask for a GROUP as the night job" \
+  apps/bothy-ops/updates.py \
+  'if flat(who) == AUTO_ACTOR:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel'"'"'s name, not a person'"'"'s", status=403)
+    doc = _read_group(gid)' \
+  'if False:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel'"'"'s name, not a person'"'"'s", status=403)
+    doc = _read_group(gid)' \
   -- python3 apps/bothy-ops/checks/api_updates_apply.py
 
 echo
@@ -919,6 +936,102 @@ mutant "up-data starts Postgres on an empty new volume" \
   '[ -z "$others" ] && exit 0' \
   'exit 0' \
   -- python3 apps/bothy-ops/checks/test_step8.py
+
+echo
+echo "── applying a whole recipe at once, without loosening the rule ─────"
+# The group exists because `just up-monitoring` is ONE `docker compose up`, so a
+# project with two merged pins waiting can never be applied one component at a
+# time - the scope check, rightly, refuses both. Every row here is a way the group
+# could become a hole in that check instead of the action it is missing.
+
+mutant "the group is the LOOSEST of its members, not the strictest" \
+  apps/bothy-ops/updater/groups.py \
+  'confirm = "type-name" if (one_way or worst == "major") else "click"' \
+  'confirm = "click"' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "the group stops checking the scope of its union" \
+  apps/bothy-ops/updater/groups.py \
+  'others = [s for s in pj["want"] if s not in mine and pj["have"].get(s) != pj["want"][s]]' \
+  'others = []' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "one component counts as a group" \
+  apps/bothy-ops/updater/groups.py \
+  'MIN_MEMBERS = 2' \
+  'MIN_MEMBERS = 1' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "the auth boundary joins a compose group" \
+  apps/bothy-ops/updater/groups.py \
+  'GROUP_CLASSES = frozenset({"stateless", "timeseries", "app-db"})' \
+  'GROUP_CLASSES = frozenset({"stateless", "timeseries", "app-db", "boundary"})' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "a helm chart or a manifest joins a compose group" \
+  apps/bothy-ops/updater/groups.py \
+  'if c.cls in GROUP_CLASSES and c.source == "image":' \
+  'if c.cls in GROUP_CLASSES or c.source != "image":' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "the group pulls before it has snapshotted every member" \
+  apps/bothy-ops/updater/groups.py \
+  '            self.step("snapshot", self.snapshot)
+            self.step("pull", lambda: self.pull(pulled))' \
+  '            self.step("pull", lambda: self.pull(pulled))
+            self.step("snapshot", self.snapshot)' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "a group rollback keeps the members that worked" \
+  apps/bothy-ops/updater/groups.py \
+  '            for x in self.execs:
+                for q in x.pins:' \
+  '            for x in self.execs[:1]:
+                for q in x.pins:' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "the night job may ask for a group" \
+  apps/bothy-ops/updater/spool.py \
+  'if doc.get("requestedBy") == updates.AUTO_ACTOR:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "the two request shapes are told apart by a key, not by kind" \
+  apps/bothy-ops/updater/spool.py \
+  'return isinstance(doc, dict) and doc.get("kind") == GROUP_KIND' \
+  'return False' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "a rolled-back group leaves its auto members free for tonight" \
+  apps/bothy-ops/updater/auto.py \
+  'for cid in ([e.get("component")] + [m for m in ms if isinstance(m, str)]):' \
+  'for cid in [e.get("component")]:' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "the scope refusal goes back to naming a shell" \
+  apps/bothy-ops/updater/executor.py \
+  'instead=groups.instead(self.comp, self.cfg))' \
+  'instead=None)' \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+mutant "bothy-ops queues a group with a click when a member is one-way" \
+  apps/bothy-ops/updates.py \
+  '        if confirm != gid:' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates_apply.py
+
+mutant "a group ask gets a router of its own" \
+  edge/dynamic/bothy-updates.yml \
+  '    bothy-updates-autorun:' \
+  '    bothy-updates-apply-group:
+      rule: "Path(`/-/api/updates/apply-group`) && Method(`POST`)"
+      entryPoints: [web]
+      priority: 110
+      service: bothy-updates
+      middlewares: [bothy-updates-strip, updates-deidentify, sso-operator, sso-errors]
+
+    bothy-updates-autorun:' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
 
 echo
 echo "── the shell layer macOS has to parse ──────────────────────────────"

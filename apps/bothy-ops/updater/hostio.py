@@ -206,6 +206,52 @@ def repo_digest(img: dict | None, repository_ref: str) -> str | None:
     return None
 
 
+def compose_project(repo: str, name: str, pin_file: str, pin_service: str) -> dict:
+    """What `docker compose up` over `name`'s project WOULD recreate.
+
+    `{project, files, wd, want, have}`: `want` is `docker compose config --hash
+    "*"` (service -> the hash compose would create it with, profile-gated services
+    excluded) and `have` is the `com.docker.compose.config-hash` label every
+    non-one-off container of the project actually carries. Compose recreates a
+    service exactly when the two differ, so `want[s] != have.get(s)` IS "s would
+    be recreated or created".
+
+    Read by BOTH halves of the scope rule: executor.compose_scope (one component
+    must be the only thing the recipe touches) and groups.py (the union of a
+    recipe's members must be). One reader, so the two can never disagree about
+    what the project is. Raises HostError.
+    """
+    c = container(name) or {}
+    lab = c.get("labels") or {}
+    project = lab.get("com.docker.compose.project")
+    files = [f for f in (lab.get("com.docker.compose.project.config_files") or "").split(",") if f]
+    wd = lab.get("com.docker.compose.project.working_dir")
+    if not project or not files or not wd or lab.get("com.docker.compose.service") != pin_service:
+        raise HostError(f"{name} carries no compose labels for service {pin_service}")
+    root = repo + os.sep
+    if not all(os.path.realpath(f).startswith(root) for f in files):
+        raise HostError(f"{name} was created from files outside {repo}")
+    if os.path.realpath(os.path.join(repo, pin_file)) not in {os.path.realpath(f) for f in files}:
+        raise HostError(f"{name} was not created from {pin_file}")
+    argv = ["docker", "compose", "-p", project, "--project-directory", wd]
+    for f in files:
+        argv += ["-f", f]
+    rc, out, err = run([*argv, "config", "--hash", "*"], env=dotenv(repo), cwd=repo)
+    if rc != 0:
+        raise HostError(f"`docker compose config --hash` failed for project {project} ({tail(err, 200)})")
+    want = dict(ln.split(None, 1) for ln in out.splitlines() if len(ln.split()) == 2)
+    rc, names, _ = run(["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={project}",
+                        "--format", "{{.Names}}"])
+    have: dict[str, str] = {}
+    for n in names.split():
+        o = container(n) or {}
+        ol = o.get("labels") or {}
+        if ol.get("com.docker.compose.oneoff") == "True":
+            continue
+        have[ol.get("com.docker.compose.service", "")] = ol.get("com.docker.compose.config-hash", "")
+    return {"project": project, "files": files, "wd": wd, "want": want, "have": have}
+
+
 def free_bytes(path: str) -> int | None:
     p = path
     while p and not os.path.exists(p):

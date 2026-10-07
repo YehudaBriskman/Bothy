@@ -361,8 +361,12 @@ print()
 print("── write_all: one file per component, 600 in 700 ────────────────")
 hostio.write_json(cfg.available, A)
 got = plans.write_all(cfg)
-ok(set(got) == {"web", "loki", "graf", "flo", "grafana", "keycloak"}, f"a file per catalog component: {sorted(got)}")
-ok(not got["web"].startswith("- ") and got["graf"].startswith("- "), "web has a plan; graf has a reason")
+# The `just <recipe>` keys are the GROUP plans (updater/groups.py), written by the
+# same run into groups/ - checks/test_groups.py is where those are asserted.
+comps = {k: v for k, v in got.items() if not k.startswith("just ")}
+ok(set(comps) == {"web", "loki", "graf", "flo", "grafana", "keycloak"},
+   f"a file per catalog component: {sorted(comps)}")
+ok(not comps["web"].startswith("- ") and comps["graf"].startswith("- "), "web has a plan; graf has a reason")
 ok(oct(os.stat(cfg.plans).st_mode & 0o777) == "0o700" and
    all(oct(os.stat(os.path.join(cfg.plans, f)).st_mode & 0o777) == "0o600" for f in os.listdir(cfg.plans)),
    "plans/ is 700, every plan 600")

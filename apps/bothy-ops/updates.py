@@ -473,6 +473,121 @@ def _changelog(c: Component, disc: dict | None) -> str:
     return base[:-len("tag/")] if base.endswith("/tag/") else base
 
 
+# ══ groups: apply a whole `apply` recipe at once ═════════════════════════════
+#
+# A compose recipe is one `docker compose up`, so the host refuses to apply ONE
+# component while another service of the same project also has a merged pin
+# waiting - it would drag that one's migration along with no snapshot. When two
+# are waiting, that refusal is total: no single apply can succeed, and there was
+# nothing the page could offer but a shell. The group IS the offer.
+#
+# Everything here READS what the host wrote (updater/groups.py -> groups/<id>.json
+# in the read-only mount) through an allow-list, and the one write is the same
+# spool file as a component request with `kind: "group"` on it. There is no new
+# route and no new gate: the group read rides on GET /updates/plan?group= and the
+# group ask on POST /updates/request, which is already `operator`, CSRF-checked
+# and audited. A group is not a new KIND of power over this box - it is the power
+# /updates/request already has, over a plan the host wrote about a recipe rather
+# than about one component - so it gets no new surface at the edge.
+
+def _groups_dir() -> str:
+    """Beside plans/, in the same read-only mount. A function, not a constant,
+    because UPDATES_DIR is read from the environment further down this file."""
+    return os.path.join(UPDATES_DIR, "groups")
+
+
+def _read_group(gid: str) -> dict | None:
+    if not _ID.fullmatch(gid):
+        return None
+    doc = _read_json(os.path.join(_groups_dir(), f"{gid}.json"), MAX_PLAN_BYTES)
+    return doc if isinstance(doc, dict) and doc.get("version") == 1 and doc.get("group") == gid else None
+
+
+def _member_row(m: object) -> dict | None:
+    if not isinstance(m, dict) or not isinstance(m.get("component"), str) or not _ID.fullmatch(m["component"]):
+        return None
+    f, t = (m.get(k) if isinstance(m.get(k), dict) else {} for k in ("from", "to"))
+    return {"component": m["component"], "title": _s(m.get("title"), 120), "class": _s(m.get("class"), 20),
+            "container": _s(m.get("container"), 64),
+            "planId": m["planId"] if isinstance(m.get("planId"), str) and _PLAN.fullmatch(m["planId"]) else None,
+            "level": m["level"] if m.get("level") in LEVELS else None, "oneWay": m.get("oneWay") is True,
+            "from": {"image": _s(f.get("image"), 255), "version": _s(f.get("version"), 64),
+                     "tag": _s(f.get("tag"), 128), "digest": _digest_or_none(f.get("digest"))},
+            "to": {"image": _s(t.get("image"), 255), "version": _s(t.get("version"), 64),
+                   "tag": _s(t.get("tag"), 128), "digest": _digest_or_none(t.get("digest"))},
+            "pins": _pins(m.get("pins")), "snapshot": _s(m.get("snapshot"), 40),
+            "changelog": m["changelog"][:300] if isinstance(m.get("changelog"), str)
+            and m["changelog"].startswith("https://") else None}
+
+
+def _group_plan(p: object) -> dict | None:
+    """A host-written GROUP plan, copied field by field. None when it is not one."""
+    if not isinstance(p, dict) or not isinstance(p.get("id"), str) or not _PLAN.fullmatch(p["id"]):
+        return None
+    if p.get("kind") != "group" or p.get("level") not in LEVELS or p.get("confirm") not in ("click", "type-name"):
+        return None
+    if not isinstance(p.get("group"), str) or not _ID.fullmatch(p["group"]):
+        return None
+    rows = [r for r in (_member_row(m) for m in (p.get("memberRows") or [])[:16]) if r]
+    if len(rows) < 2:
+        return None  # a group is two or more members, or it is not a group
+    snap = p.get("snapshot") if isinstance(p.get("snapshot"), dict) else {}
+    est = snap.get("estimateBytes")
+    return {
+        "group": p["group"], "kind": "group", "id": p["id"], "title": _s(p.get("title"), 160),
+        "recipe": p["recipe"] if isinstance(p.get("recipe"), str) and _APPLY.fullmatch(p["recipe"]) else None,
+        "project": _s(p.get("project"), 64), "services": _strs_list(p.get("services"), 16, 64),
+        "createdAt": _iso_or_none(p.get("createdAt")), "discoveredAt": _iso_or_none(p.get("discoveredAt")),
+        "level": p["level"], "confirm": p["confirm"],
+        # What the person types when confirm is type-name: the GROUP's id, because
+        # the group is what is being approved - never one member's name.
+        "confirmWord": p["confirmWord"] if p.get("confirmWord") == p["group"] else None,
+        "oneWay": p.get("oneWay") is True, "oneWayWhy": _s(p.get("oneWayWhy"), 300),
+        "members": rows,
+        "skipped": [{"component": s["component"], "reason": _s(s.get("reason"), 300) or ""}
+                    for s in (p.get("skipped") or [])[:16]
+                    if isinstance(s, dict) and isinstance(s.get("component"), str) and _ID.fullmatch(s["component"])],
+        "restarts": _strs_list(p.get("restarts"), 16, 100),
+        "downtime": _s(p.get("downtime"), 800), "signedOut": _s(p.get("signedOut"), 300),
+        "snapshot": {"kinds": [k for k in _strs_list(snap.get("kinds"), 8, 40) if k in _SNAPSHOT_KINDS],
+                     "what": _s(snap.get("what"), 1200), "dir": _s(snap.get("dir"), 300),
+                     "estimateBytes": est if isinstance(est, int) and not isinstance(est, bool) and est >= 0
+                     else None},
+        "preflight": _strs_list(p.get("preflight"), 12, 400),
+        "verify": _strs_list(p.get("verify"), 32, 300),
+        "rollback": _s(p.get("rollback"), 1000),
+        "backupKinds": _strs_list(p.get("backupKinds"), 8, 40),
+    }
+
+
+def _group_rows(catalog: Catalog) -> list[dict]:
+    """One row per group the host knows about: its plan, or why there is none."""
+    try:
+        names = sorted(n for n in os.listdir(_groups_dir()) if n.endswith(".json"))
+    except OSError:
+        return []
+    out = []
+    for n in names[:16]:
+        gid = n[:-5]
+        doc = _read_group(gid)
+        if doc is None:
+            continue
+        members = [m for m in _strs_list(doc.get("members"), 16, 40) if _ID.fullmatch(m) and m in catalog.components]
+        if doc.get("ok") is True:
+            p = _group_plan(doc.get("plan"))
+            if not p or p["group"] != gid:
+                continue
+            out.append({"group": gid, "deployable": True, "recipe": p["recipe"], "plan": p,
+                        "reason": None, "candidates": [m["component"] for m in p["members"]],
+                        "createdAt": p["createdAt"]})
+        else:
+            out.append({"group": gid, "deployable": False,
+                        "recipe": f"just {gid}", "plan": None,
+                        "reason": _s(doc.get("reason"), 300) or "no group plan",
+                        "candidates": members, "createdAt": _iso_or_none(doc.get("createdAt"))})
+    return out
+
+
 def _row_plan(cid: str) -> dict | None:
     """The status row's summary of the host's plan file for `cid`."""
     doc = _read_plan(cid)
@@ -514,12 +629,26 @@ def status(catalog: Catalog) -> dict:
             "paused": auto_state["paused"].get(c.id),
             "unpauseQueued": c.id in unpausing,
         })
+    groups = _group_rows(catalog)
+    in_group = {c for g in groups if g["deployable"] for c in g["candidates"]}
+    for r in rows:
+        # Which group would carry this row, when one would. The page draws the
+        # row's Apply as "apply it with its group", because applying it alone WILL
+        # be refused by the host's scope check - the recipe recreates the others too.
+        r["group"] = next((g["group"] for g in groups if r["id"] in g["candidates"]), None)
+        r["applyWithGroup"] = r["id"] in in_group
     summary = {
         "components": len(rows),
         "updates": sum(1 for r in rows if r["level"]),
         "behind": sum(1 for r in rows if r["behind"]),
         "drift": sum(1 for r in rows if r["discovered"] and r["discovered"]["drift"]),
         "errors": sum(1 for r in rows if r["discovered"] and r["discovered"]["error"]),
+        # The count the whole page was missing: "pins this box has not applied".
+        # `updates` is what is newer UPSTREAM, which is a different question and
+        # was the only count with a headline - 2 of them, while ten components
+        # were behind on apply (2026-10-07).
+        "toApply": sum(1 for r in rows if r["plan"] and r["plan"]["deployable"]),
+        "groups": sum(1 for g in groups if g["deployable"]),
     }
     p = catalog.policy
     job = _current_job()
@@ -543,6 +672,10 @@ def status(catalog: Catalog) -> dict:
             "asks": {"discoverQueued": bool(_ask_queued(_DISCOVER_FILE, "discover-")),
                      "autorunQueued": bool(_ask_queued(_AUTORUN_FILE, "autorun-")),
                      "discoverMinSeconds": DISCOVER_MIN_SECONDS, **asks},
+            # One per `apply` recipe with two or more components to apply at once
+            # (updater/groups.py): the whole plan when it is deployable, the reason
+            # when it is not. Without this the page could only show a refusal.
+            "groups": groups,
             "components": rows}
 
 
@@ -769,6 +902,10 @@ def _job(j: object, *, steps: bool = True) -> dict | None:
         "endedAt": _iso_or_none(j.get("endedAt")),
         "from": _ref(j.get("from")), "to": _ref(j.get("to")),
         "error": _s(j.get("error"), 500), "snapshot": _s(j.get("snapshot"), 300), "note": _s(j.get("note"), 800),
+        # A GROUP job (updater/groups.py): `component` is the recipe, and these are
+        # the components it moved - so a history row says which, and so auto's
+        # pause can be read back against them.
+        "members": [m for m in _strs_list(j.get("members"), 16, 40) if _ID.fullmatch(m)],
     }
     if steps:
         out["steps"] = [{"name": s["name"], "state": s["state"], "startedAt": _iso_or_none(s.get("startedAt")),
@@ -831,7 +968,10 @@ def _queued() -> list[dict]:
 
 
 def _queued_job(d: dict) -> dict:
-    return {"id": d["jobId"], "component": _s(d.get("component"), 40) or "?",
+    # A group request names a RECIPE instead of a component, and that is what every
+    # record calls it (updater/record.new_job does the same on the host).
+    return {"id": d["jobId"], "component": _s(d.get("component"), 40) or _s(d.get("group"), 40) or "?",
+            "group": _s(d.get("group"), 40),
             "planId": d.get("planId") if isinstance(d.get("planId"), str) and _PLAN.fullmatch(d["planId"]) else None,
             "state": "queued", "requestedBy": _s(d.get("requestedBy"), 200) or "unknown",
             "requestedAt": _iso_or_none(d.get("requestedAt")), "startedAt": None, "endedAt": None,
@@ -862,19 +1002,51 @@ def _spool_write(rid: str, name: str, doc: dict) -> None:
     os.rename(tmp, os.path.join(SPOOL_DIR, name))
 
 
-def _one_param(h, name: str) -> str:
+def _one_param(h, *names: str) -> tuple[str, str]:
+    """(name, value) of the ONE query parameter, which must be one of `names`.
+
+    `/updates/plan` takes `?component=` or - for a group (updater/groups.py) -
+    `?group=`, and exactly one of them: one parameter, from a closed set, used
+    only as a lookup key into a file the HOST wrote.
+    """
     q = urlparse(h.path).query
     try:
         pairs = parse_qsl(q, keep_blank_values=True, strict_parsing=True)
     except ValueError:
-        raise Refused(f"expected ?{name}=…", status=400) from None
-    if len(pairs) != 1 or pairs[0][0] != name:
-        raise Refused(f"expected exactly one parameter, {name}", status=400)
-    return pairs[0][1]
+        raise Refused(f"expected ?{names[0]}=…", status=400) from None
+    if len(pairs) != 1 or pairs[0][0] not in names:
+        raise Refused(f"expected exactly one parameter, {' or '.join(names)}", status=400)
+    return pairs[0]
+
+
+def group_read(h, gid: str) -> tuple[dict, str]:
+    """GET /updates/plan?group=: the host's group plan, or its reason. Viewer."""
+    if not _ID.fullmatch(gid):
+        raise Refused("group must be an `apply` recipe name", status=400)
+    doc = _read_group(gid)
+    if doc is None:
+        return ({"group": gid, "plan": None, "ageSeconds": None,
+                 "reason": "no group plan - run `just updates-discover` on the host (it writes one per recipe "
+                           "with two or more components to apply at once)"}, f"{gid}: none")
+    try:
+        age = max(0, int(time.time() - os.stat(os.path.join(_groups_dir(), f"{gid}.json")).st_mtime))
+    except OSError:
+        age = None
+    if doc.get("ok") is True:
+        p = _group_plan(doc.get("plan"))
+        if p and p["group"] == gid:
+            return {"group": gid, "plan": p, "reason": None, "ageSeconds": age}, f"{gid}: {p['id']}"
+        return {"group": gid, "plan": None, "reason": "the group plan file is malformed",
+                "ageSeconds": age}, f"{gid}: malformed"
+    return ({"group": gid, "plan": None, "reason": _s(doc.get("reason"), 300) or "no group plan",
+             "ageSeconds": age}, f"{gid}: refused")
 
 
 def plan_read(h) -> tuple[dict, str]:
-    cid = _one_param(h, "component")
+    what, value = _one_param(h, "component", "group")
+    if what == "group":
+        return group_read(h, value)
+    cid = value
     if not _ID.fullmatch(cid):
         raise Refused("component must be a catalog id", status=400)
     if cid not in CATALOG.components:
@@ -898,9 +1070,74 @@ def plan_read(h) -> tuple[dict, str]:
             f"{cid}: refused")
 
 
+def request_group(h, who: str, body: dict) -> tuple[dict, str]:
+    """POST /updates/request with `group`: apply a whole recipe. ONE spool file.
+
+    The same route, the same `operator` gate, the same CSRF check and the same
+    audit line as a component request - because it is the same power over the box,
+    about a plan the host wrote for a recipe rather than for one component. Not a
+    second route: a group adds no KIND of access, and SECURITY.md counts routes.
+    """
+    if set(body) != {"group", "plan_id", "confirm"}:
+        raise Refused("the body is exactly {group, plan_id, confirm} - a group takes no note", status=400)
+    gid, pid, confirm = body["group"], body["plan_id"], body["confirm"]
+    if not isinstance(gid, str) or not _ID.fullmatch(gid):
+        raise Refused("group must be an `apply` recipe name", status=400)
+    if not isinstance(pid, str) or not _PLAN.fullmatch(pid):
+        raise Refused("plan_id must be 24 hex characters", status=400)
+    if flat(who) == AUTO_ACTOR:
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
+    doc = _read_group(gid)
+    if doc is None:
+        raise Refused(f"there is no group plan for {gid} - run `just updates-discover` on the host", status=404)
+    if doc.get("ok") is not True:
+        raise Refused(f"{gid} has no deployable group plan: {_s(doc.get('reason'), 300)}", status=409)
+    p = _group_plan(doc.get("plan"))
+    if not p or p["group"] != gid:
+        raise Refused("the group plan file is malformed", status=502)
+    if p["id"] != pid:
+        raise Refused(f"group plan {pid} is not the current plan for {gid} - reload and look again", status=409)
+    avail, _ = _available()
+    if not avail or avail.get("generatedAt") != p["discoveredAt"]:
+        raise Refused("discovery ran again after this plan was made - reload and look again", status=409)
+    if p["confirm"] == "type-name":
+        # The union, never the loosest: one one-way member, or one major step, and
+        # the whole group is typed - and what is typed is the GROUP's name.
+        if confirm != gid:
+            raise Refused(f"type the recipe's name ({gid}) to confirm - this group applies "
+                          f"{len(p['members'])} components in one `{p['recipe']}`", status=400)
+    elif confirm is not True:
+        raise Refused("confirm must be true", status=400)
+    _spool_ready()
+    queue = _queued()
+    if len(queue) >= MAX_QUEUE:
+        raise Refused(f"{len(queue)} requests are already waiting - is bothy-updater.path running?", status=429)
+    mine = {gid, *(m["component"] for m in p["members"])}
+    for q in queue:
+        if q.get("group") == gid:
+            raise Refused(f"an apply of {gid} is already queued", status=409)
+        if q.get("component") in mine:
+            raise Refused(f"an update of {q['component']} is already queued, and this group would apply it "
+                          "too", status=409)
+    cur = _current_job()
+    if cur and cur["state"] == "running" and cur["component"] in mine:
+        raise Refused(f"an update of {cur['component']} is running now", status=409)
+    job = secrets.token_hex(16)
+    req = {"v": 1, "jobId": job, "kind": "group", "group": gid, "planId": pid, "confirm": confirm,
+           "requestedBy": flat(who)[:200] or "unknown",
+           "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    _spool_write(job, f"{job}.json", req)
+    return ({"jobId": job, "group": gid, "planId": pid,
+             "components": [m["component"] for m in p["members"]]},
+            f"group {gid} plan {pid} job {job}: `{p['recipe']}` applies "
+            + ", ".join(f"{m['component']} {m['from']['version']}->{m['to']['version']}" for m in p["members"]))
+
+
 def request_update(h, who: str) -> tuple[dict, str]:
     """POST /updates/request: check, then write ONE spool file. Runs nothing."""
     body = h.read_json_object(2048)
+    if "group" in body:
+        return request_group(h, who, body)
     if not {"component", "plan_id", "confirm"} <= set(body) <= {"component", "plan_id", "confirm", "note"}:
         raise Refused("the body is exactly {component, plan_id, confirm} (+ note, for a plan that needs one)",
                       status=400)
@@ -949,6 +1186,18 @@ def request_update(h, who: str) -> tuple[dict, str]:
         raise Refused(f"{len(queue)} requests are already waiting - is bothy-updater.path running?", status=429)
     if any(q.get("component") == cid for q in queue):
         raise Refused(f"an update of {cid} is already queued", status=409)
+    for q in queue:
+        # A group already waiting that would apply this component too: the host
+        # would refuse the second one anyway (the plan it names goes stale the
+        # moment the first runs), and saying so here is the answer, not a 409
+        # arriving minutes later from the executor.
+        if not isinstance(q.get("group"), str):
+            continue
+        gdoc = _read_group(q["group"])
+        gp = _group_plan((gdoc or {}).get("plan")) if (gdoc or {}).get("ok") is True else None
+        if gp and cid in {m["component"] for m in gp["members"]}:
+            raise Refused(f"an apply of the whole `{gp['recipe']}` is already queued, and it includes {cid}",
+                          status=409)
     cur = _current_job()
     if cur and cur["state"] == "running" and cur["component"] == cid:
         raise Refused(f"an update of {cid} is running now", status=409)
@@ -1196,7 +1445,7 @@ def request_autorun(h, who: str) -> tuple[dict, str]:
 
 
 def job_read(h) -> tuple[dict, str]:
-    jid = _one_param(h, "id")
+    jid = _one_param(h, "id")[1]
     if not _JOB.fullmatch(jid):
         raise Refused("id must be 32 hex characters", status=400)
     # Spool first, then status.json, then history: the executor writes

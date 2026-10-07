@@ -181,20 +181,28 @@ def sync_pauses(cfg: Config, catalog: updates.Catalog | None = None) -> list[str
     with _Locked(cfg):
         st = load_state(cfg)
         for e in reversed(record.history(cfg, record.HISTORY_KEEP)):  # oldest first
-            cid, jid = e.get("component"), e.get("id")
-            if e.get("state") not in ("rolled_back", "failed") or cid not in auto or not isinstance(jid, str):
+            jid = e.get("id")
+            if e.get("state") not in ("rolled_back", "failed") or not isinstance(jid, str):
                 continue
-            seen = st["handled"].setdefault(cid, [])
-            if jid in seen:
-                continue
-            seen.append(jid)
-            del seen[:-HANDLED_KEEP]
-            why = f"{e['state'].replace('_', ' ')}: {flat(e.get('error') or 'no reason recorded')}"[:300]
-            st["paused"][cid] = {"since": e.get("endedAt") or iso(), "jobId": jid, "result": e["state"],
-                                 "reason": why, "requestedBy": flat(e.get("requestedBy") or "unknown")[:200]}
-            if cid not in newly:
-                newly.append(cid)
-            _audit(cfg, jid, cid, ACTOR, "pause", "paused", why)
+            # A GROUP job's `component` is the recipe (`up-monitoring`), and the
+            # components it moved are in `members`. Without this, a group apply that
+            # rolled back would leave the night job free to try the same `auto`
+            # patch again tonight - the one case where the pause is most wanted.
+            ms = e.get("members") if isinstance(e.get("members"), list) else []
+            for cid in ([e.get("component")] + [m for m in ms if isinstance(m, str)]):
+                if cid not in auto:
+                    continue
+                seen = st["handled"].setdefault(cid, [])
+                if jid in seen:
+                    continue
+                seen.append(jid)
+                del seen[:-HANDLED_KEEP]
+                why = f"{e['state'].replace('_', ' ')}: {flat(e.get('error') or 'no reason recorded')}"[:300]
+                st["paused"][cid] = {"since": e.get("endedAt") or iso(), "jobId": jid, "result": e["state"],
+                                     "reason": why, "requestedBy": flat(e.get("requestedBy") or "unknown")[:200]}
+                if cid not in newly:
+                    newly.append(cid)
+                _audit(cfg, jid, cid, ACTOR, "pause", "paused", why)
         for cid in list(st["paused"]):
             if cid not in catalog.components:
                 del st["paused"][cid]

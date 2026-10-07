@@ -68,7 +68,7 @@ import { Loader } from '../../components/ui/Loader';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleArrowUp, CircleDashed, CirclePause, Lock, Minus, RotateCcw, X,
+  AlertTriangle, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleArrowUp, CircleDashed, CirclePause, Layers, Lock, Minus, RotateCcw, X,
 } from 'lucide-react';
 import { filesHref } from '../files/routes';
 import { SettingBlock } from '../../components/settings/SettingBlock';
@@ -80,11 +80,13 @@ import '../../components/KubeActions.css';
 import { useOperator } from '../../lib/session';
 import { statusOf } from '../../lib/http';
 import {
-  AUTO_ACTOR, askDiscover, askNightJob, fetchJob, fetchPlan, fetchUpdates, isTerminal, pinFile, publishBehind,
+  AUTO_ACTOR, applyGroup, askDiscover, askNightJob, fetchGroup, fetchJob, fetchPlan, fetchUpdates, isTerminal,
+  pinFile, publishBehind,
   rememberJob, rememberedJob,
   requestUpdate, unpauseAuto,
   type AskRecord, type AutorunRecord,
-  type Channel, type HistoryEntry, type Job, type JobState, type JobStep, type Level, type OwnPlan, type Plan, type UpdateRow,
+  type Channel, type GroupPlan, type GroupRow, type HistoryEntry, type Job, type JobState, type JobStep,
+  type Level, type OwnPlan, type Plan, type UpdateRow,
   type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
 import { Button } from '../../components/ui/Button';
@@ -95,6 +97,7 @@ export function UpdatesSettings() {
   const { data, error, loading, reload } = useLoad((signal) => fetchUpdates(signal));
   const { canAct } = useOperator();
   const [planFor, setPlanFor] = useState<UpdateRow | null>(null);
+  const [groupFor, setGroupFor] = useState<GroupRow | null>(null);
   // The job this tab follows: one it asked for (remembered across reloads), else
   // whatever the host says is running now.
   const [followed, setFollowed] = useState<string | null>(() => rememberedJob());
@@ -108,6 +111,7 @@ export function UpdatesSettings() {
     rememberJob(id);
     setFollowed(id);
     setPlanFor(null);
+    setGroupFor(null);
     reload();
   };
   const dismiss = () => { rememberJob(null); setFollowed(null); };
@@ -126,9 +130,15 @@ export function UpdatesSettings() {
       <SettingBlock id="update-controls" badge="operator">
         {loading && !data ? <Loading rows={2} /> : <Controls d={data} canAct={canAct} onChanged={reload} />}
       </SettingBlock>
-      <SettingBlock id="update-components" badge="viewer · update: operator">
+      {data?.groups && data.groups.length > 0 && (
+        <SettingBlock id="update-groups" badge="apply: operator">
+          <Groups d={data} canAct={canAct} busy={!!jobId && !!data.applying} onApply={setGroupFor} />
+        </SettingBlock>
+      )}
+      <SettingBlock id="update-components" badge="viewer · apply: operator">
         {loading && !data ? <Loading rows={8} /> : error ? fail : data && (
-          <Components d={data} canAct={canAct} busy={!!jobId && !!data.applying} onUpdate={setPlanFor} onChanged={reload} />
+          <Components d={data} canAct={canAct} busy={!!jobId && !!data.applying} onUpdate={setPlanFor}
+            onGroup={setGroupFor} onChanged={reload} />
         )}
       </SettingBlock>
       <SettingBlock id="update-apply" badge="host updater">
@@ -141,6 +151,7 @@ export function UpdatesSettings() {
         {loading && !data ? <Loading rows={3} /> : <Channels d={data} />}
       </SettingBlock>
       {planFor && <PlanDialog row={planFor} onClose={() => setPlanFor(null)} onStarted={started} />}
+      {groupFor && <GroupDialog row={groupFor} onClose={() => setGroupFor(null)} onStarted={started} />}
     </>
   );
 }
@@ -157,14 +168,25 @@ function Freshness({ d }: { d: UpdatesStatus }) {
   }
   const ready = d.components.filter((r) => r.plan?.deployable).length;
   const paused = d.components.filter((r) => r.paused).length;
+  const groups = (d.groups ?? []).filter((g) => g.deployable);
   return (
     <p className={`set-fresh ${d.discovery.stale ? 'is-stale' : ''}`} role="status">
       {d.discovery.stale && <Icon icon={AlertTriangle} size="sm" />}
       <span>
-        {s.components} components · {s.updates} with a newer version · <b>{s.behind}</b> a minor or more behind
+        {/* APPLY FIRST, and in its own words. This page's action is Apply - make
+            the box run what `main` already pins - and the count that drives it is
+            `ready`. `updates` is the UPSTREAM question, answered by merging a PR
+            somewhere else, and it had the only headline: it read "2 with a newer
+            version" on a box where ten components were behind on apply, which is
+            how three refusals in a row came to look like a fault. */}
+        {ready > 0
+          ? <><b>{ready}</b> {ready === 1 ? 'component has a pin' : 'components have pins'} this box has not
+            applied{groups.length > 0 && <> · <b>{groups.length}</b> whole {groups.length === 1 ? 'recipe' : 'recipes'} can
+              be applied at once</>} · </>
+          : <>Everything <span className="mono">main</span> pins is applied · </>}
+        {s.components} components · {s.updates} with a newer version upstream · <b>{s.behind}</b> a minor or more behind
         {s.drift > 0 && <> · {s.drift} drifting</>}
         {s.errors > 0 && <> · {s.errors} not checked</>}
-        {ready > 0 && <> · <b>{ready}</b> ready to deploy</>}
         {paused > 0 && <> · <span className="set-warn">{paused} automatic {paused === 1 ? 'update' : 'updates'} paused</span></>}.
         {' '}Checked on the host <When iso={d.discovery.generatedAt} />
         {d.discovery.stale
@@ -461,6 +483,223 @@ function NightJobDialog({ d, onClose, onAsked }: { d: UpdatesStatus; onClose: ()
   );
 }
 
+// ── groups: everything one recipe pins, in one compose up ───────────────────
+//
+// A compose recipe IS one `docker compose up`, so the host refuses to apply one
+// component while another service of the same project also has a merged pin
+// waiting - it would drag that one's migration along with no snapshot. Where two
+// are waiting that refusal is total: every row's Apply is refused, each naming
+// the others, and the page's only answer was a shell. This block is the answer.
+//
+// It sits ABOVE the per-component table on purpose. When a group is deployable,
+// its members' own Apply cannot succeed, so the group is the action and the rows
+// below are its detail - not two equal choices.
+
+function Groups({ d, canAct, busy, onApply }: {
+  d: UpdatesStatus; canAct: boolean; busy: boolean; onApply: (g: GroupRow) => void;
+}) {
+  const gs = d.groups ?? [];
+  return (
+    <>
+      <ul className="upd-groups">
+        {gs.map((g) => <GroupItem key={g.group} g={g} canAct={canAct} busy={busy} onApply={onApply} />)}
+      </ul>
+      <p className="set-note">
+        A recipe is one <span className="mono">docker compose up</span>, so a component whose project has another
+        merged pin waiting <b>cannot be applied on its own</b> - the host refuses, rather than recreate the other
+        service with no snapshot of it. Applying the group takes every member&rsquo;s own snapshot first, needs the
+        strictest confirmation any member needs, and <b>rolls all of them back together</b>. It is never automatic.
+      </p>
+    </>
+  );
+}
+
+function GroupItem({ g, canAct, busy, onApply }: {
+  g: GroupRow; canAct: boolean; busy: boolean; onApply: (g: GroupRow) => void;
+}) {
+  const p = g.plan;
+  return (
+    <li className="upd-group" data-deployable={g.deployable ? 'true' : 'false'}>
+      <div className="upd-group-h">
+        <span className="upd-group-n">
+          <Icon icon={Layers} size="sm" />
+          <span className="mono">{g.recipe ?? `just ${g.group}`}</span>
+        </span>
+        {p ? (
+          <span className="upd-group-sub">
+            {p.members.length} components in one apply{p.project && <> · project <span className="mono">{p.project}</span></>}
+            {p.oneWay && <> · <span className="upd-oneway"><Icon icon={Lock} size="xs" />one-way member</span></>}
+          </span>
+        ) : (
+          <span className="upd-group-sub dim">nothing to apply together</span>
+        )}
+        <span className="upd-group-act">
+          {p && canAct && (
+            <Button size="sm" variant="caution" onClick={() => onApply(g)} disabled={busy}
+              title={busy ? 'An update is running - one at a time' : `Apply all of ${p.recipe}`}>
+              Apply all {p.members.length}…
+            </Button>
+          )}
+          {p && !canAct && <span className="set-cell-sub">needs <span className="mono">operator</span></span>}
+        </span>
+      </div>
+      {p ? (
+        <ul className="upd-list upd-group-m">
+          {p.members.map((m) => (
+            <li key={m.component}>
+              <b>{m.title ?? m.component}</b>{' '}
+              <span className="mono upd-tag">{m.from.version ?? m.from.tag} → {m.to.version ?? m.to.tag}</span>{' '}
+              {m.level && <LevelBadge level={m.level} />}
+              {m.oneWay && <span className="upd-oneway"><Icon icon={Lock} size="xs" />one-way</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="upd-reason"><Ticks text={g.reason ?? 'no group plan'} /></p>
+      )}
+    </li>
+  );
+}
+
+/** The group plan, and the one confirmation that approves all of it. */
+function GroupDialog({ row, onClose, onStarted }: { row: GroupRow; onClose: () => void; onStarted: (jobId: string) => void }) {
+  const { data, error, loading } = useLoad((signal) => fetchGroup(row.group, signal), [row.group]);
+  const [typed, setTyped] = useState('');
+  const [phase, setPhase] = useState<{ t: 'idle' } | { t: 'sending' } | { t: 'refused'; error: unknown }>({ t: 'idle' });
+  const firing = useRef(false);
+  const plan = data?.plan ?? null;
+  const ready = !!plan && (plan.confirm === 'click' || typed === plan.group) && phase.t !== 'sending';
+
+  const go = async () => {
+    if (!plan || !ready || firing.current) return;
+    firing.current = true;
+    setPhase({ t: 'sending' });
+    try {
+      const r = await applyGroup({ group: plan.group, plan_id: plan.id,
+        confirm: plan.confirm === 'click' ? true : typed });
+      onStarted(r.jobId);
+    } catch (e) {
+      setPhase({ t: 'refused', error: e });
+    } finally {
+      firing.current = false;
+    }
+  };
+
+  return (
+    <Dialog
+      open size="lg"
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={<span className="sa-title">Apply all of <span className="mono">{row.recipe ?? row.group}</span></span>}
+      description="One docker compose up for every component of this recipe that main pins and this box is not running. Approving it approves this group plan id - the host re-derives the whole thing, and every member's plan, and refuses one that is no longer current."
+    >
+      <div className="ka-body upd-plan">
+        {loading ? <p className="sa-working"><Loader state="load" size="sm" label="Reading the group plan…" /></p>
+          : error ? <PlanRefusal error={error} />
+            : !plan ? (
+              <EmptyState
+                message="Nothing to apply together."
+                hint={<Prose text={data?.reason ?? 'The host wrote no group plan for this recipe.'} />}
+              />
+            ) : (
+              <>
+                <GroupFacts plan={plan} age={data?.ageSeconds ?? null} />
+                {phase.t === 'refused' && <PlanRefusal error={phase.error} />}
+                <form className="ka-confirm" onSubmit={(e) => { e.preventDefault(); void go(); }}>
+                  <p className="sa-warn">
+                    <Icon icon={AlertTriangle} size="md" />
+                    <span>
+                      This recreates {plan.services.join(', ')} on the host, in one{' '}
+                      <span className="mono">{plan.recipe}</span>. Signed out: {plan.signedOut}.
+                      {' '}<b>A rollback puts all of them back together</b> - there is no keeping the ones that worked.
+                    </span>
+                  </p>
+                  {plan.confirm === 'type-name' && (
+                    <label className="ka-field">
+                      {/* The GROUP's name, not a member's: what is being approved is
+                          the whole apply. The host refuses anything else. */}
+                      <span className="ka-label">
+                        Type <span className="mono">{plan.confirmWord ?? plan.group}</span> to confirm - this group
+                        includes {plan.oneWay ? 'a one-way migration' : 'a major step'}
+                      </span>
+                      <input
+                        className="ka-input mono" autoComplete="off" spellCheck={false} value={typed}
+                        onChange={(e) => setTyped(e.target.value)}
+                        aria-invalid={typed.length > 0 && typed !== plan.group}
+                      />
+                    </label>
+                  )}
+                  <div className="ka-row">
+                    <Button variant="ghost" onClick={onClose}>Leave it alone</Button>
+                    <Button variant="caution" type="submit" disabled={!ready}>
+                      {phase.t === 'sending' ? 'Asking the host…' : `Apply ${plan.members.length} components`}
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+      </div>
+    </Dialog>
+  );
+}
+
+function GroupFacts({ plan, age }: { plan: GroupPlan; age: number | null }) {
+  return (
+    <div className="upd-plan-facts">
+      <ul className="upd-list upd-group-diff">
+        {plan.members.map((m) => (
+          <li key={m.component}>
+            <b>{m.title ?? m.component}</b>{' '}
+            <span className="mono upd-tag">{m.from.image}</span>
+            <Icon icon={ArrowRight} size="xs" />
+            <span className="mono upd-tag">{m.to.image}</span>{' '}
+            {m.level && <LevelBadge level={m.level} />}
+            {m.oneWay && <span className="upd-oneway"><Icon icon={Lock} size="xs" />one-way</span>}
+            <span className="set-cell-sub">
+              {m.class} · snapshot: {m.snapshot} ·{' '}
+              {m.pins.map((q, i) => <span key={`${q.file}:${q.service}`}>{i > 0 && ', '}
+                <span className="mono">{q.file}:{q.line ?? '?'}</span></span>)}
+              {m.changelog && <> · <a className="link upd-cl" href={m.changelog} target="_blank" rel="noreferrer noopener">
+                changelog<Icon icon={ArrowUpRight} size="xs" /></a></>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <dl className="upd-dl">
+        <dt>One apply</dt>
+        <dd><span className="mono">{plan.recipe}</span> over project <span className="mono">{plan.project}</span>,
+          recreating exactly <span className="mono">{plan.services.join(', ')}</span> - the same scope check a single
+          component gets, over the union of these members.</dd>
+        {plan.skipped.length > 0 && (
+          <><dt>Not in it</dt>
+            <dd><ul className="upd-list">{plan.skipped.map((s) => (
+              <li key={s.component}><span className="mono">{s.component}</span> - <Ticks text={s.reason} /></li>
+            ))}</ul></dd></>
+        )}
+        <dt>Restarts</dt>
+        <dd>{plan.restarts.join(', ')}</dd>
+        <dt>Downtime</dt>
+        <dd>{plan.downtime}</dd>
+        <dt>Signed out</dt>
+        <dd>{plan.signedOut}</dd>
+        <dt>Snapshot</dt>
+        <dd><Ticks text={plan.snapshot.what ?? ''} /> <span className="set-cell-sub">
+          into <span className="mono">{plan.snapshot.dir}</span>
+          {plan.snapshot.estimateBytes != null && <> · about {fmtBytes(plan.snapshot.estimateBytes)}</>} · the last 3 are kept</span></dd>
+        {plan.oneWay && <><dt>One-way</dt><dd className="set-warn"><Icon icon={Lock} size="xs" />{plan.oneWayWhy}</dd></>}
+        <dt>Pre-flight</dt>
+        <dd><ul className="upd-list">{plan.preflight.map((x) => <li key={x}><Ticks text={x} /></li>)}</ul></dd>
+        <dt>Verify</dt>
+        <dd><ul className="upd-list">{plan.verify.map((x) => <li key={x}><Ticks text={x} /></li>)}</ul></dd>
+        <dt>Rollback</dt>
+        <dd><Ticks text={plan.rollback ?? ''} /></dd>
+        <dt>Plan</dt>
+        <dd><span className="mono">{plan.id}</span> · written <When iso={plan.createdAt} />
+          {age != null && age > 12 * 3600 && <span className="set-warn"> · over 12 h old - `just updates-discover` refreshes it</span>}</dd>
+      </dl>
+    </div>
+  );
+}
+
 // ── the table ────────────────────────────────────────────────────────────────
 
 const GROUP_TITLE: Record<Channel, string> = {
@@ -475,9 +714,19 @@ function LevelBadge({ level }: { level: Level }) {
   return <span className="upd-level" data-level={level}>{LEVEL_WORD[level]}</span>;
 }
 
-interface RowCtx { canAct: boolean; busy: boolean; onUpdate: (r: UpdateRow) => void; onChanged: () => void }
+interface RowCtx {
+  canAct: boolean;
+  busy: boolean;
+  onUpdate: (r: UpdateRow) => void;
+  /** This row's group, when applying the row alone would be refused. */
+  onGroup: (g: GroupRow) => void;
+  onChanged: () => void;
+}
 
 function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
+  // The recipe groups (above the table), by the component they would carry - so a
+  // row whose Apply cannot succeed alone can hand its group to the same dialog.
+  const byComponent = new Map((d.groups ?? []).flatMap((g) => g.candidates.map((c) => [c, g] as const)));
   const groups = (['auto', 'notify', 'manual'] as Channel[])
     .map((ch) => ({ ch, rows: d.components.filter((r) => r.channel === ch) }))
     .filter((g) => g.rows.length > 0);
@@ -501,16 +750,18 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
           {groups.map((g) => (
             <tbody key={g.ch}>
               <tr className="set-tbl-sep"><td colSpan={6}>{GROUP_TITLE[g.ch]}</td></tr>
-              {g.rows.map((r) => <Row key={r.id} r={r} {...ctx} />)}
+              {g.rows.map((r) => <Row key={r.id} r={r} group={byComponent.get(r.id) ?? null} {...ctx} />)}
             </tbody>
           ))}
         </table>
       </div>
       <p className="set-note set-tbl-note">
-        <b>Deploy</b> runs what the checkout’s <span className="mono">main</span> already pins - a merged pin that is not
-        running yet. <b>Available</b> is what is newer upstream; to get it, merge its Dependabot PR first. <b>Drift</b> means
-        what runs is not what the repository pins. A <b>floating</b> pin (<span className="mono">v3.7</span>,{' '}
-        <span className="mono">17</span>) can move under you and is never deployed by the updater.
+        <b>Apply</b> makes this box run what the checkout’s <span className="mono">main</span> already pins - a merged pin
+        that is not running yet. <b>Available</b> is what is newer <i>upstream</i>; to get that, merge its Dependabot PR
+        first, which is a different step and happens elsewhere. <b>Drift</b> means what runs is not what the repository
+        pins. A <b>floating</b> pin (<span className="mono">v3.7</span>, <span className="mono">17</span>) can move under
+        you and is never applied by the updater. Where a recipe has more than one pin waiting, the row points at its{' '}
+        <b>group</b> above: applying one alone would be refused.
       </p>
     </>
   );
@@ -535,7 +786,8 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
 // than seven. `as-cards` then follows its documented contract (index.css SYS-17):
 // `data-label` on the four cells that need their column name, and none on the
 // identifying cell or on the controls-only cell.
-function Row({ r, canAct, busy, onUpdate, onChanged }: { r: UpdateRow } & RowCtx) {
+function Row({ r, group, canAct, busy, onUpdate, onGroup, onChanged }:
+{ r: UpdateRow; group: GroupRow | null } & RowCtx) {
   const [open, setOpen] = useState(false);
   const uid = useId();
   const bodyId = `${uid}-det`;
@@ -556,7 +808,7 @@ function Row({ r, canAct, busy, onUpdate, onChanged }: { r: UpdateRow } & RowCtx
             and has no column name worth printing (index.css, the as-cards
             contract). */}
         <td className="upd-acts set-cell-act">
-          <DeployCell r={r} canAct={canAct} busy={busy} onUpdate={onUpdate} />
+          <DeployCell r={r} group={group} canAct={canAct} busy={busy} onUpdate={onUpdate} onGroup={onGroup} />
           <Button
             variant="ghost" size="sm" iconOnly className={`upd-more${open ? ' is-open' : ''}`}
             aria-expanded={open}
@@ -575,7 +827,7 @@ function Row({ r, canAct, busy, onUpdate, onChanged }: { r: UpdateRow } & RowCtx
       <tr className="upd-det-tr">
         <td colSpan={6}>
           <Disclosure open={open} id={bodyId} className="upd-det-d">
-            <RowDetail r={r} canAct={canAct} onChanged={onChanged} />
+            <RowDetail r={r} group={group} canAct={canAct} onChanged={onChanged} />
           </Disclosure>
         </td>
       </tr>
@@ -599,7 +851,8 @@ function Det({ k, children }: { k: string; children: ReactNode }) {
  * same text, out of the cells and into named fields, so each one has a label
  * instead of relying on which column it happened to be under.
  */
-function RowDetail({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onChanged: () => void }) {
+function RowDetail({ r, group, canAct, onChanged }:
+{ r: UpdateRow; group: GroupRow | null; canAct: boolean; onChanged: () => void }) {
   const d = r.discovered;
   const c = d?.current;
   const p = r.plan;
@@ -657,8 +910,20 @@ function RowDetail({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; on
       {p && !p.deployable && (
         <Det k="Not deployable"><span className="upd-reason"><Ticks text={p.reason} /></span></Det>
       )}
-      {p?.deployable && <Det k="Deploy would run"><span className="mono upd-tag">{p.from} → {p.to}</span> <LevelBadge level={p.level} /></Det>}
-      {p?.deployable && !canAct && <Det k="Deploy">needs the <span className="mono">operator</span> role</Det>}
+      {p?.deployable && <Det k="Apply would run"><span className="mono upd-tag">{p.from} → {p.to}</span> <LevelBadge level={p.level} /></Det>}
+      {p?.deployable && r.applyWithGroup && (
+        <Det k="Not on its own">
+          <span className="set-warn"><Icon icon={Layers} size="xs" />its recipe has more than one pin waiting</span>
+          <span className="set-cell-sub">
+            <span className="mono">{r.apply}</span> is one <span className="mono">docker compose up</span>, so it would
+            recreate the rest of {group?.plan?.project ?? 'its project'} too. The host refuses that rather than skip
+            their snapshots. Apply the group{' '}
+            <span className="mono">{group?.recipe ?? `just ${r.group}`}</span> above - it covers{' '}
+            {group?.plan?.members.map((m) => m.component).join(', ') ?? 'every member'}.
+          </span>
+        </Det>
+      )}
+      {p?.deployable && !canAct && <Det k="Apply">needs the <span className="mono">operator</span> role</Det>}
 
       <Det k="Checked">{d?.checkedAt ? <When iso={d.checkedAt} /> : 'not checked yet'}</Det>
       <Det k="Changelog">
@@ -672,17 +937,42 @@ function RowDetail({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; on
 
 /** THE ONE ACTION. An icon button with a real accessible name - which is the
  *  whole point of the change: "Update…" in a cell was one of nine mark families
- *  competing in a row, and a glyph with a name says the same thing in a square. */
-function DeployCell({ r, canAct, busy, onUpdate }: { r: UpdateRow } & Omit<RowCtx, 'onChanged'>) {
+ *  competing in a row, and a glyph with a name says the same thing in a square.
+ *
+ *  It says APPLY, not Update. The two are different actions and the page had one
+ *  word for both: Update moves the pin in `main` (a PR, elsewhere), Apply makes
+ *  this box run what `main` already pins - which is the only one this button can
+ *  do. Ten components behind on APPLY, under a headline counting UPDATES, is what
+ *  produced three refusals in a row that read like a fault.
+ *
+ *  When the row's recipe has more than one pin waiting, applying this one alone
+ *  WILL be refused, so the button opens the GROUP instead of a request the host
+ *  is certain to turn down. */
+function DeployCell({ r, group, canAct, busy, onUpdate, onGroup }:
+{ r: UpdateRow; group: GroupRow | null } & Omit<RowCtx, 'onChanged'>) {
   const p = r.plan;
   // `no plan` and `not deployable` are states, and the REASON is in the
   // disclosure; the cell itself says only that there is nothing to press.
   if (!p || !p.deployable || !canAct) return <span className="dim upd-noact" aria-hidden="true">-</span>;
+  if (r.applyWithGroup && group?.plan) {
+    const g = group.plan;
+    return (
+      <Button
+        size="sm" iconOnly className="upd-go" onClick={() => onGroup(group)} disabled={busy}
+        aria-label={`Apply ${r.title} with the rest of ${g.recipe} - ${g.members.length} components in one apply, `
+          + 'because applying it alone would be refused'}
+        title={busy ? 'An update is running - one at a time'
+          : `${r.title} cannot be applied alone: apply all ${g.members.length} of ${g.recipe}`}
+      >
+        <Icon icon={Layers} size="sm" />
+      </Button>
+    );
+  }
   return (
     <Button
       size="sm" iconOnly className="upd-go" onClick={() => onUpdate(r)} disabled={busy}
-      aria-label={`Update ${r.title} from ${p.from} to ${p.to} - a ${LEVEL_WORD[p.level]} release`}
-      title={busy ? 'An update is running - one at a time' : `Update ${r.title}: ${p.from} → ${p.to}`}
+      aria-label={`Apply ${r.title}: ${p.from} to ${p.to} - a ${LEVEL_WORD[p.level]} release main already pins`}
+      title={busy ? 'An update is running - one at a time' : `Apply ${r.title}: ${p.from} → ${p.to}`}
     >
       <Icon icon={CircleArrowUp} size="sm" />
     </Button>
@@ -1076,7 +1366,7 @@ function OwnFacts({ plan, own, age }: { plan: Plan; own: OwnPlan; age: number | 
 const STATE_WORD: Record<JobState, string> = {
   queued: 'Queued - waiting for the host',
   running: 'Running on the host',
-  succeeded: 'Updated',
+  succeeded: 'Applied',
   rolled_back: 'Rolled back',
   aborted: 'Aborted - nothing running was changed',
   failed: 'Failed - a person is needed',
@@ -1175,6 +1465,12 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
           {!job || !done ? <Loader state="work" size="sm" announce={false} /> : <JobGlyph state={job.state} />}
           <span>{job ? STATE_WORD[job.state] : 'Asking the host…'}</span>
           {job && <span className="mono upd-job-what">{job.component}{job.to ? ` → ${job.to.version ?? job.to.image}` : ''}</span>}
+          {/* A group job: `component` is the recipe, so say which components it
+              is moving - otherwise the panel names a `just` target and nothing
+              about what is being replaced. */}
+          {job && (job.members?.length ?? 0) > 0 && (
+            <span className="set-cell-sub">{job.members!.join(', ')}</span>
+          )}
         </p>
         {done && <Button variant="ghost" size="sm" onClick={onDismiss}>Dismiss</Button>}
       </header>
@@ -1231,7 +1527,7 @@ function JobGlyph({ state }: { state: JobState }) {
 // ── history ──────────────────────────────────────────────────────────────────
 
 const HIST_WORD: Record<JobState, string> = {
-  queued: 'queued', running: 'running', succeeded: 'updated', rolled_back: 'rolled back', aborted: 'aborted',
+  queued: 'queued', running: 'running', succeeded: 'applied', rolled_back: 'rolled back', aborted: 'aborted',
   failed: 'failed', refused: 'refused',
 };
 
@@ -1258,7 +1554,9 @@ function History({ d }: { d: UpdatesStatus | null }) {
             <tr key={e.id}>
               <td data-label="When"><When iso={e.endedAt ?? e.requestedAt} />
                 <span className="set-cell-sub"><Actor who={e.requestedBy} />{e.durationMs != null && ` · ${Math.round(e.durationMs / 1000)} s`}</span></td>
-              <td data-label="Component"><b>{e.component}</b></td>
+              <td data-label="Component"><b>{e.component}</b>
+                {(e.members?.length ?? 0) > 0
+                  && <span className="set-cell-sub">{e.members!.join(', ')}</span>}</td>
               <td data-label="Change">
                 <span className="mono upd-tag">{e.from?.version ?? e.from?.image ?? '?'} → {e.to?.version ?? e.to?.image ?? '?'}</span>
               </td>
@@ -1336,12 +1634,23 @@ function LastNight({ d }: { d: UpdatesStatus | null }) {
 // ── how applying works, and what is still by hand ───────────────────────────
 
 function Apply({ d }: { d: UpdatesStatus | null }) {
-  // What the updater will not do, and what to do instead.
-  const manual = (d?.components ?? []).filter((r) => (r.level || r.discovered?.drift) && !r.plan?.deployable);
+  // What the updater will not do, and what to do instead. A row whose only
+  // obstacle is that its recipe has several pins waiting is NOT by hand any more -
+  // its group is the action, so it would be wrong to list it here.
+  const manual = (d?.components ?? []).filter((r) => (r.level || r.discovered?.drift) && !r.plan?.deployable
+    && !r.applyWithGroup);
   return (
     <>
       <div className="kv-list">
-        <div className="kv"><div className="kv-k">What Update does</div><div className="kv-v">
+        <div className="kv"><div className="kv-k">Update, and Apply</div><div className="kv-v">
+          Two different actions, and this page only does the second. <b>Update</b> moves a pin in{' '}
+          <span className="mono">main</span> - a Dependabot PR, reviewed and merged, which happens on GitHub, not here.
+          <b> Apply</b> makes this box run what <span className="mono">main</span> already pins. The headline counts them
+          separately for that reason.
+          <span className="set-note">A version <span className="mono">main</span> does not pin is never offered, so git
+            stays the only record of what the box should run.</span>
+        </div></div>
+        <div className="kv"><div className="kv-k">What Apply does</div><div className="kv-v">
           Deploys what the checkout’s <span className="mono">main</span> already pins and is not running yet - nothing else.
           The host re-checks the plan, runs the pre-flight, takes a snapshot, pulls, runs the component’s recipe, then checks
           the component’s canaries <b>by their bodies</b>. Any failure puts the old image back.
@@ -1359,8 +1668,16 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
         </div></div>
         <div className="kv"><div className="kv-k">Getting a newer version</div><div className="kv-v">
           Merge its Dependabot PR, then on the box <Cmd>git pull --ff-only</Cmd> and <Cmd>just updates-discover</Cmd>. The
-          row then offers <b>Update</b>. A version <span className="mono">main</span> does not pin is never offered, so git
-          stays the only record of what the box should run.
+          row then offers <b>Apply</b>.
+        </div></div>
+        <div className="kv"><div className="kv-k">Several pins in one recipe</div><div className="kv-v">
+          A <span className="mono">just up-&lt;recipe&gt;</span> is one <span className="mono">docker compose up</span>, so
+          the host refuses to apply one component while another service of the same project also has a merged pin waiting:
+          it would recreate that one too, with no snapshot of it. Where that happens the <b>group</b> above applies the
+          whole recipe at once - every member&rsquo;s own snapshot first, the strictest confirmation any member needs, and
+          an all-or-nothing rollback. Never automatically.
+          <span className="set-note">From a shell: <Cmd>just update-groups</Cmd> prints what each recipe would apply, and
+            why one is refused.</span>
         </div></div>
         <div className="kv"><div className="kv-k">From a shell</div><div className="kv-v">
           <Cmd>systemctl status bothy-updater.service</Cmd>

@@ -289,6 +289,12 @@ def write_all(cfg: Config | None = None, catalog: updates.Catalog | None = None,
     for fn in os.listdir(cfg.plans):
         if fn.endswith(".json") and fn[:-5] not in catalog.components:
             os.unlink(os.path.join(cfg.plans, fn))
+    # The group plans, beside these and written by the same run: "apply everything
+    # `just up-monitoring` pins, at once". Imported here rather than at the top
+    # because groups.py imports the executor, which imports this module.
+    from . import groups
+    for gid, v in groups.write_all(cfg, catalog, available).items():
+        out[f"just {gid}"] = v
     return out
 
 

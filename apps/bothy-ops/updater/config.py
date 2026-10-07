@@ -47,6 +47,11 @@ class Config:
     backup_max_age: int = 24 * 3600
     keep_snapshots: int = 3
     apply_timeout: int = 900
+    # A GROUP's one `docker compose up` recreates several services, each with its
+    # own `--wait` (Loki alone costs ~15 s of ring delay before /ready), so it gets
+    # its own budget: a timeout mid-recreate would abort the apply and roll the
+    # whole group back for a reason that was only the clock.
+    group_apply_timeout: int = 1800
     verify_timeout: int = 180
     min_free_bytes: int = 1 << 30
     max_jobs_per_run: int = 10
@@ -139,6 +144,13 @@ class Config:
     @property
     def plans(self) -> str:
         return os.path.join(self.state, "plans")
+
+    @property
+    def groups(self) -> str:
+        """One plan per `apply` recipe with two or more components to apply at once
+        (updater/groups.py), keyed by the recipe. Beside plans/, written by the same
+        discovery run, read by bothy-ops through the same read-only mount."""
+        return os.path.join(self.state, "groups")
 
     @property
     def status_file(self) -> str:

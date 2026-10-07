@@ -4,9 +4,11 @@
 //                                           discovery timer found, the current job
 //                                           and the history
 //   GET  /-/api/updates/plan      viewer    the plan the HOST pre-computed for one
-//                                           component (?component=)
+//                                           component (?component=), or for a whole
+//                                           `apply` recipe (?group=, updater/groups.py)
 //   POST /-/api/updates/request   operator  {component, plan_id, confirm[, note]} - writes
-//                                           ONE spool file and answers 202 with a job id
+//                                           ONE spool file and answers 202 with a job id,
+//                                           or {group, plan_id, confirm} for a whole recipe
 //   GET  /-/api/updates/job       viewer    one job's steps (?id=)
 //   POST /-/api/updates/unpause   operator  {component} - asks the HOST to clear an
 //                                           automatic-update pause (step 7); 202
@@ -101,6 +103,88 @@ export interface UpdateRow {
   paused?: Pause | null;
   /** An operator's unpause is waiting in the spool for the host. */
   unpauseQueued?: boolean;
+  /** The `apply` recipe group this component belongs to, when its recipe has one. */
+  group?: string | null;
+  /** Applying this ALONE would be refused - the recipe recreates its group-mates
+   *  too, and the host's scope check will not let one of them ride along without a
+   *  snapshot. Apply the group instead. */
+  applyWithGroup?: boolean;
+}
+
+// ── groups: everything one `apply` recipe pins, in one compose up ────────────
+//
+// A compose recipe is one `docker compose up`, so the host refuses to apply ONE
+// component while another service of the same project also has a merged pin
+// waiting. When two are waiting that refusal is total, and the page used to have
+// nothing to offer but a shell. A group is the offer: the union of its members'
+// treatments (every class's own snapshot, type-the-name as soon as one member is
+// one-way) and an all-or-nothing rollback.
+
+/** One member of a group: a component, and the step the group would take for it. */
+export interface GroupMember {
+  component: string;
+  title: string | null;
+  class: string | null;
+  container: string | null;
+  planId: string | null;
+  level: Level | null;
+  oneWay: boolean;
+  from: { image: string | null; version: string | null; tag: string | null; digest: string | null };
+  to: { image: string | null; version: string | null; tag: string | null; digest: string | null };
+  pins: { file: string | null; service: string | null; line: number | null }[];
+  snapshot: string | null;
+  changelog: string | null;
+}
+
+export interface GroupPlan {
+  group: string;
+  kind: 'group';
+  id: string;
+  title: string | null;
+  recipe: string | null;
+  project: string | null;
+  /** The compose services this one `up` recreates, and nothing else. */
+  services: string[];
+  createdAt: string | null;
+  discoveredAt: string | null;
+  /** The largest step any member takes. */
+  level: Level;
+  /** 'type-name' as soon as ONE member is one-way or one step is a major. */
+  confirm: 'click' | 'type-name';
+  /** What to type then: the GROUP's name, because the group is what is approved. */
+  confirmWord: string | null;
+  oneWay: boolean;
+  oneWayWhy: string | null;
+  members: GroupMember[];
+  /** Components of this recipe the group is NOT carrying, and why. */
+  skipped: { component: string; reason: string }[];
+  restarts: string[];
+  downtime: string | null;
+  signedOut: string | null;
+  snapshot: { kinds: string[]; what: string | null; dir: string | null; estimateBytes: number | null };
+  preflight: string[];
+  verify: string[];
+  rollback: string | null;
+  backupKinds: string[];
+}
+
+export interface GroupRow {
+  group: string;
+  deployable: boolean;
+  recipe: string | null;
+  plan: GroupPlan | null;
+  reason: string | null;
+  /** The components of this recipe the updater deploys at all. */
+  candidates: string[];
+  createdAt: string | null;
+}
+
+export interface GroupAnswer {
+  ok: true;
+  group: string;
+  plan: GroupPlan | null;
+  reason: string | null;
+  ageSeconds: number | null;
 }
 
 /** Why the automatic channel stopped touching a component - until an operator clears it. */
@@ -167,7 +251,19 @@ export interface UpdatesStatus {
     stale: boolean;
     hint: string | null;
   };
-  summary: { components: number; updates: number; behind: number; drift: number; errors: number };
+  summary: {
+    components: number;
+    /** How many have something NEWER UPSTREAM. Merging its PR is what gets it. */
+    updates: number;
+    behind: number;
+    drift: number;
+    errors: number;
+    /** How many have a pin THIS BOX HAS NOT APPLIED. A different question from
+     *  `updates`, and the one that matters here: Apply is what this page does. */
+    toApply?: number;
+    /** How many whole recipes can be applied at once. */
+    groups?: number;
+  };
   policy: {
     windowStart: string;
     windowEnd: string;
@@ -191,6 +287,9 @@ export interface UpdatesStatus {
   /** Step 6: which copy of the host updater runs, and a newer one staged by an
    *  update of Bothy itself, waiting for `just install-updater`. Null: not installed. */
   updater?: UpdaterInfo | null;
+  /** One per `apply` recipe with two or more components to apply at once. Absent
+   *  from an older service, so the block that draws them draws nothing then. */
+  groups?: GroupRow[];
   components: UpdateRow[];
 }
 
@@ -342,6 +441,11 @@ interface JobBase {
   /** The pre-update snapshot directory on the host. */
   snapshot: string | null;
   note: string | null;
+  /** A GROUP job (updater/groups.py): `component` is the RECIPE, and these are the
+   *  components it moved. Empty for a single-component job. */
+  members?: string[];
+  /** Set while the group ask is still in the spool, waiting for the host. */
+  group?: string | null;
 }
 
 export interface Job extends JobBase { steps: JobStep[] }
@@ -373,6 +477,24 @@ export async function fetchPlan(component: string, signal?: AbortSignal): Promis
 export async function requestUpdate(body: { component: string; plan_id: string; confirm: true | string; note?: string }): Promise<RequestAnswer> {
   if (import.meta.env.DEV) return (await import('./updates.dev')).requestMock(body);
   return apiFetch<RequestAnswer>('/-/api/updates/request', { method: 'POST', body, ...WIRE });
+}
+
+export async function fetchGroup(group: string, signal?: AbortSignal): Promise<GroupAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).groupMock(group);
+  return apiFetch<GroupAnswer>(`/-/api/updates/plan?group=${encodeURIComponent(group)}`, { signal, ...WIRE });
+}
+
+export interface GroupRequestAnswer { ok: true; jobId: string; group: string; planId: string; components: string[] }
+
+/** Ask the host to apply everything one `apply` recipe pins, in ONE compose up.
+ *
+ *  The same route and the same gate as a component apply: the browser sends the
+ *  GROUP PLAN's id, the host recomputes the whole plan and every member's, and
+ *  refuses one that is no longer current. The rollback is all-or-nothing, which
+ *  the dialog says before it is pressed. */
+export async function applyGroup(body: { group: string; plan_id: string; confirm: true | string }): Promise<GroupRequestAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).groupRequestMock(body);
+  return apiFetch<GroupRequestAnswer>('/-/api/updates/request', { method: 'POST', body, ...WIRE });
 }
 
 export interface UnpauseAnswer { ok: true; id: string; component: string }
