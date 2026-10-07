@@ -1144,6 +1144,33 @@ mutant "the tile unit is declared a second time, per page" \
 .overview .ov-body {' \
   -- "${WEB_CHECKS[@]}"
 
+# A5. The bug exactly as it shipped: a gutter with a width and no height. The
+# glyph then overflows it by a pixel each side and this app's two menus align
+# their rows differently - nothing errors, nothing is obviously wrong, and it
+# survived every design batch so far.
+mutant "the menu gutter loses its height again" \
+  apps/bothy-web/web/src/components/ui/Menu.css \
+  '  width: var(--icon-sm); height: var(--icon-sm); color: var(--fg-subtle); }' \
+  '  width: var(--icon-sm); color: var(--fg-subtle); }' \
+  -- "${WEB_CHECKS[@]}"
+
+# The other half: a size typed at a menu call site instead of MENU_ICON. This is
+# the literal that was there (UserMenu passed "md" into a 14px gutter), planted
+# somewhere else so the binding is what is being tested rather than one file.
+mutant "a menu item types its own glyph size" \
+  apps/bothy-web/web/src/pages/control/ClusterTabs.tsx \
+  'icon: <SizedIcon icon={Icon} size={MENU_ICON} />' \
+  'icon: <SizedIcon icon={Icon} size="md" />' \
+  -- "${WEB_CHECKS[@]}"
+
+# And an `.ico` box rendered by hand, which is how a container and its glyph got
+# to be set independently in the first place.
+mutant "an .ico container is rendered by hand again" \
+  apps/bothy-web/web/src/components/ServiceRow.tsx \
+  '          <IconBox size="sm">{(g) => <ServiceIcon node={node} size={g} />}</IconBox>' \
+  '          <span className="ico sm"><ServiceIcon node={node} size="md" /></span>' \
+  -- "${WEB_CHECKS[@]}"
+
 echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran

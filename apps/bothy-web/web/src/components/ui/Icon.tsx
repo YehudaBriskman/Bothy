@@ -17,9 +17,63 @@
 // xl (24) is for the one-glyph illustrations: an empty state, a header tile.
 
 import type { LucideIcon, LucideProps } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 export const ICON = { xs: 12, sm: 14, md: 16, lg: 20, xl: 24 } as const;
 export type IconSize = keyof typeof ICON;
+
+/**
+ * ICON CONTAINERS: the square a glyph sits in, and the glyph size that square
+ * takes. NOTHING BOUND THESE until 2026-10-07, and two things followed from that:
+ *
+ *   · `.ico.sm` is a 26px square, and it was handed `size="md"` at four call
+ *     sites and `size="sm"` at a fifth - so two different optical rings appeared
+ *     on adjacent surfaces, and no rule said which was right. `md` wins here
+ *     because four of the five already drew it, not because 16 beats 14.
+ *   · `.ui-menu-ico` was `width: var(--icon-sm)` - 14px, and NO HEIGHT - while
+ *     UserMenu passed `size="md"` (16px) into it. The glyph overflowed its
+ *     gutter by a pixel each side, so the app's two menus aligned their rows
+ *     differently; Files' editor menu passed `sm` and looked right.
+ *
+ * The table is the binding, and checks/design-tokens.mjs §6 asserts the CSS
+ * agrees with it, that nothing renders an `.ico` box by hand, and that every
+ * menu item's glyph is the size the gutter declares. A container and its glyph
+ * can no longer be changed apart.
+ *
+ * WHAT IS NOT FIXABLE HERE, and should not be re-chased: a residual lean of a
+ * fraction of a pixel. `.ico` is `display: grid; place-items: center` and the
+ * arithmetic is even at every size - every glyph's ink midpoint is exactly 12.00
+ * in lucide's 24-unit box, `wrench` alone at 11.22. What is left is rasterisation:
+ * px-literal boxes inside rem-spaced parents land on fractional device pixels,
+ * and a 1.875-unit stroke lands where it lands. Measured, understood, and not a
+ * centring bug.
+ */
+export const ICON_BOX = {
+  md: { px: 38, glyph: 'md' },
+  sm: { px: 26, glyph: 'md' },
+  lg: { px: 56, glyph: 'xl' },
+} as const satisfies Record<string, { px: number; glyph: IconSize }>;
+export type IconBoxSize = keyof typeof ICON_BOX;
+
+/** The gutter a menu row reserves for its glyph, and the glyph that fits it.
+ *  A gutter rather than a tile, so the box IS the glyph: its job is only to keep
+ *  the labels lined up whether or not a row has an icon. */
+export const MENU_ICON: IconSize = 'sm';
+
+/**
+ * One of the containers above, with its glyph size handed to the child - which
+ * is what makes them impossible to set apart. The child is a function because
+ * the glyph is not always `<Icon>`: `ServiceIcon` and `TypeIcon` pick their own
+ * lucide glyph and take the same `size`.
+ */
+export function IconBox({ size = 'md', className, children }: {
+  size?: IconBoxSize;
+  className?: string;
+  children: (glyph: IconSize) => ReactNode;
+}) {
+  const cls = `ico${size === 'md' ? '' : ` ${size}`}${className ? ` ${className}` : ''}`;
+  return <span className={cls}>{children(ICON_BOX[size].glyph)}</span>;
+}
 
 export interface IconProps extends Omit<LucideProps, 'size' | 'ref'> {
   icon: LucideIcon;

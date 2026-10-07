@@ -12,8 +12,11 @@
    to disagree. The reasoning moved with it. */
 .overview .ov-body { padding: var(--sp-1_5) 0 var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-5); }
 
-/* compact glyph reused by alert / feed rows */
-.overview .ico.sm { width: 26px; height: 26px; border-radius: var(--r-sm); font-size: 0; }
+/* The alert and feed rows' glyph box. It used to restate `.ico.sm`'s width,
+   height and radius here as well - a second copy of the container size, which is
+   half of what let the container and its glyph drift apart in the first place.
+   Only the one thing index.css does not say is left. */
+.overview .ico.sm { font-size: 0; }
 
 /* Scrollbars are styled once, globally (index.css → SCROLLING). The copy that
    used to live here predated that and set a different width and thumb colour,

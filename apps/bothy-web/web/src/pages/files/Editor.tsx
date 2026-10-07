@@ -55,7 +55,7 @@ import { DiffView, type DiffTarget } from './Diff';
 import { OverflowMenu, type MenuItem } from './Menu';
 import type { CodeHandle, CodeStat } from './CodeSurface';
 import { Button, buttonClass } from '../../components/ui/Button';
-import { Icon } from '../../components/ui/Icon';
+import { Icon, MENU_ICON } from '../../components/ui/Icon';
 import { Loader } from '../../components/ui/Loader';
 
 // The whole of CodeMirror lives behind this one line. `npm run build` puts it in
@@ -619,22 +619,22 @@ export function Editor({
     items.push(
       {
         id: 'diff-working', label: 'Diff: working tree, against the index',
-        icon: <Icon icon={Pencil} size="sm" />, disabled: !diff.staged,
+        icon: <Icon icon={Pencil} size={MENU_ICON} />, disabled: !diff.staged,
         note: !diff.staged ? 'already showing' : undefined,
         onPick: () => onDiffSide(false),
       },
       {
         id: 'diff-staged', label: 'Diff: staged, against HEAD',
-        icon: <Icon icon={GitCommitVertical} size="sm" />, disabled: diff.staged,
+        icon: <Icon icon={GitCommitVertical} size={MENU_ICON} />, disabled: diff.staged,
         note: diff.staged ? 'already showing' : undefined,
         onPick: () => onDiffSide(true),
       },
-      { id: 'diff-close', label: 'Close the diff', icon: <Icon icon={X} size="sm" />, onPick: onCloseDiff },
+      { id: 'diff-close', label: 'Close the diff', icon: <Icon icon={X} size={MENU_ICON} />, onPick: onCloseDiff },
     );
   }
   items.push(
     {
-      id: 'find', label: 'Find in this file', icon: <Icon icon={Search} size="sm" />,
+      id: 'find', label: 'Find in this file', icon: <Icon icon={Search} size={MENU_ICON} />,
       chord: chordOf('find'), group: !!diff,
       disabled: !codeMounted,
       note: 'the text surface is not on screen - switch to Source',
@@ -642,38 +642,38 @@ export function Editor({
     },
     {
       id: 'keys', label: keysOpen ? 'Hide the keyboard shortcuts' : 'Keyboard shortcuts',
-      icon: <Icon icon={Keyboard} size="sm" />,
+      icon: <Icon icon={Keyboard} size={MENU_ICON} />,
       disabled: !codeMounted,
       note: 'the text surface is not on screen - switch to Source',
       onPick: () => setKeysOpen((v) => !v),
     },
     {
-      id: 'reveal', label: 'Reveal in the explorer', icon: <Icon icon={Crosshair} size="sm" />, group: true,
+      id: 'reveal', label: 'Reveal in the explorer', icon: <Icon icon={Crosshair} size={MENU_ICON} />, group: true,
       disabled: !active, note: 'nothing is open',
       onPick: onReveal,
     },
     {
       id: 'split',
       label: canSplit ? 'Open in a split beside' : 'Move to the other group',
-      icon: <Icon icon={Columns2} size="sm" />,
+      icon: <Icon icon={Columns2} size={MENU_ICON} />,
       disabled: !active || (canSplit && docs.length < 2),
       note: !active ? 'nothing is open' : 'the last tab in a group cannot split off itself',
       onPick: onSplitOff,
     },
     {
-      id: 'raw', label: 'Download the raw file', icon: <Icon icon={Download} size="sm" />, group: true,
+      id: 'raw', label: 'Download the raw file', icon: <Icon icon={Download} size={MENU_ICON} />, group: true,
       disabled: !active?.file || !canDownload,
       note: !canDownload ? 'sign in first - the download origin has no sign-in page' : 'nothing is open',
       onPick: onDownload,
     },
     {
-      id: 'zip', label: 'Download as .zip', icon: <Icon icon={FileArchive} size="sm" />,
+      id: 'zip', label: 'Download as .zip', icon: <Icon icon={FileArchive} size={MENU_ICON} />,
       disabled: !active?.file || !canDownload,
       note: !canDownload ? 'sign in first - the download origin has no sign-in page' : 'nothing is open',
       onPick: () => onArchive('zip'),
     },
     {
-      id: 'tgz', label: 'Download as .tar.gz', icon: <Icon icon={FileArchive} size="sm" />,
+      id: 'tgz', label: 'Download as .tar.gz', icon: <Icon icon={FileArchive} size={MENU_ICON} />,
       disabled: !active?.file || !canDownload,
       note: !canDownload ? 'sign in first - the download origin has no sign-in page' : 'nothing is open',
       onPick: () => onArchive('tgz'),

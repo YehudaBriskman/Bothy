@@ -14,7 +14,7 @@ import { Tabs, TabGroup, TabPanel } from '../components/Tabs';
 import { SystemName } from '../components/SystemName';
 import type { Drift } from '../lib/config';
 import './Detail.css';
-import { Icon } from '../components/ui/Icon';
+import { Icon, IconBox } from '../components/ui/Icon';
 import { buttonClass } from '../components/ui/Button';
 import { NotFound, Skeleton, firstPoll } from '../components/states';
 
@@ -219,7 +219,7 @@ export function ProjectDetail() {
                 {sections.map((sec) => (
                   <section className="type-section" key={sec.type}>
                     <div className="type-head">
-                      <span className="ico sm"><TypeIcon type={sec.type} size="md" /></span>
+                      <IconBox size="sm">{(g) => <TypeIcon type={sec.type} size={g} />}</IconBox>
                       <span className="type-label">{sec.label}</span>
                       <span className="type-cnt">{sec.nodes.length}</span>
                     </div>
@@ -254,7 +254,7 @@ export function ProjectDetail() {
                       const size = volumeSize(df, v.name);
                       return (
                         <tr key={v.name}>
-                          <td className="vol-name"><span className="ico sm"><Icon icon={HardDrive} size="md" /></span><span className="mono">{v.name}</span></td>
+                          <td className="vol-name"><IconBox size="sm">{(g) => <Icon icon={HardDrive} size={g} />}</IconBox><span className="mono">{v.name}</span></td>
                           <td className="mono dim" data-label="Mounted at">{v.destination || '-'}</td>
                           <td className="mono num" data-label="Size">{df ? fmtBytes(size) : '-'}</td>
                         </tr>

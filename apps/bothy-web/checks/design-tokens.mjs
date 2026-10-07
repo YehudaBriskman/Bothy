@@ -356,10 +356,59 @@ console.log('\n── hit targets, the elevation ladder, the scrim ────�
 // ── 6. icons ────────────────────────────────────────────────────────────────
 console.log('\n── icon sizes: CSS and ui/Icon.tsx agree ───────────────────');
 {
-  const icon = readFileSync(join(SRC, 'components', 'ui', 'Icon.tsx'), 'utf8');
+  const ICON_FILE = join('components', 'ui', 'Icon.tsx');
+  const icon = readFileSync(join(SRC, ICON_FILE), 'utf8');
   const js = Object.fromEntries([...(icon.match(/ICON\s*=\s*\{([^}]*)\}/)?.[1] ?? '').matchAll(/(\w+):\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]));
   const css = Object.fromEntries(Object.entries(ROOT).filter(([k]) => k.startsWith('--icon-')).map(([k, v]) => [k.slice(7), parseFloat(v)]));
   say(JSON.stringify(js) === JSON.stringify(css) && Object.keys(js).length === 5, 'ICON equals --icon-xs/sm/md/lg/xl', JSON.stringify(css));
+
+  // ── 6b. a CONTAINER and its GLYPH cannot be set apart (batch A, A5) ───────
+  // Nothing bound them before, and two defects followed: `.ico.sm` (26px) was
+  // handed `size="md"` at four call sites and `size="sm"` at a fifth, so two
+  // optical rings appeared on adjacent surfaces; and `.ui-menu-ico` was 14px
+  // wide with no height while UserMenu passed 16px glyphs into it, so this
+  // app's two menus aligned their rows differently. ICON_BOX and MENU_ICON in
+  // ui/Icon.tsx are the binding; these four assertions are what keeps it one.
+  const BOX = Object.fromEntries([...(icon.match(/ICON_BOX\s*=\s*\{([\s\S]*?)\n\}/)?.[1] ?? '')
+    .matchAll(/(\w+):\s*\{\s*px:\s*(\d+),\s*glyph:\s*'(\w+)'/g)].map((m) => [m[1], { px: Number(m[2]), glyph: m[3] }]));
+  say(Object.keys(BOX).length === 3, 'ICON_BOX names the three .ico containers', JSON.stringify(BOX));
+  // The CSS squares equal ICON_BOX's px, and each is a square.
+  const boxCss = [['md', '.ico'], ['sm', '.ico.sm'], ['lg', '.ico.lg']].map(([k, sel]) => {
+    const r = rules(INDEX).find((x) => x.sel === sel && !x.media);
+    const d = r ? Object.fromEntries(decls(r.body)) : {};
+    return [k, sel, d.width, d.height ?? (k === 'md' ? d.height : undefined)];
+  });
+  const boxBad = boxCss.filter(([k, , w, h]) => {
+    const want = `${BOX[k]?.px}px`;
+    return w !== want || (h !== undefined && h !== want);
+  }).map(([, sel, w, h]) => `${sel} ${w}/${h}`);
+  // `.ico.sm` and `.ico.lg` override only the width in the shorthand they
+  // inherit, so a height that is PRESENT must match; `.ico` sets both.
+  say(boxBad.length === 0, 'every .ico container is the square ICON_BOX says it is', boxBad.join('; ') || boxCss.map(([k, , w]) => `${k} ${w}`).join(' '));
+  // Nobody renders one by hand any more - that is what let the glyph drift.
+  const handBox = [];
+  for (const f of tsx) {
+    if (rel(f) === ICON_FILE) continue;
+    const s = stripTs(readFileSync(f, 'utf8'));
+    for (const m of s.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\}|\{'([^']*)'\})/g)) {
+      const txt = (m[1] ?? m[2] ?? m[3]).replace(/\$\{[^}]*\}/g, ' ');
+      if (/(^|\s)ico(\s|$)/.test(txt)) handBox.push(`${rel(f)}: "${txt.trim()}"`);
+    }
+  }
+  say(handBox.length === 0, 'no hand-written `ico` container outside ui/Icon.tsx (use <IconBox>, which hands the glyph its size)',
+    handBox.join('; ') || `${tsx.length} files read`);
+  // The menu gutter: both dimensions, equal, and equal to the glyph MENU_ICON
+  // names - and every menu item passing exactly that.
+  const menuCss = rules(readFileSync(join(SRC, 'components', 'ui', 'Menu.css'), 'utf8')).find((r) => r.sel === '.ui-menu-ico');
+  const md = menuCss ? Object.fromEntries(decls(menuCss.body)) : {};
+  const menuGlyph = icon.match(/MENU_ICON:\s*IconSize\s*=\s*'(\w+)'/)?.[1];
+  say(!!menuGlyph && md.width === `var(--icon-${menuGlyph})` && md.height === md.width,
+    'the menu gutter is a square the size of the glyph MENU_ICON names', `${md.width} x ${md.height} vs --icon-${menuGlyph}`);
+  const literalMenu = [];
+  for (const f of tsx) for (const m of stripTs(readFileSync(f, 'utf8')).matchAll(/icon:\s*<\w+\s[^>]*size=(?:"(\w+)"|\{(\w+)\})/g)) {
+    if (m[2] !== 'MENU_ICON') literalMenu.push(`${rel(f)}: size=${m[1] ?? `{${m[2]}}`}`);
+  }
+  say(literalMenu.length === 0, 'every menu item\'s glyph is MENU_ICON, not a size typed at the call site', literalMenu.join('; '));
 }
 
 // ── 8. motion behaviour (batch 3) ───────────────────────────────────────────

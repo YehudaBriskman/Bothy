@@ -12,7 +12,15 @@
   white-space: nowrap; cursor: pointer; user-select: none; text-decoration: none;
   outline: none;
 }
-.ui-menu-ico { flex: none; display: grid; place-items: center; width: var(--icon-sm); color: var(--fg-subtle); }
+/* A GUTTER, not a tile: its job is to keep the labels lined up whether or not a
+   row has an icon, so the box IS the glyph. It was `width: var(--icon-sm)` with
+   NO HEIGHT while UserMenu passed `size="md"` into it - a 16px glyph in a 14px
+   box, overflowing a pixel each side, so this app's two menus aligned their rows
+   differently (Files' editor menu passed `sm` and looked right). Both dimensions
+   now, and `MENU_ICON` in ui/Icon.tsx names the glyph that fits; the check
+   asserts the two agree and that no menu item passes anything else. */
+.ui-menu-ico { flex: none; display: grid; place-items: center;
+  width: var(--icon-sm); height: var(--icon-sm); color: var(--fg-subtle); }
 .ui-menu-ico svg, .ui-menu-item > svg { flex: none; }
 .ui-menu-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ui-menu-sub { font-size: var(--fs-2xs); line-height: var(--lh-2xs); color: var(--fg-subtle); white-space: normal; }

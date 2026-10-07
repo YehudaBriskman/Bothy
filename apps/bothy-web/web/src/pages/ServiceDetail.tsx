@@ -13,7 +13,7 @@ import { systemLink, kindLabelOf, unknownReason } from '../lib/links';
 import { ActionCell } from '../components/ServiceActions';
 import './Detail.css';
 import { buttonClass } from '../components/ui/Button';
-import { Icon } from '../components/ui/Icon';
+import { Icon, IconBox } from '../components/ui/Icon';
 import { NotFound, Skeleton, firstPoll } from '../components/states';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -89,7 +89,7 @@ export function ServiceDetail() {
       </nav>
 
       <motion.header className="detail-head" {...riseIn(-1, reduce)}>
-        <span className="ico lg"><ServiceIcon node={node} size="xl" /></span>
+        <IconBox size="lg">{(g) => <ServiceIcon node={node} size={g} />}</IconBox>
         <div className="detail-head-meta">
           <h1>{node.name}</h1>
           <div className="detail-head-row">

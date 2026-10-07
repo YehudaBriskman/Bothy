@@ -24,7 +24,7 @@ import { ServiceIcon, StatusIcon, STATUS_LABEL } from '../lib/icons';
 import { useLayout } from '../lib/usePrefs';
 import { orderSections } from '../lib/prefs';
 import './Overview.css';
-import { Icon as SizedIcon } from '../components/ui/Icon';
+import { Icon as SizedIcon, IconBox } from '../components/ui/Icon';
 import { Button } from '../components/ui/Button';
 
 // A bare colour dot is not a status. StatusIcon does this correctly elsewhere;
@@ -314,7 +314,7 @@ function AttentionStrip({ attention }: { attention: PortalNode[] }) {
       <div className="ov-attn-list">
         {attention.map((n) => (
           <Link to={serviceLink(n)} className="ov-alert" key={n.id}>
-            <span className="ico sm"><ServiceIcon node={n} size="md" /></span>
+            <IconBox size="sm">{(g) => <ServiceIcon node={n} size={g} />}</IconBox>
             <span className="ov-alert-name">{n.name}</span>
             <StatusIcon status={n.status} />
             <span className="ov-alert-why">{n.status === 'down' ? 'down' : n.status === 'stopped' ? 'stopped' : kindLabelOf(n).label}</span>
