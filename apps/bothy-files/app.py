@@ -97,12 +97,27 @@ from bothy_common.http import JsonHandler, Refused, serve  # noqa: E402
 
 PORT = int(os.environ.get("PORT", "8099"))
 
-# A hard ceiling on one listing. ~/projects alone holds tens of thousands of
-# files once you stop pruning; without a cap the JSON is tens of megabytes and
-# the browser stalls. The cap is REPORTED (`truncated: true`) rather than applied
-# quietly, because a tree that silently stops is how you conclude a file is
-# missing when it is only past the cutoff.
-MAX_LISTING = 4000
+# MAX_LISTING = 4000 IS GONE (2026-10), and so is the `truncated` flag it set.
+#
+# It was a hard ceiling on one recursive listing, reported rather than applied
+# quietly - which was the right way to ship a wrong design. What it actually
+# meant, measured in this container:
+#
+#   root        files returned   files actually there    ms     JSON
+#   stacks      1,262            1,262                   84    272 KB
+#   projects    4,000 (capped)   19,273                 399  1,177 KB
+#   home        4,000 (capped)   20,612                 433  1,247 KB
+#
+# ~15,000 files per big root could not be opened, found or linked at all, because
+# nothing on the far side of the cap had a path the client had ever heard of. And
+# the median directory on this box holds ONE entry (p95: 10), so the algorithm was
+# loading 19,273 files to draw a single row.
+#
+# /tree lists ONE DIRECTORY now, with no cap, for every root - see
+# safepath.list_dir. Finding a file by name is /find, which walks and is bounded
+# by MATCHES rather than by the size of the tree. Nothing here caps a listing any
+# more, which is why there is nothing left to report: a flag nothing can set is
+# worse than no flag, because every reader of it has to go and check.
 
 # Language hints for the editor's highlighter. Extension first, then whole
 # filename for the ones that have no extension at all.
@@ -297,79 +312,81 @@ def git(root: str, *args: str) -> subprocess.CompletedProcess:
 READONLY_ROOTS = frozenset(safepath.ROOTS) - safepath.WRITABLE_ROOTS
 
 
-def listing(root_key: str, rel: str = "") -> tuple[list[dict], bool]:
-    """Every readable file under a root, or under one directory inside it.
+def _entry(root_key: str, e: safepath.Entry) -> dict:
+    """One listing row, the shape every file-shaped endpoint here sends.
 
-    `rel` is the SCOPE: "look inside this folder and nothing above it", which is
-    what a reader means by opening a folder and what `cd` means in a shell. It is
-    not a filter applied to a full listing - the walk starts there - so scoping
-    into a directory costs what that directory costs and not what the root does.
-    That difference is the whole point on this box: ~ is 3,200 entries and three
-    seconds, while any one folder inside it is a handful.
+    ONE BUILDER, because /tree, /find and /docs all describe the same thing and a
+    second copy is how a field comes to mean two things. `dir` carries the entry's
+    PARENT PATH for a file and the boolean `true` for a directory - which is the
+    pair of shapes the client has accepted since the field was introduced (see
+    TreeFile in lib/files.ts): a lazy client cannot infer a folder it has not
+    listed, so a directory has to say so itself rather than be read out of a path
+    separator.
 
-    The scope is resolved through safepath like every other client-supplied path,
-    so `..` cannot climb out of the root and a symlinked directory cannot point
-    somewhere else. Paths in the result stay ROOT-relative, because a client that
-    scoped into a folder still has to be able to open what it finds, and every
-    other endpoint speaks root-relative paths.
+    A directory carries NO `size`. It used to be impossible to ask - the recursive
+    listing emitted files only - and the honest answer is not st_size (the inode's
+    own 4 KB, which means nothing to a reader) and not a subtree rollup either:
+    see /dirsize for why that one is computed at click and never at hover.
     """
-    writable_root = root_key not in READONLY_ROOTS
-    root = safepath.ROOTS[root_key]
-    real = os.path.realpath(root)
-    start = real
-    if rel:
-        # resolve() answers for FILES; a directory has to be checked here, and
-        # the containment proof is the same one: compare the real path against
-        # the real root, after following every link.
-        cand = os.path.realpath(os.path.join(real, rel))
-        if cand != real and not cand.startswith(real + os.sep):
-            raise safepath.PathRefused("that folder is outside the root")
-        if not os.path.isdir(cand):
-            raise safepath.PathRefused("no such folder")
-        start = cand
-    out: list[dict] = []
-    for dirpath, dirnames, filenames in os.walk(start, followlinks=False):
-        # Prune in place so os.walk never descends where policy would refuse.
-        # Must go through prune_dirs(), not a bare DENY_COMPONENTS test: the
-        # per-root rules (top-level dotfiles, ~/backups) are otherwise applied
-        # only at resolve() time, and the walk pays for 30,093 files it discards.
-        dirnames[:] = safepath.prune_dirs(
-            root_key, os.path.relpath(dirpath, real), dirnames)
-        for fn in sorted(filenames):
-            full = os.path.join(dirpath, fn)
-            try:
-                res = safepath.resolve(root_key, os.path.relpath(full, real))
-            except safepath.PathRefused:
-                # A symlink out of the root lands here. Skipped, not surfaced:
-                # the listing is a menu, and an entry that cannot be opened is
-                # worse than an absent one.
-                continue
-            try:
-                st = os.stat(res.abspath)
-            except OSError:
-                continue
-            out.append({
-                "path": res.relpath,
-                "dir": os.path.dirname(res.relpath),   # so a UI can build a tree
-                "size": st.st_size,
-                "mtime": int(st.st_mtime),
-                # Writable now means only "the root allows writes". The suffix
-                # allowlist that used to narrow this is gone - see [write] in
-                # policy.toml - so the explorer no longer greys out a compose
-                # file it is perfectly able to save.
-                "writable": writable_root,
-                # The LABEL, not a refusal. A name-shaped credential is served
-                # and marked; the client decides how loudly to say so.
-                "sensitive": safepath.is_sensitive_name(fn),
-                "lang": LANGS.get(os.path.splitext(fn)[1].lower())
-                        or LANGS.get(fn),
-            })
-            if len(out) >= MAX_LISTING:
-                # A cap, and it is REPORTED rather than silently applied - a
-                # truncated tree that claims to be complete is how you conclude a
-                # file does not exist when it is only past the cutoff.
-                return sorted(out, key=lambda f: f["path"]), True
-    return sorted(out, key=lambda f: f["path"]), False
+    base = os.path.basename(e.res.relpath)
+    row: dict = {
+        "path": e.res.relpath,
+        "mtime": e.mtime,
+        # Writable means only "the root allows writes". The suffix allowlist that
+        # used to narrow this is gone - see [write] in policy.toml - so the
+        # explorer no longer greys out a compose file it can perfectly well save.
+        "writable": root_key not in READONLY_ROOTS,
+    }
+    if e.is_dir:
+        row["dir"] = True
+        return row
+    row["dir"] = os.path.dirname(e.res.relpath)
+    row["size"] = e.size
+    # The LABEL, not a refusal. A name-shaped credential is served and marked;
+    # the client decides how loudly to say so.
+    row["sensitive"] = safepath.is_sensitive_name(base)
+    row["lang"] = LANGS.get(os.path.splitext(base)[1].lower()) or LANGS.get(base)
+    return row
+
+
+def listing(root_key: str, rel: str = "") -> tuple[str, list[dict]]:
+    """ONE DIRECTORY's entries - its files and its subdirectories. Not recursive.
+
+    This used to be a recursive walk of everything under `rel`, capped at 4,000
+    rows and reported as `truncated`. See the note where MAX_LISTING used to be
+    for the numbers that killed it; the short version is that the cap hid ~15,000
+    files per big root and the median directory holds one entry, so the walk cost
+    19,273 stats to draw one row.
+
+    `rel` is still the folder asked about and paths still come back ROOT-RELATIVE,
+    so every other endpoint keeps working unchanged - a client that opened a folder
+    four levels down can still hand what it finds to /read. What changed is the
+    DEPTH, and it changed for every root at once: there is no threshold, no
+    "small roots stay eager" branch, and `stacks` and `notes` got faster too.
+
+    The walk - prune, resolve, the symlink rule and the child test - belongs to
+    safepath.list_dir, beside collect(), for the reason collect() states: a second
+    os.walk in the application layer is a second chance to forget the per-entry
+    resolve().
+    """
+    base, entries = safepath.list_dir(root_key, rel)
+    here = "" if base.relpath == "." else base.relpath
+    return here, [_entry(root_key, e) for e in entries]
+
+
+# Prose, for the document index and for wikilink resolution - see /docs.
+#
+# WIDER THAN MARKDOWN_SUFFIXES, which the backlink graph uses, and the difference
+# is deliberate: a wikilink can only ever name a markdown file, but the reader's
+# library lists what a person would call a document, and this box's roots carry
+# `.rst` and `.txt` notes that belong on that shelf.
+#
+# IT MUST EQUAL PROSE_EXT IN pages/files/titles.ts, which is what the reader's
+# index uses to decide whether a row gets a title. A suffix this list omits is a
+# document the reader will never be handed, and one the client omits is a row it
+# shows under its filename - neither errors. checks/lazy_tree.py asserts the two
+# agree, because the drift is silent in both directions.
+DOC_SUFFIXES = (".md", ".markdown", ".mdx", ".rst", ".txt", ".adoc")
 
 
 def is_binary(path: str) -> bool:
@@ -1063,18 +1080,154 @@ class Handler(JsonHandler):
                 root = q.get("root", "")
                 if root not in safepath.ROOTS:
                     return self._send(400, {"error": f"unknown root {root!r}"})
-                # `path` SCOPES the listing to one folder. It was accepted and
-                # silently ignored before, which is the worst of the three
-                # options: a client asking for a subtree got the whole root and
-                # no way to tell.
+                # `path` names THE ONE FOLDER to list, and the listing is that
+                # folder's direct children - not the subtree under it. Two earlier
+                # meanings are worth recording because both were wrong in a way
+                # that looked right: it was accepted and silently IGNORED first (a
+                # client asking for a subtree got the whole root and no way to
+                # tell), and then it scoped a RECURSIVE walk, which is what the
+                # 4,000-row cap was holding back.
+                #
+                # NO `truncated` IN THE RESPONSE. There is nothing left that can
+                # cap this, and a flag nothing sets is worse than none at all.
                 scope = (q.get("path", "") or "").strip("/")
                 try:
-                    files, truncated = listing(root, scope)
+                    here, files = listing(root, scope)
                 except safepath.PathRefused as e:
                     return self._send(403, {"error": str(e)})
-                return self._send(200, {"root": root, "path": scope, "files": files,
-                                        "truncated": truncated,
+                return self._send(200, {"root": root, "path": here, "files": files,
                                         "readOnly": root in READONLY_ROOTS})
+
+            if route == "/find":
+                # NAME search across a whole root, which is what the explorer's
+                # filter became when the tree stopped holding every path. The
+                # filter used to match a listing the browser already had - and
+                # that listing stopped at 4,000 entries, so typing the name of
+                # the 15,001st file found nothing and said "nothing matches".
+                #
+                # NAMES ONLY, and that is the whole difference from /search: this
+                # opens no file. Measured on `projects`: 19,273 files in 0.12s,
+                # against 2.09s for the same walk through collect() and ~10s for
+                # /search, which reads bytes. Two questions, two endpoints, two
+                # costs - the mistake would be one box that silently did both,
+                # because then "no results" means nothing.
+                root = q.get("root", "")
+                if root not in safepath.ROOTS:
+                    return self._send(400, {"error": f"unknown root {root!r}"})
+                needle = (q.get("q", "") or "").strip().lower()
+                if not needle:
+                    return self._send(400, {"error": "empty query"})
+                try:
+                    limit = min(int(q.get("limit", safepath.FIND_MAX_HITS)),
+                                safepath.FIND_MAX_HITS)
+                except ValueError:
+                    return self._send(400, {"error": "limit must be a number"})
+                hits, scanned, stopped = safepath.find(
+                    root, (q.get("path", "") or "").strip("/"),
+                    match=lambda name: needle in name,
+                    limit=max(1, limit))
+                return self._send(200, {
+                    "root": root, "q": needle,
+                    "files": [_entry(root, e) for e in hits],
+                    "scanned": scanned,
+                    # Always present, null when the walk ran to the end - see
+                    # /search. A bound that only appears when it fired is one a
+                    # caller forgets to check.
+                    "stopped": stopped,
+                    "readOnly": root in READONLY_ROOTS})
+
+            if route == "/docs":
+                # THE PROSE INDEX: every document in a root, by path, with no
+                # content read. Three consumers, one walk:
+                #
+                #   · the reader's document index, which is prose-first by design
+                #     and used to get it by filtering a capped full listing;
+                #   · frontPageOf() - which README a root opens on;
+                #   · WIKILINK RESOLUTION. `[[dns]]` names a document rather than
+                #     a path, so resolving one is a search over the candidate set,
+                #     and that set has to be every document in the root. It was
+                #     the explorer's tree, which meant a wikilink to the 15,001st
+                #     file resolved to nothing at all, silently, as plain text.
+                #
+                # NOT /links. The backlink graph already holds a markdown index,
+                # and reusing it was the obvious answer and the wrong one, for two
+                # measured reasons: it 413s on `home` (collect() runs out of its
+                # 20,000-entry budget at 20,225 files) and it caps `projects` at
+                # 2,000 of 3,048 documents after reading every byte of all of them
+                # - 3.9s cold. This answers the cheaper question: 3,340 documents
+                # in 0.51s, complete, because it opens nothing.
+                root = q.get("root", "")
+                if root not in safepath.ROOTS:
+                    return self._send(400, {"error": f"unknown root {root!r}"})
+                hits, scanned, stopped = safepath.find(
+                    root, (q.get("path", "") or "").strip("/"),
+                    suffixes=DOC_SUFFIXES, limit=safepath.FIND_MAX_DOCS)
+                return self._send(200, {
+                    "root": root,
+                    "files": [_entry(root, e) for e in hits],
+                    "scanned": scanned,
+                    "stopped": stopped,
+                    "readOnly": root in READONLY_ROOTS})
+
+            if route == "/dirsize":
+                # HOW BIG IS THIS FOLDER, asked at the moment somebody clicks
+                # Download and never before.
+                #
+                # The explorer used to answer it from a per-node rollup computed
+                # while the tree was built - which is only possible if the tree
+                # already holds every file under every folder, i.e. it is the
+                # recursive listing this change exists to remove. Pre-computing it
+                # during navigation would put the whole cost back to answer a
+                # question almost nobody asks.
+                #
+                # It is the SAME WALK /archive is about to do, through the same
+                # collect() with the same bounds and the same for_archive rule - so
+                # the number this reports is the number that download will produce,
+                # including the credential files an archive excludes. A refusal
+                # comes back as the 413 facts rather than as a guess, which is why
+                # it is asked here on the portal origin: the download itself is a
+                # top-level navigation to :8100, where a 413 lands as raw JSON in a
+                # new tab.
+                root = q.get("root", "")
+                if root not in safepath.ROOTS:
+                    return self._send(400, {"error": f"unknown root {root!r}"})
+                rel = (q.get("path", "") or "").strip("/")
+                # THE BOUNDS ARE LOOSER THAN /archive's ON PURPOSE, and this is the
+                # point of the endpoint rather than a detail of it. With the archive
+                # bounds, collect() raises the moment one trips - so a folder over
+                # the cap came back as "refused" and the UI could only say "too
+                # big", which is what it could already say without asking. Counting
+                # is cheap (no bytes are read) so this counts, and the CLIENT
+                # compares the real number against the caps and prints it.
+                #
+                # max_member stays the ARCHIVE's, because it decides which files are
+                # SKIPPED rather than how far the walk goes - so `bytes` is the sum
+                # of what a download would actually contain.
+                #
+                # The walk can still run out: a subtree with more than 20,000
+                # collectable files, or one that takes longer than the archive
+                # walk's own 20s. That comes back as `refused` with the facts
+                # collect() got to, and as a 200 - the question was answered, and
+                # the answer is "more than this". A 413 here would be the client
+                # inferring a number from an error again.
+                try:
+                    members, skips = safepath.collect(
+                        root, rel, for_archive=True,
+                        max_entries=SEARCH_MAX_FILES,
+                        max_total=1 << 40,
+                        max_member=safepath.ARCHIVE_MAX_MEMBER)
+                except safepath.ArchiveRefused as e:
+                    return self._send(200, {
+                        "root": root, "path": rel,
+                        "files": e.facts.get("entries", 0),
+                        "bytes": e.facts.get("bytes", 0),
+                        "skipped": 0,
+                        "refused": str(e), **e.facts})
+                return self._send(200, {
+                    "root": root, "path": rel,
+                    "files": len(members),
+                    "bytes": sum(m.size for m in members),
+                    "skipped": len(skips)})
 
             if route == "/search":
                 # `root=*` is every root that does not contain another - see

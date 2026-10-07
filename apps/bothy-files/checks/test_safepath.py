@@ -412,6 +412,148 @@ bad += 0 if ok else 1
 print(f"{'PASS' if ok else 'FAIL'}  {'...while the ROOT still denies its own dot-dirs':<52} "
       f"want=absent  {len(whole)} members")
 
+print("\n── the LAZY walk: one directory, contained at every level ──────────")
+# The recursive listing is gone (2026-10) and two new walks replaced it:
+# list_dir (one level) and find (bounded name search). Both are new SURFACES for
+# every escape this file already tests on resolve(), and the lazy one carries a
+# containment question the recursive one never had to answer - "is this entry
+# really a child of the folder I asked about" - because a client builds a tree out
+# of the answer and files each row under the parent it asked for.
+#
+# A REAL FILESYSTEM WITH REAL SYMLINKS, like the resolve() cases above, for the
+# same reason: a string-inspecting implementation passes every one of these.
+lz = os.path.join(tmp, "lz")
+for d in ("docs/deep", "node_modules/pkg", ".cache/junk", "backups/old", "src"):
+    os.makedirs(os.path.join(lz, d), exist_ok=True)
+for rel in ("docs/a.md", "docs/deep/b.md", "docs/.env", "src/main.ts",
+            "node_modules/pkg/index.js", ".cache/junk/x", "backups/old/dump.sql",
+            "top.md",
+            # A top-level dot FILE, and it is here for one reason: prune_dirs only
+            # filters DIRECTORIES, so this walks straight past it and nothing but
+            # the per-entry resolve() refuses it. That is not hypothetical - it is
+            # how .bash_history was being served the first time the `home` root was
+            # surveyed, past a dot-DIRECTORY-only rule. It is what makes the
+            # resolve() call in both new walks observably load-bearing rather than
+            # redundant with the prune.
+            ".bash_history"):
+    open(os.path.join(lz, rel), "w").write("x")
+# Three symlinks, each a different shape of the same attack:
+#   out      -> outside the root entirely
+#   inward   -> a legal file under ANOTHER name, so its resolved path is not a
+#               child of the folder being listed
+#   dirlink  -> a directory, whose contents would be filed under the wrong parent
+open(os.path.join(tmp, "outside.md"), "w").write("secret")
+os.symlink(os.path.join(tmp, "outside.md"), os.path.join(lz, "docs/out.md"))
+os.symlink(os.path.join(lz, "docs/deep/b.md"), os.path.join(lz, "docs/inward.md"))
+os.symlink(os.path.join(lz, "docs/deep"), os.path.join(lz, "docs/dirlink"))
+safepath.ROOTS["lz"] = lz
+safepath.GIT_ROOTS.pop("lz", None)
+safepath.ROOT_POLICY["lz"] = {"deny_toplevel_dots": True,
+                              "deny_toplevel": frozenset({"backups"})}
+
+
+def names(entries):
+    return sorted(e.res.relpath for e in entries)
+
+
+def expect(label, got, want, detail=""):
+    global bad
+    ok = got == want
+    if not ok:
+        bad += 1
+    print(f"{'PASS' if ok else 'FAIL'}  {label:<52} "
+          f"{'' if ok else f'want={want!r} '}got={got!r} {detail}")
+
+
+_, top = safepath.list_dir("lz", "")
+# ONE LEVEL. `docs/a.md` must NOT be here - that is the whole change, and a
+# listing that still carried it would be the recursive walk with a filter on it.
+expect("the root lists its own level only", names(top),
+       ["docs", "src", "top.md"])
+# .bash_history is NOT in that list, and the only thing that excluded it is the
+# per-entry resolve(): prune_dirs filters directories, and this is a file.
+expect("a top-level dot FILE is refused, not merely not-descended",
+       any(".bash_history" in n for n in names(top)), False)
+expect("...and subdirectories come back as entries",
+       sorted(e.res.relpath for e in top if e.is_dir), ["docs", "src"])
+# node_modules is a DENY_COMPONENT, .cache is a top-level dot, backups is named -
+# all three pruned at the level they appear on rather than refused one file at a
+# time, which is the 1.4s bug prune_dirs exists for.
+expect("denied directories are not offered at all",
+       [n for n in names(top) if n in ("node_modules", ".cache", "backups")], [])
+
+_, inside = safepath.list_dir("lz", "docs")
+# `.env` is SERVED and MARKED, here as everywhere - [sensitive] in policy.toml.
+expect("a folder lists its files and its subfolders", names(inside),
+       ["docs/.env", "docs/a.md", "docs/deep"])
+expect("the credential-shaped name is listed, not hidden",
+       any(e.res.relpath == "docs/.env" for e in inside), True)
+# The three symlinks: none of them appears, and the reasons differ.
+expect("a symlink OUT of the root is skipped",
+       any(e.res.relpath.endswith("out.md") for e in inside), False)
+expect("a symlink to a file ELSEWHERE in the root is skipped",
+       any("inward" in e.res.relpath for e in inside), False,
+       "(its resolved path is docs/deep/b.md - not a child of docs)")
+expect("a symlinked DIRECTORY is not offered",
+       any("dirlink" in e.res.relpath for e in inside), False)
+# THE INVARIANT a lazy client depends on, asserted directly rather than inferred
+# from the three cases above: every row is a direct child of the folder asked for.
+for rel in ("", "docs", "docs/deep"):
+    _, kids = safepath.list_dir("lz", rel)
+    parents = {os.path.dirname(e.res.relpath) for e in kids}
+    expect(f"every entry of {rel or '<root>'!r} is its direct child",
+           parents - {rel}, set())
+
+print()
+for label, path in (("dot-dot out of the root", "../.."),
+                    ("dot-dot after a real prefix", "docs/../../.."),
+                    ("an absolute path", "/etc"),
+                    ("a FILE listed as a folder", "top.md"),
+                    ("a folder that is not there", "nope"),
+                    ("a DENIED subtree, asked for by name", "node_modules"),
+                    ("a denied top-level dot, by name", ".cache"),
+                    ("a named denied top level", "backups"),
+                    ("the symlinked directory, by name", "docs/dirlink")):
+    check(f"list_dir refuses: {label}", lambda p=path: safepath.list_dir("lz", p),
+          expect_refused=True)
+    check(f"find refuses:     {label}",
+          lambda p=path: safepath.find("lz", p, match=lambda n: True),
+          expect_refused=True)
+
+print()
+# find() resolves ONLY the names that match, which is what makes it 17x faster
+# than filtering collect(). The property that has to survive that: the set it
+# returns is a SUBSET of collect()'s over the same subtree - same prune, same
+# resolve, same symlink rule.
+hits, scanned, stopped = safepath.find("lz", "", match=lambda n: True)
+members, _sk = safepath.collect("lz", "", max_entries=9999, max_total=10**9)
+expect("find returns no path collect() would not",
+       sorted(set(names(hits)) - {m.res.relpath for m in members}), [])
+expect("...and finds every one of them", set(names(hits)),
+       {m.res.relpath for m in members})
+# ONCE EACH, and not as a set: a symlink resolves to its target's path, so
+# following one returns the same bytes a second time under a name the caller did
+# not ask about - and a set comparison cannot see that at all.
+expect("...each exactly once", len(names(hits)), len(set(names(hits))))
+expect("find is recursive where list_dir is not",
+       "docs/deep/b.md" in names(hits), True)
+expect("find skips the symlinks too",
+       [n for n in names(hits) if "out.md" in n or "inward" in n], [])
+expect("find reports nothing when it ran to the end", stopped, None,
+       f"scanned={scanned}")
+# THE BOUND IS ON MATCHES AND IT IS REPORTED. This is the property that replaces
+# MAX_LISTING: the old cap silently described a 19,273-file root with 4,000 rows,
+# and the only honest way to stop early is to say you did.
+few, _s, stopped = safepath.find("lz", "", match=lambda n: True, limit=2)
+expect("find stops at its limit", len(few), 2)
+expect("...and says so", (stopped or {}).get("reason"), "too many matches")
+expect("...with the limit in the facts", (stopped or {}).get("limit"), 2)
+# Suffix filtering, which is what /docs is: the candidate set wikilink resolution
+# and the reader's library are built from.
+docs_only, _s, _st = safepath.find("lz", "", suffixes=(".md",))
+expect("a suffix filter answers for documents only", names(docs_only),
+       ["docs/a.md", "docs/deep/b.md", "top.md"])
+
 print("\n── the policy file itself ──────────────────────────────────────────")
 # The rules are DECLARED now, in policy.toml, so the file is part of the
 # boundary and gets linted like one. The point of these is that a policy edit

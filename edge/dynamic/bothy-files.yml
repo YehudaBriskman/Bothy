@@ -58,7 +58,30 @@ http:
       # nothing that /read would refuse - a document the walk skipped is not a
       # node in the graph, so it cannot be a link target either. A separate router
       # would imply a separate boundary where there is one.
-      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/search`) || Path(`/-/api/files/links`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
+      #
+      # /find, /docs and /dirsize (2026-10) are on this router for exactly that
+      # reason too, and the shape of each is why.
+      #
+      # They arrived together because /tree stopped being recursive: it lists ONE
+      # directory now, with no cap, so the questions the 4,000-row listing used to
+      # answer badly needed somewhere to go. /find is a NAME search across a root
+      # (the explorer's filter, which used to match a tree the browser held and so
+      # could not see past the cap). /docs is the prose index the reader's library
+      # and wikilink resolution are built from. /dirsize is "how big would this
+      # folder's archive be", asked when Download is clicked rather than
+      # pre-computed while browsing.
+      #
+      # ALL THREE SERVE THE SAME FILE SET /read AND /tree SERVE. /find and /docs
+      # walk through safepath.find(), which applies prune_dirs at every level and
+      # safepath.resolve() to every path it returns - the same two functions
+      # collect() uses, so what comes back is a subset of what collect() would.
+      # /dirsize IS collect(), with for_archive=True, and returns two integers and
+      # nothing else: no path, no byte of content, no name.
+      #
+      # Each is its own exact Path(), never a prefix. A PathPrefix covering
+      # /-/api/files/ would publish every endpoint anybody adds to this service
+      # later, including one nobody meant to expose - see SECURITY.md rule 3.
+      rule: "Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/find`) || Path(`/-/api/files/docs`) || Path(`/-/api/files/dirsize`) || Path(`/-/api/files/search`) || Path(`/-/api/files/links`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
       entryPoints: [web]
       priority: 100
       service: bothy-files

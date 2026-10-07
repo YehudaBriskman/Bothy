@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""`/tree?path=` narrows the listing to one folder - and cannot leave it.
+"""`/tree?path=` lists exactly that folder - and cannot leave the root.
 
-WHY THIS EXISTS AS ITS OWN FILE. `path` was accepted and silently IGNORED
-before: a client asking for a subtree got the whole root back and no way to tell.
-That is the worst of the three possible behaviours, and it survived because
-nothing asserted either half - not that scoping works, and not that it is
-contained.
+WHY THIS EXISTS AS ITS OWN FILE. `path` was accepted and silently IGNORED first:
+a client asking for a subtree got the whole root back and no way to tell. That is
+the worst of the three possible behaviours, and it survived because nothing
+asserted either half - not that it worked, and not that it was contained.
 
-The containment half is the one that matters. `path` is client-supplied and it
-names a DIRECTORY, which resolve() does not answer for, so listing() does its own
-realpath comparison. Every traversal shape below is a way that check could be
-written wrongly and still look right on the happy path.
+ITS MEANING CHANGED IN 2026-10 and the assertions below changed with it. It used
+to SCOPE a recursive walk ("everything under this folder", capped at 4,000 rows);
+it now names THE ONE FOLDER to list. The containment half is unchanged and is
+still the half that matters, so the traversal table at the bottom is untouched -
+every shape there is a way the check could be written wrongly and still look right
+on the happy path.
+
+What moved out of here: the depth property ("no entry below the level asked for",
+for every root), the symlink cases a lazy tree newly depends on, and the bounds on
+the walking endpoints that replaced the cap. Those are checks/lazy_tree.py, which
+is about the listing being one level deep rather than about `path` working.
 """
 import os
 import re
@@ -73,26 +79,33 @@ for rel in PLANTED:
         fh.write(f"# {rel}\n\nplanted by tree_scope.py\n")
 
 try:
-    print("── scoping actually scopes ─────────────────────────────────────────")
+    print("── `path` names the folder, and is not ignored ─────────────────────")
     whole = tree("notes").json()
     sub = tree("notes", SCOPE).json()
-    check("the whole root lists more than the scope",
-          len(whole["files"]) > len(PLANTED) - 1, f"{len(whole['files'])} files")
-    check("a scoped listing is SMALLER", 0 < len(sub["files"]) < len(whole["files"]),
-          f"{len(sub['files'])} files")
-    # The bug this file was written for: `path` used to be ignored entirely.
-    check("...and is not just the whole root again",
-          len(sub["files"]) != len(whole["files"]))
-    check("every entry is inside the scope",
-          all(f["path"].startswith(f"{SCOPE}/") for f in sub["files"]),
+    # The root's own level holds the probe DIRECTORY plus whatever else is at the
+    # top of the notes root; the probe folder holds its own three entries. Both are
+    # small now - that is the change - so the assertion is about WHICH entries came
+    # back rather than about one list being shorter than the other.
+    check("the root's listing names the probe FOLDER, not its files",
+          any(f["path"] == SCOPE and f.get("dir") is True for f in whole["files"]),
+          f"{sorted(f['path'] for f in whole['files'])[:6]}")
+    check("...and does not reach inside it",
+          not any(f["path"].startswith(f"{SCOPE}/") for f in whole["files"]))
+    # The bug this file was written for: `path` used to be ignored entirely, so a
+    # scoped request and an unscoped one answered identically.
+    check("a listing of the folder is a DIFFERENT answer",
+          sorted(f["path"] for f in sub["files"]) != sorted(f["path"] for f in whole["files"]),
+          f"{sorted(f['path'] for f in sub['files'])}")
+    check("every entry is inside the folder asked for",
+          sub["files"] and all(f["path"].startswith(f"{SCOPE}/") for f in sub["files"]),
           f"{sorted({f['path'].split('/')[0] for f in sub['files']})}")
     # Root-relative, because every other endpoint speaks root-relative paths and a
-    # client that scoped in still has to be able to OPEN what it finds.
-    one = sub["files"][0]["path"]
+    # client that opened a folder still has to be able to OPEN what it finds.
+    one = next(f["path"] for f in sub["files"] if f.get("dir") is not True)
     check("paths stay ROOT-relative, so they can still be opened",
           s.get(f"{API}/read", params={"root": "notes", "path": one}, timeout=20).status_code == 200,
           one)
-    check("the response echoes the scope", sub.get("path") == SCOPE, sub.get("path"))
+    check("the response echoes the folder", sub.get("path") == SCOPE, sub.get("path"))
 
     print("\n── and cannot leave the root ───────────────────────────────────────")
     for label, path in [
@@ -105,30 +118,35 @@ try:
         got = tree("notes", path).status_code
         check(f"refused: {label}", got == 403, f"got {got}")
 
-    # The empty scope is the whole root, not an error: it is what the UI sends when
-    # you climb back out, and 403 there would break the way back.
-    check("an empty scope is the whole root", len(tree("notes", "").json()["files"]) == len(whole["files"]))
+    # An empty `path` is the root, not an error: it is what the UI sends when you
+    # climb back out, and 403 there would break the way back.
+    check("an empty path is the root itself",
+          sorted(f["path"] for f in tree("notes", "").json()["files"])
+          == sorted(f["path"] for f in whole["files"]))
 
-    print("\n── the point of it: a big root becomes a small one ─────────────────")
+    print("\n── the point of it: no root is expensive to open any more ──────────")
     import time
-    # NEEDS A BIG ROOT TO BE MEANINGFUL, and a fresh install does not have one:
-    # $HOME there holds a new claude-notes repo and little else, so "four times
-    # fewer entries" compares 1 against 3 and fails for a reason that says
-    # nothing about scoping. Skipped out loud rather than silently, and rather
-    # than weakened into a ratio that would pass on any input.
+    # THE ASSERTION USED TO BE A RATIO - "scoping a large root returns four times
+    # fewer entries" - and it was skipped on a fresh install because a one-file
+    # `home` made the comparison meaningless. There is nothing to compare now: a
+    # listing of the root and a listing of a folder inside it are the same shape
+    # and the same cost, which is the whole change. So the assertion is the
+    # absolute one the ratio was standing in for.
     t0 = time.time(); big = tree("home").json(); t_big = int((time.time() - t0) * 1000)
-    if len(big.get("files", [])) < 40:
-        print(f"  SKIP  the `home` root holds {len(big.get('files', []))} files - too few for a "
-              f"size comparison to mean anything (a fresh box)")
-    else:
-        t0 = time.time(); small = tree("home", "claude-notes").json(); t_small = int((time.time() - t0) * 1000)
-        check("scoping a large root returns far fewer entries",
-              len(small["files"]) * 4 < len(big["files"]),
-              f"{len(big['files'])} -> {len(small['files'])}")
-        # The walk STARTS at the scope rather than filtering a full listing,
-        # which is the whole reason this is a server change and not a client one.
-        check("...and is faster, because the walk starts there",
-              t_small * 2 < t_big or t_big < 60, f"{t_big}ms -> {t_small}ms")
+    t0 = time.time(); small = tree("home", "stacks").json(); t_small = int((time.time() - t0) * 1000)
+    # 400ms was the MEASURED cost of opening `home` before this change (20,612
+    # files walked, 4,000 returned, 1.25 MB). One directory is now 2ms. The
+    # threshold is deliberately loose - this is guarding against the recursive walk
+    # coming back, not policing latency on a busy box.
+    check("opening the biggest root is cheap", t_big < 200, f"{t_big}ms")
+    check("...and so is a folder inside it", t_small < 200, f"{t_small}ms")
+    check("neither is a recursive listing",
+          not any("/" in f["path"] for f in big["files"]),
+          f"root: {len(big['files'])} entries")
+    check("...including the folder's own",
+          all(f["path"].startswith("stacks/") and f["path"].count("/") == 1
+              for f in small["files"]),
+          f"stacks: {len(small['files'])} entries")
 
 finally:
     # Planted above. Removed here so a failure part-way through does not leave a

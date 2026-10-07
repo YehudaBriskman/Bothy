@@ -53,11 +53,11 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { BookOpen, PanelBottom, PanelLeft, PanelRight } from 'lucide-react';
 import {
   ARCHIVE_MAX_ENTRIES, ARCHIVE_MAX_MEMBER, ARCHIVE_MAX_TOTAL,
-  archiveUrl, fileHistory, fmtBytes, gitDiff, gitStatus, isAuthError, langFor,
-  listRepos, listRoots, listTree, logCall,
+  archiveUrl, dirSize, fileHistory, findFiles, fmtBytes, gitDiff, gitStatus,
+  isAuthError, langFor, listRepos, listRoots, logCall,
   onApiCall, openDownload, rawUrl, readFile, writeFile,
   type ApiCall, type Commit, type DiffResult, type FileRoot,
-  type RepoInfo, type StatusResult, type TreeFile,
+  type RepoInfo, type StatusResult,
 } from '../../lib/files';
 import { ErrState } from '../../components/states';
 import { Tooltip } from '../../components/Tooltip';
@@ -77,6 +77,7 @@ import { decorate, NO_DECORATIONS, type Change } from './gitdeco';
 import { usePanes } from './panes';
 import { defaultRoot, filesHref } from './routes';
 import { ancestorsOf, baseName, buildTree, defaultMessage, type Node } from './tree';
+import { dirsDownTo, emptyDirs, useLazyDirs } from './lazy';
 
 // The syntax palette the five .hl-* classes in shell.css read, and the one
 // cmtheme.ts hands to CodeMirror. Its own file since the theme editor's CSS
@@ -207,13 +208,17 @@ export function Files() {
   const root = browseRoot;
 
   const [roots, setRoots] = useState<FileRoot[]>([]);
-  const [entries, setEntries] = useState<TreeFile[]>([]);
-  const [truncated, setTruncated] = useState(false);
-  const [treeLoading, setTreeLoading] = useState(true);
-  const [treeErr, setTreeErr] = useState<string | null>(null);
+  const [rootsErr, setRootsErr] = useState<string | null>(null);
   // One flag for "the session is missing", set by whichever call found out.
   const [needsAuth, setNeedsAuth] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+
+  // THE TREE IS LOADED ONE FOLDER AT A TIME (2026-10). It used to be one request
+  // per root for every file under it, which the service capped at 4,000 entries -
+  // see lazy.ts for the measurement and tree.ts for what the model became.
+  const onAuth = useCallback(() => setNeedsAuth(true), []);
+  const { dirs: allDirs, ensure, reset: resetDirs } = useLazyDirs(onAuth);
+  const dirs = allDirs[root] ?? emptyDirs();
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
@@ -371,9 +376,10 @@ export function Files() {
       })
       .catch((e: unknown) => {
         if (ac.signal.aborted) return;
-        if (isAuthError(e)) { setNeedsAuth(true); setTreeLoading(false); return; }
-        setTreeErr(e instanceof Error ? e.message : String(e));
-        setTreeLoading(false);
+        if (isAuthError(e)) { setNeedsAuth(true); return; }
+        // /roots failing and a LISTING failing are the same fact to the reader -
+        // the file service did not answer - and the page has one place to say it.
+        setRootsErr(e instanceof Error ? e.message : String(e));
       });
     return () => ac.abort();
     // `urlRoot` is read but deliberately not a dependency: this runs once, and
@@ -381,26 +387,14 @@ export function Files() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadTick]);
 
-  useEffect(() => {
-    if (!root) return;
-    const ac = new AbortController();
-    setTreeLoading(true);
-    listTree(root, ac.signal)
-      .then((r) => {
-        setEntries(r.files);
-        setTruncated(!!r.truncated);
-        setTreeErr(null);
-        setNeedsAuth(false);
-      })
-      .catch((e: unknown) => {
-        if (ac.signal.aborted) return;
-        setEntries([]);
-        if (isAuthError(e)) { setNeedsAuth(true); setTreeErr(null); return; }
-        setTreeErr(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => { if (!ac.signal.aborted) setTreeLoading(false); });
-    return () => ac.abort();
-  }, [root, reloadTick]);
+  // The root's own folder, which is the first screen of the rail. Everything
+  // deeper arrives when somebody opens it (`toggleDir`) or when a deep link needs
+  // the folders on its way down (the reveal effect below).
+  //
+  // `reloadTick` is a dependency although nothing here reads it: Retry clears the
+  // listings and this is what asks for the root again. Without it, Retry on a
+  // failed root would empty the rail and never refill it.
+  useEffect(() => { ensure(root, ''); }, [ensure, root, reloadTick]);
 
   // The whole root's git log, for the panel's Git tab. `path='.'` is what the
   // service accepts for "the repository" - an empty path is a 403 ("empty
@@ -678,8 +672,10 @@ export function Files() {
     setParams(nextParams);
   }, [active, browseRoot, setParams]);
 
-  // A deep link into a nested file must arrive with its folders already open,
-  // or the tree shows the reader a closed root and no sign of where they are.
+  // A deep link into a nested file must arrive with its folders already open, or
+  // the tree shows the reader a closed root and no sign of where they are. With a
+  // lazy listing, "open" is no longer enough - the folders on the way down have to
+  // be FETCHED as well, or every one of them expands to nothing.
   useEffect(() => {
     if (!activePath) return;
     setExpanded((prev) => {
@@ -687,7 +683,8 @@ export function Files() {
       for (const a of ancestorsOf(activePath)) nextSet.add(a);
       return nextSet;
     });
-  }, [activePath]);
+    for (const d of dirsDownTo(activePath)) ensure(root, d);
+  }, [activePath, ensure, root]);
 
   // ── decorations ────────────────────────────────────────────────────────────
   //
@@ -707,34 +704,87 @@ export function Files() {
   const tombs = useMemo(() => {
     if (!deco.deleted.size) return NO_TOMBS;
     const listed = new Set<string>();
-    for (const e of entries) if (e.dir !== true) listed.add(e.path);
+    for (const es of dirs.loaded.values()) {
+      for (const e of es) if (e.dir !== true) listed.add(e.path);
+    }
     const out = new Set<string>();
     for (const p of deco.deleted) if (!listed.has(p)) out.add(p);
     return out.size ? out : NO_TOMBS;
-  }, [deco, entries]);
+  }, [deco, dirs]);
 
-  const tree = useMemo(() => buildTree(entries, tombs), [entries, tombs]);
+  const tree = useMemo(() => buildTree(dirs.loaded, tombs), [dirs.loaded, tombs]);
 
-  // Filtering switches the rail from a tree to a flat, ranked, capped list. At
-  // this scale search IS the navigation: a name match outranks a path-only
-  // match, because someone typing "compose" wants compose.yml before every file
-  // that happens to live under a folder with "compose" in its name.
-  const results: Results | null = useMemo(() => {
+  // How many entries this rail is currently holding. It used to be the root's
+  // total file count, which is a number nothing can know any more without the
+  // recursive listing that was removed - and which was WRONG for the two big roots
+  // anyway, because it counted the 4,000 the cap allowed rather than the 19,273
+  // that are there. The honest number is what has been loaded, and both the header
+  // and the footer label it as such.
+  //
+  // EVERY ENTRY, folders included, because "loaded" is a statement about this rail
+  // and a folder row is a row. Counting files only printed "0 loaded" beside a
+  // visible `army` folder on the `projects` root, whose top level is one directory
+  // and no files - a number that is true about files and reads as a broken panel.
+  const loadedCount = useMemo(() => {
+    let n = 0;
+    for (const es of dirs.loaded.values()) n += es.length;
+    return n;
+  }, [dirs.loaded]);
+
+  // ── the name search ────────────────────────────────────────────────────────
+  //
+  // SERVER-SIDE NOW (2026-10), and debounced. It filtered `entries` - the tree the
+  // browser held - which was a complete answer only while that tree was the whole
+  // root. It never was for the two big roots: the service capped the listing at
+  // 4,000 of 19,273 files, so typing the name of anything past the cap printed
+  // "Nothing matches", which is the most expensive wrong answer a search can give.
+  // The lazy tree makes it worse still - the browser now holds only the folders
+  // somebody opened - so the question moves to where the files are.
+  //
+  // /find reads no file, which is why it can afford to be exhaustive: 19,273 files
+  // in 0.12s measured, against ~10s for the content search in the Search rail.
+  const [hits, setHits] = useState<Results | null>(null);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return null;
-    const scored: { e: TreeFile; rank: number }[] = [];
-    for (const e of entries) {
-      if (e.dir === true) continue;
-      const lower = e.path.toLowerCase();
-      if (!lower.includes(needle)) continue;
-      const base = baseName(lower);
-      scored.push({ e, rank: base.includes(needle) ? (base.startsWith(needle) ? 0 : 1) : 2 });
-    }
-    scored.sort((a, b) => a.rank - b.rank || a.e.path.localeCompare(b.e.path));
-    return { total: scored.length, shown: scored.slice(0, MAX_RESULTS).map((s) => s.e) };
-  }, [entries, q]);
+    if (needle.length < 2) { setHits(null); setSearching(false); return; }
+    const ac = new AbortController();
+    // 250ms. The Search rail waits 500 because its request reads bytes and takes
+    // seconds; this one is a tenth of a second, so the wait is about not firing a
+    // request per keystroke rather than about protecting the box.
+    const t = setTimeout(() => {
+      setSearching(true);
+      findFiles(root, needle, { limit: MAX_RESULTS }, ac.signal)
+        .then((r) => {
+          if (ac.signal.aborted) return;
+          // Ranked HERE and not on the server, because ranking is a question about
+          // this rail: someone typing "compose" wants compose.yml before every
+          // file that merely lives under a folder with "compose" in its name. The
+          // server answers "which files match"; the order is presentation.
+          const scored = r.files.map((e) => {
+            const base = baseName(e.path.toLowerCase());
+            return { e, rank: base.includes(needle) ? (base.startsWith(needle) ? 0 : 1) : 2 };
+          });
+          scored.sort((a, b) => a.rank - b.rank || a.e.path.localeCompare(b.e.path));
+          setHits({
+            total: r.files.length,
+            shown: scored.map((s) => s.e),
+            // The cap is the SERVICE's, reported rather than inferred from a
+            // length - a result list exactly `limit` long is not proof it was cut.
+            stopped: r.stopped,
+          });
+        })
+        .catch((e: unknown) => {
+          if (ac.signal.aborted) return;
+          if (isAuthError(e)) { setNeedsAuth(true); return; }
+          setHits({ total: 0, shown: [], err: e instanceof Error ? e.message : String(e) });
+        })
+        .finally(() => { if (!ac.signal.aborted) setSearching(false); });
+    }, 250);
+    return () => { clearTimeout(t); ac.abort(); };
+  }, [q, root]);
 
-  const fileCount = useMemo(() => entries.filter((e) => e.dir !== true).length, [entries]);
+  const results = q.trim() ? hits : null;
 
   // Opening a file closes the diff. They share the centre column, and leaving a
   // diff on top of a file the user just asked for is the one behaviour nobody
@@ -757,12 +807,17 @@ export function Files() {
     setBrowseRoot(r);
   };
 
-  const toggleDir = (p: string) =>
+  // Opening a folder is now also what FETCHES it. Collapsing keeps the listing -
+  // closing a folder you opened by mistake should not make reopening it a round
+  // trip, and the listings held are bounded by what somebody actually opened.
+  const toggleDir = (p: string) => {
+    ensure(root, p);
     setExpanded((prev) => {
       const nextSet = new Set(prev);
       nextSet.has(p) ? nextSet.delete(p) : nextSet.add(p);
       return nextSet;
     });
+  };
 
   const collapseAll = () => setExpanded(new Set());
 
@@ -770,6 +825,10 @@ export function Files() {
   // view. The scroll waits a frame because the rows it is looking for do not
   // exist until the expansion has rendered - the lazy tree is what makes that
   // true and it is the price of the lazy tree being cheap.
+  //
+  // The `ensure` calls are the second half of that price: with a lazy listing an
+  // expanded folder nobody has fetched renders as empty, so revealing a file three
+  // levels down has to ask for the three folders as well as open them.
   const reveal = useCallback(() => {
     if (!activePath) return;
     setExpanded((prev) => {
@@ -777,12 +836,13 @@ export function Files() {
       for (const a of ancestorsOf(activePath)) nextSet.add(a);
       return nextSet;
     });
+    for (const d of dirsDownTo(activePath)) ensure(root, d);
     setQ('');
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const row = treeRef.current?.querySelector(`[data-path="${CSS.escape(activePath)}"]`);
       row?.scrollIntoView({ block: 'center' });
     }));
-  }, [activePath]);
+  }, [activePath, ensure, root]);
 
   // ── downloads ──────────────────────────────────────────────────────────────
   //
@@ -813,11 +873,19 @@ export function Files() {
   // The archive caps, enforced BEFORE a tab opens.
   //
   // The service answers 413 with a written-for-a-human message, but that message
-  // would land as raw JSON in a new tab, and for the whole `projects` root - 2,771
-  // entries against a 2,000 cap - that is the ordinary case, not the exotic one.
-  // Everything the cap is about (entry count, total bytes) is already in the tree
-  // this page holds, so the refusal can happen here, in words, beside the button
-  // that caused it.
+  // would land as raw JSON in a new tab on :8100, and for the whole `projects`
+  // root - 18,906 collectable entries against a 2,000 cap - that is the ordinary
+  // case rather than the exotic one. So the refusal happens here, in words, beside
+  // the button that caused it.
+  //
+  // THE NUMBERS COME FROM THE SERVICE NOW, at the moment of the click. They used
+  // to be a per-node rollup computed while the tree was built, which is only
+  // possible if the browser already holds every file under every folder - i.e. the
+  // recursive listing the lazy tree replaced. Pre-computing them per folder during
+  // navigation would put that whole cost back to answer a question almost nobody
+  // asks, so it is asked once, when it is actually asked: /dirsize runs the same
+  // collect() the download is about to run, and its answer is therefore the
+  // download's answer and not an estimate of it.
   const archive = useCallback((relPath: string, label: string, files: number, bytes: number, format: 'zip' | 'tgz') => {
     if (!canDownload) return;
     if (files === 0) {
@@ -849,8 +917,49 @@ export function Files() {
     download(archiveUrl(root, relPath || '.', format), `${root}/${relPath || '.'} (${format})`);
   }, [canDownload, download, raise, root]);
 
-  const archiveNode = useCallback((n: Node) => archive(n.path, n.path || root, n.files, n.bytes, 'zip'), [archive, root]);
-  const archiveRoot = useCallback(() => archive('', root, tree.files, tree.bytes, 'zip'), [archive, root, tree]);
+  // Which folder is being weighed, so the row can say so instead of looking dead
+  // for the two seconds the biggest subtree on this box takes to walk.
+  const [sizing, setSizing] = useState<string | null>(null);
+
+  const archiveDir = useCallback((relPath: string, label: string) => {
+    if (!canDownload) return;
+    setSizing(relPath);
+    dirSize(root, relPath)
+      .then((d) => {
+        if (d.refused) {
+          // The COUNT ran out, which only happens on a subtree bigger than the
+          // count's own 20,000-file budget - comfortably over every archive cap, so
+          // the refusal is certain even though the number is a floor. Said as a
+          // floor rather than rounded up into a claim.
+          raise({
+            id: `arch-huge-${relPath}`, tone: 'warn', title: 'Too big to archive',
+            detail: `${label} holds at least ${d.files.toLocaleString()} files (${d.refused}); `
+              + `the service refuses anything over ${ARCHIVE_MAX_ENTRIES.toLocaleString()}. `
+              + 'Pick a subfolder - subtrees archive fine.',
+            where: `${root}/${relPath || '.'}`,
+          });
+          setTab('problems');
+          return;
+        }
+        archive(relPath, label, d.files, d.bytes, 'zip');
+      })
+      .catch((e: unknown) => {
+        if (isAuthError(e)) { setNeedsAuth(true); return; }
+        // A 413 from the walk itself is the same refusal in a different shape -
+        // collect() ran out of its own budget before it could count. Reported with
+        // the message the service wrote, which carries the numbers it got to.
+        raise({
+          id: `arch-size-check-${relPath}`, tone: 'warn', title: 'Could not weigh this folder',
+          detail: `${e instanceof Error ? e.message : String(e)} - so the download was not started.`,
+          where: `${root}/${relPath || '.'}`,
+        });
+        setTab('problems');
+      })
+      .finally(() => setSizing(null));
+  }, [archive, canDownload, raise, root]);
+
+  const archiveNode = useCallback((n: Node) => archiveDir(n.path, n.path || root), [archiveDir, root]);
+  const archiveRoot = useCallback(() => archiveDir('', root), [archiveDir, root]);
   const archiveFile = useCallback((format: 'zip' | 'tgz') => {
     if (!active?.file) return;
     archive(active.file.path, baseName(active.file.path), 1, active.file.size, format);
@@ -858,19 +967,18 @@ export function Files() {
 
   // ── problems ───────────────────────────────────────────────────────────────
   //
-  // Derived, not accumulated, wherever the fact is still true - a truncated tree
-  // and a sensitive advisory are STATES, and a state that has stopped being true
-  // should leave the list on its own rather than needing to be dismissed.
+  // Derived, not accumulated, wherever the fact is still true - a search that was
+  // cut short and a sensitive advisory are STATES, and a state that has stopped
+  // being true should leave the list on its own rather than needing to be
+  // dismissed.
+  //
+  // THE `truncated` LISTING PROBLEM IS GONE, with the cap that raised it. It said
+  // "the file service hit its own listing cap, so files below it are missing from
+  // the tree" - true, unactionable, and permanent on the two big roots. Nothing
+  // caps a listing any more, so there is nothing to report; what CAN still be cut
+  // is a name search, and that says so in the rail where it was typed.
   const problems = useMemo<Problem[]>(() => {
     const out: Problem[] = [];
-    if (truncated) {
-      out.push({
-        id: 'truncated', tone: 'warn', title: 'This listing is incomplete',
-        detail: 'The file service hit its own listing cap, so files below it are missing from the tree. '
-          + 'A search that finds nothing here is not proof the file does not exist.',
-        where: root,
-      });
-    }
     // Every OPEN document, not only the active one: a warning about a file you
     // have in a tab does not stop being true because you looked at another tab.
     for (const d of ws.docs) {
@@ -902,7 +1010,7 @@ export function Files() {
       });
     }
     return [...raised, ...out];
-  }, [truncated, ws.docs, calls, raised, root]);
+  }, [ws.docs, calls, raised]);
 
   // ── saving ─────────────────────────────────────────────────────────────────
   //
@@ -1134,7 +1242,10 @@ export function Files() {
     patchDoc(active.id, (d) => ({ ...d, editing: false, draft: d.file?.content ?? '', notice: null }));
   };
 
-  const retry = () => setReloadTick((t) => t + 1);
+  // Retry clears the cached listings FIRST, then bumps the tick that re-asks for
+  // the root. Without the clear, `ensure` would see the folder it already holds
+  // and do nothing - the rail would keep showing the same stale error.
+  const retry = () => { resetDirs(); setReloadTick((t) => t + 1); };
 
   const onFallback = useCallback((why: string) => {
     // Once per session, not once per image: the cause is a response header, so
@@ -1192,10 +1303,15 @@ export function Files() {
           <p className="fx-head-sub">
             {needsAuth
               ? 'sign in to browse the box'
-              : treeErr
+              : (rootsErr || dirs.err)
                 ? 'the file service is unreachable'
                 : <>
-                    <b className="tnum">{fileCount.toLocaleString()}</b> in <span className="mono">{root || '…'}</span>
+                    {/* "LOADED", not "files in this root". The root's total is a
+                        number nothing can know without the recursive listing that
+                        was removed - and the old one was wrong anyway: it printed
+                        the 4,000 the cap allowed, never the 19,273 that are
+                        there. */}
+                    <b className="tnum">{loadedCount.toLocaleString()}</b> loaded from <span className="mono">{root || '…'}</span>
                     {' · '}
                     {/* Save writes to disk and stops. Git is a separate, deliberate
                         act now, and the strip has to say so - it used to say
@@ -1266,11 +1382,11 @@ export function Files() {
 
       {needsAuth ? (
         <div className="fx-gate"><SignInCard what="browse the box" onRetry={retry} /></div>
-      ) : treeErr && !entries.length ? (
+      ) : (rootsErr || dirs.err) && !dirs.loaded.size ? (
         <div className="fx-gate">
           <ErrState
             title="Cannot reach the file service"
-            body={`/-/api/files did not answer (${treeErr}). Nothing on this page can load until it does.`}
+            body={`/-/api/files did not answer (${rootsErr || dirs.err}). Nothing on this page can load until it does.`}
             onRetry={retry}
           />
         </div>
@@ -1330,11 +1446,13 @@ export function Files() {
                   onReveal={reveal}
                   onDownloadDir={archiveNode}
                   onDownloadRoot={archiveRoot}
-                  loading={treeLoading}
-                  error={treeErr}
+                  sizing={sizing}
+                  loading={dirs.pending.has('') && !dirs.loaded.has('')}
+                  pending={dirs.pending}
+                  searching={searching}
+                  error={dirs.err}
                   onRetry={retry}
-                  truncated={truncated}
-                  fileCount={fileCount}
+                  loadedCount={loadedCount}
                   filterRef={filterRef}
                   deco={deco}
                   tombs={tombs}

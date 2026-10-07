@@ -116,6 +116,10 @@ mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
 (cd "$WEB" && npx tsc src/pages/files/tree.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/pages/files/tree.js" "$OUT/wikilinks-mod.mjs"
+# The SAME module, under a second name, for the lazy-tree table below. A copy
+# rather than a second compile: two compiles of one file would be two chances for
+# the checks to disagree about which build they are asserting on.
+cp "$OUT/wikilinks-mod.mjs" "$OUT/lazy-tree-mod.mjs"
 # lib/ansi.ts - imports nothing - for the log-escape truth table below.
 (cd "$WEB" && npx tsc src/lib/ansi.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
@@ -128,7 +132,7 @@ mv "$OUT/motion.js" "$OUT/motion.mjs"
 cp "$HERE/design-tokens.mjs" "$OUT/"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
-   "$HERE/wikilinks.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
+   "$HERE/wikilinks.mjs" "$HERE/lazy-tree.mjs" "$HERE/repo-roots.mjs" "$HERE/grouping.mjs" \
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
    "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" \
    "$HERE/settings.mjs" "$HERE/a11y-contract.mjs" "$HERE/log-escapes.mjs" \
@@ -311,6 +315,16 @@ echo "── a theme dropped in by hand is read correctly ───────�
 # it decides which base palette the pre-paint script stamps, so a light theme
 # would render its first frame on the dark base.
 node "$OUT/user-themes.mjs"
+
+echo
+echo "── the tree, built from the listings that arrived ──────"
+# /tree lists ONE folder now, so buildTree takes a MAP of folder -> children and is
+# called again on every arrival. Three new failures are all silent: a listing that
+# lands before its parent's, a rebuild that drops what was already loaded, and
+# "nobody opened this" rendered as "this is empty". It also holds the DELETED
+# per-node files/bytes rollups, which could only exist while the client held every
+# file under every folder.
+node "$OUT/lazy-tree.mjs"
 
 echo
 echo "── a wikilink finds the right document ─────────────────"

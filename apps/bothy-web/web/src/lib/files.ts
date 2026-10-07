@@ -85,16 +85,22 @@ export interface FileRoot {
 // response, which is the failure mode a portal must not have.
 export interface TreeFile {
   path: string;
-  size: number;
+  /** Absent on a DIRECTORY, and that is the honest answer rather than a gap. The
+   *  number the explorer used to print beside a folder was a subtree rollup, and
+   *  a rollup is only computable if the client already holds every file under
+   *  every folder - which is the recursive listing the lazy tree replaced. What a
+   *  folder costs is asked once, at the moment Download is clicked (`dirSize`). */
+  size?: number;
   mtime: number;
   writable: boolean;
-  // MEASURED, not assumed: the live service sends `dir` as the entry's PARENT
-  // PATH (a string, "" at the root), while the spec this page was written to
-  // called it a boolean "this entry is a directory". Both are accepted - `true`
-  // marks a directory, a string is ignored as redundant with the path - so the
-  // tree is right either way and cannot be broken by the field settling on one
-  // meaning later. Inferring directories from the path separators is the
-  // fallback and is what actually runs today.
+  // MEASURED, not assumed: the service sends `dir` as the entry's PARENT PATH (a
+  // string, "" at the root) for a FILE, and the boolean `true` for a DIRECTORY.
+  // Both shapes were already accepted here - `true` marks a directory, a string
+  // is ignored as redundant with the path - and since the listing went lazy
+  // (2026-10) the boolean is load-bearing rather than defensive: a client that
+  // has listed one folder cannot infer a subfolder from a path separator, because
+  // it has not seen anything inside it. An empty directory would simply not
+  // exist, and an unopened one would have nothing to open.
   dir?: boolean | string;
   lang?: string | null;
   readable?: boolean;
@@ -269,27 +275,130 @@ export function listRoots(signal?: AbortSignal): Promise<{ roots: FileRoot[] }> 
 
 export interface TreeResult {
   root: string;
+  /** The folder this listing describes, root-relative, '' for the root itself.
+   *  Echoed so a response that arrives out of order can be filed under the folder
+   *  it is actually about rather than the one that was last asked for. */
+  path: string;
   files: TreeFile[];
-  /** The service hit its own listing cap. The tree is INCOMPLETE, and saying so
-   *  is the whole point of the flag - a silently short listing is how you
-   *  conclude a file does not exist. */
-  truncated?: boolean;
   readOnly?: boolean;
 }
 
+/** ONE DIRECTORY's entries - its files and its subdirectories, nothing deeper.
+ *
+ *  `truncated` IS GONE FROM THIS RESULT, with the 4,000-row cap that set it. The
+ *  listing was recursive: it walked everything under the folder asked about and
+ *  stopped at 4,000 entries. Measured in the container, `projects` holds 19,273
+ *  files and `home` 20,612, so ~15,000 per root could not be opened, found or
+ *  linked at all - and the median directory on this box holds ONE entry, so the
+ *  walk cost 19,273 stats to draw one row.
+ *
+ *  Now: 0.1ms for a typical folder, 59ms for the fattest one on the box (923
+ *  entries). Finding a file by NAME is `findFiles`, which walks server-side and
+ *  is bounded by matches rather than by the size of the tree. */
 export function listTree(
   root: string,
   signal?: AbortSignal,
-  /** SCOPE the listing to one folder inside the root - what `cd` does to `ls`.
-   *  The service walks from there rather than filtering a full listing, which
-   *  is the difference between 3,200 entries and a handful: measured on this
-   *  box, `home` is 360ms and `home/stacks/docs` is 9ms. Paths still come back
+  /** The folder to list, root-relative. '' is the root itself. Paths come back
    *  root-relative, so everything that opens a file keeps working unchanged. */
-  scope = '',
+  dir = '',
 ): Promise<TreeResult> {
   const q = `root=${encodeURIComponent(root)}`
-    + (scope ? `&path=${encodeURIComponent(scope)}` : '');
+    + (dir ? `&path=${encodeURIComponent(dir)}` : '');
   return getJSON(`${BASE}/tree?${q}`, signal);
+}
+
+/** A bound that was reached, or null when the answer is complete. Always present
+ *  on the two walking endpoints below, for the reason /search's `truncated` is:
+ *  a field that only appears when it fired is one a caller forgets to check. */
+export interface Stopped {
+  reason: string;
+  limit?: number;
+  seconds?: number;
+  scanned: number;
+}
+
+export interface FindResult {
+  root: string;
+  files: TreeFile[];
+  /** Files the walk visited. Not the matches - the haystack. */
+  scanned: number;
+  stopped: Stopped | null;
+  readOnly?: boolean;
+}
+
+/** NAME search across a whole root, which is what the explorer's filter became.
+ *
+ *  It used to filter the tree the browser already held, which was fine while that
+ *  tree was every path in the root and became a lie when the listing was capped
+ *  at 4,000: typing the name of the 15,001st file printed "Nothing matches", which
+ *  is the most expensive wrong answer a search can give. It is also what the lazy
+ *  tree requires - the browser now holds only the folders somebody opened.
+ *
+ *  NAMES ONLY. It opens no file, which is the whole difference from `searchFiles`:
+ *  measured on `projects`, 19,273 files in 0.12s here against ~10s there. Two
+ *  questions, two costs. DEBOUNCE IT - see Files.tsx. */
+export function findFiles(
+  root: string,
+  query: string,
+  opts: { path?: string; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<FindResult> {
+  const p = new URLSearchParams({ root, q: query });
+  if (opts.path) p.set('path', opts.path);
+  if (opts.limit) p.set('limit', String(opts.limit));
+  return getJSON(`${BASE}/find?${p}`, signal);
+}
+
+/** Every DOCUMENT in a root - markdown, rst and txt - by path, complete.
+ *
+ *  Three consumers and one request, which is why it is one endpoint: the reader's
+ *  document index (prose-first by design), the root's front page, and the
+ *  candidate set wikilink resolution searches. All three used to come out of the
+ *  explorer's full listing, so all three stopped at the 4,000-entry cap - a
+ *  `[[note]]` whose target was past it resolved to nothing and rendered as grey
+ *  text, silently.
+ *
+ *  NOT the backlink graph (`fetchLinks`), which also holds a markdown index.
+ *  Measured, and that is why: /links 413s on `home` (its walk budget is 20,000
+ *  entries and the root holds 20,225) and caps `projects` at 2,000 of 3,048
+ *  documents after reading every byte of all of them, 3.9s cold. This opens
+ *  nothing: 3,340 documents in 0.51s, complete. */
+export function listDocs(
+  root: string,
+  signal?: AbortSignal,
+  dir = '',
+): Promise<FindResult> {
+  const q = `root=${encodeURIComponent(root)}`
+    + (dir ? `&path=${encodeURIComponent(dir)}` : '');
+  return getJSON(`${BASE}/docs?${q}`, signal);
+}
+
+export interface DirSize {
+  root: string;
+  path: string;
+  files: number;
+  bytes: number;
+  /** Entries the archive walk would leave out - oversized, unreadable, or a
+   *  credential-shaped name, which an archive refuses although a read allows it. */
+  skipped: number;
+  /** Present when the COUNTING walk itself ran out (over 20,000 files, or over its
+   *  20s budget). `files` and `bytes` are then "at least this much" rather than the
+   *  total, and the caller has to say so - a folder that big is over every archive
+   *  cap anyway, so the answer is still actionable. */
+  refused?: string;
+}
+
+/** What an archive of this folder would weigh, asked AT CLICK and never at hover.
+ *
+ *  The explorer used to read it off a per-node rollup computed while the tree was
+ *  built, which only works if the tree already holds every file under every
+ *  folder. Walking a subtree on hover would put the removed cost straight back,
+ *  thousands of times over; this is the same walk the download itself does, one
+ *  click earlier, on the portal origin where a refusal can be rendered in words
+ *  instead of landing as raw JSON in a new tab on :8100. */
+export function dirSize(root: string, path: string, signal?: AbortSignal): Promise<DirSize> {
+  const q = `root=${encodeURIComponent(root)}&path=${encodeURIComponent(path || '.')}`;
+  return getJSON(`${BASE}/dirsize?${q}`, signal);
 }
 
 export function readFile(root: string, path: string, signal?: AbortSignal): Promise<FileRead> {

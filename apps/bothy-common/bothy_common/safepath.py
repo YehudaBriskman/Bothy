@@ -43,6 +43,7 @@ import stat
 import time
 import tomllib
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
 
 # ── the policy is DECLARED, not coded ───────────────────────────────────────
@@ -1291,3 +1292,249 @@ def collect(
                                   mtime=int(st.st_mtime), arcname=arc))
 
     return members, skipped
+
+
+# ── the lazy walk: one directory, and a bounded name search ─────────────────
+#
+# collect() walks a whole subtree, and until 2026-10 it was the only walk this
+# module owned - so `/tree` recursed over an entire root to draw a sidebar. The
+# measurement that ended that, taken on this box:
+#
+#   root        files returned   files actually there    ms     JSON
+#   stacks      1,262            1,262                   84    272 KB
+#   projects    4,000 (capped)   19,273                 399  1,177 KB
+#   home        4,000 (capped)   20,612                 433  1,247 KB
+#
+#   median directory fan-out, every root: 1 entry.  p95: 10-11.
+#   fattest directory on the whole box:   923 (projects/.../npm/tarballs).
+#
+# So ~15,000 files per big root could not be opened, found or linked AT ALL, and
+# the price of that was loading 19,273 entries to draw a median of one child. The
+# listing cap is gone, and the two functions below REPLACE it rather than raise
+# it: a cap is a listing that stops being true at a size nobody chose, while
+# these are answers that are complete for the question asked.
+#
+# WHY THEY LIVE HERE AND NOT IN app.py. collect()'s docstring argues it already:
+# listing() doing its own os.walk was "correct, but a PATTERN, and a second
+# implementation can copy a pattern incorrectly". That argument is about the
+# MODULE and not about the single function - what must not happen is a walk in
+# the application layer that forgets the per-entry resolve(). Both of these need
+# a shape collect() cannot express (one level; stop at N matches), so they are
+# written beside it, out of the same prune_dirs() and the same resolve(), and the
+# application calls them instead of walking.
+
+
+@dataclass(frozen=True)
+class Entry:
+    """One entry of a directory listing or a name search, already proven safe.
+
+    For list_dir, `res.relpath` is a DIRECT CHILD of the directory asked about -
+    see the child test there, which is what makes a lazy tree able to file it
+    under the parent the client opened.
+    """
+    res: Resolved
+    size: int
+    mtime: int
+    is_dir: bool
+
+
+def resolve_dir(root_key: str, rel: str) -> Resolved:
+    """resolve(), plus "and it is really a directory".
+
+    resolve() answers for a PATH rather than for a file, and the containment proof
+    it makes - realpath both sides, compare with a trailing separator - is exactly
+    the one a directory needs. What it does not do is check the TYPE, which is why
+    listing `README.md` as a folder used to reach os.walk and come back empty: a
+    folder that renders as empty rather than as refused.
+
+    `rel` may be "" for the root itself. resolve() refuses an empty path, and "."
+    is what os.path.relpath calls the root, so that is what it is given.
+
+    THE SYMLINK CLAUSE IS CHECKED ON THE UNRESOLVED NAME, because resolve() has
+    already followed it. A symlinked directory inside the root resolves to a legal
+    place, and listing it hands back entries whose paths sit under the TARGET -
+    which a client building a tree then files under a parent it never asked for.
+    Same decision collect() makes when it declines to descend one.
+    """
+    res = resolve(root_key, rel or ".")
+    if not os.path.isdir(res.abspath):
+        raise PathRefused("no such folder")
+    if rel and os.path.islink(os.path.join(res.root_dir, rel)):
+        raise PathRefused("that folder is a symlink; open its target instead")
+    return res
+
+
+def list_dir(root_key: str, rel: str = "") -> tuple[Resolved, list[Entry]]:
+    """The DIRECT children of one directory - files AND subdirectories. No cap.
+
+    This is the whole of the lazy tree: a client asks for a folder, gets what is
+    immediately inside it, and asks again when somebody opens one of those. There
+    is no threshold and no "give me everything" mode, because at a median fan-out
+    of one entry the recursive version was loading 19,273 files to draw one row.
+
+    SUBDIRECTORIES ARE RETURNED AS ENTRIES, which the recursive listing never had
+    to do - it emitted only files and the client inferred the folders from the
+    path separators. A lazy client cannot infer a folder it has not listed, so an
+    empty directory would simply not exist, and a directory nobody has opened
+    would have nothing to open.
+
+    EVERY ENTRY IS A CHILD OF `rel`. That is a property and not an observation:
+    resolve() returns the path a name RESOLVES to, so for a symlink it is the
+    target's path elsewhere in the root - and an entry like that, handed to a tree
+    builder, is filed under a parent nobody asked about. Symlinks are therefore
+    skipped (as collect() skips them, for that reason plus the duplicate-name
+    one), and the child test below is a second, cheap proof that nothing else can
+    do it either.
+
+    Skipped, never surfaced, exactly as the recursive listing did: a listing is a
+    menu, and an entry that cannot be opened is worse than an absent one.
+    """
+    base = resolve_dir(root_key, rel)
+    real = base.root_dir
+    here = "" if base.relpath == "." else base.relpath
+    try:
+        with os.scandir(base.abspath) as it:
+            kids = sorted(it, key=lambda e: e.name)
+    except OSError as e:
+        raise PathRefused("that folder cannot be read") from e
+
+    # prune_dirs decides "am I at the top level of this root" from the path it is
+    # given, so it gets the path of the directory BEING LISTED, relative to the
+    # root - which is what `here` is. Passing anything else makes a subtree's own
+    # first level look like the root's, and that bug already cost a whole class of
+    # dot directories inside `projects` once (see the long note in collect()).
+    #
+    # IT IS THE COST GUARD, NOT THE CONTROL, and that is worth stating here because
+    # the recursive walk's version of this line reads as if it were the control: at
+    # ONE level the resolve() below refuses every directory prune_dirs would drop,
+    # so removing this changes nothing a caller can see. (Proved by trying: the
+    # mutant that removes it is not caught by anything, because there is nothing to
+    # catch. scripts/checks/mutants.sh therefore has no row for it.) It stays
+    # because prune_dirs' whole reason for existing is that one function answers
+    # "where may a walk look" for every walk in this module, and because a listing
+    # that resolved 923 entries to discard half of them would be paying the 1.4s bug
+    # again in miniature.
+    dirnames = [e.name for e in kids if e.is_dir(follow_symlinks=False)]
+    keep = set(prune_dirs(root_key, here or ".", dirnames))
+
+    out: list[Entry] = []
+    for e in kids:
+        is_dir = e.is_dir(follow_symlinks=False)
+        if is_dir and e.name not in keep:
+            continue
+        if e.is_symlink():
+            continue
+        # THE CONTROL. prune_dirs filters DIRECTORIES, so a top-level dot FILE walks
+        # straight past it and only this refuses it - which is not hypothetical:
+        # .bash_history was being served the first time the `home` root was
+        # surveyed, past a dot-DIRECTORY-only rule.
+        try:
+            res = resolve(root_key, os.path.relpath(e.path, real))
+        except PathRefused:
+            continue
+        # The child test: whatever resolve() allowed, this listing only ever
+        # describes names directly inside the folder it was asked about, which is
+        # what lets a client file each row under the parent it opened.
+        #
+        # BELT AND BRACES, honestly: the symlink skip above is what makes it
+        # unreachable today, since a symlink is the only entry whose resolved path
+        # can sit somewhere else. It is here as the invariant stated at the point
+        # that depends on it, and it has no mutant row for the same reason the
+        # prune above does not - nothing can observe its removal.
+        if os.path.dirname(res.relpath).strip("/") != here:
+            continue
+        try:
+            st = os.stat(res.abspath)
+        except OSError:
+            continue
+        out.append(Entry(res=res, size=st.st_size, mtime=int(st.st_mtime),
+                         is_dir=is_dir))
+    return base, out
+
+
+# A name search is bounded by MATCHES, never by files visited, and the bound is
+# reported. That is the difference between this and the listing cap it replaces:
+# a capped listing stops being true at a size nobody chose, while a search that
+# stops at 500 hits has still SEEN the whole tree and says so.
+FIND_MAX_HITS = 500
+# The document index is a second consumer with a different shape - it is the
+# candidate set wikilink resolution and the reader's library are built from, so a
+# cap here is a note that cannot be reached by name. Higher, and still reported.
+# Measured: the largest root on this box holds 3,340 prose files.
+FIND_MAX_DOCS = 8_000
+FIND_SECONDS = 10.0
+
+
+def find(root_key: str, rel: str = "", *,
+         match: Callable[[str], bool] | None = None,
+         suffixes: tuple[str, ...] = (),
+         limit: int = FIND_MAX_HITS,
+         walk_seconds: float = FIND_SECONDS) -> tuple[list[Entry], int, dict | None]:
+    """Files under a subtree whose NAME matches. Bounded, and it says when it was.
+
+    Returns (hits, scanned, stopped). `stopped` is None when the walk ran to the
+    end, which is the ordinary case here: 19,273 files in 0.12s, measured, because
+    nothing in this function opens a file.
+
+    WHY resolve() RUNS ONLY ON CANDIDATES, and why that takes nothing away. What
+    this returns is a SUBSET of what collect() returns over the same subtree: same
+    prune_dirs at every level, same refusal to descend or follow a symlink, same
+    resolve() on every path that comes out. The only difference is that a file
+    whose name cannot match is never resolved - and a path that is never returned
+    cannot be widened by not checking it.
+
+    What it buys is the reason this exists rather than a filter over collect():
+    resolve() costs a realpath plus a walk up the tree looking for .git, and
+    paying that 19,273 times took 2.09s where this takes 0.12s. Measured both
+    ways, on `projects`.
+    """
+    base = resolve_dir(root_key, rel)
+    real = base.root_dir
+    hits: list[Entry] = []
+    scanned = 0
+    stopped: dict | None = None
+    started = time.monotonic()
+
+    for dirpath, dirnames, filenames in os.walk(base.abspath, followlinks=False):
+        if time.monotonic() - started > walk_seconds:
+            stopped = {"reason": "took too long", "seconds": walk_seconds,
+                       "scanned": scanned}
+            break
+        # Pruned in place, through prune_dirs, at EVERY level - so the walk never
+        # looks where resolve() would refuse. followlinks=False already declines
+        # to descend a link; the islink clause keeps the intent at the decision,
+        # as collect() does.
+        dirnames[:] = [d for d in prune_dirs(root_key,
+                                             os.path.relpath(dirpath, real),
+                                             dirnames)
+                       if not os.path.islink(os.path.join(dirpath, d))]
+        for fn in sorted(filenames):
+            scanned += 1
+            low = fn.lower()
+            if suffixes and not low.endswith(suffixes):
+                continue
+            if match is not None and not match(low):
+                continue
+            full = os.path.join(dirpath, fn)
+            # A symlink resolves to its TARGET's path, so following one returns
+            # the same bytes under a second name - and the target is already in
+            # this walk under its own. Skipped, like collect() does.
+            if os.path.islink(full):
+                continue
+            try:
+                res = resolve(root_key, os.path.relpath(full, real))
+            except PathRefused:
+                continue
+            try:
+                st = os.stat(res.abspath)
+            except OSError:
+                continue
+            hits.append(Entry(res=res, size=st.st_size, mtime=int(st.st_mtime),
+                              is_dir=False))
+            if len(hits) >= limit:
+                stopped = {"reason": "too many matches", "limit": limit,
+                           "scanned": scanned}
+                break
+        if stopped:
+            break
+    return hits, scanned, stopped
