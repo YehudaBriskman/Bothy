@@ -590,11 +590,19 @@ export function ConfigTab({ ns, catalog, roles }: { ns: string; catalog: KubeCat
           other refusal still is. */}
       {!absent && <Stale read={cm} />}
       {absent ? (
+        // Three different situations, and only one of them is quiet. A
+        // deployment whose pod template NAMES a ConfigMap that is not there has
+        // pods that cannot start, so that case is the loud one and must not be
+        // worded as "nothing reads it" - which is what the first draft said,
+        // while three deployments declared it.
         <p className="sa-note cl-cm-absent">
           <span className="mono">{ns}</span> has no ConfigMap <span className="mono">{name}</span>
-          {prov.readers.length === 0 && prov.others.length === 0
-            ? ', and no workloads that would read one.'
-            : `, so nothing here reads one. ${prov.others.length} deployment${prov.others.length === 1 ? '' : 's'} run without it.`}
+          {prov.readers.length > 0
+            ? <>, and <span className="mono">{prov.readers.join(', ')}</span> {prov.readers.length === 1 ? 'declares' : 'declare'} it.
+                {' '}{prov.readers.length === 1 ? 'Its pods' : 'Their pods'} cannot start until it exists.</>
+            : prov.others.length > 0
+              ? `, and none of the ${prov.others.length} deployments here declares one.`
+              : ', and no workloads that would read one.'}
           {' '}Its keys live in the manifests until something is deployed here.
         </p>
       ) : (

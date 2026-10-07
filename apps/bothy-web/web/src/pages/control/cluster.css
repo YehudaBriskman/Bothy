@@ -61,9 +61,20 @@
    the 22 that ARE actionable the quiet ones - which is the hierarchy exactly
    backwards. It wraps rather than truncating, because the labels are short and a
    clipped reason is no reason. */
+/* min-width, not only max: the cell is a `width: 1%` controls column, so without
+   a floor the table squeezed it and EVERY locked row wrapped to two lines - 48 of
+   70 rows twice as tall, on the table whose complaint was density. 132px fits
+   the four common labels on one line; the two one-key categories still wrap, and
+   two rows wrapping is not a pattern anybody reads as one. */
 .cl-page .cl-why {
   display: inline-block; font-size: var(--fs-xs); line-height: var(--lh-xs);
-  letter-spacing: var(--tr-xs); white-space: normal; text-align: right; max-width: 150px;
+  letter-spacing: var(--tr-xs); white-space: normal; text-align: right;
+  min-width: 132px; max-width: 170px;
+}
+/* ...except in the card form, where there is no column to reserve and the label
+   sits under its own heading. */
+@media (max-width: 640px) {
+  .cl-page .cl-why { min-width: 0; }
 }
 /* Each category's sentence ONCE, under the table, rather than repeated down
    every row that falls in it ("say it once"). Also the provenance block, which
