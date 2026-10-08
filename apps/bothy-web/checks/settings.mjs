@@ -174,7 +174,7 @@ const layoutPage = readFileSync(join(SRC, 'pages/settings/Layout.tsx'), 'utf8');
 for (const k of [SETTINGS_GROUPS_KEY]) {
   const entry = KNOWN_KEYS.find((x) => x.key === k);
   ok(!!entry && entry.resettable, `${k} is in KNOWN_KEYS and says it can be reset`);
-  ok(/SETTINGS_GROUPS_KEY/.test(layoutPage), `${k} has a row with a Reset in Remembered layout`);
+  ok(/key: SETTINGS_GROUPS_KEY,/.test(layoutPage), `${k} has a row of its own with a Reset in Remembered layout`);
 }
 
 console.log(fails ? `\nFAILED: ${fails}` : '\nsettings: all passed');
