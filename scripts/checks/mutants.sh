@@ -1821,6 +1821,16 @@ mutant "the dock's panel tweens its width open" \
   '  transition: width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease), scale var(--dur) var(--spring),' \
   -- "${WEB_CHECKS[@]}"
 
+# THE EIGHT PIXELS BETWEEN THE CIRCLE AND THE CARD. Without the bridge the
+# pointer is over neither for part of the journey, the dock gets pointerleave,
+# and the card shuts before the hand arrives - so a mouse can open it and never
+# press anything in it. Nothing about that is visible in a screenshot.
+mutant "the gap to the dock's panel stops being bridged" \
+  apps/bothy-web/web/src/components/UpdateActivity.css \
+  "  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: var(--sp-2);" \
+  "  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 0;" \
+  -- "${WEB_CHECKS[@]}"
+
 # AND THE ENTRANCE STARTS FROM A VISIBLE RESTING STATE. A panel whose default is
 # `opacity: 0` is one that stays invisible forever the first time whatever was
 # meant to turn it on does not run - the Reveal component's failure, which

@@ -185,6 +185,18 @@
   transition: opacity var(--dur-fast) var(--ease), scale var(--dur) var(--spring),
     translate var(--dur) var(--spring), visibility var(--dur) var(--ease);
 }
+/* THE BRIDGE, and it is not decoration. The panel floats --sp-2 above the
+   circle, and for those few pixels the pointer is over neither of them - so the
+   dock gets `pointerleave` and the card shuts while the hand is still travelling
+   to the buttons inside it. A mouse could open the card and never reach "Open
+   Updates" or "Dismiss", which is the whole disclosure made useless by eight
+   pixels. A pseudo-element of the PANEL covers the gap: `pointerleave` counts
+   the DOM subtree, not the box, so the pointer never leaves the dock. It is
+   hidden with the panel, so it catches nothing while the card is shut. */
+.upd-dock-panel::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: var(--sp-2);
+}
+
 /* Shut is the EXCEPTION, written as the attribute's value rather than as the
    default: a panel whose resting style is `opacity: 0` is one that stays
    invisible forever if whatever was meant to turn it on never runs. */

@@ -1061,6 +1061,11 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   const tProps = (panD.transition ?? '').split(/,(?![^(]*\))/).map((t) => t.trim().split(/\s+/)[0]).filter(Boolean);
   say(tProps.length > 0 && tProps.every((x) => ['opacity', 'scale', 'translate', 'visibility'].includes(x)),
     'and it arrives on transform and opacity only - never on a size', tProps.join(' '));
+  const bridge = actOne('.upd-dock-panel::after');
+  const brD = bridge ? Object.fromEntries(decls(bridge.body)) : {};
+  say(brD.top === '100%' && brD.height === panD['margin-bottom'],
+    'the gap between the circle and the panel is bridged, so a mouse can reach what hovering opened',
+    `${brD.height ?? '(no bridge)'} vs a gap of ${panD['margin-bottom']}`);
   const shut = actOne(".upd-dock-panel[data-open='false']");
   say(!!shut && /opacity:\s*0/.test(shut.body) && panD.opacity === undefined,
     'the SHUT state is the exception, so a resting panel is visible - a default of opacity 0 is how a surface stays invisible forever');
