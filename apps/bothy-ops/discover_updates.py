@@ -691,8 +691,9 @@ class Discoverer:
         design of this field rather than a shortcut. The image reference is part
         of what compose hashes, so a component that is behind on its image has a
         different hash BECAUSE it is behind - measured on this box the same day,
-        five of six differing services were the five with image drift, which
-        `drift` already says in words. Reporting those again would make the new
+        six components had a differing hash and five of them were exactly the
+        five with image drift, which `drift` already says in words, naming the
+        two image references. Reporting those again would make the new
         field a louder copy of the old one and bury the single row that is news.
         It is also the right call for the action: applying the image pin runs the
         recipe, which brings the merged configuration with it. So this field
