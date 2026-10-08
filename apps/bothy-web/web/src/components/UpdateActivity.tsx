@@ -336,7 +336,14 @@ export function UpdateActivityDock() {
         type="button" ref={orb} className="upd-dock-orb"
         aria-expanded={open} aria-controls={panelId} aria-label="Update activity"
         onClick={() => setOpen((o) => !o)}
-        onFocus={() => setOpen(true)}
+        // KEYBOARD focus opens it; a pointer's does not, and the difference is
+        // `:focus-visible`. Opening on every focus looked right and was the "tap
+        // eaten by the hover" defect in a second costume: a tap focuses the
+        // button and then clicks it, so focus opened the panel and the click's
+        // toggle shut it again in the same gesture, and nothing happened at all
+        // on a phone. The pointer has its own ways in - hover for a mouse, the
+        // click for a finger - so this handler is only for the one that does not.
+        onFocus={(e) => { if (e.currentTarget.matches(':focus-visible')) setOpen(true); }}
         onPointerEnter={(e) => { if (e.pointerType === 'mouse') setOpen(true); }}
       >
         {done || gone ? <JobGlyph state={job && !gone ? job.state : 'aborted'} /> : <Loader state="work" size="sm" label="an update is running" labelHidden announce={false} />}

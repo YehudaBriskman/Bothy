@@ -497,6 +497,16 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
   max-width: calc(1080px + var(--upd-rail-w) + var(--sp-8));
   padding-right: calc(var(--upd-rail-w) + var(--sp-8));
 }
+/* AND THE RESERVE GOES WHEN THE COLUMN DOES. Without this the page keeps a 21rem
+   gutter for a rail that is now a band across the top - at 390px that leaves the
+   content SIX PIXELS wide, and every block below it is a vertical strip of
+   single letters. It is one line, it is invisible in a diff, and it is why the
+   browser check compares bounding boxes at 390 as well as at 1440. The `padding`
+   shorthand in the 900px block below cannot do this job: the rule above is
+   (0,3,0) and beats it. */
+@media (max-width: 1100px) {
+  .set-shell .set-body:has(> .upd-rail) { max-width: 1080px; padding-right: var(--sp-8); }
+}
 
 /* The one sentence that replaced the table's 105-word footer glossary. The hint
    beside it holds the rest (D2). */

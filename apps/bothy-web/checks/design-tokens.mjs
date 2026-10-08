@@ -1006,6 +1006,11 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   say(!!narrow && /height:\s*var\(--upd-rail-h\)/.test(narrow.body) && /position:\s*relative/.test(narrow.body),
     'below 1100px there is no right, so the band takes a FIXED height instead - reserved, and still shift-free',
     narrow ? narrow.body.replace(/\s+/g, ' ').trim() : '(no narrow rule)');
+  const narrowBody = setCss.find((r) => /max-width:\s*1100px/.test(r.media)
+    && r.sel.replace(/\s+/g, ' ') === '.set-shell .set-body:has(> .upd-rail)');
+  say(!!narrowBody && /padding-right:\s*var\(--sp-\w+\)/.test(narrowBody.body),
+    'and the RESERVE goes with it - a 21rem gutter kept for a rail that is not there leaves 6px of content at 390px',
+    narrowBody ? narrowBody.body.replace(/\s+/g, ' ').trim() : '(no narrow rule)');
 
   // The dock. "in all the other places itll be flowting in the side as circle or
   // something in some corner or something and in hover itll get opened."
@@ -1034,7 +1039,8 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   // ui/InfoHint is held to above - and for the same reason: a touch tap must
   // reach the toggle instead of being eaten by a hover that opens and shuts in
   // one gesture, which is the defect that disqualified components/Tooltip.tsx.
-  say(/onFocus=\{\(\) => setOpen\(true\)\}/.test(actTs), 'the dock opens on FOCUS, so a keyboard reaches it with no pointer at all');
+  say(/onFocus=\{\(e\) => \{ if \(e\.currentTarget\.matches\(':focus-visible'\)\) setOpen\(true\); \}\}/.test(actTs),
+    "the dock opens on KEYBOARD focus, so it is reachable with no pointer at all - and a pointer's focus does not, or a tap would open and shut in one gesture");
   say(/onClick=\{\(\) => setOpen\(\(o\) => !o\)\}/.test(actTs), 'and on a TAP, through a click handler on the toggle itself');
   const dockGated = (actTs.match(/onPointer(?:Enter|Leave)=\{\(e\)[\s\S]{0,340}?e\.pointerType [!=]== 'mouse'/g) ?? []).length;
   say(dockGated === 2, 'and hover is honoured for a mouse only ON BOTH pointer handlers', `${dockGated} of 2 gated`);

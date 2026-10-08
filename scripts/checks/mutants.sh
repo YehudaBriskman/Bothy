@@ -1773,8 +1773,29 @@ mutant "the dock is drawn on the page whose rail already is it" \
 # defect that disqualified components/Tooltip.tsx for the detail hint.
 mutant "the dock no longer opens on focus" \
   apps/bothy-web/web/src/components/UpdateActivity.tsx \
-  '        onFocus={() => setOpen(true)}' \
+  "        onFocus={(e) => { if (e.currentTarget.matches(':focus-visible')) setOpen(true); }}" \
   '        onFocus={() => {}}' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the one that puts the tap-eaten defect back in a second costume: opening
+# on EVERY focus, so a tap focuses the button, focus opens the panel, and the
+# click's toggle shuts it again in the same gesture. Nothing happens on a phone,
+# and nothing looks wrong on a desktop. Shipped once on the way to this commit,
+# and found by the browser check rather than by reading it.
+mutant "the dock opens on a pointer's focus as well as a keyboard's" \
+  apps/bothy-web/web/src/components/UpdateActivity.tsx \
+  "        onFocus={(e) => { if (e.currentTarget.matches(':focus-visible')) setOpen(true); }}" \
+  '        onFocus={() => setOpen(true)}' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the narrow page keeping a 21rem gutter for a rail that is now a band
+# across the top: at 390px that leaves the content SIX PIXELS wide and every
+# block below it is a vertical strip of single letters. One line, invisible in a
+# diff, and also shipped once on the way here.
+mutant "the narrow page still reserves the rail's column" \
+  apps/bothy-web/web/src/components/settings/settings.css \
+  '  .set-shell .set-body:has(> .upd-rail) { max-width: 1080px; padding-right: var(--sp-8); }' \
+  '' \
   -- "${WEB_CHECKS[@]}"
 
 mutant "hover opens the dock for a finger too" \
