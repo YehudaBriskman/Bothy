@@ -32,7 +32,9 @@
 #                        counts requests; audit parsing, paging, refusals.
 #   test_updates_catalog THE UPDATE CATALOG: unknown keys and channels refused,
 #                        `auto` refused on one-way and boundary components; the
-#                        version shapes and levels; every real pin resolves.
+#                        version shapes and levels; every real pin resolves; and
+#                        the config-only refusal fits the 300-character cap for
+#                        every real container name and recipe.
 #   test_discover_updates the host discovery against a fake registry: levels,
 #                        image drift, CONFIG drift (the image matches and the
 #                        merged compose configuration does not, read once per
