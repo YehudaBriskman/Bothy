@@ -226,9 +226,12 @@ console.log('\n── every popover and menu goes through ui/Menu or ui/Popover 
 
   const cssFiles = files.filter((p) => p.endsWith('.css'));
   const byHand = [], z = [];
-  // A fixed banner and the skip link are not floating surfaces; they are the
-  // only literal layers allowed at 40 and above.
-  const Z_OK = /\.upd-banner|\.skip-link/;
+  // The skip link is not a floating surface and it must be above everything, so
+  // it is the ONE literal layer allowed at 40 and above. The two fixed status
+  // surfaces - the "Bothy updated" banner and the update activity dock - used to
+  // be here too; since 2026-10-08 they share the named --z-activity layer, which
+  // is what this rule wanted of them in the first place.
+  const Z_OK = /\.skip-link/;
   for (const f of cssFiles) {
     const css = stripCss(readFileSync(f, 'utf8'));
     for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -239,7 +242,7 @@ console.log('\n── every popover and menu goes through ui/Menu or ui/Popover 
     }
   }
   say(byHand.length === 0, 'no dropdown positioned by hand under its trigger (top: calc(100% + …))', byHand.join('; '));
-  say(z.length === 0, 'no literal z-index in the floating range - overlays use --z-modal / --z-popover / --z-tooltip', z.join('; '));
+  say(z.length === 0, 'no literal z-index in the floating range - overlays use --z-activity / --z-modal / --z-popover / --z-tooltip', z.join('; '));
 
   // The primitives themselves: portalled, collision-aware, focus handled.
   const readSafe = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : ''); // missing = FAIL, not a crash

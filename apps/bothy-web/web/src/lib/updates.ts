@@ -30,7 +30,7 @@
 // *.dev.ts exists: the dev server proxies /-/api/* at the live box and holds no
 // session cookie for it.
 
-import { apiFetch } from './http';
+import { apiFetch, statusOf } from './http';
 
 export type Level = 'patch' | 'minor' | 'major';
 export type Channel = 'auto' | 'notify' | 'manual';
@@ -567,6 +567,122 @@ export function rememberJob(id: string | null): void {
 
 /** The file a pin lives in, without the service: `monitoring/compose.yml`. */
 export const pinFile = (pin: string): string => pin.split(':')[0];
+
+// ── the followed job, for the WHOLE APP ─────────────────────────────
+//
+// The 2s loop used to live in a hook inside Settings > Updates, which meant the
+// job only existed while that page was mounted: navigate away and the thing you
+// had just started stopped being watched. It is a MODULE STORE for the same
+// reason `publishBehind` below is one - two surfaces read it (the rail down the
+// side of Settings > Updates, and the corner dock in the shell) and there must be
+// exactly one loop behind them, not one per mount.
+//
+// The dock is mounted beside <CommandPalette/> in AppShell, which is the only
+// place in the app that survives a route change: RouteFade keeps two <main>s
+// alive for ~120ms per navigation, so anything live inside a page is duplicated
+// and then unmounted every time you move.
+//
+// WHAT STARTS THE LOOP, AND WHAT MUST NOT. Every read of /-/api/updates/status
+// and /-/api/updates/job writes an audit line on the host - which is why the
+// sidebar's behind count is TTL'd to a quarter hour. So the loop starts when a
+// job starts (`followJob`) and stops the moment the host says the job is over;
+// NOTHING here polls on app load. An idle tab makes no request at all, which is
+// also exactly the owner's choice for the dock: nothing on screen when nothing is
+// happening.
+
+/** What both presentations draw. One object, replaced wholesale on every change,
+ *  so `useSyncExternalStore` can compare it by identity. */
+export interface JobFeed {
+  /** The job being followed, or null when nothing is - which is also "no dock". */
+  id: string | null;
+  job: Job | null;
+  /** A poll is failing and the host has not said the job is over: reconnecting.
+   *  Never an end state - an update to Bothy itself interrupts this tab on purpose. */
+  lost: { since: number; why: string } | null;
+  /** The SERVICE answered 404: the host has no such job. That IS an answer. */
+  gone: boolean;
+  /** The loop is running. False the instant the job reaches a terminal state, so
+   *  the outcome stays on screen without costing another request. */
+  live: boolean;
+}
+
+export const JOB_POLL_MS = 2000;
+
+const NO_JOB: JobFeed = { id: null, job: null, lost: null, gone: false, live: false };
+
+let feed: JobFeed = NO_JOB;
+const feedWatchers = new Set<() => void>();
+let feedAbort: AbortController | null = null;
+let feedTimer: ReturnType<typeof setTimeout> | undefined;
+
+export function jobFeed(): JobFeed { return feed; }
+
+export function onJobFeed(f: () => void): () => void {
+  feedWatchers.add(f);
+  return () => { feedWatchers.delete(f); };
+}
+
+function putFeed(next: JobFeed): void {
+  feed = next;
+  feedWatchers.forEach((f) => f());
+}
+
+function stopPolling(): void {
+  feedAbort?.abort();
+  feedAbort = null;
+  if (feedTimer !== undefined) clearTimeout(feedTimer);
+  feedTimer = undefined;
+}
+
+/** Follow a job by id. THE ONE PLACE THE LOOP STARTS - called when this tab asks
+ *  for an update, and when Settings > Updates adopts one that is already running.
+ *  Following the job already being followed is a no-op, so a render loop cannot
+ *  restart the poll. */
+export function followJob(id: string): void {
+  if (id === feed.id) return;
+  stopPolling();
+  putFeed({ id, job: null, lost: null, gone: false, live: true });
+  const ac = new AbortController();
+  feedAbort = ac;
+  const tick = async (): Promise<void> => {
+    let again = true;
+    try {
+      const j = await fetchJob(id, ac.signal);
+      if (ac.signal.aborted) return;
+      again = !isTerminal(j.state);
+      putFeed({ id, job: j, lost: null, gone: false, live: again });
+    } catch (e) {
+      if (ac.signal.aborted) return;
+      const s = statusOf(e);
+      // A 404 FROM THE SERVICE is the host saying it has no such job. Anything
+      // else - a network error, a 502 from Traefik while bothy-ops is recreated,
+      // the portal's HTML while bothy-web is - is the update happening.
+      if (s === 404 && (e as { fromService?: boolean }).fromService) {
+        putFeed({ ...feed, gone: true, live: false });
+        return;
+      }
+      putFeed({ ...feed, lost: feed.lost ?? { since: Date.now(), why: s === 0 ? 'nothing answered' : `answered ${s}` } });
+    }
+    if (again && !ac.signal.aborted) feedTimer = setTimeout(() => void tick(), JOB_POLL_MS);
+  };
+  void tick();
+}
+
+/** Follow `id` only if nothing is being followed yet. This is how the page hands
+ *  over a job the HOST reports as running, and the one it remembered across a
+ *  reload, without ever interrupting the job this tab actually asked for. */
+export function adoptJob(id: string | null): void {
+  if (!id || feed.id) return;
+  followJob(id);
+}
+
+/** Stop following, and forget: the dock disappears and the rail goes back to
+ *  resting. Offered only once the host has said the job is over. */
+export function dismissJob(): void {
+  rememberJob(null);
+  stopPolling();
+  putFeed(NO_JOB);
+}
 
 // ── the count on the Settings nav ────────────────────────────────────────────
 //
