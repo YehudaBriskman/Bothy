@@ -8,8 +8,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  APPEARANCE_KEY, DATA_KEY, LAYOUT_KEY, parseAppearance, parseData, parseLayout,
-  readRaw, stampAppearance, writeJson, type Appearance, type DataPrefs, type Layout,
+  APPEARANCE_KEY, DATA_KEY, LAYOUT_KEY, SETTINGS_GROUPS_KEY,
+  parseAppearance, parseData, parseLayout, parseOpenGroups,
+  readRaw, stampAppearance, writeJson, type Appearance, type DataPrefs, type Layout, type OpenGroups,
 } from './prefs';
 
 const EVENT = 'bothy-pref';
@@ -50,3 +51,9 @@ export function useAppearance(): [Appearance, (next: Appearance) => void] {
 
 export const useLayout = (): [Layout, (next: Layout) => void] => useStored(LAYOUT_KEY, parseLayout);
 export const useDataPrefs = (): [DataPrefs, (next: DataPrefs) => void] => useStored(DATA_KEY, parseData);
+
+/** The Settings nav's folded groups. Through the same hook as the rest, so the
+ *  Reset beside it on Settings > Layout reaches the nav standing next to it -
+ *  the one place in the app where a preference and its reset share a screen. */
+export const useOpenGroups = (): [OpenGroups, (next: OpenGroups) => void] =>
+  useStored(SETTINGS_GROUPS_KEY, parseOpenGroups);

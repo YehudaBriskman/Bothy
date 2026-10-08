@@ -5,9 +5,10 @@
 // fed straight into attributes, timers and routes. A stored `{"pollSeconds": 0}`
 // must not become a poll loop with no delay.
 //
-//   bothy-appearance-v1   table density, motion, accent, document font
-//   bothy-layout-v1       landing page, Overview section order, hidden panels
-//   bothy-data-v1         poll interval, default chart range
+//   bothy-appearance-v1       table density, motion, accent, document font
+//   bothy-layout-v1           landing page, Overview section order, hidden panels
+//   bothy-data-v1             poll interval, default chart range
+//   bothy-settings-groups-v1  which groups of the Settings nav are folded open
 //
 // ALL PER BROWSER, and the page says so beside each control. docs/plans/
 // control-and-settings.md §6b is still the rule: a server-side preference store is
@@ -21,6 +22,19 @@
 export const APPEARANCE_KEY = 'bothy-appearance-v1';
 export const LAYOUT_KEY = 'bothy-layout-v1';
 export const DATA_KEY = 'bothy-data-v1';
+
+/**
+ * The Settings nav's folded groups.
+ *
+ * DELIBERATELY NOT `bothy-settings-nav-v1`. That key is already taken, by
+ * SettingBlock, and despite its name it holds BLOCK state - which blocks on a
+ * page you collapsed, as `{ id: false }`. A nav value written under it would
+ * parse there as a list of collapsed blocks named `you`, `look`, `data`... and
+ * the Settings pages would quietly fold whatever matched. This is the same trap
+ * lib/collapse.ts records about `portal-open-groups`: a key whose shape still
+ * parses after its meaning moved is worse than one that throws.
+ */
+export const SETTINGS_GROUPS_KEY = 'bothy-settings-groups-v1';
 
 // ── appearance ──────────────────────────────────────────────────────────────
 
@@ -212,6 +226,85 @@ export function orderSections<T extends { key: string }>(sections: T[], order: S
   return sections.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s.key) - rank(b.s.key) || a.i - b.i).map((x) => x.s);
 }
 
+// ── the Settings nav's folded groups ────────────────────────────────────────
+//
+// THE DEFAULT IS CLOSED, and that is why this stores neither "the open set" nor
+// "the closed set" but an OPINION PER GROUP, with a third state for "no opinion".
+//
+// SettingBlock's rule is "remember the change, not the default", and it works
+// there because the default is a constant: expanded. Here the default is not a
+// constant - it is "the group containing the page you are on" - so a plain list
+// means the wrong thing in both directions:
+//
+//   · a list of CLOSED groups makes absence mean open, so a fresh browser opens
+//     all six, which is the complaint this exists to answer. And the first fold
+//     would implicitly open the other five forever;
+//   · a list of OPEN groups cannot record a fold of the group you are standing
+//     in - its toggle would be a control that visibly does nothing - and it
+//     accumulates: visiting a section would have to write its group in, so a
+//     reader who browsed the whole area would end up with everything open again.
+//
+// With an opinion per group, a reader who never touches a toggle never writes
+// anything, and so always sees exactly one group open. `groupOpen()` is the only
+// place the default lives.
+//
+// Values are booleans and nothing else: group ids are checked by the CALLER
+// against its own GROUPS list (this module imports nothing, including the
+// registry), and an id this build no longer has is inert rather than harmful -
+// it names no toggle and draws no row.
+
+export type OpenGroups = Record<string, boolean>;
+
+export function parseOpenGroups(raw: string | null): OpenGroups {
+  const j = parseObject(raw);
+  if (!j) return {};
+  return Object.fromEntries(
+    Object.entries(j).filter((e): e is [string, boolean] => e[0] !== '' && typeof e[1] === 'boolean'),
+  );
+}
+
+/** Open, for one group, on the page you are on. The ONE statement of the rule. */
+export function groupOpen(stored: OpenGroups, id: string, active: string | null): boolean {
+  const said = stored[id];
+  return typeof said === 'boolean' ? said : id === active;
+}
+
+/**
+ * Press the toggle. An opinion that has become the default is DELETED rather
+ * than written, so re-opening the group you folded leaves no trace, and the
+ * stored value only ever records a standing disagreement with the default.
+ */
+export function toggleGroup(stored: OpenGroups, id: string, active: string | null): OpenGroups {
+  const want = !groupOpen(stored, id, active);
+  const next = { ...stored };
+  if (want === (id === active)) delete next[id];
+  else next[id] = want;
+  return next;
+}
+
+/**
+ * Arriving at a section clears a fold on ITS group, so a link, a pasted URL or a
+ * hit from "Search settings" always lands somewhere the nav can show.
+ *
+ * Without this, a group folded once would swallow every later arrival into it:
+ * the page would change, the breadcrumb would change, and the nav would show no
+ * "you are here" at all. Returns the SAME object when there is nothing to clear,
+ * so the caller can skip the write.
+ *
+ * ARRIVAL, not render - the caller is responsible for calling this when the
+ * active group CHANGES (a reload counts; it is how you arrive at a bookmark).
+ * Called on every render it would undo a fold of the current group in the frame
+ * that wrote it, which reads as a toggle that does nothing. So a fold of the
+ * group you are standing in is good until you leave and come back, and that is
+ * the whole of the rule: the group you arrive in is open.
+ */
+export function arriveInGroup(stored: OpenGroups, active: string | null): OpenGroups {
+  if (active === null || stored[active] !== false) return stored;
+  const next = { ...stored };
+  delete next[active];
+  return next;
+}
+
 // ── data ────────────────────────────────────────────────────────────────────
 
 export const POLL_CHOICES = [10, 30, 60] as const;
@@ -281,6 +374,7 @@ export const KNOWN_KEYS: readonly KnownKey[] = [
   { key: 'bothy-collapsed-groups-v1', what: 'Service groups you collapsed', resettable: true },
   { key: 'bothy-control-nav-v1', what: 'Whether the Control menu is collapsed', resettable: true },
   { key: 'bothy-settings-nav-v1', what: 'Settings blocks you expanded', resettable: true },
+  { key: SETTINGS_GROUPS_KEY, what: 'Groups of the Settings menu you folded open or shut', resettable: true },
   { key: 'bothy-files-panes-v1', what: 'Pane widths in Files', resettable: true },
   { key: 'bothy-read-recent-v1', what: 'Recently opened documents', resettable: true },
   { key: 'bothy-dev-roles', what: 'Development only: roles to draw as held', resettable: true },
