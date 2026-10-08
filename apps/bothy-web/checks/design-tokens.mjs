@@ -130,6 +130,11 @@ console.log('── every button look comes from components/ui/Button ───�
       'fx-row', 'fx-scm-row', 'fx-scm-grouph', 'fx-json-row', 'fx-sr-file', 'fx-sr-line', 'rd-dir', 'rd-doc',
       'rd-card', 'rd-recent', 'rd-toc-a', 'tm-row', 'fx-menu-item', 'theme-card', 'svc-group-head',
       'cl-topo-node', 'sa-verb', 'topo-list-open',
+      // The Settings nav's group heading (2026-10-08), which became the fold's
+      // toggle. A full-width row in the sidebar, like .svc-group-head - not a
+      // button shape, and ui/Button may not be restyled into a 10px uppercase
+      // label.
+      'set-nav-gh',
     ],
     'icon trigger (a glyph with an aria-label; hit slop to --hit)': [
       'icon-btn', 'fx-hbtn', 'svc-act-btn', 'fx-filter-x', 'fx-tab-x', 'fx-rowbtn', 'sn-copy', 'set-cmd-copy',

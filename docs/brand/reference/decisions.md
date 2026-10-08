@@ -8,6 +8,58 @@ first. Dead ends are recorded rather than deleted - see
 
 ---
 
+## 2026-10-08 - The Settings nav folds, and the default is not a constant
+
+**Decision.** The six groups of the Settings nav fold. On arrival exactly one is
+open: the one holding the page you are on. What you fold or unfold after that is
+remembered per browser, under a key of its own,
+`bothy-settings-groups-v1`.
+
+**Why not a list.** The obvious shapes both say the wrong thing, because unlike
+every other fold in this app the default here is not a constant:
+
+- a list of the groups you **closed** makes absence mean open, so a fresh browser
+  draws all six - the state the owner asked to be rid of - and the first fold
+  implicitly opens the other five forever;
+- a list of the groups you **opened** cannot record a fold of the group you are
+  standing in (its toggle would be a control that visibly does nothing), and it
+  accumulates: arriving at a section would have to write its group in, so a
+  reader who browsed the area would end up with everything open again.
+
+So the stored value is an **opinion per group**, with a third state for "no
+opinion", and `groupOpen()` in `lib/prefs.ts` is the one place the default lives.
+A reader who never presses a toggle never writes anything and always sees exactly
+one group open. An opinion that has become the default is deleted rather than
+written back, which is SettingBlock's "remember the change, not the default"
+applied to a default that moves.
+
+**Arriving in a group clears a fold on it** - a pasted link, a Back button or a
+hit from "Search settings" always lands somewhere the nav can show, rather than
+changing the page and the breadcrumb while the nav shows no "you are here" at
+all. A reload is an arrival. That makes a fold of the current group good until
+you leave and come back, which is the whole rule in one sentence: *the group you
+arrive in is open.*
+
+**The key is new on purpose.** `bothy-settings-nav-v1` is taken, and despite its
+name it holds **block** state. A nav value written there would parse cleanly as a
+list of collapsed blocks called `you`, `look`, `data`... and quietly fold things
+on four pages. Same trap `lib/collapse.ts` records about `portal-open-groups`.
+
+**Cost.** The "N behind" count beside Updates is now behind a fold unless you are
+in **This box** (the same count is in the user menu, on every page). The group
+heading became a `<button>`, so it is registered as a row control in
+`checks/design-tokens.mjs` and takes the shared row press state. The fold itself
+is `ui/Disclosure` - the one place a `grid-template-rows` transition is allowed -
+so collapsed links are `inert` and genuinely off the Tab order rather than merely
+invisible.
+
+**It is a toggle and not also a link.** A group has no page (the registry gives it
+an id and a title), and a target that both navigates and folds is the one nav
+mistake trying again does not recover from: whichever you wanted, you get the
+other half the time.
+
+---
+
 ## 2026-10-08 - The mark is drawn twice, and the second one is declared
 
 The Bothy mark existed in two geometries and nothing in the repo compared them.

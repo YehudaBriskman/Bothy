@@ -1614,6 +1614,118 @@ mutant "below 1100px the reserved band sizes to its content" \
   -- "${WEB_CHECKS[@]}"
 
 echo
+echo "── 1C: the Settings nav folds, and the default is not a constant ───"
+# Thirteen sections in six groups that could not fold. Every failure below is
+# silent on screen: a nav that opens everything looks like the nav we had, a nav
+# that opens nothing looks like a nav with no current page, and a key that
+# collides with SettingBlock's folds blocks on four pages with no error anywhere.
+
+# THE RULE ITSELF. groupOpen() is the one place the default lives; make it a
+# constant and the owner's complaint is back, with the preference still working
+# perfectly underneath.
+mutant "every group is open again, whatever page you are on" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  '  return typeof said === '"'"'boolean'"'"' ? said : id === active;' \
+  '  return typeof said === '"'"'boolean'"'"' ? said : true;' \
+  -- "${WEB_CHECKS[@]}"
+
+# The canonicalisation. Writing an opinion that EQUALS the default is how the
+# store silently fills up with non-choices - and then, because the default moves
+# with the page, those non-choices start meaning something on the next page.
+mutant "a group records an opinion that is only the default" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  '  if (want === (id === active)) delete next[id];' \
+  '  if (false) delete next[id];' \
+  -- "${WEB_CHECKS[@]}"
+
+# Arriving clears a FOLD, never an opening. Flip the comparison and a group you
+# folded once swallows every later arrival into it: the page changes, the
+# breadcrumb changes, and the nav shows no "you are here" at all.
+mutant "arriving clears the wrong opinion, so a fold swallows the page" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  '  if (active === null || stored[active] !== false) return stored;' \
+  '  if (active === null || stored[active] === false) return stored;' \
+  -- "${WEB_CHECKS[@]}"
+
+# The hand-editable value, fed straight into aria-expanded and `inert`. A
+# non-boolean through the parse is a group that is neither open nor shut.
+mutant "a hand-edited group value is trusted unchecked" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  "typeof e[1] === 'boolean'" \
+  "typeof e[1] !== 'undefined'" \
+  -- "${WEB_CHECKS[@]}"
+
+# THE KEY COLLISION, which is the expensive one. bothy-settings-nav-v1 is taken
+# and holds BLOCK state despite its name; a nav value lands there as a list of
+# collapsed blocks called `you`, `look`, `data`, and folds things on four pages.
+mutant "the nav state moves into SettingBlock's key" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  "export const SETTINGS_GROUPS_KEY = 'bothy-settings-groups-v1';" \
+  "export const SETTINGS_GROUPS_KEY = 'bothy-settings-nav-v1';" \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the key left out of the list of what this browser holds, which is the
+# only place it can be seen or cleared.
+mutant "a new key stops being listed as something this browser holds" \
+  apps/bothy-web/web/src/lib/prefs.ts \
+  "  { key: SETTINGS_GROUPS_KEY, what: 'Groups of the Settings menu you folded open or shut', resettable: true }," \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
+mutant "the key loses its row and its Reset in Remembered layout" \
+  apps/bothy-web/web/src/pages/settings/Layout.tsx \
+  '      key: SETTINGS_GROUPS_KEY,' \
+  "      key: 'bothy-settings-groups-v1'," \
+  -- "${WEB_CHECKS[@]}"
+
+# TWO COPIES, ONE STATE. Nav is rendered in the aside and in the drawer. Give one
+# of them its own state and the two diverge the moment somebody uses a phone -
+# which is the one width nobody screenshots.
+mutant "the drawer's nav gets a copy of the state instead of the state" \
+  apps/bothy-web/web/src/components/settings/SettingsShell.tsx \
+  '<Nav {...nav} onNavigate={() => setDrawer(false)} />' \
+  '<Nav groups={{}} activeGroup={null} onToggle={() => {}} onNavigate={() => setDrawer(false)} />' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the ids they build. Both navs are in the DOM while the drawer is open,
+# so a shared literal prefix makes every aria-controls name whichever region the
+# browser finds first - the OTHER nav's.
+mutant "both navs build their region ids off one literal prefix" \
+  apps/bothy-web/web/src/components/settings/SettingsShell.tsx \
+  '  const uid = useId();' \
+  "  const uid = 'set-nav';" \
+  -- "${WEB_CHECKS[@]}"
+
+# The arrival guard. Without the ref the effect runs on every change of `groups`,
+# so folding the group you are standing in is undone in the same frame: the
+# toggle flips and springs straight back, and it reads as a broken control.
+mutant "the arrival effect runs on every render and undoes the fold" \
+  apps/bothy-web/web/src/components/settings/SettingsShell.tsx \
+  '    if (arrived.current === activeGroup) return;
+    arrived.current = activeGroup;
+' \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
+# The toggle stops naming the region it opens. ui/Disclosure keeps that region in
+# the DOM while shut precisely so this resolves in the state a screen reader most
+# needs it; on screen the two are identical.
+mutant "the group toggle stops naming the region it opens" \
+  apps/bothy-web/web/src/components/settings/SettingsShell.tsx \
+  '              aria-expanded={open} aria-controls={panelId}' \
+  '              aria-expanded={open}' \
+  -- "${WEB_CHECKS[@]}"
+
+# The fold itself, animated in the wrong stylesheet. grid-template-rows is
+# permitted in ui/Disclosure.css and nowhere else, because that is the one place
+# the browser resolves it without a layout pass per frame per group below it.
+mutant "the nav fold animates a layout property in settings.css" \
+  apps/bothy-web/web/src/components/settings/settings.css \
+  '.set-nav-list .set-nav-items {' \
+  '.set-nav-list .set-nav-items { transition: grid-template-rows var(--dur) var(--ease);' \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is
