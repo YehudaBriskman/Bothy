@@ -75,12 +75,14 @@ import { SettingBlock } from '../../components/settings/SettingBlock';
 import { Cmd, Loading, Prose, Refusal, When, fmtBytes, useLoad } from '../../components/settings/bits';
 import { Dialog } from '../../components/ui/Dialog';
 import { Disclosure } from '../../components/ui/Disclosure';
+import { InfoHint } from '../../components/ui/InfoHint';
 import '../../components/ServiceActions.css';
 import '../../components/KubeActions.css';
 import { useOperator } from '../../lib/session';
 import { statusOf } from '../../lib/http';
 import {
-  AUTO_ACTOR, applyGroup, askDiscover, askNightJob, fetchGroup, fetchJob, fetchPlan, fetchUpdates, isTerminal,
+  AUTO_ACTOR, applyGroup, askDiscover, askNightJob, fetchGroup, fetchJob, fetchPlan, fetchUpdates,
+  groupSkipped, isTerminal,
   pinFile, publishBehind,
   rememberJob, rememberedJob,
   requestUpdate, unpauseAuto,
@@ -124,12 +126,48 @@ export function UpdatesSettings() {
   );
   return (
     <>
-      {data && <Freshness d={data} />}
-      {data?.updater?.staged && <UpdaterStaged u={data.updater} />}
-      {jobId && <JobPanel id={jobId} key={jobId} onFinished={reload} onDismiss={dismiss} />}
-      <SettingBlock id="update-controls" badge="operator">
-        {loading && !data ? <Loading rows={2} /> : <Controls d={data} canAct={canAct} onChanged={reload} />}
-      </SettingBlock>
+      {/* WHAT IS HAPPENING SITS ON THE RIGHT, IN A SLOT THAT IS ALWAYS THERE (D3,
+          2026-10-07). The owner's words: "i want the actions that happening to be
+          in the right side of the page, without the sudden jump of the ui for the
+          real-time-update-actions card."
+
+          The jump was structural, not animated: JobPanel was mounted into the page
+          flow the moment a job existed, so pressing Apply inserted a ~300px panel
+          above everything and every block below it moved down - while the reader
+          was looking at the row they had just pressed.
+
+          So the rail is a GRID COLUMN that exists whether or not a job does, and
+          the card inside it is absolutely positioned, which is the part that makes
+          the no-shift guarantee structural rather than a guess: an absolutely
+          positioned child contributes NO height, so the row's height is decided
+          entirely by the left column and the panel cannot push anything, however
+          many steps it grows. At rest the slot is not empty - it carries the last
+          job, which is the one fact somebody opening this page while nothing runs
+          actually wants.
+
+          BELOW 1100px THERE IS NO RIGHT, and the honest answer is a band of the
+          same fixed height across the top (settings.css): still reserved, still
+          never shifting, and still carrying the last job when nothing runs. */}
+      <div className="upd-top">
+        <div className="upd-top-main">
+          {data && <Freshness d={data} />}
+          {data?.updater?.staged && <UpdaterStaged u={data.updater} />}
+          <SettingBlock id="update-controls" badge="operator">
+            {loading && !data ? <Loading rows={2} /> : <Controls d={data} canAct={canAct} onChanged={reload} />}
+          </SettingBlock>
+        </div>
+        <div className="upd-rail">
+          {/* The scroller takes the app's shared edge cue (lib/scroll.ts drives
+              every .scroll-shade) and a tab stop, because at 390px a live panel
+              is taller than its band and a scroller nothing can focus is a
+              scroller a keyboard cannot reach. */}
+          <div className="upd-rail-in scroll-shade" tabIndex={0} role="region" aria-label="Update activity">
+            {jobId
+              ? <JobPanel id={jobId} key={jobId} onFinished={reload} onDismiss={dismiss} />
+              : <RestingJob d={data} />}
+          </div>
+        </div>
+      </div>
       {data?.groups && data.groups.length > 0 && (
         <SettingBlock id="update-groups" badge="apply: operator">
           <Groups d={data} canAct={canAct} busy={!!jobId && !!data.applying} onApply={setGroupFor} />
@@ -331,13 +369,16 @@ function Controls({ d, canAct, onChanged }: { d: UpdatesStatus | null; canAct: b
         </div>
       )}
       <div className="kv-list">
-        <div className="kv"><div className="kv-k">Last check</div><div className="kv-v">
+        <div className="kv"><div className="kv-k">Last check{' '}
+          <InfoHint label="What a check does, and does not do" side="bottom" align="start">
+            <p>Discovery reads the pins and asks upstream. It pulls nothing and restarts nothing.</p>
+          </InfoHint>
+        </div><div className="kv-v">
           {a.discover
             ? <AskOutcome r={a.discover} what="on the host" />
             : <span className="dim">Nothing has been asked for from here. The timer checks every{' '}
               {d.policy.discoverEveryHours} hours.</span>}
-          <span className="set-note">Discovery reads the pins and asks upstream; it pulls nothing and restarts
-            nothing. From a shell: <Cmd>just updates-discover</Cmd></span>
+          <span className="set-note">From a shell: <Cmd>just updates-discover</Cmd></span>
         </div></div>
         <div className="kv"><div className="kv-k">Last night job asked from here</div><div className="kv-v">
           {a.autorun ? <NightRun r={a.autorun} /> : (
@@ -504,12 +545,6 @@ function Groups({ d, canAct, busy, onApply }: {
       <ul className="upd-groups">
         {gs.map((g) => <GroupItem key={g.group} g={g} canAct={canAct} busy={busy} onApply={onApply} />)}
       </ul>
-      <p className="set-note">
-        A recipe is one <span className="mono">docker compose up</span>, so a component whose project has another
-        merged pin waiting <b>cannot be applied on its own</b> - the host refuses, rather than recreate the other
-        service with no snapshot of it. Applying the group takes every member&rsquo;s own snapshot first, needs the
-        strictest confirmation any member needs, and <b>rolls all of them back together</b>. It is never automatic.
-      </p>
     </>
   );
 }
@@ -518,12 +553,26 @@ function GroupItem({ g, canAct, busy, onApply }: {
   g: GroupRow; canAct: boolean; busy: boolean; onApply: (g: GroupRow) => void;
 }) {
   const p = g.plan;
+  const skipped = groupSkipped(g);
   return (
     <li className="upd-group" data-deployable={g.deployable ? 'true' : 'false'}>
       <div className="upd-group-h">
         <span className="upd-group-n">
           <Icon icon={Layers} size="sm" />
           <span className="mono">{g.recipe ?? `just ${g.group}`}</span>
+          {/* The four sentences that used to sit under this list as a footer note
+              for every reader, whether or not they had asked. */}
+          <InfoHint label="Why a recipe is applied as a whole" side="bottom" align="start">
+            <p>
+              A recipe is one <span className="mono">docker compose up</span>, so a component whose project has
+              another merged pin waiting <b>cannot be applied on its own</b> - the host refuses, rather than
+              recreate the other service with no snapshot of it.
+            </p>
+            <p>
+              Applying the group takes every member&rsquo;s own snapshot first, needs the strictest confirmation
+              any member needs, and <b>rolls all of them back together</b>. It is never automatic.
+            </p>
+          </InfoHint>
         </span>
         {p ? (
           <span className="upd-group-sub">
@@ -555,7 +604,26 @@ function GroupItem({ g, canAct, busy, onApply }: {
           ))}
         </ul>
       ) : (
-        <p className="upd-reason"><Ticks text={g.reason ?? 'no group plan'} /></p>
+        /* D1: THE PAGE SAID NOTHING HERE, and that is why the owner asked twice
+           why they could not see the option to apply the six together. The host
+           had written a perfectly good sentence; the two halves of it were glued
+           together into one string and then cut off at 300 characters, so what
+           reached the page ended "...grafana: noth" (updater/groups.py now keeps
+           them apart). The sentence is the answer and goes on the surface; the
+           per-component list is detail and goes behind the hint. */
+        <p className="upd-reason">
+          <Ticks text={g.reason ?? 'no group plan'} />
+          {skipped.length > 0 && (
+            <InfoHint label={`What each component of ${g.recipe ?? g.group} is doing`} side="bottom" align="start">
+              <p>Every component of this recipe, and what it is waiting on:</p>
+              <ul>
+                {skipped.map((x) => (
+                  <li key={x.component}><b>{x.component}</b> - <Ticks text={x.reason} /></li>
+                ))}
+              </ul>
+            </InfoHint>
+          )}
+        </p>
       )}
     </li>
   );
@@ -732,6 +800,35 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
     .filter((g) => g.rows.length > 0);
   return (
     <>
+      {/* ONE SENTENCE, AND A HINT (D2). What was here was a 105-word footer
+          glossary - Apply vs Available, Drift, floating pins, groups - printed
+          under the table for every reader on every visit, and it is the longest
+          single paragraph on the page. One sentence survives on the surface,
+          because it is the one this page's whole confusion turns on, and the rest
+          is behind the glyph.
+
+          A hint PER COLUMN HEADER was the first idea and was dropped: below 640px
+          `as-cards` hides the header row, so four of the five definitions would
+          have been unreachable on exactly the device the owner reads this on. */}
+      <p className="upd-legend">
+        <b>Apply</b> makes this box run what <span className="mono">main</span> already pins.
+        <InfoHint label="Apply, Available, Drift and floating pins" side="bottom" align="start">
+          <p>
+            <b>Apply</b> deploys a merged pin that is not running yet. <b>Available</b> is what is newer{' '}
+            <i>upstream</i>; to get that, merge its Dependabot PR first, which is a different step and happens
+            elsewhere.
+          </p>
+          <p>
+            <b>Drift</b> means what runs is not what the repository pins. A <b>floating</b> pin
+            (<span className="mono">v3.7</span>, <span className="mono">17</span>) can move under you and is never
+            applied by the updater.
+          </p>
+          <p>
+            Where a recipe has more than one pin waiting, the row points at its <b>group</b> above: applying one
+            alone would be refused.
+          </p>
+        </InfoHint>
+      </p>
       <div className="tbl-wrap scroll-shade set-tbl">
         <table className="tbl as-cards upd-tbl">
           <thead>
@@ -755,14 +852,6 @@ function Components({ d, ...ctx }: { d: UpdatesStatus } & RowCtx) {
           ))}
         </table>
       </div>
-      <p className="set-note set-tbl-note">
-        <b>Apply</b> makes this box run what the checkout’s <span className="mono">main</span> already pins - a merged pin
-        that is not running yet. <b>Available</b> is what is newer <i>upstream</i>; to get that, merge its Dependabot PR
-        first, which is a different step and happens elsewhere. <b>Drift</b> means what runs is not what the repository
-        pins. A <b>floating</b> pin (<span className="mono">v3.7</span>, <span className="mono">17</span>) can move under
-        you and is never applied by the updater. Where a recipe has more than one pin waiting, the row points at its{' '}
-        <b>group</b> above: applying one alone would be refused.
-      </p>
     </>
   );
 }
@@ -1504,6 +1593,34 @@ function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () =>
   );
 }
 
+/** THE SLOT AT REST (D3). It exists so that the rail's box is the same size with
+ *  and without a job - that is the whole no-shift guarantee - and it carries a
+ *  fact rather than reserving blank space. Reserved emptiness is a worse answer
+ *  than a reserved fact, and the last job is the one the History block below makes
+ *  you scroll for. One line: what, how it ended, when, who asked. */
+function RestingJob({ d }: { d: UpdatesStatus | null }) {
+  const last = d?.history?.[0] ?? null;
+  return (
+    <section className="upd-job upd-job-rest" data-tone="rest" aria-label="Update activity">
+      <p className="upd-job-h">
+        <Icon icon={CircleDashed} size="md" />
+        <span>Nothing is running</span>
+      </p>
+      {last ? (
+        <p className="set-cell-sub upd-rest-last">
+          Last: <b>{last.component}</b>{' '}
+          <span className="upd-result" data-tone={STATE_TONE[last.state]}>
+            <JobGlyph state={last.state} />{HIST_WORD[last.state]}
+          </span>{' '}
+          <When iso={last.endedAt ?? last.requestedAt} /> · asked by <Actor who={last.requestedBy} />
+        </p>
+      ) : (
+        <p className="set-cell-sub">No update has run from here yet.</p>
+      )}
+    </section>
+  );
+}
+
 const secs = (a: string, b: string) => {
   const s = Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 1000));
   return s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
@@ -1581,32 +1698,60 @@ function Channels({ d }: { d: UpdatesStatus | null }) {
   const p = d?.policy;
   return (
     <div className="kv-list">
+      {/* Five definitions that were five paragraphs (D2). Each keeps the clause
+          that defines the word; what each one EXCLUDES, and why, is behind the
+          glyph. The counts stay on the surface - they are the data. */}
       <div className="kv"><div className="kv-k">auto</div><div className="kv-v">
-        Patch releases only, applied in the night window. A minor of an auto component is only <b>notified</b>; a major is{' '}
-        <b>manual</b>. Only stateless and time-series components may be auto - the catalog cannot widen that.
+        Patch releases only, applied in the night window.
+        <InfoHint label="What the auto channel will not do" side="top" align="start">
+          <p>
+            A minor of an auto component is only <b>notified</b>; a major is <b>manual</b>. Only stateless and
+            time-series components may be auto - the catalog cannot widen that.
+          </p>
+        </InfoHint>
         {d && <span className="set-note">{count('auto')} components.</span>}
       </div></div>
       <div className="kv"><div className="kv-k">notify</div><div className="kv-v">
-        Shown here with its step, and applied by a person. Grafana, Traefik, Bothy itself and the cluster add-ons.
+        Shown here with its step, and applied by a person.
+        <InfoHint label="Which components are notify" side="top" align="start">
+          <p>Grafana, Traefik, Bothy itself and the cluster add-ons.</p>
+        </InfoHint>
         {d && <span className="set-note">{count('notify')} components.</span>}
       </div></div>
       <div className="kv"><div className="kv-k">manual</div><div className="kv-v">
-        Never offered as one click: Keycloak, both oauth2-proxies, the Docker socket proxies and Postgres, and <b>any</b>{' '}
-        major of anything.
+        Never offered as one click.
+        <InfoHint label="Which components are manual only" side="top" align="start">
+          <p>
+            Keycloak, both oauth2-proxies, the Docker socket proxies and Postgres, and <b>any</b> major of anything.
+          </p>
+        </InfoHint>
         {d && <span className="set-note">{count('manual')} components.</span>}
       </div></div>
       <div className="kv"><div className="kv-k">Night window</div><div className="kv-v">
-        {p ? <>{p.windowStart}–{p.windowEnd}</> : '03:30–05:00'} local time, only if that night’s{' '}
-        <span className="mono">{p?.requireBackup ?? 'stacks-backup.service'}</span> succeeded and the component itself was
-        healthy, its canaries green. At most {p?.maxAutoPerNight ?? 1} automatic update a night, stopping at the first failure. A
-        rollback or a failed verify pauses auto for that component until an operator clears it (<b>Unpause</b> on its row, or{' '}
-        <Cmd>just update-unpause &lt;component&gt;</Cmd>). A night the box slept through is skipped, never caught up.
+        {p ? <>{p.windowStart}–{p.windowEnd}</> : '03:30–05:00'} local time, at most{' '}
+        {p?.maxAutoPerNight ?? 1} automatic update a night.
+        <InfoHint label="Every gate the night job has to pass" side="top" align="start">
+          <p>
+            It runs only if that night&rsquo;s <span className="mono">{p?.requireBackup ?? 'stacks-backup.service'}</span>{' '}
+            succeeded and the component itself was healthy, its canaries green. It stops at the first failure.
+          </p>
+          <p>
+            A rollback or a failed verify pauses auto for that component until an operator clears it
+            (<b>Unpause</b> on its row, or <span className="mono">just update-unpause &lt;component&gt;</span>). A
+            night the box slept through is skipped, never caught up.
+          </p>
+        </InfoHint>
         <LastNight d={d} />
       </div></div>
       <div className="kv"><div className="kv-k">One-way</div><div className="kv-v">
         <span className="upd-oneway"><Icon icon={Lock} size="xs" />one-way</span>{' '}
-        marks a component whose first start on a new version migrates data the old version cannot read - rolling back is
-        a restore, not a re-pin. Take a backup first.
+        cannot be rolled back by re-pinning.
+        <InfoHint label="What one-way means for a rollback" side="top" align="start">
+          <p>
+            The component&rsquo;s first start on a new version migrates data the old version cannot read, so rolling
+            back is a restore, not a re-pin. Take a backup first.
+          </p>
+        </InfoHint>
       </div></div>
     </div>
   );
@@ -1642,48 +1787,84 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
   return (
     <>
       <div className="kv-list">
+        {/* THE WORDIEST BLOCK ON THE WORDIEST PAGE (D2). Six label/value pairs of
+            running prose, about 420 words, every one of them true and none of them
+            the thing somebody opening Settings > Updates came to find out. Each
+            keeps the sentence that answers its own label and hands the rest to its
+            hint - so the block is now a six-line reference you can read in a
+            glance, with the reasoning one keypress away. */}
         <div className="kv"><div className="kv-k">Update, and Apply</div><div className="kv-v">
-          Two different actions, and this page only does the second. <b>Update</b> moves a pin in{' '}
-          <span className="mono">main</span> - a Dependabot PR, reviewed and merged, which happens on GitHub, not here.
-          <b> Apply</b> makes this box run what <span className="mono">main</span> already pins. The headline counts them
-          separately for that reason.
-          <span className="set-note">A version <span className="mono">main</span> does not pin is never offered, so git
-            stays the only record of what the box should run.</span>
+          Two different actions, and this page only does the second.
+          <InfoHint label="How Update and Apply differ" side="top" align="start">
+            <p>
+              <b>Update</b> moves a pin in <span className="mono">main</span> - a Dependabot PR, reviewed and
+              merged, which happens on GitHub, not here. <b>Apply</b> makes this box run what{' '}
+              <span className="mono">main</span> already pins. The headline counts them separately for that reason.
+            </p>
+            <p>
+              A version <span className="mono">main</span> does not pin is never offered, so git stays the only
+              record of what the box should run.
+            </p>
+          </InfoHint>
         </div></div>
         <div className="kv"><div className="kv-k">What Apply does</div><div className="kv-v">
-          Deploys what the checkout’s <span className="mono">main</span> already pins and is not running yet - nothing else.
-          The host re-checks the plan, runs the pre-flight, takes a snapshot, pulls, runs the component’s recipe, then checks
-          the component’s canaries <b>by their bodies</b>. Any failure puts the old image back.
-          <span className="set-note">
-            It runs as a host job (<span className="mono">bothy-updater.service</span>), not in bothy-ops: this page only drops one
-            request in a spool. It keeps running if you close the tab.
-          </span>
+          Deploys what <span className="mono">main</span> already pins and is not running yet - nothing else.
+          <InfoHint label="What Apply does, step by step" side="top" align="start">
+            <p>
+              The host re-checks the plan, runs the pre-flight, takes a snapshot, pulls, runs the component&rsquo;s
+              recipe, then checks the component&rsquo;s canaries <b>by their bodies</b>. Any failure puts the old
+              image back.
+            </p>
+            <p>
+              It runs as a host job (<span className="mono">bothy-updater.service</span>), not in bothy-ops: this
+              page only drops one request in a spool. It keeps running if you close the tab.
+            </p>
+          </InfoHint>
         </div></div>
         <div className="kv"><div className="kv-k">Bothy itself</div><div className="kv-v">
-          Deploys the newest <b>release tag</b> CI marked green (release.yml tags only a commit whose CI passed on{' '}
-          <span className="mono">main</span>), never main’s tip. The new images are built before anything running changes; a
-          rollback timer is armed before the checkout moves, and puts the previous commit and images back unless verify
-          passes. The same path runs from a shell: <Cmd>bothy upgrade</Cmd>.
-          <span className="set-note">Open tabs are told to reload when the page they loaded is no longer the one being served.</span>
+          Deploys the newest <b>release tag</b> CI marked green, never main&rsquo;s tip.
+          <InfoHint label="How Bothy updates itself" side="top" align="start">
+            <p>
+              <span className="mono">release.yml</span> tags only a commit whose CI passed on{' '}
+              <span className="mono">main</span>. The new images are built before anything running changes; a
+              rollback timer is armed before the checkout moves, and puts the previous commit and images back
+              unless verify passes.
+            </p>
+            <p>
+              Open tabs are told to reload when the page they loaded is no longer the one being served. The same
+              path runs from a shell: <span className="mono">bothy upgrade</span>.
+            </p>
+          </InfoHint>
         </div></div>
         <div className="kv"><div className="kv-k">Getting a newer version</div><div className="kv-v">
-          Merge its Dependabot PR, then on the box <Cmd>git pull --ff-only</Cmd> and <Cmd>just updates-discover</Cmd>. The
-          row then offers <b>Apply</b>.
+          Merge its Dependabot PR, then on the box <Cmd>git pull --ff-only</Cmd> and <Cmd>just updates-discover</Cmd>.
         </div></div>
         <div className="kv"><div className="kv-k">Several pins in one recipe</div><div className="kv-v">
-          A <span className="mono">just up-&lt;recipe&gt;</span> is one <span className="mono">docker compose up</span>, so
-          the host refuses to apply one component while another service of the same project also has a merged pin waiting:
-          it would recreate that one too, with no snapshot of it. Where that happens the <b>group</b> above applies the
-          whole recipe at once - every member&rsquo;s own snapshot first, the strictest confirmation any member needs, and
-          an all-or-nothing rollback. Never automatically.
-          <span className="set-note">From a shell: <Cmd>just update-groups</Cmd> prints what each recipe would apply, and
-            why one is refused.</span>
+          The <b>group</b> above applies the whole recipe at once.
+          <InfoHint label="Why one component of a recipe cannot be applied alone" side="top" align="start">
+            <p>
+              A <span className="mono">just up-&lt;recipe&gt;</span> is one{' '}
+              <span className="mono">docker compose up</span>, so the host refuses to apply one component while
+              another service of the same project also has a merged pin waiting: it would recreate that one too,
+              with no snapshot of it.
+            </p>
+            <p>
+              The group takes every member&rsquo;s own snapshot first, needs the strictest confirmation any member
+              needs, and rolls back all or nothing. Never automatically. From a shell,{' '}
+              <span className="mono">just update-groups</span> prints what each recipe would apply, and why one is
+              refused.
+            </p>
+          </InfoHint>
         </div></div>
         <div className="kv"><div className="kv-k">From a shell</div><div className="kv-v">
           <Cmd>systemctl status bothy-updater.service</Cmd>
-          <span className="set-note">Recovery never needs this page: the job’s status, history and audit lines live under{' '}
-            <span className="mono">~/.local/state/bothy/updates/</span>, and every snapshot under{' '}
-            <span className="mono">~/backups/pre-update/</span>.</span>
+          <InfoHint label="Where the records are, without this page" side="top" align="start">
+            <p>
+              Recovery never needs this page: the job&rsquo;s status, history and audit lines live under{' '}
+              <span className="mono">~/.local/state/bothy/updates/</span>, and every snapshot under{' '}
+              <span className="mono">~/backups/pre-update/</span>.
+            </p>
+          </InfoHint>
         </div></div>
       </div>
       {manual.length > 0 && (

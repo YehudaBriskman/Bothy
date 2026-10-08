@@ -138,6 +138,88 @@ is loaded lazily - never in the first paint's critical path. The chunk is warmed
 when the browser is idle; until it arrives the orb's box is reserved, empty, with
 the label beside it.
 
+## Detail on demand: when to reach for a hint, and when to write less
+
+_2026-10-07. Written before the app-wide rollout, because the rollout will follow
+it and the failure mode is cheap to describe and expensive to undo._
+
+A **detail hint** is an unobtrusive glyph that reveals a sentence or two on
+demand. Bothy's is `components/ui/InfoHint.tsx`, on `ui/Popover`.
+
+### The one rule
+
+**A hint must REMOVE words from the surface.** It is a place to put prose that was
+already there, not a place to put prose you were about to add. A surface that
+gains a hint and keeps its paragraph has been made busier, and that is the exact
+opposite of what a hint is for. The measure of a hint pass is *how many words left
+each surface*, and if the answer is zero the pass did nothing.
+
+The corollary is uncomfortable and load-bearing: **a hint is not permission to
+write more.** The first question about any explanation is still "does this need to
+exist at all", and only the second is "does it need to be visible".
+
+### Reach for a hint when
+
+- The text **defines a word the surface already uses** - a column header, a status
+  word, a label. Definitions are read once per reader, not once per visit.
+- The text is **the reason behind a refusal or a limit** - why this cannot be
+  applied, why this field is locked, what the gate was. Somebody who hits the
+  limit wants the paragraph; everybody else does not.
+- The text **repeats per row**. The same forty words under eight rows is three
+  hundred words of surface for forty words of content.
+- The text is **the mechanism** behind something whose outcome is already stated:
+  what the snapshot contains, what the pre-flight checks, which files move.
+
+### Write it shorter instead when
+
+- **It is one clause.** A hint costs a glyph, a target, a name and an interaction;
+  four words do not earn that. Cut the four words or keep them.
+- **It is the answer to the question the page exists to answer.** Never hide the
+  headline. On Settings › Updates the sentence "Apply makes this box run what
+  `main` already pins" stays on the surface precisely because the confusion it
+  resolves is the page's whole subject.
+- **It is a warning about something irreversible.** Consequence is not detail.
+  A hint is opened by people who are already curious; a warning has to reach
+  the ones who are not.
+- **The prose is long because the design is unclear.** Three paragraphs
+  apologising for a layout is a layout problem. Hiding them hides the symptom.
+- **It would be the only copy of something a reader must have.** A hint is an
+  enhancement, like a tooltip: never the sole carrier (see the rule above).
+
+### What a hint owes
+
+Everything a control owes, because it is one.
+
+- **A real accessible name**, phrased as what it reveals ("What Pinned means"),
+  never "info" or "more". The trigger is a 12px glyph with no text beside it, so
+  the name is the entire accessible story. `checks/a11y-contract.mjs` § 7 fails an
+  empty, generic or duplicated name.
+- **Opens on focus, on a tap and on hover - in that order of importance.** Hover
+  alone is not an affordance: it does not exist for a keyboard and it does not
+  exist on a phone. A touch tap must reach the toggle rather than being eaten by a
+  hover that opened and closed in the same gesture, which is the defect that
+  disqualified `components/Tooltip.tsx` for this job.
+- **Escape closes it**, with focus where the reader left it.
+- **Text, never a control.** Focus does not move into the panel - the panel is the
+  trigger's `aria-describedby`, which is what lets a screen reader read it without
+  going anywhere - so a link or a button inside one is unreachable. If the detail
+  needs an action, it is not a hint; it is a disclosure or a dialog.
+- **Nothing a search must find.** A hint's text is in the DOM only while it is
+  open, so it is invisible to in-page find and to the Settings search. Anything
+  somebody would search for stays on the surface or goes in a block description.
+
+### Hint, tooltip, disclosure, dialog
+
+| | Use it for | Focus |
+|---|---|---|
+| Tooltip | A label for a control that has no room for one | never moves |
+| **Detail hint** | One or two sentences of *why*, taken off the surface | never moves |
+| Disclosure | A region of content, including controls, that belongs to a row | moves on Tab, in place |
+| Dialog | A decision, with its own actions | trapped, returned |
+
+The boundary that matters in practice: **the moment the detail contains something
+to press, it stops being a hint.**
+
 ## Checklist
 
 See [CHECKLIST.md § 17](../CHECKLIST.md#17-feedback-and-overlays).
@@ -155,6 +237,18 @@ See [CHECKLIST.md § 17](../CHECKLIST.md#17-feedback-and-overlays).
   foreground colour as the background - which is what makes a tooltip read as an
   overlay rather than as another card. They replaced bare `title` attributes,
   which were invisible to keyboard users.
+- **A detail hint is a second, separate primitive** (`ui/InfoHint`, 2026-10-07),
+  and not a longer tooltip. Three things disqualified the tooltip for it, each on
+  its own: its anchor closes on `pointerdown`, so on a phone the tip opens and
+  shuts in one tap; its surface is `pointer-events: none`, so the text cannot be
+  selected; and its anchor is an unnamed `<span>`, so there is nothing to announce
+  and nothing to land on. Both are on `ui/Popover`, which is where the portal, the
+  collision handling and the motion live.
+- **The first hint pass was Settings › Updates**, the wordiest page in the
+  product, and it was measured rather than eyeballed: the page body went from
+  about 1,580 words to about 1,070 at 1440px - roughly a third of the words gone
+  from the surface, with nothing deleted. That number is the deliverable; a pass
+  that adds hints and leaves the word count alone has not done the work.
 - **No toasts.** The product's actions all have visible local results: a refresh
   shows the Loader in its own button and updates the freshness pill; a failed poll is reported
   by the pill and the degraded line. Nothing needed a transient overlay, and one
@@ -184,3 +278,10 @@ See [CHECKLIST.md § 17](../CHECKLIST.md#17-feedback-and-overlays).
 - Assert only one dialog can be open.
 - `checks/design-tokens.mjs` § 10 for the one-loader rules; in a browser, assert
   `document.getAnimations()` and the orb's canvas are still under reduced motion.
+- `checks/design-tokens.mjs` § 12 for the hint: built on `ui/Popover`, opens on
+  focus, hover for a mouse only, focus never moves, no control inside one, and
+  the four paragraphs it took off Settings › Updates are not also still there.
+- `checks/a11y-contract.mjs` § 7 for the names: no hint is called "info", "more"
+  or nothing, and no two on a page share a name.
+- In a browser: focus the glyph with no pointer involved and assert the panel
+  opens; press Escape and assert it closes with focus still on the trigger.

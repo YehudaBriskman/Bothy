@@ -39,7 +39,23 @@ PLAN_ID = re.compile(r"[a-f0-9]{24}")
 
 
 class PlanRefused(Exception):
-    """No plan for this component, and why - written for the Settings page."""
+    """No plan for this component, and why - written for the Settings page.
+
+    `per` carries the per-component half of a refusal that HAS one, as the same
+    [{"component", "reason"}] shape a deployable group plan's `skipped` uses.
+
+    It exists because that half used to be glued onto the end of the sentence and
+    then cut off. Every writer of a refusal caps it at 300 characters, and on this
+    box on 2026-10-07 the cap landed mid-word: Settings > Updates read "0 of 6
+    components of `just up-monitoring` have something to apply; a group is for two
+    or more (one is its own row). alloy: nothing to deploy: ...; grafana: noth".
+    Apart it is one sentence on the surface and six named facts behind a hint;
+    together it was 300 characters of neither.
+    """
+
+    def __init__(self, message: str, per: list[dict] | None = None) -> None:
+        super().__init__(message)
+        self.per: list[dict] = per or []
 
 
 def load_available(cfg: Config) -> dict:

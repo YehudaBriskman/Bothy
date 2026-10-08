@@ -134,6 +134,11 @@ console.log('── every button look comes from components/ui/Button ───�
     'icon trigger (a glyph with an aria-label; hit slop to --hit)': [
       'icon-btn', 'fx-hbtn', 'svc-act-btn', 'fx-filter-x', 'fx-tab-x', 'fx-rowbtn', 'sn-copy', 'set-cmd-copy',
       'logp-refresh', 'rd-root-btn', 'rd-scope-btn', 'rd-scope-go', 'ct-collapse', 'sort-btn', 'fx-dlbtn',
+      // ui/InfoHint's trigger (2026-10-07): the 12px glyph that stands where a
+      // paragraph used to be. A <Button iconOnly> was the alternative and is
+      // wrong here - it is a bordered 24px control, and a page with eight of
+      // them reads as eight things to press rather than as eight footnotes.
+      'ui-hint',
     ],
     'inline text action (reads as a link inside prose or a breadcrumb)': [
       'cl-link', 'md-reflink', 'mono', 'rd-inline', 'rd-crumb-root', 'rd-back', 'te-back', 'te-more', 'fx-sha',
@@ -856,6 +861,99 @@ console.log('\n── batch A: a one-ratio bar is capped, dashboard cards keep t
   say(segs.length === SEG_OK.length && segs.every((f) => SEG_OK.includes(f)),
     'the only hand-rolled `.seg-toggle` left are the two registered exceptions (a new one, or a stale entry, fails)',
     segs.join(', ') || '(none)');
+}
+
+// ── 12. D2/D3: the hint, and the slot that does not move ────────────────────
+//
+// Both of these fail INVISIBLY, which is the only reason they are here rather
+// than left to a screenshot.
+//
+//   · A hint that is added BESIDE the prose it was meant to replace looks
+//     perfectly fine and is the exact opposite of the request ("theres a lot of
+//     words and too much data"). The page gets busier one hint at a time, and no
+//     single diff is obviously wrong. So: the paragraphs that moved stay moved.
+//   · A reserved slot whose child is in NORMAL FLOW looks identical while nothing
+//     is running, and gives the jump straight back the first time a job starts -
+//     which is a bug you only see while watching the thing you shipped the fix
+//     for. The absolute positioning IS the fix, so it is what is asserted.
+console.log('\n── the detail hint, and the activity slot that cannot move ──');
+{
+  const HINT = join('components', 'ui', 'InfoHint.tsx');
+  const hintTs = stripTs(readFileSync(join(SRC, HINT), 'utf8'));
+  const hintCss = stripCss(readFileSync(join(SRC, 'components', 'ui', 'InfoHint.css'), 'utf8'));
+  const upd = stripTs(readFileSync(join(SRC, 'pages', 'settings', 'Updates.tsx'), 'utf8'));
+  const setCss = rules(readFileSync(join(SRC, 'components', 'settings', 'settings.css'), 'utf8'));
+  const one = (want, media = '') => setCss.find((r) => r.sel.replace(/\s+/g, ' ') === want && r.media.trim() === media);
+
+  // It is BUILT ON the one floating primitive rather than beside it (SYS-5).
+  say(/from '\.\/Popover'/.test(hintTs), 'ui/InfoHint is built on ui/Popover, not on a tenth hand-rolled surface');
+  // The three halves of "hover alone is not an affordance". A tap must reach the
+  // click handler, which is why pointerenter is honoured for a mouse only: on a
+  // touch screen pointerenter and click arrive in the same gesture, and the
+  // component this replaces (components/Tooltip.tsx) closes on pointerdown - so
+  // its tip opens and shuts in one tap.
+  say(/onFocus=\{show\}/.test(hintTs), 'the hint opens on FOCUS, so a keyboard reaches it');
+  const gated = (hintTs.match(/onPointer(?:Enter|Leave)=\{\(e\)\s*=>\s*\{\s*if\s*\(e\.pointerType === 'mouse'\)/g) ?? []).length;
+  say(gated === 2,
+    'and hover is honoured for a mouse only ON BOTH pointer handlers, so a TAP reaches the toggle instead of being eaten by it',
+    `${gated} of 2 gated`);
+  say(/aria-label=\{label\}/.test(hintTs) && /label\?: never/.test(hintTs) === false && /label: string;/.test(hintTs),
+    'the trigger carries a required accessible name (a bare glyph is "button" to a screen reader)');
+  say(/aria-describedby=\{open \? id : undefined\}/.test(hintTs),
+    'the open panel is the trigger\'s DESCRIPTION, which is what lets focus stay put');
+  say(/focusOnOpen=\{false\}/.test(hintTs) && /returnFocus=\{false\}/.test(hintTs),
+    'focus never moves into the panel, and nothing is handed back on close');
+  // The corollary of focus never moving: anything focusable in there is
+  // unreachable. Caught as text because that is where it would be written.
+  const ctrl = [...upd.matchAll(/<InfoHint\b[\s\S]{0,2200}?<\/InfoHint>/g)]
+    .filter((m) => /<(button|a|input|select|textarea|Button|Link|Cmd)\b/.test(m[0]))
+    .map((m) => m[0].slice(0, 60).replace(/\s+/g, ' '));
+  say(ctrl.length === 0, 'no hint holds a control - focus never enters one, so a link in there is unreachable',
+    ctrl.join('; '));
+  say(/inset: min\(0px, calc\(\(100% - var\(--hit\)\)/.test(hintCss),
+    'the 12px glyph still reaches --hit through the shared hit-slop arithmetic');
+
+  // D2's actual measure: the paragraphs that moved are GONE from the surface.
+  // Each of these is a sentence that was printed for every reader on every visit.
+  const MOVED = [
+    ['the group footer note', 'A recipe is one'],
+    ['the table glossary', 'is what is newer <i>upstream</i>'],
+    ['the Apply/Update paragraph', 'a Dependabot PR, reviewed and merged'],
+    ['the night-window gate list', 'succeeded and the component itself was'],
+  ];
+  const still = MOVED.filter(([, needle]) => {
+    const at = upd.indexOf(needle);
+    if (at < 0) return false;                       // deleted outright: also fine
+    // Inside a hint is where it belongs; outside one is the defect.
+    const open = upd.lastIndexOf('<InfoHint', at);
+    const close = upd.lastIndexOf('</InfoHint>', at);
+    return !(open > close);
+  }).map(([what]) => what);
+  say(still.length === 0, 'the prose that moved behind a hint is not also still on the surface (D2)',
+    still.join(', '));
+  const hints = (upd.match(/<InfoHint\b/g) ?? []).length;
+  say(hints >= 8, 'Settings > Updates reaches for the hint rather than one more paragraph', `${hints} hints`);
+
+  // D3. The slot exists whether or not a job does, and its child contributes no
+  // height - so the row is measured by the left column alone and the panel
+  // cannot push anything down, however many steps it grows.
+  say(/<div className="upd-rail">/.test(upd) && /<RestingJob d=\{data\} \/>/.test(upd),
+    'the activity slot is drawn whether or not a job exists, and carries the last job at rest');
+  const rail = one('.set-shell .upd-rail');
+  const railIn = one('.set-shell .upd-rail-in');
+  const inD = railIn ? Object.fromEntries(decls(railIn.body)) : {};
+  say(!!rail && /position:\s*relative/.test(rail.body) && inD.position === 'absolute' && inD.inset === '0',
+    'the card inside it is absolutely positioned - the no-shift guarantee is structural, not a reserved min-height',
+    `${inD.position ?? '(none)'} / ${inD.inset ?? '(none)'}`);
+  say(inD['overflow-y'] === 'auto', 'so a panel taller than the slot scrolls inside it rather than growing the page');
+  const top = one('.set-shell .upd-top');
+  const topD = top ? Object.fromEntries(decls(top.body)) : {};
+  say(/minmax\(0, 1fr\) var\(--upd-rail-w\)/.test(topD['grid-template-columns'] ?? ''),
+    'and it is the right-hand column at full width (the owner asked for the right side)', topD['grid-template-columns']);
+  const narrow = setCss.find((r) => /max-width:\s*1100px/.test(r.media) && r.sel.replace(/\s+/g, ' ') === '.set-shell .upd-rail');
+  say(!!narrow && /height:\s*var\(--upd-rail-h\)/.test(narrow.body),
+    'below 1100px there is no right, so the band takes a FIXED height instead - reserved, and still shift-free',
+    narrow ? narrow.body.replace(/\s+/g, ' ').trim() : '(no narrow rule)');
 }
 
 console.log(`\n  ${passes} pass · ${failures} fail`);

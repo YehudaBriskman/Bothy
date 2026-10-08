@@ -173,10 +173,23 @@ export interface GroupRow {
   deployable: boolean;
   recipe: string | null;
   plan: GroupPlan | null;
+  /** ONE SENTENCE, when there is no plan: why this recipe has nothing to apply
+   *  together. It is the sentence the page prints on the surface. */
   reason: string | null;
+  /** The per-component half of that reason - what each member's own obstacle is.
+   *  Only on a NON-deployable row; a deployable one carries the same shape at
+   *  `plan.skipped`, and the two are never both filled, so nothing can disagree.
+   *  Absent from a bothy-ops older than 2026-10-07. */
+  skipped?: { component: string; reason: string }[];
   /** The components of this recipe the updater deploys at all. */
   candidates: string[];
   createdAt: string | null;
+}
+
+/** What each member of a group is doing, deployable or not - one shape, read from
+ *  whichever half of the row has it. */
+export function groupSkipped(g: GroupRow): { component: string; reason: string }[] {
+  return g.plan ? g.plan.skipped : (g.skipped ?? []);
 }
 
 export interface GroupAnswer {

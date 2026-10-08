@@ -584,6 +584,14 @@ def _group_rows(catalog: Catalog) -> list[dict]:
             out.append({"group": gid, "deployable": False,
                         "recipe": f"just {gid}", "plan": None,
                         "reason": _s(doc.get("reason"), 300) or "no group plan",
+                        # The per-component half of the refusal, re-filtered field
+                        # by field like everything else out of the read-only mount.
+                        # `reason` is the sentence the page shows; this is what it
+                        # keeps behind the row's detail hint (updater/groups.py).
+                        "skipped": [{"component": s["component"], "reason": _s(s.get("reason"), 300) or ""}
+                                    for s in (doc.get("skipped") or [])[:16]
+                                    if isinstance(s, dict) and isinstance(s.get("component"), str)
+                                    and _ID.fullmatch(s["component"])],
                         "candidates": members, "createdAt": _iso_or_none(doc.get("createdAt"))})
     return out
 

@@ -625,6 +625,10 @@ function summaryOf(id: string): PlanSummary {
 //
 //   localStorage['bothy-dev-updates-groups'] = 'blocked'   the group is refused,
 //                                                          with the leftovers named
+//   localStorage['bothy-dev-updates-groups'] = 'none'      nothing to apply together
+//                                                          at all - the live box's
+//                                                          usual state, a sentence
+//                                                          plus a per-member list
 
 const GROUP_MEMBERS: GroupMember[] = (['grafana', 'alloy', 'loki'] as const).map((id) => {
   const p = PLANS[id];
@@ -689,6 +693,22 @@ const GROUP: GroupPlan = {
 const GROUP_BLOCKED = '`just up-monitoring` would also recreate or create promtail (no component in updates.toml '
   + 'owns it) - the group moves image pins only, so those are still by hand (back up first)';
 
+// `groups = 'none'`: THE STATE THIS BOX IS ACTUALLY IN most of the time, and the
+// one the owner asked about twice - every member is already applied, so there is
+// nothing to apply together and no Apply-all button to find. The host writes a
+// sentence plus a per-component list (updater/groups.py); copied here in that
+// shape so the page's split between the two is exercised in dev.
+const GROUP_NONE = '0 of 6 components of `just up-monitoring` have something to apply; a group is for two or '
+  + 'more (one is its own row).';
+const GROUP_NONE_SKIPPED = [
+  { component: 'alloy', reason: 'nothing to deploy: alloy runs what main pins (grafana/alloy:v1.20.1)' },
+  { component: 'cadvisor', reason: 'nothing to deploy: cadvisor runs what main pins (gcr.io/cadvisor/cadvisor:v0.55.1)' },
+  { component: 'grafana', reason: 'nothing to deploy: grafana runs what main pins (grafana/grafana:13.2.2)' },
+  { component: 'loki', reason: 'nothing to deploy: loki runs what main pins (grafana/loki:3.7.7)' },
+  { component: 'node-exporter', reason: 'nothing to deploy: node-exporter runs what main pins' },
+  { component: 'victoriametrics', reason: 'nothing to deploy: victoriametrics runs what main pins' },
+];
+
 // The group job renders through the same machinery as a component's: `render()`
 // looks its "component" up in PLANS, and a group's name IS its component in every
 // record (updater/record.new_job), so one synthetic entry is all it needs.
@@ -708,10 +728,15 @@ PLANS[GROUP.group] = {
 };
 
 function groupRows(): GroupRow[] {
-  const blocked = read(GROUPS_KEY) === 'blocked';
-  return [blocked
+  const forced = read(GROUPS_KEY);
+  if (forced === 'none') {
+    return [{ group: GROUP.group, deployable: false, recipe: 'just up-monitoring', plan: null,
+      reason: GROUP_NONE, skipped: GROUP_NONE_SKIPPED,
+      candidates: [], createdAt: GROUP.createdAt }];
+  }
+  return [forced === 'blocked'
     ? { group: GROUP.group, deployable: false, recipe: 'just up-monitoring', plan: null, reason: GROUP_BLOCKED,
-      candidates: ['alloy', 'grafana', 'loki'], createdAt: GROUP.createdAt }
+      skipped: [], candidates: ['alloy', 'grafana', 'loki'], createdAt: GROUP.createdAt }
     : { group: GROUP.group, deployable: true, recipe: GROUP.recipe, plan: GROUP, reason: null,
       candidates: GROUP.members.map((m) => m.component), createdAt: GROUP.createdAt }];
 }

@@ -338,8 +338,15 @@ DIFFERS.discard("extra")
 
 print()
 print("── fewer than two members: not a group, with each reason ────────")
-refused(lambda: groups.plan("up-web", cfg=cfg, catalog=catalog, available={"version": 1, "components": {}}),
-        "not discovered yet", "a member discovery has not seen refuses the whole group")
+# The reason a member was refused is now in `per`, not glued onto the sentence -
+# so this asks the half that carries it.
+try:
+    groups.plan("up-web", cfg=cfg, catalog=catalog, available={"version": 1, "components": {}})
+    ok(False, "a plan was MADE for a group discovery has not seen")
+except plans.PlanRefused as e:
+    ok("a group is for two or more" in str(e)
+       and all("not discovered yet" in x["reason"] for x in e.per) and len(e.per) == 3,
+       f"a member discovery has not seen refuses the whole group, per member  ({[x['reason'] for x in e.per][:1]})")
 write_compose(web="1.0.0")          # web now runs what main pins
 git("add", "compose.yml")
 git("commit", "-q", "-m", "web applied")
@@ -360,6 +367,26 @@ git("push", "-q", "origin", "main")
 DIFFERS.discard("loki")
 refused(lambda: groups.plan("up-web", cfg=cfg, catalog=catalog, available=A3), "a group is for two or more",
         "one member left is not a group: its own row is the action")
+# ── THE SENTENCE AND THE LIST ARE APART (2026-10-07) ────────────────────────────
+# They used to be one string, and every writer of a refusal caps it at 300
+# characters, so the live box's page read "...grafana: noth" - a reason the host had
+# written perfectly well, shown mid-word. The sentence goes on the surface and the
+# per-component list behind the page's detail hint, which needs them separate.
+try:
+    groups.plan("up-web", cfg=cfg, catalog=catalog, available=A3)
+    ok(False, "a plan was MADE where one member was left")
+except plans.PlanRefused as e:
+    ok(len(str(e)) < 200 and ":" not in str(e).split("row).")[-1],
+       f"the refusal is ONE SENTENCE, short enough that no 300-char cap can reach it ({len(str(e))} chars)")
+    per = {x["component"]: x["reason"] for x in e.per}
+    ok(sorted(per) == ["loki", "web"], f"…and the per-component half is a list, not a tail: {sorted(per)}")
+    ok(all("nothing to deploy" in r for r in per.values()),
+       f"…each with the host's own reason: {list(per.values())[:1]}")
+groups.write_all(cfg, catalog, A3)
+_doc = groups.read_group(cfg, "up-web")
+ok(_doc is not None and _doc["ok"] is False
+   and [x["component"] for x in _doc["skipped"]] == ["loki", "web"],
+   "write_all puts that list in the group file, where bothy-ops reads it")
 refused(lambda: groups.plan("up-solo", cfg=cfg, catalog=catalog, available=A3), "is not a recipe with two or more",
         "a recipe that never had two is refused by name")
 refused(lambda: groups.plan("../etc", cfg=cfg, catalog=catalog, available=A3), "not a group id",

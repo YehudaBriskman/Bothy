@@ -41,7 +41,8 @@ styles are co-located files that build on it and never edit it.
 | Tag / badge / pill | Non-interactive labels |
 | `kbd` | Keyboard hints |
 | Status dot and status glyph | Colour plus a distinct glyph, never colour alone |
-| Tooltip | Hover **and** focus; the inverted-surface pair |
+| Tooltip | Hover **and** focus; the inverted-surface pair. A LABEL for a control that has no room for one |
+| Detail hint | `ui/InfoHint`: a 12px glyph that reveals one or two sentences taken OFF the surface. Focus, tap and hover; focus never moves into it; text, never a control. See [feedback § detail on demand](feedback.md#detail-on-demand-when-to-reach-for-a-hint-and-when-to-write-less) |
 | Dialog | One implementation, Radix-backed |
 | Command palette | Hand-written; keyboard-driven |
 | Tabs | A real ARIA tablist with roving tabindex |
