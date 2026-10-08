@@ -1665,13 +1665,26 @@ mutant "a paragraph that moved behind a hint is left on the surface too" \
         is what is newer <i>upstream</i>; to get that, merge its Dependabot PR first.' \
   -- "${WEB_CHECKS[@]}"
 
-# D3. The jump, put straight back. An absolutely positioned child contributes no
-# height, which is the whole no-shift guarantee; in normal flow the panel grows the
-# grid row as its steps arrive and pushes every block below it down. Nothing looks
-# wrong until a job runs, which is the one moment nobody is taking screenshots.
+# ── what is happening, down the side of the page and in every corner ────────
+#
+# Rewritten 2026-10-08 with the thing it guards. The three rows these replace
+# pinned `.upd-top`, a two-column grid whose LEFT cell was the Controls block -
+# so they asserted "the right side" of a row and the owner had asked for the side
+# of the PAGE. The no-shift half is restated unchanged, because it is the half
+# that fails invisibly: nothing looks wrong until a job runs, which is the one
+# moment nobody is taking screenshots.
+#
+# Every anchor below is an executable line unique to the function or rule it
+# belongs to. `plant()` replaces the FIRST match, so a short recurring anchor is
+# a hostage to file order - and a comment is not an anchor at all, because the
+# checks strip comments before they look.
+
+# THE JUMP, PUT STRAIGHT BACK. An absolutely positioned child contributes no
+# height, which is the whole no-shift guarantee; in normal flow the card grows as
+# its steps arrive and pushes every block below it down.
 mutant "the activity card goes back into the page flow" \
-  apps/bothy-web/web/src/components/settings/settings.css \
-  '  position: absolute; inset: 0;
+  apps/bothy-web/web/src/components/UpdateActivity.css \
+  '  position: absolute; inset: var(--sp-4) var(--sp-4) var(--sp-6);
   overflow-y: auto; overscroll-behavior: contain;' \
   '  overflow-y: auto; overscroll-behavior: contain;' \
   -- "${WEB_CHECKS[@]}"
@@ -1679,18 +1692,122 @@ mutant "the activity card goes back into the page flow" \
 # ...and the slot itself disappearing when nothing is running, which is the shape
 # the jump had before: no rail, then a rail.
 mutant "the activity slot is only drawn once a job exists" \
-  apps/bothy-web/web/src/pages/settings/Updates.tsx \
-  '              : <RestingJob d={data} />}' \
-  '              : null}' \
+  apps/bothy-web/web/src/components/UpdateActivity.tsx \
+  '          : <RestingJob last={d?.history?.[0] ?? null} />}' \
+  '          : null}' \
   -- "${WEB_CHECKS[@]}"
 
 # ...and the narrow case losing its reserved height, so the band grows from one
 # line to a panel the moment a job starts - the same jump, on the device the owner
 # actually reads this on.
 mutant "below 1100px the reserved band sizes to its content" \
+  apps/bothy-web/web/src/components/UpdateActivity.css \
+  '    width: auto; height: var(--upd-rail-h);' \
+  '    width: auto;' \
+  -- "${WEB_CHECKS[@]}"
+
+# THE RESERVE IS THE OTHER HALF, and it is on the PAGE rather than on the rail:
+# without it the rail is a floating column over the content it was supposed to sit
+# beside, and the blocks under it are unreadable exactly while a job runs.
+mutant "the page stops reserving the rail's column" \
   apps/bothy-web/web/src/components/settings/settings.css \
-  '  .set-shell .upd-rail { order: -1; height: var(--upd-rail-h); }' \
-  '  .set-shell .upd-rail { order: -1; }' \
+  '  padding-right: calc(var(--upd-rail-w) + var(--sp-8));' \
+  '  padding-right: var(--sp-8);' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the rail positioned against the BODY instead of the scroller, which is
+# the difference between "the side of the page" and "the side of the first
+# screenful": it would scroll away as you read down.
+mutant "the rail is positioned against the body, not the scroller" \
+  apps/bothy-web/web/src/components/settings/settings.css \
+  '.set-shell .set-main:has(.upd-rail) { position: relative; }' \
+  '.set-shell .set-main:has(.upd-rail) { position: static; }' \
+  -- "${WEB_CHECKS[@]}"
+
+# THE DOCK'S MOUNT POINT IS THE WHOLE POINT. RouteFade keeps two <main>s alive for
+# ~120ms per navigation, so a live surface inside a page is duplicated and then
+# unmounted every time you move - which looks perfect on the page that started the
+# job and nowhere else. The shell is the only mount that survives a route change.
+mutant "the activity dock is not mounted in the shell" \
+  apps/bothy-web/web/src/components/AppShell.tsx \
+  '      <UpdateActivityDock />' \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the loop armed from the shell, which is a request on every app load for
+# a tab that may never open Settings. Every read of the job route writes an audit
+# line on the host; that is why the sidebar's behind count is TTL'd to 15 minutes.
+mutant "something other than the Updates page arms the poll" \
+  apps/bothy-web/web/src/components/AppShell.tsx \
+  '      <UpdateActivityDock />' \
+  '      <UpdateActivityDock />{adoptJob(rememberedJob())}' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the loop never stopping, which is an audit line every two seconds for as
+# long as the tab is open, on a job that finished hours ago.
+mutant "the job poll keeps running after the job is over" \
+  apps/bothy-web/web/src/lib/updates.ts \
+  '      again = !isTerminal(j.state);' \
+  '      again = true;' \
+  -- "${WEB_CHECKS[@]}"
+
+# AN IDLE ORB IS A PERPETUAL LOOP FOR AN IDLE THING, which the brand forbids and
+# the owner asked against in the same words ("nothing at all when idle").
+mutant "the dock is drawn when nothing is running" \
+  apps/bothy-web/web/src/components/UpdateActivity.tsx \
+  '  if (!feed.id) return null;' \
+  '  if (!feed.id && false) return null;' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and drawn on Settings > Updates as well, where the rail already is it: two
+# surfaces for one job, and two live regions announcing it.
+mutant "the dock is drawn on the page whose rail already is it" \
+  apps/bothy-web/web/src/components/UpdateActivity.tsx \
+  "  if (loc.pathname.startsWith('/settings/updates')) return null;" \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
+# "HOVER ALONE IS NOT AN AFFORDANCE" - both halves of it. Without the focus
+# handler a keyboard cannot open it at all; without the pointerType gate a touch
+# tap is eaten by a hover that opens and shuts in the same gesture, which is the
+# defect that disqualified components/Tooltip.tsx for the detail hint.
+mutant "the dock no longer opens on focus" \
+  apps/bothy-web/web/src/components/UpdateActivity.tsx \
+  '        onFocus={() => setOpen(true)}' \
+  '        onFocus={() => {}}' \
+  -- "${WEB_CHECKS[@]}"
+
+mutant "hover opens the dock for a finger too" \
+  apps/bothy-web/web/src/components/UpdateActivity.tsx \
+  "        onPointerEnter={(e) => { if (e.pointerType === 'mouse') setOpen(true); }}" \
+  '        onPointerEnter={() => setOpen(true)}' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and Escape, which has to close it AND put focus back where it came from.
+mutant "Escape stops closing the dock" \
+  apps/bothy-web/web/src/components/UpdateActivity.tsx \
+  "    if (e.key !== 'Escape' || !open) return;" \
+  '    if (!open) return;' \
+  -- "${WEB_CHECKS[@]}"
+
+# IT EXPANDS BY TRANSFORM, NOT BY SIZE. motion.md forbids animating width or
+# height, and index.css records the exact bug: the top nav's label used to tween
+# `max-width`, which relaid out the whole bar every frame and pushed its
+# neighbour ~60px sideways under the pointer.
+mutant "the dock's panel tweens its width open" \
+  apps/bothy-web/web/src/components/UpdateActivity.css \
+  '  transition: opacity var(--dur-fast) var(--ease), scale var(--dur) var(--spring),' \
+  '  transition: width var(--dur) var(--ease), opacity var(--dur-fast) var(--ease), scale var(--dur) var(--spring),' \
+  -- "${WEB_CHECKS[@]}"
+
+# AND THE ENTRANCE STARTS FROM A VISIBLE RESTING STATE. A panel whose default is
+# `opacity: 0` is one that stays invisible forever the first time whatever was
+# meant to turn it on does not run - the Reveal component's failure, which
+# shipped a near-blank page twice (motion.md's dead ends).
+mutant "the dock's panel rests at opacity 0" \
+  apps/bothy-web/web/src/components/UpdateActivity.css \
+  '  transform-origin: bottom right;' \
+  '  opacity: 0; transform-origin: bottom right;' \
   -- "${WEB_CHECKS[@]}"
 
 echo
