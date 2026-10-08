@@ -144,6 +144,12 @@ console.log('── every button look comes from components/ui/Button ───�
       // wrong here - it is a bordered 24px control, and a page with eight of
       // them reads as eight things to press rather than as eight footnotes.
       'ui-hint',
+      // The update activity dock's circle (2026-10-08): a round, shadowed,
+      // tone-ringed indicator that is the only thing in the corner of the
+      // screen. A <Button iconOnly> is a square bordered control in a row of
+      // controls, which is the wrong object entirely - and the orb inside it is
+      // a canvas, not a glyph.
+      'upd-dock-orb',
     ],
     'inline text action (reads as a link inside prose or a breadcrumb)': [
       'cl-link', 'md-reflink', 'mono', 'rd-inline', 'rd-crumb-root', 'rd-back', 'te-back', 'te-more', 'fx-sha',
@@ -532,7 +538,7 @@ console.log('\n── batch 4: type, rhythm, icons and edges stay on the tokens 
   //   the reader - --read-* and --code-fs are tokens; --rd-ui-fs is the user's
   //         panel size and its fixed ratios (pages/files/reading.ts).
   const PX_OK = new Map([['.tc-ytick, .tc-xtick', 11], ['.sv-plate-txt', 13]]);
-  const EM_OK = new Set(['.sa-title .mono', ':is(.set-shell, .upd-plan) .upd-code', '.bothy-files .md .md-img-remote', '.bothy-files .md .md-code']);
+  const EM_OK = new Set(['.sa-title .mono', ':is(.set-shell, .upd-plan, .upd-dock) .upd-code', '.bothy-files .md .md-img-remote', '.bothy-files .md .md-code']);
   const STEP_PX = [11, 12, 13, 14, 16, 17, 21, 28];
   const TOKEN_FS = /^(var\(--fs-(2xs|xs|sm|md|body|lg|xl|2xl|display)\)|var\(--read-(fs|h[1-4])\)|var\(--code-fs\)|var\(--rd-ui-fs\)|calc\(var\(--rd-ui-fs\) \* 0?\.\d+\)|inherit|0)$/;
   const badFs = [], pxKept = [], emKept = [], badFw = [];
@@ -939,26 +945,130 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   const hints = (upd.match(/<InfoHint\b/g) ?? []).length;
   say(hints >= 8, 'Settings > Updates reaches for the hint rather than one more paragraph', `${hints} hints`);
 
-  // D3. The slot exists whether or not a job does, and its child contributes no
-  // height - so the row is measured by the left column alone and the panel
-  // cannot push anything down, however many steps it grows.
-  say(/<div className="upd-rail">/.test(upd) && /<RestingJob d=\{data\} \/>/.test(upd),
-    'the activity slot is drawn whether or not a job exists, and carries the last job at rest');
-  const rail = one('.set-shell .upd-rail');
-  const railIn = one('.set-shell .upd-rail-in');
+  // -- D3, rewritten 2026-10-08: THE RAIL IS A COLUMN OF THE PAGE -------------
+  //
+  // What the old assertions pinned was the shape the owner then rejected: they
+  // required `.upd-top` to be a two-column grid, and the message said "the owner
+  // asked for the right side" while the grid's left cell was the CONTROLS BLOCK.
+  // It was the right side of a row, not the side of the page. So the invariant is
+  // restated rather than deleted - and the part that was hard-won is restated
+  // unchanged, because it is the part that fails invisibly:
+  //
+  //   - The slot is drawn whether or not a job exists, so it cannot appear.
+  //   - Its WIDTH is reserved by the body, independently of the rail's content.
+  //   - The card inside it is ABSOLUTELY POSITIONED, so it contributes no height
+  //     and cannot move a block however many steps it grows. A reserved
+  //     min-height would not do: the panel grows, and a reserved box that is
+  //     sometimes too small is a delayed jump.
+  //   - Below 1100px the band keeps a FIXED height instead, which is the same
+  //     promise on the device the owner actually reads this on.
+  //
+  // And the new ones, all of which also fail silently:
+  //
+  //   - The rail is positioned against the SCROLLER, not against the body. That
+  //     is what makes it the side of the page (the full pane height, and it does
+  //     not scroll away while you read) rather than the side of a block.
+  //   - The dock exists at all, is FIXED on the named layer, and is mounted in
+  //     AppShell. Mounted inside a page instead it would be duplicated and then
+  //     unmounted on every navigation (RouteFade keeps two <main>s alive), which
+  //     looks fine on the page you started the job from and nowhere else.
+  const actTs = stripTs(readFileSync(join(SRC, 'components', 'UpdateActivity.tsx'), 'utf8'));
+  const actCss = rules(readFileSync(join(SRC, 'components', 'UpdateActivity.css'), 'utf8'));
+  const actOne = (want, media = '') => actCss.find((r) => r.sel.replace(/\s+/g, ' ') === want && r.media.trim() === media);
+  const shell = stripTs(readFileSync(join(SRC, 'components', 'AppShell.tsx'), 'utf8'));
+
+  say(/<UpdateActivityRail d=\{data\} onFinished=\{reload\} \/>/.test(upd),
+    'Settings > Updates draws the activity rail as a child of the PAGE, not of a row inside it');
+  say(!/upd-top/.test(upd) && !actCss.some((r) => /upd-top/.test(r.sel)),
+    'and the two-column row it used to be a cell of (.upd-top) is gone, not merely restyled');
+  say(/<RestingJob last=/.test(actTs),
+    'the slot is drawn whether or not a job exists, and carries the last job at rest');
+
+  const reserve = setCss.find((r) => r.sel.replace(/\s+/g, ' ') === '.set-shell .set-body:has(> .upd-rail)' && !r.media.trim());
+  const resD = reserve ? Object.fromEntries(decls(reserve.body)) : {};
+  say(/^calc\(var\(--upd-rail-w\) \+ var\(--sp-\w+\)\)$/.test(resD['padding-right'] ?? ''),
+    "the page RESERVES the rail's width itself, so no block can ever be under it", resD['padding-right']);
+  const pane = setCss.find((r) => r.sel.replace(/\s+/g, ' ') === '.set-shell .set-main:has(.upd-rail)');
+  say(!!pane && /position:\s*relative/.test(pane.body),
+    'the rail is positioned against the SCROLLER - the full height of the page, and it does not scroll away',
+    pane ? pane.body.replace(/\s+/g, ' ').trim() : '(no rule)');
+  const rail = actOne('.set-shell .upd-rail');
+  const railD = rail ? Object.fromEntries(decls(rail.body)) : {};
+  say(railD.position === 'absolute' && railD.inset === '0 0 0 auto' && railD.width === 'var(--upd-rail-w)',
+    "it is a full-height column at the page's right edge", `${railD.position ?? '(none)'} / ${railD.inset ?? '(none)'}`);
+  const railIn = actOne('.set-shell .upd-rail-in');
   const inD = railIn ? Object.fromEntries(decls(railIn.body)) : {};
-  say(!!rail && /position:\s*relative/.test(rail.body) && inD.position === 'absolute' && inD.inset === '0',
+  say(inD.position === 'absolute' && /^var\(--sp-/.test(inD.inset ?? ''),
     'the card inside it is absolutely positioned - the no-shift guarantee is structural, not a reserved min-height',
     `${inD.position ?? '(none)'} / ${inD.inset ?? '(none)'}`);
   say(inD['overflow-y'] === 'auto', 'so a panel taller than the slot scrolls inside it rather than growing the page');
-  const top = one('.set-shell .upd-top');
-  const topD = top ? Object.fromEntries(decls(top.body)) : {};
-  say(/minmax\(0, 1fr\) var\(--upd-rail-w\)/.test(topD['grid-template-columns'] ?? ''),
-    'and it is the right-hand column at full width (the owner asked for the right side)', topD['grid-template-columns']);
-  const narrow = setCss.find((r) => /max-width:\s*1100px/.test(r.media) && r.sel.replace(/\s+/g, ' ') === '.set-shell .upd-rail');
-  say(!!narrow && /height:\s*var\(--upd-rail-h\)/.test(narrow.body),
+  const narrow = actCss.find((r) => /max-width:\s*1100px/.test(r.media) && r.sel.replace(/\s+/g, ' ') === '.set-shell .upd-rail');
+  say(!!narrow && /height:\s*var\(--upd-rail-h\)/.test(narrow.body) && /position:\s*relative/.test(narrow.body),
     'below 1100px there is no right, so the band takes a FIXED height instead - reserved, and still shift-free',
     narrow ? narrow.body.replace(/\s+/g, ' ').trim() : '(no narrow rule)');
+
+  // The dock. "in all the other places itll be flowting in the side as circle or
+  // something in some corner or something and in hover itll get opened."
+  say(/<UpdateActivityDock \/>/.test(shell),
+    'the dock is mounted in the SHELL, the one mount point that survives a route change');
+  const dockUsers = tsx.filter((f) => /<UpdateActivityDock\b/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
+  say(dockUsers.length === 1 && dockUsers[0] === join('components', 'AppShell.tsx'),
+    'and nowhere else - inside a page it would be duplicated and unmounted on every navigation', dockUsers.join(', '));
+  say(/if \(!feed\.id\) return null;/.test(actTs),
+    'there is no dock at all when no job is being followed (an idle orb is a perpetual loop for an idle thing)');
+  say(/if \(loc\.pathname\.startsWith\('\/settings\/updates'\)\) return null;/.test(actTs),
+    'and none on Settings > Updates, where the rail IS it - two would be two live regions saying one thing');
+  const dock = actOne('.upd-dock');
+  const dockD = dock ? Object.fromEntries(decls(dock.body)) : {};
+  say(dockD.position === 'fixed' && dockD['z-index'] === 'var(--z-activity)',
+    "it is fixed on the NAMED layer, so it moves no content and sits above the page's own chrome",
+    `${dockD.position ?? '(none)'} / ${dockD['z-index'] ?? '(none)'}`);
+  say(/env\(safe-area-inset-bottom/.test(dockD.bottom ?? '') && /env\(safe-area-inset-right/.test(dockD.right ?? ''),
+    "and it applies the safe-area insets - a round target in a phone's bottom corner is exactly where that gap bites");
+  const orb = actOne('.upd-dock-orb');
+  const orbD = orb ? Object.fromEntries(decls(orb.body)) : {};
+  say(orbD['border-radius'] === 'var(--r-full)' && !!orbD.width && orbD.width === orbD.height,
+    'the collapsed form is a circle, which is what was asked for', `${orbD.width ?? '?'} / ${orbD['border-radius'] ?? '?'}`);
+
+  // THE THREE HALVES OF "hover alone is not an affordance", the same shape
+  // ui/InfoHint is held to above - and for the same reason: a touch tap must
+  // reach the toggle instead of being eaten by a hover that opens and shuts in
+  // one gesture, which is the defect that disqualified components/Tooltip.tsx.
+  say(/onFocus=\{\(\) => setOpen\(true\)\}/.test(actTs), 'the dock opens on FOCUS, so a keyboard reaches it with no pointer at all');
+  say(/onClick=\{\(\) => setOpen\(\(o\) => !o\)\}/.test(actTs), 'and on a TAP, through a click handler on the toggle itself');
+  const dockGated = (actTs.match(/onPointer(?:Enter|Leave)=\{\(e\)[\s\S]{0,340}?e\.pointerType [!=]== 'mouse'/g) ?? []).length;
+  say(dockGated === 2, 'and hover is honoured for a mouse only ON BOTH pointer handlers', `${dockGated} of 2 gated`);
+  say(/aria-expanded=\{open\}/.test(actTs) && /aria-controls=\{panelId\}/.test(actTs) && /aria-label="Update activity"/.test(actTs),
+    'the trigger is a real named DISCLOSURE toggle - the panel holds controls, so it is not a hint and not a tooltip');
+  say(/e\.key !== 'Escape'/.test(actTs) && /orb\.current\?\.focus\(\);/.test(actTs),
+    'Escape closes it and hands focus back to the trigger');
+  say(/inert=\{!open\}/.test(actTs),
+    'the panel is always in the DOM so aria-controls resolves, and inert while shut so nothing in it is reachable by Tab');
+
+  // IT EXPANDS BY TRANSFORM, NOT BY SIZE. motion.md forbids animating width or
+  // height; index.css records the nav label that tweened max-width and reflowed
+  // the whole bar every frame, pushing its neighbour ~60px sideways under the
+  // pointer. An absolutely positioned panel cannot do that to anything.
+  const panel = actOne('.upd-dock-panel');
+  const panD = panel ? Object.fromEntries(decls(panel.body)) : {};
+  say(panD.position === 'absolute', 'the panel is positioned OFF the dock, so opening it moves nothing - not the page, not the orb');
+  const tProps = (panD.transition ?? '').split(/,(?![^(]*\))/).map((t) => t.trim().split(/\s+/)[0]).filter(Boolean);
+  say(tProps.length > 0 && tProps.every((x) => ['opacity', 'scale', 'translate', 'visibility'].includes(x)),
+    'and it arrives on transform and opacity only - never on a size', tProps.join(' '));
+  const shut = actOne(".upd-dock-panel[data-open='false']");
+  say(!!shut && /opacity:\s*0/.test(shut.body) && panD.opacity === undefined,
+    'the SHUT state is the exception, so a resting panel is visible - a default of opacity 0 is how a surface stays invisible forever');
+
+  // The loop's cost. Every read of the job route writes an audit line on the
+  // host, which is why the sidebar's behind count is TTL'd to a quarter hour.
+  const updLib = stripTs(readFileSync(join(SRC, 'lib', 'updates.ts'), 'utf8'));
+  say(/export function followJob/.test(updLib) && /setTimeout\(\(\) => void tick\(\), JOB_POLL_MS\)/.test(updLib),
+    'the 2s loop is ONE module store, not a hook per mount - two surfaces, one request');
+  say(/again = !isTerminal\(j\.state\);/.test(updLib),
+    'and it stops the moment the host says the job is over (an audit line per read is the reason)');
+  const armed = tsx.filter((f) => /\b(followJob|adoptJob)\(/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
+  say(armed.length === 1 && armed[0] === join('pages', 'settings', 'Updates.tsx'),
+    'nothing but Settings > Updates arms it, so an idle tab makes no request at all', armed.join(', '));
 }
 
 console.log(`\n  ${passes} pass · ${failures} fail`);

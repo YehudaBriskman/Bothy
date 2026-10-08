@@ -6,6 +6,7 @@ import { Loader } from '../ui/Loader';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, LogIn } from 'lucide-react';
 import { refusalOf, statusOf } from '../../lib/http';
+import { AUTO_ACTOR } from '../../lib/updates';
 import { signInHref } from '../../lib/me';
 import { relDate } from '../../lib/files';
 import { buttonClass } from '../ui/Button';
@@ -42,6 +43,29 @@ export function Prose({ text }: { text: string }) {
         : <span key={i}>{p}</span>))}
     </>
   );
+}
+
+/** Backticked spans as inline code - for prose that NAMES a command (a plan fact,
+ *  a job step's detail) rather than hands one over. <Prose> makes each one
+ *  copyable, which is right for "run this next" and noise in a list of facts.
+ *
+ *  Here rather than in Updates.tsx since 2026-10-08: the activity card draws a
+ *  step's detail in two places now (the rail on the page, the dock in the shell),
+ *  and a component may not import from a page. */
+export function Ticks({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(`[^`]+`)/g).map((t, i) => (t.startsWith('`') && t.endsWith('`') && t.length > 2
+        ? <code key={i} className="mono upd-code">{t.slice(1, -1)}</code>
+        : <span key={i}>{t}</span>))}
+    </>
+  );
+}
+
+/** Who asked: a person's name, or the night job for the system actor. */
+export function Actor({ who }: { who: string }) {
+  if (who !== AUTO_ACTOR) return <>{who}</>;
+  return <span className="upd-actor-auto" title={`requestedBy "${AUTO_ACTOR}": bothy-updater-auto.timer, in the night window`}>the night job</span>;
 }
 
 /**

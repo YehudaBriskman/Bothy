@@ -408,7 +408,7 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
   overflow-wrap: anywhere; margin: 0;
   font-size: var(--fs-sm); line-height: 1.6; color: var(--fg-muted);
 }
-:is(.set-shell, .upd-plan) .upd-code { font-size: .92em; padding: 0 var(--sp-1); border-radius: var(--r-xs); background: var(--bg-2); border: 1px solid var(--line); color: var(--fg); overflow-wrap: anywhere; }
+:is(.set-shell, .upd-plan, .upd-dock) .upd-code { font-size: .92em; padding: 0 var(--sp-1); border-radius: var(--r-xs); background: var(--bg-2); border: 1px solid var(--line); color: var(--fg); overflow-wrap: anywhere; }
 .set-shell .upd-go { display: inline-flex; }
 
 /* Step 7: a paused automatic channel is STATE (a rollback happened), so it takes
@@ -444,65 +444,58 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    control, and it must not be squeezed into a button's column. */
 .set-shell .upd-ctl-norole { margin-bottom: var(--sp-4); }
 
-/* ── D3: WHAT IS HAPPENING SITS ON THE RIGHT, IN A SLOT THAT IS ALWAYS THERE ──
-   Owner's words (2026-10-07): "i want the actions that happening to be in the
-   right side of the page, without the sudden jump of the ui for the
-   real-time-update-actions card."
+/* ── WHAT IS HAPPENING SITS DOWN THE SIDE OF THE PAGE ──────────────────
+   Owner's words, after the first attempt (2026-10-08): "the live actions card is
+   not in the right pannel like i wanted but just got transfared from upper
+   section above the controles to the side of them, i want that in the side of the
+   PAGE. compleate sepurations".
 
-   The jump was structural. JobPanel was mounted into the page flow the moment a
-   job existed, so pressing Apply inserted ~300px above everything and every
-   block below it moved down - while the reader was still looking at the row they
-   had pressed. Reserving a min-height would not have been enough either: the
-   panel GROWS as its steps arrive, and a reserved box that is sometimes too
-   small is a delayed jump.
+   WHY THE FIRST ATTEMPT WAS WRONG, exactly. `.upd-top` was a two-column grid
+   whose LEFT cell was the Controls block, so "the right column" meant "right of
+   the controls" and not "right of the page"; and `.set-body` caps at 1080px with
+   no `margin-inline: auto`, so on a wide screen there were ~570 unused pixels to
+   the right of the content - which is where the owner was pointing.
 
-   So: a grid column that exists whether or not a job does, stretched to the left
-   column's height, with the card inside ABSOLUTELY POSITIONED. That is the part
-   that makes the guarantee structural rather than a guess - an absolutely
-   positioned child contributes no height at all, so the row's height is decided
-   entirely by the left column and the panel cannot move anything, however many
-   steps it grows. It scrolls inside the slot instead.
+   So the rail is a column of the PAGE: absolutely positioned against the settings
+   scroller, at its right edge, spanning the whole pane, with a hairline down its
+   left side. The body reserves exactly its width, so no block is ever under it.
+   The blocks are siblings of the rail now rather than children of a row, which is
+   also what gives the components table the full width of the page back.
 
-   `min-height` on the row is the floor for the cold-load case, where the left
-   column is only a skeleton and would otherwise give the rail 80px.
+   THE NO-SHIFT GUARANTEE IS THE SAME ONE, AND STILL STRUCTURAL. The jump this
+   replaced (2026-10-07) was the job panel being mounted into the page flow the
+   moment a job existed: pressing Apply inserted ~300px above everything and every
+   block below it moved down, while the reader was still looking at the row they
+   had pressed. Reserving a min-height would not have been enough either - the
+   panel GROWS as its steps arrive, and a reserved box that is sometimes too small
+   is a delayed jump. Two things hold it instead, and both are asserted:
 
-   BELOW 1100px THERE IS NO RIGHT. The band goes across the top at a fixed
-   height - still reserved, still never shifting - and it is first in the visual
-   order because a running job is what somebody opening this page wants. It
-   costs 9rem of a phone screen permanently, which is the price of the
-   no-shift promise and is why the slot at rest carries the last job rather than
-   being blank. */
-.set-shell .upd-top {
-  --upd-rail-w: 20rem;
-  --upd-rail-h: 14rem;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--upd-rail-w);
-  align-items: stretch;
-  gap: var(--sp-3_5);
-  min-height: var(--upd-rail-h);
-}
-.set-shell .upd-top-main { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-3_5); }
-.set-shell .upd-rail { position: relative; min-width: 0; }
-.set-shell .upd-rail-in {
-  position: absolute; inset: 0;
-  overflow-y: auto; overscroll-behavior: contain;
-  display: flex; flex-direction: column;
-}
-.set-shell .upd-rail .upd-job { flex: none; }
-/* At rest the slot is not empty, it is quiet: the neutral hairline rather than a
-   status edge, because "nothing is running" is not a state of anything. */
-.set-shell .upd-job[data-tone='rest'] { border-left-color: var(--line); background: var(--bg-2); }
-.set-shell .upd-job-rest .upd-job-h { color: var(--fg-muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
-.set-shell .upd-job-rest .upd-job-h svg { color: var(--fg-subtle); }
-.set-shell .upd-rest-last { margin: 0; display: flex; align-items: center; gap: var(--sp-1_5); flex-wrap: wrap; }
+     · the rail's WIDTH is reserved whether or not a job exists (the body's
+       padding, which does not depend on the rail's content at all), and
+     · the card inside it is ABSOLUTELY POSITIONED, so it contributes no height
+       and scrolls inside the slot rather than growing anything.
 
-@media (max-width: 1100px) {
-  .set-shell .upd-top {
-    --upd-rail-h: 9rem;
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
-  }
-  .set-shell .upd-rail { order: -1; height: var(--upd-rail-h); }
+   It is positioned against `.set-main` rather than against `.set-body` for two
+   reasons: the pane is the thing whose height "the side of the page" means, and an
+   absolutely positioned child of a scroll container does not scroll with the
+   content - so the rail stays on screen while you read down the page, which is
+   the whole point of being able to watch a job.
+
+   BELOW 1100px THERE IS NO RIGHT. The rail goes back into the flow as a band
+   across the top at a fixed height - still reserved, still never shifting - and
+   first in the visual order, because a running job is what somebody opening this
+   page wants. It costs 9rem of a phone screen permanently, which is the price of
+   the no-shift promise and is why the slot at rest carries the last job rather
+   than being blank. The corner dock (components/UpdateActivity.css) is the answer
+   on every OTHER page, at every width. */
+.set-shell .set-main:has(.upd-rail) { position: relative; }
+.set-shell .set-body:has(> .upd-rail) {
+  --upd-rail-w: 21rem;
+  --upd-rail-h: 9rem;
+  /* The content measure plus the rail's own column: the body may grow past the
+     1080px cap by exactly the width it has given away. */
+  max-width: calc(1080px + var(--upd-rail-w) + var(--sp-8));
+  padding-right: calc(var(--upd-rail-w) + var(--sp-8));
 }
 
 /* The one sentence that replaced the table's 105-word footer glossary. The hint
@@ -520,45 +513,14 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 .set-shell .upd-reason .ui-hint { margin-left: var(--sp-1); }
 .set-shell .kv-v .ui-hint { margin-left: var(--sp-1); }
 
-/* The live job. Its tone IS state - a job's outcome - so the reserved palette is
-   legal here, on the edge and the heading only, always beside a glyph and words. */
-.set-shell .upd-job {
-  display: flex; flex-direction: column; gap: var(--sp-2_5); min-width: 0;
-  padding: var(--sp-3) var(--sp-3_5); border-radius: var(--r-md);
-  background: var(--surface-2); border: 1px solid var(--line); border-left-width: 3px;
-}
-.set-shell .upd-job[data-tone='busy'] { border-left-color: var(--accent-line); }
-.set-shell .upd-job[data-tone='up'] { border-left-color: var(--st-up); }
-.set-shell .upd-job[data-tone='warn'] { border-left-color: var(--st-warn); }
-.set-shell .upd-job[data-tone='down'] { border-left-color: var(--st-down); }
-.set-shell .upd-job-head { display: flex; align-items: center; gap: var(--sp-2_5); flex-wrap: wrap; }
-.set-shell .upd-job-head .btn { margin-left: auto; }
-.set-shell .upd-job-h { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 700; color: var(--fg); }
-.set-shell .upd-job[data-tone='up'] .upd-job-h svg { color: var(--st-up-fg); }
-.set-shell .upd-job[data-tone='warn'] .upd-job-h svg { color: var(--st-warn-fg); }
-.set-shell .upd-job[data-tone='down'] .upd-job-h svg { color: var(--st-down-fg); }
-.set-shell .upd-job-what { font-size: var(--fs-xs); line-height: var(--lh-xs); letter-spacing: var(--tr-xs); font-weight: 600; color: var(--fg-muted); }
-.set-shell .upd-lost { display: flex; align-items: center; gap: var(--sp-1_5); color: var(--st-warn-fg); }
-.set-shell .upd-job-err { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg); overflow-wrap: anywhere; }
-.set-shell .upd-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-0_5); }
-.set-shell .upd-step {
-  display: grid; grid-template-columns: var(--loader-sm) minmax(0, 1fr) auto; column-gap: var(--sp-2); align-items: center;
-  padding: var(--sp-1) 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted);
-}
-.set-shell .upd-step-g { justify-self: center; }
-.set-shell .upd-step[data-state='running'] .upd-step-name { color: var(--fg); font-weight: 600; }
-.set-shell .upd-step[data-state='ok'] { color: var(--fg); }
-.set-shell .upd-step[data-state='ok'] .upd-step-g { color: var(--st-up-fg); }
-.set-shell .upd-step[data-state='failed'] { color: var(--fg); }
-.set-shell .upd-step[data-state='failed'] .upd-step-g { color: var(--st-down-fg); }
-.set-shell .upd-step[data-state='pending'], .set-shell .upd-step[data-state='skipped'] { color: var(--fg-subtle); }
-.set-shell .upd-step-when { font-size: var(--fs-2xs); line-height: var(--lh-2xs); letter-spacing: var(--tr-2xs); color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
-.set-shell .upd-step-detail { grid-column: 2 / span 2; font-size: var(--fs-xs); letter-spacing: var(--tr-xs); line-height: var(--lh-xs); color: var(--fg-subtle); overflow-wrap: anywhere; }
-.set-shell .upd-result { display: inline-flex; align-items: center; gap: var(--sp-1); font-weight: 600; white-space: nowrap; }
-.set-shell .upd-result[data-tone='up'] { color: var(--st-up-fg); }
-.set-shell .upd-result[data-tone='warn'] { color: var(--st-warn-fg); }
-.set-shell .upd-result[data-tone='down'] { color: var(--st-down-fg); }
-.set-shell .upd-hist td { min-width: 0; }
+/* ── the activity card, the rail and the corner dock ───────────────────
+   All of it moved to components/UpdateActivity.css on 2026-10-08, with the
+   component: the same card is drawn in two places now - the rail down the side of
+   this page and the fixed dock in the shell on every other page - and a rule that
+   only one of them can see is a rule that will be wrong on the other. The
+   selectors there keep their `.set-shell ` prefix where they belong to the rail.
+   What stays here is what the whole Settings area uses: `.upd-code`,
+   `.upd-actor-auto`, `.upd-path`, `.set-cell-sub`, `.set-note`. */
 
 /* The plan view. It lives in a dialog, portalled OUT of .set-shell - so the
    shared bits it borrows are widened to :is(.set-shell, .upd-plan) above. */
@@ -633,7 +595,6 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
   .set-shell .set-tbl .upd-tbl td { min-width: 0; }
   .set-shell .upd-tbl tr.set-tbl-sep { padding: 0; }
   .set-shell .upd-tbl .upd-drift { margin-left: 0; }
-  .set-shell .upd-job-head .btn { margin-left: 0; }
 
   /* ONE COMPONENT IS ONE CARD, even though it is two <tr>s. `as-cards` turns
      every row into a card with its own padding and bottom rule, so without this
