@@ -43,6 +43,7 @@ styles are co-located files that build on it and never edit it.
 | Status dot and status glyph | Colour plus a distinct glyph, never colour alone |
 | Tooltip | Hover **and** focus; the inverted-surface pair. A LABEL for a control that has no room for one |
 | Detail hint | `ui/InfoHint`: a 12px glyph that reveals one or two sentences taken OFF the surface. Focus, tap and hover; focus never moves into it; text, never a control. See [feedback § detail on demand](feedback.md#detail-on-demand-when-to-reach-for-a-hint-and-when-to-write-less) |
+| Status dock | `components/UpdateActivity.tsx`: a fixed round indicator for a job running on the host, mounted in the shell so it survives a route change, that opens to a card with the step and its actions. The same component draws the full-height rail on Settings > Updates. Not a toast - see [decisions](../reference/decisions.md) |
 | Dialog | One implementation, Radix-backed |
 | Command palette | Hand-written; keyboard-driven |
 | Tabs | A real ARIA tablist with roving tabindex |
