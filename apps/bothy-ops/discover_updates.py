@@ -24,7 +24,13 @@ Build step 3 of docs/plans/updates.md. For every component in updates.toml it
        our code the GitHub releases of the repo (unauthenticated), against VERSION
   4. classifies each newer version patch / minor / major against the pin (only
      tags of the SAME SHAPE as the pin count - see updates.parse_version), and
-     notes DRIFT: what runs is not what the files pin;
+     notes DRIFT, which is TWO questions and so two fields:
+       drift        the IMAGE that runs is not the image the files pin;
+       configDrift  the merged compose CONFIGURATION that runs is not the one the
+                    files declare, so the recipe would recreate the container
+                    even when the image matches (`docker compose config --hash`
+                    against the container's own config-hash label, once per
+                    compose project - see Discoverer.config_drift);
   5. writes ~/.local/state/bothy/updates/available.json (mode 600, atomically)
      and a node-exporter textfile, bothy_update_available{component,level}.
 
@@ -512,6 +518,64 @@ def docker_running(container: str) -> dict | None:
             "state": (c.get("State") or {}).get("Status")}
 
 
+class ComposeProjects:
+    """What `docker compose up` WOULD recreate - read once per compose PROJECT.
+
+    `of(container, pin_file, pin_service)` answers for one pin line, and memoises
+    on the compose project the container belongs to. Once per project is the
+    whole point: six of the catalog's components are services of `monitoring`, so
+    asking per component would render the merged config - and inspect every
+    container of the project - six times for one answer.
+
+    The answer itself comes from `updater.hostio.compose_project`, which is the
+    ONE reader of a compose project in this tree (the other two callers are
+    `executor.compose_scope` and `groups.resolve`), so discovery can never
+    disagree with the scope check about what a project is or which files made it.
+    That matters here: the file list is read from the CONTAINER'S OWN labels, not
+    from the justfile, so a conditional overlay (`monitoring/compose.cluster.yml`
+    is added only when the `thales-scc` network exists, justfile:216-221) is
+    included exactly when the running container was created with it. Guessing the
+    file list instead reports a false difference for victoriametrics, which that
+    overlay edits.
+
+    READ-ONLY, and no new power: `docker inspect` is what discovery already runs
+    for every component, and `docker compose config --hash` renders the merged
+    configuration without starting, pulling or writing anything.
+    """
+
+    def __init__(self, repo: str) -> None:
+        self.repo = repo
+        self._by_project: dict[str, dict] = {}
+        self._failed: dict[str, str] = {}
+
+    def project_name(self, container: str) -> str | None:
+        """`com.docker.compose.project` off the container, or None if there is no
+        such container. One cheap inspect, which is what makes the memo possible:
+        the project is a label, so it is known before the expensive render."""
+        out = _run(["docker", "inspect", "--type", "container", "--format",
+                    '{{index .Config.Labels "com.docker.compose.project"}}', container])
+        return (out or "").strip() or None
+
+    def of(self, container: str, pin_file: str, pin_service: str) -> dict | None:
+        """`{project, files, wd, want, have}`, or None when there is no such
+        container (not an error: a component that is not running has no config to
+        compare). Raises ValueError when the project exists and could not be read.
+        """
+        name = self.project_name(container)
+        if not name:
+            return None
+        if name in self._failed:
+            raise ValueError(self._failed[name])
+        if name not in self._by_project:
+            from updater.hostio import HostError, compose_project
+            try:
+                self._by_project[name] = compose_project(self.repo, container, pin_file, pin_service)
+            except HostError as e:
+                self._failed[name] = str(e)
+                raise ValueError(str(e)) from None
+        return self._by_project[name]
+
+
 def kube_workload_images(workload: str) -> list[str] | None:
     ns, kind, name = workload.split("/")
     out = _run(["kubectl", "--context", KUBE_CONTEXT, "-n", ns, "get", kind, name, "-o", "json"], timeout=10)
@@ -567,13 +631,18 @@ class Discoverer:
     def __init__(self, catalog: updates.Catalog, net: Net, *, repo: str = REPO,
                  running: Callable[[str], dict | None] = docker_running,
                  kube: Callable[[str], list[str] | None] = kube_workload_images,
-                 helm: Callable[[str, str], str | None] = helm_release_version) -> None:
+                 helm: Callable[[str, str], str | None] = helm_release_version,
+                 projects: ComposeProjects | None = None) -> None:
         self.catalog = catalog
         self.net = net
         self.repo = repo
         self.running = running
         self.kube = kube
         self.helm = helm
+        # One object, so `docker compose config --hash` runs once per project for
+        # the whole run. Built here rather than defaulted in the signature because
+        # it needs `repo`, and injectable like the other three readers.
+        self.projects = projects if projects is not None else ComposeProjects(repo)
 
     def _read(self, rel: str) -> str:
         with open(os.path.join(self.repo, rel), encoding="utf-8") as fh:
@@ -588,7 +657,7 @@ class Discoverer:
             fn = {"image": self.image, "manifest": self.image, "helm": self.chart,
                   "github": self.github}[c.source]
             entry = {"checkedAt": _iso(), "source": c.source, "error": None, "drift": None,
-                     "current": {}, "running": [], "latest": None, "candidates": {}}
+                     "configDrift": None, "current": {}, "running": [], "latest": None, "candidates": {}}
             try:
                 fn(c, entry)
             except RateLimited as e:
@@ -599,6 +668,89 @@ class Discoverer:
         return {"version": DOC_VERSION, "generatedAt": _iso(),
                 "durationMs": int((time.monotonic() - t0) * 1000), "calls": self.net.calls,
                 "components": comps}
+
+    # ── the configuration, beside the image ──
+    def config_drift(self, c: updates.Component, refs: list, e: dict) -> str | None:
+        """Would the recipe recreate this component for a reason the IMAGE does
+        not already explain? One sentence, or None for "no".
+
+        `drift` above asks one question - does the running container run the
+        image the files pin - and answers it from references and digests alone.
+        That left the other half of "this box runs what `main` declares" unasked,
+        and on 2026-10-08 the gap was live: grafana ran the pinned image and a
+        merged configuration `main` no longer declares, and the box said
+        `drift: None` plus `nothing to deploy` - two true sentences that together
+        read as all is well.
+
+        Compose recreates a service exactly when the config hash it WOULD create
+        it with differs from the `com.docker.compose.config-hash` label the
+        container carries, which is what `hostio.compose_project` computes and
+        what its own docstring already called "s would be recreated or created".
+
+        A PIN LINE WHOSE IMAGE ALREADY DRIFTS IS SKIPPED, and that is the whole
+        design of this field rather than a shortcut. The image reference is part
+        of what compose hashes, so a component that is behind on its image has a
+        different hash BECAUSE it is behind - measured on this box the same day,
+        five of six differing services were the five with image drift, which
+        `drift` already says in words. Reporting those again would make the new
+        field a louder copy of the old one and bury the single row that is news.
+        It is also the right call for the action: applying the image pin runs the
+        recipe, which brings the merged configuration with it. So this field
+        means exactly "the image matches and the configuration does not", which
+        is the one case nothing in the pipeline could see.
+
+        A SENTENCE, like `drift`, and deliberately only a sentence with the two
+        hashes in it. A structured DIFF of the two configurations is not an
+        option here, not merely unbuilt: `docker compose config` resolves the
+        repo's `.env`, so the rendered configuration carries secrets, and
+        available.json is served to a `viewer` through
+        `GET /-/api/updates/status`. The hash is safe evidence; the diff is not,
+        and belongs in `git diff` on the host.
+
+        "Could not be compared" is a NOTE, not a value: `configDrift` is read as
+        a yes, and the metric built from it would otherwise count not-knowing as
+        drift.
+        """
+        run = {r["name"]: r for r in e["running"] if isinstance(r.get("name"), str)}
+        said: list[str] = []
+
+        def note(text: str) -> None:
+            # Two pin lines of one component share a project, so they share its
+            # answer - and said it twice before this (socket-proxy, 2026-10-08).
+            notes = e.setdefault("notes", [])
+            if text[:200] not in notes:
+                notes.append(text[:200])
+
+        for i, (_pin, ref, cname) in enumerate(refs):
+            f, service = c.pin_parts(i)
+            if not cname or not service:
+                continue
+            r = run.get(cname)
+            if r is None:
+                continue  # not running: there is no configuration to compare
+            if r.get("image") and not same_image(r["image"], ref):
+                continue  # the image explains the difference, and `drift` says so
+            try:
+                pj = self.projects.of(cname, f, service)
+            except (ValueError, OSError) as err:
+                note(f"the merged compose configuration could not be compared: {err}")
+                continue
+            if pj is None:
+                continue
+            want, have = pj["want"].get(service), pj["have"].get(service)
+            if want is None:
+                note(f"{service} is not in the merged configuration of compose project {pj['project']}, so "
+                     f"`{c.apply}` would not touch it")
+            elif not have:
+                # The container exists and carries the project, so compose knows
+                # it; a missing config-hash label means it was not made by this
+                # compose (a hand `docker run`, or a very old compose).
+                said.append(f"`{c.apply}` would recreate {service}: {cname} carries no compose config hash, so "
+                            f"compose cannot tell that it is current")
+            elif want != have:
+                said.append(f"`{c.apply}` would recreate {service}: the merged compose configuration is not "
+                            f"the one {cname} was created with (wants {want[:12]}…, has {have[:12]}…)")
+        return "; ".join(said)[:300] or None
 
     # ── images (compose services and manifest containers) ──
     def image(self, c: updates.Component, e: dict) -> None:
@@ -646,6 +798,12 @@ class Discoverer:
                     drift.append(f"{cname} runs {r['image']}, {pin.split(':')[0]} pins {ref}")
                 elif im["digest"] and r.get("digest") and r["digest"] != im["digest"]:
                     drift.append(f"{cname} runs {r['digest'][:19]}…, the pin is {im['digest'][:19]}…")
+            # The OTHER half of "is this box running what main declares", and the
+            # half nothing asked until 2026-10-08: the image can match while the
+            # merged configuration does not. Never fatal to the component - a
+            # project that cannot be read is said in one clause, not instead of
+            # the version facts above.
+            e["configDrift"] = self.config_drift(c, refs, e)
 
         budget = [MAX_DIGESTS_PER_COMPONENT]
         d: str | None = None
@@ -798,6 +956,14 @@ def metrics(doc: dict) -> str:
     lines += ["# HELP bothy_update_drift 1 when what runs is not what the repository pins.",
               "# TYPE bothy_update_drift gauge"]
     lines += [f'bothy_update_drift{{component="{cid}"}} {1 if comps[cid].get("drift") else 0}' for cid in sorted(comps)]
+    # Beside it, never folded into it: bothy_update_drift is about IMAGES, and a
+    # component can be 0 there and 1 here - which is the case this series exists
+    # for (grafana, 2026-10-08). Two questions, two series.
+    lines += ["# HELP bothy_update_config_drift 1 when the recipe would recreate the component because the merged "
+              "compose configuration is not the one its container was created with, even though the image matches.",
+              "# TYPE bothy_update_config_drift gauge"]
+    lines += [f'bothy_update_config_drift{{component="{cid}"}} {1 if comps[cid].get("configDrift") else 0}'
+              for cid in sorted(comps)]
     lines += ["# HELP bothy_update_check_error 1 when the last discovery could not check a component.",
               "# TYPE bothy_update_check_error gauge"]
     lines += [f'bothy_update_check_error{{component="{cid}"}} {1 if comps[cid].get("error") else 0}'
@@ -834,7 +1000,7 @@ def load_cache(path: str) -> dict:
 
 
 def table(doc: dict, catalog: updates.Catalog) -> str:
-    rows = [("component", "channel", "pinned", "available", "level", "drift / error")]
+    rows = [("component", "channel", "pinned", "available", "level", "drift / config / error")]
     for cid, c in catalog.components.items():
         e = doc["components"].get(cid)
         if not e:
@@ -846,7 +1012,7 @@ def table(doc: dict, catalog: updates.Catalog) -> str:
         if lat.get("floating"):
             avail = f"{avail} (moved{' to ' + cur['floatTarget'] if cur.get('floatTarget') else ''})"
         lv = lat.get("level") or ""
-        note = e.get("error") or e.get("drift") or ""
+        note = e.get("error") or e.get("drift") or e.get("configDrift") or ""
         rows.append((cid, updates.effective_channel(c.channel, lat.get("level")) or c.channel, pinned, avail, lv,
                      note[:90]))
     w = [max(len(str(r[i])) for r in rows) for i in range(5)]
@@ -914,7 +1080,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps(doc, indent=1, sort_keys=True))
     comps = doc["components"].values()
     print(f"updates: {sum(1 for e in comps if e.get('latest'))} with a newer version, "
-          f"{sum(1 for e in comps if e.get('drift'))} drifting, {sum(1 for e in comps if e.get('error'))} unchecked; "
+          f"{sum(1 for e in comps if e.get('drift'))} drifting, "
+          f"{sum(1 for e in comps if e.get('configDrift'))} running config main does not declare, "
+          f"{sum(1 for e in comps if e.get('error'))} unchecked; "
           f"{doc['calls']} requests in {doc['durationMs']} ms -> {out}" + (f" + {prom}" if prom else ""),
           file=sys.stderr)
     return 0
