@@ -21,10 +21,30 @@
 // only once the count is known and above zero. The role hint beside Users,
 // Credentials, Audit and Backups is a WORD, not a colour, and it describes where
 // the data comes from - it is never the gate.
+//
+// THE GROUPS FOLD, and only the one holding the page you are on is open
+// (2026-10-08: "all of the settings tabs in the side pannel need to be
+// compactable ... not in view all all the time"). Three things that decision
+// forces, each of which was a defect waiting to happen:
+//
+//   · the rule and the storage live in lib/prefs.ts, which imports nothing, so
+//     checks/settings.mjs can run a truth table over them. Nothing here decides
+//     whether a group is open;
+//   · THE OPEN STATE IS THE SHELL'S, not the Nav's. `Nav` is rendered twice -
+//     the desktop aside and the mobile drawer - and two copies of a useState
+//     would mean folding a group in the drawer and finding it open behind it;
+//   · each copy gets its own `useId()` prefix. Both are in the DOM at once while
+//     the drawer is open, and `aria-controls` pointing at a duplicate id names
+//     whichever the browser finds first - which is the OTHER nav's region.
+//
+// The header is a toggle and NOT also a link. There is no page for a group (the
+// registry gives a group an id and a title and nothing else), and a target that
+// both navigates and folds is the one nav mistake that cannot be recovered from
+// by trying again - whichever you wanted, you get the other half of the time.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 import { GROUPS, SECTIONS, groupTitle, sectionById } from '../../lib/settings-index';
 import { SettingsSearch } from './SettingsSearch';
 import { SectionIcon } from './icons';
@@ -33,33 +53,69 @@ import { DialogClose, DialogSurface, DialogTitle } from '../ui/Dialog';
 import './settings.css';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { Disclosure } from '../ui/Disclosure';
+import { arriveInGroup, groupOpen, toggleGroup, type OpenGroups } from '../../lib/prefs';
+import { useOpenGroups } from '../../lib/usePrefs';
 
-function Nav({ onNavigate }: { onNavigate?: () => void }) {
+interface NavProps {
+  /** The stored opinion per group - the shell's, so both copies agree. */
+  groups: OpenGroups;
+  /** The group holding the page being shown, which is open unless folded. */
+  activeGroup: string | null;
+  onToggle: (id: string) => void;
+  onNavigate?: () => void;
+}
+
+function Nav({ groups, activeGroup, onToggle, onNavigate }: NavProps) {
   const behind = useUpdatesBehind();
+  const uid = useId();
   return (
     <nav className="set-nav-list" aria-label="Settings sections">
-      {GROUPS.map((g) => (
-        <div className="set-nav-group" key={g.id} role="group" aria-labelledby={`set-nav-g-${g.id}`}>
-          <p className="set-nav-gh" id={`set-nav-g-${g.id}`}>{g.title}</p>
-          {SECTIONS.filter((s) => s.group === g.id).map((s) => (
-            <NavLink
-              key={s.id}
-              to={`/settings/${s.id}`}
-              className={({ isActive }) => `set-nav-item ${isActive ? 'on' : ''}`}
-              onClick={onNavigate}
+      {GROUPS.map((g) => {
+        const open = groupOpen(groups, g.id, activeGroup);
+        const headId = `${uid}-h-${g.id}`;
+        const panelId = `${uid}-p-${g.id}`;
+        return (
+          <div className="set-nav-group" key={g.id} role="group" aria-labelledby={headId}>
+            {/* The group title IS the toggle's accessible name - a bare chevron
+                is a button called "button", which checks/a11y-contract.mjs §6
+                refuses outright. */}
+            <button
+              type="button" className="set-nav-gh" id={headId}
+              aria-expanded={open} aria-controls={panelId}
+              onClick={() => onToggle(g.id)}
             >
-              <SectionIcon name={s.icon} />
-              <span className="set-nav-label">{s.title}</span>
-              {s.needs && <span className="set-nav-needs">{s.needs}</span>}
-              {s.id === 'updates' && behind !== null && behind > 0 && (
-                <span className="set-nav-count" title={`${behind} a minor version or more behind`}>
-                  {behind}<span className="sr-only"> components a minor version or more behind</span>
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </div>
-      ))}
+              <Icon icon={ChevronDown} size="sm" className="chev set-nav-chev" />
+              <span className="set-nav-gt">{g.title}</span>
+            </button>
+            {/* A Disclosure (SYS-10): the region stays in the DOM so the
+                aria-controls above resolves while it is shut, it folds on grid
+                rows rather than on a height, and `inert` keeps the links of a
+                shut group off the Tab order. */}
+            <Disclosure open={open} id={panelId}>
+              <div className="set-nav-items">
+                {SECTIONS.filter((s) => s.group === g.id).map((s) => (
+                  <NavLink
+                    key={s.id}
+                    to={`/settings/${s.id}`}
+                    className={({ isActive }) => `set-nav-item ${isActive ? 'on' : ''}`}
+                    onClick={onNavigate}
+                  >
+                    <SectionIcon name={s.icon} />
+                    <span className="set-nav-label">{s.title}</span>
+                    {s.needs && <span className="set-nav-needs">{s.needs}</span>}
+                    {s.id === 'updates' && behind !== null && behind > 0 && (
+                      <span className="set-nav-count" title={`${behind} a minor version or more behind`}>
+                        {behind}<span className="sr-only"> components a minor version or more behind</span>
+                      </span>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </Disclosure>
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -69,10 +125,37 @@ export function SettingsShell() {
   const [drawer, setDrawer] = useState(false);
   const sectionId = loc.pathname.split('/')[2] ?? '';
   const section = useMemo(() => sectionById(sectionId), [sectionId]);
+  const [groups, setGroups] = useOpenGroups();
+  const activeGroup = section?.group ?? null;
 
   // A navigation always closes the drawer - including one made by the search
   // inside it, which is not a NavLink click.
   useEffect(() => { setDrawer(false); }, [loc.pathname, loc.search]);
+
+  // Arriving at a section unfolds its group, so a hit from "Search settings", a
+  // pasted link or the Back button never lands behind a fold.
+  //
+  // ON ARRIVAL, which is what the ref is for and not a tidiness. Run on every
+  // change of `groups` instead and folding the group you are standing in is
+  // undone in the same frame: the toggle flips, the effect clears the fold it
+  // just wrote, and the group springs back open. A fold of the current group is
+  // therefore good until you leave and come back - including a reload, which is
+  // an arrival like any other.
+  const arrived = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (arrived.current === activeGroup) return;
+    arrived.current = activeGroup;
+    // arriveInGroup() returns the SAME object when there is nothing to clear,
+    // so an arrival into an already-open group writes nothing.
+    const next = arriveInGroup(groups, activeGroup);
+    if (next !== groups) setGroups(next);
+  }, [groups, activeGroup, setGroups]);
+
+  const nav = {
+    groups,
+    activeGroup,
+    onToggle: (id: string) => setGroups(toggleGroup(groups, id, activeGroup)),
+  };
 
   // The document title follows the section, so a tab list of five Settings pages
   // is five different names.
@@ -86,7 +169,7 @@ export function SettingsShell() {
     <div className="set-shell">
       <aside className="set-side scroll-shade">
         <SettingsSearch />
-        <Nav />
+        <Nav {...nav} />
       </aside>
 
       <div className="set-main">
@@ -110,7 +193,7 @@ export function SettingsShell() {
             </div>
             <div className="set-drawer-body scroll-shade">
               <SettingsSearch />
-              <Nav onNavigate={() => setDrawer(false)} />
+              <Nav {...nav} onNavigate={() => setDrawer(false)} />
             </div>
           </DialogSurface>
           <span className="set-mobile-here">{section?.title ?? 'Settings'}</span>

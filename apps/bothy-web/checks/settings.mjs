@@ -15,6 +15,7 @@ import {
   parseAppearance, parseLayout, parseData, appearanceAttrs, landingRedirect, orderSections,
   togglePrimary, APPEARANCE_DEFAULT, LAYOUT_DEFAULT, DATA_DEFAULT, LANDINGS, KNOWN_KEYS,
   QUICK_TILES, CONTROL_CARDS,
+  SETTINGS_GROUPS_KEY, parseOpenGroups, groupOpen, toggleGroup, arriveInGroup,
 } from './prefs.mjs';
 import { LIVE_PATHS } from './redirects.mjs';
 
@@ -105,9 +106,75 @@ ok(QUICK_TILES.every((t) => new RegExp(`id="${t.id}"`).test(qv)),
 ok(CONTROL_CARDS.every((c) => chome.includes(`pickCard('${c.id}')`)),
   'every control-card id in prefs.ts is handed to a card by ControlHome.tsx', CONTROL_CARDS.map((c) => c.id).join(','));
 
+// ── prefs: which groups of the Settings nav are folded open (2026-10-08) ────
+// The default is CLOSED and it is not a constant - it is "the group holding the
+// page you are on" - so every failure here is silent on screen. A nav that
+// opens everything looks like the old nav; a nav that opens nothing looks like
+// a nav with no current page; and a key that collides with SettingBlock's folds
+// blocks on four pages with no error anywhere.
+ok(SETTINGS_GROUPS_KEY === 'bothy-settings-groups-v1' && SETTINGS_GROUPS_KEY !== 'bothy-settings-nav-v1',
+  'the nav groups have their OWN key - bothy-settings-nav-v1 holds block state', SETTINGS_GROUPS_KEY);
+for (const raw of [null, '', 'x', '[]', '42', '"box"', '{"box":"yes","you":1,"":true}']) {
+  ok(JSON.stringify(parseOpenGroups(raw)) === '{}', `nav groups ${JSON.stringify(raw)} -> no opinion`);
+}
+ok(JSON.stringify(parseOpenGroups('{"box":true,"you":false,"look":"x"}')) === '{"box":true,"you":false}',
+  'only boolean opinions survive the parse');
+// The rule itself.
+ok(groupOpen({}, 'box', 'box') === true && groupOpen({}, 'you', 'box') === false,
+  'with nothing stored, exactly the group holding the page is open');
+ok(groupOpen({ you: true }, 'you', 'box') === true && groupOpen({ box: false }, 'box', 'box') === false,
+  'a stored opinion beats the default, in both directions');
+ok(groupOpen({}, 'you', null) === false,
+  'on /settings itself - no section, so no active group - every group is shut');
+// The toggle, and the canonicalisation that keeps a non-choice out of the store.
+ok(JSON.stringify(toggleGroup({}, 'you', 'box')) === '{"you":true}', 'opening a group away from the page is remembered');
+ok(JSON.stringify(toggleGroup({}, 'box', 'box')) === '{"box":false}', 'folding the group you are in is remembered');
+ok(JSON.stringify(toggleGroup({ box: false }, 'box', 'box')) === '{}'
+  && JSON.stringify(toggleGroup({ you: true }, 'you', 'box')) === '{}',
+  'an opinion that has become the default is deleted, not written back');
+ok(JSON.stringify(parseOpenGroups(JSON.stringify(toggleGroup({}, 'access', 'box')))) === '{"access":true}',
+  'what the nav writes is what the next load reads (the round trip)');
+// Arriving. A fold must not swallow the page you just navigated to.
+ok(JSON.stringify(arriveInGroup({ box: false }, 'box')) === '{}',
+  'navigating into a folded group unfolds it - a search hit always lands somewhere visible');
+ok(JSON.stringify(arriveInGroup({ box: false }, 'you')) === '{"box":false}',
+  'and leaves every other group exactly as it was');
+const kept = { you: true };
+ok(arriveInGroup(kept, 'you') === kept && arriveInGroup(kept, null) === kept,
+  'nothing to clear returns the SAME object, so the shell writes nothing on a plain render');
+// THE WIRE, both halves. A group id the nav cannot name, or a shell that keeps
+// the open state per Nav copy, are each invisible until someone uses the drawer.
+const shell = readFileSync(join(SRC, 'components/settings/SettingsShell.tsx'), 'utf8');
+const navBody = shell.slice(shell.indexOf('function Nav('), shell.indexOf('export function SettingsShell'));
+ok(navBody.length > 200 && !/useState|localStorage/.test(navBody),
+  'Nav holds no open state of its own - the two copies read the shell\'s', `${navBody.length} chars read`);
+ok(/useOpenGroups\(\)/.test(shell) && (shell.match(/<Nav \{\.\.\.nav\}/g) ?? []).length === 2,
+  'both the aside and the drawer are handed the one state', `${(shell.match(/<Nav \{\.\.\.nav\}/g) ?? []).length} copies`);
+ok(/const uid = useId\(\)/.test(shell) && /\$\{uid\}-p-\$\{g\.id\}/.test(shell),
+  'each copy builds its region ids off its own useId - both are in the DOM while the drawer is open');
+ok(/arriveInGroup\(groups, activeGroup\)/.test(shell) && /next !== groups/.test(shell),
+  'the shell clears a fold on arrival, and only writes when something changed');
+// The bug this cost an hour: without the ref the effect runs on every change of
+// `groups`, so folding the group you are standing in is undone in the same frame
+// and the group springs back open. It looks like a toggle that does not work.
+ok(/arrived\.current === activeGroup\) return;/.test(shell) && /arrived\.current = activeGroup;/.test(shell),
+  'and it clears it on ARRIVAL only, so folding the group you are in is not undone in the same frame');
+const navCss = readFileSync(join(SRC, 'components/settings/settings.css'), 'utf8');
+ok(/\.set-nav-gh\[aria-expanded='false'\] \.set-nav-chev/.test(navCss),
+  'the chevron turns off aria-expanded, not off a second copy of the open state');
+
 const keys = KNOWN_KEYS.map((k) => k.key);
 for (const k of ['portal-theme', 'portal-theme-appearance', 'portal-theme-is-user', 'bothy-reading-v1', 'bothy-collapsed-groups-v1', 'bothy-control-nav-v1']) {
   ok(keys.includes(k), `the existing key ${k} keeps its name`);
+}
+ok(new Set(keys).size === keys.length, 'no key is listed twice', keys.filter((k, i) => keys.indexOf(k) !== i).join(','));
+// Every key this app writes must be listed AND resettable from Settings > Layout
+// > Remembered layout, or it is state a person can neither see nor clear.
+const layoutPage = readFileSync(join(SRC, 'pages/settings/Layout.tsx'), 'utf8');
+for (const k of [SETTINGS_GROUPS_KEY]) {
+  const entry = KNOWN_KEYS.find((x) => x.key === k);
+  ok(!!entry && entry.resettable, `${k} is in KNOWN_KEYS and says it can be reset`);
+  ok(/SETTINGS_GROUPS_KEY/.test(layoutPage), `${k} has a row with a Reset in Remembered layout`);
 }
 
 console.log(fails ? `\nFAILED: ${fails}` : '\nsettings: all passed');

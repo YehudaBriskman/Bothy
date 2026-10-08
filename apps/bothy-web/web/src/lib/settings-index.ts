@@ -87,7 +87,7 @@ export const BLOCKS: readonly SettingsBlockDef[] = [
   { id: 'landing', section: 'layout', title: 'Landing page', description: 'The page a bare visit to Bothy opens on.', keywords: 'home start default page' },
   { id: 'overview-order', section: 'layout', title: 'Overview section order', description: 'Bothy first or Projects first in the system matrix.', keywords: 'sort order sections projects' },
   { id: 'overview-panels', section: 'layout', title: 'Overview panels', description: 'Which optional panels the Overview shows.', keywords: 'hide show widgets cards vitals disk' },
-  { id: 'remembered-layout', section: 'layout', title: 'Remembered layout', description: 'Collapsed groups, the Control menu and pane widths - see and reset them.', keywords: 'reset collapsed groups sidebar panes' },
+  { id: 'remembered-layout', section: 'layout', title: 'Remembered layout', description: 'Collapsed groups, the Settings menu, the Control menu and pane widths - see and reset them.', keywords: 'reset collapsed groups sidebar panes fold folded expand menu nav' },
   // data
   { id: 'poll', section: 'data', title: 'Refresh interval', description: 'How often the pages ask Docker and Traefik for the state of the box.', keywords: 'poll polling refresh rate interval seconds' },
   { id: 'chart-range', section: 'data', title: 'Default chart range', description: 'The time range the vitals charts open on.', keywords: 'metrics time range graphs 1h 24h' },

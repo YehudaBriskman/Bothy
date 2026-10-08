@@ -40,10 +40,31 @@
 /* ── the nav ─────────────────────────────────────────────────────────────── */
 .set-nav-list { display: flex; flex-direction: column; gap: var(--sp-3_5); }
 .set-nav-group { display: flex; flex-direction: column; gap: 1px; }
+/* The group heading is the fold's toggle (2026-10-08). It keeps the label
+   look it had as a <p> - the same size, weight, tracking and quiet colour - so
+   the nav reads the same; what it gains is a chevron, a hit target and a hover.
+   It is NOT a .btn: a 10px uppercase label is not a button shape, and ui/Button
+   may not be restyled into one (checks/design-tokens.mjs §1). It is registered
+   there instead as a row control, beside .svc-group-head. */
 .set-nav-list .set-nav-gh {
-  margin: 0 0 var(--sp-1); padding: 0 var(--sp-2_5);
+  display: flex; align-items: center; gap: var(--sp-1_5);
+  width: 100%; min-height: var(--hit); margin: 0; padding: 0 var(--sp-2);
+  background: none; border: 0; border-radius: var(--r-sm); cursor: pointer; text-align: start;
   font-size: var(--fs-2xs); line-height: var(--lh-2xs); font-weight: 700; letter-spacing: var(--label-tracking); text-transform: uppercase;
   color: var(--fg-subtle);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.set-nav-list .set-nav-gh:hover { color: var(--fg-muted); background: var(--surface-2); }
+.set-nav-list .set-nav-gh:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.set-nav-list .set-nav-gt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The glyph turns from the attribute the button already has to carry, so there
+   is no second copy of the open state to get out of step with the first. The
+   timing is the app's one chevron timing, from .chev in index.css. */
+.set-nav-list .set-nav-gh[aria-expanded='false'] .set-nav-chev { transform: rotate(-90deg); }
+/* The links of one group. The top pad is INSIDE the folding region, so it folds
+   away with them rather than leaving a gap under a shut heading. */
+.set-nav-list .set-nav-items {
+  display: flex; flex-direction: column; gap: 1px; padding-block-start: var(--sp-1);
 }
 .set-nav-list .set-nav-item {
   display: flex; align-items: center; gap: var(--sp-2_5);

@@ -10,7 +10,8 @@ import { Choice } from '../../components/settings/bits';
 import { useLayout } from '../../lib/usePrefs';
 import { announcePref } from '../../lib/usePrefs';
 import {
-  LANDINGS, OVERVIEW_PANELS, readRaw, type Landing, type Layout, type OverviewPanel, type SectionOrder,
+  LANDINGS, OVERVIEW_PANELS, SETTINGS_GROUPS_KEY, parseOpenGroups, readRaw,
+  type Landing, type Layout, type OverviewPanel, type SectionOrder,
 } from '../../lib/prefs';
 import { COLLAPSED_KEY, parseCollapsed } from '../../lib/collapse';
 import { Button } from '../../components/ui/Button';
@@ -112,6 +113,7 @@ export function LayoutSettings() {
 function Remembered() {
   const [, bump] = useState(0);
   const collapsed = parseCollapsed(readRaw(COLLAPSED_KEY));
+  const folded = Object.entries(parseOpenGroups(readRaw(SETTINGS_GROUPS_KEY)));
   const rows = [
     {
       key: COLLAPSED_KEY,
@@ -133,6 +135,18 @@ function Remembered() {
       now: readRaw('bothy-files-panes-v1') ? 'resized by you' : 'defaults',
       where: <Link className="link" to="/files/edit">Files editor</Link>,
       set: !!readRaw('bothy-files-panes-v1'),
+    },
+    {
+      key: SETTINGS_GROUPS_KEY,
+      what: 'Folded groups in the Settings menu',
+      // Said as a COUNT of disagreements with the default, not as a list of
+      // open groups: the default is "the group you are on", so "three open"
+      // would be a different sentence on every page. See lib/prefs.ts.
+      now: folded.length
+        ? `${folded.filter(([, v]) => v).length} kept open, ${folded.filter(([, v]) => !v).length} kept shut`
+        : 'only the group you are in',
+      where: <span className="dim">the menu beside this page</span>,
+      set: folded.length > 0,
     },
     {
       key: 'bothy-settings-nav-v1',

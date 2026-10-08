@@ -1666,7 +1666,7 @@ html[data-motion='reduce']::view-transition-new(root) { animation-duration: var(
 }
 :where(.nav-item, .tabs button[role='tab'], .ui-menu-item, .ui-pop-row,
   .cmdk-item, .fx-row, .rd-doc, .rd-dir, .set-opt, .theme-card, .ct-item, .svc-group-head,
-  .ov-quick-item, .fx-sr-file, .fx-sr-line):active:not(:disabled, [aria-disabled='true']) {
+  .set-nav-gh, .ov-quick-item, .fx-sr-file, .fx-sr-line):active:not(:disabled, [aria-disabled='true']) {
   background-color: var(--surface-press);
 }
 /* Reduced motion keeps the feedback and drops the movement (decision 3). Both
