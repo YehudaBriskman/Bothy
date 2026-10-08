@@ -100,6 +100,23 @@ def _pinned_in(catalog: updates.Catalog | None, rel: str) -> list[str]:
                    for i in range(len(c.pins)) if c.pin_parts(i)[0] == rel})
 
 
+def config_only_words(container: str, apply: str) -> str:
+    """"the image matches but the configuration does not" - the whole refusal.
+
+    A function rather than an f-string at the one place that raises it, so that a
+    check can MEASURE it against every container name and recipe the real
+    updates.toml carries. Every writer of a refusal caps it at 300 characters,
+    the cap is applied in a different module from the sentence, and a sentence
+    cut by it loses its END - which here is the action. The first draft of this
+    one named the pinned image as the other branches do and ran to 385 characters
+    for postgres-exporter; the version is already in the row's Pinned cell and
+    the evidence is in `configDrift` beside it, so it is not here.
+    """
+    return (f"the image matches but the configuration does not: {container} runs the image main pins, and "
+            f"`{apply}` would still recreate it - the merged compose configuration changed. The updater moves "
+            f"image pins only, so this one is by hand, after a backup")
+
+
 def _git_gate(cfg: Config, rels: list[str], catalog: updates.Catalog | None = None) -> str:
     """HEAD's sha, if the checkout may be deployed from at all.
 
@@ -241,12 +258,8 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
             # pin lines, which is all a rollback can put back - so the answer is
             # still a refusal. It is now a refusal that says the true thing.
             if isinstance(e.get("configDrift"), str) and e["configDrift"]:
-                raise PlanRefused(
-                    f"the image matches but the configuration does not: {pin.container} runs what main pins "
-                    f"({pin.value}), and `{comp.apply}` would still recreate it because the merged compose "
-                    f"configuration changed. The updater deploys image pins only, so that one is by hand, "
-                    f"after a backup",
-                    short="the image matches, the configuration does not")
+                raise PlanRefused(config_only_words(pin.container, comp.apply),
+                                  short="the image matches, the configuration does not")
             raise PlanRefused(f"nothing to deploy: {pin.container} runs what main pins ({pin.value})")
         raise PlanRefused(f"{pin.value} now names a different image than the one running (re-published "
                           "upstream) - the updater does not chase a moving tag; do it by hand")

@@ -597,9 +597,9 @@ const PLANS: Record<string, Plan> = {
 
 const REASONS: Record<string, string> = {
   cadvisor: 'nothing to deploy: cadvisor runs what main pins',
-  'node-exporter': 'the image matches but the configuration does not: node-exporter runs what main pins '
-    + '(prom/node-exporter:v1.12.1), and `just up-monitoring` would still recreate it because the merged compose '
-    + 'configuration changed. The updater deploys image pins only, so that one is by hand, after a backup',
+  'node-exporter': 'the image matches but the configuration does not: node-exporter runs the image main pins, '
+    + 'and `just up-monitoring` would still recreate it - the merged compose configuration changed. The updater '
+    + 'moves image pins only, so this one is by hand, after a backup',
   'postgres-exporter': 'nothing to deploy: postgres-exporter runs what main pins',
   headlamp: 'nothing to deploy: headlamp is not running (start it with `just up-headlamp`)',
   victoriametrics: 'nothing to deploy: victoriametrics runs what main pins. v1.153.0 is newer upstream - merge its Dependabot PR, pull the checkout, then `just updates-discover`',
@@ -666,9 +666,8 @@ const GROUP: GroupPlan = {
   skipped: [
     { component: 'cadvisor', reason: 'a major (0.55.1 -> 1.0.0) is a manual procedure' },
     { component: 'node-exporter', reason: 'the image matches but the configuration does not: node-exporter runs '
-      + 'what main pins (prom/node-exporter:v1.12.1), and `just up-monitoring` would still recreate it because '
-      + 'the merged compose configuration changed. The updater deploys image pins only, so that one is by hand, '
-      + 'after a backup' },
+      + 'the image main pins, and `just up-monitoring` would still recreate it - the merged compose configuration '
+      + 'changed. The updater moves image pins only, so this one is by hand, after a backup' },
     { component: 'victoriametrics', reason: 'nothing to deploy: victoriametrics runs what main pins' },
   ],
   restarts: ['grafana', 'alloy', 'loki', 'grafana (log panels)'],

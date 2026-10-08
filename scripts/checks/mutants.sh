@@ -1095,6 +1095,12 @@ mutant "the refusal collapses back into 'nothing to deploy'" \
   '            if False:' \
   -- python3 apps/bothy-ops/checks/test_updater.py
 
+mutant "the config-only refusal grows past the cap that cuts its end off" \
+  apps/bothy-ops/updater/plans.py \
+  'image pins only, so this one is by hand, after a backup")' \
+  'image pins only, so this one is by hand, after a backup. The version it pins, the version it runs and the digest behind both are in the row above this one.")' \
+  -- python3 apps/bothy-ops/checks/test_updates_catalog.py
+
 mutant "a dirty pin file stops saying how far it reaches" \
   apps/bothy-ops/updater/plans.py \
   'reach = f", which refuses the plan for all {len(also)} components pinned in it" if len(also) > 1 else ""' \
