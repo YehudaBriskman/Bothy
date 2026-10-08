@@ -728,8 +728,14 @@ class Discoverer:
             r = run.get(cname)
             if r is None:
                 continue  # not running: there is no configuration to compare
-            if r.get("image") and not same_image(r["image"], ref):
-                continue  # the image explains the difference, and `drift` says so
+            # Named, because the name IS the rule, and because `if r.get("image")
+            # and not same_image(...)` is also the drift loop's test one method
+            # below - two identical lines in one file are a trap for anything that
+            # anchors on source text (scripts/checks/mutants.sh plants on the
+            # FIRST match).
+            image_explains_it = bool(r.get("image")) and not same_image(r["image"], ref)
+            if image_explains_it:
+                continue
             try:
                 pj = self.projects.of(cname, f, service)
             except (ValueError, OSError) as err:

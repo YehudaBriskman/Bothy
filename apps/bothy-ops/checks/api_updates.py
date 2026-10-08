@@ -119,6 +119,14 @@ put({"version": 1, "generatedAt": now, "components": {
     "loki": {"checkedAt": now, "current": {"tag": "3.7.7", "version": "3.7.7"}, "running": [], "drift": None,
              "latest": {"tag": "3.7.8", "version": "3.7.8", "level": "patch"},
              "candidates": {"patch": {"tag": "3.7.8", "version": "3.7.8", "level": "patch"}}},
+    # The image matches and the merged configuration does not - the one state the
+    # whole pipeline was blind to until 2026-10-08. `drift` is None here ON
+    # PURPOSE: the two fields answer different questions and must not fold into
+    # one another, on the row or in the summary.
+    "alloy": {"checkedAt": now, "current": {"tag": "v1.20.1", "version": "1.20.1"}, "drift": None,
+              "running": [{"name": "alloy", "image": "grafana/alloy:v1.20.1", "state": "running"}],
+              "configDrift": "`just up-monitoring` would recreate alloy: the merged compose configuration is "
+                             "not the one alloy was created with (wants aaaaaaaaaaaa…, has bbbbbbbbbbbb…)"},
     "cadvisor": {"checkedAt": now, "current": {"tag": "v0.55.1", "version": "0.55.1"},
                  "latest": {"tag": "v1.0.0", "version": "1.0.0", "level": "major"},
                  "candidates": {"major": {"tag": "v1.0.0", "version": "1.0.0", "level": "major"}}},
@@ -137,16 +145,27 @@ ok(rows["cadvisor"]["effectiveChannel"] == "manual", "cadvisor: an auto componen
 ok(rows["traefik"]["discovered"]["error"].startswith("RateLimited") and rows["traefik"]["level"] is None,
    "traefik: the error is served, and no level is invented")
 ok(rows["keycloak"]["discovered"] is None, "keycloak: not in the file -> not discovered, still listed")
+a = rows["alloy"]["discovered"]
+ok(a["configDrift"].startswith("`just up-monitoring` would recreate alloy") and a["drift"] is None,
+   f"alloy: the config drift is served, and it is not the image drift field: {a['configDrift']}")
+ok(g["discovered"]["configDrift"] is None,
+   "grafana: image drift and no config drift -> configDrift is null, not the drift sentence again")
 ok(body["summary"] == {"components": len(rows), "updates": 3, "behind": 2, "drift": 1, "errors": 1,
                        # `toApply` is the count the page was missing: pins this box
                        # has NOT applied, which is a different question from
                        # `updates` (what is newer upstream). No plans are written
                        # here, so both it and `groups` are 0.
-                       "toApply": 0, "groups": 0},
+                       "toApply": 0,
+                       # And beside it the count that has no Apply at all: the
+                       # image matches, so the updater will never move it, and the
+                       # page must still say the box is running something `main`
+                       # does not declare. One component here (alloy).
+                       "configDrift": 1, "groups": 0},
    f"the summary: {body['summary']}")
 lines = log_lines()
-ok(lines and lines[-1].split("\t")[1:4] == ["viewer@example.com", "READ", "updates-status"],
-   f"one admin.log line per read: {lines[-1:] }")
+ok(lines and lines[-1].split("\t")[1:4] == ["viewer@example.com", "READ", "updates-status"]
+   and "1 config drift" in lines[-1],
+   f"one admin.log line per read, and it counts config drift too: {lines[-1:] }")
 
 print()
 print("── allow-list: a hostile file loses everything unexpected ───────")

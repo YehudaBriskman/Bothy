@@ -336,6 +336,29 @@ except plans.PlanRefused as e:
        "…naming the service, and that the group moves image pins only")
 DIFFERS.discard("extra")
 
+# ── A CONFIG-ONLY LEFTOVER USED TO READ AS "NOTHING IS WRONG" ─────────────────
+# Everything in `others` is a service compose WOULD recreate. A member whose
+# image matches and whose configuration does not refused with "nothing to
+# deploy", _leftover_words relayed it verbatim, and the leftover then said
+# `nothing` about the one service the group was refusing over. plans.py splits
+# that refusal; this relays its one-clause form, which also survives the
+# 300-character cap the whole sentence is cut at - the full one does not.
+_saved_graf = RUNNING["t-grafana"]
+RUNNING["t-grafana"] = ("grafana/grafana:13.2.2", "sha256:" + "7" * 64, D("f"))
+ACD = json.loads(json.dumps(A))
+ACD["components"]["grafana"]["configDrift"] = (
+    "`just up-web` would recreate grafana: the merged compose configuration is not the one t-grafana was "
+    "created with (wants want-grafana…, has old-grafana…)")
+try:
+    groups.plan("up-web", cfg=cfg, catalog=catalog, available=ACD)
+    ok(False, "a config-only leftover refuses the group  (a plan was MADE)")
+except plans.PlanRefused as e:
+    ok("the image matches, the configuration does not" in str(e) and "nothing" not in str(e),
+       f"a config-only leftover says what is actually true, not 'nothing'  ({e})")
+    ok("grafana (grafana:" in str(e) and len(str(e)) <= 300,
+       f"…naming the service and its component, inside the cap ({len(str(e))} chars)")
+RUNNING["t-grafana"] = _saved_graf
+
 print()
 print("── fewer than two members: not a group, with each reason ────────")
 # The reason a member was refused is now in `per`, not glued onto the sentence -

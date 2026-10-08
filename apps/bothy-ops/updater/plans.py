@@ -51,11 +51,19 @@ class PlanRefused(Exception):
     or more (one is its own row). alloy: nothing to deploy: ...; grafana: noth".
     Apart it is one sentence on the surface and six named facts behind a hint;
     together it was 300 characters of neither.
+
+    `short` is the same refusal in ONE CLAUSE, for a refusal that will be printed
+    inside a LIST of refusals. `groups._leftover_words` prints one per leftover
+    service into a sentence that is itself capped at 300, so a 250-character
+    reason relayed there is a reason nobody reads - the same cap landing in the
+    same place for the same reason. A writer sets it only where the full sentence
+    is too long to relay; `_leftover_words` falls back to the full one.
     """
 
-    def __init__(self, message: str, per: list[dict] | None = None) -> None:
+    def __init__(self, message: str, per: list[dict] | None = None, short: str | None = None) -> None:
         super().__init__(message)
         self.per: list[dict] = per or []
+        self.short: str = short or ""
 
 
 def load_available(cfg: Config) -> dict:
@@ -75,8 +83,28 @@ def _home(p: str) -> str:
     return "~" + p[len(h):] if p.startswith(h + os.sep) else p
 
 
-def _git_gate(cfg: Config, rels: list[str]) -> str:
-    """HEAD's sha, if the checkout may be deployed from at all."""
+def _pinned_in(catalog: updates.Catalog | None, rel: str) -> list[str]:
+    """Every component whose pin lives in `rel` - how far one dirty file reaches.
+
+    The silent cliff this exists to close: a single uncommitted line in
+    `monitoring/compose.yml` - which an `editor` can write through Bothy Files
+    today, and which docs/plans/updates.md calls user work rather than drift -
+    refuses the plan for ALL SIX components pinned in that file. Until
+    2026-10-08 each of the six said only that the file had local changes, so the
+    page showed six rows blaming one file with nothing saying it was one edit,
+    and no row said how to get the other five back.
+    """
+    if catalog is None:
+        return []
+    return sorted({c.id for c in catalog.components.values()
+                   for i in range(len(c.pins)) if c.pin_parts(i)[0] == rel})
+
+
+def _git_gate(cfg: Config, rels: list[str], catalog: updates.Catalog | None = None) -> str:
+    """HEAD's sha, if the checkout may be deployed from at all.
+
+    `catalog`, when given, lets the dirty-file refusal say how far it reaches.
+    Optional so a caller without one still gets the gate, never a crash."""
     rc, branch = git(cfg.repo, "symbolic-ref", "--quiet", "--short", "HEAD")
     if rc != 0 or branch != "main":
         raise PlanRefused(f"the checkout is on {branch or 'a detached HEAD'!s}, not main - the updater "
@@ -87,8 +115,17 @@ def _git_gate(cfg: Config, rels: list[str]) -> str:
     for rel in rels:
         rc, dirty = git(cfg.repo, "status", "--porcelain", "--", rel)
         if rc != 0 or dirty:
-            raise PlanRefused(f"{rel} has local changes (a rollback leaves the old pin there on purpose) - "
-                              f"look at `git diff {rel}`, then `git checkout -- {rel}` to deploy what main pins")
+            base = f"{rel} has local changes"
+            tail = (f" - a rollback leaves the old pin there on purpose, so read `git diff {rel}` before "
+                    f"`git checkout --` it")
+            also = _pinned_in(catalog, rel)
+            reach = f", which refuses the plan for all {len(also)} components pinned in it" if len(also) > 1 else ""
+            # The NAMES are the useful part and the first thing to go when they
+            # would not fit: 300 is where every writer of a refusal cuts, and a
+            # count that survives beats six names cut mid-word (2026-10-07).
+            if reach and len(base + reach + f" ({', '.join(also)})" + tail) <= 300:
+                reach += f" ({', '.join(also)})"
+            raise PlanRefused(base + reach + tail, short=base)
     rc, _ = git(cfg.repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main")
     if rc != 0:
         raise PlanRefused("there is no origin/main to compare the checkout with")
@@ -154,7 +191,7 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
     parts = [comp.pin_parts(i) for i in range(len(comp.pins))]
     rel, service = parts[0]
 
-    head = _git_gate(cfg, sorted({f for f, _ in parts}))
+    head = _git_gate(cfg, sorted({f for f, _ in parts}), catalog)
     try:
         all_pins = [pins.locate(cfg.repo, f, s or "") for f, s in parts]
     except HostError as e:
@@ -196,6 +233,20 @@ def plan(component: str, target: str | None = None, *, cfg: Config | None = None
     from_digest = frm["digest"] or hostio.repo_digest(old_img, frm["ref"])
     if same_image(run["image"], pin.value):
         if from_digest == to_digest or None in (from_digest, to_digest):
+            # "there is nothing to do" and "the image matches but the
+            # configuration does not" are DIFFERENT FACTS, and collapsing them is
+            # how grafana came to run a merged configuration `main` no longer
+            # declares while the page said `drift: None` and `nothing to deploy`
+            # (2026-10-08). The updater still does not deploy it - it moves image
+            # pin lines, which is all a rollback can put back - so the answer is
+            # still a refusal. It is now a refusal that says the true thing.
+            if isinstance(e.get("configDrift"), str) and e["configDrift"]:
+                raise PlanRefused(
+                    f"the image matches but the configuration does not: {pin.container} runs what main pins "
+                    f"({pin.value}), and `{comp.apply}` would still recreate it because the merged compose "
+                    f"configuration changed. The updater deploys image pins only, so that one is by hand, "
+                    f"after a backup",
+                    short="the image matches, the configuration does not")
             raise PlanRefused(f"nothing to deploy: {pin.container} runs what main pins ({pin.value})")
         raise PlanRefused(f"{pin.value} now names a different image than the one running (re-published "
                           "upstream) - the updater does not chase a moving tag; do it by hand")

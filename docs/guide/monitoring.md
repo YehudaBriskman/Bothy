@@ -58,7 +58,7 @@ question does this answer that nothing else here answers**:
 | Scrape targets, as a timeline | has a target been *flapping* - `instance_down` needs two full minutes, so a target that bounces every ninety seconds pages nobody |
 | Host headroom | how close to the memory and disk alerts are we, measured with those alerts' own expressions |
 | Log lines per second | is the **log** pipeline alive - Alloy can stop shipping while every container stays healthy, and nothing alerts on it |
-| Updates | pins drifted from what the repository pins, and components discovery could not check. Neither has an alert |
+| Updates | pins drifted from what the repository pins, and components discovery could not check. Neither has an alert. `bothy_update_config_drift` - the image matches and the merged compose configuration does not - is exported beside them and is on no panel yet either |
 | How current this is | how long since the host booted, and since the updater last wrote - the numbers to its left are read out of that file |
 
 Three things are **deliberately not on it**, and the reasons are the useful part:

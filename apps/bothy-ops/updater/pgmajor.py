@@ -236,7 +236,7 @@ def plan(comp: updates.Component, cfg: Config, catalog: updates.Catalog, availab
     if comp.source != "image" or not comp.pins:
         raise PlanRefused("Postgres is a compose image pin")
     parts = [comp.pin_parts(i) for i in range(len(comp.pins))]
-    head = _git_gate(cfg, sorted({f for f, _ in parts}))
+    head = _git_gate(cfg, sorted({f for f, _ in parts}), catalog)
     try:
         all_pins = [pins.locate(cfg.repo, f, s or "") for f, s in parts]
     except HostError as e:

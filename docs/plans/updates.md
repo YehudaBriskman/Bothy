@@ -82,6 +82,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
   - the helm index, for charts.
 
   It writes `available.json`, labels each entry patch, minor or major, and writes Prometheus textfile metrics `bothy_update_available{component,level}`, which node-exporter already exports.
+- **Drift is two questions, and the box answers both** (2026-10-08). `drift` is "the IMAGE that runs is not the image the files pin", read from references and digests. `configDrift` is "the merged compose CONFIGURATION that runs is not the one the files declare", read from `docker compose config --hash` against the container's own `com.docker.compose.config-hash` label - once per compose project, through the same `hostio.compose_project()` the scope check uses, so the two can never disagree about what a project is. A pin line whose image already drifts is not reported twice: the image reference is part of what compose hashes, so `configDrift` means exactly *the image matches and the configuration does not*, which is the state nothing in the pipeline could see. It is a sentence with compose's two hashes in it and never a diff - `docker compose config` resolves `.env`, so the rendered configuration carries secrets and `available.json` is served to a `viewer`. Counted in `summary.configDrift` and exported as `bothy_update_config_drift{component}`.
 - **bothy-ops gains exact `Path()` routes** (five as built: status, plan, job and request, and - step 7 - unpause) in a hand-written `edge/dynamic/bothy-updates.yml` (allow-listed in `edge/dynamic/.gitignore`):
   - `GET /-/api/updates/status` (viewer): current and available versions, running job, history;
   - `GET /-/api/updates/plan?component=` (viewer): the host-written plan (diff, changelog, one-way flag, dependants, downtime);
@@ -182,6 +183,7 @@ browser ── /-/api/updates/* (exact Path, sso-viewer | sso-operator) ──�
 - **Recovery never needs the browser.** `just update-status` and `just update-rollback <component>` work over Tailscale SSH.
 - **Dirty trees:** edits made through the bothy-files editor and config forms are user work, not drift.
   - The updater refuses and says why, rather than stashing.
+  - **And the refusal says how far it reaches** (2026-10-08). One uncommitted line in `monitoring/compose.yml` refuses the plan for all **six** components pinned in that file; each of the six used to say only that the file had local changes, so the page showed six rows blaming one file with nothing saying it was one edit. The refusal now names the count and the components, and drops the names rather than the sentence if they would not fit the 300-character cap.
   - A future option is to have those edits commit automatically to a `local/edits` branch that the deploy branch merges.
 
 ## 7. Build order (each step is useful on its own)
