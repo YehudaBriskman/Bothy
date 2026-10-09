@@ -308,6 +308,7 @@ The rendered-document scale in Files.
 
 | Token | Value |
 |---|---|
+| `--z-activity` | `70` |
 | `--z-modal` | `90` |
 | `--z-popover` | `95` |
 | `--z-tooltip` | `96` |

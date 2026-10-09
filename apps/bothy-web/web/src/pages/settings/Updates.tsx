@@ -65,14 +65,15 @@
 // A viewer sees all three as one NeedsRole note, never as disabled buttons.
 
 import { Loader } from '../../components/ui/Loader';
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleArrowUp, CircleDashed, CirclePause, Layers, Lock, Minus, RotateCcw, X,
+  AlertTriangle, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleArrowUp, CirclePause, Layers, Lock, Minus, X,
 } from 'lucide-react';
 import { filesHref } from '../files/routes';
 import { SettingBlock } from '../../components/settings/SettingBlock';
-import { Cmd, Loading, Prose, Refusal, When, fmtBytes, useLoad } from '../../components/settings/bits';
+import { Actor, Cmd, Loading, Prose, Refusal, Ticks, When, fmtBytes, useLoad } from '../../components/settings/bits';
+import { HIST_WORD, JobGlyph, STATE_TONE, UpdateActivityRail, useJobFeed } from '../../components/UpdateActivity';
 import { Dialog } from '../../components/ui/Dialog';
 import { Disclosure } from '../../components/ui/Disclosure';
 import { InfoHint } from '../../components/ui/InfoHint';
@@ -81,13 +82,13 @@ import '../../components/KubeActions.css';
 import { useOperator } from '../../lib/session';
 import { statusOf } from '../../lib/http';
 import {
-  AUTO_ACTOR, applyGroup, askDiscover, askNightJob, fetchGroup, fetchJob, fetchPlan, fetchUpdates,
-  groupSkipped, isTerminal,
+  AUTO_ACTOR, adoptJob, applyGroup, askDiscover, askNightJob, fetchGroup, fetchPlan, fetchUpdates,
+  followJob, groupSkipped, isTerminal,
   pinFile, publishBehind,
   rememberJob, rememberedJob,
   requestUpdate, unpauseAuto,
   type AskRecord, type AutorunRecord,
-  type Channel, type GroupPlan, type GroupRow, type HistoryEntry, type Job, type JobState, type JobStep,
+  type Channel, type GroupPlan, type GroupRow, type HistoryEntry,
   type Level, type OwnPlan, type Plan, type UpdateRow,
   type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
@@ -102,21 +103,29 @@ export function UpdatesSettings() {
   const [groupFor, setGroupFor] = useState<GroupRow | null>(null);
   // The job this tab follows: one it asked for (remembered across reloads), else
   // whatever the host says is running now.
-  const [followed, setFollowed] = useState<string | null>(() => rememberedJob());
-  const hostJob = data?.job && !isTerminal(data.job.state) ? data.job.id : null;
-  const jobId = followed ?? hostJob;
+  const feed = useJobFeed();
 
   // The page's own read is the freshest count there is; hand it to the nav.
   useEffect(() => { if (data) publishBehind(data.summary.behind); }, [data]);
 
+  // WHAT ARMS THE LOOP. The store polls nothing until somebody tells it to follow
+  // a job, and this page is one of the two things that do (the other is pressing
+  // Apply, below). Two adoptions, neither of which can interrupt a job this tab
+  // asked for: the one this tab was following before a reload - the update being
+  // watched may recreate bothy-web underneath it - and the one the host says is
+  // running now, which it has already told us in the status read above.
+  useEffect(() => { adoptJob(rememberedJob()); }, []);
+  useEffect(() => {
+    if (data?.job && !isTerminal(data.job.state)) adoptJob(data.job.id);
+  }, [data]);
+
   const started = (id: string) => {
     rememberJob(id);
-    setFollowed(id);
+    followJob(id);
     setPlanFor(null);
     setGroupFor(null);
     reload();
   };
-  const dismiss = () => { rememberJob(null); setFollowed(null); };
 
   const fail = (
     <>
@@ -126,56 +135,42 @@ export function UpdatesSettings() {
   );
   return (
     <>
-      {/* WHAT IS HAPPENING SITS ON THE RIGHT, IN A SLOT THAT IS ALWAYS THERE (D3,
-          2026-10-07). The owner's words: "i want the actions that happening to be
-          in the right side of the page, without the sudden jump of the ui for the
-          real-time-update-actions card."
+      {/* WHAT IS HAPPENING SITS DOWN THE SIDE OF THE PAGE (2026-10-08). The
+          owner's words, after the first attempt: "the live actions card is not in
+          the right pannel like i wanted but just got transfared from upper
+          section above the controles to the side of them, i want that in the side
+          of the PAGE. compleate sepurations".
 
-          The jump was structural, not animated: JobPanel was mounted into the page
-          flow the moment a job existed, so pressing Apply inserted a ~300px panel
-          above everything and every block below it moved down - while the reader
-          was looking at the row they had just pressed.
+          They were right, and the reason is structural: the first attempt put the
+          rail in a two-column grid (`.upd-top`) whose LEFT cell was the Controls
+          block, so "the right column" meant "right of Controls". The rail is now
+          a column of the page itself - absolutely positioned against the settings
+          scroller, at its right edge, spanning the whole pane, with the body
+          reserving its width (settings.css). The blocks below are siblings of it
+          rather than children of a row, which is why they can be read at the full
+          width of the page again.
 
-          So the rail is a GRID COLUMN that exists whether or not a job does, and
-          the card inside it is absolutely positioned, which is the part that makes
-          the no-shift guarantee structural rather than a guess: an absolutely
-          positioned child contributes NO height, so the row's height is decided
-          entirely by the left column and the panel cannot push anything, however
-          many steps it grows. At rest the slot is not empty - it carries the last
-          job, which is the one fact somebody opening this page while nothing runs
-          actually wants.
+          THE NO-SHIFT GUARANTEE IS UNCHANGED and still structural: the rail's
+          width is reserved whether or not a job exists, and its card is
+          absolutely positioned, so it contributes no height and cannot move a
+          single block however many steps it grows.
 
-          BELOW 1100px THERE IS NO RIGHT, and the honest answer is a band of the
-          same fixed height across the top (settings.css): still reserved, still
-          never shifting, and still carrying the last job when nothing runs. */}
-      <div className="upd-top">
-        <div className="upd-top-main">
-          {data && <Freshness d={data} />}
-          {data?.updater?.staged && <UpdaterStaged u={data.updater} />}
-          <SettingBlock id="update-controls" badge="operator">
-            {loading && !data ? <Loading rows={2} /> : <Controls d={data} canAct={canAct} onChanged={reload} />}
-          </SettingBlock>
-        </div>
-        <div className="upd-rail">
-          {/* The scroller takes the app's shared edge cue (lib/scroll.ts drives
-              every .scroll-shade) and a tab stop, because at 390px a live panel
-              is taller than its band and a scroller nothing can focus is a
-              scroller a keyboard cannot reach. */}
-          <div className="upd-rail-in scroll-shade" tabIndex={0} role="region" aria-label="Update activity">
-            {jobId
-              ? <JobPanel id={jobId} key={jobId} onFinished={reload} onDismiss={dismiss} />
-              : <RestingJob d={data} />}
-          </div>
-        </div>
-      </div>
+          And the same card, as a round indicator in the corner of every OTHER
+          page: components/UpdateActivity.tsx, mounted in the shell. */}
+      {data && <Freshness d={data} />}
+      {data?.updater?.staged && <UpdaterStaged u={data.updater} />}
+      <SettingBlock id="update-controls" badge="operator">
+        {loading && !data ? <Loading rows={2} /> : <Controls d={data} canAct={canAct} onChanged={reload} />}
+      </SettingBlock>
+      <UpdateActivityRail d={data} onFinished={reload} />
       {data?.groups && data.groups.length > 0 && (
         <SettingBlock id="update-groups" badge="apply: operator">
-          <Groups d={data} canAct={canAct} busy={!!jobId && !!data.applying} onApply={setGroupFor} />
+          <Groups d={data} canAct={canAct} busy={!!feed.live && !!data.applying} onApply={setGroupFor} />
         </SettingBlock>
       )}
       <SettingBlock id="update-components" badge="viewer · apply: operator">
         {loading && !data ? <Loading rows={8} /> : error ? fail : data && (
-          <Components d={data} canAct={canAct} busy={!!jobId && !!data.applying} onUpdate={setPlanFor}
+          <Components d={data} canAct={canAct} busy={!!feed.live && !!data.applying} onUpdate={setPlanFor}
             onGroup={setGroupFor} onChanged={reload} />
         )}
       </SettingBlock>
@@ -1216,26 +1211,7 @@ function Paused({ r, canAct, onChanged }: { r: UpdateRow; canAct: boolean; onCha
   );
 }
 
-/** Who asked: a person's name, or the night job for the system actor. */
-function Actor({ who }: { who: string }) {
-  if (who !== AUTO_ACTOR) return <>{who}</>;
-  return <span className="upd-actor-auto" title={`requestedBy "${AUTO_ACTOR}": bothy-updater-auto.timer, in the night window`}>the night job</span>;
-}
-
 // ── the plan view ────────────────────────────────────────────────────────────
-
-/** Backticked spans as inline code - for prose that NAMES a command (a plan fact,
- *  a step's detail) rather than hands one over. <Prose> makes each one copyable,
- *  which is right for "run this next" and noise in a list of facts. */
-function Ticks({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/(`[^`]+`)/g).map((t, i) => (t.startsWith('`') && t.endsWith('`') && t.length > 2
-        ? <code key={i} className="mono upd-code">{t.slice(1, -1)}</code>
-        : <span key={i}>{t}</span>))}
-    </>
-  );
-}
 
 const shortDigest = (d: string | null) => (d ? `${d.slice(0, 19)}…` : 'digest unknown');
 
@@ -1479,203 +1455,7 @@ function OwnFacts({ plan, own, age }: { plan: Plan; own: OwnPlan; age: number | 
   );
 }
 
-// ── the live job ─────────────────────────────────────────────────────────────
-
-const STATE_WORD: Record<JobState, string> = {
-  queued: 'Queued - waiting for the host',
-  running: 'Running on the host',
-  succeeded: 'Applied',
-  rolled_back: 'Rolled back',
-  aborted: 'Aborted - nothing running was changed',
-  failed: 'Failed - a person is needed',
-  refused: 'Refused - nothing was touched',
-};
-
-// What a state means in the reserved palette: good, a warning, or down.
-const STATE_TONE: Record<JobState, 'up' | 'warn' | 'down' | 'busy'> = {
-  queued: 'busy', running: 'busy', succeeded: 'up', rolled_back: 'warn', aborted: 'warn', refused: 'warn', failed: 'down',
-};
-
-const STEP_WORD: Record<JobStep['name'], string> = {
-  validate: 'Re-validate the request and the plan',
-  preflight: 'Pre-flight',
-  snapshot: 'Snapshot',
-  pull: 'Pull the image',
-  apply: 'Apply',
-  verify: 'Verify (canaries)',
-  rollback: 'Roll back',
-  restore: 'Restore the data snapshot',
-  record: 'Record',
-  build: 'Build the new images (nothing running is touched)',
-  arm: 'Arm the rollback timer',
-  switch: 'Move the checkout (fast-forward)',
-  stage: 'Stage the new updater (not switched)',
-  // The Postgres major (step 8). `switch` there is compose moving to the new volume.
-  stop: 'Stop the writers (Keycloak, oauth2-proxy, the exporter)',
-  dump: 'pg_dumpall, rows counted from the dump',
-  create: 'Create the new volume and a temporary Postgres on it',
-  load: 'Restore the dump into it',
-  compare: 'Compare every database and row count with the dump',
-  start: 'Start Keycloak and oauth2-proxy again',
-};
-
-function useJob(id: string) {
-  const [job, setJob] = useState<Job | null>(null);
-  const [lost, setLost] = useState<{ since: number; why: string } | null>(null);
-  const [gone, setGone] = useState(false);
-  const stop = useRef(false);
-
-  const poll = useCallback(async (signal: AbortSignal) => {
-    try {
-      const j = await fetchJob(id, signal);
-      setJob(j);
-      setLost(null);
-      if (isTerminal(j.state)) stop.current = true;
-    } catch (e) {
-      if (signal.aborted) return;
-      const s = statusOf(e);
-      // A 404 from the SERVICE is an answer: the host has no such job. Anything
-      // else - a network error, a 502 from Traefik while bothy-ops is recreated,
-      // the portal's HTML while bothy-web is - is the update happening, not an end.
-      if (s === 404 && (e as { fromService?: boolean }).fromService) { setGone(true); stop.current = true; return; }
-      setLost((l) => l ?? { since: Date.now(), why: s === 0 ? 'nothing answered' : `answered ${s}` });
-    }
-  }, [id]);
-
-  useEffect(() => {
-    stop.current = false;
-    const ac = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const tick = async () => {
-      await poll(ac.signal);
-      if (!stop.current && !ac.signal.aborted) timer = setTimeout(() => void tick(), 2000);
-    };
-    void tick();
-    return () => { ac.abort(); if (timer) clearTimeout(timer); };
-  }, [poll]);
-
-  return { job, lost, gone };
-}
-
-function JobPanel({ id, onFinished, onDismiss }: { id: string; onFinished: () => void; onDismiss: () => void }) {
-  const { job, lost, gone } = useJob(id);
-  const ref = useRef<HTMLElement>(null);
-  const done = !!job && isTerminal(job.state);
-  const finished = useRef(false);
-  useEffect(() => {
-    if (done && !finished.current) { finished.current = true; onFinished(); }
-  }, [done, onFinished]);
-  useEffect(() => { ref.current?.scrollIntoView?.({ block: 'nearest' }); }, []);
-
-  if (gone) {
-    return (
-      <section className="upd-job" data-tone="warn" aria-label="Update job">
-        <p className="upd-job-h"><Icon icon={AlertTriangle} size="md" />The host has no job <span className="mono">{id.slice(0, 12)}</span>.</p>
-        <div className="ka-row"><Button variant="ghost" size="sm" onClick={onDismiss}>Dismiss</Button></div>
-      </section>
-    );
-  }
-  const tone = job ? STATE_TONE[job.state] : 'busy';
-  return (
-    <section ref={ref} className="upd-job" data-tone={tone} aria-label="Update job" aria-live="polite">
-      <header className="upd-job-head">
-        <p className="upd-job-h">
-          {!job || !done ? <Loader state="work" size="sm" announce={false} /> : <JobGlyph state={job.state} />}
-          <span>{job ? STATE_WORD[job.state] : 'Asking the host…'}</span>
-          {job && <span className="mono upd-job-what">{job.component}{job.to ? ` → ${job.to.version ?? job.to.image}` : ''}</span>}
-          {/* A group job: `component` is the recipe, so say which components it
-              is moving - otherwise the panel names a `just` target and nothing
-              about what is being replaced. */}
-          {job && (job.members?.length ?? 0) > 0 && (
-            <span className="set-cell-sub">{job.members!.join(', ')}</span>
-          )}
-        </p>
-        {done && <Button variant="ghost" size="sm" onClick={onDismiss}>Dismiss</Button>}
-      </header>
-      {lost && !done && (
-        <p className="set-note upd-lost" role="status">
-          <Loader state="connect" size="sm" announce={false} /> Reconnecting - {lost.why}. The job runs on the host whatever this tab does;
-          an update to Bothy itself or to Traefik interrupts this page on purpose.
-        </p>
-      )}
-      {job && (
-        <>
-          <ol className="upd-steps">
-            {job.steps.map((s) => (
-              <li key={s.name} className="upd-step" data-state={s.state}>
-                <StepGlyph state={s.state} />
-                <span className="upd-step-name">{STEP_WORD[s.name]}</span>
-                <span className="upd-step-when">{s.endedAt && s.startedAt ? secs(s.startedAt, s.endedAt) : s.state === 'running' ? 'now' : ''}</span>
-                {s.detail && <span className="upd-step-detail"><Ticks text={s.detail} /></span>}
-              </li>
-            ))}
-          </ol>
-          {job.error && done && <p className="upd-job-err"><b>Why:</b> <Prose text={job.error} /></p>}
-          {job.note && done && <p className="set-note"><Prose text={job.note} /></p>}
-          <p className="set-cell-sub">
-            job <span className="mono">{job.id.slice(0, 12)}</span> · asked by <Actor who={job.requestedBy} /> <When iso={job.requestedAt} />
-            {job.snapshot && <> · snapshot <span className="mono upd-path">{job.snapshot}</span></>}
-          </p>
-        </>
-      )}
-    </section>
-  );
-}
-
-/** THE SLOT AT REST (D3). It exists so that the rail's box is the same size with
- *  and without a job - that is the whole no-shift guarantee - and it carries a
- *  fact rather than reserving blank space. Reserved emptiness is a worse answer
- *  than a reserved fact, and the last job is the one the History block below makes
- *  you scroll for. One line: what, how it ended, when, who asked. */
-function RestingJob({ d }: { d: UpdatesStatus | null }) {
-  const last = d?.history?.[0] ?? null;
-  return (
-    <section className="upd-job upd-job-rest" data-tone="rest" aria-label="Update activity">
-      <p className="upd-job-h">
-        <Icon icon={CircleDashed} size="md" />
-        <span>Nothing is running</span>
-      </p>
-      {last ? (
-        <p className="set-cell-sub upd-rest-last">
-          Last: <b>{last.component}</b>{' '}
-          <span className="upd-result" data-tone={STATE_TONE[last.state]}>
-            <JobGlyph state={last.state} />{HIST_WORD[last.state]}
-          </span>{' '}
-          <When iso={last.endedAt ?? last.requestedAt} /> · asked by <Actor who={last.requestedBy} />
-        </p>
-      ) : (
-        <p className="set-cell-sub">No update has run from here yet.</p>
-      )}
-    </section>
-  );
-}
-
-const secs = (a: string, b: string) => {
-  const s = Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 1000));
-  return s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
-};
-
-function StepGlyph({ state }: { state: JobStep['state'] }) {
-  if (state === 'running') return <Loader state="work" size="sm" label="running" labelHidden announce={false} className="upd-step-g" />;
-  if (state === 'ok') return <Icon icon={Check} size="sm" className="upd-step-g" aria-label="done" />;
-  if (state === 'failed') return <Icon icon={X} size="sm" className="upd-step-g" aria-label="failed" />;
-  if (state === 'skipped') return <Icon icon={Minus} size="sm" className="upd-step-g" aria-label="skipped" />;
-  return <Icon icon={CircleDashed} size="sm" className="upd-step-g" aria-label="pending" />;
-}
-
-function JobGlyph({ state }: { state: JobState }) {
-  if (state === 'succeeded') return <Icon icon={Check} size="md" />;
-  if (state === 'failed') return <Icon icon={X} size="md" />;
-  if (state === 'rolled_back') return <Icon icon={RotateCcw} size="md" />;
-  return <Icon icon={AlertTriangle} size="md" />;
-}
-
 // ── history ──────────────────────────────────────────────────────────────────
-
-const HIST_WORD: Record<JobState, string> = {
-  queued: 'queued', running: 'running', succeeded: 'applied', rolled_back: 'rolled back', aborted: 'aborted',
-  failed: 'failed', refused: 'refused',
-};
 
 function History({ d }: { d: UpdatesStatus | null }) {
   const h: HistoryEntry[] = d?.history ?? [];

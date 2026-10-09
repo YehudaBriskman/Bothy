@@ -32,6 +32,14 @@ seconds, dismissible, announced politely, and never the only record of an error.
 An error that exists only in a toast that has already faded did not get
 reported.
 
+**A persistent status surface is not a toast**, and the test is two properties
+rather than its position on the screen: a toast reports something that **already
+happened** and removes itself on a **timer**. A fixed surface that reports
+something **still happening** and stays until the person dismisses it is a handle
+on a running job, and it is subject to the opposite rules - it must not fade, it
+must not stack, and it must not exist at all while nothing is happening. See
+[decisions, 2026-10-08](../reference/decisions.md).
+
 **Prefer inline confirmation** where the action has a visible local result. A
 toast to say a thing you can see happened is noise.
 
@@ -215,6 +223,7 @@ Everything a control owes, because it is one.
 | Tooltip | A label for a control that has no room for one | never moves |
 | **Detail hint** | One or two sentences of *why*, taken off the surface | never moves |
 | Disclosure | A region of content, including controls, that belongs to a row | moves on Tab, in place |
+| **Status dock** | Something still happening, on every page, with its own actions | moves on Tab, Escape returns it |
 | Dialog | A decision, with its own actions | trapped, returned |
 
 The boundary that matters in practice: **the moment the detail contains something
@@ -253,6 +262,13 @@ See [CHECKLIST.md § 17](../CHECKLIST.md#17-feedback-and-overlays).
   shows the Loader in its own button and updates the freshness pill; a failed poll is reported
   by the pill and the degraded line. Nothing needed a transient overlay, and one
   would have been a second, competing error channel.
+  _Amended 2026-10-08, explicitly and for one case:_ an update job runs on the
+  host for minutes and has no local result to show, so it has a **persistent**
+  corner surface on every page - `components/UpdateActivity.tsx`'s dock, the same
+  component and the same store as the rail down the side of Settings > Updates.
+  It has no timer, there is never more than one, and there is none at all when no
+  job is running. Everything the original decision refused is still refused; see
+  [decisions](../reference/decisions.md) for the argument and what was rejected.
 - **The system quick-lookup is a dialog rather than a page** because it answers a
   *lookup* - you want it, you read it, you carry on scanning. Making it a
   navigation meant losing your place on a page you were scanning. The dialog links
@@ -285,3 +301,10 @@ See [CHECKLIST.md § 17](../CHECKLIST.md#17-feedback-and-overlays).
   or nothing, and no two on a page share a name.
 - In a browser: focus the glyph with no pointer involved and assert the panel
   opens; press Escape and assert it closes with focus still on the trigger.
+- `checks/design-tokens.mjs` § 12 for the activity surfaces: the rail is a column
+  of the page whose width the page reserves and whose card is absolutely
+  positioned (so no block can move when a job starts), the dock is mounted in the
+  shell and nowhere else, it is absent when nothing is being followed, it opens on
+  focus and on a tap with hover gated to a mouse, and it expands by transform
+  rather than by size. In a browser, at 1440 and 390: bounding boxes compared
+  before and after a job starts, not eyeballed.

@@ -14,6 +14,7 @@ import { Brand } from './Brand';
 import { CommandPalette } from './CommandPalette';
 import { UserMenu } from './UserMenu';
 import { UpdateBanner } from './UpdateBanner';
+import { UpdateActivityDock } from './UpdateActivity';
 import { Icon as SizedIcon } from './ui/Icon';
 import { Loader } from './ui/Loader';
 
@@ -217,6 +218,21 @@ export function AppShell() {
       <CommandPalette open={paletteOpen} onClose={closePalette} />
       {/* "Bothy updated - reload": the served build is no longer this tab's. */}
       <UpdateBanner />
+      {/* WHAT THE BOX IS DOING, ON EVERY PAGE. A round indicator in the corner
+          while an update job is being followed, which opens to the step it is on
+          - the same store and the same words as the rail down the side of
+          Settings > Updates (components/UpdateActivity.tsx).
+
+          IT IS HERE AND NOWHERE ELSE, and that is the whole reason it exists:
+          this is the only mount point in the app that survives a route change.
+          RouteFade keeps two <main>s alive for ~120ms per navigation, so a live
+          thing inside a page is duplicated and then unmounted every time you
+          move - which is how the activity card came to stop existing the moment
+          you left the page that started the job.
+
+          It renders nothing at all when no job is being followed, and the store
+          behind it makes no request until something tells it to follow one. */}
+      <UpdateActivityDock />
     </div>
   );
 }

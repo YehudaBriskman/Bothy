@@ -1,10 +1,11 @@
 /* "Bothy updated - reload" (components/UpdateBanner.tsx).
    Fixed at the bottom so it moves no content and survives every page's own
    layout (Settings and Control fix their height and scroll inside). Accent, not
-   the status palette: a new version is news, not a fault. Below the command
-   palette's scrim (z 80), above the page and the scroll rail. */
+   the status palette: a new version is news, not a fault. On the named
+   --z-activity layer (index.css), which it shares with the update activity dock:
+   above the top bar and the scroll rail, below the modal layer. */
 .upd-banner {
-  position: fixed; z-index: 70;
+  position: fixed; z-index: var(--z-activity);
   left: 50%; bottom: 16px; translate: -50% 0;
   width: max-content; max-width: min(640px, calc(100vw - 32px));
   display: flex; align-items: center; gap: var(--sp-3);
@@ -25,7 +26,9 @@
 /* A phone: the full width minus the 16px gutters, and the actions under the text
    rather than squeezing it into a column of three words. */
 @media (max-width: 520px) {
-  .upd-banner { left: 16px; right: 16px; translate: none; width: auto; max-width: none; flex-wrap: wrap; bottom: 12px; }
+    /* The safe-area inset applies here too: a bar 12px off the bottom of a phone
+     is under the home indicator on half of them. */
+  .upd-banner { left: 16px; right: 16px; translate: none; width: auto; max-width: none; flex-wrap: wrap; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .upd-banner-text { flex: 1 1 calc(100% - 30px); }
   /* Under the text: the icon plus the banner's gap. */
   .upd-banner-actions { margin-left: calc(var(--icon-md) + var(--sp-3)); }

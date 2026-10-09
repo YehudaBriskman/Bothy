@@ -367,9 +367,19 @@
 
   /* ── layers: the floating ones, one token each (SYS-5) ─────────────────────
      The nine hand-rolled popovers used z-index 20, 30, 40, 60 and 80 between
-     them. Now: the modal layer (scrim, then its surface), then everything
-     anchored to a control, which must draw over a dialog it was opened from,
-     then tooltips over that. */
+     them. Now: the live-activity layer, then the modal layer (scrim, then its
+     surface), then everything anchored to a control, which must draw over a
+     dialog it was opened from, then tooltips over that.
+
+     --z-activity (2026-10-08) names the layer the two route-independent fixed
+     status surfaces share: the "Bothy updated - reload" banner and the update
+     activity dock. It is ABOVE the page's own sticky chrome - the top bar (20)
+     and the scroll rail (30) - because a thing that is happening must not be
+     hidden by furniture, and BELOW the modal layer, because a decision someone
+     is in the middle of taking outranks a report of something running. It is one
+     of the four named layers the ladder has; the rest of it is still literals
+     (brand/foundations/space-and-layout.md records the gap). */
+  --z-activity: 70;
   --z-modal: 90;
   --z-popover: 95;
   --z-tooltip: 96;

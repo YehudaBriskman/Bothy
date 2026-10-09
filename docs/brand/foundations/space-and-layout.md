@@ -80,7 +80,12 @@ See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).
 - **The footprint rule is applied literally** on the Overview: one service is
   one cell, one system is a name plus a row of cells. See
   [principles](principles.md) for the measurement that produced the rule.
-- **Safe-area insets** are a known gap - fixed chrome does not yet apply them.
+- **Safe-area insets** are a known gap - most fixed chrome does not yet apply
+  them. Closed for the two surfaces at the bottom of the screen (2026-10-08): the
+  update activity dock and the "Bothy updated" banner both add
+  `env(safe-area-inset-*)` to their offsets, because a round target in a phone's
+  bottom corner is exactly where a home indicator or a rounded corner eats it.
+  The top bar and the scroll rail still do not.
 
 **Known gaps**, tracked in
 [reference/open-questions.md](../reference/open-questions.md):
@@ -95,7 +100,13 @@ See [CHECKLIST.md § 7](../CHECKLIST.md#7-space-and-layout).
   `checks/design-tokens.mjs` §9 holds it.
 - **Two content widths disagree** - a 1180px wrap token and a 1320px content
   maximum. One of them should win, or each should be given a named role.
-- **The z-index ladder is literals only** - seven distinct values, none named.
+- **The z-index ladder is half named.** Four tokens - `--z-activity` 70 (the
+  fixed status surfaces: the update banner and the activity dock, added
+  2026-10-08), `--z-modal` 90, `--z-popover` 95, `--z-tooltip` 96 - and the
+  page's own chrome still literal: the top bar 20, the scroll rail 30, a sticky
+  table head 1, the skip link 100. `checks/a11y-contract.mjs` § 5 fails any new
+  literal at 40 or above, with the skip link as the one exception, so the
+  remaining literals cannot grow upwards into the floating range.
 
 ## Dead ends
 

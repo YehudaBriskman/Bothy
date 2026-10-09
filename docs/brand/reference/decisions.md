@@ -8,6 +8,72 @@ first. Dead ends are recorded rather than deleted - see
 
 ---
 
+## 2026-10-08 - "No toasts" is amended: a persistent handle, not a transient notice
+
+**The decision being amended** is in [feedback](../patterns/feedback.md): *"No
+toasts. The product's actions all have visible local results… Nothing needed a
+transient overlay, and one would have been a second, competing error channel."*
+That reasoning was right about the thing it was about, and it is kept. What it
+did not cover arrived with the update job.
+
+**What changed.** An update job runs **on the host**, for one to twenty minutes,
+and it survives the tab. The owner's words: *"compleate sepurations that we can
+actualy see the live actions happening in all of the app pages… in all the other
+places itll be flowting in the side as circle or something in some corner or
+something and in hover itll get opened to see more of that."* There is no local
+result to show, because the thing is not local and not finished. Settings >
+Updates is the only page that could show it, and watching a deploy is precisely
+when somebody is on another page looking at what it is doing to the box.
+
+**So the amendment is narrow, and it is about the two properties that make a
+toast a toast:**
+
+| | A toast | The activity dock |
+|---|---|---|
+| What it reports | something that **already happened** | something **still happening** |
+| How it goes away | a timer | the host finishing, then **Dismiss** |
+| How many | a stack, capped | **one**, because one job is followed |
+| What it is | its own channel | the **same component** as the page's rail, same store |
+
+Nothing here auto-dismisses, and that is the load-bearing difference: the
+original decision's stated cost was *"an error that exists only in a toast that
+has already faded did not get reported"*, and a surface that never fades cannot
+incur it. The outcome stays on screen until somebody dismisses it, and the full
+record is in the history table and in the host's `history.jsonl` either way - so
+it is not the only record of anything.
+
+**It is not a second error channel either**, which was the other stated cost.
+It is `components/UpdateActivity.tsx` in its second presentation: the same store,
+the same state words, the same glyphs and the same tone as the rail down the side
+of Settings > Updates. A reader who opens it from the corner and then opens the
+page sees one thing twice, not two things that might disagree - and on
+Settings > Updates the dock is not drawn at all, because the rail **is** it.
+
+**What is still refused, for the original reasons.** No transient overlay for
+anything that has a visible local result: a save, a refresh, a restart, a theme
+change, a copied command. No stack. No timed dismissal anywhere. And nothing
+mounts when nothing is happening - *"an idle orb is a perpetual loop for an idle
+thing"* holds, so there is no dock, no dot and no grey circle on an idle box.
+
+**Rejected on the way:**
+
+- **A toast, properly.** It would have had to re-announce itself per page, or
+  live in a store anyway - at which point it is this, with a timer bolted on and
+  the step list thrown away mid-deploy.
+- **The rail on every page.** It is 21rem of every page for something that is
+  usually not happening, and Control and Files have no spare column.
+- **A tooltip or a detail hint on the orb.** Disqualified by its own contents:
+  the card carries Dismiss and a link, and *"the moment the detail contains
+  something to press, it stops being a hint"*. It is a disclosure with a named
+  toggle, and Escape returns focus to it.
+- **Hover as the only way in.** The owner asked for hover and hover is honoured
+  for a mouse - but it opens on focus and on a tap too, each gated so a touch tap
+  reaches the toggle rather than being eaten by a hover that opens and shuts in
+  one gesture. That is the defect that disqualified `components/Tooltip.tsx` for
+  the detail hint, and it would have been the same defect here.
+
+---
+
 ## 2026-10-08 - The Settings nav folds, and the default is not a constant
 
 **Decision.** The six groups of the Settings nav fold. On arrival exactly one is
