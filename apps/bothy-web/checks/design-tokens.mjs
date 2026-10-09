@@ -988,10 +988,20 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   const resD = reserve ? Object.fromEntries(decls(reserve.body)) : {};
   say(/^calc\(var\(--upd-rail-w\) \+ var\(--sp-\w+\)\)$/.test(resD['padding-right'] ?? ''),
     "the page RESERVES the rail's width itself, so no block can ever be under it", resD['padding-right']);
-  const pane = setCss.find((r) => r.sel.replace(/\s+/g, ' ') === '.set-shell .set-main:has(.upd-rail)');
+  // The containing block must be the PANE and never the scroller. This asserted
+  // `.set-main` until 2026-10-09, and its own message said "it does not scroll
+  // away" - but an abspos child of a scroll container scrolls WITH the content,
+  // so the check stated the bug as the requirement. Both halves are held: the
+  // pane is positioned, and the scroller is not, because one `position: relative`
+  // on `.set-main` would silently capture the rail again.
+  const pane = setCss.find((r) => r.sel.replace(/\s+/g, ' ') === '.set-shell:has(.upd-rail)');
   say(!!pane && /position:\s*relative/.test(pane.body),
-    'the rail is positioned against the SCROLLER - the full height of the page, and it does not scroll away',
+    'the rail is positioned against the PANE, which does not scroll',
     pane ? pane.body.replace(/\s+/g, ' ').trim() : '(no rule)');
+  const scroller = setCss.filter((r) => /\.set-main\b/.test(r.sel) && /position:\s*(relative|absolute|sticky)/.test(r.body));
+  say(scroller.length === 0,
+    'the scroller is NOT a containing block - or the rail scrolls away with the page again',
+    scroller.length ? scroller.map((r) => r.sel.trim()).join(', ') : 'no .set-main rule positions itself');
   const rail = actOne('.set-shell .upd-rail');
   const railD = rail ? Object.fromEntries(decls(rail.body)) : {};
   say(railD.position === 'absolute' && railD.inset === '0 0 0 auto' && railD.width === 'var(--upd-rail-w)',
