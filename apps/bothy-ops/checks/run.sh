@@ -42,7 +42,9 @@
 #   wiring_updates.py    Settings > Updates: one exact GET router behind viewer,
 #                        a read-only state mount, the textfile collector.
 #   api_updates.py       GET /updates/status through the real handler: merged,
-#                        allow-listed, refused, stale, audited.
+#                        allow-listed, refused, stale, audited, and OUTGROWN - a
+#                        plan for a component a job touched since discovery last
+#                        looked is not offered, nor is its group.
 #   test_updater.py      THE HOST UPDATER's decisions (step 4): plans are "what
 #                        runs -> what main pins" and every refusal; the spool
 #                        (tampered plan ids, symlinks, junk); the strict pin

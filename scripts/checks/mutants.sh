@@ -845,6 +845,26 @@ mutant "a re-check that failed is recorded as ok" \
   '    _audit(cfg, "-", "-", "rediscover", "ok", f"{took}ms {detail}")' \
   -- python3 apps/bothy-ops/checks/test_updater.py
 
+# The read half. Without it the host fix is right and the SCREEN is still wrong:
+# the page reloads when the job turns terminal, which is before the re-check lands.
+mutant "a plan the job already used is offered again" \
+  apps/bothy-ops/updates.py \
+  '        if cid in unlooked:' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+mutant "the re-check window is measured the wrong way round" \
+  apps/bothy-ops/updates.py \
+  '        if not ended or (since is not None and ended <= since):' \
+  '        if not ended or (since is not None and ended >= since):' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+mutant "a touched member leaves its group offering Apply" \
+  apps/bothy-ops/updates.py \
+  '        if g["deployable"] and unlooked.intersection(g["candidates"]):' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
 mutant "a missed night is caught up at boot" \
   host/systemd/bothy-updater-auto.timer \
   'Persistent=false' \

@@ -16,6 +16,11 @@ available.json written here, and asserts what a browser can get:
   refusals   a query string 400, a POST 404, a cross-site GET 403, a malformed
              file 502, an oversized file 502 - all worded, none a traceback
   stale      a file older than two missed runs is flagged stale
+  outgrown   a plan for a component a JOB touched since discovery last looked is
+             not offered: no plan id, deployable false, and the reason says why.
+             This is the owner's bug of 2026-10-09 - the page reloads when a job
+             turns terminal, which is before the host's re-check lands, so it read
+             a plan the host had already refused and still drew the Update button
   audit      every request, refusals included, writes one admin.log line
 """
 import json
@@ -211,6 +216,94 @@ ok(st == 502 and "implausibly large" in body.get("error", ""), f"an oversized fi
 outcomes = [ln.split("\t")[2] for ln in log_lines()[n:]]
 ok(outcomes == ["REFUSED", "REFUSED", "FAILED", "FAILED", "FAILED"],
    f"every refusal and failure is one line (the POST never reaches this module): {outcomes}")
+
+print()
+print("── outgrown: a plan the box has moved past is not offered ────────")
+# available.json is a SNAPSHOT of what runs. The moment a job ends, it is a
+# statement about a box that may no longer exist - which is why the host re-runs
+# discovery at the end of every drain that did work (updater/asks.rediscover). For
+# the seconds that takes, and that is exactly when the page reloads, the row must
+# not offer the plan the job already consumed.
+PLANS = os.path.join(TMP, "updates", "plans")
+os.makedirs(PLANS, exist_ok=True)
+HIST = os.path.join(TMP, "updates", "history.jsonl")
+
+
+def plan_file(cid: str, pid: str) -> None:
+    with open(os.path.join(PLANS, f"{cid}.json"), "w") as fh:
+        json.dump({"version": 1, "component": cid, "ok": True, "plan": {
+            "id": pid, "component": cid, "level": "patch", "confirm": "click", "createdAt": now,
+            "from": {"image": "docker.io/grafana/loki:3.7.7", "version": "3.7.7"},
+            "to": {"image": "docker.io/grafana/loki:3.7.8", "version": "3.7.8"}}}, fh)
+
+
+def history(cid: str, ended: str, state: str = "refused", **over) -> None:
+    doc = {"id": "a" * 32, "component": cid, "state": state, "requestedBy": "op@example.com",
+           "requestedAt": ended, "startedAt": ended, "endedAt": ended,
+           "error": "the plan no longer holds: nothing to deploy"}
+    doc.update(over)
+    with open(HIST, "w") as fh:
+        fh.write(json.dumps(doc) + "\n")
+
+
+put({"version": 1, "generatedAt": now, "components": {}})
+plan_file("loki", "b" * 24)
+plan_file("cadvisor", "c" * 24)
+history("loki", "2026-01-01T00:00:00Z")
+st, body = get()
+rows = {r["id"]: r for r in body["components"]}
+ok(rows["loki"]["plan"]["deployable"] is True and rows["loki"]["plan"]["id"] == "b" * 24,
+   f"a job that ended BEFORE discovery looked changes nothing: {rows['loki']['plan']}")
+history("loki", "2099-01-01T00:00:00Z")
+st, body = get()
+rows = {r["id"]: r for r in body["components"]}
+pl = rows["loki"]["plan"]
+ok(st == 200 and pl["deployable"] is False and pl["id"] is None and "since discovery last looked" in pl["reason"],
+   f"a job that ended AFTER it: no plan id, not deployable, and the reason says why: {pl}")
+ok(rows["cadvisor"]["plan"]["deployable"] is True,
+   "…and only the component the job touched - every other row is untouched")
+ok(body["summary"]["toApply"] == 1, f"the headline count drops with the button: {body['summary']['toApply']}")
+history("up-monitoring", "2099-01-01T00:00:00Z", state="rolled_back", members=["loki", "cadvisor"])
+st, body = get()
+rows = {r["id"]: r for r in body["components"]}
+ok(rows["loki"]["plan"]["deployable"] is False and rows["cadvisor"]["plan"]["deployable"] is False,
+   "a GROUP job names the recipe, so its `members` are what it touched - all of them")
+
+# A GROUP PLAN goes with its members'. One `just up-monitoring` recreates all of
+# them, and the page draws a member's action as "apply it with its group" - so if
+# the group kept its Apply it would offer a plan the host recomputes and refuses,
+# and if the group alone went quiet its other members would start offering an
+# individual Update that the host's scope check refuses instead. Both of them go.
+GROUPS = os.path.join(TMP, "updates", "groups")
+os.makedirs(GROUPS, exist_ok=True)
+with open(os.path.join(GROUPS, "up-monitoring.json"), "w") as fh:
+    json.dump({"version": 1, "group": "up-monitoring", "ok": True, "plan": {
+        "kind": "group", "group": "up-monitoring", "id": "d" * 24, "recipe": "just up-monitoring",
+        "level": "patch", "confirm": "click", "createdAt": now,
+        "memberRows": [{"component": "loki", "level": "patch"}, {"component": "cadvisor", "level": "patch"}]}}, fh)
+history("loki", "2099-01-01T00:00:00Z")   # ONE member, by itself
+st, body = get()
+rows = {r["id"]: r for r in body["components"]}
+grp = next(g for g in body["groups"] if g["group"] == "up-monitoring")
+ok(grp["deployable"] is False and "since discovery last looked" in grp["reason"] and grp["plan"] is None,
+   f"one member touched, and the group's Apply goes with it: {grp['deployable']} {grp['reason'][:40]}")
+ok(rows["cadvisor"]["plan"]["deployable"] is False and rows["loki"]["plan"]["deployable"] is False,
+   "…and so does every OTHER member's, which would otherwise offer an Update the scope check refuses")
+ok(rows["cadvisor"]["applyWithGroup"] is False and body["summary"]["groups"] == 0,
+   "nothing is left claiming an action: no group Apply, no `apply with its group`")
+os.unlink(os.path.join(GROUPS, "up-monitoring.json"))
+# A document with no `generatedAt` cannot say when it looked, and the fallback is
+# its own mtime. A plan beside a job that ended after that is still not offered.
+put({"version": 1, "components": {}})
+old_t = time.time() - 3600
+os.utime(AVAIL, (old_t, old_t))
+history("loki", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+st, body = get()
+ok({r["id"]: r for r in body["components"]}["loki"]["plan"]["deployable"] is False,
+   "with no generatedAt the file's own mtime answers it, rather than offering the plan anyway")
+os.unlink(HIST)
+for fn in os.listdir(PLANS):
+    os.unlink(os.path.join(PLANS, fn))
 
 print()
 print("── stale ─────────────────────────────────────────────────────────")
