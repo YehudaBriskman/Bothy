@@ -704,6 +704,69 @@ section (the real handler: the allow-listed group plan, twelve refusals, a membe
 its group waits, and one 202 leaving exactly one spool file); `wiring_updates.py`'s GROUPS section; twelve
 `mutants.sh` rows.
 
+### Look again when the run ends (2026-10-09): the button that outlived the work
+
+The owner applied an update and the page **still** showed Update for a component already at the target.
+Pressing it gave *"Refused - nothing was touched · kube-state-metrics · the plan no longer holds: nothing to
+deploy: the cluster runs what main pins (8.6.0)"*. Measured on the box:
+
+```
+available.json written    11:43:25
+the apply happened        11:52:15   (helm revision 5)
+```
+
+The page was drawing a button from data written **nine minutes before the work was done**. The cause was in
+`updater/executor.py` `run_spool`: it drained asks, ran each request, and never looked at the box again.
+`_hook(cfg, "asks", "drain_discover")` only drains *explicit* discover asks, so after any job the host's own
+view stayed stale until the six-hourly timer - up to six hours of a button the host was certain to refuse.
+
+**The host half.** A drain that ran at least one job ends with one discovery (`updater/asks.rediscover`),
+once however many jobs it ran, because one discovery covers every component. Three decisions in it:
+
+- **A refused or failed job re-checks too**, and that is the most important case, not an exception to it: a
+  refusal of the form "the plan no longer holds" *is* the evidence that the stored data was stale. The
+  owner's screenshot was a refusal.
+- **A failed re-check is not a failed job.** The deployment already happened; a stale `available.json`
+  afterwards is a separate and lesser fault. So it is one audit line and one journal line naming
+  `just updates-discover`, never an exception - the same treatment the drain's other hooks get, and for the
+  same reason: a fault in the bookkeeping must never stop (or undo) a rollback.
+- **Under the same `flock`, proven rather than reasoned about.** Discovery is a *subprocess* that takes no
+  lock of any kind (there is no `fcntl` anywhere in `discover_updates.py`), and the drain has run that same
+  program from inside that same lock since 2026-10-06. `checks/test_updater.py` now runs a child from exactly
+  where the re-check runs, has it try that very `flock`, and asserts it finds it **held** - so a discovery
+  that ever started locking is caught by a failing check rather than by a wedged box. Holding it is also what
+  we want: a request queued while the re-check runs waits for the fresh plans instead of racing them.
+- **No new power, and the ask's rate limit deliberately does not apply.** It is the timer's own argv, built
+  from `Config` alone; nothing in the spool can ask for it. `updates.DISCOVER_MIN_SECONDS` bounds the
+  *asking* process's share of the anonymous registry quota; this one is the host reacting to work the host
+  had just done, at most once per drain. Applying the limit would restore the bug for the commonest sequence
+  there is - "check now", then Update, four minutes later.
+- **The night job needs nothing of its own.** `python3 -m updater auto` writes one request into the spool and
+  waits; `bothy-updater.path` starts the executor; that drain is the one that re-checks.
+
+**The ordering problem, which the host half alone does not fix.** The page reloads when the job turns
+terminal, and the re-check runs *after* the job. The reload wins by seconds, re-reads the same
+`available.json`, and the button is still there - the bug survives the fix. Of the three ways out
+(discovery before the terminal record; the read side reporting the re-check; the page reloading again), the
+first is wrong - a job would sit "running" for the length of a registry round, and a hung registry would hold
+it open - and the third needs the page. So the **read side** answers it, and it needs no change to the page
+at all because the row's button is already drawn from `plan.deployable`:
+
+`updates.py` `_unlooked_since` will not offer a plan for a component a job touched since discovery last
+looked. The row shows no button and says why; `summary.toApply` drops with it; the group plan goes the same
+way as its members' (one `just up-monitoring` recreates all of them, and suppressing the group alone would
+leave its other members offering an individual Update the host's scope check refuses). It is self-healing:
+the moment the re-check lands, every plan is newer than the job and the truth is back - including for an
+`aborted` job, where the plan still holds and the retry must stay possible.
+
+**Tests.** `checks/test_updater.py`'s RE-CHECK section (once per drain not once per job, a refused job
+re-checks, the lock is held, a failure changes no result and is reported twice);
+`checks/test_auto.py` (an empty drain looks at nothing; the night job's drain re-checks);
+`checks/api_updates.py`'s "outgrown" section (before and after the snapshot, one component only, the
+headline count, a group job's `members`, the group cascade with nothing left claiming an action, and the
+mtime fallback); five `mutants.sh` rows. The e2e harnesses pass `rediscover=False` and say why: they drive
+`run_spool` directly with a throwaway catalog whose registry only their own fake client can read.
+
 ## What is left
 
 - **The auth boundary and the edge** (oauth2-proxy, the socket proxies, Traefik) are still updated by hand (§4).

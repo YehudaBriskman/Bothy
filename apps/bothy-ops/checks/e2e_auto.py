@@ -65,7 +65,12 @@ def make_cfg(d: dict) -> Config:
 if len(sys.argv) == 3 and sys.argv[1] == "--worker":
     with open(sys.argv[2]) as fh:
         wcfg = make_cfg(json.load(fh))
-    sys.exit(executor.run_spool(wcfg, log=lambda m: print(m, flush=True)))
+    # rediscover=False: the end-of-drain re-check (updater/asks.rediscover) runs the
+    # host's REAL discovery program against this throwaway catalog and state dir,
+    # rewriting the plans this file wrote for itself. What it does is held by
+    # checks/test_updater.py (per drain, once, for a refused job too, the lock held,
+    # and a failure that changes no result); see checks/e2e_updater.py for the rest.
+    sys.exit(executor.run_spool(wcfg, log=lambda m: print(m, flush=True), rediscover=False))
 
 import discover_updates as du  # noqa: E402
 import updates  # noqa: E402

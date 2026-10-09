@@ -26,6 +26,8 @@ shape. What it pins down:
            removed, audited, and clears nothing; `just update-unpause` clears
            directly; unpausing what is not paused says so
   DRY RUN  says what tonight would do and writes nothing
+  RE-CHECK the night job needs no discovery call of its own: its request is drained
+           by the same executor, so the drain's end-of-run re-check covers it
 """
 import datetime as dt
 import json
@@ -41,10 +43,16 @@ sys.path.insert(0, SVC)
 os.environ.setdefault("ADMIN_AUDIT_LOG", os.devnull)
 
 import updater  # noqa: E402,F401
-from updater import auto, executor, hostio, record, spool  # noqa: E402
+from updater import asks, auto, executor, hostio, record, spool  # noqa: E402
 from updater.config import Config  # noqa: E402
 
 fails: list[str] = []
+
+# The end-of-drain re-check (updater/asks.rediscover) runs the real
+# discover_updates.py, which asks public registries. Counted here instead, because
+# what this file is about is whether the NIGHT JOB is covered by it at all.
+RECHECK: list[list[str]] = []
+asks.run = lambda argv, **_kw: (RECHECK.append(list(argv)), (0, "", "discovery: nothing newer"))[1]
 
 
 def ok(cond: bool, label: str) -> None:
@@ -342,10 +350,18 @@ J5 = "5" * 32
 history("loki", "failed", J5, error="after the rollback: loki is unhealthy")
 executor.run_spool(cfg, log=lambda *_: None)  # an empty drain: no job, so no hook ran
 ok("loki" not in auto.load_state(cfg)["paused"], "(no job ran, so the executor's hook did not sync)")
+ok(RECHECK == [], "…and an empty drain looks at nothing: there is nothing new to see")
 open(os.path.join(cfg.spool, "6" * 32 + ".json"), "w").write("{not json")
 executor.run_spool(cfg, log=lambda *_: None)
 ok("loki" in auto.load_state(cfg)["paused"] and auto.load_state(cfg)["paused"]["loki"]["result"] == "failed",
    "the executor syncs the pauses after every job it runs")
+# The night job needs no re-check of its own (2026-10-09): `python3 -m updater auto`
+# writes ONE request into the spool and waits, bothy-updater.path starts the
+# executor, and this is that drain - so the re-check at its end covers the night as
+# it covers a click. Written down here because the alternative, a second call in
+# auto.py, would be a second place to forget.
+ok(len(RECHECK) == 1 and RECHECK[0][1].endswith("discover_updates.py"),
+   f"a drain that ran a job re-checks, and that is the drain the night job's request lands in: {RECHECK}")
 
 print()
 print("── UNPAUSE: through the spool, owned by the host ────────────────")

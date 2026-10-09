@@ -602,7 +602,64 @@ def _group_rows(catalog: Catalog) -> list[dict]:
     return out
 
 
-def _row_plan(cid: str) -> dict | None:
+# What a row says instead of offering a plan the box may have outgrown. Worded for
+# the two places the page prints it: "Not deployable: ..." in the row's detail, and
+# "Not one click: ..." in the by-hand list.
+_RECHECKING = ("a job has touched this since discovery last looked, so this plan may be about a box that no "
+               "longer exists - the host re-checks the moment a run ends")
+
+
+def _looked_at(meta: dict) -> str | None:
+    """When discovery last looked, in the stamp format every job is recorded in.
+
+    `generatedAt` comes from inside available.json, so the answer travels with the
+    document; its mtime is the fallback for one that predates the field or carries
+    junk where it should be. None means "we cannot tell", and the caller then
+    treats every finished job as newer - the conservative direction.
+    """
+    g = meta.get("generatedAt")
+    if isinstance(g, str) and _ISO.fullmatch(g):
+        return g
+    age = meta.get("ageSeconds")
+    if isinstance(age, int) and not isinstance(age, bool):
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - max(0, age)))
+    return None
+
+
+def _unlooked_since(meta: dict, jobs: list[dict]) -> set[str]:
+    """Components a job touched after discovery last looked at this box.
+
+    THE BUG THIS ANSWERS (2026-10-09). available.json and the plans beside it are
+    a snapshot of what runs. A job that ended after that snapshot has made it a
+    statement about a box that no longer exists, and the owner saw exactly that:
+    nine minutes after the file was written the cluster ran 8.6.0, the page still
+    drew Update from the stored plan, and the host answered "Refused - nothing was
+    touched . the plan no longer holds: nothing to deploy".
+
+    The host now re-runs discovery the moment a drain ends
+    (updater/asks.rediscover), so the window is however long that takes - and that
+    is precisely the window the page reads in, because the page reloads when the
+    job turns terminal, which happens first. While it is open the honest answer for
+    those components is "we have not looked since", which is what this returns; the
+    row then shows no button and says why, and the next read shows the truth.
+
+    A refused or rolled-back job counts as much as a successful one: a refusal of
+    the form "the plan no longer holds" IS the evidence that the stored data was
+    stale, and a rollback left the previous image on a pin line nobody has
+    re-derived a plan from yet.
+    """
+    since = _looked_at(meta)
+    out: set[str] = set()
+    for j in jobs:
+        ended = j.get("endedAt")
+        if not ended or (since is not None and ended <= since):
+            continue
+        out.add(j["component"])          # a group job's `component` is the recipe
+        out.update(j.get("members") or [])
+    return out
+
+
+def _row_plan(cid: str, unlooked: frozenset[str] | set[str] = frozenset()) -> dict | None:
     """The status row's summary of the host's plan file for `cid`."""
     doc = _read_plan(cid)
     if doc is None:
@@ -611,6 +668,8 @@ def _row_plan(cid: str) -> dict | None:
         p = _plan(doc.get("plan"))
         if not p:
             return None
+        if cid in unlooked:
+            return {"id": None, "deployable": False, "reason": _RECHECKING, "createdAt": p["createdAt"]}
         return {"id": p["id"], "deployable": True, "from": p["from"]["version"] or p["from"]["tag"],
                 "to": p["to"]["version"] or p["to"]["tag"], "level": p["level"], "createdAt": p["createdAt"]}
     return {"id": None, "deployable": False, "reason": _s(doc.get("reason"), 300) or "no plan",
@@ -623,6 +682,20 @@ def status(catalog: Catalog) -> dict:
     asks = _asks_state()
     unpausing = {d["component"] for d in _unpause_queued()}
     found = doc["components"] if doc else {}
+    job = _current_job()
+    hist = _history(20)
+    groups = _group_rows(catalog)
+    # Which plans this box has outgrown since discovery last looked (see
+    # _unlooked_since). A group's plan goes with its members': the recipe recreates
+    # all of them, and the page draws a member's action as "apply it with its
+    # group", so suppressing the group alone would leave its other members offering
+    # an individual Update the host's scope check refuses. One pass is enough -
+    # a component belongs to one `apply` recipe.
+    unlooked = _unlooked_since(meta, ([job] if job else []) + hist)
+    for g in groups:
+        if g["deployable"] and unlooked.intersection(g["candidates"]):
+            unlooked.update(g["candidates"])
+            g.update(deployable=False, plan=None, reason=_RECHECKING, skipped=[])
     rows = []
     for c in catalog.components.values():
         disc = _discovered(found.get(c.id))
@@ -637,13 +710,12 @@ def status(catalog: Catalog) -> dict:
             "effectiveChannel": effective_channel(c.channel, level),
             "behind": level in ("minor", "major"),
             "discovered": disc,
-            "plan": _row_plan(c.id),
+            "plan": _row_plan(c.id, unlooked),
             # Step 7: the host's pause (auto.json, read-only here) and whether an
             # operator's unpause is already waiting in the spool.
             "paused": auto_state["paused"].get(c.id),
             "unpauseQueued": c.id in unpausing,
         })
-    groups = _group_rows(catalog)
     in_group = {c for g in groups if g["deployable"] for c in g["candidates"]}
     for r in rows:
         # Which group would carry this row, when one would. The page draws the
@@ -672,7 +744,6 @@ def status(catalog: Catalog) -> dict:
         "groups": sum(1 for g in groups if g["deployable"]),
     }
     p = catalog.policy
-    job = _current_job()
     queue = _queued()
     return {"discovery": meta, "summary": summary,
             "policy": {"windowStart": p.window_start, "windowEnd": p.window_end,
@@ -683,7 +754,7 @@ def status(catalog: Catalog) -> dict:
             "job": job,
             # Step 6: the installed updater, and a staged one waiting for `just install-updater`.
             "updater": _updater(),
-            "history": _history(20),
+            "history": hist,
             "auto": {"enabled": p.max_auto_per_night > 0, "actor": AUTO_ACTOR,
                      "paused": sorted(auto_state["paused"]), "last": auto_state["last"]},
             # The two asks (POST /updates/discover, /updates/autorun): whether one

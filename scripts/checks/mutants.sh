@@ -818,6 +818,53 @@ mutant "an ask kind is removed as junk by the update loop" \
   'OTHER_KINDS = (UNPAUSE_FILE,)' \
   -- python3 apps/bothy-ops/checks/test_asks.py
 
+# 2026-10-09, the re-check at the end of a drain. The bug these guard is the one
+# the owner photographed: a job applied, refused or rolled back, nothing looked at
+# the box again until the six-hourly timer, and the page drew an Update button the
+# host was certain to refuse. Each row is an inversion of one sentence of that fix,
+# and each is anchored on an executable line, not a comment - the checks strip
+# comments, so a comment anchor is a silent no-op.
+mutant "a drain that did work never looks again" \
+  apps/bothy-ops/updater/executor.py \
+  '        if done and rediscover:' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+mutant "the re-check runs once per job, not per run" \
+  apps/bothy-ops/updater/executor.py \
+  '            _auto_hook(cfg, "sync_pauses")
+            done += 1' \
+  '            _auto_hook(cfg, "sync_pauses")
+            done += 1
+            log(_rediscover(cfg))' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+mutant "a re-check that failed is recorded as ok" \
+  apps/bothy-ops/updater/asks.py \
+  '    _audit(cfg, "-", "-", "rediscover", "ok" if rc == 0 else "failed", f"{took}ms {detail}")' \
+  '    _audit(cfg, "-", "-", "rediscover", "ok", f"{took}ms {detail}")' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+# The read half. Without it the host fix is right and the SCREEN is still wrong:
+# the page reloads when the job turns terminal, which is before the re-check lands.
+mutant "a plan the job already used is offered again" \
+  apps/bothy-ops/updates.py \
+  '        if cid in unlooked:' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+mutant "the re-check window is measured the wrong way round" \
+  apps/bothy-ops/updates.py \
+  '        if not ended or (since is not None and ended <= since):' \
+  '        if not ended or (since is not None and ended >= since):' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+mutant "a touched member leaves its group offering Apply" \
+  apps/bothy-ops/updates.py \
+  '        if g["deployable"] and unlooked.intersection(g["candidates"]):' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
 mutant "a missed night is caught up at boot" \
   host/systemd/bothy-updater-auto.timer \
   'Persistent=false' \
