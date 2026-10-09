@@ -24,6 +24,10 @@ pins down:
   PINS     the one-line edit keeps comments and quotes, and refuses unless the
            line and the value are exactly what the plan recorded
   LOCK     a second run while one holds the lock does nothing and says so
+  RE-CHECK a drain that did work looks at the box again before it returns - once
+           however many jobs it ran, for a refused job as much as a deployed one,
+           with that same lock HELD while it does, and a re-check that fails
+           changes no job's result
   RECORD   bothy_update_last_result carries exactly one 1 per component
 """
 import json
@@ -40,7 +44,7 @@ sys.path.insert(0, SVC)
 os.environ.setdefault("ADMIN_AUDIT_LOG", os.devnull)
 
 import updater  # noqa: E402,F401
-from updater import executor, hostio, pins, plans, record, spool  # noqa: E402
+from updater import asks, executor, hostio, pins, plans, record, spool  # noqa: E402
 from updater.config import Config  # noqa: E402
 
 fails: list[str] = []
@@ -199,6 +203,33 @@ BACKUPS = os.path.join(TMP, "backups")
 cfg = Config(repo=REPO, catalog=os.path.join(REPO, "updates.toml"), state=STATE, backups=BACKUPS,
              textfile=os.path.join(TMP, "textfile"))
 os.makedirs(cfg.spool, mode=0o700)
+
+# ── the end-of-drain re-check: a stand-in for discover_updates.py ─────────────
+# Faked for the same reason `docker inspect` is: the real program asks public
+# registries. It also answers the one question that decides whether the re-check
+# may run INSIDE the drain's lock - it starts a child that tries that very flock
+# and records what it found, which is what a locking discovery would hit.
+RECHECK: list[list[str]] = []
+LOCK_SEEN: list[str] = []
+RECHECK_RC = [0]
+RECHECK_ERR = ["discovery: 1 with a newer version -> available.json"]
+LOCK_PROBE = ("import fcntl, os, sys\n"
+              "fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600)\n"
+              "try:\n"
+              "    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+              "    print('free')\n"
+              "except BlockingIOError:\n"
+              "    print('held')\n")
+
+
+def fake_discover(argv, **_kw):
+    RECHECK.append(list(argv))
+    probe = subprocess.run([sys.executable, "-c", LOCK_PROBE, cfg.lock_file], capture_output=True, text=True)
+    LOCK_SEEN.append(probe.stdout.strip())
+    return RECHECK_RC[0], "", RECHECK_ERR[0]
+
+
+asks.run = fake_discover
 
 
 def avail(web_resolved=D("b"), loki_resolved=D("d"), web_tag="1.0.1", web_config_drift=None) -> dict:
@@ -511,6 +542,35 @@ executor.run_spool(cfg, log=lambda *_: None)
 ok("used before" in record.history(cfg, 1)[0]["error"], "a job id is never reused")
 
 print()
+print("── RE-CHECK: a drain that did work looks again before returning ─")
+# The owner's bug: available.json was written nine minutes before the apply, and
+# the page drew an Update button from it until the six-hourly timer. The drain
+# above ran FIVE jobs, every one of them refused - and a refusal of the form "the
+# plan no longer holds" is exactly the evidence that the stored data was stale, so
+# it must re-check as much as a deploy does.
+ok(len(RECHECK) == 2, f"two drains that did work, two re-checks - once each, not once per job: {len(RECHECK)}")
+ok(RECHECK[0][1].endswith("discover_updates.py") and "--quiet" in RECHECK[0]
+   and RECHECK[0][RECHECK[0].index("--state-dir") + 1] == cfg.state,
+   f"the re-check is the timer's own program, as a fixed argv: {RECHECK[0][1:]}")
+ok(set(LOCK_SEEN) == {"held"},
+   f"a program started from there finds the drain's lock HELD, so discovery must not want it: {LOCK_SEEN}")
+ok("rediscover\tok\t" in open(cfg.audit_file).read(), "audit.log records the re-check")
+rc_before = record.history(cfg, 1)[0]["state"]
+RECHECK_RC[0], RECHECK_ERR[0] = 2, "every registry refused"
+drop(req(jobId="7" * 32, planId="0" * 24), f"{'7' * 32}.json")
+said: list[str] = []
+ok(executor.run_spool(cfg, log=said.append) == 0 and record.history(cfg, 1)[0]["state"] == "refused",
+   "a re-check that FAILS leaves the drain's exit code and the job's result alone")
+ok(any("re-check after the run FAILED" in m and "updates-discover" in m for m in said)
+   and "rediscover\tfailed\t" in open(cfg.audit_file).read(),
+   f"…and is reported as one journal line and one audit line, never an exception: {said}")
+RECHECK_RC[0], RECHECK_ERR[0] = 0, "discovery: 0 with a newer version -> available.json"
+n = len(RECHECK)
+executor.run_spool(cfg, log=lambda *_: None)
+ok(len(RECHECK) == n, "an EMPTY drain does not re-check: nothing changed, and the registries are not free")
+ok(rc_before == "refused", "(the drain above really did run jobs)")
+
+print()
 print("── PINS: one line, strictly ─────────────────────────────────────")
 pl = pins.locate(REPO, "compose.yml", "web")
 ok(pl.line == 4 and pl.value == "example.invalid/web:1.0.1" and pl.container == "t-web", "located: line, value, container")
@@ -541,7 +601,7 @@ holder = subprocess.Popen([sys.executable, "-c", (
     "fcntl.flock(fd, fcntl.LOCK_EX); print('held', flush=True); time.sleep(30)"), cfg.lock_file],
     stdout=subprocess.PIPE, text=True)
 holder.stdout.readline()
-said: list[str] = []
+said = []
 t0 = time.monotonic()
 rc = executor.run_spool(cfg, log=said.append)
 ok(rc == 0 and "holds the lock" in " ".join(said) and time.monotonic() - t0 < 5,

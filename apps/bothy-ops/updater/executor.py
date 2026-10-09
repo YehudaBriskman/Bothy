@@ -28,6 +28,18 @@ again, under the old image: is data written before the update still readable?
 
 A restore is never the first move, because it is the only step that loses data.
 
+── and when the drain ends, LOOK AGAIN (2026-10-09) ──────────────────────────
+
+A run that did any work - applied, refused, rolled back - has made what discovery
+last wrote a statement about a box that no longer exists. So the drain ends with
+one discovery (_rediscover -> asks.rediscover), once however many jobs it ran.
+Without it the host's own view stayed stale until the six-hourly timer, and
+Settings > Updates drew an Update button the host then refused with "the plan no
+longer holds". It runs under the same lock, it cannot fail a job, and the read
+side refuses to offer a plan for a component a job touched since discovery last
+looked (updates.py `_unlooked_since`), which is what closes the seconds between
+the job turning terminal and the re-check landing.
+
 ── ...and for one-way data (app-db: Grafana, Keycloak) it ALWAYS is ───────────
 
 A class with `always_restore` (classes.AppDb) migrates its data on the first
@@ -76,8 +88,14 @@ def _lock(cfg: Config) -> int | None:
     return fd
 
 
-def run_spool(cfg: Config | None = None, *, log=print) -> int:
-    """Drain the spool. 0 on success (including "another run holds the lock")."""
+def run_spool(cfg: Config | None = None, *, log=print, rediscover: bool = True) -> int:
+    """Drain the spool. 0 on success (including "another run holds the lock").
+
+    `rediscover` is the re-check at the end (see _rediscover). It is on for what
+    systemd runs and for `bothy upgrade`; the e2e harnesses drive this function
+    directly with a throwaway catalog whose registry only their own fake client can
+    read, so they turn it off and checks/test_updater.py proves the real path.
+    """
     cfg = cfg or Config()
     fd = _lock(cfg)
     if fd is None:
@@ -105,9 +123,42 @@ def run_spool(cfg: Config | None = None, *, log=print) -> int:
             log(f"{name[:-5]}: {result}")
             _auto_hook(cfg, "sync_pauses")
             done += 1
+        if done and rediscover:
+            # THE BOX HAS CHANGED, so look at it again before anybody reads the old
+            # answer. ONCE, not per job: one discovery covers every component.
+            log(_rediscover(cfg))
         return 0
     finally:
         os.close(fd)
+
+
+def _rediscover(cfg: Config) -> str:
+    """The re-check after a drain that did work (asks.rediscover), with the lock
+    still held and every fault swallowed.
+
+    UNDER THE LOCK, and it cannot deadlock or re-enter: discovery is a SUBPROCESS
+    that takes no lock of any kind - there is no fcntl anywhere in
+    discover_updates.py, and checks/test_updater.py runs a program from exactly
+    here that tries this very flock and proves it finds it HELD, so a discovery
+    that ever started locking would be caught rather than hanging. The drain has
+    run the same program from inside the same lock since 2026-10-06
+    (asks.drain_discover). Holding it is also what we want: a request queued while
+    this runs waits for the fresh plans instead of racing them.
+
+    Never raises, and never changes a job's result: the deployment already
+    happened, so one audit line and one journal line is the whole report, exactly
+    as for the drain's other hooks.
+    """
+    try:
+        from . import asks
+        return asks.rediscover(cfg)
+    except Exception as e:  # noqa: BLE001
+        try:
+            hostio.append_line(cfg.audit_file, "\t".join(
+                (iso(), "-", "-", "-", "rediscover", "failed", f"{type(e).__name__}: {e}"[:300])))
+        except OSError:
+            pass
+        return f"the re-check after the run could not start: {type(e).__name__}: {e}"
 
 
 def _hook(cfg: Config, module: str, what: str) -> None:

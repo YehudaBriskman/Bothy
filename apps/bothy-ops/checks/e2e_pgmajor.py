@@ -347,7 +347,9 @@ def main() -> int:
             cfg.pg_force_fail = force
             jid = request(confirm="postgres", note=NOTE)
             t = time.monotonic()
-            executor.run_spool(cfg, log=lambda *_: None)
+            # rediscover=False: see checks/e2e_updater.py - the real discovery program
+            # against a throwaway catalog would rewrite these plans mid-test.
+            executor.run_spool(cfg, log=lambda *_: None, rediscover=False)
             h = next(x for x in record.history(cfg, 20) if x["id"] == jid)
             print(f"  (job {jid[:8]}: {h['state']} in {int(time.monotonic() - t)}s)", flush=True)
             return h

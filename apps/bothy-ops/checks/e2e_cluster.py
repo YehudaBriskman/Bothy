@@ -312,7 +312,9 @@ def main() -> int:
                 "v": 1, "jobId": jid, "component": cid, "planId": doc["plan"]["id"], "confirm": True,
                 "requestedBy": "op@example.com", "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ")})
             t = time.monotonic()
-            executor.run_spool(cfg, log=lambda *_: None)
+            # rediscover=False: see checks/e2e_updater.py - the real discovery program
+            # against a throwaway catalog would rewrite these plans mid-test.
+            executor.run_spool(cfg, log=lambda *_: None, rediscover=False)
             h = next(x for x in record.history(cfg, 20) if x["id"] == jid)
             st = hostio.read_json(cfg.status_file)["job"]
             print(f"  (job {cid} {h['state']} in {int(time.monotonic() - t)}s: "

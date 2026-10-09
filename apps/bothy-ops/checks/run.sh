@@ -46,7 +46,9 @@
 #   test_updater.py      THE HOST UPDATER's decisions (step 4): plans are "what
 #                        runs -> what main pins" and every refusal; the spool
 #                        (tampered plan ids, symlinks, junk); the strict pin
-#                        edit; the global lock; the result metric.
+#                        edit; the global lock; the result metric; and the
+#                        end-of-drain re-check - once per run, for a refused job
+#                        too, with that lock proved HELD while it runs.
 #   api_updates_apply.py plan / request / job through the real handler: one
 #                        spool file per 202 and nothing else; every refusal -
 #                        including a GROUP ask, which rides the same route.
@@ -67,7 +69,9 @@
 #   test_auto.py         THE AUTOMATIC CHANNEL (step 7), with a fake clock and a
 #                        fake backup: the window, tonight's backup, doctor, one a
 #                        night, stop at the first failure, pause after a
-#                        rollback, unpause through the spool.
+#                        rollback, unpause through the spool; and that the night
+#                        job needs no re-check of its own - its request is drained
+#                        by the same executor.
 #   wiring_auto.py       the timer fires at window_start after the backup, not
 #                        persistent; auto.json is read-only to bothy-ops; the
 #                        alert rules query what the updater writes.

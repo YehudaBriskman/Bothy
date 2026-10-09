@@ -1,7 +1,9 @@
-"""The two asks that make the host RUN something, and record what it said.
+"""The two asks that make the host RUN something, and record what it said - plus
+the re-check the host does for itself after a run.
 
     discover-<32 hex>.json   "check for updates now"   -> discover_updates.py
     autorun-<32 hex>.json    "run the night job now"   -> auto.decide()
+    (no file)                "a job just changed the box"   -> rediscover()
 
 Added 2026-10-06, because Settings > Updates could SHOW two states it could not
 change: discovery is a six-hourly timer, so the page can be six hours stale and
@@ -200,6 +202,51 @@ def drain_discover(cfg: Config) -> int:
         _record(cfg, "discover", {"at": iso(), "askedBy": who, "outcome": outcome,
                                   "reason": tail or None, "tookMs": took})
     return len(names)
+
+
+def rediscover(cfg: Config) -> str:
+    """Look again, because a run just changed the box. executor.run_spool calls
+    this once per drain that did work, with the global lock still held.
+
+    WHY (2026-10-09). available.json and the plans beside it are a SNAPSHOT of
+    what this box runs, taken when discovery runs. The moment a job applies,
+    refuses or rolls back, that snapshot is a statement about a box that no longer
+    exists - and until this existed nothing looked again until the six-hourly
+    timer, so for up to six hours the page drew an Update button from data written
+    before the work was done. The owner's screenshot was the refusal that follows
+    it: `nothing to deploy: the cluster runs what main pins (8.6.0)`, over an
+    available.json written nine minutes before the apply. A REFUSED job is the
+    most important case, not an exception to it - "the plan no longer holds" is
+    precisely the evidence that the stored plan was stale.
+
+    NOT AN ASK, and no new power. It is the same fixed argv the timer runs
+    (discover_argv, built from Config alone), decided by the host, about work the
+    host had just finished; nothing in the spool can ask for it and nothing from a
+    request reaches it. The limit on an ASK (one every
+    updates.DISCOVER_MIN_SECONDS, the anonymous registry quota) is a limit on the
+    asking process's share of that quota and deliberately does not apply here: a
+    drain happens only after the host itself deployed or refused something, this
+    runs at most once per drain whatever the drain did, and applying the limit
+    would restore the bug for the commonest sequence there is - "check now", then
+    Update, four minutes later.
+
+    A FAILURE IS NOT THE JOB'S. The deployment already happened; a stale
+    available.json afterwards is a separate and lesser fault. So this never
+    raises: it returns one sentence for the journal and leaves one audit line, and
+    the job keeps whatever result it earned. asks.json is left alone on purpose -
+    that file answers "what did the last person who asked get?", and nobody asked
+    for this one, any more than for the timer's run.
+    """
+    t0 = time.monotonic()
+    rc, _, err = run(discover_argv(cfg), timeout=DISCOVER_TIMEOUT)
+    took = int((time.monotonic() - t0) * 1000)
+    detail = hostio.tail(err, 300) or ("" if rc == 0 else f"exit {rc}")
+    _audit(cfg, "-", "-", "rediscover", "ok" if rc == 0 else "failed", f"{took}ms {detail}")
+    if rc == 0:
+        return f"looked again after the run in {took}ms: {detail or 'available.json and the plans rewritten'}"
+    return (f"the re-check after the run FAILED ({detail}) - available.json is still what it was before the "
+            "job, so the page may offer a plan the host would refuse; `just updates-discover` fixes it now, "
+            "and the six-hourly timer will")
 
 
 def drain_autorun(cfg: Config, env=None) -> int:

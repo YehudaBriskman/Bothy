@@ -73,7 +73,13 @@ def make_cfg(d: dict, force: str | None = None) -> Config:
 if len(sys.argv) >= 3 and sys.argv[1] == "--worker":
     with open(sys.argv[2]) as fh:
         wcfg = make_cfg(json.load(fh), sys.argv[3] if len(sys.argv) > 3 else None)
-    sys.exit(executor.run_spool(wcfg, log=lambda m: print(m, flush=True)))
+    # rediscover=False: the end-of-drain re-check (updater/asks.rediscover) runs the
+    # host's REAL discovery program against this throwaway catalog, whose registry
+    # only the fake Net in this file can read - it would rewrite these plans
+    # mid-test and race the second executor in the concurrency phase. What it does
+    # is held by checks/test_updater.py (per drain, once, and a failure that does
+    # not touch the result) and checks/test_auto.py (the night job goes through here).
+    sys.exit(executor.run_spool(wcfg, log=lambda m: print(m, flush=True), rediscover=False))
 
 import updates  # noqa: E402
 

@@ -679,7 +679,11 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request`,
 
 - **Discovery and plans run on the host**, not in a container:
   `apps/bothy-ops/discover_updates.py` (a systemd timer,
-  `host/systemd/bothy-updates-discover.*`, every 6 h). It reads the pins from the
+  `host/systemd/bothy-updates-discover.*`, every 6 h - and once more at the end of
+  any executor run that did work, because a job that applied, refused or rolled
+  back has made what the last run wrote a statement about a box that no longer
+  exists; `updater/asks.rediscover`, decided by the host, never asked for).
+  It reads the pins from the
   repo, runs `docker inspect`, `kubectl get` and `helm list` (all read-only), and
   asks the public registries with **anonymous** pull tokens, GitHub's releases
   API unauthenticated and the helm index. It holds no credential and pulls
