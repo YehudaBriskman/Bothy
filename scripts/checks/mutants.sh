@@ -1715,13 +1715,24 @@ mutant "the page stops reserving the rail's column" \
   '  padding-right: var(--sp-8);' \
   -- "${WEB_CHECKS[@]}"
 
-# ...and the rail positioned against the BODY instead of the scroller, which is
-# the difference between "the side of the page" and "the side of the first
-# screenful": it would scroll away as you read down.
-mutant "the rail is positioned against the body, not the scroller" \
+# ...and the rail's containing block moved back onto the SCROLLER, which is the
+# bug the owner reported on 2026-10-09: an absolutely positioned child of a
+# scroll container scrolls with its content, so the rail slid up and out of view
+# on the way down the page - exactly when a running job is worth watching. The
+# row that stood here mutated `.set-main`'s own rule and passed, because the
+# check it ran against asserted the bug as the requirement. Both halves are
+# planted now: the pane losing its position, and the scroller gaining one.
+mutant "the rail is positioned against nothing, so it lands on the viewport" \
   apps/bothy-web/web/src/components/settings/settings.css \
-  '.set-shell .set-main:has(.upd-rail) { position: relative; }' \
-  '.set-shell .set-main:has(.upd-rail) { position: static; }' \
+  '.set-shell:has(.upd-rail) { position: relative; }' \
+  '.set-shell:has(.upd-rail) { position: static; }' \
+  -- "${WEB_CHECKS[@]}"
+
+mutant "the scroller becomes the containing block again, and the rail scrolls away" \
+  apps/bothy-web/web/src/components/settings/settings.css \
+  '.set-shell:has(.upd-rail) { position: relative; }' \
+  '.set-shell:has(.upd-rail) { position: relative; }
+.set-shell .set-main:has(.upd-rail) { position: relative; }' \
   -- "${WEB_CHECKS[@]}"
 
 # THE DOCK'S MOUNT POINT IS THE WHOLE POINT. RouteFade keeps two <main>s alive for

@@ -503,7 +503,16 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    sideways, which was the whole reason for moving the breakpoint. Below 1340 the
    band gives that table the full width of the page instead, which is more room
    than the column ever had. */
-.set-shell .set-main:has(.upd-rail) { position: relative; }
+/* THE CONTAINING BLOCK IS THE PANE, NOT THE SCROLLER. This said `.set-main` until
+   2026-10-09, with a comment claiming the rail "does not scroll away" - and an
+   absolutely positioned child of a scroll container scrolls with its content,
+   which is the opposite. The rail slid up and out of view on the way down the
+   page, which is exactly when a running job is worth watching. `.set-shell` is
+   the grid that holds the nav and the pane at `height: 100%` and never scrolls,
+   so resolving against it takes the rail out of the scrolled flow entirely. The
+   browser check scrolls now; it did not, which is why a confident comment passed
+   for a fact. */
+.set-shell:has(.upd-rail) { position: relative; }
 .set-shell .set-body:has(> .upd-rail) {
   --upd-rail-w: 21rem;
   --upd-rail-h: 9rem;
