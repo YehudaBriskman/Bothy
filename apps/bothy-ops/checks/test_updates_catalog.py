@@ -181,6 +181,25 @@ reg = {du.split_image(du.compose_service(open(os.path.join(REPO, c.pin_parts()[0
        for c in cat.components.values() if c.source == "image"}
 ok(reg <= set(du.REGISTRIES), f"every image lives on a registry discovery reads: {sorted(reg)}")
 
+# EVERY REFUSAL IS CAPPED AT 300 CHARACTERS BY ITS WRITER, in a different module
+# from the sentence, and what the cap takes is the END - which in this one is the
+# action. The first draft named the pinned image as the other branches do and ran
+# to 385 characters for postgres-exporter, 337 for traefik and postgres; the
+# version is in the row's Pinned cell and the evidence is in `configDrift`, so it
+# is not in the sentence. A new component with a longer container name or recipe
+# is how that comes back, so it is measured against the real catalog, not a
+# fixture.
+from updater.plans import config_only_words  # noqa: E402
+long = []
+for c in cat.components.values():
+    if c.source != "image":
+        continue
+    svc = du.compose_service(open(os.path.join(REPO, c.pin_parts()[0]), encoding="utf-8").read(), c.pin_parts()[1] or "")
+    n = len(config_only_words(svc.get("container_name") or c.id, c.apply))
+    if n > 300:
+        long.append(f"{c.id} ({n})")
+ok(not long, f"the config-only refusal fits the 300-character cap for every real component: {long or 'all of them'}")
+
 print()
 print("── the scanners on awkward input ─────────────────────────────────")
 COMPOSE = """services:

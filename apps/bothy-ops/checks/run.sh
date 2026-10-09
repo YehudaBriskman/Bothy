@@ -32,9 +32,13 @@
 #                        counts requests; audit parsing, paging, refusals.
 #   test_updates_catalog THE UPDATE CATALOG: unknown keys and channels refused,
 #                        `auto` refused on one-way and boundary components; the
-#                        version shapes and levels; every real pin resolves.
+#                        version shapes and levels; every real pin resolves; and
+#                        the config-only refusal fits the 300-character cap for
+#                        every real container name and recipe.
 #   test_discover_updates the host discovery against a fake registry: levels,
-#                        drift, floats, a 429 fuse, the cache, the file modes.
+#                        image drift, CONFIG drift (the image matches and the
+#                        merged compose configuration does not, read once per
+#                        project), floats, a 429 fuse, the cache, the file modes.
 #   wiring_updates.py    Settings > Updates: one exact GET router behind viewer,
 #                        a read-only state mount, the textfile collector.
 #   api_updates.py       GET /updates/status through the real handler: merged,

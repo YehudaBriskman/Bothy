@@ -70,6 +70,12 @@ export interface Discovered {
   running: RunningRef[];
   runningVersion: string | null;
   drift: string | null;
+  /** The other half of `drift`: the IMAGE matches and the merged compose
+   *  configuration does not, so the recipe would recreate the container anyway.
+   *  A sentence with compose's two config hashes in it - there is no diff to
+   *  render, by design (the rendered config resolves `.env`). Optional: an older
+   *  service does not send it. */
+  configDrift?: string | null;
   /** Facts, not faults: "the cluster did not answer - running version unknown". */
   notes: string[];
   floatMoved: boolean | null;
@@ -274,6 +280,11 @@ export interface UpdatesStatus {
     /** How many have a pin THIS BOX HAS NOT APPLIED. A different question from
      *  `updates`, and the one that matters here: Apply is what this page does. */
     toApply?: number;
+    /** How many run a merged compose configuration `main` no longer declares.
+     *  Never also in `toApply` - the updater moves image pins, and the image
+     *  already matches - so this is the count of rows whose only answer is the
+     *  recipe by hand. */
+    configDrift?: number;
     /** How many whole recipes can be applied at once. */
     groups?: number;
   };

@@ -131,7 +131,7 @@ def plan(comp: updates.Component, cfg: Config, catalog: updates.Catalog, availab
         raise PlanRefused("a cluster add-on is a helm chart or a manifest image, with one pin")
     rel, name = comp.pin_parts(0)
     name = name or ""
-    head = _git_gate(cfg, [rel])
+    head = _git_gate(cfg, [rel], catalog)
     available = available if available is not None else load_available(cfg)
     e = _discovered(available, comp)
     cur = e.get("current") if isinstance(e.get("current"), dict) else {}

@@ -207,6 +207,12 @@ function Freshness({ d }: { d: UpdatesStatus }) {
   const ready = d.components.filter((r) => r.plan?.deployable).length;
   const paused = d.components.filter((r) => r.paused).length;
   const groups = (d.groups ?? []).filter((g) => g.deployable);
+  // Config drift has no Apply - the updater moves image pins and the image here
+  // already matches - so it can never raise `ready`. It must still take the
+  // "Everything main pins is applied" claim away, because it is the counter-
+  // example to it: on 2026-10-08 grafana ran a merged configuration main no
+  // longer declares, and that sentence was on the page above it.
+  const cfgDrift = d.summary.configDrift ?? 0;
   return (
     <p className={`set-fresh ${d.discovery.stale ? 'is-stale' : ''}`} role="status">
       {d.discovery.stale && <Icon icon={AlertTriangle} size="sm" />}
@@ -221,7 +227,13 @@ function Freshness({ d }: { d: UpdatesStatus }) {
           ? <><b>{ready}</b> {ready === 1 ? 'component has a pin' : 'components have pins'} this box has not
             applied{groups.length > 0 && <> · <b>{groups.length}</b> whole {groups.length === 1 ? 'recipe' : 'recipes'} can
               be applied at once</>} · </>
-          : <>Everything <span className="mono">main</span> pins is applied · </>}
+          : cfgDrift > 0
+            ? <>Every pin <span className="mono">main</span> declares is applied · </>
+            : <>Everything <span className="mono">main</span> pins is applied · </>}
+        {cfgDrift > 0 && (
+          <><b>{cfgDrift}</b> {cfgDrift === 1 ? 'runs configuration' : 'run configuration'}{' '}
+            <span className="mono">main</span> no longer declares · </>
+        )}
         {s.components} components · {s.updates} with a newer version upstream · <b>{s.behind}</b> a minor or more behind
         {s.drift > 0 && <> · {s.drift} drifting</>}
         {s.errors > 0 && <> · {s.errors} not checked</>}
@@ -965,6 +977,15 @@ function RowDetail({ r, group, canAct, onChanged }:
           <span className="set-cell-sub">{d.drift}</span>
         </Det>
       )}
+      {d?.configDrift && (
+        // Beside Drift, never folded into it: Drift is about the IMAGE, and the
+        // whole point of this row is that the image is current and the
+        // configuration is not. The service says one or the other, never both.
+        <Det k="Configuration">
+          <span className="set-warn"><Icon icon={AlertTriangle} size="xs" />the image matches, the configuration does not</span>
+          <span className="set-cell-sub"><Prose text={d.configDrift} /></span>
+        </Det>
+      )}
       {d?.notes.map((n) => <Det k="Note" key={n}>{n}</Det>)}
 
       {d?.error && (
@@ -1099,6 +1120,14 @@ function Running({ r }: { r: UpdateRow }) {
       {d.drift && (
         <span className="upd-drift set-warn">
           <Icon icon={AlertTriangle} size="xs" />drift
+        </span>
+      )}
+      {/* ONE mark per cell, so this draws only where `drift` does not: the two
+          are different facts but the same urgency, and the sentence that tells
+          them apart is in the disclosure, where every other explanation went. */}
+      {!d.drift && d.configDrift && (
+        <span className="upd-drift set-warn">
+          <Icon icon={AlertTriangle} size="xs" />config
         </span>
       )}
     </>
@@ -1782,8 +1811,13 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
   // What the updater will not do, and what to do instead. A row whose only
   // obstacle is that its recipe has several pins waiting is NOT by hand any more -
   // its group is the action, so it would be wrong to list it here.
-  const manual = (d?.components ?? []).filter((r) => (r.level || r.discovered?.drift) && !r.plan?.deployable
-    && !r.applyWithGroup);
+  // `configDrift` belongs in this list by its own definition: the updater moves
+  // image pins, the image already matches, so the recipe by hand is the ONLY
+  // answer there is. Before this it had no level and no image drift, so the one
+  // component on this box whose only answer was a shell command was the one
+  // component the "Still by hand" list left out.
+  const manual = (d?.components ?? []).filter((r) => (r.level || r.discovered?.drift || r.discovered?.configDrift)
+    && !r.plan?.deployable && !r.applyWithGroup);
   return (
     <>
       <div className="kv-list">
@@ -1885,8 +1919,11 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
                         <span key={f}>{i > 0 && ' and '}<span className="mono">{f}</span></span>
                       ))}), then <Cmd>{r.apply}</Cmd>
                     </>
-                  ) : (
+                  ) : d2.drift ? (
                     <>drifting - <Cmd>{r.apply}</Cmd> brings it back to its pin</>
+                  ) : (
+                    <>running configuration <span className="mono">main</span> no longer declares -{' '}
+                      <Cmd>{r.apply}</Cmd> recreates it from the files</>
                   )}
                   {r.plan && !r.plan.deployable && <span className="set-note">Not one click: <Ticks text={r.plan.reason} /></span>}
                   {r.oneWay && <span className="set-note">One-way: run <Cmd>just backup</Cmd> first. {r.oneWayWhy}</span>}

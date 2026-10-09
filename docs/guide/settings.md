@@ -40,7 +40,7 @@ interval is a fact about the screen and the link you are on.
 | Monitoring & alerts | every scrape target and whether it answered; the Grafana alert rule definitions | metrics route; Files | viewer for rules |
 | Audit log | container and cluster actions, file writes, config patches and admin reads, filtered and paged | `/-/api/admin/audit` | **operator** |
 | Backups | each backup set's newest copy, count and size; the schedule and `just backup` | `/-/api/admin/backups` | **operator** |
-| Updates | every component's pinned, running and available version, patch/minor/major, drift, one-way, channel and changelog; how to apply one by hand (applying from the page is not built yet) | `/-/api/updates/status` | viewer |
+| Updates | every component's pinned, running and available version, patch/minor/major, image drift, *config* drift (the image matches and the merged compose configuration does not), one-way, channel and changelog; how to apply one by hand (applying from the page is not built yet) | `/-/api/updates/status` | viewer |
 | About & health | the five Bothy containers, the Traefik version and router table, documentation | Docker and Traefik reads | - |
 
 The role column is a courtesy. The edge decides; a block you may not read says

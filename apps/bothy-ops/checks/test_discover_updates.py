@@ -19,6 +19,11 @@ catalog points at. `docker inspect` is replaced by a table.
            pagination followed; the token dance done once per repository
   DRIFT    running != pinned, three ways: a different tag running, a digest pin
            running something else, and a tag re-published upstream
+  CONFIG   the other half: the IMAGE matches and the merged compose configuration
+           does not, so the recipe would recreate the container anyway. A pin
+           line whose image already drifts is NOT reported here; a project that
+           cannot be read is a note, not a value; the render runs once per
+           compose project, not once per component
   FLOATS   a moved floating tag is an update, not drift; the running release is
            identified among the float's family
   LIMITS   a 429 fuses the host for the run, the other components still finish,
@@ -238,10 +243,33 @@ LOCAL = f"http://localhost:{srv.server_address[1]}"
 REGS = {"docker.io": BASE, "quay.io": BASE, "gcr.io": BASE, "ghcr.io": LOCAL}
 
 
+class FakeProjects:
+    """A stand-in for ComposeProjects: one compose project, from a table.
+
+    `app` and `stale` have a merged configuration their containers were not made
+    with; `drifty` and `pinned` do not; `pg` is in neither map (a profile-gated
+    service, which compose does not render); `floaty`'s project cannot be read.
+    """
+
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, str, str]] = []
+
+    def of(self, container, pin_file, pin_service):
+        self.asked.append((container, pin_file, pin_service))
+        if container == "floaty":
+            raise ValueError("floaty was not created from compose.yml")
+        return {"project": "p1", "files": [os.path.join(REPO, "compose.yml")], "wd": REPO,
+                "want": {"app": "want-app", "drifty": "same-d", "stale": "want-s", "pinned": "same-p"},
+                "have": {"app": "have-app", "drifty": "same-d", "stale": "have-s", "pinned": "same-p"}}
+
+
+PROJ = FakeProjects()
+
+
 def run(cache=None, **kw):
     net = du.Net(cache if cache is not None else {}, registries=REGS, hub=f"{BASE}/hub", github=f"{BASE}/gh", **kw)
     d = du.Discoverer(CAT, net, repo=REPO, running=lambda n: RUNNING.get(n),
-                      kube=lambda wl: ["app:1.2.2"], helm=lambda rel, chart: "8.5.0")
+                      kube=lambda wl: ["app:1.2.2"], helm=lambda rel, chart: "8.5.0", projects=PROJ)
     return d.run(), net
 
 
@@ -278,6 +306,32 @@ ok(p["latest"] and p["latest"]["tag"] == "v0.18.1", "…and offered the patch ab
 ok(C["in-cluster"]["drift"] and "the cluster runs app:1.2.2" in C["in-cluster"]["drift"],
    f"a manifest the cluster does not run is drift: {C['in-cluster']['drift']}")
 ok(C["app"]["running"][0]["digest"] == D("2"), "the running digest is recorded")
+
+print()
+print("── CONFIG DRIFT: the image matches, the configuration does not ──")
+# The state the whole pipeline was blind to until 2026-10-08: grafana ran the
+# pinned image and a merged compose configuration `main` no longer declared, and
+# the box said `drift: None` and `nothing to deploy` - two true sentences that
+# together read as all is well.
+ok(C["app"]["configDrift"] and "would recreate app" in C["app"]["configDrift"]
+   and "want-app" in C["app"]["configDrift"] and "have-app" in C["app"]["configDrift"],
+   f"a service whose merged config is not the one it was created with: {C['app']['configDrift']}")
+ok(C["app"]["drift"] is None, "…and it is NOT reported as image drift")
+# The rule that keeps the new field from being a louder copy of the old one: the
+# image reference is part of what compose hashes, so a component behind on its
+# image has a different hash BECAUSE it is behind - which `drift` already says.
+ok(C["stale"]["configDrift"] is None and C["stale"]["drift"],
+   f"a pin line whose IMAGE already drifts is not also reported as config drift: {C['stale']['configDrift']}")
+ok(C["drifty"]["configDrift"] is None, "want == have -> no config drift")
+ok(C["pinned"]["configDrift"] is None, "…including for a digest-only pin")
+ok(C["limited"]["configDrift"] is None, "a component that is not running has no configuration to compare")
+ok(any("could not be compared" in n for n in C["floaty"]["notes"]) and C["floaty"]["configDrift"] is None,
+   f"a project that cannot be read is a NOTE, not a value - the metric must not count not-knowing: "
+   f"{C['floaty']['notes']}")
+ok(any("not in the merged configuration" in n for n in C["pg"]["notes"]) and C["pg"]["configDrift"] is None,
+   f"a service compose does not render (a profile) is a note, not drift: {C['pg']['notes']}")
+ok(all(e.get("configDrift") is None for cid, e in C.items() if cid in ("in-cluster", "ksm", "bothy")),
+   "a manifest, a chart and our own code have no compose configuration to compare")
 
 print()
 print("── FLOATS: a moved float is an update, not drift ────────────────")
@@ -349,6 +403,12 @@ ok('bothy_update_available{component="app",level="major"} 1' in text
    and 'bothy_update_available{component="app",level="patch"} 1' in text, "per-level availability series")
 ok('bothy_update_drift{component="stale"} 1' in text and 'bothy_update_drift{component="app"} 0' in text,
    "drift series, 0 and 1")
+ok('bothy_update_config_drift{component="app"} 1' in text
+   and 'bothy_update_config_drift{component="drifty"} 0' in text
+   and 'bothy_update_config_drift{component="stale"} 0' in text,
+   "a config-drift series BESIDE the drift one - and `stale` is 1 in drift and 0 here")
+ok('bothy_update_config_drift{component="floaty"} 0' in text,
+   "a project that could not be read is 0, not 1: the metric never counts not-knowing as drift")
 ok('bothy_update_check_error{component="limited"} 1' in text, "a component that could not be checked says so")
 ok(all(ln.startswith("#") or ln.startswith("bothy_update_") for ln in text.strip().splitlines()),
    "every line is a comment or a bothy_update_* sample")
@@ -365,6 +425,38 @@ ok(rows["app"]["level"] == "major" and rows["app"]["effectiveChannel"] == "manua
    "an auto component's major is served as manual")
 ok(rows["drifty"]["effectiveChannel"] == "auto", "an auto component's patch stays auto")
 ok(st["summary"]["drift"] == 4 and st["summary"]["errors"] >= 1, f"the summary counts drift and errors: {st['summary']}")
+ok(st["summary"]["configDrift"] == 1 and rows["app"]["discovered"]["configDrift"],
+   f"…and config drift on its own count, beside toApply: {st['summary']}")
+
+print()
+print("── ONCE PER PROJECT: the render that must not run N times ───────")
+# Six of the real catalog's components are services of `monitoring`. Asking per
+# component would render the merged config - and inspect every container of the
+# project - six times for one answer, which is why the memo is in ComposeProjects
+# rather than in the caller.
+import updater.hostio as hostio  # noqa: E402
+
+RENDERS: list[str] = []
+
+
+def _fake_compose_project(repo, name, pin_file, pin_service):
+    RENDERS.append(name)
+    return {"project": "p1", "files": [], "wd": repo, "want": {}, "have": {}}
+
+
+_real_cp, _real_run = hostio.compose_project, du._run
+hostio.compose_project = _fake_compose_project
+du._run = lambda argv, timeout=15: "p1\n" if argv[:2] == ["docker", "inspect"] else None
+try:
+    cp = du.ComposeProjects(REPO)
+    for name in ("app", "drifty", "stale"):
+        cp.of(name, "compose.yml", name)
+    ok(RENDERS == ["app"], f"three services of one project, ONE `docker compose config` ({RENDERS})")
+    du._run = lambda argv, timeout=15: None
+    ok(cp.of("gone", "compose.yml", "gone") is None,
+       "no such container -> None, not an error: a component that is not running has nothing to compare")
+finally:
+    hostio.compose_project, du._run = _real_cp, _real_run
 
 print()
 print("── HELM PINS: a Chart.yaml dependency, or a shell variable ──────")

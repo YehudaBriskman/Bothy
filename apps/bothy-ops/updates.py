@@ -433,6 +433,12 @@ def _discovered(d: object) -> dict | None:
         "running": _running(d.get("running")),
         "runningVersion": _s(d.get("runningVersion"), 64),
         "drift": _s(d.get("drift"), 300),
+        # The second half of the same question, computed from compose's own config
+        # hashes (discover_updates.Discoverer.config_drift): the image matches and
+        # the merged configuration does not, so the recipe would recreate it. A
+        # capped string like `drift`, for the same reason - there is no diff to
+        # render here, and the rendered config would carry `.env`.
+        "configDrift": _s(d.get("configDrift"), 300),
         "notes": [n[:200] for n in d["notes"][:5] if isinstance(n, str)] if isinstance(d.get("notes"), list) else [],
         "floatMoved": d.get("floatMoved") if isinstance(d.get("floatMoved"), bool) else None,
         "latest": _ver(d.get("latest")),
@@ -656,6 +662,13 @@ def status(catalog: Catalog) -> dict:
         # was the only count with a headline - 2 of them, while ten components
         # were behind on apply (2026-10-07).
         "toApply": sum(1 for r in rows if r["plan"] and r["plan"]["deployable"]),
+        # Beside `toApply`, because it is the same question - "what has this box
+        # not applied?" - about the half `toApply` cannot answer. A component
+        # counted here has NO deployable plan (the updater moves image pins, and
+        # the image already matches), so it is never also in `toApply`, and the
+        # page must not fold the two into one number: one is a button, the other
+        # is a shell command after a backup.
+        "configDrift": sum(1 for r in rows if r["discovered"] and r["discovered"]["configDrift"]),
         "groups": sum(1 for g in groups if g["deployable"]),
     }
     p = catalog.policy
@@ -1508,7 +1521,8 @@ def handle(h, endpoint: str = "status") -> None:
                 raise Refused("/updates/status takes no parameters", status=400)
             result = status(CATALOG)
             s = result["summary"]
-            code, outcome, detail = 200, "READ", f"{s['updates']} updates, {s['behind']} behind, {s['drift']} drift"
+            code, outcome, detail = 200, "READ", (f"{s['updates']} updates, {s['behind']} behind, "
+                                                  f"{s['drift']} drift, {s['configDrift']} config drift")
         elif endpoint == "plan":
             result, detail = plan_read(h)
             code, outcome = 200, "READ"

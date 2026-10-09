@@ -1034,6 +1034,86 @@ mutant "a group ask gets a router of its own" \
   -- python3 apps/bothy-ops/checks/wiring_updates.py
 
 echo
+echo "── the box saying when it runs config main no longer declares ───────"
+# The failure this guards is TWO TRUE SENTENCES that together lie. Grafana ran the
+# image `main` pins and a merged compose configuration `main` no longer declares,
+# and the product said `drift: None` and `nothing to deploy: grafana runs what
+# main pins` - the first because drift classified on image identity alone, the
+# second because the image matched. Nothing anywhere said the box was running
+# configuration that is not in the repository (2026-10-08).
+#
+# Every row here is a way that could become quiet again. Note the anchors: the
+# config comparison and the drift loop test the same two things one method apart,
+# so the condition is a NAMED local - `plant()` replaces the first match, and two
+# identical lines in one file make a mutation a hostage to method order.
+
+mutant "discovery stops asking whether the config changed" \
+  apps/bothy-ops/discover_updates.py \
+  'e["configDrift"] = self.config_drift(c, refs, e)' \
+  'e["configDrift"] = None' \
+  -- python3 apps/bothy-ops/checks/test_discover_updates.py
+
+mutant "config drift becomes a louder copy of image drift" \
+  apps/bothy-ops/discover_updates.py \
+  'image_explains_it = bool(r.get("image")) and not same_image(r["image"], ref)' \
+  'image_explains_it = False' \
+  -- python3 apps/bothy-ops/checks/test_discover_updates.py
+
+mutant "the merged config is rendered once per component, not per project" \
+  apps/bothy-ops/discover_updates.py \
+  'if name not in self._by_project:' \
+  'if True:' \
+  -- python3 apps/bothy-ops/checks/test_discover_updates.py
+
+mutant "a project that could not be READ is reported as drift" \
+  apps/bothy-ops/discover_updates.py \
+  'note(f"the merged compose configuration could not be compared: {err}")' \
+  'said.append(f"the merged compose configuration could not be compared: {err}")' \
+  -- python3 apps/bothy-ops/checks/test_discover_updates.py
+
+mutant "the config-drift metric is exported as always zero" \
+  apps/bothy-ops/discover_updates.py \
+  'lines += [f'"'"'bothy_update_config_drift{{component="{cid}"}} {1 if comps[cid].get("configDrift") else 0}'"'"'' \
+  'lines += [f'"'"'bothy_update_config_drift{{component="{cid}"}} 0'"'"'' \
+  -- python3 apps/bothy-ops/checks/test_discover_updates.py
+
+mutant "bothy-ops drops config drift from what it serves" \
+  apps/bothy-ops/updates.py \
+  '        "configDrift": _s(d.get("configDrift"), 300),' \
+  '        "configDrift": None,' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+mutant "the summary stops counting config drift" \
+  apps/bothy-ops/updates.py \
+  '        "configDrift": sum(1 for r in rows if r["discovered"] and r["discovered"]["configDrift"]),' \
+  '        "configDrift": 0,' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+mutant "the refusal collapses back into 'nothing to deploy'" \
+  apps/bothy-ops/updater/plans.py \
+  '            if isinstance(e.get("configDrift"), str) and e["configDrift"]:' \
+  '            if False:' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+mutant "the config-only refusal grows past the cap that cuts its end off" \
+  apps/bothy-ops/updater/plans.py \
+  'image pins only, so this one is by hand, after a backup")' \
+  'image pins only, so this one is by hand, after a backup. The version it pins, the version it runs and the digest behind both are in the row above this one.")' \
+  -- python3 apps/bothy-ops/checks/test_updates_catalog.py
+
+mutant "a dirty pin file stops saying how far it reaches" \
+  apps/bothy-ops/updater/plans.py \
+  'reach = f", which refuses the plan for all {len(also)} components pinned in it" if len(also) > 1 else ""' \
+  'reach = ""' \
+  -- python3 apps/bothy-ops/checks/test_updater.py
+
+mutant "a config-only leftover goes back to relaying 'nothing to deploy'" \
+  apps/bothy-ops/updater/groups.py \
+  "            said.append(f\"{s} ({c.id}: {shorts.get(c.id) or refusals.get(c.id) or 'no deployable plan'})\")" \
+  "            said.append(f\"{s} ({c.id}: {refusals.get(c.id) or 'no deployable plan'})\")" \
+  -- python3 apps/bothy-ops/checks/test_groups.py
+
+echo
 echo "── the shell layer macOS has to parse ──────────────────────────────"
 # bash 4 syntax is a PARSE error on the bash 3.2 macOS ships: the script does not
 # run at all, and the error names a line that looks fine.

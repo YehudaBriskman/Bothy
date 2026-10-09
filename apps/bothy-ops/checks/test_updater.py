@@ -201,10 +201,11 @@ cfg = Config(repo=REPO, catalog=os.path.join(REPO, "updates.toml"), state=STATE,
 os.makedirs(cfg.spool, mode=0o700)
 
 
-def avail(web_resolved=D("b"), loki_resolved=D("d"), web_tag="1.0.1") -> dict:
+def avail(web_resolved=D("b"), loki_resolved=D("d"), web_tag="1.0.1", web_config_drift=None) -> dict:
     return {"version": 1, "generatedAt": "2026-09-19T10:00:00Z", "components": {
         "web": {"image": "example.invalid/web", "current": {"tag": web_tag, "float": False,
-                                                            "resolved": web_resolved}},
+                                                            "resolved": web_resolved},
+                "configDrift": web_config_drift},
         "loki": {"image": "docker.io/grafana/loki", "current": {"tag": "3.7.7", "float": False,
                                                                 "resolved": loki_resolved}},
         "graf": {"image": "docker.io/grafana/grafana", "current": {"tag": "13.2.2"}},
@@ -289,6 +290,22 @@ refused(lambda: plans.plan("web", cfg=cfg, available={"version": 1, "components"
 
 RUNNING["t-web"] = ("example.invalid/web:1.0.1", "sha256:" + "3" * 64, D("b"))
 refused(lambda: plans.plan("web", cfg=cfg, available=A), "nothing to deploy", "it already runs what main pins")
+# "there is nothing to do" and "the image matches but the configuration does not"
+# are DIFFERENT FACTS, and collapsing them is how grafana came to run a merged
+# configuration main no longer declared while the page said `drift: None` and
+# `nothing to deploy` (2026-10-08). Same running image, same pin, one extra fact
+# in available.json - and the refusal must change.
+CD = avail(web_config_drift="`just up-web` would recreate web: the merged compose configuration is not the "
+                            "one t-web was created with (wants aaaa…, has bbbb…)")
+try:
+    plans.plan("web", cfg=cfg, available=CD)
+    ok(False, "a config-only refusal  (a plan was MADE)")
+except plans.PlanRefused as e:
+    ok("the image matches but the configuration does not" in str(e) and "nothing to deploy" not in str(e),
+       f"the image matches but the configuration does not, and it no longer says 'nothing'  ({e})")
+    ok(e.short == "the image matches, the configuration does not" and len(str(e)) <= 300,
+       f"…with a one-clause form for a LIST of refusals, and the whole sentence inside the 300-char cap "
+       f"({len(str(e))}: {e.short!r})")
 RUNNING["t-web"] = ("example.invalid/web:1.0.1", "sha256:" + "3" * 64, D("9"))
 refused(lambda: plans.plan("web", cfg=cfg, available=A), "re-published", "the pinned tag moved under the container")
 RUNNING["t-web"] = ("example.invalid/web:1.0.2", "sha256:" + "4" * 64, D("5"))
@@ -301,6 +318,17 @@ RUNNING["t-web"] = ("example.invalid/web:1.0.0", "sha256:" + "1" * 64, D("a"))
 
 write_compose(web="1.0.3")
 refused(lambda: plans.plan("web", cfg=cfg, available=A), "local changes", "a dirty pin file")
+# The silent cliff: ONE uncommitted line in a pin file refuses the plan for EVERY
+# component pinned in that file - six, in the live monitoring/compose.yml - and
+# until 2026-10-08 each of the six said only that the file had local changes. Six
+# rows blaming one file, with nothing saying it was one edit.
+try:
+    plans.plan("web", cfg=cfg, available=A)
+    ok(False, "the dirty refusal says how far it reaches  (a plan was MADE)")
+except plans.PlanRefused as e:
+    ok("all 6 components pinned in it" in str(e) and "grafana" in str(e) and "keycloak" in str(e),
+       f"…and it says how far one dirty file reaches, by name  ({e})")
+    ok(len(str(e)) <= 300, f"…inside the 300-character cap every writer of a refusal applies ({len(str(e))})")
 git("checkout", "-q", "--", "compose.yml")
 git("commit", "-q", "--allow-empty", "-m", "local only")
 refused(lambda: plans.plan("web", cfg=cfg, available=A), "not on origin/main", "HEAD ahead of origin/main")

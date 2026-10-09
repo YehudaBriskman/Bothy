@@ -99,7 +99,7 @@ interface Spec {
   id: string; title: string; cls: string; source?: UpdateRow['source']; pins: string[]; apply: string;
   channel: Channel; oneWayWhy?: string; changelog: string; dependants?: string[];
   tag: string | null; version?: string | null; float?: boolean; running?: string | null; runningDigest?: string;
-  runningVersion?: string; drift?: string; floatMoved?: boolean; floatTarget?: string; error?: string;
+  runningVersion?: string; drift?: string; configDrift?: string; floatMoved?: boolean; floatTarget?: string; error?: string;
   identifiedAs?: string; notes?: string[];
   cands?: Partial<Record<Level, string>>;
 }
@@ -108,8 +108,16 @@ const SPECS: Spec[] = [
   { id: 'cadvisor', title: 'cAdvisor', cls: 'stateless', pins: ['monitoring/compose.yml:cadvisor'], apply: 'just up-monitoring', channel: 'auto',
     changelog: 'https://github.com/google/cadvisor/releases/tag/v{v}', tag: 'v0.55.1', running: 'gcr.io/cadvisor/cadvisor:v0.55.1',
     error: 'RateLimited: gcr.io answered 429 (rate limit); no more calls to it this run' },
+  // CONFIG DRIFT with nothing else wrong: the image is current, there is no newer
+  // version upstream, and the recipe would still recreate the container. The one
+  // state the whole pipeline was blind to until 2026-10-08, and the only row that
+  // reaches the `config` mark, the Configuration disclosure, the headline count
+  // and the "running configuration main no longer declares" wording in Still by
+  // hand - so it is in the fixture, or none of those four is ever seen in dev.
   { id: 'node-exporter', title: 'node-exporter', cls: 'stateless', pins: ['monitoring/compose.yml:node-exporter'], apply: 'just up-monitoring',
-    channel: 'auto', changelog: 'https://github.com/prometheus/node_exporter/releases/tag/v{v}', tag: 'v1.12.1', running: 'prom/node-exporter:v1.12.1' },
+    channel: 'auto', changelog: 'https://github.com/prometheus/node_exporter/releases/tag/v{v}', tag: 'v1.12.1', running: 'prom/node-exporter:v1.12.1',
+    configDrift: '`just up-monitoring` would recreate node-exporter: the merged compose configuration is not the one '
+      + 'node-exporter was created with (wants 1f4d4bee871c…, has 5b4255ac0df3…)' },
   { id: 'postgres-exporter', title: 'postgres-exporter', cls: 'stateless', pins: ['data/postgres/compose.yml:postgres-exporter'],
     apply: 'just up-data', channel: 'auto', changelog: 'https://github.com/prometheus-community/postgres_exporter/releases/tag/v{v}',
     tag: null, version: '0.20.1', identifiedAs: 'v0.20.1', runningVersion: '0.20.1',
@@ -182,7 +190,8 @@ function row(s: Spec, checkedAt: string, discovered: boolean): UpdateRow {
     current: { tag: s.tag, version: s.version ?? (s.tag && !s.float ? bare(s.tag) : null), digest: s.tag ? null : dg('e'), float: !!s.float,
       floatTarget: s.floatTarget ?? null, identifiedAs: s.identifiedAs ?? null },
     running: s.running ? [{ name: s.id, image: s.running, digest: s.runningDigest ?? dg('d'), state: 'running' }] : [],
-    runningVersion: s.runningVersion ?? null, drift: s.drift ?? null, notes: s.notes ?? [], floatMoved: s.floatMoved ?? null,
+    runningVersion: s.runningVersion ?? null, drift: s.drift ?? null, configDrift: s.configDrift ?? null,
+    notes: s.notes ?? [], floatMoved: s.floatMoved ?? null,
     latest: s.error ? null : latest, candidates: s.error ? {} : cands,
   };
   const level = d?.latest?.level ?? null;
@@ -360,6 +369,7 @@ export async function updatesMock(): Promise<UpdatesStatus> {
       updates: rows.filter((r) => r.level).length,
       behind: rows.filter((r) => r.behind).length,
       drift: d.filter((x) => x?.drift).length,
+      configDrift: d.filter((x) => x?.configDrift).length,
       errors: d.filter((x) => x?.error).length,
       toApply: rows.filter((r) => r.plan?.deployable).length,
       groups: gs.filter((g) => g.deployable).length,
@@ -587,7 +597,9 @@ const PLANS: Record<string, Plan> = {
 
 const REASONS: Record<string, string> = {
   cadvisor: 'nothing to deploy: cadvisor runs what main pins',
-  'node-exporter': 'nothing to deploy: node-exporter runs what main pins',
+  'node-exporter': 'the image matches but the configuration does not: node-exporter runs the image main pins, '
+    + 'and `just up-monitoring` would still recreate it - the merged compose configuration changed. The updater '
+    + 'moves image pins only, so this one is by hand, after a backup',
   'postgres-exporter': 'nothing to deploy: postgres-exporter runs what main pins',
   headlamp: 'nothing to deploy: headlamp is not running (start it with `just up-headlamp`)',
   victoriametrics: 'nothing to deploy: victoriametrics runs what main pins. v1.153.0 is newer upstream - merge its Dependabot PR, pull the checkout, then `just updates-discover`',
@@ -653,7 +665,9 @@ const GROUP: GroupPlan = {
   members: GROUP_MEMBERS,
   skipped: [
     { component: 'cadvisor', reason: 'a major (0.55.1 -> 1.0.0) is a manual procedure' },
-    { component: 'node-exporter', reason: 'nothing to deploy: node-exporter runs what main pins' },
+    { component: 'node-exporter', reason: 'the image matches but the configuration does not: node-exporter runs '
+      + 'the image main pins, and `just up-monitoring` would still recreate it - the merged compose configuration '
+      + 'changed. The updater moves image pins only, so this one is by hand, after a backup' },
     { component: 'victoriametrics', reason: 'nothing to deploy: victoriametrics runs what main pins' },
   ],
   restarts: ['grafana', 'alloy', 'loki', 'grafana (log panels)'],

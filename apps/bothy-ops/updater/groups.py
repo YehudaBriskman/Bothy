@@ -174,8 +174,19 @@ def _owner(catalog: updates.Catalog, service: str, project_files: set) -> update
 
 
 def _leftover_words(catalog: updates.Catalog, group: str, others: list[str], files: list[str],
-                    member_ids: set, refusals: dict[str, str]) -> str:
-    """Each service the group will NOT carry, and why - never just "by hand"."""
+                    member_ids: set, refusals: dict[str, str], shorts: dict[str, str]) -> str:
+    """Each service the group will NOT carry, and why - never just "by hand".
+
+    `shorts` is `PlanRefused.short` per component, and it is used in preference to
+    the full reason because EVERY SERVICE IN `others` IS ONE COMPOSE WOULD
+    RECREATE. That is what put the word "nothing" in a sentence about something
+    about to happen: a component whose image matches and whose configuration does
+    not refused with "nothing to deploy", this relayed it verbatim, and the
+    leftover then read as *nothing is wrong* about the one service the group was
+    refusing over. plans.py now splits that refusal in two, and hands this a
+    clause short enough to survive the 300-character cap the whole sentence is
+    cut at - which the full one is not.
+    """
     basenames = {os.path.basename(f) for f in files}
     said = []
     for s in sorted(others):
@@ -189,7 +200,7 @@ def _leftover_words(catalog: updates.Catalog, group: str, others: list[str], fil
         elif recipe_of(c) != group:
             said.append(f"{s} ({c.id}, applied by `{c.apply}`, not this recipe)")
         else:
-            said.append(f"{s} ({c.id}: {refusals.get(c.id, 'no deployable plan')})")
+            said.append(f"{s} ({c.id}: {shorts.get(c.id) or refusals.get(c.id) or 'no deployable plan'})")
     return "; ".join(said)
 
 
@@ -222,12 +233,17 @@ def resolve(group: str, *, cfg: Config | None = None, catalog: updates.Catalog |
 
     members: list[tuple[updates.Component, dict]] = []
     refusals: dict[str, str] = {}
+    shorts: dict[str, str] = {}
     for cid in all_groups[group]:
         try:
             members.append((catalog.components[cid],
                             plans.plan(cid, cfg=cfg, catalog=catalog, available=available)))
         except PlanRefused as e:
             refusals[cid] = str(e)[:200]
+            # The one-clause form, for _leftover_words - which prints a LIST of
+            # these inside a sentence that is itself capped.
+            if e.short:
+                shorts[cid] = e.short[:120]
     if len(members) < MIN_MEMBERS:
         # THE SENTENCE AND THE LIST ARE SEPARATE, and that is the fix rather than a
         # tidy-up (2026-10-07). They used to be one string, and every writer of a
@@ -264,7 +280,7 @@ def resolve(group: str, *, cfg: Config | None = None, catalog: updates.Catalog |
         # The scope rule, unchanged, over the union. Everything left over is named,
         # with whose it is and why the group will not carry it.
         raise PlanRefused(f"`just {group}` would also recreate or create "
-                          f"{_leftover_words(catalog, group, others, pj['files'], {c.id for c, _ in members}, refusals)}"
+                          f"{_leftover_words(catalog, group, others, pj['files'], {c.id for c, _ in members}, refusals, shorts)}"
                           f" - the group moves image pins only, so those are still by hand "
                           f"(back up first)"[:300])
 
