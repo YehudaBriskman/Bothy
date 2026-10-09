@@ -1743,6 +1743,32 @@ mutant "something other than the Updates page arms the poll" \
   '      <UpdateActivityDock />{adoptJob(rememberedJob())}' \
   -- "${WEB_CHECKS[@]}"
 
+# THE RESUME'S TWO BOUNDS. Without the stored-id guard every tab that ever opens
+# the app reads the job route on load, for nothing; without the seed it reads the
+# same job twice on every reload. Both are audit lines on the host, which is the
+# one cost this surface was told to respect.
+mutant "the resume reads the job route with nothing to resume" \
+  apps/bothy-web/web/src/lib/updates.ts \
+  '  const id = rememberedJob();
+  if (!id) return;' \
+  "  const id = rememberedJob() ?? 'f'.repeat(32);" \
+  -- "${WEB_CHECKS[@]}"
+
+mutant "the resume re-reads the job it was just handed" \
+  apps/bothy-web/web/src/lib/updates.ts \
+  '  followJob(id, j);' \
+  '  followJob(id);' \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and a job that ended while the tab was away being raised in the corner on
+# every reload until somebody dismisses it - a stale outcome following you round
+# the app, which is the thing that makes a persistent surface feel like a toast.
+mutant "a job that finished while the tab was away comes back as a dock" \
+  apps/bothy-web/web/src/lib/updates.ts \
+  '  if (feed.id || isTerminal(j.state)) return;' \
+  '  if (feed.id) return;' \
+  -- "${WEB_CHECKS[@]}"
+
 # ...and the loop never stopping, which is an audit line every two seconds for as
 # long as the tab is open, on a job that finished hours ago.
 mutant "the job poll keeps running after the job is over" \

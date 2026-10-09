@@ -481,13 +481,22 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    content - so the rail stays on screen while you read down the page, which is
    the whole point of being able to watch a job.
 
-   BELOW 1100px THERE IS NO RIGHT. The rail goes back into the flow as a band
+   BELOW 1240px THERE IS NO RIGHT. The rail goes back into the flow as a band
    across the top at a fixed height - still reserved, still never shifting - and
-   first in the visual order, because a running job is what somebody opening this
+   first among the blocks, because a running job is what somebody opening this
    page wants. It costs 9rem of a phone screen permanently, which is the price of
    the no-shift promise and is why the slot at rest carries the last job rather
    than being blank. The corner dock (components/UpdateActivity.css) is the answer
-   on every OTHER page, at every width. */
+   on every OTHER page, at every width.
+
+   WHY 1240 AND NOT 1100 (2026-10-08). 1100 was inherited from the shape this
+   replaced, and it was wrong for this one: the page gives 21rem to the rail, so
+   at 1101px the content column is about 440px - and the components table does
+   not become cards until the VIEWPORT is 640px, so between those two numbers it
+   is a 440px window scrolling a six-column table sideways. 1240 is where the
+   content column clears ~580px, which is where that table stops needing a
+   horizontal scroll at its usual content. Measured in a browser at 1200 and
+   1280, not assumed. */
 .set-shell .set-main:has(.upd-rail) { position: relative; }
 .set-shell .set-body:has(> .upd-rail) {
   --upd-rail-w: 21rem;
@@ -504,7 +513,7 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    browser check compares bounding boxes at 390 as well as at 1440. The `padding`
    shorthand in the 900px block below cannot do this job: the rule above is
    (0,3,0) and beats it. */
-@media (max-width: 1100px) {
+@media (max-width: 1240px) {
   .set-shell .set-body:has(> .upd-rail) { max-width: 1080px; padding-right: var(--sp-8); }
   /* The band is first among the BLOCKS, and not above the page's own name. It is
      drawn whether or not anything is running, so `order: -1` alone put a 9rem

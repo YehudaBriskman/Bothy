@@ -635,13 +635,20 @@ function stopPolling(): void {
 }
 
 /** Follow a job by id. THE ONE PLACE THE LOOP STARTS - called when this tab asks
- *  for an update, and when Settings > Updates adopts one that is already running.
- *  Following the job already being followed is a no-op, so a render loop cannot
- *  restart the poll. */
-export function followJob(id: string): void {
+ *  for an update, when Settings > Updates adopts one that is already running, and
+ *  when `resumeJob` picks one up across a reload. Following the job already being
+ *  followed is a no-op, so a render loop cannot restart the poll.
+ *
+ *  `seed` is a job the caller has ALREADY READ. It is what keeps the resume to a
+ *  single request: without it this would immediately read the same job again, and
+ *  every read of the job route is an audit line on the host. A seeded job that is
+ *  already over is put on screen and no loop starts at all. */
+export function followJob(id: string, seed?: Job): void {
   if (id === feed.id) return;
   stopPolling();
-  putFeed({ id, job: null, lost: null, gone: false, live: true });
+  const live = seed ? !isTerminal(seed.state) : true;
+  putFeed({ id, job: seed ?? null, lost: null, gone: false, live });
+  if (!live) return;
   const ac = new AbortController();
   feedAbort = ac;
   const tick = async (): Promise<void> => {
@@ -665,7 +672,36 @@ export function followJob(id: string): void {
     }
     if (again && !ac.signal.aborted) feedTimer = setTimeout(() => void tick(), JOB_POLL_MS);
   };
-  void tick();
+  if (seed) feedTimer = setTimeout(() => void tick(), JOB_POLL_MS);
+  else void tick();
+}
+
+let resumed = false;
+
+/** PICK UP A JOB THAT OUTLIVED THE TAB - exactly one request, and only when
+ *  there is something to pick up.
+ *
+ *  The update being watched may recreate bothy-web underneath it, and a person
+ *  who reloads mid-deploy on any page but Settings > Updates would otherwise see
+ *  nothing at all until they happened to open that page. So the shell asks once,
+ *  on load, for the job id this tab stored - and `rememberedJob()` returning null
+ *  is the common case, in which NOTHING IS REQUESTED. That is the bound: a tab
+ *  with no stored job still costs the audit log nothing, which is the property
+ *  the quarter-hourly TTL on the sidebar count exists to protect.
+ *
+ *  A job that finished while the tab was away is not picked up. It is not news to
+ *  raise in a corner, the id stays stored so Settings > Updates still lands back
+ *  on its panel, and the history table has it either way. */
+export async function resumeJob(): Promise<void> {
+  if (resumed || feed.id) return;
+  resumed = true;
+  const id = rememberedJob();
+  if (!id) return;
+  let j: Job;
+  try { j = await fetchJob(id); } catch { return; }
+  // Something else started following while this read was in flight.
+  if (feed.id || isTerminal(j.state)) return;
+  followJob(id, j);
 }
 
 /** Follow `id` only if nothing is being followed yet. This is how the page hands

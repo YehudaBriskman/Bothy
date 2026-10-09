@@ -69,7 +69,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, Check, CircleDashed, Minus, RotateCcw, X } from 'lucide-react';
 import {
   type HistoryEntry, type Job, type JobState, type JobStep,
-  dismissJob, isTerminal, jobFeed, onJobFeed,
+  dismissJob, isTerminal, jobFeed, onJobFeed, resumeJob,
 } from '../lib/updates';
 import { Actor, Prose, Ticks, When } from './settings/bits';
 import { Button } from './ui/Button';
@@ -289,6 +289,14 @@ export function UpdateActivityDock() {
   const box = useRef<HTMLDivElement>(null);
   const orb = useRef<HTMLButtonElement>(null);
   const panelId = useId();
+
+  // PICK UP A JOB THAT OUTLIVED THE TAB. The update being watched may recreate
+  // bothy-web underneath it, so a reload mid-deploy is a normal thing to happen
+  // - and on any page but Settings > Updates there would otherwise be nothing on
+  // screen at all until somebody opened that page. The shell is where this
+  // belongs because the shell is what survives a route change; `resumeJob` makes
+  // exactly one request, and none at all when no job id was stored.
+  useEffect(() => { void resumeJob(); }, []);
 
   // Escape closes it AND hands focus back to the trigger, from wherever in the
   // card the reader had got to. On the wrapper rather than on the document: a

@@ -960,7 +960,7 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   //     and cannot move a block however many steps it grows. A reserved
   //     min-height would not do: the panel grows, and a reserved box that is
   //     sometimes too small is a delayed jump.
-  //   - Below 1100px the band keeps a FIXED height instead, which is the same
+  //   - Below 1240px the band keeps a FIXED height instead, which is the same
   //     promise on the device the owner actually reads this on.
   //
   // And the new ones, all of which also fail silently:
@@ -1002,11 +1002,11 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
     'the card inside it is absolutely positioned - the no-shift guarantee is structural, not a reserved min-height',
     `${inD.position ?? '(none)'} / ${inD.inset ?? '(none)'}`);
   say(inD['overflow-y'] === 'auto', 'so a panel taller than the slot scrolls inside it rather than growing the page');
-  const narrow = actCss.find((r) => /max-width:\s*1100px/.test(r.media) && r.sel.replace(/\s+/g, ' ') === '.set-shell .upd-rail');
+  const narrow = actCss.find((r) => /max-width:\s*1240px/.test(r.media) && r.sel.replace(/\s+/g, ' ') === '.set-shell .upd-rail');
   say(!!narrow && /height:\s*var\(--upd-rail-h\)/.test(narrow.body) && /position:\s*relative/.test(narrow.body),
-    'below 1100px there is no right, so the band takes a FIXED height instead - reserved, and still shift-free',
+    'below 1240px there is no right, so the band takes a FIXED height instead - reserved, and still shift-free',
     narrow ? narrow.body.replace(/\s+/g, ' ').trim() : '(no narrow rule)');
-  const narrowBody = setCss.find((r) => /max-width:\s*1100px/.test(r.media)
+  const narrowBody = setCss.find((r) => /max-width:\s*1240px/.test(r.media)
     && r.sel.replace(/\s+/g, ' ') === '.set-shell .set-body:has(> .upd-rail)');
   say(!!narrowBody && /padding-right:\s*var\(--sp-\w+\)/.test(narrowBody.body),
     'and the RESERVE goes with it - a 21rem gutter kept for a rail that is not there leaves 6px of content at 390px',
@@ -1077,9 +1077,27 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
     'the 2s loop is ONE module store, not a hook per mount - two surfaces, one request');
   say(/again = !isTerminal\(j\.state\);/.test(updLib),
     'and it stops the moment the host says the job is over (an audit line per read is the reason)');
-  const armed = tsx.filter((f) => /\b(followJob|adoptJob)\(/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
-  say(armed.length === 1 && armed[0] === join('pages', 'settings', 'Updates.tsx'),
-    'nothing but Settings > Updates arms it, so an idle tab makes no request at all', armed.join(', '));
+  // WHO MAY START ONE, AND WHO MAY ONLY PICK ONE UP. Settings > Updates is the
+  // only thing that may BEGIN following a job (it asked for it, or the status it
+  // already read says one is running). The shell may RESUME one that outlived a
+  // reload, which is a different and strictly bounded thing: one request, and
+  // none at all when no id was stored. The bound is the assertion that matters -
+  // every read of the job route is an audit line on the host.
+  const begins = tsx.filter((f) => /\b(followJob|adoptJob)\(/.test(stripTs(readFileSync(f, 'utf8'))))
+    .map(rel).filter((r) => r !== join('components', 'UpdateActivity.tsx'));
+  say(begins.length === 1 && begins[0] === join('pages', 'settings', 'Updates.tsx'),
+    'nothing but Settings > Updates may BEGIN following a job', begins.join(', '));
+  const resumes = tsx.filter((f) => /\bresumeJob\(\)/.test(stripTs(readFileSync(f, 'utf8')))).map(rel);
+  say(resumes.length === 1 && resumes[0] === join('components', 'UpdateActivity.tsx'),
+    'and only the shell may RESUME one, from the dock that survives a route change', resumes.join(', '));
+  const resume = updLib.slice(updLib.indexOf('export async function resumeJob'));
+  const guard = resume.indexOf('if (!id) return;');
+  say(guard > 0 && guard < resume.indexOf('fetchJob('),
+    'the resume asks for NOTHING when no job id was stored - the bound that keeps an idle tab free');
+  say(/followJob\(id, j\);/.test(resume) && /export function followJob\(id: string, seed\?: Job\)/.test(updLib),
+    'and it hands the job it already read to the loop, so a resume is ONE request and not two');
+  say(/if \(feed\.id \|\| isTerminal\(j\.state\)\) return;/.test(resume),
+    'a job that ended while the tab was away is not raised in a corner, and nothing starts a loop for it');
 }
 
 console.log(`\n  ${passes} pass · ${failures} fail`);
