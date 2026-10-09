@@ -960,7 +960,7 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
   //     and cannot move a block however many steps it grows. A reserved
   //     min-height would not do: the panel grows, and a reserved box that is
   //     sometimes too small is a delayed jump.
-  //   - Below 1240px the band keeps a FIXED height instead, which is the same
+  //   - Below 1340px the band keeps a FIXED height instead, which is the same
   //     promise on the device the owner actually reads this on.
   //
   // And the new ones, all of which also fail silently:
@@ -1002,11 +1002,11 @@ console.log('\n── the detail hint, and the activity slot that cannot move �
     'the card inside it is absolutely positioned - the no-shift guarantee is structural, not a reserved min-height',
     `${inD.position ?? '(none)'} / ${inD.inset ?? '(none)'}`);
   say(inD['overflow-y'] === 'auto', 'so a panel taller than the slot scrolls inside it rather than growing the page');
-  const narrow = actCss.find((r) => /max-width:\s*1240px/.test(r.media) && r.sel.replace(/\s+/g, ' ') === '.set-shell .upd-rail');
+  const narrow = actCss.find((r) => /max-width:\s*1340px/.test(r.media) && r.sel.replace(/\s+/g, ' ') === '.set-shell .upd-rail');
   say(!!narrow && /height:\s*var\(--upd-rail-h\)/.test(narrow.body) && /position:\s*relative/.test(narrow.body),
-    'below 1240px there is no right, so the band takes a FIXED height instead - reserved, and still shift-free',
+    'below 1340px there is no right, so the band takes a FIXED height instead - reserved, and still shift-free',
     narrow ? narrow.body.replace(/\s+/g, ' ').trim() : '(no narrow rule)');
-  const narrowBody = setCss.find((r) => /max-width:\s*1240px/.test(r.media)
+  const narrowBody = setCss.find((r) => /max-width:\s*1340px/.test(r.media)
     && r.sel.replace(/\s+/g, ' ') === '.set-shell .set-body:has(> .upd-rail)');
   say(!!narrowBody && /padding-right:\s*var\(--sp-\w+\)/.test(narrowBody.body),
     'and the RESERVE goes with it - a 21rem gutter kept for a rail that is not there leaves 6px of content at 390px',

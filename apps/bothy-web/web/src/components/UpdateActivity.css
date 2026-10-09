@@ -92,12 +92,12 @@
 }
 .set-shell .upd-rail .upd-job { flex: none; }
 
-/* BELOW 1240px THERE IS NO RIGHT: the rail goes back into the flow as a band
+/* BELOW 1340px THERE IS NO RIGHT: the rail goes back into the flow as a band
    across the top, first among the blocks, at a fixed height - still reserved,
    still never shifting. The number is argued in settings.css beside the reserve
    it releases; the short of it is that 21rem out of 1100 leaves a 440px column
    under a table that does not become cards until 640. */
-@media (max-width: 1240px) {
+@media (max-width: 1340px) {
   .set-shell .upd-rail {
     position: relative; order: -1; inset: auto;
     width: auto; height: var(--upd-rail-h);

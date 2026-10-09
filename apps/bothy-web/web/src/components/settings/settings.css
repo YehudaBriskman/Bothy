@@ -481,7 +481,7 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    content - so the rail stays on screen while you read down the page, which is
    the whole point of being able to watch a job.
 
-   BELOW 1240px THERE IS NO RIGHT. The rail goes back into the flow as a band
+   BELOW 1340px THERE IS NO RIGHT. The rail goes back into the flow as a band
    across the top at a fixed height - still reserved, still never shifting - and
    first among the blocks, because a running job is what somebody opening this
    page wants. It costs 9rem of a phone screen permanently, which is the price of
@@ -489,14 +489,20 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    than being blank. The corner dock (components/UpdateActivity.css) is the answer
    on every OTHER page, at every width.
 
-   WHY 1240 AND NOT 1100 (2026-10-08). 1100 was inherited from the shape this
-   replaced, and it was wrong for this one: the page gives 21rem to the rail, so
-   at 1101px the content column is about 440px - and the components table does
-   not become cards until the VIEWPORT is 640px, so between those two numbers it
-   is a 440px window scrolling a six-column table sideways. 1240 is where the
-   content column clears ~580px, which is where that table stops needing a
-   horizontal scroll at its usual content. Measured in a browser at 1200 and
-   1280, not assumed. */
+   WHY 1340, AND NOT THE 1100 THIS INHERITED (2026-10-08). 1100 came from the
+   shape this replaced and was wrong for this one: the page gives 21rem to the
+   rail, so at 1101px the content column is about 440px - and the components
+   table does not become cards until the VIEWPORT is 640px, so between those two
+   numbers it was a 440px window scrolling a six-column table sideways.
+
+   The number is MEASURED rather than chosen. The components table wants 622px;
+   the content column is the viewport less the settings nav, the body's padding
+   and the rail, which comes to `width - 700`. So the column clears the table at
+   1322px, and 1340 is that with a little room. 1240 was tried first and is wrong
+   by exactly 42 pixels: at 1280 the column is 580px and the table still scrolls
+   sideways, which was the whole reason for moving the breakpoint. Below 1340 the
+   band gives that table the full width of the page instead, which is more room
+   than the column ever had. */
 .set-shell .set-main:has(.upd-rail) { position: relative; }
 .set-shell .set-body:has(> .upd-rail) {
   --upd-rail-w: 21rem;
@@ -513,7 +519,7 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    browser check compares bounding boxes at 390 as well as at 1440. The `padding`
    shorthand in the 900px block below cannot do this job: the rule above is
    (0,3,0) and beats it. */
-@media (max-width: 1240px) {
+@media (max-width: 1340px) {
   .set-shell .set-body:has(> .upd-rail) { max-width: 1080px; padding-right: var(--sp-8); }
   /* The band is first among the BLOCKS, and not above the page's own name. It is
      drawn whether or not anything is running, so `order: -1` alone put a 9rem
