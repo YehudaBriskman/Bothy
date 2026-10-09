@@ -1700,7 +1700,7 @@ mutant "the activity slot is only drawn once a job exists" \
 # ...and the narrow case losing its reserved height, so the band grows from one
 # line to a panel the moment a job starts - the same jump, on the device the owner
 # actually reads this on.
-mutant "below 1100px the reserved band sizes to its content" \
+mutant "below 1340px the reserved band sizes to its content" \
   apps/bothy-web/web/src/components/UpdateActivity.css \
   '    width: auto; height: var(--upd-rail-h);' \
   '    width: auto;' \
