@@ -579,6 +579,37 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
 .upd-dl dd { margin: 0; color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
 .upd-list { margin: 0; padding-left: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-0_5); }
 
+/* ── configuration values: one allowlisted compose value ─────────────────────
+   One bordered block per component, one row per editable key inside it, and the
+   keys that are NOT offered behind a disclosure with their reasons. The same
+   neutral chrome the groups block uses, for the same reason: a value you may
+   change is not a fault, so it takes no status colour (rule 1). The only colour
+   on this surface is the caution button, and the warning line when the box is
+   not ready for a change the key would otherwise accept. */
+.set-shell .upd-cfg { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.set-shell .upd-cfg-comp { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.set-shell .upd-cfg-h {
+  display: flex; align-items: baseline; gap: var(--sp-2) var(--sp-3); flex-wrap: wrap; margin: 0;
+  font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-semibold);
+}
+.set-shell .upd-cfg-row {
+  display: flex; flex-direction: column; gap: var(--sp-1_5); min-width: 0;
+  padding: var(--sp-2_5) var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-2);
+}
+.set-shell .upd-cfg-row-h { display: flex; align-items: baseline; gap: var(--sp-2) var(--sp-3); flex-wrap: wrap; min-width: 0; }
+/* The key is the row's name, so it carries the weight a heading would - and it
+   stays monospace, because it is a literal somebody types into a file. */
+.set-shell .upd-cfg-key { font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.set-shell .upd-cfg-why { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--fg-muted); }
+.set-shell .upd-cfg-form { display: flex; flex-direction: column; gap: var(--sp-1_5); min-width: 0; }
+/* The bound, under the field, in the same monospace the value is typed in: the
+   pattern is not decoration, it is the whole statement of what the field takes.
+   `anywhere` because a whitelist pattern is long and must not force a scrollbar. */
+.set-shell .upd-cfg-bound { margin: 0; overflow-wrap: anywhere; }
+.set-shell .upd-cfg-locked { min-width: 0; }
+.set-shell .upd-cfg-locked .upd-dl { padding: var(--sp-2) 0 0; }
+.set-shell .upd-cfg-keys { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
+
 /* ── groups: one recipe, several components, one apply ───────────────────────
    A deployable group is the ACTION for every member below it, so its card is a
    plain bordered block in the neutral chrome with one caution button - not a

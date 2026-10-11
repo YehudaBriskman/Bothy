@@ -65,7 +65,7 @@
 // A viewer sees all three as one NeedsRole note, never as disabled buttons.
 
 import { Loader } from '../../components/ui/Loader';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleArrowUp, CirclePause, Layers, Lock, Minus, X,
@@ -82,13 +82,14 @@ import '../../components/KubeActions.css';
 import { useOperator } from '../../lib/session';
 import { statusOf } from '../../lib/http';
 import {
-  AUTO_ACTOR, adoptJob, applyGroup, askDiscover, askNightJob, fetchGroup, fetchPlan, fetchUpdates,
-  followJob, groupSkipped, isTerminal,
+  AUTO_ACTOR, adoptJob, applyGroup, askDiscover, askNightJob, configRowId, fetchConfig, fetchGroup,
+  fetchPlan, fetchUpdates,
+  followJob, groupSkipped, isTerminal, lockedReason, notRightNow,
   pinFile, publishBehind,
   rememberJob, rememberedJob,
-  requestUpdate, unpauseAuto,
+  requestUpdate, setConfigValue, unpauseAuto,
   type AskRecord, type AutorunRecord,
-  type Channel, type GroupPlan, type GroupRow, type HistoryEntry,
+  type Channel, type ConfigRow, type GroupPlan, type GroupRow, type HistoryEntry,
   type Level, type OwnPlan, type Plan, type UpdateRow,
   type UpdatesStatus, type UpdaterInfo,
 } from '../../lib/updates';
@@ -174,6 +175,17 @@ export function UpdatesSettings() {
             onGroup={setGroupFor} onChanged={reload} />
         )}
       </SettingBlock>
+      {/* THE ONE PLACE A VALUE FROM THIS BROWSER REACHES A FILE ON THE HOST.
+          It sits after Components on purpose: a configuration change and an
+          image apply are the same shape of action over the same box, and the
+          page reads top to bottom as "what version runs" then "what values it
+          runs with". Drawn only when the host allowlists at least one value, so
+          a box whose [config_keys] is empty shows no empty table. */}
+      {(data?.summary.configKeys ?? 0) > 0 && (
+        <SettingBlock id="update-config" badge="viewer · set: operator">
+          <Config d={data} canAct={canAct} busy={!!feed.live && !!data?.applying} onStarted={started} />
+        </SettingBlock>
+      )}
       <SettingBlock id="update-apply" badge="host updater">
         <Apply d={data} />
       </SettingBlock>
@@ -1586,6 +1598,285 @@ function LastNight({ d }: { d: UpdatesStatus | null }) {
 }
 
 // ── how applying works, and what is still by hand ───────────────────────────
+
+// ── Configuration values: one allowlisted compose value (2026-10-11) ────────
+//
+// The compose `environment:` values an operator may change from here, and - for
+// every other key of the same services - the sentence saying why they cannot.
+// Both halves matter: a table of refusals with no reasons is the exact complaint
+// this answers for the cluster tab, and an Edit button with no stated bound is a
+// form that looks like it will take anything.
+//
+// WHAT THE HOST OWNS, which is why this is short. The allowlist, the pattern, the
+// plan id, the splice, the recipe and THE UNDO are all the host's
+// (apps/bothy-ops/updates.toml `[config_keys]`, updater/configvalue.py). This
+// draws rows the host wrote and posts a value the host checks against its own
+// pattern again. Nothing here decides anything, and nothing here is the last line
+// of defence - which is the only reason a value may be typed at all.
+//
+// THE REVERT IS NOT THIS PAGE'S, and the row says so before the button: if the
+// service does not come back healthy inside the canary window the host puts the
+// old value back by itself, whether or not this tab is still open. That is the
+// half that matters when the page is what broke.
+//
+// AND THE COST IS SAID TOO. A success leaves the spliced line UNCOMMITTED in the
+// working tree - the only honest place for it - and until somebody commits it the
+// updater refuses an IMAGE plan for every component pinned in that file. The
+// dialog names them. Hiding it would make the next visit here look broken for a
+// reason nobody could find.
+//
+// A ROW'S IDENTITY IS (service, key), never key alone: a component may pin two
+// services that set the same key - Keycloak pins `keycloak` and `keycloak-init`,
+// which share four - so every map and every React key here is configRowId().
+
+function Config({ d, canAct, busy, onStarted }: {
+  d: UpdatesStatus | null; canAct: boolean; busy: boolean; onStarted: (jobId: string) => void;
+}) {
+  const rows = (d?.components ?? []).filter((r) => (r.configKeys ?? 0) > 0);
+  if (!d) return <Loading rows={3} />;
+  if (rows.length === 0) {
+    return (
+      <p className="set-cell-sub">
+        <Prose text={'No component declares an editable configuration value. The list is `[config_keys]` in '
+          + '`apps/bothy-ops/updates.toml`, and adding to it is a commit: a bounded pattern, a sentence about '
+          + 'what the value does, and the checks that hold both.'} />
+      </p>
+    );
+  }
+  return (
+    <div className="upd-cfg">
+      {rows.map((r) => (
+        <ConfigComponent key={r.id} row={r} canAct={canAct} busy={busy} onStarted={onStarted} />
+      ))}
+    </div>
+  );
+}
+
+function ConfigComponent({ row, canAct, busy, onStarted }: {
+  row: UpdateRow; canAct: boolean; busy: boolean; onStarted: (jobId: string) => void;
+}) {
+  const [nonce, setNonce] = useState(0);
+  const { data, error, loading } = useLoad((signal) => fetchConfig(row.id, signal), [row.id, nonce]);
+  const rows = data?.rows ?? [];
+  const editable = rows.filter((r) => r.editable);
+  const locked = rows.filter((r) => !r.editable);
+
+  return (
+    <section className="upd-cfg-comp">
+      <h4 className="upd-cfg-h">
+        {row.title}
+        <span className="mono set-cell-sub">{row.apply}</span>
+      </h4>
+      {loading && !data ? <Loading rows={2} />
+        : error ? <Refusal error={error} needs="viewer" what="configuration values" />
+          : data?.reason ? <p className="set-cell-sub"><Prose text={data.reason} /></p>
+            : (
+              <>
+                {editable.map((r) => (
+                  <ConfigRowEdit key={configRowId(r)} row={r} component={row.id} canAct={canAct} busy={busy}
+                    onStarted={onStarted} onChanged={() => setNonce((n) => n + 1)} />
+                ))}
+                {locked.length > 0 && <ConfigLocked rows={locked} />}
+              </>
+            )}
+    </section>
+  );
+}
+
+function ConfigRowEdit({ row, component, canAct, busy, onStarted, onChanged }: {
+  row: ConfigRow; component: string; canAct: boolean; busy: boolean;
+  onStarted: (jobId: string) => void; onChanged: () => void;
+}) {
+  const id = useId();
+  const [draft, setDraft] = useState(row.value ?? '');
+  const [confirming, setConfirming] = useState(false);
+  const blocked = notRightNow(row);
+  // The pattern is the HOST's, anchored here the way the host fullmatches it. It
+  // is a hint and not a gate: the host checks it again out of its own catalog,
+  // and that copy is the one that holds. A pattern this browser cannot compile is
+  // treated as legal rather than as a refusal, because refusing on it would hide
+  // a row for a reason that is this browser's and not the box's.
+  const legal = useMemo(() => {
+    try { return new RegExp(`^(?:${row.pattern ?? ''})$`).test(draft); } catch { return true; }
+  }, [row.pattern, draft]);
+  const changed = draft !== (row.value ?? '');
+
+  return (
+    <div className="upd-cfg-row">
+      <div className="upd-cfg-row-h">
+        <code className="mono upd-cfg-key">{row.key}</code>
+        <span className="mono set-cell-sub">{row.file}{row.line ? `:${row.line}` : ''} · {row.service}</span>
+      </div>
+      {row.meaning && <p className="upd-cfg-why"><Prose text={row.meaning} /></p>}
+      {blocked ? (
+        <p className="sa-warn">
+          <Icon icon={AlertTriangle} size="md" />
+          <span><Prose text={blocked} /></span>
+        </p>
+      ) : (
+        <form className="upd-cfg-form" onSubmit={(e) => { e.preventDefault(); setConfirming(true); }}>
+          <label className="ka-field" htmlFor={id}>
+            <span className="ka-label">{row.key} on <span className="mono">{row.service}</span></span>
+            <input
+              id={id} className="ka-input mono" value={draft} pattern={row.pattern} maxLength={64}
+              spellCheck={false} autoComplete="off" aria-invalid={changed && !legal}
+              aria-describedby={`${id}-bound`} disabled={!canAct || busy}
+              onChange={(e) => setDraft(e.target.value.replace(/[\r\n\t]+/g, ''))}
+            />
+          </label>
+          <p id={`${id}-bound`} className="mono set-cell-sub upd-cfg-bound">
+            {changed && !legal
+              ? `Not a value ${row.key} may take. The host would refuse it too. Allowed: ${row.pattern}`
+              : `Allowed: ${row.pattern}`}
+          </p>
+          <div className="ka-row">
+            <Button variant="ghost" size="sm" disabled={!changed} onClick={() => setDraft(row.value ?? '')}>
+              Reset
+            </Button>
+            <Button variant="caution" size="sm" type="submit"
+              disabled={!canAct || busy || !changed || !legal}>
+              Set {row.key}
+            </Button>
+          </div>
+        </form>
+      )}
+      {confirming && (
+        <ConfigDialog row={row} component={component} value={draft}
+          onClose={() => setConfirming(false)}
+          onStarted={(jid) => { setConfirming(false); onChanged(); onStarted(jid); }} />
+      )}
+    </div>
+  );
+}
+
+function ConfigDialog({ row, component, value, onClose, onStarted }: {
+  row: ConfigRow; component: string; value: string;
+  onClose: () => void; onStarted: (jobId: string) => void;
+}) {
+  const [phase, setPhase] = useState<{ t: 'idle' } | { t: 'sending' } | { t: 'refused'; error: unknown }>({ t: 'idle' });
+  const firing = useRef(false);
+  const reach = (row.pinnedIn ?? []).filter((c) => c !== component);
+
+  const go = async () => {
+    if (firing.current || !row.planId) return;
+    firing.current = true;
+    setPhase({ t: 'sending' });
+    try {
+      const r = await setConfigValue({ component, key: row.key, value, plan_id: row.planId, confirm: true });
+      onStarted(r.jobId);
+    } catch (e) {
+      setPhase({ t: 'refused', error: e });
+    } finally {
+      firing.current = false;
+    }
+  };
+
+  return (
+    <Dialog
+      open size="lg"
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={<span className="sa-title">Set <span className="mono">{row.key}</span></span>}
+      description="The host checks the value against its own pattern again, splices that one line, runs the recipe - and puts the old value back by itself if the service does not come back healthy."
+    >
+      <div className="ka-body upd-plan">
+        <dl className="upd-dl">
+          <dt>From</dt><dd className="mono">{row.value}</dd>
+          <dt>To</dt><dd className="mono">{value}</dd>
+          <dt>In</dt><dd className="mono">{row.file}{row.line ? `:${row.line}` : ''}</dd>
+          {row.restarts && row.restarts.length > 0 && (
+            <><dt>Restarts</dt><dd>{row.restarts.join(', ')}</dd></>
+          )}
+          {row.downtime && <><dt>Downtime</dt><dd><Prose text={row.downtime} /></dd></>}
+          {row.revert && <><dt>If it does not come back</dt><dd><Prose text={row.revert} /></dd></>}
+          <dt>Afterwards</dt>
+          <dd>
+            <Prose text={`The edited line stays UNCOMMITTED in the working tree, which is the only honest `
+              + `place for it - \`git diff ${row.file}\` is the whole change. Commit it: until that file is `
+              + `clean the updater refuses an image plan for every component pinned in it`
+              + (reach.length ? ` (${reach.join(', ')} as well as ${component})` : '')
+              + '.'} />
+          </dd>
+        </dl>
+        {phase.t === 'refused' && <PlanRefusal error={phase.error} />}
+        <form className="ka-confirm" onSubmit={(e) => { e.preventDefault(); void go(); }}>
+          <p className="sa-warn">
+            <Icon icon={AlertTriangle} size="md" />
+            <span>
+              This recreates {row.restarts?.length ? row.restarts.join(', ') : component} on the host, on the
+              image it already runs.
+            </span>
+          </p>
+          <div className="ka-row">
+            <Button variant="ghost" onClick={onClose}>Leave it alone</Button>
+            <Button variant="caution" type="submit" disabled={phase.t === 'sending'}>
+              {phase.t === 'sending' ? 'Asking the host…' : `Set ${row.key}`}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </Dialog>
+  );
+}
+
+// Every other key of the same services, grouped by the [config_reasons] category
+// that answers for it. GROUPED rather than one row each because the sentence is
+// the same for all of them, and repeating it 53 times for the socket proxy's ACL
+// would bury the one row that has something to say.
+//
+// NO VALUES HERE, and not because nobody wrote the code: the service does not
+// send them. 14 of this repository's environment names are `${...}` pointers into
+// the gitignored `.env`, and the source text of one names the variable and its
+// fallback. Key names and a reason is exactly what SECURITY.md rule 7 allows the
+// credential inventory to say, and this is the same question.
+function ConfigLocked({ rows }: { rows: ConfigRow[] }) {
+  const groups = useMemo(() => {
+    const by = new Map<string, { label: string; meaning: string; keys: string[] }>();
+    for (const r of rows) {
+      const c = lockedReason(r);
+      if (!c) continue;
+      const g = by.get(c.name) ?? { label: c.label, meaning: c.meaning, keys: [] };
+      g.keys.push(r.key);
+      by.set(c.name, g);
+    }
+    return [...by.entries()].sort((a, b) => b[1].keys.length - a[1].keys.length);
+  }, [rows]);
+
+  const [open, setOpen] = useState(false);
+  const uid = useId();
+  const bodyId = `${uid}-locked`;
+  const word = `${rows.length} more ${rows.length === 1 ? 'key is' : 'keys are'} not offered, and why`;
+  return (
+    <div className="upd-cfg-locked">
+      <Button
+        variant="ghost" size="sm" className={`upd-more${open ? ' is-open' : ''}`}
+        aria-expanded={open} aria-controls={bodyId}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Icon icon={Lock} size="sm" />
+        <span>{word}</span>
+        <Icon icon={ChevronDown} size="sm" className="chev" />
+      </Button>
+      <Disclosure open={open} id={bodyId}>
+        <dl className="upd-dl">
+          {groups.map(([name, g]) => (
+            <Fragment key={name}>
+              <dt>{g.label}</dt>
+              <dd>
+                <Prose text={g.meaning} />
+                <p className="mono set-cell-sub upd-cfg-keys">{g.keys.join(' · ')}</p>
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+        <p className="set-cell-sub">
+          <Prose text={'Every sentence above comes from `[config_reasons]` in `apps/bothy-ops/updates.toml` - '
+            + 'the same file that decides which keys ARE offered, so the two can never disagree. Moving a key '
+            + 'on to the list is a commit there, with a bounded pattern and a sentence.'} />
+        </p>
+      </Disclosure>
+    </div>
+  );
+}
 
 function Apply({ d }: { d: UpdatesStatus | null }) {
   // What the updater will not do, and what to do instead. A row whose only

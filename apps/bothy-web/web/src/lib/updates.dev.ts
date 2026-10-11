@@ -55,7 +55,8 @@
 // localStorage.removeItem('bothy-dev-updates-asked').
 
 import type {
-  AskAnswer, AskRecord, Asks, AutorunAnswer, AutorunRecord, AutoDecision, Channel, Discovered,
+  AskAnswer, AskRecord, Asks, AutorunAnswer, AutorunRecord, AutoDecision, Channel,
+  ConfigAnswer, ConfigRequestAnswer, ConfigRow, Discovered,
   GroupAnswer, GroupMember, GroupPlan, GroupRequestAnswer, GroupRow, HistoryEntry, Job,
   JobState, JobStep, Level, Pause, Plan, PlanAnswer, PlanSummary,
   RequestAnswer, StepName, UnpauseAnswer, UpdateRow, UpdaterInfo, UpdatesStatus, VersionRef,
@@ -204,7 +205,118 @@ function row(s: Spec, checkedAt: string, discovered: boolean): UpdateRow {
     level, effectiveChannel: effective(s.channel, level), behind: level === 'minor' || level === 'major', discovered: d,
     plan: discovered ? summaryOf(s.id) : null,
     ...pauseOf(s.id),
+    configKeys: (CONFIG_ROWS[s.id] ?? []).filter((r) => r.editable).length,
   };
+}
+
+// ── one allowlisted compose value (2026-10-11) ──────────────────────────────
+//
+// Shaped like the real box: Grafana's landing page is the ONE editable value this
+// repository allowlists, and the other fourteen of its environment keys are
+// locked - eleven secrets or `.env` pointers, one security switch. The locked
+// rows carry NO VALUE, as the service's answer does not, so a dev run cannot
+// accidentally be built against a shape the real service never sends.
+//
+// A row's identity is (service, key). Force the states:
+//
+//   localStorage['bothy-dev-updates-config'] = 'blocked' | 'none'
+//
+// `blocked` is the state after a successful change and before the commit it asks
+// for: the key is still editable and the box is not ready for another, which is
+// the one UI state this surface has that nothing else does.
+
+const CONFIG_KEY = 'bothy-dev-updates-config';
+const GF_FILE = 'monitoring/compose.yml';
+const DASH = '/var/lib/grafana/dashboards';
+
+const CONFIG_ROWS: Record<string, ConfigRow[]> = {
+  grafana: [
+    {
+      key: 'GF_USERS_DEFAULT_HOME_DASHBOARD_PATH', service: 'grafana', file: GF_FILE, editable: true,
+      value: `${DASH}/box-health.json`, line: 196,
+      pattern: `${DASH}/(box-health|traefik)\\.json`,
+      planId: 'ab12cd34ef56ab78cd90ef12',
+      meaning: 'The dashboard Grafana opens on. A name that does not resolve puts it back on its stock Home '
+        + 'page without failing to start, so only this list is offered. Grafana is on its own port behind its '
+        + 'own login, so a wrong value here never touches the way you reach the box.',
+      pinnedIn: ['alloy', 'cadvisor', 'grafana', 'loki', 'node-exporter', 'victoriametrics'],
+      restarts: ['grafana'],
+      downtime: '~20 s while the container is recreated; dashboards and users are untouched',
+      revert: 'AUTOMATIC, and it is the host\'s. If grafana is not healthy with every canary green within '
+        + '180s, monitoring/compose.yml:196 goes back to ' + `${DASH}/box-health.json` + ' and '
+        + '`just up-monitoring` runs again - whether or not a browser is still watching, because the host '
+        + 'executor holds the old value and does the putting back. No data is restored: the image never '
+        + 'changed, so nothing was migrated, and a restore is the only step that loses data.',
+    },
+    ...(['GF_SECURITY_ADMIN_USER', 'GF_SECURITY_ADMIN_EMAIL', 'GF_SECURITY_ADMIN_PASSWORD',
+      'GF_SMTP_PASSWORD', 'DEV_LOGIN_USER', 'DEV_LOGIN_PASSWORD'] as const).map((key): ConfigRow => ({
+      key, service: 'grafana', file: GF_FILE, editable: false,
+      reason: { name: 'secret', label: 'A credential',
+        meaning: 'It is a credential, or it names where one is read from. Three refusals already stand '
+          + 'between a browser and these, and this interface does not become the fourth way in.' },
+    })),
+    ...(['GF_SMTP_ENABLED', 'GF_SMTP_HOST', 'GF_SMTP_USER', 'GF_SMTP_FROM_ADDRESS', 'GF_SMTP_FROM_NAME',
+      'GF_SMTP_STARTTLS_POLICY', 'ALERT_EMAIL_TO'] as const).map((key): ConfigRow => ({
+      key, service: 'grafana', file: GF_FILE, editable: false,
+      reason: { name: 'env-indirection', label: 'Written in .env',
+        meaning: 'Its value is written in the gitignored `.env`, and the compose line only points at it. '
+          + 'Replacing the pointer with a literal would hard-code one box\'s answer into the repository and '
+          + 'quietly stop `.env` from being read at all.' },
+    })),
+    {
+      key: 'GF_USERS_ALLOW_SIGN_UP', service: 'grafana', file: GF_FILE, editable: false,
+      reason: { name: 'security', label: 'A security switch',
+        meaning: 'It decides who gets in, or how hard it is. It belongs to review, not to a table cell.' },
+    },
+  ],
+};
+
+export async function configMock(component: string): Promise<ConfigAnswer> {
+  await new Promise((r) => setTimeout(r, 200));
+  if (!SPECS.some((s) => s.id === component)) refuse(404, `unknown component ${component}`, true);
+  const forced = read(CONFIG_KEY);
+  if (forced === 'none') {
+    return { ok: true, component, rows: [], ageSeconds: null,
+      reason: 'no config rows - run `just updates-discover` on the host (it writes one file per component)' };
+  }
+  const rows = (CONFIG_ROWS[component] ?? []).map((r): ConfigRow => (
+    r.editable && forced === 'blocked'
+      ? { ...r, value: `${DASH}/traefik.json`, planId: null,
+        reason: `${GF_FILE} has local changes, which refuses the plan for all 6 components pinned in it `
+          + '(alloy, cadvisor, grafana, loki, node-exporter, victoriametrics) - a rollback leaves the old pin '
+          + `there on purpose, so read \`git diff ${GF_FILE}\` before \`git checkout --\` it` }
+      : r));
+  return { ok: true, component, rows, reason: null, ageSeconds: 3600 * 2 + 700 };
+}
+
+export async function configRequestMock(body: { component: string; key: string; value: string; plan_id: string; confirm: true }): Promise<ConfigRequestAnswer> {
+  await new Promise((r) => setTimeout(r, 300));
+  if (read(REQUEST_KEY) === 'no-operator') refuse(403, 'Forbidden', false);
+  const row = (CONFIG_ROWS[body.component] ?? []).find((r) => r.key === body.key && r.editable);
+  if (!row) {
+    const locked = (CONFIG_ROWS[body.component] ?? []).find((r) => r.key === body.key);
+    const c = locked && typeof locked.reason === 'object' ? locked.reason : null;
+    refuse(403, `${body.component}.${body.key} is not an editable config value.`
+      + (c ? ` ${c.label}: ${c.meaning}` : ''), true);
+  }
+  if (!new RegExp(`^(?:${row.pattern})$`).test(body.value)) {
+    refuse(400, `${JSON.stringify(body.value)} is not a value ${body.key} may take. ${row.meaning} `
+      + `The allowed shape is /${row.pattern}/`, true);
+  }
+  if (body.value === row.value) refuse(409, `${body.key} is already ${body.value}`, true);
+  if (read(REQUEST_KEY) === 'stale' || body.plan_id !== row.planId) {
+    refuse(409, `config plan ${body.plan_id} is not the current plan for ${body.component}.${body.key} - `
+      + 'reload and look again', true);
+  }
+  if (busyWith(body.component)) refuse(409, `a job for ${body.component} is already queued`, true);
+  const want = read(JOB_OUTCOME_KEY) as JobState | null;
+  const j: DevJob = {
+    id: hex(32), component: body.component, planId: row.planId!, requestedAt: Date.now(),
+    outcome: want && TERMINAL_STATES.includes(want) ? want : 'succeeded',
+  };
+  saveJobs([...jobs(), j]);
+  return { ok: true, jobId: j.id, component: body.component, key: body.key, value: body.value,
+    planId: row.planId! };
 }
 
 // ── step 7: the pause the seed's automatic rollback left, and its unpause ────
@@ -373,6 +485,7 @@ export async function updatesMock(): Promise<UpdatesStatus> {
       errors: d.filter((x) => x?.error).length,
       toApply: rows.filter((r) => r.plan?.deployable).length,
       groups: gs.filter((g) => g.deployable).length,
+      configKeys: rows.reduce((n, r) => n + (r.configKeys ?? 0), 0),
     },
     policy: { windowStart: '03:30', windowEnd: '05:00', requireBackup: 'stacks-backup.service', requireDoctor: true,
       maxAutoPerNight: 1, pauseOnFailure: true, discoverEveryHours: 6 },
