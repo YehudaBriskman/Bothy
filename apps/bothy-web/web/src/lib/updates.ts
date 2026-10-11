@@ -83,6 +83,18 @@ export interface Discovered {
   candidates: Partial<Record<Level, VersionRef>>;
 }
 
+/** One service a row's recipe would also recreate, and that the updater cannot
+ *  move - so the row's own Apply would be refused on account of it. */
+export interface BlockedBy {
+  component: string;
+  title: string;
+  class: string;
+  /** The recipe that WOULD move it, which is a person's command, not a button. */
+  apply: string;
+  /** Why the host has no plan for it - its own `plan.reason`. */
+  reason: string;
+}
+
 export interface UpdateRow {
   id: string;
   title: string;
@@ -115,6 +127,13 @@ export interface UpdateRow {
    *  too, and the host's scope check will not let one of them ride along without a
    *  snapshot. Apply the group instead. */
   applyWithGroup?: boolean;
+  /** The complement of `applyWithGroup`: the recipe has more than one pin waiting
+   *  and NOTHING here can carry them, because a service it would recreate is one
+   *  the updater cannot move (a `boundary` class, or a component whose own plan is
+   *  refused). A solo Apply is certain to be refused, so the row must not offer
+   *  one - the host says so before the click instead of after it. Empty for every
+   *  row that can act; absent from an older service. */
+  blockedBy?: BlockedBy[];
   /** How many of this component's compose values are ALLOWLISTED for editing
    *  (`[config_keys]` in updates.toml). From the service's own catalog, so it
    *  costs no extra request - which is what lets the Configuration block decide

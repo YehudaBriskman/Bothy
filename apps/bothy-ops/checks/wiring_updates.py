@@ -229,6 +229,35 @@ ok(paths == {f"/-/api/updates/{p}" for p in WANTED_PATHS},
 page = read("apps/bothy-web/web/src/pages/settings/Updates.tsx")
 ok(all(f"{fn}(" in page for fn in ("requestUpdate", "unpauseAuto", "askDiscover", "askNightJob", "applyGroup")),
    "Settings > Updates calls every writing client function - no route without a control")
+# AND THE OTHER DIRECTION: a control with a route the host will always refuse.
+# `blockedBy` is the host's answer to "would this recipe recreate something the
+# updater cannot move", and the action cell has to READ it, not merely receive it.
+# Without this the owner's 2026-10-11 bug comes straight back - an Apply button on
+# keycloak that `executor.compose_scope` has refused from the very first press -
+# and no web check would notice, because none of them asserts a button's absence.
+ops_rows = read("apps/bothy-ops/updates.py")
+ok("_blocked_by(catalog, rows)" in ops_rows and 'r["blockedBy"] = []' in ops_rows,
+   "the host computes `blockedBy` for every row it serves")
+
+
+
+def code_of(fn: str) -> str:
+    """One function's body with its COMMENTS REMOVED. Every prose block on this page
+    names the fields it is about, so an assertion over raw source would be satisfied
+    by the comment that explains the rule rather than by the rule - which is the
+    silent no-op scripts/checks/mutants.sh exists to catch."""
+    body = page.split(f"function {fn}", 1)[1].split("\nfunction ", 1)[0]
+    return re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", body, flags=re.S))
+
+
+ok("r.blockedBy" in code_of("DeployCell"),
+   "…and the action cell reads it: no Apply button on a row the scope check is certain to refuse")
+# The GUARD, not a mention of the field. `r.blockedBy` on its own was satisfied by
+# the `.map()` still sitting inside a block the mutation had switched off, so the
+# row could lose its reason with the check green - which scripts/checks/mutants.sh
+# caught and called decorative, correctly, the first time it was run.
+ok("p?.deployable && (r.blockedBy?.length ?? 0) > 0" in code_of("RowDetail"),
+   "…and the row says WHY instead, in the disclosure where every other refusal is")
 
 print()
 print("── GROUPS: a whole recipe at once, on the routes already there ──")

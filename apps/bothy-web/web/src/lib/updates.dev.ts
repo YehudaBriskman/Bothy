@@ -471,6 +471,32 @@ export async function updatesMock(): Promise<UpdatesStatus> {
     r.group = gs.find((g) => g.candidates.includes(r.id))?.group ?? null;
     r.applyWithGroup = inGroup.has(r.id);
   }
+  // The same join the host makes (`updates._blocked_by`): a row whose recipe would
+  // also recreate a drifting service the updater cannot move offers no Apply. On
+  // this box that is keycloak, held by oauth2-proxy (class `boundary`) and by
+  // keycloak-db-init (a pin of `postgres`), so the dev page shows the real state
+  // rather than a button the host has always refused.
+  const byFile = new Map<string, string[]>();
+  for (const r of rows) {
+    for (const p of r.pins) {
+      const f = p.split(':')[0];
+      byFile.set(f, [...(byFile.get(f) ?? []), r.id]);
+    }
+  }
+  const index = new Map(rows.map((r) => [r.id, r]));
+  for (const r of rows) {
+    r.blockedBy = [];
+    if (!r.plan?.deployable || r.applyWithGroup) continue;
+    const mates = new Set(r.pins.flatMap((p) => byFile.get(p.split(':')[0]) ?? []));
+    mates.delete(r.id);
+    for (const m of [...mates].sort()) {
+      const mate = index.get(m);
+      if (!mate || mate.plan?.deployable) continue;
+      if (!(mate.discovered?.drift || mate.discovered?.configDrift)) continue;
+      r.blockedBy.push({ component: m, title: mate.title, class: mate.class, apply: mate.apply,
+        reason: (mate.plan && !mate.plan.deployable ? mate.plan.reason : null) ?? 'no plan' });
+    }
+  }
   return {
     discovery: discovered
       ? { present: true, generatedAt: at, ageSeconds: age, stale, hint: null }
