@@ -685,13 +685,18 @@ export function Overview() {
               {!hide('disk') && <Panel
                 title="Data & disk"
                 Icon={HardDrive}
-                /* Amber ONLY when the chip is not a size. With a stale
+                /* Amber ONLY when there is nothing to show. With a stale
                    measurement on screen the chip IS a real number, and painting
                    a real number amber says the number is wrong when what failed
                    is the attempt to replace it - the footer says that, in words.
                    (These two .is-warn rules have been in Overview.css, unused by
-                   any panel, since they were written.) */
-                className={disk.meta === 'no sizes' ? 'is-warn' : undefined}
+                   any panel, since they were written.)
+
+                   Asked of the STATE, not of the words: this read
+                   `disk.meta === 'no sizes'`, so rewording one sentence in
+                   lib/df.ts would have turned the amber off and nothing would
+                   have said so. */
+                className={disk.phase === 'failed' && !disk.hasNumbers ? 'is-warn' : undefined}
                 meta={disk.meta ?? fmtBytes(diskTotal)}
                 footer={
                   <>
