@@ -161,6 +161,11 @@ function Rules() {
         <span className="set-note">
           Definitions from <Link className="link mono" to={filesHref('read', 'stacks', ALERT_RULES)}>{ALERT_RULES}</Link>.
           Whether a rule is firing is Grafana’s to say; it has its own login.
+          {/* The question this table provokes and cannot answer. Worth a link
+              rather than a paragraph: on this box the answer has been "nobody,
+              for days", and that fact lives one section away. */}
+          {' '}Where a firing rule is <i>sent</i>, and whether it got there, is in{' '}
+          <Link className="link" to="/settings/notifications?block=delivery-state">Notifications</Link>.
         </span>
       </div>
     </>
