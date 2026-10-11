@@ -2350,6 +2350,39 @@ mutant "the nav fold animates a layout property in settings.css" \
   '.set-nav-list .set-nav-items { transition: grid-template-rows var(--dur) var(--ease);' \
   -- "${WEB_CHECKS[@]}"
 
+# ── the two traps in checks/settings.mjs (2026-10-11) ───────────────────────
+# Both of these were live, and both would have been paid for by whoever added the
+# NEXT settings section rather than by whoever wrote the hole.
+
+# TRAP 1. The registry allows `[a-z-]+` in a section id; this parser read
+# `([a-z]+)`. So `api-tokens` registers, routes, and renders - and then fails an
+# assertion three lines down that says "routes.tsx serves exactly the registry's
+# sections", naming neither the regex nor the hyphen. The regex is exercised on a
+# synthetic hyphenated line BECAUSE no real id carries a hyphen yet: without that
+# self-test this mutation would pass every assertion in the file.
+mutant "the routes.tsx parser stops reading a hyphenated section id" \
+  apps/bothy-web/checks/settings.mjs \
+  'const ROUTED_RE = /^\s{2}([a-z-]+): ([A-Z]\w+Settings),$/gm;' \
+  'const ROUTED_RE = /^\s{2}([a-z]+): ([A-Z]\w+Settings),$/gm;' \
+  -- "${WEB_CHECKS[@]}"
+
+# TRAP 2, both of its edit sites. icons.tsx ends in `ICONS[name] ?? Info`, so an
+# icon name that does not resolve draws the Info glyph - the one "About & health"
+# already wears. Two identical icons in the nav looks deliberate, and nothing
+# said otherwise until this check existed.
+mutant "a section names an icon nobody registered" \
+  apps/bothy-web/web/src/lib/settings-index.ts \
+  "group: 'operations', icon: 'activity'," \
+  "group: 'operations', icon: 'activityy'," \
+  -- "${WEB_CHECKS[@]}"
+
+mutant "the icon table loses the entry a section asks for" \
+  apps/bothy-web/web/src/components/settings/icons.tsx \
+  '  activity: Activity,
+' \
+  '' \
+  -- "${WEB_CHECKS[@]}"
+
 echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran

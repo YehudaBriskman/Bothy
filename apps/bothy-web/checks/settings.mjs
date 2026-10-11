@@ -35,8 +35,41 @@ ok(BLOCKS.every((b) => ids.includes(b.section)), 'every block names a real secti
 ok(SECTIONS.every((s) => GROUPS.some((g) => g.id === s.group)), 'every section names a real group');
 ok(SECTIONS.every((s) => BLOCKS.some((b) => b.section === s.id)), 'every section has at least one block');
 
+// THE ICON NAME, which nothing checked until 2026-10-11. settings-index.ts stores
+// an icon as a STRING and components/settings/icons.tsx resolves it with
+// `ICONS[name] ?? Info` - so a name with a typo, or one nobody remembered to
+// register, silently draws the Info glyph. That is the glyph "About & health"
+// already wears, so the nav shows two identical icons and looks deliberate. The
+// fallback stays (a section must still render if this check is ever bypassed);
+// this makes reaching it a failure.
+const iconsSrc = readFileSync(join(SRC, 'components/settings/icons.tsx'), 'utf8');
+const iconTable = iconsSrc.slice(iconsSrc.indexOf('const ICONS'), iconsSrc.indexOf('export function SectionIcon'));
+const registeredIcons = [...iconTable.matchAll(/^\s{2}([a-z][\w-]*):\s*\w+,$/gm)].map((m) => m[1]);
+ok(registeredIcons.length > 5, 'the icon table was parsed at all', `${registeredIcons.length} names`);
+const missingIcons = SECTIONS.filter((s) => !registeredIcons.includes(s.icon));
+ok(missingIcons.length === 0,
+  'every section\'s icon name is registered in icons.tsx - an unregistered one draws Info, like About',
+  missingIcons.map((s) => `${s.id}:${s.icon}`).join(','));
+const unusedIcons = registeredIcons.filter((n) => !SECTIONS.some((s) => s.icon === n));
+ok(unusedIcons.length === 0, 'and icons.tsx registers nothing no section asks for', unusedIcons.join(','));
+
 const routes = readFileSync(join(SRC, 'pages/settings/routes.tsx'), 'utf8');
-const routedPairs = [...routes.matchAll(/^\s{2}([a-z]+): ([A-Z]\w+Settings),$/gm)].map((m) => [m[1], m[2]]);
+// `[a-z-]+`, NOT `[a-z]+`: the registry allows a hyphen in a section id and the
+// router serves one happily, so a `-` missing here was a trap. An id like
+// `api-tokens` registered, routed and worked - and then failed the assertion
+// BELOW ("routes.tsx serves exactly the registry's sections"), which names
+// neither this regex nor the hyphen, so the error pointed at the wrong file.
+//
+// Named, and exercised on a synthetic line, rather than written inline: no
+// section id carries a hyphen TODAY, so a regex that cannot read one would pass
+// every assertion in this file and wait for whoever adds the first one. The
+// self-test below fails the moment the character class loses its `-`, which is
+// the only way this fix can defend itself. (`matchAll` clones the regex, so the
+// /g flag's lastIndex is not shared between the two uses.)
+const ROUTED_RE = /^\s{2}([a-z-]+): ([A-Z]\w+Settings),$/gm;
+ok([...'  api-tokens: ApiTokensSettings,\n'.matchAll(ROUTED_RE)][0]?.[1] === 'api-tokens',
+  'the routes.tsx parser reads a HYPHENATED section id (the registry allows one)');
+const routedPairs = [...routes.matchAll(ROUTED_RE)].map((m) => [m[1], m[2]]);
 const routed = routedPairs.map((p) => p[0]);
 const fileOf = Object.fromEntries([...routes.matchAll(/import \{ (\w+Settings) \} from '\.\/(\w+)';/g)].map((m) => [m[1], m[2]]));
 ok(JSON.stringify([...routed].sort()) === JSON.stringify([...ids].sort()),
