@@ -332,6 +332,25 @@ console.log('\n── a disclosure has a named toggle that says it is open ─�
       if (!/\saria-expanded[=\s]/.test(el.open)) problems.push(`${rel(f)}: the toggle for ${want} has no aria-expanded`);
       if (!named(el)) problems.push(`${rel(f)}: the toggle for ${want} has no accessible name`);
     }
+    // COUNT, don't just find. `find()` matches the first aria-controls with that
+    // id ANYWHERE in the file, and an id name is only unique within the
+    // component that builds it - Updates.tsx has `const bodyId = ...` in two
+    // separate components. So deleting one toggle's aria-controls was masked by
+    // the other component's, and mutants.sh reported this check decorative
+    // (2026-10-11). One aria-controls per <Disclosure> carrying that name.
+    const count = (re) => {
+      const m = new Map();
+      for (const x of src.matchAll(re)) {
+        const k = x[1].replace(/\s+/g, '');
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
+      return m;
+    };
+    const ctls = count(/aria-controls=\{([^}]+)\}/g);
+    for (const [name, n] of count(/<Disclosure\b[^>]*?\sid=\{([^}]+)\}/g)) {
+      const have = ctls.get(name) ?? 0;
+      if (have < n) problems.push(`${rel(f)}: ${n} <Disclosure id={${name}}> but only ${have} aria-controls={${name}}`);
+    }
     // A <Disclosure> with no id at all cannot be named by anything.
     for (const m of src.matchAll(/<Disclosure\b([^>]*)>/g)) {
       if (!/\sid=/.test(m[1])) problems.push(`${rel(f)}: a <Disclosure> with no id - nothing can point at it`);
