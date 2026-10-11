@@ -2350,6 +2350,68 @@ mutant "the nav fold animates a layout property in settings.css" \
   '.set-nav-list .set-nav-items { transition: grid-template-rows var(--dur) var(--ease);' \
   -- "${WEB_CHECKS[@]}"
 
+# ── where an alert goes, and whether it arrives (2026-10-11) ────────────────
+# Built because this box had been failing to deliver every alert email for days
+# with nothing on screen saying so. Each row below is a way that page could go
+# back to being reassuring and wrong.
+
+# THE HONESTY ROW, and the most important one here. Grafana logs a notification
+# FAILURE at its default level and no success at all, so "no failures" is the
+# absence of bad news, not a delivery receipt. Paint it green and the page
+# reports a box that cannot send mail as a box that can.
+mutant "the page paints no-failures as a success" \
+  apps/bothy-web/web/src/pages/settings/Notifications.tsx \
+  "  'no-failures': { status: 'unknown', head: 'Grafana tried, and recorded no failure.' }," \
+  "  'no-failures': { status: 'up', head: 'Alert email is working.' }," \
+  -- "${WEB_CHECKS[@]}"
+
+# ...and the same lie told one layer down, by collapsing the three-valued verdict
+# into two. `idle` and `no-failures` are different facts: nothing fired, versus
+# something fired and no failure was recorded.
+mutant "the verdict collapses from three values to two" \
+  apps/bothy-web/web/src/lib/notifications.ts \
+  "  const verdict: DeliveryVerdict = failures > 0 ? 'failing' : attempts > 0 ? 'no-failures' : 'idle';" \
+  "  const verdict: DeliveryVerdict = failures > 0 ? 'failing' : 'idle';" \
+  -- "${WEB_CHECKS[@]}"
+
+# The DOUBLE escaping. Grafana quotes the SMTP reply inside its own quoted err=
+# value, so a newline arrives as a doubled backslash-n. Matching one backslash
+# leaves the other, and the remedy renders with a stray slash mid-sentence.
+mutant "the SMTP error is unescaped one backslash at a time" \
+  apps/bothy-web/web/src/lib/notifications.ts \
+  "    .replace(/\\+n/g, ' ')" \
+  "    .replace(/\\n/g, ' ')" \
+  -- "${WEB_CHECKS[@]}"
+
+# The recipient in contactpoints.yml is $ALERT_EMAIL_TO - a VARIABLE Grafana
+# substitutes at start-up. Stop recognising it and the page prints the literal
+# string as though it were an inbox somebody could write to.
+mutant "an unexpanded env reference is printed as if it were an address" \
+  apps/bothy-web/web/src/lib/notifications.ts \
+  "  return value != null && /^\$\{?[A-Z_][A-Z0-9_]*\}?$/.test(value.trim());" \
+  "  return false;" \
+  -- "${WEB_CHECKS[@]}"
+
+# THE REAL FILES. These parsers are regexes over YAML, so a reshaped file does
+# not throw - it returns an empty list, and the page says "this box has no
+# contact point", which is wrong and entirely plausible. The check parses the
+# committed files for exactly this reason; this row proves it would notice.
+mutant "contactpoints.yml is reshaped and the parser quietly returns nothing" \
+  monitoring/provisioning/alerting/contactpoints.yml \
+  "      - uid: email_default" \
+  "      - id: email_default" \
+  -- "${WEB_CHECKS[@]}"
+
+# A route pointing at a contact point that does not exist is the quietest break
+# in the whole chain: Grafana provisions it happily and the alert goes nowhere.
+mutant "a notification policy routes to a contact point that does not exist" \
+  monitoring/provisioning/alerting/policies.yml \
+  "    receiver: email
+    group_by:" \
+  "    receiver: emial
+    group_by:" \
+  -- "${WEB_CHECKS[@]}"
+
 # ── the two traps in checks/settings.mjs (2026-10-11) ───────────────────────
 # Both of these were live, and both would have been paid for by whoever added the
 # NEXT settings section rather than by whoever wrote the hole.
