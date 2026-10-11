@@ -2379,8 +2379,8 @@ mutant "the verdict collapses from three values to two" \
 # leaves the other, and the remedy renders with a stray slash mid-sentence.
 mutant "the SMTP error is unescaped one backslash at a time" \
   apps/bothy-web/web/src/lib/notifications.ts \
-  "    .replace(/\\+n/g, ' ')" \
-  "    .replace(/\\n/g, ' ')" \
+  '.replace(/\\+n/g,' \
+  '.replace(/\\n/g,' \
   -- "${WEB_CHECKS[@]}"
 
 # The recipient in contactpoints.yml is $ALERT_EMAIL_TO - a VARIABLE Grafana
@@ -2388,8 +2388,8 @@ mutant "the SMTP error is unescaped one backslash at a time" \
 # string as though it were an inbox somebody could write to.
 mutant "an unexpanded env reference is printed as if it were an address" \
   apps/bothy-web/web/src/lib/notifications.ts \
-  "  return value != null && /^\$\{?[A-Z_][A-Z0-9_]*\}?$/.test(value.trim());" \
-  "  return false;" \
+  '  return value != null && /^\$\{?[A-Z_][A-Z0-9_]*\}?$/.test(value.trim());' \
+  '  return false;' \
   -- "${WEB_CHECKS[@]}"
 
 # THE REAL FILES. These parsers are regexes over YAML, so a reshaped file does

@@ -185,6 +185,17 @@ ok(/useOpenGroups\(\)/.test(shell) && (shell.match(/<Nav \{\.\.\.nav\}/g) ?? [])
   'both the aside and the drawer are handed the one state', `${(shell.match(/<Nav \{\.\.\.nav\}/g) ?? []).length} copies`);
 ok(/const uid = useId\(\)/.test(shell) && /\$\{uid\}-p-\$\{g\.id\}/.test(shell),
   'each copy builds its region ids off its own useId - both are in the DOM while the drawer is open');
+// THE TOGGLE MUST NAME ITS REGION. Found decorative by mutants.sh on 2026-10-11:
+// a row planted `aria-controls={panelId}` away and nothing here noticed. On
+// screen the two are identical - the fold still works, the chevron still turns -
+// so the only thing that can report it is an assertion. The region is a
+// Disclosure that stays in the DOM while shut precisely so this id resolves in
+// the state a screen reader most needs it, which is why BOTH halves are checked:
+// the attribute on the button, and the same id handed to the Disclosure.
+ok(/aria-expanded=\{open\} aria-controls=\{panelId\}/.test(shell),
+  'the group toggle names the region it opens (aria-controls), not just that it is open');
+ok(/<Disclosure open=\{open\} id=\{panelId\}>/.test(shell),
+  'and the region it names is the Disclosure that holds that group\'s links');
 ok(/arriveInGroup\(groups, activeGroup\)/.test(shell) && /next !== groups/.test(shell),
   'the shell clears a fold on arrival, and only writes when something changed');
 // The bug this cost an hour: without the ref the effect runs on every change of
