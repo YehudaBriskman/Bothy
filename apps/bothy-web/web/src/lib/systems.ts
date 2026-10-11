@@ -12,7 +12,7 @@
 
 import type { PortalNode, Status, ServiceType, VolumeRef, PlacementSource } from './discover';
 import { TYPE_META } from './discover';
-import type { SystemDf } from './api';
+import type { SystemDf } from './df';
 import { accentVar } from './accents';
 import { primaryIdentity } from './discover';
 import { uiName } from './ui-names';

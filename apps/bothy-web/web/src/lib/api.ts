@@ -7,6 +7,15 @@
 //
 // Either API can fail and the page must still render: Traefik is the skeleton,
 // Docker is enrichment. allSettled, never all - partial results are first-class.
+//
+// FOUR CALLS, NOT FIVE (2026-10-11). /-/api/docker/system/df used to be the
+// fifth, and that is what made its budget a first-paint budget: `data` starts
+// empty, allSettled waits for the slowest, and the slowest was the one call this
+// file calls least critical - 4.6s measured against the four lists' 0.18s. It
+// now has its own module, its own generous budget and its own cadence
+// (lib/df.ts), and the only thing left of it here is loadDf() - the fetch, kept
+// beside its siblings so the route documentation stays in one place, and
+// deliberately NOT called from loadAll().
 
 import { useEffect, useRef, useState } from 'react';
 import { allPorts, configRootsOf, merge, placeOf, type Container, type PortRow, type Router, type PortalNode, type Service } from './discover';
@@ -14,81 +23,22 @@ import { withDeclared, type CollectorPayload, type CollectorProject } from './pr
 import type { RootPaths } from './config';
 import { readData } from './prefs';
 
-// /system/df - per-image / per-container / per-volume disk usage. Read-only,
-// carries no Env (see edge/dynamic/bothy-api.yml). Purely additive enrichment:
-// if it fails, the "Data & disk" card falls back to volume names without sizes.
-export interface DfVolume {
-  Name?: string;
-  UsageData?: { Size?: number; RefCount?: number };
-}
-export interface DfContainer {
-  Id?: string;
-  Names?: string[];
-  SizeRw?: number;
-  SizeRootFs?: number;
-}
-export interface DfImage {
-  RepoTags?: string[];
-  Size?: number;
-  SharedSize?: number;
-}
-export interface SystemDf {
-  LayersSize?: number;
-  Images?: DfImage[];
-  Containers?: DfContainer[];
-  Volumes?: DfVolume[];
-}
+// The Df types, the budget, the cadence and the state machine live in lib/df.ts
+// (which imports nothing, so checks/loading-states.mjs holds a truth table
+// against it). Imported here only for loadDf's return type.
+import { DF_TIMEOUT, type SystemDf } from './df';
 
 export const POLL_OK = 10_000;
 export const POLL_FAIL = 60_000;
 export const MAX_BACKOFF = 3;
 const FETCH_TIMEOUT = 5000;
-// /system/df GETS ITS OWN, LONGER BUDGET, and it is the only call that needs
-// one. Measured on this box: containers/json answers in 85ms, /system/df in
-// 1.7s - twenty times slower, because it walks every image layer, container and
-// volume rather than reading a list. That cost grows with the box and spikes
-// while an image is building, and all five requests used to share one 5s
-// AbortController - so the most expensive call was policed by a budget sized
-// for the cheap ones, and lost the race first.
-//
-// Its failure is nearly silent by design (see loadAll), which is what let this
-// go unnoticed: the page kept working and the disk panel just stopped knowing
-// anything.
-//
-// 8s, NOT something generous. allSettled waits for all five, and `data` starts
-// empty, so this call gates FIRST PAINT - a long budget here would mean the
-// whole page waits on the one request the comment below calls least critical.
-// 8s is ~4.7x the measured cost and still under POLL_OK, so a slow df can never
-// become the thing you are waiting for. If it does time out the panel now says
-// so in words instead of claiming the box has no volumes.
-const DF_TIMEOUT = 8000;
-
-// AND IT IS NOT ON THE TEN-SECOND LOOP AT ALL (2026-10-07).
-//
-// The budget above was sized against a measured 1.7s. On 2026-10-07 the same
-// call took **2.0-10.2s**, because the cost it warned about - "grows with the
-// box" - did exactly that: 93 images, 28 containers, 19 volumes, every layer of
-// every one of them walked on every request.
-//
-// At a 10s poll and a ~10s answer, the next request left before the last one
-// landed. dockerd was never idle, and that is not a portal problem: EVERY
-// container's healthcheck runs through `docker exec`, which needs the same busy
-// daemon. Traefik's healthcheck (a 3s timeout on a ping that answers in
-// milliseconds) went unhealthy four times in a row while Traefik itself was
-// routing perfectly - measured: the ping returns OK in 0.0s run directly, and
-// `docker exec` into the same container took 1.4-1.7s. One page's disk panel
-// was making the whole box look sick.
-//
-// So df gets its own cadence, and a slow one. Disk usage changes when something
-// is built, pulled or deleted - events on the scale of minutes, not of a poll
-// loop. Between refreshes the last answer is reused, which is why the panel does
-// not flicker; `force` skips the cache so the Refresh button still means "now".
-//
-// The other four calls stay on POLL_OK. They are lists, they answer in ~85ms,
-// and the whole point of this split is that the expensive one stopped setting
-// the pace for them.
-const DF_EVERY = 120_000;
-let dfCache: { at: number; value: SystemDf } | null = null;
+// The old /system/df budget and cadence comments are GONE from this file, with
+// the call. They are not deleted: lib/df.ts carries the argument, the numbers
+// re-measured on 2026-10-11, and the reason the cadence must not quicken (every
+// container healthcheck on this box runs through `docker exec`, and a df every
+// 10s made Traefik look unhealthy four times in a row while it was routing
+// perfectly). What was wrong with them was never the reasoning - it was that
+// they were reasoning about a request inside the first-paint gate.
 
 export interface LoadError {
   src: string;
@@ -107,7 +57,10 @@ export interface PortalData {
    *  card that needs it (SystemName) only ever sees ITS OWN system's nodes, and
    *  bothy-files is usually not one of them. */
   configRoots: RootPaths;
-  df: SystemDf | null;
+  // `df` IS NOT HERE any more (2026-10-11). Disk sizes are not a whole-poll
+  // fact: they arrive on their own cadence, seconds after the page has painted,
+  // and they carry their own age. Keeping them in this object is what put them
+  // in the first-paint gate. lib/data.tsx exposes them beside `data` instead.
   // Projects that declared themselves via project.dev.yml, resolved against
   // host state by the collector. The only source that can report a project
   // which is switched off, or one running as plain host processes.
@@ -126,7 +79,7 @@ export interface PortalData {
 }
 
 const EMPTY: PortalData = {
-  routers: [], nodes: [], ports: [], configRoots: {}, df: null, projects: [],
+  routers: [], nodes: [], ports: [], configRoots: {}, projects: [],
   projectsAt: null, errors: [], at: 0, fails: 0,
 };
 
@@ -151,29 +104,23 @@ export interface LoadResult {
   nodes: PortalNode[];
   ports: PortRow[];
   configRoots: RootPaths;
-  df: SystemDf | null;
   projects: CollectorProject[];
   projectsAt: number | null;
   errors: LoadError[];
 }
 
-export async function loadAll(force = false): Promise<LoadResult> {
+// NO `force` PARAMETER any more: the only thing it ever did was skip the df
+// cache, and df is not in here. Every call is one poll of four lists at ~0.2s,
+// so there is nothing left for a caller to want more urgently.
+export async function loadAll(): Promise<LoadResult> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT);
-  const dfAc = new AbortController();
-  const dfT = setTimeout(() => dfAc.abort(), DF_TIMEOUT);
-  // The cached df is reused until it ages out (DF_EVERY). `Promise.resolve` so
-  // the allSettled shape below is identical either way - a cached read must not
-  // become a second code path through the join.
-  const dfFresh = force || !dfCache || Date.now() - dfCache.at >= DF_EVERY;
-  const dfReq = dfFresh
-    ? getJSON<SystemDf>('/-/api/docker/system/df', dfAc.signal)
-    : Promise.resolve(dfCache!.value);
   try {
     // allSettled, not all: partial results are first-class. Traefik is the
-    // skeleton, docker is enrichment - either can die alone. df is the LEAST
-    // critical: a pure size overlay, its failure never removes a service.
-    const [routers, services, containers, df, projects] = await Promise.allSettled([
+    // skeleton, docker is enrichment - either can die alone. FOUR entries: the
+    // disk measurement left this list on 2026-10-11 so the page stops waiting
+    // on it (lib/df.ts).
+    const [routers, services, containers, projects] = await Promise.allSettled([
       getJSON<Router[]>('/-/api/traefik/http/routers', ac.signal),
       getJSON<Service[]>('/-/api/traefik/http/services', ac.signal),
       // `?all=1` - stopped containers too, not just running ones.
@@ -190,7 +137,6 @@ export async function loadAll(force = false): Promise<LoadResult> {
       // The socket proxy's CONTAINERS=1 already covers this endpoint, and POST=0
       // still blocks every mutating call.
       getJSON<Container[]>('/-/api/docker/containers/json?all=1', ac.signal),
-      dfReq,
       // Static file written by the host-side collector and bind-mounted into
       // this container - NOT an /-/api/* route, so it needs no edge config and
       // its absence (collector not installed yet) is a normal, silent no-op.
@@ -202,12 +148,13 @@ export async function loadAll(force = false): Promise<LoadResult> {
     // but it silently turns the Routes tab's targets into guesses, so record it.
     const S = services.status === 'fulfilled' ? services.value : (errors.push({ src: 'traefik services', e: services.reason }), []);
     const C = containers.status === 'fulfilled' ? containers.value : (errors.push({ src: 'docker', e: containers.reason }), []);
-    // df failing is intentionally silent-ish: record it, but never let it fail
-    // the load. Sizes just don't render.
-    const D = df.status === 'fulfilled' ? df.value : (errors.push({ src: 'docker df', e: df.reason }), null);
-    // Cache only a FRESH success. Re-stamping `at` on a cache hit would hold a
-    // stale answer forever, since every poll would renew the thing it just read.
-    if (dfFresh && D) dfCache = { at: Date.now(), value: D };
+    // A df failure no longer lands in `errors` either, because it is no longer
+    // this poll's business. It used to read "docker df unreachable" in the
+    // freshness pill on EVERY page - a whole-app degradation badge for one
+    // panel's enrichment - while the panel itself said nothing. That was the
+    // wrong way round, and it is now the other way round: the panel states
+    // which of its four states it is in, loudly, and the pill stays about
+    // whether discovery is working.
     // Deliberately NOT pushed to `errors`: a box with no collector installed is
     // a supported configuration, and flagging it would put a permanent warning
     // on the page for a feature nobody asked for.
@@ -223,14 +170,36 @@ export async function loadAll(force = false): Promise<LoadResult> {
       // bothy-files' mounts, narrowed to the one root the forms accept. Named
       // rather than matched loosely on purpose - see RootPaths in config.ts.
       configRoots: configRootsOf(C),
-      df: D,
       projects: P?.projects ?? [],
       projectsAt: P?.generatedAt ?? null,
       errors,
     };
   } finally {
     clearTimeout(t);
-    clearTimeout(dfT);
+  }
+}
+
+// The disk measurement, on its own. One request, its OWN budget (DF_TIMEOUT,
+// 30s - generous, because nothing paints behind it), and a rejection a caller
+// can tell apart: the abort carries a TimeoutError so the panel can say "the
+// daemon did not answer within 30s" rather than guessing which failure it was.
+//
+// `outer` is the caller's lifetime (the hook unmounting, or asking again). The
+// two signals are linked by hand rather than with AbortSignal.any so the reason
+// survives - any() reports its own AbortError and loses which one fired.
+export async function loadDf(outer: AbortSignal): Promise<SystemDf> {
+  const ac = new AbortController();
+  const stop = () => ac.abort(outer.reason);
+  outer.addEventListener('abort', stop);
+  const t = setTimeout(
+    () => ac.abort(new DOMException(`/system/df exceeded ${DF_TIMEOUT}ms`, 'TimeoutError')),
+    DF_TIMEOUT,
+  );
+  try {
+    return await getJSON<SystemDf>('/-/api/docker/system/df', ac.signal);
+  } finally {
+    clearTimeout(t);
+    outer.removeEventListener('abort', stop);
   }
 }
 
@@ -256,12 +225,12 @@ export function usePortalData(): { data: PortalData; refresh: () => Promise<void
       timer = setTimeout(run, failsRef.current >= MAX_BACKOFF ? POLL_FAIL : readData().pollSeconds * 1000);
     };
 
-    // `force` reaches loadAll's df cache: a scheduled poll reuses it, an
-    // explicit Refresh does not. Pressing Refresh and being handed a
-    // two-minute-old number is the one case the cache must not cover.
-    const run = async (force = false) => {
+    // No `force` any more. This poll has nothing cached to skip: the four lists
+    // are re-read every time, and the one call that WAS cached (/system/df) is
+    // asked for separately by lib/data.tsx's Refresh, which does not wait for it.
+    const run = async () => {
       try {
-        const d = await loadAll(force);
+        const d = await loadAll();
         if (cancelled) return;
         failsRef.current = 0;
         setData(() => ({
@@ -281,7 +250,7 @@ export function usePortalData(): { data: PortalData; refresh: () => Promise<void
 
     // Returns the poll it started, so a Refresh button can show the Loader
     // until the answer lands (pages/control/ControlHome.tsx) - and no longer.
-    refreshRef.current = () => (cancelled ? Promise.resolve() : run(true));
+    refreshRef.current = () => (cancelled ? Promise.resolve() : run());
 
     const onVisibility = () => {
       if (!document.hidden) run();

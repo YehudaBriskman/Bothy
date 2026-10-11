@@ -240,6 +240,20 @@
 
 /* ── data & disk ──────────────────────────────────────────────────────────── */
 .ov-disk { display: flex; flex-direction: column; }
+/* The panel with no numbers to draw: the sentence, and the way to ask again.
+   One column so the button sits under the sentence at every width, and
+   `justify-items: start` so a ghost button does not stretch to the panel. */
+.ov-disk-state {
+  display: grid; justify-items: start; gap: var(--sp-2); padding: var(--sp-1) var(--sp-2);
+}
+/* Where the numbers came from and when. --fg-subtle is the footer's own colour;
+   `tabular-nums` because this is "4m ago" beside "12s ago" across repaints and
+   the digits must not shift the words. */
+.ov-disk-prov { font-variant-numeric: tabular-nums; }
+/* A measurement that is not from the latest attempt. Italic rather than a
+   colour: amber here would be the third amber on a page whose amber means
+   "something needs attention", and an old number is not a fault. */
+.ov-disk-prov[data-stale='true'] { font-style: italic; }
 .vz-gauge-inner { display: contents; color: inherit; }
 .ov-disk-sep {
   display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-2_5) var(--sp-2_5) var(--sp-1);
