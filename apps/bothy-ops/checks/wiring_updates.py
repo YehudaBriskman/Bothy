@@ -252,7 +252,11 @@ def code_of(fn: str) -> str:
 
 ok("r.blockedBy" in code_of("DeployCell"),
    "…and the action cell reads it: no Apply button on a row the scope check is certain to refuse")
-ok("r.blockedBy" in code_of("RowDetail"),
+# The GUARD, not a mention of the field. `r.blockedBy` on its own was satisfied by
+# the `.map()` still sitting inside a block the mutation had switched off, so the
+# row could lose its reason with the check green - which scripts/checks/mutants.sh
+# caught and called decorative, correctly, the first time it was run.
+ok("p?.deployable && (r.blockedBy?.length ?? 0) > 0" in code_of("RowDetail"),
    "…and the row says WHY instead, in the disclosure where every other refusal is")
 
 print()
