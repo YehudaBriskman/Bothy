@@ -78,6 +78,32 @@ groups:
         annotations:
           summary: "thales-scc: scrape job {{ $labels.job }} is DOWN - cluster stopped?"
 `,
+  'monitoring/provisioning/alerting/contactpoints.yml': `apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: email
+    receivers:
+      - uid: email_default
+        type: email
+        settings:
+          addresses: $ALERT_EMAIL_TO
+          singleEmail: false`,
+  'monitoring/provisioning/alerting/policies.yml': `apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: email
+    group_by: ["grafana_folder", "alertname"]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      # Notices (rules.yml: update_stale) - one email a day, not one every 4 hours.
+      - receiver: email
+        object_matchers:
+          - ["severity", "=", "info"]
+        repeat_interval: 24h`,
 };
 
 export async function readStackFileMock(path: string): Promise<{ content: string; mtime: number }> {

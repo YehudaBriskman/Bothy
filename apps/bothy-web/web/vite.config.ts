@@ -10,16 +10,24 @@ import react from '@vitejs/plugin-react';
 // something that does not resolve for two months. It survived a purge of every
 // other name-layer reference because that sweep read prose and this is a config
 // value. Grep the deleted thing, not the sentences about it.
+// `preview` gets the SAME proxy as `server`, and that is not symmetry for its own
+// sake: on this box `vite dev` never becomes interactive (see the notes on the
+// headless Chromium's frame clock), so `vite preview` over a real build is the
+// only way anybody looks at a page before shipping it. Without this, every
+// data-backed block in preview renders its refusal state and a screenshot proves
+// only that the refusal state is pretty. `preview` serves `dist/`, so this
+// changes nothing about the build or what is deployed.
+const API_PROXY = {
+  '/-/api': {
+    target: 'http://100.117.176.85',
+    changeOrigin: true,
+  },
+};
+
 export default defineConfig({
   plugins: [react()],
-  server: {
-    proxy: {
-      '/-/api': {
-        target: 'http://100.117.176.85',
-        changeOrigin: true,
-      },
-    },
-  },
+  server: { proxy: API_PROXY },
+  preview: { proxy: API_PROXY },
   build: {
     outDir: 'dist',
     sourcemap: false,

@@ -105,6 +105,9 @@ mv "$OUT/settings-index.js" "$OUT/settings-index.mjs"
 (cd "$WEB" && npx tsc src/lib/prefs.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/prefs.js" "$OUT/prefs.mjs"
+(cd "$WEB" && npx tsc src/lib/notifications.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/notifications.js" "$OUT/notifications-mod.mjs"
 (cd "$WEB" && npx tsc src/lib/customThemes.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/customThemes.js" "$OUT/user-themes-mod.mjs"
@@ -143,6 +146,7 @@ cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs
    "$HERE/start-table.mjs" "$HERE/declared-actions.mjs" \
    "$HERE/collapsed-groups.mjs" "$HERE/placement.mjs" "$HERE/kube-actions.mjs" "$HERE/cluster.mjs" \
    "$HERE/settings.mjs" "$HERE/a11y-contract.mjs" "$HERE/log-escapes.mjs" \
+   "$HERE/notifications.mjs" \
    "$HERE/loading-states.mjs" "$OUT/"
 
 echo "── truth table ─────────────────────────────────────────"
@@ -228,6 +232,15 @@ echo "── the Settings registry, its routes and its preferences ─"
 # lib/settings-index.ts == pages/settings/routes.tsx == each page's blocks, the
 # search, and every hand-editable preference falling back to its default.
 node "$OUT/settings.mjs" "$WEB/src"
+
+echo
+echo "── where an alert goes, and whether it arrives ─────────"
+# The two alerting provisioning files parsed, the SMTP failures classified, and
+# the three-valued verdict. Both halves fail silently otherwise: a regex parser
+# over reshaped YAML returns `[]`, which renders as "this box has no contact
+# point" and is entirely plausible; and a two-valued verdict would report the
+# absence of a failure as a delivery receipt, which Grafana's log cannot support.
+node "$OUT/notifications.mjs" "$WEB/src" "$WEB/../../.."
 
 echo
 echo "── this box, right now ─────────────────────────────────"
