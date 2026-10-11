@@ -865,6 +865,55 @@ mutant "a touched member leaves its group offering Apply" \
   '        if False:' \
   -- python3 apps/bothy-ops/checks/api_updates.py
 
+echo
+echo "── the Apply button that could never work (2026-10-11) ─────────────"
+# `just up-auth` is one `docker compose up`, so applying keycloak alone is refused
+# by executor.compose_scope while oauth2-proxy (class `boundary`) and
+# keycloak-db-init (a pin of `postgres`) are behind. The host refused it from the
+# first press; the ROW drew Apply anyway, so the owner pressed it three times. Each
+# row below is one half of the host saying so BEFORE the click.
+
+mutant "a blocker with no plan of its own stops counting" \
+  apps/bothy-ops/updates.py \
+  '            if mp and mp.get("deployable"):' \
+  '            if True:' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+# Drift is what makes a service LEFT OVER by the recipe. Without it every mate the
+# updater cannot move blocks forever, including one already in sync - which would
+# take the button off a row that can legitimately act.
+mutant "a blocker already in sync still blocks" \
+  apps/bothy-ops/updates.py \
+  '            if not (md and (md["drift"] or md["configDrift"])):' \
+  '            if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+# The join is the compose FILE, because the scope rule is about the compose
+# PROJECT: `postgres` is applied by `just up-data` and still owns
+# `auth/compose.yml:keycloak-db-init`. Join on the recipe and that blocker vanishes
+# - which is the half of the owner's refusal a recipe join would have missed.
+mutant "the blocker join keys on the service, not the file" \
+  apps/bothy-ops/updates.py \
+  '            by_file.setdefault(f, []).append(c.id)' \
+  '            by_file.setdefault(name, []).append(c.id)' \
+  -- python3 apps/bothy-ops/checks/api_updates.py
+
+# The read half. Without it the host is right and the SCREEN still offers the
+# press. No web check asserts a button's ABSENCE, so wiring_updates.py holds it.
+mutant "the action cell draws Apply on a blocked row" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '  if (!p || !p.deployable || !canAct || (r.blockedBy?.length ?? 0) > 0) {' \
+  '  if (!p || !p.deployable || !canAct) {' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
+# And a row with no button and no reason is the 2026-10-07 defect again: the
+# product states what must happen and offers no way to do it.
+mutant "a blocked row loses the reason it cannot act" \
+  apps/bothy-web/web/src/pages/settings/Updates.tsx \
+  '      {p?.deployable && (r.blockedBy?.length ?? 0) > 0 && (' \
+  '      {false && (' \
+  -- python3 apps/bothy-ops/checks/wiring_updates.py
+
 mutant "a missed night is caught up at boot" \
   host/systemd/bothy-updater-auto.timer \
   'Persistent=false' \
@@ -1348,6 +1397,20 @@ mutant "the refusal collapses back into 'nothing to deploy'" \
   '            if isinstance(e.get("configDrift"), str) and e["configDrift"]:' \
   '            if False:' \
   -- python3 apps/bothy-ops/checks/test_updater.py
+
+# THE REFUSAL THIS WHOLE AREA RESTS ON, and nothing proved it could fail until
+# now (added 2026-10-11, while deciding NOT to make `boundary` deployable).
+# `updates.load_catalog()` refuses `auto` on the auth boundary in its own clause,
+# BEFORE the generic AUTO_CLASSES test, so that the refusal survives anyone
+# widening AUTO_CLASSES. Delete the clause and a boundary component is still
+# refused - by the generic test, with the generic sentence - which is why the
+# check keys on the WORDS: losing them loses the reason, and the reason is the
+# only thing that tells a reader this was a decision rather than an omission.
+mutant "the auth boundary loses its own refusal of \`auto\`" \
+  apps/bothy-ops/updates.py \
+  '            if cls == "boundary":' \
+  '            if False:' \
+  -- python3 apps/bothy-ops/checks/test_updates_catalog.py
 
 mutant "the config-only refusal grows past the cap that cuts its end off" \
   apps/bothy-ops/updater/plans.py \
