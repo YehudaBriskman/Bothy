@@ -5,6 +5,7 @@ import {
   FolderTree, BarChart3, type LucideIcon,
 } from 'lucide-react';
 import { usePortal, needsAttention, healthOf, expectedUp } from '../lib/data';
+import { dfReport, type DfReport, type SystemDf } from '../lib/df';
 import {
   systemsOf, sectionsOf, uiPorts, diskVolumes, fmtBytes,
   type System, type UiLink,
@@ -26,6 +27,7 @@ import { orderSections } from '../lib/prefs';
 import './Overview.css';
 import { Icon as SizedIcon, IconBox } from '../components/ui/Icon';
 import { Button } from '../components/ui/Button';
+import { Loader } from '../components/ui/Loader';
 
 // A bare colour dot is not a status. StatusIcon does this correctly elsewhere;
 // these lists used raw <span className="dot"> with no accessible name at all.
@@ -383,7 +385,22 @@ function UiBody({ stack, project }: { stack: UiLink[]; project: UiLink[] }) {
 
 // Disk as a COMPARISON, not a list of numbers: every row is a bar against the
 // largest, so "what is eating the disk" is answerable without reading.
-function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof usePortal>['data']['df'] }) {
+//
+// AND IT SAYS WHICH OF FOUR STATES IT IS IN (2026-10-11): never measured,
+// measuring, measured at a known time, or failed. It is the only panel on this
+// page whose data does not arrive with the poll - /system/df takes ~4.6s against
+// the lists' 0.2s and is asked for at most every 120s (lib/df.ts) - so it is the
+// only panel that has to say where its numbers came from. It used to say nothing
+// at all, and that is the half of the 2026-10-11 bug which kept the other half
+// hidden: a timed-out measurement rendered "No persistent volumes." on a box
+// with fourteen of them, and then, once that was fixed, one sentence about a
+// timeout stood in for every possible failure.
+function DiskBody({ systems, df, report, onMeasure }: {
+  systems: System[];
+  df: SystemDf | null;
+  report: DfReport;
+  onMeasure: () => void;
+}) {
   const { rows, orphanRows } = useMemo(() => {
     const vols = diskVolumes(df, systems);
     const bySystem = new Map<string, { system: System; bytes: number; vols: number }>();
@@ -421,7 +438,30 @@ function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof us
   // fourteen of them holding 2.1 GB - a confident statement of something the
   // page did not know. Observed: it happened while an image was building, which
   // is exactly when df is slowest.
-  if (!df) return <p className="ov-uicol-empty">Volume sizes could not be read - the daemon did not answer in time.</p>;
+  //
+  // That confusion is now structurally impossible rather than guarded against:
+  // `report.hasNumbers` is true only when a measurement actually succeeded, so
+  // the sentence below is reached only with a real answer in hand, and zero
+  // volumes really does mean zero volumes.
+  if (!report.hasNumbers) {
+    return (
+      <div className="ov-disk-state">
+        {report.phase === 'measuring'
+          // Bare, not plated: a Loader over content is plated and a Loader alone
+          // in an empty box is not (docs/brand/patterns/feedback.md). There is
+          // nothing underneath it here - that is what this state IS.
+          ? <Loader state="load" size="md" label={report.message ?? undefined} />
+          : (
+            <>
+              <p className="ov-uicol-empty">{report.message}</p>
+              <Button variant="ghost" size="sm" onClick={onMeasure}>
+                {report.phase === 'failed' ? 'Measure again' : 'Measure now'}
+              </Button>
+            </>
+          )}
+      </div>
+    );
+  }
   if (!rows.length && !orphanRows.length) return <p className="ov-uicol-empty">No persistent volumes.</p>;
   // one scale across BOTH sections, so an orphan bar is comparable to a system's
   const max = Math.max(1, ...rows.map((r) => r.value), ...orphanRows.map((r) => r.value));
@@ -459,7 +499,7 @@ function DiskBody({ systems, df }: { systems: System[]; df: ReturnType<typeof us
 
 // ── page ─────────────────────────────────────────────────────────────────────
 export function Overview() {
-  const { data, refresh } = usePortal();
+  const { data, refresh, df, measureDf } = usePortal();
   const systems = useMemo(() => systemsOf(data.nodes), [data.nodes]);
   // The system whose quick-lookup dialog is open. Held by key rather than by
   // object so the dialog follows the LIVE system across a poll - holding the
@@ -484,11 +524,18 @@ export function Overview() {
   const loading = firstPoll(data);
 
   const { diskTotal, volumeCount } = useMemo(() => {
-    const vols = diskVolumes(data.df, systems);
+    const vols = diskVolumes(df.value, systems);
     let sum = 0; let any = false;
     for (const v of vols) if (v.bytes != null) { sum += v.bytes; any = true; }
     return { diskTotal: any ? sum : null, volumeCount: vols.length };
-  }, [systems, data.df]);
+  }, [systems, df.value]);
+  // The one place the measurement's words are decided (lib/df.ts, a truth table
+  // in checks/loading-states.mjs). Read from the clock and recomputed every
+  // render rather than memoised: it contains an AGE, and the only thing that has
+  // to be true of "measured 2m ago" is that it was true when it was painted. The
+  // 10s discovery poll is what repaints it, which is also why the age is coarse
+  // (seconds, then minutes) rather than a ticking second hand nothing drives.
+  const disk = dfReport(df, Date.now());
 
   const counts = useMemo(() => healthOf(data.nodes), [data.nodes]);
 
@@ -634,17 +681,32 @@ export function Overview() {
               {!hide('disk') && <Panel
                 title="Data & disk"
                 Icon={HardDrive}
-                meta={data.df ? fmtBytes(diskTotal) : 'no sizes'}
+                /* Amber ONLY when the chip is not a size. With a stale
+                   measurement on screen the chip IS a real number, and painting
+                   a real number amber says the number is wrong when what failed
+                   is the attempt to replace it - the footer says that, in words.
+                   (These two .is-warn rules have been in Overview.css, unused by
+                   any panel, since they were written.) */
+                className={disk.meta === 'no sizes' ? 'is-warn' : undefined}
+                meta={disk.meta ?? fmtBytes(diskTotal)}
                 footer={
                   <>
                     <span><b>{volumeCount}</b> volumes</span>
                     <span className="sep" aria-hidden="true">·</span>
                     <span>total <b>{diskTotal != null ? fmtBytes(diskTotal) : '-'}</b></span>
-                    {!data.df && <span className="right">sizes unavailable</span>}
+                    {/* PROVENANCE, always, in every state - the thing this panel
+                        did not have. "nearly silent by design" is how a call
+                        that had outgrown its budget went unnoticed for days. */}
+                    <span className="right ov-disk-prov" data-stale={disk.stale ? 'true' : undefined}>
+                      {disk.provenance}
+                    </span>
+                    {disk.hasNumbers && disk.canMeasure && (
+                      <Button variant="ghost" size="sm" onClick={measureDf}>Re-measure</Button>
+                    )}
                   </>
                 }
               >
-                <DiskBody systems={systems} df={data.df} />
+                <DiskBody systems={systems} df={df.value} report={disk} onMeasure={measureDf} />
               </Panel>}
 
               {!hide('top') && <TopContainers />}

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, HardDrive } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePortal, healthOf } from '../lib/data';
+import { dfReport } from '../lib/df';
 import { riseIn } from '../lib/motion';
 import { useMotionReduced } from '../lib/useMotionReduced';
 import { groupByType, systemsOf, findSystem, volumeSize, systemDiskBytes, fmtBytes } from '../lib/systems';
@@ -26,7 +27,7 @@ const KIND_LABEL: Record<'project' | 'stack' | 'infra', string> = {
 
 export function ProjectDetail() {
   const { name = '' } = useParams();
-  const { data } = usePortal();
+  const { data, df: dfState } = usePortal();
   const reduce = useMotionReduced();
 
   // Which half of the Reachability panel is showing. Not persisted: it is a
@@ -152,7 +153,13 @@ export function ProjectDetail() {
   }
 
   const accStyle = { ['--acc' as string]: `var(${system.accent})` } as React.CSSProperties;
-  const df = data.df;
+  // The disk measurement arrives on its own cadence now (lib/df.ts), so this
+  // page says where its sizes came from too - the same words the Overview's
+  // panel uses, from the same function. It used to say " · sizes unavailable",
+  // which covered "never asked", "asking", "it failed" and "it failed four
+  // minutes after answering" with one phrase.
+  const disk = dfReport(dfState, Date.now());
+  const df = dfState.value;
   const totalBytes = systemDiskBytes(df, system);
   let panel = 0;
 
@@ -237,7 +244,7 @@ export function ProjectDetail() {
         {system.volumes.length > 0 && (
           <motion.section className="panel span-12" {...rise(panel++)}>
             <div className="panel-h">
-              Data <span className="sub">{fmtBytes(totalBytes)}{df ? '' : ' · sizes unavailable'}</span>
+              Data <span className="sub">{fmtBytes(totalBytes)} · {disk.provenance}</span>
             </div>
             <div className="panel-b panel-tbl">
               <div className="tbl-wrap scroll-shade">
