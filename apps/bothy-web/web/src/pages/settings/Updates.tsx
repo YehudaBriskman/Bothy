@@ -1715,10 +1715,16 @@ function ConfigRowEdit({ row, component, canAct, busy, onStarted, onChanged }: {
         </p>
       ) : (
         <form className="upd-cfg-form" onSubmit={(e) => { e.preventDefault(); setConfirming(true); }}>
-          <label className="ka-field" htmlFor={id}>
-            <span className="ka-label">{row.key} on <span className="mono">{row.service}</span></span>
+          {/* The field's name is SCREEN-READER ONLY, because the key is already
+              the row's heading two lines above it and printing it again is the
+              same datum twice. The accessible name is still there and still
+              names the service, which the heading does not. `set-input` and not
+              `ka-input`: this is a settings row, and the dialog's input caps at
+              320px, which truncated a path value in the middle. */}
+          <label className="set-field" htmlFor={id}>
+            <span className="sr-only">{row.key} on {row.service}</span>
             <input
-              id={id} className="ka-input mono" value={draft} pattern={row.pattern} maxLength={64}
+              id={id} className="set-input mono" value={draft} pattern={row.pattern} maxLength={64}
               spellCheck={false} autoComplete="off" aria-invalid={changed && !legal}
               aria-describedby={`${id}-bound`} disabled={!canAct || busy}
               onChange={(e) => setDraft(e.target.value.replace(/[\r\n\t]+/g, ''))}
@@ -1733,9 +1739,15 @@ function ConfigRowEdit({ row, component, canAct, busy, onStarted, onChanged }: {
             <Button variant="ghost" size="sm" disabled={!changed} onClick={() => setDraft(row.value ?? '')}>
               Reset
             </Button>
+            {/* "Set it", not "Set GF_USERS_DEFAULT_HOME_DASHBOARD_PATH": the key
+                is the row's heading and the button is inside the row, so the long
+                form was the third printing of the same datum and the widest thing
+                on the card. The accessible name carries it, for a reader who
+                arrives at the button without the heading. */}
             <Button variant="caution" size="sm" type="submit"
+              aria-label={`Set ${row.key} on ${row.service}`}
               disabled={!canAct || busy || !changed || !legal}>
-              Set {row.key}
+              Set it
             </Button>
           </div>
         </form>
