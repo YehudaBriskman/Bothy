@@ -943,8 +943,13 @@ def request_config(h, who: str, body: dict) -> tuple[dict, str]:
     if not isinstance(pid, str) or not _PLAN.fullmatch(pid):
         raise Refused("plan_id must be 24 hex characters", status=400)
     if flat(who) == AUTO_ACTOR:
-        # The night job's name (updater/auto.py). No channel chooses a config
-        # value, and the executor refuses this actor again when it claims the file.
+        # No channel chooses a config value, and the executor refuses this actor
+        # again when it claims the file. The comment is deliberately NOT the one
+        # request_update carries: scripts/checks/mutants.sh anchors a row on that
+        # wording plus the line above it, `plant()` replaces the FIRST match, and
+        # this writer sits higher in the file - so an identical comment here
+        # silently stole that row's mutation and left request_update's own check
+        # intact, which is the decorative-check failure that file exists for.
         raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
     if cid not in CATALOG.components:
         # 404 BEFORE the key lookup, like request_update's: "there is no such
@@ -1163,6 +1168,15 @@ def status(catalog: Catalog) -> dict:
             # operator's unpause is already waiting in the spool.
             "paused": auto_state["paused"].get(c.id),
             "unpauseQueued": c.id in unpausing,
+            # How many of this component's compose values are allowlisted
+            # (updater/configvalue.py). FROM THE CATALOG, not from the host's
+            # configs/<id>.json: this process holds the same [config_keys] table
+            # in its own image, so the count costs no file read and no second
+            # request, and the page can decide which components even have a
+            # Configuration row before it fetches one. The rows themselves - with
+            # the live values and the locked keys' reasons - are the host's, read
+            # lazily through GET /updates/plan?config=.
+            "configKeys": len(catalog.config_keys_of(c.id)),
         })
     in_group = {c for g in groups if g["deployable"] for c in g["candidates"]}
     for r in rows:
@@ -1190,6 +1204,11 @@ def status(catalog: Catalog) -> dict:
         # is a shell command after a backup.
         "configDrift": sum(1 for r in rows if r["discovered"] and r["discovered"]["configDrift"]),
         "groups": sum(1 for g in groups if g["deployable"]),
+        # Allowlisted compose values, across every component. ONE number, because
+        # the honest headline is how many values a browser can change at all -
+        # measured 1 of the 102 environment names a catalog component declares,
+        # and updates.toml's [config_keys] header carries that measurement.
+        "configKeys": sum(r["configKeys"] for r in rows),
     }
     p = catalog.policy
     queue = _queued()

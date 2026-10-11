@@ -567,6 +567,57 @@ refused(lambda: spool.validate_shape(r, "a" * 32 + ".json"),
         "not ['component'", "a request with no value", exc=spool.Invalid)
 
 print()
+print("── THE REVERT, as a unit: the old value goes back ────────────────")
+# ConfigExecution.rollback() with no docker. The recipe and the health-and-canary
+# check are the only two things it reaches into the box with, so those are
+# stubbed; everything else is the real thing, and THE FILE IS REAL. What this
+# holds that checks/e2e_config.py also holds end to end is the part a mutation
+# can be planted on cheaply: that the value written back is the OLD one, read off
+# the line this job itself wrote.
+RECIPES: list[str] = []
+
+
+def fake_recipe(self, timeout=None):
+    RECIPES.append("ran")
+
+
+def fake_check(self, image_id, phase):
+    return True, "stubbed: healthy, canaries green", True
+
+
+executor.Execution._recipe = fake_recipe
+executor.Execution.check = fake_check
+
+
+def path_of() -> str:
+    return os.path.join(RP, "compose.yml")
+
+
+def mode_now() -> str:
+    return re.search(r"^      MODE: (\S+)$", open(path_of(), encoding="utf-8").read(), re.M).group(1)
+
+
+fresh = configvalue.plan("web", "MODE", cfg=cfg, catalog=tcat, available=A)
+rec = record.Recorder(cfg, record.new_job(
+    {"jobId": "d" * 32, "component": "web", "planId": fresh["id"], "requestedBy": "me@example.com",
+     "requestedAt": "2026-10-11T10:00:00Z"}, "d" * 32 + ".json", record.CONFIG_STEPS))
+ex = configvalue.ConfigExecution(cfg, rec, tcat.components["web"], fresh, "slow")
+ex.step("edit", ex.edit)
+ok(mode_now() == "slow" and ex.edited, f"the edit wrote the new value: MODE: {mode_now()}")
+state = ex.rollback(RuntimeError("the canary said no"))
+ok(state == "rolled_back", f"the job's result is rolled_back ({state})")
+ok(mode_now() == "fast", f"THE OLD VALUE IS BACK: MODE: {mode_now()}")
+ok(subprocess.run(["git", "status", "--porcelain"], cwd=RP, capture_output=True,
+                  text=True).stdout.strip() == "",
+   "…and the tree is clean, so nothing is left pending")
+ok(len(RECIPES) == 1, f"the recipe ran once, to put the old value into effect ({len(RECIPES)})")
+steps = {s["name"]: s["state"] for s in rec.job["steps"]}
+ok(steps.get("rollback") == "ok" and "restore" not in steps,
+   f"a `rollback` step, and no `restore` step at all: {steps}")
+ok("is back to fast" in (rec.job.get("note") or "") and "clean again" in (rec.job.get("note") or ""),
+   f"the note says the value is back and the tree is clean: {(rec.job.get('note') or '')[:120]!r}")
+
+print()
 print("── NO RESTORE: there is no path from a config job to one ─────────")
 src = open(os.path.join(SVC, "updater", "configvalue.py"), encoding="utf-8").read()
 code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
