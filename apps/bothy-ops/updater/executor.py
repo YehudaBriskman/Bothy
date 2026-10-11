@@ -234,6 +234,34 @@ def run_one(cfg: Config, name: str) -> str:
             what = ", ".join(f"{c.id} {q['from']['version']}->{q['to']['version']}" for c, q in members)
             rec.step("validate", "ok", f"group {fresh_g['id']}: `{fresh_g['recipe']}` applies {what}")
             return groups.GroupExecution(cfg, rec, fresh_g, members).go()
+        if spool.is_config(doc):
+            # ONE ALLOWLISTED COMPOSE VALUE (updater/configvalue.py). Validated
+            # against the host's configs/<component>.json AND the host's own
+            # [config_keys] pattern, then the plan is RECOMPUTED here and refused
+            # unless the id comes out the same - so the file, the line, the value
+            # that is live, the container, the image and HEAD are all re-proved
+            # here. The requested value is the one field that is not in that id,
+            # and value_ok() has already fullmatched it against the host's
+            # pattern inside validate_against_config.
+            from . import configvalue
+            cid, key = doc["component"], doc["key"]
+            cp = spool.validate_against_config(doc, catalog, configvalue.read_config(cfg, cid))
+            try:
+                fresh_c = configvalue.plan(cid, key, cfg=cfg, catalog=catalog)
+            except plans.PlanRefused as e:
+                raise spool.Invalid(f"the config plan no longer holds: {e}") from None
+            if fresh_c["id"] != cp.get("id"):
+                raise spool.Invalid(f"config plan {cp.get('id')} is stale - recomputed now it is "
+                                    f"{fresh_c['id']} (the file, the container, the image or main "
+                                    "changed); ask again")
+            comp = catalog.components[cid]
+            rec.reshape(record.CONFIG_STEPS)
+            rec.set(**{"from": {"image": fresh_c["image"], "version": fresh_c["from"]["value"]},
+                       "to": {"image": fresh_c["image"], "version": doc["value"]}})
+            rec.step("validate", "ok", f"config plan {fresh_c['id']}: {fresh_c['file']}:"
+                                       f"{fresh_c['from']['line']} {key} {fresh_c['from']['value']} -> "
+                                       f"{doc['value']}, on the same image")
+            return configvalue.ConfigExecution(cfg, rec, comp, fresh_c, doc["value"]).go()
         p = spool.validate_against(doc, catalog, plans.read_plan(cfg, doc["component"]))
         try:
             fresh = plans.plan(doc["component"], cfg=cfg, catalog=catalog)

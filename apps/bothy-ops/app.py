@@ -5,7 +5,11 @@
     *    /kube/<catalog id>                  workloads    kube.py
     GET  /admin/{users,credentials,backups,audit}  Settings reads  admin.py
     GET  /updates/{status,plan,job}          Settings > Updates   updates.py
+                                             (plan takes ?component=, ?group= or
+                                             ?config= - one closed set, one route)
     POST /updates/request                    one spool file       updates.py
+                                             (a component, a group, or one
+                                             allowlisted compose value)
     POST /updates/unpause                    one spool file       updates.py
     POST /updates/discover                   one spool file       updates.py
     POST /updates/autorun                    one spool file       updates.py
@@ -101,6 +105,11 @@ class Handler(JsonHandler):
             return kube.handle(self, "POST", route[len("/kube/"):])
         if route == "/updates/request":
             # Writes one file into the spool. The HOST decides whether it runs.
+            # Three shapes on the one route, told apart by their own keys: a
+            # component, a `group`, or a `key`+`value` on an allowlisted config
+            # value. None of them is a new kind of access - see SECURITY.md rule 8
+            # and checks/wiring_updates.py, which asserts the router count and
+            # says why an eighth must not appear.
             return updates.handle(self, "request")
         if route == "/updates/unpause":
             # Asks the host to clear an automatic-update pause; the host decides.

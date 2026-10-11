@@ -243,8 +243,9 @@ ok("/-/api/updates/group" not in ts and "/-/api/updates/apply" not in ts,
    "the client adds no new /-/api/updates path for a group - it uses plan?group= and request")
 ok("?group=${encodeURIComponent(group)}" in ts and "'/-/api/updates/request'" in ts,
    "…fetchGroup reads through plan, applyGroup writes through request")
-ok('_one_param(h, "component", "group")' in upd and 'if what == "group"' in upd,
-   "/updates/plan takes exactly one parameter, component OR group, from a closed set")
+ok('_one_param(h, "component", "group", "config")' in upd and 'if what == "group"' in upd
+   and 'if what == "config"' in upd,
+   "/updates/plan takes exactly one parameter, component OR group OR config, from a closed set")
 ok('if "group" in body:' in upd and "def request_group" in upd,
    "/updates/request branches to the group writer on the one key that tells them apart")
 ok(re.search(r'_GROUP_?CLASSES|GROUP_CLASSES = frozenset\(\{"stateless", "timeseries", "app-db"\}\)', grp)

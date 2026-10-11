@@ -313,3 +313,160 @@ channel = "manual"
 one_way = true
 one_way_why = "A major version cannot open the previous major's data directory; it is a dump, a new volume and a restore (docs/plans/updates.md §5)."
 verify = ["every database of the dump exists, every table's row count equals the dump's", "Keycloak's user count equals the dump's", "keycloak-db-init runs the same major", "Keycloak's canaries: issuer unchanged, realm, keycloak-init, admin token, a real sign-in"]
+
+# ══ config values: the ONE compose `environment:` value a browser may change ═══
+#
+# Added 2026-10-11. The owner asked for "an allowlisted set of editable values",
+# and gave the criterion in their own words:
+#
+#   "everything that wouldnt break the access to the web in situation of error
+#    with the env's can be on the allowlist - the only stuff that arent will be
+#    stuff that if it wouldnt work - itll break the web access and all."
+#
+# That criterion is NOT the one [configmap_keys] in catalog.toml uses, and it is
+# the better one. That table asks "how much damage could a wrong value do?"; this
+# one asks "if it is wrong, can I still get in and fix it?" - recoverability,
+# which is what separates a bad afternoon from a bricked box. It is also what
+# makes the undo on the host sufficient: the revert runs in the host executor, so
+# the only value it could not save you from is one that breaks the browser's path
+# to the box - and those are exactly the ones this table refuses.
+#
+# ── the shape, transplanted from catalog.toml's [configmap_keys] ──────────────
+#
+#   [config_keys.<component>.<ENV_KEY>]
+#   service = a service of one of that component's `pins` - so a key can only
+#             ever name a file the catalog ALREADY declares a pin in
+#   pattern  what the value may be, fullmatched. Two hard-won rules from
+#            catalog.toml's header, kept here with their own checks:
+#              1. it refuses an ORDER-OF-MAGNITUDE TYPO, not merely a non-value.
+#                 For a non-numeric key that means an explicit whitelist, as
+#                 ENABLED_ALGORITHMS does there.
+#              2. it ACCEPTS THE VALUE THAT IS LIVE. A pattern that refuses the
+#                 running value draws an Edit button on a row that cannot be
+#                 edited, which is worse than not allowlisting the key.
+#   meaning  one sentence, shown verbatim on the row
+#
+# updates.load_catalog() additionally refuses: a pattern that would accept an
+# empty, blank or multi-line value, or one longer than 64 characters, or a
+# twelve-digit number; a key whose name reads as a secret; a key on a component
+# whose class the config tier does not deploy; a key in a LOCKED FILE; and a key
+# that also matches a [config_reasons] category - a row cannot both offer an Edit
+# button and state why it has none.
+#
+# ── the measurement, so the number is not mistaken for timidity ───────────────
+#
+# Counted 2026-10-11, with updater/composeenv.py's own reader: this repository's
+# compose files declare 124 environment names. 102 of them belong to a component
+# in [components] above and so reach the Config rows; the other 22 are Bothy's
+# own three services and its admin overlay, whose component is `bothy` - class
+# own-code, pinned by a VERSION file and not by a compose service - so this tier
+# cannot reach them at all, and [config_reasons.boundary] locks those files
+# anyway in case it ever could.
+#
+# ONE of the 102 passes the criterion above. That is not caution; it is where
+# this box keeps its dials:
+#
+#   54  the Docker socket-proxy ACL          the worst edit in the repository
+#   25  the sign-in chain (Keycloak, oauth2) break it and you cannot get back in
+#   15  Grafana - 11 of them secrets or `.env` pointers, 1 a security switch,
+#       1 the dashboard it opens on                       <- the one on the list
+#    8  Postgres and keycloak-db-init        credentials and the database name
+#   ...and 1 each for Traefik, headlamp, postgres-exporter, oauth2-proxy-headlamp
+#
+# The dials a person actually wants to turn on this box are not in `environment:`
+# at all. Retention, scrape and housekeeping intervals - VictoriaMetrics'
+# `-retentionPeriod`, cAdvisor's `--housekeeping_interval`, Prometheus'
+# `--storage.tsdb.retention.time` - are `command:` flags, which
+# docs/plans/editing-model.md class C keeps as "diffs, reviewed by a human", and
+# VictoriaMetrics' whole command is a folded block scalar (`>-`) that no span
+# splice can address. That is the honest finding behind the size of this list,
+# and the next place to look if it should grow.
+
+[config_keys.grafana.GF_USERS_DEFAULT_HOME_DASHBOARD_PATH]
+service = "grafana"
+# The whitelist is the set scripts/checks/dashboards.sh already enforces for this
+# very line: the file has to exist under the dashboards bind mount, and it has to
+# be one of its HAND_WRITTEN dashboards, because "the page everyone sees first has
+# to be one we are holding to the whole standard". checks/test_config_values.py
+# reads that check's own two sets and fails if this pattern and they disagree -
+# a pattern that allowed an upstream import would offer a value the build then
+# rejects, and one that allowed a missing file would land Grafana silently back
+# on its stock Home page, which looks identical to the fault this line fixed.
+pattern = "/var/lib/grafana/dashboards/(box-health|traefik)\\.json"
+meaning = "The dashboard Grafana opens on. A name that does not resolve puts it back on its stock Home page without failing to start, so only this list is offered. Grafana is on its own port behind its own login, so a wrong value here never touches the way you reach the box."
+
+# ── why a key is NOT editable, said per row ──────────────────────────────────
+#
+# The same six-category shape as catalog.toml's [configmap_reasons], and it is
+# here for the same reason: the Config rows the interface will not let you change
+# have to say why, and the sentence has to come from the catalog rather than from
+# a second list in the UI - a list in the UI that disagrees with the catalog is
+# exactly the drift this repo keeps writing checks about.
+#
+# A category's `keys` are REGEXES, fullmatched against the key NAME, and the
+# FIRST category that matches wins - so declaration order is meaning, not style.
+# `files` is a second, independent gate: a category may also claim every key in a
+# file, whatever its name, which is how the socket-proxy ACL is answered without
+# listing 53 names. A file claimed here can never be edited, even by a key that
+# some future [config_keys] entry names - load_catalog() refuses that catalog.
+#
+# Exactly one category carries keys = [] AND files = []. That is the catch-all -
+# "everything else" - and it must be LAST, so every key resolves to a sentence
+# and no key can fall off the end.
+
+[config_reasons.socket-acl]
+label = "The Docker socket allowlist"
+# FIRST, and stated SEPARATELY from `boundary` below even though that category
+# already locks the same file, because this is the single worst edit available in
+# the repository and a reader of this table should meet it by name rather than
+# inside a file list. CONTAINERS=0 on the write proxy is what makes POST=1 safe;
+# an edit that set it to 1 would turn a restart button into container-create,
+# which is root on this box. Both gates are deliberate, and the ORDER is the
+# reason this one is the sentence the row shows.
+files = ["apps/bothy/compose.socket-proxy.yml"]
+keys = ["CONTAINERS", "POST", "EXEC", "ALLOW_.*", "IMAGES", "VOLUMES", "NETWORKS", "SECRETS",
+        "CONFIGS", "SWARM", "NODES", "SERVICES", "TASKS", "PLUGINS", "SESSION", "AUTH",
+        "DISTRIBUTION", "BUILD", "COMMIT", "GRPC", "EVENTS", "PING", "VERSION", "INFO", "SYSTEM"]
+meaning = "The Docker socket proxy's allowlist. CONTAINERS=0 is what makes POST=1 safe, and nothing that can widen it belongs behind a form - it is the one edit in this repository that turns a restart button into root."
+
+[config_reasons.boundary]
+label = "The way you reach this box"
+files = ["apps/bothy/compose.socket-proxy.yml", "edge/compose.yml", "auth/compose.yml",
+         "apps/bothy-web/compose.yml", "apps/bothy-ops/compose.yml", "apps/bothy-files/compose.yml",
+         "apps/bothy-ops/compose.admin.yml", "apps/headlamp/compose.yml"]
+keys = []
+meaning = "It is part of the edge, the sign-in, or Bothy itself. The owner's own rule for this list is that a value which breaks the way you reach the box can never be on it - an automatic undo cannot help you if you cannot get back in to see that it ran."
+
+[config_reasons.secret]
+label = "A credential"
+# The third independent refusal of a secret, after the loader's name rule and the
+# fact that every one of these is a `${...}` interpolation the locator will not
+# splice. SECURITY.md's "rendering .env values" refusal is the fourth.
+keys = [".*PASSWORD.*", ".*SECRET.*", ".*TOKEN.*", ".*_KEY", "PG.*", "DEV_LOGIN_.*",
+        "KC_BOOTSTRAP_.*", "KC_ADMIN_.*", "GF_SECURITY_.*", "POSTGRES_.*", "DATA_SOURCE_NAME"]
+meaning = "It is a credential, or it names where one is read from. Three refusals already stand between a browser and these, and this interface does not become the fourth way in."
+
+[config_reasons.env-indirection]
+label = "Written in .env"
+keys = ["GF_SMTP_.*", "ALERT_EMAIL_TO", "KEYCLOAK_URL", "BOX_IP"]
+meaning = "Its value is written in the gitignored `.env`, and the compose line only points at it. Replacing the pointer with a literal would hard-code one box's answer into the repository and quietly stop `.env` from being read at all."
+
+[config_reasons.security]
+label = "A security switch"
+keys = ["GF_USERS_ALLOW_SIGN_UP", "GF_AUTH_.*", "KC_HTTP_ENABLED", "KC_HOSTNAME.*",
+        "OAUTH2_PROXY_.*", "DOCKER_API_VERSION"]
+meaning = "It decides who gets in, or how hard it is. It belongs to review, not to a table cell."
+
+[config_reasons.address]
+label = "An address"
+keys = ["PORT", "HOME", ".*_URL", ".*_FILE", ".*_LOG", "UPDATES_.*", "DOCKER_READ", "DOCKER_WRITE",
+        "KUBE_.*", "INVENTORY_FILE", "KC_DB.*", "AUDIT_LOG"]
+meaning = "Where something else is, inside the image or on the box. It follows the deployment, so it is stated beside the mount or the network it belongs to and changes with one."
+
+[config_reasons.elsewhere]
+label = "Not measured"
+# The catch-all. guard-equivalent: load_catalog() requires exactly one of these
+# and requires it LAST, so no key can fall off the end of the table.
+keys = []
+files = []
+meaning = "Nobody has measured what a wrong value here would do, so it is not offered. Adding it is an entry in [config_keys] with a bounded pattern and a sentence - reviewed, in a commit, like every other line of this file."
