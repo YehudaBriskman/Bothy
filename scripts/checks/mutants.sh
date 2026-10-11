@@ -1272,6 +1272,112 @@ mutant "a fallback link points at a retired service" \
   -- "${WEB_CHECKS[@]}"
 
 echo
+echo "── what the page does NOT wait for ─────────────────────────────────"
+# 2026-10-11. The disk measurement (/-/api/docker/system/df) was the fifth member
+# of loadAll's allSettled, which made its 8s budget a FIRST-PAINT budget - and
+# api.ts said so in capitals, as the reason the budget could not be generous:
+#
+#   "allSettled waits for all five, and `data` starts empty, so this call gates
+#    FIRST PAINT - a long budget here would mean the whole page waits on the one
+#    request the comment below calls least critical."
+#
+# Then the call outgrew 8s on a box that had merely got bigger (a 41.6 GB
+# minikube volume holding 31 GB of dead build cache), and the Overview told its
+# owner "Volume sizes could not be read". Eight rows, one per property of the
+# fix, each anchored on an EXECUTABLE line unique to its own function - the check
+# strips comments first, so prose is a no-op, and `plant()` replaces the first
+# match, so a short recurring anchor is a hostage to file order.
+
+# 1. The measurement back inside the gate. This is the shape of the original
+#    design, not a straw man: one more getJSON in the allSettled, and the page is
+#    grey until the slowest of five answers instead of the slowest of four.
+mutant "the disk measurement rejoins the first paint" \
+  apps/bothy-web/web/src/lib/api.ts \
+  "      getJSON<Container[]>('/-/api/docker/containers/json?all=1', ac.signal)," \
+  "      getJSON<Container[]>('/-/api/docker/containers/json?all=1', ac.signal),
+      getJSON<SystemDf>('/-/api/docker/system/df', ac.signal)," \
+  -- "${WEB_CHECKS[@]}"
+
+# 2. The budget shrinks back to a first-paint-sized number. 8s was ~4.7x the 1.7s
+#    this call measured when the number was chosen, and 1.7x the 4.6s it measures
+#    now - the whole point of moving it out of the gate is that the budget stops
+#    being a number anybody has to be clever about.
+mutant "the generous budget goes back to 8s" \
+  apps/bothy-web/web/src/lib/df.ts \
+  'export const DF_TIMEOUT = 30_000;' \
+  'export const DF_TIMEOUT = 8000;' \
+  -- "${WEB_CHECKS[@]}"
+
+# 3. The cadence quickens to the discovery poll's. This is the 2026-10-07
+#    incident exactly: a /system/df every 10s kept dockerd busy, every container
+#    healthcheck on this box runs through `docker exec` on that same daemon, and
+#    Traefik went unhealthy four times in a row while routing perfectly.
+mutant "the measurement joins the ten-second loop" \
+  apps/bothy-web/web/src/lib/df.ts \
+  'export const DF_EVERY = 120_000;' \
+  'export const DF_EVERY = 10_000;' \
+  -- "${WEB_CHECKS[@]}"
+
+# 4. A measurement per alt-tab. The tempting one-word change: the visibility
+#    handler measures instead of asking whether a measurement is DUE. On a page
+#    that lives in a background tab for days this is a new poll by the back door,
+#    paced by how often somebody looks at the window.
+mutant "becoming visible measures instead of asking" \
+  apps/bothy-web/web/src/lib/data.tsx \
+  'const onVisible = () => { if (!document.hidden) pulse(); };' \
+  'const onVisible = () => { if (!document.hidden) run(); };' \
+  -- "${WEB_CHECKS[@]}"
+
+# 5. THE DECISION lib/df.ts exists to hold: a failed attempt keeps the last good
+#    measurement, and the panel draws it with its age. Clearing it is what turns a
+#    slow daemon into an empty panel - which is the state the owner reported.
+mutant "a failed attempt throws away the last good answer" \
+  apps/bothy-web/web/src/lib/df.ts \
+  "  ...s, phase: 'failed', attemptedAt: now, failure," \
+  "  ...s, phase: 'failed', value: null, at: null, attemptedAt: now, failure," \
+  -- "${WEB_CHECKS[@]}"
+
+# 6. A state that says nothing. "Its failure is nearly silent by design" is how
+#    the budget came to be outgrown unnoticed for days, so every state owes a
+#    sentence about where its numbers came from - including the one where there
+#    are none yet.
+mutant "a state stops saying where its numbers came from" \
+  apps/bothy-web/web/src/lib/df.ts \
+  "provenance: 'never measured', canMeasure: true," \
+  "provenance: '', canMeasure: true," \
+  -- "${WEB_CHECKS[@]}"
+
+# 7. One sentence for every failure - the second half of the reported bug. The
+#    panel printed "the daemon did not answer in time" for a timeout, an HTTP 500
+#    and a dead proxy alike, so the one state that tells you what to go and look
+#    at told you something that was only sometimes true.
+mutant "an HTTP 500 is reported as a timeout" \
+  apps/bothy-web/web/src/lib/df.ts \
+  "  if (typeof o.status === 'number') return { kind: 'status', status: o.status };" \
+  "  if (typeof o.status === 'number') return { kind: 'timeout', afterMs: budgetMs };" \
+  -- "${WEB_CHECKS[@]}"
+
+# 8. THE BUG ITSELF, replanted: "No persistent volumes." reached before the panel
+#    has asked whether it has a measurement at all. diskVolumes() returns [] for
+#    a null df, so on a box with fourteen volumes holding 2.1 GB this printed a
+#    confident statement of something the page did not know.
+mutant "an unmeasured box is declared to have no volumes" \
+  apps/bothy-web/web/src/pages/Overview.tsx \
+  '  if (!report.hasNumbers) {' \
+  '  if (!rows.length && !orphanRows.length) return <p className="ov-uicol-empty">No persistent volumes.</p>;
+  if (!report.hasNumbers) {' \
+  -- "${WEB_CHECKS[@]}"
+
+# 9. And the same silence one file over: the system page summarised four states
+#    as " · sizes unavailable", which is true of three of them and useless in all
+#    four.
+mutant "the system page goes back to one phrase for four states" \
+  apps/bothy-web/web/src/pages/ProjectDetail.tsx \
+  'Data <span className="sub">{fmtBytes(totalBytes)} · {disk.provenance}</span>' \
+  'Data <span className="sub">{fmtBytes(totalBytes)}{df ? "" : " · sizes unavailable"}</span>' \
+  -- "${WEB_CHECKS[@]}"
+
+echo
 echo "── the two statuses that are allowed to be quiet ───────────────────"
 # `done` and `dormant` exist to STOP the page shouting, which makes every one of
 # them a way to hush something real. Each row below is the precise inversion of a

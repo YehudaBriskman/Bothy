@@ -129,6 +129,13 @@ mv "$OUT/ansi.js" "$OUT/ansi.mjs"
 (cd "$WEB" && npx tsc src/lib/motion.ts --ignoreConfig \
   --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
 mv "$OUT/motion.js" "$OUT/motion.mjs"
+# lib/df.ts - the disk measurement's four states, its budget and its cadence.
+# Imports nothing, like the rest, which is what lets § D of loading-states.mjs
+# assert the WORDS the panel says in each state rather than that a component
+# renders something.
+(cd "$WEB" && npx tsc src/lib/df.ts --ignoreConfig \
+  --module esnext --target es2022 --moduleResolution bundler --outDir "$OUT" >/dev/null)
+mv "$OUT/df.js" "$OUT/df.mjs"
 cp "$HERE/design-tokens.mjs" "$OUT/"
 cp "$HERE/status-classifier.mjs" "$HERE/relations.mjs" "$HERE/redirect-table.mjs" \
    "$HERE/titles-table.mjs" "$HERE/theme-contract.mjs" "$HERE/user-themes.mjs" \
