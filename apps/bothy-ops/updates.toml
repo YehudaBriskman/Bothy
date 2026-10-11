@@ -364,14 +364,21 @@ verify = ["every database of the dump exists, every table's row count equals the
 # anyway in case it ever could.
 #
 # ONE of the 102 passes the criterion above. That is not caution; it is where
-# this box keeps its dials:
+# this box keeps its dials. Counted by the category below that answers for each -
+# which is the tally that matters, because it is the one the interface prints:
 #
-#   54  the Docker socket-proxy ACL          the worst edit in the repository
-#   25  the sign-in chain (Keycloak, oauth2) break it and you cannot get back in
-#   15  Grafana - 11 of them secrets or `.env` pointers, 1 a security switch,
-#       1 the dashboard it opens on                       <- the one on the list
-#    8  Postgres and keycloak-db-init        credentials and the database name
-#   ...and 1 each for Traefik, headlamp, postgres-exporter, oauth2-proxy-headlamp
+#   54  socket-acl        the Docker socket proxies' allowlist
+#   29  boundary          the edge, the sign-in chain and Bothy's own services
+#   10  secret            a credential, or where one is read from
+#    7  env-indirection   a `${...}` pointer into the gitignored `.env`
+#    1  security          GF_USERS_ALLOW_SIGN_UP
+#    1  EDITABLE          the dashboard Grafana opens on
+#
+# Worth knowing rather than relying on: today every one of the 102 resolves to a
+# NAMED category and none falls through to the catch-all. That is a fact about
+# this box, not a guarantee - the catch-all exists so that a key nobody has
+# classified still gets a sentence instead of silence, and it should stay empty
+# by somebody classifying keys, not by a check forbidding new ones.
 #
 # The dials a person actually wants to turn on this box are not in `environment:`
 # at all. Retention, scrape and housekeeping intervals - VictoriaMetrics'
