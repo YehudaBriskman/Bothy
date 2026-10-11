@@ -445,7 +445,11 @@ function DiskBody({ systems, df, report, onMeasure }: {
   // volumes really does mean zero volumes.
   if (!report.hasNumbers) {
     return (
-      <div className="ov-disk-state">
+      // aria-busy on the region, role=status inside the Loader - the pairing
+      // docs/brand/patterns/feedback.md asks for, and the one Skeleton does for
+      // its callers. This state is not a skeleton (there is no shape to
+      // reserve), so it says it itself.
+      <div className="ov-disk-state" aria-busy={report.phase === 'measuring' ? true : undefined}>
         {report.phase === 'measuring'
           // Bare, not plated: a Loader over content is plated and a Loader alone
           // in an empty box is not (docs/brand/patterns/feedback.md). There is
@@ -691,7 +695,13 @@ export function Overview() {
                 meta={disk.meta ?? fmtBytes(diskTotal)}
                 footer={
                   <>
-                    <span><b>{volumeCount}</b> volumes</span>
+                    {/* A COUNT IS A CLAIM. Before the first measurement lands
+                        this read "0 volumes", which is the same sentence the
+                        panel used to print as "No persistent volumes." - said
+                        quietly, in the footer, on a box with fourteen of them.
+                        volumeCount comes from the measurement, so it has a
+                        number only when the measurement does. */}
+                    <span><b>{disk.hasNumbers ? volumeCount : '-'}</b> volumes</span>
                     <span className="sep" aria-hidden="true">·</span>
                     <span>total <b>{diskTotal != null ? fmtBytes(diskTotal) : '-'}</b></span>
                     {/* PROVENANCE, always, in every state - the thing this panel
@@ -700,8 +710,16 @@ export function Overview() {
                     <span className="right ov-disk-prov" data-stale={disk.stale ? 'true' : undefined}>
                       {disk.provenance}
                     </span>
-                    {disk.hasNumbers && disk.canMeasure && (
-                      <Button variant="ghost" size="sm" onClick={measureDf}>Re-measure</Button>
+                    {/* DISABLED while a measurement runs rather than removed:
+                        it is the last thing in the footer, so taking it away
+                        moved nothing else - but it did take the control out
+                        from under the pointer that had just pressed it, and
+                        gave nothing back. Disabled holds its place and is
+                        announced. */}
+                    {disk.hasNumbers && (
+                      <Button variant="ghost" size="sm" onClick={measureDf} disabled={!disk.canMeasure}>
+                        Re-measure
+                      </Button>
                     )}
                   </>
                 }
