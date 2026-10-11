@@ -1,10 +1,70 @@
 # Decision log
 
-_Status as of 2026-10-08._
+_Status as of 2026-10-11._
 
 Dated decisions, with the alternatives considered and what each cost. Newest
 first. Dead ends are recorded rather than deleted - see
 [governance](../quality/governance.md).
+
+---
+
+## 2026-10-11 - A slow read leaves the first-paint gate, and says how old it is
+
+**Decision.** The disk measurement (`/-/api/docker/system/df`) is no longer one
+of `loadAll`'s requests. It has its own module, its own generous budget (30s),
+its own cadence (unchanged at 120s), and a panel that says which of four states
+it is in: never measured, measuring, measured at a known time, failed.
+
+**Why.** The Overview told its owner *"Volume sizes could not be read - the
+daemon did not answer in time"* on a box where nothing was wrong except size. The
+budget was 8s; the call had reached 9. And the budget could not simply be raised,
+for a reason `lib/api.ts` had written down in capitals: `allSettled` waits for
+all five, `data` starts empty, so that one request gated **first paint**. The
+cost of this call is a property of the box, so any number written in that gate
+gets outgrown. Re-measured the same day, with nothing wrong: `/system/df` 4.6s,
+`/containers/json?all=1` 0.18s. The page now paints on the four lists in under a
+second and the measurement lands when it lands.
+
+**The second half of the same bug: the panel said nothing.** `api.ts` called its
+failure *"nearly silent by design"*, and that silence is what let a call that had
+outgrown its budget go unnoticed for days. So a measurement is now reported with
+its age, always, in every state - and that is a rule about this kind of data
+rather than a feature of this panel: **anything that arrives on its own cadence,
+off the poll, has to carry when it arrived.** The poll's own freshness pill is
+the same idea, one layer up.
+
+**Three judgements inside it:**
+
+- **A stale measurement with its age beats no measurement.** Disk usage changes
+  when something is built, pulled or deleted, so a four-minute-old answer is
+  nearly always the right answer. A failure therefore never clears the last good
+  value; the numbers stay, marked stale, with both ages and what went wrong.
+- **The panel offers a re-measure**, because it is the only surface where the
+  age is visible, and an age on screen is what makes somebody want a newer one.
+  It is disabled, not removed, while one runs.
+- **A cold load shows "measuring", not an empty panel**, because the first
+  measurement starts on mount. "Never measured" is reachable (a tab opened in
+  the background measures nothing until it is looked at) and says so.
+
+**Cost.** A df failure no longer reaches `data.errors`, so the freshness pill
+stops reading "degraded · docker df unreachable" on every page in the app. That
+was a whole-app badge for one panel's enrichment, next to a panel that said
+nothing; this is the other way round, which is the right way round - but it does
+mean the only place a disk failure is now visible is the surface that draws
+disk.
+
+**Rejected on the way:**
+
+- **Raising the budget in place.** The argument against it was already written
+  in the file, and it was correct.
+- **Reusing `components/control-home/usePolled.ts`**, which has the same four
+  states. It re-runs the moment the tab becomes visible, which for this call is
+  a new poll by the back door - a walk of every image layer on the box per
+  alt-tab. Becoming visible now only asks whether a measurement is *due*.
+- **Polling it faster to keep it fresh.** The 2026-10-07 incident is the whole
+  reason the cadence exists: every container healthcheck on this box runs
+  through `docker exec` on the same daemon, and one page's disk panel made the
+  whole box look sick.
 
 ---
 
