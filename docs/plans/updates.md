@@ -767,6 +767,75 @@ headline count, a group job's `members`, the group cascade with nothing left cla
 mtime fallback); five `mutants.sh` rows. The e2e harnesses pass `rediscover=False` and say why: they drive
 `run_spool` directly with a throwaway catalog whose registry only their own fake client can read.
 
+### One allowlisted compose value (2026-10-11): recoverability, not blast radius
+
+The owner's words: *"lets make it possible to run and change the configs"*, and then, for what may be on
+the list, *"everything that wouldnt braek the access to the web in situation of error with the env's can be
+on the allowlist - the only stuff that arent will be stuff that if it wouldnt work - itll break the web
+access and all."*
+
+**That criterion is better than the one the code already used, and it was adopted.** `[configmap_keys]` in
+`catalog.toml` - the Kubernetes tier, widened from 3 keys to 22 on 2026-10-07 - asks *how much damage could
+a wrong value do?* The owner's asks *if it is wrong, can I still get in to fix it?* The second question is
+the one that separates a bad afternoon from a bricked box, and it is also the question the undo depends on:
+the revert runs in the host executor, so it can save you from a Grafana that will not start and could not
+save you from a Traefik that will not route. The allowlist refuses exactly the values the revert cannot
+cover. Each is the other's justification and neither is safe alone.
+
+**Why auto-revert rather than stage-and-swap.** Asked directly, and argued down, for three specific
+reasons: services bind fixed host ports, so a staged copy is not the thing you ship; a shared volume with a
+one-way migration is *already damaged* by a test container (today's Grafana is exactly that); and for
+Traefik, oauth2-proxy or bothy-ops the verifier sits inside the blast radius. Confirm-or-revert is strictly
+better here, and it is also why the allowlist model beats the simpler-sounding "apply whatever `main`
+declares": **a one-field change has a one-field undo, and a general config apply has none.** `pins.replace`
+can only write an image reference, which is precisely why `GROUP_CLASSES` excludes everything but the image
+pipeline.
+
+**The shape.** `[config_keys]` / `[config_reasons]` in `updates.toml` (the `[configmap_keys]` model
+transplanted from Kubernetes to compose, including its two hard-won rules: a pattern refuses an
+order-of-magnitude typo, and it must accept the value that is LIVE - the second now a plan-time refusal, so
+it is a sentence rather than a dead Edit button). `updater/composeenv.py` locates and splices one character
+span with no YAML library, because the host `python3` has none and the updater must not grow one; the two
+locators are proved to agree span-for-span against ruamel in
+`apps/bothy-files/checks/composeenv_agrees.py`, where ruamel lives. `updater/configvalue.py` borrows
+`executor.Execution` for the pre-flight, the class snapshot, the scope rule and the canaries, and overrides
+the three steps that differ: `edit` instead of `pull`, a revert that writes a value rather than an image
+reference, and **no data restore anywhere** - the image never changes, so nothing migrated, and a restore is
+the only step that loses data.
+
+**No new route.** `POST /-/api/updates/request` grows a third shape told apart by its own keys, exactly as
+the group grew the second, and `GET /updates/plan` a third parameter from the same closed set. Still seven
+routers; `wiring_updates.py` asserts the count and says why an eighth must not appear.
+
+**The id, and the one field it cannot cover.** Every other plan here is a hash of facts the host read. A
+config change has one field that is not: the new value comes from the browser. So the SITE is hashed (file,
+service, key, the live value, the line, the container, the running image, HEAD) and recomputed by the
+executor, and the VALUE is bounded instead - fullmatched against the catalog's pattern by bothy-ops, then
+again on the host out of the host's own catalog, then spliced into one line and nothing else. Putting the
+requested value into the id would look stricter and prove nothing: the host would be checking a hash of
+something it was told against the thing it was told.
+
+**What a success leaves behind, stated rather than discovered.** The spliced line is UNCOMMITTED, beside the
+rollback's pin edit and for the same reason. Until somebody commits it, `_git_gate` refuses an image plan
+for every component pinned in that file - six, for `monitoring/compose.yml`. The row says so before the
+button and the job's note says it after. The alternative (revert the tree after a successful verify and
+leave the container changed) is worse: the box would then run a configuration `main` does not declare, which
+is the exact fault the owner reported and that 1A made the box admit to.
+
+**The size of the list is a measurement, not a mood.** 124 environment names in this repo's compose files,
+102 of them belonging to a catalog component, **one** allowlisted. 54 are the socket-proxy ACL, 25 the
+sign-in chain, 22 addresses and paths inside an image, 14 `.env` pointers. The dials a person would actually
+turn - retention, scrape and housekeeping intervals - are `command:` flags, which `editing-model.md` class C
+keeps as diffs a human reviews, and VictoriaMetrics' whole command is a folded block scalar no span splice
+can address. That is the finding, and the next place to look if the list should grow.
+
+**Held by:** `checks/test_config_values.py` (the catalog's every refusal, the shipped allowlist against the
+live value, the locator and splice, the plan id, the rows, the spool, the revert as a unit, and that there
+is no code path to a data restore); `checks/api_updates_config.py` (the live refusal table, and no spool
+file written by any refusal); `checks/e2e_config.py` (**the revert end to end on a throwaway project**, once
+on a canary failure where the container is healthy and once where it never comes up); twenty `mutants.sh`
+rows.
+
 ## What is left
 
 - **The auth boundary and the edge** (oauth2-proxy, the socket proxies, Traefik) are still updated by hand (§4).
@@ -778,7 +847,17 @@ mtime fallback); five `mutants.sh` rows. The e2e harnesses pass `rediscover=Fals
 - **Host tooling** (minikube, kubectl, helm) stays out of scope until it is pinned in mise (§4).
 - **§8 extras:** editing a channel from the page (through the config tier) and a history row's "Roll back" as a plan.
   Both were looked at on 2026-10-06 and deliberately left out - see
-  [the two asks](#the-two-asks-2026-10-06-check-for-updates-now-and-run-the-night-job-now) for why.
+  [the two asks](#the-two-asks-2026-10-06-check-for-updates-now-and-run-the-night-job-now) for why. The
+  config tier that arrived on 2026-10-11 does **not** change that: the channel lives in the same `COPY`'d
+  `updates.toml` as the allowlist itself, and a tier that could add its own keys would have no allowlist.
+- **A `command:` flag-value lens.** The one honest gap the config allowlist leaves: this box's retention,
+  scrape and housekeeping intervals are command flags, not environment values, so none of them is editable.
+  It needs its own locator (a folded `>-` block scalar has no span on the line to splice) and its own
+  decision against `editing-model.md` class C - not an extension of the one that shipped.
+- **`_git_gate` and a config change the host itself made.** A successful config change leaves the file dirty,
+  which refuses the image plan for every component pinned in it until somebody commits. Teaching the gate to
+  recognise a splice *it recorded* would remove that, and it was deliberately not built: it would weaken the
+  clearest gate in the system as a side effect of a convenience, and that deserves its own review.
 - **Editor saves committed to a `local/edits` branch** (§6): the updater still refuses a dirty tree instead.
 
 ## Sources

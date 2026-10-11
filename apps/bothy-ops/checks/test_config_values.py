@@ -354,7 +354,7 @@ refused(lambda: composeenv.locate(TWICE, "web", "MODE", "compose.yml"),
         exc=composeenv.Refused)
 
 print()
-print("── THE SPLICE: each of the four assertions, refusing ─────────────")
+print("── THE SPLICE: the value guard, and then the three assertions ────")
 for value, needle, label in [
     ("sl ow", "space", "a value with a space in it"),
     ("sl\now", "newline", "a value carrying a newline, which would split the line in two"),
@@ -364,6 +364,30 @@ for value, needle, label in [
     (" slow", "leading or trailing space", "a value padded with space"),
 ]:
     refused(lambda v=value: composeenv.splice(FIXTURE, site, v), needle, label, exc=composeenv.Refused)
+
+# THE THREE ASSERTIONS ON THE RESULT, each shown refusing. They cannot be reached
+# by a value the guard above accepts - every such value produces a correct
+# one-line splice - so they are reached the only way they can be, with a WRONG
+# SPAN. That is the one fault the guard cannot see, and the fault
+# apps/bothy-files/checks/composeenv_agrees.py exists to keep from ever happening.
+#
+# Without these three cases the assertions were unreachable, three mutants.sh rows
+# guarding them could not fail, and the harness said so (2026-10-11).
+def respan(start: int, end: int, line: int | None = None) -> composeenv.Site:
+    return composeenv.Site(site.file, site.service, site.key, site.value,
+                           site.line if line is None else line, site.text, start, end)
+
+
+elsewhere = composeenv.locate(FIXTURE, "side", "MODE", "compose.yml")
+for s, needle, label in [
+    (respan(elsewhere.start, elsewhere.end), "the span did not write where the key is",
+     "a span pointing at ANOTHER service's value of the same name"),
+    (respan(site.start, site.end, site.line + 3), "not where the site recorded",
+     "a span whose recorded LINE is not the line it writes on"),
+    (respan(site.start, site.end + 1), "rather than only line",
+     "a span that swallows the newline after the value, welding two lines into one"),
+]:
+    refused(lambda x=s: composeenv.splice(FIXTURE, x, "slow"), needle, label, exc=composeenv.Refused)
 
 # ══ 3. the plan, the rows, the spool ═════════════════════════════════════════
 
@@ -565,6 +589,55 @@ r = dict(req())
 del r["value"]
 refused(lambda: spool.validate_shape(r, "a" * 32 + ".json"),
         "not ['component'", "a request with no value", exc=spool.Invalid)
+
+print()
+print("── THE EXECUTOR: it recomputes the plan, and the WRITE re-locates ─")
+
+
+def mode_in(path: str) -> str:
+    return re.search(r"^      MODE: (\S+)$", open(path, encoding="utf-8").read(), re.M).group(1)
+
+
+COMPOSE_AT = os.path.join(RP, "compose.yml")
+
+# composeenv.write RE-LOCATES and refuses unless the line still reads exactly what
+# the caller read - pins.replace()'s rule, for a different kind of line. Between
+# reading a value and writing it, somebody may have edited the file in Files, and
+# a write that assumed otherwise discards their change silently.
+refused(lambda: composeenv.write(RP, "compose.yml", "web", "MODE",
+                                 "      MODE: something-else", "something-else", "slow"),
+        "no longer reads exactly", "a write whose anchor LINE is stale", exc=composeenv.Refused)
+refused(lambda: composeenv.write(RP, "compose.yml", "web", "MODE",
+                                 "      MODE: fast", "slow", "slow"),
+        "not the expected", "a write whose expected VALUE is stale", exc=composeenv.Refused)
+ok(mode_in(COMPOSE_AT) == "fast", "…and neither of them wrote a byte")
+
+# THE STALENESS CHECK IN THE EXECUTOR, which is a different check from the spool's:
+# the row and the request can agree on a plan id the HOST no longer computes - a
+# file edited in Files, a container moved to another image - and run_one is where
+# that is caught, AFTER validate_against_config has passed. No docker needed: the
+# job is refused at `validate`, before anything runs.
+hostio.ensure_dir(cfg.configs, 0o700)
+# The executor recomputes the plan from the host's own files, which includes
+# available.json - so it has to exist, or the refusal is "nothing discovered yet"
+# and the row would pass for a reason that is not the one it claims.
+hostio.write_json(cfg.available, A)
+hostio.write_json(os.path.join(cfg.configs, "web.json"), {
+    "version": 1, "component": "web", "ok": True, "discoveredAt": A["generatedAt"],
+    "rows": [{"key": "MODE", "service": "web", "file": "compose.yml", "editable": True,
+              "value": "fast", "line": 10, "planId": "c" * 24, "pattern": "fast|slow",
+              "meaning": "x" * 20, "plan": {**p, "id": "c" * 24}}]})
+JID = "b" * 32
+hostio.write_json(os.path.join(cfg.spool, f"{JID}.json"),
+                  {"v": 1, "jobId": JID, "kind": "config", "component": "web", "key": "MODE",
+                   "value": "slow", "planId": "c" * 24, "confirm": True,
+                   "requestedBy": "me@example.com", "requestedAt": "2026-10-11T10:00:00Z"})
+state = executor.run_one(cfg, f"{JID}.json")
+why = (next((h for h in record.history(cfg, 10) if h["id"] == JID), {}) or {}).get("error") or ""
+ok(state == "refused" and "is stale" in why,
+   f"a plan id the ROW agrees with but the host no longer computes -> refused: {why[:110]!r}")
+ok(mode_in(COMPOSE_AT) == "fast" and os.listdir(cfg.spool) == [],
+   "…the file was not touched, and the request was claimed")
 
 print()
 print("── THE REVERT, as a unit: the old value goes back ────────────────")

@@ -90,6 +90,38 @@ else. A wrong value is a cosmetic bug.
 env var's value, a memory limit, a project's description in `project.dev.yml`.
 A wrong value breaks one service and is visible immediately.
 
+> **Built 2026-10-11, and the criterion turned out to be sharper than "visible
+> immediately".** The first class-B field a browser can change is a compose
+> `environment:` value, and it is NOT in the `editor` tier this section was
+> written for - it is an `operator` action through the host updater
+> (`[config_keys]` in `apps/bothy-ops/updates.toml`, `updater/configvalue.py`,
+> SECURITY.md rule 8). Three things that section got right and one it got wrong:
+>
+> **Right: the allowlist is policy, not code.** A key is a table entry with a
+> bounded pattern and a sentence, reviewed in a commit, exactly as this section
+> asks. The code decides what the table may never say; the table chooses among
+> that.
+>
+> **Right: edit and apply are two acts, and the UI says so.** It is one act from
+> the browser here, but the two halves are still separate on the host (`edit`
+> then `apply` are two steps of the job), and §4's pending state is real: the
+> spliced line is left UNCOMMITTED, and the page says to commit it.
+>
+> **Right: no second write path.** The splice re-parses and verifies, and the one
+> refusal renderer the page already had is the one the new dialog uses.
+>
+> **Wrong: "a wrong value breaks one service and is visible immediately" is not
+> the test that matters.** The owner's own criterion is better, and it is the one
+> that got adopted: *a value may be editable only if its being wrong still leaves
+> you able to reach the box and fix it.* Recoverability, not blast radius. It is
+> what makes the host's automatic revert sufficient rather than hopeful - a
+> revert in the host executor can save you from a Grafana that will not start and
+> could not save you from a Traefik that will not route - so the allowlist
+> refuses exactly the values the revert cannot cover. `[config_reasons]` states
+> which per key. Under that test, class B splits: an env var's value may be
+> editable; **a published host port is not**, because the port is how you reach
+> the thing.
+
 **Class C - the ones that are code.** `volumes`, `privileged`, `cap_add`,
 `command`, `entrypoint`, `network_mode`, anything mounting a socket, and every
 rule in `edge/dynamic/`. A wrong value here is arbitrary code on the box or a
@@ -220,9 +252,26 @@ decides, exactly as it does now.
 - **Rendering `.env` values.** Keys and set/not-set. The deny-list exists.
 - **Class C fields as form fields.** `privileged`, `volumes`, `command`,
   socket mounts. Those are diffs, reviewed by a human who read the comment.
+  **Still refused, and tested as such (2026-10-11):** the config-value allowlist
+  locks `apps/bothy/compose.socket-proxy.yml` by FILE as well as by key name, so
+  no component, class or pattern can reach it, and `checks/test_config_values.py`
+  plants a catalog that tries. The honest cost of keeping `command` on this list
+  is worth stating, because it is where this box actually keeps its dials:
+  VictoriaMetrics' `-retentionPeriod`, cAdvisor's `--housekeeping_interval` and
+  Prometheus' `--storage.tsdb.retention.time` are all `command:` flags, so none
+  of them is editable. A *flag-value* lens - one bounded pattern on one flag
+  inside a command, not free text - is the next thing to argue about, and it is
+  not a tidy-up of the above: it needs its own locator (VictoriaMetrics' whole
+  command is a folded `>-` block scalar, which no span splice can address) and
+  its own decision.
 - **A form that silently drops what it did not understand.** If the writer meets
   a construct it cannot round-trip, it must refuse the write, not rewrite the
-  file into something it can express.
+  file into something it can express. **Held literally by
+  `updater/composeenv.py`**, which refuses a quoted scalar, a folded or block
+  scalar, an empty value, a list-shaped `environment:` and a `${...}` pointer
+  into `.env` - and then, after the splice, refuses unless the key re-reads as
+  exactly the new value, the line count is unchanged, every other line is
+  byte-identical and no other environment value in the file moved.
 
 ---
 

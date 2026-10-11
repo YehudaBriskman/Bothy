@@ -1007,15 +1007,29 @@ mutant "the executor trusts the request's config plan id" \
   -- python3 apps/bothy-ops/checks/test_config_values.py
 
 # ── the splice, which is the whole reason a comment survives a write ──
-mutant "the splice stops asserting it touched one line" \
+#
+# THE THREE ASSERTIONS ON THE RESULT. None is reachable by a value the guard at
+# the top of splice() accepts, so each is reached with a WRONG SPAN - the one
+# fault that guard cannot see. A fourth assertion (every value in the file
+# compared structurally, as yamlpatch does) was written and REMOVED: for a
+# one-line splice it cannot fire independently of these, this harness found that
+# its row could not fail, and composeenv.py's header records the reasoning so
+# nobody re-adds it.
+mutant "the splice stops checking the span wrote where the key is" \
   apps/bothy-ops/updater/composeenv.py \
-  '    if not set(differing) <= {site.line - 1}:' \
+  '    if got.value != value:' \
   '    if False:' \
   -- python3 apps/bothy-ops/checks/test_config_values.py
 
-mutant "the splice stops asserting no other value moved" \
+mutant "the splice stops checking the span is on the line it recorded" \
   apps/bothy-ops/updater/composeenv.py \
-  '    if not moved <= {(site.service, site.key)}:' \
+  '    if got.line != site.line:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+mutant "the splice stops asserting it changed one line and only that one" \
+  apps/bothy-ops/updater/composeenv.py \
+  '    if len(b_lines) != len(a_lines) or not set(differing) <= {site.line - 1}:' \
   '    if False:' \
   -- python3 apps/bothy-ops/checks/test_config_values.py
 
@@ -1030,9 +1044,14 @@ mutant "a .env pointer becomes spliceable" \
 
 # A quoted scalar's SOURCE is longer than its value, so splicing at
 # start + len(value) eats the closing quote and leaves a file that does not parse.
+#
+# The anchor reads composeenv.QUOTES rather than the literal, and the constant
+# exists for that: the literal carries a single AND a double quote, which no
+# single-quoted shell argument can express, so this row reported ERROR - "could
+# not apply the mutation" - and proved nothing at all until 2026-10-11.
 mutant "a quoted scalar becomes spliceable" \
   apps/bothy-ops/updater/composeenv.py \
-  '    if value[0] in "'"'"'\\"" or value[-1] in "'"'"'\\"":' \
+  '    if value[0] in QUOTES or value[-1] in QUOTES:' \
   '    if False:' \
   -- python3 apps/bothy-ops/checks/test_config_values.py
 
