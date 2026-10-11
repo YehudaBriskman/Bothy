@@ -301,9 +301,12 @@ def validate_against_config(doc: dict, catalog: updates.Catalog, config_doc: dic
     bad = configvalue.value_ok(ck, doc["value"])
     if bad:
         raise Invalid(f"the value is not one {key} may take: {bad}")
-    row = configvalue.find_row(config_doc, key)
+    # By (service, key): a component may pin two services that set the same key,
+    # and a lookup by key alone can return the wrong one (configvalue.find_row).
+    # The service comes from the catalog's allowlist entry, never from the request.
+    row = configvalue.find_row(config_doc, ck.service, key)
     if not config_doc or config_doc.get("component") != cid or row is None:
-        raise Invalid(f"there is no config row for {cid}.{key}")
+        raise Invalid(f"there is no config row for {cid}.{ck.service}.{key}")
     if not row.get("editable") or not row.get("planId"):
         raise Invalid(f"there is no deployable config plan for {cid}.{key}: "
                       f"{row.get('reason') or 'it is not editable'}")

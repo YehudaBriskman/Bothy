@@ -374,9 +374,11 @@ def _config_reasons(raw: object) -> tuple[ConfigReason, ...]:
         missing = _CONFIG_REASON_KEYS - set(cat)
         if missing:
             raise CatalogError(f"{where}: {sorted(missing)} required (no defaults here)")
-        for k in ("label", "meaning"):
-            if not isinstance(cat[k], str) or len(cat[k].strip()) < 10:
-                raise CatalogError(f"{where}: {k} must be a sentence a person reads on the row")
+        if not isinstance(cat["label"], str) or not 3 <= len(cat["label"].strip()) <= 40:
+            raise CatalogError(f"{where}: label must be 3 to 40 characters - it is a column heading, "
+                               "not the sentence")
+        if not isinstance(cat["meaning"], str) or len(cat["meaning"].strip()) < 20:
+            raise CatalogError(f"{where}: meaning must say, in a sentence, why the key is not offered")
         pats: dict[str, tuple[str, ...]] = {}
         for k in ("keys", "files"):
             v = cat.get(k, [])
@@ -874,6 +876,11 @@ def _config_row(r: object, catalog: Catalog) -> dict | None:
         # host that moved ahead of this image would produce, and the direction to
         # fail in.
         ck = catalog.config_keys.get(f"{(r.get('component') or '')}.{r['key']}")
+        # …and the allowlist entry has to be for THIS SERVICE. A component may pin
+        # two services that set the same key, and without this the other one
+        # would be served as editable under this one's pattern.
+        if ck is not None and ck.service != r["service"]:
+            ck = None
     if ck is None:
         reason = r.get("reason") if isinstance(r.get("reason"), dict) else {}
         cat = catalog.config_reason(r["key"], r["file"])
@@ -939,6 +946,11 @@ def request_config(h, who: str, body: dict) -> tuple[dict, str]:
         # The night job's name (updater/auto.py). No channel chooses a config
         # value, and the executor refuses this actor again when it claims the file.
         raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
+    if cid not in CATALOG.components:
+        # 404 BEFORE the key lookup, like request_update's: "there is no such
+        # component" and "that key is not editable" are different sentences, and a
+        # typo in the component read as the second was the more confusing one.
+        raise Refused(f"{cid} is not in updates.toml", status=404)
     ck = CATALOG.config_keys.get(f"{cid}.{key}")
     if ck is None:
         # 403, not 404: the key may well exist in the file. What does not exist is
@@ -956,11 +968,16 @@ def request_config(h, who: str, body: dict) -> tuple[dict, str]:
         raise Refused(f"{value!r} is not a value {key} may take. {ck.meaning} The allowed shape is "
                       f"/{ck.pattern}/", status=400)
     doc = _read_configs(cid)
-    row = next((r for r in ((doc or {}).get("rows") or []) if isinstance(r, dict) and r.get("key") == key),
-               None)
+    # By (service, key). A component may pin two services that set the same key
+    # (Keycloak pins `keycloak` and `keycloak-init`, which share four), so a
+    # lookup by key alone can return the other service's - locked - row and
+    # refuse a value that is perfectly editable. The service comes from THIS
+    # process's allowlist entry, never from the request.
+    row = next((r for r in ((doc or {}).get("rows") or [])
+                if isinstance(r, dict) and r.get("key") == key and r.get("service") == ck.service), None)
     if doc is None or doc.get("ok") is not True or row is None:
-        raise Refused(f"there is no config row for {cid}.{key} - run `just updates-discover` on the "
-                      "host", status=404)
+        raise Refused(f"there is no config row for {cid}.{ck.service}.{key} - run "
+                      "`just updates-discover` on the host", status=404)
     if not row.get("planId"):
         raise Refused(f"{cid}.{key} cannot be changed right now: "
                       f"{_s(row.get('reason'), 300) or 'the host wrote no plan for it'}", status=409)

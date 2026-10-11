@@ -27,6 +27,15 @@
 #                         that keeps yamlpatch.py's header honest after a bump.
 #   patch_one_line.py     a real patch changes exactly one line, every comment
 #                         survives byte-identical.
+#   composeenv_agrees.py  THE ONE CHECK HERE ABOUT ANOTHER SERVICE. The host
+#                         updater splices a compose `environment:` value with no
+#                         YAML library at all (the host python3 has none, and the
+#                         updater must not grow one); this proves its locator and
+#                         ruamel's `lc.value()` report the same line, the same
+#                         value and the same character SPAN for every value in
+#                         every compose file here, and that what it refuses
+#                         ruamel agrees is not a plain literal. It lives in this
+#                         suite because ruamel lives in this service.
 #   config_http.py        /config/fields and /config/patch through the REAL
 #                         bothy-files handler, against the SHIPPED policy and a
 #                         throwaway copy of the repo's compose files.
@@ -76,6 +85,15 @@ if bothy_yaml_python "$HERE/../requirements.txt" "$HERE/../.venv"; then
     check "$YPY" checks/config_http.py
     section "config: placement rules - located, scoped to one file, one line"
     check "$YPY" checks/placement_http.py
+    # The one check here that is about ANOTHER service, and it is here because
+    # this is where ruamel.yaml is. apps/bothy-ops/updater/composeenv.py finds a
+    # compose `environment:` value with NO YAML library - the host python3 has
+    # none, and the updater is the last process on this box that should hold a
+    # third-party parser. Two readers of "where does this value end" therefore
+    # exist, and this proves they agree span-for-span over every compose file in
+    # the repository rather than leaving it to hope.
+    section "config: the HOST's compose-env locator agrees with ruamel, byte for byte"
+    check "$YPY" checks/composeenv_agrees.py
   fi
 else
   fail=1

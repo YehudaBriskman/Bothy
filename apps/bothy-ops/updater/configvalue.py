@@ -360,9 +360,22 @@ def read_config(cfg: Config, cid: str) -> dict | None:
     return doc if isinstance(doc, dict) else None
 
 
-def find_row(doc: dict | None, key: str) -> dict | None:
+def find_row(doc: dict | None, service: str, key: str) -> dict | None:
+    """The row for ONE (service, key), never for a key alone.
+
+    A COMPONENT MAY PIN TWO SERVICES, and two services may set the same
+    environment key - Keycloak pins `keycloak` and `keycloak-init`, which share
+    four of them. So the rows of one component legitimately carry the same key
+    twice, and a lookup by key alone returns whichever came first. Found by
+    checks/test_config_values.py with a fixture where `web` and `side` both set
+    MODE: the locked `side` row shadowed the editable `web` one, and every
+    request for it would have been refused with "there is no deployable config
+    plan" for a value that was perfectly editable. The allowlist entry itself is
+    never ambiguous - [config_keys] names the service - so the service is always
+    available to the caller, and it is now required.
+    """
     for r in (doc or {}).get("rows") or []:
-        if isinstance(r, dict) and r.get("key") == key:
+        if isinstance(r, dict) and r.get("key") == key and r.get("service") == service:
             return r
     return None
 
@@ -404,7 +417,13 @@ class ConfigExecution:
                 "version": tag, "tag": tag, "container": plan_["container"]}
         self.ex = Execution(cfg, rec, comp, {
             **plan_, "from": side, "to": dict(side),
-            "pin": {"file": self.file, "service": self.service, "line": self.line, "text": self.text},
+            # `commit` belongs in the pin dict as well as at the top level, because
+            # Execution.snapshot writes it into the snapshot's pin.json by that
+            # path. Without it the snapshot step died with KeyError and the job
+            # aborted - having touched nothing, which is the right way to fail, but
+            # for a reason that was a missing key rather than anything about the box.
+            "pin": {"file": self.file, "service": self.service, "line": self.line,
+                    "text": self.text, "commit": plan_["commit"]},
             "pins": [],
         })
         self.edited = False
