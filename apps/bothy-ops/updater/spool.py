@@ -58,6 +58,23 @@ KEYS = {"v", "jobId", "component", "planId", "confirm", "requestedBy", "requeste
 # and every record are the single-component ones, unchanged.
 GROUP_KEYS = {"v", "jobId", "kind", "group", "planId", "confirm", "requestedBy", "requestedAt"}
 GROUP_KIND = "group"
+# A CONFIG request (updater/configvalue.py): "set this allowlisted compose value
+# to this". Same <jobId>.json, same path unit, same lock, same claim-before-run
+# rule, same records - and the same `kind` discriminator a group uses, so the
+# three shapes can never be confused for one another.
+#
+# `value` IS THE ONE FIELD OF ANY REQUEST IN THIS SPOOL THAT IS NOT A LOOKUP KEY,
+# and the reason it is allowed to exist at all is the bound on it: it is
+# fullmatched against the pattern in the catalog the HOST reads
+# (configvalue.value_ok), by bothy-ops before it writes the file and again here
+# when it is claimed, and it reaches a FILE WRITE - never an argv, never a shell,
+# never a template. `key` beside it is a lookup key into [config_keys], like a
+# component id is into [components].
+CONFIG_KEYS = {"v", "jobId", "kind", "component", "key", "value", "planId", "confirm",
+               "requestedBy", "requestedAt"}
+CONFIG_KIND = "config"
+ENV_KEY = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
+MAX_VALUE = 64
 # The one optional key (step 8): the maintenance note a postgres-major plan
 # requires. Any other plan refuses a request that carries one (pgmajor.validate_note).
 OPTIONAL = {"note"}
@@ -141,6 +158,11 @@ def is_group(doc: object) -> bool:
     return isinstance(doc, dict) and doc.get("kind") == GROUP_KIND
 
 
+def is_config(doc: object) -> bool:
+    """A config-value request, by its own `kind`. See is_group."""
+    return isinstance(doc, dict) and doc.get("kind") == CONFIG_KIND
+
+
 def validate_shape(doc: dict, name: str) -> dict:
     """Exact keys, exact types, exact formats. Returns the request."""
     if is_group(doc):
@@ -148,6 +170,20 @@ def validate_shape(doc: dict, name: str) -> dict:
             raise Invalid(f"the group request's keys are {sorted(doc)}, not {sorted(GROUP_KEYS)}")
         if not isinstance(doc["group"], str) or not COMPONENT.fullmatch(doc["group"]):
             raise Invalid("the group id is malformed")
+    elif is_config(doc):
+        if set(doc) != CONFIG_KEYS:
+            raise Invalid(f"the config request's keys are {sorted(doc)}, not {sorted(CONFIG_KEYS)}")
+        if not isinstance(doc["key"], str) or not ENV_KEY.fullmatch(doc["key"]):
+            raise Invalid("the config key is malformed")
+        # The SHAPE of the value only. What it may BE is the catalog's pattern,
+        # checked in validate_against_config() against the catalog this host
+        # reads - this module has no catalog and must not grow one.
+        v = doc["value"]
+        if not isinstance(v, str) or not v or v.strip() != v or len(v) > MAX_VALUE:
+            raise Invalid(f"the value is not a trimmed string of 1 to {MAX_VALUE} characters")
+        if any(c in v for c in "\n\r\t#'\"") or " " in v:
+            raise Invalid("the value carries a newline, tab, quote, `#` or space - none of which can "
+                          "be a plain compose scalar on one line")
     elif not KEYS <= set(doc) <= KEYS | OPTIONAL:
         raise Invalid(f"the request's keys are {sorted(doc)}, not {sorted(KEYS)} (+ an optional note)")
     if "note" in doc and (not isinstance(doc["note"], str) or not 0 < len(doc["note"]) <= MAX_NOTE):
@@ -225,6 +261,61 @@ def validate_against_group(doc: dict, catalog: updates.Catalog, group_doc: dict 
     if doc["confirm"] != want:
         raise Invalid("the confirmation does not match what the group plan requires")
     return p
+
+
+def validate_against_config(doc: dict, catalog: updates.Catalog, config_doc: dict | None) -> dict:
+    """A config request against the catalog and the host's own configs/<id>.json.
+
+    The same "never trusts bothy-ops" half as validate_against(), and the four
+    rules a config change adds:
+
+      * the KEY has to be on [config_keys] in the catalog ON THIS HOST. bothy-ops
+        checked the same thing against the same table in its own image, and none
+        of that is assumed here - this is the check that holds when the process
+        that asked is the thing that is wrong.
+      * the VALUE has to fullmatch that table's pattern, read here, from the
+        host's catalog. It is the one field of any request in this spool that is
+        not a lookup key, and this is the bound that makes that acceptable.
+      * the actor is never the night job. A config value is nobody's patch
+        release: no channel chooses one, `auto.decide()` has no path to a config
+        plan at all, and auto.py can only write the single-component shape - so
+        this is the fourth independent refusal, not the only one.
+      * one click, never a typed name, and never a maintenance note. The level
+        follows reversibility and the host puts the value back by itself.
+    """
+    from . import configvalue
+    cid, key = doc["component"], doc["key"]
+    comp = catalog.components.get(cid)
+    if comp is None:
+        raise Invalid(f"{cid!r} is not in updates.toml")
+    ck = catalog.config_keys.get(f"{cid}.{key}")
+    if ck is None:
+        raise Invalid(f"{cid}.{key} is not an editable config value on this host")
+    if comp.cls not in updates.CONFIG_CLASSES:
+        raise Invalid(f"{cid} is class {comp.cls}, which has no editable config value")
+    if doc.get("requestedBy") == updates.AUTO_ACTOR:
+        raise Invalid("a config value is never automatic: the night job deploys one component's patch "
+                      "a night, and no channel chooses a value")
+    if "note" in doc:
+        raise Invalid("a maintenance note is only for a plan that asks for one")
+    bad = configvalue.value_ok(ck, doc["value"])
+    if bad:
+        raise Invalid(f"the value is not one {key} may take: {bad}")
+    # By (service, key): a component may pin two services that set the same key,
+    # and a lookup by key alone can return the wrong one (configvalue.find_row).
+    # The service comes from the catalog's allowlist entry, never from the request.
+    row = configvalue.find_row(config_doc, ck.service, key)
+    if not config_doc or config_doc.get("component") != cid or row is None:
+        raise Invalid(f"there is no config row for {cid}.{ck.service}.{key}")
+    if not row.get("editable") or not row.get("planId"):
+        raise Invalid(f"there is no deployable config plan for {cid}.{key}: "
+                      f"{row.get('reason') or 'it is not editable'}")
+    if row["planId"] != doc["planId"]:
+        raise Invalid(f"config plan {doc['planId']} is not the current plan for {cid}.{key} "
+                      f"(that is {row['planId']})")
+    if doc["confirm"] is not True:
+        raise Invalid("a config value is one click: confirm must be true")
+    return row.get("plan") or {}
 
 
 def queued(spool: str) -> list[str]:

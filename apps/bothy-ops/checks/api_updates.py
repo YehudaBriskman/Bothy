@@ -165,7 +165,14 @@ ok(body["summary"] == {"components": len(rows), "updates": 3, "behind": 2, "drif
                        # image matches, so the updater will never move it, and the
                        # page must still say the box is running something `main`
                        # does not declare. One component here (alloy).
-                       "configDrift": 1, "groups": 0},
+                       "configDrift": 1, "groups": 0,
+                       # How many compose values a browser may change AT ALL, from
+                       # the real updates.toml's [config_keys] - this check serves
+                       # the SHIPPED catalog, so the number is the box's, not a
+                       # fixture's. Asserted as an exact dict on purpose: a new
+                       # summary field is a new thing the page can count, and it
+                       # should have to be written down here before it appears.
+                       "configKeys": len(updates.CATALOG.config_keys)},
    f"the summary: {body['summary']}")
 lines = log_lines()
 ok(lines and lines[-1].split("\t")[1:4] == ["viewer@example.com", "READ", "updates-status"]

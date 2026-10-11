@@ -433,7 +433,13 @@ def _write_request(cfg: Config, cid: str, plan_id: str) -> str:
     job = secrets.token_hex(16)
     req = {"v": 1, "jobId": job, "component": cid, "planId": plan_id, "confirm": True,
            "requestedBy": ACTOR, "requestedAt": iso()}
-    assert set(req) == spool.KEYS
+    # EXACTLY the single-component shape, and the equality is the point rather
+    # than a type check: it is why the night job cannot ask for a GROUP
+    # (spool.GROUP_KEYS) or for a CONFIG VALUE (spool.CONFIG_KEYS) at all. Both
+    # of those carry a `kind` this set does not contain, so a request that named
+    # one would fail this assertion here before it could fail the executor's
+    # refusal of the `auto` actor there.
+    assert set(req) == spool.KEYS and "kind" not in req
     hostio.ensure_dir(cfg.spool, 0o700)
     tmp = os.path.join(cfg.spool, f".{job}.tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)

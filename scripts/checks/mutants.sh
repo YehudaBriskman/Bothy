@@ -907,6 +907,213 @@ mutant "bothy-ops may ask for a GROUP as the night job" \
   -- python3 apps/bothy-ops/checks/api_updates_apply.py
 
 echo
+echo "── one allowlisted compose value (2026-10-11) ──────────────────────"
+# This is the first power in Bothy where a VALUE from the browser reaches a file
+# on the host. SECURITY.md rule 8 says what bounds it, and every bound is one
+# line of code; each row below removes exactly one, as a well-meaning
+# simplification would. Every anchor is an EXECUTABLE line unique to its own
+# function - the checks strip comments, so a comment anchor is a silent no-op,
+# and `plant()` replaces the FIRST match, so a short recurring line is a hostage
+# to file order.
+
+# ── the catalog: what the allowlist may never be allowed to say ──
+# A row cannot both offer an Edit button and state why it has none. catalog.toml's
+# [configmap_reasons] header records the Kubernetes tier getting exactly this
+# wrong on the first draft, where an `SSO_.*` wildcard swallowed an editable key.
+mutant "a key may be editable AND say why it cannot be" \
+  apps/bothy-ops/updates.py \
+  '            if hit is not None:' \
+  '            if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# One of four independent refusals a secret meets, and the only one that holds
+# whatever any pattern says.
+mutant "a credential-shaped key name is allowlistable" \
+  apps/bothy-ops/updates.py \
+  '            if _SECRETISH.fullmatch(key):' \
+  '            if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# The socket-proxy ACL and edge/dynamic/, locked by FILE so that no component,
+# class or pattern can reach them. CONTAINERS=0 is what makes POST=1 safe.
+mutant "a locked file becomes allowlistable" \
+  apps/bothy-ops/updates.py \
+  '            if rel in CONFIG_DENY_FILES or any(rel.startswith(p) for p in CONFIG_DENY_PREFIXES):' \
+  '            if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# The order-of-magnitude rule in its generic form: without this, `[0-9]+` is a
+# legal pattern and a retention of 100000000000 days is a legal value.
+mutant "a pattern stops being bounded at all" \
+  apps/bothy-ops/updates.py \
+  '        if rx.fullmatch(bad):' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# The catch-all answers for everything no named category claims. Declared
+# anywhere but last it answers for the named ones too, and every locked row then
+# shows the vaguest sentence in the table.
+mutant "the catch-all reason may be declared anywhere" \
+  apps/bothy-ops/updates.py \
+  '    if not out[-1].catch_all:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# ── the plan ──
+# [config_keys]' second hard-won rule: a pattern that refuses the RUNNING value
+# draws an Edit button on a row that no value can satisfy, which is worse than
+# not allowlisting the key. Enforced at plan time so it is a sentence, not a dead
+# control.
+mutant "a pattern that refuses the live value still draws an Edit button" \
+  apps/bothy-ops/updater/configvalue.py \
+  '    bad = value_ok(ck, site.value)
+    if bad:' \
+  '    bad = value_ok(ck, site.value)
+    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# ── the host, which trusts bothy-ops for nothing ──
+# THE bound on the one field of any spool request that is not a lookup key. This
+# is the copy that holds when bothy-ops is the thing that is wrong, and it reads
+# the pattern out of the HOST's catalog rather than out of the request.
+mutant "the host stops re-checking the value against its own pattern" \
+  apps/bothy-ops/updater/spool.py \
+  '    bad = configvalue.value_ok(ck, doc["value"])' \
+  '    bad = ""' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+mutant "the night job may ask for a config value" \
+  apps/bothy-ops/updater/spool.py \
+  '    if doc.get("requestedBy") == updates.AUTO_ACTOR:
+        raise Invalid("a config value is never automatic:' \
+  '    if False:
+        raise Invalid("a config value is never automatic:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# A row's identity is (service, key), not key. A component may pin two services
+# that set the same key - Keycloak pins `keycloak` and `keycloak-init`, which
+# share four - and by key alone the locked row shadows the editable one. This was
+# a real bug, found by writing the check rather than by reading the code.
+mutant "a config row is looked up by key alone" \
+  apps/bothy-ops/updater/configvalue.py \
+  '        if isinstance(r, dict) and r.get("key") == key and r.get("service") == service:' \
+  '        if isinstance(r, dict) and r.get("key") == key:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+mutant "the executor trusts the request's config plan id" \
+  apps/bothy-ops/updater/executor.py \
+  '            if fresh_c["id"] != cp.get("id"):' \
+  '            if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# ── the splice, which is the whole reason a comment survives a write ──
+#
+# THE THREE ASSERTIONS ON THE RESULT. None is reachable by a value the guard at
+# the top of splice() accepts, so each is reached with a WRONG SPAN - the one
+# fault that guard cannot see. A fourth assertion (every value in the file
+# compared structurally, as yamlpatch does) was written and REMOVED: for a
+# one-line splice it cannot fire independently of these, this harness found that
+# its row could not fail, and composeenv.py's header records the reasoning so
+# nobody re-adds it.
+mutant "the splice stops checking the span wrote where the key is" \
+  apps/bothy-ops/updater/composeenv.py \
+  '    if got.value != value:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+mutant "the splice stops checking the span is on the line it recorded" \
+  apps/bothy-ops/updater/composeenv.py \
+  '    if got.line != site.line:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+mutant "the splice stops asserting it changed one line and only that one" \
+  apps/bothy-ops/updater/composeenv.py \
+  '    if len(b_lines) != len(a_lines) or not set(differing) <= {site.line - 1}:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# A `${...}` pointer is where every secret in these compose files lives, and
+# writing a literal over it hard-codes one box's answer and stops `.env` being
+# read for that key at all.
+mutant "a .env pointer becomes spliceable" \
+  apps/bothy-ops/updater/composeenv.py \
+  '    if "${" in value or "$(" in value:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# A quoted scalar's SOURCE is longer than its value, so splicing at
+# start + len(value) eats the closing quote and leaves a file that does not parse.
+#
+# The anchor reads composeenv.QUOTES rather than the literal, and the constant
+# exists for that: the literal carries a single AND a double quote, which no
+# single-quoted shell argument can express, so this row reported ERROR - "could
+# not apply the mutation" - and proved nothing at all until 2026-10-11.
+mutant "a quoted scalar becomes spliceable" \
+  apps/bothy-ops/updater/composeenv.py \
+  '    if value[0] in QUOTES or value[-1] in QUOTES:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# pins.replace()'s rule, for a different kind of line: between reading a value
+# and writing it, somebody may have edited the file in Files.
+mutant "the write no longer checks the line still reads what was read" \
+  apps/bothy-ops/updater/composeenv.py \
+  '    if site.text != expect_text:' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# ── the revert, which is the whole design ──
+# The value written back is the OLD one. Written back as the NEW one the revert is
+# a no-op that reports success, which is the worst of the available failures: the
+# page says `rolled_back` over a box still running the value that broke it.
+mutant "the revert writes the value that failed back again" \
+  apps/bothy-ops/updater/configvalue.py \
+  '                             self._line_now(), self.value, self.old)' \
+  '                             self._line_now(), self.value, self.value)' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# The flag that tells the revert there is anything to put back. Never set, the
+# revert says "the file was never written" over a file that was.
+mutant "the revert believes the file was never written" \
+  apps/bothy-ops/updater/configvalue.py \
+  '        self.edited = True' \
+  '        self.edited = False' \
+  -- python3 apps/bothy-ops/checks/test_config_values.py
+
+# ── the HTTP surface ──
+# A locked row is a key name and a sentence. 14 of this repository's environment
+# names are `${...}` pointers into the gitignored `.env`, and the source text of
+# one names the variable and its fallback - and this answer goes to a `viewer`.
+mutant "a locked config row serves its value" \
+  apps/bothy-ops/updates.py \
+  '        return {**out, "editable": False,' \
+  '        return {**out, "editable": False, "value": r.get("value"),' \
+  -- python3 apps/bothy-ops/checks/api_updates_config.py
+
+mutant "bothy-ops stops matching the value against the pattern" \
+  apps/bothy-ops/updates.py \
+  '    if not re.fullmatch(ck.pattern, value):' \
+  '    if False:' \
+  -- python3 apps/bothy-ops/checks/api_updates_config.py
+
+# The allowlist consulted by COMPONENT instead of by key: every key of a
+# component that has one editable key becomes editable, under that key's pattern.
+mutant "the allowlist is consulted by component, not by key" \
+  apps/bothy-ops/updates.py \
+  '    ck = CATALOG.config_keys.get(f"{cid}.{key}")' \
+  '    ck = next((k for k in CATALOG.config_keys.values() if k.component == cid), None)' \
+  -- python3 apps/bothy-ops/checks/api_updates_config.py
+
+mutant "bothy-ops may write a config request as the night job" \
+  apps/bothy-ops/updates.py \
+  '    if flat(who) == AUTO_ACTOR:
+        # No channel chooses a config value' \
+  '    if False:
+        # No channel chooses a config value' \
+  -- python3 apps/bothy-ops/checks/api_updates_config.py
+
+echo
 echo "── what Bothy will deploy of itself (step 6) ───────────────────────"
 # Bothy updating itself moves the checkout and restarts the UI that asked. What
 # keeps it to reviewed code is four refusals in the plan and one fact about where

@@ -115,6 +115,12 @@ export interface UpdateRow {
    *  too, and the host's scope check will not let one of them ride along without a
    *  snapshot. Apply the group instead. */
   applyWithGroup?: boolean;
+  /** How many of this component's compose values are ALLOWLISTED for editing
+   *  (`[config_keys]` in updates.toml). From the service's own catalog, so it
+   *  costs no extra request - which is what lets the Configuration block decide
+   *  which components to draw at all before it fetches a single row. Absent from
+   *  an older service, and 0 for most components. */
+  configKeys?: number;
 }
 
 // ── groups: everything one `apply` recipe pins, in one compose up ────────────
@@ -287,6 +293,10 @@ export interface UpdatesStatus {
     configDrift?: number;
     /** How many whole recipes can be applied at once. */
     groups?: number;
+    /** How many compose values a browser may change at ALL - the honest headline
+     *  for this surface. Measured 1 of the 102 environment names a catalog
+     *  component declares; updates.toml's `[config_keys]` header carries that. */
+    configKeys?: number;
   };
   policy: {
     windowStart: string;
@@ -519,6 +529,99 @@ export interface GroupRequestAnswer { ok: true; jobId: string; group: string; pl
 export async function applyGroup(body: { group: string; plan_id: string; confirm: true | string }): Promise<GroupRequestAnswer> {
   if (import.meta.env.DEV) return (await import('./updates.dev')).groupRequestMock(body);
   return apiFetch<GroupRequestAnswer>('/-/api/updates/request', { method: 'POST', body, ...WIRE });
+}
+
+// ── config values: one allowlisted compose value (2026-10-11) ───────────────
+//
+// A row per environment key of a component's pinned services. Either it is
+// EDITABLE - the host allowlisted it, with a bounded pattern and a plan id - or
+// it carries the sentence saying why it is not.
+//
+// A LOCKED ROW HAS NO `value`, and that is the service's rule rather than a gap
+// here: 14 of this repository's environment names point into the gitignored
+// `.env`, and this answer reaches a `viewer`. Key names, never values.
+//
+// A row's identity is `service` AND `key`. A component may pin two services that
+// set the same key - Keycloak pins `keycloak` and `keycloak-init`, which share
+// four of them - so anything keying a list or a map on `key` alone is wrong.
+
+export interface ConfigReasonRef {
+  /** The [config_reasons] category id - `secret`, `boundary`, `socket-acl`, … */
+  name: string;
+  /** Three to forty characters, for a cell: "A credential", "An address". */
+  label: string;
+  /** The sentence, shown verbatim. Every locked row has one. */
+  meaning: string;
+}
+
+export interface ConfigRow {
+  key: string;
+  service: string;
+  file: string;
+  editable: boolean;
+  /** The value that is live. Present only on an EDITABLE row. */
+  value?: string | null;
+  /** The regex the value must fullmatch. Editable rows only. */
+  pattern?: string;
+  /** One sentence about what the value does. Editable rows only. */
+  meaning?: string;
+  line?: number | null;
+  /** The host's plan id, or null when the key is editable and the box is not
+   *  ready for it right now (a dirty file, a stopped container) - in which case
+   *  `reason` says which. */
+  planId?: string | null;
+  /** On a LOCKED row: the category. On an editable one: absent. */
+  reason?: ConfigReasonRef | string | null;
+  /** Every component pinned in that file - how far one uncommitted line reaches. */
+  pinnedIn?: string[];
+  /** Whose the undo is, and that no data is restored. */
+  revert?: string | null;
+  downtime?: string | null;
+  restarts?: string[];
+}
+
+export interface ConfigAnswer {
+  ok: true;
+  component: string;
+  rows: ConfigRow[];
+  reason: string | null;
+  ageSeconds: number | null;
+}
+
+/** A row's identity: the service AND the key, never the key alone. */
+export function configRowId(r: ConfigRow): string { return `${r.service}.${r.key}`; }
+
+/** The locked row's category, or null on an editable one. */
+export function lockedReason(r: ConfigRow): ConfigReasonRef | null {
+  return !r.editable && r.reason && typeof r.reason === 'object' ? r.reason : null;
+}
+
+/** Why an EDITABLE row cannot be changed right now, or null when it can. */
+export function notRightNow(r: ConfigRow): string | null {
+  if (!r.editable || r.planId) return null;
+  return typeof r.reason === 'string' && r.reason ? r.reason : 'the host wrote no plan for it';
+}
+
+export async function fetchConfig(component: string, signal?: AbortSignal): Promise<ConfigAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).configMock(component);
+  return apiFetch<ConfigAnswer>(`/-/api/updates/plan?config=${encodeURIComponent(component)}`, { signal, ...WIRE });
+}
+
+export interface ConfigRequestAnswer { ok: true; jobId: string; component: string; key: string; value: string; planId: string }
+
+/** Ask the host to set one allowlisted compose value.
+ *
+ *  The same route and the same `operator` gate as a component apply. The browser
+ *  sends the host's plan id and the value; the host checks the value against the
+ *  pattern in ITS OWN catalog again, splices the one line, runs the recipe, and
+ *  puts the old value back by itself if the service does not come back healthy -
+ *  whether or not this page is still open, which is the half that matters when
+ *  the page is what broke. A success leaves the line UNCOMMITTED on purpose; the
+ *  row says so before the button, because until it is committed the updater
+ *  refuses an image plan for every component pinned in that file. */
+export async function setConfigValue(body: { component: string; key: string; value: string; plan_id: string; confirm: true }): Promise<ConfigRequestAnswer> {
+  if (import.meta.env.DEV) return (await import('./updates.dev')).configRequestMock(body);
+  return apiFetch<ConfigRequestAnswer>('/-/api/updates/request', { method: 'POST', body, ...WIRE });
 }
 
 export interface UnpauseAnswer { ok: true; id: string; component: string }

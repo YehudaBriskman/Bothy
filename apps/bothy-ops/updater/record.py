@@ -39,6 +39,12 @@ CLUSTER_STEPS = ("validate", "preflight", "snapshot", "apply", "verify", "rollba
 # volume on the new image, the dump loaded into it and compared, then the switch.
 PG_STEPS = ("validate", "preflight", "pull", "stop", "dump", "create", "load", "compare", "switch", "start",
             "verify", "rollback", "record")
+# One allowlisted compose value (configvalue.py): `edit` instead of `pull` - the
+# image never moves, so nothing is pulled - and `rollback` keeps its name
+# deliberately rather than becoming `revert`, so status.json, the audit log,
+# `failedStep`, the `rolled_back` result and the step list the page draws all mean
+# what they already mean. There is no `restore`: a config job never restores data.
+CONFIG_STEPS = ("validate", "preflight", "snapshot", "edit", "apply", "verify", "rollback", "record")
 RESULTS = ("succeeded", "rolled_back", "aborted", "failed", "refused")
 HISTORY_KEEP = 500
 

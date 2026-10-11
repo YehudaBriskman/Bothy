@@ -669,7 +669,9 @@ operator routes, a type-the-name confirmation and a `manage-users` client first.
 
 Added 2026-09-19 (build steps 3, 4, 5 and 7 of `docs/plans/updates.md`; step 6,
 Bothy updating itself to a green release tag, the same day; step 8, the cluster
-add-ons and the Postgres major, 2026-09-22; the two asks below, 2026-10-06). Seven exact
+add-ons and the Postgres major, 2026-09-22; the two asks below, 2026-10-06; one
+allowlisted compose value, 2026-10-11, which added **no router** - it is a plan
+kind on the routes already here, as the group was). **Still seven** exact
 `Path() && Method()` routers in the hand-written `edge/dynamic/bothy-updates.yml`
 (kept out of the generated `bothy-ops.yml`): `GET /-/api/updates/status`, `/plan`
 and `/job` behind `sso-viewer`, and `POST /-/api/updates/request`,
@@ -706,14 +708,62 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request`,
   one except as a catalog lookup key.
 - **What a total compromise of bothy-ops can make the host do** - the honest
   statement, since devssh is in the `docker` group and so root-equivalent over
-  Docker whatever runs as it: for a component of class `stateless`,
+  Docker whatever runs as it. **Two things, not one** (the second added
+  2026-10-11; it is stated here in the same commit that built it).
+
+  **One: deploy what `main` pins.** For a component of class `stateless`,
   `timeseries` or `app-db` in `updates.toml`, **deploy the image the checked-out `main`
   already pins** - reviewed, merged and on `origin/main` - which `just up` would
   deploy anyway, at a moment of its choosing, and only through the same
   pre-flight (fresh backup, disk, health and canaries green, the recipe touching
   nothing else). It cannot choose a version, an image, a file, a recipe or a
-  command: the plan id is a hash the host computed from files the host reads. Its
-  remaining levers are timing (a Loki snapshot stops Loki for seconds), disk (a
+  command: the plan id is a hash the host computed from files the host reads.
+
+  **Two: set one allowlisted compose value.** For a key named in
+  `updates.toml`'s `[config_keys]` - **one** key today,
+  `GF_USERS_DEFAULT_HOME_DASHBOARD_PATH` on Grafana - **choose a value, from a
+  bounded set, on a key somebody allowlisted**, and have the host splice it into
+  that one `environment:` line and run the component's own recipe. That is a
+  widening of the clause above and it is written here as one: it **can** now
+  choose a *value*. It still cannot choose the version, the image, the **file**,
+  the service, the line, the recipe or the command - every one of those comes
+  from the catalog and from the host's own read of the compose file, and the plan
+  id is still a hash of exactly those. The value is the one field of any request
+  in the spool that is not a lookup key, and it is bounded three times: by its
+  shape (one trimmed line, no quote, `#` or space), by the catalog's regex in
+  bothy-ops, and by **the same regex again on the host**, read from the host's
+  catalog rather than from the request, when the executor claims the file
+  (`spool.validate_against_config` -> `configvalue.value_ok`). It then reaches a
+  single-line file splice - never an argv, never a shell, never a template.
+  The splice re-parses and refuses unless exactly the one line changed, so a
+  value cannot reach a second key or a comment (`updater/composeenv.py`).
+
+  **What bounds the allowlist is recoverability, which is the owner's own
+  criterion**: a value may be on the list only if its being wrong still leaves
+  you able to reach the box and fix it. That is what makes the automatic revert
+  below sufficient rather than hopeful - a revert in the host executor can save
+  you from a Grafana that will not start, and could not save you from a Traefik
+  that will not route, so the list refuses exactly the values the revert could
+  not cover. `[config_reasons]` states, per key, which of those it is.
+
+  **The lever a config change adds, and the three it does not.** It adds one
+  write to the working tree beside the rollback's: the spliced line, left
+  uncommitted on purpose, which until it is committed makes `plans._git_gate`
+  refuse an *image* plan for every component pinned in that file - a denial of
+  the updater by a compromised bothy-ops, bounded to that file, visible in `git
+  diff` and named in the refusal. It adds no new route, no new gate, no new
+  mount and no new class: the request rides `POST /-/api/updates/request` behind
+  `sso-operator`, the rows ride `GET /-/api/updates/plan?config=`, and the job
+  is `Execution`'s pre-flight, snapshot, scope rule and canaries unchanged. It
+  can never restore data - a config job's revert is the value going back, and
+  there is no code path from one to `classes.restore` at all - so it cannot be
+  used to roll a volume back to an older state. And it is **never the `auto`
+  actor**: bothy-ops refuses to write that name (403), the executor refuses it
+  again when it claims the file, `auto.decide()` has no path to a config plan,
+  and `auto._write_request` asserts the single-component key set, which carries
+  no `kind` - four independent refusals.
+
+  Its remaining levers are timing (a Loki snapshot stops Loki for seconds), disk (a
   pre-update snapshot, kept 3 per component, behind a free-space check) and
   noise (a refused request is a history line). It can edit none of the records:
   `status.json`, `history.jsonl` and the executor's `audit.log` sit in the
@@ -740,11 +790,65 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request`,
   changes the updater only stages its copy beside `current`; switching is a
   person running `just install-updater` on the host. So a release cannot change
   the program that validates the next request without someone choosing to.
-- **The one write to the tree** is a rollback's: the old image goes back on the
-  pin line (every pin line of the component - Keycloak has two), a single-line
-  edit that aborts unless the line still reads exactly
-  what the plan recorded, left uncommitted so the next `just up` keeps the
-  working version.
+- **There are two writes to the tree, and both are one line.** The first is a
+  rollback's: the old image goes back on the pin line (every pin line of the
+  component - Keycloak has two), a single-line edit that aborts unless the line
+  still reads exactly what the plan recorded, left uncommitted so the next
+  `just up` keeps the working version. The second (2026-10-11) is a **config
+  value's**, below, which is the same kind of edit to a different kind of line
+  and aborts under the same rule.
+- **One allowlisted compose value (plan kind `config`, 2026-10-11).** The whole
+  of this is `updates.toml`'s `[config_keys]`, `updater/composeenv.py` and
+  `updater/configvalue.py`, and it rides the routes that already exist.
+  - **The host locates, splices and verifies - not bothy-files.**
+    `updater/composeenv.py` is `apps/bothy-files/yamlpatch.py`'s idea without its
+    parser, for the reason `pins.py` already gives for the pin line: the host
+    `python3` has no `ruamel`, and the updater is the last process on this box
+    that should hold a third-party parser. It scans with the same indentation
+    rules `discover_updates.compose_service` and `pins.locate` have used since
+    the updater existed, splices one character span, and then refuses unless the
+    key re-reads as exactly the new value, the line count is unchanged, **every
+    other line is byte-identical** and no other environment key in the file
+    moved. A comment cannot be lost by a write that provably did not touch its
+    line. It refuses outright to touch a quoted scalar, a folded or block scalar,
+    an empty value, a list-shaped `environment:`, or a `${...}` pointer into
+    `.env` - which is one of four independent refusals a secret meets, the others
+    being the key-name rule in `load_catalog`, the `[config_reasons.secret]`
+    category and the standing refusal to render `.env` values anywhere. The two
+    readers are proved to agree rather than merely both existing:
+    `apps/bothy-files/checks/composeenv_agrees.py` runs this locator against
+    ruamel's `lc.value()` over every compose file in the repository and fails on
+    one character of disagreement.
+  - **The host owns the undo, and runs it whether or not a browser is watching.**
+    Apply, then the component's own health and canary checks inside
+    `verify_timeout`; if they do not come green the executor writes the old value
+    back, runs the recipe again and verifies again. The old value is the host's -
+    it is in the plan the host computed, in the job record and on disk in the
+    snapshot's `config.json`. This is what makes the whole design safe when **the
+    UI is the thing that broke**, and it is why the allowlist's criterion is
+    recoverability: the one fault class a revert here cannot cover is the one the
+    allowlist refuses.
+  - **A config job is strictly smaller than an image job.** Same pre-flight
+    (fresh backup, disk, health, the canaries green *before*), same class
+    snapshot, same `compose_scope` rule - `just <recipe>` must recreate that one
+    service and nothing else, by the same compose config hashes. And three
+    narrowings: the image never changes, so the first-start migration that makes
+    Grafana and Keycloak one-way never runs (which is why class `app-db` is on
+    `updates.CONFIG_CLASSES`); **no data is ever restored**, because a restore is
+    the only step that loses data and a value going back cannot need one; and the
+    plan is `confirm: click`, because the level follows reversibility and the host
+    puts the value back by itself.
+  - **The locked set is the irreducible one**, each key carrying its own sentence
+    in `[config_reasons]` so no row is refused without saying why: the
+    socket-proxy ACL (`CONTAINERS=0` is what makes `POST=1` safe - the single
+    worst edit in the repository, locked twice, by file and by name), everything
+    in the edge, the sign-in chain and Bothy's own services, every `.env` secret
+    and every `.env` pointer, `edge/dynamic/` (generate-never-free-edit),
+    one-way data migrations, and `editing-model.md` class C - `volumes`,
+    `privileged`, `cap_add`, `command`, `entrypoint`, `network_mode`, socket
+    mounts - which stay "diffs, reviewed by a human". Measured on 2026-10-11:
+    124 environment names in this repository's compose files, 102 of them
+    belonging to a catalog component, **one** of those allowlisted.
 - **One-way components (app-db: Grafana, Keycloak; step 5)** add two levers,
   both bounded: a pre-update snapshot (Grafana stopped for the volume tar; a
   `pg_dump -Fc` of the keycloak database) and, on a failed verify, a RESTORE of
@@ -851,6 +955,11 @@ and `/job` behind `sso-viewer`, and `POST /-/api/updates/request`,
   job** is not reachable either, because the host has no such plan kind - only the
   automatic rollback a failed verify runs. And `just install-updater` stays a person
   on the host, which is the whole reason a release only *stages* a new updater.
+  **The config allowlist itself is not editable from the page** for exactly the
+  same reason the channel is not: it lives in the same `COPY`'d `updates.toml`,
+  and a tier that could add its own keys would have no allowlist. Adding one is a
+  commit - a bounded pattern, a sentence, and the checks in
+  `checks/test_config_values.py`.
 
 ---
 

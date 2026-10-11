@@ -61,6 +61,23 @@
 #                        spool shape, a job whose snapshots all precede any pull
 #                        and whose rollback is all-or-nothing, and the pause of
 #                        every `auto` member a rolled-back group moved.
+#   test_config_values   ONE ALLOWLISTED COMPOSE VALUE: every refusal in the
+#                        catalog's config half (a credential-shaped name, a
+#                        locked file, a class that may not have one, a key that
+#                        also states why it cannot be edited, an unbounded
+#                        pattern); the SHIPPED allowlist, whose every pattern
+#                        must accept the value that is LIVE; the host locator and
+#                        splice, with each refusal shown; the plan id over what
+#                        the host read and NOT over the requested value; the rows
+#                        (a locked one carries no value); the spool shape; and
+#                        that there is no path from a config job to a data restore
+#   api_updates_config   THE LIVE REFUSAL TABLE through the real handler: a
+#                        non-allowlisted key 403, a value its pattern refuses
+#                        400, a forged Sec-Fetch-Site 403, the `auto` actor 403,
+#                        a stale plan id 409, the value it already has 409 - and
+#                        NO spool file written by any of them; then one valid
+#                        operator request 202 with exactly one 600-mode file and
+#                        one audit line
 #   api_updates_asks.py  discover / autorun through the real handler: one spool
 #                        file per 202, the rate limit, the body shapes, the
 #                        allow-list over the host's asks.json; every refusal.
@@ -88,6 +105,14 @@
 #                        class on throwaway Grafana and Keycloak (a forced
 #                        failure restores the snapshot). ~10 min. Skipped with
 #                        --offline.
+#   e2e_config.py        needs docker: ONE CONFIG VALUE AND A REAL REVERT, on a
+#                        throwaway project whose container's BODY is its value.
+#                        fast -> slow succeeds and leaves one uncommitted line
+#                        (which then refuses the image plan for that file, said
+#                        out loud); fast -> `wrong` is HEALTHY and fails only its
+#                        canary; fast -> `crash` never comes up. Both end with
+#                        the old value back in the file, `git status` CLEAN, the
+#                        container healthy, and no data restored. --offline skips.
 #   e2e_auto.py          needs docker: the NIGHT JOB end to end on a throwaway
 #                        project - a patch picked and applied, a forced rollback
 #                        that pauses, the next night skipping it. --offline skips.
@@ -182,6 +207,12 @@ check "$PY" checks/api_updates_apply.py 2>/dev/null
 section "groups: a whole recipe at once - the union, the scope, all-or-nothing"
 check "$PY" checks/test_groups.py
 
+section "config values: the allowlist, the splice, the plan and every refusal"
+check "$PY" checks/test_config_values.py
+
+section "config values: the HTTP surface - the refusal table, one spool file"
+check "$PY" checks/api_updates_config.py 2>/dev/null
+
 section "updates: discover and autorun - one spool file, the rate limit, refusals"
 check "$PY" checks/api_updates_asks.py 2>/dev/null
 
@@ -217,6 +248,13 @@ section "the host updater, end to end, on a throwaway project"
 # Its own registry, images, compose projects (-p bothy-updater-test*), git repo
 # and state dirs, all removed in a finally block. Never the live stack.
 check "$PY" checks/e2e_updater.py
+
+section "a config value changed and a REAL REVERT, end to end"
+# Its own compose project (-p bothy-config-e2e), its own busybox image, its own
+# git repo and state dirs, all removed in a finally block. Never the live stack.
+# ~2 min. This is the check that proves the design rather than a decision: that
+# the host puts the value back by itself cannot be asserted statically.
+check "$PY" checks/e2e_config.py
 
 section "the automatic channel, end to end, on a throwaway project"
 # The night job against the same kind of throwaway registry and project: a patch

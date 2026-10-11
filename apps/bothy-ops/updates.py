@@ -55,7 +55,7 @@ import secrets
 import sys
 import time
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import parse_qsl, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -117,6 +117,44 @@ _WORKLOAD = re.compile(r"[a-z0-9-]{1,63}/(?:daemonset|deployment|statefulset)/[a
 _RELEASE = re.compile(r"[a-z0-9-]{1,63}/[a-z0-9-]{1,53}")
 _DIGEST = re.compile(r"sha256:[a-f0-9]{64}")
 
+# ── config values (2026-10-11): the compose `environment:` keys a browser may set ──
+#
+# The data is [config_keys] / [config_reasons] in updates.toml, whose header
+# carries the owner's criterion and the measurement behind the size of the list.
+# These are the rules that are CODE rather than catalog, for the reason stated at
+# the top of this module: a catalog chooses among what the code allows and can
+# never widen it.
+_ENVKEY = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
+_CONFIG_KEY_KEYS = {"service", "pattern", "meaning"}
+_CONFIG_REASON_KEYS = {"label", "keys", "meaning"}
+_CONFIG_REASON_OPTIONAL = {"files"}
+# The classes a config-value job may touch: exactly the compose image pipeline
+# plus the one-way app-db class, and nothing else. NOT `boundary` or `edge` (the
+# way you reach the box), NOT `own-code` (it moves the checkout), NOT `cluster`
+# (there is no compose file to splice) and NOT `database` (the Postgres major is
+# a procedure, and its environment is the superuser's credentials).
+#
+# `app-db` is IN, and that is a decision rather than an oversight: a config-value
+# job never changes the image, so it never runs the first-start migration that
+# makes Grafana and Keycloak one-way at all, and it never restores data. Its
+# blast radius is strictly smaller than the image job those two already allow.
+CONFIG_CLASSES = frozenset({"stateless", "timeseries", "app-db"})
+# A key whose NAME reads as a credential is refused whatever any pattern says.
+# One of four independent refusals a secret meets; the others are the
+# [config_reasons.secret] category, the host locator's refusal to splice a
+# `${...}` interpolation at all, and SECURITY.md's standing refusal to render
+# `.env` values anywhere.
+_SECRETISH = re.compile(r".*(PASSWORD|SECRET|TOKEN|CREDENTIAL|PRIVATE).*|.*_KEY")
+# Files no config key may ever name, whatever its component or its pattern. The
+# socket-proxy ACL is the single worst edit in the repository (CONTAINERS=0 is
+# what makes POST=1 safe); `edge/dynamic/` is generate-never-free-edit.
+CONFIG_DENY_FILES = ("apps/bothy/compose.socket-proxy.yml",)
+CONFIG_DENY_PREFIXES = ("edge/dynamic/", ".env")
+# The generic bound on a pattern, the same shape checks/wiring.py asserts for
+# [configmap_keys]: no pattern may accept a twelve-digit number, a value over
+# this many characters, an empty or blank value, or one carrying a newline.
+CONFIG_MAX_VALUE = 64
+
 
 class CatalogError(Exception):
     """updates.toml is malformed. Raised at startup; bothy-ops does not start."""
@@ -160,9 +198,74 @@ class Policy:
 
 
 @dataclass(frozen=True)
+class ConfigKey:
+    """One compose `environment:` value a browser may set, from [config_keys].
+
+    `file` is DERIVED from the component's pin that declares `service`, never
+    written in the catalog - so a config key can only ever name a file the
+    catalog already declares a pin in, and the set of files this tier can reach
+    is bounded by the set of pins rather than by a second list beside them.
+    """
+    component: str
+    key: str
+    service: str
+    file: str
+    pattern: str
+    meaning: str
+
+    @property
+    def id(self) -> str:
+        """`grafana.GF_USERS_DEFAULT_HOME_DASHBOARD_PATH` - how a request names it."""
+        return f"{self.component}.{self.key}"
+
+
+@dataclass(frozen=True)
+class ConfigReason:
+    """Why a key is NOT editable - one of the categories, the first that matches.
+
+    `keys` and `files` are both REGEX lists, fullmatched against the key name and
+    the repo-relative file. The category with both empty is the catch-all and
+    must be last, so no key can fall off the end of the table.
+    """
+    name: str
+    label: str
+    keys: tuple[str, ...]
+    files: tuple[str, ...]
+    meaning: str
+
+    @property
+    def catch_all(self) -> bool:
+        return not self.keys and not self.files
+
+    def matches(self, key: str, file: str) -> bool:
+        return (any(re.fullmatch(k, key) for k in self.keys)
+                or any(re.fullmatch(f, file) for f in self.files))
+
+
+@dataclass(frozen=True)
 class Catalog:
     components: dict[str, Component]
     policy: Policy
+    # Empty on a catalog that declares neither table, so every reader written
+    # before 2026-10-11 keeps working and a catalog with no editable value is a
+    # legal catalog rather than a parse error.
+    config_keys: dict[str, ConfigKey] = field(default_factory=dict)
+    config_reasons: tuple[ConfigReason, ...] = ()
+
+    def config_reason(self, key: str, file: str) -> ConfigReason:
+        """The category that explains why `key` in `file` has no Edit button.
+
+        The FIRST that matches, then the catch-all - so declaration order in
+        updates.toml is meaning, not style, and this never returns None: a row
+        with no sentence is the complaint this whole table answers.
+        """
+        for r in self.config_reasons:
+            if not r.catch_all and r.matches(key, file):
+                return r
+        return self.config_reasons[-1]
+
+    def config_keys_of(self, component: str) -> list[ConfigKey]:
+        return [k for k in self.config_keys.values() if k.component == component]
 
 
 def _strs(where: str, v: object, *, empty_ok: bool) -> tuple[str, ...]:
@@ -221,10 +324,157 @@ def _policy(raw: object) -> Policy:
     return Policy(raw["window_start"], raw["window_end"], raw["require_backup"], True, n, True, h)
 
 
+def _bounded_pattern(where: str, pattern: str) -> re.Pattern:
+    """A [config_keys] pattern, compiled, with the four generic bounds applied.
+
+    THE BOUNDS ARE GENERIC ON PURPOSE. A per-key review decides what a sensible
+    value is; these decide what no pattern in this table may ever accept,
+    whatever anybody writes, and they are the same four catalog.toml's header
+    states for the Kubernetes tier:
+
+      1. nothing empty or blank. An empty value is "unset", and every consumer
+         this repo has treats unset differently from set - usually by falling
+         back to a default nobody chose from a form.
+      2. nothing multi-line. The splice on the host asserts the line count is
+         unchanged, so a newline could only ever be a refusal AFTER the file was
+         written; refusing the pattern is refusing it before.
+      3. nothing over CONFIG_MAX_VALUE characters, so a value can never be a
+         payload wearing a value's clothes.
+      4. no twelve-digit number. This is the order-of-magnitude rule in its
+         generic form: a pattern written as `[0-9]+` passes every other test
+         here and accepts a retention of 100000000000 days.
+    """
+    try:
+        rx = re.compile(pattern)
+    except re.error as e:
+        raise CatalogError(f"{where}: pattern does not compile ({e})") from None
+    for bad, why in (("", "an empty value"), (" ", "a blank value"), ("\t", "a tab"),
+                     ("a\nb", "a multi-line value"), ("x" * (CONFIG_MAX_VALUE + 1),
+                                                      f"a value over {CONFIG_MAX_VALUE} characters"),
+                     ("1" * 12, "a twelve-digit number")):
+        if rx.fullmatch(bad):
+            raise CatalogError(f"{where}: pattern accepts {why} - every pattern here is bounded "
+                               "(see updates.toml's [config_keys] header)")
+    return rx
+
+
+def _config_reasons(raw: object) -> tuple[ConfigReason, ...]:
+    if not isinstance(raw, dict) or not raw:
+        raise CatalogError("[config_reasons] must be a non-empty table of categories")
+    out: list[ConfigReason] = []
+    for name, cat in raw.items():
+        where = f"[config_reasons.{name}]"
+        if not _ID.fullmatch(name):
+            raise CatalogError(f"{where}: the category name must be lowercase letters, digits and '-'")
+        if not isinstance(cat, dict):
+            raise CatalogError(f"{where}: must be a table")
+        unknown = set(cat) - _CONFIG_REASON_KEYS - _CONFIG_REASON_OPTIONAL
+        if unknown:
+            raise CatalogError(f"{where}: unknown keys {sorted(unknown)}")
+        missing = _CONFIG_REASON_KEYS - set(cat)
+        if missing:
+            raise CatalogError(f"{where}: {sorted(missing)} required (no defaults here)")
+        if not isinstance(cat["label"], str) or not 3 <= len(cat["label"].strip()) <= 40:
+            raise CatalogError(f"{where}: label must be 3 to 40 characters - it is a column heading, "
+                               "not the sentence")
+        if not isinstance(cat["meaning"], str) or len(cat["meaning"].strip()) < 20:
+            raise CatalogError(f"{where}: meaning must say, in a sentence, why the key is not offered")
+        pats: dict[str, tuple[str, ...]] = {}
+        for k in ("keys", "files"):
+            v = cat.get(k, [])
+            if not isinstance(v, list) or not all(isinstance(x, str) and x.strip() for x in v):
+                raise CatalogError(f"{where}: {k} must be a list of non-empty regexes")
+            for p in v:
+                try:
+                    re.compile(p)
+                except re.error as e:
+                    raise CatalogError(f"{where}: {k} regex {p!r} does not compile ({e})") from None
+            pats[k] = tuple(v)
+        out.append(ConfigReason(name, cat["label"], pats["keys"], pats["files"], cat["meaning"]))
+    catch = [r.name for r in out if r.catch_all]
+    if len(catch) != 1:
+        raise CatalogError(f"[config_reasons] needs exactly one catch-all category (keys = [] and "
+                           f"files = []), and has {len(catch)}: {catch} - without it a key can "
+                           "resolve to no sentence at all")
+    if not out[-1].catch_all:
+        raise CatalogError(f"[config_reasons]: the catch-all category ({catch[0]}) must be declared "
+                           "LAST - the first category that matches wins, so one above the named "
+                           "ones would answer for all of them")
+    return tuple(out)
+
+
+def _config_keys(raw: object, comps: dict[str, Component],
+                 reasons: tuple[ConfigReason, ...]) -> dict[str, ConfigKey]:
+    if not isinstance(raw, dict):
+        raise CatalogError("[config_keys] must be a table of components")
+    out: dict[str, ConfigKey] = {}
+    for cid, keys in raw.items():
+        where0 = f"[config_keys.{cid}]"
+        comp = comps.get(cid)
+        if comp is None:
+            raise CatalogError(f"{where0}: {cid!r} is not a component of this catalog")
+        if comp.cls not in CONFIG_CLASSES:
+            raise CatalogError(f"{where0}: class {comp.cls} may not have an editable config value; "
+                               f"only {sorted(CONFIG_CLASSES)} may")
+        if comp.source != "image":
+            raise CatalogError(f"{where0}: source {comp.source} has no compose file to edit")
+        if not isinstance(keys, dict) or not keys:
+            raise CatalogError(f"{where0}: must be a non-empty table of environment keys")
+        services = {s: f for f, s in (comp.pin_parts(i) for i in range(len(comp.pins))) if s}
+        for key, cfg in keys.items():
+            where = f"[config_keys.{cid}.{key}]"
+            if not _ENVKEY.fullmatch(key):
+                raise CatalogError(f"{where}: an environment key is upper-case letters, digits and '_'")
+            if _SECRETISH.fullmatch(key):
+                raise CatalogError(f"{where}: the name reads as a credential, so it is refused here "
+                                   "whatever its pattern says - a secret never reaches a form")
+            if not isinstance(cfg, dict):
+                raise CatalogError(f"{where}: must be a table")
+            if set(cfg) != _CONFIG_KEY_KEYS:
+                raise CatalogError(f"{where}: needs exactly {sorted(_CONFIG_KEY_KEYS)} "
+                                   f"(got {sorted(cfg)})")
+            svc = cfg["service"]
+            if not isinstance(svc, str) or svc not in services:
+                raise CatalogError(f"{where}: service {svc!r} is not one of {cid}'s pinned services "
+                                   f"{sorted(services)} - a config key may only name a file the "
+                                   "catalog already pins in")
+            rel = services[svc]
+            if rel in CONFIG_DENY_FILES or any(rel.startswith(p) for p in CONFIG_DENY_PREFIXES):
+                raise CatalogError(f"{where}: {rel} is permanently locked - see updates.toml's "
+                                   "[config_reasons] and SECURITY.md rule 8")
+            if not isinstance(cfg["meaning"], str) or len(cfg["meaning"].strip()) < 20:
+                raise CatalogError(f"{where}: meaning must say, in a sentence, what the value does")
+            if not isinstance(cfg["pattern"], str):
+                raise CatalogError(f"{where}: pattern must be a string")
+            _bounded_pattern(where, cfg["pattern"])
+            hit = next((r for r in reasons if not r.catch_all and r.matches(key, rel)), None)
+            if hit is not None:
+                # A row cannot both offer an Edit button and state why it has
+                # none. catalog.toml's [configmap_reasons] header records the
+                # first draft of exactly this bug on the Kubernetes tier, where
+                # an `SSO_.*` wildcard swallowed an editable interval.
+                raise CatalogError(f"{where}: this key also matches [config_reasons.{hit.name}], which "
+                                   "states why it CANNOT be edited - a row cannot do both. Narrow that "
+                                   "category or drop this key")
+            k = ConfigKey(cid, key, svc, rel, cfg["pattern"], cfg["meaning"])
+            out[k.id] = k
+    return out
+
+
 def load_catalog(doc: object) -> Catalog:
     """Parse and validate updates.toml (the result of tomllib.load). No defaults."""
-    if not isinstance(doc, dict) or set(doc) != {"policy", "components"}:
-        raise CatalogError("updates.toml must hold exactly [policy] and [components.<id>]")
+    want = {"policy", "components"}
+    extra = {"config_keys", "config_reasons"}
+    if not isinstance(doc, dict) or not want <= set(doc) <= want | extra:
+        raise CatalogError("updates.toml must hold exactly [policy] and [components.<id>], and may "
+                           "hold [config_keys] and [config_reasons]")
+    if ("config_keys" in doc) != ("config_reasons" in doc):
+        # Keys without reasons means every row the UI will not let you change has
+        # no sentence; reasons without keys means a table nothing consults. Both
+        # are the half-built state this pairing exists to refuse.
+        raise CatalogError("[config_keys] and [config_reasons] come together: a key with no reasons "
+                           "table leaves every locked row without a sentence, and a reasons table "
+                           "with no keys is consulted by nothing")
     policy = _policy(doc["policy"])
     comps_raw = doc["components"]
     if not isinstance(comps_raw, dict) or not comps_raw:
@@ -298,7 +548,9 @@ def load_catalog(doc: object) -> Catalog:
             changelog=cl, channel=channel, one_way=raw["one_way"],
             one_way_why=why if raw["one_way"] else None,
             verify=_strs(f"{where} verify", raw["verify"], empty_ok=False), **extra)
-    return Catalog(comps, policy)
+    reasons = _config_reasons(doc["config_reasons"]) if "config_reasons" in doc else ()
+    ckeys = _config_keys(doc["config_keys"], comps, reasons) if "config_keys" in doc else {}
+    return Catalog(comps, policy, ckeys, reasons)
 
 
 def load(path: str | None = None) -> Catalog:
@@ -566,6 +818,207 @@ def _group_plan(p: object) -> dict | None:
     }
 
 
+# ══ config values: one allowlisted compose value ═════════════════════════════
+#
+# Added 2026-10-11. Everything here READS what the host wrote
+# (updater/configvalue.py -> configs/<component>.json in the read-only mount)
+# through an allow-list, and the one write is the same spool file a component or
+# a group request is, with `kind: "config"` on it.
+#
+# NO NEW ROUTE AND NO NEW GATE, for the reason the group work established and
+# checks/wiring_updates.py asserts in words: the router table is seven exact
+# paths, and this is not a new KIND of access. The read rides on
+# GET /updates/plan?config=<component>; the ask rides on POST /updates/request,
+# already `operator`, CSRF-checked and audited.
+#
+# THE ONE FIELD THAT IS NOT A LOOKUP KEY. Every other request this process writes
+# names only ids the host itself minted. A config request also carries a VALUE,
+# and that is the whole of what changed about this surface. It is bounded three
+# times over: the shape here (trimmed, one line, no quote, `#` or space), the
+# component's own [config_keys] pattern here, and the same pattern AGAIN on the
+# host when the executor claims the file (spool.validate_against_config), read
+# out of the host's catalog rather than out of the request. It then reaches a
+# single-line file splice and nothing else - never an argv, never a shell.
+
+def _configs_dir() -> str:
+    return os.path.join(UPDATES_DIR, "configs")
+
+
+def _read_configs(cid: str) -> dict | None:
+    doc = _read_json(os.path.join(_configs_dir(), f"{cid}.json"), 1024 * 1024)
+    return doc if isinstance(doc, dict) else None
+
+
+def _config_row(r: object, catalog: Catalog) -> dict | None:
+    """One row, every field re-checked - admin.py's "second lock".
+
+    A LOCKED ROW CARRIES NO VALUE, and that is the rule rather than an omission.
+    14 of this repository's environment names are `${...}` pointers into the
+    gitignored `.env`, and the source text of one names the variable and its
+    fallback; this answer goes to a `viewer`. So a locked row is a key name and a
+    sentence, which is exactly what SECURITY.md rule 7 allows the credential
+    inventory to say. An editable row's value is served, because its pattern
+    bounds what the value can be and the allowlist has already refused every name
+    that reads as a credential.
+    """
+    if not isinstance(r, dict) or not isinstance(r.get("key"), str) or not _SHELLVAR.fullmatch(r["key"]):
+        return None
+    if not isinstance(r.get("service"), str) or not _NAME.fullmatch(r["service"]):
+        return None
+    if not isinstance(r.get("file"), str) or not _REL.fullmatch(r["file"]):
+        return None
+    out = {"key": r["key"], "service": r["service"], "file": r["file"]}
+    ck = None
+    if r.get("editable") is True:
+        # Editable ACCORDING TO THE HOST's file, and then again according to THIS
+        # process's own copy of the catalog. A row claiming to be editable for a
+        # key this catalog does not allowlist is served as locked - the state a
+        # host that moved ahead of this image would produce, and the direction to
+        # fail in.
+        ck = catalog.config_keys.get(f"{(r.get('component') or '')}.{r['key']}")
+        # …and the allowlist entry has to be for THIS SERVICE. A component may pin
+        # two services that set the same key, and without this the other one
+        # would be served as editable under this one's pattern.
+        if ck is not None and ck.service != r["service"]:
+            ck = None
+    if ck is None:
+        reason = r.get("reason") if isinstance(r.get("reason"), dict) else {}
+        cat = catalog.config_reason(r["key"], r["file"])
+        return {**out, "editable": False,
+                "reason": {"name": cat.name, "label": cat.label, "meaning": cat.meaning},
+                # The host's own category name, when it agrees. A disagreement is
+                # itself worth showing rather than hiding: it means the image and
+                # the checkout are not the same commit.
+                "hostReason": _s(reason.get("name"), 40)}
+    return {**out, "editable": True, "pattern": ck.pattern, "meaning": ck.meaning,
+            "value": _s(r.get("value"), CONFIG_MAX_VALUE),
+            "line": r["line"] if isinstance(r.get("line"), int) and 0 < r["line"] < 100000 else None,
+            "planId": r["planId"] if isinstance(r.get("planId"), str) and _PLAN.fullmatch(r["planId"] or "")
+            else None,
+            "reason": _s(r.get("reason"), 300) if not isinstance(r.get("reason"), dict) else None,
+            "pinnedIn": _strs_list((r.get("plan") or {}).get("pinnedIn"), 16, 40),
+            "revert": _s((r.get("plan") or {}).get("revert"), 800),
+            "downtime": _s((r.get("plan") or {}).get("downtime"), 800),
+            "restarts": _strs_list((r.get("plan") or {}).get("restarts"), 16, 100)}
+
+
+def config_read(h, cid: str) -> tuple[dict, str]:
+    """GET /updates/plan?config=: the host's config rows for one component. Viewer."""
+    if not _ID.fullmatch(cid):
+        raise Refused("config must be a catalog id", status=400)
+    if cid not in CATALOG.components:
+        raise Refused(f"{cid} is not in updates.toml", status=404)
+    doc = _read_configs(cid)
+    if doc is None or doc.get("component") != cid:
+        return ({"component": cid, "rows": [], "ageSeconds": None,
+                 "reason": "no config rows - run `just updates-discover` on the host (it writes one "
+                           "file per component)"}, f"{cid}: none")
+    try:
+        age = max(0, int(time.time() - os.stat(os.path.join(_configs_dir(), f"{cid}.json")).st_mtime))
+    except OSError:
+        age = None
+    if doc.get("ok") is not True:
+        return ({"component": cid, "rows": [], "reason": _s(doc.get("reason"), 300) or "no config rows",
+                 "ageSeconds": age}, f"{cid}: refused")
+    raw = doc.get("rows") if isinstance(doc.get("rows"), list) else []
+    rows = [x for x in (_config_row({**r, "component": cid}, CATALOG) for r in raw[:128]) if x]
+    return ({"component": cid, "rows": rows, "reason": None, "ageSeconds": age},
+            f"{cid}: {sum(1 for r in rows if r['editable'])} editable of {len(rows)}")
+
+
+def request_config(h, who: str, body: dict) -> tuple[dict, str]:
+    """POST /updates/request with `key` and `value`: set one allowlisted value.
+
+    The same route, the same `operator` gate, the same CSRF check and the same
+    audit line as a component request. Writes ONE spool file and runs nothing.
+    """
+    if set(body) != {"component", "key", "value", "plan_id", "confirm"}:
+        raise Refused("the body is exactly {component, key, value, plan_id, confirm}", status=400)
+    cid, key, value, pid, confirm = (body["component"], body["key"], body["value"],
+                                     body["plan_id"], body["confirm"])
+    if not isinstance(cid, str) or not _ID.fullmatch(cid):
+        raise Refused("component must be a catalog id", status=400)
+    if not isinstance(key, str) or not _SHELLVAR.fullmatch(key):
+        raise Refused("key must be an environment key", status=400)
+    if not isinstance(pid, str) or not _PLAN.fullmatch(pid):
+        raise Refused("plan_id must be 24 hex characters", status=400)
+    if flat(who) == AUTO_ACTOR:
+        # No channel chooses a config value, and the executor refuses this actor
+        # again when it claims the file. The comment is deliberately NOT the one
+        # request_update carries: scripts/checks/mutants.sh anchors a row on that
+        # wording plus the line above it, `plant()` replaces the FIRST match, and
+        # this writer sits higher in the file - so an identical comment here
+        # silently stole that row's mutation and left request_update's own check
+        # intact, which is the decorative-check failure that file exists for.
+        raise Refused(f"{AUTO_ACTOR!r} is the automatic channel's name, not a person's", status=403)
+    if cid not in CATALOG.components:
+        # 404 BEFORE the key lookup, like request_update's: "there is no such
+        # component" and "that key is not editable" are different sentences, and a
+        # typo in the component read as the second was the more confusing one.
+        raise Refused(f"{cid} is not in updates.toml", status=404)
+    ck = CATALOG.config_keys.get(f"{cid}.{key}")
+    if ck is None:
+        # 403, not 404: the key may well exist in the file. What does not exist is
+        # permission to change it, and the reason is on the row.
+        cat = CATALOG.config_reason(key, "")
+        raise Refused(f"{cid}.{key} is not an editable config value. {cat.label}: {cat.meaning}",
+                      status=403)
+    if not isinstance(value, str) or not value or value.strip() != value \
+            or len(value) > CONFIG_MAX_VALUE:
+        raise Refused(f"value must be a trimmed string of 1 to {CONFIG_MAX_VALUE} characters", status=400)
+    if any(c in value for c in "\n\r\t#'\"") or " " in value:
+        raise Refused("value may not carry a newline, a tab, a quote, a `#` or a space - it has to be "
+                      "a plain compose scalar on one line", status=400)
+    if not re.fullmatch(ck.pattern, value):
+        raise Refused(f"{value!r} is not a value {key} may take. {ck.meaning} The allowed shape is "
+                      f"/{ck.pattern}/", status=400)
+    doc = _read_configs(cid)
+    # By (service, key). A component may pin two services that set the same key
+    # (Keycloak pins `keycloak` and `keycloak-init`, which share four), so a
+    # lookup by key alone can return the other service's - locked - row and
+    # refuse a value that is perfectly editable. The service comes from THIS
+    # process's allowlist entry, never from the request.
+    row = next((r for r in ((doc or {}).get("rows") or [])
+                if isinstance(r, dict) and r.get("key") == key and r.get("service") == ck.service), None)
+    if doc is None or doc.get("ok") is not True or row is None:
+        raise Refused(f"there is no config row for {cid}.{ck.service}.{key} - run "
+                      "`just updates-discover` on the host", status=404)
+    if not row.get("planId"):
+        raise Refused(f"{cid}.{key} cannot be changed right now: "
+                      f"{_s(row.get('reason'), 300) or 'the host wrote no plan for it'}", status=409)
+    if row["planId"] != pid:
+        raise Refused(f"config plan {pid} is not the current plan for {cid}.{key} - reload and look "
+                      "again", status=409)
+    if (row.get("plan") or {}).get("from", {}).get("value") == value:
+        # A no-op would snapshot, recreate the container and verify, for nothing.
+        raise Refused(f"{key} is already {value}", status=409)
+    avail, _ = _available()
+    if not avail or avail.get("generatedAt") != _iso_or_none(doc.get("discoveredAt")):
+        raise Refused("discovery ran again after these rows were written - reload and look again",
+                      status=409)
+    if confirm is not True:
+        raise Refused("confirm must be true", status=400)
+    _spool_ready()
+    queue = _queued()
+    if len(queue) >= MAX_QUEUE:
+        raise Refused(f"{len(queue)} requests are already waiting - is bothy-updater.path running?",
+                      status=429)
+    if any(q.get("component") == cid for q in queue):
+        raise Refused(f"a job for {cid} is already queued", status=409)
+    cur = _current_job()
+    if cur and cur["state"] == "running" and cur["component"] == cid:
+        raise Refused(f"a job for {cid} is running now", status=409)
+    job = secrets.token_hex(16)
+    req = {"v": 1, "jobId": job, "kind": "config", "component": cid, "key": key, "value": value,
+           "planId": pid, "confirm": True, "requestedBy": flat(who)[:200] or "unknown",
+           "requestedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    _spool_write(job, f"{job}.json", req)
+    old = _s((row.get("plan") or {}).get("from", {}).get("value"), CONFIG_MAX_VALUE)
+    return ({"jobId": job, "component": cid, "key": key, "value": value, "planId": pid},
+            f"config {cid}.{key} plan {pid} job {job}: {old} -> {value} in "
+            f"{_s(row.get('file'), 200)}:{row.get('line')}")
+
+
 def _group_rows(catalog: Catalog) -> list[dict]:
     """One row per group the host knows about: its plan, or why there is none."""
     try:
@@ -715,6 +1168,15 @@ def status(catalog: Catalog) -> dict:
             # operator's unpause is already waiting in the spool.
             "paused": auto_state["paused"].get(c.id),
             "unpauseQueued": c.id in unpausing,
+            # How many of this component's compose values are allowlisted
+            # (updater/configvalue.py). FROM THE CATALOG, not from the host's
+            # configs/<id>.json: this process holds the same [config_keys] table
+            # in its own image, so the count costs no file read and no second
+            # request, and the page can decide which components even have a
+            # Configuration row before it fetches one. The rows themselves - with
+            # the live values and the locked keys' reasons - are the host's, read
+            # lazily through GET /updates/plan?config=.
+            "configKeys": len(catalog.config_keys_of(c.id)),
         })
     in_group = {c for g in groups if g["deployable"] for c in g["candidates"]}
     for r in rows:
@@ -742,6 +1204,11 @@ def status(catalog: Catalog) -> dict:
         # is a shell command after a backup.
         "configDrift": sum(1 for r in rows if r["discovered"] and r["discovered"]["configDrift"]),
         "groups": sum(1 for g in groups if g["deployable"]),
+        # Allowlisted compose values, across every component. ONE number, because
+        # the honest headline is how many values a browser can change at all -
+        # measured 1 of the 102 environment names a catalog component declares,
+        # and updates.toml's [config_keys] header carries that measurement.
+        "configKeys": sum(r["configKeys"] for r in rows),
     }
     p = catalog.policy
     queue = _queued()
@@ -1097,9 +1564,10 @@ def _spool_write(rid: str, name: str, doc: dict) -> None:
 def _one_param(h, *names: str) -> tuple[str, str]:
     """(name, value) of the ONE query parameter, which must be one of `names`.
 
-    `/updates/plan` takes `?component=` or - for a group (updater/groups.py) -
-    `?group=`, and exactly one of them: one parameter, from a closed set, used
-    only as a lookup key into a file the HOST wrote.
+    `/updates/plan` takes `?component=`, or - for a group (updater/groups.py) -
+    `?group=`, or - for the config rows (updater/configvalue.py) - `?config=`,
+    and exactly one of them: one parameter, from a closed set, used only as a
+    lookup key into a file the HOST wrote.
     """
     q = urlparse(h.path).query
     try:
@@ -1135,9 +1603,11 @@ def group_read(h, gid: str) -> tuple[dict, str]:
 
 
 def plan_read(h) -> tuple[dict, str]:
-    what, value = _one_param(h, "component", "group")
+    what, value = _one_param(h, "component", "group", "config")
     if what == "group":
         return group_read(h, value)
+    if what == "config":
+        return config_read(h, value)
     cid = value
     if not _ID.fullmatch(cid):
         raise Refused("component must be a catalog id", status=400)
@@ -1230,6 +1700,12 @@ def request_update(h, who: str) -> tuple[dict, str]:
     body = h.read_json_object(2048)
     if "group" in body:
         return request_group(h, who, body)
+    if "key" in body or "value" in body:
+        # ONE ALLOWLISTED COMPOSE VALUE (updater/configvalue.py). Branched on
+        # BOTH keys rather than on `key` alone, so a body carrying a value and no
+        # key is a 400 from the config writer that names the shape - not a 400
+        # from the component writer complaining about an unknown field.
+        return request_config(h, who, body)
     if not {"component", "plan_id", "confirm"} <= set(body) <= {"component", "plan_id", "confirm", "note"}:
         raise Refused("the body is exactly {component, plan_id, confirm} (+ note, for a plan that needs one)",
                       status=400)

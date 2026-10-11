@@ -153,6 +153,16 @@ class Config:
         return os.path.join(self.state, "groups")
 
     @property
+    def configs(self) -> str:
+        """One file per image component: every environment key of its pinned
+        services, each either editable (with its plan and its bounded pattern) or
+        carrying the [config_reasons] sentence that says why it is not
+        (updater/configvalue.py). Beside plans/ and groups/, written by the same
+        discovery run, read by bothy-ops through the same read-only mount and
+        never written by it."""
+        return os.path.join(self.state, "configs")
+
+    @property
     def status_file(self) -> str:
         return os.path.join(self.state, "status.json")
 

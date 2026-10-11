@@ -375,6 +375,14 @@ def write_all(cfg: Config | None = None, catalog: updates.Catalog | None = None,
     from . import groups
     for gid, v in groups.write_all(cfg, catalog, available).items():
         out[f"just {gid}"] = v
+    # The config rows, beside these and written by the same run: every
+    # environment key of every image component, each editable (with its plan and
+    # its bounded pattern) or carrying the sentence that says why it is not
+    # (updater/configvalue.py). Imported here rather than at the top for the same
+    # reason groups is: it imports the executor, which imports this module.
+    from . import configvalue
+    for cid, v in configvalue.write_all(cfg, catalog, available).items():
+        out[f"config {cid}"] = v
     return out
 
 
