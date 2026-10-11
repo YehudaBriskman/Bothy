@@ -51,6 +51,8 @@ export const SECTIONS: readonly SettingsSection[] = [
     lede: 'What Bothy may do to the Kubernetes cluster, and the identity it does it with.' },
   { id: 'monitoring', title: 'Monitoring & alerts', group: 'operations', icon: 'activity',
     lede: 'What is scraped, whether it answers, and the alert rules Grafana evaluates.' },
+  { id: 'notifications', title: 'Notifications', group: 'operations', icon: 'bell',
+    lede: 'Who is told when an alert fires, how often - and whether the last attempt to tell them actually worked.' },
   { id: 'audit', title: 'Audit log', group: 'operations', icon: 'scroll', needs: 'operator',
     lede: 'Every action, file write, config patch and admin read, newest first.' },
   { id: 'backups', title: 'Backups', group: 'box', icon: 'archive', needs: 'operator',
@@ -111,6 +113,10 @@ export const BLOCKS: readonly SettingsBlockDef[] = [
   // monitoring
   { id: 'targets', section: 'monitoring', title: 'Scrape targets', description: 'Every target VictoriaMetrics scrapes, and whether it answered.', keywords: 'prometheus up targets jobs exporters' },
   { id: 'alert-rules', section: 'monitoring', title: 'Alert rules', description: 'The rules Grafana evaluates, from the provisioning file.', keywords: 'alerts alerting grafana notifications' },
+  // notifications
+  { id: 'delivery-path', section: 'notifications', title: 'Where an alert goes', description: 'The contact point a firing alert is written to, and the routing that decides how often.', keywords: 'contact point email recipient receiver route policy repeat interval grouping smtp who gets told' },
+  { id: 'delivery-state', section: 'notifications', title: 'Whether it arrives', description: 'The last attempt Grafana made to send an alert, and what the mail server said back.', keywords: 'smtp failed delivery 535 credentials bounced not sending email broken test proof last attempt' },
+  { id: 'notification-changes', section: 'notifications', title: 'Changing where alerts go', description: 'The files and keys that decide all of this, and why none of it is editable from here yet.', keywords: 'edit change recipient add slack webhook configure contact point env GF_SMTP ALERT_EMAIL_TO' },
   // audit
   { id: 'audit-log', section: 'audit', title: 'Audit log', description: 'Filter by log, person, outcome and action.', keywords: 'history who did what actions writes patches' },
   // backups

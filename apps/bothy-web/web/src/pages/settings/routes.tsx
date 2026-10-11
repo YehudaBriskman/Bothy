@@ -21,6 +21,7 @@ import { UsersSettings } from './Users';
 import { CredentialsSettings } from './Credentials';
 import { ClusterSettings } from './Cluster';
 import { MonitoringSettings } from './Monitoring';
+import { NotificationsSettings } from './Notifications';
 import { AuditSettings } from './Audit';
 import { BackupsSettings } from './Backups';
 import { UpdatesSettings } from './Updates';
@@ -37,6 +38,7 @@ export const SETTINGS_PAGES: Record<string, () => React.ReactElement> = {
   credentials: CredentialsSettings,
   cluster: ClusterSettings,
   monitoring: MonitoringSettings,
+  notifications: NotificationsSettings,
   audit: AuditSettings,
   backups: BackupsSettings,
   updates: UpdatesSettings,

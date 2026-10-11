@@ -528,6 +528,30 @@ html[data-density='compact'] .set-shell .set-tbl .tbl td { padding-top: var(--sp
    browser check compares bounding boxes at 390 as well as at 1440. The `padding`
    shorthand in the 900px block below cannot do this job: the rule above is
    (0,3,0) and beats it. */
+/* ── the notification verdict (Settings > Notifications) ───────────────────
+   One statement, with its status as a TINT rather than a colour of its own: the
+   three states reuse --st-down-*, --st-unknown-* and --st-off-*, so this adds no
+   colour token and therefore nothing to the four theme files, lib/contract.ts or
+   a11y-contract's contrast table.
+
+   `no-failures` is deliberately the UNKNOWN tint and not the up tint. Grafana
+   logs a notification failure at its default level and no success at all, so the
+   absence of failures is not a delivery receipt, and green would be the page
+   overstating what the data says. checks/notifications.mjs asserts it. */
+.set-shell .set-verdict {
+  display: flex; align-items: flex-start; gap: var(--sp-2_5); min-width: 0;
+  padding: var(--sp-3); border-radius: var(--r-md);
+  border: 1px solid var(--sv-line); background: var(--sv-bg);
+}
+.set-shell .set-verdict[data-state='failing'] { --sv-line: var(--st-down-line); --sv-bg: var(--st-down-bg); --sv-fg: var(--st-down-fg); }
+.set-shell .set-verdict[data-state='no-failures'] { --sv-line: var(--st-unknown-line); --sv-bg: var(--st-unknown-bg); --sv-fg: var(--st-unknown-fg); }
+.set-shell .set-verdict[data-state='idle'] { --sv-line: var(--st-off-line); --sv-bg: var(--st-off-bg); --sv-fg: var(--st-off-fg); }
+.set-shell .set-verdict-b { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.set-shell .set-verdict-h { margin: 0; font-size: var(--fs-md); line-height: var(--lh-md); font-weight: 600; color: var(--sv-fg); }
+/* The SMTP reply verbatim. It is one long unbroken line with a URL in it, so it
+   wraps anywhere rather than pushing the block's measure out. */
+.set-shell .set-raw-err { display: block; overflow-wrap: anywhere; font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--fg-muted); }
+
 @media (max-width: 1340px) {
   .set-shell .set-body:has(> .upd-rail) { max-width: 1080px; padding-right: var(--sp-8); }
   /* The band is first among the BLOCKS, and not above the page's own name. It is

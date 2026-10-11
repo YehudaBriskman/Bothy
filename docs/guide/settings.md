@@ -38,6 +38,7 @@ interval is a fact about the screen and the link you are on.
 | Credentials | every `.env` key, credential file and Keycloak client: set or not, mode, age, what reads it, the rotation command - **never a value** | `/-/api/admin/credentials` | **operator** |
 | Cluster | the namespaces and actions bothy-ops allows, its token, Headlamp | the served kube catalog | viewer; operator for the token age |
 | Monitoring & alerts | every scrape target and whether it answered; the Grafana alert rule definitions | metrics route; Files | viewer for rules |
+| Notifications | the contact point a firing alert is written to and the routing that decides how often; whether Grafana's last attempt to send one failed, what the mail server said, and which `.env` key owns it | Files for the two provisioning files; Loki for Grafana's own log lines | viewer for the files |
 | Audit log | container and cluster actions, file writes, config patches and admin reads, filtered and paged | `/-/api/admin/audit` | **operator** |
 | Backups | each backup set's newest copy, count and size; the schedule and `just backup` | `/-/api/admin/backups` | **operator** |
 | Updates | every component's pinned, running and available version, patch/minor/major, image drift, *config* drift (the image matches and the merged compose configuration does not), one-way, channel and changelog; how to apply one by hand (applying from the page is not built yet) | `/-/api/updates/status` | viewer |
@@ -57,6 +58,11 @@ which role it wanted, in words.
   button; the shell runs it.
 - **A way to hide "is anything broken".** The Overview's status line and
   attention strip are not optional panels.
+- **A form over a file Grafana provisions.** Contact points and notification
+  policies are read from `monitoring/provisioning/alerting/*.yml` at start-up, so
+  a resource created that way is not the API's to rewrite - a form here would
+  write to a surface the next `just up-monitoring` overwrites. Notifications
+  shows the chain and names the file; an `editor` changes it in Files.
 
 ## First-time setup on a box
 
