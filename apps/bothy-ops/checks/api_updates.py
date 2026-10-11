@@ -313,6 +313,75 @@ for fn in os.listdir(PLANS):
     os.unlink(os.path.join(PLANS, fn))
 
 print()
+print("── blocked: a deployable plan the recipe can never apply alone ───")
+# THE OWNER'S BUG OF 2026-10-11. `just up-auth` is one `docker compose up` over
+# the auth project, so the host's scope check refuses an apply of keycloak alone
+# while oauth2-proxy (class `boundary`, which the updater does not deploy at all)
+# and keycloak-db-init (a pin of `postgres`) are behind theirs. The host refused
+# it from the first press; the ROW went on drawing Apply, so the owner pressed it
+# three times and the sentence arrived after each click. `blockedBy` is the host
+# saying it BEFORE the click, and it is the complement of `applyWithGroup`: there
+# is no group for `just up-auth`, so nothing can carry the recipe.
+kc_drift = ("keycloak runs quay.io/keycloak/keycloak:26.7.4-0, auth/compose.yml pins "
+            "quay.io/keycloak/keycloak:26.8.0-0")
+o2_drift = ("oauth2-proxy runs quay.io/oauth2-proxy/oauth2-proxy:v7.15.4, auth/compose.yml pins "
+            "quay.io/oauth2-proxy/oauth2-proxy:v7.15.5")
+pg_drift = "postgres runs postgres:17.10, data/postgres/compose.yml pins postgres:17.11"
+
+
+def avail(cid: str, drift: str, **over) -> dict:
+    d = {"checkedAt": now, "image": "x/" + cid, "error": None,
+         "current": {"tag": "9.9.9", "version": "9.9.9", "digest": None, "float": False},
+         "running": [{"name": cid, "image": "x/" + cid + ":1", "digest": D("1"), "state": "running"}],
+         "drift": drift, "configDrift": None, "notes": [], "latest": None, "candidates": {}}
+    d.update(over)
+    return d
+
+
+def refused_plan(cid: str, reason: str) -> None:
+    with open(os.path.join(PLANS, f"{cid}.json"), "w") as fh:
+        json.dump({"version": 1, "component": cid, "ok": False, "reason": reason, "createdAt": now}, fh)
+
+
+CLASS_REFUSAL = ("class boundary is not handled by the updater yet (it handles stateless, timeseries, app-db, "
+                 "own-code, cluster and the Postgres major) - update it by hand: merge its pin, then "
+                 "`just up-auth`")
+put({"version": 1, "generatedAt": now, "components": {
+    "keycloak": avail("keycloak", kc_drift), "oauth2-proxy": avail("oauth2-proxy", o2_drift),
+    "postgres": avail("postgres", pg_drift), "loki": avail("loki", "loki drifts")}})
+plan_file("keycloak", "e" * 24)
+plan_file("loki", "f" * 24)
+refused_plan("oauth2-proxy", CLASS_REFUSAL)
+refused_plan("postgres", "17.10 -> 17.11 is a Postgres MINOR: `just up-data` by hand")
+st, body = get()
+rows = {r["id"]: r for r in body["components"]}
+kc = rows["keycloak"]
+blocked = {b["component"] for b in kc["blockedBy"]}
+ok(kc["plan"]["deployable"] is True and blocked == {"oauth2-proxy", "postgres"},
+   f"keycloak's plan is deployable and still blocked, by BOTH of them: {sorted(blocked)}")
+ok(all("boundary" in b["reason"] or "MINOR" in b["reason"] for b in kc["blockedBy"])
+   and {b["class"] for b in kc["blockedBy"]} == {"boundary", "database"},
+   "each blocker carries its own class and the host's own reason - no row refused without saying why")
+ok(any(b["component"] == "postgres" and b["apply"] == "just up-data" for b in kc["blockedBy"]),
+   "the join is the compose FILE, not the recipe: postgres owns auth/compose.yml:keycloak-db-init")
+ok(rows["loki"]["blockedBy"] == [] and rows["loki"]["plan"]["deployable"] is True,
+   "a row whose recipe-mates are not in its files keeps its Apply")
+ok(rows["oauth2-proxy"]["blockedBy"] == [],
+   "a row that already has no plan is not also 'blocked' - its own reason is the answer")
+# The other half of the join: a mate the updater cannot move but which is IN SYNC
+# is not left over by the recipe, so it blocks nothing and the Apply is legitimate.
+put({"version": 1, "generatedAt": now, "components": {
+    "keycloak": avail("keycloak", kc_drift), "oauth2-proxy": avail("oauth2-proxy", None),
+    "postgres": avail("postgres", None)}})
+st, body = get()
+rows = {r["id"]: r for r in body["components"]}
+ok(rows["keycloak"]["blockedBy"] == [] and rows["keycloak"]["plan"]["deployable"] is True,
+   "blockers in sync: the recipe would recreate nothing else, so the button is real again")
+os.unlink(HIST) if os.path.exists(HIST) else None
+for fn in os.listdir(PLANS):
+    os.unlink(os.path.join(PLANS, fn))
+
+print()
 print("── stale ─────────────────────────────────────────────────────────")
 put({"version": 1, "generatedAt": now, "components": {}})
 old = time.time() - 14 * 3600

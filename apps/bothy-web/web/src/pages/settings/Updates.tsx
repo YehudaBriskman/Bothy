@@ -1040,6 +1040,29 @@ function RowDetail({ r, group, canAct, onChanged }:
           </span>
         </Det>
       )}
+      {p?.deployable && (r.blockedBy?.length ?? 0) > 0 && (
+        <Det k="Not on its own">
+          <span className="set-warn"><Icon icon={Layers} size="xs" />its recipe would recreate something the
+            updater cannot move</span>
+          <span className="set-cell-sub">
+            <span className="mono">{r.apply}</span> is one <span className="mono">docker compose up</span>, so it
+            would also recreate{' '}
+            {r.blockedBy!.map((b, i) => (
+              <span key={b.component}>
+                {i > 0 && ', '}<span className="mono">{b.component}</span>
+              </span>
+            ))}
+            , which the host will not carry without a snapshot it has no plan for. There is no group for this
+            recipe, so this one is a person's: back up (<span className="mono">just backup</span>), then{' '}
+            <span className="mono">{r.apply}</span> by hand.
+          </span>
+          {r.blockedBy!.map((b) => (
+            <span className="set-cell-sub" key={b.component}>
+              <span className="mono">{b.component}</span> ({b.class}): <Ticks text={b.reason} />
+            </span>
+          ))}
+        </Det>
+      )}
       {p?.deployable && !canAct && <Det k="Apply">needs the <span className="mono">operator</span> role</Det>}
 
       <Det k="Checked">{d?.checkedAt ? <When iso={d.checkedAt} /> : 'not checked yet'}</Det>
@@ -1070,7 +1093,15 @@ function DeployCell({ r, group, canAct, busy, onUpdate, onGroup }:
   const p = r.plan;
   // `no plan` and `not deployable` are states, and the REASON is in the
   // disclosure; the cell itself says only that there is nothing to press.
-  if (!p || !p.deployable || !canAct) return <span className="dim upd-noact" aria-hidden="true">-</span>;
+  //
+  // `blockedBy` is the same answer for a plan that IS deployable and still
+  // cannot be applied from here, because the recipe would recreate a service the
+  // updater cannot move and no group covers it. The host refused that from the
+  // first press; drawing the button anyway is what made the owner press it three
+  // times. Mutually exclusive with `applyWithGroup` by construction on the host.
+  if (!p || !p.deployable || !canAct || (r.blockedBy?.length ?? 0) > 0) {
+    return <span className="dim upd-noact" aria-hidden="true">-</span>;
+  }
   if (r.applyWithGroup && group?.plan) {
     const g = group.plan;
     return (
@@ -1899,8 +1930,11 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
   // answer there is. Before this it had no level and no image drift, so the one
   // component on this box whose only answer was a shell command was the one
   // component the "Still by hand" list left out.
+  // A blocked row's plan IS deployable and still cannot be applied from here, so
+  // "by hand" is exactly where it belongs - without this it had a deployable plan,
+  // no button, and no line anywhere on the page saying what to do instead.
   const manual = (d?.components ?? []).filter((r) => (r.level || r.discovered?.drift || r.discovered?.configDrift)
-    && !r.plan?.deployable && !r.applyWithGroup);
+    && (!r.plan?.deployable || (r.blockedBy?.length ?? 0) > 0) && !r.applyWithGroup);
   return (
     <>
       <div className="kv-list">
@@ -2009,6 +2043,10 @@ function Apply({ d }: { d: UpdatesStatus | null }) {
                       <Cmd>{r.apply}</Cmd> recreates it from the files</>
                   )}
                   {r.plan && !r.plan.deployable && <span className="set-note">Not one click: <Ticks text={r.plan.reason} /></span>}
+                  {r.plan?.deployable && (r.blockedBy?.length ?? 0) > 0 && (
+                    <span className="set-note">Not one click: <Cmd>{r.apply}</Cmd> would also recreate{' '}
+                      {r.blockedBy!.map((b) => b.component).join(', ')}, which the updater cannot move</span>
+                  )}
                   {r.oneWay && <span className="set-note">One-way: run <Cmd>just backup</Cmd> first. {r.oneWayWhy}</span>}
                 </li>
               );

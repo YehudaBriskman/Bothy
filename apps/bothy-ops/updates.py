@@ -1129,6 +1129,70 @@ def _row_plan(cid: str, unlooked: frozenset[str] | set[str] = frozenset()) -> di
             "createdAt": _s(doc.get("createdAt"), 40)}
 
 
+def _blocked_by(catalog: Catalog, rows: list[dict]) -> None:
+    """Which recipe-mates make a row's solo Apply certain to be refused.
+
+    THE BUTTON THAT COULD NEVER WORK (2026-10-11). `just up-auth` is one `docker
+    compose up` over the whole auth project, so `executor.compose_scope` refuses
+    an apply of keycloak alone for as long as any OTHER service that recipe would
+    recreate is one the updater cannot move. On this box two are: oauth2-proxy
+    (class `boundary`, which the updater does not deploy at all) and
+    keycloak-db-init (a pin of `postgres`, whose minor is by hand). The host has
+    refused it from the very first press. The ROW went on drawing Apply, so the
+    owner pressed it three times and three times got a sentence that arrived
+    AFTER the click - the same defect as a plan a job had already outgrown
+    (`unlooked` above, 2026-10-09) and as the Update button that outlived its own
+    work (#258). A refusal the host can state before the click belongs before it.
+
+    `applyWithGroup` is the case where a GROUP can carry the whole recipe. This is
+    its complement - the recipe has more than one pin waiting and NOTHING here can
+    carry them - and the two are mutually exclusive by construction below.
+
+    The join is the compose FILE a pin names, not the `apply` recipe, because the
+    scope rule is about the compose PROJECT: `postgres` is applied by `just
+    up-data` and still owns `auth/compose.yml:keycloak-db-init`, which is exactly
+    why the host's refusal names it. Same join as `groups._owner`.
+
+    It over-approximates in ONE direction on purpose. `drift` is one sentence
+    about a whole component and available.json carries no per-pin answer, so a
+    mate that drifts only on a pin in a file this row does not share is still
+    counted. That is the direction `_unlooked_since` already chooses for the same
+    reason: a row that goes quiet when a solo apply might have worked still names
+    the recipe to run, and the host would have said the same thing one click
+    later. The other direction is the bug being fixed.
+    """
+    by_file: dict[str, list[str]] = {}
+    for c in catalog.components.values():
+        for i in range(len(c.pins)):
+            f, name = c.pin_parts(i)
+            if name:
+                by_file.setdefault(f, []).append(c.id)
+    index = {r["id"]: r for r in rows}
+    for r in rows:
+        r["blockedBy"] = []
+        p = r["plan"]
+        # Only a row that currently OFFERS something can have the offer withdrawn;
+        # a row whose plan is already refused says why through `plan.reason`.
+        if not (p and p.get("deployable")) or r["applyWithGroup"]:
+            continue
+        comp = catalog.components[r["id"]]
+        parts = [comp.pin_parts(i) for i in range(len(comp.pins))]
+        files = {f for f, name in parts if name}
+        for m in sorted({m for f in files for m in by_file.get(f, ())} - {r["id"]}):
+            mate = index.get(m)
+            if mate is None:
+                continue
+            mp, md = mate["plan"], mate["discovered"]
+            if mp and mp.get("deployable"):
+                continue            # it can be applied, so it will not be left over
+            if not (md and (md["drift"] or md["configDrift"])):
+                continue            # in sync: the recipe would not recreate it
+            r["blockedBy"].append({
+                "component": m, "title": mate["title"], "class": mate["class"], "apply": mate["apply"],
+                "reason": _s((mp or {}).get("reason"), 300) or "no plan",
+            })
+
+
 def status(catalog: Catalog) -> dict:
     doc, meta = _available()
     auto_state = _auto_state()
@@ -1185,6 +1249,7 @@ def status(catalog: Catalog) -> dict:
         # be refused by the host's scope check - the recipe recreates the others too.
         r["group"] = next((g["group"] for g in groups if r["id"] in g["candidates"]), None)
         r["applyWithGroup"] = r["id"] in in_group
+    _blocked_by(catalog, rows)
     summary = {
         "components": len(rows),
         "updates": sum(1 for r in rows if r["level"]),
