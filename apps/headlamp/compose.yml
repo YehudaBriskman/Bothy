@@ -45,7 +45,7 @@ name: headlamp
 
 services:
   headlamp:
-    image: ghcr.io/headlamp-k8s/headlamp:v0.45.0   # pinned; checked on ghcr 2026-09-17
+    image: ghcr.io/headlamp-k8s/headlamp:v0.46.0   # pinned; checked on ghcr 2026-09-17
     container_name: headlamp
     restart: unless-stopped
     # Run as the owner of ./secrets/kubeconfig (mode 600) rather than the image's
