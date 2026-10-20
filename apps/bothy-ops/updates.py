@@ -242,6 +242,15 @@ class ConfigReason:
                 or any(re.fullmatch(f, file) for f in self.files))
 
 
+# The reason a key gets on a catalog with no [config_reasons] - which, by
+# load_catalog's pairing rule, is also a catalog with no [config_keys], so the
+# sentence is true of every key it is ever shown for.
+NO_CONFIG_KEYS = ConfigReason(
+    "no-config-keys", "Not on the allowlist", (), (),
+    "This catalog declares no [config_keys], so no environment value is offered for editing "
+    "from the browser.")
+
+
 @dataclass(frozen=True)
 class Catalog:
     components: dict[str, Component]
@@ -262,7 +271,15 @@ class Catalog:
         for r in self.config_reasons:
             if not r.catch_all and r.matches(key, file):
                 return r
-        return self.config_reasons[-1]
+        # A catalog that declares neither table is legal (see the field comment
+        # above), and on one every key is locked - so it needs a sentence too.
+        # `[-1]` on the empty tuple was an IndexError raised from discovery's
+        # configs/ pass, which took plans.write_all down with it for EVERY
+        # component: checks/e2e_updater.py's catalog has no config tables, and
+        # its first component with an `environment:` block (grafana) was where
+        # the whole updater suite stopped. The answer is code rather than catalog
+        # because there is no catalog row to read it from.
+        return self.config_reasons[-1] if self.config_reasons else NO_CONFIG_KEYS
 
     def config_keys_of(self, component: str) -> list[ConfigKey]:
         return [k for k in self.config_keys.values() if k.component == component]
