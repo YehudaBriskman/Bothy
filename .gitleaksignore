@@ -27,3 +27,11 @@ ea73096a783531974990e9959d8c4f6a8c0663e1:scripts/doctor.sh:curl-auth-user:37
 # line pins this comment's first wording, which quoted the key and was flagged.
 d7e5734a31545028d812beefecd0d300d4e066b5:apps/bothy-web/web/src/lib/prefs.ts:generic-api-key:21
 3b1ccc19ef17360a8227a2779f86b1a761bde8f6:.gitleaksignore:generic-api-key:25
+
+# The SAME two reviewed findings again, under main's squash commits. The pins
+# above name the PR-branch commits that introduced each line; squash-merging
+# rewrote both into new commits on main (#176 for prefs.ts), and the weekly
+# full-history scan reported them as new leaks from 2026-10-19. Nothing new was
+# found - these are the lines reviewed above, at the commits main actually holds.
+ec6f64158c0fceca09240c7bddbcba0b7ca8a4f7:scripts/doctor.sh:curl-auth-user:37
+be1c53691a4cbf6092834ac3de79bf6cae656d44:apps/bothy-web/web/src/lib/prefs.ts:generic-api-key:21
