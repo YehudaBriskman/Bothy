@@ -522,8 +522,8 @@ mutant "Alloy moves in compose but not in the manifest" \
 # the real Dependabot batch of 2026-10-05 landing without its companion edit.
 mutant "VictoriaMetrics moves but the e2e constant does not" \
   monitoring/compose.yml \
-  'image: victoriametrics/victoria-metrics:v1.153.0' \
   'image: victoriametrics/victoria-metrics:v1.154.0' \
+  'image: victoriametrics/victoria-metrics:v1.155.0' \
   -- bash scripts/checks/e2e-pins.sh
 
 mutant "the kube-state-metrics chart moves but the e2e constant does not" \
