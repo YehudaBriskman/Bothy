@@ -133,7 +133,23 @@ try:
     # and the same cost, which is the whole change. So the assertion is the
     # absolute one the ratio was standing in for.
     t0 = time.time(); big = tree("home").json(); t_big = int((time.time() - t0) * 1000)
-    t0 = time.time(); small = tree("home", "stacks").json(); t_small = int((time.time() - t0) * 1000)
+    # WHICH folder inside it is read off the listing, not assumed. It was a literal
+    # `stacks` - true on this box, where the repo is ~/stacks, and false on every
+    # fresh install that clones somewhere else (CI clones to /tmp/bothy). There the
+    # request 403'd, which is FAST, so "...and so is a folder inside it" passed on
+    # a refusal and the next line died on a KeyError with the suite still printing
+    # "all pass". `stacks` stays the preference because it is the real large folder
+    # here; otherwise any folder the root actually holds (the notes root is under
+    # $HOME by default, so there is always one on a stock install). And the status
+    # is asserted, so a refusal can never again pass for a cheap listing.
+    dirs = [f["path"] for f in big["files"] if f.get("dir") is True]
+    inner = "stacks" if "stacks" in dirs else (sorted(dirs) or [None])[0]
+    check("the biggest root holds a folder to open", inner is not None, f"{dirs[:6]}")
+    t0 = time.time(); r_small = tree("home", inner or ""); t_small = int((time.time() - t0) * 1000)
+    small = r_small.json()
+    check("...and opening it is a LISTING, not a refusal",
+          r_small.status_code == 200 and "files" in small,
+          f"{inner}: got {r_small.status_code}")
     # 400ms was the MEASURED cost of opening `home` before this change (20,612
     # files walked, 4,000 returned, 1.25 MB). One directory is now 2ms. The
     # threshold is deliberately loose - this is guarding against the recursive walk
@@ -144,9 +160,10 @@ try:
           not any("/" in f["path"] for f in big["files"]),
           f"root: {len(big['files'])} entries")
     check("...including the folder's own",
-          all(f["path"].startswith("stacks/") and f["path"].count("/") == 1
-              for f in small["files"]),
-          f"stacks: {len(small['files'])} entries")
+          inner is not None
+          and all(f["path"].startswith(f"{inner}/") and f["path"].count("/") == 1
+                  for f in small.get("files", [])),
+          f"{inner}: {len(small.get('files', []))} entries")
 
 finally:
     # Planted above. Removed here so a failure part-way through does not leave a
