@@ -236,7 +236,18 @@ def main() -> int:
 
         cat = open(os.path.join(SVC, "updates.toml"), encoding="utf-8").read()
         policy = cat[cat.index("[policy]"):cat.index("# ══ stateless")]
-        comp = cat[cat.index("[components.postgres]"):]
+        # Up to the config-values banner, not to EOF. postgres was the last
+        # component when this slice was written, so "to the end of the file" and
+        # "the postgres entry" were the same text - until #260 appended
+        # [config_keys] and [config_reasons] after it, and the slice carried
+        # [config_keys.grafana] into a catalog with no grafana. load_catalog is
+        # right to refuse that (a key naming no component is a typo it exists to
+        # catch); the slice was what stopped meaning what it said. Neither table
+        # belongs here anyway: postgres is class `database`, which the config tier
+        # never deploys.
+        start = cat.index("[components.postgres]")
+        end = cat.find("\n# ══", start)
+        comp = cat[start:end if end != -1 else len(cat)].rstrip() + "\n"
         put("apps/bothy-ops/updates.toml", policy + comp)
         put(".env", f"POSTGRES_USER={PG_USER}\nPOSTGRES_PASSWORD={PG_PASS}\nPOSTGRES_DB={DEV_DB}\n"
                     f"KEYCLOAK_DB_PASSWORD={KC_PASS}\n")
