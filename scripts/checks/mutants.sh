@@ -37,9 +37,32 @@
 # on a dirty tree - otherwise a revert would discard your work. The trap restores
 # every file it touched on any exit, including Ctrl-C.
 #
-# Everything here runs with the stack DOWN. Nothing starts a container, so this
-# is a two-minute job rather than a fifteen-minute one, and it can gate a PR.
+# Everything here runs with the stack DOWN. Nothing starts a container, so it
+# can gate a PR.
+#
+# ── sharding ─────────────────────────────────────────────────────────────────
+#
+# It WAS a two-minute job. By 2026-10-09 it was 230-odd rows, about a hundred of
+# them a full portal check at ~12 s each, and it ran into its 15-minute timeout
+# on every push. GitHub reports that as "cancelled", not failed, so for two days
+# the required check looked like somebody had pressed a button while every row it
+# did reach passed.
+#
+# MUTANTS_SHARD=k/n runs every n-th row starting at the k-th (1-based). CI runs n
+# of them side by side, each under its own short timeout, so adding a row costs a
+# fraction of a minute instead of moving the whole job toward a cliff. Unset, it
+# runs every row, which is what you want locally.
 set -uo pipefail
+
+SHARD_K=1 SHARD_N=1
+if [ -n "${MUTANTS_SHARD:-}" ]; then
+  if ! [[ "$MUTANTS_SHARD" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] \
+     || [ "${BASH_REMATCH[1]}" -gt "${BASH_REMATCH[2]}" ]; then
+    echo "MUTANTS_SHARD must be k/n with 1 <= k <= n, got '$MUTANTS_SHARD'"
+    exit 2
+  fi
+  SHARD_K=${BASH_REMATCH[1]} SHARD_N=${BASH_REMATCH[2]}
+fi
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
@@ -63,6 +86,7 @@ trap restore EXIT INT TERM
 
 pass=0
 fail=0
+row=0
 
 # Replace an exact substring in a file. Python rather than sed because the
 # anchors below contain regex metacharacters, backticks and ${...} - escaping all
@@ -83,6 +107,14 @@ PY
 # mutant <label> <file> <old> <new> -- <check command...>
 mutant() {
   local label="$1" file="$2" old="$3" new="$4"; shift 5   # shift past the `--`
+
+  # Another shard's row. Skipped BEFORE anything is planted, so a shard never
+  # touches a file it is not going to check.
+  row=$((row + 1))
+  if [ $(( (row - 1) % SHARD_N )) -ne $((SHARD_K - 1)) ]; then
+    return
+  fi
+
   TOUCHED+=("$file")
 
   if ! plant "$file" "$old" "$new"; then
@@ -2528,6 +2560,12 @@ else
 fi
 
 echo
+[ "$SHARD_N" -gt 1 ] && echo "shard $SHARD_K/$SHARD_N of $row row(s)"
+# A shard that ran nothing is a mis-sized matrix, not a pass.
+if [ $((pass + fail)) -eq 0 ]; then
+  echo "NO ROWS RAN - shard $SHARD_K/$SHARD_N is empty"
+  exit 1
+fi
 if [ "$fail" -eq 0 ]; then
   echo "$pass mutation(s) planted, every one caught."
 else

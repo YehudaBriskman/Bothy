@@ -261,13 +261,22 @@ jobs:
   # it plants a mutation, runs one check, and reverts with `git checkout --`. A
   # step running after something that dirtied the tree would refuse to start.
   #
-  # Runs on every push, not nightly. It is offline and takes about two minutes,
-  # and a decorative check is worth catching in the PR that writes it rather than
+  # Runs on every push, not nightly. It is offline, and a decorative check is worth catching in the PR that writes it rather than
   # the night after it merges.
-  mutants:
-    name: Every check must be able to fail
+  #
+  # SHARDED (2026-10-20): the rows outgrew one job - see "sharding" in the header
+  # of mutants.sh. Each shard gets 10 minutes, about twice what one takes today,
+  # so a shard that times out means the table has grown again and wants another
+  # shard, not a longer timeout. fail-fast is off so one broken row does not
+  # cancel the other shards' rows and hide what else is broken.
+  mutants-shard:
+    name: Mutants ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       # Tags, for the same reason as the tree job: the installer-pin row plants a
       # broken commit id, and without tags the check would catch it on the SHAPE
@@ -326,7 +335,26 @@ jobs:
           echo "ok - clean"
 
       - name: Plant a mutation, require the check to catch it
+        env:
+          MUTANTS_SHARD: ${{ matrix.shard }}/4
         run: bash scripts/checks/mutants.sh
+
+  # The required status check is this job's NAME, so it stays one job: green only
+  # when every shard is green. `always()` because a job whose `needs` failed is
+  # otherwise SKIPPED, and branch protection reads a skipped required check as
+  # passing.
+  mutants:
+    name: Every check must be able to fail
+    needs: mutants-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every shard passed
+        run: |
+          r='${{ needs.mutants-shard.result }}'
+          echo "shards: $r"
+          [ "$r" = success ]
 
   # ── every compose file still resolves ───────────────────────────────────────
   compose:
