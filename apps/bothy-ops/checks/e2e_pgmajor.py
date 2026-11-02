@@ -40,6 +40,7 @@ image AND the volume name, in one commit, as the PR for a major must - and:
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -252,7 +253,13 @@ def main() -> int:
         put(".env", f"POSTGRES_USER={PG_USER}\nPOSTGRES_PASSWORD={PG_PASS}\nPOSTGRES_DB={DEV_DB}\n"
                     f"KEYCLOAK_DB_PASSWORD={KC_PASS}\n")
         put(".gitignore", ".env\n")
-        guard = os.path.join(ROOT, "scripts", "pg-volume-guard.sh")
+        # QUOTED, because this line is shell and ROOT is wherever the checkout
+        # lives. Unquoted it split at the space in elsewhere.yml's
+        # "/tmp/bothy elsewhere/my checkout" and ran `bash /tmp/bothy` - which
+        # kept the nightly awkward-path run red (40 of 40 runs listed on
+        # 2026-11-02) while the product was fine: the bug was in this test's
+        # own justfile, not in the real one.
+        guard = shlex.quote(os.path.join(ROOT, "scripts", "pg-volume-guard.sh"))
         put("justfile", "set dotenv-load\n\nup-data:\n"
                         f"    bash {guard} data/postgres/compose.yml postgres\n"
                         "    docker compose -f data/postgres/compose.yml up -d --wait --wait-timeout 120\n\n"
