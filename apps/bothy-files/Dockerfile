@@ -3,7 +3,7 @@
 # BUILT FROM apps/ (compose: `context: ..`), so bothy_common can be copied in.
 # apps/.dockerignore is an allowlist; a file not named there is not in the
 # context, so a new module must be added to it as well as to a COPY below.
-FROM python:3.14-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72
+FROM python:3.15-alpine@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
 
 # git is how /history, /repos, /status and /git/diff read the repositories. This
 # service changes no repository's history or index; see app.py's header.
