@@ -212,7 +212,8 @@ broken* from *the timer has not come round yet*.
 
 ## Tested
 
-- CI (`.github/workflows/upgrade.yml`, nightly) backs up a freshly upgraded box,
+- CI (`.github/workflows/upgrade.yml`, on every merge to `main` and nightly)
+  backs up a freshly upgraded box,
   **damages it** - drops a table, deletes `grafana.db`, wipes VictoriaMetrics'
   and Loki's volumes - restores each with its recipe, and asserts the row, a
   dashboard made through the API, the metrics and the log lines are back.

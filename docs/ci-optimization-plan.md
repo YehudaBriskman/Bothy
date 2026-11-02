@@ -99,7 +99,7 @@ Change mix of the last 150 first-parent commits on `main`: 93 runtime/mixed,
 |---|---|---|---|
 | B0 | `Claude-Bot/Fix/quote-guard-path-in-pgmajor-e2e` | quote the path the pgmajor e2e writes into a justfile; Elsewhere can go green | local commit |
 | B1 | `Claude-Bot/Chore/ci-keeps-every-main-run-and-queues-fewer-jobs` | cancel stale PR runs only; never cancel a push to `main`; one `images` job instead of three; gitleaks timeout; this document | local commit |
-| B2 | stacked on B1 | release waits for CI **and** Install **and** Upgrade on the exact SHA; upgrade also runs on push to `main`; add last-release -> candidate upgrade; keep `HEAD^1` | planned |
+| B2 | `Claude-Bot/Fix/release-waits-for-install-and-upgrade` (stacked on B1) | release waits for CI **and** Install **and** Upgrade on the exact SHA; upgrade also runs on push to `main`; add last-release -> candidate upgrade; keep `HEAD^1` | local commit |
 | B3 | after B1 | Elsewhere: drop the control row and stop re-running the path-independent installer job; upgrade redacts its log artifact the way install does | planned |
 
 ### B1 - what changes and what does not
@@ -116,6 +116,34 @@ Change mix of the last 150 first-parent commits on `main`: 93 runtime/mixed,
 - `gitleaks` gains `timeout-minutes: 10` (measured runs: 11-17 s; default 360).
 - **Unchanged:** every check, every suite, every assertion; the required
   check names; `release.yml` and `upgrade.yml` concurrency.
+
+### B2 - what changes and what does not
+
+- `release.yml` triggers on the completion of CI, Install **or** Upgrade on
+  `main`. When `VERSION` is untagged it reads the newest push run of all three
+  for the exact head SHA and asks `scripts/release-decision.sh`:
+  `release` tags; `wait` is a green no-op (the last to finish decides);
+  `block` is a red run naming the failed prerequisite. Only
+  `completed`+`success` counts - skipped, cancelled, neutral, timed-out and
+  unknown states block. Concurrency is per SHA. Two commits racing for one
+  `VERSION` are arbitrated by the tag push and the loser says which commit
+  owns the tag.
+- The rule is a truth table (`scripts/checks/release-decision.sh`, 18 rows,
+  run in `tree`) and `mutants.sh` gains four rows proving the table catches
+  "skipped counts as success", "a failure hides behind a running workflow",
+  "a required workflow nobody asked about" and "an unknown status passes".
+- `upgrade.yml` runs on push to `main` (never cancelled, keyed by SHA) as well
+  as nightly, with two rows: `previous` (`HEAD^1`, unchanged) and `release`
+  (newest `v*` tag reachable from `HEAD^1`; no tag is a failure, not a skip).
+  Every assertion - data, volume identity, idempotence, HEAD's images and
+  bundle, backup coverage, damage-and-restore - runs on both rows.
+- **Recovery:** re-run the failed prerequisite; its completion re-triggers the
+  release. No dispatch input and no manual tag.
+- **Unchanged:** CI and Install themselves; the installer-pin follow-up PR.
+- **Risk to watch:** the `release` row installs a release from up to months
+  ago on today's runner image. If an old release cannot install on a runner
+  for reasons unrelated to upgrading, that row is red and blocks releases
+  until a newer release exists or the row is adjusted - deliberately loud.
 
 ## Required-check migration map
 

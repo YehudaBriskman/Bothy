@@ -244,6 +244,13 @@ jobs:
         if: always()
         run: bash scripts/checks/e2e-pins.sh
 
+      # release.yml asks scripts/release-decision.sh whether a commit may be
+      # tagged. A wrong answer is a release that looks proven and is not, so
+      # the rule is a truth table here and mutants.sh proves the table bites.
+      - name: The release rule waits for CI, install and upgrade on the exact commit
+        if: always()
+        run: bash scripts/checks/release-decision.sh
+
       # docs/brand/patterns/dataviz.md has been the standard since 2026-08-10 and
       # three of the five Grafana dashboards obeyed none of it, because nothing
       # ever read it on their behalf. The things that survived a year are the
