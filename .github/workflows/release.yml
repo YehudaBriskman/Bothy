@@ -1,11 +1,31 @@
 name: Release
 
-# Tags v$VERSION when a GREEN commit on main carries a VERSION that has no tag
-# yet, and publishes a GitHub Release with notes generated from the merged PRs.
+# Tags v$VERSION when a commit on main carries a VERSION that has no tag yet AND
+# that exact commit passed CI, Install and Upgrade, then publishes a GitHub
+# Release with notes generated from the merged PRs.
 #
 # Why workflow_run and not `on: push`: the updater (docs/plans/updates.md) only
-# offers releases whose CI passed, so the tag must never exist before CI does.
-# Triggered by CI completing on main; anything but `success` does nothing.
+# offers releases whose CI passed, so the tag must never exist before the
+# evidence does.
+#
+# ── what changed on 2026-11-02, and why ─────────────────────────────────────
+#
+# This used to trigger on CI alone. Install - the only workflow that actually
+# runs README.md and every suite against a live stack - ran on the same push
+# and was never consulted, and Upgrade ran only at night. So a commit could be
+# tagged and offered to every box while its install was red. Now:
+#
+#   · each of the three workflows' completion on main triggers this;
+#   · the run asks the API for the newest push run of ALL THREE on the same
+#     head SHA and hands the answer to scripts/release-decision.sh, which says
+#     release / wait / block (table-tested in scripts/checks/release-decision.sh,
+#     and mutants.sh proves that table bites);
+#   · `wait` is a green no-op - the last of the three to finish will decide;
+#   · `block` with a new VERSION is RED, so a failed or cancelled prerequisite
+#     on a release commit is visible here and not only in its own workflow.
+#
+# Re-running a failed prerequisite re-triggers this on completion, which is
+# also the recovery path: no manual tag, no dispatch input to validate.
 #
 # The installer pin (scripts/bothy.sh BOTHY_PIN_SHA) CANNOT ride along - it pins
 # the tagged commit's sha, which only exists after this runs. It follows as its
@@ -14,7 +34,7 @@ name: Release
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, Install, Upgrade]
     types: [completed]
     branches: [main]
 
@@ -22,17 +42,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: release
+  # Per COMMIT. Three completions per SHA arrive here; GitHub keeps one running
+  # and one pending per group and drops the rest, which is harmless within a
+  # SHA (every run re-reads all three) but would silently drop a different
+  # commit's last chance if the group were shared.
+  group: release-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
 jobs:
   tag:
-    name: Tag v$VERSION once CI is green
+    name: Tag v$VERSION once CI, install and upgrade are green
+    # A triggering run that did not succeed cannot make anything releasable;
+    # the run triggered by whichever prerequisite finishes last reports it.
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
+      # Reading the other workflows' runs for this SHA.
+      actions: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -42,6 +70,8 @@ jobs:
       - name: Decide whether this commit is a release
         id: decide
         shell: bash
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           v=$(tr -d '[:space:]' < VERSION)
@@ -50,13 +80,50 @@ jobs:
             echo "v$v already tagged - nothing to release"
             echo "release=false" >> "$GITHUB_OUTPUT"
           else
-            echo "v$v is new - releasing ${{ github.event.workflow_run.head_sha }}"
+            echo "v$v is new - $SHA is a release candidate"
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "version=$v" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Tag and publish the release
+      - name: CI, Install and Upgrade on this exact commit
+        id: evidence
         if: steps.decide.outputs.release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          V: ${{ steps.decide.outputs.version }}
+        run: |
+          set -euo pipefail
+          : > /tmp/evidence.txt
+          for wf in ci.yml install.yml upgrade.yml; do
+            # The NEWEST push run on main for this SHA. A re-run keeps its run id
+            # and reports its latest attempt, so a re-run in progress reads as
+            # in_progress rather than as the earlier failure.
+            line=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$wf/runs?head_sha=$SHA&event=push&branch=main&per_page=100" \
+                     --jq '.workflow_runs | sort_by(.created_at) | last
+                           | if . == null then "missing - -"
+                             else "\(.status) \(.conclusion // "-") \(.html_url)" end')
+            read -r status conclusion url <<< "$line"
+            echo "$wf $status $conclusion" >> /tmp/evidence.txt
+            printf '  %-12s %-12s %-10s %s\n' "$wf" "$status" "$conclusion" "$url"
+          done
+          # exit 2 from the rule is an input error: treated as a block.
+          verdict=$(bash scripts/release-decision.sh < /tmp/evidence.txt) \
+            || verdict="block: the evidence could not be judged (exit $?)"
+          echo "verdict: $verdict"
+          echo "verdict=${verdict%%:*}" >> "$GITHUB_OUTPUT"
+          case "$verdict" in
+            release) ;;
+            wait*)
+              echo "::notice::v$V waits for${verdict#wait:} - the last one to finish releases it." ;;
+            *)
+              echo "::error::Not releasing v$V at $SHA:${verdict#block:}. Fix it or re-run the failed workflow; its completion re-runs this."
+              exit 1 ;;
+          esac
+
+      - name: Tag and publish the release
+        if: steps.decide.outputs.release == 'true' && steps.evidence.outputs.verdict == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,6 +134,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v$V" -m "Bothy v$V" "$SHA"
-          git push origin "v$V"
+          # Two commits carrying the same new VERSION can both reach here (each
+          # has its own concurrency group). The push is the arbiter: the loser
+          # is rejected, and says which commit owns the tag rather than failing
+          # with git's bare "already exists".
+          if ! git push origin "v$V"; then
+            git fetch -q origin "refs/tags/v$V:refs/tags/v$V-remote" || true
+            owner=$(git rev-parse -q --verify "refs/tags/v$V-remote^{commit}" || echo unknown)
+            if [ "$owner" = "$SHA" ]; then
+              echo "v$V was already pushed for $SHA by a parallel run - nothing to do"
+              exit 0
+            fi
+            echo "::error::v$V already exists at $owner, not $SHA. Two commits carried VERSION $V; bump VERSION."
+            exit 1
+          fi
           gh release create "v$V" --verify-tag --generate-notes --title "Bothy v$V"
           echo "::notice::Released v$V at $SHA. Next: a PR moving scripts/bothy.sh BOTHY_PIN_VERSION/BOTHY_PIN_SHA to v$V / $SHA."

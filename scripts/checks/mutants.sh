@@ -2541,6 +2541,47 @@ mutant "the icon table loses the entry a section asks for" \
   -- "${WEB_CHECKS[@]}"
 
 echo
+echo "── the release waits for proof about the exact commit ──────────────"
+# scripts/release-decision.sh is what release.yml asks before tagging. Each row
+# is a way that rule has been, or could quietly become, "tag it anyway".
+RELEASE_CHECK=(bash scripts/checks/release-decision.sh)
+
+# A skipped or cancelled run is evidence of nothing. Count one as a pass and a
+# commit whose install never ran gets tagged - the defect this rule replaced.
+mutant "a skipped run counts as success" \
+  scripts/release-decision.sh \
+  'if [ "$conclusion" != success ]; then' \
+  'if [ "$conclusion" != success ] && [ "$conclusion" != skipped ]; then' \
+  -- "${RELEASE_CHECK[@]}"
+
+# Block beats wait. Reversed, a red install hides behind a slower upgrade.
+mutant "a failure hides behind a running workflow" \
+  scripts/release-decision.sh \
+  'if [ -n "$blocks" ]; then
+  echo "block:$blocks"
+elif [ -n "$waits" ]; then
+  echo "wait:$waits"' \
+  'if [ -n "$waits" ]; then
+  echo "wait:$waits"
+elif [ -n "$blocks" ]; then
+  echo "block:$blocks"' \
+  -- "${RELEASE_CHECK[@]}"
+
+# A caller that forgot to ask about one workflow must not read as all-green.
+mutant "a required workflow nobody asked about" \
+  scripts/release-decision.sh \
+  '*) echo "release-decision: no evidence line for $wf" >&2; exit 2 ;;' \
+  '*) ;;' \
+  -- "${RELEASE_CHECK[@]}"
+
+# An unknown status is not "probably fine".
+mutant "an unknown status passes" \
+  scripts/release-decision.sh \
+  '      blocks="$blocks $wf=status:$status"' \
+  '      :' \
+  -- "${RELEASE_CHECK[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is

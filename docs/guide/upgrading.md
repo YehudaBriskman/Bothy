@@ -152,8 +152,10 @@ auth boundary, the edge).
 `just up` recreates containers whose definitions or images changed and leaves
 volumes alone. That this preserves data and applies the new code is asserted in
 CI by the Upgrade
-workflow (`.github/workflows/upgrade.yml`), which installs the previous commit,
-writes a row to the database, upgrades to `HEAD`, and then checks three things:
+workflow (`.github/workflows/upgrade.yml`) on every merge to `main`. It installs
+two starting points - the previous commit, and the newest release, which is
+what your box is most likely running - writes a row to the database, upgrades
+to `HEAD`, and then checks three things:
 
 - the row is still readable;
 - **no volume was recreated** - compared by volume **ID**, not by name, because
@@ -167,7 +169,9 @@ writes a row to the database, upgrades to `HEAD`, and then checks three things:
 
 So the thing that would break this is not an ordinary upgrade. It is somebody
 adding a `down -v` to the apply step, renaming a volume in a compose file, or
-dropping the build from `up-apps` - which that workflow exists to catch.
+dropping the build from `up-apps` - which that workflow exists to catch. A
+release is only tagged once that workflow, the install workflow and CI have all
+passed on the exact commit being tagged.
 
 Take a backup anyway before an upgrade you are unsure about. See
 [Backups](backups.md); it is one command and the restore path is documented.

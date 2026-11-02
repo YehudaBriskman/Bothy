@@ -44,13 +44,32 @@
 #      restore-*` recipe, and find a row, an API-made dashboard, metrics and log
 #      lines from before the backup. A backup nobody has restored is a hope.
 #
-# ── why nightly ────────────────────────────────────────────────────────────
+# ── two starting points ────────────────────────────────────────────────────
 #
-# It is two full installs back to back, ~15-20 minutes. The property changes when
-# somebody edits a volume declaration, which is rare and always deliberate.
+#   previous   HEAD^1 -> HEAD. The change in isolation: a red row names the
+#              commit that broke the upgrade.
+#   release    the newest release tag -> HEAD. What a user actually does: they
+#              run a release, not the commit before main's tip, and the gap is
+#              every PR since that release. A volume rename that a later commit
+#              "fixed" by renaming again passes the first row and loses data
+#              on the second. Added 2026-11-02.
+#
+# ── when ───────────────────────────────────────────────────────────────────
+#
+# On every push to main, because release.yml will not tag a commit until this
+# workflow succeeded on it (scripts/release-decision.sh). Each row measured
+# 7-9 minutes; the repo is public, so the runners cost nothing, and the rows
+# run in parallel. Still nightly too: the same commit can stop upgrading
+# because the world moved (an image tag re-pushed, a runner image change), and
+# that is worth hearing about before somebody's box finds it.
+#
+# Not on pull requests. The release row's distance grows with every merge and
+# a PR is not a candidate; Install already runs there.
 name: Upgrade
 
 on:
+  push:
+    branches: [main]
   schedule:
     # An hour after Elsewhere, so two 20-minute matrix jobs are not competing for
     # runners and a failure in one does not look like a symptom of the other.
@@ -61,16 +80,29 @@ permissions:
   contents: read
 
 concurrency:
-  group: upgrade-${{ github.ref }}
-  cancel-in-progress: true
+  # A push is release evidence for its SHA: never cancelled, never shared. A
+  # nightly or manual run may replace an older nightly or manual one.
+  group: upgrade-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   upgrade:
-    name: Install the previous commit, then upgrade onto it
+    name: Install ${{ matrix.label }}, then upgrade onto it
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      # Never fail-fast: "the previous commit upgrades and the last release
+      # does not" is the most useful thing this workflow can say.
+      fail-fast: false
+      matrix:
+        include:
+          - from: previous
+            label: the previous commit
+          - from: release
+            label: the latest release
     env:
       DIR: /tmp/bothy
+      FROM: ${{ matrix.from }}
 
     steps:
       - uses: actions/checkout@v7
@@ -90,17 +122,35 @@ jobs:
 
       - uses: extractions/setup-just@v4
 
-      - name: Clone, and go back one commit
+      - name: Clone, and go back to the starting point
         run: |
           set -euo pipefail
           git clone --no-hardlinks "$GITHUB_WORKSPACE/workspace" "$DIR"
           cd "$DIR"
-          # The FIRST PARENT, so a merge commit steps back to the previous state
-          # of main rather than sideways into the branch that was merged. On a
-          # merge, HEAD^2 is the feature branch - which never had the rest of
-          # main in it, and would make this an unrelated install rather than an
-          # upgrade.
-          base=$(git rev-parse HEAD^1)
+          case "$FROM" in
+            previous)
+              # The FIRST PARENT, so a merge commit steps back to the previous
+              # state of main rather than sideways into the branch that was
+              # merged. On a merge, HEAD^2 is the feature branch - which never
+              # had the rest of main in it, and would make this an unrelated
+              # install rather than an upgrade.
+              base=$(git rev-parse HEAD^1) ;;
+            release)
+              # The newest release reachable from HEAD^1, not from HEAD: on a
+              # nightly run of an already-tagged commit, HEAD's own tag would
+              # make this an "upgrade" from itself to itself, which passes
+              # everything and proves nothing.
+              #
+              # No tag is a FAILURE, not a skip. The checkout fetched full
+              # history and tags (fetch-depth: 0); a release row that quietly
+              # passes because it could not find a release is the silent pass
+              # this repo keeps writing checks against.
+              tag=$(git describe --tags --abbrev=0 --first-parent --match 'v[0-9]*' HEAD^1) \
+                || { echo "FAIL  no release tag is reachable from HEAD^1"; exit 1; }
+              base=$(git rev-parse "$tag^{commit}")
+              echo "latest release: $tag" ;;
+            *) echo "FAIL  unknown starting point '$FROM'"; exit 1 ;;
+          esac
           echo "BASE_SHA=$base" >> "$GITHUB_ENV"
           echo "HEAD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           git checkout -q "$base"
@@ -444,6 +494,6 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: upgrade-failure-logs
+          name: upgrade-failure-logs-${{ matrix.from }}
           path: /tmp/logs
           retention-days: 7
