@@ -35,3 +35,13 @@ d7e5734a31545028d812beefecd0d300d4e066b5:apps/bothy-web/web/src/lib/prefs.ts:gen
 # found - these are the lines reviewed above, at the commits main actually holds.
 ec6f64158c0fceca09240c7bddbcba0b7ca8a4f7:scripts/doctor.sh:curl-auth-user:37
 be1c53691a4cbf6092834ac3de79bf6cae656d44:apps/bothy-web/web/src/lib/prefs.ts:generic-api-key:21
+
+# Three fake .env values in scripts/checks/redact-logs.sh, the redaction test's
+# fixtures. Reviewed 2026-11-02: invented strings that never existed anywhere
+# but this file, flagged for looking random. HEAD replaced them with
+# low-entropy "<name>-fixture-" values; these entries exist only because the
+# PR branch's first commit is published, and this file's own rule above says
+# not to rewrite a published branch for a reviewed false positive.
+a0f9b17f499e0c3a2c8fdc8d8a8b1d4dad8eba07:scripts/checks/redact-logs.sh:generic-api-key:28
+a0f9b17f499e0c3a2c8fdc8d8a8b1d4dad8eba07:scripts/checks/redact-logs.sh:generic-api-key:31
+a0f9b17f499e0c3a2c8fdc8d8a8b1d4dad8eba07:scripts/checks/redact-logs.sh:generic-api-key:32

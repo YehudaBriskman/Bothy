@@ -60,8 +60,18 @@ jobs:
           # is ambiguous: it could be the path, or it could be something that
           # broke on main since the last push - and telling those apart is the
           # difference between a portability bug and an ordinary regression.
+          #
+          # KEPT on review (2026-11-02), though the CI plan proposed dropping it
+          # as a duplicate of the push-time install. It is not one: that ran on
+          # the day of the merge, and Upgrade's nightly install never runs the
+          # ops and editor suites, which is where the failures are. This row is
+          # what showed the intermittent editor-tier failure is not about paths.
           - label: the ordinary path (control)
             dir: /tmp/bothy
     uses: ./.github/workflows/install.yml
     with:
       dir: ${{ matrix.dir }}
+      # The curl | sh job ignores `dir` and already runs on every PR and push
+      # to main, with a $HOME that has a space in it. Three more copies a night
+      # tested the same thing three times (2026-11-02).
+      installer: false
