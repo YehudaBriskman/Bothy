@@ -20,16 +20,20 @@ ok()  { printf 'PASS  %s\n' "$1"; pass=$((pass + 1)); }
 bad() { printf 'FAIL  %s\n' "$1"; [ -n "${2:-}" ] && printf '      %s\n' "$2"; fail=$((fail + 1)); }
 
 # fresh <name>: a case directory with an .env of five distinct secrets.
+# LOW-ENTROPY ON PURPOSE. Random-looking fixtures trip gitleaks' generic-api-key
+# rule (it did, on the PR that added this file), and an ignore entry would be a
+# hole in a scanner this repo says must not be softened. "fixture" plus a run of
+# one letter is unmistakably fake and still exercises every row.
 fresh() {
   d="$T/$1"
   mkdir -p "$d/logs"
   cat > "$d/.env" <<'ENV'
 # a comment
-POSTGRES_PASSWORD=pg-0123456789abcdefghijklmn
-DEV_LOGIN_PASSWORD=dev-0123456789abcdefghijklm
-OAUTH2_COOKIE_SECRET=cookie-0123456789abcdefghij
-KEYCLOAK_DB_PASSWORD=kcdb-0123456789abcdefghijk
-KEYCLOAK_OAUTH2_CLIENT_SECRET=kccs-0123456789abcdefghi
+POSTGRES_PASSWORD=pg-fixture-aaaaaaaaaaaaaaaaaaaa
+DEV_LOGIN_PASSWORD=dev-fixture-bbbbbbbbbbbbbbbbbbb
+OAUTH2_COOKIE_SECRET=cookie-fixture-cccccccccccccccc
+KEYCLOAK_DB_PASSWORD=kcdb-fixture-ddddddddddddddddd
+KEYCLOAK_OAUTH2_CLIENT_SECRET=kccs-fixture-eeeeeeeeeeeeeee
 GRAFANA_PASSWORD=admin
 ENV
 }
@@ -44,8 +48,8 @@ only_refused() { [ "$(find "$d/logs" -mindepth 1 | wc -l)" = 1 ] && [ -f "$d/log
 
 # 1. The ordinary case.
 fresh plain
-printf 'connecting with pg-0123456789abcdefghijklmn\nok\n' > "$d/logs/postgres.log"
-if run && ! grep -q 'pg-0123456789' "$d/logs/postgres.log" \
+printf 'connecting with pg-fixture-aaaaaaaaaaaaaaaaaaaa\nok\n' > "$d/logs/postgres.log"
+if run && ! grep -q 'pg-fixture-aaaa' "$d/logs/postgres.log" \
        && grep -q '<POSTGRES_PASSWORD redacted>' "$d/logs/postgres.log"; then
   ok "a secret in a log is replaced by its key name"
 else bad "a secret in a log is replaced by its key name" "$(cat "$d/out")"; fi
@@ -53,15 +57,15 @@ else bad "a secret in a log is replaced by its key name" "$(cat "$d/out")"; fi
 # 2. Every file, at any depth.
 fresh deep
 mkdir -p "$d/logs/a/b"
-echo 'cookie-0123456789abcdefghij' > "$d/logs/a/b/x.txt"
-if run && ! grep -rq 'cookie-0123456789' "$d/logs"; then ok "a nested file is redacted too"
+echo 'cookie-fixture-cccccccccccccccc' > "$d/logs/a/b/x.txt"
+if run && ! grep -rq 'cookie-fixture-cccc' "$d/logs"; then ok "a nested file is redacted too"
 else bad "a nested file is redacted too" "$(cat "$d/out")"; fi
 
 # 3. Longest first. A value containing another must go whole, not leave a
 #    fragment around a placeholder.
 fresh nested
-setenv POSTGRES_PASSWORD wrap-dev-0123456789abcdefghijklm-wrap
-printf 'wrap-dev-0123456789abcdefghijklm-wrap' > "$d/logs/x.log"
+setenv POSTGRES_PASSWORD wrap-dev-fixture-bbbbbbbbbbbbbbbbbbb-wrap
+printf 'wrap-dev-fixture-bbbbbbbbbbbbbbbbbbb-wrap' > "$d/logs/x.log"
 if run && [ "$(cat "$d/logs/x.log")" = '<POSTGRES_PASSWORD redacted>' ]; then
   ok "a secret containing another is removed whole"
 else bad "a secret containing another is removed whole" "got: $(cat "$d/logs/x.log")"; fi
@@ -75,14 +79,14 @@ else bad "a value that is not generated is not touched" "$(cat "$d/logs/g.log")"
 
 # 5. The key list cannot be read: nothing may be uploaded.
 fresh nokeys
-echo 'pg-0123456789abcdefghijklmn' > "$d/logs/postgres.log"
+echo 'pg-fixture-aaaaaaaaaaaaaaaaaaaa' > "$d/logs/postgres.log"
 if ! run "$d/does-not-exist" && only_refused; then ok "no key list -> the directory is emptied"
 else bad "no key list -> the directory is emptied" "$(ls -R "$d/logs")"; fi
 
 # 6. The key list is prose (the unanchored-regex bug): same.
 fresh prose
 printf '# SECRET_KEYS="these are not keys at all"\nSECRET_KEYS="lower case words"\n' > "$d/keys.sh"
-echo 'pg-0123456789abcdefghijklmn' > "$d/logs/postgres.log"
+echo 'pg-fixture-aaaaaaaaaaaaaaaaaaaa' > "$d/logs/postgres.log"
 if ! run "$d/keys.sh" && only_refused; then ok "a key list of prose -> the directory is emptied"
 else bad "a key list of prose -> the directory is emptied" "$(ls -R "$d/logs")"; fi
 
