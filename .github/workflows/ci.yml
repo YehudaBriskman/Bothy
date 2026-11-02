@@ -28,8 +28,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A PR is cancelled by its own next push: only its newest commit can merge.
+  # Anything else - a push to main above all - runs to the end, keyed by SHA.
+  # Until 2026-11 this was `ci-${{ github.ref }}` with cancel-in-progress for
+  # every event, so a merge landing while the previous merge's run was going
+  # cancelled it: 9 of the last 11 push runs on main were "cancelled", which
+  # means those merged commits were never validated - and release.yml, which
+  # only acts on `success`, never saw them either. Keying pushes by SHA also
+  # matters because GitHub cancels a PENDING run in the same group even when
+  # cancel-in-progress is false; a shared group for main would still drop the
+  # middle of three quick merges.
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ── Tier 0 ──────────────────────────────────────────────────────────────────
@@ -463,31 +473,21 @@ jobs:
         run: node checks/csp_hash.mjs
 
   # ── Tier 1 ──────────────────────────────────────────────────────────────────
+  #
+  # ONE JOB, THREE STEPS (2026-11; a three-row matrix before). Each build takes
+  # 10-60 s on a warm cache, but each matrix row was a whole runner: on a
+  # Dependabot morning ten PRs asked for fourteen jobs each, and these three
+  # spent 4-22 minutes QUEUED for 20 seconds of work. Wall-clock on this repo
+  # is set by the account's concurrent-job limit, not by compute.
+  #
+  # What the matrix gave and this keeps: every image is attempted even when an
+  # earlier one fails (`if: always()` per step) and the failing image is named
+  # in the job summary by its step. Cache scopes are unchanged, so the first run
+  # after this lands is as warm as the last one before it.
   images:
     name: Every image builds
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [bothy-web, bothy-files, bothy-ops]
-        # bothy-files and bothy-ops build from apps/ so they can COPY
-        # apps/bothy-common in (apps/.dockerignore is their allowlist); bothy-web
-        # still builds from its own directory.
-        include:
-          - app: bothy-web
-            context: apps/bothy-web
-            file: apps/bothy-web/Dockerfile
-          - app: bothy-files
-            context: apps
-            file: apps/bothy-files/Dockerfile
-          - app: bothy-ops
-            context: apps
-            file: apps/bothy-ops/Dockerfile
-            # compose.yml's `additional_contexts: jobtemplates` - the Job
-            # templates run-template bakes in. build-push-action does not read
-            # compose, so the named context has to be given here too.
-            build-contexts: jobtemplates=k8s/job-templates
     steps:
       - uses: actions/checkout@v7
 
@@ -497,11 +497,40 @@ jobs:
       # only whether the Dockerfile still builds. A broken one currently reaches
       # main freely, because the compose job parses the yaml without ever
       # building what it points at.
-      - uses: docker/build-push-action@v7
+      #
+      # bothy-web still builds from its own directory.
+      - name: bothy-web
+        if: always()
+        uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
-          build-contexts: ${{ matrix.build-contexts }}
+          context: apps/bothy-web
+          file: apps/bothy-web/Dockerfile
           push: false
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+          cache-from: type=gha,scope=bothy-web
+          cache-to: type=gha,mode=max,scope=bothy-web
+
+      # bothy-files and bothy-ops build from apps/ so they can COPY
+      # apps/bothy-common in (apps/.dockerignore is their allowlist).
+      - name: bothy-files
+        if: always()
+        uses: docker/build-push-action@v7
+        with:
+          context: apps
+          file: apps/bothy-files/Dockerfile
+          push: false
+          cache-from: type=gha,scope=bothy-files
+          cache-to: type=gha,mode=max,scope=bothy-files
+
+      - name: bothy-ops
+        if: always()
+        uses: docker/build-push-action@v7
+        with:
+          context: apps
+          file: apps/bothy-ops/Dockerfile
+          # compose.yml's `additional_contexts: jobtemplates` - the Job
+          # templates run-template bakes in. build-push-action does not read
+          # compose, so the named context has to be given here too.
+          build-contexts: jobtemplates=k8s/job-templates
+          push: false
+          cache-from: type=gha,scope=bothy-ops
+          cache-to: type=gha,mode=max,scope=bothy-ops
