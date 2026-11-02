@@ -514,30 +514,30 @@ echo "── one log shipper, one version ────────────�
 # as caught. The substitute version just has to differ from the pin.
 mutant "Alloy moves in compose but not in the manifest" \
   monitoring/compose.yml \
-  'image: grafana/alloy:v1.20.1' \
-  'image: grafana/alloy:v1.21.0' \
+  'image: grafana/alloy:v1.21.3' \
+  'image: grafana/alloy:v1.22.0' \
   -- bash scripts/checks/alloy-pins.sh
 
 # The cluster e2e's constants, one row per source they are copied from. Each is
 # the real Dependabot batch of 2026-10-05 landing without its companion edit.
 mutant "VictoriaMetrics moves but the e2e constant does not" \
   monitoring/compose.yml \
-  'image: victoriametrics/victoria-metrics:v1.154.0' \
+  'image: victoriametrics/victoria-metrics:v1.154.1' \
   'image: victoriametrics/victoria-metrics:v1.155.0' \
   -- bash scripts/checks/e2e-pins.sh
 
 mutant "the kube-state-metrics chart moves but the e2e constant does not" \
   k8s/monitoring/Chart.yaml \
-  'version: 8.6.0' \
-  'version: 8.7.0' \
+  'version: 8.8.0' \
+  'version: 8.9.0' \
   -- bash scripts/checks/e2e-pins.sh
 
 # A rollback test whose two versions are equal passes by asserting nothing: it
 # "rolls back" to the version it is already on and every assertion holds.
 mutant "the e2e rollback target equals the version it upgrades to" \
   apps/bothy-ops/checks/e2e_cluster.py \
-  'KSM_OLD, KSM_NEW = "8.5.0", "8.6.0"' \
-  'KSM_OLD, KSM_NEW = "8.6.0", "8.6.0"' \
+  'KSM_OLD, KSM_NEW = "8.6.0", "8.8.0"' \
+  'KSM_OLD, KSM_NEW = "8.8.0", "8.8.0"' \
   -- bash scripts/checks/e2e-pins.sh
 
 # The fixture was a literal while the constant moved, so the plan the test built
