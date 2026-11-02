@@ -490,6 +490,11 @@ jobs:
           done
           docker ps -a > /tmp/logs/ps.txt
           docker volume ls > /tmp/logs/volumes.txt
+          # These are logs of a stack with real generated secrets, and the
+          # artifact below is downloadable from a public repository. Until
+          # 2026-11-02 they were uploaded as captured; install.yml had always
+          # redacted its own. Same script, same refusal: an empty directory.
+          python3 -I scripts/redact-logs.py /tmp/logs .env
 
       - uses: actions/upload-artifact@v7
         if: failure()

@@ -2582,6 +2582,42 @@ mutant "an unknown status passes" \
   -- "${RELEASE_CHECK[@]}"
 
 echo
+echo "── a failure artifact holds no secret, or holds nothing ────────────"
+# scripts/redact-logs.py runs before install and upgrade upload their logs from
+# a public repository. Its refusal was decorative once already.
+REDACT_CHECK=(bash scripts/checks/redact-logs.sh)
+
+# The original bug's shape: refuse, but leave the logs where the upload finds them.
+mutant "a refusal leaves the logs in place" \
+  scripts/redact-logs.py \
+  '    for p in list(logdir.iterdir()) if logdir.is_dir() else []:' \
+  '    for p in []:' \
+  -- "${REDACT_CHECK[@]}"
+
+# "The redaction ran" is not "the secret is gone".
+mutant "the redaction is never verified" \
+  scripts/redact-logs.py \
+  '    if leaked:
+        refuse(' \
+  '    if False:
+        refuse(' \
+  -- "${REDACT_CHECK[@]}"
+
+# Shortest first leaves a fragment of a longer secret around a placeholder.
+mutant "secrets are replaced shortest first" \
+  scripts/redact-logs.py \
+  'key=lambda kv: -len(kv[1]))' \
+  'key=lambda kv: len(kv[1]))' \
+  -- "${REDACT_CHECK[@]}"
+
+# The unanchored regex that read 37 "keys" of prose out of a comment.
+mutant "the key list is read from a comment" \
+  scripts/redact-logs.py \
+  '    if len(keys) < MIN_KEYS or not all(re.fullmatch(r"[A-Z][A-Z0-9_]*", k) for k in keys):' \
+  '    if not keys:' \
+  -- "${REDACT_CHECK[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is

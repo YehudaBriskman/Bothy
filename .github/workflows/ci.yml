@@ -251,6 +251,14 @@ jobs:
         if: always()
         run: bash scripts/checks/release-decision.sh
 
+      # The install and upgrade workflows upload failure logs from a stack with
+      # real generated secrets, from a public repository. This proves the
+      # redaction removes every one - and that when it cannot prove that, it
+      # leaves nothing to upload.
+      - name: CI failure logs are redacted, or not uploaded at all
+        if: always()
+        run: bash scripts/checks/redact-logs.sh
+
       # docs/brand/patterns/dataviz.md has been the standard since 2026-08-10 and
       # three of the five Grafana dashboards obeyed none of it, because nothing
       # ever read it on their behalf. The things that survived a year are the

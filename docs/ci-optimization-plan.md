@@ -100,7 +100,7 @@ Change mix of the last 150 first-parent commits on `main`: 93 runtime/mixed,
 | B0 | `Claude-Bot/Fix/quote-guard-path-in-pgmajor-e2e` | quote the path the pgmajor e2e writes into a justfile; Elsewhere can go green | local commit |
 | B1 | `Claude-Bot/Chore/ci-keeps-every-main-run-and-queues-fewer-jobs` | cancel stale PR runs only; never cancel a push to `main`; one `images` job instead of three; gitleaks timeout; this document | local commit |
 | B2 | `Claude-Bot/Fix/release-waits-for-install-and-upgrade` (stacked on B1) | release waits for CI **and** Install **and** Upgrade on the exact SHA; upgrade also runs on push to `main`; add last-release -> candidate upgrade; keep `HEAD^1` | local commit |
-| B3 | after B1 | Elsewhere: drop the control row and stop re-running the path-independent installer job; upgrade redacts its log artifact the way install does | planned |
+| B3 | `Claude-Bot/Fix/ci-logs-redacted-everywhere-and-elsewhere-runs-only-the-paths` (stacked on B2) | one redaction script for install and upgrade whose refusal actually holds; Elsewhere stops re-running the path-independent installer job | local commit |
 
 ### B1 - what changes and what does not
 
@@ -144,6 +144,32 @@ Change mix of the last 150 first-parent commits on `main`: 93 runtime/mixed,
   ago on today's runner image. If an old release cannot install on a runner
   for reasons unrelated to upgrading, that row is red and blocks releases
   until a newer release exists or the row is adjusted - deliberately loud.
+
+### B3 - what changes and what does not
+
+- **Defect found while doing this:** install.yml's redaction printed
+  "REFUSING to upload" and exited 1 inside a step running under `set +e`
+  whose last command was an `echo`. The step passed and the `if: failure()`
+  upload ran - the refusal never held. Redaction is now
+  `scripts/redact-logs.py`, which **empties the log directory** (leaving only
+  a `REFUSED.txt` naming keys, never values) whenever it cannot prove every
+  generated secret is gone. Verification is on bytes.
+- `upgrade.yml` uploaded its failure logs unredacted; it now runs the same
+  script.
+- Table test `scripts/checks/redact-logs.sh` (9 rows, in `tree`) and four
+  mutants rows: a refusal that leaves logs in place, a verification that never
+  runs, shortest-first replacement, a key list read from a comment.
+- `install.yml` gains a `workflow_call` input `installer` (default true);
+  Elsewhere passes `false`. The `installer` job ignores `dir` and already runs
+  on every PR and push - three nightly copies tested nothing new. The
+  condition is `toJSON(inputs.installer) != 'false'`, because expressions
+  compare loosely and `null != false` is **false**: the obvious spelling
+  would have skipped the job on every PR.
+- **Departure from the audit: the control row stays.** The audit proposed
+  dropping Elsewhere's `/tmp/bothy` row as covered by the push-time install.
+  It is not: that ran on the day of the merge, and Upgrade's nightly install
+  does not run the ops and editor suites, where the failures are. The control
+  row is what showed the intermittent editor-tier failure is not path-related.
 
 ## Required-check migration map
 

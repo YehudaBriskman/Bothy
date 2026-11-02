@@ -48,6 +48,13 @@ on:
         type: string
         required: false
         default: /tmp/bothy
+      installer:
+        description: >-
+          Also run the curl | sh installer job. It ignores `dir` by design, so
+          a caller varying only the directory gains nothing from it.
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
@@ -341,59 +348,13 @@ jobs:
             n=$(echo "$f" | tr '/' '_')
             docker compose -f "$f" logs --no-color --tail 400 > "/tmp/logs/$n.log" 2>&1
           done
-          # ONE python pass, not a shell loop building python. The first
-          # version nested three levels of quoting to interpolate a secret into
-          # a heredoc inside an xargs inside a for - which is how a redaction
-          # step silently redacts nothing. This reads .env itself.
-          python3 - <<'PY'
-          import pathlib, re, sys
-          # READ FROM scripts/lib/bootstrap-keys.sh, not repeated here. A fourth
-          # copy of this list is a fourth chance for it to fall behind, and the
-          # way it would fail is a secret shipped in a public artifact.
-          keyfile = pathlib.Path("scripts/lib/bootstrap-keys.sh").read_text()
-          # ANCHORED TO LINE START, multiline. Unanchored, this matched the
-          # COMMENT in that file - which quotes the old one-line form
-          # `SECRET_KEYS="POSTGRES_PASSWORD ...` to explain why it is not written
-          # that way - and returned 37 "keys" of English prose. The length check
-          # below would have passed it.
-          block = re.search(r'^SECRET_KEYS="([^"]*)"', keyfile, re.M)
-          KEYS = block.group(1).split() if block else []
-          # Every entry must look like an env var name, not a word of prose.
-          if len(KEYS) < 5 or not all(re.fullmatch(r'[A-Z][A-Z0-9_]*', k) for k in KEYS):
-              sys.exit(f"REFUSING to upload: could not read the secret key list (got {KEYS})")
-          env = {}
-          for line in open(".env", encoding="utf-8", errors="replace").read().splitlines():
-              if line and not line.startswith("#") and "=" in line:
-                  k, v = line.split("=", 1)
-                  env[k.strip()] = v.strip()
-          # Longest first: one secret can contain another as a substring, and
-          # replacing the short one first leaves a mangled fragment of the long
-          # one behind rather than removing it.
-          secrets = sorted(((k, env[k]) for k in KEYS if env.get(k)),
-                           key=lambda kv: -len(kv[1]))
-          n = 0
-          for path in pathlib.Path("/tmp/logs").rglob("*"):
-              if not path.is_file():
-                  continue
-              text = path.read_text(encoding="utf-8", errors="replace")
-              out = text
-              for k, v in secrets:
-                  out = out.replace(v, f"<{k} redacted>")
-              if out != text:
-                  path.write_text(out, encoding="utf-8")
-                  n += 1
-          print(f"redacted {n} file(s)")
-          # PROVE IT, and refuse to upload otherwise. An artifact is
-          # downloadable and this repo is public; "the redaction ran" and "the
-          # secret is gone" are different claims.
-          leaked = [k for k, v in secrets
-                    for p in pathlib.Path("/tmp/logs").rglob("*")
-                    if p.is_file() and v in p.read_text(encoding="utf-8", errors="replace")]
-          if leaked:
-              print("REFUSING to upload - still present:", sorted(set(leaked)))
-              sys.exit(1)
-          PY
-          echo "redacted, $(find /tmp/logs -type f | wc -l) file(s)"
+          # scripts/redact-logs.py (table-tested in scripts/checks/redact-logs.sh).
+          # It used to be inline here, and its "REFUSING to upload" was
+          # decorative: this step runs under `set +e` and ended in an echo, so
+          # it passed and the upload below ran anyway. The script now EMPTIES
+          # /tmp/logs when it cannot prove the redaction, so a refusal holds no
+          # matter what reads its exit code.
+          python3 -I scripts/redact-logs.py /tmp/logs .env
 
       - name: Down leaves nothing behind
         if: always()
@@ -435,6 +396,12 @@ jobs:
   # PR rather than nightly.
   installer:
     name: curl | sh - clone, verify, and stop
+    # `inputs.installer` is null on push and pull_request (input defaults apply
+    # only to workflow_call), so the test is "not explicitly false". Not
+    # `inputs.installer != false`: expressions compare LOOSELY, null and false
+    # both coerce to 0, and that would skip this job on every PR. toJSON
+    # compares the strings 'null' / 'true' / 'false' instead.
+    if: toJSON(inputs.installer) != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
