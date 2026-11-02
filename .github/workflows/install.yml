@@ -55,8 +55,13 @@ permissions:
 concurrency:
   # The directory is part of the key: two awkward-path runs are different work,
   # and cancelling one because another started would silently halve the matrix.
-  group: install-${{ github.ref }}-${{ inputs.dir || 'default' }}
-  cancel-in-progress: true
+  #
+  # Only a PR cancels its own stale run. Pushes to main and the nightly matrix
+  # are keyed by SHA and never cancelled - same reasoning as ci.yml's block: a
+  # merged commit whose install run was cancelled was never installed by
+  # anyone, and nothing downstream can tell that from "not run yet".
+  group: install-${{ github.event_name == 'pull_request' && github.ref || github.sha }}-${{ inputs.dir || 'default' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   install:
