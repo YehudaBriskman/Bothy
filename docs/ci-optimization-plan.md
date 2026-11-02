@@ -97,10 +97,10 @@ Change mix of the last 150 first-parent commits on `main`: 93 runtime/mixed,
 
 | ID | Branch | Purpose | Status |
 |---|---|---|---|
-| B0 | `Claude-Bot/Fix/quote-guard-path-in-pgmajor-e2e` | quote the path the pgmajor e2e writes into a justfile; Elsewhere can go green | local commit |
-| B1 | `Claude-Bot/Chore/ci-keeps-every-main-run-and-queues-fewer-jobs` | cancel stale PR runs only; never cancel a push to `main`; one `images` job instead of three; gitleaks timeout; this document | local commit |
-| B2 | `Claude-Bot/Fix/release-waits-for-install-and-upgrade` (stacked on B1) | release waits for CI **and** Install **and** Upgrade on the exact SHA; upgrade also runs on push to `main`; add last-release -> candidate upgrade; keep `HEAD^1` | local commit |
-| B3 | `Claude-Bot/Fix/ci-logs-redacted-everywhere-and-elsewhere-runs-only-the-paths` (stacked on B2) | one redaction script for install and upgrade whose refusal actually holds; Elsewhere stops re-running the path-independent installer job | local commit |
+| B0 | `Claude-Bot/Fix/quote-guard-path-in-pgmajor-e2e` | quote the path the pgmajor e2e writes into a justfile; Elsewhere can go green | merged (#296) |
+| B1 | `Claude-Bot/Chore/ci-keeps-every-main-run-and-queues-fewer-jobs` | cancel stale PR runs only; never cancel a push to `main`; one `images` job instead of three; gitleaks timeout; this document | merged (#297) |
+| B2 | `Claude-Bot/Fix/release-waits-for-install-and-upgrade` (stacked on B1) | release waits for CI **and** Install **and** Upgrade on the exact SHA; upgrade also runs on push to `main`; add last-release -> candidate upgrade; keep `HEAD^1` | PR #298 |
+| B3 | `Claude-Bot/Fix/ci-logs-redacted-everywhere-and-elsewhere-runs-only-the-paths` (stacked on B2) | one redaction script for install and upgrade whose refusal actually holds; Elsewhere stops re-running the path-independent installer job | PR #299 |
 
 ### B1 - what changes and what does not
 
