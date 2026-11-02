@@ -25,7 +25,7 @@ services:
   # ROLLBACK: the Prometheus service is kept below under the `legacy-prometheus`
   # profile, and its volume `monitoring_prometheus_data` is kept, untouched.
   victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.154.0
+    image: victoriametrics/victoria-metrics:v1.154.1
     container_name: victoriametrics
     restart: unless-stopped
     # CREDENTIALS WITHOUT LEAKING THEM INTO `docker inspect`. The password flag
@@ -246,7 +246,7 @@ services:
     networks: [devnet]
 
   loki:
-    image: grafana/loki:3.7.8
+    image: grafana/loki:3.7.9
     container_name: loki
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
@@ -275,7 +275,7 @@ services:
   # verified with a side-by-side test container writing test="alloy" streams.
   # See alloy/config.alloy for the docker-access note and first-start behaviour.
   alloy:
-    image: grafana/alloy:v1.20.1
+    image: grafana/alloy:v1.21.3
     container_name: alloy
     restart: unless-stopped
     # The UI/API stays on 127.0.0.1 (the image default): the healthcheck is the
