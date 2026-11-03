@@ -941,6 +941,19 @@ export function Files() {
           setTab('problems');
           return;
         }
+        // The download still starts - what is left out is credentials, links and
+        // unreadable files, by design - but it is SAID here, beside the button. An
+        // archive that drops files with no word until you open SKIPPED.txt is how
+        // a 357 MB folder arrived as a 3.6 MB zip and looked like a broken download.
+        if (d.skipped > 0) {
+          raise({
+            id: `arch-skipped-${relPath}`, tone: 'info', title: 'Some files are left out of this archive',
+            detail: `${d.skipped.toLocaleString()} file(s) under ${label} will not be in the download `
+              + '(credential files, symlinks or unreadable files); SKIPPED.txt inside it lists each one and why.',
+            where: `${root}/${relPath || '.'}`,
+          });
+          setTab('problems');
+        }
         archive(relPath, label, d.files, d.bytes, 'zip');
       })
       .catch((e: unknown) => {

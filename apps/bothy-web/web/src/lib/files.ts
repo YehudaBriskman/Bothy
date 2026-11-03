@@ -58,8 +58,8 @@ export function archiveUrl(root: string, path: string, format: 'zip' | 'tgz'): s
 // the ordinary case rather than the exotic one. Kept beside the URL builders so
 // the two are read together; if safepath's numbers move, these move with them.
 export const ARCHIVE_MAX_ENTRIES = 2_000;
-export const ARCHIVE_MAX_TOTAL = 100_000_000;
-export const ARCHIVE_MAX_MEMBER = 25_000_000;
+export const ARCHIVE_MAX_TOTAL = 64_000_000_000;
+export const ARCHIVE_MAX_MEMBER = 64_000_000_000;
 
 // Downloads open a TAB; they are never an <a download>. Signed out, :8100
 // answers a bare 401 with no sign-in page, and <a download> saves that 401 body
