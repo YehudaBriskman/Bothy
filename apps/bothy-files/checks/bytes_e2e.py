@@ -274,6 +274,37 @@ r = s.get(f"{SANDBOX}/-/api/files/archive",
 check("but a SUBTREE of projects archives fine",
       r.status_code == 200, f"got {r.status_code}")
 
+print("\n── /archive: a big file comes out WHOLE ────────────────────────────")
+# The regression this guards: the zip writer read each member whole, so a 25 MB
+# per-file cap kept it inside the container's 256 MB, and a 357 MB release disk
+# downloaded as a 3.6 MB zip of its text files, the four image tars only named
+# in SKIPPED.txt. 300 MB is past the old cap AND past what the container could
+# hold in memory, so a writer that buffers again fails here by OOM, not by luck.
+# Sparse, so the probe costs no disk; zeros deflate, so it costs no bandwidth.
+_big = f"{PROJECTS}/_archive_big_probe"
+shutil.rmtree(_big, ignore_errors=True); os.makedirs(_big)
+_BIG = 300 * 1024 * 1024
+with open(f"{_big}/image.tar", "wb") as _fh:
+    _fh.truncate(_BIG)
+atexit.register(lambda: shutil.rmtree(_big, ignore_errors=True))
+for _fmt in ("zip", "tgz"):
+    r = s.get(f"{SANDBOX}/-/api/files/archive",
+              params={"root": "projects", "path": "_archive_big_probe", "format": _fmt}, timeout=300)
+    check(f"a 300 MB file archives as {_fmt}", r.status_code == 200, f"got {r.status_code}")
+    if r.status_code != 200:
+        continue
+    check(f"and the {_fmt} says it skipped nothing", r.headers.get("X-Files-Skipped") == "0",
+          f"X-Files-Skipped {r.headers.get('X-Files-Skipped')}")
+    if _fmt == "zip":
+        _z = zipfile.ZipFile(io.BytesIO(r.content))
+        _sizes = {i.filename.split("/", 1)[1]: i.file_size for i in _z.infolist()}
+        check("the zip carries all 300 MB of it", _sizes.get("image.tar") == _BIG, str(_sizes))
+        check("and it reads back intact", _z.testzip() is None)
+    else:
+        _t = tarfile.open(fileobj=io.BytesIO(r.content))
+        _sizes = {m.name.split("/", 1)[1]: m.size for m in _t.getmembers()}
+        check("the tar.gz carries all 300 MB of it", _sizes.get("image.tar") == _BIG, str(_sizes))
+
 print("\n── CSRF: the hole the sandbox origin opens ─────────────────────────")
 # A text/plain POST is a CORS-"simple" request and skips the preflight entirely.
 r = s.post(f"{BASE}/-/api/files/write",

@@ -592,8 +592,16 @@ PDF_TYPE = ("application/pdf", (b"%PDF-",))
 
 # ── archives ────────────────────────────────────────────────────────────────
 ARCHIVE_MAX_ENTRIES = 2_000
-ARCHIVE_MAX_TOTAL = 100_000_000      # sum of member sizes
-ARCHIVE_MAX_MEMBER = 25_000_000      # one file
+# The byte caps are not memory bounds any more (2026-11). Both archive writers
+# stream each member in 1 MiB chunks (app.py `_stream_zip` / `_stream_tar`), so
+# a 4 GB file costs the 256 MB container the same as a 4 KB one. They used to be
+# 25 MB / 100 MB because the zip writer read each member WHOLE, and that silently
+# turned a 357 MB release disk into a 3.6 MB zip of its text files. What is left
+# is a sanity bound on one request: big enough for any real folder of images,
+# tars or videos (ZIP64 past 4 GB), small enough that a click on the wrong root
+# is refused rather than streaming for an hour.
+ARCHIVE_MAX_TOTAL = 64_000_000_000   # sum of member sizes
+ARCHIVE_MAX_MEMBER = 64_000_000_000  # one file
 ARCHIVE_MAX_DEPTH = 32
 ARCHIVE_WALK_SECONDS = 20            # phase-1 wall clock
 
@@ -1272,7 +1280,7 @@ def collect(
                 skip(shown, str(e))
                 continue
             if st.st_size > max_member:
-                skip(shown, f"larger than the {max_member // 1_000_000} MB per-file limit")
+                skip(shown, f"larger than the {max_member / 1e9:g} GB per-file limit")
                 continue
             arc = safe_arcname(prefix, os.path.relpath(res.abspath, walk_root))
             if arc is None:

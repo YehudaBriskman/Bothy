@@ -1901,9 +1901,27 @@ def _skip_note(skipped: list[dict], kept: int) -> bytes:
     return ("\n".join(lines) + "\n").encode()
 
 
-def _zinfo(name: str, mtime: int) -> zipfile.ZipInfo:
+# Members whose bytes are already compressed are STORED: deflating a gzip, an
+# image or a video again costs seconds of CPU per hundred MB and saves nothing.
+_STORED_EXT = frozenset((
+    ".gz", ".tgz", ".bz2", ".xz", ".zst", ".zip", ".7z", ".rar", ".jar", ".whl",
+    ".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".heic",
+    ".mp4", ".m4v", ".mov", ".webm", ".mkv", ".mp3", ".m4a", ".ogg", ".flac",
+    ".woff", ".woff2", ".pdf",
+))
+
+# One chunk of a member in memory at a time, for both formats: the container has
+# 256 MB and a member may be several GB.
+_CHUNK = 1 << 20
+
+
+def _zinfo(name: str, mtime: int, size: int = 0) -> zipfile.ZipInfo:
     zi = zipfile.ZipInfo(name, date_time=time.localtime(mtime)[:6])
-    zi.compress_type = zipfile.ZIP_DEFLATED
+    stored = os.path.splitext(name)[1].lower() in _STORED_EXT
+    zi.compress_type = zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED
+    # Declared up front so zipfile writes a ZIP64 entry for a member over 2 GB:
+    # on an unseekable socket it cannot go back and fix the header afterwards.
+    zi.file_size = size
     # 0644, never the on-disk mode: a setuid or 0777 bit has no business
     # surviving into something a browser downloads.
     zi.external_attr = 0o644 << 16
@@ -1916,17 +1934,22 @@ def _stream_zip(out, members, note: bytes, stamp: int) -> None:
         z.writestr(_zinfo(f"{prefix}/SKIPPED.txt", stamp or int(time.time())), note)
         for m in members:
             try:
-                with open(m.res.abspath, "rb") as fh:
-                    z.writestr(_zinfo(m.arcname, m.mtime), fh.read())
+                fh = open(m.res.abspath, "rb")
             except OSError:
                 continue
+            # Once the entry is open its header is on the wire, so a read error
+            # now cannot skip it cleanly; it ends the archive, which the
+            # extractor then reports as truncated rather than as complete.
+            with fh, z.open(_zinfo(m.arcname, m.mtime, m.size), "w") as dst:
+                while chunk := fh.read(_CHUNK):
+                    dst.write(chunk)
 
 
 def _stream_tar(out, members, note: bytes, stamp: int) -> None:
     # PAX, not the GNU/USTAR default: those truncate at 100 characters and paths
     # under ~/projects are already longer than that.
     with tarfile.open(fileobj=out, mode="w|gz", format=tarfile.PAX_FORMAT,
-                      compresslevel=6) as t:
+                      compresslevel=6, copybufsize=_CHUNK) as t:
         prefix = members[0].arcname.split("/")[0]
         ti = tarfile.TarInfo(f"{prefix}/SKIPPED.txt")
         ti.size, ti.mtime, ti.mode = len(note), stamp or int(time.time()), 0o644
