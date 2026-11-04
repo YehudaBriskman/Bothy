@@ -52,6 +52,20 @@
 # of them side by side, each under its own short timeout, so adding a row costs a
 # fraction of a minute instead of moving the whole job toward a cliff. Unset, it
 # runs every row, which is what you want locally.
+#
+# ── on a pull request: the rows the change can affect (2026-11) ──────────────
+#
+# MUTANTS_CHANGED=<file of paths> runs only the rows that diff can reach - the
+# mutated file changed, a path the check names changed, or anything in the app a
+# check under apps/<app>/ belongs to. scripts/ci-changes.sh holds that rule and
+# scripts/checks/ci-changes.sh table-tests it. A push to main never sets it, so
+# main runs every row before release.yml will tag anything.
+#
+# Shards are taken over the SELECTED rows, so four shards of a 30-row selection
+# are four even quarters, not one shard holding all of them.
+#
+# MUTANTS_COUNT=1 plants nothing: it prints `rows=<n> seconds=<estimate>` for
+# the selection and exits, so CI can size the shard matrix before starting it.
 set -uo pipefail
 
 SHARD_K=1 SHARD_N=1
@@ -65,6 +79,20 @@ if [ -n "${MUTANTS_SHARD:-}" ]; then
 fi
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
+
+# shellcheck source=../ci-changes.sh
+. scripts/ci-changes.sh
+CHANGED=""
+SELECTIVE=0
+if [ -n "${MUTANTS_CHANGED:-}" ]; then
+  CHANGED=$(cat "$MUTANTS_CHANGED") || { echo "MUTANTS_CHANGED=$MUTANTS_CHANGED cannot be read"; exit 2; }
+  # An empty list would select nothing and pass. Refuse it rather than guess.
+  [ -n "$CHANGED" ] || { echo "MUTANTS_CHANGED is empty - unset it to run every row"; exit 2; }
+  SELECTIVE=1
+fi
+COUNT_ONLY="${MUTANTS_COUNT:-0}"
+selected=0
+estimate=0
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "REFUSING TO RUN: the working tree is dirty."
@@ -108,10 +136,27 @@ PY
 mutant() {
   local label="$1" file="$2" old="$3" new="$4"; shift 5   # shift past the `--`
 
+  row=$((row + 1))
+  # A row this pull request cannot reach. Decided before sharding, so the
+  # shards split the selection evenly.
+  if [ "$SELECTIVE" = 1 ] && ! row_relevant "$CHANGED" "$file" "$@"; then
+    return
+  fi
+  selected=$((selected + 1))
+
+  # The shard matrix is sized from this. A portal row runs the whole portal
+  # harness (~12 s measured); the rest take ~3 s.
+  if [ "$COUNT_ONLY" = 1 ]; then
+    case " $* " in
+      *" apps/bothy-web/checks/run.sh "*) estimate=$((estimate + 12)) ;;
+      *) estimate=$((estimate + 3)) ;;
+    esac
+    return
+  fi
+
   # Another shard's row. Skipped BEFORE anything is planted, so a shard never
   # touches a file it is not going to check.
-  row=$((row + 1))
-  if [ $(( (row - 1) % SHARD_N )) -ne $((SHARD_K - 1)) ]; then
+  if [ $(( (selected - 1) % SHARD_N )) -ne $((SHARD_K - 1)) ]; then
     return
   fi
 
@@ -2618,6 +2663,50 @@ mutant "the key list is read from a comment" \
   -- "${REDACT_CHECK[@]}"
 
 echo
+echo "── a pull request skips only what it cannot reach ──────────────────"
+# scripts/ci-changes.sh picks the rows above that a PR runs, and whether a PR
+# is documentation only. Each row is a way it could skip something it must not.
+CHANGES_CHECK=(bash scripts/checks/ci-changes.sh)
+
+mutant "markdown inside an app counts as documentation" \
+  scripts/ci-changes.sh \
+  '    apps/*) return 1 ;;
+    docs/*' \
+  '    docs/*' \
+  -- "${CHANGES_CHECK[@]}"
+
+mutant "the last path of an unterminated list is dropped" \
+  scripts/ci-changes.sh \
+  'while IFS= read -r p || [ -n "$p" ]; do' \
+  'while IFS= read -r p; do' \
+  -- "${CHANGES_CHECK[@]}"
+
+mutant "editing mutants.sh no longer runs every row" \
+  scripts/ci-changes.sh \
+  'scripts/checks/mutants.sh|scripts/ci-changes.sh|' \
+  'scripts/ci-changes.sh|' \
+  -- "${CHANGES_CHECK[@]}"
+
+# The prefix trap asDir's row is about, in a second place.
+mutant "an app's prefix loses its trailing slash" \
+  scripts/ci-changes.sh \
+  'app="apps/${app%%/*}/"' \
+  'app="apps/${app%%/*}"' \
+  -- "${CHANGES_CHECK[@]}"
+
+mutant "an empty change list selects no row" \
+  scripts/ci-changes.sh \
+  '[ -n "$changed" ] || return 0' \
+  '[ -n "$changed" ] || return 1' \
+  -- "${CHANGES_CHECK[@]}"
+
+mutant "a checkout that is not a merge is diffed anyway" \
+  scripts/ci-changes.sh \
+  "git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 || return 3" \
+  ':' \
+  -- "${CHANGES_CHECK[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is
@@ -2637,7 +2726,12 @@ else
 fi
 
 echo
-[ "$SHARD_N" -gt 1 ] && echo "shard $SHARD_K/$SHARD_N of $row row(s)"
+if [ "$COUNT_ONLY" = 1 ]; then
+  echo "rows=$selected seconds=$estimate"
+  exit 0
+fi
+[ "$SELECTIVE" = 1 ] && echo "selected $selected of $row row(s) for this change"
+[ "$SHARD_N" -gt 1 ] && echo "shard $SHARD_K/$SHARD_N of $selected row(s)"
 # A shard that ran nothing is a mis-sized matrix, not a pass.
 if [ $((pass + fail)) -eq 0 ]; then
   echo "NO ROWS RAN - shard $SHARD_K/$SHARD_N is empty"

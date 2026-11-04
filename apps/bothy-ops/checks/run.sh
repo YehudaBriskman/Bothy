@@ -139,6 +139,22 @@
 # Each alone would pass while the design was broken: the guards pass with the
 # proxies wide open, grants passes with the guard deleted, the API checks pass
 # against a proxy that permits /containers/create. All of them have to run.
+#
+# ── the end-to-end suites, in groups (2026-11) ──────────────────────────────
+#
+# The e2e_* suites need a docker daemon and NOTHING ELSE of Bothy's: each builds
+# its own throwaway project and removes it. Run one after another they are ~20
+# minutes, which made the install job 26. So CI runs them as their own jobs, one
+# per GROUP, beside the install rather than after it:
+#
+#   (no flag)          everything, in order - what `just ops-check` runs
+#   --offline          no docker daemon: skip transition.py and every e2e
+#   --no-e2e           everything except the e2e groups (transition.py runs)
+#   --e2e=<group>      only that group's e2e suites; an unknown group exits 2
+#   --list-e2e-groups  print the groups as a JSON array and run nothing
+#
+# install.yml builds its matrix from --list-e2e-groups, so a suite added below
+# is in CI the moment it is added here - there is no second list to forget.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../bothy-common/checks/lib.sh
@@ -146,13 +162,34 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bothy_init "$HERE/.."
 
 OFFLINE=0
+E2E=all          # all | none | list | one
+E2E_WANT=""
 for arg in "$@"; do
   case "$arg" in
     --offline) OFFLINE=1 ;;
+    --no-e2e) E2E=none ;;
+    --e2e=?*) E2E=one; E2E_WANT="${arg#--e2e=}" ;;
+    --list-e2e-groups) E2E=list ;;
     *) echo "unknown flag: $arg" >&2; exit 2 ;;
   esac
 done
 
+E2E_GROUPS=""
+e2e_ran=0
+# e2e <group> <title> <script> - one end-to-end suite, in a named group.
+e2e() {
+  case " $E2E_GROUPS " in *" $1 "*) ;; *) E2E_GROUPS="${E2E_GROUPS:+$E2E_GROUPS }$1" ;; esac
+  case "$E2E" in
+    all) ;;
+    one) [ "$1" = "$E2E_WANT" ] || return 0 ;;
+    *) return 0 ;;
+  esac
+  section "$2"
+  check "$PY" "checks/$3"
+  e2e_ran=$((e2e_ran + 1))
+}
+
+if [ "$E2E" = all ] || [ "$E2E" = none ]; then
 echo "python: $($PY -V)"
 
 section "the shared library: names, audit, CSRF, bodies"
@@ -243,45 +280,58 @@ section "a real container really transitions"
 # container this box runs - the names carry a random suffix. Roughly 45s: a
 # stop or restart on a PID 1 that ignores SIGTERM costs the full StopTimeout.
 check "$PY" checks/transition.py
+fi
 
-section "the host updater, end to end, on a throwaway project"
+# ── the e2e groups ───────────────────────────────────────────────────────────
+# Grouped by measured time on a runner (2026-11-04), so the slowest group sets
+# the wall clock: updater ~9 min; config, auto and alerts ~5.5; own code,
+# the Postgres major and the cluster ~5.
+
 # Its own registry, images, compose projects (-p bothy-updater-test*), git repo
 # and state dirs, all removed in a finally block. Never the live stack.
-check "$PY" checks/e2e_updater.py
+e2e updater "the host updater, end to end, on a throwaway project" e2e_updater.py
 
-section "a config value changed and a REAL REVERT, end to end"
 # Its own compose project (-p bothy-config-e2e), its own busybox image, its own
 # git repo and state dirs, all removed in a finally block. Never the live stack.
 # ~2 min. This is the check that proves the design rather than a decision: that
 # the host puts the value back by itself cannot be asserted statically.
-check "$PY" checks/e2e_config.py
+e2e config-and-night "a config value changed and a REAL REVERT, end to end" e2e_config.py
 
-section "the automatic channel, end to end, on a throwaway project"
 # The night job against the same kind of throwaway registry and project: a patch
 # picked and applied, a forced rollback that pauses, the next night skipping it.
-check "$PY" checks/e2e_auto.py
+e2e config-and-night "the automatic channel, end to end, on a throwaway project" e2e_auto.py
 
-section "the update alert rules, in a throwaway grafana"
 # The repo's alerting provisioning, unchanged, in the live Grafana image against a
 # throwaway VictoriaMetrics fed the updater's series: loads, fires, pends.
-check "$PY" checks/e2e_update_alerts.py
+e2e config-and-night "the update alert rules, in a throwaway grafana" e2e_update_alerts.py
 
-section "Bothy updating itself, end to end, on a throwaway clone"
 # Its own git repo (origin, dev, live), compose project (-p bothy-owncode-test,
 # no host ports), images, state and updater lib; the rollback timer is a real
 # `systemd-run --user` unit, compressed to 8 s. All removed in a finally block.
-check "$PY" checks/e2e_owncode.py
+e2e own-code-and-majors "Bothy updating itself, end to end, on a throwaway clone" e2e_owncode.py
 
-section "the Postgres major, end to end, on throwaway containers and volumes"
 # Its own compose projects, network and volumes (bothy-pgmajor-e2e*): 17 seeded,
 # main moved to 18 AND a new volume; a failure before and after the switch, each
 # back on the old volume with every row; then 18. Never the live postgres.
-check "$PY" checks/e2e_pgmajor.py
+e2e own-code-and-majors "the Postgres major, end to end, on throwaway containers and volumes" e2e_pgmajor.py
 
-section "the cluster class, end to end, on a throwaway minikube profile"
 # `minikube start -p bothy-cluster-e2e` into a TEMPORARY kubeconfig, a throwaway
 # VictoriaMetrics and Loki on its network; helm and DaemonSet, each rolled back
 # then deployed. Deleted at the end. Never thales-scc. Skips without minikube.
-check "$PY" checks/e2e_cluster.py
+e2e own-code-and-majors "the cluster class, end to end, on a throwaway minikube profile" e2e_cluster.py
+
+case "$E2E" in
+  list)
+    printf '['
+    sep=""
+    for g in $E2E_GROUPS; do printf '%s"%s"' "$sep" "$g"; sep=","; done
+    printf ']\n'
+    exit 0 ;;
+  one)
+    if [ "$e2e_ran" = 0 ]; then
+      echo "no e2e group named '$E2E_WANT' - the groups are: $E2E_GROUPS" >&2
+      exit 2
+    fi ;;
+esac
 
 finish

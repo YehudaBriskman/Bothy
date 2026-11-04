@@ -8,7 +8,9 @@ two of which (`prometheus`, `promtail`) are rollback profiles that stay down.
 The install is exercised on every pull request by
 [`.github/workflows/install.yml`](../../.github/workflows/install.yml) - clone
 into an empty directory, `cp .env.example .env`, `just up`, then every test
-suite in the repository run against the stack that came up. Nightly,
+suite in the repository run against the stack that came up. (The updater's
+end-to-end suites build their own throwaway projects, so they run as parallel
+jobs beside it.) Nightly,
 [`.github/workflows/elsewhere.yml`](../../.github/workflows/elsewhere.yml) runs
 the same job at a path with a space in it and at a deeply nested path, because
 every portability bug this repository has had looked fine at exactly one path.
