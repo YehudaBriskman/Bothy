@@ -5,10 +5,12 @@
 # latter is generated and gitignored), the socket-proxy settings in
 # apps/bothy/compose.socket-proxy.yml, and the auth stack in auth/ and edge/dynamic/auth.yml.
 #
-# As of 2026-08-12 those Path() rules are the ONLY edge control: sso@file is
-# defined and attached to no router while identity is rebuilt on Keycloak, and
-# the Traefik dashboard router was deleted because /api/rawdata leaked the live
-# basic-auth header from bothy-prom.yml. Review a change to any of these as a
-# security change. See SECURITY.md.
+# Those Path() rules are one edge control; the role gates are the other. The
+# gates (sso-viewer / sso-editor / sso-operator) are defined once in
+# edge/dynamic/bothy-gates.yml and attached to every router in the Bothy tier
+# files; only the bare sso@file in auth.yml is attached to no router. The Traefik
+# dashboard router was deleted (2026-08-12) because /api/rawdata leaked the live
+# basic-auth header from bothy-prom.yml. Review a change to any of these files,
+# bothy-gates.yml included, as a security change. See SECURITY.md.
 
 * @YehudaBriskman

@@ -112,7 +112,7 @@ Then, in order:
 | Give it a login | Use the shared `DEV_LOGIN_*` credential from `.env`, the way Grafana and Prometheus do. There is no edge auth to fall back on |
 | Join `devnet` as well as `default` | So Prometheus can scrape it and the portal can discover it |
 | **Do not** add `traefik.http.routers.*.rule=Host(...)` | There is no name to match |
-| **Do not** attach `sso-errors@file,sso@file` | See below |
+| **Do not** attach `sso@file`, and do not add a role gate on the side | See below |
 
 `edge/compose.yml` is the only container that should ever publish `:80`.
 Databases stay bound to `127.0.0.1` (see below).
@@ -127,15 +127,34 @@ every address on the box at once while every container stayed healthy. Ports are
 ugly and they always work. See
 [docs/ARCHITECTURE.md § 4](docs/ARCHITECTURE.md#4-the-naming-convention-retired).
 
-### Do not attach the SSO middleware pair
+### SSO: what is attached, and what you should not attach
 
-`sso@file` and `sso-errors@file` are **defined in `edge/dynamic/auth.yml` and
-attached to no router**, deliberately, while identity is rebuilt on Keycloak.
-Rolling them out is a planned one-router-at-a-time exercise, not a per-service
-decision - `sso` fails closed, so if oauth2-proxy is down every router carrying
-it returns 500, including whichever one you would need to fix it. Give your
-service its own login instead. Details and the intended order in
-[SECURITY.md](SECURITY.md#1-sso-enforces-on-the-tiers-that-change-things-and-nowhere-else-yet).
+SSO **is** enforced, on the routes that change things. The three role gates -
+`sso-viewer`, `sso-editor` and `sso-operator` - are defined once, in
+`edge/dynamic/bothy-gates.yml`, and attached (each followed by `sso-errors`) to
+every router in the five Bothy tier files tabled in
+[SECURITY.md § 1](SECURITY.md#1-sso-enforces-on-the-tiers-that-change-things-and-nowhere-else-yet).
+`scripts/checks/router-gates.sh` holds that table against `edge/dynamic/` in CI.
+
+What is attached to no router is the **bare** `sso` middleware in
+`edge/dynamic/auth.yml`: it asks only "is there a session", not "which role", and
+it fails closed - if oauth2-proxy is down, every router carrying it returns 500,
+including whichever one you would need to fix it. Extending SSO to the rest of the
+box (Prometheus first, then the portal and the catch-all) is a planned
+one-router-at-a-time exercise, not a per-service decision.
+
+So, for a new service:
+
+- **Give it its own login**, on the shared `DEV_LOGIN_*` credential. Every
+  service outside the Bothy tiers is still reachable from the tailnet without
+  passing an auth boundary, and that is the control it has.
+- **Do not attach `sso@file`.**
+- **A new Bothy route gets a role gate, never a bare `sso`** - a gate from
+  `bothy-gates.yml` followed by `sso-errors`, in its tier file. That changes the
+  boundary, so update the tables in SECURITY.md § 1 (and the copies
+  `scripts/checks/router-gates.sh` lists), run that check, and say so in the PR.
+- **Never define a gate outside `bothy-gates.yml`.** Two definitions of one gate
+  in one provider is a collision no single file decides.
 
 ### Never put a doubled brace in `edge/dynamic/`, not even in a comment
 
