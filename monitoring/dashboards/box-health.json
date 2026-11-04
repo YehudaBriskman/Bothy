@@ -267,7 +267,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs\"}) * 100)",
+          "expr": "max(100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs\",mountpoint!~\"/usr/lib/linux-tools/.*|/usr/src/linux-headers-.*|/usr/lib/wsl/drivers\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs\",mountpoint!~\"/usr/lib/linux-tools/.*|/usr/src/linux-headers-.*|/usr/lib/wsl/drivers\"}) * 100)",
           "legendFormat": "Disk used",
           "instant": true
         }

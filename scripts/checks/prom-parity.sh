@@ -67,7 +67,7 @@ trap 'rm -rf "$tmp"' EXIT
 # expressions from monitoring/provisioning/alerting/rules.yml.
 REAL_NIC='device!~"lo|veth.*|docker[0-9]*|br-.*|tailscale.*|virbr.*"'
 ROOT_FS='mountpoint="/",fstype!~"tmpfs|overlay|squashfs"'
-FS='fstype!~"tmpfs|overlay|squashfs|ramfs"'
+FS='fstype!~"tmpfs|overlay|squashfs|ramfs",mountpoint!~"/usr/lib/linux-tools/.*|/usr/src/linux-headers-.*|/usr/lib/wsl/drivers"'
 cat > "$tmp/queries" <<EOF
 bothy:Q_CPU|100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100)
 bothy:Q_MEM|100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)

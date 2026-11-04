@@ -90,7 +90,12 @@ groups:
             datasourceUid: prometheus
             model:
               refId: A
-              expr: max(100 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs"}) * 100)
+              # Not the two read-only images WSL mounts (linux-tools, linux-headers),
+              # which are ALWAYS 100% full by construction: they fired this alert from
+              # the day it existed (2026-11-04, 11 days). Nor /usr/lib/wsl/drivers, a
+              # second view of C:. /mnt/c (C:) stays IN: this box's ext4.vhdx lives on
+              # C:, so a full C: stops WSL itself.
+              expr: max(100 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs",mountpoint!~"/usr/lib/linux-tools/.*|/usr/src/linux-headers-.*|/usr/lib/wsl/drivers"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs",mountpoint!~"/usr/lib/linux-tools/.*|/usr/src/linux-headers-.*|/usr/lib/wsl/drivers"}) * 100)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
