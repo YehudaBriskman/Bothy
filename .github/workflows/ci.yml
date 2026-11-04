@@ -308,9 +308,15 @@ jobs:
   # CHANGE-ORIENTED ON PULL REQUESTS (2026-11-04). Every PR ran all ~250 rows on
   # four runners for ~7 minutes each, whatever it touched; over the last 30
   # merged PRs, 12 could reach at most four rows. `mutants-plan` counts the rows
-  # the PR can reach and sizes the matrix from that: none skips the shards, a
-  # handful takes one runner, the whole table takes four. A push to main always
-  # runs every row on four shards, and release.yml tags only on that evidence.
+  # the PR can reach and decides how many shards do work: none, one per ~4
+  # minutes of rows, at most four. A push to main always runs every row on four
+  # shards, and release.yml tags only on that evidence.
+  #
+  # THE MATRIX STAYS [1, 2, 3, 4], named `Mutants N/4`, and every shard always
+  # completes. A matrix built from the plan's output left check-runs for the
+  # shards it no longer listed sitting `in_progress` forever (run 41863037352),
+  # and a name that varied with the count could never be a required check. So a
+  # shard above the planned count says so in one step and finishes green.
   mutants-plan:
     name: Mutation rows this change can reach
     runs-on: ubuntu-latest
@@ -318,7 +324,6 @@ jobs:
     timeout-minutes: 5
     outputs:
       rows: ${{ steps.plan.outputs.rows }}
-      shards: ${{ steps.plan.outputs.shards }}
       of: ${{ steps.plan.outputs.of }}
     steps:
       # Depth 2: a PR checkout is GitHub's merge commit, and its first parent is
@@ -346,41 +351,60 @@ jobs:
           secs=$(echo "$line" | sed -n 's/^rows=[0-9]* seconds=\([0-9]*\)$/\1/p')
           # Not a count is not zero: zero would skip every shard and pass.
           [ -n "$rows" ] && [ -n "$secs" ] || { echo "::error::mutants.sh did not report a count: $line"; exit 1; }
-          # One shard per ~4 minutes of estimated work, at most four.
+          # One shard per ~4 minutes of estimated work, at most four; none for
+          # no rows. Every push to main uses all four.
           n=$(( (secs + 239) / 240 ))
-          [ "$n" -ge 1 ] || n=1
           [ "$n" -le 4 ] || n=4
+          [ "$rows" -gt 0 ] || n=0
           [ -n "${MUTANTS_CHANGED:-}" ] || n=4
-          shards=$(seq -s, 1 "$n")
-          { echo "rows=$rows"; echo "of=$n"; echo "shards=[$shards]"; } >> "$GITHUB_OUTPUT"
+          { echo "rows=$rows"; echo "of=$n"; } >> "$GITHUB_OUTPUT"
           echo "$rows row(s), ~${secs}s of work, $n shard(s)"
 
   mutants-shard:
-    name: Mutants ${{ matrix.shard }}/${{ needs.mutants-plan.outputs.of }}
+    name: Mutants ${{ matrix.shard }}/4
     needs: mutants-plan
-    if: needs.mutants-plan.outputs.rows != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.mutants-plan.outputs.shards) }}
+        shard: [1, 2, 3, 4]
+    env:
+      PLANNED: ${{ needs.mutants-plan.outputs.of }}
+      SHARD: ${{ matrix.shard }}
     steps:
+      # Every later step is behind ACTIVE, so an idle shard finishes in seconds
+      # as a completed, green check rather than a skipped or missing one.
+      - name: Is this shard needed for this change?
+        run: |
+          set -euo pipefail
+          [[ "$PLANNED" =~ ^[0-4]$ ]] || { echo "::error::mutants-plan gave no shard count: '$PLANNED'"; exit 1; }
+          if [ "$SHARD" -le "$PLANNED" ]; then
+            echo "ACTIVE=true" >> "$GITHUB_ENV"
+            echo "shard $SHARD of $PLANNED"
+          else
+            echo "ACTIVE=false" >> "$GITHUB_ENV"
+            echo "not needed for this change (n=$PLANNED)"
+          fi
+
       # Tags, for the same reason as the tree job: the installer-pin row plants a
       # broken commit id, and without tags the check would catch it on the SHAPE
       # rule alone - the row would pass while the comparison it is really about
       # never ran.
-      - uses: actions/checkout@v7
+      - if: env.ACTIVE == 'true'
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v7
+      - if: env.ACTIVE == 'true'
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: apps/bothy-web/web/package-lock.json
 
       - name: Install portal dependencies
+        if: env.ACTIVE == 'true'
         working-directory: apps/bothy-web/web
         run: npm ci
 
@@ -391,6 +415,7 @@ jobs:
       # it. Same guard as the tree job - and this is the job the apt-get hang
       # actually killed.
       - name: shellcheck (one mutation needs it)
+        if: env.ACTIVE == 'true'
         run: |
           set -euo pipefail
           # shellcheck ships ON the GitHub ubuntu images. Installing it anyway cost
@@ -413,6 +438,7 @@ jobs:
       # would not, and mutants.sh refuses to run dirty. Failing HERE names the
       # cause; failing inside the harness looks like the harness is broken.
       - name: The tree must be clean before planting anything
+        if: env.ACTIVE == 'true'
         run: |
           set -euo pipefail
           if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -425,6 +451,7 @@ jobs:
       # The same list mutants-plan counted: the same merge commit, the same rule.
       # Written outside the checkout, which must stay clean.
       - name: Plant a mutation, require the check to catch it
+        if: env.ACTIVE == 'true'
         env:
           MUTANTS_SHARD: ${{ matrix.shard }}/${{ needs.mutants-plan.outputs.of }}
           EVENT: ${{ github.event_name }}
@@ -440,8 +467,8 @@ jobs:
   # otherwise SKIPPED, and branch protection reads a skipped required check as
   # passing.
   #
-  # Skipped shards are green ONLY when the plan succeeded and counted zero rows -
-  # a plan that failed also skips the shards, and that must stay red.
+  # A plan that failed skips the shards, and that must stay red: the shards are
+  # green only by completing, idle or not.
   mutants:
     name: Every check must be able to fail
     needs: [mutants-plan, mutants-shard]
@@ -456,13 +483,7 @@ jobs:
           SHARDS: ${{ needs.mutants-shard.result }}
         run: |
           echo "plan: $PLAN ($ROWS row(s)) · shards: $SHARDS"
-          [ "$PLAN" = success ] || exit 1
-          if [ "$ROWS" = 0 ]; then
-            echo "this change reaches no mutation row"
-            [ "$SHARDS" = skipped ]
-          else
-            [ "$SHARDS" = success ]
-          fi
+          [ "$PLAN" = success ] && [ "$SHARDS" = success ]
 
   # ── every compose file still resolves ───────────────────────────────────────
   compose:

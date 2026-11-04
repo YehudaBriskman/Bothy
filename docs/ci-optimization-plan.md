@@ -249,7 +249,7 @@ Job and step timings of the last 6 CI and 5 Install PR runs, and 13 of each on
 | `gitleaks` | required | unchanged | unchanged | unchanged |
 | `Every image builds (bothy-web)` etc. | not required | replaced by `Every image builds` | - | - |
 | `Clone it, start it, run every suite against it` | not required | unchanged | gates the release (in `release.yml`, not branch protection) | unchanged |
-| `Mutants k/4` | not required | unchanged | unchanged | `Mutants k/n`, n = 1-4 on a PR |
+| `Mutants k/4` | not required | unchanged | unchanged | unchanged name; a shard above the planned count completes green in seconds |
 | `Updater end to end - <group>` | - | - | - | new, not required; gates the release through Install's conclusion |
 
 No branch-protection change is needed for B1 or B4. Making `Every image builds` or
