@@ -5,6 +5,17 @@
 # directory, follows README.md exactly, starts the whole stack and then runs
 # every suite in the repo against the running stack.
 #
+# THE UPDATER'S END-TO-END SUITES RUN BESIDE IT, NOT INSIDE IT (2026-11-04).
+# They need a docker daemon and nothing else of Bothy's - each builds and removes
+# its own throwaway project - but they ran one after another in the ops step,
+# ~20 of this job's ~26 minutes, and every PR waited for them. Now each group in
+# apps/bothy-ops/checks/run.sh is its own job (`e2e` below), started at the same
+# time as the install, and the matrix comes from run.sh itself, so a new suite
+# cannot be left out of CI by forgetting a list here. A documentation-only PR
+# skips them: they read no document. The nightly awkward-path runs in
+# elsewhere.yml keep them INSIDE the install (`inline_e2e`, default true), so
+# they still run from a path with a space in it.
+#
 # WHY IT IS ITS OWN FILE. It is the only job that needs a docker daemon with
 # state, it takes ~15 minutes against ci.yml's ~4, and it is the only one that
 # can fail for reasons that are about THIS BOX rather than about the diff. Mixing
@@ -55,6 +66,15 @@ on:
         type: boolean
         required: false
         default: true
+      inline_e2e:
+        description: >-
+          Run the updater's end-to-end suites inside the install job, from
+          `dir`, instead of as parallel jobs. Defaults true for callers, so the
+          awkward-path runs exercise them at the awkward path; push and
+          pull_request have no inputs and run them in parallel.
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
@@ -74,7 +94,10 @@ jobs:
   install:
     name: Clone it, start it, run every suite against it
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Measured over 17 runs before the split: 26 min median, 32 max, ~20 of it
+    # the e2e suites. Without them ~7; 20 leaves room for a slow pull. With them
+    # (elsewhere.yml) the old 45 still applies.
+    timeout-minutes: ${{ toJSON(inputs.inline_e2e) == 'true' && 45 || 20 }}
     env:
       # `inputs` is empty on push and pull_request - defaults only apply to
       # workflow_call and workflow_dispatch - so the fallback is not decoration.
@@ -279,10 +302,20 @@ jobs:
         working-directory: ${{ env.BOTHY_DIR }}
         run: bash apps/bothy-files/checks/run.sh --offline
 
+      # --no-e2e: the e2e groups run as the `e2e` jobs below, unless a caller
+      # asked for them here (`inline_e2e`). Same `toJSON` care as `installer`:
+      # inputs are null on push and pull_request.
       - name: Ops tier, including the real-daemon transition
         if: always()
         working-directory: ${{ env.BOTHY_DIR }}
-        run: bash apps/bothy-ops/checks/run.sh
+        env:
+          INLINE_E2E: ${{ toJSON(inputs.inline_e2e) }}
+        run: |
+          if [ "$INLINE_E2E" = true ]; then
+            bash apps/bothy-ops/checks/run.sh
+          else
+            bash apps/bothy-ops/checks/run.sh --no-e2e
+          fi
 
       - name: Portal truth tables against this box's own containers
         if: always()
@@ -373,6 +406,83 @@ jobs:
           name: install-failure-logs
           path: /tmp/logs
           retention-days: 7
+
+  # ── the updater's end-to-end suites, beside the install ─────────────────────
+  #
+  # Which groups run. The list is apps/bothy-ops/checks/run.sh's own, so a suite
+  # added there is in this matrix with no edit here. Empty on a pull request that
+  # changes only documentation (scripts/ci-changes.sh), which no e2e suite reads.
+  # A push to main always runs every group: release.yml tags on that evidence.
+  e2e-plan:
+    name: Updater end-to-end groups this change runs
+    if: toJSON(inputs.inline_e2e) != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      groups: ${{ steps.plan.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: List the groups
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          groups=$(bash apps/bothy-ops/checks/run.sh --list-e2e-groups)
+          # A list that is not a non-empty JSON array of names would skip
+          # every group and pass. Refuse it here instead.
+          echo "$groups" | grep -qE '^\["[a-z0-9-]+"(,"[a-z0-9-]+")*\]$' \
+            || { echo "::error::run.sh --list-e2e-groups printed: $groups"; exit 1; }
+          if [ "$EVENT" = pull_request ] && bash scripts/ci-changes.sh files > "$RUNNER_TEMP/changed" \
+             && bash scripts/ci-changes.sh docs-only < "$RUNNER_TEMP/changed"; then
+            echo "::notice::Documentation only - the updater's end-to-end suites are skipped."
+            groups='[]'
+          fi
+          echo "groups: $groups"
+          echo "groups=$groups" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    name: Updater end to end - ${{ matrix.group }}
+    needs: e2e-plan
+    if: needs.e2e-plan.outputs.groups != '[]'
+    runs-on: ubuntu-latest
+    # Measured inside the install job (2026-11-04): updater ~9 min, the other
+    # two groups ~5-6. Twice the slowest, like the mutants shards: a group that
+    # times out has grown and wants splitting, not a longer timeout.
+    timeout-minutes: 20
+    strategy:
+      # Every group reports, whichever fails first.
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.e2e-plan.outputs.groups) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # e2e_updater, e2e_config, e2e_auto and e2e_owncode drive throwaway
+      # justfiles. Without `just` they print SKIP and pass - see the last step.
+      - uses: extractions/setup-just@v4
+
+      - name: Run the group, on throwaway projects
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          set +e
+          bash apps/bothy-ops/checks/run.sh --e2e="$GROUP" 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+          rc=${PIPESTATUS[0]}
+          # A suite that cannot find docker, just, systemd-run or a user
+          # manager prints `SKIP:` and exits 0 - out loud, but green. Inside
+          # the install job none of them skipped, so here a skip is a runner
+          # that lost something and must not read as a pass. (The cluster
+          # suite prints `SKIPPED:` for the runner's inotify limit, as it
+          # always has inside the install job; that is not matched.)
+          if grep -n '^SKIP: ' "$RUNNER_TEMP/e2e.log"; then
+            echo "::error::a suite in '$GROUP' skipped itself - it did not run"
+            rc=1
+          fi
+          exit "$rc"
 
   # ── the OTHER way in ────────────────────────────────────────────────────────
   #
