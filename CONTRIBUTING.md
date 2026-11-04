@@ -135,7 +135,7 @@ Rolling them out is a planned one-router-at-a-time exercise, not a per-service
 decision - `sso` fails closed, so if oauth2-proxy is down every router carrying
 it returns 500, including whichever one you would need to fix it. Give your
 service its own login instead. Details and the intended order in
-[SECURITY.md](SECURITY.md#1-sso-is-being-rebuilt-and-is-attached-to-nothing).
+[SECURITY.md](SECURITY.md#1-sso-enforces-on-the-tiers-that-change-things-and-nowhere-else-yet).
 
 ### Never put a doubled brace in `edge/dynamic/`, not even in a comment
 
@@ -169,7 +169,8 @@ Dependabot, which bumps both together) reads. Use the multi-arch *index* digest
 
 ### Don't add a port to the Windows portproxy scripts
 
-That layer under `host/windows/` is vestigial. Add a Traefik label instead.
+That layer under `host/windows/` is vestigial. Publish the port in the compose
+file instead, as above.
 
 ### Secrets
 

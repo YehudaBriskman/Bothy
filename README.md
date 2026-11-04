@@ -14,6 +14,8 @@ A bothy is a small stone hut in the Scottish hills, left unlocked, that anyone
 can shelter in. That is what this box is - one machine that quietly holds
 everything, open to anyone on the tailnet, not a service anybody sells.
 
+**Notes & releases:** [yehudabriskman.com/blog/area/bothy](https://yehudabriskman.com/blog/area/bothy) - what each release changed and why, plus engineering notes. Project page: [yehudabriskman.com/projects/bothy](https://yehudabriskman.com/projects/bothy).
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/badge/release-v2026.9.0-4c1)](https://github.com/YehudaBriskman/Bothy/releases)
 ![docker compose](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
@@ -533,6 +535,14 @@ Backups sit on the same disk they protect. Copying them off the box is not solve
   reading in full.
 - [`host/README.md`](host/README.md) - the host-level configuration that git
   cannot see, and what each copy is for.
+
+## Links
+
+- [**Notes & releases**](https://yehudabriskman.com/blog/area/bothy) - release write-ups and engineering notes
+- [Project page](https://yehudabriskman.com/projects/bothy)
+- [GitHub releases](https://github.com/YehudaBriskman/Bothy/releases)
+- [The guide](docs/guide/index.md)
+- [Discussions](https://github.com/YehudaBriskman/Bothy/discussions) - questions and ideas
 
 ## Contributing, security, licence
 
