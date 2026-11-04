@@ -28,7 +28,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-node="${OCI_NODE:-100.79.242.82}"
+node="${OCI_NODE:?set OCI_NODE in .env to the OCI node tailnet IP (just loads .env)}"
 ssh_target="${OCI_SSH:-ubuntu@$node}"
 out="$root/monitoring/oci-auth.env"
 
