@@ -73,7 +73,7 @@ VM, LOKI = f"{P}-vm", f"{P}-loki"
 #
 # _OLD is the version a rollback lands on, so it is the PREVIOUS pin, not an
 # arbitrary older one: the test asserts the rollback restores exactly it.
-VM_IMG = "victoriametrics/victoria-metrics:v1.154.1"
+VM_IMG = "victoriametrics/victoria-metrics:v1.155.0"
 LOKI_IMG = "grafana/loki:3.7.9"
 KSM_OLD, KSM_NEW = "8.6.0", "8.8.0"
 ALLOY_OLD, ALLOY_NEW = "grafana/alloy:v1.20.1", "grafana/alloy:v1.21.3"
