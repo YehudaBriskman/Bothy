@@ -25,7 +25,7 @@ Security vulnerabilities do not belong in a pull request either - see SECURITY.m
 - [ ] Portal typechecks and builds if touched - `cd apps/bothy-web/web && npx tsc -b --noEmit && npm run build`
 - [ ] Every compose file I changed still parses - `docker compose -f <file> config -q`
 - [ ] New browser-reachable services follow the access model: a **published host port**, checked free against `just urls`, added to the `urls` recipe, with its own `DEV_LOGIN_*` login. **No `Host()` rule** - the name layer was deleted 2026-08-12 and such a router matches nothing
-- [ ] I did not attach `sso@file` / `sso-errors@file` to a router. They are defined and deliberately unattached while identity is rebuilt - see SECURITY.md rule 1
+- [ ] I did not attach the bare `sso@file` to a router - it is defined in `edge/dynamic/auth.yml` and deliberately attached to none. Role gates (`sso-viewer` / `sso-editor` / `sso-operator`, from `bothy-gates.yml`, followed by `sso-errors`) ARE enforced on the Bothy tiers: if I added, removed or re-gated one, I updated SECURITY.md rule 1's tables and `scripts/checks/router-gates.sh` passes
 - [ ] No doubled braces anywhere in `edge/dynamic/`, including in comments - Traefik templates those files before parsing and one silently blanks the whole file
 - [ ] If I touched `edge/dynamic/`, I ran the boundary check and pasted the output. **Content type, not status code** - the catch-all returns 200 for everything, so only the type can fail:
       `curl -s -o /dev/null -w '%{content_type}\n' http://127.0.0.1/-/api/docker/containers/$(docker ps -q | head -1)/json` → must be `text/html`

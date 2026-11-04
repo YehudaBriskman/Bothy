@@ -18,9 +18,11 @@ body:
           browser reaches publishes a host port and gets listed in `just urls`.
           Proposals built on hostnames need to argue for rebuilding that layer,
           not assume it.
-        - **Nothing is authenticated at the edge right now.** `sso@file` is
-          defined and attached to no router while identity is rebuilt on
-          Keycloak. A service that needs a login carries its own.
+        - **SSO gates the Bothy routes that change things, and nothing
+          else yet.** Role gates from `edge/dynamic/bothy-gates.yml` sit in
+          front of the files, config, admin, ops and updates tiers; the bare
+          `sso@file` is attached to no router. Any other service that needs a
+          login carries its own.
 
   - type: dropdown
     id: area
