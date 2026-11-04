@@ -671,6 +671,15 @@ k8s-monitoring *part:
 kube-prom-token:
     ./scripts/gen-kube-prom-token.sh
 
+# The OCI cluster's datasources in Grafana (OCI Prometheus / Loki / Tempo):
+# writes monitoring/oci-auth.env (GITIGNORED, mode 600) from the node's
+# bothy-grafana-token Secret over Tailscale SSH, then recreates grafana so it
+# reads it. The account may only GET through those three Services' proxy.
+# Write Grafana's read-only credential for the OCI cluster, then restart grafana.
+oci-grafana-token:
+    ./scripts/gen-oci-grafana-token.sh
+    docker compose -f monitoring/compose.yml up -d grafana
+
 # bothy-ops' cluster credential: applies k8s/rbac/bothy-kube.yaml, then writes
 # apps/bothy-ops/secrets/{token,ca.crt} (mode 600, gitignored) and prints what
 # the account can and cannot do. `--rotate` revokes and reissues; `--revoke` stops.
