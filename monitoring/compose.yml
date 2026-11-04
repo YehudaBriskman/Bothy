@@ -168,6 +168,13 @@ services:
     container_name: grafana
     # No Traefik router - reached on published port 3000, where Grafana's own login applies.
     restart: unless-stopped
+    # OCI_K8S_SERVER / _TOKEN / _CA for the OCI cluster's datasources
+    # (provisioning/datasources/datasources.yml). GITIGNORED (`*.env`), written
+    # by scripts/gen-oci-grafana-token.sh. Optional: without it Grafana starts
+    # as usual and only those three datasources fail.
+    env_file:
+      - path: ./oci-auth.env
+        required: false
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_EMAIL: ${GRAFANA_ADMIN_EMAIL:-admin@localhost}

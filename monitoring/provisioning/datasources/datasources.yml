@@ -28,3 +28,69 @@ datasources:
     access: proxy
     url: http://loki:3100
     editable: true
+
+  # ── The OCI cluster (oci-free) ───────────────────────────────────────────
+  # Prometheus, Loki and Tempo on the Oracle node, read through ITS API server's
+  # service proxy on :6443, which is open to the tailnet and authenticated. That
+  # means no new port on either side. The credential is the bothy-grafana
+  # ServiceAccount (oci-free k8s/bothy-grafana-reader.yaml): `get` on
+  # services/proxy for exactly these three Services, nothing else. It cannot
+  # write, so every datasource here only queries (Prometheus is set to GET).
+  #
+  # $OCI_K8S_SERVER / _TOKEN / _CA come from monitoring/oci-auth.env, which is
+  # GITIGNORED and written by scripts/gen-oci-grafana-token.sh
+  # (`just oci-grafana-token`). Missing file = these three show an auth or
+  # URL error, and Grafana itself starts as usual. NOT `$__file{}`: Grafana
+  # refuses to start at all when that file is absent (tested 2026-11-04).
+  - name: OCI Prometheus
+    uid: oci-prometheus
+    type: prometheus
+    access: proxy
+    url: $OCI_K8S_SERVER/api/v1/namespaces/monitoring/services/kube-prometheus-stack-prometheus:9090/proxy
+    editable: false
+    jsonData:
+      httpMethod: GET
+      httpHeaderName1: Authorization
+      tlsAuthWithCACert: true
+    secureJsonData:
+      httpHeaderValue1: Bearer $OCI_K8S_TOKEN
+      tlsCACert: $OCI_K8S_CA
+
+  - name: OCI Loki
+    uid: oci-loki
+    type: loki
+    access: proxy
+    url: $OCI_K8S_SERVER/api/v1/namespaces/observability/services/loki:3100/proxy
+    editable: false
+    jsonData:
+      httpHeaderName1: Authorization
+      tlsAuthWithCACert: true
+      derivedFields:
+        - name: trace_id
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: oci-tempo
+          url: $${__value.raw}
+    secureJsonData:
+      httpHeaderValue1: Bearer $OCI_K8S_TOKEN
+      tlsCACert: $OCI_K8S_CA
+
+  - name: OCI Tempo
+    uid: oci-tempo
+    type: tempo
+    access: proxy
+    url: $OCI_K8S_SERVER/api/v1/namespaces/observability/services/tempo:3200/proxy
+    editable: false
+    jsonData:
+      httpHeaderName1: Authorization
+      tlsAuthWithCACert: true
+      # Streaming search is gRPC, which the service proxy does not carry.
+      streamingEnabled: {search: false, metrics: false}
+      tracesToLogsV2:
+        datasourceUid: oci-loki
+        filterByTraceID: true
+        spanStartTimeShift: -5m
+        spanEndTimeShift: 5m
+    secureJsonData:
+      httpHeaderValue1: Bearer $OCI_K8S_TOKEN
+      tlsCACert: $OCI_K8S_CA

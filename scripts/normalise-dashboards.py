@@ -147,7 +147,7 @@ GRAPH_TOOLTIP = 1
 # uid -> type, for the datasources monitoring/provisioning/datasources/datasources.yml
 # provisions. Keep this in step with that file; scripts/checks/dashboards.sh
 # asserts the two agree rather than trusting this copy.
-DATASOURCES = {"prometheus": "prometheus", "loki": "loki"}
+DATASOURCES = {"prometheus": "prometheus", "loki": "loki", "oci-prometheus": "prometheus", "oci-loki": "loki", "oci-tempo": "tempo"}
 
 # Grafana's own pseudo-datasources. Not ours to rewrite, and rewriting the
 # annotation one would delete the built-in annotations layer.
