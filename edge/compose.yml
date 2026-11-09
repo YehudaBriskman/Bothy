@@ -24,7 +24,7 @@ services:
   traefik:
     # Tag for humans, digest for the pull. `v3.7` floated: every `up` could
     # move the edge to a new patch release without anyone choosing it.
-    image: traefik:v3.7.16@sha256:1336e85aaed293bd63d005086e0dd013b04078b26aaeb1c18b26a2f928af7e65
+    image: traefik:v3.7.17@sha256:f4bb143d1135a579b630ed491e17ec50f6f7c9c6a30585ff3d385471d2a86f5a
     container_name: traefik
     restart: unless-stopped
     # The card title in Bothy's Overview, in the form `Role · Vendor`.
