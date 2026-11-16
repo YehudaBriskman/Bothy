@@ -214,6 +214,15 @@ git push origin HEAD                                      # a plain push; never 
   `@dependabot recreate` discards your commit. Put `[dependabot skip]` in a
   commit message only if you want Dependabot to be allowed to force-push over
   your edits.
+- **`scripts/checks/mutants.sh` anchors on the current pin string too** (the Alloy
+  image line, the VM image line, the kube-state-metrics `version:` and the
+  `KSM_OLD, KSM_NEW` line). After a bump the row reports "anchor not found" and the
+  `Mutants` shard goes red. Move each such row to the new version (and its
+  replacement to the next one up) in the same commit; the red `Mutants` shard,
+  not `e2e-pins.sh`, is what tells you. Seen on #350, #355 and #358 (2026-11-16).
+- When two such PRs edit neighbouring lines, the second conflicts after the first
+  merges. Merge the first, then `git merge origin/main` into the second and keep
+  both sides' constants.
 - Alloy arrives as two PRs (compose, and the DaemonSet in `k8s/monitoring/`).
   Put the other file's edit on the first PR's branch as well as the constant;
   the second then has nothing left to change, and Dependabot closes it itself
