@@ -194,6 +194,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                       aria-selected={i === active}
                       className="cmdk-item"
                       onMouseMove={() => setActive(i)}
+                      // Pointer-only on purpose: this is an APG combobox option, not a control. The
+                      // keyboard path is the input's onKey (Arrows/Home/End move `active`, Enter runs
+                      // go()), and the row is announced via aria-activedescendant. A button or tabIndex
+                      // here would take focus off the input (see the note at the top of the file).
                       onClick={() => go(r)}
                     >
                       {r.group === 'Systems' ? <Icon icon={Layers} size="md" /> : r.group === 'Services' ? <Icon icon={Boxes} size="md" /> : <Icon icon={CornerDownLeft} size="md" />}
