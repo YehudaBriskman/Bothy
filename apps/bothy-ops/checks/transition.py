@@ -44,8 +44,10 @@ import http.client
 import json
 import os
 import secrets
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.error
 import urllib.request
@@ -179,7 +181,9 @@ try:
     from bothy_common.audit import AuditLog  # noqa: E402
     control.DOCKER_READ = f"http://127.0.0.1:{rp}"
     control.DOCKER_WRITE = f"http://127.0.0.1:{wp}"
-    control.LOG = AuditLog(os.path.join("/tmp", f"bothy-ops-check-{TAG}.log"))
+    # A private 0700 directory (mkdtemp), not a predictable name in the shared /tmp.
+    LOGDIR = tempfile.mkdtemp(prefix=f"bothy-ops-check-{TAG}-")
+    control.LOG = AuditLog(os.path.join(LOGDIR, "audit.log"))
 
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -267,6 +271,8 @@ finally:
             dock("rm", "-f", made, check=False)
     left = [n for n in (TARGET, PROXY_READ, PROXY_WRITE)
             if dock("ps", "-aq", "-f", f"name=^{n}$", check=False)]
+    if "LOGDIR" in globals():
+        shutil.rmtree(LOGDIR, ignore_errors=True)
     ok(not left, f"every throwaway container is gone{(' - LEFT: ' + str(left)) if left else ''}")
 
 print()

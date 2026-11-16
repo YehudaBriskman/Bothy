@@ -19,6 +19,10 @@ import {
 } from './prefs.mjs';
 import { LIVE_PATHS } from './redirects.mjs';
 
+// Explicit UTF-16 code-unit order: what Array#sort() does with no comparator, and
+// deliberately not localeCompare (which reorders case and punctuation).
+const byCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 const SRC = process.argv[2];
 let fails = 0;
 const ok = (cond, label, detail = '') => {
@@ -72,13 +76,13 @@ ok([...'  api-tokens: ApiTokensSettings,\n'.matchAll(ROUTED_RE)][0]?.[1] === 'ap
 const routedPairs = [...routes.matchAll(ROUTED_RE)].map((m) => [m[1], m[2]]);
 const routed = routedPairs.map((p) => p[0]);
 const fileOf = Object.fromEntries([...routes.matchAll(/import \{ (\w+Settings) \} from '\.\/(\w+)';/g)].map((m) => [m[1], m[2]]));
-ok(JSON.stringify([...routed].sort()) === JSON.stringify([...ids].sort()),
+ok(JSON.stringify([...routed].sort(byCode)) === JSON.stringify([...ids].sort(byCode)),
   'routes.tsx serves exactly the registry\'s sections', routed.join(','));
 for (const [s, comp] of routedPairs) {
   const page = readFileSync(join(SRC, `pages/settings/${fileOf[comp]}.tsx`), 'utf8');
   const used = [...page.matchAll(/<SettingBlock\s+id="([a-z-]+)"/g)].map((m) => m[1]);
   const want = BLOCKS.filter((b) => b.section === s).map((b) => b.id);
-  ok(JSON.stringify([...used].sort()) === JSON.stringify([...want].sort()),
+  ok(JSON.stringify([...used].sort(byCode)) === JSON.stringify([...want].sort(byCode)),
     `${s}: the page renders exactly its registered blocks`, `page ${used.join(',')} · index ${want.join(',')}`);
 }
 

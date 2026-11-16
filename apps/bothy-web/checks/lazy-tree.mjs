@@ -23,6 +23,10 @@
 
 import { buildTree, treeOfPaths } from './lazy-tree-mod.mjs';
 
+// Explicit UTF-16 code-unit order: what Array#sort() does with no comparator, and
+// deliberately not localeCompare (which reorders case and punctuation).
+const byCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 let bad = 0;
 const eq = (label, got, want) => {
   const g = JSON.stringify(got);
@@ -109,7 +113,7 @@ const node = at(t, 'docs');
 eq('a directory node has no `files` property', 'files' in node, false);
 eq('...and no `bytes` property', 'bytes' in node, false);
 eq('the root has neither', ['files' in t, 'bytes' in t], [false, false]);
-eq('and the fields a node DOES have are the lazy set', Object.keys(node).sort(),
+eq('and the fields a node DOES have are the lazy set', Object.keys(node).sort(byCode),
   ['children', 'dir', 'entry', 'loaded', 'name', 'path']);
 
 console.log('\n── tombstones: a deletion still gets a row ─────────────────────────');

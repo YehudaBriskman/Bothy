@@ -8,6 +8,10 @@ import { SortHeader } from './SortHeader';
 import { Button } from './ui/Button';
 import { Icon } from './ui/Icon';
 
+// Explicit UTF-16 code-unit order: what Array#sort() does with no comparator, and
+// deliberately not localeCompare (which reorders case and punctuation).
+const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 // The Routes tab is the escape hatch: it shows EVERY Traefik router, including
 // the ones that never became a service card (bothy-web-fallback, host processes,
 // orphaned routes). A dangling route is exactly what the portal should shout
@@ -91,7 +95,7 @@ export function RoutesTab({
     const total = [...counts.values()].reduce((a, b) => a + b, 0);
     return [
       { key: 'all', label: 'All', n: total },
-      ...[...counts.keys()].sort().map((p) => ({ key: p, label: p, n: counts.get(p) ?? 0 })),
+      ...[...counts.keys()].sort(byCode).map((p) => ({ key: p, label: p, n: counts.get(p) ?? 0 })),
     ];
   }, [allRows, query]);
 

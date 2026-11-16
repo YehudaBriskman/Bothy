@@ -115,6 +115,8 @@ try:
     with open(os.path.join(prov, "datasources", "ds.yml"), "w") as fh:
         fh.write(f"apiVersion: 1\ndatasources:\n  - name: Prometheus\n    uid: prometheus\n    type: prometheus\n"
                  f"    access: proxy\n    url: http://{VM}:8428\n    isDefault: true\n")
+    # Intended: mkdtemp made TMP 0700, but Grafana (a different uid in its container) reads this
+    # provisioning tree through a bind mount, so dirs get o+rx and files o+r - read-only for others.
     os.chmod(TMP, 0o755)
     for root, dirs, files in os.walk(prov):
         for d in dirs:

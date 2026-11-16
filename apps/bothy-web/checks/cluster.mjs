@@ -43,7 +43,7 @@ check('pod CrashLoopBackOff', podStatus(p('CrashLoopBackOff', 0)), 'down');
 check('pod ImagePullBackOff', podStatus(p('ImagePullBackOff', 0)), 'down');
 check('pod Completed is off', podStatus(p('Completed', 0)), 'off');
 check('pod Pending is warn', podStatus(p('Pending', 0)), 'warn');
-check('job statuses', ['Complete', 'Failed', 'Running', '?'].map(jobStatus), ['up', 'down', 'warn', 'unknown']);
+check('job statuses', ['Complete', 'Failed', 'Running', '?'].map((s) => jobStatus(s)), ['up', 'down', 'warn', 'unknown']);
 
 // ── selectors ───────────────────────────────────────────────────────────────
 check('subset matches', selectorMatches({ app: 'backend' }, { app: 'backend', tier: 'api' }), true);

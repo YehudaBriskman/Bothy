@@ -30,6 +30,10 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Explicit UTF-16 code-unit order: what Array#sort() does with no comparator, and
+// deliberately not localeCompare (which reorders case and punctuation).
+const byCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const SRC = join(HERE, '..', 'web', 'src');
 
@@ -122,7 +126,7 @@ function walk(dir, acc = []) {
 const findings = [];
 let scanned = 0, exempted = 0, marked = 0, masked = 0;
 
-for (const file of walk(SRC).sort()) {
+for (const file of walk(SRC).sort(byCode)) {
   const rel = relative(SRC, file).split('\\').join('/');
   if (EXEMPT.has(rel) || rel.startsWith(EXEMPT_DIR)) { exempted++; continue; }
   scanned++;

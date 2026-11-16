@@ -195,6 +195,8 @@ def main() -> int:
         open(scrape, "w").write("global:\n  scrape_interval: 5s\nscrape_configs:\n  - job_name: kube-state-metrics\n"
                                 f"    static_configs:\n      - targets: ['{node}:30808']\n"
                                 f"        labels:\n          cluster: {P}\n")
+        # Intended: mkdtemp made tmp 0700, but the VM container reads `scrape` through a bind
+        # mount as a different uid, so the dir needs o+x and the file o+r (no write for anyone else).
         os.chmod(tmp, 0o755)
         os.chmod(scrape, 0o644)
         sh("docker", "run", "-d", "--name", VM, "--network", P, "-v", f"{scrape}:/etc/prometheus/prometheus.yml:ro",
@@ -235,7 +237,7 @@ def main() -> int:
         for f in ("k8s/monitoring/namespace.yaml", "k8s/monitoring/kube-state-metrics.values.yaml",
                   "scripts/k8s-monitoring.sh"):
             put(f, real(f))
-        os.chmod(os.path.join(repo, "scripts/k8s-monitoring.sh"), 0o755)
+        os.chmod(os.path.join(repo, "scripts/k8s-monitoring.sh"), 0o755)  # intended: executable bit; `put` writes 0644 and the justfile recipe runs it directly
         put("justfile", "k8s-monitoring *part:\n    ./scripts/k8s-monitoring.sh {{part}}\n")
         cat = real("apps/bothy-ops/updates.toml")
         body = cat[cat.index("[policy]"):cat.index("# ══ stateless")]

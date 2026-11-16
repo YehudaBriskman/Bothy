@@ -55,6 +55,10 @@ import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 
+// Explicit UTF-16 code-unit order: what Array#sort() does with no comparator, and
+// deliberately not localeCompare (which reorders case and punctuation).
+const byCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB = join(HERE, '..', 'web');
 const PUBLIC = join(WEB, 'public');
@@ -499,7 +503,7 @@ for (const f of new Set(SCAN.flatMap((d) => walk(d)))) {
   const hit = [...new Set((text.match(/\d+\.\d+/g) || []).filter((n) => COORDS.has(n)))];
   // Four. One or two of these numbers turn up in anything that measures in
   // fractions; four of them together is the mark and nothing else.
-  if (hit.length >= 4) culprits.push(`${rel} (${hit.sort().join(' ')})`);
+  if (hit.length >= 4) culprits.push(`${rel} (${hit.sort(byCode).join(' ')})`);
 }
 check('only the two SVGs and Brand.tsx carry the mark\'s coordinates',
   culprits.length === 0, culprits.join('; ') || 'nothing else does');

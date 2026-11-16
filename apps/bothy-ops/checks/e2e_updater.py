@@ -104,7 +104,11 @@ def _gf_dashboard(uid: str) -> str:
 
 def kcadm(*args: str) -> tuple[int, str]:
     """kcadm.sh in the THROWAWAY keycloak, as its bootstrap admin (test values only)."""
-    cfgf = "/tmp/e2e-kcadm.config"
+    # The path is INSIDE the throwaway keycloak container (kcadm runs there), holding
+    # the bootstrap admin's token: a private mktemp -d (0700), not a fixed name in
+    # the container's shared /tmp. Made per call - the update tests recreate KC.
+    d = subprocess.run(["docker", "exec", KC, "mktemp", "-d"], capture_output=True, text=True).stdout.strip()
+    cfgf = f"{d}/kcadm.config"
     subprocess.run(["docker", "exec", KC, "/opt/keycloak/bin/kcadm.sh", "config", "credentials", "--server",
                     "http://localhost:8080", "--realm", "master", "--user", "admin", "--password", LOGIN_PASS,
                     "--config", cfgf], capture_output=True)
