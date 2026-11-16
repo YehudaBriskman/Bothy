@@ -1,0 +1,204 @@
+{
+  "api_version": 1,
+  "verbs": [
+    {
+      "method": "GET",
+      "operation": "discover",
+      "params": [],
+      "path": "/-/api/v1/discover",
+      "role": "viewer",
+      "verb": [
+        "version"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "status",
+      "params": [],
+      "path": "/-/api/v1/status",
+      "role": "viewer",
+      "verb": [
+        "status"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "module.list",
+      "params": [],
+      "path": "/-/api/v1/modules",
+      "role": "viewer",
+      "verb": [
+        "module",
+        "list"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "update.status",
+      "params": [],
+      "path": "/-/api/v1/updates/status",
+      "role": "viewer",
+      "verb": [
+        "update",
+        "status"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "update.plan",
+      "params": [
+        {
+          "in": "query",
+          "name": "component",
+          "required": false,
+          "schema": {
+            "pattern": "^[a-z][a-z0-9-]{0,39}$",
+            "type": "string"
+          },
+          "x-bothy-one-of": "target"
+        },
+        {
+          "in": "query",
+          "name": "group",
+          "required": false,
+          "schema": {
+            "pattern": "^[a-z][a-z0-9-]{0,39}$",
+            "type": "string"
+          },
+          "x-bothy-one-of": "target"
+        }
+      ],
+      "path": "/-/api/v1/updates/plan",
+      "role": "viewer",
+      "verb": [
+        "update",
+        "plan"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "update.history",
+      "params": [
+        {
+          "in": "query",
+          "name": "component",
+          "required": false,
+          "schema": {
+            "pattern": "^[a-z][a-z0-9-]{0,39}$",
+            "type": "string"
+          }
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        }
+      ],
+      "path": "/-/api/v1/updates/history",
+      "role": "viewer",
+      "verb": [
+        "update",
+        "history"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "job.get",
+      "params": [
+        {
+          "in": "query",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-f0-9]{32}$",
+            "type": "string"
+          }
+        }
+      ],
+      "path": "/-/api/v1/job",
+      "role": "viewer",
+      "verb": [
+        "job",
+        "show"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "events.query",
+      "params": [
+        {
+          "in": "query",
+          "name": "since",
+          "required": false,
+          "schema": {
+            "pattern": "^e_[a-f0-9]{32}_[a-z_]{4,12}$",
+            "type": "string"
+          }
+        },
+        {
+          "in": "query",
+          "name": "type",
+          "required": false,
+          "schema": {
+            "enum": [
+              "job"
+            ],
+            "type": "string"
+          }
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        }
+      ],
+      "path": "/-/api/v1/events",
+      "role": "viewer",
+      "verb": [
+        "events"
+      ]
+    },
+    {
+      "method": "GET",
+      "operation": "settings.get",
+      "params": [
+        {
+          "in": "query",
+          "name": "module",
+          "required": true,
+          "schema": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$",
+            "type": "string"
+          }
+        },
+        {
+          "in": "query",
+          "name": "key",
+          "required": true,
+          "schema": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+            "type": "string"
+          }
+        }
+      ],
+      "path": "/-/api/v1/settings",
+      "role": "viewer",
+      "verb": [
+        "settings",
+        "get"
+      ]
+    }
+  ]
+}

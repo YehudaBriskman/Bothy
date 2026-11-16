@@ -119,6 +119,13 @@ jobs:
         if: always()
         run: python3 scripts/gen-ops-wiring.py --check
 
+      # operations.toml is the only hand-written description of the control plane's operations
+      # (T1); the OpenAPI doc, the MCP tool list, the CLI verb table and the (inert) edge routers
+      # are generated from it, and the Go client is tested against them.
+      - name: Ops v1 catalog - generated from operations.toml, and not stale
+        if: always()
+        run: python3 scripts/gen-ops-v1.py --check
+
       # bothy-files: the editor AND the config forms (bothy-config until 2026-09).
       - name: Files tier - path safety with real symlinks, and the config patch boundary
         if: always()

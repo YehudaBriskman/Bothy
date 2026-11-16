@@ -1,0 +1,197 @@
+{
+  "api_version": 1,
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "The one health view: updates, the running job, discovery freshness",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "bothy_status",
+      "operation": "status",
+      "scope": "read"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "The modules on this box, and the components each carries",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "bothy_module_list",
+      "operation": "module.list",
+      "scope": "read"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Every update component: running, pinned, available, plan summary, policy and the own-code unreleased fact",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "bothy_update_status",
+      "operation": "update.status",
+      "scope": "read"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "What applying a component (or a whole recipe group) would do, including every refusal",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "pattern": "^[a-z][a-z0-9-]{0,39}$",
+            "type": "string"
+          },
+          "group": {
+            "pattern": "^[a-z][a-z0-9-]{0,39}$",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "bothy_update_plan",
+      "operation": "update.plan",
+      "scope": "read"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Finished and running update jobs, newest first",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "pattern": "^[a-z][a-z0-9-]{0,39}$",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "bothy_update_history",
+      "operation": "update.history",
+      "scope": "read"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "One job: its state and its steps",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[a-f0-9]{32}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "bothy_job_get",
+      "operation": "job.get",
+      "scope": "read"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "The append-only event feed, oldest first, by cursor",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "since": {
+            "pattern": "^e_[a-f0-9]{32}_[a-z_]{4,12}$",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "job"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "bothy_events_query",
+      "operation": "events.query",
+      "scope": "read"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "One setting: its value, or - for a secret - only that it is set",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+            "type": "string"
+          },
+          "module": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "module",
+          "key"
+        ],
+        "type": "object"
+      },
+      "name": "bothy_settings_get",
+      "operation": "settings.get",
+      "scope": "read"
+    }
+  ]
+}

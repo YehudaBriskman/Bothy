@@ -1,0 +1,3059 @@
+{
+  "components": {
+    "schemas": {
+      "Error": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "auth.forbidden",
+                  "auth.unauthenticated",
+                  "internal.error",
+                  "request.invalid",
+                  "request.not-found",
+                  "unavailable.source"
+                ],
+                "type": "string"
+              },
+              "details": {
+                "type": "object"
+              },
+              "hint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details",
+              "hint"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "request_id",
+          "error"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Bothy control plane",
+    "version": "1",
+    "x-min-client": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/-/api/v1/discover": {
+      "get": {
+        "operationId": "discover",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "apiVersion": {
+                          "type": "integer"
+                        },
+                        "enums": {
+                          "properties": {
+                            "component": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "component"
+                          ],
+                          "type": "object"
+                        },
+                        "minClient": {
+                          "type": "string"
+                        },
+                        "ops": {
+                          "items": {
+                            "properties": {
+                              "audit": {
+                                "type": "string"
+                              },
+                              "callers": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "cli": {
+                                "type": "string"
+                              },
+                              "confirm": {
+                                "type": "string"
+                              },
+                              "effect": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "idempotent": {
+                                "type": "boolean"
+                              },
+                              "input": {
+                                "type": "object"
+                              },
+                              "mcp": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "method": {
+                                "enum": [
+                                  "GET"
+                                ],
+                                "type": "string"
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "method",
+                              "path",
+                              "role",
+                              "effect",
+                              "confirm",
+                              "callers",
+                              "audit"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "serverVersion": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "serverVersion",
+                        "apiVersion",
+                        "minClient",
+                        "ops",
+                        "enums"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "The capability list: what this server supports and how to talk to it",
+        "x-bothy": {
+          "audit": "v1.discover",
+          "callers": [
+            "web",
+            "cli",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/events": {
+      "get": {
+        "operationId": "events.query",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "pattern": "^e_[a-f0-9]{32}_[a-z_]{4,12}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "job"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "events": {
+                          "items": {
+                            "properties": {
+                              "component": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "job_id": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "source": {
+                                        "const": "container-log"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "ts": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "type": {
+                                "enum": [
+                                  "job"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "ts",
+                              "type",
+                              "component",
+                              "state",
+                              "text"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "more": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "events",
+                        "cursor",
+                        "more"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "The append-only event feed, oldest first, by cursor",
+        "x-bothy": {
+          "audit": "v1.events.query",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/job": {
+      "get": {
+        "operationId": "job.get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{32}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "job": {
+                          "properties": {
+                            "component": {
+                              "type": "string"
+                            },
+                            "endedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "source": {
+                                      "const": "container-log"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "const": "untrusted"
+                                    }
+                                  },
+                                  "required": [
+                                    "text",
+                                    "trust",
+                                    "source"
+                                  ],
+                                  "type": "object",
+                                  "x-bothy-trust": "untrusted"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "note": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "source": {
+                                      "const": "operator-note"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "const": "untrusted"
+                                    }
+                                  },
+                                  "required": [
+                                    "text",
+                                    "trust",
+                                    "source"
+                                  ],
+                                  "type": "object",
+                                  "x-bothy-trust": "untrusted"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "planId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "requestedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "requestedBy": {
+                              "type": "string"
+                            },
+                            "snapshot": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "source": {
+                                      "const": "file"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "const": "untrusted"
+                                    }
+                                  },
+                                  "required": [
+                                    "text",
+                                    "trust",
+                                    "source"
+                                  ],
+                                  "type": "object",
+                                  "x-bothy-trust": "untrusted"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "startedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "state": {
+                              "enum": [
+                                "queued",
+                                "running",
+                                "succeeded",
+                                "rolled_back",
+                                "aborted",
+                                "failed",
+                                "refused"
+                              ],
+                              "type": "string"
+                            },
+                            "steps": {
+                              "items": {
+                                "properties": {
+                                  "detail": {
+                                    "anyOf": [
+                                      {
+                                        "properties": {
+                                          "source": {
+                                            "const": "container-log"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "const": "untrusted"
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "trust",
+                                          "source"
+                                        ],
+                                        "type": "object",
+                                        "x-bothy-trust": "untrusted"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "endedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "startedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "state": {
+                                    "enum": [
+                                      "pending",
+                                      "running",
+                                      "ok",
+                                      "failed",
+                                      "skipped"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "state",
+                                  "detail"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "component",
+                            "state",
+                            "steps"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "job"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "One job: its state and its steps",
+        "x-bothy": {
+          "audit": "v1.job.get",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/modules": {
+      "get": {
+        "operationId": "module.list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "modules": {
+                          "items": {
+                            "properties": {
+                              "components": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "recipe": {
+                                "type": "string"
+                              },
+                              "runtime": {
+                                "enum": [
+                                  "compose",
+                                  "k3s"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "recipe",
+                              "runtime",
+                              "components"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "source": {
+                          "enum": [
+                            "update-catalog"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "modules"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "The modules on this box, and the components each carries",
+        "x-bothy": {
+          "audit": "v1.module.list",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/settings": {
+      "get": {
+        "operationId": "settings.get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "module",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_-]{0,62}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "fingerprint": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "module": {
+                          "type": "string"
+                        },
+                        "secret": {
+                          "type": "boolean"
+                        },
+                        "set": {
+                          "type": "boolean"
+                        },
+                        "updated_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "updated_by": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "value": {
+                          "properties": {
+                            "source": {
+                              "const": "setting"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "trust": {
+                              "const": "untrusted"
+                            }
+                          },
+                          "required": [
+                            "text",
+                            "trust",
+                            "source"
+                          ],
+                          "type": "object",
+                          "x-bothy-trust": "untrusted"
+                        },
+                        "value_type": {
+                          "enum": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "null",
+                            "object",
+                            "array"
+                          ],
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "module",
+                        "key",
+                        "secret",
+                        "set"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "One setting: its value, or - for a secret - only that it is set",
+        "x-bothy": {
+          "audit": "v1.settings.get",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/status": {
+      "get": {
+        "operationId": "status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "applying": {
+                          "type": "boolean"
+                        },
+                        "discovery": {
+                          "properties": {
+                            "ageSeconds": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "generatedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "hint": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "present": {
+                              "type": "boolean"
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "present",
+                            "stale"
+                          ],
+                          "type": "object"
+                        },
+                        "job": {
+                          "properties": {
+                            "component": {
+                              "type": "string"
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "source": {
+                                      "const": "container-log"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "const": "untrusted"
+                                    }
+                                  },
+                                  "required": [
+                                    "text",
+                                    "trust",
+                                    "source"
+                                  ],
+                                  "type": "object",
+                                  "x-bothy-trust": "untrusted"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "component",
+                            "state"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "needsAttention": {
+                          "items": {
+                            "properties": {
+                              "component": {
+                                "type": "string"
+                              },
+                              "detail": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "source": {
+                                        "const": "container-log"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "kind": {
+                                "enum": [
+                                  "paused",
+                                  "discovery-error",
+                                  "update-failed"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "component"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "server": {
+                          "properties": {
+                            "apiVersion": {
+                              "type": "integer"
+                            },
+                            "version": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "version",
+                            "apiVersion"
+                          ],
+                          "type": "object"
+                        },
+                        "updates": {
+                          "properties": {
+                            "behind": {
+                              "type": "integer"
+                            },
+                            "components": {
+                              "type": "integer"
+                            },
+                            "configDrift": {
+                              "type": "integer"
+                            },
+                            "drift": {
+                              "type": "integer"
+                            },
+                            "errors": {
+                              "type": "integer"
+                            },
+                            "groups": {
+                              "type": "integer"
+                            },
+                            "toApply": {
+                              "type": "integer"
+                            },
+                            "updates": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "components",
+                            "updates",
+                            "behind",
+                            "drift",
+                            "toApply",
+                            "configDrift",
+                            "groups",
+                            "errors"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "server",
+                        "updates",
+                        "discovery",
+                        "applying",
+                        "job",
+                        "needsAttention"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "The one health view: updates, the running job, discovery freshness",
+        "x-bothy": {
+          "audit": "v1.status",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/updates/history": {
+      "get": {
+        "operationId": "update.history",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "component",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9-]{0,39}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "jobs": {
+                          "items": {
+                            "properties": {
+                              "component": {
+                                "type": "string"
+                              },
+                              "durationMs": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ]
+                              },
+                              "endedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "source": {
+                                        "const": "container-log"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failedStep": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "members": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "note": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "source": {
+                                        "const": "operator-note"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "planId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "requestedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "requestedBy": {
+                                "type": "string"
+                              },
+                              "startedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "state": {
+                                "enum": [
+                                  "queued",
+                                  "running",
+                                  "succeeded",
+                                  "rolled_back",
+                                  "aborted",
+                                  "failed",
+                                  "refused"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "component",
+                              "state",
+                              "requestedAt",
+                              "endedAt",
+                              "from",
+                              "to",
+                              "error",
+                              "note"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "jobs"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "Finished and running update jobs, newest first",
+        "x-bothy": {
+          "audit": "v1.update.history",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/updates/plan": {
+      "get": {
+        "operationId": "update.plan",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "component",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9-]{0,39}$",
+              "type": "string"
+            },
+            "x-bothy-one-of": "target"
+          },
+          {
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9-]{0,39}$",
+              "type": "string"
+            },
+            "x-bothy-one-of": "target"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "ageSeconds": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "component": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "properties": {
+                            "confirm": {
+                              "enum": [
+                                "click",
+                                "type-name"
+                              ],
+                              "type": "string"
+                            },
+                            "confirmWord": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "level": {
+                              "enum": [
+                                "patch",
+                                "minor",
+                                "major"
+                              ],
+                              "type": "string"
+                            },
+                            "members": {
+                              "items": {
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "oneWay": {
+                              "type": "boolean"
+                            },
+                            "own": {
+                              "properties": {
+                                "ci": {
+                                  "properties": {
+                                    "detail": {
+                                      "anyOf": [
+                                        {
+                                          "properties": {
+                                            "source": {
+                                              "const": "ci"
+                                            },
+                                            "text": {
+                                              "type": "string"
+                                            },
+                                            "trust": {
+                                              "const": "untrusted"
+                                            }
+                                          },
+                                          "required": [
+                                            "text",
+                                            "trust",
+                                            "source"
+                                          ],
+                                          "type": "object",
+                                          "x-bothy-trust": "untrusted"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "skipped": {
+                              "items": {
+                                "properties": {
+                                  "reason": {
+                                    "properties": {
+                                      "source": {
+                                        "const": "file"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "level",
+                            "confirm"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "source": {
+                                  "const": "file"
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "trust": {
+                                  "const": "untrusted"
+                                }
+                              },
+                              "required": [
+                                "text",
+                                "trust",
+                                "source"
+                              ],
+                              "type": "object",
+                              "x-bothy-trust": "untrusted"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "scope": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "scope.group-available"
+                              ],
+                              "type": "string"
+                            },
+                            "details": {
+                              "properties": {
+                                "component": {
+                                  "type": "string"
+                                },
+                                "group": {
+                                  "type": "string"
+                                },
+                                "group_class": {
+                                  "type": "string"
+                                },
+                                "group_confirm": {
+                                  "enum": [
+                                    "click",
+                                    "type-name"
+                                  ],
+                                  "type": "string"
+                                },
+                                "group_plan_id": {
+                                  "type": "string"
+                                },
+                                "recipe": {
+                                  "type": "string"
+                                },
+                                "rollback": {
+                                  "enum": [
+                                    "all-or-nothing"
+                                  ],
+                                  "type": "string"
+                                },
+                                "would_recreate": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "component",
+                                "recipe",
+                                "would_recreate",
+                                "group",
+                                "group_class",
+                                "group_confirm",
+                                "group_plan_id",
+                                "rollback"
+                              ],
+                              "type": "object"
+                            },
+                            "hint": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message",
+                            "details",
+                            "hint"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "target": {
+                          "enum": [
+                            "component",
+                            "group"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target",
+                        "plan",
+                        "reason",
+                        "ageSeconds",
+                        "scope"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "What applying a component (or a whole recipe group) would do, including every refusal",
+        "x-bothy": {
+          "audit": "v1.update.plan",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    },
+    "/-/api/v1/updates/status": {
+      "get": {
+        "operationId": "update.status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "applying": {
+                          "type": "boolean"
+                        },
+                        "asks": {
+                          "properties": {
+                            "autorun": {
+                              "properties": {
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "properties": {
+                                        "source": {
+                                          "const": "container-log"
+                                        },
+                                        "text": {
+                                          "type": "string"
+                                        },
+                                        "trust": {
+                                          "const": "untrusted"
+                                        }
+                                      },
+                                      "required": [
+                                        "text",
+                                        "trust",
+                                        "source"
+                                      ],
+                                      "type": "object",
+                                      "x-bothy-trust": "untrusted"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "skipped": {
+                                  "items": {
+                                    "properties": {
+                                      "why": {
+                                        "properties": {
+                                          "source": {
+                                            "const": "file"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "const": "untrusted"
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "trust",
+                                          "source"
+                                        ],
+                                        "type": "object",
+                                        "x-bothy-trust": "untrusted"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "discover": {
+                              "properties": {
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "properties": {
+                                        "source": {
+                                          "const": "container-log"
+                                        },
+                                        "text": {
+                                          "type": "string"
+                                        },
+                                        "trust": {
+                                          "const": "untrusted"
+                                        }
+                                      },
+                                      "required": [
+                                        "text",
+                                        "trust",
+                                        "source"
+                                      ],
+                                      "type": "object",
+                                      "x-bothy-trust": "untrusted"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "auto": {
+                          "properties": {
+                            "last": {
+                              "properties": {
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "properties": {
+                                        "source": {
+                                          "const": "container-log"
+                                        },
+                                        "text": {
+                                          "type": "string"
+                                        },
+                                        "trust": {
+                                          "const": "untrusted"
+                                        }
+                                      },
+                                      "required": [
+                                        "text",
+                                        "trust",
+                                        "source"
+                                      ],
+                                      "type": "object",
+                                      "x-bothy-trust": "untrusted"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "paused": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "paused"
+                          ],
+                          "type": "object"
+                        },
+                        "components": {
+                          "items": {
+                            "properties": {
+                              "applyWithGroup": {
+                                "type": "boolean"
+                              },
+                              "behind": {
+                                "type": "boolean"
+                              },
+                              "blockedBy": {
+                                "items": {
+                                  "properties": {
+                                    "component": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "properties": {
+                                        "source": {
+                                          "const": "file"
+                                        },
+                                        "text": {
+                                          "type": "string"
+                                        },
+                                        "trust": {
+                                          "const": "untrusted"
+                                        }
+                                      },
+                                      "required": [
+                                        "text",
+                                        "trust",
+                                        "source"
+                                      ],
+                                      "type": "object",
+                                      "x-bothy-trust": "untrusted"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "channel": {
+                                "enum": [
+                                  "auto",
+                                  "notify",
+                                  "manual"
+                                ],
+                                "type": "string"
+                              },
+                              "class": {
+                                "type": "string"
+                              },
+                              "discovered": {
+                                "properties": {
+                                  "configDrift": {
+                                    "anyOf": [
+                                      {
+                                        "properties": {
+                                          "source": {
+                                            "const": "file"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "const": "untrusted"
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "trust",
+                                          "source"
+                                        ],
+                                        "type": "object",
+                                        "x-bothy-trust": "untrusted"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "drift": {
+                                    "anyOf": [
+                                      {
+                                        "properties": {
+                                          "source": {
+                                            "const": "file"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "const": "untrusted"
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "trust",
+                                          "source"
+                                        ],
+                                        "type": "object",
+                                        "x-bothy-trust": "untrusted"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "error": {
+                                    "anyOf": [
+                                      {
+                                        "properties": {
+                                          "source": {
+                                            "const": "registry"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "const": "untrusted"
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "trust",
+                                          "source"
+                                        ],
+                                        "type": "object",
+                                        "x-bothy-trust": "untrusted"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "notes": {
+                                    "items": {
+                                      "properties": {
+                                        "source": {
+                                          "const": "registry"
+                                        },
+                                        "text": {
+                                          "type": "string"
+                                        },
+                                        "trust": {
+                                          "const": "untrusted"
+                                        }
+                                      },
+                                      "required": [
+                                        "text",
+                                        "trust",
+                                        "source"
+                                      ],
+                                      "type": "object",
+                                      "x-bothy-trust": "untrusted"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "effectiveChannel": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "group": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "level": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "oneWay": {
+                                "type": "boolean"
+                              },
+                              "paused": {
+                                "properties": {
+                                  "reason": {
+                                    "properties": {
+                                      "source": {
+                                        "const": "container-log"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "plan": {
+                                "properties": {
+                                  "deployable": {
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "reason": {
+                                    "anyOf": [
+                                      {
+                                        "properties": {
+                                          "source": {
+                                            "const": "file"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "const": "untrusted"
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "trust",
+                                          "source"
+                                        ],
+                                        "type": "object",
+                                        "x-bothy-trust": "untrusted"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "unreleased": {
+                                "properties": {
+                                  "commits_ahead": {
+                                    "type": [
+                                      "integer",
+                                      "null"
+                                    ]
+                                  },
+                                  "generatedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "last_tag_attempt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "latest_main": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "release_blocked_by": {
+                                    "enum": [
+                                      "none",
+                                      "ci-red",
+                                      "install-red",
+                                      "upgrade-red",
+                                      "version-not-bumped",
+                                      "unknown"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "since_tag": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "commits_ahead",
+                                  "since_tag",
+                                  "latest_main",
+                                  "release_blocked_by"
+                                ],
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "class",
+                              "channel",
+                              "effectiveChannel",
+                              "oneWay",
+                              "level",
+                              "behind",
+                              "plan",
+                              "group",
+                              "applyWithGroup"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "discovery": {
+                          "properties": {
+                            "ageSeconds": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "generatedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "hint": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "present": {
+                              "type": "boolean"
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "present",
+                            "stale"
+                          ],
+                          "type": "object"
+                        },
+                        "groups": {
+                          "items": {
+                            "properties": {
+                              "candidates": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "deployable": {
+                                "type": "boolean"
+                              },
+                              "group": {
+                                "type": "string"
+                              },
+                              "plan": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "source": {
+                                        "const": "file"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "skipped": {
+                                "items": {
+                                  "properties": {
+                                    "component": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "properties": {
+                                        "source": {
+                                          "const": "file"
+                                        },
+                                        "text": {
+                                          "type": "string"
+                                        },
+                                        "trust": {
+                                          "const": "untrusted"
+                                        }
+                                      },
+                                      "required": [
+                                        "text",
+                                        "trust",
+                                        "source"
+                                      ],
+                                      "type": "object",
+                                      "x-bothy-trust": "untrusted"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "group",
+                              "deployable",
+                              "candidates"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "history": {
+                          "items": {
+                            "properties": {
+                              "component": {
+                                "type": "string"
+                              },
+                              "error": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "source": {
+                                        "const": "container-log"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "note": {
+                                "anyOf": [
+                                  {
+                                    "properties": {
+                                      "source": {
+                                        "const": "operator-note"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "trust": {
+                                        "const": "untrusted"
+                                      }
+                                    },
+                                    "required": [
+                                      "text",
+                                      "trust",
+                                      "source"
+                                    ],
+                                    "type": "object",
+                                    "x-bothy-trust": "untrusted"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "state": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "component",
+                              "state"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "job": {
+                          "properties": {
+                            "component": {
+                              "type": "string"
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "source": {
+                                      "const": "container-log"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "const": "untrusted"
+                                    }
+                                  },
+                                  "required": [
+                                    "text",
+                                    "trust",
+                                    "source"
+                                  ],
+                                  "type": "object",
+                                  "x-bothy-trust": "untrusted"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "note": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "source": {
+                                      "const": "operator-note"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "trust": {
+                                      "const": "untrusted"
+                                    }
+                                  },
+                                  "required": [
+                                    "text",
+                                    "trust",
+                                    "source"
+                                  ],
+                                  "type": "object",
+                                  "x-bothy-trust": "untrusted"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "state": {
+                              "type": "string"
+                            },
+                            "steps": {
+                              "items": {
+                                "properties": {
+                                  "detail": {
+                                    "anyOf": [
+                                      {
+                                        "properties": {
+                                          "source": {
+                                            "const": "container-log"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "trust": {
+                                            "const": "untrusted"
+                                          }
+                                        },
+                                        "required": [
+                                          "text",
+                                          "trust",
+                                          "source"
+                                        ],
+                                        "type": "object",
+                                        "x-bothy-trust": "untrusted"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "component",
+                            "state"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "policy": {
+                          "required": [
+                            "windowStart",
+                            "windowEnd",
+                            "maxAutoPerNight",
+                            "pauseOnFailure"
+                          ],
+                          "type": "object"
+                        },
+                        "summary": {
+                          "required": [
+                            "components",
+                            "updates",
+                            "behind",
+                            "drift",
+                            "toApply",
+                            "configDrift",
+                            "groups",
+                            "configKeys",
+                            "errors"
+                          ],
+                          "type": "object"
+                        },
+                        "updater": {
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "discovery",
+                        "summary",
+                        "policy",
+                        "applying",
+                        "job",
+                        "history",
+                        "auto",
+                        "asks",
+                        "groups",
+                        "components"
+                      ],
+                      "type": "object"
+                    },
+                    "ok": {
+                      "const": true
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "request_id",
+                    "data",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "ok"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "request.not-found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "internal.error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "unavailable.source"
+          }
+        },
+        "summary": "Every update component: running, pinned, available, plan summary, policy and the own-code unreleased fact",
+        "x-bothy": {
+          "audit": "v1.update.status",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "confirm": "none",
+          "effect": "read",
+          "idempotent": true,
+          "role": "viewer"
+        }
+      }
+    }
+  }
+}

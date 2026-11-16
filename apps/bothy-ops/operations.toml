@@ -1,0 +1,214 @@
+# THE OPERATION CATALOG - the one hand-written description of /-/api/v1.
+#
+# docs/plans/thin-bothy/cli-and-control-plane.md section 1.1 (decisions D15 and D16).
+# Everything below is an INPUT; every other copy is an OUTPUT of
+# `scripts/gen-ops-v1.py` (`just ops-v1`), and CI re-runs it and fails on a diff:
+#
+#   apps/bothy-ops/generated/edge-routers.v1.yml   one exact Path() router per route
+#   apps/bothy-ops/generated/openapi.v1.json       the OpenAPI document (3.1)
+#   apps/bothy-ops/generated/mcp-tools.v1.json     the MCP tool list: read tools only
+#   apps/bothy-ops/generated/cli-verbs.v1.json     the CLI verb table
+#
+# and bothy-ops itself (v1api.py) loads THIS file at start-up to serve
+# GET /-/api/v1/discover, to validate every query string, to type untrusted text
+# and to refuse a role the op does not allow. The Go client is built from the
+# generated documents and tested against checks/golden/v1/.
+#
+# SLICE 1 IS READ-ONLY (decision D28). Every op below has effect = "read" and
+# method GET, and v1api.py REFUSES any other method on /v1/* with auth.forbidden:
+# there is no write route, in the catalog or in the router, to find.
+#
+# ── field reference ─────────────────────────────────────────────────────────
+#   title      one line, what it is for a person and for an agent's tool list
+#   http       "GET /-/api/v1/<path>": EXACT path (notes rule 1: ids travel in
+#              the query string, never in the path, so the router table stays
+#              enumerable). The prefix is /-/api/v1; Traefik strips /-/api.
+#   role       lowest role that may call it: viewer | editor | operator
+#   effect     read | tighten | loosen | destructive | host-only (only `read` exists)
+#   confirm    none | click | type-name | host
+#   callers    which surfaces may call it at all: web | cli | mcp | system
+#   mcp        { tool, scope } - a tool exists ONLY for an op that has this
+#   cli        the verb words, e.g. "update plan"
+#   audit      the audit KIND written for every call (the executor's row schema
+#              of doc 1.7 is slice 2; slice 1 writes this kind to admin.log)
+#   idempotent a repeat is harmless
+#   input.<n>  type string|integer|boolean, required, pattern (fullmatch), enum,
+#              min, max, default, `one_of` = a group of which EXACTLY one is given
+#   output     a JSON-Schema SUBSET for `data`: type, nullable, required,
+#              properties, items, enum. Unknown extra keys are always allowed
+#              (clients ignore them: doc 2.5 rule 4) EXCEPT that a string the
+#              schema does not mark is trusted text authored by Bothy.
+#              type = "untrusted" is the TRUST TYPING of doc 1.3: the value is
+#              served as {"text": ..., "trust": "untrusted", "source": <source>}
+#              and ONLY this schema decides which fields are wrapped, so the
+#              three surfaces cannot disagree.
+#
+# ── ids ──────────────────────────────────────────────────────────────────────
+# The plan says `j_<ulid>` and `p_<hash>`. The code has 32-hex job ids and
+# 24-hex plan ids that every spool file, record and audit line already uses, so
+# v1 serves THOSE, unprefixed. A prefix is presentation a client may add.
+
+[api]
+version = 1
+min_client = "0.0.0"
+base = "/-/api/v1"
+# Sources a value typed `untrusted` may name. container-log: job step text and
+# errors, which quote what a container printed. file: a plan or drift sentence
+# that quotes a compose file or path. registry: what an image registry said.
+# ci: what GitHub's check runs said. setting: a user-entered setting value.
+# operator-note: the free-text note on a request. release-notes and commit are
+# reserved for the ops that will carry them (slice 3); none does yet.
+untrusted_sources = ["container-log", "file", "registry", "ci", "setting", "operator-note", "release-notes", "commit"]
+
+# Roles in rank order; the repo has no `admin` and its `shell` role is unused.
+roles = ["viewer", "editor", "operator"]
+
+# ── the discover endpoint itself (not one of the eight ops) ─────────────────
+[endpoints.discover]
+title = "The capability list: what this server supports and how to talk to it"
+http = "GET /-/api/v1/discover"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "system"]
+cli = "version"
+audit = "v1.discover"
+idempotent = true
+output = { type = "object", required = ["serverVersion", "apiVersion", "minClient", "ops", "enums"], properties = { enums = { type = "object", required = ["component"], properties = { component = { type = "array", items = { type = "string" } } } }, serverVersion = { type = "string" }, apiVersion = { type = "integer" }, minClient = { type = "string" }, ops = { type = "array", items = { type = "object", required = ["id", "method", "path", "role", "effect", "confirm", "callers", "audit"], properties = { id = { type = "string" }, title = { type = "string" }, method = { type = "string", enum = ["GET"] }, path = { type = "string" }, role = { type = "string" }, effect = { type = "string" }, confirm = { type = "string" }, callers = { type = "array", items = { type = "string" } }, idempotent = { type = "boolean" }, audit = { type = "string" }, cli = { type = "string" }, mcp = { type = ["object", "null"] }, input = { type = "object" } } } } } }
+
+# ── 1. status ────────────────────────────────────────────────────────────────
+[ops."status"]
+title = "The one health view: updates, the running job, discovery freshness"
+http = "GET /-/api/v1/status"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_status", scope = "read" }
+cli = "status"
+audit = "v1.status"
+idempotent = true
+output = { type = "object", required = ["server", "updates", "discovery", "applying", "job", "needsAttention"], properties = { server = { type = "object", required = ["version", "apiVersion"], properties = { version = { type = "string" }, apiVersion = { type = "integer" } } }, updates = { type = "object", required = ["components", "updates", "behind", "drift", "toApply", "configDrift", "groups", "errors"], properties = { components = { type = "integer" }, updates = { type = "integer" }, behind = { type = "integer" }, drift = { type = "integer" }, toApply = { type = "integer" }, configDrift = { type = "integer" }, groups = { type = "integer" }, errors = { type = "integer" } } }, discovery = { type = "object", required = ["present", "stale"], properties = { present = { type = "boolean" }, stale = { type = "boolean" }, generatedAt = { type = "string", nullable = true }, ageSeconds = { type = "integer", nullable = true }, hint = { type = "string", nullable = true } } }, applying = { type = "boolean" }, job = { type = "object", nullable = true, required = ["id", "component", "state"], properties = { id = { type = "string" }, component = { type = "string" }, state = { type = "string" }, error = { type = "untrusted", source = "container-log", nullable = true } } }, needsAttention = { type = "array", items = { type = "object", required = ["kind", "component"], properties = { kind = { type = "string", enum = ["paused", "discovery-error", "update-failed"] }, component = { type = "string" }, detail = { type = "untrusted", source = "container-log", nullable = true } } } } } }
+
+# ── 2. module.list ───────────────────────────────────────────────────────────
+# Module declarations (#320) do not exist yet. Until they do, a "module" is what
+# the update catalog already groups: one `apply` recipe (`just up-monitoring`),
+# with the components it carries. `source` says so out loud, so a client never
+# mistakes this for the declared-module list that replaces it.
+[ops."module.list"]
+title = "The modules on this box, and the components each carries"
+http = "GET /-/api/v1/modules"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_module_list", scope = "read" }
+cli = "module list"
+audit = "v1.module.list"
+idempotent = true
+output = { type = "object", required = ["source", "modules"], properties = { source = { type = "string", enum = ["update-catalog"] }, modules = { type = "array", items = { type = "object", required = ["id", "recipe", "runtime", "components"], properties = { id = { type = "string" }, recipe = { type = "string" }, runtime = { type = "string", enum = ["compose", "k3s"] }, components = { type = "array", items = { type = "string" } } } } } } }
+
+# ── 3. update.status ─────────────────────────────────────────────────────────
+[ops."update.status"]
+title = "Every update component: running, pinned, available, plan summary, policy and the own-code unreleased fact"
+http = "GET /-/api/v1/updates/status"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_update_status", scope = "read" }
+cli = "update status"
+audit = "v1.update.status"
+idempotent = true
+output = { type = "object", required = ["discovery", "summary", "policy", "applying", "job", "history", "auto", "asks", "groups", "components"], properties = { discovery = { type = "object", required = ["present", "stale"], properties = { present = { type = "boolean" }, stale = { type = "boolean" }, generatedAt = { type = "string", nullable = true }, ageSeconds = { type = "integer", nullable = true }, hint = { type = "string", nullable = true } } }, summary = { type = "object", required = ["components", "updates", "behind", "drift", "toApply", "configDrift", "groups", "configKeys", "errors"] }, policy = { type = "object", required = ["windowStart", "windowEnd", "maxAutoPerNight", "pauseOnFailure"] }, applying = { type = "boolean" }, job = { type = "object", nullable = true, required = ["id", "component", "state"], properties = { id = { type = "string" }, component = { type = "string" }, state = { type = "string" }, error = { type = "untrusted", source = "container-log", nullable = true }, note = { type = "untrusted", source = "operator-note", nullable = true }, steps = { type = "array", items = { type = "object", required = ["name", "state"], properties = { name = { type = "string" }, state = { type = "string" }, detail = { type = "untrusted", source = "container-log", nullable = true } } } } } }, updater = { type = "object", nullable = true }, history = { type = "array", items = { type = "object", required = ["id", "component", "state"], properties = { id = { type = "string" }, component = { type = "string" }, state = { type = "string" }, error = { type = "untrusted", source = "container-log", nullable = true }, note = { type = "untrusted", source = "operator-note", nullable = true } } } }, auto = { type = "object", required = ["enabled", "paused"], properties = { paused = { type = "array", items = { type = "string" } }, last = { type = "object", nullable = true, properties = { reason = { type = "untrusted", source = "container-log", nullable = true } } } } }, asks = { type = "object", properties = { discover = { type = "object", nullable = true, properties = { reason = { type = "untrusted", source = "container-log", nullable = true } } }, autorun = { type = "object", nullable = true, properties = { reason = { type = "untrusted", source = "container-log", nullable = true }, skipped = { type = "array", items = { type = "object", properties = { why = { type = "untrusted", source = "file" } } } } } } } }, groups = { type = "array", items = { type = "object", required = ["group", "deployable", "candidates"], properties = { group = { type = "string" }, deployable = { type = "boolean" }, candidates = { type = "array", items = { type = "string" } }, reason = { type = "untrusted", source = "file", nullable = true }, skipped = { type = "array", items = { type = "object", properties = { component = { type = "string" }, reason = { type = "untrusted", source = "file" } } } }, plan = { type = "object", nullable = true } } } }, components = { type = "array", items = { type = "object", required = ["id", "title", "class", "channel", "effectiveChannel", "oneWay", "level", "behind", "plan", "group", "applyWithGroup"], properties = { id = { type = "string" }, title = { type = "string" }, class = { type = "string" }, channel = { type = "string", enum = ["auto", "notify", "manual"] }, effectiveChannel = { type = "string", nullable = true }, oneWay = { type = "boolean" }, level = { type = "string", nullable = true }, behind = { type = "boolean" }, group = { type = "string", nullable = true }, applyWithGroup = { type = "boolean" }, paused = { type = "object", nullable = true, properties = { reason = { type = "untrusted", source = "container-log" } } }, plan = { type = "object", nullable = true, properties = { id = { type = "string", nullable = true }, deployable = { type = "boolean" }, reason = { type = "untrusted", source = "file", nullable = true } } }, blockedBy = { type = "array", items = { type = "object", properties = { component = { type = "string" }, reason = { type = "untrusted", source = "file" } } } }, discovered = { type = "object", nullable = true, properties = { error = { type = "untrusted", source = "registry", nullable = true }, drift = { type = "untrusted", source = "file", nullable = true }, configDrift = { type = "untrusted", source = "file", nullable = true }, notes = { type = "array", items = { type = "untrusted", source = "registry" } } } }, unreleased = { type = "object", nullable = true, required = ["commits_ahead", "since_tag", "latest_main", "release_blocked_by"], properties = { commits_ahead = { type = "integer", nullable = true }, since_tag = { type = "string", nullable = true }, latest_main = { type = "string", nullable = true }, release_blocked_by = { type = "string", enum = ["none", "ci-red", "install-red", "upgrade-red", "version-not-bumped", "unknown"] }, last_tag_attempt = { type = "string", nullable = true }, generatedAt = { type = "string", nullable = true } } } } } } } }
+
+# ── 4. update.plan ───────────────────────────────────────────────────────────
+# `data.plan` is EXACTLY what the legacy GET /updates/plan serves (the host
+# planner's own output through bothy-ops' allow-list). `data.scope` is the one
+# thing added: for a component the host will refuse to apply alone because its
+# recipe also recreates other services, the structured refusal of doc 4.5
+# (code scope.group-available) with the group-apply offer. It is DATA on a 200,
+# not an error envelope: the question "what would applying do" was answered.
+[ops."update.plan"]
+title = "What applying a component (or a whole recipe group) would do, including every refusal"
+http = "GET /-/api/v1/updates/plan"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_update_plan", scope = "read" }
+cli = "update plan"
+audit = "v1.update.plan"
+idempotent = true
+input.component = { type = "string", pattern = "[a-z][a-z0-9-]{0,39}", one_of = "target" }
+input.group = { type = "string", pattern = "[a-z][a-z0-9-]{0,39}", one_of = "target" }
+output = { type = "object", required = ["target", "plan", "reason", "ageSeconds", "scope"], properties = { target = { type = "string", enum = ["component", "group"] }, component = { type = "string" }, group = { type = "string" }, plan = { type = "object", nullable = true, required = ["id", "level", "confirm"], properties = { id = { type = "string" }, kind = { type = "string", nullable = true }, level = { type = "string", enum = ["patch", "minor", "major"] }, confirm = { type = "string", enum = ["click", "type-name"] }, oneWay = { type = "boolean" }, confirmWord = { type = "string", nullable = true }, members = { type = "array", items = { type = "object" } }, skipped = { type = "array", items = { type = "object", properties = { reason = { type = "untrusted", source = "file" } } } }, own = { type = "object", properties = { ci = { type = "object", properties = { detail = { type = "untrusted", source = "ci", nullable = true } } } } } } }, reason = { type = "untrusted", source = "file", nullable = true }, ageSeconds = { type = "integer", nullable = true }, scope = { type = "object", nullable = true, required = ["code", "message", "details", "hint"], properties = { code = { type = "string", enum = ["scope.group-available"] }, message = { type = "string" }, details = { type = "object", required = ["component", "recipe", "would_recreate", "group", "group_class", "group_confirm", "group_plan_id", "rollback"], properties = { component = { type = "string" }, recipe = { type = "string" }, would_recreate = { type = "array", items = { type = "string" } }, group = { type = "string" }, group_class = { type = "string" }, group_confirm = { type = "string", enum = ["click", "type-name"] }, group_plan_id = { type = "string" }, rollback = { type = "string", enum = ["all-or-nothing"] } } }, hint = { type = "string" } } } } }
+
+# ── 5. update.history ────────────────────────────────────────────────────────
+[ops."update.history"]
+title = "Finished and running update jobs, newest first"
+http = "GET /-/api/v1/updates/history"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_update_history", scope = "read" }
+cli = "update history"
+audit = "v1.update.history"
+idempotent = true
+input.component = { type = "string", pattern = "[a-z][a-z0-9-]{0,39}" }
+input.limit = { type = "integer", min = 1, max = 100, default = 20 }
+output = { type = "object", required = ["jobs"], properties = { jobs = { type = "array", items = { type = "object", required = ["id", "component", "state", "requestedAt", "endedAt", "from", "to", "error", "note"], properties = { id = { type = "string" }, component = { type = "string" }, planId = { type = "string", nullable = true }, state = { type = "string", enum = ["queued", "running", "succeeded", "rolled_back", "aborted", "failed", "refused"] }, requestedBy = { type = "string" }, requestedAt = { type = "string", nullable = true }, startedAt = { type = "string", nullable = true }, endedAt = { type = "string", nullable = true }, durationMs = { type = "integer", nullable = true }, failedStep = { type = "string", nullable = true }, members = { type = "array", items = { type = "string" } }, error = { type = "untrusted", source = "container-log", nullable = true }, note = { type = "untrusted", source = "operator-note", nullable = true } } } } } }
+
+# ── 6. job.get ───────────────────────────────────────────────────────────────
+[ops."job.get"]
+title = "One job: its state and its steps"
+http = "GET /-/api/v1/job"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_job_get", scope = "read" }
+cli = "job show"
+audit = "v1.job.get"
+idempotent = true
+input.id = { type = "string", pattern = "[a-f0-9]{32}", required = true }
+output = { type = "object", required = ["job"], properties = { job = { type = "object", required = ["id", "component", "state", "steps"], properties = { id = { type = "string" }, component = { type = "string" }, planId = { type = "string", nullable = true }, state = { type = "string", enum = ["queued", "running", "succeeded", "rolled_back", "aborted", "failed", "refused"] }, requestedBy = { type = "string" }, requestedAt = { type = "string", nullable = true }, startedAt = { type = "string", nullable = true }, endedAt = { type = "string", nullable = true }, error = { type = "untrusted", source = "container-log", nullable = true }, note = { type = "untrusted", source = "operator-note", nullable = true }, snapshot = { type = "untrusted", source = "file", nullable = true }, steps = { type = "array", items = { type = "object", required = ["name", "state", "detail"], properties = { name = { type = "string" }, state = { type = "string", enum = ["pending", "running", "ok", "failed", "skipped"] }, startedAt = { type = "string", nullable = true }, endedAt = { type = "string", nullable = true }, detail = { type = "untrusted", source = "container-log", nullable = true } } } } } } } }
+
+# ── 7. events.query ──────────────────────────────────────────────────────────
+# Slice 1 serves the job feed (history.jsonl) and nothing else. `type` is an enum
+# of what exists, so a client cannot ask for audit rows and be told nothing.
+[ops."events.query"]
+title = "The append-only event feed, oldest first, by cursor"
+http = "GET /-/api/v1/events"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_events_query", scope = "read" }
+cli = "events"
+audit = "v1.events.query"
+idempotent = true
+input.since = { type = "string", pattern = "e_[a-f0-9]{32}_[a-z_]{4,12}" }
+input.type = { type = "string", enum = ["job"] }
+input.limit = { type = "integer", min = 1, max = 200, default = 50 }
+output = { type = "object", required = ["events", "cursor", "more"], properties = { events = { type = "array", items = { type = "object", required = ["id", "ts", "type", "component", "state", "text"], properties = { id = { type = "string" }, ts = { type = "string", nullable = true }, type = { type = "string", enum = ["job"] }, component = { type = "string" }, job_id = { type = "string" }, state = { type = "string" }, text = { type = "untrusted", source = "container-log", nullable = true } } } }, cursor = { type = "string", nullable = true }, more = { type = "boolean" } } }
+
+# ── 8. settings.get ──────────────────────────────────────────────────────────
+# NEVER returns a secret VALUE: for a secret it serves metadata only (set,
+# version, updated_at, fingerprint) and no `value` key at all. The adapter reads
+# bothy_settings through get_meta alone; it has no path to reveal_for_projection.
+[ops."settings.get"]
+title = "One setting: its value, or - for a secret - only that it is set"
+http = "GET /-/api/v1/settings"
+role = "viewer"
+effect = "read"
+confirm = "none"
+callers = ["web", "cli", "mcp", "system"]
+mcp = { tool = "bothy_settings_get", scope = "read" }
+cli = "settings get"
+audit = "v1.settings.get"
+idempotent = true
+input.module = { type = "string", pattern = "[a-z][a-z0-9_-]{0,62}", required = true }
+input.key = { type = "string", pattern = "[A-Za-z_][A-Za-z0-9_]{0,127}", required = true }
+output = { type = "object", required = ["module", "key", "secret", "set"], properties = { module = { type = "string" }, key = { type = "string" }, secret = { type = "boolean" }, set = { type = "boolean" }, version = { type = "integer", nullable = true }, updated_at = { type = "string", nullable = true }, updated_by = { type = "string", nullable = true }, fingerprint = { type = "string", nullable = true }, value_type = { type = "string", enum = ["string", "number", "boolean", "null", "object", "array"] }, value = { type = "untrusted", source = "setting" } } }
