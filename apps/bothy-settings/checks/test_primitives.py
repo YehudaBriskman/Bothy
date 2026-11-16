@@ -356,7 +356,7 @@ class Filesystem(unittest.TestCase):
         return fscheck.require_supported(path, MOUNTINFO)
 
     def test_native_filesystems_pass(self) -> None:
-        for p, want in (("/home/x/state", "ext4"), ("/tmp/x", "tmpfs"), ("/data/s", "overlay"),
+        for p, want in (("/srv/x/state", "ext4"), ("/tmp/x", "tmpfs"), ("/data/s", "overlay"),
                         ("/srv/with space/db", "ext4"), ("/var/lib/containers/s", "fuse.overlayfs")):
             with self.subTest(p):
                 self.assertEqual(self.fs(p), want)
