@@ -2707,6 +2707,62 @@ mutant "a checkout that is not a merge is diffed anyway" \
   -- "${CHANGES_CHECK[@]}"
 
 echo
+echo "── bothy-settings: the store library (docs/plans/settings-store.md) ──"
+# Each row runs ONE test file through the harness (`--only`), so a row costs a few
+# seconds rather than the whole suite. The first run builds apps/bothy-settings/.venv.
+S=apps/bothy-settings
+
+# Record s5: the associated data binds a value to its module and key, so a ciphertext
+# copied onto another row fails to open instead of silently answering as that row.
+# Dropping the module from the AAD is the "swapped row" attack the tests must refuse.
+mutant "the value AAD stops binding the module" \
+  $S/bothy_settings/crypto.py \
+  'b"bothy/v1/value\x00" + store_id + b"\x00" + module.encode() + b"\x00" + key.encode()' \
+  'b"bothy/v1/value\x00" + store_id + b"\x00" + b"\x00" + key.encode()' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# GCM is catastrophic under a repeated (key, nonce): the guard exists so a broken or
+# patched random source is a refusal and not a quiet break. Disabling the comparison
+# is the exact failure it is there for.
+mutant "the nonce-reuse guard stops comparing" \
+  $S/bothy_settings/crypto.py \
+  'if n in self._seen:' \
+  'if False:' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# The key file is the one thing that decrypts a copy of the store. A group- or
+# world-readable one must be refused, not used with a warning.
+mutant "a group-readable key file is accepted" \
+  $S/bothy_settings/keyfile.py \
+  'if st.st_mode & 0o077:' \
+  'if False:' \
+  -- bash $S/checks/run.sh --only test_store
+
+# A rolled-back change must leave no log line: the log is what an operator trusts
+# about what happened. Not clearing the pending lines on rollback lets a change that
+# never committed be logged by the NEXT commit.
+mutant "a rolled-back audit line is logged by the next commit" \
+  $S/bothy_settings/store.py \
+  '                self._pending_log = []
+                raise' \
+  '                raise' \
+  -- bash $S/checks/run.sh --only test_leaks
+
+# Restore must check the backup against its .sha256 BEFORE touching anything.
+mutant "restore stops checking the backup's hash" \
+  $S/bothy_settings/store.py \
+  'if hashlib.sha256(raw).hexdigest() != want:' \
+  'if False:' \
+  -- bash $S/checks/run.sh --only test_backup
+
+# A read the audit chain cannot detect being cut is not an audit log.
+mutant "the audit chain stops comparing its MAC" \
+  $S/bothy_settings/audit.py \
+  'not hmac.compare_digest(mac, r[11])' \
+  'False' \
+  -- bash $S/checks/run.sh --only test_store
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is
