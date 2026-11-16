@@ -13,6 +13,8 @@
     POST /updates/unpause                    one spool file       updates.py
     POST /updates/discover                   one spool file       updates.py
     POST /updates/autorun                    one spool file       updates.py
+    GET  /v1/discover, /v1/<op>              the control plane's read-only network API
+                                             (v1api.py; operations.toml declares every route)
     GET  /healthz                            local only, no edge route
 
 Until 2026-09 these were two services, bothy-control and bothy-kube, each with
@@ -61,7 +63,9 @@ import admin  # noqa: E402
 import control  # noqa: E402
 import guard  # noqa: E402
 import kube  # noqa: E402
+import opscatalog  # noqa: E402
 import updates  # noqa: E402
+import v1api  # noqa: E402
 from bothy_common.http import JsonHandler, serve  # noqa: E402
 
 PORT = int(os.environ.get("PORT", "8097"))
@@ -73,6 +77,8 @@ class Handler(JsonHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         route = self.route
+        if route.startswith("/v1/"):
+            return v1api.handle(self, "GET")
         if route == "/healthz":
             # No route at the edge for this: it is reached by the container's own
             # HEALTHCHECK on 127.0.0.1, and publishing it would put the verb
@@ -97,8 +103,19 @@ class Handler(JsonHandler):
             return updates.handle(self, route[len("/updates/"):])
         return self._send(404, {"error": "no such endpoint"})
 
+    def _other_method(self) -> None:
+        # PUT, PATCH, DELETE: refused by name on /v1 (slice 1 has no write). Elsewhere this
+        # answers what the stdlib's own 501 did before, as JSON: no behaviour outside /v1.
+        if self.route.startswith("/v1/"):
+            return v1api.handle(self, self.command)
+        return self._send(501, {"error": "unsupported method"})
+
+    do_PUT = do_PATCH = do_DELETE = _other_method
+
     def do_POST(self) -> None:  # noqa: N802
         route = self.route
+        if route.startswith("/v1/"):
+            return v1api.handle(self, "POST")
         if route.startswith("/control/"):
             return control.handle(self, route[len("/control/"):])
         if route.startswith("/kube/"):
@@ -131,7 +148,10 @@ def main() -> None:
         # The update catalog too: a typo in updates.toml is a defect in what was
         # reviewed and built, not a request-time 500 (updates.load_catalog).
         updates.CATALOG = updates.load()
-    except (guard.CatalogError, updates.CatalogError, OSError, tomllib.TOMLDecodeError) as e:
+        # The operation catalog likewise: a catalog that does not load is not served.
+        v1api.load()
+    except (guard.CatalogError, updates.CatalogError, opscatalog.CatalogError, OSError,
+            tomllib.TOMLDecodeError) as e:
         # Refuse to start. A service that ran with half a catalog would be a
         # service whose surface nobody reviewed. (A missing CLUSTER is not this -
         # that is a 503 per request; a malformed CATALOG is a code defect.)

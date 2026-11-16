@@ -1,0 +1,23 @@
+{
+  "body": {
+    "data": {
+      "fingerprint": null,
+      "key": "unset_note",
+      "module": "sso",
+      "secret": false,
+      "set": false,
+      "updated_at": null,
+      "updated_by": null,
+      "version": null
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/settings?module=sso&key=unset_note"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

@@ -1,0 +1,51 @@
+{
+  "body": {
+    "data": {
+      "modules": [
+        {
+          "components": [
+            "bothy"
+          ],
+          "id": "apps",
+          "recipe": "just up-apps",
+          "runtime": "compose"
+        },
+        {
+          "components": [
+            "grafana"
+          ],
+          "id": "graf",
+          "recipe": "just up-graf",
+          "runtime": "compose"
+        },
+        {
+          "components": [
+            "loki",
+            "web"
+          ],
+          "id": "mon",
+          "recipe": "just up-mon",
+          "runtime": "compose"
+        },
+        {
+          "components": [
+            "solo"
+          ],
+          "id": "solo",
+          "recipe": "just up-solo",
+          "runtime": "compose"
+        }
+      ],
+      "source": "update-catalog"
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/modules"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

@@ -1,0 +1,20 @@
+{
+  "body": {
+    "error": {
+      "code": "auth.forbidden",
+      "details": {
+        "method": "POST"
+      },
+      "hint": null,
+      "message": "this API is read-only in this version: no write operation exists"
+    },
+    "ok": false,
+    "request_id": "r_0000000000000000"
+  },
+  "request": {
+    "method": "POST",
+    "path": "/-/api/v1/updates/plan?component=solo"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 403
+}

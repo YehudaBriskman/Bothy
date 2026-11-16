@@ -1,0 +1,269 @@
+{
+  "body": {
+    "data": {
+      "apiVersion": 1,
+      "enums": {
+        "component": [
+          "bothy",
+          "grafana",
+          "loki",
+          "solo",
+          "web"
+        ]
+      },
+      "minClient": "0.0.0",
+      "ops": [
+        {
+          "audit": "v1.status",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "status",
+          "confirm": "none",
+          "effect": "read",
+          "id": "status",
+          "idempotent": true,
+          "input": {},
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_status"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/status",
+          "role": "viewer",
+          "title": "The one health view: updates, the running job, discovery freshness"
+        },
+        {
+          "audit": "v1.module.list",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "module list",
+          "confirm": "none",
+          "effect": "read",
+          "id": "module.list",
+          "idempotent": true,
+          "input": {},
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_module_list"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/modules",
+          "role": "viewer",
+          "title": "The modules on this box, and the components each carries"
+        },
+        {
+          "audit": "v1.update.status",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "update status",
+          "confirm": "none",
+          "effect": "read",
+          "id": "update.status",
+          "idempotent": true,
+          "input": {},
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_update_status"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/updates/status",
+          "role": "viewer",
+          "title": "Every update component: running, pinned, available, plan summary, policy and the own-code unreleased fact"
+        },
+        {
+          "audit": "v1.update.plan",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "update plan",
+          "confirm": "none",
+          "effect": "read",
+          "id": "update.plan",
+          "idempotent": true,
+          "input": {
+            "component": {
+              "one_of": "target",
+              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "type": "string"
+            },
+            "group": {
+              "one_of": "target",
+              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "type": "string"
+            }
+          },
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_update_plan"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/updates/plan",
+          "role": "viewer",
+          "title": "What applying a component (or a whole recipe group) would do, including every refusal"
+        },
+        {
+          "audit": "v1.update.history",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "update history",
+          "confirm": "none",
+          "effect": "read",
+          "id": "update.history",
+          "idempotent": true,
+          "input": {
+            "component": {
+              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "type": "string"
+            },
+            "limit": {
+              "default": 20,
+              "max": 100,
+              "min": 1,
+              "type": "integer"
+            }
+          },
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_update_history"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/updates/history",
+          "role": "viewer",
+          "title": "Finished and running update jobs, newest first"
+        },
+        {
+          "audit": "v1.job.get",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "job show",
+          "confirm": "none",
+          "effect": "read",
+          "id": "job.get",
+          "idempotent": true,
+          "input": {
+            "id": {
+              "pattern": "[a-f0-9]{32}",
+              "required": true,
+              "type": "string"
+            }
+          },
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_job_get"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/job",
+          "role": "viewer",
+          "title": "One job: its state and its steps"
+        },
+        {
+          "audit": "v1.events.query",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "events",
+          "confirm": "none",
+          "effect": "read",
+          "id": "events.query",
+          "idempotent": true,
+          "input": {
+            "limit": {
+              "default": 50,
+              "max": 200,
+              "min": 1,
+              "type": "integer"
+            },
+            "since": {
+              "pattern": "e_[a-f0-9]{32}_[a-z_]{4,12}",
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "job"
+              ],
+              "type": "string"
+            }
+          },
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_events_query"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/events",
+          "role": "viewer",
+          "title": "The append-only event feed, oldest first, by cursor"
+        },
+        {
+          "audit": "v1.settings.get",
+          "callers": [
+            "web",
+            "cli",
+            "mcp",
+            "system"
+          ],
+          "cli": "settings get",
+          "confirm": "none",
+          "effect": "read",
+          "id": "settings.get",
+          "idempotent": true,
+          "input": {
+            "key": {
+              "pattern": "[A-Za-z_][A-Za-z0-9_]{0,127}",
+              "required": true,
+              "type": "string"
+            },
+            "module": {
+              "pattern": "[a-z][a-z0-9_-]{0,62}",
+              "required": true,
+              "type": "string"
+            }
+          },
+          "mcp": {
+            "scope": "read",
+            "tool": "bothy_settings_get"
+          },
+          "method": "GET",
+          "path": "/-/api/v1/settings",
+          "role": "viewer",
+          "title": "One setting: its value, or - for a secret - only that it is set"
+        }
+      ],
+      "serverVersion": "2026.11.0"
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/discover"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

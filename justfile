@@ -527,6 +527,12 @@ settings-check:
 ops-wiring mode="":
     @python3 scripts/gen-ops-wiring.py {{ if mode == "check" { "--check" } else { "" } }}
 
+# Regenerate the v1 control-plane outputs (inert edge routers, OpenAPI, MCP tools, CLI verbs) from
+# apps/bothy-ops/operations.toml. `check` only diffs (T1; CI runs that).
+# Regenerate the v1 control-plane outputs from the operation catalog (or `check` that they match).
+ops-v1 mode="":
+    @python3 scripts/gen-ops-v1.py {{ if mode == "check" { "--check" } else { "" } }}
+
 # The Settings area's Keycloak client `bothy-admin` (view-users only), and its
 # secret in apps/bothy-ops/secrets. `--rotate` issues a new secret; `--revoke`
 # disables the client and deletes the file.

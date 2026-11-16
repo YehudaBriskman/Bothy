@@ -297,6 +297,97 @@ def ci_verdict(cfg: Config, slug: str, sha: str) -> dict:
     return v
 
 
+# ── the "unreleased" fact: how far main is past the last release (doc 4.2) ───
+#
+# The own-code row compares the running tag with the newest green release TAG and
+# says "up to date". That is the rule ("deploy only a reviewed, green, tagged
+# release") and it stays; what was missing is the FACT that main may be many
+# commits ahead of it with nothing cut. This computes the fact and never offers
+# a deploy of main: there is no new path here, only a number and a cause.
+#
+# NO NETWORK BY DEFAULT. It reads the refs the checkout already has
+# (`refs/remotes/origin/main`, the tags), so it is as fresh as the last
+# `git fetch` - which `plan()` and the discovery timer already do - and it costs
+# a handful of `git` calls. The cause is decided in this order:
+#
+#   commits_ahead == 0                    -> none
+#   VERSION on main == VERSION at the tag -> version-not-bumped (release.yml tags
+#                                            v$VERSION only when VERSION moved)
+#   VERSION bumped, CI's verdict known    -> none (green: the tag is pending),
+#                                            else install-red / upgrade-red / ci-red
+#   VERSION bumped, CI's verdict unknown  -> unknown (offline; never guessed)
+#
+# The CI verdict is `checks` when a caller passes one (the network half, run
+# deliberately) and otherwise ci_verdict's own on-disk cache of a GREEN answer.
+RELEASE_BLOCKERS = ("none", "ci-red", "install-red", "upgrade-red", "version-not-bumped", "unknown")
+UNRELEASED = "unreleased.json"
+
+
+def _blocker_from_verdict(v: dict) -> str:
+    if v.get("green") is True:
+        return "none"
+    d = str(v.get("detail", "")).lower()
+    return "install-red" if "install" in d else "upgrade-red" if "upgrade" in d else "ci-red"
+
+
+def unreleased(cfg: Config, checks=None) -> dict | None:
+    """{commits_ahead, since_tag, latest_main, release_blocked_by, ...} or None (no origin/main)."""
+    rc, tip = git(cfg.repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main^{commit}")
+    if rc != 0 or not _SHA.fullmatch(tip):
+        return None
+    rc, out = git(cfg.repo, "tag", "--list", "v*", "--merged", "refs/remotes/origin/main")
+    best = None
+    for t in (out.split() if rc == 0 else []):
+        v = updates.parse_version(t)
+        if v and len(v.parts) == 3 and not v.has_rev and (best is None or v.parts > best[0]):
+            best = (v.parts, t)
+    fact = {"commits_ahead": None, "since_tag": None, "latest_main": tip[:7], "release_blocked_by": "unknown",
+            "last_tag_attempt": None}
+    if best is None:
+        return fact
+    tag = best[1]
+    rc, n = git(cfg.repo, "rev-list", "--count", f"refs/tags/{tag}..refs/remotes/origin/main")
+    if rc != 0 or not n.isdigit():
+        return fact
+    fact.update(commits_ahead=int(n), since_tag=tag)
+    if int(n) == 0:
+        fact["release_blocked_by"] = "none"
+        return fact
+    main_v, tag_v = _version_at(cfg, "refs/remotes/origin/main"), _version_at(cfg, f"refs/tags/{tag}")
+    if main_v is None or main_v == tag_v:
+        fact["release_blocked_by"] = "version-not-bumped" if main_v is not None else "unknown"
+        return fact
+    verdict = checks(tip) if callable(checks) else None
+    if verdict is None:
+        try:
+            c = hostio.read_json(os.path.join(cfg.own_dir, f"checks-{tip}.json"), 64 * 1024)
+            verdict = c if isinstance(c, dict) and c.get("green") is True else None
+        except (OSError, ValueError, HostError):
+            verdict = None
+    if verdict is not None:
+        fact["release_blocked_by"] = _blocker_from_verdict(verdict)
+    return fact
+
+
+def write_unreleased(cfg: Config) -> None:
+    """state/unreleased.json, 600 - what bothy-ops reads through its read-only mount.
+
+    Never raises: a fact that cannot be computed must not stop discovery writing
+    the plans, so a failure removes the file (a stale number is worse than none).
+    """
+    path = os.path.join(cfg.state, UNRELEASED)
+    try:
+        fact = unreleased(cfg)
+        if fact is None:
+            raise HostError("no origin/main")
+        hostio.write_json(path, {"version": 1, "generatedAt": iso(), "fact": fact})
+    except Exception:  # noqa: BLE001
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 # ── what runs now ────────────────────────────────────────────────────────────
 
 def running(cfg: Config) -> dict[str, dict]:

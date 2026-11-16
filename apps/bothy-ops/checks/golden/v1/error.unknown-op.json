@@ -1,0 +1,18 @@
+{
+  "body": {
+    "error": {
+      "code": "request.not-found",
+      "details": {},
+      "hint": "GET /-/api/v1/discover lists them",
+      "message": "no such operation"
+    },
+    "ok": false,
+    "request_id": "r_0000000000000000"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/nothing"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 404
+}

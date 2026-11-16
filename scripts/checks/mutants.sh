@@ -524,6 +524,63 @@ mutant "a pattern stops being a bounded range" \
   'pattern = "[0-9]+"' \
   -- python3 apps/bothy-ops/checks/wiring.py
 
+# ── the v1 control-plane API (read-only slice) ──────────────────────────────
+# T3: the gate that refuses every method but GET. Without it a POST to a read path is served as a
+# read - and, in a later slice, would reach whatever the write handler is. Anchored on the guard.
+mutant "a viewer's POST to /v1 is served" \
+  apps/bothy-ops/v1api.py \
+  'if method != "GET":' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/api_v1_contract.py
+
+# settings.get reads metadata. The value of a secret must not be reachable from the code path even
+# when the reader hands one back: the check plants a reader that does, and looks for the sentinel.
+mutant "settings.get returns a secret's value" \
+  apps/bothy-ops/v1api.py \
+  'if not m.is_secret and m.set:' \
+  'if m.set:' \
+  -- python3 apps/bothy-ops/checks/api_v1_contract.py
+
+# T5: control characters and ANSI at the API boundary. A job error with a clear-screen and an OSC
+# title must not reach a terminal, or a model, as bytes.
+mutant "the API stops stripping ANSI and control characters" \
+  apps/bothy-ops/opscatalog.py \
+  'return _CONTROL.sub("", _ANSI.sub("", text))' \
+  'return text' \
+  -- python3 apps/bothy-ops/checks/api_v1_contract.py
+
+# ...and the typing half: a schema's `untrusted` field goes out as a bare string, unmarked.
+mutant "the API stops typing untrusted fields" \
+  apps/bothy-ops/opscatalog.py \
+  'if "untrusted" in _types(schema):
+        text = value' \
+  'if False:
+        text = value' \
+  -- python3 apps/bothy-ops/checks/api_v1_contract.py
+
+# T1: the catalog and what is generated from it. A tool renamed in operations.toml and not
+# regenerated is the drift the generator exists to stop; the CI step is exactly this command.
+mutant "operations.toml and the generated files diverge" \
+  apps/bothy-ops/operations.toml \
+  'tool = "bothy_job_get"' \
+  'tool = "bothy_job_fetch"' \
+  -- python3 scripts/gen-ops-v1.py --check
+
+# Slice 1 is read-only because ONE switch says so; with it off the loader accepts a write op.
+mutant "the read-only switch of the operation catalog is off" \
+  apps/bothy-ops/opscatalog.py \
+  'READ_ONLY_SLICE = True' \
+  'READ_ONLY_SLICE = False' \
+  -- python3 apps/bothy-ops/checks/test_v1_catalog.py
+
+# T8: an unchanged VERSION is what release.yml waits for. Skipping that test would blame CI (or
+# nothing) for a release that was never going to be cut.
+mutant "unreleased stops saying the version was not bumped" \
+  apps/bothy-ops/updater/owncode.py \
+  'if main_v is None or main_v == tag_v:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/test_unreleased.py
+
 mutant "\`just urls\` names a port nothing publishes" \
   justfile \
   'http://$IP:3000' \

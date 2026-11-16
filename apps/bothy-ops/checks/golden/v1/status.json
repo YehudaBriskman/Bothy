@@ -1,0 +1,72 @@
+{
+  "body": {
+    "data": {
+      "applying": true,
+      "discovery": {
+        "ageSeconds": 3600,
+        "generatedAt": "2026-11-18T09:00:00Z",
+        "hint": null,
+        "present": true,
+        "stale": false
+      },
+      "job": {
+        "component": "solo",
+        "error": null,
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "state": "running"
+      },
+      "needsAttention": [
+        {
+          "component": "loki",
+          "detail": {
+            "source": "container-log",
+            "text": "its last update was rolled back",
+            "trust": "untrusted"
+          },
+          "kind": "paused"
+        },
+        {
+          "component": "grafana",
+          "detail": {
+            "source": "container-log",
+            "text": "preflight: no backup newer than 24 h",
+            "trust": "untrusted"
+          },
+          "kind": "update-failed"
+        },
+        {
+          "component": "loki",
+          "detail": {
+            "source": "container-log",
+            "text": "verify failed: loki /ready answered 503 after 90 s; the previous image was restored",
+            "trust": "untrusted"
+          },
+          "kind": "update-failed"
+        }
+      ],
+      "server": {
+        "apiVersion": 1,
+        "version": "2026.11.0"
+      },
+      "updates": {
+        "behind": 1,
+        "components": 5,
+        "configDrift": 0,
+        "drift": 0,
+        "errors": 0,
+        "groups": 1,
+        "toApply": 4,
+        "updates": 1
+      }
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/status"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

@@ -1,0 +1,45 @@
+{
+  "body": {
+    "data": {
+      "jobs": [
+        {
+          "component": "loki",
+          "durationMs": 98000,
+          "endedAt": "2026-11-18T02:10:00Z",
+          "error": {
+            "source": "container-log",
+            "text": "verify failed: loki /ready answered 503 after 90 s; the previous image was restored",
+            "trust": "untrusted"
+          },
+          "failedStep": "verify",
+          "from": {
+            "image": "example.invalid/solo:2.0.0",
+            "version": "2.0.0"
+          },
+          "id": "cccccccccccccccccccccccccccccccc",
+          "members": [],
+          "note": null,
+          "planId": "000000000000000000000000",
+          "requestedAt": "2026-11-18T01:00:00Z",
+          "requestedBy": "ops@example.com",
+          "snapshot": null,
+          "startedAt": "2026-11-18T01:00:05Z",
+          "state": "rolled_back",
+          "to": {
+            "image": "example.invalid/solo:2.0.1",
+            "version": "2.0.1"
+          }
+        }
+      ]
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/updates/history?component=loki&limit=5"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}
