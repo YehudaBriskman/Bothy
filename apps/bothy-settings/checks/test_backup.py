@@ -140,12 +140,12 @@ class Backup(StoreCase):
             m = s2.get_meta("m", "TOKEN")
             if not m.set:
                 continue
-            self.assertEqual(self.reveal("TOKEN", store=s2), f"v{m.version}-" + "x" * 30,
+            self.assertEqual(self.reveal("TOKEN", store=s2), f"v{m.version - 1}-" + "x" * 30,  # version 1 was fill()'s, before the delete
                              "the row and its version come from different commits")
             v = s2.verify_audit()
             self.assertTrue(v.ok, "the audit chain in a snapshot must be a whole chain")
             n_set = s2._conn.execute("SELECT count(*) FROM audit WHERE action='set' AND key='TOKEN'").fetchone()[0]
-            self.assertEqual(n_set - 1, m.version, "a change and its audit row are in the same snapshot")  # -1: the set done by fill()
+            self.assertEqual(n_set, m.version, "a change and its audit row are in the same snapshot")  # versions count on across the delete
             seen.add(m.version)
         self.assertGreaterEqual(len(seen), 2, "the writer ran while backups were taken")
 

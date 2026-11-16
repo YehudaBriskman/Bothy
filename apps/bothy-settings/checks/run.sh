@@ -85,6 +85,8 @@ want test_rotation   && run_one "rotation: KEK and DEK, a crash at every step" t
 want test_backup     && run_one "backup and restore: consistent under writes, and refusals change nothing" test_backup
 want test_export     && run_one "export: the document, and the age bundle" test_export
 want test_leaks      && run_one "leaks: no value or key byte in logs, errors, audit or files" test_leaks
+want test_hardening  && run_one "hardening: restore dry-decrypt and crash safety, audit head, versions, export, odd paths" test_hardening
+want test_logging    && run_one "logging: the audit line reaches stdout with no logging configured" test_logging
 
 if [ -n "$ONLY" ] && [ ! -f "checks/$ONLY.py" ]; then
   echo "unknown test: $ONLY" >&2

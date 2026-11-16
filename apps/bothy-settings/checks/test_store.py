@@ -872,9 +872,10 @@ class Audit(StoreCase):
     def test_a_failed_decrypt_is_audited_as_read_denied(self) -> None:
         self.fill()
         self.s._conn.execute("UPDATE secrets SET ciphertext=x'00' WHERE key='TOKEN'")
-        for fn in (lambda: self.reveal("TOKEN"), lambda: self.s.export_document(actor="a")):
-            with self.assertRaises(DecryptError):
-                fn()
+        with self.assertRaises(DecryptError):
+            self.reveal("TOKEN")
+        doc = self.s.export_document(actor="a")  # an export does not abort on one bad row (record s13.2)
+        self.assertEqual(doc.unreadable, ("m.TOKEN",))
         rows = self.rows("SELECT module, key, detail FROM audit WHERE action='read-denied'")
         self.assertEqual(len(rows), 2)
         self.assertTrue(self.s.verify_audit().ok)

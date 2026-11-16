@@ -26,7 +26,6 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
-import logging
 import mmap
 import os
 import secrets as _secrets
@@ -37,10 +36,11 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from . import audit as _audit
-from . import crypto, fscheck, keyfile, names, schema
+from . import auditlog, crypto, fscheck, keyfile, names, schema
 from .errors import (
     ClassificationError, CorruptDatabaseError, DecryptError, DowngradeError,
     ImportRefused, KeyFileError, KeyMissingError, NotFound, RestoreError,
@@ -52,7 +52,6 @@ DB_NAME = "settings.db"
 EXPORT_FORMAT = "bothy-config-export/1"
 KEY_CHECK = b"bothy-key-check-v1"
 _STORE = names.INTERNAL_MODULE
-_log = logging.getLogger("bothy.settings.audit")
 
 _SQLITE_MIN = (3, 37, 0)  # STRICT tables
 
@@ -77,6 +76,11 @@ class BackupResult:
     path: str
     sha256: str
     size: int
+
+
+class ExportDocument(dict):  # type: ignore[type-arg]
+    """The export document (a plain dict, JSON-serialisable) plus the rows it could not include."""
+    unreadable: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -109,6 +113,12 @@ def _now() -> str:
 def _stamp() -> str:
     """A file-name-safe timestamp that cannot collide within one second."""
     return f"{_now().replace(':', '')}-{_secrets.token_hex(3)}"
+
+
+def _ro_uri(path: str) -> str:
+    """A read-only SQLite URI for `path`. Percent-encoded: a bare f"file:{path}" turns `%41`
+    into `A`, and treats `?` and `#` as the start of the query or the fragment."""
+    return Path(os.path.abspath(path)).as_uri() + "?mode=ro"
 
 
 def _fsync_dir(path: str) -> None:
@@ -207,6 +217,23 @@ def _set_meta(c: sqlite3.Connection, k: str, v: bytes) -> None:
     c.execute("INSERT OR REPLACE INTO meta(k, v) VALUES (?, ?)", (k, v))
 
 
+def _next_version(c: sqlite3.Connection, module: str, key: str, current: int) -> int:
+    """The next version of module.key: one more than the highest it has EVER had.
+
+    A counter in `meta` outlives a delete. Without it, delete-then-put restarts at 1 and a
+    client holding `if_version=1` from before the delete overwrites a value it never saw (ABA).
+    """
+    k = f"version.{module}.{key}"
+    r = c.execute("SELECT v FROM meta WHERE k=?", (k,)).fetchone()
+    try:
+        floor = int(bytes(r[0])) if r else 0
+    except ValueError:
+        raise CorruptDatabaseError(f"meta.{k} is not a number; refusing to continue") from None
+    n = max(current, floor) + 1
+    _set_meta(c, k, str(n).encode())
+    return n
+
+
 def _wrap_store_key(kek: bytes, kek_id: str, store_id: bytes, name: str, key: bytes) -> bytes:
     nonce, ct = crypto.seal(kek, key, crypto.aad_wrap(store_id, _STORE, name, kek_id))
     return nonce + ct
@@ -220,11 +247,18 @@ def _unwrap_store_key(kek: bytes, kek_id: str, store_id: bytes, name: str, blob:
                                    f"{kek_id}: the database is tampered or damaged") from None
 
 
-def _apply_migrations(c: sqlite3.Connection, current: int, before: Callable[[int, int], None] | None) -> int:
-    """Forward-only, one transaction per step. `before(from, to)` runs once, first."""
+def _apply_migrations(c: sqlite3.Connection, current: int, before: Callable[[int, int], None] | None,
+                      audit_key: bytes | None = None) -> dict[str, object] | None:
+    """Forward-only, one transaction per step. `before(from, to)` runs once, first.
+
+    With `audit_key`, the `migrate` audit row is written INSIDE the last step's transaction:
+    a crash can no longer leave a migrated database with no record that it was migrated (or a
+    record of a migration that did not happen). Returns that row, for the caller to log.
+    """
     target = len(schema.MIGRATIONS)
     if current < target and before is not None and current > 0:
         before(current, target)
+    rec = None
     for v in range(current, target):
         c.execute("BEGIN IMMEDIATE")
         try:
@@ -232,11 +266,14 @@ def _apply_migrations(c: sqlite3.Connection, current: int, before: Callable[[int
                 c.execute(stmt)
             c.execute(f"PRAGMA user_version = {v + 1}")
             _set_meta(c, "schema_version", str(v + 1).encode())
+            if audit_key is not None and v == target - 1:
+                rec = _audit.append(c, audit_key, at=_now(), actor="system:migrate", surface="bootstrap",
+                                    action="migrate", detail=f"schema {current} -> {target}")
             c.execute("COMMIT")
         except BaseException:
             c.execute("ROLLBACK")
             raise
-    return target
+    return rec
 
 
 def _tmp_name(state: str, tag: str) -> str:
@@ -256,7 +293,7 @@ def _backup_to(src_path: str, dest: str) -> BackupResult:
     _precreate(dest)
     made = [dest]
     try:
-        src = sqlite3.connect(f"file:{src_path}?mode=ro", uri=True, timeout=5.0)
+        src = sqlite3.connect(_ro_uri(src_path), uri=True, timeout=5.0)
         dst = sqlite3.connect(dest)
         try:
             src.backup(dst)
@@ -378,7 +415,7 @@ class Store:
                                 action="migrate", detail=f"{why}; schema_version={len(schema.MIGRATIONS)}")
             c.execute("COMMIT")
             c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            _log.info(json.dumps(rec, sort_keys=True))
+            auditlog.emit(rec)
         except BaseException:
             c.close()
             os.unlink(tmp)
@@ -443,24 +480,21 @@ class Store:
                                            "the database is tampered or damaged")
             fp_key = _unwrap_store_key(kek, kek_id, store_id, "fp_key", _meta(c, "store_key.fp_key"))
             audit_key = _unwrap_store_key(kek, kek_id, store_id, "audit_key", _meta(c, "store_key.audit_key"))
-            migrated_from = None
+            mig_rec = None
             if version < len(schema.MIGRATIONS):
-                migrated_from = version
 
                 def pre(frm: int, to: int) -> None:
                     dest = os.path.join(state, f"pre-migrate-{frm}-{to}.db")
                     if os.path.lexists(dest):  # a failed attempt already left one: keep it, add another
                         dest = os.path.join(state, f"pre-migrate-{frm}-{to}-{_stamp()}.db")
                     _backup_to(db, dest)
-                _apply_migrations(c, version, pre)
+                mig_rec = _apply_migrations(c, version, pre, audit_key)
             elif int(_meta(c, "schema_version")) != version:
                 raise CorruptDatabaseError("meta.schema_version disagrees with user_version")
             self = cls(state=state, keyfile_path=kp, conn=c, lock=lock, keys=keys, kek_id=kek_id,
                        store_id=store_id, fp_key=fp_key, audit_key=audit_key)
-            if migrated_from is not None:
-                with self._tx():
-                    self._audit("migrate", actor="system:migrate", surface="bootstrap",
-                                detail=f"schema {migrated_from} -> {len(schema.MIGRATIONS)}")
+            if mig_rec is not None:
+                auditlog.emit(mig_rec)
             return self
         except BaseException:
             c.close()
@@ -500,7 +534,7 @@ class Store:
                 raise
             pending, self._pending_log = self._pending_log, []
         for rec in pending:  # after COMMIT only: a rolled-back change leaves no log line
-            _log.info(json.dumps(rec, sort_keys=True))
+            auditlog.emit(rec)
 
     def _audit(self, action: str, *, actor: str, surface: str, module: str | None = None,
                key: str | None = None, old_json: str | None = None, new_json: str | None = None,
@@ -568,11 +602,12 @@ class Store:
             cur = old["version"] if old else 0
             self._check_version(module, key, if_version, cur if old else None)
             now = _now()
+            new = _next_version(c, module, key, cur)
             c.execute("INSERT OR REPLACE INTO settings(module, key, value_json, version, updated_by, updated_at) "
-                      "VALUES (?,?,?,?,?,?)", (module, key, vj, cur + 1, actor, now))
+                      "VALUES (?,?,?,?,?,?)", (module, key, vj, new, actor, now))
             self._audit("set", actor=actor, surface=surface, module=module, key=key,
                         old_json=old["value_json"] if old else None, new_json=vj, request_id=request_id)
-        return Meta(module, key, False, True, cur + 1, now, actor, None, value)
+        return Meta(module, key, False, True, new, now, actor, None, value)
 
     def put_secret(self, module: str, key: str, value: str, *, actor: str, surface: str = "cli",
                    if_version: int | None = None, request_id: str | None = None) -> Meta:
@@ -600,10 +635,11 @@ class Store:
             cur = old["version"] if old else 0
             self._check_version(module, key, if_version, cur if old else None)
             now = _now()
-            fp = self._write_secret_row(c, module, key, raw, cur + 1, actor, now)
+            new = _next_version(c, module, key, cur)
+            fp = self._write_secret_row(c, module, key, raw, new, actor, now)
             self._audit(action, actor=actor, surface=surface, module=module, key=key,
                         detail="changed", request_id=request_id)
-        return Meta(module, key, True, True, cur + 1, now, actor, fp)
+        return Meta(module, key, True, True, new, now, actor, fp)
 
     @staticmethod
     def _encode_secret(value: object) -> bytes:
@@ -750,8 +786,15 @@ class Store:
                             detail="projected")
             return raw.decode("utf-8")
 
-    def export_document(self, *, actor: str, surface: str = "cli", bothy_version: str = "unknown") -> dict[str, Any]:
+    def export_document(self, *, actor: str, surface: str = "cli", bothy_version: str = "unknown") -> "ExportDocument":
         """INTERNAL. Every setting and every secret, decrypted, in memory. Audited with a count.
+
+        A row that fails to decrypt (tampered, or under a key that is not in the key file) does NOT
+        abort the export (record s13.2: "that row fails decrypt ... others continue"). It is left out,
+        recorded as `read-denied`, and named - module.key only, never content - in the returned
+        document's `.unreadable`. THE CALLER MUST CHECK IT: a bundle with unreadable rows is a bundle
+        that cannot restore them. (The attribute is not part of the document, so the export format is
+        unchanged and import does not see it.)
 
         The caller owns the plaintext this returns and must stream it to `age`
         (export.age_encrypt) without writing it anywhere.
@@ -760,6 +803,7 @@ class Store:
         with self._lock:
             mods: dict[str, dict[str, dict[str, Any]]] = {}
             n = 0
+            bad: list[str] = []
             for r in self._conn.execute("SELECT * FROM settings ORDER BY module, key").fetchall():
                 mods.setdefault(r["module"], {"settings": {}, "secrets": {}})["settings"][r["key"]] = \
                     json.loads(r["value_json"])
@@ -767,15 +811,19 @@ class Store:
             for r in self._conn.execute("SELECT * FROM secrets ORDER BY module, key").fetchall():
                 try:
                     raw = self._open_row(r)
-                except DecryptError:
+                except (DecryptError, WrongKeyError):
                     self._read_denied(r["module"], r["key"], actor, surface)
-                    raise
+                    bad.append(f"{r['module']}.{r['key']}")
+                    continue
                 mods.setdefault(r["module"], {"settings": {}, "secrets": {}})["secrets"][r["key"]] = raw.decode("utf-8")
                 n += 1
+            detail = f"{n} value(s)" + (f"; {len(bad)} unreadable: {', '.join(bad)}"[:900] if bad else "")
             with self._tx():
-                self._audit("export", actor=actor, surface=surface, detail=f"{n} value(s)")
-        return {"format": EXPORT_FORMAT, "exported_at": _now(), "bothy_version": str(bothy_version),
-                "modules": [{"module": m, **v} for m, v in sorted(mods.items())]}
+                self._audit("export", actor=actor, surface=surface, detail=detail)
+        doc = ExportDocument({"format": EXPORT_FORMAT, "exported_at": _now(), "bothy_version": str(bothy_version),
+                              "modules": [{"module": m, **v} for m, v in sorted(mods.items())]})
+        doc.unreadable = tuple(bad)
+        return doc
 
     def import_document(self, doc: Mapping[str, Any], *, actor: str, surface: str = "import",
                         merge: bool = False) -> int:
@@ -798,12 +846,14 @@ class Store:
                     raise ImportRefused(f"{module}.{key}: classification differs from the registry")
                 if secret:
                     old = c.execute("SELECT version FROM secrets WHERE module=? AND key=?", (module, key)).fetchone()
-                    self._write_secret_row(c, module, key, value, (old[0] if old else 0) + 1, actor, now)
+                    self._write_secret_row(c, module, key, value,
+                                           _next_version(c, module, key, old[0] if old else 0), actor, now)
                 else:
                     old = c.execute("SELECT version FROM settings WHERE module=? AND key=?", (module, key)).fetchone()
                     c.execute("INSERT OR REPLACE INTO settings(module, key, value_json, version, updated_by, "
                               "updated_at) VALUES (?,?,?,?,?,?)",
-                              (module, key, value, (old[0] if old else 0) + 1, actor, now))
+                              (module, key, value, _next_version(c, module, key, old[0] if old else 0),
+                               actor, now))
             self._audit("import", actor=actor, surface=surface, detail=f"{len(parsed)} value(s)")
         return len(parsed)
 
@@ -1049,7 +1099,7 @@ def bootstrap(state_dir: str | os.PathLike[str], key_file: str | os.PathLike[str
     if db_exists and not key_exists:
         orphans = None
         try:
-            c = sqlite3.connect(f"file:{os.path.join(state, DB_NAME)}?mode=ro", uri=True)
+            c = sqlite3.connect(_ro_uri(os.path.join(state, DB_NAME)), uri=True)
             try:
                 orphans = c.execute("SELECT count(*) FROM secrets").fetchone()[0]
             finally:
@@ -1087,23 +1137,33 @@ def restore(state_dir: str | os.PathLike[str], key_file: str | os.PathLike[str],
         lock.release()
 
 
-def _restore_locked(state: str, kp: str, bp: str, actor: str, surface: str) -> RestoreReport:
-    side = bp + ".sha256"
-    if not os.path.exists(side):
-        raise RestoreError(f"{side} is missing; a backup without its hash is not restored")
-    with open(side, encoding="ascii") as f:
-        want = f.read().split()[0]
-    with open(bp, "rb") as f:
-        raw = f.read()
-    if hashlib.sha256(raw).hexdigest() != want:
-        raise RestoreError(f"{bp} does not match its .sha256")
-    if _header_version(bp) > len(schema.MIGRATIONS):
-        raise DowngradeError(f"{bp} is a newer schema than this code; refused")
-    src = sqlite3.connect(f"file:{bp}?mode=ro", uri=True)
+#: test seam, like Store.rotation_hook: called with a step name; raising simulates a crash there.
+_restore_hook: Callable[[str], None] | None = None
+
+
+def _rhook(step: str) -> None:
+    if _restore_hook is not None:
+        _restore_hook(step)
+
+
+def _verify_backup_file(path: str, kp: str) -> dict[tuple[str, str], tuple[int, str]]:
+    """Everything a restore can learn about a backup WITHOUT touching the live store.
+
+    Run on the very file that will be renamed into place, so what was verified is what is
+    installed. Refuses (RestoreError / RestoreKeyMissing / DowngradeError / CorruptDatabaseError):
+    newer schema, failed integrity_check, a key_id missing from the key file (all of them
+    listed), key_check, BOTH wrapped store keys (fp_key, audit_key), the audit chain including its
+    head, and every secret (wrapped DEK and value). Returns {(module, key): (version, updated_at)}.
+    """
+    if _header_version(path) > len(schema.MIGRATIONS):
+        raise DowngradeError(f"{path} is a newer schema than this code; refused")
+    src = sqlite3.connect(_ro_uri(path), uri=True)
     src.row_factory = sqlite3.Row
     try:
-        _integrity(src, bp)
+        _integrity(src, path)
         store_id = _meta(src, "store_id")
+        if len(store_id) != 16:
+            raise RestoreError("the backup's store_id is malformed")
         kek_id = _meta(src, "kek_id").decode("ascii", "replace")
         rows = src.execute("SELECT * FROM secrets").fetchall()
         needed = sorted({kek_id} | {r["kek_id"] for r in rows})
@@ -1120,6 +1180,14 @@ def _restore_locked(state: str, kp: str, bp: str, actor: str, surface: str) -> R
             ok = False
         if not ok:
             raise RestoreError("the backup's key_check does not decrypt under the present key")
+        try:
+            _unwrap_store_key(kek, kek_id, store_id, "fp_key", _meta(src, "store_key.fp_key"))
+            audit_key = _unwrap_store_key(kek, kek_id, store_id, "audit_key", _meta(src, "store_key.audit_key"))
+        except CorruptDatabaseError as e:
+            raise RestoreError(f"the backup cannot be opened: {e}") from None
+        v = _audit.verify(src, audit_key)
+        if not v.ok:
+            raise RestoreError(f"the backup's audit chain does not verify ({v.reason}); nothing was changed")
         for r in rows:
             try:
                 dek = crypto.open_(keys.get(r["kek_id"]) or b"", bytes(r["wrap_nonce"]), bytes(r["wrapped_dek"]),
@@ -1128,51 +1196,162 @@ def _restore_locked(state: str, kp: str, bp: str, actor: str, surface: str) -> R
                              crypto.aad_value(store_id, r["module"], r["key"]))
             except crypto.AuthFailure:
                 raise RestoreError(f"{r['module']}.{r['key']} in the backup does not decrypt; nothing was changed") from None
-        in_backup = {(r["module"], r["key"]): (r["version"], r["updated_at"]) for r in rows}
+        return {(r["module"], r["key"]): (r["version"], r["updated_at"]) for r in rows}
     finally:
         src.close()
 
-    db = os.path.join(state, DB_NAME)
-    changed: list[tuple[str, str]] = []
-    aside = None
-    if os.path.lexists(db):
-        try:
-            cur = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-            try:
-                now_rows = {(m, k): (v, u) for m, k, v, u in
-                            cur.execute("SELECT module, key, version, updated_at FROM secrets")}
-                # both directions: what the restore overwrites or drops, and what it brings back
-                changed = [mk for mk in set(now_rows) | set(in_backup) if now_rows.get(mk) != in_backup.get(mk)]
-            finally:
-                cur.close()
-            aside = _backup_to(db, os.path.join(state, f"pre-restore-{_stamp()}.db")).path
-        except sqlite3.Error:
-            raise RestoreError("the current database could not be read to keep a copy aside; "
-                               "nothing was changed") from None
+
+def _copy_atomically(src: str, dest: str, state: str) -> None:
+    """dest := a verbatim copy of src, via a temp file in the same directory and one rename."""
     tmp = _tmp_name(state, "restoring")
     _precreate(tmp)
-    with open(tmp, "wb") as f:
-        f.write(raw)
-        f.flush()
-        os.fsync(f.fileno())
-    # The old WAL must go BEFORE the new file is in place: a stale -wal replayed onto a
-    # different database is corruption. The current state is already kept aside.
-    for ext in ("-wal", "-shm"):
+    try:
+        with open(src, "rb") as f, open(tmp, "wb") as g:
+            while True:
+                chunk = f.read(1 << 20)
+                if not chunk:
+                    break
+                g.write(chunk)
+            g.flush()
+            os.fsync(g.fileno())
+        for ext in ("-wal", "-shm"):
+            try:
+                os.unlink(dest + ext)
+            except FileNotFoundError:
+                pass
+        os.rename(tmp, dest)
+    except BaseException:
         try:
-            os.unlink(db + ext)
+            os.unlink(tmp)
         except FileNotFoundError:
             pass
-    os.rename(tmp, db)
+        raise
     _fsync_dir(state)
-    # The restored file has journal_mode=DELETE from the backup; open() sets WAL again.
-    s = Store._open_existing(state, db, kp, _NoLock())  # type: ignore[arg-type]
+
+
+def _restore_locked(state: str, kp: str, bp: str, actor: str, surface: str) -> RestoreReport:
+    """The swap is crash-safe at every step: a crash leaves the old database complete, or the new
+    one complete, never a mixture.
+
+      1  read the backup ONCE; check that exact buffer against its .sha256
+      2  write it to a temp file in the state dir, fsync
+      3  verify the TEMP FILE (_verify_backup_file) - what is checked is what is installed
+      4  keep the current database aside (backup API: consistent, standalone)
+      5  checkpoint the live database and leave WAL mode: no -wal/-shm can then be replayed
+         onto the new file (a stale WAL applied to a different database is corruption)
+      6  one atomic rename, then fsync of the directory
+      7  open the restored store and write the `restore` audit row; if THAT fails, put the
+         aside copy back the same way and say so
+    """
+    side = bp + ".sha256"
+    if not os.path.exists(side):
+        raise RestoreError(f"{side} is missing; a backup without its hash is not restored")
+    with open(side, encoding="ascii") as f:
+        want = f.read().split()[0]
+    with open(bp, "rb") as f:
+        raw = f.read()
+    if hashlib.sha256(raw).hexdigest() != want:
+        raise RestoreError(f"{bp} does not match its .sha256")
+    db = os.path.join(state, DB_NAME)
+    tmp = _tmp_name(state, "restoring")
+    _precreate(tmp)
     try:
-        with s._tx():
-            s._audit("restore", actor=actor, surface=surface,
-                     detail=f"restored from {os.path.basename(bp)}; {len(changed)} secret(s) differ from before")
-    finally:
-        s._conn.close()
+        with open(tmp, "wb") as f:
+            f.write(raw)
+            f.flush()
+            os.fsync(f.fileno())
+        del raw
+        _rhook("written")
+        in_backup = _verify_backup_file(tmp, kp)
+        _rhook("verified")
+        changed: list[tuple[str, str]] = []
+        aside: str | None = None
+        readable = False
+        if os.path.lexists(db):
+            try:
+                cur = sqlite3.connect(_ro_uri(db), uri=True)
+                try:
+                    now_rows = {(m, k): (v, u) for m, k, v, u in
+                                cur.execute("SELECT module, key, version, updated_at FROM secrets")}
+                finally:
+                    cur.close()
+                # both directions: what the restore overwrites or drops, and what it brings back
+                changed = [mk for mk in set(now_rows) | set(in_backup) if now_rows.get(mk) != in_backup.get(mk)]
+                aside = _backup_to(db, os.path.join(state, f"pre-restore-{_stamp()}.db")).path
+                readable = True
+            except sqlite3.Error:
+                # A live database that cannot be read is the reason people restore. Keep its bytes
+                # (db, -wal, -shm) in a directory, verbatim, and carry on.
+                aside = os.path.join(state, f"pre-restore-{_stamp()}.unreadable")
+                os.makedirs(aside, mode=0o700)
+                for ext in ("", "-wal", "-shm"):
+                    if os.path.exists(db + ext):
+                        _copy_plain(db + ext, os.path.join(aside, DB_NAME + ext))
+        _rhook("aside")
+        if readable:
+            c = sqlite3.connect(db)  # we hold the state lock: nobody else has it open
+            try:
+                c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                c.execute("PRAGMA journal_mode=DELETE")
+            finally:
+                c.close()
+        _rhook("checkpointed")
+        for ext in ("-wal", "-shm"):  # whatever is left belongs to the OLD file
+            try:
+                os.unlink(db + ext)
+            except FileNotFoundError:
+                pass
+        os.rename(tmp, db)
+        _fsync_dir(state)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
+    _rhook("renamed")
+    try:
+        s = Store._open_existing(state, db, kp, _NoLock())  # type: ignore[arg-type]
+        try:
+            with s._tx():
+                s._audit("restore", actor=actor, surface=surface,
+                         detail=f"restored from {os.path.basename(bp)}; {len(changed)} secret(s) differ from before")
+        finally:
+            s._conn.close()
+        _rhook("audited")
+    except BaseException as e:
+        _undo_swap(state, db, aside, readable)
+        if isinstance(e, Exception):
+            raise RestoreError(f"the restored database could not be opened ({type(e).__name__}); the previous "
+                               f"database was put back{'' if readable else ' (its bytes are in ' + str(aside) + ')'}") from None
+        raise
     return RestoreReport(bp, aside, tuple(sorted(changed)))
+
+
+def _copy_plain(src: str, dest: str) -> None:
+    fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+    with open(src, "rb") as f, os.fdopen(fd, "wb") as g:
+        while True:
+            chunk = f.read(1 << 20)
+            if not chunk:
+                break
+            g.write(chunk)
+        g.flush()
+        os.fsync(g.fileno())
+
+
+def _undo_swap(state: str, db: str, aside: str | None, readable: bool) -> None:
+    """The restored file would not open: put the previous database back, atomically."""
+    if aside is not None and readable:
+        _copy_atomically(aside, db, state)
+        return
+    if aside is None:  # there was no database before: leave none
+        for ext in ("", "-wal", "-shm"):
+            try:
+                os.unlink(db + ext)
+            except FileNotFoundError:
+                pass
+        _fsync_dir(state)
 
 
 class _NoLock:
