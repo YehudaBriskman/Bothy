@@ -31,6 +31,8 @@ customisable than today's "everything on, edit `.env`".
 | D12 | Modes get **fun, characterful names**, and `files` is in the smallest mode. Options and microcopy in `mode-names.md`; **decided: Bivvy / Bothy / Basecamp / Cairn** (Owner, 2026-11-16). |
 | D13 | **The k3s floor is 4 GiB; below it the install is Compose** (S0: stock k3s costs about 656 MiB idle). The installer's preflight refuses k3s below the floor and a swapless host under 4 GiB (S6). (Owner, 2026-11-16) |
 | D14 | **Hybrid runtime:** k3s core, Docker modules, a host executor `bothy-hostd`; **modes** mini / standard / full / custom shown as Bivvy / Bothy / Basecamp / Cairn; the **settings store is option A**, recorded in `settings-store.md`, library merged as `apps/bothy-settings` (#360). (Owner, 2026-11-16) |
+| D15 | **Proposed (needs owner), `cli-and-control-plane.md` s7:** the `bothy` CLI is a **Go static binary, thin client**; one operation catalog drives the web, CLI and MCP surfaces (`/-/api/v1`, exact paths); the Python updater stays as `bothy-hostd`. |
+| D16 | **Proposed (needs owner):** MCP is **stdio first, read-only by default**; agent writes create a job in `awaiting_approval` that only a browser session or a TTY can approve; user update controls are a **tighten-only** overlay on `updates.toml`. D17 to D28 (releases, signing, renames, rollback verb, scope limits) are in that document. |
 | D8 | The installer offers a **reach** choice (Tailscale, SSH, both, local) as part of the install. See `vm-lab-and-connectivity.md`. |
 
 ## Reading order
@@ -50,6 +52,7 @@ customisable than today's "everything on, edit `.env`".
 | [install-and-bootstrap.md](install-and-bootstrap.md) | First install on WSL2, a plain Linux box, and OCI; the one-time admin; uninstall |
 | [updates-and-rollback.md](updates-and-rollback.md) | The updater when it lives in the cluster; self-update; Postgres majors; rollback |
 | [customization.md](customization.md) | How settings become Helm values; per-module overrides; third-party modules; escape hatches |
+| [cli-and-control-plane.md](cli-and-control-plane.md) | The one control plane (resource model, API, authN/Z, audit), the Go CLI and its release, the MCP server and its threat model, update controls as a product surface, the first slice, and decisions D15 to D28 for the owner |
 | [../settings-store.md](../settings-store.md) | **Decision record for the settings and secrets store (D11, #316)**: options weighed, key hierarchy, schema, rotation, backup, export, threat model |
 | [security-model.md](security-model.md) | RBAC replacing the socket proxies, NetworkPolicy, secrets, the new trust boundaries |
 | [migration.md](migration.md) | Getting from Compose to k3s with the live box running at every step |
