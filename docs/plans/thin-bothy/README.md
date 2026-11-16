@@ -99,7 +99,8 @@ customisable than today's "everything on, edit `.env`".
 ## Go / no-go (2026-11-16)
 
 This is the written gate the review asked for. **Verdict: GO for a first installable Bivvy on a VM, with
-two named blockers that must close before the gate is final. NO-GO for installing anything on the live
+two named blockers that must close before the gate is final (updated later on 2026-11-16: the OOM blocker is closed in the lab by S6b; the edge
+blocker is decided by S5d but still needs the Tailscale checks). NO-GO for installing anything on the live
 box or on a WSL host until they close, and until S12b is run.**
 
 ### What is proven (in the lab: Ubuntu 24.04 guest, kernel 6.8, Docker 29.1.3, k3s v1.37.2; not the WSL kernel)
@@ -115,16 +116,22 @@ box or on a WSL host until they close, and until S12b is run.**
 | `/` as `private` (the WSL default) breaks `rslave`/`rshared`; `mount --make-rshared /` fixes it | S11 |
 | The kube-router network policy controller works in the guest; the WSL kernel's config has the modules | S12 (config only on WSL) |
 | The guest is not isolated from the host loopback | S15 |
+| k3s ServiceLB is `hostPort` plus a LoadBalancer-IP rule that beats Docker's DNAT on every path but localhost; Traefik as a hostNetwork pod with `servicelb` disabled turns a port collision into a loud bind failure on both sides | S5d |
+| Global OOM on a guest with swap: an unlimited Docker container at `oom_score_adj` 0 costs Traefik and CoreDNS a restart; at 500 only it dies; k3s, Docker, sshd and a Guaranteed pod (`-997`, measured) survive | S6b |
+| The bundled apiserver serves `ValidatingAdmissionPolicy` with no flags; PSA with `kube-system` exempt refuses `hostPort`, `hostNetwork`, `hostPath` and privileged in module namespaces | S16 |
 
 ### What blocks
 
-1. **The global-OOM victim is unknown, and the host wedged for 8+ minutes** (S6, swapless 4 GiB guest).
-   Stock BestEffort pods (`oom_score_adj` 1000) rank ahead of an unlimited Docker container, so the
-   core's protection rests on Docker limits being set and honest, and the gate for the Docker half is
-   advisory. Re-measure with swap (S6b).
-2. **How the edge is published is undecided and untested.** `hostPort` is forbidden; k3s's default
-   ServiceLB probably uses it (S5d); hostNetwork Traefik needs an exemption from the restricted
-   baseline; and every tailnet-side check (S1, S7, S8, S14) needs a Tailscale key in the lab.
+1. ~~**The global-OOM victim is unknown, and the host wedged for 8+ minutes**~~ **Closed in the lab by S6b (2026-11-16),
+   with conditions.** On a swap-enabled guest the victim was measured: stock BestEffort and Burstable pods (Traefik,
+   CoreDNS) die before an unlimited Docker container at adj 0, the hog alone dies at adj 500, and k3s-server, dockerd, sshd
+   and a Guaranteed pod survived three runs; the guest never needed the force-down. So the core's protection still rests on
+   Docker limits plus a positive `oom_score_adj`, and the core being Guaranteed. **Residual:** the S6 wedge did not recur
+   but its cause (swap or the console log level) is not isolated, n is small, and no WSL kernel was involved.
+2. **How the edge is published: decided by S5d, not yet run with Tailscale.** ServiceLB is `hostPort` and is unsafe next
+   to Docker (it also claims 80/443 on install); the decision is `disable: [servicelb]` and Traefik as a hostNetwork pod in an
+   exempt namespace (admission settings in S16). Open: every tailnet-side check (S1, S7, S8, S14) needs a Tailscale key
+   in the lab.
 
 ### What must still be re-measured, and what is only assumed
 
@@ -132,16 +139,16 @@ box or on a WSL host until they close, and until S12b is run.**
 |---|---|---|
 | Core idle memory on k3s (every Bothy figure is an estimate) | ASSUMPTION | S17 |
 | The 4 GiB floor (a judgement from one number) | ASSUMPTION | S17 on `lab-std` |
-| Guaranteed pod `oom_score_adj` -997 and its survival in a global OOM | documented, not measured | S6b |
-| `ValidatingAdmissionPolicy` on the bundled apiserver | ASSUMPTION | S16 |
+| Guaranteed pod `oom_score_adj` -997 and its survival in a global OOM | measured (-997; survived 3 runs) | S6b |
+| `ValidatingAdmissionPolicy` on the bundled apiserver | measured on v1.37.2+k3s1; Job and Namespace-label policies of `security-model.md` 6.2 not yet written | S16 |
 | `bothy-hostd`, the two-clone updater, the cross-runtime forward-auth hop | designs, never run | first Docker module on a VM |
 | `wsl --shutdown` recovery, rshared persistence, k3s on the WSL kernel, minikube, legacy iptables | not tested | S12b, a WSL host that is not the live box |
 | Tailnet exposure, node IP stability, Tailscale SSH beside sshd | not tested | S1, S7, S8, S14 |
 
 ### Ordered next steps to a first installable Bivvy on a VM
 
-1. **Close the lab gaps (small, no product code):** S5d, S6b (a swap-enabled `lab-mid`), S16.
-2. **Decide the edge publication** from S5d, then run S1/S8 with a Tailscale key in the lab.
+1. ~~**Close the lab gaps (small, no product code):** S5d, S6b (a swap-enabled `lab-mid`), S16.~~ Done 2026-11-16.
+2. **Edge publication is decided** (S5d: `servicelb` disabled, hostNetwork Traefik); run S1/S8 with a Tailscale key in the lab.
 3. **In parallel, the work that does not depend on k3s** (the D7 fallback; no work is wasted whichever
    way the gate ends): #323/#324 defaults, the module declaration as metadata plus `runtime` (#320), the
    settings service wrapped around `apps/bothy-settings` (#317), first-run login (#319).
