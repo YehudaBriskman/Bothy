@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+# Built by checks/run.sh with uv from requirements.txt (hashes required). A cache of
+# the lock file, never a source of truth.
+.venv/
