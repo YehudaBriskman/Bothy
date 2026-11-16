@@ -20,6 +20,12 @@ a time, each step reversible.**
 
 ### Phase 0: measure and spike (no change to the box)
 
+**Status 2026-11-16:** the VM lab exists; S0, S5, S6 (limited container), S9, S10, S11, S15 and
+the restart half of S5c are measured (`spike-results.md`). **Not run:** S1, S7, S8, S14 (need
+Tailscale), S2, S3, S4, `wsl --shutdown`, minikube, S12 on the WSL kernel; the S6 global OOM victim
+is **INCONCLUSIVE**. S5 coexistence **passed in the VM**, not on this box (and cannot be proven here
+without risking the 32 containers; D6 stands).
+
 | Spike | Question | Done when |
 |---|---|---|
 | S0 | k3s idle memory on WSL2 and on an OCI-like VM, with NetworkPolicy, secrets encryption, bundled components on/off | `measurements.md` has the table |
@@ -73,16 +79,22 @@ Only modules whose runtime is **k3s** move, safest first:
 | 4 | `backups` (k3s-state half only) | the Docker data backup stays on the host (`scripts/backup.sh`, `stacks-backup.timer`) | restore test into a scratch VM | keep host timer |
 | 5 | core cut-over | who owns `:80` is an **open decision** (two Traefiks, see `review-findings.md`) | portal bytes, router table, every published port | restore the Compose edge |
 
-Pre-flip rule: before any port moves, a bind check (`ss -ltnH` **and** the NAT DNAT
-rules) must show the port free, because a duplicate hostPort does not fail `bind()`;
-it silently adds a second DNAT rule and the first wins (rule 7's failure mode).
+Pre-flip rule: before any port moves, a bind check (`ss -ltnH`, Docker's published ports,
+and the DNAT rules in **both** `iptables-save -t nat` and `nft list ruleset`) must show the port
+free, because a duplicate hostPort does not fail `bind()`; it silently adds a second DNAT rule and
+**which one wins depends on the packet path and flips after a Docker restart** (S5b, rule 7's failure
+mode). Bothy's own modules therefore never use `hostPort`.
 
-### Phase 6: Compose becomes dev only
+### Phase 6: k3s becomes the install target (Compose is **not** retired)
 
-- `just up` keeps working from the same module declarations (a dev runtime).
-- The install docs, the installer and CI's install/upgrade/elsewhere workflows
-  switch to k3s. The Compose-based `install.yml` is kept as a **dev smoke test**, so
-  dev does not rot.
+**Corrected 2026-11-16:** the heading said "Compose becomes dev only". That contradicts D1, D3 and D7
+and the 4 GiB decision: Compose remains the **supported install below 4 GiB**, the home of the
+Docker-runtime modules, and the fallback.
+
+- `just up` keeps working; it is a product runtime as well as a dev one.
+- The install docs and the installer default to k3s on hosts with at least 4 GiB; CI's
+  install/upgrade/elsewhere workflows cover **both** paths. The Compose-based `install.yml` is a
+  gated job, not a smoke test.
 - `docs/ARCHITECTURE.md` and `~/claude-notes/stack/*.md` are rewritten for the new
   model; stale-note hygiene is part of the phase, not after it.
 
@@ -126,3 +138,9 @@ fixture and on the live box by hand once.
 | #318 | retitled: render Helm values (and compose) from the store |
 | #336 | satisfied by the restricted pod baseline |
 | #90, #91, #93, #100, #144, #145, #148, #157 | re-read after Phase 3; likely module features or closed |
+
+## Changed 2026-11-16
+
+- Phase 0 status and the pre-flip rule updated from S5b, S10; Phase 6 corrected (decisions D1, D7,
+  the 4 GiB floor in S0). The step order here is superseded where `README.md`'s go/no-go section
+  gives the order to a first installable Bivvy.

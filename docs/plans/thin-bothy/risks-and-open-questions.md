@@ -6,7 +6,7 @@
 |---|---|---|---|
 | Q1 | Is Keycloak in mini? **ANSWERED yes-out, 2026-11-16: not in mini or standard.** | **No**; mini has a built-in `login`; `sso` is a module (see `modes-and-modules.md` s3) | #316, #319 |
 | Q2 | Is Grafana in standard? **ANSWERED 2026-11-16: no, full only.** | **No**: portal panels first; Grafana is `full` | module catalogue |
-| Q3 | Mini memory target | **<= 1.0 GB including k3s**, to be confirmed by S0 | all budgets |
+| Q3 | Mini memory target | **<= 1.0 GB including k3s**. S0: k3s alone is about 656 MiB, so mini on k3s is about 0.85-1.0 GB with almost no margin once `files` is in it; the target holds but is tight | all budgets |
 | Q4 | Settings store: SQLite+envelope (A) | **ANSWERED: A** (D11) | #317 |
 | Q5 | Rewrite git history for privacy (#326) | **ANSWERED: scrub forward** (D9) | #315 |
 | Q6 | May an operator *reveal* a secret? | **ANSWERED: no reveal** (D11) | #321 |
@@ -20,16 +20,16 @@
 | # | Question | Recommendation |
 |---|---|---|
 | Q11 | Who controls Docker modules from the cluster? | keep a host executor (`bothy-hostd`), see `hybrid-runtime.md` s4 |
-| Q12 | Is `files` on k3s or Docker? | decide in Phase 5 from measurements |
-| Q13 | Eviction order across two runtimes | `oom_score_adj` protects core; verify in lab (S6) |
+| Q12 | Is `files` on k3s or Docker? | **ANSWERED 2026-11-16: k3s**, because it is in the smallest mode (D12) and mini needs no Docker |
+| Q13 | Eviction order across two runtimes | **Partly answered (S6):** a Docker module's own limit protects the core; priority classes do not reach the kernel; stock BestEffort pods rank ahead of Docker containers. The global-OOM victim is **INCONCLUSIVE**; re-measure with swap |
 | Q14 | Default `--reach` at install | `local`, see `vm-lab-and-connectivity.md` B.8 |
 
 ## 2. Risk register
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| R1 | k3s and Docker conflict on iptables on this WSL box | medium | **high** (live box) | S5 first; fall back to another distro/VM; migrate this box last |
-| R2 | k3s idle cost > 0.8 GB, so "mini <= 1 GB" is impossible | medium | high for the thin goal | measure in S0; options: disable servicelb/metrics-server/coredns replacements, a lighter distro (see s3), or restate mini's target honestly |
+| R1 | k3s and Docker conflict on iptables on this WSL box | **lower** (S5b/S5c/S9/S10 passed in a VM; the WSL kernel and legacy iptables untested) | **high** (live box) | the lab results; the coexistence diff check; migrate this box last |
+| R2 | k3s idle cost > 0.8 GB, so "mini <= 1 GB" is impossible | **realised in part**: 656 MiB (S0); trimming saves about 27 MiB | high for the thin goal | answered by the 4 GiB floor and the Compose install below it; the target is restated honestly in `footprint-and-budgets.md` |
 | R3 | Wizard/budget gate wrong on WSL2 (sees 24 GB, Windows needs its share) | high | medium | S2; reserve derived from MemTotal/MemAvailable and swap |
 | R4 | In-cluster updater has too many rights | medium | **high** | namespaced Roles generated from declarations; CI assertions; no `cluster-admin` |
 | R5 | `local-path` does not enforce PVC size; a module fills the disk | medium | medium | measure + alert; evaluate a quota-aware provisioner |
@@ -41,9 +41,12 @@
 | R11 | Losing "everything works with `just up`" ergonomics | medium | medium | Compose kept as dev (D1); `just up` unchanged |
 | R12 | The portal's own panels are not good enough without Grafana | medium | medium | design item; `dashboards` stays a one-click module |
 | R14 | Two runtimes double the executors, CI checks and failure modes | **certain** | medium | one catalog, one module file, one history page; budget the cost in review |
-| R15 | Memory pressure kills core before a Docker module (kernel ignores our priorities) | medium | high | `oom_score_adj`, lab spike S6 |
+| R15 | Memory pressure kills core before a Docker module (kernel ignores our priorities) | medium | high | **S6:** Docker limits plus positive `oom_score_adj`; Guaranteed core; stock BestEffort pods are the first victims. Victim unobserved; **go/no-go gate** |
 | R16 | An access change locks the owner out of a remote VM | medium | high | apply-with-timer, console path, `bothy access reset` |
 | R13 | Master key lost = settings lost | low | high | export bundle, printed key location, fail-closed with message (#317) |
+| R17 | **A global OOM on a swapless 4 GiB host wedges it for minutes** (S6: 8+ minutes, victim unobserved, journald stopped) | medium | **high** (an unattended box that cannot be reached) | refuse swapless hosts under 4 GiB; budget gate counts Docker limits; re-measure with swap and without the lab serial console |
+| R18 | **k3s's default edge publication uses `hostPort`** (ASSUMPTION K: ServiceLB's svclb pods), which shadows host and Docker listeners silently (S5b) | medium | high | `--disable servicelb`, hostNetwork Traefik or a proven-free Service port; S1/S8 |
+| R19 | The two-executor design (k3s Job and `bothy-hostd`) doubles the privileged surface | certain | medium | closed request schema, hardened spool, admission policy (`security-model.md` 6.1, 6.2) |
 
 ## 3. Alternatives considered (and why not)
 
@@ -87,9 +90,17 @@
 
 - **"Just add a mini profile to Compose"** is the fallback in s4, not the plan, for
   the reasons in s3.
-- **Putting the updater back on the host to dodge the new trust boundary** (option C
-  in `updates-and-rollback.md`) breaks D3 and re-creates the spool machinery.
+- **Putting the k3s modules' updater back on the host to dodge the new trust boundary** (option C
+  in `updates-and-rollback.md`) re-creates the spool machinery for no gain. (Corrected 2026-11-16:
+  the host executor **does** stay for Docker modules, as `bothy-hostd`; this dead end is about k3s
+  modules only.)
 - **Auto-scaling.** One node, fixed budgets, human-readable plan.
 - **A reveal-secret button** as a convenience: refused (Q6).
 - **Resurrecting Host() rules** because k8s Ingress makes them easy: the rule
   (notes README #1) stands.
+
+## Changed 2026-11-16
+
+- Q3, Q12, Q13, R1, R2, R15 updated from S0, S5b, S5c, S6, S9 to S13 and the decisions; R17 to R19 added.
+- Fallback ladder (s4) unchanged in content, but note rung 2 is now **also the install below 4 GiB**,
+  not only a retreat.

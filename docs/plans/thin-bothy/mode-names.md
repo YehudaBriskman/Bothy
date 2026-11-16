@@ -6,7 +6,9 @@ characterful names, and for `files` to be in the default._
 ## 1. Constraints (so fun does not hide information)
 
 1. **The name is a label, the cost is the content.** Every mode shows its measured
-   idle memory and disk next to its name ("Bivvy · about 1 GB"). The newcomer should
+   idle memory and disk next to its name ("Bivvy · about 1 GB"). **The shown figure is
+   runtime-specific:** about 1 GB on k3s (S0: k3s alone about 656 MiB), about 0.2 GB for the same
+   modules on the Compose install used below 4 GiB. The page shows the one that applies to this host. The newcomer should
    be able to rank the modes without knowing the metaphor.
 2. **The ladder must be obvious** without reading anything: smallest to largest.
 3. **`files` is in the smallest mode.** The reading surface is the product; a first
@@ -109,3 +111,9 @@ never touches logic.
 - [Mountain hut (Wikipedia)](https://www.wikipedia.com/wiki/Rifugio)
 - [The Different Types Of Shelters Used By Mountaineers (WorldAtlas)](https://www.worldatlas.com/articles/the-different-types-of-shelters-used-by-mountaineers.html)
 - [What is a hut? A pictorial romp and an initial typology (hut2hut.info)](https://www.hut2hut.info/what-is-hut/)
+
+## Changed 2026-11-16
+
+- Constraint 1: the cost shown depends on the runtime (S0). Names, ladder and microcopy unchanged
+  and decided. Note the "Basecamp" mode (full) needs Docker, and so does "Bothy" (standard) as the
+  catalogue now stands (`modes-and-modules.md` s1, open item).
