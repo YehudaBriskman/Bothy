@@ -533,6 +533,15 @@ ops-wiring mode="":
 ops-v1 mode="":
     @python3 scripts/gen-ops-v1.py {{ if mode == "check" { "--check" } else { "" } }}
 
+# The `bothy` CLI and its read-only MCP server live in cli/ (Go, stdlib plus the official MCP SDK).
+# `just ops-v1` writes the catalog JSON; this regenerates the Go verb and tool tables FROM it
+# (go generate), then vets and tests everything. The tests include the drift check, the golden
+# decode of every apps/bothy-ops/checks/golden/v1 file, and a real stdio MCP round trip.
+# Needs Go on PATH (mise provides it). Nothing here touches a running box.
+# Regenerate, vet and test the Go bothy CLI against the catalog and the golden files.
+cli-check:
+    cd cli && go generate ./... && go vet ./... && CGO_ENABLED=0 go test -count=1 ./...
+
 # The Settings area's Keycloak client `bothy-admin` (view-users only), and its
 # secret in apps/bothy-ops/secrets. `--rotate` issues a new secret; `--revoke`
 # disables the client and deletes the file.

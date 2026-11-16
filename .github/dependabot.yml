@@ -82,6 +82,19 @@ updates:
       prefix: "chore"
       include: scope
 
+  # ── The Go CLI (cli/) ─────────────────────────────────────────────────────
+  # One direct dependency, the official MCP SDK. Its releases are rare, so the
+  # weekly default is enough, and a bump is a PR that the `cli` CI job tests.
+  - package-ecosystem: gomod
+    directory: "/cli"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore"
+      include: scope
+
   # ── The portal front-end (Vite + React) ───────────────────────────────────
   - package-ecosystem: npm
     directory: "/apps/bothy-web/web"

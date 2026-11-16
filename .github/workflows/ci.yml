@@ -12,6 +12,7 @@
 #            reach (scripts/ci-changes.sh); on main, every row.
 #   compose  every compose file resolves. No daemon contact.
 #   portal   typecheck, build, and the CSP hash that only exists after a build.
+#   cli      the Go CLI: generated tables not drifted, vet, tests, static build.
 #   images   every Dockerfile still builds.
 #
 # The install tier - clone into an empty directory, `just up`, run all six suites
@@ -611,6 +612,54 @@ jobs:
       - name: The CSP and the inline script must agree
         working-directory: apps/bothy-web
         run: node checks/csp_hash.mjs
+
+  # The Go CLI and its read-only MCP server (cli/). Stdlib plus the official MCP
+  # SDK, so the module cache is small and the job is a minute. What it guards that
+  # nothing else does: the verb and tool tables are GENERATED from
+  # apps/bothy-ops/generated/*.json, so a catalog change without `go generate`
+  # (or a hand edit of the generated file) must fail here, and the Go decoding of
+  # every Python-written golden file must keep working. CGO_ENABLED=0 is stated
+  # because plain `go build` links libc for net and the release is meant to be static.
+  cli:
+    name: Go CLI vet, drift check, tests and static build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - name: Regenerate the tables; the tree must not change
+        run: |
+          go generate ./...
+          git diff --exit-code -- internal/catalog
+
+      - name: Format and vet
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          go vet ./...
+
+      - name: Tests (goldens, fake server, MCP over real stdio)
+        run: go test -count=1 ./...
+
+      # The same flags the release uses (reassessment, section 0). `file` must say
+      # statically linked; a dynamic binary would not run on a minimal host.
+      - name: Static build
+        run: |
+          CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o "$RUNNER_TEMP/bothy" ./cmd/bothy
+          file "$RUNNER_TEMP/bothy" | tee /dev/stderr | grep -q 'statically linked'
+          "$RUNNER_TEMP/bothy" version
+
+      # Pinned exact, like the actions: an unpinned `@latest` would be remote code
+      # chosen at run time. Reads the module graph, so it needs the network.
+      - name: Known vulnerabilities in the dependencies
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   # ── Tier 1 ──────────────────────────────────────────────────────────────────
   #
