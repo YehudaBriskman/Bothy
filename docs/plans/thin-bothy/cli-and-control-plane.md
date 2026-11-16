@@ -842,7 +842,7 @@ carries the API version. Fallback: generate the Go types from the OpenAPI docume
 
 ## 7. Decisions for the owner
 
-Numbered to continue `README.md` (D1 to D14). Each is a recommendation, not a done deal.
+Numbered to continue `README.md` (D1 to D14). **Accepted by the owner on 2026-11-16 ("yes, go on" to this table as written): D15 to D28 are decided with the recommendation in each row.** The "if the owner disagrees" column stays as the record of what the alternative would have cost. Anything the owner wants changed later is a new decision, not an edit to this one.
 
 | # | Question | Recommendation | Evidence | If the owner disagrees |
 |---|---|---|---|---|
