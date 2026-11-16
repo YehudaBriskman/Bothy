@@ -5,7 +5,7 @@ all state in `~/lab/` (never in the repo).
 
 ```
 lab/lab.sh check | fetch | up <profile> | ssh <profile> [cmd] | status | down <profile> | reset <profile> | destroy <profile>
-profiles: lab-mini (1 vCPU, 2 GiB)   lab-std (4 vCPU, 6 GiB)
+profiles: lab-mini (1 vCPU, 2 GiB)   lab-mid (2 vCPU, 4 GiB)   lab-std (4 vCPU, 6 GiB)
 ```
 
 Needs `qemu-system-x86 qemu-utils cloud-image-utils` and membership of group `kvm`.
