@@ -2,7 +2,7 @@
 
 The epic's fifth rule (#315): **the maintainer's live box keeps running at every
 step.** This box runs Keycloak, Grafana, Postgres and projects that depend on them
-(Tals, ai-team-site, mpeg). The migration is therefore **side by side, one module at
+(the maintainer's own projects). The migration is therefore **side by side, one module at
 a time, each step reversible.**
 
 ## 1. Principles

@@ -24,7 +24,7 @@ ported. What must survive unchanged is its *principle*.
 | Today | In the cluster |
 |---|---|
 | Host systemd path unit consumes a spool file | `bothy-api` creates a **`bothy-update` Job** (labelled, one at a time) from a fixed template |
-| Executor runs fixed argv on the host as `devssh` | the Job's container runs `helm`/`kubectl` with a **dedicated ServiceAccount** |
+| Executor runs fixed argv on the host as the install user | the Job's container runs `helm`/`kubectl` with a **dedicated ServiceAccount** |
 | Updating `bothy-ops` severs its own request | the Job is not `bothy-api`: it keeps running while the API pod is replaced; the page polls the Job's status from a ConfigMap/`status` file the new API reads |
 | Compose `up` of one service group | `helm upgrade --atomic --wait --timeout` per module release |
 | Rollback = restore the previous pin and `up` | `helm rollback` to the prior revision, plus restore of a pre-update backup when state changed |

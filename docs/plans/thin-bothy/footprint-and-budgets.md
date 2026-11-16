@@ -10,7 +10,7 @@ must be measured in Phase 0) or **T** (a target we choose).
 This box: 24 GB RAM visible to WSL2, 10 CPUs, 32 containers in total. Only the six
 compose projects that **Bothy owns** count here (`auth`, `bothy`, `edge`,
 `headlamp`, `monitoring`, `postgres`: 18 containers). The rest are projects
-(Tals, monorepo-inherited, ai-team-site, mpeg), which Bothy does not provide.
+(the maintainer's own projects), which Bothy does not provide.
 
 | Group | Container | Resident | Compose limit |
 |---|---|---|---|

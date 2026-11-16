@@ -7,9 +7,9 @@
 | Q1 | Is Keycloak in mini? **ANSWERED yes-out, 2026-11-16: not in mini or standard.** | **No**; mini has a built-in `login`; `sso` is a module (see `modes-and-modules.md` s3) | #316, #319 |
 | Q2 | Is Grafana in standard? **ANSWERED 2026-11-16: no, full only.** | **No**: portal panels first; Grafana is `full` | module catalogue |
 | Q3 | Mini memory target | **<= 1.0 GB including k3s**, to be confirmed by S0 | all budgets |
-| Q4 | Settings store: SQLite+envelope (A) | **A** (#316) | #317 |
-| Q5 | Rewrite git history for privacy (#326) | decide independently; does not block this plan but ships alongside | #315 |
-| Q6 | May an operator *reveal* a secret? | **No reveal**; "replace" and "generate" only | #321 |
+| Q4 | Settings store: SQLite+envelope (A) | **ANSWERED: A** (D11) | #317 |
+| Q5 | Rewrite git history for privacy (#326) | **ANSWERED: scrub forward** (D9) | #315 |
+| Q6 | May an operator *reveal* a secret? | **ANSWERED: no reveal** (D11) | #321 |
 | Q7 | Port publishing on k3s | Traefik entrypoint-per-port, if S1 passes | architecture s5 |
 | Q8 | Does this box migrate first or last? **ANSWERED: last, on a VM first.** | **Last**, after OCI/a scratch VM prove the path (S5) | phase order |
 | Q9 | Operator as Job runner now, CRD controller later | **Job runner** | architecture s3 |
@@ -56,7 +56,7 @@
 | **Vault/OpenBao for secrets** | another stateful service with its own unseal problem (#316 weighed it) |
 | **Grafana Cloud / hosted observability** | contradicts "for zero dollars, private" |
 | **Multi-node/HA** | out of scope (README non-goals) |
-| **Migrating projects (Tals etc.) into Bothy's cluster** | violates rule 3; projects keep their own runtime |
+| **Migrating projects (the maintainer's own projects) into Bothy's cluster** | violates rule 3; projects keep their own runtime |
 
 ## 4. The fallback ladder (if the plan has to retreat)
 

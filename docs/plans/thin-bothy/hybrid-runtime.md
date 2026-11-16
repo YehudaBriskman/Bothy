@@ -30,7 +30,7 @@ It stays on **Docker Compose** when:
 
 1. It is **heavy and self-contained** (Keycloak, Grafana, Loki, Postgres).
 2. It is **already working** and its move buys nothing.
-3. It is a **project's** service (Tals, ai-team-site, mpeg): never Bothy's to move.
+3. It is a **project's** service (the maintainer's own projects): never Bothy's to move.
 4. It needs a host device, host network, or privileged access.
 
 ## 3. Placement (revised catalogue)

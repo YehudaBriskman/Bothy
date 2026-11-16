@@ -30,6 +30,8 @@ Memory figures for existing services are the measured resident sizes in
 
 ## 2. The modes
 
+> **Open (2026-11-16):** the display names (mini/standard/full are placeholders) and whether `files` joins the smallest mode are decided in [mode-names.md](mode-names.md). The owner asked for `files` in the default and for fun names; ids in code stay `mini`/`standard`/`full`/`custom`.
+
 | Mode | Modules |
 |---|---|
 | **mini** (default) | `core`, `login` |
