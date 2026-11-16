@@ -31,7 +31,8 @@ profile() {
   case "$1" in
     lab-mini) PV_CPU=1 PV_RAM=2048 PV_OVH=768  PV_DISK=20G PV_SSH=2222 PV_WEB=18080 ;;
     lab-std)  PV_CPU=4 PV_RAM=6144 PV_OVH=1024 PV_DISK=40G PV_SSH=2223 PV_WEB=18081 ;;
-    *) die "unknown profile '$1' (lab-mini | lab-std). lab-oci is deliberately not offered until lab-mini is measured." ;;
+    lab-mid)  PV_CPU=2 PV_RAM=4096 PV_OVH=896  PV_DISK=30G PV_SSH=2224 PV_WEB=18082 ;;
+    *) die "unknown profile '$1' (lab-mini | lab-mid | lab-std). lab-oci is deliberately not offered until lab-mini is measured." ;;
   esac
 }
 
@@ -194,5 +195,5 @@ case "${1:-help}" in
   down) shift; cmd_down "$@" ;;
   reset) shift; cmd_reset "$@" ;;
   destroy) shift; cmd_destroy "$@" ;;
-  *) echo "usage: lab.sh check | fetch | up <profile> | ssh <profile> [cmd] | status | down <profile> | reset <profile> | destroy <profile>"; echo "profiles: lab-mini lab-std" ;;
+  *) echo "usage: lab.sh check | fetch | up <profile> | ssh <profile> [cmd] | status | down <profile> | reset <profile> | destroy <profile>"; echo "profiles: lab-mini lab-mid lab-std" ;;
 esac
