@@ -33,6 +33,7 @@ customisable than today's "everything on, edit `.env`".
 | D14 | **Hybrid runtime:** k3s core, Docker modules, a host executor `bothy-hostd`; **modes** mini / standard / full / custom shown as Bivvy / Bothy / Basecamp / Cairn; the **settings store is option A**, recorded in `settings-store.md`, library merged as `apps/bothy-settings` (#360). (Owner, 2026-11-16) |
 | D15 | **Decided (owner, 2026-11-16), `cli-and-control-plane.md` s7:** the `bothy` CLI is a **Go static binary, thin client**; one operation catalog drives the web, CLI and MCP surfaces (`/-/api/v1`, exact paths); the Python updater stays as `bothy-hostd`. |
 | D16 | **Decided (owner, 2026-11-16):** MCP is **stdio first, read-only by default**; agent writes create a job in `awaiting_approval` that only a browser session or a TTY can approve; user update controls are a **tighten-only** overlay on `updates.toml`. D17 to D28 (releases, signing, renames, rollback verb, scope limits) are in that document. |
+| D29 to D39 | **Proposed (needs owner), `distribution-and-packaging.md` s8:** packages ship only the client and host layer (`bothy`, `bothy-host`), never the stack; the package manager owns the host layer and the updater owns the stack and images; packages first as Release assets, then a static apt/dnf repo with an offline OpenPGP key; images published by digest; purge never deletes data or the master key; Windows and macOS are client-only. Amends D27 and D22 (both still proposed). |
 | D8 | The installer offers a **reach** choice (Tailscale, SSH, both, local) as part of the install. See `vm-lab-and-connectivity.md`. |
 
 ## Reading order
@@ -54,6 +55,7 @@ customisable than today's "everything on, edit `.env`".
 | [customization.md](customization.md) | How settings become Helm values; per-module overrides; third-party modules; escape hatches |
 | [cli-and-control-plane.md](cli-and-control-plane.md) | The one control plane (resource model, API, authN/Z, audit), the Go CLI and its release, the MCP server and its threat model, update controls as a product surface, the first slice, and decisions D15 to D28 for the owner |
 | [../settings-store.md](../settings-store.md) | **Decision record for the settings and secrets store (D11, #316)**: options weighed, key hierarchy, schema, rotation, backup, export, threat model |
+| [distribution-and-packaging.md](distribution-and-packaging.md) | Installing Bothy like Chromium or VS Code: what a native package may contain (client and host layer, never the stack), who owns version upgrades, deb/rpm/apt-repo/brew/winget and the rejected channels, signing and key custody, purge and data rules, Windows and macOS, decisions D29 to D39 |
 | [security-model.md](security-model.md) | RBAC replacing the socket proxies, NetworkPolicy, secrets, the new trust boundaries |
 | [migration.md](migration.md) | Getting from Compose to k3s with the live box running at every step |
 | [testing-and-ci.md](testing-and-ci.md) | How every claim above is held by a check |

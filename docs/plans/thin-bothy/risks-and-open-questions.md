@@ -53,6 +53,13 @@
 | R23 | A bearer token sent over plain HTTP on a LAN is sniffable | possible | high | the CLI refuses non-loopback, non-tailnet `http://`; HTTPS arrives with `sso` (s2.7) |
 | R24 | A user-facing update overlay weakens the reviewed class gates | possible | high | monotone tighten-only merge, fail closed on a bad overlay (s4.3) |
 | R25 | Release artefacts are signed by the same account that can change the repo, so attestations prove build origin, not review | certain | medium | pinned sha in `bothy.sh`, branch and tag protection, an out-of-band installer hash (s2.2) |
+| R26 | A long-lived OpenPGP archive key is a second root of trust that apt, dnf and apk require and Sigstore cannot replace | possible | **high** (a leaked key signs malware for every installed box) | offline primary key, signing subkey on a hardware token, human signs, CI never holds it; keyring package for rotation; published fingerprint (`distribution-and-packaging.md` 4.4) |
+| R27 | `apt upgrade` or `dnf upgrade` changes the control plane under a running stack, or fights `bothy self update` | likely without the rule | high | the ownership rule D29: the package owns only the host layer, install-method receipt, compatible-range check, no restart in postinst (s1.3) |
+| R28 | A maintainer script or purge deletes user data or the master key (Tailscale's purge removes its state directory) | possible | **high** (unrecoverable settings DB) | scripts create only an empty state dir; purge removes dpkg-owned conffiles only; data deletion is the typed `bothy uninstall --data`; proven in the lab (s4.3, 5.3) |
+| R29 | A package-installed host has no checkout, but images are built from the checkout today | certain | high | publish images to a registry and pull by digest (D34) before any package ships |
+| R30 | Hosting the repository on GitHub Pages hits the 1 GB or bandwidth soft limits, or the host changes its terms | possible | medium | retain the last 3 versions, a domain the owner controls, Cloudsmith as the named fallback (s3.5) |
+| R31 | `bothy-host` needs a Python newer than an old distro ships (D17) | possible | medium | measure the real floor; declare it in `Depends`; or bundle an interpreter later |
+| R32 | The release stalls when the signing token or its maintainer is unavailable (bus factor of one) | possible | medium | two token copies, an off-site paper backup of the primary key; tarball and Release-asset channels keep working meanwhile |
 
 ## 3. Alternatives considered (and why not)
 
@@ -106,6 +113,8 @@
   (notes README #1) stands.
 
 ## Changed 2026-11-16
+
+- `distribution-and-packaging.md` added: R26 to R32; decisions D29 to D39 (proposed) are in that document. No decided item is reversed.
 
 - Q3, Q12, Q13, R1, R2, R15 updated from S0, S5b, S5c, S6, S9 to S13 and the decisions; R17 to R19 added.
 - Fallback ladder (s4) unchanged in content, but note rung 2 is now **also the install below 4 GiB**,
