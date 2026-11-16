@@ -17,7 +17,7 @@ everything, open to anyone on the tailnet, not a service anybody sells.
 **Notes & releases:** [yehudabriskman.com/blog/area/bothy](https://yehudabriskman.com/blog/area/bothy) - what each release changed and why, plus engineering notes. Project page: [yehudabriskman.com/projects/bothy](https://yehudabriskman.com/projects/bothy).
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v2026.9.0-4c1)](https://github.com/YehudaBriskman/Bothy/releases)
+[![Release](https://img.shields.io/badge/release-v2026.11.0-4c1)](https://github.com/YehudaBriskman/Bothy/releases)
 ![docker compose](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 ![just](https://img.shields.io/badge/just-task%20runner-EF5A29)
 ![Traefik](https://img.shields.io/badge/Traefik-v3.7-24A1C1?logo=traefikproxy&logoColor=white)
