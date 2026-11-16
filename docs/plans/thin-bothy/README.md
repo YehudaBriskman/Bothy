@@ -37,6 +37,7 @@ customisable than today's "everything on, edit `.env`".
 |---|---|
 | [footprint-and-budgets.md](footprint-and-budgets.md) | What do we use **today** (measured), what does each mode need, what numbers are targets vs guesses |
 | [review-findings.md](review-findings.md) | **Read first.** What seven reviewers found, what is already fixed, the rewrite queue, new spikes, and the decision about ordering k3s work |
+| [box-specific-inventory.md](box-specific-inventory.md) | Every box-specific default in code and config (328 sites), classified and mapped to a proposed module setting: the work list for #323 |
 | [spike-results.md](spike-results.md) | Measured results from the VM lab: what k3s costs at idle (about 650 MiB) and the resulting 4 GiB floor for the k3s install |
 | [mode-names.md](mode-names.md) | Fun names for the modes (Bivvy / Bothy / Basecamp / Cairn and alternatives), the microcopy that gives it personality, and the rules that keep fun from hiding information |
 | [hybrid-runtime.md](hybrid-runtime.md) | **Read first after this file.** What is on k3s, what stays on Docker, and who controls the Docker half |
