@@ -52,9 +52,9 @@ func Goldens(t testing.TB) []Golden {
 		}
 		var raw struct {
 			Request struct{ Method, Path string } `json:"request"`
-			Status  int                            `json:"status"`
-			Server  string                         `json:"server_header"`
-			Body    json.RawMessage                `json:"body"`
+			Status  int                           `json:"status"`
+			Server  string                        `json:"server_header"`
+			Body    json.RawMessage               `json:"body"`
 		}
 		if err := json.Unmarshal(b, &raw); err != nil {
 			t.Fatalf("%s: %v", f, err)

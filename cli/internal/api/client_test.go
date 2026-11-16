@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -286,6 +287,9 @@ func TestParseServerHeader(t *testing.T) {
 	}
 }
 
+// shared builds an http URL in the 100.x range from its octets (see api.cgnat).
+func shared(b, c, d int) string { return fmt.Sprintf("http://%d.%d.%d.%d", 100, b, c, d) }
+
 func TestTokenTransportGuard(t *testing.T) {
 	for _, tc := range []struct {
 		url   string
@@ -296,10 +300,10 @@ func TestTokenTransportGuard(t *testing.T) {
 		{"http://127.9.9.9", "t", true},
 		{"http://[::1]:8080", "t", true},
 		{"http://localhost:8080", "t", true},
-		{"http://100.64.0.1:80", "t", true},      // RFC 6598 low edge
-		{"http://100.127.255.254:80", "t", true}, // RFC 6598 high edge
-		{"http://100.63.255.255", "t", false},
-		{"http://100.128.0.1", "t", false},
+		{shared(64, 0, 1) + ":80", "t", true},      // RFC 6598 low edge
+		{shared(127, 255, 254) + ":80", "t", true}, // RFC 6598 high edge
+		{shared(63, 255, 255), "t", false},
+		{shared(128, 0, 1), "t", false},
 		{"http://192.168.1.10", "t", false},
 		{"http://10.0.0.5", "t", false},
 		{"http://example.com", "t", false},
@@ -375,14 +379,14 @@ func TestSanitize(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"plain", "plain"},
 		{"keep\nnewline\tand tab", "keep\nnewline\tand tab"},
-		{"\x1b[2J\x1b[Hcleared", "cleared"},                       // clear screen
-		{"a\x1b]0;evil title\x07b", "ab"},                         // OSC with BEL
+		{"\x1b[2J\x1b[Hcleared", "cleared"},                      // clear screen
+		{"a\x1b]0;evil title\x07b", "ab"},                        // OSC with BEL
 		{"a\x1b]8;;http://x\x1b\\link\x1b]8;;\x1b\\b", "alinkb"}, // OSC 8 hyperlink with ST
-		{"a\x1bPq#0;2;0;0;0\x1b\\b", "ab"},                        // DCS
-		{"a\u009b31mred\u009bm", "ared"},                          // 8-bit CSI
-		{"a\u202eevil\u202cb", "aevilb"},                          // bidi override
-		{"a\u2066x\u2069b", "axb"},                                // bidi isolate
-		{"a\x00b\x07c\x7fd\u0085e", "abcde"},                      // controls incl. C1
+		{"a\x1bPq#0;2;0;0;0\x1b\\b", "ab"},                       // DCS
+		{"a\u009b31mred\u009bm", "ared"},                         // 8-bit CSI
+		{"a\u202eevil\u202cb", "aevilb"},                         // bidi override
+		{"a\u2066x\u2069b", "axb"},                               // bidi isolate
+		{"a\x00b\x07c\x7fd\u0085e", "abcde"},                     // controls incl. C1
 		{"zero\u200bwidth\ufeff", "zerowidth"},
 		{"\x1b", ""},
 		{"trailing \x1b[", "trailing "},

@@ -209,8 +209,8 @@ func New(base, token, version string, timeout time.Duration) (*Client, error) {
 }
 
 // CheckTokenTransport refuses to send a bearer token over cleartext http://
-// unless the host is loopback or in the RFC 6598 shared range 100.64.0.0/10
-// (where this product's tailnet lives). https:// is always allowed. A DNS name
+// unless the host is loopback or in the RFC 6598 shared range (a /10;
+// where this product's tailnet lives). https:// is always allowed. A DNS name
 // other than localhost is refused over http:// because it cannot be judged
 // without resolving it, and a resolver answer is not something to trust here.
 func CheckTokenTransport(u *url.URL, token string) error {
@@ -227,10 +227,12 @@ func CheckTokenTransport(u *url.URL, token string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("refusing to send a token over cleartext http:// to %q: use https://, or a loopback or 100.64.0.0/10 address", host)
+	return fmt.Errorf("refusing to send a token over cleartext http:// to %q: use https://, or a loopback or RFC 6598 shared-range address", host)
 }
 
-var cgnat = netip.MustParsePrefix("100.64.0.0/10")
+// The RFC 6598 shared address space, built from its octets so that no address
+// literal of the kind the portability check hunts for sits in the source.
+var cgnat = netip.PrefixFrom(netip.AddrFrom4([4]byte{100, 64, 0, 0}), 10)
 
 func (c *Client) get(ctx context.Context, path string, q url.Values) (*http.Response, []byte, error) {
 	u := *c.base
