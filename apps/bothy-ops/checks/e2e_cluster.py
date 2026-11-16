@@ -76,7 +76,7 @@ VM, LOKI = f"{P}-vm", f"{P}-loki"
 VM_IMG = "victoriametrics/victoria-metrics:v1.155.0"
 LOKI_IMG = "grafana/loki:3.7.9"
 KSM_OLD, KSM_NEW = "8.6.0", "8.8.0"
-ALLOY_OLD, ALLOY_NEW = "grafana/alloy:v1.20.1", "grafana/alloy:v1.21.3"
+ALLOY_OLD, ALLOY_NEW = "grafana/alloy:v1.21.3", "grafana/alloy:v1.22.0"
 assert P != "thales-scc"
 
 fails: list[str] = []
