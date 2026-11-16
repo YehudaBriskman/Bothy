@@ -186,6 +186,44 @@ alone: the digest decides what is pulled, the tag is what a human (and
 Dependabot, which bumps both together) reads. Use the multi-arch *index* digest
 (`docker buildx imagetools inspect <ref>`), not one platform's manifest.
 
+### Merging a Dependabot bump that a pin check turns red
+
+Some pins have a copy that a check holds equal: `e2e-pins.sh` wants the
+constants at the top of `apps/bothy-ops/checks/e2e_cluster.py` (`VM_IMG`,
+`LOKI_IMG`, `KSM_NEW`, `ALLOY_NEW`) to equal the tree's pin, and `alloy-pins.sh`
+wants the compose and DaemonSet copies of Alloy to agree. Dependabot edits only
+the pin, so its PR is red until the companion moves. **That is a to-do on its
+branch, not a reason to close it.** Closing (or replacing it with your own PR)
+makes Dependabot skip *that version*: #278 was closed as superseded by #300,
+which carried an older release, and nothing was proposed for the next one for
+nine days. The updater deploys only what `main` pins, so a missed bump is a
+missed deploy.
+
+```sh
+git fetch origin
+git switch --track origin/dependabot/<ecosystem>/<name>   # the PR's head branch
+$EDITOR apps/bothy-ops/checks/e2e_cluster.py              # the constant(s) the red check names
+bash scripts/checks/e2e-pins.sh && bash scripts/checks/alloy-pins.sh
+git commit -am "chore(e2e): follow the <name> pin to <version>"
+git push origin HEAD                                      # a plain push; never --force
+```
+
+- Dependabot "will stop rebasing a pull request once extra commits have been
+  pushed to it" (GitHub docs). So when `main` moves, merge it in yourself
+  (`git merge origin/main`); `@dependabot rebase` will not run, and
+  `@dependabot recreate` discards your commit. Put `[dependabot skip]` in a
+  commit message only if you want Dependabot to be allowed to force-push over
+  your edits.
+- Alloy arrives as two PRs (compose, and the DaemonSet in `k8s/monitoring/`).
+  Put the other file's edit on the first PR's branch as well as the constant;
+  the second then has nothing left to change, and Dependabot closes it itself
+  once `main` carries the version. Do not hand-close it.
+- A PR you genuinely do not want: `@dependabot ignore this minor version` (or
+  an `ignore:` entry in `.github/dependabot.yml` with a comment saying why).
+  A bare close is not a decision anyone can see later.
+- Boundary images keep the review described in `.github/dependabot.yml`; the
+  companion edit does not replace it.
+
 ### Don't add a port to the Windows portproxy scripts
 
 That layer under `host/windows/` is vestigial. Publish the port in the compose
