@@ -2,7 +2,7 @@
 
 "As good as possible" means three things: **every workload declares what it needs,
 the platform enforces it, and the operator sees it before and after.** Today the
-sum of compose limits (about 5.9 GB) is a set of unrelated ceilings. This plan makes
+sum of compose limits (5088 MiB) is a set of unrelated ceilings. This plan makes
 it a budget.
 
 ## 1. The model
@@ -47,11 +47,10 @@ second, softer check compares **limits**: if the sum of limits exceeds allocatab
 more than a configured overcommit ratio (default 1.5x), it warns and requires a typed
 confirmation. The `system_reserve` is what keeps a 24 GB WSL2 host (shared with
 Windows and other projects) honest: **WSL2 sees 24 GB but Windows needs its own**, so
-the reserve defaults to a value measured from `.wslconfig`, not from `free`.
+the reserve is computed from `MemTotal`, `MemAvailable` and the root cgroup limit (on this box `free` already shows the 24 GB cap), with `.wslconfig` only as an optional cross-check. **Swap counts**: it is already 6143/6144 MB used here, so the gate treats high swap use as pressure.
 
 **WSL2 specifics (spike S2):** the cluster's "allocatable" must follow WSL2's memory
-cap, not the physical RAM; if `.wslconfig` changes, the gate reads the new value after
-a restart. The Windows-side keepalive remains the only thing outside the cluster.
+cap, read from the kernel (not from `.wslconfig`, which may not exist or be readable). kubelet `--system-reserved` and `--eviction-hard` are set from the **same number** the gate uses, because allocatable has no reserve by default and Docker's memory is invisible to the scheduler. The Windows-side keepalive remains the only thing outside the cluster.
 
 ## 4. Eviction order, stated
 

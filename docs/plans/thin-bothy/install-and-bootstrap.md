@@ -9,7 +9,7 @@ mini** without questions. Everything after that is the web.
 |---|---|---|
 | **Linux box / VM** | the installer script | the reference path |
 | **WSL2** (this box) | same script, plus WSL-specific checks | systemd must be on (it is, here); Windows keepalive is a separate opt-in module |
-| **OCI Always Free A1** | `cloud-init` from `oci-free` runs the same installer | the repo `oci-free` already does k3s bootstrap; Bothy's installer becomes the thing its cloud-init calls, instead of a parallel recipe |
+| **OCI Always Free A1** | `cloud-init` calls the same installer | **correction 2026-11-16:** `oci-free`'s cloud-init does *not* install k3s (it does Tailscale and the firewall guard; k3s is installed by hand, `oci-free/docs/infrastructure.md`). So there is no k3s bootstrap to reuse; only its Tailscale install is reusable. Bothy's installer would be the first scripted k3s install |
 
 Dev (Compose) stays `just up`, untouched by this document.
 
@@ -75,10 +75,14 @@ leaves nothing", extended).
 
 ## 7. WSL2-specific checks (from the notes' hard-won rules)
 
-- **Tailnet IP binding**: k3s's `--node-ip` and the Traefik listeners bind to the
-  node's tailnet address, so a Windows-side NAT address change does not break
-  access (the 2026-08 incidents were all client-side; the design must not add a
-  server-side cause).
+- **Tailnet reachability (design open, 2026-11-16 review):** the first draft said k3s
+  `--node-ip` and Traefik bind to the tailnet address. That is **wrong or fragile**:
+  hostPort/ServiceLB listens on *all* interfaces (DNAT, not a bound socket), a
+  listener bound to `100.x` before tailscaled is up gets EADDRNOTAVAIL, and `--node-ip`
+  fails at boot if the interface is absent. Candidates: a stable dummy-interface node
+  IP plus a host firewall rule on `tailscale0`, or hostNetwork Traefik with
+  `net.ipv4.ip_nonlocal_bind=1` and `After=tailscaled`. This is spike S8 (see
+  `review-findings.md`); until it passes no claim of tailnet-only exposure stands.
 - **No portproxy additions** (rule 5): ports are published by Traefik/k3s, never by
   Windows scripts.
 - **No bare hostnames in host processes** (rule 8): the node uses dnsmasq's

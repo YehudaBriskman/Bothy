@@ -57,23 +57,25 @@ is imported (#324).
 Built and tested on the throwaway cluster, with the host updater untouched. Opt-in
 on the live box only after Phase 5 starts.
 
-### Phase 5: modules move one at a time
+### Phase 5: k3s-runtime modules move, one at a time
 
-Order, safest first, by blast radius:
+**Rewritten 2026-11-16 to match `hybrid-runtime.md`.** Under the hybrid decision,
+**Keycloak/`sso`, `postgres`, `logs` and `dashboards` stay on Docker and do not
+migrate.** An earlier draft listed them here; that contradicted the decision.
+
+Only modules whose runtime is **k3s** move, safest first:
 
 | # | Module | Why this position | Parity check | Rollback |
 |---|---|---|---|---|
-| 1 | `metrics` | stateless-ish, easy to rebuild, nothing depends on it for correctness | same series count, same alerts firing on a test | stop the cluster module, Compose metrics never stopped |
-| 2 | `logs` | same | a fixture log line found by query | same |
-| 3 | `files` | read-mostly; mounts `$HOME` read-only | same tree, same policy | same |
-| 4 | `dashboards` | after metrics/logs feed it; provisioned from git | every dashboard renders, alert rules equal | same |
-| 5 | `k8s-ui` | trivial once in-cluster | opens and lists | same |
-| 6 | `login` / `sso` | **riskiest**: identity gates everything | every route x role passes (security matrix) | DNS/port swap back to Compose Keycloak |
-| 7 | `postgres` | **last**: projects depend on it; `pg_dumpall` + restore + checksum | row counts and a project's own tests pass | keep the Compose volume and port |
-| 8 | core cut-over | Traefik owns `:80` and the port set | portal bytes, router table, every published port | restore the Compose edge |
+| 1 | `metrics-lite` | small, rebuildable; the budget gate needs it | same series for k3s workloads; Docker modules still visible (cadvisor kept) | stop the cluster module; Compose metrics never stopped |
+| 2 | `files` (if placed on k3s) | read-mostly; read-only `$HOME` mount | same tree, same policy | Compose copy never stopped |
+| 3 | `login` | new; must work with `sso` absent | role x route matrix | not applicable (new) |
+| 4 | `backups` (k3s-state half only) | the Docker data backup stays on the host (`scripts/backup.sh`, `stacks-backup.timer`) | restore test into a scratch VM | keep host timer |
+| 5 | core cut-over | who owns `:80` is an **open decision** (two Traefiks, see `review-findings.md`) | portal bytes, router table, every published port | restore the Compose edge |
 
-Postgres is last and gets the heaviest ceremony because **a database fault looks like
-everything else** (rule 8's lesson): connections that time out against a healthy DB.
+Pre-flip rule: before any port moves, a bind check (`ss -ltnH` **and** the NAT DNAT
+rules) must show the port free, because a duplicate hostPort does not fail `bind()`;
+it silently adds a second DNAT rule and the first wins (rule 7's failure mode).
 
 ### Phase 6: Compose becomes dev only
 
@@ -86,7 +88,7 @@ everything else** (rule 8's lesson): connections that time out against a healthy
 
 ## 3. The ports, concretely
 
-The live box publishes about 40 ports. During dual-run the cluster uses a **second
+The live box publishes 25 distinct host ports (`just urls` lists 23 rows). During dual-run the cluster uses a **second
 port range** (offset, as `cvops` does with port offsets), so both stacks answer, and
 "cut-over" is a configuration change of the cluster's range to the real one after the
 Compose side stops that service. `just urls` prints both columns during the

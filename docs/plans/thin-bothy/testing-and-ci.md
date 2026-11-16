@@ -12,7 +12,7 @@ the existing ones become.
 | L0 static | every PR, offline | module TOML schema; `helm template` per mode; `kubeconform`; the security assertions (`security-model.md` s3); budgets sum under each mode's ceiling | seconds |
 | L1 unit | every PR | validator, renderer (settings -> values), budget gate arithmetic, crypto round-trip, auth adapter | seconds |
 | L2 cluster | every PR touching charts/operator | a throwaway **k3d/k3s** in CI: install mini, apply a module, verify bytes, rollback on a broken chart, reject a privileged pod | minutes |
-| L3 install | PR + nightly | the real installer on a clean VM/container: mini comes up, first-run flow, uninstall leaves nothing | minutes |
+| L3 install | PR (today's `install.yml` has **no schedule**: push, PR, `workflow_call`) | the real installer on a clean VM/container: mini comes up, first-run flow, uninstall leaves nothing | minutes |
 | L4 upgrade | nightly | install `HEAD^1`, upgrade to `HEAD`: data survives, no PVC recreated, second apply is a no-op | minutes |
 | L5 elsewhere | nightly | odd paths, spaces, non-default state root, unusual users | minutes |
 | L6 live (manual) | per migration step | parity checks against the live box | human |
@@ -53,7 +53,7 @@ CI `mutants` shards already do this for existing checks; new checks join them.
   screenshot, as the notes require (jsdom cannot see layout; mind the rAF-polling
   rule, use `{ polling: 500 }`).
 - **Real OCI**: the A1 behaviour (ARM images, the idle-reclaim rule that needs
-  memory above 20%) is verified in `oci-free`'s CI plus a manual soak.
+  memory above 20%) is **documented** in `oci-free/docs/infrastructure.md`, not checked by its CI (which has only `ci.yml` and `secret-scan.yml`); verify by a manual soak and add a check if wanted.
 
 ## 5. Multi-arch
 

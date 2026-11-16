@@ -117,7 +117,7 @@ bit us before. If it fails, fall back to 3.
 
 ## 8. What does NOT change
 
-Exact-`Path()` routers, the three roles (viewer, operator, admin) and their gates,
+Exact-`Path()` routers, the three roles (viewer, editor, operator) and their gates,
 "read bytes not status codes", the doc-facts and router-gate checks (re-targeted,
 not dropped), pinned-by-digest images, and the rule that **the updater deploys only
 what `main` pins**. Each is carried into the new design in the file that owns it.

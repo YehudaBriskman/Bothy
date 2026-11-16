@@ -103,10 +103,10 @@ provided, else `local`. **Public exposure is never a default** (the OCI repo's
 
 | Step | Detail |
 |---|---|
-| Install | the vendor's apt repository at a **pinned version**, signing key inline in our repo, as `oci-free/cloud-init.yaml` already does: **reuse that code; extract it to one shared script** instead of two copies |
+| Install | the vendor's apt repository at a **pinned version**, signing key inline in our repo, as `oci-free/cloud-init.yaml` already does for Tailscale (it does **not** install k3s): **reuse that Tailscale code; extract it to one shared script** instead of two copies |
 | Authenticate, one of: | (1) **auth key** from `--ts-authkey-file`/env, for headless VMs and cloud-init; (2) **device login**: `tailscale up` prints a URL (and a QR) and the installer waits until the node appears; (3) an **OAuth client + tag** for fleets (documented, not the default) |
 | Flags | `--hostname=<name>`; **`--ssh`** (Tailscale SSH, as this box does) only if chosen; **no exit node, no routes** by default; `--accept-dns` left **off** by default (the dnsmasq history in rule 8 says DNS changes are where trouble starts) |
-| Bind | k3s `--node-ip` and Traefik listeners bind to the **tailnet address**, so an address change on the LAN cannot break access |
+| Bind | **open (see `install-and-bootstrap.md` s7 and `review-findings.md` S8):** binding to the tailnet address is not how hostPort/ServiceLB works; do not claim tailnet-only exposure until the spike passes |
 | Verify | `tailscale status` shows the node; **layered ping** to the installing machine (`tailscale ping`, `--tsmp`, `--icmp`, the method from `network/tailnet-troubleshooting.md`); and a **version-skew check** (rule 11: a half-upgraded daemon looks green while dropping packets) |
 | ACL honesty | the installer **cannot** change the tailnet's ACLs; it prints the tag/ACL line the owner must add, and the verify step says "joined but unreachable by ACL" distinctly from "not joined" |
 

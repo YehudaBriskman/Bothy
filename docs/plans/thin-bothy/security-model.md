@@ -32,7 +32,7 @@ CRD installs happen at **install time** by the installer, not by any runtime SA.
 
 ### 2.2 Roles (people) vs identities (pods)
 
-The three user roles (viewer, operator, admin) and **exact-`Path()` routers with
+The three user roles (viewer, editor, operator; the repo also defines a `shell` role that no route uses yet. There is **no `admin` role**) and **exact-`Path()` routers with
 role middlewares** survive unchanged. The identity provider underneath changes with
 the module (`login` or `sso`), so the role layer must sit **above** both: the API
 asks "is this request operator?" of an auth adapter, never of Keycloak directly.

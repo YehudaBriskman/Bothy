@@ -1,6 +1,6 @@
 # Plan: Thin Bothy - a k3s-native, modular, budgeted Bothy
 
-_Written 2026-11-16. Status: **proposed** (design only, nothing built). Extends
+_Written 2026-11-16. Status: **proposed, reviewed once** (design only, nothing built). **Read `review-findings.md` first: seven independent reviews found this plan internally unreconciled and several claims wrong; the factual errors are fixed, the larger rewrites are queued behind a decision.** Extends
 the "Bothy for anyone" epic (#315) and the "operable from the web" epic (#312)._
 
 ## The goal in one paragraph
@@ -32,6 +32,7 @@ customisable than today's "everything on, edit `.env`".
 | File | Answers |
 |---|---|
 | [footprint-and-budgets.md](footprint-and-budgets.md) | What do we use **today** (measured), what does each mode need, what numbers are targets vs guesses |
+| [review-findings.md](review-findings.md) | **Read first.** What seven reviewers found, what is already fixed, the rewrite queue, new spikes, and the decision about ordering k3s work |
 | [hybrid-runtime.md](hybrid-runtime.md) | **Read first after this file.** What is on k3s, what stays on Docker, and who controls the Docker half |
 | [vm-lab-and-connectivity.md](vm-lab-and-connectivity.md) | The disposable VM we build on (not this box); the install-time Tailscale/SSH choice and not locking yourself out |
 | [architecture.md](architecture.md) | (superseded where `hybrid-runtime.md` disagrees) The runtime, namespaces, packaging, how core and modules are laid out, what disappears |

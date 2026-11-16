@@ -30,7 +30,7 @@
 |---|---|---|---|---|
 | R1 | k3s and Docker conflict on iptables on this WSL box | medium | **high** (live box) | S5 first; fall back to another distro/VM; migrate this box last |
 | R2 | k3s idle cost > 0.8 GB, so "mini <= 1 GB" is impossible | medium | high for the thin goal | measure in S0; options: disable servicelb/metrics-server/coredns replacements, a lighter distro (see s3), or restate mini's target honestly |
-| R3 | Wizard/budget gate wrong on WSL2 (sees 24 GB, Windows needs its share) | high | medium | S2; reserve derived from `.wslconfig` |
+| R3 | Wizard/budget gate wrong on WSL2 (sees 24 GB, Windows needs its share) | high | medium | S2; reserve derived from MemTotal/MemAvailable and swap |
 | R4 | In-cluster updater has too many rights | medium | **high** | namespaced Roles generated from declarations; CI assertions; no `cluster-admin` |
 | R5 | `local-path` does not enforce PVC size; a module fills the disk | medium | medium | measure + alert; evaluate a quota-aware provisioner |
 | R6 | Two auth paths (`login`, `sso`) drift | medium | high | one adapter, one test matrix |
