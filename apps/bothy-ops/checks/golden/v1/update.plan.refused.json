@@ -1,0 +1,25 @@
+{
+  "body": {
+    "data": {
+      "ageSeconds": 3600,
+      "component": "bothy",
+      "plan": null,
+      "reason": {
+        "source": "file",
+        "text": "nothing to deploy: no release tag is newer than v2026.10.0",
+        "trust": "untrusted"
+      },
+      "scope": null,
+      "target": "component"
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/updates/plan?component=bothy"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

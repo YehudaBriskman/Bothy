@@ -1,0 +1,18 @@
+{
+  "body": {
+    "error": {
+      "code": "request.not-found",
+      "details": {},
+      "hint": null,
+      "message": "no such job"
+    },
+    "ok": false,
+    "request_id": "r_0000000000000000"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/job?id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 404
+}

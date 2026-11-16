@@ -265,6 +265,15 @@ check "$PY" checks/wiring_auto.py
 section "own code: Bothy's plan for itself - a green release tag, and every refusal"
 check "$PY" checks/test_owncode.py
 
+section "own code: the `unreleased` fact - commits past the newest tag, and what blocks the release"
+check "$PY" checks/test_unreleased.py
+
+section "v1 catalog: operations.toml, and everything generated from it (T1)"
+check "$PY" checks/test_v1_catalog.py
+
+section "v1 API: the contract, the goldens, read-only, untrusted text, no secret (T2 T3 T5 T7)"
+check "$PY" checks/api_v1_contract.py 2>/dev/null
+
 section "step 8: the cluster class and the Postgres major - plans and every refusal"
 check "$PY" checks/test_step8.py
 

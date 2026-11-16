@@ -1,0 +1,23 @@
+{
+  "body": {
+    "error": {
+      "code": "request.invalid",
+      "details": {
+        "one_of": [
+          "component",
+          "group"
+        ]
+      },
+      "hint": null,
+      "message": "give exactly one of ['component', 'group']"
+    },
+    "ok": false,
+    "request_id": "r_0000000000000000"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/updates/plan?component=solo&group=up-mon"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 400
+}

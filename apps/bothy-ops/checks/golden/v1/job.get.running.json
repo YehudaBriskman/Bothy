@@ -1,0 +1,68 @@
+{
+  "body": {
+    "data": {
+      "job": {
+        "component": "solo",
+        "endedAt": null,
+        "error": null,
+        "from": {
+          "image": "example.invalid/solo:2.0.0",
+          "version": "2.0.0"
+        },
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "members": [],
+        "note": null,
+        "planId": "000000000000000000000000",
+        "requestedAt": "2026-11-18T01:00:00Z",
+        "requestedBy": "ops@example.com",
+        "snapshot": null,
+        "startedAt": "2026-11-18T01:00:05Z",
+        "state": "running",
+        "steps": [
+          {
+            "detail": {
+              "source": "container-log",
+              "text": "the plan holds",
+              "trust": "untrusted"
+            },
+            "endedAt": "2026-11-18T01:00:06Z",
+            "name": "validate",
+            "startedAt": "2026-11-18T01:00:05Z",
+            "state": "ok"
+          },
+          {
+            "detail": {
+              "source": "container-log",
+              "text": "pulling example.invalid/solo:2.0.1",
+              "trust": "untrusted"
+            },
+            "endedAt": null,
+            "name": "pull",
+            "startedAt": "2026-11-18T01:00:06Z",
+            "state": "running"
+          },
+          {
+            "detail": null,
+            "endedAt": null,
+            "name": "apply",
+            "startedAt": null,
+            "state": "pending"
+          }
+        ],
+        "to": {
+          "image": "example.invalid/solo:2.0.1",
+          "version": "2.0.1"
+        }
+      }
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/job?id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

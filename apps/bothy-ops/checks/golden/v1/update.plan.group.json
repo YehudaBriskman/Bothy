@@ -1,0 +1,138 @@
+{
+  "body": {
+    "data": {
+      "ageSeconds": 3600,
+      "group": "up-mon",
+      "plan": {
+        "backupKinds": [
+          "loki",
+          "postgres"
+        ],
+        "confirm": "click",
+        "confirmWord": "up-mon",
+        "createdAt": "2026-11-18T11:06:40Z",
+        "discoveredAt": "2026-11-18T09:00:00Z",
+        "downtime": "loki: ~30-60 s in two pieces: a few seconds stopped for the snapshot, then the recreate and Loki's ~15 s ring delay before /ready. Alloy retries, so no line is lost; web: ~10-30 s while the container is recreated",
+        "group": "up-mon",
+        "id": "a653180e766e6764524dfbf1",
+        "kind": "group",
+        "level": "patch",
+        "members": [
+          {
+            "changelog": "https://example.invalid/loki/3.7.7",
+            "class": "timeseries",
+            "component": "loki",
+            "container": "t-loki",
+            "from": {
+              "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "image": "grafana/loki:3.7.6",
+              "tag": "3.7.6",
+              "version": "3.7.6"
+            },
+            "level": "patch",
+            "oneWay": false,
+            "pins": [
+              {
+                "file": "compose.yml",
+                "line": 7,
+                "service": "loki"
+              }
+            ],
+            "planId": "bcd13c7961de0a45d6883c79",
+            "snapshot": "loki",
+            "title": "Loki",
+            "to": {
+              "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "image": "grafana/loki:3.7.7",
+              "tag": "3.7.7",
+              "version": "3.7.7"
+            }
+          },
+          {
+            "changelog": "https://example.invalid/web/v1.0.1",
+            "class": "stateless",
+            "component": "web",
+            "container": "t-web",
+            "from": {
+              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "image": "example.invalid/web:1.0.0",
+              "tag": "1.0.0",
+              "version": "1.0.0"
+            },
+            "level": "patch",
+            "oneWay": false,
+            "pins": [
+              {
+                "file": "compose.yml",
+                "line": 4,
+                "service": "web"
+              }
+            ],
+            "planId": "2d74b107a9a57cb0f50cf479",
+            "snapshot": "image",
+            "title": "Web",
+            "to": {
+              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "image": "example.invalid/web:1.0.1",
+              "tag": "1.0.1",
+              "version": "1.0.1"
+            }
+          }
+        ],
+        "oneWay": false,
+        "oneWayWhy": null,
+        "preflight": [
+          "the group plan is still current: every member's plan recomputed here, and this group id",
+          "free disk: at least twice (every image + every snapshot) on the backup disk and on Docker's",
+          "every member's container is running and healthy on the image its plan recorded, and every member's canaries pass NOW",
+          "`just up-mon` recreates exactly loki, web in project mon and nothing else (compose config hashes) - the same check a single component gets, over the union",
+          "the newest backup in ~/backups/{loki,postgres} is under 24 h old",
+          "the request was made by a person, never the night job - re-checked when the executor claims it, and the night job has no way to write a group request at all",
+          "no other update is running (one global lock)"
+        ],
+        "project": "mon",
+        "recipe": "just up-mon",
+        "restarts": [
+          "t-loki",
+          "t-web"
+        ],
+        "rollback": "ALL OR NOTHING. The apply is one `just up-mon`, so a rollback is one too: every member's previous image goes back on EVERY pin line (edits of the working tree, left uncommitted on purpose) and the recipe runs once, and every member must then pass its own canaries on its old image. There is no partial rollback: the members that worked do not stay on their new images, because that is a combination no commit on main describes.",
+        "services": [
+          "loki",
+          "web"
+        ],
+        "signedOut": "nobody",
+        "skipped": [],
+        "snapshot": {
+          "dir": "/fixture/backups/pre-update/<time>-group-up-mon/<component>/",
+          "estimateBytes": 0,
+          "kinds": [
+            "image",
+            "loki"
+          ],
+          "what": "every member's own snapshot, the one-way ones first, all of them BEFORE anything is pulled: loki - Loki flushed, STOPPED for a few seconds and /loki tarred (bk_snapshot_loki); plus the pin line, the compose file, this plan and the old image's id and digest; web - the pin line, the compose file, this plan and the old image's id and digest - the old image stays in the local store, which is what a rollback runs"
+        },
+        "title": "Everything `just up-mon` pins",
+        "verify": [
+          "t-loki runs the pulled image and is healthy",
+          "t-web runs the pulled image and is healthy",
+          "loki: Loki: /ready says `ready`",
+          "loki: Loki: fresh lines in the last 2 minutes",
+          "loki: Loki: history before the update is still readable (line count at T0 unchanged)"
+        ]
+      },
+      "reason": null,
+      "scope": null,
+      "target": "group"
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/updates/plan?group=up-mon"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

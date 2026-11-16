@@ -1,0 +1,29 @@
+{
+  "body": {
+    "data": {
+      "fingerprint": null,
+      "key": "banner",
+      "module": "sso",
+      "secret": false,
+      "set": true,
+      "updated_at": "2026-11-17T08:00:00Z",
+      "updated_by": "cli:devssh",
+      "value": {
+        "source": "setting",
+        "text": "Welcome back",
+        "trust": "untrusted"
+      },
+      "value_type": "string",
+      "version": 2
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/settings?module=sso&key=banner"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}

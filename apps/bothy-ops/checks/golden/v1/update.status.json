@@ -1,0 +1,655 @@
+{
+  "body": {
+    "data": {
+      "applying": true,
+      "asks": {
+        "autorun": null,
+        "autorunQueued": false,
+        "discover": null,
+        "discoverMinSeconds": 300,
+        "discoverQueued": false
+      },
+      "auto": {
+        "actor": "auto",
+        "enabled": true,
+        "last": null,
+        "paused": [
+          "loki"
+        ]
+      },
+      "components": [
+        {
+          "apply": "just up-solo",
+          "applyWithGroup": false,
+          "behind": false,
+          "blockedBy": [],
+          "changelog": "https://example.invalid/solo/v2.0.1",
+          "channel": "auto",
+          "class": "stateless",
+          "configKeys": 0,
+          "dependants": [],
+          "discovered": {
+            "candidates": {},
+            "checkedAt": "2026-11-18T09:00:00Z",
+            "configDrift": null,
+            "current": {
+              "digest": null,
+              "float": false,
+              "floatTarget": null,
+              "identifiedAs": null,
+              "tag": "2.0.1",
+              "version": "2.0.1"
+            },
+            "drift": null,
+            "error": null,
+            "floatMoved": null,
+            "image": "example.invalid/solo",
+            "latest": null,
+            "notes": [],
+            "running": [
+              {
+                "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+                "image": "example.invalid/solo:2.0.0",
+                "name": "t-solo",
+                "state": "running"
+              }
+            ],
+            "runningVersion": null
+          },
+          "effectiveChannel": null,
+          "group": null,
+          "id": "solo",
+          "level": null,
+          "oneWay": false,
+          "oneWayWhy": null,
+          "paused": null,
+          "pins": [
+            "other.yml:solo"
+          ],
+          "plan": {
+            "createdAt": "2026-11-18T11:06:40Z",
+            "deployable": true,
+            "from": "2.0.0",
+            "id": "31e5ede045650bc9be4a276a",
+            "level": "patch",
+            "to": "2.0.1"
+          },
+          "source": "image",
+          "title": "Solo",
+          "unpauseQueued": false,
+          "verify": [
+            "body says solo"
+          ]
+        },
+        {
+          "apply": "just up-graf",
+          "applyWithGroup": false,
+          "behind": true,
+          "blockedBy": [],
+          "changelog": "https://example.invalid/grafana/v13.3.0",
+          "channel": "notify",
+          "class": "app-db",
+          "configKeys": 0,
+          "dependants": [],
+          "discovered": {
+            "candidates": {
+              "minor": {
+                "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                "level": "minor",
+                "tag": "13.3.0",
+                "version": "13.3.0"
+              }
+            },
+            "checkedAt": "2026-11-18T09:00:00Z",
+            "configDrift": null,
+            "current": {
+              "digest": null,
+              "float": false,
+              "floatTarget": null,
+              "identifiedAs": null,
+              "tag": "13.2.2",
+              "version": "13.2.2"
+            },
+            "drift": null,
+            "error": null,
+            "floatMoved": null,
+            "image": "docker.io/grafana/grafana",
+            "latest": {
+              "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "level": "minor",
+              "tag": "13.3.0",
+              "version": "13.3.0"
+            },
+            "notes": [],
+            "running": [
+              {
+                "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+                "image": "grafana/grafana:13.1.4",
+                "name": "t-grafana",
+                "state": "running"
+              }
+            ],
+            "runningVersion": null
+          },
+          "effectiveChannel": "notify",
+          "group": null,
+          "id": "grafana",
+          "level": "minor",
+          "oneWay": true,
+          "oneWayWhy": "grafana.db's schema migrates on first start and cannot be downgraded",
+          "paused": null,
+          "pins": [
+            "graf.yml:grafana"
+          ],
+          "plan": {
+            "createdAt": "2026-11-18T11:06:40Z",
+            "deployable": true,
+            "from": "13.1.4",
+            "id": "56f6f9d79eb4c3bf5ef9fb59",
+            "level": "minor",
+            "to": "13.2.2"
+          },
+          "source": "image",
+          "title": "Grafana",
+          "unpauseQueued": false,
+          "verify": [
+            "health"
+          ]
+        },
+        {
+          "apply": "just up-mon",
+          "applyWithGroup": true,
+          "behind": false,
+          "blockedBy": [],
+          "changelog": "https://example.invalid/web/v1.0.1",
+          "channel": "auto",
+          "class": "stateless",
+          "configKeys": 0,
+          "dependants": [],
+          "discovered": {
+            "candidates": {},
+            "checkedAt": "2026-11-18T09:00:00Z",
+            "configDrift": null,
+            "current": {
+              "digest": null,
+              "float": false,
+              "floatTarget": null,
+              "identifiedAs": null,
+              "tag": "1.0.1",
+              "version": "1.0.1"
+            },
+            "drift": null,
+            "error": null,
+            "floatMoved": null,
+            "image": "example.invalid/web",
+            "latest": null,
+            "notes": [],
+            "running": [
+              {
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "image": "example.invalid/web:1.0.0",
+                "name": "t-web",
+                "state": "running"
+              }
+            ],
+            "runningVersion": null
+          },
+          "effectiveChannel": null,
+          "group": "up-mon",
+          "id": "web",
+          "level": null,
+          "oneWay": false,
+          "oneWayWhy": null,
+          "paused": null,
+          "pins": [
+            "compose.yml:web"
+          ],
+          "plan": {
+            "createdAt": "2026-11-18T11:06:40Z",
+            "deployable": true,
+            "from": "1.0.0",
+            "id": "2d74b107a9a57cb0f50cf479",
+            "level": "patch",
+            "to": "1.0.1"
+          },
+          "source": "image",
+          "title": "Web",
+          "unpauseQueued": false,
+          "verify": [
+            "body says web"
+          ]
+        },
+        {
+          "apply": "just up-mon",
+          "applyWithGroup": true,
+          "behind": false,
+          "blockedBy": [],
+          "changelog": "https://example.invalid/loki/3.7.7",
+          "channel": "auto",
+          "class": "timeseries",
+          "configKeys": 0,
+          "dependants": [],
+          "discovered": {
+            "candidates": {},
+            "checkedAt": "2026-11-18T09:00:00Z",
+            "configDrift": null,
+            "current": {
+              "digest": null,
+              "float": false,
+              "floatTarget": null,
+              "identifiedAs": null,
+              "tag": "3.7.7",
+              "version": "3.7.7"
+            },
+            "drift": null,
+            "error": null,
+            "floatMoved": null,
+            "image": "docker.io/grafana/loki",
+            "latest": null,
+            "notes": [],
+            "running": [
+              {
+                "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "image": "grafana/loki:3.7.6",
+                "name": "t-loki",
+                "state": "running"
+              }
+            ],
+            "runningVersion": null
+          },
+          "effectiveChannel": null,
+          "group": "up-mon",
+          "id": "loki",
+          "level": null,
+          "oneWay": false,
+          "oneWayWhy": null,
+          "paused": {
+            "jobId": "cccccccccccccccccccccccccccccccc",
+            "reason": {
+              "source": "container-log",
+              "text": "its last update was rolled back",
+              "trust": "untrusted"
+            },
+            "requestedBy": "auto",
+            "result": "rolled_back",
+            "since": "2026-11-18T02:10:00Z"
+          },
+          "pins": [
+            "compose.yml:loki"
+          ],
+          "plan": {
+            "createdAt": "2026-11-18T11:06:40Z",
+            "deployable": true,
+            "from": "3.7.6",
+            "id": "bcd13c7961de0a45d6883c79",
+            "level": "patch",
+            "to": "3.7.7"
+          },
+          "source": "image",
+          "title": "Loki",
+          "unpauseQueued": false,
+          "verify": [
+            "ready"
+          ]
+        },
+        {
+          "apply": "just up-apps",
+          "applyWithGroup": false,
+          "behind": false,
+          "blockedBy": [],
+          "changelog": "https://example.invalid/releases/",
+          "channel": "notify",
+          "class": "own-code",
+          "configKeys": 0,
+          "dependants": [
+            "bothy-web",
+            "bothy-files",
+            "bothy-ops"
+          ],
+          "discovered": null,
+          "effectiveChannel": null,
+          "group": null,
+          "id": "bothy",
+          "level": null,
+          "oneWay": false,
+          "oneWayWhy": null,
+          "paused": null,
+          "pins": [
+            "VERSION"
+          ],
+          "plan": {
+            "createdAt": "2026-11-18T11:06:40Z",
+            "deployable": false,
+            "id": null,
+            "reason": {
+              "source": "file",
+              "text": "nothing to deploy: no release tag is newer than v2026.10.0",
+              "trust": "untrusted"
+            }
+          },
+          "source": "github",
+          "title": "Bothy (web, files, ops)",
+          "unpauseQueued": false,
+          "unreleased": {
+            "commits_ahead": 5,
+            "generatedAt": "2026-11-18T11:06:40Z",
+            "last_tag_attempt": null,
+            "latest_main": "d0fe117",
+            "release_blocked_by": "version-not-bumped",
+            "since_tag": "v2026.10.0"
+          },
+          "verify": [
+            "it answers"
+          ]
+        }
+      ],
+      "discovery": {
+        "ageSeconds": 3600,
+        "generatedAt": "2026-11-18T09:00:00Z",
+        "hint": null,
+        "present": true,
+        "stale": false
+      },
+      "groups": [
+        {
+          "candidates": [
+            "loki",
+            "web"
+          ],
+          "createdAt": "2026-11-18T11:06:40Z",
+          "deployable": true,
+          "group": "up-mon",
+          "plan": {
+            "backupKinds": [
+              "loki",
+              "postgres"
+            ],
+            "confirm": "click",
+            "confirmWord": "up-mon",
+            "createdAt": "2026-11-18T11:06:40Z",
+            "discoveredAt": "2026-11-18T09:00:00Z",
+            "downtime": "loki: ~30-60 s in two pieces: a few seconds stopped for the snapshot, then the recreate and Loki's ~15 s ring delay before /ready. Alloy retries, so no line is lost; web: ~10-30 s while the container is recreated",
+            "group": "up-mon",
+            "id": "a653180e766e6764524dfbf1",
+            "kind": "group",
+            "level": "patch",
+            "members": [
+              {
+                "changelog": "https://example.invalid/loki/3.7.7",
+                "class": "timeseries",
+                "component": "loki",
+                "container": "t-loki",
+                "from": {
+                  "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                  "image": "grafana/loki:3.7.6",
+                  "tag": "3.7.6",
+                  "version": "3.7.6"
+                },
+                "level": "patch",
+                "oneWay": false,
+                "pins": [
+                  {
+                    "file": "compose.yml",
+                    "line": 7,
+                    "service": "loki"
+                  }
+                ],
+                "planId": "bcd13c7961de0a45d6883c79",
+                "snapshot": "loki",
+                "title": "Loki",
+                "to": {
+                  "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                  "image": "grafana/loki:3.7.7",
+                  "tag": "3.7.7",
+                  "version": "3.7.7"
+                }
+              },
+              {
+                "changelog": "https://example.invalid/web/v1.0.1",
+                "class": "stateless",
+                "component": "web",
+                "container": "t-web",
+                "from": {
+                  "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "image": "example.invalid/web:1.0.0",
+                  "tag": "1.0.0",
+                  "version": "1.0.0"
+                },
+                "level": "patch",
+                "oneWay": false,
+                "pins": [
+                  {
+                    "file": "compose.yml",
+                    "line": 4,
+                    "service": "web"
+                  }
+                ],
+                "planId": "2d74b107a9a57cb0f50cf479",
+                "snapshot": "image",
+                "title": "Web",
+                "to": {
+                  "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "image": "example.invalid/web:1.0.1",
+                  "tag": "1.0.1",
+                  "version": "1.0.1"
+                }
+              }
+            ],
+            "oneWay": false,
+            "oneWayWhy": null,
+            "preflight": [
+              "the group plan is still current: every member's plan recomputed here, and this group id",
+              "free disk: at least twice (every image + every snapshot) on the backup disk and on Docker's",
+              "every member's container is running and healthy on the image its plan recorded, and every member's canaries pass NOW",
+              "`just up-mon` recreates exactly loki, web in project mon and nothing else (compose config hashes) - the same check a single component gets, over the union",
+              "the newest backup in ~/backups/{loki,postgres} is under 24 h old",
+              "the request was made by a person, never the night job - re-checked when the executor claims it, and the night job has no way to write a group request at all",
+              "no other update is running (one global lock)"
+            ],
+            "project": "mon",
+            "recipe": "just up-mon",
+            "restarts": [
+              "t-loki",
+              "t-web"
+            ],
+            "rollback": "ALL OR NOTHING. The apply is one `just up-mon`, so a rollback is one too: every member's previous image goes back on EVERY pin line (edits of the working tree, left uncommitted on purpose) and the recipe runs once, and every member must then pass its own canaries on its old image. There is no partial rollback: the members that worked do not stay on their new images, because that is a combination no commit on main describes.",
+            "services": [
+              "loki",
+              "web"
+            ],
+            "signedOut": "nobody",
+            "skipped": [],
+            "snapshot": {
+              "dir": "/fixture/backups/pre-update/<time>-group-up-mon/<component>/",
+              "estimateBytes": 0,
+              "kinds": [
+                "image",
+                "loki"
+              ],
+              "what": "every member's own snapshot, the one-way ones first, all of them BEFORE anything is pulled: loki - Loki flushed, STOPPED for a few seconds and /loki tarred (bk_snapshot_loki); plus the pin line, the compose file, this plan and the old image's id and digest; web - the pin line, the compose file, this plan and the old image's id and digest - the old image stays in the local store, which is what a rollback runs"
+            },
+            "title": "Everything `just up-mon` pins",
+            "verify": [
+              "t-loki runs the pulled image and is healthy",
+              "t-web runs the pulled image and is healthy",
+              "loki: Loki: /ready says `ready`",
+              "loki: Loki: fresh lines in the last 2 minutes",
+              "loki: Loki: history before the update is still readable (line count at T0 unchanged)"
+            ]
+          },
+          "reason": null,
+          "recipe": "just up-mon"
+        }
+      ],
+      "history": [
+        {
+          "component": "grafana",
+          "durationMs": 3000,
+          "endedAt": "2026-11-18T02:40:00Z",
+          "error": {
+            "source": "container-log",
+            "text": "preflight: no backup newer than 24 h",
+            "trust": "untrusted"
+          },
+          "failedStep": "preflight",
+          "from": {
+            "image": "example.invalid/solo:2.0.0",
+            "version": "2.0.0"
+          },
+          "id": "dddddddddddddddddddddddddddddddd",
+          "members": [],
+          "note": null,
+          "planId": "000000000000000000000000",
+          "requestedAt": "2026-11-18T01:00:00Z",
+          "requestedBy": "ops@example.com",
+          "snapshot": null,
+          "startedAt": "2026-11-18T01:00:05Z",
+          "state": "failed",
+          "to": {
+            "image": "example.invalid/solo:2.0.1",
+            "version": "2.0.1"
+          }
+        },
+        {
+          "component": "loki",
+          "durationMs": 98000,
+          "endedAt": "2026-11-18T02:10:00Z",
+          "error": {
+            "source": "container-log",
+            "text": "verify failed: loki /ready answered 503 after 90 s; the previous image was restored",
+            "trust": "untrusted"
+          },
+          "failedStep": "verify",
+          "from": {
+            "image": "example.invalid/solo:2.0.0",
+            "version": "2.0.0"
+          },
+          "id": "cccccccccccccccccccccccccccccccc",
+          "members": [],
+          "note": null,
+          "planId": "000000000000000000000000",
+          "requestedAt": "2026-11-18T01:00:00Z",
+          "requestedBy": "ops@example.com",
+          "snapshot": null,
+          "startedAt": "2026-11-18T01:00:05Z",
+          "state": "rolled_back",
+          "to": {
+            "image": "example.invalid/solo:2.0.1",
+            "version": "2.0.1"
+          }
+        },
+        {
+          "component": "solo",
+          "durationMs": 41000,
+          "endedAt": "2026-11-18T01:30:00Z",
+          "error": null,
+          "failedStep": null,
+          "from": {
+            "image": "example.invalid/solo:2.0.0",
+            "version": "2.0.0"
+          },
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "members": [],
+          "note": {
+            "source": "operator-note",
+            "text": "routine",
+            "trust": "untrusted"
+          },
+          "planId": "000000000000000000000000",
+          "requestedAt": "2026-11-18T01:00:00Z",
+          "requestedBy": "ops@example.com",
+          "snapshot": null,
+          "startedAt": "2026-11-18T01:00:05Z",
+          "state": "succeeded",
+          "to": {
+            "image": "example.invalid/solo:2.0.1",
+            "version": "2.0.1"
+          }
+        }
+      ],
+      "job": {
+        "component": "solo",
+        "endedAt": null,
+        "error": null,
+        "from": {
+          "image": "example.invalid/solo:2.0.0",
+          "version": "2.0.0"
+        },
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "members": [],
+        "note": null,
+        "planId": "000000000000000000000000",
+        "requestedAt": "2026-11-18T01:00:00Z",
+        "requestedBy": "ops@example.com",
+        "snapshot": null,
+        "startedAt": "2026-11-18T01:00:05Z",
+        "state": "running",
+        "steps": [
+          {
+            "detail": {
+              "source": "container-log",
+              "text": "the plan holds",
+              "trust": "untrusted"
+            },
+            "endedAt": "2026-11-18T01:00:06Z",
+            "name": "validate",
+            "startedAt": "2026-11-18T01:00:05Z",
+            "state": "ok"
+          },
+          {
+            "detail": {
+              "source": "container-log",
+              "text": "pulling example.invalid/solo:2.0.1",
+              "trust": "untrusted"
+            },
+            "endedAt": null,
+            "name": "pull",
+            "startedAt": "2026-11-18T01:00:06Z",
+            "state": "running"
+          },
+          {
+            "detail": null,
+            "endedAt": null,
+            "name": "apply",
+            "startedAt": null,
+            "state": "pending"
+          }
+        ],
+        "to": {
+          "image": "example.invalid/solo:2.0.1",
+          "version": "2.0.1"
+        }
+      },
+      "policy": {
+        "discoverEveryHours": 6,
+        "maxAutoPerNight": 1,
+        "pauseOnFailure": true,
+        "requireBackup": "stacks-backup.service",
+        "requireDoctor": true,
+        "windowEnd": "05:00",
+        "windowStart": "03:30"
+      },
+      "summary": {
+        "behind": 1,
+        "components": 5,
+        "configDrift": 0,
+        "configKeys": 0,
+        "drift": 0,
+        "errors": 0,
+        "groups": 1,
+        "toApply": 4,
+        "updates": 1
+      },
+      "updater": null
+    },
+    "ok": true,
+    "request_id": "r_0000000000000000",
+    "warnings": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/-/api/v1/updates/status"
+  },
+  "server_header": "2026.11.0 api=1 min-client=0.0.0",
+  "status": 200
+}
