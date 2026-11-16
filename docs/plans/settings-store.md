@@ -1,7 +1,9 @@
 # Decision record: the settings and secrets store
 
 _Written 2026-11-16. Status: **decided (owner, D11): option A**, shape specified
-here; nothing built. Part of #315; this is the deliverable of #316 and unblocks
+here; **the library is merged as `apps/bothy-settings` (#360), first slice of #317**: store,
+envelope crypto, audit chain, backup, restore and the age export (encrypt half). There is no
+service, image, compose file or wiring yet (`apps/bothy-settings/README.md`). Part of #315; this is the deliverable of #316 and unblocks
 #317 (the store), #318 (the renderer), #319 (first run). Context:
 [thin-bothy/README.md](thin-bothy/README.md) (decision D11),
 [thin-bothy/security-model.md](thin-bothy/security-model.md) s2.4,
@@ -109,9 +111,10 @@ than a key file. D stays reachable through the interface in section 5.
 
 ## 4. Where it runs, and what applies below the 4 GiB floor
 
-Hosts under **4 GiB of RAM take the Compose install** (k3s is not offered there; the
-4 GiB boundary is the owner's, and I found no document in the repo that states it,
-so treat the number as **unverified against the footprint measurements**). The store
+Hosts under **4 GiB of RAM take the Compose install** (k3s is not offered there). The boundary is
+now documented and measured: stock k3s idles at about 656 MiB (spike S0,
+`thin-bothy/spike-results.md`), the floor is a judgement from that one number and is to be confirmed
+with a `lab-std` run once core exists. A **swapless host under 4 GiB is also refused for k3s** (S6). The store
 is **runtime-independent**: the same service, schema and crypto run in both.
 
 | Aspect | Compose install (all hosts, incl. under 4 GiB) | k3s install |
@@ -630,7 +633,7 @@ In order (extends `install-and-bootstrap.md` s2 step 4):
 | #317: internal services "read decrypted values over a unix socket or internal-network route" | only the **host CLI** reads, and the service **pushes** files/Secrets | fewer decrypt-capable parties; no pod-to-service auth to design (a TokenReview path would need a cluster-scoped right `security-model.md` s2.1 avoids) |
 | #317: `GET` on a secret returns fingerprint | kept, but it is **keyed** and the audit never carries it | an unkeyed hash of a weak secret is an offline oracle |
 | #317/#316: "the KEK is read from `BOTHY_MASTER_KEY_FILE`" | kept; format holds more than one key line | rotation and its failure recovery need two keys at once |
-| `install-and-bootstrap.md` s2: "the settings master key (a Secret, never printed)" | **the host file is canonical**, a Secret is a projection; the id and path **are** printed | `review-findings.md`: a cluster Secret cannot be "excluded from backups"; the user must be able to find and copy the key |
+| `install-and-bootstrap.md` s2: "the settings master key (a Secret, never printed)" | **the host file is canonical**, a Secret is a projection; the id and path **are** printed. **`install-and-bootstrap.md` s2 step 4 and `architecture.md` s6 now say the same** (changed 2026-11-16) | `review-findings.md`: a cluster Secret cannot be "excluded from backups"; the user must be able to find and copy the key |
 | #317: "`bothy-config` isolates `ruamel.yaml`" (in #316's table) | the repo's `ruamel` use is in `apps/bothy-files/yamlpatch.py`; there is no `apps/bothy-config` | the precedent is real; the name in the table is not (verified by listing `apps/`) |
 | #318/#315: secret list in `scripts/lib/secret-keys.sh` | the file is `scripts/lib/bootstrap-keys.sh` | verified in the repo |
 | #316: "SECURITY.md gains a stub rule" | **not done in this PR**; SECURITY.md is the document later changes are held to and `doc-facts.sh` pins it | to be added with #317 together with the new routes and `router-gates.sh` |
@@ -673,7 +676,7 @@ In order (extends `install-and-bootstrap.md` s2 step 4):
 | Q5 | KEK cryptoperiod default | 12 months, plus on exposure |
 | Q6 | Compose `run/` on disk (boot-order simple) vs tmpfs (boot-order fragile)? | on disk now; revisit after the VM lab |
 | Q7 | Mini `login` verifier lives in the same DB (14.3). Acceptable, or its own DB? | same DB, own table |
-| Q8 | 4 GiB floor: confirm it is the Compose/k3s cut-over, and whether a host under it may also run `bothy-settings` (memory budget unmeasured) | yes; measure in the lab |
+| Q8 | 4 GiB floor: confirm it is the Compose/k3s cut-over, and whether a host under it may also run `bothy-settings` (memory budget unmeasured) | yes; measure in the lab. **S0 (2026-11-16) now supports the cut-over; the `bothy-settings` memory is still unmeasured** |
 
 **Owner decisions (2026-11-16, delegated to the maintainer's assistant, to decide by the
 purpose of #315: many people can install Bothy, with safe defaults and no step that blocks a
@@ -743,3 +746,13 @@ bindings; whether oauth2-proxy accepts file variants for all its secrets; Compos
 SOPS rotation commands; WAL behaviour on WSL2 Windows-drive mounts; scrypt parameters
 under the mini budget; library behaviour of AES key wrap with associated data;
 SP 800-38D's exact invocation limit; any cryptoperiod figure from SP 800-57.
+
+## Changed 2026-11-16
+
+- Status line: the library exists (#360). Section 4: the 4 GiB floor is no longer "unverified"
+  (S0), and a swapless sub-4-GiB host is refused for k3s (S6). Section 15: the install and architecture
+  docs were corrected to match this record (the master key is a host file).
+- **Unchanged and still true:** option A, Q1 to Q8 as decided. Q4 (admission policy before the k3s
+  install) is now carried into `thin-bothy/security-model.md` 6.2 as a prerequisite. S13 (ext4) was
+  checked read-only on the WSL box only; the library already refuses a network or Windows-drive state
+  directory.
