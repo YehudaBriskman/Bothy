@@ -28,7 +28,7 @@ customisable than today's "everything on, edit `.env`".
 | D9 | **#326: scrub forward, do not rewrite history.** Rotate anything that was ever a real credential regardless. (Owner, 2026-11-16) |
 | D10 | **#325: personal docs move to a private repo**, a new private repository (created, empty; its name is recorded in #325, not here). (Owner, 2026-11-16) |
 | D11 | **#316: the settings store is SQLite with envelope encryption**, the key held outside the datastore, secrets write-only (replace or generate, never reveal), `bothy config export` as an age-encrypted bundle, a pluggable secret backend later. Chosen as the professional option. (Owner delegated the choice; 2026-11-16) |
-| D12 | Modes get **fun, characterful names**, and `files` is in the smallest mode. Options and microcopy in `mode-names.md`; pick pending. |
+| D12 | Modes get **fun, characterful names**, and `files` is in the smallest mode. Options and microcopy in `mode-names.md`; **decided: Bivvy / Bothy / Basecamp / Cairn** (Owner, 2026-11-16). |
 | D8 | The installer offers a **reach** choice (Tailscale, SSH, both, local) as part of the install. See `vm-lab-and-connectivity.md`. |
 
 ## Reading order
@@ -37,6 +37,7 @@ customisable than today's "everything on, edit `.env`".
 |---|---|
 | [footprint-and-budgets.md](footprint-and-budgets.md) | What do we use **today** (measured), what does each mode need, what numbers are targets vs guesses |
 | [review-findings.md](review-findings.md) | **Read first.** What seven reviewers found, what is already fixed, the rewrite queue, new spikes, and the decision about ordering k3s work |
+| [spike-results.md](spike-results.md) | Measured results from the VM lab: what k3s costs at idle (about 650 MiB) and the resulting 4 GiB floor for the k3s install |
 | [mode-names.md](mode-names.md) | Fun names for the modes (Bivvy / Bothy / Basecamp / Cairn and alternatives), the microcopy that gives it personality, and the rules that keep fun from hiding information |
 | [hybrid-runtime.md](hybrid-runtime.md) | **Read first after this file.** What is on k3s, what stays on Docker, and who controls the Docker half |
 | [vm-lab-and-connectivity.md](vm-lab-and-connectivity.md) | The disposable VM we build on (not this box); the install-time Tailscale/SSH choice and not locking yourself out |
