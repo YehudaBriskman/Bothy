@@ -35,11 +35,13 @@ READ_ONLY_SLICE = True
 EFFECTS = ("read", "tighten", "loosen", "destructive", "host-only")
 CONFIRMS = ("none", "click", "type-name", "host")
 CALLERS = ("web", "cli", "mcp", "system")
+EXPOSURES = ("socket", "session", "token")     # D42; caller.py names the same closed set
+DEFAULT_EXPOSURE = ["socket"]
 SCHEMA_TYPES = ("string", "integer", "number", "boolean", "object", "array", "untrusted", "null")
 INPUT_TYPES = ("string", "integer", "boolean")
 
 _OP_KEYS = {"title", "http", "role", "effect", "confirm", "callers", "mcp", "cli", "audit", "idempotent",
-            "input", "output"}
+            "input", "output", "exposure"}
 _ENDPOINT_KEYS = _OP_KEYS
 _INPUT_KEYS = {"type", "required", "pattern", "enum", "min", "max", "default", "one_of"}
 _SCHEMA_KEYS = {"type", "nullable", "required", "properties", "items", "enum", "source"}
@@ -123,6 +125,12 @@ def _route(where: str, d: dict, roles: list[str], sources: list[str], seen_paths
     cs = d["callers"]
     if not isinstance(cs, list) or not cs or any(c not in CALLERS for c in cs):
         raise CatalogError(f"{where}: callers must be a non-empty subset of {CALLERS}")
+    ex = d.get("exposure", DEFAULT_EXPOSURE)
+    if not isinstance(ex, list) or not ex or any(x not in EXPOSURES for x in ex) or len(set(ex)) != len(ex):
+        raise CatalogError(f"{where}: exposure must be a non-empty list of distinct values from {EXPOSURES}")
+    if "session" in ex and "token" in ex:
+        raise CatalogError(f"{where}: exposure lists session and token: they need different routers "
+                           "(a cookie gate cannot admit a bearer token); one channel per edge route until slice 2")
     if not _AUDIT.fullmatch(d["audit"]):
         raise CatalogError(f"{where}: audit kind must look like v1.<name>")
     if not isinstance(d["idempotent"], bool):
@@ -148,7 +156,7 @@ def _route(where: str, d: dict, roles: list[str], sources: list[str], seen_paths
     _check_schema(f"{where}.output", d["output"], sources)
     if d["output"].get("type") != "object":
         raise CatalogError(f"{where}: an output is an object")
-    return {**d, "method": method, "path": path, "input": inputs}
+    return {**d, "method": method, "path": path, "input": inputs, "exposure": list(ex)}
 
 
 def load(path: str | None = None) -> dict:

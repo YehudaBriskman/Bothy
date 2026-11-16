@@ -12,6 +12,12 @@ Run: python3 checks/test_v1_catalog.py        (stdlib only, no network, no docke
              path, a Host() style path, an unknown key or a bad schema each REFUSE TO LOAD.
   PATHS      exact, under /-/api/v1/, no prefix, no wildcard, no Host; the generated routers are
              exact Path() rules with the role's gate, and contain no template braces.
+  EXPOSURE   D42: `exposure` defaults to ["socket"] and is a closed, non-empty set (unknown refused);
+             the generator routes ONLY an op that lists "session" or "token": with the shipped
+             catalog (all socket) the router file has no router at all; a fixture catalog that lists
+             "session" for one op generates exactly ONE exact Path() router with that op's
+             sso-<role> and never a Host(); discover lists every op's exposure.
+  CALLER     D41: caller.py's adapters; the role is never a request header; the token stub refuses.
   UNTRUSTED  every free-text field the output schemas carry is typed `untrusted` with a known source.
 """
 import json
@@ -87,10 +93,11 @@ files = {n: open(os.path.join(SVC, "generated", n), encoding="utf-8").read() for
 ok("{{" not in "".join(files.values()), "no doubled curly brace in any generated file (the Go template trap)")
 routers = files["edge-routers.v1.yml"]
 rules = re.findall(r'rule: "([^"]+)"', routers)
-ok(len(rules) == 9 and all(re.fullmatch(r"Path\(`/-/api/v1/[a-z/]+`\)", x) for x in rules),
-   "nine routers, each ONE exact Path(), no Host, no PathPrefix")
+ok(all(o["exposure"] == ["socket"] for o in [*cat["ops"].values(), *cat["endpoints"].values()]),
+   "every shipped op and endpoint is socket-only (the default, written nowhere)")
+ok(rules == [] and "http:" not in routers and "routers:" not in routers,
+   "so the generated edge file holds NO router (nine routes, none at the edge): comment-only")
 ok("Host(" not in routers and "PathPrefix" not in routers, "no Host() and no PathPrefix anywhere in the routers")
-ok(routers.count("sso-viewer") == 9 and "sso-operator" not in routers, "every router is behind sso-viewer")
 ok(not os.path.exists(os.path.join(ROOT, "edge", "dynamic", "bothy-ops-v1.yml")),
    "the generated routers are inert: not installed in edge/dynamic/")
 mcp = json.loads(files["mcp-tools.v1.json"])
@@ -103,6 +110,47 @@ ok(sorted(oa["paths"]) == sorted(cat["routes"]) and all(list(v) == ["get"] for v
    "OpenAPI documents the nine paths and only GET")
 verbs = json.loads(files["cli-verbs.v1.json"])["verbs"]
 ok(len(verbs) == 9 and all(v["method"] == "GET" for v in verbs), "the CLI verb table: nine GET verbs")
+
+print()
+print("── EXPOSURE: the generator routes only what is exposed at the edge ──")
+# `status` is the viewer op; list "session" for it ONLY, in a copy of the catalog, and regenerate.
+SESSION = src.replace('audit = "v1.status"', 'audit = "v1.status"\nexposure = ["session"]', 1)
+assert SESSION != src
+alt2 = os.path.join(tmp, "session.toml")
+open(alt2, "w", encoding="utf-8").write(SESSION)
+gen2 = os.path.join(tmp, "gen2")
+r = subprocess.run([sys.executable, GEN, "--out", gen2], capture_output=True, text=True,
+                   env={**os.environ, "OPERATIONS_CATALOG": alt2})
+ok(r.returncode == 0, f"a catalog listing session for one op generates: {r.stderr.strip()[:80]}")
+r2 = open(os.path.join(gen2, "edge-routers.v1.yml"), encoding="utf-8").read()
+rules2 = re.findall(r'rule: "([^"]+)"', r2)
+ok(rules2 == ["Path(`/-/api/v1/status`)"], f"exactly ONE router, one exact Path(): {rules2}")
+ok(len(re.findall(r"^    bothy-ops-v1-", r2, re.M)) == 1 and "bothy-ops-v1-status:" in r2, "named for that op, and only that op")
+ok("middlewares: [bothy-ops-strip, ops-deidentify, sso-viewer, sso-errors]" in r2, "with the op's role gate (sso-viewer)")
+ok("Host(" not in r2 and "PathPrefix" not in r2 and "{{" not in r2, "and never a Host() rule, a prefix or a template brace")
+r = subprocess.run([sys.executable, GEN, "--check", "--out", gen2], capture_output=True, text=True,
+                   env={**os.environ, "OPERATIONS_CATALOG": alt2})
+ok(r.returncode == 0, "the drift check holds a catalog that has an edge-exposed op")
+OPR = SESSION.replace('role = "viewer"\neffect = "read"\nconfirm = "none"\ncallers = ["web", "cli", "mcp", "system"]\nmcp = { tool = "bothy_status"',
+                      'role = "operator"\neffect = "read"\nconfirm = "none"\ncallers = ["web", "cli", "mcp", "system"]\nmcp = { tool = "bothy_status"', 1)
+ok(OPR != SESSION, "(fixture: the same op at the operator role)")
+alt3 = os.path.join(tmp, "operator.toml")
+open(alt3, "w", encoding="utf-8").write(OPR)
+r = subprocess.run([sys.executable, GEN, "--out", os.path.join(tmp, "gen3")], capture_output=True, text=True,
+                   env={**os.environ, "OPERATIONS_CATALOG": alt3})
+r3 = open(os.path.join(tmp, "gen3", "edge-routers.v1.yml"), encoding="utf-8").read()
+ok("sso-operator" in r3 and "sso-viewer" not in r3, "an operator-role op is routed behind sso-operator, not sso-viewer")
+TOK = src.replace('audit = "v1.status"', 'audit = "v1.status"\nexposure = ["token"]', 1)
+alt4 = os.path.join(tmp, "token.toml")
+open(alt4, "w", encoding="utf-8").write(TOK)
+subprocess.run([sys.executable, GEN, "--out", os.path.join(tmp, "gen4")], capture_output=True, text=True,
+               env={**os.environ, "OPERATIONS_CATALOG": alt4})
+r4 = open(os.path.join(tmp, "gen4", "edge-routers.v1.yml"), encoding="utf-8").read()
+ok(len(re.findall(r'rule: "Path\(`/-/api/v1/status`\)"', r4)) == 1 and "sso-viewer" not in r4 and "[bothy-ops-strip, ops-deidentify, sso-errors]" in r4,
+   "a token op is one exact Path() router with no cookie gate (the service verifies the bearer)")
+oa2 = json.loads(open(os.path.join(gen2, "openapi.v1.json"), encoding="utf-8").read())
+ok(oa2["paths"]["/-/api/v1/status"]["get"]["x-bothy"]["exposure"] == ["session"]
+   and oa["paths"]["/-/api/v1/status"]["get"]["x-bothy"]["exposure"] == ["socket"], "OpenAPI states each op's exposure")
 
 print()
 print("── THE LOADER REFUSES what slice 1 must not serve ───────────────")
@@ -131,6 +179,19 @@ refuses("an unknown key", lambda s: s.replace('audit = "v1.job.get"', 'audit = "
 refuses("a duplicate MCP tool", lambda s: s.replace('tool = "bothy_job_get"', 'tool = "bothy_status"', 1), "")
 refuses("a write-scoped MCP tool", lambda s: s.replace('scope = "read"', 'scope = "write"', 1), "")
 refuses("an untrusted source that is not declared", lambda s: s.replace('source = "ci"', 'source = "mystery"', 1), "")
+
+def with_exposure(v: str):
+    return lambda s: s.replace('audit = "v1.status"', f'audit = "v1.status"\nexposure = {v}', 1)
+
+
+refuses("an unknown exposure", with_exposure('["socket", "carrier-pigeon"]'), "exposure must be")
+refuses("an empty exposure", with_exposure("[]"), "exposure must be")
+refuses("a string exposure", with_exposure('"socket"'), "exposure must be")
+refuses("a repeated exposure", with_exposure('["socket", "socket"]'), "exposure must be")
+refuses("session and token together", with_exposure('["session", "token"]'), "session and token")
+p = os.path.join(tmp, "ok.toml")
+open(p, "w", encoding="utf-8").write(with_exposure('["socket", "session"]')(src))
+ok(opscatalog.load(p)["ops"]["status"]["exposure"] == ["socket", "session"], "control: a valid list loads, in order")
 opscatalog.READ_ONLY_SLICE = False
 try:
     p = os.path.join(tmp, "w.toml")
@@ -166,6 +227,41 @@ PROSE = re.compile(r"(error|reason|note|detail|message|text|drift|why|value|log)
 leaks = [f"{oid}:{p}" for oid, o in cat["ops"].items() for p in strings(o["output"])
          if PROSE.search(p.split(".")[-1]) and f"{oid}:{p}" not in SERVER_AUTHORED]
 ok(not leaks, f"no prose-named field is a plain string in any output schema: {leaks}")
+
+print()
+print("── CALLER: one identity object, one adapter per credential kind ─")
+import caller  # noqa: E402
+
+H_EDGE = {"X-Auth-Request-Email": "v@example.com"}
+c = caller.from_request({}, "viewer")
+ok(c == caller.Caller("socket", "viewer", (), None), f"no credential: the local channel is kind socket, a viewer: {c}")
+c = caller.from_request(H_EDGE, "operator")
+ok(c.kind == "session" and c.role == "operator" and c.token_id is None, f"an edge identity is kind session, at the role the edge gated: {c}")
+for hostile in ({"X-Bothy-Role": "operator"}, {"X-Role": "operator"}, {"X-Auth-Request-Groups": "operator"},
+                {"X-Auth-Request-Role": "operator"}, {"Role": "operator"}, {"X-Forwarded-Role": "operator"}):
+    ok(caller.from_request(hostile, "viewer").role == "viewer"
+       and caller.from_request({**H_EDGE, **hostile}, "viewer").role == "viewer",
+       f"the role is never a request field: {list(hostile)[0]}: operator is ignored by the socket and session adapters")
+for h in ({"Authorization": "Bearer abc"}, {"Authorization": "Basic Zm9vOmJhcg=="}, {**H_EDGE, "Authorization": "Bearer abc"}):
+    try:
+        caller.from_request(h, "viewer")
+        ok(False, f"the token stub refuses: {list(h)}")
+    except caller.Unauthenticated:
+        ok(True, f"the token adapter is a stub that always refuses (even beside a session): {sorted(h)}")
+try:
+    caller.session({}, "viewer")
+    ok(False, "a session adapter with no edge identity refuses")
+except caller.Unauthenticated:
+    ok(True, "a session adapter with no edge identity refuses")
+ok(caller.system("viewer") == caller.Caller("system", "viewer") and caller.from_request({}, "viewer").kind != "system",
+   "system exists for in-process host code and is never what a request becomes")
+ok(set(caller.EXPOSURES) == set(opscatalog.EXPOSURES) and "system" not in caller.EXPOSURES
+   and set(caller.KINDS) == set(caller.EXPOSURES) | {"system"}, "the exposure vocabulary is the Caller kinds minus system, in both modules")
+try:
+    caller.Caller("socket", "viewer").role = "operator"
+    ok(False, "a Caller is immutable")
+except Exception:  # noqa: BLE001  (FrozenInstanceError)
+    ok(True, "a Caller is immutable: an operation cannot raise its own role")
 
 shutil.rmtree(tmp)
 print()

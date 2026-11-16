@@ -24,6 +24,9 @@
           "cli": "status",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "status",
           "idempotent": true,
           "input": {},
@@ -47,6 +50,9 @@
           "cli": "module list",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "module.list",
           "idempotent": true,
           "input": {},
@@ -70,6 +76,9 @@
           "cli": "update status",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "update.status",
           "idempotent": true,
           "input": {},
@@ -93,6 +102,9 @@
           "cli": "update plan",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "update.plan",
           "idempotent": true,
           "input": {
@@ -127,6 +139,9 @@
           "cli": "update history",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "update.history",
           "idempotent": true,
           "input": {
@@ -161,6 +176,9 @@
           "cli": "job show",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "job.get",
           "idempotent": true,
           "input": {
@@ -190,6 +208,9 @@
           "cli": "events",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "events.query",
           "idempotent": true,
           "input": {
@@ -230,6 +251,9 @@
           "cli": "settings get",
           "confirm": "none",
           "effect": "read",
+          "exposure": [
+            "socket"
+          ],
           "id": "settings.get",
           "idempotent": true,
           "input": {

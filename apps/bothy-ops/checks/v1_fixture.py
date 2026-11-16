@@ -340,7 +340,7 @@ def call(w: World, path: str, method: str = "GET", headers: dict | None = None, 
     """(status, headers, parsed body) for one request to the real handler. `path` is the PUBLIC path."""
     assert path.startswith("/-/api/"), path
     req = urllib.request.Request(w.base + path[len("/-/api"):], method=method, data=body,
-                                 headers={"X-Auth-Request-Email": "viewer@example.com", **(headers or {})})
+                                 headers=dict(headers or {}))
     if body is not None:
         req.add_header("Content-Type", "application/json")
     try:
