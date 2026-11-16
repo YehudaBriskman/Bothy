@@ -177,6 +177,12 @@ jobs:
         if: always()
         run: bash scripts/checks/recipe-descriptions.sh
 
+      # A file COPY'd by an apps/ Dockerfile but missing from apps/.dockerignore's allowlist
+      # only failed in the image build, in CI. Twice in a row.
+      - name: Image build contexts list every COPY source
+        if: always()
+        run: bash scripts/checks/docker-context.sh
+
       # scripts/bothy dispatches most subcommands to a just recipe. Rename a
       # recipe and nothing complains until somebody runs the CLI - the break is
       # in one file and surfaces in another.

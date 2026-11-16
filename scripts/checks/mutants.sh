@@ -573,6 +573,36 @@ mutant "the read-only switch of the operation catalog is off" \
   'READ_ONLY_SLICE = False' \
   -- python3 apps/bothy-ops/checks/test_v1_catalog.py
 
+# D42: exposure is data. The channel check is what makes a socket-only op unreachable over the edge
+# (and a session-only op unreachable on the socket); without it the catalog field is decoration.
+mutant "the exposure check of an op is removed" \
+  apps/bothy-ops/v1api.py \
+  'if who_is.kind not in op["exposure"]:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/api_v1_contract.py
+
+# ...and the generator half: every op routed, whatever it lists, would put socket-only ops on the edge.
+mutant "the generator routes an op that is not edge-exposed" \
+  scripts/gen-ops-v1.py \
+  'return any(x in caller.EDGE_EXPOSURES for x in e["exposure"])' \
+  'return True' \
+  -- python3 apps/bothy-ops/checks/test_v1_catalog.py
+
+# D41: the role comes from the credential, never a request field. A socket adapter that believed
+# X-Bothy-Role would let any caller on opsnet name itself operator.
+mutant "a Caller's role is taken from a header the client sets" \
+  apps/bothy-ops/caller.py \
+  'return Caller("socket", SOCKET_ROLE)' \
+  'return Caller("socket", _headers.get("X-Bothy-Role", SOCKET_ROLE))' \
+  -- python3 apps/bothy-ops/checks/test_v1_catalog.py
+
+# The token adapter is a stub that refuses; one that accepted anything would be a login for everyone.
+mutant "the token adapter stops refusing" \
+  apps/bothy-ops/caller.py \
+  '    raise Unauthenticated("bearer tokens are not accepted yet (they arrive with slice 2)")' \
+  '    return Caller("token", "operator")' \
+  -- python3 apps/bothy-ops/checks/test_v1_catalog.py
+
 # T8: an unchanged VERSION is what release.yml waits for. Skipping that test would blame CI (or
 # nothing) for a release that was never going to be cut.
 mutant "unreleased stops saying the version was not bumped" \

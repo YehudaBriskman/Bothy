@@ -27,9 +27,10 @@ Like every bothy-ops route, role gating is the EDGE's (a router with sso-viewer)
 authenticates nobody and reachability is authorisation (SECURITY.md rule 2). What this layer
 adds, because the plan's T3 asks for it and a router can be mis-edited: (1) EVERY method but GET
 on /v1/* is refused auth.forbidden, whatever the path, role or body, before the path is even
-looked up - there is no write route to find, in the catalog or here; (2) an op whose role the
-caller does not hold is refused (every slice-1 op is `viewer`, and the caller is a viewer: the
-edge only forwards what passed its gate, and tokens are slice 2); (3) CSRF on a GET is the same
+looked up - there is no write route to find, in the catalog or here; (2) every request becomes a
+`Caller` (caller.py, decision D41), an op whose `exposure` (decision D42) does not list the Caller's
+kind is refused auth.forbidden, and so is one whose role the Caller does not hold (bearer tokens
+are slice 2: the token adapter refuses auth.unauthenticated); (3) CSRF on a GET is the same
 Sec-Fetch-Site rule as every route.
 
 ── what no field here may be ────────────────────────────────────────────────
@@ -49,6 +50,7 @@ import time
 import types
 from urllib.parse import urlparse
 
+import caller as callers
 import opscatalog
 import updates
 from bothy_common.http import Refused
@@ -63,7 +65,6 @@ CATALOG: dict | None = None
 # directory, and the plan gives decryption to the host alone. Unwired -> unavailable.source, said
 # out loud, rather than an empty answer that reads as "no such setting".
 SETTINGS = None
-CALLER_ROLE = "viewer"      # slice 1: the edge only forwards what passed sso-viewer (or better)
 
 new_request_id = lambda: "r_" + secrets.token_hex(8)  # noqa: E731  (a check pins it)
 
@@ -118,7 +119,7 @@ def _shim(path: str) -> types.SimpleNamespace:
     return types.SimpleNamespace(path=path)
 
 
-def op_status(_p: dict) -> dict:
+def op_status(caller: callers.Caller, _p: dict) -> dict:
     _need_updates()
     st = updates.status(updates.CATALOG)
     s = st["summary"]
@@ -146,7 +147,7 @@ def op_status(_p: dict) -> dict:
             "needsAttention": attention[:50]}
 
 
-def op_module_list(_p: dict) -> dict:
+def op_module_list(caller: callers.Caller, _p: dict) -> dict:
     _need_updates()
     by: dict[str, list] = {}
     for c in updates.CATALOG.components.values():
@@ -160,7 +161,7 @@ def op_module_list(_p: dict) -> dict:
     return {"source": "update-catalog", "modules": mods}
 
 
-def op_update_status(_p: dict) -> dict:
+def op_update_status(caller: callers.Caller, _p: dict) -> dict:
     _need_updates()
     return updates.status(updates.CATALOG)
 
@@ -196,7 +197,7 @@ def _scope(cid: str, component_plan: dict | None) -> dict | None:
     return None
 
 
-def op_update_plan(p: dict) -> dict:
+def op_update_plan(caller: callers.Caller, p: dict) -> dict:
     _need_updates()
     try:
         if "group" in p:
@@ -208,7 +209,7 @@ def op_update_plan(p: dict) -> dict:
     return {"target": "component", **body, "scope": _scope(p["component"], body["plan"])}
 
 
-def op_update_history(p: dict) -> dict:
+def op_update_history(caller: callers.Caller, p: dict) -> dict:
     _need_updates()
     jobs = updates._history(1000)
     if "component" in p:
@@ -216,7 +217,7 @@ def op_update_history(p: dict) -> dict:
     return {"jobs": jobs[:p["limit"]]}
 
 
-def op_job_get(p: dict) -> dict:
+def op_job_get(caller: callers.Caller, p: dict) -> dict:
     _need_updates()
     try:
         body, _ = updates.job_read(_shim(f"/updates/job?id={p['id']}"))
@@ -230,7 +231,7 @@ def _event(j: dict) -> dict:
             "type": "job", "component": j["component"], "job_id": j["id"], "state": j["state"], "text": j["error"]}
 
 
-def op_events_query(p: dict) -> dict:
+def op_events_query(caller: callers.Caller, p: dict) -> dict:
     _need_updates()
     evs = [_event(j) for j in reversed(updates._history(1000))]      # oldest first
     start = 0
@@ -245,7 +246,7 @@ def op_events_query(p: dict) -> dict:
             "more": start + len(page) < len(evs)}
 
 
-def op_settings_get(p: dict) -> dict:
+def op_settings_get(caller: callers.Caller, p: dict) -> dict:
     if SETTINGS is None:
         raise ApiError("unavailable.source", 503, "the settings store is not connected to this service",
                        {"slice": 1}, "settings are read on the host: `bothy settings get` (slice 2 wires this route)")
@@ -273,14 +274,14 @@ ADAPTERS = {"status": op_status, "module.list": op_module_list, "update.status":
             "events.query": op_events_query, "settings.get": op_settings_get}
 
 
-def op_discover(_p: dict) -> dict:
+def op_discover(caller: callers.Caller, _p: dict) -> dict:
     cat = CATALOG
     ops = []
     for o in cat["ops"].values():
         ops.append({"id": o["id"], "title": o["title"], "method": o["method"], "path": o["path"], "role": o["role"],
                     "effect": o["effect"], "confirm": o["confirm"], "callers": o["callers"],
                     "idempotent": o["idempotent"], "audit": o["audit"], "cli": o.get("cli", ""),
-                    "mcp": o.get("mcp"), "input": o["input"]})
+                    "mcp": o.get("mcp"), "exposure": o["exposure"], "input": o["input"]})
     return {"serverVersion": server_version(), "apiVersion": cat["api"]["version"], "minClient": cat["api"]["min_client"],
             "ops": ops,
             # "A request is a component id from a closed catalog, never a string" (doc 1.3): the closed set,
@@ -316,6 +317,14 @@ def _audit(who: str, outcome: str, kind: str, detail: str, t0: float) -> None:
     updates.LOG.write(who, outcome, kind, detail, f"{int((time.monotonic() - t0) * 1000)}ms")
 
 
+def resolve_caller(h, op: dict) -> callers.Caller:
+    """The Caller for this request, built by an adapter; the role never comes from a request field."""
+    try:
+        return callers.from_request(h.headers, op["role"])
+    except callers.Unauthenticated as e:
+        raise ApiError("auth.unauthenticated", 401, str(e)) from None
+
+
 def handle(h, method: str) -> None:
     """Every request under /v1/. `h` is bothy-ops' JsonHandler."""
     t0 = time.monotonic()
@@ -341,7 +350,11 @@ def handle(h, method: str) -> None:
             h.check_csrf("GET")
         except Refused as e:
             raise ApiError("auth.forbidden", 403, str(e)) from None
-        if not opscatalog.role_allows(cat, CALLER_ROLE, op["role"]):
+        who_is = resolve_caller(h, op)
+        if who_is.kind not in op["exposure"]:
+            raise ApiError("auth.forbidden", 403, "this operation is not offered on this channel",
+                           {"channel": who_is.kind, "exposure": op["exposure"]})
+        if not opscatalog.role_allows(cat, who_is.role, op["role"]):
             raise ApiError("auth.forbidden", 403, f"this operation needs the {op['role']} role",
                            {"required": op["role"]})
         try:
@@ -349,9 +362,9 @@ def handle(h, method: str) -> None:
         except opscatalog.InvalidInput as e:
             raise ApiError("request.invalid", 400, str(e), e.details) from None
         if op["id"] == "discover":
-            data = op_discover(params)
+            data = op_discover(who_is, params)
         else:
-            data = ADAPTERS[op["id"]](params)
+            data = ADAPTERS[op["id"]](who_is, params)
         data = opscatalog.sanitize_deep(opscatalog.wrap_untrusted(op["output"], data))
         detail = f"{params.get('module')}.{params.get('key')}" if op["id"] == "settings.get" else "ok"
         _audit(who, "READ", kind, detail, t0)

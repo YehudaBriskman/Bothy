@@ -27,6 +27,12 @@
 #   effect     read | tighten | loosen | destructive | host-only (only `read` exists)
 #   confirm    none | click | type-name | host
 #   callers    which surfaces may call it at all: web | cli | mcp | system
+#   exposure   which CHANNELS reach it (D42): a non-empty list of socket | session | token,
+#              default ["socket"] (the local socket: no edge route). The generator emits an
+#              edge router ONLY for an op listing "session" (cookie gate, sso-<role>) or
+#              "token" (the service verifies a bearer token itself); v1api.py refuses a
+#              Caller whose kind (caller.py, D41) is not listed. Not both session and token.
+#              Opening an op to a channel is this one line plus `just ops-v1`.
 #   mcp        { tool, scope } - a tool exists ONLY for an op that has this
 #   cli        the verb words, e.g. "update plan"
 #   audit      the audit KIND written for every call (the executor's row schema
@@ -74,7 +80,7 @@ callers = ["web", "cli", "system"]
 cli = "version"
 audit = "v1.discover"
 idempotent = true
-output = { type = "object", required = ["serverVersion", "apiVersion", "minClient", "ops", "enums"], properties = { enums = { type = "object", required = ["component"], properties = { component = { type = "array", items = { type = "string" } } } }, serverVersion = { type = "string" }, apiVersion = { type = "integer" }, minClient = { type = "string" }, ops = { type = "array", items = { type = "object", required = ["id", "method", "path", "role", "effect", "confirm", "callers", "audit"], properties = { id = { type = "string" }, title = { type = "string" }, method = { type = "string", enum = ["GET"] }, path = { type = "string" }, role = { type = "string" }, effect = { type = "string" }, confirm = { type = "string" }, callers = { type = "array", items = { type = "string" } }, idempotent = { type = "boolean" }, audit = { type = "string" }, cli = { type = "string" }, mcp = { type = ["object", "null"] }, input = { type = "object" } } } } } }
+output = { type = "object", required = ["serverVersion", "apiVersion", "minClient", "ops", "enums"], properties = { enums = { type = "object", required = ["component"], properties = { component = { type = "array", items = { type = "string" } } } }, serverVersion = { type = "string" }, apiVersion = { type = "integer" }, minClient = { type = "string" }, ops = { type = "array", items = { type = "object", required = ["id", "method", "path", "role", "effect", "confirm", "callers", "exposure", "audit"], properties = { id = { type = "string" }, title = { type = "string" }, method = { type = "string", enum = ["GET"] }, path = { type = "string" }, role = { type = "string" }, effect = { type = "string" }, confirm = { type = "string" }, callers = { type = "array", items = { type = "string" } }, exposure = { type = "array", items = { type = "string", enum = ["socket", "session", "token"] } }, idempotent = { type = "boolean" }, audit = { type = "string" }, cli = { type = "string" }, mcp = { type = ["object", "null"] }, input = { type = "object" } } } } } }
 
 # ── 1. status ────────────────────────────────────────────────────────────────
 [ops."status"]

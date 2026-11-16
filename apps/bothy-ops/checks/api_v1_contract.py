@@ -22,6 +22,11 @@ handler serves on a loopback port. Pinned here:
               page uses) for a stateless, a database (app-db, one-way) and a grouped component,
               and `scope.group-available` is present exactly for the grouped ones
   T8          update.status's bothy row carries `unreleased` (5 commits past the tag, version-not-bumped)
+  CALLER      D41/D42: every request becomes a Caller; an op is served only on a channel its `exposure`
+              lists. The HTTP listener is kind `socket` unless the edge's identity header is present
+              (then `session`); a socket-only op over the edge is 403 auth.forbidden; a bearer token is
+              401 auth.unauthenticated; no request field (X-Bothy-Role...) ever sets a role; discover
+              lists each op's exposure
   SETTINGS    a secret's value is in no byte of any response or audit line, even from a hostile reader
               that sets one; an unwired store is 503 unavailable.source, an unregistered key 404
 """
@@ -68,8 +73,7 @@ def tree() -> dict:
 
 
 def raw(path: str, headers: dict | None = None) -> bytes:
-    req = urllib.request.Request(w.base + path[len("/-/api"):], headers={"X-Auth-Request-Email": "v@example.com",
-                                                                         **(headers or {})})
+    req = urllib.request.Request(w.base + path[len("/-/api"):], headers=dict(headers or {}))
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.read()
@@ -270,6 +274,58 @@ ok(st == 503 and e["error"]["code"] == "unavailable.source", "an unwired store i
 w.v1api.set_settings_reader(fx.FakeStore())
 
 print()
+print("── CALLER and EXPOSURE: who is asking, and on which channel ─────")
+EDGE = {"X-Auth-Request-Email": "viewer@example.com"}
+st, _, b = call("/-/api/v1/status")
+ok(st == 200 and b["ok"], "the HTTP listener with no edge identity is the local channel (socket): a socket op is served")
+st, _, e = call("/-/api/v1/status", headers=EDGE)
+ok(st == 403 and e["error"]["code"] == "auth.forbidden" and e["error"]["details"] == {"channel": "session", "exposure": ["socket"]},
+   "the same socket-only op arriving WITH the edge identity (kind session) is auth.forbidden, naming channel and exposure")
+st, _, e = call("/-/api/v1/status", headers={**EDGE, "X-Bothy-Role": "operator", "X-Auth-Request-Groups": "operator"})
+ok(st == 403, "…and forged role headers do not change that")
+for h in ({"Authorization": "Bearer abc.def.ghi"}, {**EDGE, "Authorization": "Bearer abc.def.ghi"}):
+    st, _, e = call("/-/api/v1/status", headers=h)
+    ok(st == 401 and e["error"]["code"] == "auth.unauthenticated" and "abc.def.ghi" not in json.dumps(e),
+       "a bearer token is auth.unauthenticated 401 (the stub always refuses) and is never echoed")
+st, _, e = call("/-/api/v1/discover", headers=EDGE)
+ok(st == 403, "discover is an op like any other: socket-only, refused over the edge too")
+
+
+class Exposed:
+    """Change one op's exposure and role IN MEMORY for a block; always restore."""
+
+    def __init__(self, oid, exposure=None, role=None):
+        self.o, self.exposure, self.role = cat["ops"][oid], exposure, role
+
+    def __enter__(self):
+        self.old = (self.o["exposure"], self.o["role"])
+        self.o["exposure"] = self.exposure or self.o["exposure"]
+        self.o["role"] = self.role or self.o["role"]
+
+    def __exit__(self, *a):
+        self.o["exposure"], self.o["role"] = self.old
+
+
+with Exposed("status", ["session"]):
+    st, _, b = call("/-/api/v1/status", headers=EDGE)
+    ok(st == 200 and b["ok"], "an op that lists session is served to a session")
+    st, _, e = call("/-/api/v1/status")
+    ok(st == 403 and e["error"]["details"]["channel"] == "socket", "…and refused on the socket (the channel must be listed)")
+with Exposed("status", ["socket", "session"]):
+    ok(call("/-/api/v1/status")[0] == 200 and call("/-/api/v1/status", headers=EDGE)[0] == 200, "listing both serves both")
+with Exposed("status", ["token"]):
+    ok(call("/-/api/v1/status")[0] == 403 and call("/-/api/v1/status", headers=EDGE)[0] == 403
+       and call("/-/api/v1/status", headers={"Authorization": "Bearer x"})[0] == 401,
+       "a token-only op: no socket, no session, and the token adapter refuses (slice 2)")
+with Exposed("status", role="operator"):
+    st, _, e = call("/-/api/v1/status", headers={"X-Bothy-Role": "operator", "X-Auth-Request-Role": "operator"})
+    ok(st == 403 and e["error"]["details"] == {"required": "operator"},
+       "the role is never taken from a header the client sets: a socket caller claiming operator is still a viewer")
+ok(call("/-/api/v1/status")[0] == 200, "(the in-memory edits are restored)")
+st, _, e = call("/-/api/v1/status", method="POST", headers={"Authorization": "Bearer x"})
+ok(st == 403 and e["error"]["code"] == "auth.forbidden", "the read-only gate still answers first: a POST with a token is auth.forbidden, not 401")
+
+print()
 print("── DISCOVER: what a client reads before it asks ─────────────────")
 _, _, dv = call("/-/api/v1/discover")
 dd = dv["data"]
@@ -278,6 +334,7 @@ ok(dd["apiVersion"] == 1 and dd["minClient"] == cat["api"]["min_client"] and dd[
 ok([o["id"] for o in dd["ops"]] == [o for o in cat["ops"]], "the eight ops, in catalog order")
 ok(dd["enums"]["component"] == sorted(updates.CATALOG.components), "the closed component set a client may complete from")
 ok(all(o["method"] == "GET" and o["effect"] == "read" for o in dd["ops"]), "every listed op is a read")
+ok(all(o["exposure"] == cat["ops"][o["id"]]["exposure"] == ["socket"] for o in dd["ops"]), "every listed op states its exposure (socket)")
 
 print()
 print(f"{len(fails)} failed" if fails else "all passed")
