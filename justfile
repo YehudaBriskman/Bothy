@@ -819,6 +819,8 @@ urls:
     echo "                                           these directly, so it must stay"
     echo "                                           0.0.0.0-bound, not loopback)"
     echo "    Tals frontend http://$IP:5173         (ports in Tals' .ports.lock)"
+    echo "    AI Team Site  http://$IP:3020         (~/projects/army/ai-team-site, compose;"
+    echo "                                           its Postgres is loopback :5433)"
     echo "    Tals pre-prod  http://$IP:31080        (minikube profile thales-scc, namespace"
     echo "                                           thales-pre-prod; break-glass login)"
     echo "    Tals dev       http://$IP:31081        (namespace thales-dev; seeded, demo logins)"
