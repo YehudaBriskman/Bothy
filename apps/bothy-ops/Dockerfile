@@ -12,7 +12,7 @@
 # No docker CLI and no kubectl, and the omissions are the design. This container
 # has no socket and a token that cannot exec; installing a binary that speaks the
 # whole API would leave the next person one wiring change away from using it.
-FROM python:3.15-alpine@sha256:a0f2e268f2ce8f3709611a90054ec6a8ae31f6251f5896b8648b9bb99835e30a
+FROM python:3.15-alpine@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
 
 WORKDIR /app
 
