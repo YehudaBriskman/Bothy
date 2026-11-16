@@ -559,8 +559,8 @@ echo "── one log shipper, one version ────────────�
 # as caught. The substitute version just has to differ from the pin.
 mutant "Alloy moves in compose but not in the manifest" \
   monitoring/compose.yml \
-  'image: grafana/alloy:v1.21.3' \
   'image: grafana/alloy:v1.22.0' \
+  'image: grafana/alloy:v1.23.0' \
   -- bash scripts/checks/alloy-pins.sh
 
 # The cluster e2e's constants, one row per source they are copied from. Each is
