@@ -529,6 +529,7 @@ ops-wiring mode="":
 
 # Regenerate the v1 control-plane outputs (inert edge routers, OpenAPI, MCP tools, CLI verbs) from
 # apps/bothy-ops/operations.toml. `check` only diffs (T1; CI runs that).
+# Regenerate the v1 control-plane outputs from the operation catalog (or `check` that they match).
 ops-v1 mode="":
     @python3 scripts/gen-ops-v1.py {{ if mode == "check" { "--check" } else { "" } }}
 

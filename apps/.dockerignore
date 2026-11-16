@@ -25,3 +25,6 @@
 !bothy-ops/catalog.toml
 !bothy-ops/updates.py
 !bothy-ops/updates.toml
+!bothy-ops/opscatalog.py
+!bothy-ops/v1api.py
+!bothy-ops/operations.toml
