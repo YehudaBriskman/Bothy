@@ -383,6 +383,11 @@ def write_all(cfg: Config | None = None, catalog: updates.Catalog | None = None,
     from . import configvalue
     for cid, v in configvalue.write_all(cfg, catalog, available).items():
         out[f"config {cid}"] = v
+    if any(c.cls == "own-code" for c in catalog.components.values()):
+        # The own-code row's "main is N commits ahead of the last release" fact
+        # (doc 4.2). From local refs only; it never raises and adds no key to `out`.
+        from . import owncode
+        owncode.write_unreleased(cfg)
     return out
 
 

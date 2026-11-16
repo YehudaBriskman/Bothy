@@ -1258,6 +1258,9 @@ def status(catalog: Catalog) -> dict:
             # the live values and the locked keys' reasons - are the host's, read
             # lazily through GET /updates/plan?config=.
             "configKeys": len(catalog.config_keys_of(c.id)),
+            # Only the own-code row: how far main is past the release it is
+            # compared with (doc 4.2). A fact, never an offer to deploy main.
+            **({"unreleased": _unreleased()} if c.cls == "own-code" else {}),
         })
     in_group = {c for g in groups if g["deployable"] for c in g["candidates"]}
     for r in rows:
@@ -1509,6 +1512,33 @@ def _own(o: dict) -> dict:
         "rollbackAfter": num(o.get("rollbackAfter")),
         "order": [a for a in _strs_list(o.get("order"), 3, 20) if a in _OWN_APPS],
     }
+
+
+RELEASE_BLOCKERS = ("none", "ci-red", "install-red", "upgrade-red", "version-not-bumped", "unknown")
+
+
+def _unreleased() -> dict | None:
+    """The own-code row's "main is N commits past the last release" fact (doc 4.2).
+
+    Written by the host (updater/owncode.write_unreleased) from local refs, read
+    here through the allow-list like everything else in the read-only mount. None
+    when the host has not written one: the row then simply has no fact, which is
+    different from "0 commits ahead" and must not read as it.
+    """
+    doc = _read_json(os.path.join(UPDATES_DIR, "unreleased.json"), 16 * 1024)
+    if not isinstance(doc, dict) or doc.get("version") != 1 or not isinstance(doc.get("fact"), dict):
+        return None
+    f = doc["fact"]
+    n = f.get("commits_ahead")
+    tip = f.get("latest_main")
+    return {"commits_ahead": n if isinstance(n, int) and not isinstance(n, bool) and n >= 0 else None,
+            "since_tag": f["since_tag"] if isinstance(f.get("since_tag"), str) and _TAG.fullmatch(f["since_tag"])
+            else None,
+            "latest_main": tip if isinstance(tip, str) and re.fullmatch(r"[a-f0-9]{7}", tip) else None,
+            "release_blocked_by": f["release_blocked_by"] if f.get("release_blocked_by") in RELEASE_BLOCKERS
+            else "unknown",
+            "last_tag_attempt": _s(f.get("last_tag_attempt"), 200),
+            "generatedAt": _iso_or_none(doc.get("generatedAt"))}
 
 
 def _updater() -> dict | None:
