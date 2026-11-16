@@ -573,16 +573,16 @@ mutant "VictoriaMetrics moves but the e2e constant does not" \
 
 mutant "the kube-state-metrics chart moves but the e2e constant does not" \
   k8s/monitoring/Chart.yaml \
-  'version: 8.8.0' \
-  'version: 8.9.0' \
+  'version: 9.0.1' \
+  'version: 9.1.0' \
   -- bash scripts/checks/e2e-pins.sh
 
 # A rollback test whose two versions are equal passes by asserting nothing: it
 # "rolls back" to the version it is already on and every assertion holds.
 mutant "the e2e rollback target equals the version it upgrades to" \
   apps/bothy-ops/checks/e2e_cluster.py \
-  'KSM_OLD, KSM_NEW = "8.6.0", "8.8.0"' \
-  'KSM_OLD, KSM_NEW = "8.8.0", "8.8.0"' \
+  'KSM_OLD, KSM_NEW = "8.8.0", "9.0.1"' \
+  'KSM_OLD, KSM_NEW = "9.0.1", "9.0.1"' \
   -- bash scripts/checks/e2e-pins.sh
 
 # The fixture was a literal while the constant moved, so the plan the test built
