@@ -1,6 +1,6 @@
 # Mode names
 
-_Status: **options, owner to pick.** Written 2026-11-16 after the owner asked for fun,
+_Status: **decided 2026-11-16: Set C** (Bivvy / Bothy / Basecamp / Cairn, playful voice in the microcopy). Written 2026-11-16 after the owner asked for fun,
 characterful names, and for `files` to be in the default._
 
 ## 1. Constraints (so fun does not hide information)
