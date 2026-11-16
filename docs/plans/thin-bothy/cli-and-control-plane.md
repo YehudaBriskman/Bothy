@@ -254,6 +254,36 @@ edit the executor's account of what it did; the existing rule for `audit.log`):
 * **MCP `clientInfo` is recorded as a self-reported label**, never trusted for a decision.
 * Retention and shape of display: Settings > Audit log already pages the bothy-ops audit; it gains the `caller` column.
 
+### 1.8 How `/v1` is exposed, and who a caller is (D40 to D43)
+
+Decided by the owner's delegation on 2026-11-17: "make the system secure and easy, and adding things later must
+touch as little existing code as possible". Each decision below says what it buys for that second goal.
+
+* **D40. Slice 1 does not route `/v1` at the edge.** The first slice is read-only and its service authenticates
+  nobody (the edge gates, bothy-ops trusts the edge). A new network path needs a credential the service can verify
+  itself, and that does not exist until slice 2. So in slice 1 the CLI on the box talks to the host socket
+  (peer credential), and a remote operator runs `ssh <box> bothy ...` (Tailscale SSH is already the access path;
+  `bothy mcp` is already designed to run that way). **Why:** zero new network surface now, and the generated
+  routers in `apps/bothy-ops/generated/` stay inert, so no router count in SECURITY.md, the README or the guide moves.
+* **D41. One identity object, one adapter per credential kind.** Every request is turned into
+  `Caller{kind, role, scopes, token_id}` at the door, by an adapter: `session` (the edge's forward-auth result),
+  `token` (a verified bearer token), `socket` (peer uid), `system` (the night job). Operations see only the
+  `Caller`. The role is read from the verified credential and never from a request field. **Why:** a new way to
+  log in (a device-grant CLI login, a Tailscale node identity, a CI key) is one new adapter and no change to any
+  operation, the catalog or the web UI.
+* **D42. Exposure is data.** `operations.toml` gains `exposure = ["socket"]` (the default) with `"session"` and
+  `"token"` as the other values. The generator emits an edge router only for an op that lists an edge exposure, and
+  the existing drift check holds the result. **Why:** adding an operation, or opening one to a new channel, is a
+  catalog edit plus `just ops-v1`; no handler, router file, CLI verb or MCP tool is written by hand. Documents
+  state the router **invariant** (zero Host rules, exact `Path()` only) and not a total, so growth does not
+  force prose edits.
+* **D43. Token authentication is slice 2, read tokens first.** `bothy token create` is host-only (the socket);
+  tokens are stored as SHA-256 digests, carry a role and an optional op allow-list, and are verified **inside
+  bothy-ops** (not by an edge middleware, so the secret never sits in dumpable router config; see the Traefik
+  rule in `claude-notes`). The first routed ops are the eight read ops with `exposure = ["socket","token"]`; writes
+  wait for the approval design. The "no bearer token over plain HTTP" rule already admits the Tailscale range
+  (RFC 6598), where the transport is encrypted.
+
 ## 2. The CLI
 
 ### 2.1 Language and packaging: the decision, with evidence
@@ -842,7 +872,7 @@ carries the API version. Fallback: generate the Go types from the OpenAPI docume
 
 ## 7. Decisions for the owner
 
-Numbered to continue `README.md` (D1 to D14). **Accepted by the owner on 2026-11-16 ("yes, go on" to this table as written): D15 to D28 are decided with the recommendation in each row.** The "if the owner disagrees" column stays as the record of what the alternative would have cost. Anything the owner wants changed later is a new decision, not an edit to this one.
+Numbered to continue `README.md` (D1 to D14). **Accepted by the owner on 2026-11-16 ("yes, go on" to this table as written): D15 to D28 are decided with the recommendation in each row. D15 was re-examined and kept on 2026-11-17 (`cli-language-reassessment.md`). D40 to D43 are in s1.8.** The "if the owner disagrees" column stays as the record of what the alternative would have cost. Anything the owner wants changed later is a new decision, not an edit to this one.
 
 | # | Question | Recommendation | Evidence | If the owner disagrees |
 |---|---|---|---|---|
