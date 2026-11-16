@@ -494,7 +494,7 @@ for `type-name` plans, `--confirm <exact id>`. There is no verb that both comput
 without having shown the plan.
 
 **Tokens over plain HTTP.** The CLI refuses to send a bearer token to an `http://` URL that is not loopback or
-inside the tailnet range (`100.64.0.0/10`), unless `--insecure-http`. Access is `IP:port` over plain HTTP by
+inside the carrier-grade NAT range Tailscale assigns from (RFC 6598), unless `--insecure-http`. Access is `IP:port` over plain HTTP by
 decision, and a token on a LAN is a sniffable credential (the same reason `modes-and-modules.md` s3 warns about the
 first-run password); inside the tailnet the transport is already encrypted.
 
