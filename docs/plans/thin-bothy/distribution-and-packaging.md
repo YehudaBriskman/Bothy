@@ -1,6 +1,6 @@
 # Distribution and packaging: installing Bothy "like Chromium or VS Code"
 
-_Written 2026-11-16. Design only; nothing here is built. Status: **Proposed, needs owner** (decisions D29 to D39,
+_Written 2026-11-16. Design only; nothing here is built. Status: **Decided (owner, 2026-11-17, "good" to the recommendations as written)** (decisions D29 to D39,
 section 8). Triggered by the owner's requirement: "how will we be able to run the stuff as packages, like how we
 install chromium or vscode on linux, windows and almost everything." That challenges D27 ("platform packages, not
 in v1") in `cli-and-control-plane.md` and is answered here properly, even though building is later._
