@@ -47,6 +47,7 @@ customisable than today's "everything on, edit `.env`".
 | [install-and-bootstrap.md](install-and-bootstrap.md) | First install on WSL2, a plain Linux box, and OCI; the one-time admin; uninstall |
 | [updates-and-rollback.md](updates-and-rollback.md) | The updater when it lives in the cluster; self-update; Postgres majors; rollback |
 | [customization.md](customization.md) | How settings become Helm values; per-module overrides; third-party modules; escape hatches |
+| [../settings-store.md](../settings-store.md) | **Decision record for the settings and secrets store (D11, #316)**: options weighed, key hierarchy, schema, rotation, backup, export, threat model |
 | [security-model.md](security-model.md) | RBAC replacing the socket proxies, NetworkPolicy, secrets, the new trust boundaries |
 | [migration.md](migration.md) | Getting from Compose to k3s with the live box running at every step |
 | [testing-and-ci.md](testing-and-ci.md) | How every claim above is held by a check |
