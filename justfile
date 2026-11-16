@@ -506,6 +506,15 @@ files-check mode="":
 ops-check mode="":
     @bash apps/bothy-ops/checks/run.sh {{ if mode == "offline" { "--offline" } else { "" } }}
 
+# Checks for bothy-settings, the settings and secrets store LIBRARY (docs/plans/settings-store.md):
+# the envelope, write-only secrets, rotation with a crash at every step, backup and
+# restore, the age bundle, and that no value or key byte reaches a log, an error, an
+# audit row or a file. Every test makes its own temp dir and generated key; nothing
+# reads ~/stacks/.env. Builds apps/bothy-settings/.venv with uv on first run.
+# Checks for the settings and secrets store library (envelope, rotation, backup, leaks); needs uv, no stack.
+settings-check:
+    @bash apps/bothy-settings/checks/run.sh
+
 # Two declarations are the only hand-written cluster wiring, one per account that
 # reaches the cluster from this box. This regenerates everything derived from them:
 #   apps/bothy-ops/catalog.toml      -> the edge routers, bothy-kube's Role, the

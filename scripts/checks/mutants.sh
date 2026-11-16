@@ -2707,6 +2707,178 @@ mutant "a checkout that is not a merge is diffed anyway" \
   -- "${CHANGES_CHECK[@]}"
 
 echo
+echo "── bothy-settings: the store library (docs/plans/settings-store.md) ──"
+# Each row runs ONE test file through the harness (`--only`), so a row costs a few
+# seconds rather than the whole suite. The first run builds apps/bothy-settings/.venv.
+S=apps/bothy-settings
+
+# Record s5: the associated data binds a value to its module and key, so a ciphertext
+# copied onto another row fails to open instead of silently answering as that row.
+# Dropping the module from the AAD is the "swapped row" attack the tests must refuse.
+mutant "the value AAD stops binding the module" \
+  $S/bothy_settings/crypto.py \
+  'b"bothy/v1/value\x00" + store_id + b"\x00" + module.encode() + b"\x00" + key.encode()' \
+  'b"bothy/v1/value\x00" + store_id + b"\x00" + b"\x00" + key.encode()' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# GCM is catastrophic under a repeated (key, nonce): the guard exists so a broken or
+# patched random source is a refusal and not a quiet break. Disabling the comparison
+# is the exact failure it is there for.
+mutant "the nonce-reuse guard stops comparing" \
+  $S/bothy_settings/crypto.py \
+  'if n in self._seen:' \
+  'if False:' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# The key file is the one thing that decrypts a copy of the store. A group- or
+# world-readable one must be refused, not used with a warning.
+mutant "a group-readable key file is accepted" \
+  $S/bothy_settings/keyfile.py \
+  '        if st.st_mode & 0o077:
+            raise KeyFileModeError(f"{path} has mode' \
+  '        if False:
+            raise KeyFileModeError(f"{path} has mode' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# Record s6.1: the key DIRECTORY is 0700 and ours. A readable or group-writable one lets
+# another user see where the key is, or rename it away and plant their own.
+mutant "a key directory open to group or other is accepted" \
+  $S/bothy_settings/keyfile.py \
+  '    if st.st_mode & 0o077:
+        raise KeyFileModeError(f"key directory' \
+  '    if False:
+        raise KeyFileModeError(f"key directory' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# A second hard link keeps the key alive after it is "deleted".
+mutant "a key file with a second hard link is accepted" \
+  $S/bothy_settings/keyfile.py \
+  'if st.st_nlink != 1:' \
+  'if False:' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# A tampered row must be an AuthFailure whatever length its nonce has; AESGCM alone raises
+# ValueError for lengths outside 8..128.
+mutant "open_ stops checking the nonce length" \
+  $S/bothy_settings/crypto.py \
+  ' or len(nonce) != NONCE_LEN' \
+  '' \
+  -- bash $S/checks/run.sh --only test_primitives
+
+# A rolled-back change must leave no log line: the log is what an operator trusts
+# about what happened. Logging at the moment of the audit append, rather than after
+# COMMIT, writes a line for a change the database then refused.
+mutant "an audit line is logged before the commit" \
+  $S/bothy_settings/store.py \
+  '        self._pending_log.append(rec)' \
+  '        auditlog.emit(rec)' \
+  -- bash $S/checks/run.sh --only test_leaks
+
+# The independent copy of the audit trail must not depend on the host configuring logging.
+mutant "the audit line needs the host to configure logging" \
+  $S/bothy_settings/auditlog.py \
+  '    if not logger.hasHandlers():' \
+  '    if False:' \
+  -- bash $S/checks/run.sh --only test_logging
+
+# DEK rotation that keeps the old DEK is a rotation in name only: a leaked DEK stays good.
+mutant "DEK rotation reuses the old DEK" \
+  $S/bothy_settings/store.py \
+  '                dek = crypto.new_key()
+                nonce, ct = crypto.seal(dek, raw,' \
+  '                dek = crypto.open_(kek, bytes(r["wrap_nonce"]), bytes(r["wrapped_dek"]), crypto.aad_wrap(self._store_id, r["module"], r["key"], r["kek_id"]))
+                nonce, ct = crypto.seal(dek, raw,' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# Restore checks everything it can BEFORE touching the live store: the audit chain...
+mutant "restore stops verifying the backup's audit chain" \
+  $S/bothy_settings/store.py \
+  '        if not v.ok:
+            raise RestoreError(f"the backup' \
+  '        if False:
+            raise RestoreError(f"the backup' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# ...and that the store keys inside it unwrap (a file that hashes right but cannot be opened).
+mutant "restore stops unwrapping the backup's audit key" \
+  $S/bothy_settings/store.py \
+  '            audit_key = _unwrap_store_key(kek, kek_id, store_id, "audit_key", _meta(src, "store_key.audit_key"))' \
+  '            audit_key = b"\x00" * 32' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# The old -wal must not survive the swap: a WAL replayed onto a different database is corruption.
+mutant "restore keeps the old -wal" \
+  $S/bothy_settings/store.py \
+  '        for ext in ("-wal", "-shm"):  # whatever is left belongs to the OLD file' \
+  '        for ext in ():  # whatever is left belongs to the OLD file' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# The audit trail is append-only, and its head is what makes the END of it count.
+mutant "the audit-update trigger is gone" \
+  $S/bothy_settings/schema.py \
+  'CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit' \
+  'CREATE TRIGGER audit_no_update BEFORE UPDATE OF zz ON audit' \
+  -- bash $S/checks/run.sh --only test_store
+
+mutant "the audit-delete trigger is gone" \
+  $S/bothy_settings/schema.py \
+  'CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit' \
+  'CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit WHEN 0' \
+  -- bash $S/checks/run.sh --only test_store
+
+mutant "the audit head stops being compared to the chain's end" \
+  $S/bothy_settings/audit.py \
+  '    elif head_id != last_id or not hmac.compare_digest(head_mac, prev_mac):' \
+  '    elif False:' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+mutant "an emptied audit table passes with a non-empty head" \
+  $S/bothy_settings/audit.py \
+  '        if head_id != 0:' \
+  '        if False:' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# delete-then-put must keep counting, or a stale if_version overwrites a value it never saw.
+mutant "a delete resets the version counter" \
+  $S/bothy_settings/store.py \
+  '    n = max(current, floor) + 1' \
+  '    n = current + 1' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# One bad row must not abort an export (record s13.2).
+mutant "one unreadable row aborts the export" \
+  $S/bothy_settings/store.py \
+  '                except (DecryptError, WrongKeyError):
+                    self._read_denied(r["module"], r["key"], actor, surface)
+                    bad.append(f"{r['"'"'module'"'"']}.{r['"'"'key'"'"']}")
+                    continue' \
+  '                except (DecryptError, WrongKeyError):
+                    self._read_denied(r["module"], r["key"], actor, surface)
+                    raise' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# A state path with %, # or ? must be opened as itself.
+mutant "a read-only URI is built from the unquoted path" \
+  $S/bothy_settings/store.py \
+  '    return Path(os.path.abspath(path)).as_uri() + "?mode=ro"' \
+  '    return f"file:{os.path.abspath(path)}?mode=ro"' \
+  -- bash $S/checks/run.sh --only test_hardening
+
+# Restore must check the backup against its .sha256 BEFORE touching anything.
+mutant "restore stops checking the backup's hash" \
+  $S/bothy_settings/store.py \
+  'if hashlib.sha256(raw).hexdigest() != want:' \
+  'if False:' \
+  -- bash $S/checks/run.sh --only test_backup
+
+# A read the audit chain cannot detect being cut is not an audit log.
+mutant "the audit chain stops comparing its MAC" \
+  $S/bothy_settings/audit.py \
+  'not hmac.compare_digest(mac, r[11])' \
+  'False' \
+  -- bash $S/checks/run.sh --only test_store
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is

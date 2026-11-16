@@ -104,6 +104,14 @@ jobs:
         if: always()
         run: bash apps/bothy-ops/checks/run.sh --offline
 
+      # bothy-settings: the settings and secrets store LIBRARY (no service yet). Its
+      # run.sh builds a venv with uv from requirements.txt, hashes required; the
+      # uv action above is what provides it. The real-age round trip skips here
+      # (no age on the runner) and says so.
+      - name: Settings store - envelope, rotation, backup, and no value in any log
+        if: always()
+        run: bash apps/bothy-settings/checks/run.sh
+
       # catalog.toml is the only hand-written cluster wiring; the edge routers,
       # the RBAC Role, the can-i rows and the UI's dev catalog are generated
       # from it. A stale copy is a Role or a router that disagrees with review.
