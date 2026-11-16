@@ -76,7 +76,7 @@ check('two namespaces, and the row scope agrees', [CATALOG.namespaces, KUBE_NAME
 check('scale bounds come from the catalog', boundsOf(specOf(CATALOG, 'scale'), 'replicas'), { min: 0, max: 3 });
 check('unknown id is null, not a throw', findSpec(CATALOG, 'exec'), null);
 check('logs takes previous and container', ['previous', 'container'].every((p) => p in specOf(CATALOG, 'logs').params), true);
-check('target fields', ['namespace', 'deployment', 'pod', 'job', 'template', 'configmap'].map(targetField),
+check('target fields', ['namespace', 'deployment', 'pod', 'job', 'template', 'configmap'].map((k) => targetField(k)),
   [null, 'deployment', 'pod', 'job', 'template', 'configmap']);
 
 // ── what type-name asks for (the service checks the same string) ─────────────

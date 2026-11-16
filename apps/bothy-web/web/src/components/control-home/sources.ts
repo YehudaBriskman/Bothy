@@ -16,6 +16,10 @@
 
 import { queryRange, type Series } from '../../lib/metrics';
 
+// Explicit UTF-16 code-unit order: what Array#sort() does with no comparator, and
+// deliberately not localeCompare (which reorders case and punctuation).
+const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 const NOW = { seconds: 120, step: 60 };
 
 /** The newest value of every series a query returns, keyed by `labelKey`. */
@@ -61,7 +65,7 @@ export async function loadCluster(signal: AbortSignal): Promise<ClusterMetrics> 
     reporting: ready.size > 0,
     node,
     nodeReady: node ? (ready.get(node) ?? 0) >= 1 : null,
-    namespaces: [...ns.keys()].sort(),
+    namespaces: [...ns.keys()].sort(byCode),
     podsByNs: obj(pods),
     livePodsByNs: obj(live),
     readyByNs: obj(rdy),

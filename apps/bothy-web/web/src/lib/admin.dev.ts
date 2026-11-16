@@ -18,6 +18,10 @@ import type {
   AuditEntry, AuditQuery, AuditResult, BackupsResult, CredentialsResult, UsersResult,
 } from './admin';
 
+// Explicit UTF-16 code-unit order: what Array#sort() does with no comparator, and
+// deliberately not localeCompare (which reorders case and punctuation).
+const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 const OUTCOME_KEY = 'bothy-dev-admin-outcome';
 
 const read = (k: string): string | null => {
@@ -150,9 +154,9 @@ export async function auditMock(q: AuditQuery): Promise<AuditResult> {
   await gate('audit');
   let e = ENTRIES.filter((x) => !q.log || q.log === 'all' || x.log === q.log);
   const facets = {
-    who: [...new Set(e.map((x) => x.who))].sort(),
-    outcome: [...new Set(e.map((x) => x.outcome))].sort(),
-    action: [...new Set(e.map((x) => x.action))].sort(),
+    who: [...new Set(e.map((x) => x.who))].sort(byCode),
+    outcome: [...new Set(e.map((x) => x.outcome))].sort(byCode),
+    action: [...new Set(e.map((x) => x.action))].sort(byCode),
   };
   if (q.who) e = e.filter((x) => x.who.toLowerCase().includes(q.who!.toLowerCase()));
   if (q.outcome) e = e.filter((x) => x.outcome.toLowerCase() === q.outcome!.toLowerCase());
