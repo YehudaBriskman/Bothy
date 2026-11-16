@@ -17,7 +17,14 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+import logging  # noqa: E402
+
 from bothy_settings import Store, bootstrap  # noqa: E402
+
+# bothy_settings installs a stdout JSON handler when NOTHING is configured (that is the point:
+# test_logging.py proves it in a clean subprocess). In-process tests have a handler of their own
+# in the one test that reads the lines, so give the logger a NullHandler to keep the default quiet.
+logging.getLogger("bothy.settings.audit").addHandler(logging.NullHandler())
 
 # Long and distinctive on purpose: the scanners skip values under 8 bytes, and a
 # short canary could match by chance inside a database page.
