@@ -19,7 +19,23 @@ RUN npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
-FROM nginx:1.31-alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
+# ── runs as uid 101, not root (#336) ──────────────────────────────────────────
+#
+# The base is nginxinc/nginx-unprivileged - the nginx project's own variant of
+# the stock image: same nginx build and Alpine, USER 101 (nginx), pid file and
+# temp paths under /tmp, and `listen 8080` (nginx.conf here too). The stock
+# `nginx` image has a root master process. Chosen over keeping it and adding
+# `USER nginx` because that route means redoing the variant's work by hand (pid
+# file, /var/cache/nginx, the entrypoint scripts that write /etc/nginx as root)
+# and keeping it right on every nginx bump.
+#
+# The digest is the multi-arch INDEX for the 1.31-alpine tag, the same style as
+# the two pins above; Dependabot's `docker` entry for /apps/bothy-web bumps it
+# with the tag. What does NOT change: the host port (Traefik still owns :80 and
+# reaches this at the service port in compose.yml), every byte nginx serves, and
+# the ./data bind mount - the stock image's WORKERS were already uid 101 reading
+# it, so nothing on the host needs a chmod.
+FROM nginxinc/nginx-unprivileged:1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
@@ -39,4 +55,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # sources alone, so a commit that does not touch web/ reuses it from cache.
 ARG REVISION=unknown
 LABEL org.opencontainers.image.revision=$REVISION
+# The html dir is root-owned and this image's default user is not, so the one
+# write that needs root happens here and the process never gets it back.
+USER root
 RUN printf '{"revision":"%s"}\n' "$REVISION" > /usr/share/nginx/html/version.json
+USER 101

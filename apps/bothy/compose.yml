@@ -1,6 +1,6 @@
 # Bothy - one compose project, five containers.
 #
-#   bothy-web           nginx; the portal on :80. No power.
+#   bothy-web           nginx, unprivileged (:8080 inside); the portal on :80 via Traefik. No power.
 #   bothy-files         the file editor AND the config forms. Read-write on the
 #                       stack repo and the notes, read-only on $HOME and projects.
 #   bothy-ops           container actions AND cluster actions. Reaches the daemon

@@ -81,7 +81,10 @@ class Config:
         "bothy-files": ("http://127.0.0.1:8099/healthz", r'"ok"\s*:\s*true'),
         "bothy-ops": ("http://127.0.0.1:8097/healthz", r'"ok"\s*:\s*true'),
     })
-    own_web_port: int = 80
+    # bothy-web's nginx listens on 8080 (it runs unprivileged: apps/bothy-web/
+    # Dockerfile). This is the port verify probes INSIDE the container, not the
+    # edge's :80 - own_edge_url above is that one.
+    own_web_port: int = 8080
     # `git fetch` while planning. Off only where there is no origin to ask.
     own_fetch: bool = True
     # CI's verdict on a sha: a callable(repo, sha) -> {green, via, detail, runs}.

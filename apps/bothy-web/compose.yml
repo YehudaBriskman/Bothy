@@ -35,7 +35,7 @@ services:
       - ./data:/usr/share/nginx/html/data:ro
     labels:
       - traefik.enable=true
-      - traefik.http.services.bothy-web.loadbalancer.server.port=80
+      - traefik.http.services.bothy-web.loadbalancer.server.port=8080
       # ONE router, and it is the catch-all. The Host(<base-domain>) router that
       # used to sit here was removed on 2026-08-12 with the rest of the name
       # layer: it matched a hostname that has not resolved since 2026-08-08, so
@@ -52,10 +52,11 @@ services:
       - traefik.http.routers.bothy-web-fallback.priority=1
       - traefik.http.routers.bothy-web-fallback.entrypoints=web
       - traefik.http.routers.bothy-web-fallback.service=bothy-web
-    # Straight at nginx, not through :80 on the host - via Traefik, the
-    # catch-all would answer 200 whether or not this container was up.
+    # Straight at nginx (8080 - it runs unprivileged, see the Dockerfile), not
+    # through :80 on the host - via Traefik, the catch-all would answer 200
+    # whether or not this container was up.
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "-T", "3", "http://127.0.0.1:80/"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "-T", "3", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 3s
       retries: 3

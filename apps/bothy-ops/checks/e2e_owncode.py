@@ -65,7 +65,9 @@ def green(slug: str, sha: str) -> dict:
 def make_cfg(d: dict, force: str | None = None) -> Config:
     return Config(repo=d["repo"], catalog=d["catalog"], state=d["state"], backups=d["backups"],
                   textfile=d["textfile"], lib=d["lib"], own_containers=CONT, own_images=IMG,
-                  own_edge_url=None, own_rollback_after=8, own_apply_timeout=150, verify_timeout=60,
+                  own_edge_url=None, own_web_port=80,
+                  # ^ the fixture's own stock-nginx WEB image listens on 80
+                  own_rollback_after=8, own_apply_timeout=150, verify_timeout=60,
                   min_free_bytes=1 << 20, own_checks=green, own_force_verify=force)
 
 
