@@ -75,7 +75,7 @@ VM, LOKI = f"{P}-vm", f"{P}-loki"
 # arbitrary older one: the test asserts the rollback restores exactly it.
 VM_IMG = "victoriametrics/victoria-metrics:v1.156.0"
 LOKI_IMG = "grafana/loki:3.7.10"
-KSM_OLD, KSM_NEW = "8.6.0", "8.8.0"
+KSM_OLD, KSM_NEW = "8.8.0", "9.0.1"
 ALLOY_OLD, ALLOY_NEW = "grafana/alloy:v1.20.1", "grafana/alloy:v1.21.3"
 assert P != "thales-scc"
 
