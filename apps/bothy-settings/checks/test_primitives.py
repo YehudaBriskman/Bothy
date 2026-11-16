@@ -85,13 +85,41 @@ class Crypto(unittest.TestCase):
         self.assertNotEqual(f1, crypto.fingerprint(crypto.new_key(), "m", "K", b"v"))
         self.assertNotEqual(f1, crypto.fingerprint(fk, "m", "L", b"v"))
 
-    def test_100k_encryptions_under_one_kek_repeat_no_nonce(self) -> None:
-        kek = crypto.new_key()
-        seen = set()
-        for _ in range(100_000):
-            n, _ct = crypto.seal(kek, b"x" * 32, b"wrap")
-            seen.add(n)
-        self.assertEqual(len(seen), 100_000)
+    def test_open_refuses_any_stored_nonce_that_is_not_12_bytes(self) -> None:
+        # AESGCM itself takes 8..128 bytes and raises ValueError outside that, so a missing length
+        # check does not show up as a failed decrypt for 8..11 or 13..128 (they fail the tag anyway);
+        # it shows up as a ValueError, or an exception of the wrong type, for the rest. A tampered
+        # row must always be an AuthFailure.
+        k, aad = crypto.new_key(), b"aad"
+        n, ct = crypto.seal(k, b"value", aad)
+        for length in (0, 1, 4, 7, 8, 11, 13, 16, 128, 129, 200):
+            with self.subTest(length):
+                with self.assertRaises(crypto.AuthFailure):
+                    crypto.open_(k, (n * 20)[:length], ct, aad)
+
+    def test_the_guard_refuses_a_repeated_nonce_from_a_patched_source(self) -> None:
+        # The guard is what stands between a broken random source and GCM nonce reuse. Feed it a
+        # source that repeats on its 3rd draw: the first two seal, the 3rd must refuse, and the
+        # refusal must come from the guard, not from the source.
+        seq = iter([b"\x01" * 12, b"\x02" * 12, b"\x01" * 12, b"\x03" * 12])
+        with mock.patch.object(crypto, "_random", lambda n: next(seq)):
+            k = crypto.new_key()
+            n1, _ = crypto.seal(k, b"a", b"")
+            n2, _ = crypto.seal(k, b"b", b"")
+            self.assertNotEqual(n1, n2)
+            with self.assertRaises(NonceReuseError) as cm:
+                crypto.seal(k, b"c", b"")
+            self.assertIn("repeated", str(cm.exception))
+            crypto.seal(k, b"d", b"")  # a refusal does not poison the guard: the next fresh nonce works
+
+    def test_a_refused_nonce_never_encrypts(self) -> None:
+        with mock.patch.object(crypto, "_random", lambda n: b"\x07" * n):
+            crypto.seal(crypto.new_key(), b"first", b"")
+            sealed = []
+            with mock.patch.object(crypto, "AESGCM", side_effect=lambda *a: sealed.append(1)):
+                with self.assertRaises(NonceReuseError):
+                    crypto.seal(crypto.new_key(), b"second", b"")
+            self.assertEqual(sealed, [], "the cipher must not even be constructed after a refused nonce")
 
     def test_a_constant_nonce_source_is_caught(self) -> None:
         # record s16.2: the bug class is a code path that reuses a nonce.
@@ -201,16 +229,41 @@ class KeyFile(unittest.TestCase):
             with self.assertRaises(KeyFileModeError):
                 keyfile.load(self.path)
 
-    def test_a_group_or_world_writable_directory_is_refused(self) -> None:
+    def test_a_key_directory_with_any_group_or_other_access_is_refused(self) -> None:
+        # record s6.1: "the directory 0700". Readable and searchable count, not only writable.
         keyfile.create(self.path)
-        for mode in (0o770, 0o707, 0o777):
+        for mode in (0o770, 0o707, 0o777, 0o750, 0o705, 0o710, 0o701, 0o1777):
             with self.subTest(oct(mode)):
                 os.chmod(self.dir, mode)
-                with self.assertRaises(KeyFileModeError):
+                with self.assertRaises(KeyFileModeError) as cm:
                     keyfile.load(self.path)
-        os.chmod(self.dir, 0o1777)  # sticky, like /tmp: others cannot replace our file
-        keyfile.load(self.path)
+                self.assertIn("0700", str(cm.exception))
         os.chmod(self.dir, 0o700)
+        keyfile.load(self.path)
+
+    def test_a_key_directory_owned_by_someone_else_is_refused(self) -> None:
+        keyfile.create(self.path)
+        real = os.stat(self.dir)
+
+        class Other:  # the directory stat as another uid would own it; the FILE keeps its real uid
+            st_uid = real.st_uid + 1
+            st_mode = real.st_mode
+
+        orig = os.stat
+        with mock.patch("bothy_settings.keyfile.os.stat", lambda p, *a, **k: Other if p == self.dir else orig(p, *a, **k)):
+            with self.assertRaises(KeyFileModeError) as cm:
+                keyfile.load(self.path)
+        self.assertIn("owned by uid", str(cm.exception))
+
+    def test_a_key_file_with_a_second_hard_link_is_refused(self) -> None:
+        keyfile.create(self.path)
+        other = os.path.join(self.dir, "elsewhere")
+        os.link(self.path, other)
+        with self.assertRaises(KeyFileModeError) as cm:
+            keyfile.load(self.path)
+        self.assertIn("hard link", str(cm.exception))
+        os.unlink(other)
+        keyfile.load(self.path)
 
     def test_malformed_files_are_refused(self) -> None:
         good = base64.b64encode(b"k" * 32).decode()

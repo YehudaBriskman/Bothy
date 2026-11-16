@@ -16,8 +16,8 @@ Rules this module enforces rather than documents:
     the next start would read it as the key, and `--force` has nothing to force.
   * mode must leave nothing to group/other, the owner must be the current uid,
     it must be a regular file and not a symlink (O_NOFOLLOW), and its directory
-    must not be writable by anyone else (a writable directory lets another user
-    swap the file). It is REFUSED, never chmod-ed: fixing the mode silently would
+    must be 0700 and ours (a writable directory lets another user swap the file),
+    and it has exactly one hard link. It is REFUSED, never chmod-ed: fixing the mode silently would
     hide that the key was readable.
   * the key bytes never appear in a repr, an exception or a log line.
 """
@@ -102,16 +102,20 @@ def _parse(text: str, path: str) -> KeySet:
 
 
 def _check_dir(path: str) -> None:
+    """Record s6.1: the key directory is 0700 and ours. Any group/other access at all is refused
+    (not only write): a readable directory lets another user see that and where the key is, a
+    writable one lets them rename it away and plant their own, and a directory owned by someone
+    else lets THEM do either whatever its mode says. No sticky-bit exemption: /tmp is not a place
+    for the key that decrypts everything."""
     d = os.path.dirname(os.path.abspath(path))
     try:
         st = os.stat(d)
     except OSError as e:
         raise KeyFileError(f"cannot stat key directory {d}: {e.strerror}") from None
-    # g+w/o+w lets another user rename the file away and plant their own. A
-    # sticky bit (/tmp) stops that for files we own, so it is accepted.
-    if st.st_mode & 0o022 and not st.st_mode & stat.S_ISVTX:
-        raise KeyFileModeError(f"key directory {d} is writable by group/other "
-                               f"(mode {st.st_mode & 0o7777:04o}); make it 0700")
+    if st.st_uid != os.geteuid():
+        raise KeyFileModeError(f"key directory {d} is owned by uid {st.st_uid}, not the running uid")
+    if st.st_mode & 0o077:
+        raise KeyFileModeError(f"key directory {d} has mode {st.st_mode & 0o7777:04o}; it must be 0700")
 
 
 def load(path: str | os.PathLike[str], *, orphans: int | None = None) -> KeySet:
@@ -129,6 +133,10 @@ def load(path: str | os.PathLike[str], *, orphans: int | None = None) -> KeySet:
             raise KeyFileModeError(f"{path} is not a regular file")
         if st.st_uid != os.geteuid():
             raise KeyFileModeError(f"{path} is owned by uid {st.st_uid}, not the running uid")
+        if st.st_nlink != 1:
+            # another name for the same inode would survive "deleting" the key, and would be
+            # reachable by whoever owns that other directory entry
+            raise KeyFileModeError(f"{path} has {st.st_nlink} hard links; a key file has exactly one name")
         if st.st_mode & 0o077:
             raise KeyFileModeError(f"{path} has mode {st.st_mode & 0o777:04o}; it must be "
                                    f"0600 (no access for group or other). Refusing to use it: "
