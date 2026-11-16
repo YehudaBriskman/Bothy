@@ -47,6 +47,12 @@
 | R17 | **A global OOM on a swapless 4 GiB host wedges it for minutes** (S6: 8+ minutes, victim unobserved, journald stopped) | medium | **high** (an unattended box that cannot be reached) | refuse swapless hosts under 4 GiB; budget gate counts Docker limits; re-measure with swap and without the lab serial console |
 | R18 | **k3s's default edge publication uses `hostPort`** (ASSUMPTION K: ServiceLB's svclb pods), which shadows host and Docker listeners silently (S5b) | medium | high | `--disable servicelb`, hostNetwork Traefik or a proven-free Service port; S1/S8 |
 | R19 | The two-executor design (k3s Job and `bothy-hostd`) doubles the privileged surface | certain | medium | closed request schema, hardened spool, admission policy (`security-model.md` 6.1, 6.2) |
+| R20 | Contract drift between the Python that writes the API's JSON and the Go CLI that reads it | likely | medium | golden files generated from Python, loose decoding, `discover` carries the API version (`cli-and-control-plane.md` s6.5) |
+| R21 | An agent in the same OS account as the CLI can run `bothy` directly, bypassing MCP scoping | possible | high | approval needs a TTY or a browser session; MCP token kind cannot approve; guide advises a separate account (s3.5) |
+| R22 | A third language (Go) raises the contributor cost | likely | low | no business logic in Go; dependency and size budgets; `just` stays for contributors (s2.1) |
+| R23 | A bearer token sent over plain HTTP on a LAN is sniffable | possible | high | the CLI refuses non-loopback, non-tailnet `http://`; HTTPS arrives with `sso` (s2.7) |
+| R24 | A user-facing update overlay weakens the reviewed class gates | possible | high | monotone tighten-only merge, fail closed on a bad overlay (s4.3) |
+| R25 | Release artefacts are signed by the same account that can change the repo, so attestations prove build origin, not review | certain | medium | pinned sha in `bothy.sh`, branch and tag protection, an out-of-band installer hash (s2.2) |
 
 ## 3. Alternatives considered (and why not)
 
@@ -104,3 +110,4 @@
 - Q3, Q12, Q13, R1, R2, R15 updated from S0, S5b, S5c, S6, S9 to S13 and the decisions; R17 to R19 added.
 - Fallback ladder (s4) unchanged in content, but note rung 2 is now **also the install below 4 GiB**,
   not only a retreat.
+- `cli-and-control-plane.md` added: R20 to R25; the CLI, MCP and control-plane decisions are D15 to D28 in that document (proposed, owner to answer). Nothing in D1 to D14 is reversed.
