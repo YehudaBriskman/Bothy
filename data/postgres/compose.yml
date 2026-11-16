@@ -5,7 +5,7 @@ services:
     # Tag for humans, digest for the pull: `17` floated, so a routine `up` could
     # move the server to a new minor unannounced. keycloak-db-init in
     # auth/compose.yml pins the SAME ref - bump both together.
-    image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    image: postgres:17.12@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac
     container_name: postgres
     restart: unless-stopped
     environment:
