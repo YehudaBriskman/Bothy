@@ -2739,13 +2739,12 @@ mutant "a group-readable key file is accepted" \
   -- bash $S/checks/run.sh --only test_store
 
 # A rolled-back change must leave no log line: the log is what an operator trusts
-# about what happened. Not clearing the pending lines on rollback lets a change that
-# never committed be logged by the NEXT commit.
-mutant "a rolled-back audit line is logged by the next commit" \
+# about what happened. Logging at the moment of the audit append, rather than after
+# COMMIT, writes a line for a change the database then refused.
+mutant "an audit line is logged before the commit" \
   $S/bothy_settings/store.py \
-  '                self._pending_log = []
-                raise' \
-  '                raise' \
+  '        self._pending_log.append(rec)' \
+  '        _log.info(json.dumps(rec, sort_keys=True))' \
   -- bash $S/checks/run.sh --only test_leaks
 
 # Restore must check the backup against its .sha256 BEFORE touching anything.
