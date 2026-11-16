@@ -40,9 +40,10 @@ views of one API. A change made anywhere:
   A missing required field for an enabled module is a hard failure with the field
   named (#316 criterion), never a silent default.
 - **Secrets** are write-only in every surface (#317): `set / updated / fingerprint`
-  only. They reach pods as Kubernetes `Secret`s mounted as files (`*_FILE`
-  convention), created by the operator from the store; the plaintext is never in
-  the Helm release's values (so `helm get values` leaks nothing).
+  only. They reach **k3s pods** as Kubernetes `Secret`s mounted as files (`*_FILE`
+  convention), created by the operator from the store, and reach **Docker modules** as
+  mode-0600 projected files that compose mounts (`settings-store.md` s9.1); the plaintext is
+  never in the Helm release's values (so `helm get values` leaks nothing).
 - **No box-specific defaults** (#323): defaults are generic; this box's facts
   (tailnet IP, cluster names) live as *values for this install*, not in code.
 
@@ -57,16 +58,21 @@ Every module declares named profiles, e.g.:
 ```
 
 Choosing one runs through the **budget gate** (`resource-management.md`), so a
-profile that does not fit is refused with the arithmetic. Custom numbers are allowed
+profile that does not fit is refused with the arithmetic (for a Docker module the profile
+sets its `mem_limit` and the gate is advisory; the limit itself is mandatory, S6). Custom numbers are allowed
 in layer 5 and are clearly marked "outside a declared profile".
 
 ## 4. The escape hatch, safely (layer 5)
 
 A raw Helm values editor for admins:
 - Validated against the chart's `values.schema.json` before apply.
-- Forbidden keys: anything that adds `hostPath`, `privileged`, `hostNetwork`, new
-  ClusterRoles, or removes `resources` (the same list the CI refuses, see
-  `security-model.md`). The editor says which rule rejected a change.
+- **A denylist on values is bypassable** (`extraVolumes`, `securityContext`, `command`, image
+  overrides all add a `hostPath` or a privilege without naming it). So the rule is enforced on
+  the **rendered manifests**, against an **allow-list**, in CI and again **in the cluster** by the
+  admission policy and Pod Security `restricted` (`security-model.md` 2.5, 6.2). The forbidden set
+  includes `hostPath`, `hostPort`, `privileged`, `hostNetwork`, new ClusterRoles, and removal of
+  `resources`. The editor says which rule rejected a change. Layer 5 is on the review's cut
+  list: ship it last, behind the rendered-manifest lint, or not at all.
 - Stored as a separate, versioned **override** so the form values and the hand
   values are distinguishable, and "reset to form" is one click.
 - Shown as a diff against the last applied release, always.
@@ -79,7 +85,13 @@ schema, cost, health contract, quota and namespace, with these differences:
 
 - It is marked **untrusted**: it cannot request privileged settings; the same lint
   that guards the built-ins runs on it, and it is applied with its own namespace-
-  scoped Role (`updates-and-rollback.md` s3).
+  scoped Role (`updates-and-rollback.md` s3). It also gets: **reserved ids** (no clash with a
+  built-in), **namespace prefix enforcement** (`bothy-<id>`), **rejection of cluster-scoped
+  kinds** (ClusterRole, CRD, webhook), and **rejection of any change to NetworkPolicy,
+  ResourceQuota, LimitRange or namespace labels**, which the core operator owns.
+- A user module may declare `runtime = "compose"`; it then needs the Docker-module
+  requirements (memory limit, positive `oom_score_adj`, `restart: unless-stopped`) or the
+  budget gate refuses it.
 - It must declare a cost, or the budget gate refuses it.
 - Its images are pinned by digest (Dependabot-style discovery still applies if it
   declares a source).
@@ -109,3 +121,11 @@ second store.
 The three roles and their gates, the exact-`Path()` routing rule, the pinned-digest
 rule, resource declarations on every pod, and the budget gate. Each of these is a
 safety property; making it a setting would make it a thing people turn off.
+
+## Changed 2026-11-16
+
+- s3 secrets: Docker modules get projected files, not Kubernetes Secrets (hybrid decision).
+- s2a: a Docker module's limit is mandatory (S6). s4 and s5: the layer-5 denylist and the layer-6
+  rules were bypassable or incomplete (review finding, **inference**); lint moved to rendered
+  manifests with in-cluster enforcement. Nothing here has run; the rendered-manifest lint is
+  untested.

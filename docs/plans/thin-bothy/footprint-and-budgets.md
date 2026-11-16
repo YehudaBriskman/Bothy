@@ -47,12 +47,11 @@ them being needed at once.
 
 ## 2. What k3s adds, and what it removes
 
-**Adds (E, measure in Phase 0):** the k3s server process (apiserver, controller
-manager, scheduler, an embedded SQLite datastore, kubelet and containerd in one
-binary) is commonly reported at roughly **0.5 - 0.7 GB resident idle** on one node.
-CoreDNS, metrics-server, local-path-provisioner and Traefik are bundled; we can
-disable what we do not use (`--disable metrics-server`, `servicelb` if we publish
-ports another way).
+**Adds (M, S0, 2026-11-16):** stock k3s v1.37.2 on a 2 GiB Ubuntu 24.04 guest: OS 319 MiB
+before, 975 MiB after settling, so a **tax of about 656 MiB** (server RSS 694). Stock pods are
+small (Traefik 18, metrics-server 16, CoreDNS 10, local-path 6, svclb 0). Disabling
+`metrics-server` and `servicelb` saved only about 27 MiB: **trimming does not change the order
+of magnitude.** This is the VM's Ubuntu kernel, not WSL (S12/S13 are config checks only).
 
 **Removes (real, because the cluster provides them):**
 
@@ -85,17 +84,21 @@ Mini's budget, itemised (M where measured, E otherwise):
 
 | Part | MiB |
 |---|---|
-| k3s server + containerd + CoreDNS | 500 - 700 (E) |
+| k3s server + containerd + CoreDNS (stock, S0) | about 656 (M) |
 | Traefik (64-85 MiB across samples; the cause of the variation is unverified) | 64-85 (M) |
 | bothy-web | 8 (M) |
 | bothy-ops (becomes the in-cluster API/updater front) | 33 (M) |
 | bothy-settings (new, SQLite + crypto) | 40 (E, same class as bothy-ops) |
 | headroom for the first apply of any module | 150 |
-| **Total** | **about 0.85 - 1.05 GB** |
+| **Total** | **about 0.9 - 1.0 GB** (core itself still E) |
 
-The mini target is therefore "about 1 GB including k3s", and **the dominant
-uncertainty is the k3s line**, which is why Phase 0 starts there. If k3s measures
-above 0.8 GB, the options are in `risks-and-open-questions.md` (R2).
+The mini target "about 1 GB including k3s" **holds on k3s** (656 measured plus about 170 for
+core, without `files` or the first-apply headroom) but with almost no margin, and **adding `files`
+to mini (D12, +31 MiB resident) uses the margin up**. The k3s line is now measured (R2
+resolved in direction: k3s is not thin in absolute terms; it buys self-healing, atomic
+upgrades and resource policy at about 0.65 GiB, and decision S0 draws the line at **4 GiB
+hosts**). The same core under Compose is about 0.17 GiB; that is the install below the floor.
+The 4 GiB floor is a judgement from one number; confirm with a `lab-std` run once core exists.
 
 ## 4. Where the big savings are (thinning monitoring)
 
@@ -129,3 +132,10 @@ not an afterthought.
 2. Every module declares `requests`/`limits` in its TOML (see `modes-and-modules.md`);
    a CI check fails if the sum for a mode exceeds that mode's budget above.
 3. The targets in section 3 are edited here, once, when measured, never silently.
+
+## Changed 2026-11-16
+
+- s2 and s3: the k3s line was an estimate (500-700 MiB, E); S0 measured about 656 MiB. The
+  4 GiB floor and the Compose install below it are from the S0 decision.
+- **Still estimated (E):** every Bothy-owned core figure on k3s (`bothy-settings`, the operator);
+  nothing has run under k3s yet. Docker-module limits are counted in the budget but not scheduled.

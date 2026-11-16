@@ -13,6 +13,21 @@ k3s and Docker fighting over iptables in a second distro would still hit the 32 
 containers. A real VM has its **own kernel and its own iptables**. That isolation is
 the entire point (risk R1 in `risks-and-open-questions.md`).
 
+**Status 2026-11-16:** the lab exists (`lab/lab.sh`, #340) and has produced S0, S15 and S5b to
+S13. It already implements several review items: each VM runs in a `systemd-run --user` scope with
+`MemoryMax`, `MemoryHigh` at 95%, `MemorySwapMax=0` and `CPUQuota`; host forwards bind **127.0.0.1**
+only; swap use is **shown, not gated** (a gate would refuse everything on a host whose swap is
+already full, so the review's "refuse above about 50%" is resolved as display-only). Profiles:
+`lab-mini` (1 vCPU, 2 GiB), **`lab-mid` (2 vCPU, 4 GiB, added for S5b-S13)** and `lab-std`;
+`lab-oci` is deliberately not offered until `lab-mini` is measured.
+
+**The lab is not a sandbox (S15):** a guest root can delete cloud-init's rule and reach the host's
+loopback (HTTP 302 measured). It is for our own installer and k3s tests, never untrusted code.
+
+**Gap that blocks the go/no-go:** the guests are **swapless**. S6's global OOM must be re-measured on a
+guest **with swap** (add a swap-enabled variant), and ideally with the guest serial console off, because
+part of the 8-minute wedge may be the console.
+
 ### A.2 What this box can do (measured 2026-11-16)
 
 | Fact | Value |
@@ -73,6 +88,12 @@ speed; fine for this workload.
 
 ### A.5 Tailnet credentials in the lab
 
+**Caveats (review findings, not yet exercised; S7, S8, S14 and S1 depend on them):** Tailscale behind
+SLIRP is double NAT, so S1 throughput and path numbers from the lab are **not representative**; ephemeral
+nodes are removed after a delay, a **single-use key breaks `lab-reset`**, and the key sits in the
+cloud-init seed, so **delete it after join**. `usermod -aG kvm` needs a new session: use `sg kvm -c`
+(`wsl --shutdown` would kill the live containers and is forbidden).
+
 The VM must join the tailnet to test the Tailscale path. Rules:
 - Use an **ephemeral, pre-authorized, tagged auth key** with a short expiry, created
   by the owner and placed in `~/lab/secrets/ts-authkey` (mode 0600). Never pasted
@@ -105,10 +126,10 @@ provided, else `local`. **Public exposure is never a default** (the OCI repo's
 |---|---|
 | Install | the vendor's apt repository at a **pinned version**, signing key inline in our repo, as `oci-free/cloud-init.yaml` already does for Tailscale (it does **not** install k3s): **reuse that Tailscale code; extract it to one shared script** instead of two copies |
 | Authenticate, one of: | (1) **auth key** from `--ts-authkey-file`/env, for headless VMs and cloud-init; (2) **device login**: `tailscale up` prints a URL (and a QR) and the installer waits until the node appears; (3) an **OAuth client + tag** for fleets (documented, not the default) |
-| Flags | `--hostname=<name>`; **`--ssh`** (Tailscale SSH, as this box does) only if chosen; **no exit node, no routes** by default; `--accept-dns` left **off** by default (the dnsmasq history in rule 8 says DNS changes are where trouble starts) |
+| Flags | `--hostname=<name>`; **`--ssh`** (Tailscale SSH, as this box does) only if chosen; **no exit node, no routes** by default; **pass `--accept-dns=false` explicitly** (the tailscale default is `true`, so "left off" was wrong) and assert `CorpDNS=false` afterwards. Re-running `tailscale up` with different flags errors; change a running node with **`tailscale set`** |
 | Bind | **open (see `install-and-bootstrap.md` s7 and `review-findings.md` S8):** binding to the tailnet address is not how hostPort/ServiceLB works; do not claim tailnet-only exposure until the spike passes |
 | Verify | `tailscale status` shows the node; **layered ping** to the installing machine (`tailscale ping`, `--tsmp`, `--icmp`, the method from `network/tailnet-troubleshooting.md`); and a **version-skew check** (rule 11: a half-upgraded daemon looks green while dropping packets) |
-| ACL honesty | the installer **cannot** change the tailnet's ACLs; it prints the tag/ACL line the owner must add, and the verify step says "joined but unreachable by ACL" distinctly from "not joined" |
+| ACL honesty | the installer **cannot** change the tailnet's ACLs; it prints a **least-privilege ACL with named users** (the default tailnet ACL is allow-all, so "tailnet only" is not restricted to anyone), and the verify step says "joined but unreachable by ACL" distinctly from "not joined" |
 
 ### B.3 SSH flow
 
@@ -128,7 +149,9 @@ provided, else `local`. **Public exposure is never a default** (the OCI repo's
 Changing access on a remote machine is the classic way to lose it. Rules:
 - **Apply-with-timer:** any access change from the web (Settings -> Access, the
   `network` module) applies with an **auto-revert in 60 seconds unless confirmed from
-  the new path** (the router-style "keep these settings?").
+  the new path** (the router-style "keep these settings?"). **The revert must be a host unit**
+  (not a pod that the change itself may cut off) and confirmation must arrive **over the new
+  path**, not the old one.
 - The installer **keeps the console path**: for a VM, the serial/console login is the
   last resort and is documented in the output.
 - `bothy access reset` (on the host) restores `local`-only plus the original SSH key.
@@ -171,3 +194,11 @@ state the installer wrote.
 | C3 | Does the installer ever install Docker without asking | no: only when a Docker-runtime module is enabled, with the cost shown |
 | C4 | Auth key delivery | file or env, never argv; documented for cloud-init |
 | C5 | Headscale or other control servers | out of scope; documented as "works if `tailscale up --login-server` is passed through" |
+
+## Changed 2026-11-16
+
+- Status block added: the lab exists, which review items it already implements, the swapless-guest
+  gap, and S15. A.5 and B.2 and B.4: review findings (Tailscale flag defaults, ACLs, host-unit revert)
+  recorded. **None of the Tailscale items was tested**: S1, S7, S8 and S14 remain open.
+- Disagreement resolved: the review asked to refuse the lab above about 50% swap use; `lab/README.md`
+  shows swap but does not gate on it, for the reason given above.

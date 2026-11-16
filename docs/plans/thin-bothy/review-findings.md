@@ -56,7 +56,15 @@ passes its go/no-go.
 | S13 | k3s data dir is on ext4, not `/mnt/c` (kine/SQLite fsync on 9p) | k3s |
 | S14 | Tailscale SSH and sshd coexist on one node; the ACL `ssh` rule for tags | network, security |
 
-## 4. Rewrite queue (waits on the section 5 decision)
+## 4. Rewrite queue (**done 2026-11-16**, see below; the table is kept as the record of what was asked)
+
+**Status 2026-11-16:** the owner's decisions (k3s-first for hosts of at least 4 GiB, hybrid runtime, Compose
+retained) removed the blocking question, and the lab produced S0, S5b to S13 and S15. Every row below
+was applied to the plan documents, with a "Changed 2026-11-16" note at the end of each file naming the
+spike or decision. Rows that remain **proposals without a run** are marked ASSUMPTION in those files:
+the admission policy, `bothy-hostd`, the edge publication choice, the cross-runtime forward-auth hop,
+and the two-clone consistency of the updater. Disagreements between documents that were resolved
+are listed in `README.md` (go/no-go section).
 
 | File | What must change | Reviewers |
 |---|---|---|
@@ -102,6 +110,11 @@ unreachable from the LAN, no secret in GETs, `helm get values`, Job specs, logs 
 cloud-init output, and no first-run credential in a world-readable file).
 
 ## 5. The decision this review forces (for the owner)
+
+**Outcome 2026-11-16:** the owner kept k3s-first (hosts of at least 4 GiB) with Compose retained below
+that and as the D7 fallback; this section's ordering advice is **not adopted as an ordering**, but the
+steps that do not need k3s (1 to 3 below) remain independently valuable and may proceed in parallel
+with the lab work. The go/no-go gate it asked for is now in `README.md`.
 
 Two reviewers (pragmatist, architect) independently recommend **inverting the
 priority**: make the **module model, settings store (#317), first-run login (#319),

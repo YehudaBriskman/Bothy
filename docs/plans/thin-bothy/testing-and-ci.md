@@ -18,7 +18,15 @@ the existing ones become.
 | L6 live (manual) | per migration step | parity checks against the live box | human |
 
 L3-L5 are today's `install.yml`, `upgrade.yml`, `elsewhere.yml`, re-pointed at the
-k3s path. The Compose versions stay as a **dev smoke** job.
+k3s path. The Compose versions stay as a **dev smoke** job, and, because Compose is also the
+**install path below 4 GiB** (S0), they are no longer "dev only": the Compose install is a
+supported target with its own gate.
+
+**Which layer needs what (review finding).** L0 and L1 run anywhere. **L2 runs on k3d** (or kind):
+it proves charts, RBAC, admission and Pod Security, **not** the kernel, iptables or OOM behaviour.
+**L3 to L5, and everything in section 2b, need a real VM** with systemd, because hosted runners
+have no systemd-in-container for the real installer and no control of the firewall backend or
+cgroups. Pinned image digests must be **multi-arch manifest-list digests**.
 
 ## 2. The checks specific to this plan
 
@@ -37,6 +45,25 @@ k3s path. The Compose versions stay as a **dev smoke** job.
 | **Kill the API during self-update** (L2) | the circular update case |
 | **Lost master key fails closed** | silent data loss on a missing key |
 
+## 2b. Checks that exist because of the lab (all need a VM, not k3d)
+
+| Check | Failure it prevents | Source |
+|---|---|---|
+| **Coexistence diff:** `iptables-save -t nat` **and** `nft list ruleset` before and after install; only additions, no Docker line changed | k3s disturbing Docker's rules | S5b, S9, S10 |
+| **No `hostPort`** in any rendered Bothy manifest | a silent shadow of a host or Docker listener | S5b |
+| **Port registry:** a Docker module port equal to a k3s service port fails | the same collision from the other side | S5b |
+| **Docker-module contract:** memory limit, positive `oom_score_adj`, `restart: unless-stopped` present in the compose artifact **and** in `docker inspect` of the running container | an unbounded or non-restarting module | S5c, S6 |
+| **OOM isolation:** a limited container exceeds its limit; assert `memory.events` (`oom_kill`) moves in **its** cgroup and stays zero in `kubepods.slice` and `k3s.service` (adj alone is not proof) | core hurt by a module | S6 |
+| **Docker restart:** `systemctl restart docker` with k3s up; pods untouched, containers with a policy back, pod and container egress OK | a restart orphaning modules | S5c, S10 |
+| **Propagation:** with `/` private, the installer's unit makes `rslave` and `rshared` mounts work | the WSL default breaking mounts | S11 |
+| **k3s removal:** killall and uninstall leave Docker's rules identical | uninstall damaging Docker | S9 |
+| **Preflight refusals:** swapless under 4 GiB, a 9p data dir, a busy port in any view | an install that cannot succeed or wedges the host | S6, S13, S5b |
+| **hostd:** hostile spool files (symlink, `nlink` over 1, foreign UID, unknown component) refused; no argv from text | the host executor becoming a root shell | `security-model.md` 6.1 |
+| **Admission (live):** privileged, hostPath and foreign-image Jobs rejected | RBAC alone being unable to constrain a `create` | `security-model.md` 6.2 |
+
+Not yet measured: the **WSL kernel** running any of this (S12/S13 are config checks), `wsl --shutdown`
+recovery, minikube coexistence, legacy iptables, and anything needing Tailscale (S1, S7, S8, S14).
+
 ## 3. The mutation table, extended
 
 The repo's rule that "every check can fail" continues: each new check gets a
@@ -46,9 +73,10 @@ CI `mutants` shards already do this for existing checks; new checks join them.
 
 ## 4. What CI cannot prove (and the manual step)
 
-- **WSL2 behaviour** (tailnet reachability, memory cap, keepalive). CI runs on plain
-  Linux. Each WSL-specific claim has a manual runbook in the spike docs and a
-  one-line entry in a "verified on" table (date, who, what), not a silent assumption.
+- **WSL2 behaviour** (tailnet reachability, memory cap, keepalive, `/` propagation, the WSL
+  kernel's netfilter modules). CI runs on plain Linux. Each WSL-specific claim has a manual
+  runbook in the spike docs and a one-line entry in a "verified on" table (date, who, what), not a
+  silent assumption. They need **a schedule or a self-hosted WSL runner**, not ad-hoc runs.
 - **Visual correctness** of the wizard and Settings -> Modules. Playwright with a
   screenshot, as the notes require (jsdom cannot see layout; mind the rAF-polling
   rule, use `{ polling: 500 }`).
@@ -59,8 +87,8 @@ CI `mutants` shards already do this for existing checks; new checks join them.
 
 OCI is **ARM**; this box is x86. Every image must exist for both, or the module
 declares `arch = ["amd64"]` and is unavailable on ARM (the budget gate and the
-wizard say so). A CI job builds and runs mini on **arm64** (QEMU or a native runner)
-so a core service never silently loses ARM.
+wizard say so). A **weekly, non-blocking** CI job builds and runs mini on **arm64** (QEMU or a native runner)
+so a core service never silently loses ARM; it blocks a release, not a PR.
 
 ## 6. Test data and fixtures
 
@@ -75,3 +103,10 @@ reach (the existing "only the mutation rows a PR can reach" pattern, #327). L2 r
 only when charts, the operator, settings or module files change. Nightlies carry
 the full set. The repo is public, so minutes are free; the goal is fast feedback,
 not savings.
+
+## Changed 2026-11-16
+
+- s1: Compose is a supported install below 4 GiB (S0), not dev-only; which layers need a VM (review
+  finding). Section 2b is new, one row per spike result; arm64 made weekly and non-blocking (review
+  finding); WSL checks need a schedule.
+- The lab VM is not a sandbox (S15), so a lab run proves our own code, never third-party code.

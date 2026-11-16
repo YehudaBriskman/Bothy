@@ -246,3 +246,13 @@ Nothing here blocks k3s and Docker on one host. Hard requirements that came out:
 `oom_score_adj` and `restart: unless-stopped`; Bothy's k3s core is Guaranteed QoS and uses no `hostPort`; preflight
 checks listeners plus both firewall views plus `/` propagation, and refuses swapless hosts under 4 GiB. Open: who dies
 on a real global OOM (the lab wedged), `wsl --shutdown` recovery, minikube, and S7, S8, S14 (Tailscale, not run).
+
+## Follow-up spikes these results raise (2026-11-16, not run)
+
+| ID | Question | Why |
+|---|---|---|
+| S5d | Do k3s ServiceLB's svclb pods publish through `hostPort`? If yes, the default LoadBalancer path is the thing S5b says to avoid | `architecture.md` s5 (ASSUMPTION K) |
+| S6b | Global OOM on a guest **with swap** and with the lab serial console off: who dies, and does the host stay usable? | S6 was INCONCLUSIVE; the go/no-go depends on it |
+| S16 | Does the bundled apiserver serve `ValidatingAdmissionPolicy` with no extra flags, and does the live admission test reject the three bad cases? | `security-model.md` 6.2 |
+| S17 | A real Bothy core (Guaranteed, no hostPort) idle memory on k3s, and a `lab-std` run to confirm the 4 GiB floor | S0 left this open; every core figure is still E |
+| S12b | k3s actually starting on a WSL kernel (a WSL host that is not the live box) | S12 and S13 were config and filesystem reads only |
