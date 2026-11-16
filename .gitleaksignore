@@ -45,3 +45,11 @@ be1c53691a4cbf6092834ac3de79bf6cae656d44:apps/bothy-web/web/src/lib/prefs.ts:gen
 a0f9b17f499e0c3a2c8fdc8d8a8b1d4dad8eba07:scripts/checks/redact-logs.sh:generic-api-key:28
 a0f9b17f499e0c3a2c8fdc8d8a8b1d4dad8eba07:scripts/checks/redact-logs.sh:generic-api-key:31
 a0f9b17f499e0c3a2c8fdc8d8a8b1d4dad8eba07:scripts/checks/redact-logs.sh:generic-api-key:32
+
+# A placeholder plaintext in apps/bothy-settings/checks/test_rotation.py (the
+# put_secret call in test_writes_after_rotation_use_the_new_key): a unit test of
+# the settings store writes it and reads it back to prove the new key was used.
+# Not a credential for anything; gitleaks matches the SHAPE of a key named like a
+# token beside a long string. Recorded rather than rewriting history, per the
+# entry above. (The string itself is not quoted here: quoting it re-triggers.)
+216d2f152ec4a05a1dfc3c79e4f8086c96783828:apps/bothy-settings/checks/test_rotation.py:generic-api-key:96
