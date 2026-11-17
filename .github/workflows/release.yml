@@ -31,6 +31,16 @@ name: Release
 # the tagged commit's sha, which only exists after this runs. It follows as its
 # own PR; until then scripts/checks/installer-pin.sh reports the pending release.
 # The default token here cannot open PRs (repo setting), so that PR is manual.
+# That PR also sets BOTHY_PIN_CHECKSUMS_SHA256 (the hash of the checksums.txt the
+# `cli` job below attached) - the value `bothy.sh --binary` verifies against.
+#
+# The `cli` job (2026-11, D22/D27) runs only after `tag` has tagged and published,
+# so it sits behind the same all-green gate and cannot change the decision above.
+# It builds the CLI archives with scripts/build-cli.sh, attaches them and
+# checksums.txt to the release, and attests them. It is the ONLY job holding
+# id-token/attestations: the tagging job keeps contents:write and nothing else.
+# If it fails, the release exists without assets: "Re-run failed jobs" repeats
+# only `cli` (uploads are --clobber, so that is safe).
 
 on:
   workflow_run:
@@ -61,6 +71,11 @@ jobs:
       contents: write
       # Reading the other workflows' runs for this SHA.
       actions: read
+    outputs:
+      # true only when THIS run created the tag and the release; the `cli` job
+      # keys on it. A run that lost the tag race, or found the tag, leaves it unset.
+      published: ${{ steps.publish.outputs.published }}
+      version: ${{ steps.decide.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -123,6 +138,7 @@ jobs:
           esac
 
       - name: Tag and publish the release
+        id: publish
         if: steps.decide.outputs.release == 'true' && steps.evidence.outputs.verdict == 'release'
         shell: bash
         env:
@@ -149,4 +165,73 @@ jobs:
             exit 1
           fi
           gh release create "v$V" --verify-tag --generate-notes --title "Bothy v$V"
-          echo "::notice::Released v$V at $SHA. Next: a PR moving scripts/bothy.sh BOTHY_PIN_VERSION/BOTHY_PIN_SHA to v$V / $SHA."
+          echo "published=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Released v$V at $SHA. Next: a PR moving scripts/bothy.sh BOTHY_PIN_VERSION/BOTHY_PIN_SHA to v$V / $SHA, and BOTHY_PIN_CHECKSUMS_SHA256 to the hash the cli job prints."
+
+  cli:
+    name: Build, attach and attest the CLI archives
+    needs: tag
+    if: needs.tag.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Upload the assets to the release.
+      contents: write
+      # The build-provenance attestation: an OIDC token, and the right to store it.
+      id-token: write
+      attestations: write
+    steps:
+      # The tagged revision, not the branch tip: main may have moved on.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - name: Build every target
+        run: bash scripts/build-cli.sh --out "$RUNNER_TEMP/dist"
+
+      # The archives are only worth attesting if they are the right ones: this one
+      # runs on the runner and must say the released version and sha.
+      - name: The linux/amd64 binary runs and reports this release
+        env:
+          V: ${{ needs.tag.outputs.version }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/smoke"
+          tar -xzf "$RUNNER_TEMP/dist/bothy_${V}_linux_amd64.tar.gz" -C "$RUNNER_TEMP/smoke"
+          out=$("$RUNNER_TEMP/smoke/bothy" version)
+          echo "$out"
+          case "$out" in *"bothy $V (commit ${SHA:0:12},"*) ;; *) echo "::error::wrong version or sha in the built binary"; exit 1 ;; esac
+          (cd "$RUNNER_TEMP/dist" && sha256sum -c checksums.txt)
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            ${{ runner.temp }}/dist/bothy_*
+            ${{ runner.temp }}/dist/checksums.txt
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release upload "v$V" "$RUNNER_TEMP"/dist/bothy_* "$RUNNER_TEMP/dist/checksums.txt" --clobber
+          echo "checksums.txt sha256 (the value for BOTHY_PIN_CHECKSUMS_SHA256):"
+          sha256sum "$RUNNER_TEMP/dist/checksums.txt" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: The attestation verifies
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh attestation verify "$RUNNER_TEMP/dist/checksums.txt" -R "$GITHUB_REPOSITORY"
+          gh attestation verify "$RUNNER_TEMP/dist/bothy_${V}_linux_amd64.tar.gz" -R "$GITHUB_REPOSITORY"
