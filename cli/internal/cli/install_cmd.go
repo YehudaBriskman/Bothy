@@ -105,6 +105,20 @@ func cmdUpdate(args []string, flags map[string]string, g globals, io IO) error {
 		return usagef("flag --to needs a release like v2026.12.0")
 	}
 	explicit := flags["manifest"] != "" || flags["checksums"] != ""
+	if g.json && check && flags["this-release"] != "true" && !explicit && flags["to"] == "" {
+		// Machine output of `update --check`: the read-only signal, nothing else.
+		// Every other combination behaves exactly as before.
+		exe, _ := os.Executable()
+		cwd, _ := os.Getwd()
+		res := install.CheckRelease(ctx, install.DefaultSource(), io.Version, install.DetectKind(o.DataDir, filepath.Dir(exe), cwd))
+		if err := res.WriteJSON(io.Out); err != nil {
+			return err
+		}
+		if res.Error != "" {
+			return fmt.Errorf("could not determine the latest release: %s", res.Error)
+		}
+		return nil
+	}
 	if flags["this-release"] != "true" && !explicit {
 		so := install.SelfOptions{Source: install.DefaultSource(), To: flags["to"], Check: check || o.DryRun, ApplyArgs: applyArgs(flags)}
 		handled, err := install.SelfUpdate(ctx, install.SysHost{}, o, so, io.Out)

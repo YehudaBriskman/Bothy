@@ -54,6 +54,7 @@ customisable than today's "everything on, edit `.env`".
 | [resource-management.md](resource-management.md) | requests, limits, quotas, priority, the budget gate, eviction order, slimming monitoring |
 | [install-and-bootstrap.md](install-and-bootstrap.md) | First install on WSL2, a plain Linux box, and OCI; the one-time admin; uninstall |
 | [updates-and-rollback.md](updates-and-rollback.md) | The updater when it lives in the cluster; self-update; Postgres majors; rollback |
+| [update-paths.md](update-paths.md) | How the checkout box (web updater) and the installed box (`bothy update`) coexist; kind detection; `update --check --json` |
 | [customization.md](customization.md) | How settings become Helm values; per-module overrides; third-party modules; escape hatches |
 | [cli-and-control-plane.md](cli-and-control-plane.md) | The one control plane (resource model, API, authN/Z, audit), the Go CLI and its release, the MCP server and its threat model, update controls as a product surface, the first slice, and decisions D15 to D28 for the owner |
 | [../settings-store.md](../settings-store.md) | **Decision record for the settings and secrets store (D11, #316)**: options weighed, key hierarchy, schema, rotation, backup, export, threat model |
