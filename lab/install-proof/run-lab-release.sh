@@ -4,7 +4,14 @@
 # the attestation here, and drives ONE lab VM through lab.sh. Nothing runs on this machine's
 # Docker. No fake registry: the guest pulls the release's images anonymously from ghcr.io.
 #
-#   lab/install-proof/run-lab-release.sh <tag e.g. v2026.11.1> [profile]   (default lab-mid)
+#   lab/install-proof/run-lab-release.sh [--stock] <tag e.g. v2026.11.1> [profile]   (default lab-mid)
+#
+# --stock: the UNMODIFIED default path. No workaround, no --manifest/--checksums on install/update/
+# uninstall: the guest runs plain `bothy install` and the binary fetches release-manifest.json and
+# checksums.txt itself from https://github.com/<repo>/releases/download/v<ver>/. The guest gets only the
+# released binary, the proof script and (for the proof's own assertions, never passed to bothy) the real
+# manifest. Only the proof's negative tests (forced failure, version mismatch, tamper) still hand the binary
+# a derived local file, because there is no other way to inject a failure; they are labelled in the output.
 #
 # KNOWN DEFECT worked around (REPAIR_CHECKSUMS=1, the default while it exists): a release whose
 # checksums.txt has no `release-manifest.json` line is refused by `bothy install`. The proof then
@@ -19,13 +26,14 @@
 #
 # For a second, clean pass: lab/lab.sh down <profile>; lab/lab.sh reset <profile>; run again.
 set -euo pipefail
+stock=0; if [[ ${1:-} = --stock ]]; then stock=1; shift; fi
 tag="${1:?release tag, e.g. v2026.11.1}"; prof="${2:-lab-mid}"
 [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "run-lab-release: tag must look like v2026.11.1" >&2; exit 64; }
 ver="${tag#v}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAB="$HERE/../lab.sh"
 REPO_SLUG="${REPO_SLUG:-YehudaBriskman/Bothy}"
-REPAIR_CHECKSUMS="${REPAIR_CHECKSUMS:-1}"
+REPAIR_CHECKSUMS="${REPAIR_CHECKSUMS:-1}"; [[ $stock = 1 ]] && REPAIR_CHECKSUMS=0
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 rel="$work/rel"; mkdir -p "$rel"
 ts() { date +%s.%N; }
@@ -53,6 +61,7 @@ if [[ $REPAIR_CHECKSUMS = 1 ]]; then
     printf '%s  release-manifest.json\n' "$msha" >> "$work/local/checksums.txt"
     echo "run-lab-release: WORKAROUND 1: appended '$msha  release-manifest.json' to a LOCAL checksums.txt"; repaired=1
   fi
+elif [[ $stock = 1 ]]; then echo "run-lab-release: --stock: the guest runs plain bothy install; nothing local is passed to it"
 else echo "run-lab-release: REPAIR_CHECKSUMS=0: the binary will use the release's own files over https"; fi
 
 st="$("$LAB" status 2>&1 || true)"; [[ $st == *"$prof: running"* ]] || "$LAB" up "$prof"
@@ -73,7 +82,7 @@ g 'cat > ~/proof/proof-release.sh && chmod +x ~/proof/proof-release.sh' < "$HERE
 echo "run-lab-release: guest before:"; g 'free -m | sed -n 1,2p; nproc; uname -r; docker --version; docker compose version --short; command -v gh || echo "gh: not installed in the guest"'
 t_p0=$(ts); rc=0
 # shellcheck disable=SC2088  # the guest shell expands ~
-g "~/proof/proof-release.sh $ver ~/proof/rel $repaired" || rc=$?
+g "~/proof/proof-release.sh $ver ~/proof/rel $repaired $stock" || rc=$?
 t_end=$(ts)
 awk -v a="$t_start" -v b="$t_up" -v c="$t_docker" -v d="$t_p0" -v e="$t_end" \
   'BEGIN{printf "run-lab-release timings: download+verify+boot %.0fs, docker install %.0fs, proof %.0fs, total %.0fs\n", b-a, c-b, e-d, e-a}'
