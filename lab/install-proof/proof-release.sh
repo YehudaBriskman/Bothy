@@ -5,12 +5,13 @@
 #
 #   proof-release.sh <version e.g. 2026.11.1> <dir holding release-manifest.json + checksums.txt> <repaired 0|1>
 #
+# <stock>=1 (with repaired=0): plain `bothy install`, no override at all; extra checks for the default path.
 # <repaired>=1: the two files are LOCAL workarounds of two release defects (see run-lab-release.sh) and are
 # passed with --manifest/--checksums. =0: the binary reads the release over https (the default path).
 # Expects the binary at ~/bin/bothy. Exits non-zero at the first broken assertion.
 # shellcheck disable=SC2015,SC2046,SC2012,SC2013,SC2086  # `ok` cannot fail; R output is meant to word-split
 set -uo pipefail
-ver="${1:?version}"; rel="${2:?dir}"; repaired="${3:-0}"
+ver="${1:?version}"; rel="${2:?dir}"; repaired="${3:-0}"; stock="${4:-0}"
 D="$HOME/.local/share/bothy"; C="$HOME/.config/bothy"; S="$D/stack"; B="$HOME/bin/bothy"
 n=0; fail() { echo "FAIL: $*"; exit 1; }; ok() { n=$((n+1)); echo "ok $n: $*"; }
 now() { date +%s.%N; }
@@ -45,6 +46,17 @@ if [ "$repaired" = 1 ]; then
   "$B" install --dry-run >/tmp/dry-default.txt 2>&1; rcd=$?
   echo "DEFAULT-SOURCE dry-run rc=$rcd: $(tail -2 /tmp/dry-default.txt | tr '\n' '|')"
   [ -e "$D" ] && fail "default-source dry run created files"
+fi
+
+# ---------------------------------------------------------------- stock extras: the default path, nothing passed
+if [ "$stock" = 1 ]; then
+  "$B" install --dry-run >/tmp/dry-stock.txt 2>&1; rcs=$?
+  grep -q "dry run: nothing was changed" /tmp/dry-stock.txt && [ $rcs = 0 ] && [ ! -e "$D" ] && [ ! -e "$C" ] && ok "STOCK: plain 'bothy install --dry-run' (no flags) rc 0, plan printed, nothing created" || { cat /tmp/dry-stock.txt; fail "stock dry-run rc=$rcs"; }
+  grep -i 'attestation\|checksums\|manifest\|https' /tmp/dry-stock.txt | cut -c1-260 | sed 's/^/  stock dry-run: /'
+  "$B" install --dry-run --require-attestation >/tmp/dry-req.txt 2>&1; rcr=$?
+  echo "--require-attestation rc=$rcr: $(tail -3 /tmp/dry-req.txt | tr '\n' '|' | cut -c1-500)"
+  if command -v gh >/dev/null; then echo "gh present in guest: --require-attestation not asserted as failing"
+  else { [ $rcr != 0 ] && [ ! -e "$D" ] && grep -qi 'attestation' /tmp/dry-req.txt; } && ok "STOCK: --require-attestation without gh fails (rc $rcr) with an attestation message, nothing created" || fail "require-attestation rc=$rcr"; fi
 fi
 
 # ---------------------------------------------------------------- dry run, then install
@@ -113,6 +125,7 @@ cp "$S/.env" /tmp/env.A; cp "$D/receipt.json" /tmp/receipt.A; idw=$(docker inspe
 unchanged() { cmp -s /tmp/env.A "$S/.env" && cmp -s /tmp/receipt.A "$D/receipt.json" && [ ! -e "$D/previous" ] && [ "$(docker inspect $web --format '{{.Id}}')" = "$idw" ]; }
 "$B" update --check $(R "$rel") >/tmp/uc.txt 2>&1 || { cat /tmp/uc.txt; fail "update --check rc"; }
 grep -q "Nothing was changed\|up to date" /tmp/uc.txt && unchanged && ok "update --check on the same release: $(grep -m1 'up to date\|Nothing was changed' /tmp/uc.txt)" || { cat /tmp/uc.txt; fail "update --check"; }
+[ "$stock" = 1 ] && sed 's/^/  stock update --check: /' /tmp/uc.txt | cut -c1-260
 t0=$(now); "$B" update $(R "$rel") >/tmp/u1.txt 2>&1; rcu=$?; t1=$(now)
 { [ $rcu = 0 ] && grep -q "up to date" /tmp/u1.txt && unchanged; } && ok "update to the SAME release is a no-op: $(grep -m1 'up to date' /tmp/u1.txt) ($(secs "$t0" "$t1")s)" || { cat /tmp/u1.txt; fail "same-version update"; }
 

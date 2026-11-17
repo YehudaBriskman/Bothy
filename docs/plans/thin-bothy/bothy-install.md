@@ -481,7 +481,43 @@ X was restored` instead of `update to X failed ... rolled back to X`; the compos
 **Still unproven:** a verified `gh attestation verify` *inside* `bothy install` against the real release with an
 authenticated `gh` (the host check of 10c verified the files, not the binary's call); the exact text of every gh
 verdict message across gh versions; the next real release carrying a manifest line in `checksums.txt`.
-||||||| 3cf13ee
+### 10e. Stock install of a real release: v2026.11.2 (lab, 2026-11-17)
+
+First release cut with the fixed pipeline. The proof ran the **unmodified default path**: the driver's `--stock` mode
+(`lab/install-proof/run-lab-release.sh --stock v2026.11.2 lab-mid`) copies into the guest only the released
+`linux/amd64` binary and the proof script; the guest runs plain `bothy install` / `update` / `uninstall` with **no
+`--manifest`, no `--checksums`, no edited file, no fake release server, no registry mirror**, a guest with only
+`docker.io` 29.1.3 + compose 2.40.3, no `gh`, no docker login. The binary finds the release itself:
+`installBase = https://github.com/YehudaBriskman/Bothy/releases/download` (`cli/internal/cli/install_cmd.go`) plus
+`/v<its own version>/release-manifest.json` and `/checksums.txt`. The pinned version is the binary's own, so the stock
+path needs no override (the repository is public; an anonymous `curl` of the asset answers 200). The real manifest sits in
+the guest only so the proof can read the expected digests; it is never passed to bothy. Host checks before the guest
+ran: `sha256sum -c` OK, `gh attestation verify` OK for the archive, `checksums.txt`, `release-manifest.json`; the
+binary that ran in the guest is the one extracted from that attested archive. `bothy 2026.11.2 (commit 930bf6287928)`.
+
+What still uses a local file even in `--stock`: only the proof's negative tests (version mismatch, one-byte tamper,
+the two forced failures) pass a derived manifest, because there is no other way to inject a failure. Labelled as such.
+
+| Check | Observed | Status |
+|---|---|---|
+| defect 1 (checksums line) | `checksums.txt` of v2026.11.2 has the `release-manifest.json` line: "manifest: release-manifest.json sha256 a22e8954f962 matches checksums.txt" | proven fixed |
+| defect 2 (`tag`/`pinned_in`) | the real manifest parses in the released binary | proven fixed |
+| `bothy install --dry-run`, no flags | rc 0, plan printed, nothing created | proven |
+| attestation, guest **without gh** | `attestation: SKIPPED. gh is not installed. The sha256 checks still ran.` plus the exact `gh attestation verify checksums.txt --repo YehudaBriskman/Bothy` command; install continues | proven (skip, not fail) |
+| `--require-attestation`, guest without gh | rc 1, `bothy: attestation: gh is not installed, and --require-attestation is set. Verify it yourself with: ...`; nothing created | proven |
+| attestation, **authenticated gh** | verified on the HOST only: the same released binary, `install --dry-run` with a temp HOME, the host's gh 2.96 config, and a `docker` shim that refuses (no docker touched, nothing created): `attestation: verified by gh (checksums.txt is attested by YehudaBriskman/Bothy)`. **Not proven in a guest**: that needs a logged-in gh there, and no token was copied into a VM | proven on host / **unproven in guest** |
+| `install` (stock) | 38.7 s, 24.3 s (pass 1, pass 2); pulls web 4.4-10.9 s, files 4.4 s, Traefik 5.7-6.5 s, `compose up --wait` ~16 s | proven |
+| bytes through the edge | `/` sha-equals `index.html` read from the image by digest; `/version.json` = `930bf6287928...` the manifest commit; three images at the manifest digests; containers created from digest refs | proven |
+| re-run | 0.9 s, "nothing to do", key kept | proven |
+| `update --check`, and `update`, same release (stock, https) | "up to date: this box already matches release 2026.11.2", nothing changed. `--check` prints the preflight and a `skip`-marked plan; the release shown is "release for binary 2026.11.2": **this binary has no latest-release discovery**, it can only compare against its own release, so "is there a newer release?" is not answerable by it | proven; discovery absent by design |
+| version-mismatch, tamper, 2 forced failures (derived local manifests) | refused or rolled back, state restored byte for byte (1.9-2.1 s and 5.5-6.0 s) | proven |
+| uninstall / reinstall / purge | as in 10c, images all removed | proven |
+| Result | `PROOF PASSED (56 checks)` on both reset guests (54 of 10c plus 2 stock checks); total 164 s and 213 s (Docker install 35 s and 98 s, proof 85 s and 72 s) | proven |
+
+**Unproven**: a verified attestation inside a guest (needs an authenticated gh there); a real downgrade or a real
+A to B update between two real releases; arm64 execution; `lab-mini`; WSL; rootless Docker.
+Also fixed here: a stray merge-conflict marker line that sat in this file after section 10d.
+
 
 ## 11. Decisions taken
 
