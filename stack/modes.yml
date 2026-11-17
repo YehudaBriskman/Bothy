@@ -36,6 +36,45 @@ modes:
       - name: web
         compose: apps/bothy-web/compose.yml
         services: [bothy-web]
+      # The file explorer's backend, as the SECOND module: added with data only.
+      # Roots policy for a machine with no ~/stacks and no notes repo: ONE root,
+      # `notes`, a single folder under the install dir (<root>/stack/bothy-files/
+      # notes), READ-ONLY (policy `writable = false`, a `:ro` mount, and no write
+      # route at the edge, because this install has no login). Policy file:
+      # stack/installed/bothy-files.policy.toml. Not exposed: /write, /delete,
+      # /config/* (no auth to gate them) and /raw, /archive (they are served from
+      # the :8100 sandbox origin, which an installed box does not publish).
+      - name: files
+        compose: apps/bothy-files/compose.yml
+        services: [bothy-files]
+        overrides:
+          bothy-files:
+            # the dev box's four roots, audit dir and two undo nets, by container path
+            volumes_remove: [/repos/stacks, /repos/notes, /repos/projects, /repos/home, /audit, /var/lib/bothy/trash, /var/lib/bothy/config-trash]
+            volumes_add:
+              - ./notes:/repos/notes:ro
+              - ./policy:/etc/bothy-files:ro
+            tmpfs_add: [/audit, /var/lib/bothy/trash, /var/lib/bothy/config-trash]   # nothing can write; the loader wants them
+            # the Dockerfile's CMD with POLICY_FILE pointed at the installed policy
+            command_add: [sh, -c, "POLICY_FILE=/etc/bothy-files/policy.toml exec python3 -u app.py"]
+            # The repo declares this service's routes in edge/dynamic/bothy-files.yml
+            # behind SSO middlewares an installed box does not have; here only the
+            # READ routes exist, each exact Path(), no Host().
+            labels_set:
+              - traefik.enable=true
+              - traefik.http.services.bothy-files.loadbalancer.server.port=8099
+              - "traefik.http.routers.bothy-files-read.rule=Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/find`) || Path(`/-/api/files/docs`) || Path(`/-/api/files/dirsize`) || Path(`/-/api/files/search`) || Path(`/-/api/files/links`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
+              - traefik.http.routers.bothy-files-read.priority=100
+              - traefik.http.routers.bothy-files-read.entrypoints=web
+              - traefik.http.routers.bothy-files-read.service=bothy-files
+              - traefik.http.routers.bothy-files-read.middlewares=bothy-files-strip,files-deidentify
+              - traefik.http.middlewares.bothy-files-strip.stripPrefix.prefixes=/-/api/files
+              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-User=
+              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Email=
+              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Groups=
+              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Preferred-Username=
+              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Forwarded-User=
+              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Forwarded-Email=
     # Host ports the installed stack publishes. Anything else a service publishes
     # in the repo (the sandbox entrypoint, say) is dropped. `env` is written to the
     # stack's .env by the installer (--port); the bind address comes from --bind.
@@ -52,7 +91,8 @@ modes:
     # socket is never allowed (a lint refuses it anywhere in the generated stack).
     allow_binds: []
     # Files copied from the repo into <install root>/stack/<to> (none for mini yet).
-    files: []
+    files:
+      - {from: stack/installed/bothy-files.policy.toml, to: bothy-files/policy/policy.toml}
     # Bytes check after `up`: the installer fetches `path` through the edge and
     # compares it with `file` read from inside `service`; version_path must report
     # the release commit under `version_key`.

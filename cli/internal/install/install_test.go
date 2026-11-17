@@ -123,9 +123,10 @@ func digest(c byte) string { return "sha256:" + strings.Repeat(string(c), 64) }
 
 func fixture(version string) (manifest, checksums []byte) {
 	manifest = []byte(fmt.Sprintf(`{"schema":1,"version":%q,"commit":%q,
- "images":{"bothy-web":{"ref":"ghcr.io/o/bothy-web@%s","platforms":["linux/amd64","linux/arm64"]}},
+ "images":{"bothy-web":{"ref":"ghcr.io/o/bothy-web@%s","platforms":["linux/amd64","linux/arm64"]},
+           "bothy-files":{"ref":"ghcr.io/o/bothy-files@%s","platforms":["linux/amd64","linux/arm64"]}},
  "third_party":{"traefik":{"ref":"traefik@%s"}},
- "assets":{"cli":"checksums.txt"}}`, version, commit, digest('a'), digest('b')))
+ "assets":{"cli":"checksums.txt"}}`, version, commit, digest('a'), digest('c'), digest('b')))
 	s := sha256.Sum256(manifest)
 	checksums = []byte(hex.EncodeToString(s[:]) + "  release-manifest.json\n" + strings.Repeat("0", 64) + "  bothy_linux_amd64.tar.gz\n")
 	return
@@ -190,6 +191,7 @@ func newHost() *fakeHost {
 			"docker info --format {{.SecurityOptions}}":                                "[name=seccomp,profile=builtin]",
 			"docker image inspect --format {{.Id}} ghcr.io/o/bothy-web@" + digest('a'): "!no such image",
 			"docker image inspect --format {{.Id}} traefik@" + digest('b'):             "!no such image",
+			"docker image inspect --format {{.Id}} ghcr.io/o/bothy-files@" + digest('c'): "!no such image",
 		}}
 }
 
@@ -357,8 +359,8 @@ func TestDryRunPrintsEveryActionAndChangesNothing(t *testing.T) {
 	}
 	s := out.String()
 	for _, want := range []string{
-		"create 4 directories", "generate " + filepath.Join(o.ConfigDir, "secrets", "master.key"), "never printed",
-		"record the install", "write .env, compose.yml", "docker pull ghcr.io/o/bothy-web@" + digest('a'), "docker pull traefik@" + digest('b'),
+		"create 6 directories", "generate " + filepath.Join(o.ConfigDir, "secrets", "master.key"), "never printed",
+		"record the install", "write .env, bothy-files/policy/policy.toml, compose.yml, traefik/dynamic/routes.yml", "docker pull ghcr.io/o/bothy-files@" + digest('c'), "docker pull ghcr.io/o/bothy-web@" + digest('a'), "docker pull traefik@" + digest('b'),
 		"docker compose up -d --wait --pull never", "byte", "needs root: nothing", "dry run: nothing was changed",
 		"matches checksums.txt",
 	} {
@@ -427,6 +429,7 @@ func TestApplyIdempotentAndResumable(t *testing.T) {
 	}
 	pull("ghcr.io/o/bothy-web@" + digest('a'))
 	pull("traefik@" + digest('b'))
+	pull("ghcr.io/o/bothy-files@" + digest('c'))
 	st := mini(t)
 	ca := func(more ...string) string { return "docker " + strings.Join(o.composeArgs(st, more...), " ") }
 	h.cmds[ca("up", "-d", "--wait", "--wait-timeout", "180", "--pull", "never", "--remove-orphans")] = ""
@@ -451,7 +454,7 @@ func TestApplyIdempotentAndResumable(t *testing.T) {
 	}
 	// Resume: `up` works now; finished steps are skipped.
 	h.cmds[ca("up", "-d", "--wait", "--wait-timeout", "180", "--pull", "never", "--remove-orphans")] = ""
-	for _, ref := range []string{"ghcr.io/o/bothy-web@" + digest('a'), "traefik@" + digest('b')} {
+	for _, ref := range []string{"ghcr.io/o/bothy-web@" + digest('a'), "traefik@" + digest('b'), "ghcr.io/o/bothy-files@" + digest('c')} {
 		h.cmds["docker image inspect --format {{.Id}} "+ref] = "sha256:id"
 	}
 	out.Reset()
@@ -485,6 +488,7 @@ func TestApplyIdempotentAndResumable(t *testing.T) {
 	// Re-run: `ps` now reports everything running; plan must be empty.
 	h.cmds[ca("ps", "--format", "json")] = `{"Service":"bothy-web","State":"running","Health":"healthy"}
 {"Service":"traefik","State":"running","Health":"healthy"}
+{"Service":"bothy-files","State":"running","Health":"healthy"}
 `
 	out.Reset()
 	h.ran = nil

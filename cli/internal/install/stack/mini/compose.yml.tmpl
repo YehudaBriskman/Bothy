@@ -4,7 +4,50 @@ name: bothy
 networks:
   bothy-devnet:
     name: bothy-devnet
+  bothy-filesnet:
+    name: bothy-filesnet
 services:
+  bothy-files:
+    command:
+      - sh
+      - -c
+      - POLICY_FILE=/etc/bothy-files/policy.toml exec python3 -u app.py
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    environment:
+      AUDIT_LOG: /audit/writes.log
+      CONFIG_AUDIT_LOG: /audit/patches.log
+      HOME: /tmp
+      PORT: 8099
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 5s
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8099/healthz',timeout=2).status==200 else 1)
+      timeout: 3s
+    image: '${BOTHY_IMAGE_BOTHY_FILES:?not set: run bothy install}'
+    networks:
+      - bothy-filesnet
+    pull_policy: never
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+      - /audit
+      - /var/lib/bothy/trash
+      - /var/lib/bothy/config-trash
+    user: ${PUID:-1000}:${PGID:-1000}
+    volumes:
+      - ./bothy-files/notes:/repos/notes:ro
+      - ./bothy-files/policy:/etc/bothy-files:ro
   bothy-web:
     deploy:
       resources:
@@ -68,6 +111,7 @@ services:
       - dev.portal.project=Edge · Traefik
     networks:
       - bothy-devnet
+      - bothy-filesnet
     ports:
       - ${BOTHY_BIND:-127.0.0.1}:${BOTHY_HTTP_PORT:-80}:80
     pull_policy: never
