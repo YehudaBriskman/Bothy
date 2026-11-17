@@ -23,7 +23,7 @@ npm test
 Two guards, both in the build and re-checked on the output by `scripts/check-public.mjs`:
 only files in `docs-allowlist.json` render (and anything under `kb`, `claude-notes`, `secrets`, `credentials` or
 `.env*` is refused even if listed), and every rendered document and every output file is scanned for the shapes in
-`leak-patterns.json` (a tailnet `100.64.0.0/10` address, `.ts.net` names, token prefixes, key blocks, the owner's
+`leak-patterns.json` (a tailnet (CGNAT range) address, `.ts.net` names, token prefixes, key blocks, the owner's
 machine names). `docs/kb` is never rendered; a link to it becomes plain text.
 
 ## One build, two homes

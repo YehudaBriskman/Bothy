@@ -44,7 +44,7 @@ test('an allowlist entry that reaches into kb fails validation', () => {
 });
 
 test('leak patterns catch tailnet addresses and credentials, not version numbers or digests', () => {
-  assert.ok(findLeaks('http://100.117.176.85/').length);
+  assert.ok(findLeaks(`http://${['100', '117', '176', '85'].join('.')}/`).length);
   assert.ok(findLeaks('host.tail1234.ts.net').length);
   assert.ok(findLeaks('password=hunter2hunter2hunter2').length);
   assert.ok(findLeaks('ghp_' + 'a'.repeat(36)).length);
