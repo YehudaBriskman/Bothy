@@ -31,8 +31,11 @@ name: Release
 # the tagged commit's sha, which only exists after this runs. It follows as its
 # own PR; until then scripts/checks/installer-pin.sh reports the pending release.
 # The default token here cannot open PRs (repo setting), so that PR is manual.
-# That PR also sets BOTHY_PIN_CHECKSUMS_SHA256 (the hash of the checksums.txt the
-# `cli` job below attached) - the value `bothy.sh --binary` verifies against.
+# That PR also sets BOTHY_PIN_CHECKSUMS_SHA256 - the value `bothy.sh --binary`
+# verifies against. It is the hash of the FINAL checksums.txt, the one the
+# `release-manifest` job (last in the run) leaves on the release after adding the
+# manifest's line; that job prints it. The `cli` job's own checksums.txt is an
+# intermediate and its hash must NOT be pinned.
 #
 # The `cli` job (2026-11, D22/D27) runs only after `tag` has tagged and published,
 # so it sits behind the same all-green gate and cannot change the decision above.
@@ -40,7 +43,9 @@ name: Release
 # checksums.txt to the release, and attests them. It is the ONLY job holding
 # id-token/attestations: the tagging job keeps contents:write and nothing else.
 # If it fails, the release exists without assets: "Re-run failed jobs" repeats
-# only `cli` (uploads are --clobber, so that is safe).
+# only `cli` (uploads are --clobber, so that is safe). Re-running `cli` after
+# `release-manifest` has run puts the line-less checksums.txt back, so re-run
+# `release-manifest` after it (it is idempotent) - see that job.
 
 on:
   workflow_run:
@@ -166,7 +171,7 @@ jobs:
           fi
           gh release create "v$V" --verify-tag --generate-notes --title "Bothy v$V"
           echo "published=true" >> "$GITHUB_OUTPUT"
-          echo "::notice::Released v$V at $SHA. Next: a PR moving scripts/bothy.sh BOTHY_PIN_VERSION/BOTHY_PIN_SHA to v$V / $SHA, and BOTHY_PIN_CHECKSUMS_SHA256 to the hash the cli job prints."
+          echo "::notice::Released v$V at $SHA. Next: a PR moving scripts/bothy.sh BOTHY_PIN_VERSION/BOTHY_PIN_SHA to v$V / $SHA, and BOTHY_PIN_CHECKSUMS_SHA256 to the hash the release-manifest job prints in its summary (the FINAL checksums.txt, not the cli job's)."
 
   cli:
     name: Build, attach and attest the CLI archives
@@ -224,8 +229,9 @@ jobs:
         run: |
           set -euo pipefail
           gh release upload "v$V" "$RUNNER_TEMP"/dist/bothy_* "$RUNNER_TEMP/dist/checksums.txt" --clobber
-          echo "checksums.txt sha256 (the value for BOTHY_PIN_CHECKSUMS_SHA256):"
-          sha256sum "$RUNNER_TEMP/dist/checksums.txt" | tee -a "$GITHUB_STEP_SUMMARY"
+          # No hash for BOTHY_PIN_CHECKSUMS_SHA256 here on purpose: this
+          # checksums.txt has no release-manifest.json line yet; the
+          # release-manifest job changes it and prints the pinnable hash.
 
       - name: The attestation verifies
         env:
@@ -379,9 +385,30 @@ jobs:
   # Built by scripts/gen-release-manifest.py, which fails on any third-party
   # image not pinned by digest. Attached to the release and attested.
   # No packages permission: it only reads the digests the images job recorded.
+  #
+  # It also makes the release SELF-CONSISTENT (found by the first real release,
+  # v2026.11.1): `bothy install`/`bothy update` accept a manifest only if its
+  # sha256 is a line of checksums.txt, but `cli` wrote checksums.txt before the
+  # images and this manifest existed. So, after generating the manifest, this job
+  # downloads the published checksums.txt, adds the manifest's line
+  # (scripts/append-manifest-checksum.sh: sorted, idempotent), uploads it back
+  # with --clobber and attests the new file AND the manifest. The attestation on
+  # the cli job's earlier checksums.txt stays in the registry, for a digest that
+  # no longer matches any release asset: harmless, nothing verifies against it.
+  #
+  # Why `needs: cli`: the file edited here must be the one `cli` finished
+  # uploading, never one still racing it. A failed `cli` therefore skips this job.
+  #
+  # Order matters and scripts/checks/release-order.sh pins it: generate manifest,
+  # final checksums.txt, upload, attest, verify, and only then the summary that
+  # prints BOTHY_PIN_CHECKSUMS_SHA256 - the hash of the FINAL file.
+  #
+  # Recovery: re-running only this job is safe (the append replaces its own
+  # line; same inputs, same bytes, same hash). If `cli` is ever re-run, its
+  # --clobber upload restores the line-less checksums.txt: re-run this job after.
   release-manifest:
-    name: Attach release-manifest.json
-    needs: [tag, images]
+    name: Attach release-manifest.json and finish checksums.txt
+    needs: [tag, images, cli]
     if: needs.tag.outputs.published == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -416,13 +443,67 @@ jobs:
           python3 scripts/gen-release-manifest.py --version "$V" --commit "$SHA" "${args[@]}" --out release-manifest.json
           jq . release-manifest.json
 
+      - name: Final checksums.txt - add the manifest's line to the published one
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir final
+          gh release download "v$V" -p checksums.txt -D final --clobber
+          # What the cli job published must be the six archives (plus, on a
+          # re-run, our own line): anything else is not a file to build on.
+          n=$(grep -c "  bothy_${V}_" final/checksums.txt || true)
+          [ "$n" -eq 6 ] || { echo "::error::checksums.txt on v$V lists $n bothy_${V}_ archives, expected 6 - did the cli job finish?"; exit 1; }
+          bash scripts/append-manifest-checksum.sh final/checksums.txt release-manifest.json
+          cat final/checksums.txt
+
       - name: Attach to the release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           V: ${{ needs.tag.outputs.version }}
-        run: gh release upload "v$V" release-manifest.json --clobber
+        run: gh release upload "v$V" release-manifest.json final/checksums.txt --clobber
 
       - uses: actions/attest-build-provenance@v4
         with:
-          subject-path: release-manifest.json
+          subject-path: |
+            release-manifest.json
+            final/checksums.txt
+
+      - name: The release is self-consistent
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          # What the release serves is what was attested, and the manifest's
+          # line in it is the manifest's real hash: the check `bothy install` makes.
+          mkdir served
+          gh release download "v$V" -p checksums.txt -p release-manifest.json -D served --clobber
+          cmp final/checksums.txt served/checksums.txt
+          cmp release-manifest.json served/release-manifest.json
+          (cd served && grep "  release-manifest.json$" checksums.txt | sha256sum -c -)
+          gh attestation verify served/checksums.txt -R "$GITHUB_REPOSITORY"
+          gh attestation verify served/release-manifest.json -R "$GITHUB_REPOSITORY"
+
+      - name: Summary - the pin for scripts/bothy.sh
+        shell: bash
+        env:
+          V: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          sum=$(sha256sum served/checksums.txt | cut -d' ' -f1)
+          {
+            echo "### BOTHY_PIN_CHECKSUMS_SHA256 for v$V"
+            echo
+            echo "sha256 of the FINAL checksums.txt (archives + release-manifest.json line):"
+            echo
+            echo '```'
+            echo "$sum"
+            echo '```'
+            echo
+            echo "Pin this one. The cli job's earlier checksums.txt had no manifest line."
+          } | tee -a "$GITHUB_STEP_SUMMARY"

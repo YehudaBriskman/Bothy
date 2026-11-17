@@ -553,9 +553,45 @@ they are now `tag@sha256:<index digest>` (the digest of the multi-arch index tha
 with `skopeo inspect`, so the same image the boxes already run). Dependabot's docker-compose ecosystem keeps tag and
 digest moving together, as it already does for postgres and traefik.
 
+**Update 2026-11-17, after the first real release (v2026.11.1): the release was not self-consistent, and what
+changed.** The jobs ran and the images, attestations and public packages were all fine, but `checksums.txt` is
+written by the `cli` job **before** the images and the manifest exist, so it had no `release-manifest.json` line,
+and `bothy install` / `bothy update` (which require that line, `VerifyManifest`) refused the release's own manifest.
+**That release cannot be installed with `bothy install`;** its CLI archives and the images are fine. The fix (not
+yet proven, see below):
+
+* `release-manifest` now `needs: [tag, images, cli]`, so the `checksums.txt` it edits is the one `cli` finished
+  uploading. After generating the manifest it downloads the published `checksums.txt`, runs
+  `scripts/append-manifest-checksum.sh` (drops any old manifest line, adds the current one, sorts bytewise by name as
+  `build-cli.sh` does, refuses malformed or duplicated lines and leaves the file untouched), uploads it with
+  `--clobber`, attests the new `checksums.txt` **and** the manifest, re-downloads both from the release to check the
+  served bytes are the attested bytes and the manifest line matches, and only then prints the pin.
+* Why this design and not another. (a) *Build the manifest before `cli`*: impossible, it needs the image digests,
+  which need the tag job, and `cli` runs beside `images` to keep the archives off the 60-minute QEMU path.
+  (b) *Move `checksums.txt` entirely into the manifest job*: then a failed images leg leaves a release with no
+  verifiable CLI archives, a regression of D22. (c) *Change `install` to take the manifest on its attestation and
+  treat the checksums line as a second check*: rejected for now. The installer would then need `gh` (the stack's
+  installer cannot assume it, and `bothy.sh` already SKIPS the attestation without it), and it would still leave a
+  published `checksums.txt` that disagrees with the release it sits in. The existing check is unchanged and not
+  weakened; an attestation-first path can be added later *as an extra*, never in place of the line.
+* The attestation made by `cli` for the earlier `checksums.txt` stays in the registry. It is for a digest no release
+  asset has any more, so nothing can verify against it and nothing is lost. (If the pre-fix file is ever
+  re-uploaded, it verifies again, which is correct: it is what `cli` built.)
+* `BOTHY_PIN_CHECKSUMS_SHA256` is the hash of the **final** `checksums.txt`. The `cli` job no longer prints a hash;
+  the `release-manifest` job's summary does, computed from the file the release serves.
+* Recovery: re-running only `release-manifest` is safe (same inputs, same bytes, same hash, one line). Re-running
+  `cli` restores the line-less `checksums.txt`, so re-run `release-manifest` after it.
+* Held by: `scripts/checks/release-order.sh` (the job needs and the step order, statically),
+  `scripts/checks/append-manifest-checksum.sh` (the append on fixtures: idempotent, ordered, refusals),
+  `scripts/checks/cli-release.sh` (`bothy.sh --binary` installs from a `checksums.txt` that carries the line, and a
+  pin of the line-less file is refused). All three run in CI's no-daemon job (the last in `ci.yml`'s `tree`).
+* **v2026.11.1 stays broken and is not repaired in place** (its pin and notes are history). The fix is proven only by
+  the next release, v2026.11.2 or later.
+
 **What only a real release proves:** that `GITHUB_TOKEN` may create the packages; that QEMU builds finish in time; that
-`attest-build-provenance@v4` with `push-to-registry` works for these subjects; that the `cli` assets named in the
-manifest (`checksums.txt`) exist on the same release (that job is separate work); and that an anonymous
+`attest-build-provenance@v4` with `push-to-registry` works for these subjects (**shown by v2026.11.1**, with the
+two caveats above); that the new `release-manifest` steps (download, append, `--clobber`, second attestation, the
+served-bytes check) work on a real release (**not yet shown**); and that an anonymous
 `docker pull ghcr.io/<owner>/bothy-web@sha256:...` works (below). Recovery if a leg fails: re-run the **failed jobs**
 of the run that tagged. Re-running the whole workflow afterwards finds the tag and publishes nothing.
 
@@ -567,6 +603,14 @@ cannot be done before the first push (the package does not exist) and **cannot b
 never be made private again). Do it once; later versions inherit it. Then check from a machine that is **not** logged
 in to ghcr.io: `docker pull ghcr.io/<owner>/bothy-web@sha256:<digest from release-manifest.json>`. The workflow
 labels each image with `org.opencontainers.image.source` so the package links to the repository.
+
+**Human steps for each release (corrected 2026-11-17).** 1. Wait for the **whole** Release run, including its
+`release-manifest` job, to be green. 2. Open that job's summary: it prints the sha256 of the **final**
+`checksums.txt`. (Cross-check: `gh release download vX -p checksums.txt -O - | sha256sum`; the two must agree and
+the file must contain a `release-manifest.json` line.) 3. Open the pin PR: `scripts/bothy.sh`
+`BOTHY_PIN_VERSION`, `BOTHY_PIN_SHA` (the tagged commit) and `BOTHY_PIN_CHECKSUMS_SHA256` (that hash); merge it, then
+`git pull` on the box. 4. First release only: make the three GHCR packages public (above). The tag job's notice
+used to send you to the `cli` job's hash; that hash is for an intermediate file and must not be pinned.
 
 ## 9. Sources
 
