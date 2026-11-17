@@ -24,12 +24,28 @@ type Manifest struct {
 	Version    string                `json:"version"`
 	Commit     string                `json:"commit"`
 	Images     map[string]ImageEntry `json:"images"`
-	ThirdParty map[string]ImageEntry `json:"third_party"`
+	ThirdParty map[string]ThirdParty `json:"third_party"`
 	Assets     map[string]string     `json:"assets"`
 }
 
+// ImageEntry is one of Bothy's OWN images. Strict: an unknown field is refused,
+// because these are what gets pulled and run.
 type ImageEntry struct {
 	Ref       string   `json:"ref"`
+	Platforms []string `json:"platforms,omitempty"`
+}
+
+// ThirdParty is a pinned image Bothy does not build. Ref (a digest reference) is
+// the only field the installer acts on. Tag and PinnedIn are informational,
+// written by scripts/gen-release-manifest.py (the tag the compose pin carried,
+// and the compose files that pin it): typed and validated, never acted on, and
+// the contract test (manifest_contract_test.go) holds them to the generator.
+type ThirdParty struct {
+	Ref      string   `json:"ref"`
+	Tag      *string  `json:"tag,omitempty"` // null when the pin carries no tag
+	PinnedIn []string `json:"pinned_in,omitempty"`
+	// Platforms is not emitted by the generator today; when present it is
+	// checked against the host's architecture like an own image's.
 	Platforms []string `json:"platforms,omitempty"`
 }
 
@@ -47,7 +63,7 @@ func ParseManifest(b []byte) (*Manifest, error) {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&m); err != nil {
-		return nil, fmt.Errorf("release manifest: %w", err)
+		return nil, fmt.Errorf("release manifest: %w", explainUnknown(b, err))
 	}
 	if m.Schema != 1 {
 		return nil, fmt.Errorf("release manifest: schema %d is not supported by this binary (want 1)", m.Schema)
@@ -58,25 +74,57 @@ func ParseManifest(b []byte) (*Manifest, error) {
 	if !commitRe.MatchString(m.Commit) {
 		return nil, fmt.Errorf("release manifest: commit %q is not a 40-hex sha", m.Commit)
 	}
-	for _, set := range []map[string]ImageEntry{m.Images, m.ThirdParty} {
-		for name, e := range set {
-			if !refRe.MatchString(e.Ref) {
-				return nil, fmt.Errorf("release manifest: %s: %q is not a digest reference (registry/name@sha256:<64 hex>); tags are refused", name, e.Ref)
-			}
+	check := func(name, ref string) error {
+		if !refRe.MatchString(ref) {
+			return fmt.Errorf("release manifest: %s: %q is not a digest reference (registry/name@sha256:<64 hex>); tags are refused", name, ref)
+		}
+		return nil
+	}
+	for name, e := range m.Images {
+		if err := check(name, e.Ref); err != nil {
+			return nil, err
+		}
+	}
+	for name, e := range m.ThirdParty {
+		if err := check(name, e.Ref); err != nil {
+			return nil, err
 		}
 	}
 	return &m, nil
 }
 
+// explainUnknown turns encoding/json's `unknown field "x"` into a message that
+// says what it means: the manifest is newer than this binary (or the two
+// disagree about the schema). The field name is kept so the cause is findable.
+func explainUnknown(b []byte, err error) error {
+	const pre = "json: unknown field "
+	msg := err.Error()
+	if !strings.HasPrefix(msg, pre) {
+		return err
+	}
+	field := strings.Trim(strings.TrimPrefix(msg, pre), `"`)
+	var top map[string]json.RawMessage
+	where := "inside one of its entries"
+	if json.Unmarshal(b, &top) == nil {
+		if _, ok := top[field]; ok {
+			where = "at its top level"
+		}
+	}
+	return fmt.Errorf("the manifest has a field %q (%s) that this bothy does not know: this binary is older than the release that wrote it, or the two disagree about the schema. Download the bothy binary of the same release; a manifest this one does not fully understand is not acted on", field, where)
+}
+
 // Lookup finds the digest reference for a stack service's image.
 func (m *Manifest) Lookup(key string, own bool) (string, error) {
-	set, label := m.ThirdParty, "third_party"
 	if own {
-		set, label = m.Images, "images"
+		e, ok := m.Images[key]
+		if !ok {
+			return "", fmt.Errorf("the release manifest has no images entry for %q", key)
+		}
+		return e.Ref, nil
 	}
-	e, ok := set[key]
+	e, ok := m.ThirdParty[key]
 	if !ok {
-		return "", fmt.Errorf("the release manifest has no %s entry for %q", label, key)
+		return "", fmt.Errorf("the release manifest has no third_party entry for %q", key)
 	}
 	return e.Ref, nil
 }

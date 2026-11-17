@@ -156,11 +156,13 @@ func Preflight(ctx context.Context, h Host, in PreflightIn) []Check {
 			if _, err := in.Manifest.Lookup(s.ImageKey, s.Own); err != nil {
 				add("manifest", Fail, err.Error(), "This manifest is not for a Bivvy install; use the release that matches this binary.")
 			}
-			set := in.Manifest.ThirdParty
+			var plats []string
 			if s.Own {
-				set = in.Manifest.Images
+				plats = in.Manifest.Images[s.ImageKey].Platforms
+			} else {
+				plats = in.Manifest.ThirdParty[s.ImageKey].Platforms
 			}
-			if e, ok := set[s.ImageKey]; ok && len(e.Platforms) > 0 && !contains(e.Platforms, "linux/"+h.GOARCH()) {
+			if len(plats) > 0 && !contains(plats, "linux/"+h.GOARCH()) {
 				add("platform", Fail, fmt.Sprintf("%s is not published for linux/%s", s.ImageKey, h.GOARCH()), "")
 			}
 		}

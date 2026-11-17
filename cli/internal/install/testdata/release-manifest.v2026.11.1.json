@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "version": "2026.11.1",
+  "commit": "fc7b73323870767984c32ac30059cd8d141c2fde",
+  "images": {
+    "bothy-files": {
+      "ref": "ghcr.io/yehudabriskman/bothy-files@sha256:f29b05034f457ca8c373836691ad15a3d1fb6e153e5ef60b5a73a475a4557ff5",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "bothy-ops": {
+      "ref": "ghcr.io/yehudabriskman/bothy-ops@sha256:9b13473182471b996a7e16d8abf57877206b03ebcb521c1a5c4b63b2016da743",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "bothy-web": {
+      "ref": "ghcr.io/yehudabriskman/bothy-web@sha256:c1559f302569533b42d00df1890a4a263053108e9215e0c2ff5785bf52c8cf56",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    }
+  },
+  "third_party": {
+    "alloy": {
+      "ref": "grafana/alloy@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189",
+      "tag": "v1.22.0",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    },
+    "cadvisor": {
+      "ref": "gcr.io/cadvisor/cadvisor@sha256:3de2bd5203120b866d74a9b283b2ffb8ec382fbf9dc321814700c6ea6f44ec57",
+      "tag": "v0.55.1",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    },
+    "docker-socket-proxy": {
+      "ref": "tecnativa/docker-socket-proxy@sha256:9e4b9e7517a6b660f2cc903a19b257b1852d5b3344794e3ea334ff00ae677ac2",
+      "tag": "0.3.0",
+      "pinned_in": [
+        "apps/bothy/compose.socket-proxy.yml"
+      ]
+    },
+    "grafana": {
+      "ref": "grafana/grafana@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf",
+      "tag": "13.3.1",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    },
+    "headlamp": {
+      "ref": "ghcr.io/headlamp-k8s/headlamp@sha256:8a0ef97527544baa2b35825940ddf4db6e2d09c30cd5aa31fd269ff604cc8b75",
+      "tag": "v0.46.0",
+      "pinned_in": [
+        "apps/headlamp/compose.yml"
+      ]
+    },
+    "keycloak": {
+      "ref": "quay.io/keycloak/keycloak@sha256:c68e286cacd87b942ac1939a0a1481461109d6acd3a57dc496969a319a76bbf0",
+      "tag": "26.8.2-2",
+      "pinned_in": [
+        "auth/compose.yml"
+      ]
+    },
+    "loki": {
+      "ref": "grafana/loki@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7",
+      "tag": "3.7.10",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    },
+    "node-exporter": {
+      "ref": "prom/node-exporter@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0",
+      "tag": "v1.12.1",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    },
+    "oauth2-proxy": {
+      "ref": "quay.io/oauth2-proxy/oauth2-proxy@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048",
+      "tag": "v7.15.6",
+      "pinned_in": [
+        "apps/headlamp/compose.yml",
+        "auth/compose.yml"
+      ]
+    },
+    "postgres": {
+      "ref": "postgres@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac",
+      "tag": "17.12",
+      "pinned_in": [
+        "auth/compose.yml",
+        "data/postgres/compose.yml"
+      ]
+    },
+    "postgres-exporter": {
+      "ref": "quay.io/prometheuscommunity/postgres-exporter@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e",
+      "tag": "v0.20.1",
+      "pinned_in": [
+        "data/postgres/compose.yml"
+      ]
+    },
+    "prometheus": {
+      "ref": "prom/prometheus@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0",
+      "tag": "v3.14.0",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    },
+    "promtail": {
+      "ref": "grafana/promtail@sha256:6cfa64ec432b24a912d640e2edb940eeae2666f61861a66c121d763dd7241381",
+      "tag": "3.6.8",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    },
+    "traefik": {
+      "ref": "traefik@sha256:aa942a00bce033c909bf1f7e861d93761be4b31a035f10d2410d33e38a8f41cf",
+      "tag": "v3.7.19",
+      "pinned_in": [
+        "edge/compose.yml"
+      ]
+    },
+    "victoria-metrics": {
+      "ref": "victoriametrics/victoria-metrics@sha256:da8a90ac0912f16589be2b96a6441a2fca4bca415c83783d972d92e3b5b66970",
+      "tag": "v1.156.0",
+      "pinned_in": [
+        "monitoring/compose.yml"
+      ]
+    }
+  },
+  "assets": {
+    "cli": "checksums.txt"
+  }
+}
