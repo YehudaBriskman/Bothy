@@ -90,7 +90,7 @@ networks:
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := string(out["stack/mini/compose.yml"])
+	c := string(out["stack/mini/compose.yml.tmpl"])
 	for _, must := range []string{"BOTHY_IMAGE_ONE", "BOTHY_IMAGE_TWO", "./one/cfg:/cfg:ro", "${BOTHY_BIND:-127.0.0.1}:${P:-8080}:80", "bothy-n"} {
 		if !strings.Contains(c, must) {
 			t.Errorf("compose lacks %q:\n%s", must, c)

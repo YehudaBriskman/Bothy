@@ -381,7 +381,7 @@ func genMode(repo, name string, m Mode, out map[string][]byte) error {
 	if err := enc.Encode(doc); err != nil {
 		return err
 	}
-	out["stack/"+name+"/compose.yml"] = buf.Bytes()
+	out["stack/"+name+"/compose.yml.tmpl"] = buf.Bytes()
 	mj, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return err

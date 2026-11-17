@@ -46,7 +46,7 @@ func loadStack(fsys fs.FS, mode string) (*Stack, error) {
 	if err := json.Unmarshal(mj, &s.Meta); err != nil {
 		return nil, fmt.Errorf("embedded stack.json: %w", err)
 	}
-	if s.Compose, err = fs.ReadFile(fsys, base+"/compose.yml"); err != nil {
+	if s.Compose, err = fs.ReadFile(fsys, base+"/compose.yml.tmpl"); err != nil {
 		return nil, err
 	}
 	for _, f := range s.Meta.Files {
