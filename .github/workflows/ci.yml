@@ -192,6 +192,15 @@ jobs:
         if: always()
         run: bash scripts/checks/release-manifest.sh
 
+      # The release is self-consistent: checksums.txt gets the manifest's line
+      # after the images and cli exist, in an order proven statically here, by a
+      # script tested on fixtures (idempotent, sorted, refuses malformed input).
+      - name: Release orders the manifest line before the pin; the append step is tested
+        if: always()
+        run: |
+          bash scripts/checks/release-order.sh
+          bash scripts/checks/append-manifest-checksum.sh
+
       # scripts/bothy dispatches most subcommands to a just recipe. Rename a
       # recipe and nothing complains until somebody runs the CLI - the break is
       # in one file and surfaces in another.

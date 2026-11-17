@@ -91,6 +91,27 @@ refuse() { # refuse <label> <dir that must stay empty> <expected text> -- cmd...
   fi
 }
 
+# The REAL release's checksums.txt is the final one: the archives plus a
+# release-manifest.json line, added by scripts/append-manifest-checksum.sh. The
+# pin is the hash of THAT file. The extra line must not disturb the installer,
+# and the pin of the earlier, line-less file must no longer verify.
+mkdir "$W/fin"; cp "$W/a"/* "$W/fin/"; printf '{"schema":1}\n' > "$W/fin/release-manifest.json"
+bash scripts/append-manifest-checksum.sh "$W/fin/checksums.txt" "$W/fin/release-manifest.json" >/dev/null
+FSUMS=$(sha256sum "$W/fin/checksums.txt" | cut -d' ' -f1)
+(cd "$W/fin" && sha256sum -c checksums.txt >/dev/null 2>&1) \
+  && check "the final checksums.txt (with the manifest line) verifies with sha256sum -c" ok \
+  || check "the final checksums.txt (with the manifest line) verifies with sha256sum -c" no "mismatch"
+HF="$W/hf"; mkdir "$HF"
+out=$(env HOME="$HF" XDG_CONFIG_HOME="$HF/.config" BOTHY_RELEASE_URL="file://$W/fin" BOTHY_CHECKSUMS_SHA256="$FSUMS" BOTHY_VERSION="v$V" sh scripts/bothy.sh --binary 2>&1) && rc=0 || rc=$?
+if [ "$rc" = 0 ] && cmp -s "$HF/.local/bin/bothy" "$W/x/bothy"; then
+  check "--binary installs from a checksums.txt that carries the manifest line" ok
+else
+  check "--binary installs from a checksums.txt that carries the manifest line" no "rc=$rc $out"
+fi
+HG="$W/hg"; mkdir "$HG"
+refuse "a pin of the earlier checksums.txt against the final one" "$HG" "VERIFICATION FAILED" \
+  env HOME="$HG" XDG_CONFIG_HOME="$HG/.config" BOTHY_RELEASE_URL="file://$W/fin" BOTHY_CHECKSUMS_SHA256="$SUMS" BOTHY_VERSION="v$V" sh scripts/bothy.sh --binary
+
 # tampered archive, checksums.txt untouched
 mkdir "$W/t1"; cp "$W/a"/* "$W/t1/"; printf 'x' >> "$W/t1/$ARCHIVE"
 H1="$W/h1"; mkdir "$H1"; REL="$W/t1"
