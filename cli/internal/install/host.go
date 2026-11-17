@@ -19,10 +19,13 @@ func (SysHost) GOARCH() string         { return runtime.GOARCH }
 func (SysHost) Euid() int              { return os.Geteuid() }
 func (SysHost) Getenv(k string) string { return os.Getenv(k) }
 
-// Run only ever runs docker: the allow-list is here, not at the call sites.
+// Run only ever runs docker, and `gh` for exactly two read-only calls (its
+// version, and `attestation verify`): the allow-list is here, not at the call
+// sites.
 func (SysHost) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	if name != "docker" {
-		return nil, fmt.Errorf("install: refusing to run %q (only docker is ever run)", name)
+	ghOK := name == "gh" && ((len(args) == 1 && args[0] == "--version") || (len(args) >= 2 && args[0] == "attestation" && args[1] == "verify"))
+	if name != "docker" && !ghOK {
+		return nil, fmt.Errorf("install: refusing to run %q (only docker, and gh attestation verify, are ever run)", name)
 	}
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }

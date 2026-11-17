@@ -115,7 +115,7 @@ func TestExitCodes(t *testing.T) {
 		{"both targets -> usage", []string{"update", "plan", "--component", "solo", "--group", "up-mon"}, 64, "exactly one"},
 		{"unknown flag", []string{"status", "--frobnicate", "1"}, 64, "unknown flag"},
 		{"unknown word is refused by name", []string{"frobnicate"}, 64, `unknown command "frobnicate"`},
-		{"half a noun", []string{"update"}, 64, "update plan"},
+		{"half a noun", []string{"settings"}, 64, "settings get"},
 		{"missing positional", []string{"settings", "get", "sso"}, 64, "missing required parameter"},
 		{"limit out of range", []string{"update", "history", "--limit", "500"}, 64, "1..100"},
 		{"write flag on mcp", []string{"mcp", "--write"}, 64, "read tools only"},

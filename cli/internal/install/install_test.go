@@ -181,6 +181,9 @@ type fakeHost struct {
 	listeners  map[int][]string
 	cmds       map[string]string // "docker version ..." -> output; prefix "!" = error
 	ran        []string
+	upCmd      string // when set, the first upFailures runs of this exact command fail
+	upFailures int
+	ghVerify   string // output of `gh attestation verify ...`; "!" prefix = error
 }
 
 func newHost() *fakeHost {
@@ -206,6 +209,16 @@ func (f *fakeHost) ListenAddrs(p int) []string      { return f.listeners[p] }
 func (f *fakeHost) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	k := name + " " + strings.Join(args, " ")
 	f.ran = append(f.ran, k)
+	if k == f.upCmd && f.upFailures > 0 {
+		f.upFailures--
+		return []byte("container never became healthy"), fmt.Errorf("exit 1")
+	}
+	if name == "gh" && len(args) > 1 && args[0] == "attestation" {
+		if strings.HasPrefix(f.ghVerify, "!") {
+			return []byte(f.ghVerify[1:]), fmt.Errorf("exit 1")
+		}
+		return []byte(f.ghVerify), nil
+	}
 	if out, ok := f.cmds[k]; ok {
 		if strings.HasPrefix(out, "!") {
 			return []byte(out[1:]), fmt.Errorf("exit 1")
