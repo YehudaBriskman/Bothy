@@ -54,7 +54,7 @@ before=$(ls -A "$S/bothy-files/notes" | sort | tr '\n' ' ')
 code=$(curl -s -o /tmp/w.out -w '%{http_code}' -X POST "http://127.0.0.1/-/api/files/write" -H 'content-type: application/json' -d '{"root":"notes","path":"pwn.md","content":"x"}')
 after=$(ls -A "$S/bothy-files/notes" | sort | tr '\n' ' ')
 { [ "$before" = "$after" ] && [ ! -e "$S/bothy-files/notes/pwn.md" ]; } && ok "files: POST /write created nothing (edge answered $code with the catch-all: $(head -c 20 /tmp/w.out | tr -d '\n'))" || fail "write created a file"
-head -c 15 /tmp/w.out | grep -qi '<!doctype html' && ok "files: /write is not routed (the portal catch-all answered, not the files service)" || fail "write answer: $(head -c 80 /tmp/w.out)"
+grep -qi 'not allowed' /tmp/w.out && ok "files: /write is not routed (the portal catch-all answered, not the files service)" || fail "write answer: $(head -c 80 /tmp/w.out)"
 docker exec $files sh -c 'touch /repos/notes/x' 2>/dev/null && fail "the notes mount is writable inside the container" || ok "files: the notes mount is read-only inside the container (kernel refuses)"
 head -c 15 <(curl -s "http://127.0.0.1/-/api/files/raw?root=notes&path=hello.md") | grep -qi '<!doctype html' && ok "files: /raw (sandbox origin) is not served on :80" || fail "raw served on :80"
 

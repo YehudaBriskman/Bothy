@@ -155,29 +155,44 @@ pulled images.** `--purge` additionally deletes secrets, images and the install 
 person types `delete bothy data`**; a wrong answer deletes nothing (proven in the lab). The purge refuses a
 path that is not a plain directory named `bothy` (or `secrets`), is `$HOME` or is `/`.
 
-**`bothy update`** (not built; the handoff):
-- *Binary:* the user (or `bothy.sh`) fetches the newer binary; `bothy update` later wraps that download,
-  verifying it against `checksums.txt` and the attestation.
-- *Stack:* `bothy install` from the newer binary **is** the stack update (section 6). One code path.
-- *The web updater (`apps/bothy-ops/updater`)* keeps its rule, "deploy only what the pinned version says",
-  by reading its pins from a different place when there is no git checkout: the **verified manifest recorded
-  in the receipt** instead of `main`'s compose files. `discover` asks the release feed for a newer release,
-  `apply` downloads that release's manifest and calls the same `Install` plan with a typed confirmation for
-  anything the catalog marks `manual`. It still never replaces itself in the same run, and its classes and
-  `updates.toml` policy are unchanged. This needs the updater to run where Docker and the binary are
-  reachable; whether that is the host (as today) or the binary itself is Q4.
+**`bothy update`** (built, 2026-11-17; user-run, decision Q4). It installs the release **the running binary belongs
+to** (the stack definition is embedded, so a newer release arrives as a newer binary; fetching that binary is the
+user's step, and there is no "latest release" discovery yet). The bare verb `bothy update` is this; the catalog
+nouns `update status|plan|history` are unchanged.
+- *Verification, the same as install:* same-version manifest over HTTPS, its line in `checksums.txt`, then
+  `gh attestation verify` when `gh` is present (one function, `checkAttestation`); otherwise it prints the exact
+  command and says **skipped**. A downgrade is refused unless `--allow-downgrade`.
+- *`--check`* prints what would change (per image variable: old digest to new, or `unchanged`) and the plan, and
+  changes nothing (receipt, `.env`, containers all byte-identical, proven). `--dry-run` is the same.
+- *Apply:* the generated files and the receipt are copied to `<root>/previous/`, then the usual plan runs (receipt,
+  files, pull by digest, `compose up -d --wait --pull never`, verify by bytes). Containers whose digest did not
+  change are not restarted.
+- *Rollback:* any failure after the rollback point (a digest the registry lacks, a container that never gets
+  healthy within `--wait-timeout`, bytes that do not match) restores the previous files, runs `up --wait` on the
+  **previous receipt's digests** (the images are still local), verifies the **previous commit by bytes**, and
+  rewrites the receipt as before plus `last_update_error`. If the rollback itself fails, it says so, keeps
+  `previous/`, and points at `bothy install` with the previous binary. Two generations are kept; an update
+  removes the image of the release before the previous one when nothing else uses it.
+- *Not done:* the web updater (`apps/bothy-ops/updater`) still reads `main`'s pins. Having it read the
+  receipt's manifest and call the same code is a later slice. Install, update and uninstall remain outside the
+  MCP catalog (dependency test).
 
 ## 9. How the lab proof faked the release
 
 Real GHCR images do not exist yet, so `lab/install-proof/fake-release.sh` (runs **inside the guest**):
-starts `registry:2` as container `fake-ghcr` on `127.0.0.1:5000`, builds `apps/bothy-web` from a
-`git archive` tarball with `REVISION=<commit>`, pushes it, reads the pushed **digest**, **removes the local
+starts `registry:2` as container `fake-ghcr` on `127.0.0.1:5000`, builds `apps/bothy-web` and `apps/bothy-files` from a
+`git archive` tarball with `REVISION=<commit>`, pushes them, reads the pushed **digest**, **removes the local
 image**, and writes a manifest whose `images.bothy-web.ref` is `localhost:5000/bothy-web@sha256:...` and whose
 `third_party.traefik.ref` is the repo's own pinned Traefik (`traefik:v3.7.18@sha256:9c437ac...`, really pulled
 from Docker Hub), plus `checksums.txt` (`sha256sum release-manifest.json`). So the install **really pulls by
 digest over the network**; what is fake is only who published the image and that `checksums.txt` is not
 attested or signed. The binary is the **only** thing copied in; the two release files stand for the release
-assets. `lab/install-proof/proof.sh` is the assertion script.
+assets. It now writes four releases: 2026.11.0 (base), 2026.11.1 (web image with a changed `index.html` and
+`/version.json`), 2026.11.2 (web names a well-formed digest the registry lacks) and 2026.11.3 (web image whose
+command is `sleep`: it starts and never becomes healthy). The four CLI binaries are the same source stamped with
+each version (a release's stack travels inside its binary). `lab/install-proof/run-lab.sh` is the host-side driver
+(builds, boots the guest through `lab.sh`, installs Docker by apt, copies everything in, runs both scripts);
+`proof.sh` is the assertion script.
 
 ## 10. Results (lab, 2026-11-17)
 
@@ -223,6 +238,42 @@ no-op, catch-all HTML rejected, downgrade refused, uninstall keeps secrets, purg
 refuses `sudo`, and **`internal/mcpserver` has no dependency on `internal/install` or `stackgen`** (the slice-1
 rule: the read-only MCP server gains no install or write tool; install is a CLI verb outside the catalog).
 
+### 10b. Results of the second proof: socketless edge, files module, update, rollback (lab, 2026-11-17)
+
+Guest `lab-mid` (2 vCPU, 4 GiB), same recipe. `proof.sh` is now 53 checks. Commands: `lab/install-proof/run-lab.sh lab-mid`
+(then `lab/lab.sh down lab-mid`, `lab/lab.sh reset lab-mid`, run again for a clean guest). **Two full passes, both
+`PROOF PASSED (53 checks)`**: pass 1 on a guest that an earlier aborted run had left with cached images (so its
+pulls were not cold: said plainly), pass 2 on a **reset guest** (Docker installed again in 47 s, fake release
+built in 109 s, proof 97 s, total 287 s). Before them one run stopped at check 12 because my assertion expected an
+HTML doctype where nginx answered `405 Not Allowed`; the assertion was wrong, the stack was right.
+
+| Check | Observed (reset guest) |
+|---|---|
+| install, 3 images (traefik, web, files) | **13.1 s**; re-run **0.7 s**, all `skip`, key unchanged |
+| RAM gate | `960 MiB needed` = 128 + 64 + 256 (limits) + 512 reserve |
+| portal bytes | `GET /` equals `index.html` inside the container; `/version.json` = commit A |
+| edge has no Docker socket | `docker inspect` of Traefik: one bind, `.../traefik/dynamic -> /etc/traefik/dynamic ro`; no `docker.sock`; no container in the project mounts it |
+| edge static config | `--providers.file.directory`, `--api=true`, no `providers.docker`, no `api.dashboard` |
+| ports | docker publishes exactly `0.0.0.0:80->80/tcp` (Traefik); `ss` shows 22, 80 and the lab's own 5000 and loopback listeners; **nothing** on 8100, 8899, 8099, 8080 |
+| internal entrypoint | `127.0.0.1:8899/ping` answers **inside** Traefik; `traefik:8899` from another container is refused |
+| Traefik log | no error lines |
+| files module through the edge | `/-/api/files/roots` = one root `notes`, `readOnly: true`; `/read` returns a file dropped in `<root>/stack/bothy-files/notes`; a `.env` there is labelled sensitive |
+| files cannot write | `POST /-/api/files/write` is not routed (nginx's 405 from the portal catch-all answered), no file appeared; `touch` in the container's notes mount fails (`:ro`); `/raw` (sandbox origin) is not served on :80 |
+| memory | Traefik 15 MiB / 128, bothy-web 3.4 / 64, bothy-files 19.6 / 256; guest `free` used 683 MiB with the registry |
+| `update --check` A to B | "1 image(s) would change" (`BOTHY_IMAGE_BOTHY_WEB` changes, `..._FILES` unchanged); `.env`, receipt and web container id identical afterwards; no `previous/` |
+| `update` A to B | **4.1 s**; `/version.json` is now commit B, served `/` carries the release marker and equals the new container's file; the files container was **not restarted**; receipt = B with `previous` = A; files still serve |
+| downgrade | `bothy-2026.11.0 update` refused, nothing changed |
+| forced failure 1: digest the registry lacks | pull fails in 72 ms, rollback, **1.5 s** in all; afterwards `/version.json`, served bytes, `.env` (byte for byte) and receipt are release B's, with `last_update_error`; 3 containers running |
+| forced failure 2: container never healthy (`--wait-timeout 25`) | `up --wait` fails at 26 s ("application not healthy after 25s"), rollback, **42.2 s** in all; same assertions hold |
+| uninstall | containers and networks gone; secret kept; receipt, generated files and `previous/` gone; the user's notes kept; reinstall reuses the secret |
+| purge | `yes` deletes nothing and leaves the stack running; `delete bothy data` removes root, notes, secrets and the pulled images of the current release |
+
+What the run does **not** show: the image of the release before the current one stays on the guest after a plain
+`uninstall` then `--purge` (the receipt that named it went with the uninstall); the proof lists them. A small leak,
+not fixed. `lab-mini` (2 GiB) was not run. **arm64 was not attempted**: this machine has no
+`qemu-system-aarch64` and no AArch64 UEFI firmware, so there is nothing honest to run. A real Traefik accepted the
+generated file-provider config (shown by the routes answering).
+
 ## 11. Decisions taken
 
 | # | Decision | Reason |
@@ -245,7 +296,10 @@ rule: the read-only MCP server gains no install or write tool; install is a CLI 
 | I16 | Downgrade refused | updater rule; a stale manifest must not silently roll the box back |
 | I17 | `master.key` generated now, though unused | settle the layout and modes before a module depends on it |
 | I18 | Install and uninstall are CLI verbs outside the catalog, and the MCP server cannot reach them | slice-1 rule, enforced by a dependency test |
-| I19 | The mini stack in this prototype is **edge (Traefik) plus the web portal** only | the smallest thing that proves the whole path; `files`, `login` and `network` need decisions below |
+| I19 | The mini stack is **edge (Traefik), the web portal and `files`**; `login` and `network` still need decisions | the smallest thing that proves the whole path plus the first module added from data |
+| I20 | Installed edge is **file-provider only**: stackgen renders `traefik.*` compose labels into `routes.yml` at generate time, lints it (no `Host*`, exact `Path()` at priority >= 2 plus one `PathPrefix(/)` catch-all at priority 1, no `api@internal`, no dashboard, entrypoints published or `127.0.0.1`), and refuses `docker.sock`, `privileged`, host network or pid anywhere in the stack | the edge is the most exposed process; a module still declares its route once, in its labels |
+| I21 | `files` roots policy for a machine with no `~/stacks` and no notes repo: **one root, `notes`, read-only**, mapped to `<root>/stack/bothy-files/notes` (a symlink repoints it); deny and sensitive lists copied verbatim from `apps/bothy-files/policy.toml` (a test fails on drift); only the 12 read routes are exposed (no write, delete, config, raw or archive); audit and undo dirs are tmpfs | least privilege: read-only three times over (policy, `:ro` mount, no route); a first install has no login in front of files, so the safe default is a viewer. **Anyone who can reach the port can read that folder, which is why the bind defaults to loopback and the `--bind` help text says so** |
+| I22 | `bothy update` rolls back to the **previous receipt's digests**, not whatever is running | the receipt is the record of what was verified |
 
 ## 12. Open questions, answered (owner delegated the choice, 2026-11-17)
 
@@ -255,7 +309,7 @@ Each answer says what it buys for later change.
   exposed process and the docker socket is root on the box. Installed mode generates a file-provider config from
   the same labels, so a module still declares its route in one place (its compose labels) and the generator turns
   that into edge config; adding a module needs no edge code. The existing live stack keeps its provider until
-  its own migration.
+  its own migration. **Done and proven in the lab (I20, 10b).**
 - **Q2: v1 verifies by HTTPS to the release of the same version, the hash line in `checksums.txt`, and
   `gh attestation verify` when `gh` is present (otherwise it prints the exact command and says it was skipped).**
   No vendored Sigstore in v1: it is a large dependency for a check that `gh` already does. A manifest hash cannot
@@ -264,41 +318,59 @@ Each answer says what it buys for later change.
   so a built-in one can replace the `gh` call later without touching install.
 - **Q3: yes. The first release of `bothy install` is the edge plus the portal that answers; every other module is
   added through `stack/modes.yml` alone.** `files` is the first test of that claim, and it must pass without a Go
-  edit before the claim is believed.
+  edit before the claim is believed. **Result: it held with qualifications, see 13.** `files` is in.
 - **Q4: a user-run `bothy update` first.** It is the same code the web updater calls, so Settings > Updates can
   apply on a binary install once it reaches the host through the existing spool design (a later slice). A timer
-  that updates unattended is opt-in and arrives after rollback is proven, never the default.
+  that updates unattended is opt-in and arrives after rollback is proven, never the default. **`bothy update` is
+  built and its rollback is proven in the lab (section 8, 10b).**
 
 ## 13. Prototype versus proven, and next steps
 
-**Proven in the lab (twice):** the whole lifecycle in section 10 on a clean Ubuntu 24.04 guest with only Docker and
-the binary, against the faked release.
+**Proven in the lab (two passes, 53 checks, the second on a reset guest):** the section 10 lifecycle; the
+socketless file-provider edge on a real Traefik; the `files` module through the edge, read-only; `bothy update`
+A to B with bytes; downgrade refused; `--check` changes nothing; **forced rollback for two different failures**
+(absent digest, container never healthy), each restoring the previous version, bytes, `.env` and receipt;
+uninstall keeps data; purge needs the typed phrase; no `docker.sock` on Traefik; only `:80` published.
 
-**Prototype only:** the mini stack's scope (Q3); user scope only; the upgrade path (a second release) is
-unit-tested but **not run in the VM**; rollback after a failed `up` on a first install is unit-tested with
-fakes and **not triggered in the VM** (only a failed pull was); no `bothy update` verb; no attestation check;
-`--mode` accepts only `mini`; amd64 only was exercised.
+**The "no Go edit" claim for `files`: it mostly held; these are the places it did not**
+1. The edge generator was new Go (`stackgen/edge.go`, `override.go`). That was the stated goal and is machinery
+   every later module reuses; it is not a per-module edit.
+2. `files` forced **one genuine Go fix**: `volumes_remove` split volume specs on the wrong side, and a source
+   containing `:` (`${NOTES_ROOT:-${HOME}/claude-notes}:/repos/notes:rw`) was mis-parsed. `volTarget` now reads the
+   target from the right (about 14 lines, with a test). Found only by adding a real service.
+3. A **workaround instead of an edit:** the override vocabulary has no `env_set`, so the policy path is set by a
+   `command_add` wrapping the start in `sh -c "POLICY_FILE=... exec python3 -u app.py"`. A real `env_set` is a few
+   lines of Go; it was not added so the claim is not quietly bent.
+4. `verify` cannot check `files` by bytes through the edge (its `exec cat file` comparison cannot match JSON), and
+   a `contains` kind needs Go. `files` is therefore proven by `proof.sh`, not by the installer's own verify.
+5. A relative file mount (`./policy.toml`) would be created as a directory by the generator, so the policy is
+   mounted as a directory (`./policy`).
 
-**Not verified at all:** real GHCR images and release assets; arm64; a WSL host (the keepalive, `docker.sock` path
-and the 4 GiB floor all differ there); `lab-mini` (2 GiB: the RAM gate arithmetic passes at 704 MiB needed, but
-it was not run); a host where port 80 is taken by another Docker container; rootless Docker (refused, untested);
-Docker `iptables`/`nft` coexistence (`testing-and-ci.md` 2b); the live box (and it must not be, per the go/no-go).
+**Prototype only:** user scope only; `--mode` accepts only `mini`; `bothy update` installs the release of the binary
+it is (no discovery of a newer release, no binary download); the web updater does not use it yet; amd64 only;
+`checkAttestation` ran in the VM only in its skipped branch (the verified and rejected branches are unit-tested
+with a fake `gh`).
+
+**Not verified at all:** real GHCR images and release assets, and a real `gh attestation verify`; **arm64** (no
+qemu-system-aarch64 here); a WSL host; `lab-mini`; a host where port 80 is taken by another container; rootless
+Docker (refused, untested); Docker `iptables`/`nft` coexistence; the live box (must not be, per the go/no-go);
+the write, delete and raw/archive routes of `files` (deliberately not exposed).
 
 **Exact next steps**
 1. D34 side: the release must publish `release-manifest.json` and `checksums.txt` as assets of the same tag,
-   `checksums.txt` must contain a `release-manifest.json` line, `bothy-web` must be built with
-   `REVISION=<commit>` and `/version.json`, and `images`/`third_party` keys must be the image's last path segment
-   (`bothy-web`, `traefik`). Then stamp `PinnedManifestSHA` in the release build.
-2. Repeat the VM proof against the real GHCR images (delete `fake-release.sh` from the loop; keep `proof.sh`).
-3. Decide Q1 to Q4; then add `bothy-files` (roots policy, `read_only` mounts) as the second module through
-   `stack/modes.yml` only, which also exercises the "no Go" claim on a real service.
-4. Run the upgrade (two releases) and a forced `up` failure on `lab-mini` in the VM; add the arm64 guest.
-5. Add `bothy update` and the updater's release-manifest source (section 8), and the system scope.
-6. Wire `bothy.sh` to download the binary (checksum-verified) instead of cloning, so "one binary" is true
-   for the first step too.
+   `checksums.txt` must contain a `release-manifest.json` line, `bothy-web` and `bothy-files` must be built with
+   `REVISION=<commit>`, and `images`/`third_party` keys must be the image's last path segment. Then stamp
+   `PinnedManifestSHA` in the release build.
+2. Repeat the VM proof against real GHCR images with `gh` installed in the guest (drop `fake-release.sh` from the
+   loop; keep `proof.sh`).
+3. Add `env_set` and a `contains` verify kind (small Go) so the next module really is data-only.
+4. Run the proof on `lab-mini` and an arm64 guest (needs qemu-system-aarch64 and firmware on the host).
+5. Wire the web updater to read the receipt's manifest and call the same update code; add the system scope.
+6. Wire `bothy.sh` to download the binary (checksum-verified) instead of cloning.
 
 ## 14. Files
 
 `stack/modes.yml`; `cli/cmd/stackgen`; `cli/internal/stackgen`; `cli/internal/install/{embed,manifest,preflight,
 install,uninstall,host}.go` and `stack/` (generated); `cli/internal/cli/install_cmd.go`;
-`lab/install-proof/{fake-release,proof}.sh`.
+`cli/internal/install/{attest,update}.go`; `cli/internal/stackgen/{edge,override}.go`;
+`stack/installed/bothy-files.policy.toml`; `lab/install-proof/{run-lab,fake-release,proof}.sh`.

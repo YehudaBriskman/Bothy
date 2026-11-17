@@ -31,7 +31,7 @@ traefik="$(sed -n 's/^ *image: *\(traefik:[^ ]*@sha256:[0-9a-f]\{64\}\).*/\1/p' 
 [[ -n $traefik ]] || { echo "run-lab: cannot read the pinned traefik ref" >&2; exit 1; }
 echo "run-lab: head $head, traefik $traefik, binaries $(du -h "$out/bothy-2026.11.0" | cut -f1)"
 
-"$LAB" up "$prof"
+st="$("$LAB" status 2>&1 || true)"; [[ $st == *"$prof: running"* ]] || "$LAB" up "$prof"
 for _ in $(seq 1 90); do "$LAB" ssh "$prof" true 2>/dev/null && break; sleep 2; done
 "$LAB" ssh "$prof" true || { echo "run-lab: guest did not come up" >&2; exit 1; }
 t_up=$(ts)
