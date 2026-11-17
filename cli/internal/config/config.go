@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -152,14 +153,23 @@ func ReadToken(c Context, getenv func(string) string) (string, error) {
 	if c.TokenFile == "" {
 		return "", nil
 	}
-	st, err := os.Stat(c.TokenFile)
+	// Checked on the OPEN file, so the mode that was tested is the file that is read.
+	f, err := os.Open(c.TokenFile)
 	if err != nil {
 		return "", fmt.Errorf("token file: %w", err)
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("token file: %w", err)
+	}
+	if !st.Mode().IsRegular() {
+		return "", fmt.Errorf("token file %s is not a regular file", c.TokenFile)
 	}
 	if st.Mode().Perm()&0o077 != 0 {
 		return "", fmt.Errorf("token file %s is mode %04o, expected 0600", c.TokenFile, st.Mode().Perm())
 	}
-	b, err := os.ReadFile(c.TokenFile)
+	b, err := io.ReadAll(io.LimitReader(f, 4096))
 	if err != nil {
 		return "", fmt.Errorf("token file: %w", err)
 	}

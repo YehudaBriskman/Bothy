@@ -356,8 +356,8 @@ verify = ["every database of the dump exists, every table's row count equals the
 # ── the measurement, so the number is not mistaken for timidity ───────────────
 #
 # Counted 2026-10-11, with updater/composeenv.py's own reader: this repository's
-# compose files declare 124 environment names. 102 of them belong to a component
-# in [components] above and so reach the Config rows; the other 22 are Bothy's
+# compose files declare 126 environment names. 102 of them belong to a component
+# in [components] above and so reach the Config rows; the other 24 are Bothy's
 # own three services and its admin overlay, whose component is `bothy` - class
 # own-code, pinned by a VERSION file and not by a compose service - so this tier
 # cannot reach them at all, and [config_reasons.boundary] locks those files

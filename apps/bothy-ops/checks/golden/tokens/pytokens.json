@@ -1,0 +1,25 @@
+{
+ "about": "TEST-ONLY store written by tokenctl.py (Python); Go must read, list and revoke it. Regenerate by hand with tokenctl.create at now=1800000000.",
+ "id": "a2405936b974fb61",
+ "store": {
+  "tokens": [
+   {
+    "created": 1800000000,
+    "digest": "199b78fc72d3b278523ad259bfa117c85e62f50686bfe46594f5fbd1792f4268",
+    "expires": 1802592000,
+    "id": "a2405936b974fb61",
+    "kind": "mcp",
+    "last_used": 1799996400,
+    "name": "made by python",
+    "ops": [
+     "status",
+     "module.list"
+    ],
+    "revoked_at": null,
+    "role": "viewer"
+   }
+  ],
+  "version": 1
+ },
+ "presented": "bt_a2405936b974fb61.S9UYoxV3bntTK8Xuzat_AlazmDK3lBrRKexd2jBnUqo"
+}

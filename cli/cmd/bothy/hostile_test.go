@@ -25,7 +25,7 @@ import (
 // A hostile box. The built binary is run at it, so what is measured is the
 // product a user runs: wall time, exit code, bytes on the terminal, memory.
 
-const secretToken = "TOKEN-must-never-appear-0123456789"
+const secretToken = "bt_0123456789abcdef.TOKEN-must-never-appear-0123456789abcdefghi"
 
 // anyBad matches what must never reach a terminal: C0 controls (but tab and
 // newline), DEL, C1, bidi overrides/isolates, the invisibles and U+2028/9.
