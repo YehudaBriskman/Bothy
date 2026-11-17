@@ -29,8 +29,9 @@ adds, because the plan's T3 asks for it and a router can be mis-edited: (1) EVER
 on /v1/* is refused auth.forbidden, whatever the path, role or body, before the path is even
 looked up - there is no write route to find, in the catalog or here; (2) every request becomes a
 `Caller` (caller.py, decision D41), an op whose `exposure` (decision D42) does not list the Caller's
-kind is refused auth.forbidden, and so is one whose role the Caller does not hold (bearer tokens
-are slice 2: the token adapter refuses auth.unauthenticated); (3) CSRF on a GET is the same
+kind is refused auth.forbidden, and so is one whose role the Caller does not hold (a bearer token is verified
+against tokenstore.py, D43; with no store configured every bearer is auth.unauthenticated, and a token is
+also held to its record's op allow-list and client kind); (3) CSRF on a GET is the same
 Sec-Fetch-Site rule as every route.
 
 ── what no field here may be ────────────────────────────────────────────────
@@ -320,7 +321,8 @@ def _audit(who: str, outcome: str, kind: str, detail: str, t0: float) -> None:
 def resolve_caller(h, op: dict) -> callers.Caller:
     """The Caller for this request, built by an adapter; the role never comes from a request field."""
     try:
-        return callers.from_request(h.headers, op["role"])
+        peer = (getattr(h, "client_address", None) or ("-",))[0]
+        return callers.from_request(h.headers, op["role"], peer)
     except callers.Unauthenticated as e:
         raise ApiError("auth.unauthenticated", 401, str(e)) from None
 
@@ -351,12 +353,21 @@ def handle(h, method: str) -> None:
         except Refused as e:
             raise ApiError("auth.forbidden", 403, str(e)) from None
         who_is = resolve_caller(h, op)
+        if who_is.kind == "token":
+            who = f"token:{who_is.token_id}"        # the audit line names the credential, never its secret
         if who_is.kind not in op["exposure"]:
             raise ApiError("auth.forbidden", 403, "this operation is not offered on this channel",
                            {"channel": who_is.kind, "exposure": op["exposure"]})
         if not opscatalog.role_allows(cat, who_is.role, op["role"]):
             raise ApiError("auth.forbidden", 403, f"this operation needs the {op['role']} role",
                            {"required": op["role"]})
+        if who_is.kind == "token":
+            # D43: a token reaches an op only if the op is offered to its client kind AND its record
+            # lists the op (or "*"). Both are the record's, never a request field's.
+            if who_is.token_kind not in op["callers"]:
+                raise ApiError("auth.forbidden", 403, "this operation is not offered to this kind of token")
+            if "*" not in who_is.scopes and op["id"] not in who_is.scopes:
+                raise ApiError("auth.forbidden", 403, "this token is not allowed this operation")
         try:
             params = opscatalog.parse_query(op, url.query)
         except opscatalog.InvalidInput as e:

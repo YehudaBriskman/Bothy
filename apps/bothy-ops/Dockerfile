@@ -21,7 +21,7 @@ COPY bothy-ops/guard.py bothy-ops/control.py bothy-ops/kube.py bothy-ops/admin.p
 # The update catalog and the module that serves it. discover_updates.py is NOT
 # here: it runs on the host, where the registries, docker inspect and git are.
 COPY bothy-ops/updates.py bothy-ops/updates.toml ./
-COPY bothy-ops/opscatalog.py bothy-ops/v1api.py bothy-ops/caller.py bothy-ops/operations.toml ./
+COPY bothy-ops/opscatalog.py bothy-ops/v1api.py bothy-ops/caller.py bothy-ops/tokenstore.py bothy-ops/operations.toml ./
 
 # The Jobs run-template may create, from the `jobtemplates` build context
 # (compose.yml: additional_contexts -> ../../k8s/job-templates). BAKED IN, not

@@ -26,12 +26,20 @@ reachable only on opsnet (traefik + bothy-ops), and no /v1 router exists at the 
 (D40). So a request with NO edge identity header is the trusted local channel -> kind `socket`. A
 request WITH the identity header came through the edge -> kind `session`. The header can only move a
 request from socket to session, which is the narrower grant (a socket-only op then refuses it); a
-bearer `Authorization` header is always the token adapter, which refuses.
+bearer `Authorization` header is always the token adapter. A request carrying BOTH is refused as
+ambiguous (a token must not borrow an edge session's standing, nor the reverse).
+
+The token store is a SEAM, like v1api.set_settings_reader: `set_token_store(store)` where `store.verify(
+presented, source=...)` returns the record or raises tokenstore.Denied. The service starts with none, and
+then every bearer is auth.unauthenticated. Every failure is the one message: no oracle.
 """
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
+
+import tokenstore
 
 KINDS = ("socket", "session", "token", "system")
 EXPOSURES = ("socket", "session", "token")     # the channels an operation may list (system is not one)
@@ -49,6 +57,7 @@ class Caller:
     role: str
     scopes: tuple[str, ...] = ()
     token_id: str | None = None
+    token_kind: str | None = None      # "cli" | "mcp" for a token Caller, else None
 
 
 def socket(_headers) -> Caller:
@@ -62,18 +71,44 @@ def session(headers, edge_role: str) -> Caller:
     return Caller("session", edge_role)
 
 
-def token(_headers) -> Caller:
-    raise Unauthenticated("bearer tokens are not accepted yet (they arrive with slice 2)")
+_STORE = None
+GENERIC = "missing, invalid or expired credential"      # the ONLY text a failed bearer ever gets
+MAX_HEADER = 160
+
+
+def set_token_store(store) -> None:
+    global _STORE
+    _STORE = store
+
+
+def token(headers, peer: str = "-") -> Caller:
+    """A Caller from `Authorization: Bearer bt_<id>.<secret>`. Whatever goes wrong is `GENERIC`."""
+    store = _STORE
+    raw = headers.get("Authorization") or ""
+    scheme, _, presented = raw.partition(" ")
+    if store is None or len(raw) > MAX_HEADER or scheme.lower() != "bearer":
+        raise Unauthenticated(GENERIC)
+    try:
+        rec = store.verify(presented.strip(), source=peer)
+        # Role, ops and id come from the RECORD the store vouched for - nothing else is read.
+        return Caller("token", rec["role"], tuple(rec["ops"]), rec["id"], rec["kind"])
+    except tokenstore.Denied:
+        raise Unauthenticated(GENERIC) from None
+    except Exception as e:  # noqa: BLE001  a broken store fails closed, and says why on stderr only
+        sys.stderr.write(f"token store error, bearer refused: {type(e).__name__}\n")
+        raise Unauthenticated(GENERIC) from None
 
 
 def system(role: str) -> Caller:
     return Caller("system", role)
 
 
-def from_request(headers, edge_role: str) -> Caller:
-    """The Caller for one HTTP request, or Unauthenticated."""
+def from_request(headers, edge_role: str, peer: str = "-") -> Caller:
+    """The Caller for one HTTP request, or Unauthenticated. `peer` only keys the failure rate limit."""
     if headers.get("Authorization"):
-        return token(headers)
+        if headers.get("X-Auth-Request-User") or headers.get("X-Auth-Request-Email"):
+            raise Unauthenticated("ambiguous credentials: an edge session and a bearer token")
+        return token(headers, peer)
     if headers.get("X-Auth-Request-User") or headers.get("X-Auth-Request-Email"):
         return session(headers, edge_role)
     return socket(headers)

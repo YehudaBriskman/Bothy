@@ -277,12 +277,66 @@ touch as little existing code as possible". Each decision below says what it buy
   catalog edit plus `just ops-v1`; no handler, router file, CLI verb or MCP tool is written by hand. Documents
   state the router **invariant** (zero Host rules, exact `Path()` only) and not a total, so growth does not
   force prose edits.
-* **D43. Token authentication is slice 2, read tokens first.** `bothy token create` is host-only (the socket);
+* **D43. Token authentication is slice 2, read tokens first.** *(Python side built in slice 2A, section 1.9; nothing is exposed yet.)* `bothy token create` is host-only (the socket);
   tokens are stored as SHA-256 digests, carry a role and an optional op allow-list, and are verified **inside
   bothy-ops** (not by an edge middleware, so the secret never sits in dumpable router config; see the Traefik
   rule in `claude-notes`). The first routed ops are the eight read ops with `exposure = ["socket","token"]`; writes
   wait for the approval design. The "no bearer token over plain HTTP" rule already admits the Tailscale range
   (RFC 6598), where the transport is encrypted.
+
+### 1.9 Slice 2A: bearer tokens for the read API (built 2026-11-17, Python side only)
+
+**Built and checked** (`apps/bothy-ops/`: `tokenstore.py`, `tokenctl.py`, the `token` adapter in `caller.py`, two
+checks `checks/test_tokens.py` and `checks/api_v1_tokens.py`, 16 mutation rows in `scripts/checks/mutants.sh`):
+
+* **Token** `bt_<id>.<secret>`: id 16 hex, secret 256 random bits (urlsafe base64). Only the SHA-256 digest is
+  stored; compared with `hmac.compare_digest`. A record is `{id, kind: cli|mcp, role: viewer|operator, ops (op ids or
+  "*"), created, expires, name, revoked_at, last_used}`. TTL default 30 days, at most 1 year, at least 1 minute.
+* **Store** `<state>/tokens.json` (default `${STATE_ROOT:-~/.local/state}/bothy/tokens/`), file 0600 in a 0700
+  directory owned by the process user (or root), not a symlink: anything looser and the store refuses to load and
+  every bearer is refused (fail closed). Writes are temp file + fsync + rename under an `flock`; readers never see a
+  half file. It is re-read on every request, so a revoke is effective on the next one. `audit.log` beside it is
+  append-only JSON lines for `create`, `revoke` and `use-denied`; it carries no secret and no raw request text.
+* **No oracle:** malformed, unknown id, wrong secret, expired, revoked, throttled and unreadable-store are one
+  exception and one `auth.unauthenticated` body (same code, message, details, hint); the reason is only in the audit
+  line. Failed verifications are rate-limited per source (10 a minute), with bounded memory (1024 sources) and a cap
+  on denial audit lines (30 a minute). `last_used` is rounded to the hour and best-effort (a read-only mount never
+  fails a good token).
+* **The adapter** (`caller.token`) reads `Authorization: Bearer`, asks the store (a seam, `caller.set_token_store`;
+  the service starts with none, so every bearer is still 401 unless `BOTHY_TOKEN_STATE` names a state directory), and
+  builds `Caller{kind: token, role, scopes (= the record's ops), token_id}` from the **record**. An edge identity
+  header together with a bearer is refused as ambiguous. In `v1api` the op's `exposure` must list `token`, the
+  token's client kind (`cli`/`mcp`) must be in the op's `callers`, the op id must be in the record's ops (or `*`),
+  and the role must be held; each is `auth.forbidden` (a valid token on a socket-only op is forbidden, not
+  unauthenticated). The audit actor becomes `token:<id>`.
+* **Mint and revoke are host-only (D43):** `tokenctl.py create|list|revoke` is a local script. It prints the secret
+  once on stdout, refuses to run with a CGI/HTTP environment or a socket as stdin, validates `--ops` against
+  `operations.toml`, and is not in the Dockerfile COPY list; no route or catalog op mentions it, and a check pins that
+  the service imports none of it.
+* **Nothing is exposed:** `operations.toml` still lists `exposure = ["socket"]` for every op; no edge router is
+  installed; router counts and every golden are unchanged.
+
+**Not built, said plainly:** no compose mount or env for a token state directory (so the running service has no
+store); no edge router; no CLI (Go) or MCP code that sends a token; no `bothy token` verb (the host script is the
+only mint); no tailnet binding; no tokens for write ops (there are none); the rate limit keys on the TCP peer, which
+behind Traefik is Traefik's address, so it is effectively one bucket for all edge traffic until the edge forwards a
+trusted client address (not designed yet); the timing uniformity is "the same work", not measured.
+
+**Checklist: switching a read op to `exposure = ["socket","token"]`** (a deliberate step, never a side effect):
+
+1. Confirm the op is `effect = "read"`, `role = "viewer"` (or the lowest role that should see it), and that its
+   output schema types every free-text field `untrusted`.
+2. Edit `exposure` in `operations.toml`; list `callers` so that `cli` and/or `mcp` are only present if that client
+   should reach it (a token's kind must be in `callers`).
+3. `just ops-v1` (regenerates `apps/bothy-ops/generated/`); `python3 scripts/gen-ops-v1.py --check` must pass. The
+   generated router for a token op is one exact `Path()` with **no** `sso-<role>` gate (the service verifies the
+   bearer); it stays inert in `generated/` until the edge slice installs it.
+4. Run `bash apps/bothy-ops/checks/run.sh --offline`; the goldens move only if `discover` lists the new exposure
+   (regenerate with `python3 apps/bothy-ops/checks/v1_fixture.py --write` and review the diff).
+5. Mint a token for the test box with `tokenctl.py create --ops <op id>`; check a 200 with it, a 403 without the op
+   in its allow-list, and a 401 after `revoke`.
+6. Only when the edge router is installed: update the router-count prose (`router-gates.sh`, SECURITY.md, README,
+   the guide) by the invariant (zero Host rules, exact `Path()` only), not a new total.
 
 ## 2. The CLI
 

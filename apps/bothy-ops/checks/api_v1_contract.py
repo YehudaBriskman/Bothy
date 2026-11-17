@@ -24,8 +24,8 @@ handler serves on a loopback port. Pinned here:
   T8          update.status's bothy row carries `unreleased` (5 commits past the tag, version-not-bumped)
   CALLER      D41/D42: every request becomes a Caller; an op is served only on a channel its `exposure`
               lists. The HTTP listener is kind `socket` unless the edge's identity header is present
-              (then `session`); a socket-only op over the edge is 403 auth.forbidden; a bearer token is
-              401 auth.unauthenticated; no request field (X-Bothy-Role...) ever sets a role; discover
+              (then `session`); a socket-only op over the edge is 403 auth.forbidden; a bearer token (no store configured) is
+              401 auth.unauthenticated (api_v1_tokens.py covers real tokens); no request field (X-Bothy-Role...) ever sets a role; discover
               lists each op's exposure
   SETTINGS    a secret's value is in no byte of any response or audit line, even from a hostile reader
               that sets one; an unwired store is 503 unavailable.source, an unregistered key 404
@@ -286,7 +286,7 @@ ok(st == 403, "…and forged role headers do not change that")
 for h in ({"Authorization": "Bearer abc.def.ghi"}, {**EDGE, "Authorization": "Bearer abc.def.ghi"}):
     st, _, e = call("/-/api/v1/status", headers=h)
     ok(st == 401 and e["error"]["code"] == "auth.unauthenticated" and "abc.def.ghi" not in json.dumps(e),
-       "a bearer token is auth.unauthenticated 401 (the stub always refuses) and is never echoed")
+       "a bearer token is auth.unauthenticated 401 (no store is configured here) and is never echoed")
 st, _, e = call("/-/api/v1/discover", headers=EDGE)
 ok(st == 403, "discover is an op like any other: socket-only, refused over the edge too")
 
@@ -316,7 +316,7 @@ with Exposed("status", ["socket", "session"]):
 with Exposed("status", ["token"]):
     ok(call("/-/api/v1/status")[0] == 403 and call("/-/api/v1/status", headers=EDGE)[0] == 403
        and call("/-/api/v1/status", headers={"Authorization": "Bearer x"})[0] == 401,
-       "a token-only op: no socket, no session, and the token adapter refuses (slice 2)")
+       "a token-only op: no socket, no session, and with no token store configured the bearer is refused")
 with Exposed("status", role="operator"):
     st, _, e = call("/-/api/v1/status", headers={"X-Bothy-Role": "operator", "X-Auth-Request-Role": "operator"})
     ok(st == 403 and e["error"]["details"] == {"required": "operator"},
