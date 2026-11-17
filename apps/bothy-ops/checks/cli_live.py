@@ -215,11 +215,17 @@ def test_errors(E: Env) -> None:
 
 
 def test_token_and_config(E: Env, tmp: str) -> None:
-    code, _, err = E.run("status", BOTHY_URL="http://203.0.113.9:80", BOTHY_TOKEN="s3cr3t-token-value")
+    # A well-formed token the real server has never minted (no store is configured here): the CLI
+    # sends it, the server answers the one generic 401 -> exit 77, and the value is never echoed.
+    tok = "bt_0123456789abcdef." + "s3cr3tTokenValue" + "A" * 27
+    code, _, err = E.run("status", BOTHY_URL="http://203.0.113.9:80", BOTHY_TOKEN=tok)
     check("token over cleartext non-loopback is refused", code != 0 and "s3cr3t" not in err, f"{code} {err}")
-    code, out, err = E.run("status", BOTHY_TOKEN="s3cr3t-token-value")
+    code, out, err = E.run("status", BOTHY_TOKEN=tok)
     check("bearer token to the real server: 77 auth, token not echoed",
           code == 77 and "s3cr3t" not in out + err, f"{code} {err}")
+    code, out, err = E.run("status", BOTHY_TOKEN="s3cr3t-token-value")
+    check("a malformed token is refused before anything is sent, and not echoed",
+          code != 0 and code != 77 and "s3cr3t" not in out + err, f"{code} {err}")
     cfgdir = os.path.join(tmp, "cfgcases")
     p = os.path.join(cfgdir, "bothy", "config.json")
 

@@ -296,20 +296,20 @@ func TestTokenTransportGuard(t *testing.T) {
 		token string
 		ok    bool
 	}{
-		{"http://127.0.0.1:8080", "t", true},
-		{"http://127.9.9.9", "t", true},
-		{"http://[::1]:8080", "t", true},
-		{"http://localhost:8080", "t", true},
-		{shared(64, 0, 1) + ":80", "t", true},      // RFC 6598 low edge
-		{shared(127, 255, 254) + ":80", "t", true}, // RFC 6598 high edge
-		{shared(63, 255, 255), "t", false},
-		{shared(128, 0, 1), "t", false},
-		{"http://192.168.1.10", "t", false},
-		{"http://10.0.0.5", "t", false},
-		{"http://example.com", "t", false},
-		{"http://localhost.evil.example", "t", false},
-		{"http://127.0.0.1.evil.example", "t", false},
-		{"https://example.com", "t", true},
+		{"http://127.0.0.1:8080", goodTok, true},
+		{"http://127.9.9.9", goodTok, true},
+		{"http://[::1]:8080", goodTok, true},
+		{"http://localhost:8080", goodTok, true},
+		{shared(64, 0, 1) + ":80", goodTok, true},      // RFC 6598 low edge
+		{shared(127, 255, 254) + ":80", goodTok, true}, // RFC 6598 high edge
+		{shared(63, 255, 255), goodTok, false},
+		{shared(128, 0, 1), goodTok, false},
+		{"http://192.168.1.10", goodTok, false},
+		{"http://10.0.0.5", goodTok, false},
+		{"http://example.com", goodTok, false},
+		{"http://localhost.evil.example", goodTok, false},
+		{"http://127.0.0.1.evil.example", goodTok, false},
+		{"https://example.com", goodTok, true},
 		{"http://192.168.1.10", "", true}, // no token, nothing to protect
 	} {
 		_, err := api.New(tc.url, tc.token, "dev", 0)
@@ -318,7 +318,7 @@ func TestTokenTransportGuard(t *testing.T) {
 		}
 	}
 	u, _ := url.Parse("http://203.0.113.7")
-	if err := api.CheckTokenTransport(u, "x"); err == nil || !strings.Contains(err.Error(), "cleartext") {
+	if err := api.CheckTokenTransport(u, goodTok); err == nil || !strings.Contains(err.Error(), "cleartext") {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -332,7 +332,7 @@ func TestTokenNotSentOnRedirect(t *testing.T) {
 		http.Redirect(w, r, other.URL, http.StatusFound)
 	}))
 	defer first.Close()
-	c, err := api.New(first.URL, "secret-token", "dev", 0) // 127.0.0.1: allowed
+	c, err := api.New(first.URL, goodTok, "dev", 0) // 127.0.0.1: allowed
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,9 +345,11 @@ func TestTokenNotSentOnRedirect(t *testing.T) {
 	}
 }
 
+const goodTok = "bt_0123456789abcdef.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
 func TestTokenSentAsBearer(t *testing.T) {
 	s := testkit.NewServer(t)
-	c, err := api.New(s.URL, "tok-123", "dev", 0)
+	c, err := api.New(s.URL, goodTok, "dev", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +357,7 @@ func TestTokenSentAsBearer(t *testing.T) {
 	if _, err := c.Call(context.Background(), op, nil); err != nil {
 		t.Fatal(err)
 	}
-	if s.Auth != "Bearer tok-123" {
+	if s.Auth != "Bearer "+goodTok {
 		t.Fatalf("Authorization %q", s.Auth)
 	}
 }

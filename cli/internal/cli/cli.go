@@ -109,6 +109,10 @@ func run(args []string, io IO) error {
 				fmt.Fprint(io.Out, installHelp)
 				return nil
 			}
+			if words[0] == "token" {
+				fmt.Fprint(io.Out, tokenHelp)
+				return nil
+			}
 			return help(io.Out)
 		default:
 			rest[k] = v
@@ -119,6 +123,8 @@ func run(args []string, io IO) error {
 		return cmdContext(words[1:], rest, g, io)
 	case "mcp":
 		return cmdMCP(words[1:], rest, g, io)
+	case "token":
+		return cmdToken(words[1:], rest, g, io)
 	case "version":
 		return cmdVersion(rest, g, io)
 	case "install":
@@ -258,6 +264,7 @@ func help(w io.Writer) error {
 	fmt.Fprintln(w, "  install [--dry-run] [--mode mini] ...          Install Bothy on this machine (Docker Compose; see install --help)")
 	fmt.Fprintln(w, "  uninstall [--purge] [--dry-run]                Remove it; data is kept unless --purge and you type the phrase")
 	fmt.Fprintln(w, "  update [--check] [--to vX] [--this-release]    Move the binary and the box to the latest release; a failure rolls back")
+	fmt.Fprintln(w, "  token create|list|revoke                       Mint bearer tokens on THIS machine (host-only; see token --help)")
 	fmt.Fprintln(w, "  mcp                                            Serve the read-only tools over stdio (MCP)")
 	fmt.Fprintln(w, "\nExit codes: 0 ok, 10 box unreachable, 64 bad usage or request, 66 not found,")
 	fmt.Fprintln(w, "69 data source unavailable, 70 server bug, 77 not signed in or not allowed, 78 version mismatch.")
@@ -497,7 +504,7 @@ func cmdContext(words []string, flags map[string]string, g globals, io IO) error
 		c := config.Context{URL: words[2], TokenFile: flags["token-file"]}
 		if c.TokenFile != "" {
 			// Refuse now, not at first use, a token that could never be sent.
-			if _, err := api.New(c.URL, "placeholder", io.Version, 0); err != nil {
+			if _, err := api.New(c.URL, "bt_0000000000000000."+strings.Repeat("A", 43), io.Version, 0); err != nil {
 				return usageError{err.Error()}
 			}
 		}

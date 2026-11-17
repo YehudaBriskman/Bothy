@@ -265,11 +265,16 @@ func TestContextAddListUse(t *testing.T) {
 	}
 }
 
+const (
+	fileTok = "bt_0123456789abcdef.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	envTok  = "bt_fedcba9876543210.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+)
+
 func TestContextSelectionAndTokenGuardThroughTheCLI(t *testing.T) {
 	isolate(t)
 	s := testkit.NewServer(t)
 	tok := filepath.Join(t.TempDir(), "tok")
-	if err := os.WriteFile(tok, []byte("s3cret\n"), 0o600); err != nil {
+	if err := os.WriteFile(tok, []byte(fileTok+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	// A token context over cleartext http to a LAN address is refused at `add`.
@@ -282,17 +287,17 @@ func TestContextSelectionAndTokenGuardThroughTheCLI(t *testing.T) {
 	if code, _, e := run(t, nil, "status"); code != 0 {
 		t.Fatalf("status via context: %d %s", code, e)
 	}
-	if s.Auth != "Bearer s3cret" {
+	if s.Auth != "Bearer "+fileTok {
 		t.Fatalf("token not sent from file: %q", s.Auth)
 	}
 	// BOTHY_TOKEN wins over the file; BOTHY_URL to a LAN address with it is refused, nothing sent.
 	n := len(s.Requests)
-	code, _, e := run(t, map[string]string{"BOTHY_URL": "http://192.168.1.5:8080", "BOTHY_TOKEN": "env-token"}, "status")
+	code, _, e := run(t, map[string]string{"BOTHY_URL": "http://192.168.1.5:8080", "BOTHY_TOKEN": envTok}, "status")
 	if code != 64 && code != 1 || !strings.Contains(e, "cleartext") || len(s.Requests) != n {
 		t.Fatalf("token over cleartext LAN http was not refused: %d %s", code, e)
 	}
-	code, _, e = run(t, map[string]string{"BOTHY_TOKEN": "env-token"}, "status")
-	if code != 0 || s.Auth != "Bearer env-token" {
+	code, _, e = run(t, map[string]string{"BOTHY_TOKEN": envTok}, "status")
+	if code != 0 || s.Auth != "Bearer "+envTok {
 		t.Fatalf("BOTHY_TOKEN must win over the file: %d %s auth=%q", code, e, s.Auth)
 	}
 	// a world-readable token file is refused

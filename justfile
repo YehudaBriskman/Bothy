@@ -296,6 +296,9 @@ up-apps *services: network
     # Settings > Updates writes one request file here and the host's
     # bothy-updater.path picks it up (build step 4). 700, never auto-created.
     mkdir -p -m 700 "$state/bothy/updates/spool"
+    # Bearer tokens (D43): the host's `bothy token create` writes here, bothy-ops reads it READ-ONLY.
+    # 700 and owned by you: the service refuses a looser or foreign directory (and then no bearer works).
+    mkdir -p -m 700 "$state/bothy/tokens"
     files=({{BOTHY}})
     # The Users & roles page: only once `just admin-client` has written a secret.
     if [ -f apps/bothy-ops/secrets/keycloak-admin-client-secret ]; then
