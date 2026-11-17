@@ -91,3 +91,6 @@ mgmt/dozzle-users.yml
 # resolve over the real thing.
 apps/bothy-web/web/src/**/*.js
 apps/bothy-web/web/.mdcheck-tmp/
+
+# scripts/build-cli.sh output (release archives and checksums.txt)
+/dist/

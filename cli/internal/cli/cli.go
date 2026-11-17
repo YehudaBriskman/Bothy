@@ -28,6 +28,7 @@ type IO struct {
 	Err     io.Writer
 	Getenv  func(string) string
 	Version string
+	Commit  string // the build's git sha; "" for an unstamped build
 }
 
 // DefaultIO is the real process environment.
@@ -346,6 +347,9 @@ func cmdVersion(flags map[string]string, g globals, io IO) error {
 	}
 	if g.json {
 		doc := map[string]any{"client": map[string]any{"version": io.Version, "apiVersion": catalog.APIVersion}}
+		if io.Commit != "" {
+			doc["client"].(map[string]any)["commit"] = io.Commit
+		}
 		switch {
 		case res != nil:
 			var d any
@@ -360,7 +364,15 @@ func cmdVersion(flags map[string]string, g globals, io IO) error {
 		fmt.Fprintf(io.Out, "%s\n", b)
 		return nil
 	}
-	fmt.Fprintf(io.Out, "bothy %s (speaks api %d)\n", io.Version, catalog.APIVersion)
+	if io.Commit != "" {
+		short := io.Commit
+		if len(short) > 12 {
+			short = short[:12]
+		}
+		fmt.Fprintf(io.Out, "bothy %s (commit %s, speaks api %d)\n", io.Version, short, catalog.APIVersion)
+	} else {
+		fmt.Fprintf(io.Out, "bothy %s (speaks api %d)\n", io.Version, catalog.APIVersion)
+	}
 	switch {
 	case res != nil:
 		fmt.Fprintf(io.Out, "box    %s api=%d min-client=%s\n", api.OneLine(res.Server.Version), res.Server.API, api.OneLine(res.Server.MinClient))

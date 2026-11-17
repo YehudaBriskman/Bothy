@@ -72,6 +72,21 @@ case "$pin_sha" in
   *) check "the pinned commit is a full 40-hex sha" no "got '$pin_sha'" ;;
 esac
 
+# The CLI-binary pin (`--binary`): sha256 of the pinned release's checksums.txt.
+# Empty is legitimate - a release that carries no CLI archives has nothing to pin -
+# and is said out loud rather than passed silently. Present, it must be 64 lower-case
+# hex, because the installer compares it as a string against sha256sum's output.
+pin_sums=$(sed -n 's/^BOTHY_PIN_CHECKSUMS_SHA256="\(.*\)"$/\1/p' "$INSTALLER" | head -1)
+if ! grep -q '^BOTHY_PIN_CHECKSUMS_SHA256="' "$INSTALLER"; then
+  check "the installer has a BOTHY_PIN_CHECKSUMS_SHA256 line" no "missing - --binary would have nothing to verify against"
+elif [ -z "$pin_sums" ]; then
+  echo "NOTE  no CLI checksum is pinned: \`bothy.sh --binary\` refuses for $pin_version until a release with archives is pinned"
+elif printf '%s' "$pin_sums" | grep -Eq '^[0-9a-f]{64}$'; then
+  check "the pinned checksums.txt hash is 64 hex" ok
+else
+  check "the pinned checksums.txt hash is 64 hex" no "got '$pin_sums'"
+fi
+
 # ── the pin against VERSION ─────────────────────────────────────────────────
 #
 # NOT EQUALITY, for the reason version.sh gives: VERSION is bumped in one commit

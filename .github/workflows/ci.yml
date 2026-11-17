@@ -656,6 +656,15 @@ jobs:
           file "$RUNNER_TEMP/bothy" | tee /dev/stderr | grep -q 'statically linked'
           "$RUNNER_TEMP/bothy" version
 
+      # The release path, end to end, without a release: scripts/build-cli.sh twice
+      # (identical checksums.txt), the archive runs and reports VERSION and the
+      # commit, and `bothy.sh --binary` installs it - and refuses a tampered
+      # archive, a checksums.txt that does not match the pin, and an unpinned
+      # version. What only a real release can show: the attestation.
+      - name: Release archives are reproducible, run, and tampering is refused
+        working-directory: .
+        run: bash scripts/checks/cli-release.sh
+
       # Pinned exact, like the actions: an unpinned `@latest` would be remote code
       # chosen at run time. Reads the module graph, so it needs the network.
       - name: Known vulnerabilities in the dependencies
