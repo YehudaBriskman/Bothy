@@ -82,6 +82,20 @@ func labelKey(l string) string {
 	return l
 }
 
+// volTarget is the container path of a short-form volume. The SOURCE may itself
+// contain colons (`${NOTES_ROOT:-${HOME}/notes}:/repos/notes:rw`), so it reads
+// from the right: an optional trailing mode, then the target.
+func volTarget(v string) string {
+	f := strings.Split(v, ":")
+	if n := len(f); n >= 3 {
+		switch f[n-1] {
+		case "ro", "rw", "z", "Z", "nocopy":
+			f = f[:n-1]
+		}
+	}
+	return f[len(f)-1]
+}
+
 func applyOverride(in map[string]any, ov Override) (map[string]any, error) {
 	def := map[string]any{}
 	for k, v := range in {
@@ -149,13 +163,11 @@ func applyOverride(in map[string]any, ov Override) (map[string]any, error) {
 		vl:
 			for _, v := range vols {
 				if vs, ok := v.(string); ok {
-					parts := strings.SplitN(vs, ":", 3)
-					if len(parts) >= 2 {
-						for _, t := range ov.VolumesRemove {
-							if parts[1] == t {
-								removed[t] = true
-								continue vl
-							}
+					tgt := volTarget(vs)
+					for _, t := range ov.VolumesRemove {
+						if tgt == t {
+							removed[t] = true
+							continue vl
 						}
 					}
 				}
