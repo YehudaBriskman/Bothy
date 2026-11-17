@@ -648,6 +648,14 @@ jobs:
       - name: Tests (goldens, fake server, MCP over real stdio)
         run: go test -count=1 ./...
 
+      # The Go tests above talk to a fake that replays the golden files. This one talks to the
+      # REAL bothy-ops handler (loopback, throwaway dirs, no docker): every op in human and
+      # --json, the exit codes, the version gate, hostile text through the real sanitiser, and
+      # `bothy mcp` over stdio. Python is on the runner; it builds the binary itself.
+      - name: The CLI and MCP server against the real bothy-ops
+        working-directory: .
+        run: python3 apps/bothy-ops/checks/cli_live.py 2>/dev/null
+
       # The same flags the release uses (reassessment, section 0). `file` must say
       # statically linked; a dynamic binary would not run on a minimal host.
       - name: Static build

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -72,13 +73,24 @@ func New(c Caller, version string) *mcp.Server {
 }
 
 // Run serves over stdio (in/out nil) or the given streams until ctx ends or the peer closes.
+// Malformed or oversized frames are answered with a JSON-RPC error and skipped (see guard).
 func Run(ctx context.Context, c Caller, version string, in io.ReadCloser, out io.WriteCloser) error {
-	var t mcp.Transport = &mcp.StdioTransport{}
+	var rd io.Reader = os.Stdin
+	var wr io.WriteCloser = nopCloser{os.Stdout}
 	if in != nil && out != nil {
-		t = &mcp.IOTransport{Reader: in, Writer: out}
+		rd, wr = in, out
 	}
-	return New(c, version).Run(ctx, t)
+	g := &guard{out: wr}
+	pr, pw := io.Pipe()
+	go g.filter(rd, pw)
+	err := New(c, version).Run(ctx, &mcp.IOTransport{Reader: pr, Writer: g})
+	_ = pr.Close()
+	return err
 }
+
+type nopCloser struct{ io.Writer }
+
+func (nopCloser) Close() error { return nil }
 
 func toolError(code, msg string, extra map[string]any) *mcp.CallToolResult {
 	body := map[string]any{"error": map[string]any{"code": code, "message": api.Sanitize(msg)}}
