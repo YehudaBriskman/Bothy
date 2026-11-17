@@ -16,3 +16,20 @@ func TestApplyArgsForwardsPolicyNeverDiscovery(t *testing.T) {
 		t.Errorf("got %q want %q", got, want)
 	}
 }
+
+// --json changes nothing for an update that is not `--check`: it still runs the
+// old path, which stops at the missing receipt before any network call.
+func TestUpdateJSONWithoutCheckIsTheOldPath(t *testing.T) {
+	var out, errb strings.Builder
+	root := t.TempDir() + "/bothy"
+	code := Run([]string{"--json", "update", "--root", root, "--config-dir", t.TempDir() + "/bothy"},
+		IO{In: strings.NewReader(""), Out: &out, Err: &errb, Getenv: func(k string) string {
+			if k == "HOME" {
+				return t.TempDir()
+			}
+			return ""
+		}, Version: "2026.11.2"})
+	if code == 0 || !strings.Contains(errb.String(), "nothing is installed here") || out.Len() != 0 {
+		t.Errorf("code=%d out=%q err=%q", code, out.String(), errb.String())
+	}
+}
