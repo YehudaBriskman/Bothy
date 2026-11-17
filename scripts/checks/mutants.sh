@@ -596,12 +596,121 @@ mutant "a Caller's role is taken from a header the client sets" \
   'return Caller("socket", _headers.get("X-Bothy-Role", SOCKET_ROLE))' \
   -- python3 apps/bothy-ops/checks/test_v1_catalog.py
 
-# The token adapter is a stub that refuses; one that accepted anything would be a login for everyone.
-mutant "the token adapter stops refusing" \
+# The token adapter must vouch only for what the store verified; one that accepted any well-formed
+# bearer would be a login for everyone.
+mutant "the token adapter accepts any bearer" \
   apps/bothy-ops/caller.py \
-  '    raise Unauthenticated("bearer tokens are not accepted yet (they arrive with slice 2)")' \
-  '    return Caller("token", "operator")' \
-  -- python3 apps/bothy-ops/checks/test_v1_catalog.py
+  '        rec = store.verify(presented.strip(), source=peer)' \
+  '        rec = {"role": "operator", "ops": ["*"], "id": "x", "kind": "cli"}' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+# ── bearer tokens (D43, slice 2A): the store, the adapter, the host-only mint ─
+# The role of a token Caller is the RECORD's. A header-supplied role would let any holder of a viewer
+# token name itself operator.
+mutant "a token's role is taken from a request header" \
+  apps/bothy-ops/caller.py \
+  'return Caller("token", rec["role"], tuple(rec["ops"]), rec["id"], rec["kind"])' \
+  'return Caller("token", headers.get("X-Bothy-Role", rec["role"]), tuple(rec["ops"]), rec["id"], rec["kind"])' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+# The secret is compared in constant time. `==` answers the same on every input a test can send, so
+# test_tokens.py reads the source for it (a static check, said so there); this row proves that check bites.
+mutant "the secret digest is compared with ==" \
+  apps/bothy-ops/tokenstore.py \
+  'match = hmac.compare_digest(got, rec["digest"] if rec else _DUMMY)' \
+  'match = got == (rec["digest"] if rec else _DUMMY)' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+mutant "an expired token is accepted" \
+  apps/bothy-ops/tokenstore.py \
+  'elif now >= rec["expires"]:' \
+  'elif False:' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+mutant "a revoked token is accepted" \
+  apps/bothy-ops/tokenstore.py \
+  'elif rec.get("revoked_at") is not None:' \
+  'elif False:' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+# A token file anyone on the box can read is a store of every digest and, with write, of every login.
+mutant "a group/world-readable token file still loads" \
+  apps/bothy-ops/tokenstore.py \
+  '    if st.st_mode & 0o077:
+        raise StoreError(f"token file mode' \
+  '    if False:
+        raise StoreError(f"token file mode' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+mutant "a loose state directory still loads" \
+  apps/bothy-ops/tokenstore.py \
+  '    if st.st_mode & 0o077:
+        raise StoreError(f"state directory mode' \
+  '    if False:
+        raise StoreError(f"state directory mode' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+mutant "a symlinked token file is followed" \
+  apps/bothy-ops/tokenstore.py \
+  'os.open(os.path.join(state, FILE), os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)' \
+  'os.open(os.path.join(state, FILE), os.O_RDONLY | os.O_CLOEXEC)' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+# Stored as plaintext, the file IS the credential.
+mutant "tokenctl stores the secret, not its digest" \
+  apps/bothy-ops/tokenctl.py \
+  '"digest": ts.digest_of(secret)}' \
+  '"digest": secret}' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+# No oracle: a distinct message for a distinct failure tells a prober which half it got right.
+mutant "an expired token gets its own error message" \
+  apps/bothy-ops/caller.py \
+  '    except tokenstore.Denied:
+        raise Unauthenticated(GENERIC) from None' \
+  '    except tokenstore.Denied:
+        raise Unauthenticated("token expired or revoked") from None' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+mutant "failed verifications are no longer rate limited" \
+  apps/bothy-ops/tokenstore.py \
+  '        if self.limiter.blocked(source, now):' \
+  '        if False:' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+# Edge session + bearer is ambiguous: a bearer must not borrow a session's standing, nor the reverse.
+mutant "an edge identity beside a bearer is accepted" \
+  apps/bothy-ops/caller.py \
+  '            raise Unauthenticated("ambiguous credentials: an edge session and a bearer token")' \
+  '            pass' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
+
+# The op allow-list and the client kind are the record's; without them a valid token is a key to every op.
+mutant "a token's op allow-list is ignored" \
+  apps/bothy-ops/v1api.py \
+  'if "*" not in who_is.scopes and op["id"] not in who_is.scopes:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/api_v1_tokens.py
+
+mutant "an mcp token is served an op not offered to mcp" \
+  apps/bothy-ops/v1api.py \
+  'if who_is.token_kind not in op["callers"]:' \
+  'if False:' \
+  -- python3 apps/bothy-ops/checks/api_v1_tokens.py
+
+mutant "a valid token on a socket-only op is served" \
+  apps/bothy-ops/v1api.py \
+  'if who_is.kind not in op["exposure"]:' \
+  'if who_is.kind not in op["exposure"] + ["token"]:' \
+  -- python3 apps/bothy-ops/checks/api_v1_tokens.py
+
+# D43: minting is never an API. The service must not import the mint script.
+mutant "the service imports the host-only mint script" \
+  apps/bothy-ops/app.py \
+  'import tokenstore  # noqa: E402' \
+  'import tokenstore  # noqa: E402
+import tokenctl  # noqa: E402' \
+  -- python3 apps/bothy-ops/checks/test_tokens.py
 
 # T8: an unchanged VERSION is what release.yml waits for. Skipping that test would blame CI (or
 # nothing) for a release that was never going to be cut.

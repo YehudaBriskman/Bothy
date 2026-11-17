@@ -17,7 +17,7 @@ Run: python3 checks/test_v1_catalog.py        (stdlib only, no network, no docke
              catalog (all socket) the router file has no router at all; a fixture catalog that lists
              "session" for one op generates exactly ONE exact Path() router with that op's
              sso-<role> and never a Host(); discover lists every op's exposure.
-  CALLER     D41: caller.py's adapters; the role is never a request header; the token stub refuses.
+  CALLER     D41: caller.py's adapters; the role is never a request header; a bearer with no token store configured refuses (tokens: test_tokens.py).
   UNTRUSTED  every free-text field the output schemas carry is typed `untrusted` with a known source.
 """
 import json
@@ -245,9 +245,9 @@ for hostile in ({"X-Bothy-Role": "operator"}, {"X-Role": "operator"}, {"X-Auth-R
 for h in ({"Authorization": "Bearer abc"}, {"Authorization": "Basic Zm9vOmJhcg=="}, {**H_EDGE, "Authorization": "Bearer abc"}):
     try:
         caller.from_request(h, "viewer")
-        ok(False, f"the token stub refuses: {list(h)}")
+        ok(False, f"a bearer with no store refuses: {list(h)}")
     except caller.Unauthenticated:
-        ok(True, f"the token adapter is a stub that always refuses (even beside a session): {sorted(h)}")
+        ok(True, f"the token adapter with no store configured refuses (and an edge identity beside it is ambiguous): {sorted(h)}")
 try:
     caller.session({}, "viewer")
     ok(False, "a session adapter with no edge identity refuses")

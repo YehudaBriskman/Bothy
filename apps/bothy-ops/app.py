@@ -60,11 +60,13 @@ except ImportError:  # a checkout: apps/bothy-common is the package's parent
                                     os.pardir, "bothy-common"))
 
 import admin  # noqa: E402
+import caller  # noqa: E402
 import control  # noqa: E402
 import guard  # noqa: E402
 import kube  # noqa: E402
 import opscatalog  # noqa: E402
 import updates  # noqa: E402
+import tokenstore  # noqa: E402
 import v1api  # noqa: E402
 from bothy_common.http import JsonHandler, serve  # noqa: E402
 
@@ -150,6 +152,10 @@ def main() -> None:
         updates.CATALOG = updates.load()
         # The operation catalog likewise: a catalog that does not load is not served.
         v1api.load()
+        # Bearer tokens (D43): only when a state directory is configured. Unset = no store = every
+        # bearer is 401, the behaviour of slice 1. Nothing sets it yet: no compose file mounts one.
+        if os.environ.get("BOTHY_TOKEN_STATE"):
+            caller.set_token_store(tokenstore.TokenStore(os.environ["BOTHY_TOKEN_STATE"]))
     except (guard.CatalogError, updates.CatalogError, opscatalog.CatalogError, OSError,
             tomllib.TOMLDecodeError) as e:
         # Refuse to start. A service that ran with half a catalog would be a

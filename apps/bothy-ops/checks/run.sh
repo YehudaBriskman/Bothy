@@ -274,6 +274,12 @@ check "$PY" checks/test_v1_catalog.py
 section "v1 API: the contract, the goldens, read-only, untrusted text, no secret (T2 T3 T5 T7)"
 check "$PY" checks/api_v1_contract.py 2>/dev/null
 
+section "bearer tokens: the store, tokenctl (host-only), the caller adapter (D43)"
+check "$PY" checks/test_tokens.py 2>/dev/null
+
+section "bearer tokens through the real /v1 handler: served, forbidden, refused alike"
+check "$PY" checks/api_v1_tokens.py 2>/dev/null
+
 section "step 8: the cluster class and the Postgres major - plans and every refusal"
 check "$PY" checks/test_step8.py
 
