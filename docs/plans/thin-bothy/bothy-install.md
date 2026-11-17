@@ -247,22 +247,27 @@ rule: the read-only MCP server gains no install or write tool; install is a CLI 
 | I18 | Install and uninstall are CLI verbs outside the catalog, and the MCP server cannot reach them | slice-1 rule, enforced by a dependency test |
 | I19 | The mini stack in this prototype is **edge (Traefik) plus the web portal** only | the smallest thing that proves the whole path; `files`, `login` and `network` need decisions below |
 
-## 12. Open questions that truly need the owner
+## 12. Open questions, answered (owner delegated the choice, 2026-11-17)
 
-- **Q1. Traefik reads `/var/run/docker.sock` (the docker provider).** That is today's design and the most
-  powerful mount on the box. Installed mode could instead generate a **file-provider** config from the labels
-  (no socket in the edge), at the cost of a generator step and no auto-discovery of later modules. Keep the
-  socket for now, or build the file-provider edge before this ships to anyone else?
-- **Q2. Who verifies the attestation on `checksums.txt`?** The prototype trusts the HTTPS origin plus the
-  hash. Options: shell out to `gh attestation verify` when present; vendor Sigstore verification into the
-  binary (more code, one more dependency); or accept the optional ldflags pin as the only anchor in v1.
-- **Q3. What is Bivvy on Compose, actually?** Files, login and the read-only network page are in the module
-  table, but files needs a roots policy for a machine with no `~/stacks` and no notes repo, login is not
-  built, and ops needs the host daemon. Is "portal and edge that answers" an acceptable first release of
-  `bothy install`, with those added module by module, or must `files` ship in the first one?
-- **Q4. Where does the updater run on an installed box?** On the host as a timer calling the binary (closest
-  to today), or as a `bothy update` verb run by the user. This decides whether the web Settings > Updates
-  page can apply on a binary install at all.
+Each answer says what it buys for later change.
+
+- **Q1: file-provider edge, no Docker socket in the edge, before this ships to anyone else.** The edge is the most
+  exposed process and the docker socket is root on the box. Installed mode generates a file-provider config from
+  the same labels, so a module still declares its route in one place (its compose labels) and the generator turns
+  that into edge config; adding a module needs no edge code. The existing live stack keeps its provider until
+  its own migration.
+- **Q2: v1 verifies by HTTPS to the release of the same version, the hash line in `checksums.txt`, and
+  `gh attestation verify` when `gh` is present (otherwise it prints the exact command and says it was skipped).**
+  No vendored Sigstore in v1: it is a large dependency for a check that `gh` already does. A manifest hash cannot
+  be stamped into the binary at build time (the binary is built before the images and the manifest exist), so the
+  optional ldflags pin is for distributors who rebuild, not the default. The verifier sits behind one interface,
+  so a built-in one can replace the `gh` call later without touching install.
+- **Q3: yes. The first release of `bothy install` is the edge plus the portal that answers; every other module is
+  added through `stack/modes.yml` alone.** `files` is the first test of that claim, and it must pass without a Go
+  edit before the claim is believed.
+- **Q4: a user-run `bothy update` first.** It is the same code the web updater calls, so Settings > Updates can
+  apply on a binary install once it reaches the host through the existing spool design (a later slice). A timer
+  that updates unattended is opt-in and arrives after rollback is proven, never the default.
 
 ## 13. Prototype versus proven, and next steps
 
