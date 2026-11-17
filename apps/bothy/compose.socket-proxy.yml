@@ -100,7 +100,7 @@
 services:
 
   socket-read:
-    image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
+    image: tecnativa/docker-socket-proxy:0.3.0@sha256:9e4b9e7517a6b660f2cc903a19b257b1852d5b3344794e3ea334ff00ae677ac2   # pinned: never :latest for a socket holder
     container_name: bothy-socket-read            # guard.SEVERING names this. Keep in sync.
     restart: unless-stopped
     environment:
@@ -158,7 +158,7 @@ services:
           memory: 32m
 
   socket-write:
-    image: tecnativa/docker-socket-proxy:0.3.0   # pinned: never :latest for a socket holder
+    image: tecnativa/docker-socket-proxy:0.3.0@sha256:9e4b9e7517a6b660f2cc903a19b257b1852d5b3344794e3ea334ff00ae677ac2   # pinned: never :latest for a socket holder
     container_name: bothy-socket-write           # guard.SEVERING names this. Keep in sync.
     restart: unless-stopped
     environment:

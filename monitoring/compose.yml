@@ -25,7 +25,7 @@ services:
   # ROLLBACK: the Prometheus service is kept below under the `legacy-prometheus`
   # profile, and its volume `monitoring_prometheus_data` is kept, untouched.
   victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.156.0
+    image: victoriametrics/victoria-metrics:v1.156.0@sha256:da8a90ac0912f16589be2b96a6441a2fca4bca415c83783d972d92e3b5b66970
     container_name: victoriametrics
     restart: unless-stopped
     # CREDENTIALS WITHOUT LEAKING THEM INTO `docker inspect`. The password flag
@@ -94,7 +94,7 @@ services:
   # in prometheus.yml also targets VM now; expect that one target DOWN.
   prometheus:
     profiles: [legacy-prometheus]
-    image: prom/prometheus:v3.14.0
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     container_name: prometheus
     # No Traefik router - reached directly on published port 9090.
     # Prometheus runs with --web.enable-lifecycle; its own basic auth
@@ -164,7 +164,7 @@ services:
     networks: [devnet]
 
   grafana:
-    image: grafana/grafana:13.3.1
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
     container_name: grafana
     # No Traefik router - reached on published port 3000, where Grafana's own login applies.
     restart: unless-stopped
@@ -253,7 +253,7 @@ services:
     networks: [devnet]
 
   loki:
-    image: grafana/loki:3.7.10
+    image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
     container_name: loki
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
@@ -282,7 +282,7 @@ services:
   # verified with a side-by-side test container writing test="alloy" streams.
   # See alloy/config.alloy for the docker-access note and first-start behaviour.
   alloy:
-    image: grafana/alloy:v1.22.0
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: alloy
     restart: unless-stopped
     # The UI/API stays on 127.0.0.1 (the image default): the healthcheck is the
@@ -329,7 +329,7 @@ services:
   #   docker compose -f monitoring/compose.yml --profile legacy-promtail up -d promtail
   promtail:
     profiles: [legacy-promtail]
-    image: grafana/promtail:3.6.8
+    image: grafana/promtail:3.6.8@sha256:6cfa64ec432b24a912d640e2edb940eeae2666f61861a66c121d763dd7241381
     container_name: promtail
     restart: unless-stopped
     command: -config.file=/etc/promtail/config.yml
@@ -360,7 +360,7 @@ services:
     networks: [devnet]
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    image: gcr.io/cadvisor/cadvisor:v0.55.1@sha256:3de2bd5203120b866d74a9b283b2ffb8ec382fbf9dc321814700c6ea6f44ec57
     container_name: cadvisor
     restart: unless-stopped
     privileged: true
@@ -431,7 +431,7 @@ services:
     networks: [devnet]
 
   node-exporter:
-    image: prom/node-exporter:v1.12.1
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
     container_name: node-exporter
     restart: unless-stopped
     command:
