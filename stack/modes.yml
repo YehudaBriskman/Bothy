@@ -1,0 +1,43 @@
+# What each Bothy install mode runs on the Compose runtime: THE ONE SOURCE the
+# binary's embedded stack is generated from (docs/plans/thin-bothy/bothy-install.md).
+#
+# `go generate ./...` in cli/ reads this file plus the compose files it names and
+# writes cli/internal/install/stack/<mode>/ (compose.yml, stack.json, files/). A
+# test regenerates in memory and fails when the committed copy is stale. Adding a
+# service to a mode is a change HERE (and in its compose file) - never in Go.
+#
+# The generator is deliberately strict. It refuses (loudly, at generate time) a
+# selected service that bind-mounts anything not declared below, because the repo
+# compose files are written for a checkout (`../..:/repos/stacks`, ${HOME}...) and
+# an installed box has no checkout.
+schema: 1
+modes:
+  mini:                      # "Bivvy"
+    title: Bivvy
+    project: bothy           # compose project name on the user's machine
+    reserve_mib: 512         # free memory that must remain after the stack's limits
+    modules:
+      - name: edge
+        compose: edge/compose.yml
+        services: [traefik]
+      - name: web
+        compose: apps/bothy-web/compose.yml
+        services: [bothy-web]
+    # Host ports the installed stack publishes. Anything else a service publishes
+    # in the repo (the sandbox entrypoint, say) is dropped. `env` is written to the
+    # stack's .env by the installer (--port); the bind address comes from --bind.
+    publish:
+      - {service: traefik, container: 80, env: BOTHY_HTTP_PORT, default: 80}
+    # Bind sources that may stay as written. Everything else must be a relative
+    # path inside the service's own directory under the install root.
+    allow_binds: [/var/run/docker.sock]
+    # Files copied from the repo into <install root>/stack/<to> (none for mini yet).
+    files: []
+    # Bytes check after `up`: the installer fetches `path` through the edge and
+    # compares it with `file` read from inside `service`; version_path must report
+    # the release commit under `version_key`.
+    verify:
+      version_path: /version.json
+      version_key: revision
+      bytes:
+        - {path: /, service: bothy-web, file: /usr/share/nginx/html/index.html}

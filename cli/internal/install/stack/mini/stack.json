@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "mode": "mini",
+  "title": "Bivvy",
+  "project": "bothy",
+  "reserve_mib": 512,
+  "services": [
+    {
+      "name": "bothy-web",
+      "image_key": "bothy-web",
+      "image_var": "BOTHY_IMAGE_BOTHY_WEB",
+      "own": true,
+      "mem_mib": 64
+    },
+    {
+      "name": "traefik",
+      "image_key": "traefik",
+      "image_var": "BOTHY_IMAGE_TRAEFIK",
+      "own": false,
+      "mem_mib": 128
+    }
+  ],
+  "publish": [
+    {
+      "service": "traefik",
+      "container": 80,
+      "env": "BOTHY_HTTP_PORT",
+      "default": 80
+    }
+  ],
+  "mkdirs": [
+    "bothy-web/data",
+    "traefik/dynamic"
+  ],
+  "files": [],
+  "networks": [
+    "bothy-devnet"
+  ],
+  "verify": {
+    "version_path": "/version.json",
+    "version_key": "revision",
+    "bytes": [
+      {
+        "path": "/",
+        "service": "bothy-web",
+        "file": "/usr/share/nginx/html/index.html"
+      }
+    ]
+  }
+}
