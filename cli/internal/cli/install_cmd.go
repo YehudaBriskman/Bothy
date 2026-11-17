@@ -20,8 +20,8 @@ const installHelp = `bothy install - install Bothy on this machine from the rele
   bothy install [--mode mini] [--bind 127.0.0.1] [--port 80] [--dry-run]
                 [--root DIR] [--config-dir DIR] [--manifest SRC] [--checksums SRC]
                 [--allow-downgrade]
-  bothy update [--check] [--dry-run] [--allow-downgrade] [--wait-timeout SECONDS]
-               [--root DIR] [--config-dir DIR] [--manifest SRC] [--checksums SRC]
+  bothy update [--check] [--to vYYYY.M.N] [--this-release] [--dry-run] [--allow-downgrade]
+               [--require-attestation] [--wait-timeout SECONDS] [--root DIR] [--config-dir DIR] [--manifest SRC] [--checksums SRC]
   bothy uninstall [--purge] [--dry-run] [--root DIR] [--config-dir DIR]
 
 No git checkout, no build, no sudo. It needs Docker (Engine 25+, the compose
@@ -37,8 +37,15 @@ plugin) and a user who can use it. Everything it would do is printed first;
              cases are skipped with a printed command; a verdict of "not attested"
              from gh is always fatal. The sha256 checks are never skipped.
 
-update moves an installed box to the release THIS binary belongs to (download the
-newer binary first; the stack definition travels inside it). It verifies the
+update asks GitHub for the latest stable release (CalVer YYYY.M.N; drafts and
+prereleases are ignored). When it is newer than this binary it downloads that
+release's archive, checksums.txt and release-manifest.json, verifies them as
+install does, replaces this binary (the old one is kept as bothy.prev next to it)
+and then updates the box with the NEW binary (the stack definition travels inside
+it); if the stack update fails the old binary is put back. --check only reports.
+--to vX picks a release (older than this binary needs --allow-downgrade).
+--this-release (also implied by --manifest or --checksums) skips GitHub and moves
+the box to the release THIS binary belongs to, as before. That step verifies the
 release exactly as install does (same-version HTTPS, the hash line in
 checksums.txt, 'gh attestation verify' when a working gh is installed, otherwise
 the exact command is printed and the check is said to be skipped) and refuses a downgrade.
@@ -93,7 +100,39 @@ func cmdUpdate(args []string, flags map[string]string, g globals, io IO) error {
 	}
 	ctx, cancel := signalContext()
 	defer cancel()
-	return install.Update(ctx, install.SysHost{}, o, flags["check"] == "true", io.Out)
+	check := flags["check"] == "true"
+	if flags["to"] == noValue {
+		return usagef("flag --to needs a release like v2026.12.0")
+	}
+	explicit := flags["manifest"] != "" || flags["checksums"] != ""
+	if flags["this-release"] != "true" && !explicit {
+		so := install.SelfOptions{Source: install.DefaultSource(), To: flags["to"], Check: check || o.DryRun, ApplyArgs: applyArgs(flags)}
+		handled, err := install.SelfUpdate(ctx, install.SysHost{}, o, so, io.Out)
+		if err != nil || handled {
+			return err
+		}
+	} else if flags["to"] != "" {
+		return usagef("--to cannot be combined with --this-release, --manifest or --checksums")
+	}
+	return install.Update(ctx, install.SysHost{}, o, check, io.Out)
+}
+
+// applyArgs is the command line the NEW binary is run with to update the stack:
+// the same box and policy flags, never a discovery flag (it must not look for
+// yet another release).
+func applyArgs(flags map[string]string) []string {
+	a := []string{"update", "--this-release"}
+	for _, k := range []string{"root", "config-dir", "wait-timeout"} {
+		if v := flags[k]; v != "" && v != noValue {
+			a = append(a, "--"+k+"="+v)
+		}
+	}
+	for _, k := range []string{"allow-downgrade", "require-attestation"} {
+		if flags[k] == "true" {
+			a = append(a, "--"+k)
+		}
+	}
+	return a
 }
 
 func cmdUninstall(args []string, flags map[string]string, g globals, io IO) error {

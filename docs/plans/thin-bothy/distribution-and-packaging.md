@@ -553,6 +553,12 @@ they are now `tag@sha256:<index digest>` (the digest of the multi-arch index tha
 with `skopeo inspect`, so the same image the boxes already run). Dependabot's docker-compose ecosystem keeps tag and
 digest moving together, as it already does for postgres and traefik.
 
+**Update 2026-11-17, discovery:** `bothy update` now finds the latest stable release (GitHub releases API, CalVer,
+no prereleases), verifies it through the same `VerifyManifest`/attestation path plus the archive's line in
+`checksums.txt`, replaces the binary (keeping `bothy.prev`) and applies the stack with the new binary. The trust
+model, including what an attacker controlling the API response or `github.com` can do, and the decision to defer a
+pinned signing key, are in `bothy-install.md` 8b. Offline-tested only.
+
 **Update 2026-11-17, after the first real release (v2026.11.1): the release was not self-consistent, and what
 changed.** The jobs ran and the images, attestations and public packages were all fine, but `checksums.txt` is
 written by the `cli` job **before** the images and the manifest exist, so it had no `release-manifest.json` line,
