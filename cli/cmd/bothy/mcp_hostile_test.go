@@ -75,7 +75,7 @@ func TestMCPSurvivesHostileFrames(t *testing.T) {
 	s := testkit.NewServer(t)
 	p := startMCP(t, bin, "--url", s.URL, "mcp")
 	list := `{"jsonrpc":"2.0","id":%d,"method":"tools/list","params":{` + rawMeta + `}}`
-	id := 0
+	id := 100000 // far from the ids the hostile frames carry, so a reply to one is never mistaken for ours
 	alive := func(what string) {
 		t.Helper()
 		id++
