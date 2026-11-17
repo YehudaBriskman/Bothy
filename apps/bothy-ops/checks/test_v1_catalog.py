@@ -146,7 +146,7 @@ open(alt4, "w", encoding="utf-8").write(TOK)
 subprocess.run([sys.executable, GEN, "--out", os.path.join(tmp, "gen4")], capture_output=True, text=True,
                env={**os.environ, "OPERATIONS_CATALOG": alt4})
 r4 = open(os.path.join(tmp, "gen4", "edge-routers.v1.yml"), encoding="utf-8").read()
-ok(len(re.findall(r'rule: "Path\(`/-/api/v1/status`\)"', r4)) == 1 and "sso-viewer" not in r4 and "[bothy-ops-strip, ops-deidentify, sso-errors]" in r4,
+ok(len(re.findall(r'rule: "Path\(`/-/api/v1/status`\)"', r4)) == 1 and "sso-viewer" not in r4 and "[bothy-ops-strip, v1-client-address, ops-deidentify, sso-errors]" in r4,
    "a token op is one exact Path() router with no cookie gate (the service verifies the bearer)")
 oa2 = json.loads(open(os.path.join(gen2, "openapi.v1.json"), encoding="utf-8").read())
 ok(oa2["paths"]["/-/api/v1/status"]["get"]["x-bothy"]["exposure"] == ["session"]

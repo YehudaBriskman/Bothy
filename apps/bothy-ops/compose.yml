@@ -92,6 +92,10 @@ services:
       # read-only, so its own audit.log cannot be written from here). Never a secret in either.
       BOTHY_TOKEN_STATE: /tokens
       BOTHY_TOKEN_AUDIT_LOG: /audit/tokens.log
+      # The failed-bearer limit keys on the client Traefik saw (X-Forwarded-For), honoured ONLY from
+      # a peer listed here: the traefik container, by name, on opsnet. Unset = never honour the header.
+      # Inert until a /v1 router exists (s1.9a); nothing else shares opsnet, so no other peer matches.
+      BOTHY_TRUSTED_PROXIES: "@traefik"
     volumes:
       # Mounted so the log outlives a container rebuild - an audit trail that a
       # `docker compose up --build` erases is not an audit trail.

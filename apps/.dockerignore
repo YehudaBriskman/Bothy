@@ -30,3 +30,4 @@
 !bothy-ops/operations.toml
 !bothy-ops/caller.py
 !bothy-ops/tokenstore.py
+!bothy-ops/clientaddr.py

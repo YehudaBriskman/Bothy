@@ -349,25 +349,49 @@ checks `checks/test_tokens.py` and `checks/api_v1_tokens.py`, 16 mutation rows i
 sending a token beyond reusing the same client; no tokens for write ops (there are none); the timing uniformity is "the
 same work", not measured; the Go verbs were run on Linux only; nothing was run against a real container or the live box.
 
-**KNOWN FLAW, MUST BE FIXED BEFORE ANY OP IS FLIPPED OR A `/v1` ROUTE IS INSTALLED.** The failure rate limit keys on the
-TCP peer (`v1api.py`: `h.client_address[0]`). Behind Traefik that is Traefik's address, so (a) all edge clients share one
-bucket: ten bad bearers from anyone lock out every legitimate token holder for a minute, and (b) a real attacker is not
-distinguished from users. Required, in order:
+**The 2B flaw (the failure limit keyed on the TCP peer, so behind Traefik every client shared one bucket) is fixed in
+code and config as of 2026-11-17; the prerequisites below are BUILT, and what is still unproven is said last.** Nothing
+is routed and no op is flipped. The record of the flaw: ten bad bearers from anyone would have locked out every
+legitimate token holder for a minute, and a real attacker was not told apart from users.
 
-1. Decide the trusted client address: Traefik overwrites (never appends) one header, e.g. `X-Real-Client`, with the
-   connecting peer's address on the `/v1` router (`customRequestHeaders` is fine here: it carries no secret), and
-   bothy-ops honours it ONLY when the TCP peer is Traefik's address on `opsnet` (resolved by name at start, or a
-   configured CIDR), else it uses the peer. A client-sent copy must be deleted at the edge, as the `*-deidentify`
-   middlewares do for the identity headers.
-2. Key the limiter on that address (IPv6 by /64), keep its bounded memory, and add a second, coarser per-token-id
-   throttle that cannot be used to lock a valid id out (count failures only, never successes).
-3. Tests in `api_v1_tokens.py`: a spoofed header from a non-Traefik peer is ignored; two edge clients do not share a
-   bucket; one noisy client does not throttle another; a mutant row in `mutants.sh` for each.
-4. Only then run the checklist below, and add the generated exact-`Path()` router to the edge, updating router-count prose
-   by the invariant.
+1. **The trusted client address is `X-Forwarded-For`, written by Traefik.** A headers middleware cannot carry a
+   per-request address (its values are static), and per `claude-notes` a headers middleware hides a secret from the
+   browser, not from `/api/rawdata`, so no secret is used at all. The guarantee comes from the entrypoint: `edge/compose.yml`
+   sets no `forwardedHeaders.*`, so Traefik trusts nobody, discards a client-sent `X-Forwarded-For` and writes the
+   connecting peer. `edge/dynamic/bothy-v1-client.yml` adds the inert middleware `v1-client-address`, which only deletes the
+   look-alike headers (`Forwarded`, `X-Real-Ip`, `X-Client-Ip`, ...); the generator puts it on every token-exposed router.
+   It does NOT delete `X-Forwarded-For` itself, because if Traefik writes it before middlewares run, that would erase the real
+   one. `checks/wiring_clientaddr.py` holds all of this statically (no forwardedHeaders anywhere, deletions only, no router
+   in the file, a generated token router carries it, the service trusts only `@traefik`).
+2. **bothy-ops honours it only from Traefik** (`apps/bothy-ops/clientaddr.py`). `BOTHY_TRUSTED_PROXIES` is a list of IPs,
+   CIDRs and `@name` entries (resolved lazily, 30 s cache); unset or empty, the default, means NEVER honour it.
+   `compose.yml` sets `@traefik` (opsnet holds traefik and bothy-ops only). The header must be ONE field holding ONE bare
+   IPv4/IPv6 address; a list, a second field, a port, brackets, a zone id, an oversized or unparseable value are rejected
+   and the peer is used (the old shared bucket: never a spoofable one). It is never "take the last entry". IPv6 is keyed
+   by /64, IPv4-mapped addresses are unmapped. A bad `BOTHY_TRUSTED_PROXIES` entry stops the service at start.
+3. **The limiter keys on that source** (`v1api.resolve_caller`), with its bounded memory unchanged (1024 sources, oldest
+   evicted). The per-token-id counter (`tokenstore.IdFailures`) is **not a gate**, on purpose: a token id is not a secret, so
+   any rule "N failures for this id, then refuse the id" is a denial of service against its owner. The counter is written
+   only after the constant-time compare has said the secret is wrong, is never read on the success path, and only caps the
+   audit lines one hot id may write (20 per 10 minutes) so a flood at one id cannot bury the others in the audit budget.
+   A correct secret is accepted at any count. Brute force is infeasible by entropy (256-bit secret), so no refusal is
+   needed. The per-source block still refuses a valid token from a blocked source, as before; with the real client address
+   that source is the attacker's own, but clients that share one address (a NAT, one /64) share that fate.
+4. **Tests and mutant rows.** `checks/test_clientaddr.py` (parse, trust, IPv6 /64, names, the per-id counter),
+   `checks/api_v1_tokens.py` (spoof ignored from a non-Traefik peer and with nothing configured, noisy neighbour, shared
+   bucket regression, junk header falls back, /64, lock-out of a valid id impossible, over real HTTP), `checks/wiring_clientaddr.py`
+   (the edge, static). Twelve rows in `scripts/checks/mutants.sh` ("client behind the edge").
+
+**Unproven, said plainly:** there was no live Traefik run. Before the flip, with the router installed on a test box, check
+(a) that a request with a client-sent `X-Forwarded-For: 1.2.3.4` reaches bothy-ops carrying the real peer and not that
+value (not a list); (b) that two tailnet devices arrive as two different addresses: if Docker's published port SNATs
+(userland proxy) every client has the bridge gateway's address and the shared bucket is back, silently, with nothing
+failing; (c) that `@traefik` resolves from inside bothy-ops (`BOTHY_TRUSTED_PROXIES` honoured only then). A request with
+no usable header degrades to the peer bucket, never to a spoofable one.
 
 **Checklist: switching a read op to `exposure = ["socket","token"]`** (a deliberate step, never a side effect):
 
+0. **The client address is proven live first** (the three checks under "Unproven" above), on the box that will serve it.
 1. Confirm the op is `effect = "read"`, `role = "viewer"` (or the lowest role that should see it), and that its
    output schema types every free-text field `untrusted`.
 2. Edit `exposure` in `operations.toml`; list `callers` so that `cli` and/or `mcp` are only present if that client

@@ -54,3 +54,6 @@
 # sso-viewer. HAND-WRITTEN and separate from the generated bothy-ops.yml, like
 # bothy-admin.yml. No credential. Allow-listed in the same commit as the file.
 !bothy-updates.yml
+# The /v1 client-address middleware (s1.9a): ONE middleware, deletions only, no router, no credential.
+# Inert until a /v1 token router names it. Allow-listed in the same commit as the file.
+!bothy-v1-client.yml

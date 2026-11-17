@@ -115,12 +115,14 @@ def render_routers(cat: dict) -> str:
         # "session": the cookie gate for the op's role. "token" only: no cookie gate (it would refuse a
         # bearer token); bothy-ops verifies the token itself (slice 2) and refuses until then.
         gate = [f"sso-{e['role']}"] if "session" in e["exposure"] else []
+        # A token route also carries v1-client-address (edge/dynamic/bothy-v1-client.yml): the limiter's key.
+        client = ["v1-client-address"] if "token" in e["exposure"] else []
         L += [f"    bothy-ops-v1-{slug}:",
               f"      rule: \"Path(`{route_of(e)}`)\"",
               "      entryPoints: [web]",
               "      priority: 110",
               "      service: bothy-ops",
-              f"      middlewares: [{', '.join(['bothy-ops-strip', 'ops-deidentify', *gate, 'sso-errors'])}]", ""]
+              f"      middlewares: [{', '.join(['bothy-ops-strip', *client, 'ops-deidentify', *gate, 'sso-errors'])}]", ""]
     return "\n".join(L).rstrip("\n") + "\n"
 
 
