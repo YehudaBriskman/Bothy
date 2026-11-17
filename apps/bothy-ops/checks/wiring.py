@@ -319,6 +319,19 @@ ok(not any("docker.sock" in str(v) for v in vols), "no docker socket")
 ok(not any(isinstance(v, dict) and v.get("target") == "/secrets" for v in vols),
    "no token mount in the base file - it rides with the cluster network")
 
+tokm = [v for v in vols if isinstance(v, dict) and v.get("target") == "/tokens"]
+ok(len(tokm) == 1 and tokm[0].get("read_only") is True and tokm[0].get("bind", {}).get("create_host_path") is False
+   and tokm[0].get("source") == "${STATE_ROOT:-${HOME}/.local/state}/bothy/tokens",
+   "the token store is mounted READ-ONLY, never auto-created, from the state root (the host mints, the service reads)")
+env = svc.get("environment", {})
+ok(env.get("BOTHY_TOKEN_STATE") == "/tokens" and env.get("BOTHY_TOKEN_AUDIT_LOG", "").startswith("/audit/"),
+   "the service reads /tokens and logs denied bearers to the writable audit mount, not the read-only one")
+ok(not any(isinstance(v, dict) and v.get("target") == "/tokens" and not v.get("read_only") for v in vols)
+   and not any(isinstance(v, str) and "/tokens" in v for v in vols), "no read-write path to the token store from the service")
+_just, _boot = open(os.path.join(REPO, "justfile")).read(), open(os.path.join(REPO, "scripts/bootstrap.sh")).read()
+ok('mkdir -p -m 700 "$state/bothy/tokens"' in _just and 'bothy/tokens" && chmod 700' in _boot,
+   "up-apps and bootstrap create the token directory 700 (an absent one would fail the mount)")
+
 over = yaml.safe_load(open(os.path.join(SVC, "compose.cluster.yml")))
 osvc = over["services"]["bothy-ops"]
 ok(list(over["services"]) == ["bothy-ops"], "the overlay touches bothy-ops only")

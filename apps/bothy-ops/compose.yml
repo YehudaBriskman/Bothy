@@ -88,6 +88,10 @@ services:
       UPDATES_AVAILABLE: /updates/available.json
       UPDATES_DIR: /updates
       UPDATES_SPOOL: /spool
+      # Bearer tokens: the read-only store above, and where a DENIED bearer is logged (the store is
+      # read-only, so its own audit.log cannot be written from here). Never a secret in either.
+      BOTHY_TOKEN_STATE: /tokens
+      BOTHY_TOKEN_AUDIT_LOG: /audit/tokens.log
     volumes:
       # Mounted so the log outlives a container rebuild - an audit trail that a
       # `docker compose up --build` erases is not an audit trail.
@@ -142,6 +146,18 @@ services:
         source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/updates/spool
         target: /spool
         read_only: false
+        bind:
+          create_host_path: false
+      # BEARER TOKENS (D43): the host's `bothy token create|list|revoke` writes tokens.json here (0600,
+      # in a 0700 directory), and this process only READS it - read-only, so a total compromise of
+      # bothy-ops can neither mint a token nor un-revoke one. Digests only, no secret. Never
+      # auto-created, the inventory mount's reason; `just up-apps` and bootstrap create it, 700. The
+      # service refuses to load a looser or foreign-owned store (every bearer is then refused). Nothing
+      # routes /v1 at the edge yet, so a token store here authorises nothing until that is decided.
+      - type: bind
+        source: ${STATE_ROOT:-${HOME}/.local/state}/bothy/tokens
+        target: /tokens
+        read_only: true
         bind:
           create_host_path: false
       # NO token mount here. ./secrets is mounted by compose.cluster.yml, next to

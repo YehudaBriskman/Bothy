@@ -1,0 +1,148 @@
+{
+ "about": "TEST-ONLY tokens minted by cli/internal/tokens with a fixed clock and a deterministic stream; replayed by apps/bothy-ops/checks/test_tokens.py. Regenerate: UPDATE_GOLDEN=1 go test ./internal/tokens",
+ "cases": [
+  {
+   "name": "cli viewer, all ops, in date",
+   "presented": "bt_4e967bf1721e83e6.CZhfYv_wo2obFIn2UmpmzzTt-LhEaEVH7CcMQARMSs4",
+   "at": 1800000060,
+   "expect": "ok",
+   "kind": "cli",
+   "role": "viewer",
+   "ops": [
+    "*"
+   ]
+  },
+  {
+   "name": "mcp viewer, two ops",
+   "presented": "bt_adf8682c9f52337a.O9GfmtAMO-e88BGgtHdoFDNaFdbikysUVLDYENatPFg",
+   "at": 1800003600,
+   "expect": "ok",
+   "kind": "mcp",
+   "role": "viewer",
+   "ops": [
+    "status",
+    "module.list"
+   ]
+  },
+  {
+   "name": "short lived, in date",
+   "presented": "bt_2a9f4e29bdc0a06f.Q8-CUtJdmlfANywchqszSddbBVKKS-grLKlST3NgipY",
+   "at": 1800000060,
+   "expect": "ok",
+   "kind": "cli",
+   "role": "viewer",
+   "ops": [
+    "settings.get"
+   ]
+  },
+  {
+   "name": "short lived, one second before expiry",
+   "presented": "bt_2a9f4e29bdc0a06f.Q8-CUtJdmlfANywchqszSddbBVKKS-grLKlST3NgipY",
+   "at": 1800003599,
+   "expect": "ok",
+   "kind": "cli",
+   "role": "viewer",
+   "ops": [
+    "settings.get"
+   ]
+  },
+  {
+   "name": "short lived, at its expiry",
+   "presented": "bt_2a9f4e29bdc0a06f.Q8-CUtJdmlfANywchqszSddbBVKKS-grLKlST3NgipY",
+   "at": 1800003600,
+   "expect": "denied"
+  },
+  {
+   "name": "short lived, long past",
+   "presented": "bt_2a9f4e29bdc0a06f.Q8-CUtJdmlfANywchqszSddbBVKKS-grLKlST3NgipY",
+   "at": 1800007200,
+   "expect": "denied"
+  },
+  {
+   "name": "revoked before use",
+   "presented": "bt_8ee74e013f460a2f.6NxN-wufNfKDqVOFMUt3q6g9xWVPXNVXj8rDaU8rUJU",
+   "at": 1800000200,
+   "expect": "denied"
+  },
+  {
+   "name": "right id, wrong secret",
+   "presented": "bt_4e967bf1721e83e6.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "at": 1800000060,
+   "expect": "denied"
+  },
+  {
+   "name": "all-ops token, past expiry",
+   "presented": "bt_4e967bf1721e83e6.CZhfYv_wo2obFIn2UmpmzzTt-LhEaEVH7CcMQARMSs4",
+   "at": 1800172800,
+   "expect": "denied"
+  },
+  {
+   "name": "mcp token, past expiry",
+   "presented": "bt_adf8682c9f52337a.O9GfmtAMO-e88BGgtHdoFDNaFdbikysUVLDYENatPFg",
+   "at": 1800691200,
+   "expect": "denied"
+  }
+ ],
+ "store": {
+  "tokens": [
+   {
+    "created": 1800000000,
+    "digest": "eb3f3bb26ba9fc7981627d714822d90ce50f2cbd54d2fa5f872f0ff5612b33e6",
+    "expires": 1800003600,
+    "id": "2a9f4e29bdc0a06f",
+    "kind": "cli",
+    "last_used": null,
+    "name": "short lived",
+    "ops": [
+     "settings.get"
+    ],
+    "revoked_at": null,
+    "role": "viewer"
+   },
+   {
+    "created": 1800000000,
+    "digest": "cdc97f1767c78de16f6fe36bfb1a453f036764d627f10968a0f5a5c1b73629fa",
+    "expires": 1800086400,
+    "id": "4e967bf1721e83e6",
+    "kind": "cli",
+    "last_used": null,
+    "name": "laptop",
+    "ops": [
+     "*"
+    ],
+    "revoked_at": null,
+    "role": "viewer"
+   },
+   {
+    "created": 1800000000,
+    "digest": "358c8ee8f0e94623790496d8a7fed51df91ac0c35b6ddd775fc669b6c608a5fd",
+    "expires": 1800086400,
+    "id": "8ee74e013f460a2f",
+    "kind": "cli",
+    "last_used": null,
+    "name": "to be revoked",
+    "ops": [
+     "*"
+    ],
+    "revoked_at": 1800000100,
+    "role": "operator"
+   },
+   {
+    "created": 1800000000,
+    "digest": "880180f82e56b6cd3ed7a9298b0c2817968b0d8b729bdb4026849284cf9bbacd",
+    "expires": 1800604800,
+    "id": "adf8682c9f52337a",
+    "kind": "mcp",
+    "last_used": null,
+    "name": "agent one",
+    "ops": [
+     "status",
+     "module.list"
+    ],
+    "revoked_at": null,
+    "role": "viewer"
+   }
+  ],
+  "version": 1
+ }
+}

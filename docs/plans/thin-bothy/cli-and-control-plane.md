@@ -277,14 +277,14 @@ touch as little existing code as possible". Each decision below says what it buy
   catalog edit plus `just ops-v1`; no handler, router file, CLI verb or MCP tool is written by hand. Documents
   state the router **invariant** (zero Host rules, exact `Path()` only) and not a total, so growth does not
   force prose edits.
-* **D43. Token authentication is slice 2, read tokens first.** *(Python side built in slice 2A, section 1.9; nothing is exposed yet.)* `bothy token create` is host-only (the socket);
+* **D43. Token authentication is slice 2, read tokens first.** *(Built in slices 2A and 2B, sections 1.9 and 1.9a; nothing is exposed yet.)* `bothy token create` is host-only (the socket);
   tokens are stored as SHA-256 digests, carry a role and an optional op allow-list, and are verified **inside
   bothy-ops** (not by an edge middleware, so the secret never sits in dumpable router config; see the Traefik
   rule in `claude-notes`). The first routed ops are the eight read ops with `exposure = ["socket","token"]`; writes
   wait for the approval design. The "no bearer token over plain HTTP" rule already admits the Tailscale range
   (RFC 6598), where the transport is encrypted.
 
-### 1.9 Slice 2A: bearer tokens for the read API (built 2026-11-17, Python side only)
+### 1.9 Slice 2A: bearer tokens for the read API (built 2026-11-17, Python side)
 
 **Built and checked** (`apps/bothy-ops/`: `tokenstore.py`, `tokenctl.py`, the `token` adapter in `caller.py`, two
 checks `checks/test_tokens.py` and `checks/api_v1_tokens.py`, 16 mutation rows in `scripts/checks/mutants.sh`):
@@ -316,11 +316,55 @@ checks `checks/test_tokens.py` and `checks/api_v1_tokens.py`, 16 mutation rows i
 * **Nothing is exposed:** `operations.toml` still lists `exposure = ["socket"]` for every op; no edge router is
   installed; router counts and every golden are unchanged.
 
-**Not built, said plainly:** no compose mount or env for a token state directory (so the running service has no
-store); no edge router; no CLI (Go) or MCP code that sends a token; no `bothy token` verb (the host script is the
-only mint); no tailnet binding; no tokens for write ops (there are none); the rate limit keys on the TCP peer, which
-behind Traefik is Traefik's address, so it is effectively one bucket for all edge traffic until the edge forwards a
-trusted client address (not designed yet); the timing uniformity is "the same work", not measured.
+### 1.9a Slice 2B: deployment, the `bothy token` verbs and the CLI sending a token (built 2026-11-17)
+
+* **Where the store lives.** `${STATE_ROOT:-~/.local/state}/bothy/tokens/` on the host: directory 0700, `tokens.json`
+  0600, owned by the operator. `apps/bothy-ops/compose.yml` bind-mounts it at `/tokens` **read-only**,
+  `create_host_path: false`, and sets `BOTHY_TOKEN_STATE=/tokens`; `just up-apps` and `scripts/bootstrap.sh` create it
+  700 (an absent source would fail the whole project, like the inventory mount). Read-only is the point: a total
+  compromise of bothy-ops can neither mint a token nor un-revoke one. The service's `last_used` touch fails quietly on
+  it, by design. Because `tokens.json` sits on a read-only mount, denied bearers are audited to a separate writable
+  file, `BOTHY_TOKEN_AUDIT_LOG=/audit/tokens.log` (`TokenStore(audit_log=...)`); create/revoke audit lines are
+  written by the host verbs into `<state>/audit.log`. The service refuses a store whose directory or file is loose or
+  owned by another uid than `PUID` (every bearer is then 401): the host user must be the container's `PUID`.
+* **Installed mode.** The embedded `mini` stack contains no bothy-ops, so there is nothing to mount and no `/v1`; it
+  stays free of docker.sock and Host rules (existing lints). `stackgen/tokens_test.go` fails the day a mode adds
+  bothy-ops without a read-only `/tokens` mount. `bothy token` still works on such a box (it writes the file a future
+  bothy-ops would read).
+* **Minting is host-side only.** `bothy token create|list|revoke` (Go, `cli/internal/tokens`, `internal/cli/token_cmd.go`)
+  writes the file the Python store reads: no shell-out, flock + temp file + fsync + rename, 0700/0600 enforced, symlinks
+  and foreign owners refused, digest only on disk, `audit.log` without secrets. The secret goes to stdout once (or to
+  `--out FILE`, created 0600 exclusively); it is never in an error, a log or `list`. Refuses a CGI/HTTP environment or a
+  socket as stdin. Not a catalog op, so no route, no MCP tool, not in `discover`; a test pins it. Not built for Windows.
+  `tokenctl.py` remains, and the two share one format: `cli/internal/tokens/tokens_test.go` regenerates
+  `checks/golden/tokens/gotokens.json` deterministically (fixed clock and entropy) and `checks/test_tokens.py` replays
+  it through `tokenstore.py` (valid, revoked, expired, wrong secret); `golden/tokens/pytokens.json` goes the other way.
+* **The CLI sends it.** `BOTHY_TOKEN` or the context's 0600 token file (checked on the open fd), never a flag (a
+  `--token` flag is an unknown flag and its value is not echoed). Only the form `bt_<16 hex>.<43 chars>` is accepted
+  (so no header injection); plain `http://` only to loopback or RFC 6598 (existing guard); no redirects. The token, and
+  its secret half, are redacted from every response body and server header before decode, so an echoing server cannot
+  put it in an error, `--json` or an MCP result. Tests against fake servers: `api/token_test.go`, `cli/token_cmd_test.go`.
+
+**Not built, said plainly:** no edge router for `/v1` and no op has `token` exposure; no tailnet binding; no MCP code
+sending a token beyond reusing the same client; no tokens for write ops (there are none); the timing uniformity is "the
+same work", not measured; the Go verbs were run on Linux only; nothing was run against a real container or the live box.
+
+**KNOWN FLAW, MUST BE FIXED BEFORE ANY OP IS FLIPPED OR A `/v1` ROUTE IS INSTALLED.** The failure rate limit keys on the
+TCP peer (`v1api.py`: `h.client_address[0]`). Behind Traefik that is Traefik's address, so (a) all edge clients share one
+bucket: ten bad bearers from anyone lock out every legitimate token holder for a minute, and (b) a real attacker is not
+distinguished from users. Required, in order:
+
+1. Decide the trusted client address: Traefik overwrites (never appends) one header, e.g. `X-Real-Client`, with the
+   connecting peer's address on the `/v1` router (`customRequestHeaders` is fine here: it carries no secret), and
+   bothy-ops honours it ONLY when the TCP peer is Traefik's address on `opsnet` (resolved by name at start, or a
+   configured CIDR), else it uses the peer. A client-sent copy must be deleted at the edge, as the `*-deidentify`
+   middlewares do for the identity headers.
+2. Key the limiter on that address (IPv6 by /64), keep its bounded memory, and add a second, coarser per-token-id
+   throttle that cannot be used to lock a valid id out (count failures only, never successes).
+3. Tests in `api_v1_tokens.py`: a spoofed header from a non-Traefik peer is ignored; two edge clients do not share a
+   bucket; one noisy client does not throttle another; a mutant row in `mutants.sh` for each.
+4. Only then run the checklist below, and add the generated exact-`Path()` router to the edge, updating router-count prose
+   by the invariant.
 
 **Checklist: switching a read op to `exposure = ["socket","token"]`** (a deliberate step, never a side effect):
 

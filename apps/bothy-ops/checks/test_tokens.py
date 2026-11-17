@@ -311,5 +311,67 @@ ok(caller.from_request({}, "viewer").kind == "socket" and caller.from_request(ED
    "socket and session adapters are unchanged")
 
 print()
+print("GO-MINTED TOKENS (cli/internal/tokens; golden fixtures, no Go toolchain needed to replay them)")
+GOLD = os.path.join(HERE, "golden", "tokens")
+
+
+def load_store(doc_store: dict) -> str:
+    """Write a fixture's store the way the host would have: 0600 file in a 0700 directory."""
+    d = fresh()
+    os.makedirs(d, mode=0o700)
+    p = os.path.join(d, ts.FILE)
+    with open(p, "w") as f:
+        json.dump(doc_store, f)
+    os.chmod(p, 0o600)
+    return d
+
+
+go = json.load(open(os.path.join(GOLD, "gotokens.json")))
+gstate = load_store(go["store"])
+recs, _ = ts.read_file(gstate)
+ok(len(recs) == len(go["store"]["tokens"]) and all("digest" in r for r in recs.values()),
+   "a store Go wrote passes the Python reader's strict record validation")
+ok(not any(re.search(r"\.([A-Za-z0-9_-]{43})", r["digest"]) for r in recs.values()),
+   "digests are hex (no secret in the store)")
+gstore = ts.TokenStore(gstate, touch=False)
+for c in go["cases"]:
+    try:
+        rec = gstore.verify(c["presented"], now=c["at"])
+        got = "ok"
+    except ts.Denied:
+        rec, got = None, "denied"
+    ok(got == c["expect"], f"Go-minted: {c['name']} -> {c['expect']}")
+    if got == "ok" and c["expect"] == "ok":
+        ok((rec["kind"], rec["role"], rec["ops"]) == (c["kind"], c["role"], c["ops"]),
+           f"  …and the record's kind, role and ops are what Go minted ({c['name']})")
+cl = [c for c in go["cases"] if c["expect"] == "ok"]
+ok(len(cl) >= 3 and any(c["expect"] == "denied" and "revoked" in c["name"] for c in go["cases"])
+   and any("expiry" in c["name"] for c in go["cases"]) and any("wrong secret" in c["name"] for c in go["cases"]),
+   "the fixture really covers valid, revoked, expired and wrong-secret")
+revoked = [r for r in recs.values() if r["revoked_at"] is not None]
+ok(len(revoked) == 1 and revoked[0]["role"] == "operator", "Go's revoke wrote revoked_at into the store")
+
+# And the reverse: what the Python tokenctl wrote is what Go reads (replayed on the Go side), and it still verifies.
+py = json.load(open(os.path.join(GOLD, "pytokens.json")))
+pstate = load_store(py["store"])
+try:
+    pr = ts.TokenStore(pstate, touch=False).verify(py["presented"], now=NOW + 60)
+    ok(pr["id"] == py["id"], "the Python-minted golden still verifies (Go reads this very file)")
+except ts.Denied:
+    ok(False, "the Python-minted golden still verifies")
+
+alog = os.path.join(tmp, "denials.log")
+gstate = load_store(go["store"])
+ro = ts.TokenStore(gstate, touch=False, audit_log=alog)
+os.chmod(gstate, 0o500)            # a read-only store, like the compose mount
+try:
+    ro.verify("bt_" + "0" * 16 + "." + "A" * 43, now=NOW)
+except ts.Denied:
+    pass
+os.chmod(gstate, 0o700)
+ok(os.path.exists(alog) and "use-denied" in open(alog).read() and not os.path.exists(os.path.join(gstate, ts.AUDIT)),
+   "with a read-only store a denial is audited to the separate writable log, not lost")
+
+print()
 print(f"{len(fails)} failed" if fails else "all passed")
 sys.exit(1 if fails else 0)

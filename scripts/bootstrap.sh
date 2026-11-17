@@ -410,6 +410,9 @@ mk "$STATE_ROOT/bothy/textfile" && chmod 755 "$STATE_ROOT/bothy/textfile"
 # audit dir. POST /-/api/updates/request writes a request here; the host's
 # bothy-updater.path picks it up. create_host_path false, like the rest.
 mk "$STATE_ROOT/bothy/updates/spool" && chmod 700 "$STATE_ROOT/bothy/updates/spool"
+# Bearer tokens (D43): `bothy token create` writes, bothy-ops mounts it READ-ONLY (create_host_path
+# false). 700: the service refuses a looser directory, and then no bearer is accepted.
+mk "$STATE_ROOT/bothy/tokens" && chmod 700 "$STATE_ROOT/bothy/tokens"
 mk "$STATE_ROOT/devbox-logs"
 mk "$BACKUP_ROOT/postgres"
 mk "$PROJECTS_ROOT"
