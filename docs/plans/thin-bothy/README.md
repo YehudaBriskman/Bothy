@@ -75,6 +75,8 @@ customisable than today's "everything on, edit `.env`".
 | 5 | Move modules one at a time: monitoring, then auth, then data | per module, reversible |
 | 6 | k3s is the install target on hosts of at least 4 GiB; **Compose stays** (below the floor, for Docker modules, as the fallback) | yes, announced |
 
+**Later, outside these phases:** a website served by the box on the local network, carrying the docs and more (`future-website.md`).
+
 ## How this relates to existing issues
 
 - **Builds on:** #315 (tracking), #316 (store decision), #317 (store), #319
