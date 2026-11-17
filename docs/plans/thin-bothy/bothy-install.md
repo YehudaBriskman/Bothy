@@ -104,7 +104,8 @@ listener on another address (not a conflict), the install holding its own port o
 
 The binary installs **exactly the release it belongs to**. `VerifyManifest` (tested):
 
-1. `release-manifest.json`'s sha256 must equal its line in `checksums.txt` (the file the release **attests**;
+1. `release-manifest.json`'s sha256 must equal its line in `checksums.txt` (the file the release **attests**, and
+   which the release's last job completes with that line: `distribution-and-packaging.md` 8.1;
    this prototype does **not** verify the attestation itself, see Q2);
 2. if the binary was built with `-ldflags "-X .../install.PinnedManifestSHA=<hex>"`, it must equal that too
    (the same pin-the-hash idea as `bothy.sh`'s commit pin, which `security-model.md` calls the control that matters);
@@ -358,7 +359,10 @@ the write, delete and raw/archive routes of `files` (deliberately not exposed).
 
 **Exact next steps**
 1. D34 side: the release must publish `release-manifest.json` and `checksums.txt` as assets of the same tag,
-   `checksums.txt` must contain a `release-manifest.json` line, `bothy-web` and `bothy-files` must be built with
+   `checksums.txt` must contain a `release-manifest.json` line (**v2026.11.1 did not: the `cli` job wrote
+   `checksums.txt` before the manifest existed, and its own `bothy install` refused it. `release.yml`'s
+   `release-manifest` job now appends the line, re-uploads and attests; unproven until v2026.11.2 or later**,
+   see `distribution-and-packaging.md` 8.1), `bothy-web` and `bothy-files` must be built with
    `REVISION=<commit>`, and `images`/`third_party` keys must be the image's last path segment. Then stamp
    `PinnedManifestSHA` in the release build.
 2. Repeat the VM proof against real GHCR images with `gh` installed in the guest (drop `fake-release.sh` from the

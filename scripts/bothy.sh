@@ -74,7 +74,9 @@ BOTHY_PIN_SHA="5873d06f68e3b961cf70178d9f16af8108b1a947"
 # EMPTY while the pinned release carries no CLI archives (v2026.11.0 predates
 # them); `--binary` then refuses rather than trusting a checksum fetched from the
 # same place as the archive. It is set in the same follow-up PR that moves the two
-# lines above, once the release run has published checksums.txt:
+# lines above, once the WHOLE release run (its last job, release-manifest) has
+# finished: that job completes checksums.txt with the manifest's line and prints
+# the hash in its summary. Take that one, never an earlier file's:
 #   gh release download vX -p checksums.txt -O - | sha256sum
 # (or rebuild it: scripts/build-cli.sh is deterministic, see its header).
 # scripts/checks/installer-pin.sh requires it to be empty or 64 lower-case hex.
