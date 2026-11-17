@@ -68,8 +68,8 @@ set -u
 # the exact tree this file was published against - a substituted or rewritten
 # tag cannot match. It proves nothing about whether THIS FILE is genuine; that
 # is what reading it before running it is for.
-BOTHY_PIN_VERSION="v2026.11.1"
-BOTHY_PIN_SHA="fc7b73323870767984c32ac30059cd8d141c2fde"
+BOTHY_PIN_VERSION="v2026.11.2"
+BOTHY_PIN_SHA="930bf6287928b0219a70944e4dc66e560687c8d5"
 # The sha256 of that release's checksums.txt - what `--binary` verifies against.
 # EMPTY while the pinned release carries no CLI archives (v2026.11.0 predates
 # them); `--binary` then refuses rather than trusting a checksum fetched from the
@@ -80,7 +80,7 @@ BOTHY_PIN_SHA="fc7b73323870767984c32ac30059cd8d141c2fde"
 #   gh release download vX -p checksums.txt -O - | sha256sum
 # (or rebuild it: scripts/build-cli.sh is deterministic, see its header).
 # scripts/checks/installer-pin.sh requires it to be empty or 64 lower-case hex.
-BOTHY_PIN_CHECKSUMS_SHA256="21d450f88e85eef1af9e7c97950ad253634fdf413e63a1039f97012b496cecf8"
+BOTHY_PIN_CHECKSUMS_SHA256="0b97724f81b7b4d9dcbac8d5fdbb270adbe3ed760a518ae1564eb97eb8b72c6f"
 
 # ── settings ────────────────────────────────────────────────────────────────
 #
