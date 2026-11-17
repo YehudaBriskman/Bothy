@@ -205,14 +205,14 @@ def _clean(v: object) -> str:
     return s if NAME_RE.fullmatch(s) or s == "-" else "-"
 
 
-def audit(state: str, event: str, token_id: str = "-", **fields: object) -> None:
+def audit(state: str, event: str, token_id: str = "-", *, path: str | None = None, **fields: object) -> None:
     """One JSON line, appended. Best effort: failing to log never changes an auth decision. The id is
     kept only if it is 16 hex; every other field is a fixed word, an int or a validated name."""
     rec = {"ts": int(time.time()), "event": event, "id": token_id if ID_RE.fullmatch(str(token_id)) else "-"}
     for k, v in fields.items():
         rec[k] = v if isinstance(v, int) else _clean(v)
     try:
-        fd = os.open(os.path.join(state, AUDIT),
+        fd = os.open(path or os.path.join(state, AUDIT),
                      os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
         try:
             os.write(fd, (json.dumps(rec, sort_keys=True) + "\n").encode())
@@ -264,8 +264,12 @@ class FailureLimiter:
 # ── the read side the service uses ───────────────────────────────────────────
 
 class TokenStore:
-    def __init__(self, state: str, limiter: FailureLimiter | None = None, touch: bool = True):
+    def __init__(self, state: str, limiter: FailureLimiter | None = None, touch: bool = True,
+                 audit_log: str | None = None):
+        # `audit_log`: where denials go when the state directory is mounted READ-ONLY (the service's
+        # normal case): a writable file elsewhere, never inside `state`. None = <state>/audit.log.
         self.state = state
+        self.audit_log = audit_log
         self.limiter = limiter or FailureLimiter()
         self.touch = touch
         self._lock = threading.Lock()
@@ -286,7 +290,7 @@ class TokenStore:
             if not quiet:
                 self._deny_logged.append(now)
         if not quiet:
-            audit(self.state, "use-denied", token_id, reason=reason)
+            audit(self.state, "use-denied", token_id, path=self.audit_log, reason=reason)
 
     def verify(self, presented: str, source: str = "-", now: float | None = None) -> dict:
         """The record (no digest) of a good token, or Denied - always Denied, never a reason."""

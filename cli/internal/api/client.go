@@ -5,6 +5,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/YehudaBriskman/Bothy/cli/internal/catalog"
+	"github.com/YehudaBriskman/Bothy/cli/internal/tokens"
 )
 
 // Exit codes. The API-error rows are the golden README's "suggested CLI exit"
@@ -193,6 +195,11 @@ func New(base, token, version string, timeout time.Duration) (*Client, error) {
 		return nil, fmt.Errorf("base url %q must not carry a query or fragment", base)
 	}
 	if token != "" {
+		// The shape is checked before anything is sent: a malformed value could carry a header
+		// injection, and it is never echoed back here.
+		if !tokens.TokenRE.MatchString(token) {
+			return nil, errors.New("the token is not in the form bt_<id>.<secret> (its value is not shown)")
+		}
 		if err := CheckTokenTransport(u, token); err != nil {
 			return nil, err
 		}
@@ -256,10 +263,22 @@ func (c *Client) get(ctx context.Context, path string, q url.Values) (*http.Resp
 	if err != nil {
 		return nil, nil, &UnreachableError{Err: err}
 	}
+	if c.token != "" {
+		// A server that echoes the credential back (a proxy, a debug page, a hostile box) must not
+		// get it onto the terminal, into --json, an error, or an MCP result.
+		body = c.redact(body)
+	}
 	if len(body) > maxBody {
 		return nil, nil, &ProtocolError{Msg: "response larger than 8 MiB"}
 	}
 	return resp, body, nil
+}
+
+// redact removes the token, and its secret half on its own, from b.
+func (c *Client) redact(b []byte) []byte {
+	secret := c.token[strings.IndexByte(c.token, '.')+1:]
+	b = bytes.ReplaceAll(b, []byte(c.token), []byte("[redacted]"))
+	return bytes.ReplaceAll(b, []byte(secret), []byte("[redacted]"))
 }
 
 // stripURL keeps the transport reason but drops the request URL (which could
@@ -472,7 +491,11 @@ func (c *Client) do(ctx context.Context, op catalog.Op, args map[string]string, 
 	if err != nil {
 		return nil, err
 	}
-	srv, hasHdr := ParseServerHeader(resp.Header.Get("Bothy-Server"))
+	hdr := resp.Header.Get("Bothy-Server")
+	if c.token != "" {
+		hdr = string(c.redact([]byte(hdr)))
+	}
+	srv, hasHdr := ParseServerHeader(hdr)
 	var notices []string
 	if gate && hasHdr {
 		n, err := c.checkSkew(srv.API, srv.MinClient)

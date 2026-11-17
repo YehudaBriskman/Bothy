@@ -153,9 +153,12 @@ def main() -> None:
         # The operation catalog likewise: a catalog that does not load is not served.
         v1api.load()
         # Bearer tokens (D43): only when a state directory is configured. Unset = no store = every
-        # bearer is 401, the behaviour of slice 1. Nothing sets it yet: no compose file mounts one.
+        # bearer is 401, the behaviour of slice 1. compose.yml mounts the host's token directory
+        # READ-ONLY and sets this; the host's `bothy token` is the only writer. Denials are audited
+        # to BOTHY_TOKEN_AUDIT_LOG, a writable file outside that mount.
         if os.environ.get("BOTHY_TOKEN_STATE"):
-            caller.set_token_store(tokenstore.TokenStore(os.environ["BOTHY_TOKEN_STATE"]))
+            caller.set_token_store(tokenstore.TokenStore(os.environ["BOTHY_TOKEN_STATE"],
+                                                         audit_log=os.environ.get("BOTHY_TOKEN_AUDIT_LOG") or None))
     except (guard.CatalogError, updates.CatalogError, opscatalog.CatalogError, OSError,
             tomllib.TOMLDecodeError) as e:
         # Refuse to start. A service that ran with half a catalog would be a
