@@ -379,12 +379,12 @@ What the CLI tells the user. Not a stack trace, not "error": always **file, verd
 (corrupt / too new / too old), what was left untouched, the one next command.** Examples:
 
 ```
-settings database /home/u/.local/share/bothy/settings/settings.db is schema 3; this bothy
+settings database ~/.local/share/bothy/settings/settings.db is schema 3; this bothy
 knows up to 2 (too new). Nothing was changed. Run `bothy update`, or restore the copy
-taken before the migration: /home/u/.local/share/bothy/pre-migrate/settings-v2-20261117T...
+taken before the migration: ~/.local/share/bothy/pre-migrate/settings-v2-20261117T...
 ```
 ```
-receipt /home/u/.local/share/bothy/receipt.json does not parse (corrupt). Nothing was
+receipt ~/.local/share/bothy/receipt.json does not parse (corrupt). Nothing was
 changed. It is rebuilt by `bothy install` (your data is not in it); the unreadable file
 was kept as receipt.json.corrupt-<ts>.
 ```
