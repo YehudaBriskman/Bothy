@@ -84,7 +84,11 @@ func Uninstall(ctx context.Context, h Host, o UninstallOptions, out io.Writer) e
 	}})
 	if o.Purge {
 		steps = append(steps, step{"PURGE: delete the secrets directory " + filepath.Join(rec.ConfigDir, "secrets") + " (includes master.key: anything encrypted with it becomes unreadable)", func() error {
-			return guardedRemoveAll(filepath.Join(rec.ConfigDir, "secrets"), "secrets")
+			if err := guardedRemoveAll(filepath.Join(rec.ConfigDir, "secrets"), "secrets"); err != nil {
+				return err
+			}
+			_ = os.Remove(rec.ConfigDir) // only if now empty
+			return nil
 		}})
 		steps = append(steps, step{"PURGE: docker image rm for the pulled images", func() error {
 			for _, ref := range rec.Images {
@@ -97,7 +101,11 @@ func Uninstall(ctx context.Context, h Host, o UninstallOptions, out io.Writer) e
 		}})
 	} else {
 		steps = append(steps, step{"delete the receipt " + rpath + " (secrets in " + filepath.Join(rec.ConfigDir, "secrets") + " and pulled images are kept)", func() error {
-			return os.Remove(rpath)
+			if err := os.Remove(rpath); err != nil {
+				return err
+			}
+			_ = os.Remove(rec.DataDir) // only if now empty
+			return nil
 		}})
 	}
 	for _, s := range steps {
