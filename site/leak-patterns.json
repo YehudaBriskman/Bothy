@@ -1,0 +1,16 @@
+{
+  "_comment": "Shared by the build (src/docs/safety.ts) and the post-build scan (scripts/check-public.mjs). Each entry is a JavaScript RegExp source and flags. A match anywhere in rendered docs or in the built output fails the build. These are deliberately about SHAPES (a tailnet address, a token prefix, a key block), because the failure being prevented is a real value slipping in, not a word.",
+  "patterns": [
+    { "name": "tailnet IPv4 (100.64.0.0/10)", "source": "\\b100\\.(?:6[4-9]|[7-9]\\d|1[01]\\d|12[0-7])\\.\\d{1,3}\\.\\d{1,3}\\b", "flags": "" },
+    { "name": "tailnet MagicDNS name", "source": "\\b[\\w-]+\\.[\\w-]+\\.ts\\.net\\b", "flags": "i" },
+    { "name": "private key block", "source": "-----BEGIN [A-Z ]*PRIVATE KEY-----", "flags": "" },
+    { "name": "GitHub token", "source": "\\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,})", "flags": "" },
+    { "name": "Tailscale auth key", "source": "\\btskey-[A-Za-z0-9-]{10,}", "flags": "" },
+    { "name": "AWS access key id", "source": "\\bAKIA[0-9A-Z]{16}\\b", "flags": "" },
+    { "name": "Slack token", "source": "\\bxox[abprs]-[A-Za-z0-9-]{10,}", "flags": "" },
+    { "name": "JSON web token", "source": "\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}", "flags": "" },
+    { "name": "Authorization header with a value", "source": "Authorization:\\s*(?:Basic|Bearer)\\s+[A-Za-z0-9+/=._-]{12,}", "flags": "i" },
+    { "name": "credential assignment with a value", "source": "\\b(?:password|passwd|secret|api[_-]?key|access[_-]?token)\\s*[:=]\\s*[\"']?[A-Za-z0-9/+_.-]{12,}", "flags": "i" },
+    { "name": "the owner's machine or account", "source": "/home/devssh|\\byehuda-wsl\\b|\\bYehuda-HS\\b", "flags": "i" }
+  ]
+}
