@@ -125,6 +125,16 @@ BestEffort pods carry `oom_score_adj` 1000). The one `hostPath` exemption is nam
 | k3s apiserver exposure | not bound beyond the node; listener check in install verify |
 | The Traefik API (rule 2): the dashboard stays off; `/api/rawdata` leaked a Basic header once | keep `--api=true` only, never `--api.dashboard`; no auth headers in middlewares |
 
+### 4.1 Bearer tokens for the control-plane API (slice 2A, built 2026-11-17)
+
+Digests only (SHA-256 of 256 random bits), a 0600 file in a 0700 directory that the store refuses to load if looser
+or a symlink, constant-time compare, one indistinguishable refusal for every failure, per-source failure rate limit,
+an append-only audit with no secret, and minting that exists only as a host script (never a route). Roles come from
+the record. Nothing is routed at the edge yet. Residual risks: a token on disk in the user's terminal history or
+shell scrollback when minted (printed once, by design); the rate-limit key is Traefik's address until the edge
+forwards a trusted client address; `last_used` needs a writable state directory to persist. Detail and the
+unbuilt list: `cli-and-control-plane.md` s1.9.
+
 ## 5. The doc that must exist before code
 
 `SECURITY.md` gets a section "In-cluster boundary" with the table in 2.1 and the
