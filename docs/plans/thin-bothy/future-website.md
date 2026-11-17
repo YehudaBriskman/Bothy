@@ -41,8 +41,29 @@ The install path and the first real release come first (they are what a site wou
 before the product settles would be rewritten. The docs already exist as Markdown in the repo, so nothing is lost
 by waiting; the rules above keep the later work small.
 
-## Questions for the owner (for when this starts)
+## Reference and domain (answered 2026-11-17)
 
-1. What is the reference site ("like in Windom" as dictated; the name, its look and what you liked about it)?
-2. Public site too, or only the copy each box serves? On which domain, if any?
-3. Languages: English only first, or Hebrew alongside?
+**Reference: WindoM's site (`windom.app`, owner's project, `~/projects/WindoM/site`).** What it is, read from its repo:
+a React 19 + Vite single-page app with a landing page and a docs section, **prerendered to static HTML at build time**
+(`site/scripts/prerender.mjs`, plus a generated sitemap and search index), checked by a script that every public URL
+still exists (`verify-dist.sh`), and published by a GitHub Actions workflow to **GitHub Pages**
+(`deploy-site.yml`, `site/public/CNAME` holding the domain). Its release feed is built from `CHANGELOG.md`, so a release
+reaches the site by itself.
+
+**Domain: `bothybox.com`, bought by the owner on 2026-11-17** (registrar: Cloudflare, not yet pointed anywhere).
+
+Consequences for this plan (decisions, not yet built):
+
+- Same shape as WindoM: static, prerendered, built in CI from this repository, deployed to Pages with a `CNAME`. No server
+  to run for the public copy. Reuse its structure and scripts as a starting point; do not share code across repos yet.
+- The copy each box serves is the **same build output**, served by a static module on the box (one source of truth).
+- The release feed comes from this repository's release notes and `release-manifest.json`, so the site never lists a
+  version that does not exist.
+- The apt repository (D32) can live on the same Pages site or on a subdomain (`apt.bothybox.com`); decide when D32 starts.
+- An existing personal site, `yehudabriskman.com`, already carries a Bothy project page and blog area; the new site does
+  not replace it.
+
+## Questions still open
+
+1. Languages: English only first, or Hebrew alongside (the personal site is bilingual with RTL)?
+2. Does the docs section render the existing Markdown in `docs/`, or is it written separately for readers outside the repo?
