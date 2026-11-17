@@ -45,7 +45,7 @@ name: headlamp
 
 services:
   headlamp:
-    image: ghcr.io/headlamp-k8s/headlamp:v0.46.0   # pinned; checked on ghcr 2026-09-17
+    image: ghcr.io/headlamp-k8s/headlamp:v0.46.0@sha256:8a0ef97527544baa2b35825940ddf4db6e2d09c30cd5aa31fd269ff604cc8b75   # pinned; checked on ghcr 2026-09-17
     container_name: headlamp
     restart: unless-stopped
     # Run as the owner of ./secrets/kubeconfig (mode 600) rather than the image's
@@ -121,7 +121,7 @@ services:
   # port. The OIDC settings mirror it - read auth/compose.yml for the reasoning
   # behind each; only the differences are argued here.
   oauth2-proxy-headlamp:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6   # same pin as auth/compose.yml
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048   # same pin as auth/compose.yml
     container_name: oauth2-proxy-headlamp
     restart: unless-stopped
     depends_on:

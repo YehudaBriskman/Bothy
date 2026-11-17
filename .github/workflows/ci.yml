@@ -184,6 +184,14 @@ jobs:
         if: always()
         run: bash scripts/checks/docker-context.sh
 
+      # D34. Every image the repo builds is in release.yml's publish list and
+      # vice versa, the manifest generator is unit-tested, and every third-party
+      # image in every compose file is pinned by digest (the manifest's
+      # third_party section is read from those pins).
+      - name: Release publishes every own image; third-party images are digest-pinned
+        if: always()
+        run: bash scripts/checks/release-manifest.sh
+
       # scripts/bothy dispatches most subcommands to a just recipe. Rename a
       # recipe and nothing complains until somebody runs the CLI - the break is
       # in one file and surfaces in another.

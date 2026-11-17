@@ -502,7 +502,7 @@ D15 to D28 are in `cli-and-control-plane.md` (still **Proposed**). These continu
 | D31 | **Amend D27** (packages not in v1) | Keep "none in slice 1". Next: `.deb`/`.rpm`/`.apk` as Release assets (no repo, no key). Then the repo, once the key ceremony is done | 3.5, 4.4; the owner's requirement | Skip the asset step: the repo and its key become a blocker for the first package. Or keep D27 as is: the requirement is deferred |
 | D32 | **Repository hosting for v1 of packages** | GitHub Pages in a separate repo, on a domain you control; Cloudsmith as fallback | 3.5 (limits VERIFIED) | OBS/COPR if you would rather not hold a signing key at all |
 | D33 | **Key custody** | Offline OpenPGP primary + 1-year signing subkey on a hardware token; the maintainer signs the metadata; CI never holds it; fingerprint on a second surface | 4.4 | Service-held key (OBS/PPA/Cloudsmith): less toil, a platform as the root of trust. CI-held key: rejected |
-| D34 | **Publish images to a registry, pulled by digest** | Yes: GHCR (ASSUMPTION: free for public images), multi-arch, attested; the updater pulls instead of building from a checkout. Prerequisite for *any* package-installed Bothy | 1.1: images are built from the checkout today | Keep building on the box: then a package must also ship a source tree (a checkout in `/usr/share`), which defeats D29 |
+| D34 | **Publish images to a registry, pulled by digest** | Yes: GHCR (ASSUMPTION: free for public images), multi-arch, attested (**implemented in release.yml, unproven until a real release: 8.1**); the updater pulls instead of building from a checkout. Prerequisite for *any* package-installed Bothy | 1.1: images are built from the checkout today | Keep building on the box: then a package must also ship a source tree (a checkout in `/usr/share`), which defeats D29 |
 | D35 | **Tooling** | nfpm for packages; GoReleaser if the CLI is Go (cargo-dist if Rust); keep `release.yml` and `release-decision.sh`; do not add release-please or fpm | 3.1, 7 | |
 | D36 | **Channel verdicts** | Keep: tarball, `mise`, deb, rpm, Homebrew tap (client). Defer: AUR, Nix, Alpine repo, macOS pkg, winget/Scoop. Reject: Flatpak, Snap, AppImage, OCI-as-installer, Chocolatey, MSI/MSIX, distro-official | 2.2 | Snap if you want Ubuntu reach and accept store-forced refresh and a classic review |
 | D37 | **Data and key survival, and install modes** | Remove and purge never delete `/var/lib/bothy` or the master key; only `bothy uninstall --data`; package install = system user `bothy` and `/var/lib/bothy`; tarball install = user and XDG; one code path via a path resolver | 4.2, 4.3, VM proof | A purge that deletes data (Tailscale's choice): an unrecoverable settings DB |
@@ -516,6 +516,53 @@ optional system unit; same code. **Proposed items touched:** D22 (signing) gains
 amended by D31; D17 (hostd stays Python) means `bothy-host` declares `Depends: python3 (>= X)`, with X to be
 measured (ASSUMPTION: Debian 12 ships 3.11, Ubuntu 24.04 ships 3.12, so the floor must be at most 3.11 unless the
 host package bundles an interpreter).
+
+### 8.1 D34 status: implemented in `release.yml`, unproven until a real release
+
+Written 2026-11-17. The code exists and its offline parts are tested; **no image has ever been pushed and no run of
+the new jobs has happened**. Treat every sentence below that describes CI behaviour as a design until the first
+release after this lands has run it.
+
+**What is built** (`.github/workflows/release.yml`, after the existing tag job; the tag decision is untouched, the tag
+job only gained two outputs, `published` and `version`):
+
+* `images` (one matrix leg per own image, only when this run created the tag): builds from the **tagged sha** with the
+  same Dockerfiles and contexts as ci.yml's "Every image builds" job, `linux/amd64` and `linux/arm64`, pushes
+  `ghcr.io/<lower-cased owner>/<name>:<version>`, takes the digest of the pushed **index**, asserts the index lists
+  exactly those two platforms, then attests it with `actions/attest-build-provenance` (`push-to-registry: true`).
+  This job alone holds `packages: write`. No `latest`, no moving tag: the digest is the identity.
+* `release-manifest` (after all images): `scripts/gen-release-manifest.py` writes `release-manifest.json`
+  (`schema`, `version`, `commit`, `images`, `third_party`, `assets`), attached to the release and attested.
+  `third_party` is read from the compose files' digest pins, so the compose pins stay the single source of truth.
+  The generator **refuses** any third-party image not pinned by digest.
+* arm64 by QEMU, not native runners: one build per image gives the multi-arch index directly, with no per-arch push and
+  merge step to get wrong in a pipeline that cannot be tried first. It is slow for `bothy-web` (`npm ci` and vite under
+  emulation; the job allows 60 minutes). If that bites, put `--platform=$BUILDPLATFORM` on its node stage or move to
+  native runners.
+* `scripts/checks/release-manifest.sh` (CI, no-daemon job) fails when `apps/*/Dockerfile`, compose `build:` services
+  and the release matrix are not the same set, unit-tests the generator on fixtures, and fails if any third-party
+  image in any compose file is not digest-pinned.
+
+**A side effect to know about.** Twelve third-party images (grafana, loki, alloy, promtail, victoria-metrics,
+prometheus, cadvisor, node-exporter, keycloak, oauth2-proxy, headlamp, docker-socket-proxy) were pinned by tag only;
+they are now `tag@sha256:<index digest>` (the digest of the multi-arch index that tag pointed at on 2026-11-17, read
+with `skopeo inspect`, so the same image the boxes already run). Dependabot's docker-compose ecosystem keeps tag and
+digest moving together, as it already does for postgres and traefik.
+
+**What only a real release proves:** that `GITHUB_TOKEN` may create the packages; that QEMU builds finish in time; that
+`attest-build-provenance@v4` with `push-to-registry` works for these subjects; that the `cli` assets named in the
+manifest (`checksums.txt`) exist on the same release (that job is separate work); and that an anonymous
+`docker pull ghcr.io/<owner>/bothy-web@sha256:...` works (below). Recovery if a leg fails: re-run the **failed jobs**
+of the run that tagged. Re-running the whole workflow afterwards finds the tag and publishes nothing.
+
+**Manual one-time owner step: make each package public.** A new GHCR package is created **private**, and an
+installer with no login cannot pull a private one. After the first release has pushed them, for each of
+`bothy-web`, `bothy-files`, `bothy-ops`: GitHub, the owner's profile (or org), **Packages**, the package,
+**Package settings**, **Danger Zone**, **Change visibility**, **Public**, type the package name to confirm. It
+cannot be done before the first push (the package does not exist) and **cannot be undone** (a public package can
+never be made private again). Do it once; later versions inherit it. Then check from a machine that is **not** logged
+in to ghcr.io: `docker pull ghcr.io/<owner>/bothy-web@sha256:<digest from release-manifest.json>`. The workflow
+labels each image with `org.opencontainers.image.source` so the package links to the repository.
 
 ## 9. Sources
 
