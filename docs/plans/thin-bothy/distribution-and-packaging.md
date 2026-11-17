@@ -533,6 +533,10 @@ job only gained two outputs, `published` and `version`):
   This job alone holds `packages: write`. No `latest`, no moving tag: the digest is the identity.
 * `release-manifest` (after all images): `scripts/gen-release-manifest.py` writes `release-manifest.json`
   (`schema`, `version`, `commit`, `images`, `third_party`, `assets`), attached to the release and attested.
+  Each `third_party` entry is `{ref, tag, pinned_in}`; `tag` and `pinned_in` are informational and the CLI's parser
+  accepts exactly these (a contract test runs the generator through the parser, and the real v2026.11.1 manifest is
+  checked in as a golden). The CLI's attestation check skips, with the exact command, when `gh` cannot verify and
+  refuses only on a verdict from `gh` (`bothy-install.md` 10d).
   `third_party` is read from the compose files' digest pins, so the compose pins stay the single source of truth.
   The generator **refuses** any third-party image not pinned by digest.
 * arm64 by QEMU, not native runners: one build per image gives the multi-arch index directly, with no per-arch push and

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -249,29 +250,115 @@ func mustRead(t *testing.T, p string) []byte {
 	return b
 }
 
-// gh present and rejecting is fatal; gh absent prints the exact command and
-// says skipped; a local source is skipped with its own reason.
+// The attestation check: skipped (with the exact command, never fatal) when gh
+// cannot verify; fatal only on a verdict from gh; --require-attestation makes a
+// skip fatal.
 func TestAttestation(t *testing.T) {
 	cb := []byte("x  release-manifest.json\n")
-	h := newHost()
+	const src = "https://example.test/checksums.txt"
+	run := func(h *fakeHost, require bool) (string, error) {
+		var out bytes.Buffer
+		err := checkAttestation(context.Background(), h, src, cb, &out, require)
+		return out.String(), err
+	}
+	wantCmd := "gh attestation verify checksums.txt --repo " + AttestRepo
+
 	var out bytes.Buffer
-	if err := checkAttestation(context.Background(), h, "/tmp/checksums.txt", cb, &out); err != nil || !strings.Contains(out.String(), "SKIPPED") || !strings.Contains(out.String(), "local file") {
+	if err := checkAttestation(context.Background(), newHost(), "/tmp/checksums.txt", cb, &out, false); err != nil || !strings.Contains(out.String(), "SKIPPED") || !strings.Contains(out.String(), "local file") {
 		t.Fatalf("local: %v %s", err, out.String())
 	}
-	out.Reset()
+	h := newHost()
 	h.cmds["gh --version"] = "!not found"
-	if err := checkAttestation(context.Background(), h, "https://example.test/checksums.txt", cb, &out); err != nil ||
-		!strings.Contains(out.String(), "SKIPPED") || !strings.Contains(out.String(), "gh attestation verify checksums.txt --repo "+AttestRepo) {
-		t.Fatalf("no gh: %v %s", err, out.String())
+	if o, err := run(h, false); err != nil || !strings.Contains(o, "SKIPPED") || !strings.Contains(o, wantCmd) {
+		t.Fatalf("no gh: %v %s", err, o)
 	}
+	if _, err := run(h, true); err == nil || !strings.Contains(err.Error(), "--require-attestation") || !strings.Contains(err.Error(), wantCmd) {
+		t.Fatalf("no gh + require must fail with the command: %v", err)
+	}
+
+	cases := []struct {
+		name    string
+		out     string
+		code    int
+		verdict bool
+	}{
+		{"old gh, unknown command", "unknown command \"attestation\" for \"gh\"", 1, false},
+		{"not logged in, exit 4", "To get started with GitHub CLI, please run:  gh auth login", 4, false},
+		{"bad credentials", "Error: HTTP 401: Bad credentials (https://api.github.com/x)", 1, false},
+		{"no sigstore roots", "error creating Sigstore verifier: no valid Sigstore verifiers could be initialized", 1, false},
+		{"network error", "Error: Get \"https://api.github.com\": dial tcp: i/o timeout", 1, false},
+		{"unrecognised exit 1", "something nobody has seen", 1, false},
+		{"unsupported host", "An unsupported host was detected", 1, false},
+		{"no attestation found", "Error: no attestations found", 1, true},
+		{"signature or policy refused", "Error: verifying with issuer \"sigstore.dev\"", 1, true},
+		{"failed to verify", "Error: failed to verify certificate identity", 1, true},
+		{"attestation 404", "Error: HTTP 404: Not Found (https://api.github.com/repos/x/attestations/sha256:ab)", 1, true},
+	}
+	for _, c := range cases {
+		h := newHost()
+		h.cmds["gh --version"] = "gh version 2.50"
+		h.ghVerify, h.ghCode = "!"+c.out, c.code
+		o, err := run(h, false)
+		if c.verdict {
+			if err == nil || !strings.Contains(err.Error(), "NOT attested") {
+				t.Errorf("%s: a verdict must refuse: %v", c.name, err)
+			}
+			continue
+		}
+		if err != nil || !strings.Contains(o, "SKIPPED") || !strings.Contains(o, wantCmd) || !strings.Contains(o, "sha256 checks still ran") {
+			t.Errorf("%s: must skip with the command: %v %q", c.name, err, o)
+		}
+		if _, err := run(h, true); err == nil {
+			t.Errorf("%s: --require-attestation must make the skip fatal", c.name)
+		}
+	}
+
+	h = newHost()
 	h.cmds["gh --version"] = "gh version 2.50"
-	h.ghVerify = "!no matching attestation"
-	if err := checkAttestation(context.Background(), h, "https://example.test/checksums.txt", cb, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "rejected") {
-		t.Fatalf("gh rejecting must fail: %v", err)
-	}
 	h.ghVerify = "ok"
-	out.Reset()
-	if err := checkAttestation(context.Background(), h, "https://example.test/checksums.txt", cb, &out); err != nil || !strings.Contains(out.String(), "verified by gh") {
-		t.Fatalf("gh ok: %v %s", err, out.String())
+	if o, err := run(h, false); err != nil || !strings.Contains(o, "verified by gh") {
+		t.Fatalf("gh ok: %v %s", err, o)
+	}
+}
+
+// The same decision through the real SysHost and a fake `gh` script on PATH, so
+// the exit code and output really come from a process.
+func TestAttestationFakeGhOnPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script gh")
+	}
+	cb := []byte("x  release-manifest.json\n")
+	const src = "https://example.test/checksums.txt"
+	script := func(body string) {
+		d := t.TempDir()
+		if err := os.WriteFile(filepath.Join(d, "gh"), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", d)
+	}
+	try := func() (string, error) {
+		var out bytes.Buffer
+		err := checkAttestation(context.Background(), SysHost{}, src, cb, &out, false)
+		return out.String(), err
+	}
+	// gh 2.45: --version works, `attestation` is unknown.
+	script(`[ "$1" = --version ] && { echo "gh version 2.45.0"; exit 0; }; echo 'unknown command "attestation" for "gh"' >&2; exit 1`)
+	if o, err := try(); err != nil || !strings.Contains(o, "SKIPPED") || !strings.Contains(o, "too old") {
+		t.Fatalf("old gh: %v %s", err, o)
+	}
+	// upstream gh, unauthenticated: exit 4.
+	script(`[ "$1" = --version ] && exit 0; echo 'To get started with GitHub CLI, please run:  gh auth login' >&2; exit 4`)
+	if o, err := try(); err != nil || !strings.Contains(o, "SKIPPED") || !strings.Contains(o, "gh auth login") {
+		t.Fatalf("unauth gh: %v %s", err, o)
+	}
+	// authenticated gh that refuses: still fatal.
+	script(`[ "$1" = --version ] && exit 0; echo 'Error: verifying with issuer "sigstore.dev"' >&2; exit 1`)
+	if o, err := try(); err == nil || !strings.Contains(err.Error(), "NOT attested") {
+		t.Fatalf("a verdict of failure must refuse: %v %s", err, o)
+	}
+	// gh that verifies.
+	script(`exit 0`)
+	if o, err := try(); err != nil || !strings.Contains(o, "verified by gh") {
+		t.Fatalf("verified: %v %s", err, o)
 	}
 }

@@ -183,6 +183,7 @@ type fakeHost struct {
 	ran        []string
 	upCmd      string // when set, the first upFailures runs of this exact command fail
 	upFailures int
+	ghCode     int    // exit code for a failing ghVerify (default 1)
 	ghVerify   string // output of `gh attestation verify ...`; "!" prefix = error
 }
 
@@ -215,7 +216,7 @@ func (f *fakeHost) Run(_ context.Context, name string, args ...string) ([]byte, 
 	}
 	if name == "gh" && len(args) > 1 && args[0] == "attestation" {
 		if strings.HasPrefix(f.ghVerify, "!") {
-			return []byte(f.ghVerify[1:]), fmt.Errorf("exit 1")
+			return []byte(f.ghVerify[1:]), exitErr{f.ghCode}
 		}
 		return []byte(f.ghVerify), nil
 	}
@@ -601,3 +602,9 @@ func TestMCPServerDoesNotDependOnInstall(t *testing.T) {
 		}
 	}
 }
+
+// exitErr is a command failure carrying an exit code, like *exec.ExitError.
+type exitErr struct{ code int }
+
+func (e exitErr) Error() string { return fmt.Sprintf("exit status %d", e.code) }
+func (e exitErr) ExitCode() int { return e.code }

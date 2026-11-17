@@ -64,7 +64,7 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 		return err
 	}
 	p("manifest: release-manifest.json sha256 %s matches checksums.txt; version %s commit %s", msha[:12], m.Version, m.Commit[:12])
-	if err := checkAttestation(ctx, h, o.ChecksumsSrc, cb, out); err != nil {
+	if err := checkAttestation(ctx, h, o.ChecksumsSrc, cb, out, o.RequireAttestation); err != nil {
 		return err
 	}
 	if cmpVersion(m.Version, rec.Version) < 0 && !o.AllowDowngrade {
@@ -145,7 +145,13 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 			p("Recover with the previous binary: `bothy install` (it re-applies release %s), or `bothy uninstall`.", rec.Version)
 			return fmt.Errorf("%s: %v; rollback failed: %w", step, cause, rerr)
 		}
-		return fmt.Errorf("update to %s failed at %s and was rolled back to %s: %w", m.Version, step, rec.Version, cause)
+		// The cause (often a multi-line compose log) was printed once above as
+		// "update FAILED at ..."; the returned error is what the CLI prints last,
+		// so it carries the cause in its chain (%w) but a short message.
+		if m.Version == rec.Version {
+			return fmt.Errorf("re-applying release %s failed at %s; the running release %s was restored: %w", m.Version, step, rec.Version, errShort{cause})
+		}
+		return fmt.Errorf("update to %s failed at %s and was rolled back to %s: %w", m.Version, step, rec.Version, errShort{cause})
 	}
 	for _, a := range acts {
 		if a.Done {
@@ -154,7 +160,7 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 		t0 := time.Now()
 		p("-> %s", a.Desc)
 		if err := a.Run(ctx); err != nil {
-			p("   FAILED after %s: %v", time.Since(t0).Round(time.Millisecond), err)
+			p("   FAILED after %s", time.Since(t0).Round(time.Millisecond))
 			return fail(a.ID, err)
 		}
 		p("   ok (%s)", time.Since(t0).Round(time.Millisecond))
@@ -288,3 +294,11 @@ func rollback(ctx context.Context, h Host, o Options, st *Stack, rec *Receipt, p
 	p("   rolled back: release %s is running and verified by bytes; the receipt is as before, with last_update_error recorded", rec.Version)
 	return nil
 }
+
+// errShort wraps a failure cause for the final error line: Error() is its
+// first line only (the full text was already printed above), Unwrap keeps the
+// whole cause for errors.Is/As.
+type errShort struct{ err error }
+
+func (e errShort) Error() string { return firstLine(e.err.Error()) }
+func (e errShort) Unwrap() error { return e.err }

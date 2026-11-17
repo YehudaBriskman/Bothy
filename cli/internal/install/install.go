@@ -34,8 +34,11 @@ type Options struct {
 	BinaryVersion  string
 	DryRun         bool
 	AllowDowngrade bool
-	WaitTimeout    int // seconds `compose up --wait` may take; 0 means 180
-	previous       *Previous
+	// RequireAttestation makes a SKIPPED attestation check fatal (a verdict of
+	// "not attested" is fatal either way).
+	RequireAttestation bool
+	WaitTimeout        int // seconds `compose up --wait` may take; 0 means 180
+	previous           *Previous
 	// HTTPGet is the verify probe; nil means net/http.
 	HTTPGet func(url string) (int, []byte, error)
 }
@@ -184,7 +187,7 @@ func Install(ctx context.Context, h Host, o Options, out io.Writer) error {
 		return err
 	}
 	p("manifest: release-manifest.json sha256 %s matches checksums.txt; version %s commit %s", msha[:12], m.Version, m.Commit[:12])
-	if err := checkAttestation(ctx, h, o.ChecksumsSrc, cb, out); err != nil {
+	if err := checkAttestation(ctx, h, o.ChecksumsSrc, cb, out, o.RequireAttestation); err != nil {
 		return err
 	}
 

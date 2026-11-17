@@ -151,7 +151,7 @@ func run(args []string, io IO) error {
 func splitArgs(args []string) (words []string, flags map[string]string, err error) {
 	flags = map[string]string{}
 	boolFlags := map[string]bool{"json": true, "help": true, "h": true, "use": true, "write": true,
-		"dry-run": true, "purge": true, "allow-downgrade": true, "check": true}
+		"dry-run": true, "purge": true, "allow-downgrade": true, "check": true, "require-attestation": true}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {

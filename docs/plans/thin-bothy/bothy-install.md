@@ -160,8 +160,8 @@ to** (the stack definition is embedded, so a newer release arrives as a newer bi
 user's step, and there is no "latest release" discovery yet). The bare verb `bothy update` is this; the catalog
 nouns `update status|plan|history` are unchanged.
 - *Verification, the same as install:* same-version manifest over HTTPS, its line in `checksums.txt`, then
-  `gh attestation verify` when `gh` is present (one function, `checkAttestation`); otherwise it prints the exact
-  command and says **skipped**. A downgrade is refused unless `--allow-downgrade`.
+  `gh attestation verify` when a working `gh` is present (one function, `checkAttestation`; skip-versus-refuse
+  rules in 10d); otherwise it prints the exact command and says **skipped**. A downgrade is refused unless `--allow-downgrade`.
 - *`--check`* prints what would change (per image variable: old digest to new, or `unchanged`) and the plan, and
   changes nothing (receipt, `.env`, containers all byte-identical, proven). `--dry-run` is the same.
 - *Apply:* the generated files and the receipt are copied to `<root>/previous/`, then the usual plan runs (receipt,
@@ -274,6 +274,54 @@ not fixed. `lab-mini` (2 GiB) was not run. **arm64 was not attempted**: this mac
 `qemu-system-aarch64` and no AArch64 UEFI firmware, so there is nothing honest to run. A real Traefik accepted the
 generated file-provider config (shown by the routes answering).
 
+### 10d. Fixes for the two product bugs the real release found (2026-11-17)
+
+Found by the real-release proof (branch `Claude-Bot/Test/real-release-lab-proof`, its 10c): defect 2 (manifest
+parser) and defect 3 (attestation fatal on a stock machine). Defect 1 (`checksums.txt` without a
+`release-manifest.json` line) is a release-workflow fix, not touched here.
+
+**Manifest schema.** The generator (`scripts/gen-release-manifest.py`) writes `third_party[*].{ref, tag, pinned_in}`;
+the parser knew only `ref`. Fix: the parser, not the release, because `tag` and `pinned_in` are useful to a human
+and the generator is already shipped in v2026.11.1. `third_party` is now its own type (`ThirdParty`), with `tag`
+(string or null) and `pinned_in` (list of strings) typed and validated but never acted on. Strictness is unchanged
+where it protects: own images (`ImageEntry`), the top level, and every third-party entry still refuse unknown
+fields; every ref must still be a digest reference; schema, version and commit are still checked. A future
+top-level field now reads: `the manifest has a field "x" (at its top level) that this bothy does not know: this
+binary is older than the release that wrote it ...`. Contract tests (`manifest_contract_test.go`): the real
+v2026.11.1 manifest (checked in as `testdata/release-manifest.v2026.11.1.json`, sha256 `4fd7e8e0...db6d`, byte for
+byte the published asset) must parse, and the generator itself is **run** against this checkout's compose files
+and its output must parse (skipped only without `python3`), so drift on either side fails CI.
+
+**Attestation.** `gh` uses exit 1 both for "verified and refused" and for plumbing errors, and documents only 4
+(authentication required), so the exit code alone cannot separate them; `classifyGh` reads the output as well.
+Measured with gh 2.96: unauthenticated exit 4; bad token `HTTP 401`; a wrong `--signer-workflow` `Error: verifying
+with issuer "sigstore.dev"` (exit 1); a checksums.txt of another repo `no attestations found` (exit 1); an unattested
+file `HTTP 404` (exit 1); unreachable network `error creating Sigstore verifier` (exit 1). gh 2.45 (apt): `unknown
+command "attestation"`.
+
+| Outcome | Cases | Behaviour |
+|---|---|---|
+| verified | exit 0 | prints `verified by gh` |
+| cannot verify | no `gh`; local source; exit 4 / "gh auth login"; "unknown command"/"unknown flag" (gh older than 2.49); `gh` cannot be run; HTTP 401/403/5xx; Sigstore verifier/network errors; any exit-1 output not matching a verdict form below | SKIPPED, one line with the reason and the exact `gh attestation verify checksums.txt --repo ...` command, "the sha256 checks still ran" |
+| verdict: not attested | `no attestations found`; `verifying with issuer`; `failed to verify`; `verification failed`; `HTTP 404` from the attestations API | refused |
+
+Honest limits: this is a heuristic on gh's text for exit 1 (gh has no machine-readable verdict code). An
+unrecognised exit-1 message is a skip, never a refusal, and the sha256 line in `checksums.txt` plus the
+version-pinned HTTPS source remain the anchor either way; nothing here relaxes them. A 404 is treated as a verdict
+because for a public repository and a working login it means no attestation exists for the digest (what a tampered
+checksums.txt looks like); a private repository would see a false refusal. `--require-attestation` (install and
+update) turns every skip into a failure for anyone who wants the attestation to be mandatory. Tested with a fake
+table of every case, and with fake `gh` shell scripts on `PATH` through the real `SysHost` (gh 2.45-style, gh
+unauthenticated, gh refusing, gh verifying).
+
+**Cosmetic.** A same-version update that fails now says `re-applying release X failed at <step>; the running release
+X was restored` instead of `update to X failed ... rolled back to X`; the compose log is printed once (in the
+`update FAILED at` block) instead of three times: the per-step line and the final error no longer repeat it.
+
+**Still unproven:** a verified `gh attestation verify` *inside* `bothy install` against the real release with an
+authenticated `gh` (the host check of 10c verified the files, not the binary's call); the exact text of every gh
+verdict message across gh versions; the next real release carrying a manifest line in `checksums.txt`.
+
 ## 11. Decisions taken
 
 | # | Decision | Reason |
@@ -311,7 +359,9 @@ Each answer says what it buys for later change.
   that into edge config; adding a module needs no edge code. The existing live stack keeps its provider until
   its own migration. **Done and proven in the lab (I20, 10b).**
 - **Q2: v1 verifies by HTTPS to the release of the same version, the hash line in `checksums.txt`, and
-  `gh attestation verify` when `gh` is present (otherwise it prints the exact command and says it was skipped).**
+  `gh attestation verify` when a *working* `gh` is present. If `gh` cannot verify (absent, too old, not logged in,
+  a network error, a local source) the check is skipped with a one-line reason and the exact command; only a
+  verdict from `gh` that the file is not attested is fatal (see 10d). `--require-attestation` makes a skip fatal.**
   No vendored Sigstore in v1: it is a large dependency for a check that `gh` already does. A manifest hash cannot
   be stamped into the binary at build time (the binary is built before the images and the manifest exist), so the
   optional ldflags pin is for distributors who rebuild, not the default. The verifier sits behind one interface,

@@ -32,12 +32,16 @@ plugin) and a user who can use it. Everything it would do is printed first;
              Use 0.0.0.0 to reach it from other machines; the first login is then
              plain HTTP, so only do that on a network you trust.
   --manifest, --checksums   a path or https URL (default: this version's GitHub release)
+  --require-attestation   make a skipped attestation check fatal (no gh, gh too old
+             or not logged in, a network error, a local source). Without it those
+             cases are skipped with a printed command; a verdict of "not attested"
+             from gh is always fatal. The sha256 checks are never skipped.
 
 update moves an installed box to the release THIS binary belongs to (download the
 newer binary first; the stack definition travels inside it). It verifies the
 release exactly as install does (same-version HTTPS, the hash line in
-checksums.txt, 'gh attestation verify' when gh is installed, otherwise the exact
-command is printed and the check is said to be skipped) and refuses a downgrade.
+checksums.txt, 'gh attestation verify' when a working gh is installed, otherwise
+the exact command is printed and the check is said to be skipped) and refuses a downgrade.
 --check prints what would change and changes nothing. The previous release is kept;
 if the update fails at any step (a missing digest, a container that never becomes
 healthy, bytes that do not match) the previous receipt's digests are restored and
@@ -149,7 +153,8 @@ func installOptions(flags map[string]string, io IO) (install.Options, error) {
 		return install.Options{}, err
 	}
 	o := install.Options{Mode: "mini", Bind: "127.0.0.1", DataDir: data, ConfigDir: conf,
-		BinaryVersion: io.Version, DryRun: flags["dry-run"] == "true", AllowDowngrade: flags["allow-downgrade"] == "true"}
+		BinaryVersion: io.Version, DryRun: flags["dry-run"] == "true", AllowDowngrade: flags["allow-downgrade"] == "true",
+		RequireAttestation: flags["require-attestation"] == "true"}
 	if v := flags["mode"]; v != "" {
 		o.Mode = v
 	}
