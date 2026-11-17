@@ -540,7 +540,7 @@ ops-v1 mode="":
 # Needs Go on PATH (mise provides it). Nothing here touches a running box.
 # Regenerate, vet and test the Go bothy CLI against the catalog and the golden files.
 cli-check:
-    cd cli && go generate ./... && go vet ./... && CGO_ENABLED=0 go test -count=1 ./...
+    cd cli && test -z "$(gofmt -l .)" && go generate ./... && go vet ./... && CGO_ENABLED=0 go test -count=1 ./...
 
 # Builds the release binary and runs it at the REAL bothy-ops handler on loopback (the v1 fixture's
 # world, throwaway dirs): every op in human and --json, exit codes, the version gate, hostile text,

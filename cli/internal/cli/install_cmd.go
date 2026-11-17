@@ -20,6 +20,8 @@ const installHelp = `bothy install - install Bothy on this machine from the rele
   bothy install [--mode mini] [--bind 127.0.0.1] [--port 80] [--dry-run]
                 [--root DIR] [--config-dir DIR] [--manifest SRC] [--checksums SRC]
                 [--allow-downgrade]
+  bothy update [--check] [--dry-run] [--allow-downgrade] [--wait-timeout SECONDS]
+               [--root DIR] [--config-dir DIR] [--manifest SRC] [--checksums SRC]
   bothy uninstall [--purge] [--dry-run] [--root DIR] [--config-dir DIR]
 
 No git checkout, no build, no sudo. It needs Docker (Engine 25+, the compose
@@ -30,6 +32,20 @@ plugin) and a user who can use it. Everything it would do is printed first;
              Use 0.0.0.0 to reach it from other machines; the first login is then
              plain HTTP, so only do that on a network you trust.
   --manifest, --checksums   a path or https URL (default: this version's GitHub release)
+
+update moves an installed box to the release THIS binary belongs to (download the
+newer binary first; the stack definition travels inside it). It verifies the
+release exactly as install does (same-version HTTPS, the hash line in
+checksums.txt, 'gh attestation verify' when gh is installed, otherwise the exact
+command is printed and the check is said to be skipped) and refuses a downgrade.
+--check prints what would change and changes nothing. The previous release is kept;
+if the update fails at any step (a missing digest, a container that never becomes
+healthy, bytes that do not match) the previous receipt's digests are restored and
+verified by bytes before the failure is reported.
+
+The files module serves ONE read-only notes folder, <root>/stack/bothy-files/notes,
+and this install has no login: with --bind 0.0.0.0 anyone who can reach the port
+can read that folder. Keep it to a network you trust, or keep the default bind.
 
 uninstall removes the containers, network and generated files and keeps secrets
 and data. --purge also deletes them, after you type a confirmation phrase.
@@ -50,6 +66,30 @@ func cmdInstall(args []string, flags map[string]string, g globals, io IO) error 
 	ctx, cancel := signalContext()
 	defer cancel()
 	return install.Install(ctx, install.SysHost{}, o, io.Out)
+}
+
+func cmdUpdate(args []string, flags map[string]string, g globals, io IO) error {
+	if len(args) > 0 {
+		return usagef("update takes flags, not arguments (got %q); try `bothy update --help`", args[0])
+	}
+	if _, ok := flags["help"]; ok {
+		fmt.Fprint(io.Out, installHelp)
+		return nil
+	}
+	o, err := installOptions(flags, io)
+	if err != nil {
+		return err
+	}
+	if v := flags["wait-timeout"]; v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 3600 {
+			return usagef("--wait-timeout %q is not a number of seconds (1-3600)", v)
+		}
+		o.WaitTimeout = n
+	}
+	ctx, cancel := signalContext()
+	defer cancel()
+	return install.Update(ctx, install.SysHost{}, o, flags["check"] == "true", io.Out)
 }
 
 func cmdUninstall(args []string, flags map[string]string, g globals, io IO) error {

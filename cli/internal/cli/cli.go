@@ -105,7 +105,7 @@ func run(args []string, io IO) error {
 			}
 			g.timeout = d
 		case "help", "h":
-			if words[0] == "install" || words[0] == "uninstall" {
+			if words[0] == "install" || words[0] == "uninstall" || (words[0] == "update" && len(words) == 1) {
 				fmt.Fprint(io.Out, installHelp)
 				return nil
 			}
@@ -125,6 +125,13 @@ func run(args []string, io IO) error {
 		return cmdInstall(words[1:], rest, g, io)
 	case "uninstall":
 		return cmdUninstall(words[1:], rest, g, io)
+	case "update":
+		// Bare `bothy update` updates an INSTALLED box (install_cmd.go). The box
+		// updater's own verbs (`update status|plan|history`, the catalog) keep
+		// their words: this only claims the bare form.
+		if len(words) == 1 {
+			return cmdUpdate(words[1:], rest, g, io)
+		}
 	case "discover":
 		return cmdOp(mustOp("discover"), nil, rest, g, io)
 	case "modules": // alias of `module list`
@@ -144,7 +151,7 @@ func run(args []string, io IO) error {
 func splitArgs(args []string) (words []string, flags map[string]string, err error) {
 	flags = map[string]string{}
 	boolFlags := map[string]bool{"json": true, "help": true, "h": true, "use": true, "write": true,
-		"dry-run": true, "purge": true, "allow-downgrade": true}
+		"dry-run": true, "purge": true, "allow-downgrade": true, "check": true}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {
@@ -250,6 +257,7 @@ func help(w io.Writer) error {
 	fmt.Fprintln(w, "  context list | use NAME                        List boxes, or choose the current one")
 	fmt.Fprintln(w, "  install [--dry-run] [--mode mini] ...          Install Bothy on this machine (Docker Compose; see install --help)")
 	fmt.Fprintln(w, "  uninstall [--purge] [--dry-run]                Remove it; data is kept unless --purge and you type the phrase")
+	fmt.Fprintln(w, "  update [--check] [--dry-run]                   Move an installed box to this binary's release; a failure rolls back")
 	fmt.Fprintln(w, "  mcp                                            Serve the read-only tools over stdio (MCP)")
 	fmt.Fprintln(w, "\nExit codes: 0 ok, 10 box unreachable, 64 bad usage or request, 66 not found,")
 	fmt.Fprintln(w, "69 data source unavailable, 70 server bug, 77 not signed in or not allowed, 78 version mismatch.")

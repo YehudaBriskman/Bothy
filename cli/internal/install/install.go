@@ -34,6 +34,8 @@ type Options struct {
 	BinaryVersion  string
 	DryRun         bool
 	AllowDowngrade bool
+	WaitTimeout    int // seconds `compose up --wait` may take; 0 means 180
+	previous       *Previous
 	// HTTPGet is the verify probe; nil means net/http.
 	HTTPGet func(url string) (int, []byte, error)
 }
@@ -64,7 +66,26 @@ type Receipt struct {
 	Images         map[string]string `json:"images"` // compose variable -> digest ref
 	Created        []string          `json:"created"`
 	LastError      string            `json:"last_error,omitempty"`
-	UpdatedAt      string            `json:"updated_at"`
+	// Previous is the release this one replaced (set by `bothy update`): its
+	// digests are what a failed update rolls back to, not "whatever is running".
+	Previous        *Previous `json:"previous,omitempty"`
+	LastUpdateError string    `json:"last_update_error,omitempty"`
+	UpdatedAt       string    `json:"updated_at"`
+}
+
+// Previous records the release an update replaced.
+type Previous struct {
+	Version        string            `json:"version"`
+	Commit         string            `json:"commit"`
+	ManifestSHA256 string            `json:"manifest_sha256"`
+	Images         map[string]string `json:"images"`
+}
+
+func (o Options) waitTimeout() string {
+	if o.WaitTimeout > 0 {
+		return fmt.Sprint(o.WaitTimeout)
+	}
+	return "180"
 }
 
 // ErrPreflight is returned when a preflight check failed (nothing was changed).
@@ -163,6 +184,9 @@ func Install(ctx context.Context, h Host, o Options, out io.Writer) error {
 		return err
 	}
 	p("manifest: release-manifest.json sha256 %s matches checksums.txt; version %s commit %s", msha[:12], m.Version, m.Commit[:12])
+	if err := checkAttestation(ctx, h, o.ChecksumsSrc, cb, out); err != nil {
+		return err
+	}
 
 	rec, err := readReceipt(o.receiptPath())
 	if err != nil {
@@ -354,7 +378,7 @@ func buildPlan(h Host, o Options, st *Stack, m *Manifest, msha string, rec *Rece
 	// receipt (in-progress marker, written before anything is started)
 	want := &Receipt{Status: "in-progress", Mode: o.Mode, Version: m.Version, Commit: m.Commit, ManifestSHA256: msha,
 		Bind: o.Bind, Port: portOr(o, st.Meta.Publish[0].Default), DataDir: o.DataDir, ConfigDir: o.ConfigDir,
-		Project: st.Meta.Project, Images: images}
+		Project: st.Meta.Project, Images: images, Previous: o.previous}
 	recDone := rec != nil && rec.Status == "complete" && rec.Version == m.Version && rec.ManifestSHA256 == msha &&
 		rec.Bind == want.Bind && rec.Port == want.Port
 	acts = append(acts, Action{"receipt", fmt.Sprintf("record the install in %s (what was created, which release; uninstall reads it)", o.receiptPath()), recDone,
@@ -431,7 +455,7 @@ func buildPlan(h Host, o Options, st *Stack, m *Manifest, msha string, rec *Rece
 	upDone := rec != nil && rec.Status == "complete" && len(stale) == 0 && recDone && servicesHealthy(h, o, st)
 	acts = append(acts, Action{"up", "docker compose up -d --wait --pull never  (project " + st.Meta.Project + ", stack " + o.stackDir() + ")", upDone,
 		func(ctx context.Context) error {
-			return ctxRun("docker", o.composeArgs(st, "up", "-d", "--wait", "--wait-timeout", "180", "--pull", "never", "--remove-orphans")...)(ctx)
+			return ctxRun("docker", o.composeArgs(st, "up", "-d", "--wait", "--wait-timeout", o.waitTimeout(), "--pull", "never", "--remove-orphans")...)(ctx)
 		}})
 	acts = append(acts, Action{"verify", "fetch the portal through the edge and compare its bytes with the container's, and /version.json with the release commit", upDone, nil})
 	// The last action has no Run: Install runs verify itself after the loop.

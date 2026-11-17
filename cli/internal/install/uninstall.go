@@ -69,7 +69,8 @@ func Uninstall(ctx context.Context, h Host, o UninstallOptions, out io.Writer) e
 				return err
 			}
 		}
-		return nil
+		// the rollback point `bothy update` keeps: a copy of generated files only
+		return os.RemoveAll(filepath.Join(rec.DataDir, "previous"))
 	}})
 	steps = append(steps, step{"remove the stack directories only if they are empty (os.Remove, never recursive); a directory with content is KEPT", func() error {
 		dirs := append([]string{}, st.Meta.Mkdirs...)
@@ -91,7 +92,16 @@ func Uninstall(ctx context.Context, h Host, o UninstallOptions, out io.Writer) e
 			return nil
 		}})
 		steps = append(steps, step{"PURGE: docker image rm for the pulled images", func() error {
+			refs := map[string]bool{}
 			for _, ref := range rec.Images {
+				refs[ref] = true
+			}
+			if rec.Previous != nil {
+				for _, ref := range rec.Previous.Images {
+					refs[ref] = true
+				}
+			}
+			for _, ref := range sortedKeys(refs) {
 				_, _ = h.Run(ctx, "docker", "image", "rm", ref) // best effort; in use or shared is fine
 			}
 			return nil

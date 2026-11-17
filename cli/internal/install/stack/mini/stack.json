@@ -6,6 +6,13 @@
   "reserve_mib": 512,
   "services": [
     {
+      "name": "bothy-files",
+      "image_key": "bothy-files",
+      "image_var": "BOTHY_IMAGE_BOTHY_FILES",
+      "own": true,
+      "mem_mib": 256
+    },
+    {
       "name": "bothy-web",
       "image_key": "bothy-web",
       "image_var": "BOTHY_IMAGE_BOTHY_WEB",
@@ -29,12 +36,18 @@
     }
   ],
   "mkdirs": [
+    "bothy-files/notes",
+    "bothy-files/policy",
     "bothy-web/data",
     "traefik/dynamic"
   ],
-  "files": [],
+  "files": [
+    "bothy-files/policy/policy.toml",
+    "traefik/dynamic/routes.yml"
+  ],
   "networks": [
-    "bothy-devnet"
+    "bothy-devnet",
+    "bothy-filesnet"
   ],
   "verify": {
     "version_path": "/version.json",
