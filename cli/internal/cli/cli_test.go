@@ -174,6 +174,27 @@ func TestSkewThroughTheCLI(t *testing.T) {
 	}
 }
 
+func TestVersionShowsBuildCommit(t *testing.T) {
+	isolate(t)
+	var out, errb bytes.Buffer
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	code := cli.Run([]string{"version"}, cli.IO{
+		In: strings.NewReader(""), Out: &out, Err: &errb, Version: "2026.11.0", Commit: sha,
+		Getenv: func(string) string { return "" },
+	})
+	if code != 0 || !strings.Contains(out.String(), "bothy 2026.11.0 (commit 0123456789ab, speaks api 1)") {
+		t.Fatalf("exit %d\n%s", code, out.String())
+	}
+	out.Reset()
+	code = cli.Run([]string{"--json", "version"}, cli.IO{
+		In: strings.NewReader(""), Out: &out, Err: &errb, Version: "2026.11.0", Commit: sha,
+		Getenv: func(string) string { return "" },
+	})
+	if code != 0 || !strings.Contains(out.String(), `"commit": "`+sha+`"`) {
+		t.Fatalf("exit %d\n%s", code, out.String())
+	}
+}
+
 func TestVersion(t *testing.T) {
 	isolate(t)
 	s := testkit.NewServer(t)
