@@ -70,7 +70,7 @@ type Receipt struct {
 	// digests are what a failed update rolls back to, not "whatever is running".
 	Previous        *Previous `json:"previous,omitempty"`
 	LastUpdateError string    `json:"last_update_error,omitempty"`
-	UpdatedAt      string            `json:"updated_at"`
+	UpdatedAt       string    `json:"updated_at"`
 }
 
 // Previous records the release an update replaced.

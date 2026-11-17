@@ -17,12 +17,12 @@ import (
 type Override struct {
 	CommandRemove []string     `yaml:"command_remove"` // drop command items with these prefixes
 	CommandAdd    []string     `yaml:"command_add"`
-	Replace       []ReplaceRow `yaml:"replace"` // exact item -> item, in command and healthcheck.test
+	Replace       []ReplaceRow `yaml:"replace"`        // exact item -> item, in command and healthcheck.test
 	VolumesRemove []string     `yaml:"volumes_remove"` // by container path (the target)
 	VolumesAdd    []string     `yaml:"volumes_add"`
 	TmpfsAdd      []string     `yaml:"tmpfs_add"`
 	EnvRemove     []string     `yaml:"env_remove"`
-	DropKeys      []string     `yaml:"drop_keys"` // whole compose keys (extra_hosts, ...)
+	DropKeys      []string     `yaml:"drop_keys"`     // whole compose keys (extra_hosts, ...)
 	LabelsRemove  []string     `yaml:"labels_remove"` // by key prefix
 	LabelsSet     []string     `yaml:"labels_set"`    // key=value; replaces the key, or adds it
 }

@@ -189,11 +189,11 @@ type fakeHost struct {
 func newHost() *fakeHost {
 	return &fakeHost{goos: "linux", arch: "amd64", euid: 1000, mem: 4000, disk: 50000, listeners: map[int][]string{},
 		cmds: map[string]string{
-			"docker version --format {{.Server.Version}}":                              "29.1.3\n",
-			"docker compose version --short":                                           "2.40.3\n",
-			"docker info --format {{.SecurityOptions}}":                                "[name=seccomp,profile=builtin]",
-			"docker image inspect --format {{.Id}} ghcr.io/o/bothy-web@" + digest('a'): "!no such image",
-			"docker image inspect --format {{.Id}} traefik@" + digest('b'):             "!no such image",
+			"docker version --format {{.Server.Version}}":                                "29.1.3\n",
+			"docker compose version --short":                                             "2.40.3\n",
+			"docker info --format {{.SecurityOptions}}":                                  "[name=seccomp,profile=builtin]",
+			"docker image inspect --format {{.Id}} ghcr.io/o/bothy-web@" + digest('a'):   "!no such image",
+			"docker image inspect --format {{.Id}} traefik@" + digest('b'):               "!no such image",
 			"docker image inspect --format {{.Id}} ghcr.io/o/bothy-files@" + digest('c'): "!no such image",
 		}}
 }
