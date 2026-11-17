@@ -70,6 +70,15 @@ set -u
 # is what reading it before running it is for.
 BOTHY_PIN_VERSION="v2026.11.0"
 BOTHY_PIN_SHA="5873d06f68e3b961cf70178d9f16af8108b1a947"
+# The sha256 of that release's checksums.txt - what `--binary` verifies against.
+# EMPTY while the pinned release carries no CLI archives (v2026.11.0 predates
+# them); `--binary` then refuses rather than trusting a checksum fetched from the
+# same place as the archive. It is set in the same follow-up PR that moves the two
+# lines above, once the release run has published checksums.txt:
+#   gh release download vX -p checksums.txt -O - | sha256sum
+# (or rebuild it: scripts/build-cli.sh is deterministic, see its header).
+# scripts/checks/installer-pin.sh requires it to be empty or 64 lower-case hex.
+BOTHY_PIN_CHECKSUMS_SHA256=""
 
 # ── settings ────────────────────────────────────────────────────────────────
 #
@@ -97,6 +106,12 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/bothy/config"
 
 DRY_RUN=0
 CREATED_DIR=0
+MODE=checkout
+# --binary: where the release archives live. Overriding it (CI points it at a
+# file:// directory) skips the attestation step, which only means something for
+# a download that really came from GitHub.
+RELEASE_URL="${BOTHY_RELEASE_URL:-}"
+SLUG="YehudaBriskman/Bothy"
 
 red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 say() { printf '%s\n' "$*"; }
@@ -118,6 +133,10 @@ bothy.sh - install the `bothy` CLI from a pinned release
   sh bothy.sh              clone the pinned release into ~/bothy and put
                            `bothy` in ~/.local/bin
   sh bothy.sh --dry-run    say exactly what that would do, and touch nothing
+  sh bothy.sh --binary     instead: download the release's Go `bothy` for this
+                           os/arch, verify it, put it in ~/.local/bin. No clone,
+                           no git, no bash needed; a thin client for a box
+  sh bothy.sh --bin-dir D  with --binary: install into D (must be inside $HOME)
   sh bothy.sh --help       this
 
 It never uses sudo, never starts anything, and writes three paths only -
@@ -130,6 +149,9 @@ $XDG_CONFIG_HOME if you have set one, otherwise ~/.config). It prints the
   BOTHY_SHA       the commit that tag must resolve to
   BOTHY_DIR       where to put the checkout (default ~/bothy, must be in $HOME)
   BOTHY_REPO_URL  clone from somewhere else
+  BOTHY_CHECKSUMS_SHA256  with --binary: the sha256 checksums.txt must have
+                  (default: the pinned one, for the pinned version only)
+  BOTHY_RELEASE_URL  with --binary: fetch archives from somewhere else
 EOF
 }
 
@@ -286,6 +308,125 @@ install_cli() {
   printf 'BOTHY_HOME=%s\n' "$DIR" > "$CONFIG" || die "cannot write $CONFIG"
 }
 
+# ── the CLI, as a release binary (--binary) ─────────────────────────────────
+#
+# The other install path: no clone, no git, no bash - the static Go `bothy` from
+# the GitHub release, which is a thin client for a box (docs/plans/thin-bothy/
+# cli-and-control-plane.md, D22). Two hashes stand between the network and the
+# file system:
+#
+#   1. checksums.txt must hash to BOTHY_PIN_CHECKSUMS_SHA256, a value that lives in
+#      THIS file and so travels with the script you read, not with the download.
+#   2. the archive must hash to its line in that (now trusted) checksums.txt.
+#
+# Verifying only (2) would be a checksum published beside the file it checks: it
+# catches corruption and a bad mirror, not a swapped release. With `gh` and the
+# default source the build-provenance attestation is checked as well; without
+# `gh` that step is SKIPPED, and it says so.
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | cut -d' ' -f1
+  else
+    die "need sha256sum or shasum to verify the download"
+  fi
+}
+
+install_binary() {
+  for c in curl tar; do
+    command -v "$c" >/dev/null 2>&1 || die "missing: $c - --binary needs curl and tar"
+  done
+  case "$(uname -s)" in
+    Linux) os=linux ;;
+    Darwin) os=darwin ;;
+    *) die "no release binary for $(uname -s) from this script; download the .zip from the release page and check it against checksums.txt" ;;
+  esac
+  case "$(uname -m)" in
+    x86_64|amd64) arch=amd64 ;;
+    aarch64|arm64) arch=arm64 ;;
+    *) die "no release binary for $(uname -m)" ;;
+  esac
+  name="bothy_${VER#v}_${os}_${arch}.tar.gz"
+
+  want_sums="${BOTHY_CHECKSUMS_SHA256:-}"
+  if [ -z "$want_sums" ] && [ "$VER" = "$BOTHY_PIN_VERSION" ]; then
+    want_sums="$BOTHY_PIN_CHECKSUMS_SHA256"
+  fi
+  if [ -z "$want_sums" ]; then
+    die "no CLI checksum is pinned for $VER, so there is nothing to verify a download against. The pinned release predates the CLI archives, or its pin PR has not landed. Nothing was installed."
+  fi
+
+  base="${RELEASE_URL:-https://github.com/$SLUG/releases/download/$VER}"
+  if [ "$DRY_RUN" = 1 ]; then
+    say "dry run - nothing will be written"
+    say "  version     $VER"
+    say "  fetch       $base/$name"
+    say "  verify      checksums.txt = $want_sums, then the archive against it"
+    say "  install     $BIN_DIR/bothy"
+    exit 0
+  fi
+
+  work=$(mktemp -d) || die "mktemp failed"
+  trap 'rm -rf "$work"' EXIT INT TERM
+  say "== fetching $VER for $os/$arch =="
+  curl -fsSL "$base/checksums.txt" -o "$work/checksums.txt" || die "could not download $base/checksums.txt"
+  got=$(sha256_of "$work/checksums.txt")
+  if [ "$got" != "$want_sums" ]; then
+    red "VERIFICATION FAILED"
+    say "  checksums.txt should be $want_sums"
+    say "  it is                 $got"
+    say "Nothing was installed."
+    exit 1
+  fi
+  say "  checksums.txt matches the pin"
+
+  # Exact name, two spaces: `grep name` would also match a longer file name.
+  want=$(sed -n "s/^\\([0-9a-f]\\{64\\}\\)  $name\$/\\1/p" "$work/checksums.txt")
+  [ -n "$want" ] || die "$name is not listed in the verified checksums.txt"
+  curl -fsSL "$base/$name" -o "$work/$name" || die "could not download $base/$name"
+  got=$(sha256_of "$work/$name")
+  if [ "$got" != "$want" ]; then
+    red "VERIFICATION FAILED"
+    say "  $name should be $want"
+    say "  it is $got"
+    say "Nothing was installed."
+    exit 1
+  fi
+  say "  $name matches checksums.txt"
+
+  if [ -z "$RELEASE_URL" ] && command -v gh >/dev/null 2>&1; then
+    gh attestation verify "$work/$name" -R "$SLUG" >/dev/null 2>&1 \
+      || die "the sha256 matched but gh attestation verify did not - not installing. Run it by hand to see why."
+    say "  build provenance verified (gh attestation verify)"
+  else
+    say "  attestation check skipped (needs gh and the default download source)"
+  fi
+
+  # Only the one file the archive is documented to hold.
+  [ "$(tar -tzf "$work/$name")" = bothy ] || die "$name does not contain exactly one file, bothy"
+  mkdir "$work/x" || die "mktemp dir failed"
+  tar -xzf "$work/$name" -C "$work/x" bothy || die "could not extract $name"
+
+  mkdir -p "$BIN_DIR" || die "cannot create $BIN_DIR"
+  if [ -f "$BIN_DIR/bothy" ] && [ "$(head -c 2 "$BIN_DIR/bothy")" = '#!' ]; then
+    die "$BIN_DIR/bothy is the shell-script CLI from a checkout install; not replacing it. Use --bin-dir to put this one elsewhere."
+  fi
+  # Beside the target and renamed into place, so a running or half-written
+  # file is never what `bothy` resolves to.
+  tmpbin="$BIN_DIR/.bothy.new.$$"
+  cp "$work/x/bothy" "$tmpbin" || die "could not write $tmpbin"
+  chmod 755 "$tmpbin" || die "could not chmod $tmpbin"
+  mv -f "$tmpbin" "$BIN_DIR/bothy" || die "could not write $BIN_DIR/bothy"
+  say ""
+  say "== installed =="
+  say "  $BIN_DIR/bothy  ($("$BIN_DIR/bothy" version 2>/dev/null | head -1))"
+  case ":${PATH:-}:" in
+    *":$BIN_DIR:"*) ;;
+    *) say "  $BIN_DIR is not on your PATH." ;;
+  esac
+}
+
 # ── why it stops here ───────────────────────────────────────────────────────
 #
 # IT PRINTS `bothy init`; IT DOES NOT RUN IT. The tempting version of this
@@ -328,6 +469,10 @@ main() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run) DRY_RUN=1 ;;
+      --binary) MODE=binary ;;
+      --bin-dir)
+        [ $# -ge 2 ] || { red "--bin-dir needs a directory"; exit 1; }
+        BIN_DIR="$2"; shift ;;
       -h|--help) usage; exit 0 ;;
       *) red "unknown option: $1"; say ""; usage; exit 1 ;;
     esac
@@ -343,9 +488,15 @@ main() {
     die "Do not run this with sudo. It writes only inside \$HOME and needs no privileges."
   fi
 
-  need_min
   resolve_version
 
+  if [ "$MODE" = binary ]; then
+    inside_home "$BIN_DIR" || die "--bin-dir must be inside \$HOME (got $BIN_DIR). This installer never writes elsewhere."
+    install_binary
+    exit 0
+  fi
+
+  need_min
   inside_home "$DIR" || die "BOTHY_DIR must be inside \$HOME (got $DIR). This installer never writes elsewhere."
 
   if [ "$DRY_RUN" = 1 ]; then
