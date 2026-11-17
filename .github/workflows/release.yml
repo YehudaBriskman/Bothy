@@ -235,3 +235,194 @@ jobs:
           set -euo pipefail
           gh attestation verify "$RUNNER_TEMP/dist/checksums.txt" -R "$GITHUB_REPOSITORY"
           gh attestation verify "$RUNNER_TEMP/dist/bothy_${V}_linux_amd64.tar.gz" -R "$GITHUB_REPOSITORY"
+
+  # ── D34: Bothy's own images, published by digest ───────────────────────────
+  #
+  # Runs only after the tag job published a release, from the TAGGED sha, with
+  # the same Dockerfiles and contexts as ci.yml's "Every image builds" job.
+  # scripts/checks/release-manifest.sh fails CI when this matrix and the repo's
+  # Dockerfiles / compose `build:` services disagree, so a new module cannot be
+  # left out of a release.
+  #
+  # packages:write lives on THIS job only. The release-manifest job below, which
+  # edits the release, cannot write packages.
+  #
+  # ARM64 via QEMU, not native runners (decision, 2026-11-17). Native arm64
+  # runners (ubuntu-24.04-arm, free on a public repo) are faster but need a
+  # build per arch, push-by-digest, and a merge step to assemble the index: more
+  # moving parts and more places to be wrong in a pipeline that cannot be
+  # exercised before a real release. QEMU gives one build per image that yields
+  # the multi-arch index directly, and every digest we attest is that index.
+  # Cost: slow (bothy-web runs `npm ci` + vite under emulation). If a release
+  # build ever exceeds its timeout, the fix is `FROM --platform=$BUILDPLATFORM`
+  # on bothy-web's node stage (its output is architecture-independent), or
+  # moving to native runners; not before.
+  #
+  # Recovery: re-run the FAILED JOBS of the run that tagged (outputs are kept).
+  # Re-running the whole workflow later finds the tag and publishes nothing.
+  images:
+    name: Publish ${{ matrix.image }} to GHCR
+    needs: tag
+    if: needs.tag.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write       # the attestation's OIDC identity
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # bothy-web builds from its own directory.
+          - image: bothy-web
+            dockerfile: apps/bothy-web/Dockerfile
+            context: apps/bothy-web
+            build_contexts: ''
+          # bothy-files and bothy-ops build from apps/ (allowlisted by
+          # apps/.dockerignore) so they can COPY apps/bothy-common in.
+          - image: bothy-files
+            dockerfile: apps/bothy-files/Dockerfile
+            context: apps
+            build_contexts: ''
+          # compose.yml's `additional_contexts: jobtemplates`.
+          - image: bothy-ops
+            dockerfile: apps/bothy-ops/Dockerfile
+            context: apps
+            build_contexts: jobtemplates=k8s/job-templates
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Name the image
+        id: name
+        shell: bash
+        env:
+          IMAGE: ${{ matrix.image }}
+          V: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          # GHCR repository names must be lower case; the owner may not be.
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "repo=ghcr.io/$owner/$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=ghcr.io/$owner/$IMAGE:$V" >> "$GITHUB_OUTPUT"
+
+      # Tagged with the version only: no `latest`, no moving tag. The tag is a
+      # label for humans; the digest below is what the manifest names and what
+      # anything installs.
+      - name: Build and push (linux/amd64, linux/arm64)
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-contexts: ${{ matrix.build_contexts }}
+          build-args: REVISION=${{ github.event.workflow_run.head_sha }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.name.outputs.tag }}
+          # Provenance is the GitHub attestation below, once; buildx's own
+          # would add unknown/unknown entries to the index beside it.
+          provenance: false
+          sbom: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.tag.outputs.version }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Check what was pushed is a two-platform index
+        shell: bash
+        env:
+          IMAGE: ${{ matrix.image }}
+          REPO: ${{ steps.name.outputs.repo }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::no digest from the build: '$DIGEST'"; exit 1; }
+          platforms=$(docker buildx imagetools inspect "$REPO@$DIGEST" --raw \
+            | jq -r '[.manifests[]?.platform | select(.os != "unknown") | "\(.os)/\(.architecture)"] | sort | join(",")')
+          echo "$REPO@$DIGEST -> $platforms"
+          [ "$platforms" = "linux/amd64,linux/arm64" ] || { echo "::error::expected linux/amd64,linux/arm64, got '$platforms'"; exit 1; }
+          printf '%s' "$DIGEST" > "digest-$IMAGE"
+
+      - name: Attest build provenance (pushed to the registry beside the image)
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.name.outputs.repo }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.image }}
+          path: digest-${{ matrix.image }}
+          if-no-files-found: error
+
+  # The manifest an installer reads: every own image by digest, every third
+  # party image by the digest its compose file pins, the commit and the version.
+  # Built by scripts/gen-release-manifest.py, which fails on any third-party
+  # image not pinned by digest. Attached to the release and attested.
+  # No packages permission: it only reads the digests the images job recorded.
+  release-manifest:
+    name: Attach release-manifest.json
+    needs: [tag, images]
+    if: needs.tag.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write       # gh release upload
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+
+      - name: Generate release-manifest.json
+        shell: bash
+        env:
+          V: ${{ needs.tag.outputs.version }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          args=()
+          for f in digests/digest-*; do
+            name="${f##*/digest-}"
+            args+=(--own "$name=ghcr.io/$owner/$name@$(cat "$f")")
+          done
+          python3 scripts/gen-release-manifest.py --version "$V" --commit "$SHA" "${args[@]}" --out release-manifest.json
+          jq . release-manifest.json
+
+      - name: Attach to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.tag.outputs.version }}
+        run: gh release upload "v$V" release-manifest.json --clobber
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release-manifest.json
