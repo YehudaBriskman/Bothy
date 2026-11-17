@@ -169,6 +169,25 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 			return err
 		}
 	}
+	// Two generations are kept (the new one and the one to roll back to). The
+	// release before that is no longer reachable by any rollback: its images go,
+	// unless the other two still use them (digests are shared when unchanged).
+	if rec.Previous != nil {
+		keep := map[string]bool{}
+		for _, ref := range images {
+			keep[ref] = true
+		}
+		for _, ref := range rec.Images {
+			keep[ref] = true
+		}
+		for _, ref := range sortedKeys(rec.Previous.Images) {
+			if old := rec.Previous.Images[ref]; !keep[old] {
+				if _, err := h.Run(ctx, "docker", "image", "rm", old); err == nil {
+					p("   removed the image of release %s, which no rollback can reach any more: %s", rec.Previous.Version, digestOf(old))
+				}
+			}
+		}
+	}
 	p("\nupdated: release %s -> %s. The previous release stays in %s (and its images are kept) until the next update.", rec.Version, m.Version, prevDir)
 	return nil
 }
