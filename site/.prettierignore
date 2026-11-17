@@ -1,0 +1,5 @@
+dist
+dist-prerender
+node_modules
+package-lock.json
+fixtures
