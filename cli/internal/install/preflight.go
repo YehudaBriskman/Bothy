@@ -102,8 +102,8 @@ func Preflight(ctx context.Context, h Host, in PreflightIn) []Check {
 		add("compose", OK, "Docker Compose "+v, "")
 	}
 	if out, err := h.Run(ctx, "docker", "info", "--format", "{{.SecurityOptions}}"); err == nil && strings.Contains(string(out), "rootless") {
-		add("rootless", Fail, "rootless Docker is not supported yet (the edge reads /var/run/docker.sock)",
-			"Use a rootful Docker daemon, or wait for the socket-less edge.")
+		add("rootless", Fail, "rootless Docker is not supported yet (untested: published-port and bind-mount ownership rules differ; the edge no longer needs the socket)",
+			"Use a rootful Docker daemon for now.")
 	}
 
 	// RAM gate (D13): the stack's own limits plus the reserve must fit in MemAvailable.

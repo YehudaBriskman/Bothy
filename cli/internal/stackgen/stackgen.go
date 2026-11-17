@@ -48,12 +48,28 @@ type Mode struct {
 	AllowBinds []string     `yaml:"allow_binds"`
 	Files      []FileRow    `yaml:"files"`
 	Verify     VerifySpec   `yaml:"verify"`
+	// Edge names the service that is the Traefik edge. When set, the generated
+	// stack has NO docker provider and no socket: the routes every selected
+	// service declares in its compose labels are rendered into a file-provider
+	// config instead (edge.go), and the result is linted (no Host(), exact Path()
+	// routers plus a priority-1 catch-all, no dashboard, nothing listening on an
+	// unpublished port except loopback).
+	Edge *EdgeSpec `yaml:"edge"`
+}
+
+type EdgeSpec struct {
+	Service string `yaml:"service"` // the Traefik service
+	Dir     string `yaml:"dir"`     // under the stack dir; the service's bound dynamic dir
+	File    string `yaml:"file"`    // name of the generated file (default routes.yml)
 }
 
 type Module struct {
 	Name     string   `yaml:"name"`
 	Compose  string   `yaml:"compose"`
 	Services []string `yaml:"services"`
+	// Overrides adjusts a repo service for an installed box (override.go). Data
+	// only: a module's compose file is the repo's, written for a checkout.
+	Overrides map[string]Override `yaml:"overrides"`
 }
 
 type PublishRow struct {
@@ -201,11 +217,24 @@ func genMode(repo, name string, m Mode, out map[string][]byte) error {
 			if _, dup := selected[s]; dup {
 				return fmt.Errorf("service %q selected twice", s)
 			}
+			if ov, ok := mod.Overrides[s]; ok {
+				var oerr error
+				if def, oerr = applyOverride(def, ov); oerr != nil {
+					return fmt.Errorf("module %s: override of %s: %w", mod.Name, s, oerr)
+				}
+			}
 			selected[s] = sel{mod.Name, path.Dir(filepath.ToSlash(mod.Compose)), def}
 			order = append(order, s)
 		}
 	}
 	sort.Strings(order)
+	for _, mod := range m.Modules {
+		for s := range mod.Overrides {
+			if sv, ok := selected[s]; !ok || sv.module != mod.Name {
+				return fmt.Errorf("module %s: override names %q, which it does not select", mod.Name, s)
+			}
+		}
+	}
 
 	// A network is kept only when two selected services attach to it.
 	netUse := map[string]int{}
@@ -342,6 +371,24 @@ func genMode(repo, name string, m Mode, out map[string][]byte) error {
 		if _, ok := services[p.Service]; !ok {
 			return fmt.Errorf("publish names unknown service %q", p.Service)
 		}
+	}
+	// the generated edge: file-provider routes from the services' labels
+	if m.Edge != nil {
+		defs := map[string]map[string]any{}
+		for _, s := range order {
+			defs[s] = selected[s].def
+		}
+		routes, err := genEdge(m, defs, services)
+		if err != nil {
+			return err
+		}
+		to := path.Join(m.Edge.Dir, edgeFile(m.Edge))
+		out["stack/"+name+"/files/"+to] = routes
+		meta.Files = append(meta.Files, to)
+		mkdirs[m.Edge.Dir] = true
+	}
+	if err := lintStack(services); err != nil {
+		return err
 	}
 	// static files
 	for _, f := range m.Files {

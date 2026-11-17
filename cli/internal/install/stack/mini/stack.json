@@ -32,7 +32,9 @@
     "bothy-web/data",
     "traefik/dynamic"
   ],
-  "files": [],
+  "files": [
+    "traefik/dynamic/routes.yml"
+  ],
   "networks": [
     "bothy-devnet"
   ],

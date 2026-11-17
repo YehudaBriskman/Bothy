@@ -20,6 +20,19 @@ modes:
       - name: edge
         compose: edge/compose.yml
         services: [traefik]
+        # The repo's edge is written for the dev box: a docker provider with the
+        # socket mounted, a sandbox origin on :8100, a Prometheus on devnet. An
+        # installed box gets the FILE provider only (decision Q1): no socket in
+        # the most exposed process. Each line must match something in
+        # edge/compose.yml or generation fails (a stale override is an error).
+        overrides:
+          traefik:
+            command_remove: ["--providers.docker", "--entrypoints.sandbox.address="]
+            replace:          # metrics/ping stay on an entrypoint nothing else can reach
+              - {from: "--entrypoints.metrics.address=:8899", to: "--entrypoints.metrics.address=127.0.0.1:8899"}
+            volumes_remove: [/var/run/docker.sock]
+            env_remove: [DOCKER_API_VERSION]   # only the docker provider reads it
+            drop_keys: [extra_hosts]           # host.docker.internal: there are no host-side routes
       - name: web
         compose: apps/bothy-web/compose.yml
         services: [bothy-web]
@@ -28,9 +41,16 @@ modes:
     # stack's .env by the installer (--port); the bind address comes from --bind.
     publish:
       - {service: traefik, container: 80, env: BOTHY_HTTP_PORT, default: 80}
+    # The edge: Traefik with the file provider only. `go generate` renders the
+    # traefik.* labels of every selected service into <dir>/<file>, drops the
+    # labels from the compose, and lints the result (no Host(), exact Path()
+    # routers plus the priority-1 catch-all, API on / dashboard off, nothing
+    # listening on an unpublished port except 127.0.0.1).
+    edge: {service: traefik, dir: traefik/dynamic, file: routes.yml}
     # Bind sources that may stay as written. Everything else must be a relative
-    # path inside the service's own directory under the install root.
-    allow_binds: [/var/run/docker.sock]
+    # path inside the service's own directory under the install root. The Docker
+    # socket is never allowed (a lint refuses it anywhere in the generated stack).
+    allow_binds: []
     # Files copied from the repo into <install root>/stack/<to> (none for mini yet).
     files: []
     # Bytes check after `up`: the installer fetches `path` through the edge and
