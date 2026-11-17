@@ -158,7 +158,71 @@ ok("sso-" not in re.sub(r"sso-errors", "", routers) and "Host(" not in routers a
    "…with NO sso-<role> gate (the service verifies the bearer), no Host(), no prefix")
 ok(not os.path.exists(os.path.join(ROOT, "edge", "dynamic", "bothy-ops-v1.yml")), "…and nothing is installed at the edge by any of this")
 
+print()
+print("── WHO IS THE CLIENT: the failure limit behind the edge (s1.9a) ──")
+# Over real HTTP the TCP peer is 127.0.0.1, which plays Traefik. X-Forwarded-For is the edge's word.
+fresh_store = lambda: caller.set_token_store(ts.TokenStore(state))  # noqa: E731
+XFF = lambda ip: {"X-Forwarded-For": ip}  # noqa: E731
+badtok = "bt_" + "1" * 16 + "." + "A" * 43
+vic, vrec2 = mint(name="victim")
+
+
+def hammer(n, ip=None, tok=badtok):
+    for _ in range(n):
+        call(ML, headers={**bearer(tok), **(XFF(ip) if ip else {})})
+
+
+# (a) the default: no trusted proxy. A spoofed header from any peer is IGNORED.
+import clientaddr  # noqa: E402
+clientaddr.configure(None)
+fresh_store()
+hammer(10, "198.51.100.1")
+ok(call(ML, headers={**bearer(vic), **XFF("203.0.113.7")})[0] == 401,
+   "no trusted proxy configured: X-Forwarded-For is ignored, the peer's bucket is what filled (a spoof cannot pick a bucket)")
+clientaddr.configure("192.0.2.99")                       # trusted, but NOT this peer (127.0.0.1)
+fresh_store()
+hammer(10, "198.51.100.1")
+ok(call(ML, headers={**bearer(vic), **XFF("203.0.113.7")})[0] == 401,
+   "a spoofed header from a peer that is not the trusted proxy is ignored")
+
+# (b) behind the trusted proxy: one bucket per client, not one for the edge.
+clientaddr.configure("127.0.0.1/32")
+fresh_store()
+hammer(10, "198.51.100.1")                               # noisy client A
+ok(call(ML, headers={**bearer(vic), **XFF("198.51.100.1")})[0] == 401, "client A is blocked after ten bad bearers (its own bucket)")
+ok(call(ML, headers={**bearer(vic), **XFF("203.0.113.7")})[0] == 200,
+   "NOISY NEIGHBOUR: client B with a valid token is served while A is blocked")
+ok(call(ML, headers=bearer(vic))[0] == 200, "…and a request with no forwarded header falls back to the peer bucket, which A did not fill")
+fresh_store()
+hammer(10)                                               # ten bad bearers with NO header: the peer's bucket
+ok(call(ML, headers={**bearer(vic), **XFF("203.0.113.7")})[0] == 200,
+   "SHARED-BUCKET REGRESSION: failures keyed on the peer (header missing) do not block a client that has an address")
+for label, val in (("a list", "198.51.100.1, 10.0.0.1"), ("a port", "198.51.100.1:5555"), ("garbage", "not-an-ip"),
+                   ("brackets", "[2001:db8::1]"), ("a zone id", "fe80::1%eth0"), ("empty", ""), ("oversized", "1" * 300)):
+    fresh_store()
+    hammer(10, val)                                      # all fall back to the PEER bucket
+    ok(call(ML, headers={**bearer(vic), **XFF("203.0.113.7")})[0] == 200 and call(ML, headers=bearer(vic))[0] == 401,
+       f"{label} in X-Forwarded-For is rejected and falls back to the peer bucket")
+# IPv6 by /64: rotating the low 64 bits buys no fresh bucket; another /64 is another client.
+fresh_store()
+for i in range(10):
+    call(ML, headers={**bearer(badtok), **XFF(f"2001:db8:1:2::{i + 1:x}")})
+ok(call(ML, headers={**bearer(vic), **XFF("2001:db8:1:2:aaaa:bbbb:cccc:dddd")})[0] == 401, "IPv6: ten bad bearers across one /64 block the whole /64")
+ok(call(ML, headers={**bearer(vic), **XFF("2001:db8:1:3::1")})[0] == 200, "…and the next /64 is a different client")
+
+# (c) lock-out as a denial of service against a VALID token id is impossible.
+fresh_store()
+for i in range(300):                                     # an attacker who knows the id, 300 sources, wrong secrets
+    call(ML, headers={**bearer(vrec2["id"].join(["bt_", "." + ts.new_secret()])), **XFF(f"198.18.{i // 250}.{i % 250 + 1}")})
+ok(call(ML, headers={**bearer(vic), **XFF("203.0.113.7")})[0] == 200,
+   "LOCK-OUT DoS: 300 wrong secrets naming the victim's id, from 300 sources, and the victim's token still works")
+hammer(40, "198.51.100.66", tok=vrec2["id"].join(["bt_", "." + ts.new_secret()]))
+ok(call(ML, headers={**bearer(vic), **XFF("203.0.113.7")})[0] == 200, "…and after 40 more from ONE source, from the victim's own address")
+store_now = caller._STORE
+ok(store_now.id_failures.size() <= 1024, "the per-id counter is bounded")
+
 # ── restore, then prove the shipped catalog is untouched ──
+clientaddr.configure(None)
 for k, (e_, r_, c_) in orig.items():
     ops[k]["exposure"], ops[k]["role"], ops[k]["callers"] = e_, r_, c_
 caller.set_token_store(ts.TokenStore(state))

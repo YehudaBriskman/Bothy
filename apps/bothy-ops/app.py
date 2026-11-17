@@ -61,6 +61,7 @@ except ImportError:  # a checkout: apps/bothy-common is the package's parent
 
 import admin  # noqa: E402
 import caller  # noqa: E402
+import clientaddr  # noqa: E402
 import control  # noqa: E402
 import guard  # noqa: E402
 import kube  # noqa: E402
@@ -156,10 +157,13 @@ def main() -> None:
         # bearer is 401, the behaviour of slice 1. compose.yml mounts the host's token directory
         # READ-ONLY and sets this; the host's `bothy token` is the only writer. Denials are audited
         # to BOTHY_TOKEN_AUDIT_LOG, a writable file outside that mount.
+        # Whose address keys the failure limit: X-Forwarded-For is honoured only from these peers
+        # (BOTHY_TRUSTED_PROXIES, default none = never). See clientaddr.py.
+        clientaddr.configure(os.environ.get("BOTHY_TRUSTED_PROXIES"))
         if os.environ.get("BOTHY_TOKEN_STATE"):
             caller.set_token_store(tokenstore.TokenStore(os.environ["BOTHY_TOKEN_STATE"],
                                                          audit_log=os.environ.get("BOTHY_TOKEN_AUDIT_LOG") or None))
-    except (guard.CatalogError, updates.CatalogError, opscatalog.CatalogError, OSError,
+    except (guard.CatalogError, updates.CatalogError, opscatalog.CatalogError, OSError, ValueError,
             tomllib.TOMLDecodeError) as e:
         # Refuse to start. A service that ran with half a catalog would be a
         # service whose surface nobody reviewed. (A missing CLUSTER is not this -

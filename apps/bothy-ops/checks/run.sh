@@ -18,6 +18,8 @@
 #   grants.py            the socket-proxy grants are what compose.socket-proxy.yml says,
 #                        and no proxy anywhere in the repo holds POST=1 with
 #                        CONTAINERS=1. Static: answered BEFORE a POST=1 proxy starts.
+#   test_clientaddr.py / wiring_clientaddr.py   (s1.9a) the trusted client address, the per-id
+#                        failure counter, and the edge config that guarantees the header.
 #   wiring.py            catalog == edge routers == UI copy == RBAC; compose,
 #                        overlay, traefik networks and justfile say what they claim.
 #   api_control.py       the container HTTP surface against a stand-in daemon that
@@ -279,6 +281,10 @@ check "$PY" checks/test_tokens.py 2>/dev/null
 
 section "bearer tokens through the real /v1 handler: served, forbidden, refused alike"
 check "$PY" checks/api_v1_tokens.py 2>/dev/null
+
+section "the client behind the edge: trusted address, per-id counter, edge config (s1.9a)"
+check "$PY" checks/test_clientaddr.py 2>/dev/null
+check "$PY" checks/wiring_clientaddr.py 2>/dev/null
 
 section "step 8: the cluster class and the Postgres major - plans and every refusal"
 check "$PY" checks/test_step8.py

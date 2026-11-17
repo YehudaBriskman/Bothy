@@ -698,6 +698,93 @@ mutant "an mcp token is served an op not offered to mcp" \
   'if False:' \
   -- python3 apps/bothy-ops/checks/api_v1_tokens.py
 
+# ── the client behind the edge (s1.9a): the failed-bearer limit must key on the real client ───────
+# The flaw: keyed on the TCP peer, every client behind Traefik shared one bucket. These rows are its
+# regressions and the ways the fix itself could be turned into a hole.
+mutant "the limiter is keyed on the TCP peer again (shared bucket)" \
+  apps/bothy-ops/v1api.py \
+  'clientaddr.source(peer, h.headers))' \
+  'peer)' \
+  -- python3 apps/bothy-ops/checks/api_v1_tokens.py
+
+mutant "every source shares one limiter bucket" \
+  apps/bothy-ops/tokenstore.py \
+  '        source = (source or "-")[:64]' \
+  '        source = "-"' \
+  -- python3 apps/bothy-ops/checks/api_v1_tokens.py
+
+mutant "a header from a peer that is not the trusted proxy is honoured" \
+  apps/bothy-ops/clientaddr.py \
+  '    if fields and trusted(peer, now):' \
+  '    if fields:' \
+  -- python3 apps/bothy-ops/checks/api_v1_tokens.py
+
+mutant "with no trusted proxy configured the header is honoured" \
+  apps/bothy-ops/clientaddr.py \
+  '    if not (_nets or _names):
+        return False' \
+  '    if not (_nets or _names):
+        return True' \
+  -- python3 apps/bothy-ops/checks/test_clientaddr.py
+
+mutant "the last of two X-Forwarded-For fields is trusted" \
+  apps/bothy-ops/clientaddr.py \
+  'a = parse_one(fields[0]) if len(fields) == 1 else None' \
+  'a = parse_one(fields[-1])' \
+  -- python3 apps/bothy-ops/checks/test_clientaddr.py
+
+mutant "IPv6 clients are keyed by the full address, not the /64" \
+  apps/bothy-ops/clientaddr.py \
+  'ipaddress.ip_network(f"{a}/64", strict=False)' \
+  'ipaddress.ip_network(f"{a}/128", strict=False)' \
+  -- python3 apps/bothy-ops/checks/test_clientaddr.py
+
+# A per-id gate on the success path would let anyone who knows a (public) id lock its owner out.
+mutant "a token id with many wrong secrets is refused even with the right one" \
+  apps/bothy-ops/tokenstore.py \
+  '        if reason is not None:
+            self._deny(reason, m.group(1) if m else "-", source, now)' \
+  '        if reason is not None or len(self.id_failures._d.get(m.group(1), ())) >= 10:
+            self._deny(reason or "bad-secret", m.group(1) if m else "-", source, now)' \
+  -- python3 apps/bothy-ops/checks/api_v1_tokens.py
+
+mutant "the per-id counter is read on the verify path" \
+  apps/bothy-ops/tokenstore.py \
+  '        self._touch(rec, now)
+        return {k: v for k, v in rec.items() if k != "digest"}' \
+  '        self.id_failures.size()
+        self._touch(rec, now)
+        return {k: v for k, v in rec.items() if k != "digest"}' \
+  -- python3 apps/bothy-ops/checks/test_clientaddr.py
+
+# The edge half (static: there is no live Traefik in CI).
+mutant "the web entrypoint trusts forwarded headers from everyone" \
+  edge/compose.yml \
+  '      - --entrypoints.web.address=:80
+' \
+  '      - --entrypoints.web.address=:80
+      - --entrypoints.web.forwardedHeaders.insecure=true
+' \
+  -- python3 apps/bothy-ops/checks/wiring_clientaddr.py
+
+mutant "the client-address middleware stops deleting X-Real-Ip" \
+  edge/dynamic/bothy-v1-client.yml \
+  '          X-Real-Ip: ""' \
+  '          X-Real-Ip: "0.0.0.0"' \
+  -- python3 apps/bothy-ops/checks/wiring_clientaddr.py
+
+mutant "a token router is generated without the client-address middleware" \
+  scripts/gen-ops-v1.py \
+  'client = ["v1-client-address"] if "token" in e["exposure"] else []' \
+  'client = []' \
+  -- python3 apps/bothy-ops/checks/wiring_clientaddr.py
+
+mutant "bothy-ops trusts every peer as a proxy" \
+  apps/bothy-ops/compose.yml \
+  '      BOTHY_TRUSTED_PROXIES: "@traefik"' \
+  '      BOTHY_TRUSTED_PROXIES: "0.0.0.0/0"' \
+  -- python3 apps/bothy-ops/checks/wiring_clientaddr.py
+
 mutant "a valid token on a socket-only op is served" \
   apps/bothy-ops/v1api.py \
   'if who_is.kind not in op["exposure"]:' \

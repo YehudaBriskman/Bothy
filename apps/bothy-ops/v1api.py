@@ -52,6 +52,7 @@ import types
 from urllib.parse import urlparse
 
 import caller as callers
+import clientaddr
 import opscatalog
 import updates
 from bothy_common.http import Refused
@@ -322,7 +323,8 @@ def resolve_caller(h, op: dict) -> callers.Caller:
     """The Caller for this request, built by an adapter; the role never comes from a request field."""
     try:
         peer = (getattr(h, "client_address", None) or ("-",))[0]
-        return callers.from_request(h.headers, op["role"], peer)
+        # The limiter key: the client Traefik saw, honoured only when the peer IS Traefik (clientaddr.py).
+        return callers.from_request(h.headers, op["role"], clientaddr.source(peer, h.headers))
     except callers.Unauthenticated as e:
         raise ApiError("auth.unauthenticated", 401, str(e)) from None
 

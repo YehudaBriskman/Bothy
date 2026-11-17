@@ -261,6 +261,44 @@ class FailureLimiter:
         return len(self._d)
 
 
+class IdFailures:
+    """A coarse, per-token-id count of WRONG-SECRET attempts. It is deliberately not a gate.
+
+    A token id is not a secret (it is in `bothy token list`, in audit lines, in the operator's shell
+    history), so anyone can name a victim's id. Any rule of the form "after N failures for this id,
+    refuse that id" is therefore a denial of service against its owner, however it is dressed. This
+    counter can never do that: it is consulted only AFTER the constant-time compare has already said the
+    secret is wrong, it is never read on the success path, and a correct secret is accepted at any count.
+    What it does is bound the NOISE: past `quiet_after` wrong secrets for one id in `window` seconds,
+    further ones for that id stop writing audit lines (the first N and the `hot` flag are the signal),
+    so a flood aimed at one id cannot bury every other id's denials in the 30-a-minute audit budget.
+    Brute force is a non-issue by entropy (a 256-bit secret), which is why no refusal is added."""
+
+    def __init__(self, quiet_after: int = 20, window: float = 600.0, max_keys: int = 1024):
+        self.quiet_after, self.window, self.max_keys = quiet_after, window, max_keys
+        self._d: collections.OrderedDict[str, collections.deque] = collections.OrderedDict()
+        self._lock = threading.Lock()
+
+    def fail(self, token_id: str, now: float) -> bool:
+        """Record one wrong secret for `token_id`; True when it is within the audit allowance."""
+        with self._lock:
+            q = self._d.get(token_id)
+            if q is None:
+                q = self._d[token_id] = collections.deque()
+                while len(self._d) > self.max_keys:
+                    self._d.popitem(last=False)
+            else:
+                self._d.move_to_end(token_id)
+            while q and now - q[0] > self.window:
+                q.popleft()
+            if len(q) < self.quiet_after * 2:        # bounded: the count saturates, memory does not grow
+                q.append(now)
+            return len(q) <= self.quiet_after
+
+    def size(self) -> int:
+        return len(self._d)
+
+
 # ── the read side the service uses ───────────────────────────────────────────
 
 class TokenStore:
@@ -271,6 +309,7 @@ class TokenStore:
         self.state = state
         self.audit_log = audit_log
         self.limiter = limiter or FailureLimiter()
+        self.id_failures = IdFailures()
         self.touch = touch
         self._lock = threading.Lock()
         self._warned: str | None = None
@@ -284,6 +323,10 @@ class TokenStore:
     def _deny(self, reason: str, token_id: str, source: str, now: float) -> None:
         if reason in ("malformed", "unknown", "bad-secret", "revoked", "expired", "store"):
             self.limiter.fail(source, now)
+        # Per-id: wrong secrets only, counted AFTER the compare, only ever shaping the audit (never a refusal).
+        id_quiet = reason == "bad-secret" and ID_RE.fullmatch(token_id) and not self.id_failures.fail(token_id, now)
+        if id_quiet:
+            return
         with self._lock:                       # bound the audit volume: 30 denial lines a minute
             self._deny_logged = [t for t in self._deny_logged if now - t < 60]
             quiet = len(self._deny_logged) >= 30
