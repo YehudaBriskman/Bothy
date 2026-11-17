@@ -105,6 +105,10 @@ func run(args []string, io IO) error {
 			}
 			g.timeout = d
 		case "help", "h":
+			if words[0] == "install" || words[0] == "uninstall" {
+				fmt.Fprint(io.Out, installHelp)
+				return nil
+			}
 			return help(io.Out)
 		default:
 			rest[k] = v
@@ -117,6 +121,10 @@ func run(args []string, io IO) error {
 		return cmdMCP(words[1:], rest, g, io)
 	case "version":
 		return cmdVersion(rest, g, io)
+	case "install":
+		return cmdInstall(words[1:], rest, g, io)
+	case "uninstall":
+		return cmdUninstall(words[1:], rest, g, io)
 	case "discover":
 		return cmdOp(mustOp("discover"), nil, rest, g, io)
 	case "modules": // alias of `module list`
@@ -135,7 +143,8 @@ func run(args []string, io IO) error {
 // is resolved in favour of the value for the flags every op declares.
 func splitArgs(args []string) (words []string, flags map[string]string, err error) {
 	flags = map[string]string{}
-	boolFlags := map[string]bool{"json": true, "help": true, "h": true, "use": true, "write": true}
+	boolFlags := map[string]bool{"json": true, "help": true, "h": true, "use": true, "write": true,
+		"dry-run": true, "purge": true, "allow-downgrade": true}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {
@@ -239,6 +248,8 @@ func help(w io.Writer) error {
 	fmt.Fprintln(w, "  modules                                        Alias of `module list`")
 	fmt.Fprintln(w, "  context add NAME URL [--token-file F] [--use]  Remember a box")
 	fmt.Fprintln(w, "  context list | use NAME                        List boxes, or choose the current one")
+	fmt.Fprintln(w, "  install [--dry-run] [--mode mini] ...          Install Bothy on this machine (Docker Compose; see install --help)")
+	fmt.Fprintln(w, "  uninstall [--purge] [--dry-run]                Remove it; data is kept unless --purge and you type the phrase")
 	fmt.Fprintln(w, "  mcp                                            Serve the read-only tools over stdio (MCP)")
 	fmt.Fprintln(w, "\nExit codes: 0 ok, 10 box unreachable, 64 bad usage or request, 66 not found,")
 	fmt.Fprintln(w, "69 data source unavailable, 70 server bug, 77 not signed in or not allowed, 78 version mismatch.")
