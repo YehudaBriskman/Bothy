@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -42,6 +43,9 @@ type globals struct {
 	url     string
 	timeout time.Duration
 }
+
+// noValue marks a trailing flag that had no value after it.
+const noValue = "\x00"
 
 type usageError struct{ msg string }
 
@@ -84,6 +88,9 @@ func run(args []string, io IO) error {
 	// Global flags are accepted anywhere; op flags are resolved once the verb is known.
 	rest := map[string]string{}
 	for k, v := range flags {
+		if v == noValue && (k == "context" || k == "url" || k == "timeout") {
+			return usagef("flag --%s needs a value", k)
+		}
 		switch k {
 		case "json":
 			g.json = v != "false"
@@ -152,7 +159,10 @@ func splitArgs(args []string) (words []string, flags map[string]string, err erro
 			continue
 		}
 		if i+1 >= len(args) {
-			return nil, nil, usagef("flag --%s needs a value", name)
+			// Whether this is a flag that takes a value, or no flag of the command at all,
+			// is decided once the verb is known (an unknown one must say "unknown flag").
+			flags[name] = noValue
+			continue
 		}
 		i++
 		flags[name] = args[i]
@@ -291,6 +301,11 @@ func cmdOp(op catalog.Op, tail []string, flags map[string]string, g globals, io 
 			return usagef("%s: unknown flag --%s", op.VerbString(), k)
 		}
 	}
+	for k, v := range flags {
+		if v == noValue {
+			return usagef("%s: flag --%s needs a value", op.VerbString(), k)
+		}
+	}
 	// Positionals fill the required params, in catalog order.
 	for _, p := range op.Params {
 		if !p.Required {
@@ -327,10 +342,20 @@ func output(res *api.Result, opID string, g globals, io IO) error {
 	for _, w := range res.Warnings {
 		fmt.Fprintf(io.Err, "bothy: warning: %s\n", render.Untrusted(w))
 	}
+	// Render to memory first: a response that fails validation must not leave half a
+	// rendering on stdout beside the error.
+	var buf bytes.Buffer
+	var err error
 	if g.json {
-		return render.JSON(io.Out, res.Data)
+		err = render.JSON(&buf, res.Data)
+	} else {
+		err = render.Human(&buf, opID, res.Data)
 	}
-	return render.Human(io.Out, opID, res.Data)
+	if err != nil {
+		return err
+	}
+	_, err = io.Out.Write(buf.Bytes())
+	return err
 }
 
 func cmdVersion(flags map[string]string, g globals, io IO) error {
@@ -442,12 +467,15 @@ func cmdContext(words []string, flags map[string]string, g globals, io IO) error
 		if len(words) != 3 {
 			return usagef("usage: bothy context add NAME URL [--token-file FILE] [--use]")
 		}
-		c := config.Context{URL: words[2], TokenFile: flags["token-file"]}
-		for k := range flags {
+		for k, v := range flags {
 			if k != "token-file" && k != "use" {
 				return usagef("context add: unknown flag --%s", k)
 			}
+			if v == noValue {
+				return usagef("context add: flag --%s needs a value", k)
+			}
 		}
+		c := config.Context{URL: words[2], TokenFile: flags["token-file"]}
 		if c.TokenFile != "" {
 			// Refuse now, not at first use, a token that could never be sent.
 			if _, err := api.New(c.URL, "placeholder", io.Version, 0); err != nil {

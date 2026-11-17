@@ -51,7 +51,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	s := e.Code + ": " + OneLine(e.Message)
+	s := OneLine(e.Code) + ": " + OneLine(e.Message)
 	if e.Hint != "" {
 		s += " (" + OneLine(e.Hint) + ")"
 	}
@@ -289,7 +289,43 @@ type envelope struct {
 	} `json:"error"`
 }
 
+// maxDepth is how deeply nested a response may be. The box's data is a few
+// levels deep; a body of 8 MiB of brackets would otherwise be accepted by the
+// JSON decoder (limit 10000) and make --json print hundreds of MiB of indent.
+const maxDepth = 64
+
+// tooDeep reports whether b nests arrays or objects deeper than maxDepth,
+// without allocating. Brackets inside strings do not count.
+func tooDeep(b []byte) bool {
+	depth, inStr, esc := 0, false, false
+	for _, c := range b {
+		switch {
+		case inStr:
+			switch {
+			case esc:
+				esc = false
+			case c == '\\':
+				esc = true
+			case c == '"':
+				inStr = false
+			}
+		case c == '"':
+			inStr = true
+		case c == '[' || c == '{':
+			if depth++; depth > maxDepth {
+				return true
+			}
+		case c == ']' || c == '}':
+			depth--
+		}
+	}
+	return false
+}
+
 func decode(resp *http.Response, body []byte) (*envelope, error) {
+	if tooDeep(body) {
+		return nil, &ProtocolError{Msg: fmt.Sprintf("HTTP %d, response nested deeper than %d levels", resp.StatusCode, maxDepth)}
+	}
 	var env envelope
 	if err := json.Unmarshal(body, &env); err != nil {
 		return nil, &ProtocolError{Msg: fmt.Sprintf("HTTP %d, body is not a JSON envelope", resp.StatusCode)}

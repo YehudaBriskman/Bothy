@@ -542,6 +542,13 @@ ops-v1 mode="":
 cli-check:
     cd cli && go generate ./... && go vet ./... && CGO_ENABLED=0 go test -count=1 ./...
 
+# Builds the release binary and runs it at the REAL bothy-ops handler on loopback (the v1 fixture's
+# world, throwaway dirs): every op in human and --json, exit codes, the version gate, hostile text,
+# and `bothy mcp` over stdio. Needs Go and python3; no docker, nothing on the live box.
+# Drive the built bothy CLI and its MCP server at a real local bothy-ops.
+cli-live:
+    python3 apps/bothy-ops/checks/cli_live.py 2>/dev/null
+
 # The Settings area's Keycloak client `bothy-admin` (view-users only), and its
 # secret in apps/bothy-ops/secrets. `--rotate` issues a new secret; `--revoke`
 # disables the client and deletes the file.
