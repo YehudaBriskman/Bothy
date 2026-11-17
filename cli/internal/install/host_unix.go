@@ -29,3 +29,6 @@ func (SysHost) FSType(dir string) string {
 	}
 	return ""
 }
+
+// Writable asks the kernel (access(2) W_OK), which also answers for a read-only filesystem.
+func (SysHost) Writable(dir string) bool { return syscall.Access(dir, 2) == nil }

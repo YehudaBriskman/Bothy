@@ -3,6 +3,7 @@ package install
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -23,6 +24,9 @@ type Host interface {
 	// ListenAddrs returns the local addresses (as dotted/colon text) with a
 	// TCP listener on port.
 	ListenAddrs(port int) []string
+	// Writable reports whether this user can create files in dir (an existing
+	// directory; callers pass the nearest existing parent).
+	Writable(dir string) bool
 }
 
 type Level string
@@ -44,20 +48,25 @@ type Check struct {
 
 // Minimums. Engine 25 because the stack's healthchecks use start_interval.
 const (
-	MinEngine   = "25.0.0"
-	MinCompose  = "2.24.0"
-	MinDiskMiB  = 2048
-	DefaultPort = 80
+	MinEngine  = "25.0.0"
+	MinCompose = "2.24.0"
+	MinDiskMiB = 2048
+	// MinImageDiskMiB: the three images unpack to about 450 MB; leave room for layers.
+	MinImageDiskMiB = 1536
+	DefaultPort     = 80
 )
 
 // PreflightIn is what preflight needs to know about the intended install.
 type PreflightIn struct {
-	Stack      *Stack
-	Manifest   *Manifest // nil: image checks are skipped (offline dry run)
-	Bind       string
-	Port       int
-	DataDir    string
-	OwnPortsOK bool // true when a receipt says this install already holds the port
+	Stack       *Stack
+	Manifest    *Manifest // nil: image checks are skipped (offline dry run)
+	Bind        string
+	Port        int
+	DataDir     string
+	OwnPortsOK  bool // true when this install's own containers already hold the port
+	ConfigDir   string
+	RealDataDir string // the install root as asked for (it may not exist yet; DataDir is its nearest existing parent)
+	StackDir    string // where this install's compose project lives (to tell ours from someone else's "bothy")
 }
 
 // Preflight is read-only. It never changes anything and never asks for root.
@@ -75,8 +84,13 @@ func Preflight(ctx context.Context, h Host, in PreflightIn) []Check {
 	}
 
 	if h.Euid() == 0 {
-		add("user", Warn, "running as root: files will go under root's home and the stack is owned by root",
-			"Prefer a normal user who is in the docker group.")
+		if su := h.Getenv("SUDO_USER"); su != "" {
+			add("user", Warn, fmt.Sprintf("running under sudo (as root, on behalf of %s): files written as root may land in a home directory that belongs to %s", su, su),
+				fmt.Sprintf("Run it without sudo as %s (add them to the docker group once: `sudo usermod -aG docker %s`, then log in again).", su, su))
+		} else {
+			add("user", Warn, "running as root: files will go under root's home and the stack is owned by root",
+				"Prefer a normal user who is in the docker group.")
+		}
 	} else {
 		add("user", OK, fmt.Sprintf("running as uid %d (no root needed)", h.Euid()), "")
 	}
@@ -106,6 +120,37 @@ func Preflight(ctx context.Context, h Host, in PreflightIn) []Check {
 			"Use a rootful Docker daemon for now.")
 	}
 
+	if out, err := h.Run(ctx, "docker", "info", "--format", "{{.SecurityOptions}}"); err == nil && strings.Contains(string(out), "selinux") {
+		add("selinux", Warn, "SELinux is enabled in Docker: the containers may be denied the bind-mounted directories (permission denied inside Traefik or files)",
+			"If the stack starts but routes fail, label the install root: `chcon -R -t container_file_t "+in.DataDir+"`. Not proven on a real SELinux host.")
+	}
+	// Free disk where DOCKER stores images (its data-root may be elsewhere than the install root).
+	if out, err := h.Run(ctx, "docker", "info", "--format", "{{.DockerRootDir}}"); err == nil {
+		if dr := strings.TrimSpace(string(out)); strings.HasPrefix(dr, "/") {
+			d := dr
+			for !h.Writable(d) && d != "/" && d != "." { // /var/lib/docker is 0710 root: measure the nearest parent we can stat
+				d = filepath.Dir(d)
+			}
+			if free, err := h.FreeDiskMiB(d); err == nil && free < MinImageDiskMiB {
+				add("docker-disk", Fail, fmt.Sprintf("%d MiB free where Docker stores images (%s), %d MiB needed for the pulls", free, dr, MinImageDiskMiB),
+					"Free space there (`docker system df`, `docker image prune`), or move Docker's data-root (daemon.json \"data-root\").")
+			}
+		}
+	}
+	// Something else already called "bothy" in Compose would be adopted and
+	// recreated by `up`. Never touch what is not ours.
+	if in.StackDir != "" {
+		if out, err := h.Run(ctx, "docker", "ps", "-a", "--filter", "label=com.docker.compose.project=bothy", "--format", `{{.Label "com.docker.compose.project.working_dir"}}`); err == nil {
+			for _, wd := range strings.Fields(string(out)) {
+				if filepath.Clean(wd) != filepath.Clean(in.StackDir) {
+					add("project", Fail, fmt.Sprintf("a Docker Compose project named \"bothy\" already exists, started from %s (not this install)", wd),
+						"Bothy will not adopt or replace it. Stop it where it was started (`docker compose -p bothy down` from that directory) and run this again.")
+					break
+				}
+			}
+		}
+	}
+
 	// RAM gate (D13): the stack's own limits plus the reserve must fit in MemAvailable.
 	need := in.Stack.Meta.ReserveMiB
 	for _, s := range in.Stack.Meta.Services {
@@ -120,6 +165,18 @@ func Preflight(ctx context.Context, h Host, in PreflightIn) []Check {
 		add("memory", OK, fmt.Sprintf("%d MiB available, %d MiB needed", avail, need), "")
 	}
 
+	for _, d := range []string{in.RealDataDir, in.ConfigDir} {
+		if d == "" {
+			continue
+		}
+		if strings.Contains(d, ":") {
+			add("path", Fail, fmt.Sprintf("%s contains a ':' which Docker Compose bind-mount syntax cannot express", d), "Use --root and --config-dir paths without a colon.")
+		}
+		if !h.Writable(nearest(d)) {
+			add("writable", Fail, fmt.Sprintf("this user cannot create files under %s (read-only filesystem or not yours)", d),
+				"Pick a writable place with --root / --config-dir (both directories must be named \"bothy\"), or fix the permissions. Nothing was created.")
+		}
+	}
 	// Disk and filesystem under the data directory.
 	if free, err := h.FreeDiskMiB(in.DataDir); err != nil {
 		add("disk", Warn, "could not measure free disk at "+in.DataDir+": "+err.Error(), "")
@@ -145,7 +202,17 @@ func Preflight(ctx context.Context, h Host, in PreflightIn) []Check {
 			continue
 		}
 		if conflict(in.Bind, h.ListenAddrs(port)) {
-			add("port", Fail, fmt.Sprintf("%s:%d is already in use", in.Bind, port), fmt.Sprintf("Pick another port with --port, or stop what listens on %d.", port))
+			who := ""
+			if out, err := h.Run(ctx, "docker", "ps", "--filter", fmt.Sprintf("publish=%d", port), "--format", "{{.Names}}"); err == nil {
+				if n := strings.Fields(string(out)); len(n) > 0 {
+					who = " (a Docker container publishes it: " + strings.Join(n, ", ") + ")"
+				}
+			}
+			fix := fmt.Sprintf("Nothing was stopped or changed. Run `bothy install --port N` with a free port, or stop what listens on %d yourself.", port)
+			if alt := freePort(h, in.Bind, port); alt != 0 {
+				fix = fmt.Sprintf("Nothing was stopped or changed. Run `bothy install --port %d` (%d is free), or stop what listens on %d yourself.", alt, alt, port)
+			}
+			add("port", Fail, fmt.Sprintf("%s:%d is already in use%s", in.Bind, port, who), fix)
 		} else {
 			add("port", OK, fmt.Sprintf("%s:%d is free", in.Bind, port), "")
 		}
@@ -183,15 +250,28 @@ func Failed(cs []Check) bool {
 func dockerFailure(out string, err error) Check {
 	o := strings.ToLower(out + " " + err.Error())
 	switch {
+	case strings.Contains(o, "wsl integration") || strings.Contains(o, "wsl 2 distro") || strings.Contains(o, "could not be found in this wsl"):
+		return Check{"docker", Fail, "Docker Desktop's WSL integration is off for this distribution (docker is only a stub that points at Docker Desktop)",
+			"In Docker Desktop: Settings > Resources > WSL integration > enable this distro, then reopen the terminal. Or install Docker Engine inside WSL. bothy does neither for you."}
 	case strings.Contains(o, "executable file not found") || strings.Contains(o, "not found") && !strings.Contains(o, "docker.sock"):
 		return Check{"docker", Fail, "docker is not installed", "Install Docker Engine (https://docs.docker.com/engine/install/). bothy does not install it for you: that needs root."}
 	case strings.Contains(o, "permission denied"):
 		return Check{"docker", Fail, "your user cannot use the Docker socket (permission denied)",
-			"Run `sudo usermod -aG docker $USER`, then log out and back in. bothy does not run sudo itself."}
+			"Run `sudo usermod -aG docker $USER`, then log out and back in (or `newgrp docker` in this shell). bothy does not run sudo itself."}
 	default:
 		return Check{"docker", Fail, "the Docker daemon is not answering: " + strings.TrimSpace(firstLine(out)),
 			"Start it (`sudo systemctl start docker`) and run this again."}
 	}
+}
+
+// freePort suggests the first unused port from a short list of usual web ports.
+func freePort(h Host, bind string, not int) int {
+	for _, p := range []int{8080, 8081, 8888, 8000, 3000, 9080} {
+		if p != not && !conflict(bind, h.ListenAddrs(p)) {
+			return p
+		}
+	}
+	return 0
 }
 
 func firstLine(s string) string {
