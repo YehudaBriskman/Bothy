@@ -275,6 +275,73 @@ not fixed. `lab-mini` (2 GiB) was not run. **arm64 was not attempted**: this mac
 `qemu-system-aarch64` and no AArch64 UEFI firmware, so there is nothing honest to run. A real Traefik accepted the
 generated file-provider config (shown by the routes answering).
 
+### 10c. Results against the REAL release v2026.11.1 (lab, 2026-11-17)
+
+First proof with nothing faked except two local copies of release metadata (below). Command:
+`lab/install-proof/run-lab-release.sh v2026.11.1 lab-mid` (host: `gh release download`, `sha256sum -c`, `gh attestation
+verify` on the archive, `checksums.txt` and `release-manifest.json`; guest: Docker from apt, the release's own
+`linux/amd64` binary copied in, then `proof-release.sh`). `lab-mid`, Ubuntu 24.04.5, only `docker.io` 29.1.3 and compose
+2.40.3; no docker login (every pull anonymous, `~/.docker/config.json` absent); no `gh` in the guest; no registry mirror,
+no `fake-release.sh`. **Two full passes on reset guests, both `PROOF PASSED (54 checks)`** (pass 1: 180 s total, pass 2:
+159 s total, each including 29-43 s to install Docker and about 90 s for the proof). Before the scripted passes I ran the
+same steps by hand on a first guest, which is how defects 1 and 2 were found.
+
+**Release metadata used, said exactly.** Binary, images and manifest content are the real ones; `bothy install`/`update`
+were pointed at two **local** files with `--manifest ~/proof/rel/release-manifest.json --checksums ~/proof/rel/checksums.txt`
+because the real pair cannot be installed from (defects 1 and 2). Local `checksums.txt` = the real one plus the line
+`b4eeac066a7c...  release-manifest.json`; local manifest = the real one with only `third_party[*].tag` and `.pinned_in`
+removed (`jq '.third_party |= map_values({ref})'`), digests untouched. The unmodified real manifest's sha256 is
+`4fd7e8e0...db6d`; it is not the one that was installed from.
+
+| Check | Observed |
+|---|---|
+| asset integrity (host) | all 6 archives `sha256sum -c` OK; `gh attestation verify` (SLSA provenance, signer `.github/workflows/release.yml`) OK for the `linux_amd64` archive, `checksums.txt` and `release-manifest.json`. The extracted `bothy` binary alone is **not** attested (404): only archives and the two metadata files are |
+| `gh` in the guest | not installed by default. Installed by hand afterwards: apt's `gh 2.45.0` has **no `attestation` command**; upstream `gh 2.104.0` exists but unauthenticated exits 4 ("run gh auth login"). So the host's attested check does not transfer to a stock guest (defect 3) |
+| `bothy version` | `bothy 2026.11.1 (commit fc7b73323870, speaks api 1)`; manifest commit `fc7b73323870767984c32ac30059cd8d141c2fde` |
+| default source, no flags | `bothy: checksums.txt has no line for release-manifest.json` (defect 1), rc 1 |
+| real manifest as is | `bothy: release manifest: json: unknown field "tag"` (defect 2) |
+| `install --dry-run --bind 0.0.0.0` | rc 0, 9 `do` lines, "960 MiB needed", no directory created |
+| `install --bind 0.0.0.0` | **29.3 s** (manual), **43.1 s** and **40.9 s** (scripted passes). Pulls: web 4.4-6.7 s, files 4.3-7.6 s, Traefik 6.2-17.4 s; `compose up --wait` 13.6-16.4 s. Unpacked: web 94.8 MB, files 117 MB, Traefik 251 MB (449.7 MB in total). Compressed pull from the registries (skopeo): web 26.6 + files 30.0 + Traefik 55.3 = **about 112 MB** (amd64) |
+| bytes through the edge | `GET /` on :80 sha-equals `index.html` read **from the image by digest** (`docker create` + `docker cp`, not from the running container), 5299 bytes; `/version.json` `{"revision":"fc7b73323870767984c32ac30059cd8d141c2fde"}` = manifest commit; the three images present at exactly the manifest digests; the web container's `Config.Image` is the digest ref |
+| memory | Traefik 15 MiB / 128, bothy-web 3.4 / 64, bothy-files 19.6 / 256; guest `used` 452 to 574 MiB with the OS |
+| files | one root `notes`, `readOnly: true`; `/read` returns the file's bytes; `.env` labelled sensitive; `POST /write` answered 405 by the catch-all and created nothing; notes mount read-only in the container; `/raw` not on :80. As in 10b, now on the real `bothy-files` image |
+| edge | no `docker.sock` on Traefik (one `:ro` bind: the dynamic dir); no container privileged, host-networked or mounting the socket; file provider only, `--api=true`, no dashboard; docker publishes only `0.0.0.0:80->80`; `ss` shows 22, 80 and loopback only, nothing on 8100/8899/8099/8080/5000; `traefik:8899` unreachable from another container; no error lines in Traefik's log; **Traefik 3.7.19** |
+| re-run | **0.6-0.7 s**, "nothing to do", key unchanged |
+| `update --check` / `update`, same release | "up to date: this box already matches release 2026.11.1", 0.5-0.6 s; `.env`, receipt, container id unchanged, no `previous/` |
+| update with a manifest for 2026.11.0 (local, own checksum line) | refused: "the manifest is for version 2026.11.0 but this binary is 2026.11.1", nothing changed |
+| update with a manifest altered by one byte | refused: "does not match checksums.txt", nothing changed |
+| downgrade refusal | **not checkable** with one real release: the binary/manifest version check fires first; a real downgrade needs an older real binary |
+| forced failure 1: a web digest `ghcr.io` does not have | pull fails in 0.76 s ("failed to resolve reference"), rolled back, **2.0-2.4 s** in all; `/version.json`, served bytes, `.env` (byte for byte), receipt (`complete` + `last_update_error`) and 3 running containers restored |
+| forced failure 2: unhealthy container (the real `bothy-files` image in the web slot) | `compose up --wait` fails in 1.8 s ("bothy-bothy-web-1 is unhealthy"; the 25 s timeout was not needed), rolled back, **5.6-7.7 s** in all; same assertions |
+| uninstall, reinstall, purge | as 10b on the real images: containers and network gone, secret and notes kept, reinstall reuses both (6.8 s, images already local); a wrong phrase deletes nothing; `delete bothy data` removes root, notes, secrets and **all three pulled images** (0 images left) |
+| arm64 (host `skopeo inspect --no-creds`) | all three own indexes list `linux/amd64` and `linux/arm64`; each arm64 manifest resolves with config `architecture: arm64` and layers (web 27.0, files 30.4, ops 20.2 MB compressed); Traefik's pinned index has an arm64 manifest (50.0 MB). **Pullable, never run**: this box has no `qemu-system-aarch64` and no AArch64 firmware (`/usr/share/AAVMF` absent), so no arm64 guest was booted |
+
+**What failed (honest list)**
+1. **`checksums.txt` has no `release-manifest.json` line** (known, being fixed in the release workflow): a stock
+   `bothy install` on a real release stops at "checksums.txt has no line for release-manifest.json".
+2. **The binary's manifest parser refuses the real manifest.** The release publishes `third_party[*].tag` and
+   `.pinned_in`; `ParseManifest` uses `DisallowUnknownFields` and `ImageEntry` has only `ref` and `platforms`, so
+   `unknown field "tag"`. Release workflow and CLI disagree about the schema; fix one (accepting `tag`/`pinned_in`
+   as informational is the smaller change). Worked around for the proof by the local manifest above. Not fixed here.
+3. **Attestation is fatal and unreachable on a stock machine.** With an https source and `gh` on `PATH`,
+   `checkAttestation` runs `gh attestation verify` and treats any non-zero exit as "rejected". Measured on the guest
+   with apt's `gh 2.45.0` ("unknown command attestation") and with upstream `gh 2.104.0` unauthenticated (exit 4,
+   "gh auth login"): both end `bothy: attestation: ... rejected checksums.txt`, rc 1 (a local https server with a trusted
+   self-signed cert stood in for the release URL, `--dry-run`, so no images were touched). There is no flag to skip it and
+   the message does not say "gh is too old / not logged in". It should tell "gh cannot verify" (skip, say so, print the
+   command) from "gh verified and said no". So the **happy https+attested path of Q2 is still unproven end to end**;
+   only its two failure modes are measured.
+4. Cosmetic: a same-version forced-failure update prints "update to 2026.11.1 failed ... rolled back to 2026.11.1".
+5. Cosmetic/operational: `compose up --wait` dominates install time (13-16 s), and a failed update prints the compose
+   log twice.
+
+**Moved from unverified to proven by this run:** real GHCR images pulled **anonymously** by digest, multi-arch indexes,
+on a clean guest; the real release binary reports its version and commit; install, bytes through the edge, re-run,
+same-version update, two refusals, two forced rollbacks, uninstall and purge, no `docker.sock`, only `:80`, all against
+real artifacts and a real Traefik 3.7.19. **Still unverified:** the unmodified default path (defects 1-3 block it), a
+*verified* attestation inside `bothy install`, a real downgrade, a real A to B update between two real releases, arm64
+execution, `lab-mini`, WSL, rootless Docker.
+
 ## 11. Decisions taken
 
 | # | Decision | Reason |
@@ -352,12 +419,16 @@ it is (no discovery of a newer release, no binary download); the web updater doe
 `checkAttestation` ran in the VM only in its skipped branch (the verified and rejected branches are unit-tested
 with a fake `gh`).
 
-**Not verified at all:** real GHCR images and release assets, and a real `gh attestation verify`; **arm64** (no
+**Not verified at all** (real GHCR images and release assets moved to proven in 10c; a verified `gh attestation verify`
+inside `bothy install` did not, see 10c defect 3): **arm64 execution** (the manifests are pullable, no
 qemu-system-aarch64 here); a WSL host; `lab-mini`; a host where port 80 is taken by another container; rootless
 Docker (refused, untested); Docker `iptables`/`nft` coexistence; the live box (must not be, per the go/no-go);
 the write, delete and raw/archive routes of `files` (deliberately not exposed).
 
 **Exact next steps**
+0. **Found by the real release (10c):** the manifest and the CLI disagree about the schema (`tag`, `pinned_in`), and
+   `checkAttestation` must skip, not fail, when `gh` is too old or unauthenticated. Without those and step 1 below,
+   `bothy install` cannot complete from a real release with no flags.
 1. D34 side: the release must publish `release-manifest.json` and `checksums.txt` as assets of the same tag,
    `checksums.txt` must contain a `release-manifest.json` line (**v2026.11.1 did not: the `cli` job wrote
    `checksums.txt` before the manifest existed, and its own `bothy install` refused it. `release.yml`'s
@@ -365,8 +436,8 @@ the write, delete and raw/archive routes of `files` (deliberately not exposed).
    see `distribution-and-packaging.md` 8.1), `bothy-web` and `bothy-files` must be built with
    `REVISION=<commit>`, and `images`/`third_party` keys must be the image's last path segment. Then stamp
    `PinnedManifestSHA` in the release build.
-2. Repeat the VM proof against real GHCR images with `gh` installed in the guest (drop `fake-release.sh` from the
-   loop; keep `proof.sh`).
+2. Re-run `REPAIR_CHECKSUMS=0 lab/install-proof/run-lab-release.sh <tag>` on the next release (the default https path, no
+   local copies), and a verified attestation with an authenticated `gh` in the guest. Done once with workarounds (10c).
 3. Add `env_set` and a `contains` verify kind (small Go) so the next module really is data-only.
 4. Run the proof on `lab-mini` and an arm64 guest (needs qemu-system-aarch64 and firmware on the host).
 5. Wire the web updater to read the receipt's manifest and call the same update code; add the system scope.
@@ -377,4 +448,4 @@ the write, delete and raw/archive routes of `files` (deliberately not exposed).
 `stack/modes.yml`; `cli/cmd/stackgen`; `cli/internal/stackgen`; `cli/internal/install/{embed,manifest,preflight,
 install,uninstall,host}.go` and `stack/` (generated); `cli/internal/cli/install_cmd.go`;
 `cli/internal/install/{attest,update}.go`; `cli/internal/stackgen/{edge,override}.go`;
-`stack/installed/bothy-files.policy.toml`; `lab/install-proof/{run-lab,fake-release,proof}.sh`.
+`stack/installed/bothy-files.policy.toml`; `lab/install-proof/{run-lab,fake-release,proof}.sh` (faked release) and `lab/install-proof/{run-lab-release,proof-release}.sh` (real release, takes the tag).
