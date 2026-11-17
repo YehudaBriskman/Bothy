@@ -1,0 +1,42 @@
+{
+  "name": "bothy-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The Bothy website: static, prerendered, built from this repository.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && npm run prerender",
+    "prerender": "vite build --ssr src/prerender.tsx --outDir dist-prerender && node scripts/prerender.mjs",
+    "preview": "vite preview",
+    "lint": "eslint src scripts",
+    "typecheck": "tsc -b --noEmit",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "format": "prettier --write src scripts",
+    "format:check": "prettier --check src scripts",
+    "refresh-releases": "node scripts/refresh-releases.mjs",
+    "verify": "bash scripts/verify-dist.sh"
+  },
+  "dependencies": {
+    "marked": "^16.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^6.2.1",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.4"
+  }
+}

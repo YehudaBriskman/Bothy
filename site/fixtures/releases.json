@@ -1,0 +1,907 @@
+{
+  "schema": 1,
+  "repo": "YehudaBriskman/Bothy",
+  "generated": "2026-11-17",
+  "releases": [
+    {
+      "tag": "v2026.11.2",
+      "version": "2026.11.2",
+      "name": "Bothy v2026.11.2",
+      "date": "2026-11-17",
+      "url": "https://github.com/YehudaBriskman/Bothy/releases/tag/v2026.11.2",
+      "changes": [
+        {
+          "title": "docs(plans): a Bothy website, served by the box and published (later)",
+          "pr": 387,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/387"
+        },
+        {
+          "title": "chore(installer): pin v2026.11.1 and its checksums hash",
+          "pr": 388,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/388"
+        },
+        {
+          "title": "docs(plans): website follows WindoM's model; domain bothybox.com",
+          "pr": 389,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/389"
+        },
+        {
+          "title": "fix(release): put the manifest line into the published checksums.txt",
+          "pr": 390,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/390"
+        },
+        {
+          "title": "test(lab): bothy install against the real v2026.11.1 release",
+          "pr": 391,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/391"
+        },
+        {
+          "title": "fix(cli): accept the real manifest schema; classify gh attestation results",
+          "pr": 392,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/392"
+        },
+        {
+          "title": "chore(release): 2026.11.2",
+          "pr": 393,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/393"
+        }
+      ],
+      "compareUrl": "https://github.com/YehudaBriskman/Bothy/compare/v2026.11.1...v2026.11.2",
+      "assets": [
+        {
+          "name": "bothy_2026.11.2_darwin_amd64.tar.gz",
+          "size": 3811621,
+          "sha256": "f0e1d1eb2c73ee42137e472181b088b5626704277d5f7363d1b079fb3f06d240",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/bothy_2026.11.2_darwin_amd64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.2_darwin_arm64.tar.gz",
+          "size": 3496746,
+          "sha256": "730fb017baaac22186db1d1b9933a723502ee5bd05afd9dd742109f645dd7b8e",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/bothy_2026.11.2_darwin_arm64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.2_linux_amd64.tar.gz",
+          "size": 3749053,
+          "sha256": "362c3b356f9a6d5fe4953f10fd13f33735447eac2c9320fa404d68619514c87e",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/bothy_2026.11.2_linux_amd64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.2_linux_arm64.tar.gz",
+          "size": 3366677,
+          "sha256": "b7eaf1cd191ce3f216ab777fb03be80f01d110babc6afc02c4196172fe7c8e23",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/bothy_2026.11.2_linux_arm64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.2_windows_amd64.zip",
+          "size": 3841782,
+          "sha256": "7b6368d0069d7cd85250ceb8601ddbb2cdf5194c04bbb5fd9808697a2e6fad2a",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/bothy_2026.11.2_windows_amd64.zip"
+        },
+        {
+          "name": "bothy_2026.11.2_windows_arm64.zip",
+          "size": 3412485,
+          "sha256": "9aa1e2cc1b9bb05f251562cf12d32fc8cf25641063a6135d5cacd3c53d028c4c",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/bothy_2026.11.2_windows_arm64.zip"
+        },
+        {
+          "name": "checksums.txt",
+          "size": 694,
+          "sha256": "0b97724f81b7b4d9dcbac8d5fdbb270adbe3ed760a518ae1564eb97eb8b72c6f",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/checksums.txt"
+        },
+        {
+          "name": "release-manifest.json",
+          "size": 4268,
+          "sha256": "a22e8954f9623bde230d0f505fc0f9aeb6621fccc3e29497d9a901738199f6a5",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.2/release-manifest.json"
+        }
+      ],
+      "manifest": {
+        "schema": 1,
+        "commit": "930bf6287928b0219a70944e4dc66e560687c8d5",
+        "images": 3,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "thirdParty": 15
+      }
+    },
+    {
+      "tag": "v2026.11.1",
+      "version": "2026.11.1",
+      "name": "Bothy v2026.11.1",
+      "date": "2026-11-17",
+      "url": "https://github.com/YehudaBriskman/Bothy/releases/tag/v2026.11.1",
+      "changes": [
+        {
+          "title": "docs(plans): record the owner's acceptance of D15-D28",
+          "pr": 368,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/368"
+        },
+        {
+          "title": "chore(installer): pin v2026.11.0",
+          "pr": 369,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/369"
+        },
+        {
+          "title": "docs(plans): native-package distribution (deb, rpm, apk, repo, keys), D29-D39 proposed",
+          "pr": 370,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/370"
+        },
+        {
+          "title": "feat(ops): the operation catalog and a read-only /v1 API (slice 1, Python side)",
+          "pr": 371,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/371"
+        },
+        {
+          "title": "docs(plans): measured Go-vs-Rust reassessment of the CLI language (D15)",
+          "pr": 372,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/372"
+        },
+        {
+          "title": "docs(plans): spikes S5d, S6b, S16 from the VM lab",
+          "pr": 373,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/373"
+        },
+        {
+          "title": "docs(plans): record D15 kept, D29-D39 decided, and D40-D43 for /v1 exposure",
+          "pr": 374,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/374"
+        },
+        {
+          "title": "feat(ops): Caller object and per-op exposure as catalog data (D41, D42)",
+          "pr": 375,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/375"
+        },
+        {
+          "title": "feat(cli): the bothy CLI and a read-only stdio MCP server (slice 1)",
+          "pr": 376,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/376"
+        },
+        {
+          "title": "feat(release): CLI release binaries, checksums, attestation and bothy.sh --binary",
+          "pr": 380,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/380"
+        },
+        {
+          "title": "test(cli): run the CLI and MCP server against the real API; fix five defects",
+          "pr": 381,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/381"
+        },
+        {
+          "title": "feat(release): publish own images to GHCR by digest and attach release-manifest.json (D34)",
+          "pr": 382,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/382"
+        },
+        {
+          "title": "feat(cli): bothy install and uninstall for Bivvy from an embedded stack (prototype, lab-proven)",
+          "pr": 383,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/383"
+        },
+        {
+          "title": "feat(ops): bearer-token authentication for the read-only /v1 API (slice 2A, D43)",
+          "pr": 384,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/384"
+        },
+        {
+          "title": "feat(cli): file-provider edge, files module and bothy update with rollback (lab-proven)",
+          "pr": 385,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/385"
+        },
+        {
+          "title": "chore(release): 2026.11.1",
+          "pr": 386,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/386"
+        }
+      ],
+      "compareUrl": "https://github.com/YehudaBriskman/Bothy/compare/v2026.11.0...v2026.11.1",
+      "assets": [
+        {
+          "name": "bothy_2026.11.1_darwin_amd64.tar.gz",
+          "size": 3806203,
+          "sha256": "3dd31aa39b58c71ad80c040094679610d74af928b1a4199f20d6a349543ad9ef",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/bothy_2026.11.1_darwin_amd64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.1_darwin_arm64.tar.gz",
+          "size": 3493439,
+          "sha256": "61c700ae405844bcb9957c9aa11182fcfe6f9e656635604db3b960805de14904",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/bothy_2026.11.1_darwin_arm64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.1_linux_amd64.tar.gz",
+          "size": 3745136,
+          "sha256": "add76bd1a8280d4c92a0cb16fd7c3125da5d39923235129a40d174e50739e253",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/bothy_2026.11.1_linux_amd64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.1_linux_arm64.tar.gz",
+          "size": 3363025,
+          "sha256": "ecc717df523fd4e6c573fba3e159a9aaa132bdcacfa9bc88644b1bc49b0acfc9",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/bothy_2026.11.1_linux_arm64.tar.gz"
+        },
+        {
+          "name": "bothy_2026.11.1_windows_amd64.zip",
+          "size": 3837815,
+          "sha256": "896a1933bc98b940858b1c72b3ad6afc5587f6a301550abf8b8d9039902ae5b6",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/bothy_2026.11.1_windows_amd64.zip"
+        },
+        {
+          "name": "bothy_2026.11.1_windows_arm64.zip",
+          "size": 3409986,
+          "sha256": "bb694ab470a83d2907098156dff50a749d24ac1870b7c237f55383774c5b6c01",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/bothy_2026.11.1_windows_arm64.zip"
+        },
+        {
+          "name": "checksums.txt",
+          "size": 606,
+          "sha256": "21d450f88e85eef1af9e7c97950ad253634fdf413e63a1039f97012b496cecf8",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/checksums.txt"
+        },
+        {
+          "name": "release-manifest.json",
+          "size": 4268,
+          "sha256": "4fd7e8e0416207fc145b0f449c43b12e089b772276dae6eb974a16d67819db6d",
+          "url": "https://github.com/YehudaBriskman/Bothy/releases/download/v2026.11.1/release-manifest.json"
+        }
+      ],
+      "manifest": {
+        "schema": 1,
+        "commit": "fc7b73323870767984c32ac30059cd8d141c2fde",
+        "images": 3,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "thirdParty": 15
+      }
+    },
+    {
+      "tag": "v2026.11.0",
+      "version": "2026.11.0",
+      "name": "Bothy v2026.11.0",
+      "date": "2026-11-16",
+      "url": "https://github.com/YehudaBriskman/Bothy/releases/tag/v2026.11.0",
+      "changes": [
+        {
+          "title": "fix(upgrade): our own images are rebuilt on upgrade - and CI proves it",
+          "pr": 182,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/182"
+        },
+        {
+          "title": "release: the installer serves v2026.9.0",
+          "pr": 183,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/183"
+        },
+        {
+          "title": "pins, Dependabot coverage, and --wait on every up (updates step 1)",
+          "pr": 184,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/184"
+        },
+        {
+          "title": "updates step 3: discovery on the host + read-only Settings > Updates",
+          "pr": 186,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/186"
+        },
+        {
+          "title": "fix(updates): read the KSM chart pin from Chart.yaml (main is red without it)",
+          "pr": 192,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/192"
+        },
+        {
+          "title": "rename socket-proxy.yml -> compose.socket-proxy.yml so Dependabot bumps the boundary image",
+          "pr": 185,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/185"
+        },
+        {
+          "title": "updates step 2: backups that match reality, and restore recipes",
+          "pr": 187,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/187"
+        },
+        {
+          "title": "bothy-files: accept the reviewed bootstrap.sh survey hit",
+          "pr": 194,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/194"
+        },
+        {
+          "title": "updates step 4: the host updater - deploy what main pins, from Settings",
+          "pr": 195,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/195"
+        },
+        {
+          "title": "updates step 7: automatic patches in the night window, pause on failure",
+          "pr": 200,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/200"
+        },
+        {
+          "title": "updates step 5: Grafana and Keycloak - one-way updates with snapshot and restore",
+          "pr": 201,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/201"
+        },
+        {
+          "title": "dependabot: hold React below 19.3 until @react-three/fiber supports it",
+          "pr": 202,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/202"
+        },
+        {
+          "title": "design batch 1: the accessibility blockers from the Apple-design audit",
+          "pr": 204,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/204"
+        },
+        {
+          "title": "updates step 6: Bothy updates itself to a green release, with a rollback timer",
+          "pr": 205,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/205"
+        },
+        {
+          "title": "minikube: keep the cluster node's fixed IP free at boot",
+          "pr": 206,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/206"
+        },
+        {
+          "title": "design batch 2: tokens and shared primitives - press states, one Button, rem type scale, 44px touch",
+          "pr": 207,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/207"
+        },
+        {
+          "title": "updates step 8: cluster add-ons and the Postgres major, through the updater",
+          "pr": 208,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/208"
+        },
+        {
+          "title": "design batch 3: overlays and motion - spring dialogs, anchored popovers, no blank page changes, theme follows the OS",
+          "pr": 209,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/209"
+        },
+        {
+          "title": "design batch 4: one type scale, one spacing and radius set, every icon through ui/Icon",
+          "pr": 210,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/210"
+        },
+        {
+          "title": "Control: a real landing page - health strip, needs attention, quick links, cluster, edge, activity",
+          "pr": 211,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/211"
+        },
+        {
+          "title": "one loader: a thinking-orbs orb behind seven semantic states, and no hand-made spinner comes back",
+          "pr": 212,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/212"
+        },
+        {
+          "title": "design batch 5: tables become cards on a phone, five shared states, and confirmation that follows reversibility",
+          "pr": 213,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/213"
+        },
+        {
+          "title": "SECURITY.md counts its own role-gated routers, and a check holds the number",
+          "pr": 214,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/214"
+        },
+        {
+          "title": "bothy-collector: from system:masters to list on five kinds",
+          "pr": 215,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/215"
+        },
+        {
+          "title": "a loader over content gets a plate, every skeleton reserves its own page, and Prometheus stops being offered",
+          "pr": 216,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/216"
+        },
+        {
+          "title": "kb: fence the cloud node off the tailnet (proposal + runbook, not applied)",
+          "pr": 217,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/217"
+        },
+        {
+          "title": "kb: the ACL proposal carries placeholders, not four personal machines' addresses",
+          "pr": 219,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/219"
+        },
+        {
+          "title": "two more statuses: a one-shot that finished is Done, a project nobody runs is Dormant",
+          "pr": 237,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/237"
+        },
+        {
+          "title": "the documents that count things now count what the tree counts",
+          "pr": 218,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/218"
+        },
+        {
+          "title": "dependabot: the duplicates collapse, the frozen rollback targets stop being offered, and one check holds Alloy's four pins",
+          "pr": 238,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/238"
+        },
+        {
+          "title": "the cluster e2e's constants track the tree's pins, and a check says which one you forgot",
+          "pr": 241,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/241"
+        },
+        {
+          "title": "two checks counted a generated file, so they passed in CI and failed on the box",
+          "pr": 242,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/242"
+        },
+        {
+          "title": "Settings > Updates: check now, run the night job, and a reason for every command that got no button",
+          "pr": 243,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/243"
+        },
+        {
+          "title": "the e2e stops racing the default ServiceAccount, and nine dead aliases leave the console's warning map",
+          "pr": 244,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/244"
+        },
+        {
+          "title": "/system/df comes off the ten-second loop, because it was making the box look sick",
+          "pr": 245,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/245"
+        },
+        {
+          "title": "Bothy Files loads a folder at a time, so the 4,000-file cap and the 15,000 files behind it are gone",
+          "pr": 246,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/246"
+        },
+        {
+          "title": "batch A: the strip stops spanning, a primary tile you pick, one tablist, the Control landing on the tile unit, icons bound to their box, and the Updates row behind a disclosure",
+          "pr": 247,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/247"
+        },
+        {
+          "title": "batch B: the ConfigMap allowlist goes 3 keys to 22, every locked key says why, and the confirm levels stop being retyped",
+          "pr": 248,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/248"
+        },
+        {
+          "title": "oauth2-proxy depends on the seeding, which was true and unstated",
+          "pr": 249,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/249"
+        },
+        {
+          "title": "a group applies a whole recipe at once, because 'by hand' took Grafana down for eight hours",
+          "pr": 250,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/250"
+        },
+        {
+          "title": "the mark had two geometries, three comments saying it had one, and a second generator that would have overwritten three live icons",
+          "pr": 251,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/251"
+        },
+        {
+          "title": "Grafana lands on a page that answers one question, and three gauges stop being permanently green",
+          "pr": 252,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/252"
+        },
+        {
+          "title": "a third of the Updates page's words leave the surface, the group's reason stops being cut mid-word, and what is happening moves right without moving anything",
+          "pr": 253,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/253"
+        },
+        {
+          "title": "thirteen settings sections stop being thirteen rows, and the phone drawer fits on one screen",
+          "pr": 254,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/254"
+        },
+        {
+          "title": "the box says when it is running configuration main no longer declares, instead of 'nothing to deploy'",
+          "pr": 255,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/255"
+        },
+        {
+          "title": "the live actions move to the side of the PAGE, and to a corner of every other page",
+          "pr": 256,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/256"
+        },
+        {
+          "title": "the running-actions rail stops scrolling away with the page",
+          "pr": 257,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/257"
+        },
+        {
+          "title": "the Update button stops outliving the work, because the host looks at the box again the moment a run ends",
+          "pr": 258,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/258"
+        },
+        {
+          "title": "the disk measurement leaves the first-paint gate, so its budget can stop being clever",
+          "pr": 259,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/259"
+        },
+        {
+          "title": "one compose value becomes changeable from the browser, because the host owns both ends of the change",
+          "pr": 260,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/260"
+        },
+        {
+          "title": "Settings says where an alert goes, because on this box it has been going nowhere for at least a week",
+          "pr": 261,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/261"
+        },
+        {
+          "title": "the Apply button stops being drawn on a row the host has always refused — and boundary stays undeployable, with the evidence",
+          "pr": 262,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/262"
+        },
+        {
+          "title": "the mutation table runs in four bounded shards, because one job outgrew its timeout and was reported as cancelled",
+          "pr": 276,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/276"
+        },
+        {
+          "title": "the install suites go green again, because three checks had stopped meaning what they said",
+          "pr": 277,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/277"
+        },
+        {
+          "title": "fix(ops): quote the guard path the pgmajor e2e writes into its justfile",
+          "pr": 296,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/296"
+        },
+        {
+          "title": "chore(ci): stop cancelling runs on main, and queue three fewer jobs per PR",
+          "pr": 297,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/297"
+        },
+        {
+          "title": "fix(ci): release only a commit that passed CI, install and upgrade",
+          "pr": 298,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/298"
+        },
+        {
+          "title": "fix(ci): failure logs are redacted everywhere, and a refusal really holds",
+          "pr": 299,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/299"
+        },
+        {
+          "title": "chore(deps): move four monitoring pins together with their copies",
+          "pr": 300,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/300"
+        },
+        {
+          "title": "fix(files): stream archive members in chunks, so a folder of big files downloads whole",
+          "pr": 301,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/301"
+        },
+        {
+          "title": "feat(monitoring): Grafana reads the OCI cluster's Prometheus, Loki and Tempo",
+          "pr": 303,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/303"
+        },
+        {
+          "title": "fix(monitoring): the disk alert ignores WSL's read-only images",
+          "pr": 304,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/304"
+        },
+        {
+          "title": "chore(deps): victoria-metrics v1.155.0, postgres 17.11 rebuilt digest",
+          "pr": 305,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/305"
+        },
+        {
+          "title": "docs: link the notes and project pages, and fix three stale contributor docs",
+          "pr": 313,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/313"
+        },
+        {
+          "title": "docs: say which sso middlewares are attached, in contributing and .github",
+          "pr": 314,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/314"
+        },
+        {
+          "title": "chore(ci): run the updater e2e beside the install, and only the mutation rows a PR can reach",
+          "pr": 327,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/327"
+        },
+        {
+          "title": "docs(plans): Thin Bothy - k3s-first install, modes, budgets, hybrid runtime, VM lab",
+          "pr": 339,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/339"
+        },
+        {
+          "title": "feat(lab): disposable QEMU/KVM VM lab for testing installs",
+          "pr": 340,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/340"
+        },
+        {
+          "title": "docs(just): list the AI Team Site in 'just urls'",
+          "pr": 341,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/341"
+        },
+        {
+          "title": "docs(plans): spike results S0 and S15 from the VM lab",
+          "pr": 342,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/342"
+        },
+        {
+          "title": "docs(plans): settings and secrets store decision record (#316)",
+          "pr": 345,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/345"
+        },
+        {
+          "title": "fix(dependabot): drop labels that do not exist, document merging a red bump",
+          "pr": 343,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/343"
+        },
+        {
+          "title": "fix(web,ops): explicit sort comparators, private temp dirs in checks (#337, #338)",
+          "pr": 346,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/346"
+        },
+        {
+          "title": "fix(web): run nginx as a non-root user on 8080 (#336)",
+          "pr": 344,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/344"
+        },
+        {
+          "title": "docs(plans): inventory of box-specific defaults for #323",
+          "pr": 356,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/356"
+        },
+        {
+          "title": "docs(plans): coexistence spike results S5b-S13 from the VM lab",
+          "pr": 359,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/359"
+        },
+        {
+          "title": "feat(settings): the settings and secrets store as a library, first slice of #317",
+          "pr": 360,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/360"
+        },
+        {
+          "title": "docs(contributing): mutants.sh anchors and merge order for red Dependabot bumps",
+          "pr": 362,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/362"
+        },
+        {
+          "title": "docs(plans): reconcile Thin Bothy with the decisions and the lab results, add go/no-go",
+          "pr": 363,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/363"
+        },
+        {
+          "title": "docs(plans): VM proof of the uid-101 web image and today's image bumps",
+          "pr": 364,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/364"
+        },
+        {
+          "title": "chore(release): 2026.11.0",
+          "pr": 365,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/365"
+        },
+        {
+          "title": "docs(plans): the bothy CLI, MCP server and update controls as one control plane",
+          "pr": 367,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/367"
+        },
+        {
+          "title": "fix(postgres): pin 17.12 so the upgrade test and the release gate pass",
+          "pr": 366,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/366"
+        }
+      ],
+      "compareUrl": "https://github.com/YehudaBriskman/Bothy/compare/v2026.9.0...v2026.11.0",
+      "assets": [],
+      "manifest": null
+    },
+    {
+      "tag": "v2026.9.0",
+      "version": "2026.9.0",
+      "name": "Bothy v2026.9.0",
+      "date": "2026-09-18",
+      "url": "https://github.com/YehudaBriskman/Bothy/releases/tag/v2026.9.0",
+      "changes": [
+        {
+          "title": "docs(plans): the master plan for all fourteen open issues",
+          "pr": 111,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/111"
+        },
+        {
+          "title": "fix(settings): say that a theme you wrote is a file, not a browser key",
+          "pr": 112,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/112"
+        },
+        {
+          "title": "fix(files): the IDE opened on the one root that aliases every other",
+          "pr": 113,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/113"
+        },
+        {
+          "title": "fix(doctor,monitoring): a true statement about a new box is not a fault",
+          "pr": 114,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/114"
+        },
+        {
+          "title": "feat(theme-editor): the raw-CSS pane types in the real code editor",
+          "pr": 115,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/115"
+        },
+        {
+          "title": "chore(socket-proxy): rename portal-socket-proxy to bothy-socket-proxy",
+          "pr": 116,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/116"
+        },
+        {
+          "title": "feat(installer): scripts/bothy.sh - clone at a pinned release, verify the commit, stop",
+          "pr": 117,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/117"
+        },
+        {
+          "title": "docs(monitoring): record what the cAdvisor flags actually did",
+          "pr": 118,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/118"
+        },
+        {
+          "title": "feat(brand): the wordmark's dot is --brand, not the UI accent",
+          "pr": 119,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/119"
+        },
+        {
+          "title": "docs(themes): --brand in the theme author's README",
+          "pr": 120,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/120"
+        },
+        {
+          "title": "fix(installer): the curl-path job's two first-run findings",
+          "pr": 121,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/121"
+        },
+        {
+          "title": "fix(checks): shellcheck and the bash 3.2 rule skipped the CLI entirely",
+          "pr": 122,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/122"
+        },
+        {
+          "title": "fix(monitoring): cap how big fifteen days is allowed to be",
+          "pr": 123,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/123"
+        },
+        {
+          "title": "fix(overview): the disk panel said \"no volumes\" when it meant \"I could not tell\"",
+          "pr": 124,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/124"
+        },
+        {
+          "title": "docs(security): what a browser shell would cost, before one exists",
+          "pr": 125,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/125"
+        },
+        {
+          "title": "design(settings): group the page by what a setting is about",
+          "pr": 126,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/126"
+        },
+        {
+          "title": "feat(discover): a system's identity, separated from where it is shown",
+          "pr": 127,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/127"
+        },
+        {
+          "title": "feat(reader): diagrams and non-image media in the docs reader",
+          "pr": 129,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/129"
+        },
+        {
+          "title": "docs(guide): the corpus for people who are not this repo's author",
+          "pr": 130,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/130"
+        },
+        {
+          "title": "fix(docs): three screenshots were deleted and ARCHITECTURE.md kept naming them",
+          "pr": 131,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/131"
+        },
+        {
+          "title": "fix(docs): repair the sentences the name-layer scrub left ungrammatical",
+          "pr": 132,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/132"
+        },
+        {
+          "title": "docs(readme): lead with what it is, then how to run it",
+          "pr": 133,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/133"
+        },
+        {
+          "title": "fix(diagrams): the picture on the front page described a box that no longer exists",
+          "pr": 134,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/134"
+        },
+        {
+          "title": "fix(docs): the data chapter still described services retired months ago",
+          "pr": 135,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/135"
+        },
+        {
+          "title": "fix(auth): the realm described three roles by capabilities they never had",
+          "pr": 136,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/136"
+        },
+        {
+          "title": "fix(settings): a token can be out of date with respect to the account",
+          "pr": 137,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/137"
+        },
+        {
+          "title": "feat(reader): Files opens on Start, and Bothy's docs are one click from it",
+          "pr": 138,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/138"
+        },
+        {
+          "title": "feat(control): start the declared services the console could already act on",
+          "pr": 139,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/139"
+        },
+        {
+          "title": "fix(grants): the socket-proxy sweep walked agent worktrees and the trash",
+          "pr": 140,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/140"
+        },
+        {
+          "title": "feat(cli): bothy self-update, because upgrade updates the box and not the tool",
+          "pr": 141,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/141"
+        },
+        {
+          "title": "feat(services): a collapsed group stays collapsed, keyed on what a system IS",
+          "pr": 143,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/143"
+        },
+        {
+          "title": "docs(plan): a shell in the browser, and the second factor in front of it",
+          "pr": 142,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/142"
+        },
+        {
+          "title": "fix(reader): one stretching width for a document, and backlinks that are actually after it",
+          "pr": 159,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/159"
+        },
+        {
+          "title": "feat(reader): Files opens on the guide, and the index is a tree",
+          "pr": 160,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/160"
+        },
+        {
+          "title": "feat(reader): reading size is a setting, and the scope is a control",
+          "pr": 162,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/162"
+        },
+        {
+          "title": "docs(guide): the eight pages the guide was missing",
+          "pr": 163,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/163"
+        },
+        {
+          "title": "Bothy reorg: 5 services, cluster console, VictoriaMetrics/Alloy, Settings v2, stability",
+          "pr": 176,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/176"
+        },
+        {
+          "title": "plans: updates - keep every part of Bothy current from the UI (design)",
+          "pr": 180,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/180"
+        },
+        {
+          "title": "release: v2026.9.0 + automatic CI-gated tagging",
+          "pr": 181,
+          "url": "https://github.com/YehudaBriskman/Bothy/pull/181"
+        }
+      ],
+      "compareUrl": "https://github.com/YehudaBriskman/Bothy/compare/v2026.8.1...v2026.9.0",
+      "assets": [],
+      "manifest": null
+    },
+    {
+      "tag": "v2026.8.1",
+      "version": "2026.8.1",
+      "name": "Bothy v2026.8.1",
+      "date": "2026-08-19",
+      "url": "https://github.com/YehudaBriskman/Bothy/releases/tag/v2026.8.1",
+      "changes": [],
+      "compareUrl": null,
+      "assets": [],
+      "manifest": null
+    }
+  ]
+}
