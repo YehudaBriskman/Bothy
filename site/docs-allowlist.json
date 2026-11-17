@@ -1,0 +1,19 @@
+{
+  "_comment": "The ONLY repository documents the site may render. Paths are relative to the repository's docs/ directory. Everything else is refused at build time (src/docs/safety.ts), and docs/kb, claude-notes and anything credential-shaped is refused even if listed here. Adding a page is a deliberate edit to this file: read the page for tailnet addresses, hostnames and credentials first. backups.md is left out on purpose: it names the owner's note locations.",
+  "files": [
+    { "file": "guide/index.md", "slug": "overview", "group": "start" },
+    { "file": "guide/installing.md", "slug": "installing", "group": "start" },
+    { "file": "guide/the-cli.md", "slug": "the-cli", "group": "start" },
+    { "file": "guide/upgrading.md", "slug": "upgrading", "group": "start" },
+    { "file": "guide/configuring.md", "slug": "configuring", "group": "start" },
+    { "file": "guide/the-console.md", "slug": "the-console", "group": "use" },
+    { "file": "guide/services.md", "slug": "services", "group": "use" },
+    { "file": "guide/files.md", "slug": "files", "group": "use" },
+    { "file": "guide/projects.md", "slug": "projects", "group": "use" },
+    { "file": "guide/themes.md", "slug": "themes", "group": "use" },
+    { "file": "guide/monitoring.md", "slug": "monitoring", "group": "operate" },
+    { "file": "guide/roles.md", "slug": "roles", "group": "operate" },
+    { "file": "guide/settings.md", "slug": "settings", "group": "operate" },
+    { "file": "guide/troubleshooting.md", "slug": "troubleshooting", "group": "operate" }
+  ]
+}

@@ -1,0 +1,55 @@
+name: Deploy site to GitHub Pages
+
+# OFF. This workflow is deliberately `workflow_dispatch` only and has never run.
+# It stays that way until the owner has (1) set Settings > Pages > Source to
+# "GitHub Actions", (2) added the custom domain bothybox.com there, and (3) pointed
+# DNS at GitHub Pages at Cloudflare (see site/README.md, "Going live"). Only then
+# add a `push: branches: [main], paths: [site/**, docs/guide/**]` trigger.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: bash scripts/verify-dist.sh
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
