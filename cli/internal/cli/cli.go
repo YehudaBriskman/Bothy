@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -341,10 +342,20 @@ func output(res *api.Result, opID string, g globals, io IO) error {
 	for _, w := range res.Warnings {
 		fmt.Fprintf(io.Err, "bothy: warning: %s\n", render.Untrusted(w))
 	}
+	// Render to memory first: a response that fails validation must not leave half a
+	// rendering on stdout beside the error.
+	var buf bytes.Buffer
+	var err error
 	if g.json {
-		return render.JSON(io.Out, res.Data)
+		err = render.JSON(&buf, res.Data)
+	} else {
+		err = render.Human(&buf, opID, res.Data)
 	}
-	return render.Human(io.Out, opID, res.Data)
+	if err != nil {
+		return err
+	}
+	_, err = io.Out.Write(buf.Bytes())
+	return err
 }
 
 func cmdVersion(flags map[string]string, g globals, io IO) error {

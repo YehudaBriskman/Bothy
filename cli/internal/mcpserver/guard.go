@@ -88,18 +88,46 @@ func validFrame(b []byte) bool {
 	}
 	switch b[0] {
 	case '{':
-		return true
+		return validMessage(b)
 	case '[':
 		var items []json.RawMessage
 		if json.Unmarshal(b, &items) != nil || len(items) == 0 {
 			return false
 		}
 		for _, it := range items {
-			if t := bytes.TrimSpace(it); len(t) == 0 || t[0] != '{' {
+			if t := bytes.TrimSpace(it); len(t) == 0 || t[0] != '{' || !validMessage(t) {
 				return false
 			}
 		}
 		return true
 	}
 	return false
+}
+
+// validMessage is the JSON-RPC 2.0 shape the SDK needs to not give up on the
+// stream: "jsonrpc":"2.0", a string method (request or notification) or a
+// result/error (a response), an id that is a string, a number or null, and
+// params, if present, an object or an array.
+func validMessage(b []byte) bool {
+	var m struct {
+		JSONRPC string          `json:"jsonrpc"`
+		Method  *string         `json:"method"`
+		ID      json.RawMessage `json:"id"`
+		Params  json.RawMessage `json:"params"`
+		Result  json.RawMessage `json:"result"`
+		Error   json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal(b, &m) != nil || m.JSONRPC != "2.0" {
+		return false
+	}
+	if m.Method == nil && m.Result == nil && m.Error == nil {
+		return false
+	}
+	if id := bytes.TrimSpace(m.ID); len(id) > 0 && id[0] != '"' && id[0] != 'n' && id[0] != '-' && (id[0] < '0' || id[0] > '9') {
+		return false
+	}
+	if p := bytes.TrimSpace(m.Params); len(p) > 0 && p[0] != '{' && p[0] != '[' {
+		return false
+	}
+	return true
 }
