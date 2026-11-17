@@ -156,10 +156,11 @@ pulled images.** `--purge` additionally deletes secrets, images and the install 
 person types `delete bothy data`**; a wrong answer deletes nothing (proven in the lab). The purge refuses a
 path that is not a plain directory named `bothy` (or `secrets`), is `$HOME` or is `/`.
 
-**`bothy update`** (built, 2026-11-17; user-run, decision Q4). It installs the release **the running binary belongs
-to** (the stack definition is embedded, so a newer release arrives as a newer binary; fetching that binary is the
-user's step, and there is no "latest release" discovery yet). The bare verb `bothy update` is this; the catalog
-nouns `update status|plan|history` are unchanged.
+**`bothy update`** (built, 2026-11-17; user-run, decision Q4). The stack-apply step installs the release **the
+running binary belongs to** (the stack definition is embedded, so a newer release arrives as a newer binary). Moving
+to a newer release is the binary self-update in section 8b, which ends by running this step with the new binary
+(`--this-release`, which is also what `--manifest`/`--checksums` imply). The bare verb `bothy update` is this; the
+catalog nouns `update status|plan|history` are unchanged.
 - *Verification, the same as install:* same-version manifest over HTTPS, its line in `checksums.txt`, then
   `gh attestation verify` when a working `gh` is present (one function, `checkAttestation`; skip-versus-refuse
   rules in 10d); otherwise it prints the exact command and says **skipped**. A downgrade is refused unless `--allow-downgrade`.
@@ -177,6 +178,97 @@ nouns `update status|plan|history` are unchanged.
 - *Not done:* the web updater (`apps/bothy-ops/updater`) still reads `main`'s pins. Having it read the
   receipt's manifest and call the same code is a later slice. Install, update and uninstall remain outside the
   MCP catalog (dependency test).
+
+### 8b. `bothy update` finds and installs a newer release (built 2026-11-17, offline-tested only)
+
+```
+bothy update --check          is there a newer stable release? changes nothing, downloads nothing
+bothy update                  newer: verify, replace this binary, then update the box with it
+bothy update --to v2026.12.0  a specific stable release (older than this binary needs --allow-downgrade)
+bothy update --this-release   skip GitHub: re-apply the release THIS binary belongs to (old behaviour)
+```
+
+*Discovery.* `GET https://api.github.com/repos/YehudaBriskman/Bothy/releases?per_page=30`, unauthenticated.
+Drafts, prereleases and tags that are not strict CalVer (`vYYYY.M.N`, month 1-12; `v2026.11.1-rc1` and
+`v2026.11.01` are not versions) are ignored; the **highest** version wins, not the newest-created. Same version: the
+binary is up to date and `update` falls through to the old same-version stack re-apply. A latest older than the
+binary: nothing to do. `--to` older than the binary: refused without `--allow-downgrade`. Rate limit (403 with
+`X-RateLimit-Remaining: 0`, or 429) is its own error naming the reset time; a transport failure says GitHub is
+unreachable and names `--this-release` as the offline way out; both change nothing. `--channel` is not built:
+there is one channel (stable); a second would be a second tag rule, not new code paths.
+
+*Order, and what is checked at each step.* (1) receipt exists and the binary is a release build; (2) discovery;
+(3) `checksums.txt` and `release-manifest.json` for the **tag** are fetched from
+`github.com/<repo>/releases/download/<tag>/`; (4) `VerifyManifest` with the **target** version: the manifest's
+sha256 equals its line in `checksums.txt`, and `manifest.version` equals the tag (a release whose manifest says
+another version is refused); (5) `checkAttestation` on `checksums.txt` (skip-versus-refuse rules of 10d,
+`--require-attestation` honoured); (6) the platform archive `bothy_<ver>_<os>_<arch>.tar.gz|.zip` is streamed to
+a temp file and hashed on the way; the hash must equal its line in `checksums.txt`; a cut connection, an oversize
+body (200 MiB) or a mismatch deletes it; (7) it must hold exactly one file named `bothy`/`bothy.exe` (no path, no
+second entry), unpacked next to the running binary (same directory, so the rename is on one filesystem) with a
+300 MiB cap; (8) the unpacked binary is run once as `bothy version` and must report the target version; (9) swap;
+(10) the **new** binary is run as `update --this-release` with the same `--root/--config-dir/--wait-timeout/
+--allow-downgrade/--require-attestation`, so the stack definition applied is the one embedded in the release it
+belongs to, with the existing receipt, pull-by-digest, verify-by-bytes and rollback; (11) if (10) fails (its own
+rollback has already restored the stack) the old binary is put back, so the verb moves both or neither.
+Steps 1-8 change nothing on disk except temp files (removed on every exit path; tested).
+
+*Swap.* Unix: the old binary is copied to `bothy.prev` (via `bothy.prev.tmp` and a rename), then the new one is
+renamed over `bothy`: atomic, no instant without a binary, a running process keeps its inode. Windows (a running
+exe cannot be overwritten but can be renamed): `bothy` -> `bothy.prev`, then new -> `bothy`; if the second rename
+fails the first is undone. That order is unit-tested with the Windows branch forced on Linux; it is **not run on
+Windows**. If the directory is not writable the verb says so before downloading anything. One `bothy.prev` is kept
+(the next update replaces it); to go back by hand, stop bothy and move `bothy.prev` over `bothy`.
+
+*Packagers.* `install.Packager` (ldflags) non-empty means a package manager owns the binary: `--check` still
+reports, but `bothy update` refuses to replace the binary and names the package manager. The release archives leave
+it empty. A future deb/brew/winget build sets it and needs no other change; the web updater can call
+`bothy update --this-release` (stack only) or the whole verb.
+
+#### The trust model, stated plainly
+
+What is trusted, in order: **(a)** TLS to `api.github.com` for **one string**, the tag name. Every later URL is
+**built** from that validated tag (`github.com/<repo>/releases/download/<tag>/<asset>`); no URL from the API
+response is ever followed, so a forged API response cannot redirect the download to another host or smuggle a path.
+**(b)** TLS to `github.com` (and the CDN it redirects to) for `checksums.txt`, the manifest and the archive.
+**(c)** The sha256 chain: manifest hash and archive hash are both lines in the `checksums.txt` fetched in (b), and
+the images are pulled by digest from the manifest. **(d)** Only when a working, logged-in `gh` (2.49+) is present:
+`gh attestation verify` says `checksums.txt` was produced by this repository's release workflow
+(Sigstore/GitHub attestations). Without `gh` that step is **skipped, loudly**, unless `--require-attestation`.
+
+What an attacker can and cannot do:
+
+- *Controls only the API response* (a hostile proxy that can answer `api.github.com` but cannot also serve
+  `github.com` over valid TLS): can hide a release (stay on the old one), name an older release (needs
+  `--allow-downgrade`; the version refusal compares against the binary), name a tag that does not exist (404, nothing
+  changes) or rate-limit us. Cannot make us run different bytes: the bytes come from the tag's own URLs.
+- *Controls what `github.com` serves for the repository* (a compromised maintainer account or release, or a broken
+  TLS trust store on the user's machine): **wins**, unless (d) is active. The sha256 chain starts from files served
+  by the same place as the archive, so it detects corruption and a mismatched archive, **not** a malicious release.
+  Only the attestation binds `checksums.txt` to the workflow that built it, and a maintainer who can push a release
+  workflow change is the next link. There is no signature the user can check that is independent of GitHub.
+- *Tampered archive or checksums.txt in transit or at rest, with the other left intact*: caught (archive vs its
+  line; manifest vs its line; a manifest or archive swapped to a different version: version check).
+- *A malicious release by the legitimate publisher*: not caught by anything here; it is the publisher's key.
+- Releases from a **fork or another repo**: not reachable; the repository is a constant (`AttestRepo`).
+- The ldflags `PinnedManifestSHA` does **not** apply to a different release than the running binary's, so it is not
+  consulted in the self-update (it cannot be: the running binary was built before the new release existed).
+
+Decision on a pinned signing mechanism: **not now, and nothing invented.** The first hop is TLS plus the GitHub
+attestation, exactly as install already states (Q2). Two real options exist for later, both built on infrastructure
+that already exists: (1) embed Sigstore verification (the `sigstore-go` library, with the trusted root and the
+expected workflow identity `YehudaBriskman/Bothy`'s `release.yml` compiled in) so the check no longer needs `gh`;
+the verifier already sits behind `checkAttestation`; (2) a project-held offline signing key (minisign/cosign key
+pair) whose **public** key is compiled into every binary, so a release is trusted if signed by a key that is not
+GitHub's. (2) would defeat the "GitHub is compromised" row above; it costs a key to guard and rotate. Until one is
+built, `--require-attestation` plus `gh` is the strongest check the verb offers, and the honest default on a machine
+without `gh` is sha256 over TLS.
+
+**Unproven.** Everything above runs against a fake GitHub (`httptest`, two versions, TLS) and fake hosts; there has
+been **no run against the real GitHub API or a real second release** (only v2026.11.1 exists), no run of the real
+`gh attestation verify` inside this verb, no run of the swap on Windows or macOS, no run of the re-exec'd new binary
+(the tests inject it; the real path is `exec <exe> update --this-release ...`), and the 60-requests-an-hour limit
+and the `403`-with-header form are from GitHub's documentation, not observed. The web updater does not use any of this yet.
 
 ## 9. How the lab proof faked the release
 
