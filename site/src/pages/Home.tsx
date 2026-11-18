@@ -1,3 +1,4 @@
+import { AfterStory } from '../components/AfterStory.tsx';
 import { Layout } from '../components/Layout.tsx';
 import { ConsoleFlow } from '../components/chapters/ConsoleFlow.tsx';
 import { Descent } from '../components/chapters/Descent.tsx';
@@ -23,7 +24,7 @@ export const CHAPTERS = ['sky', 'descent', 'hut', 'inside', 'sizes', 'install', 
  */
 export function Home({ ctx }: { ctx: PageContext }) {
   return (
-    <Layout ctx={ctx} nav="home">
+    <Layout ctx={ctx} nav="home" cta glow={false}>
       <div className="story" data-story>
         <SkyStage scenes={SCENES.map((s) => s.id)} />
         <Sky ctx={ctx} />
@@ -36,6 +37,7 @@ export function Home({ ctx }: { ctx: PageContext }) {
         <Trust ctx={ctx} />
         <ChapterDots ctx={ctx} ids={CHAPTERS} />
       </div>
+      <AfterStory ctx={ctx} />
     </Layout>
   );
 }

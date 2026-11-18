@@ -1,0 +1,177 @@
+/*
+ * Design tokens for the site chrome and every page outside the story: colour, type scale, spacing, radius, motion.
+ *
+ * GROUND. The page is black ink by default. The sky is the exception: the hero and the story (story.css), the photo
+ * windows inside cards, and the closing band. Ink is a near-black with a trace of the night sky's blue in it, so where
+ * the story's veil hands over to it there is no change of hue, only of light.
+ *
+ * TYPE. One family: the platform's own grotesk (San Francisco, Segoe UI Variable, Ubuntu Sans, Roboto...), no web
+ * font, nothing fetched. Every step has a size (fluid, clamp() between a 390 px phone and a 1440 px desktop), a line
+ * height and a tracking; large steps are set tight and heavy, body is set open. Use the steps through the `.t-*`
+ * classes or the variables, never a raw size.
+ *
+ *   step       size (390 -> 1440)   weight  leading  tracking   use
+ *   display    44 -> 96 px          650     0.95     -0.045em   the closing headline, the wordmark
+ *   h1         36 -> 64 px          650     1.02     -0.04em    a page title
+ *   h2         30 -> 48 px          620     1.06     -0.035em   a section title
+ *   h3         20 -> 26 px          600     1.2      -0.02em    a card title
+ *   lede       18 -> 21 px          400     1.5      -0.01em    the muted line under a title
+ *   body       16.5 -> 17 px        400     1.55     -0.003em   prose (measure 64ch)
+ *   small      14.5 -> 15 px        400     1.5      0          notes, captions under content
+ *   caption    13 px                500     1.45     0.005em    footer links, figure captions
+ *   label      12 px                600     1.3      0.08em     eyebrows, chips (uppercase)
+ *
+ * SPACE. A 4 px base; section rhythm is --space-section (block padding of a section) and --space-head (title block to
+ * content). Measure for prose is --measure.
+ *
+ * Logical properties only, everywhere (verify-dist.sh refuses the physical ones): the same CSS serves Hebrew later.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── Colour: ink ground ───────────────────────────────────────────────────── */
+  --ink: #08090d;
+  --ink-rgb: 8 9 13;
+  --ink-raise: #0d0e14; /* a panel on the ground */
+  --ink-raise-2: #13141c; /* a panel inside a panel, a code block */
+  --text: #f3f2ee;
+  --text-muted: rgb(243 242 238 / 68%); /* 9.6:1 on --ink */
+  --text-faint: rgb(243 242 238 / 52%); /* 6.0:1 on --ink: labels, never prose */
+  --hairline: rgb(255 255 255 / 9%);
+  --hairline-strong: rgb(255 255 255 / 16%);
+  --glass-edge: rgb(255 255 255 / 11%);
+  --glass-fill: rgb(255 255 255 / 5%);
+  --glass-fill-hover: rgb(255 255 255 / 9%);
+  --lit: #f4efe6; /* the solid pill: the lit window */
+  --lit-hover: #ffffff;
+  --on-lit: #0b1222;
+  --focus: #ffd58a; /* amber, the window's light: 12:1 on --ink, 3:1+ against the white pill and the sky */
+  --ok-ink: #8fe3bf;
+  --warn-ink: #f1c27a;
+  --glow: rgb(98 112 168 / 16%); /* the soft light at the top of a page */
+
+  /* ── Type ─────────────────────────────────────────────────────────────────── */
+  --font-sans:
+    'SF Pro Text', system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', 'Ubuntu Sans', Ubuntu, Roboto,
+    'Noto Sans', 'Noto Sans Hebrew', 'Helvetica Neue', Arial, sans-serif;
+  --font-display:
+    'SF Pro Display', system-ui, -apple-system, 'Segoe UI Variable Display', 'Segoe UI', 'Ubuntu Sans', Ubuntu, Roboto,
+    'Noto Sans', 'Noto Sans Hebrew', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', 'Cascadia Mono', 'Ubuntu Sans Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace;
+
+  --fs-display: clamp(2.75rem, 1.53rem + 4.95vw, 6rem);
+  --fs-h1: clamp(2.25rem, 1.6rem + 2.67vw, 4rem);
+  --fs-h2: clamp(1.875rem, 1.47rem + 1.71vw, 3rem);
+  --fs-h3: clamp(1.25rem, 1.11rem + 0.57vw, 1.625rem);
+  --fs-lede: clamp(1.125rem, 1.06rem + 0.29vw, 1.3125rem);
+  --fs-body: clamp(1.03rem, 1.02rem + 0.05vw, 1.0625rem);
+  --fs-small: clamp(0.906rem, 0.9rem + 0.05vw, 0.9375rem);
+  --fs-caption: 0.8125rem;
+  --fs-label: 0.75rem;
+
+  --lh-display: 0.95;
+  --lh-h1: 1.02;
+  --lh-h2: 1.06;
+  --lh-h3: 1.2;
+  --lh-lede: 1.5;
+  --lh-body: 1.55;
+
+  --tr-display: -0.045em;
+  --tr-h1: -0.04em;
+  --tr-h2: -0.035em;
+  --tr-h3: -0.02em;
+  --tr-lede: -0.01em;
+  --tr-label: 0.08em;
+
+  --measure: 64ch;
+
+  /* ── Space ────────────────────────────────────────────────────────────────── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-section: clamp(4.5rem, 3rem + 6vw, 9rem);
+  --space-head: clamp(2rem, 1.5rem + 2vw, 3.5rem);
+  --content: 76rem;
+  --gutter: clamp(1rem, 4vw, 2.5rem);
+  --nav-h: 4rem;
+
+  /* ── Shape ────────────────────────────────────────────────────────────────── */
+  --r-pill: 999px;
+  --r-sm: 0.625rem;
+  --r-md: 0.875rem;
+  --r-card: 1.5rem;
+  --r-panel: 1.75rem;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 24px 60px -24px rgb(0 0 0 / 70%);
+  --shadow-float: 0 18px 50px -12px rgb(0 0 0 / 60%), 0 2px 8px rgb(0 0 0 / 30%);
+
+  /* ── Motion ───────────────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-emph: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 0.14s;
+  --dur: 0.22s;
+  --dur-slow: 0.6s;
+}
+
+/* The scale as classes, for markup that is not a heading of that rank (a card title that is an h3 but sized as h2). */
+.t-display,
+.t-h1,
+.t-h2,
+.t-h3 {
+  font-family: var(--font-display);
+  text-wrap: balance;
+}
+.t-display {
+  font-size: var(--fs-display);
+  font-weight: 650;
+  line-height: var(--lh-display);
+  letter-spacing: var(--tr-display);
+}
+.t-h1 {
+  font-size: var(--fs-h1);
+  font-weight: 650;
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tr-h1);
+}
+.t-h2 {
+  font-size: var(--fs-h2);
+  font-weight: 620;
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tr-h2);
+}
+.t-h3 {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  line-height: var(--lh-h3);
+  letter-spacing: var(--tr-h3);
+}
+.t-lede {
+  font-size: var(--fs-lede);
+  line-height: var(--lh-lede);
+  letter-spacing: var(--tr-lede);
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+.t-small {
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.t-caption {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.005em;
+}
+.t-label {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
+}

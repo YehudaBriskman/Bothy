@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { DEFAULT_LOCALE, ENABLED_LOCALES, LOCALES, localePrefix, type LocaleCode } from './i18n/locales.ts';
 import type { PageContext } from './page-context.ts';
+import { About } from './pages/About.tsx';
 import { Changelog } from './pages/Changelog.tsx';
 import { DocsIndex, DocView } from './pages/Docs.tsx';
 import { Home } from './pages/Home.tsx';
@@ -87,6 +88,13 @@ export function buildRoutes(): { routes: Route[]; docs: DocPage[] } {
         render: (ctx) => <DocView ctx={ctx} doc={doc} />,
       });
     }
+    add({
+      rel: '/about/',
+      title: `${t.about.title} - ${t.meta.siteTitle}`,
+      description: t.about.description,
+      indexable: true,
+      render: (ctx) => <About ctx={ctx} />,
+    });
     add({
       rel: '/changelog/',
       title: `${t.changelog.title} - ${t.meta.siteTitle}`,

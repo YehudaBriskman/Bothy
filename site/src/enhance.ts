@@ -1,3 +1,4 @@
+import './styles/tokens.css';
 import './styles/site.css';
 import './styles/chapters.css';
 import './styles/sky-still.css';
@@ -5,6 +6,9 @@ import './styles/sky.css';
 import './styles/story.css';
 import './styles/dither.css';
 import './styles/console.css';
+// the frame and the pages outside the story load last: one header, menu and footer for every page
+import './styles/chrome.css';
+import './styles/sections.css';
 import './styles/pages.css';
 
 /**
@@ -52,6 +56,92 @@ for (const fig of document.querySelectorAll<HTMLElement>('figure.term[data-copy-
 for (const code of document.querySelectorAll<HTMLElement>('.prose .code')) {
   const text = code.querySelector('pre')?.textContent ?? '';
   code.append(copyButton(idle, idle, done, text.replace(/\n$/, '')));
+}
+for (const cmd of document.querySelectorAll<HTMLElement>('.dd-cmd[data-copy-text]')) {
+  const b = copyButton(`${idle}: ${cmd.dataset.copyText ?? ''}`, idle, done, cmd.dataset.copyText ?? '');
+  b.classList.add('dd-copy');
+  cmd.append(b);
+}
+
+// ── The install menu and the phone sheet: APG disclosure keys on a native <details> ─────────────────
+// Escape closes and returns focus to the button; Down/Up move through the items (Down on the closed button opens it
+// and moves in); Home/End jump; a click or focus outside closes; opening one closes the others.
+const menus = [...document.querySelectorAll<HTMLDetailsElement>('details[data-dd]')];
+const itemsOf = (d: HTMLDetailsElement) =>
+  [...d.querySelectorAll<HTMLElement>('summary ~ * a[href], summary ~ * button')].filter((e) => e.offsetParent);
+for (const d of menus) {
+  const sum = d.querySelector('summary')!;
+  d.addEventListener('toggle', () => {
+    if (d.open) for (const o of menus) if (o !== d) o.open = false;
+  });
+  d.addEventListener('keydown', (e) => {
+    const items = itemsOf(d);
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'Escape' && d.open) {
+      e.preventDefault();
+      d.open = false;
+      sum.focus();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!d.open) d.open = true;
+      const list = itemsOf(d);
+      if (!list.length) return;
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      const next = at < 0 ? (step > 0 ? 0 : list.length - 1) : (at + step + list.length) % list.length;
+      list[next]!.focus();
+    } else if ((e.key === 'Home' || e.key === 'End') && at >= 0) {
+      e.preventDefault();
+      items[e.key === 'Home' ? 0 : items.length - 1]!.focus();
+    }
+  });
+  d.addEventListener('focusout', (e) => {
+    if (d.open && e.relatedTarget instanceof Node && !d.contains(e.relatedTarget)) d.open = false;
+  });
+}
+document.addEventListener('click', (e) => {
+  for (const d of menus) if (d.open && !d.contains(e.target as Node)) d.open = false;
+});
+
+// ── The header's states: moved (a soft blur) and over the ink (a quiet dark bar with a hairline) ───────────
+// On a page with the story, the bar turns dark only once the dark sections reach it; on every other page, as soon as
+// the page moves. Plain scroll events: no frame clock needed, and cheap (one rect).
+{
+  const root = document.documentElement;
+  const after = document.querySelector<HTMLElement>('.after-story');
+  const hasStory = !!document.querySelector('[data-story]');
+  const navH = () => document.querySelector<HTMLElement>('[data-nav]')?.offsetHeight ?? 64;
+  const update = () => {
+    const moved = scrollY > 8;
+    root.toggleAttribute('data-scrolled', moved);
+    const dark = hasStory ? !!after && after.getBoundingClientRect().top + 160 < navH() : moved;
+    root.toggleAttribute('data-nav-dark', dark);
+  };
+  update();
+  addEventListener('scroll', update, { passive: true });
+  addEventListener('resize', update, { passive: true });
+}
+
+// ── Reveal on scroll: once, staggered by --i, only what starts below the fold, never with reduced motion ─────
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+  const els = [...document.querySelectorAll<HTMLElement>('.reveal')];
+  const io = new IntersectionObserver(
+    (es) => {
+      for (const e of es)
+        if (e.isIntersecting) {
+          const el = e.target as HTMLElement;
+          el.classList.add('is-shown');
+          el.classList.remove('is-waiting');
+          io.unobserve(el);
+        }
+    },
+    { rootMargin: '0px 0px -6% 0px', threshold: 0.06 },
+  );
+  for (const el of els) {
+    if (el.getBoundingClientRect().top < innerHeight) continue; // on screen at load: never hidden
+    el.classList.add('is-waiting');
+    io.observe(el);
+  }
+  document.documentElement.classList.add('js-reveal');
 }
 
 // ── Docs menu: closed by default on a phone ─────────────────────────────────

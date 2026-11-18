@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+import { Icon } from '../components/Icons.tsx';
 import { Layout } from '../components/Layout.tsx';
 import { Rich } from '../components/Rich.tsx';
 import { Terminal } from '../components/Terminal.tsx';
@@ -29,29 +31,31 @@ export function Install({ ctx }: { ctx: PageContext }) {
 
   return (
     <Layout ctx={ctx} nav="install">
-      <div className="sky-band" data-band="install">
-        <div className="wrap page-head">
+      <div className="wrap page page-install">
+        <header className="page-head">
+          <p className="eyebrow">{i.eyebrow}</p>
           <h1>{i.heading}</h1>
           <p className="lede">{i.lede}</p>
-          <p className="release-line">
-            <bdi>{i.release.latest(`v${v}`, formatDate(latest.date, locale.tag))}</bdi>{' '}
-            <a className="ext" rel="noopener" href={latest.url}>
+          <p className="page-meta">
+            <bdi>{i.release.latest(`v${v}`, formatDate(latest.date, locale.tag))}</bdi>
+            <span className="sep" aria-hidden="true">
+              ·
+            </span>
+            <a rel="noopener" href={latest.url}>
               {i.release.page}
             </a>
           </p>
           {v !== PROVEN_RELEASE ? (
-            <p className="band-note">{i.release.newer(PROVEN_RELEASE)}</p>
+            <p className="note-line">{i.release.newer(PROVEN_RELEASE)}</p>
           ) : (
-            <p className="band-note">{i.release.proven(PROVEN_RELEASE)}</p>
+            <p className="note-line">{i.release.proven(PROVEN_RELEASE)}</p>
           )}
-        </div>
-      </div>
+        </header>
 
-      <div className="wrap page page-install">
         <section aria-labelledby="paths-h" className="block wide">
           <h2 id="paths-h">{i.paths.heading}</h2>
           <div className="path-grid">
-            <article className="path-card" aria-labelledby="path-bin-h">
+            <article className="card path-card reveal" aria-labelledby="path-bin-h">
               <p className="path-tag path-tag-proven">{i.paths.binary.tag}</p>
               <h3 id="path-bin-h">{i.paths.binary.title}</h3>
               <p>
@@ -63,11 +67,15 @@ export function Install({ ctx }: { ctx: PageContext }) {
               <p className="muted">
                 <Rich text={i.paths.binary.proof} />
               </p>
-              <p>
-                <a href="#binary">{i.paths.jump}</a>
-              </p>
+              <a className="card-link" href="#binary">
+                {i.paths.jump} <Icon name="arrow" size={16} className="arrow" />
+              </a>
             </article>
-            <article className="path-card" aria-labelledby="path-src-h">
+            <article
+              className="card path-card reveal"
+              style={{ '--i': 1 } as CSSProperties}
+              aria-labelledby="path-src-h"
+            >
               <p className="path-tag">{i.paths.source.tag}</p>
               <h3 id="path-src-h">{i.paths.source.title}</h3>
               <p>
@@ -79,9 +87,9 @@ export function Install({ ctx }: { ctx: PageContext }) {
               <p className="muted">
                 <Rich text={i.paths.source.proof} />
               </p>
-              <p>
-                <a href="#source">{i.paths.jump}</a>
-              </p>
+              <a className="card-link" href="#source">
+                {i.paths.jump} <Icon name="arrow" size={16} className="arrow" />
+              </a>
             </article>
           </div>
         </section>
@@ -236,7 +244,7 @@ export function Install({ ctx }: { ctx: PageContext }) {
           <h2 id="proof-h">{i.proof.heading}</h2>
           <p>{i.proof.lead}</p>
           <div className="proof-grid">
-            <div>
+            <div className="card proof-card reveal">
               <h3>{pr.shownHeading}</h3>
               <ul className="proof-list proof-shown">
                 {PROVEN.map((id) => (
@@ -246,7 +254,7 @@ export function Install({ ctx }: { ctx: PageContext }) {
                 ))}
               </ul>
             </div>
-            <div>
+            <div className="card proof-card reveal" style={{ '--i': 1 } as CSSProperties}>
               <h3>{pr.notHeading}</h3>
               <ul className="proof-list proof-not">
                 {UNPROVEN.map((id) => (
@@ -257,9 +265,9 @@ export function Install({ ctx }: { ctx: PageContext }) {
               </ul>
             </div>
           </div>
-          <p className="muted">
+          <p className="muted proof-foot">
             {pr.asOf(PROVEN_RELEASE)} ({LAB_GUEST.date}, {nf.format(MEMORY.gateMiB)} MiB memory gate){' '}
-            <a className="ext" rel="noopener" href={RECORD}>
+            <a rel="noopener" href={RECORD}>
               {i.older.record}
             </a>
           </p>

@@ -39,14 +39,34 @@ export const en = {
     github: 'Source on GitHub',
     githubShort: 'GitHub',
     getBothy: 'Install',
-    moreWays: 'More ways to install',
+    moreWays: 'Install options',
+    modes: 'Modes',
+    about: 'About',
+    menuButton: 'Menu',
     menu: {
-      available: [{ title: 'Linux', sub: 'Bothy binary, amd64', tag: 'Available' }],
-      notYet: [
-        { title: 'macOS', sub: 'Not built or tested yet', tag: 'Not yet' },
-        { title: 'Windows', sub: 'Not built or tested yet', tag: 'Not yet' },
-        { title: 'Linux on arm64', sub: 'Not built or tested yet', tag: 'Not yet' },
-      ],
+      label: 'Tested in our lab',
+      available: [
+        {
+          title: 'Linux, amd64',
+          sub: 'The release binary, run end to end',
+          tag: 'Tested',
+          ok: true,
+          icon: 'linux',
+          to: 'install/#binary',
+        },
+        {
+          title: 'Docker with Compose v2',
+          sub: 'What the stack runs on; the installer checks it',
+          tag: 'Needed',
+          ok: false,
+          icon: 'docker',
+          to: 'install/#need-h',
+        },
+      ] as { title: string; sub: string; tag: string; ok: boolean; icon: 'linux' | 'docker'; to: string }[],
+      cmdLabel: 'After the download, one command',
+      cmd: 'bothy install --dry-run',
+      notYet: 'Not yet: macOS, Windows and Linux on arm64 are not built or tested as a place to run it.',
+      guide: 'Installing guide',
       builds: 'All builds on GitHub',
       notes: 'Release notes',
     },
@@ -54,11 +74,41 @@ export const en = {
 
   footer: {
     line: 'Bothy is open source. This site is built from the same repository as the software.',
+    description: 'A small console for the machine you run things on. Free and open source.',
     version: (v: string) => `Newest release: ${v}`,
-    build: 'Built from the repository. No scripts from other sites, no analytics, no cookies.',
+    build: 'No scripts from other sites, no analytics, no cookies.',
     source: 'Source',
     releases: 'Releases on GitHub',
     security: 'Security policy',
+    github: 'Bothy on GitHub',
+    releasesIcon: 'Releases',
+    copyright: (year: string) => `© ${year} Yehuda Briskman. Released under the MIT licence.`,
+    cols: {
+      product: 'Product',
+      resources: 'Resources',
+      legal: 'Legal',
+    },
+    links: {
+      install: 'Install',
+      modes: 'Modes',
+      releases: 'Releases',
+      about: 'About',
+      docs: 'Documentation',
+      installing: 'Installing guide',
+      source: 'Source code',
+      record: 'Test record',
+      licence: 'Licence (MIT)',
+      security: 'Security policy',
+      privacy: 'Privacy',
+    },
+  },
+
+  cta: {
+    heading: 'Give your machine a shelter.',
+    soft: 'Free, open, and plain about it.',
+    primary: 'Install Bothy',
+    secondary: 'Read the docs',
+    fine: 'Tested in our lab on Linux amd64 with Docker and Compose. Bivvy, the smallest size, is the one that installs today; everything else is listed as not shown.',
   },
 
   home: {
@@ -275,10 +325,84 @@ export const en = {
     },
   },
 
+  after: {
+    eyebrow: 'What you get',
+    heading: 'A small console, kept honest.',
+    lede: 'This is what Bivvy, the size that installs today, gives you. The panels inside the pictures are examples, not your machine.',
+    example: 'Example',
+    overview: {
+      title: 'One page for the machine',
+      lead: '**See what is running.** Bothy asks Docker what is up and shows it on one page, with nothing to register by hand.',
+      panel: 'Overview',
+      rows: [
+        { name: 'edge', sub: 'serves the pages' },
+        { name: 'console', sub: 'the web console' },
+        { name: 'files', sub: 'the notes reader' },
+      ],
+      state: 'up',
+      foot: 'Bivvy’s three containers, as they would appear.',
+      link: 'The console',
+    },
+    files: {
+      title: 'Notes where they live',
+      lead: '**Read what is on the disk.** A reader for the documents kept on the machine, straight from where they are. It never writes.',
+      panel: 'Files',
+      rows: ['README.md', 'runbook.md', 'ports.md'],
+      readOnly: 'Writing',
+      foot: 'The reader is read-only by design.',
+      link: 'Bothy Files',
+    },
+    checks: {
+      title: 'It checks before it changes anything',
+      lead: '**Read the plan first.** `bothy install --dry-run` prints the plan and every preflight result, and changes nothing. If one fails, it stops with the fix named.',
+      panel: 'Dry run',
+      rows: (gateMiB: number) => [
+        'Docker answers, Compose v2 present',
+        `At least ${gateMiB} MiB of memory free`,
+        'Port 80 is free',
+        'sha256 matches checksums.txt',
+      ],
+      foot: 'The checks are real; the ticks are an example.',
+      link: 'What the install checks',
+    },
+    features: [
+      {
+        icon: 'shield',
+        lead: '**Verified releases.**',
+        rest: 'Checked against their own checksums, every image pulled by digest.',
+      },
+      { icon: 'repeat', lead: '**Safe to run twice.**', rest: 'In our lab a second install changed nothing.' },
+      {
+        icon: 'stop',
+        lead: '**Refuses with the fix.**',
+        rest: 'A taken port, a stopped Docker or too little memory: nothing is created and the message says why.',
+      },
+      {
+        icon: 'leave',
+        lead: '**Leaves as found.**',
+        rest: '`bothy uninstall` removes what it added and keeps your data unless you purge.',
+      },
+    ],
+  },
+
+  about: {
+    title: 'About Bothy',
+    description:
+      'Where the name comes from, what Bothy is, how it is made and what this site does with your visit: nothing.',
+    eyebrow: 'About',
+    heading: 'A shelter, kept by the people who use it.',
+    nameEyebrow: 'The name',
+    whatEyebrow: 'The software',
+    madeEyebrow: 'How it is made',
+    privacyEyebrow: 'This site',
+    privacyHeading: 'Nothing about your visit leaves your browser.',
+  },
+
   install: {
     title: 'Install Bothy',
     description:
       'Two ways to install Bothy: the bothy binary from a release, with its checksums and attestation commands, or a source checkout. What was tested, what was not, how to uninstall.',
+    eyebrow: 'Linux amd64 with Docker',
     heading: 'Install Bothy',
     lede: 'Two ways in. The release binary is the one that has been tested end to end: Linux amd64 with Docker. Run everything below as your normal user.',
     release: {
@@ -411,6 +535,7 @@ export const en = {
   docs: {
     title: 'Documentation',
     description: 'The Bothy guide, rendered from the Markdown in the repository.',
+    eyebrow: 'The guide',
     heading: 'Documentation',
     lede: 'These pages are the repository’s own guide, rendered from the same Markdown files. Where a page links to a file that is not part of the guide, the link goes to the source on GitHub.',
     notTranslated: 'The documentation is English only.',
@@ -446,6 +571,7 @@ export const en = {
   changelog: {
     title: 'Releases',
     description: 'Every Bothy release, from the repository’s release notes.',
+    eyebrow: 'Changelog',
     heading: 'Releases',
     lede: 'Built from the repository’s GitHub release notes when this site was built. A version listed here has a release page and files you can download.',
     builtFrom: (generated: string) => `Release data captured ${generated}.`,

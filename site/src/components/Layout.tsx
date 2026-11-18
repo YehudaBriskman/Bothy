@@ -1,14 +1,19 @@
 import type { ReactNode } from 'react';
-import { REPO_URL, href } from '../config.ts';
+import { REPO_URL, RELEASES_URL, href } from '../config.ts';
 import { ENABLED_LOCALES, LOCALES, localePrefix, type Locale } from '../i18n/locales.ts';
 import type { PageContext } from '../page-context.ts';
+import { GitHubMark, Icon } from './Icons.tsx';
 import { InstallSplit } from './InstallSplit.tsx';
 
-export type NavKey = 'home' | 'install' | 'docs' | 'changelog' | null;
+export type NavKey = 'home' | 'install' | 'docs' | 'changelog' | 'about' | null;
+
+/** The licence's own copyright year (LICENSE in the repository root). */
+const LICENCE_YEAR = '2026';
+const RECORD = `${REPO_URL}/blob/main/docs/plans/thin-bothy/bothy-install.md`;
 
 function Mark() {
   // A bothy seen from the front: a roofline, a door. Drawn, not an icon font,
-  // and `currentColor`, so it follows the theme without a second asset.
+  // and `currentColor`, so it follows the ink without a second asset.
   return (
     <svg className="mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
       <path d="M3 15 16 4l13 11v13H3z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
@@ -17,20 +22,40 @@ function Mark() {
   );
 }
 
-export function Layout({ ctx, nav, children }: { ctx: PageContext; nav: NavKey; children: ReactNode }) {
-  const { locale, t, latest } = ctx;
+/**
+ * Every page's frame: the pinned header (transparent, no bar, until the page moves; see chrome.css for its states),
+ * the page, an optional closing band, and the footer with its cropped wordmark. `glow` gives a page outside the story
+ * its soft top light; `cta` adds the closing band (not on Install, which is the call to action, nor on the docs).
+ */
+export function Layout({
+  ctx,
+  nav,
+  children,
+  cta = false,
+  glow = true,
+}: {
+  ctx: PageContext;
+  nav: NavKey;
+  children: ReactNode;
+  cta?: boolean;
+  glow?: boolean;
+}) {
+  const { locale, t } = ctx;
   const p = localePrefix(locale.code);
-  const items: { key: Exclude<NavKey, null>; label: string; to: string }[] = [
-    { key: 'install', label: t.nav.install, to: `${p}/install/` },
+  const items: { key: Exclude<NavKey, null> | 'modes'; label: string; to: string }[] = [
     { key: 'docs', label: t.nav.docs, to: `${p}/docs/` },
+    { key: 'install', label: t.nav.install, to: `${p}/install/` },
+    { key: 'modes', label: t.nav.modes, to: `${p}/#sizes` },
     { key: 'changelog', label: t.nav.changelog, to: `${p}/changelog/` },
+    { key: 'about', label: t.nav.about, to: `${p}/about/` },
   ];
   return (
     <>
       <a className="skip" href="#main">
         {t.nav.skip}
       </a>
-      <header className="site-header">
+      {glow ? <div className="page-glow" aria-hidden="true" /> : null}
+      <header className="site-nav" data-nav>
         <div className="wrap bar">
           <a className="brand" href={href(`${p}/`)} aria-current={nav === 'home' ? 'page' : undefined}>
             <Mark />
@@ -39,68 +64,175 @@ export function Layout({ ctx, nav, children }: { ctx: PageContext; nav: NavKey; 
           <nav aria-label={t.nav.label} className="primary">
             <ul>
               {items.map((i) => (
-                <li key={i.key} className={i.key === 'install' ? 'nav-dup' : undefined}>
+                <li key={i.key}>
                   <a href={href(i.to)} aria-current={nav === i.key ? 'page' : undefined}>
                     {i.label}
                   </a>
                 </li>
               ))}
-              <li className="nav-dup">
-                <a href={REPO_URL} rel="noopener" className="ext">
-                  {t.nav.github}
-                </a>
-              </li>
             </ul>
           </nav>
           <div className="tools">
-            <div className="nav-cta">
-              <a className="pill pill-glass" href={REPO_URL} rel="noopener">
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-                  <path
-                    d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {t.nav.githubShort}
-              </a>
-              <InstallSplit ctx={ctx} />
-            </div>
+            <a className="pill pill-glass pill-gh" href={REPO_URL} rel="noopener">
+              <Icon name="star" size={16} />
+              {t.nav.githubShort}
+            </a>
+            <InstallSplit ctx={ctx} id="nav-install" />
+            <details className="nav-sheet" data-dd>
+              <summary className="pill pill-glass" aria-controls="nav-sheet-panel">
+                {t.nav.menuButton}
+              </summary>
+              <div className="sheet-panel" id="nav-sheet-panel">
+                <nav aria-label={t.nav.label}>
+                  <ul>
+                    {items.map((i) => (
+                      <li key={i.key}>
+                        <a href={href(i.to)} aria-current={nav === i.key ? 'page' : undefined}>
+                          {i.label}
+                          <Icon name="arrow" size={16} />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  <hr />
+                  <ul>
+                    <li>
+                      <a href={REPO_URL} rel="noopener">
+                        {t.nav.github}
+                        <Icon name="external" size={16} />
+                      </a>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
+            </details>
             <LanguageSwitch ctx={ctx} />
           </div>
         </div>
       </header>
       <main id="main" tabIndex={-1} data-copy-idle={t.home.hero.copy} data-copied={t.home.hero.copied}>
         {children}
+        {cta ? <EndCta ctx={ctx} /> : null}
       </main>
-      <footer className="site-footer">
-        <div className="wrap foot">
-          <p>{t.footer.line}</p>
-          <p className="muted">
-            <bdi>{t.footer.version(latest.version)}</bdi>. {t.footer.build}
-          </p>
-          <ul className="foot-links">
-            <li>
-              <a href={REPO_URL} rel="noopener" className="ext">
-                {t.footer.source}
-              </a>
-            </li>
-            <li>
-              <a href={`${REPO_URL}/releases`} rel="noopener" className="ext">
-                {t.footer.releases}
-              </a>
-            </li>
-            <li>
-              <a href={`${REPO_URL}/blob/main/SECURITY.md`} rel="noopener" className="ext">
-                {t.footer.security}
-              </a>
-            </li>
-          </ul>
-        </div>
-      </footer>
+      <Footer ctx={ctx} />
     </>
+  );
+}
+
+/** The closing band: the night sky once more, a two-line headline, two pills and what is proven, in small print. */
+function EndCta({ ctx }: { ctx: PageContext }) {
+  const c = ctx.t.cta;
+  const p = localePrefix(ctx.locale.code);
+  return (
+    <section className="end-cta" aria-labelledby="end-cta-h">
+      <div className="end-cta-sky" aria-hidden="true">
+        <picture>
+          <source srcSet={href('sky/night-desk.avif')} type="image/avif" media="(min-width: 721px)" />
+          <source srcSet={href('sky/night-phone.avif')} type="image/avif" />
+          <img src={href('sky/night-desk.webp')} alt="" loading="lazy" decoding="async" />
+        </picture>
+      </div>
+      <div className="wrap reveal">
+        <h2 id="end-cta-h">
+          {c.heading} <span className="soft">{c.soft}</span>
+        </h2>
+        <div className="actions">
+          <a className="pill pill-solid" href={href(`${p}/install/`)}>
+            {c.primary}
+          </a>
+          <a className="pill pill-glass" href={href(`${p}/docs/`)}>
+            {c.secondary}
+          </a>
+        </div>
+        <p className="fine">{c.fine}</p>
+      </div>
+    </section>
+  );
+}
+
+function Footer({ ctx }: { ctx: PageContext }) {
+  const { t, locale, latest } = ctx;
+  const f = t.footer;
+  const p = localePrefix(locale.code);
+  const cols: { title: string; links: { label: string; to: string; ext?: boolean }[] }[] = [
+    {
+      title: f.cols.product,
+      links: [
+        { label: f.links.install, to: href(`${p}/install/`) },
+        { label: f.links.modes, to: href(`${p}/#sizes`) },
+        { label: f.links.releases, to: href(`${p}/changelog/`) },
+        { label: f.links.about, to: href(`${p}/about/`) },
+      ],
+    },
+    {
+      title: f.cols.resources,
+      links: [
+        { label: f.links.docs, to: href(`${p}/docs/`) },
+        { label: f.links.installing, to: href(`${p}/docs/installing/`) },
+        { label: f.links.source, to: REPO_URL, ext: true },
+        { label: f.links.record, to: RECORD, ext: true },
+      ],
+    },
+    {
+      title: f.cols.legal,
+      links: [
+        { label: f.links.licence, to: `${REPO_URL}/blob/main/LICENSE`, ext: true },
+        { label: f.links.security, to: `${REPO_URL}/blob/main/SECURITY.md`, ext: true },
+        { label: f.links.privacy, to: href(`${p}/about/#privacy`) },
+      ],
+    },
+  ];
+  return (
+    <footer className="site-foot">
+      <div className="foot-mark" aria-hidden="true">
+        <span translate="no">BOTHYBOX</span>
+      </div>
+      <div className="foot-body">
+        <div className="wrap foot-grid">
+          <div className="foot-brand">
+            <a className="brand" href={href(`${p}/`)}>
+              <Mark />
+              <span translate="no">{t.meta.siteTitle}</span>
+            </a>
+            <p>{f.description}</p>
+            <ul className="foot-social">
+              <li>
+                <a className="icon-btn" href={REPO_URL} rel="noopener" aria-label={f.github}>
+                  <GitHubMark size={18} />
+                </a>
+              </li>
+              <li>
+                <a className="icon-btn" href={RELEASES_URL} rel="noopener" aria-label={f.releases}>
+                  <Icon name="tag" size={18} />
+                </a>
+              </li>
+            </ul>
+          </div>
+          {cols.map((c, i) => (
+            <nav className="foot-col" key={c.title} aria-labelledby={`foot-h-${i}`}>
+              <h2 id={`foot-h-${i}`}>{c.title}</h2>
+              <ul>
+                {c.links.map((l) => (
+                  <li key={l.label}>
+                    <a href={l.to} rel={l.ext ? 'noopener' : undefined} className="link-draw">
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
+        </div>
+        <div className="wrap">
+          <div className="foot-bottom">
+            <p>{f.copyright(LICENCE_YEAR)}</p>
+            <p>
+              <bdi>{f.version(latest.version)}</bdi> · {f.build}
+            </p>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 }
 

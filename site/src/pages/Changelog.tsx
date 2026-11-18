@@ -7,18 +7,19 @@ export function Changelog({ ctx }: { ctx: PageContext }) {
   const c = t.changelog;
   const nf = new Intl.NumberFormat(locale.tag);
   return (
-    <Layout ctx={ctx} nav="changelog">
+    <Layout ctx={ctx} nav="changelog" cta>
       <div className="wrap page">
         <header className="page-head">
+          <p className="eyebrow">{c.eyebrow}</p>
           <h1>{c.heading}</h1>
           <p className="lede">{c.lede}</p>
-          <p className="muted small">{c.builtFrom(formatDate(feed.generated, locale.tag))}</p>
+          <p className="note-line">{c.builtFrom(formatDate(feed.generated, locale.tag))}</p>
         </header>
         {feed.releases.length ? (
           <ol className="releases">
             {feed.releases.map((r, idx) => (
               <li key={r.tag} id={r.tag}>
-                <article>
+                <article className="card">
                   <h2>
                     <bdi translate="no">{r.tag}</bdi>
                     {idx === 0 ? <span className="chip available small">{c.latest}</span> : null}
@@ -52,8 +53,8 @@ export function Changelog({ ctx }: { ctx: PageContext }) {
                   ) : (
                     <p className="muted">{c.noChanges}</p>
                   )}
-                  <p className="small">
-                    <a className="ext" rel="noopener" href={r.url}>
+                  <p className="release-links">
+                    <a rel="noopener" href={r.url}>
                       {c.releasePage}
                     </a>
                     {r.compareUrl ? (
