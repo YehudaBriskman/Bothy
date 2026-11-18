@@ -103,11 +103,17 @@ icons and manifest, and on the home page JSON-LD (`WebSite` and `SoftwareApplica
 MIT licence; no rating, review or price). `npm run check:seo` (also run by `verify-dist.sh`) checks the built pages,
 the sitemap, robots.txt and the 404 page against the table, and fails on a missing field or a value out of range.
 
-The share images (`public/og/*.jpg`, 1200 x 630 JPEG, under 120 KB each) and the PNG icons are drawn by
-`npm run og` from the CC0 sky photographs and `favicon.svg`, contrast-checked line by line with the S4 maths, and
+The share images (`public/og/*.jpg`, 1200 x 630 JPEG, under 120 KB each), `favicon.svg` and the PNG icons are drawn
+by `npm run og` from the CC0 sky photographs and the BothyBox mark in `src/brand/cube.ts`, contrast-checked line by line with the S4 maths, and
 committed with `public/og/PROVENANCE.json` (bytes, sha256, renderer, font, contrast). Re-run it after changing a
 card's words in `src/seo.ts`: the check fails until the images match. They are not loaded by any page, so they sit
 outside the photograph budget in `check-assets.mjs`.
+
+The mark (the Cube icon and the drawn wordmark, chosen 2026-11-18, see `docs/plans/thin-bothy/brand-options.md`) has
+one source, `src/brand/cube.ts`: the header and footer lockup (`components/Brand.tsx`), the icons, the share cards, and
+the first-visit splash (`src/brand/splash.ts`, a lazy chunk; `splash-gate.ts` decides: once per browser session, home
+page only, never with reduced motion or a blocked sessionStorage, never under automation). `?splash=1` forces it,
+`?splash=0` stops it, `?splash=hold` builds it paused for a screenshot harness (`window.__bbSplash.seek(ms)`).
 
 ## Hebrew
 

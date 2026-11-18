@@ -11,22 +11,16 @@
       "file": "home.jpg",
       "width": 1200,
       "height": 630,
-      "bytes": 54755,
-      "sha256": "406b2858056376a9e5de2519df0f04538db3e72ac7aef1391d9074b665705f71",
+      "bytes": 53861,
+      "sha256": "27852aa0188c2ca8e3858119805c4c56e8bf9c947d986807bab8bbe677c7f486",
       "photo": "public/sky/dusk-desk.webp (see public/sky/PROVENANCE.json, key \"dusk\")",
       "heading": "BothyBox",
       "line": "A free shelter in the hills, for your machine.",
       "contrast": [
         {
-          "text": "Bothy",
-          "wcag": 14.67,
-          "apcaLc": 95.9,
-          "ok": true
-        },
-        {
           "text": "BothyBox",
-          "wcag": 11.09,
-          "apcaLc": 91.9,
+          "wcag": 7.56,
+          "apcaLc": 84,
           "ok": true
         },
         {
@@ -53,16 +47,16 @@
       "file": "install.jpg",
       "width": 1200,
       "height": 630,
-      "bytes": 56027,
-      "sha256": "01e47b9d8bf1a1d47539730ed2311dd98c134cadd186a865663c30f83eb2f3fb",
+      "bytes": 57128,
+      "sha256": "7e002f79c6d86a73e5d8b68562ec3d2847b3d42c99b03c94c12999e6a2b77937",
       "photo": "public/sky/day-desk.webp (see public/sky/PROVENANCE.json, key \"day\")",
       "heading": "Install Bothy",
       "line": "The release binary or a source checkout. Tested in our lab on Linux amd64 with Docker.",
       "contrast": [
         {
-          "text": "Bothy",
-          "wcag": 15.34,
-          "apcaLc": 96.4,
+          "text": "BothyBox lockup",
+          "wcag": 15.18,
+          "apcaLc": 96.3,
           "ok": true
         },
         {
@@ -95,15 +89,15 @@
       "file": "docs.jpg",
       "width": 1200,
       "height": 630,
-      "bytes": 57729,
-      "sha256": "f641d62b1238c0024e72294a157b5f5cb33638da654e31681f3eeedafceffe57",
+      "bytes": 58805,
+      "sha256": "fe9e4b78866b8ff41bc571770f14603c7fedb04ac86ccbfb6fdd1ea07b24c336",
       "photo": "public/sky/night-desk.webp (see public/sky/PROVENANCE.json, key \"night\")",
       "heading": "Bothy documentation",
       "line": "The guide, rendered from the Markdown in the repository.",
       "contrast": [
         {
-          "text": "Bothy",
-          "wcag": 16.29,
+          "text": "BothyBox lockup",
+          "wcag": 16.33,
           "apcaLc": 97.1,
           "ok": true
         },
@@ -137,16 +131,16 @@
       "file": "about.jpg",
       "width": 1200,
       "height": 630,
-      "bytes": 59135,
-      "sha256": "4187d715ffee5b22c6275fef2b7e65f3b0e3264ab0cd9dd4dae3aeb173ff8f60",
+      "bytes": 60196,
+      "sha256": "73fd22d9a718c668f29979d56a97125053af19efd4435f3976ebefb445e1b849",
       "photo": "public/sky/dusk-desk.webp (see public/sky/PROVENANCE.json, key \"dusk\")",
       "heading": "About Bothy",
       "line": "Where the name comes from, and how the software and this site are made.",
       "contrast": [
         {
-          "text": "Bothy",
-          "wcag": 14.67,
-          "apcaLc": 95.9,
+          "text": "BothyBox lockup",
+          "wcag": 14.18,
+          "apcaLc": 95.5,
           "ok": true
         },
         {
@@ -179,16 +173,16 @@
       "file": "changelog.jpg",
       "width": 1200,
       "height": 630,
-      "bytes": 49424,
-      "sha256": "f2a718e7b7071e0e801e6b272ac422008dec3472e2b2b2eea0e3b87f8150d1af",
+      "bytes": 50532,
+      "sha256": "bdee3d2cfb97c6c093df19d4fefd30273ae34a5a36bcb4092f218601ddff2c4e",
       "photo": "public/sky/day-desk.webp (see public/sky/PROVENANCE.json, key \"day\")",
       "heading": "Bothy releases",
       "line": "Every release and its notes, from the repository.",
       "contrast": [
         {
-          "text": "Bothy",
-          "wcag": 15.34,
-          "apcaLc": 96.4,
+          "text": "BothyBox lockup",
+          "wcag": 15.18,
+          "apcaLc": 96.3,
           "ok": true
         },
         {
@@ -223,25 +217,25 @@
       "file": "apple-touch-icon.png",
       "width": 180,
       "height": 180,
-      "bytes": 1738,
-      "sha256": "adabbfa0e652909526ec3ca4ba2211ef5001bb8d6335eaee408cf7a9fdb5e7e8",
-      "source": "public/favicon.svg"
+      "bytes": 2253,
+      "sha256": "dde6bc79cf859b631f91f4ff2a57592d77e9dd4dfd0fd02a5005cc55a19a3ece",
+      "source": "src/brand/cube.ts iconSVG('full') (the Cube icon, full bleed)"
     },
     {
       "file": "icon-192.png",
       "width": 192,
       "height": 192,
-      "bytes": 3385,
-      "sha256": "32fb031cb6146a5a8af89b3df9449cc6632796cb9d4a2d549845de0ab3247b41",
-      "source": "public/favicon.svg"
+      "bytes": 3144,
+      "sha256": "26477ba394a9933782a484b73f732ea78c1eac0290b49d7e125cfb351d7cbc05",
+      "source": "src/brand/cube.ts iconSVG('full') (the Cube icon, full bleed)"
     },
     {
       "file": "icon-512.png",
       "width": 512,
       "height": 512,
-      "bytes": 15258,
-      "sha256": "b0d7bb0899e6fe0a20b5d19c8c9b18f6e1f830f4947e6dea56b419b11b10ed3a",
-      "source": "public/favicon.svg"
+      "bytes": 7542,
+      "sha256": "27af9f7a93de1263326b3883f3e20afb992d3e6a3580aa52858df65ffacd9eb7",
+      "source": "src/brand/cube.ts iconSVG('full') (the Cube icon, full bleed)"
     }
   ]
 }

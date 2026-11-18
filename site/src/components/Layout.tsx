@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { REPO_URL, RELEASES_URL, href } from '../config.ts';
 import { ENABLED_LOCALES, LOCALES, localePrefix, type Locale } from '../i18n/locales.ts';
 import type { PageContext } from '../page-context.ts';
+import { Lockup } from './Brand.tsx';
 import { GitHubMark, Icon } from './Icons.tsx';
 import { InstallSplit } from './InstallSplit.tsx';
 
@@ -10,17 +11,6 @@ export type NavKey = 'home' | 'install' | 'docs' | 'changelog' | 'about' | null;
 /** The licence's own copyright year (LICENSE in the repository root). */
 const LICENCE_YEAR = '2026';
 const RECORD = `${REPO_URL}/blob/main/docs/plans/thin-bothy/bothy-install.md`;
-
-function Mark() {
-  // A bothy seen from the front: a roofline, a door. Drawn, not an icon font,
-  // and `currentColor`, so it follows the ink without a second asset.
-  return (
-    <svg className="mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
-      <path d="M3 15 16 4l13 11v13H3z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-      <path d="M13 28V19.5a3 3 0 0 1 6 0V28" fill="currentColor" />
-    </svg>
-  );
-}
 
 /**
  * Every page's frame: the pinned header (transparent, no bar, until the page moves; see chrome.css for its states),
@@ -58,8 +48,7 @@ export function Layout({
       <header className="site-nav" data-nav>
         <div className="wrap bar">
           <a className="brand" href={href(`${p}/`)} aria-current={nav === 'home' ? 'page' : undefined}>
-            <Mark />
-            <span translate="no">{t.meta.siteTitle}</span>
+            <Lockup />
           </a>
           <nav aria-label={t.nav.label} className="primary">
             <ul>
@@ -193,8 +182,7 @@ function Footer({ ctx }: { ctx: PageContext }) {
         <div className="wrap foot-grid">
           <div className="foot-brand">
             <a className="brand" href={href(`${p}/`)}>
-              <Mark />
-              <span translate="no">{t.meta.siteTitle}</span>
+              <Lockup reuse />
             </a>
             <p>{f.description}</p>
             <ul className="foot-social">

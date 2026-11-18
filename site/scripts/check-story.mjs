@@ -198,5 +198,119 @@ if (!process.env.ONLY || 'scroll'.includes(process.env.ONLY)) {
   if (results.includes(false)) bad++;
   await b.close();
 }
+// The first-visit splash (src/brand/splash.ts). Automation never gets it unasked (navigator.webdriver), so these
+// scenarios either force it with ?splash=1 or pretend to be a person. It must not move anything (CLS 0, the same
+// rects for the header lockup and the hero heading while it plays), must not take a click, must be gone by about
+// 2.5 s or at once on a key, must never load with reduced motion, and must not replay within a session.
+if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
+  const b = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    headless: true,
+    args: NOGL,
+  });
+  const results = [];
+  const check = (name, ok, extra = '') => {
+    results.push(ok);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} splash: ${name}${extra ? ' (' + extra + ')' : ''}`);
+  };
+  const cls = () => {
+    window.__cls = 0;
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
+    }).observe({ type: 'layout-shift', buffered: true });
+  };
+  const rects = (p) =>
+    p.evaluate(() =>
+      ['.site-nav .brand .lockup', '#main h1'].map((q) => {
+        const r = document.querySelector(q)?.getBoundingClientRect();
+        return r ? [r.x, r.y, r.width, r.height].map(Math.round).join(',') : 'missing';
+      }),
+    );
+  // poll by hand: this box's headless Chromium has no frame clock, so waitForFunction's rAF polling would stall
+  const until = async (p, fn, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) {
+      if (await p.evaluate(fn)) return Date.now() - t0;
+      await sleep(50);
+    }
+    return -1;
+  };
+  const present = () => !!document.querySelector('.bb-splash');
+  const absent = () => !document.querySelector('.bb-splash');
+
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript(cls);
+  let p = await ctx.newPage();
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(String(e)));
+  await p.goto(`${base}/?splash=1`, { waitUntil: 'load' });
+  const shown = await until(p, present, 3000);
+  check('?splash=1 shows the overlay', shown >= 0);
+  if (shown >= 0) {
+    const during = await rects(p);
+    const o = await p.evaluate(() => {
+      const el = document.querySelector('.bb-splash');
+      const cs = getComputedStyle(el);
+      const hit = document.elementFromPoint(innerWidth / 2, innerHeight * 0.42);
+      return { aria: el.getAttribute('aria-hidden'), pe: cs.pointerEvents, pos: cs.position, hit: !el.contains(hit) };
+    });
+    check(
+      'the overlay is aria-hidden, fixed and takes no pointer',
+      o.aria === 'true' && o.pe === 'none' && o.pos === 'fixed' && o.hit,
+      JSON.stringify(o),
+    );
+    const gone = await until(p, absent, 2800);
+    check('gone by itself within about 2.5 s', gone >= 0, `${shown + gone} ms after load`);
+    const after = await rects(p);
+    const c = await p.evaluate(() => window.__cls);
+    check(
+      'no layout shift: CLS 0 and the same rects while it plays and after',
+      c === 0 && during.join() === after.join(),
+      `CLS ${c}; ${during.join(' | ')} vs ${after.join(' | ')}`,
+    );
+  }
+  check('no page errors', errs.length === 0, errs.join('; '));
+
+  // a key ends it at once
+  p = await ctx.newPage();
+  await p.goto(`${base}/?splash=1`, { waitUntil: 'load' });
+  if ((await until(p, present, 3000)) >= 0) {
+    await sleep(300);
+    await p.keyboard.press('Shift');
+    const gone = await until(p, absent, 1000);
+    check('a key ends it at once', gone >= 0 && gone < 500, `${gone} ms`);
+  } else check('a key ends it at once', false, 'never shown');
+
+  // a person (no webdriver flag) sees it once per session; reloading does not replay it
+  const person = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  await person.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
+  p = await person.newPage();
+  await p.goto(`${base}/`, { waitUntil: 'load' });
+  const first = await until(p, present, 3000);
+  await until(p, absent, 3000);
+  await p.reload({ waitUntil: 'load' });
+  await sleep(1200);
+  const again = await p.evaluate(present);
+  check(
+    'a first visit plays it, a reload in the same session does not',
+    first >= 0 && !again,
+    `first ${first} ms, again ${again}`,
+  );
+
+  // reduced motion: never, not even forced, and the chunk is never fetched
+  const rm = await b.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+  p = await rm.newPage();
+  let fetched = false;
+  p.on('request', (r) => (fetched ||= /\/splash-[\w-]+\.js$/.test(r.url())));
+  await p.goto(`${base}/?splash=1`, { waitUntil: 'load' });
+  await sleep(1200);
+  check(
+    'reduced motion: no overlay and no splash chunk, even with ?splash=1',
+    !(await p.evaluate(present)) && !fetched,
+  );
+  if (results.includes(false)) bad++;
+  await b.close();
+}
+
 srv.close();
 process.exit(bad ? 1 : 0);

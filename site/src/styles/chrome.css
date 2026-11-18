@@ -98,9 +98,53 @@ html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) .site-nav {
   color: var(--nav-ink);
   text-decoration: none;
 }
-.brand .mark {
-  inline-size: 1.6rem;
-  block-size: 1.6rem;
+/* The lockup (components/Brand.tsx): drawn on a cap height of 100, its own box 718 x 136 cap units. --cap sets the
+   wordmark's cap height; the icon is 1.2 x that, and the link keeps half a cap of clear space round the mark
+   (brand-options.md: horizontal lockup at least 96 px wide). */
+.brand .lockup {
+  --cap: 1.125rem;
+  inline-size: calc(var(--cap) * 7.18);
+  block-size: calc(var(--cap) * 1.36);
+  margin-inline-end: calc(var(--cap) * 0.5);
+  overflow: visible;
+}
+@media (max-width: 26rem) {
+  .brand .lockup {
+    --cap: 1rem;
+  }
+}
+.brand .bb-lid {
+  fill: var(--brand-lid, var(--focus));
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+}
+/* On a bright hour the header ink turns navy; the amber lid would vanish into the sky, so it joins the ink. */
+html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) .site-nav .bb-lid {
+  fill: currentColor;
+  fill-opacity: 0.45;
+}
+/* The idle wiggle: on hover or keyboard focus the lid lifts and settles, on a slow loop. CSS only. */
+@media (prefers-reduced-motion: no-preference) {
+  .brand:hover .bb-lid,
+  .brand:focus-visible .bb-lid {
+    animation: bb-lid 1.6s var(--ease-out) infinite;
+  }
+}
+@keyframes bb-lid {
+  0%,
+  45%,
+  100% {
+    transform: none;
+  }
+  12% {
+    transform: translate(-1px, -9px) rotate(-16deg);
+  }
+  24% {
+    transform: translate(0, -2px) rotate(4deg);
+  }
+  32% {
+    transform: translate(0, -0.5px) rotate(-1deg);
+  }
 }
 .primary ul {
   display: flex;

@@ -10,13 +10,15 @@ import './styles/console.css';
 import './styles/chrome.css';
 import './styles/sections.css';
 import './styles/pages.css';
+import { shouldPlaySplash } from './brand/splash-gate.ts';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
  * a few conveniences and nothing else: copy buttons on commands, documentation
  * search, the install menu and collapsing the docs menu on a phone. There is no
- * colour-scheme switch and nothing is stored: the sky follows the visitor's hour,
- * and without script the page follows prefers-color-scheme.
+ * colour-scheme switch and nothing is stored but one sessionStorage flag (the
+ * first-visit splash has played): the sky follows the visitor's hour, and without
+ * script the page follows prefers-color-scheme.
  */
 
 // Controls that only work with JavaScript are rendered `hidden`; reveal them now.
@@ -157,6 +159,25 @@ if (skySection) {
   const start = () => void import('./enhance-sky.ts').then((m) => m.mountSky(skySection));
   if (document.readyState === 'complete') start();
   else addEventListener('load', start, { once: true });
+}
+
+// ── The first-visit splash: the Cube opens into the lockup, once per session, over the hero (brand/splash-gate.ts) ─
+if (
+  shouldPlaySplash({
+    search: location.search,
+    reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    hasHero: !!storyRoot,
+    atTop: scrollY === 0 && !location.hash,
+    automated: navigator.webdriver === true,
+    storage: () => sessionStorage,
+  })
+) {
+  // ?splash=hold: built paused at 0 for a screenshot harness to seek (headless Chromium here has no frame clock)
+  const hold = new URLSearchParams(location.search).get('splash') === 'hold';
+  void import('./brand/splash.ts').then(
+    (m) => m.playSplash({ hold }),
+    () => {},
+  );
 }
 
 // ── Documentation search ────────────────────────────────────────────────────
