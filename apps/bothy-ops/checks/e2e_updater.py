@@ -487,6 +487,10 @@ verify = ["the body names the version"]
         ok(ts.take_snapshot(cfg, "loki", LOKI, sdir)[0] is None, "a snapshot never overwrites an existing file")
     if PART in ("b", "all"):
         # ══ 6-7: the ONE-WAY class (app-db), on throwaway Grafana and Keycloak ══════
+        if PART == "b":
+            # Sections 1-4 are what first write available.json (their discover());
+            # add_available() below reads it. Alone, this part writes it here.
+            discover()
         import yaml
 
         from updater import classes
