@@ -111,5 +111,92 @@ for (const s of scenarios.filter((x) => !process.env.ONLY || x.name.includes(pro
   );
   await b.close();
 }
+
+// Scrolling inside the story. A wheel, a key or a touch over the frame must just move the page, and nothing inside
+// the frame may be a scroll container (a trap would swallow the wheel). Also: the end marker the sections after the
+// story follow, and the dark variable they sit on.
+if (!process.env.ONLY || 'scroll'.includes(process.env.ONLY)) {
+  const b = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    headless: true,
+    args: NOGL,
+  });
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, hasTouch: true });
+  const p = await ctx.newPage();
+  await p.goto(`${base}/`, { waitUntil: 'load' });
+  await sleep(1500);
+  const results = [];
+  const check = (name, ok, extra = '') => {
+    results.push(ok);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} scroll: ${name}${extra ? ' (' + extra + ')' : ''}`);
+  };
+  await p.evaluate(() => {
+    const t = document.querySelector('[data-console-track]');
+    scrollTo(0, Math.round(t.getBoundingClientRect().top + scrollY + 600));
+  });
+  await sleep(400);
+  const centre = await p.evaluate(() => {
+    const r = document.querySelector('.console-frame').getBoundingClientRect();
+    return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+  });
+  const y0 = () => p.evaluate(() => Math.round(scrollY));
+  let a = await y0();
+  await p.mouse.move(centre.x, centre.y);
+  for (let i = 0; i < 5; i++) await p.mouse.wheel(0, 120);
+  await sleep(300);
+  let c = await y0();
+  check('wheel over the frame moves the page', c > a, `${a} to ${c}`);
+  const traps = await p.evaluate(() => {
+    const bad = [];
+    for (const el of document.querySelectorAll('.cf, .cf *')) {
+      const cs = getComputedStyle(el);
+      if (/auto|scroll/.test(cs.overflowX + cs.overflowY) || cs.overscrollBehaviorY !== 'auto')
+        bad.push(el.className || el.tagName);
+    }
+    return bad.slice(0, 5);
+  });
+  check('nothing inside the frame is a scroll container or traps the wheel', traps.length === 0, traps.join(' | '));
+  for (const key of ['PageDown', 'Space', 'ArrowDown']) {
+    await p.mouse.click(centre.x, centre.y); // the frame is inert while the story plays: the click lands on the page
+    a = await y0();
+    await p.keyboard.press(key === 'Space' ? ' ' : key);
+    await sleep(500);
+    c = await y0();
+    check(`${key} with focus at the frame scrolls`, c > a, `${a} to ${c}`);
+  }
+  // touch needs a touch-scrolling page: a mobile-emulating context at the same 1440x900 so the story still plays
+  const tctx = await b.newContext({ viewport: { width: 1440, height: 900 }, hasTouch: true, isMobile: true });
+  const tp = await tctx.newPage();
+  await tp.goto(`${base}/`, { waitUntil: 'load' });
+  await sleep(1500);
+  await tp.evaluate(() => {
+    const t = document.querySelector('[data-console-track]');
+    scrollTo(0, Math.round(t.getBoundingClientRect().top + scrollY + 600));
+  });
+  await sleep(400);
+  const cdp = await tctx.newCDPSession(tp);
+  a = await tp.evaluate(() => Math.round(scrollY));
+  const touchY = Math.round(centre.y);
+  for (const [t, yy] of [
+    ['touchStart', touchY],
+    ['touchMove', touchY - 60],
+    ['touchMove', touchY - 160],
+    ['touchMove', touchY - 300],
+    ['touchEnd', null],
+  ]) {
+    await cdp.send('Input.dispatchTouchEvent', { type: t, touchPoints: yy === null ? [] : [{ x: centre.x, y: yy }] });
+    await sleep(40);
+  }
+  await sleep(600);
+  c = await tp.evaluate(() => Math.round(scrollY));
+  check('a touch drag over the frame scrolls the page', c > a, `${a} to ${c}`);
+  const end = await p.evaluate(() => ({
+    has: !!document.getElementById('story-end'),
+    v: getComputedStyle(document.querySelector('.story')).getPropertyValue('--after-story-bg').trim(),
+  }));
+  check('#story-end exists and --after-story-bg is defined', end.has && end.v.length > 0, end.v);
+  if (results.includes(false)) bad++;
+  await b.close();
+}
 srv.close();
 process.exit(bad ? 1 : 0);

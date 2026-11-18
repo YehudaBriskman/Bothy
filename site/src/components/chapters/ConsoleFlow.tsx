@@ -10,17 +10,24 @@ import type { PageContext } from '../../page-context.ts';
 export function ConsoleFlow({ ctx }: { ctx: PageContext }) {
   const f = ctx.t.home.flow;
   return (
-    <section id="console" className="ch ch-flow" aria-label={f.label} data-flow>
-      <div className="ch-wrap ch-flow-wrap">
-        <p className="ch-flow-skip">
-          <a href="#descent">{f.skip}</a>
-        </p>
-        <div className="ch-track" data-console-track>
-          <div className="ch-stage">
-            <ConsoleFrame />
+    <>
+      <section id="console" className="ch ch-flow" aria-label={f.label} data-flow>
+        <div className="ch-wrap ch-flow-wrap">
+          <p className="ch-flow-skip">
+            <a href="#descent">{f.skip}</a>
+          </p>
+          <div className="ch-track" data-console-track>
+            <div className="ch-stage">
+              <ConsoleFrame />
+            </div>
           </div>
         </div>
+      </section>
+      {/* the end of the story: the sky fades into the page's black through a long soft gradient (story.css). The
+        sections after the story follow this marker and sit on --after-story-bg. */}
+      <div id="story-end" className="story-end" aria-hidden="true">
+        <div className="dither-to-black" />
       </div>
-    </section>
+    </>
   );
 }

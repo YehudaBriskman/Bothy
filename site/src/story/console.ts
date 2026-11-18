@@ -14,7 +14,8 @@ import { BEATS } from '../console/flow.ts';
 const clamp = (x: number) => Math.min(1, Math.max(0, x));
 const ease = (x: number) => 1 - (1 - clamp(x)) ** 3;
 const MIN_FIT = 0.5; // below this the frame would be unreadable: static view instead
-const STICK = 88; // px, matches `inset-block-start: 5.5rem` in story.css
+const STICK = 88; // px, under the bar (the header is 4rem and the stage sticks 1.5rem below it)
+const FROM = 0.9; // the window's scale when it first peeks above the fold: already large, and only gently larger when docked
 const VIEWS = ['services', 'files', 'health', 'modules'] as const;
 
 export interface ConsoleDriver {
@@ -55,7 +56,6 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   const fields = qa(login, '.cf-field-v').map((el) => ({ el, out: q(el, '.cf-typed')!, full: el.dataset.type ?? '' }));
   const signin = q(login, '[data-signin]');
   const steps = qa(cf, '.cf-step');
-  const inds = qa(cf, '.cf-ind-i');
 
   // one chip changes state while the scan finishes: the "starting" row comes up
   const starting = q(P[0]!, '.si-starting');
@@ -81,22 +81,19 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   edges.push(1);
 
   let range = 1;
-  let fit = 1;
+  let fit = 1; // the frame's own scale when the window is shorter than the frame is tall
+  let pinTop = STICK; // where the stage sticks: under the bar, and centred in what is left when the frame is short
+  let frameH = 0; // the frame's height before any scale
   let trackTop = 0;
   let on = false;
-  let manual = -1; // the t at which the visitor chose a view by hand; scrolling on gives the scroll the wheel back
-  let lastT = 0;
   let seen = '';
   let beatShown = -1;
-  cf.addEventListener('change', (e) => {
-    if (!e.isTrusted) return;
-    manual = lastT;
-    cf.classList.remove('cs-login');
-  });
+  const glass = q(cf, '.cf-glass');
+  const sr = q(cf, '.cf-sr');
 
-  function measure() {
-    cf!.classList.add('cs-live');
-    scanbar?.classList.add('is-on');
+  /** The frame's layout width, then the heights of its views, equalised: the tallest view sets the window. */
+  function equalise(w: number) {
+    stage!.style.setProperty('--cf-w', `${Math.round(w)}px`);
     body!.style.minBlockSize = '';
     const keep = radios.findIndex((r) => r.checked);
     let tall = 0;
@@ -107,19 +104,46 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     radios[Math.max(0, keep)]!.checked = true;
     body!.style.minBlockSize = `${tall}px`;
     cf!.style.setProperty('--cf-h', `${tall}px`);
+    return glass!.offsetHeight;
+  }
+
+  function measure() {
+    cf!.classList.add('cs-live');
+    root.classList.add('cs-on'); // the stage's width and the pin are sized by these rules: measure with them on
+    scanbar?.classList.add('is-on');
+    if (glass) glass.style.transform = '';
+    // The frame is a comfortable centred window: about 72% of the page wide, at most 1100px. When the window is not tall enough
+    // for that, the frame is laid out wider and scaled down (transform only) so it still fills the width; it is
+    // never switched off for a short window (that was the bug: the demo did not start on a laptop).
+    const target = Math.min(innerWidth * 0.72, 1100);
+    const avail = innerHeight - STICK - 40; // room under the nav above and a margin below (the caption is inside the frame)
+    let w = target;
+    let h = equalise(w);
+    fit = Math.min(1, avail / Math.max(1, h));
+    if (fit < 1) {
+      w = Math.min(target / fit, 2400);
+      h = equalise(w);
+      fit = Math.min(1, avail / Math.max(1, h), (target * 1.05) / w);
+    }
+    frameH = h;
     scanbar?.classList.remove('is-on');
-    // A frame taller than the window is scaled down to fit (transform only), never switched off: a laptop window
-    // (about 700px of page) used to fall back to the static view and the demo never played.
-    fit = Math.min(1, (innerHeight - STICK - 24) / Math.max(1, stage!.offsetHeight));
     on = fit >= MIN_FIT && matchMedia('(min-width: 48rem)').matches;
     root.classList.toggle('cs-on', on);
     cf!.classList.toggle('cs-live', on);
-    stage!.style.transform = '';
+    if (glass) {
+      if (on) glass.setAttribute('inert', '');
+      else glass.removeAttribute('inert');
+    }
     seen = '';
     beatShown = -1;
     if (on) {
+      pinTop = STICK + Math.max(0, (avail - h * fit) / 2);
+      stage!.style.setProperty('--cf-top', `${Math.round(pinTop)}px`);
       trackTop = track!.getBoundingClientRect().top + scrollY;
       range = Math.max(1, track!.offsetHeight - stage!.offsetHeight);
+    } else {
+      stage!.style.removeProperty('--cf-w');
+      stage!.style.removeProperty('--cf-top');
     }
   }
 
@@ -136,26 +160,21 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
 
   function drive() {
     if (!on) return;
-    // the rise: from the peek under the hero to the pinned place, a little larger on the way
-    const top = trackTop - scrollY;
-    const k = clamp((innerHeight * 0.95 - top) / (innerHeight * 0.95 - STICK));
-    const rise = ease(k);
-    const sc = fit * (0.94 + 0.06 * rise);
-    const tf =
-      k >= 1
-        ? fit < 1
-          ? `scale(${fit.toFixed(4)})`
-          : ''
-        : `translateY(${((1 - rise) * 2.5).toFixed(2)}rem) scale(${sc.toFixed(4)})`;
-    if (stage!.style.transform !== tf) stage!.style.transform = tf;
-
-    const t = clamp((scrollY + STICK - trackTop) / range);
-    lastT = t;
-    root.style.setProperty('--cs-t', t.toFixed(3));
-    if (manual >= 0) {
-      if (Math.abs(t - manual) < 0.04) return;
-      manual = -1;
+    // the growth: from a small, narrow peek under the hero to the big centred window, one continuous scrubbed motion
+    // (scale only, plus the bezel easing); the beats start at the moment it is docked, so there is no jump
+    const k = clamp(scrollY / Math.max(1, trackTop - pinTop)); // 0 at the top of the page, 1 when docked
+    const rise = k * k * (3 - 2 * k);
+    // after the beats the window eases away: it rolls up with the page, lightening to nothing as the dark comes in
+    const out = clamp((scrollY + pinTop - trackTop - range) / (frameH * fit * 0.9));
+    const sc = fit * (FROM + (1 - FROM) * rise) * (1 - 0.06 * out);
+    if (glass) {
+      const tf = `scale(${sc.toFixed(4)})`;
+      if (glass.style.transform !== tf) glass.style.transform = tf;
+      glass.style.opacity = (1 - out ** 1.5).toFixed(3);
     }
+    cf!.style.setProperty('--cf-rise', rise.toFixed(3));
+    const t = clamp((scrollY + pinTop - trackTop) / range);
+    root.style.setProperty('--cs-t', t.toFixed(3));
     let beat = BEATS.length - 1;
     for (let i = 0; i < BEATS.length; i++)
       if (t < edges[i + 1]! || i === BEATS.length - 1) {
@@ -199,10 +218,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     if (beatShown !== beat) {
       beatShown = beat;
       steps.forEach((el, i) => el.classList.toggle('is-on', i === beat));
-      inds.forEach((el, i) => {
-        el.classList.toggle('is-on', i === beat);
-        el.classList.toggle('is-done', i < beat);
-      });
+      if (sr) sr.textContent = `Step ${beat + 1} of ${BEATS.length}: ${b.label}. ${b.caption}`;
       const isLogin = b.scene === 'login';
       cf!.classList.toggle('cs-login', isLogin);
       if (isLogin) for (const r of radios) r.checked = false;

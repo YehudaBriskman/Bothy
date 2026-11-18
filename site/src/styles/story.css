@@ -770,6 +770,37 @@ main:has(.story) + .site-footer a {
     border-color: CanvasText;
   }
 }
+/* The end of the story. Below this marker the page is black (--after-story-bg, near #09090c) and stays black: the
+   sky returns only inside cards and in a few designated bands. The marker is a tall block whose gradient is one long
+   smoothstep from clear to the page's black, so there is no line anywhere; every section after it sits on that
+   black. Sections that follow the story: put them after #story-end and they are on --after-story-bg already. */
+.story {
+  --after-story-rgb: 9 9 12;
+  --after-story-bg: rgb(var(--after-story-rgb));
+}
+.story-end {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  block-size: 70svh;
+  pointer-events: none;
+  /* the sky first deepens gently (one long eased gradient), then the dots take it the rest of the way */
+  background: linear-gradient(
+    rgb(var(--after-story-rgb) / 0),
+    rgb(var(--after-story-rgb) / 0.08) 22%,
+    rgb(var(--after-story-rgb) / 0.24) 46%,
+    rgb(var(--after-story-rgb) / 0.42) 70%,
+    rgb(var(--after-story-rgb) / 0.55) 100%
+  );
+}
+.story-end .dither-to-black {
+  --dither-ink: var(--after-story-bg);
+}
+.story .story-end ~ :not([data-story-dots]) {
+  background: var(--after-story-bg);
+}
+
 @media print {
   .sky-stage,
   .story::before,
@@ -828,18 +859,18 @@ main:has(.story) + .site-footer a {
 }
 .cs-on .ch-track > .ch-stage {
   position: sticky;
-  inset-block-start: 5.5rem;
+  inset-block-start: var(--cf-top, 5.5rem);
   margin-block: 0;
+  /* a big centred window: its width is set by the script (about nine tenths of the page, wider when it is
+     scaled down to fit a short window), centred on the page */
+  inline-size: var(--cf-w, 100%);
+  margin-inline: calc(50% - var(--cf-w, 100%) / 2);
 }
-.cs-on .cf-glass::before {
-  content: '';
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline: 1.75rem;
-  block-size: 2px;
-  border-radius: 2px;
-  background: linear-gradient(to right, rgb(255 255 255 / 75%) calc(var(--cs-t, 0) * 100%), transparent 0);
-  pointer-events: none;
+.cs-on .ch-flow {
+  overflow-x: clip; /* clip, not hidden: it makes no scroll container and sticky still works */
+}
+.cs-on .ch-flow .cf-glass {
+  will-change: transform;
 }
 @media (prefers-reduced-motion: no-preference) {
   .cs-on .cs-item {

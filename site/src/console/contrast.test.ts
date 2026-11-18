@@ -80,18 +80,16 @@ test('frame chrome: text on the glass bezel passes on a white and a black sky', 
       const where = `bezel ${bezel.map(Math.round)} over sky ${sky[0]}`;
       check(`tab label (--cf-ink) on ${where}`, col('--cf-ink'), bezel, 4.5);
       check(`badge and tab hover (--cf-ink) on ${where}`, col('--cf-ink'), bezel, 4.5);
+      check(`live caption (#f4f6f8, large text) on ${where}`, [244, 246, 248], bezel, 4.5);
       check(`selected tab (--cf-tab-on-fg) on ${where}`, col('--cf-tab-on-fg'), over([0, 0, 0], 0.3, bezel), 4.5);
     }
 });
 
-test('frame chrome: the step captions and indicator on their solid card', () => {
+test('frame chrome: the static step captions on their solid card', () => {
   const card = col('--cf-card');
   check('caption text (--cf-ink)', col('--cf-ink'), card, 4.5);
   check('step text (--cf-ink-muted)', col('--cf-ink-muted'), card, 4.5);
   check('step label (white)', [255, 255, 255], card, 4.5);
-  // the indicator's bar is a 3px graphic: 3:1 for the state it carries
-  check('indicator, current beat (white bar)', [255, 255, 255], card, 3);
-  check('indicator, done beats (62% ink bar)', over(col('--cf-ink'), 0.62, card), card, 3);
 });
 
 test('demo scenes: text on the dark window and its cards', () => {

@@ -3,6 +3,7 @@ import './styles/chapters.css';
 import './styles/sky-still.css';
 import './styles/sky.css';
 import './styles/story.css';
+import './styles/dither.css';
 import './styles/console.css';
 import './styles/pages.css';
 

@@ -36,49 +36,49 @@ export const BEATS: readonly Beat[] = [
     label: 'Sign in',
     scene: 'login',
     weight: 1,
-    caption: 'You sign in with the login your realm gives you. What you may do after that depends on your role.',
+    caption: 'Sign in with the login your realm gives you.',
   },
   {
     id: 'scan',
     label: 'Discover',
     scene: 'services',
     weight: 1.2,
-    caption: 'Nothing to configure: it asks Docker what is running, and each service appears as it is found.',
+    caption: 'Nothing to configure. It asks Docker what is running.',
   },
   {
     id: 'services',
     label: 'Services',
     scene: 'services',
     weight: 1,
-    caption: 'Every service on one page, with its state, ports and image.',
+    caption: 'Every service on one page: state, ports, image.',
   },
   {
     id: 'detail',
     label: 'Open one',
     scene: 'services',
     weight: 1,
-    caption: 'Open a service to see its state and the verbs it offers: restart and stop for a running one.',
+    caption: 'Open one to see its state, and restart or stop it.',
   },
   {
     id: 'health',
     label: 'Health',
     scene: 'health',
     weight: 1.1,
-    caption: 'The health strip: one glance at whether the machine is all right, with the numbers behind it.',
+    caption: 'One glance at whether the machine is all right.',
   },
   {
     id: 'files',
     label: 'Files',
     scene: 'files',
     weight: 1,
-    caption: 'Bothy Files reads the notes kept on the machine and renders them as documents.',
+    caption: 'Notes kept on the machine, read as documents.',
   },
   {
     id: 'modules',
     label: 'Modules',
     scene: 'modules',
     weight: 1.2,
-    caption: 'Add a module from the command line; the list shows each one with its memory.',
+    caption: 'Add a module from the command line, and see its memory.',
   },
 ];
 
@@ -174,6 +174,6 @@ export function renderSteps(beats: readonly Beat[] = BEATS): string {
         `<li class="cf-step" data-beat="${i}"><b class="cf-step-l">${esc(b.label)}</b> <span class="cf-step-t">${esc(b.caption)}</span></li>`,
     )
     .join('');
-  const ind = beats.map((b, i) => `<li class="cf-ind-i" data-beat="${i}"><span>${esc(b.label)}</span></li>`).join('');
-  return `<div class="cf-flow"><ol class="cf-steps">${li}</ol><ol class="cf-ind" aria-hidden="true">${ind}</ol></div>`;
+  // `cf-sr` is the live region: the step, said once per change, for a reader who cannot see the frame move
+  return `<div class="cf-flow"><ol class="cf-steps">${li}</ol><p class="cf-sr" role="status" aria-live="polite"></p></div>`;
 }
