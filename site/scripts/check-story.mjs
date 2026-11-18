@@ -33,13 +33,6 @@ const srv = http.createServer((req, res) => {
 await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
 const base = `http://127.0.0.1:${srv.address().port}`;
 const { chromium } = await import('playwright-core');
-const GL = [
-  '--use-gl=angle',
-  '--use-angle=swiftshader',
-  '--enable-unsafe-swiftshader',
-  '--ignore-gpu-blocklist',
-  '--no-sandbox',
-];
 const NOGL = ['--disable-gpu', '--disable-software-rasterizer', '--no-sandbox'];
 
 const state = (p) =>
@@ -88,7 +81,7 @@ for (const s of scenarios.filter((x) => !process.env.ONLY || x.name.includes(pro
   await sleep(1500);
   const seen = [];
   let max = -1;
-  let mid = await state(p);
+  await state(p);
   for (let i = 0; i < 90; i++) {
     await p.mouse.wheel(0, 120 + (i % 3) * 20);
     await sleep(60);
