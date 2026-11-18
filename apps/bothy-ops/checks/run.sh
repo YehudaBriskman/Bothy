@@ -178,7 +178,7 @@ done
 
 E2E_GROUPS=""
 e2e_ran=0
-# e2e <group> <title> <script> - one end-to-end suite, in a named group.
+# e2e <group> <title> <script> [args] - one end-to-end suite, in a named group.
 e2e() {
   case " $E2E_GROUPS " in *" $1 "*) ;; *) E2E_GROUPS="${E2E_GROUPS:+$E2E_GROUPS }$1" ;; esac
   case "$E2E" in
@@ -187,7 +187,7 @@ e2e() {
     *) return 0 ;;
   esac
   section "$2"
-  check "$PY" "checks/$3"
+  check "$PY" "checks/$3" "${@:4}"
   e2e_ran=$((e2e_ran + 1))
 }
 
@@ -242,6 +242,9 @@ check "$PY" checks/test_updater.py
 
 section "updates: plan, request and job - one spool file, and nothing else"
 check "$PY" checks/api_updates_apply.py 2>/dev/null
+
+section "e2e_updater.py: every section is in exactly one part, and both parts are run"
+check "$PY" checks/test_e2e_parts.py
 
 section "groups: a whole recipe at once - the union, the scope, all-or-nothing"
 check "$PY" checks/test_groups.py
@@ -310,7 +313,14 @@ fi
 
 # Its own registry, images, compose projects (-p bothy-updater-test*), git repo
 # and state dirs, all removed in a finally block. Never the live stack.
-e2e updater "the host updater, end to end, on a throwaway project" e2e_updater.py
+#
+# SPLIT IN TWO (2026-11): one script, two parts, each doing the ~15 s setup (registry,
+# images, repo) and then its own sections - 1-5 (updater, time-series) and 6-7
+# (Grafana, Keycloak), ~4.5 min each on a runner rather than 9. Nothing in a part
+# reads what an earlier part left. checks/test_e2e_parts.py holds that every section
+# is in exactly one part and that both parts are run here.
+e2e updater "the host updater, end to end: pre-flight, rollback, concurrency, time-series" e2e_updater.py --part=a
+e2e updater-app-db "the host updater, end to end: the one-way app-db class (Grafana, Keycloak)" e2e_updater.py --part=b
 
 # Its own compose project (-p bothy-config-e2e), its own busybox image, its own
 # git repo and state dirs, all removed in a finally block. Never the live stack.
