@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="dark light" />
+    <title>BothyBox hills mock</title>
+    <meta
+      name="description"
+      content="Slice S6 still mock: hills, mist and the bothy graded by the hour, over the real sky photographs."
+    />
+    <link rel="stylesheet" href="scene.css" />
+    <link rel="icon" href="data:," />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        block-size: 100%;
+        background: #0a0c10;
+        color: #f7f5ef;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        overflow: hidden;
+      }
+      /* The sky here is an approximation of the shader (photographs cross-faded and tinted), for judging the hills only. */
+      .stage {
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(to bottom, var(--top, #05091a), var(--bot, #1c2e56));
+        overflow: hidden;
+      }
+      .sky-img {
+        position: absolute;
+        inset: 0;
+        inline-size: 100%;
+        block-size: 100%;
+        object-fit: cover;
+        object-position: 50% 100%;
+        opacity: 0;
+      }
+      .sky-tint {
+        position: absolute;
+        inset: 0;
+        mix-blend-mode: multiply;
+      }
+      .sky-glow {
+        position: absolute;
+        inset: 0;
+        mix-blend-mode: screen;
+      }
+      .panel {
+        position: fixed;
+        inset-inline-start: 12px;
+        inset-block-end: 12px;
+        z-index: 5;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: rgba(8, 12, 22, 0.62);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        backdrop-filter: blur(6px);
+      }
+      .panel input[type='range'] {
+        inline-size: min(46vw, 320px);
+      }
+      .panel label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .sr {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage" id="stage">
+      <img class="sky-img" id="sky-day" alt="" decoding="async" />
+      <img class="sky-img" id="sky-dusk" alt="" decoding="async" />
+      <img class="sky-img" id="sky-night" alt="" decoding="async" />
+      <div class="sky-tint" id="sky-tint"></div>
+      <div class="sky-glow" id="sky-glow"></div>
+      <div class="scene is-paused" id="scene"></div>
+      <h1 class="sr">Hills, mist and a bothy with a lit window</h1>
+    </main>
+    <div class="panel">
+      <label>
+        <span class="sr">Hour of day</span>
+        <input id="hour" type="range" min="0" max="23.99" step="0.05" />
+      </label>
+      <output id="hour-out">--:--</output>
+      <label><input id="pause" type="checkbox" /> pause</label>
+    </div>
+    <script type="module" src="mock.js"></script>
+  </body>
+</html>
