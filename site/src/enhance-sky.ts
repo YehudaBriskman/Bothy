@@ -51,7 +51,7 @@ export function mountSky(section: HTMLElement): void {
   now?.addEventListener('click', () => sky.now());
   pause?.addEventListener('click', () => {
     const paused = sky.togglePause();
-    pause.setAttribute('aria-pressed', String(paused));
+    pause.toggleAttribute('data-paused', paused); // the label says the state; aria-pressed would contradict it (APG)
     pause.textContent = (paused ? pause.dataset.play : pause.dataset.pause) ?? pause.textContent;
   });
   if (!sky.animated()) {

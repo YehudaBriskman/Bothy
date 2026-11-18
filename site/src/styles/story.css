@@ -268,6 +268,10 @@
   position: relative;
   isolation: isolate;
 }
+/* the scrim reaches 1.5rem past the column; on a phone that is past the screen, so the page scrolled sideways */
+.story > :is(.ch-inside, .ch-sizes, .ch-install, .ch-trust) {
+  overflow-x: clip;
+}
 .ch-inside > .ch-wrap::before,
 .ch-sizes > .ch-wrap::before,
 .ch-install > .ch-wrap::before,
@@ -349,6 +353,20 @@
   .story-js .sky-still::before {
     transform: translateY(calc(var(--p, 0) * -5%)) scale(calc(1.04 + var(--p, 0) * 0.2));
     transform-origin: 50% 40%;
+  }
+}
+
+/* No script, light scheme: the story's still photograph is graded dark (sky-still.css), so the hero keeps the light
+   ink the running sky uses. chapters.css's dark day ink was for its own light gradient, which the story covers. */
+@media (prefers-color-scheme: light) {
+  :root:root .story .ch-sky:not(.sky-on) {
+    --sky-fg: #f7f5ef;
+    --sky-muted: #f7f5ef;
+    --sky-focus: #ffd58a;
+    --sky-btn-bg: rgb(8 12 22 / 48%);
+    --sky-btn-line: rgb(255 255 255 / 60%);
+    --sky-btn-fill: #f4efe6;
+    --sky-btn-ink: #1b1630;
   }
 }
 
@@ -693,6 +711,12 @@ main:has(.story) + .site-footer a {
 .story-dots[hidden] {
   display: none;
 }
+/* on a phone (and at 400 percent zoom) the fixed dots sat over the words; the chapters are a plain scroll there */
+@media (max-width: 30rem) {
+  .story-dots {
+    display: none !important;
+  }
+}
 .story-dots {
   position: fixed;
   inset-block: 0;
@@ -726,7 +750,7 @@ main:has(.story) + .site-footer a {
   border-radius: 50%;
   background: rgb(255 255 255 / 55%);
 }
-.story-dots a[aria-current] {
+.story-dots a[aria-current]:not(:focus-visible) {
   outline: 0;
 }
 .story-dots a[aria-current]::before {

@@ -100,6 +100,7 @@ export const en = {
       licence: 'Licence (MIT)',
       security: 'Security policy',
       privacy: 'Privacy',
+      accessibility: 'Accessibility',
     },
   },
 
@@ -568,6 +569,8 @@ export const en = {
     next: 'Next',
     unlinked: 'This reference is not part of the public documentation.',
     sidebarLabel: 'Documentation pages',
+    tableLabel: 'Table',
+    pagerLabel: 'Previous and next page',
   },
 
   changelog: {
@@ -593,6 +596,64 @@ export const en = {
     heading: 'No page here',
     body: 'That address is not part of this site. It may have moved, or it may never have existed.',
     links: 'Try one of these',
+  },
+
+  accessibility: {
+    title: 'Accessibility',
+    description:
+      'What this site aims for (WCAG 2.2 AA), what was tested and how, the limits we know of, and how to report a barrier.',
+    eyebrow: 'This site',
+    heading: 'Accessibility',
+    lede: 'This site should work for everyone who wants to read about Bothy or install it: by keyboard, with a screen reader, zoomed in, with motion reduced, in high contrast mode and with no script at all. This page says what we aim for, what was checked, and what we know is not yet good enough.',
+    updated: 'Last reviewed: 18 November 2026.',
+    sections: [
+      {
+        id: 'aim',
+        heading: 'What we aim for',
+        paras: [
+          'The target is the Web Content Accessibility Guidelines (WCAG) 2.2 at level AA, on every page of this site.',
+          'The Israeli standard IS 5568 is based on WCAG, so meeting WCAG 2.2 AA is meant to cover its substance. This is our own aim and our own checking. The site has not been audited or certified by anyone, against WCAG or against IS 5568, and we do not claim that it conforms.',
+        ],
+        items: [],
+      },
+      {
+        id: 'tested',
+        heading: 'What was tested, and how',
+        paras: [
+          'Every page of the built site was checked in Chromium, at a desktop size (1440 by 900) and a phone width (390):',
+        ],
+        items: [
+          'An automated scan with axe-core on every page, and a script that checks the contrast of text against its real background on the pages outside the story. Both are scripts kept with the site’s source (npm run check:a11y and check:sky), so anyone can run them again.',
+          'The sky behind the home page is checked separately: its text is measured against the picture behind it at each hour of the day.',
+          'Keyboard only: the skip link comes first, every control can be reached and used, the focus ring is visible on light and dark backgrounds, and the install menu follows the usual menu keys (Escape closes it, the arrow keys move through it).',
+          'Structure: one main heading per page, headings in order, labelled navigation, and a language on every page.',
+          'With JavaScript turned off: every page is complete and readable, the console example is a still picture with its steps written out as a list.',
+          'With reduced motion, Windows high contrast mode (forced colours), more contrast and reduced transparency set in the system.',
+          'Zoomed to 200 and 400 percent, at 320 CSS pixels wide with no sideways scrolling, and with wider letter, word and line spacing.',
+        ],
+      },
+      {
+        id: 'limits',
+        heading: 'Known limitations',
+        paras: [],
+        items: [
+          'No person has yet tested the site with a screen reader (NVDA, JAWS, VoiceOver or TalkBack). The checks above are automated or done by eye and keyboard.',
+          'The moving sky on the home page is decoration. It is hidden from screen readers, and everything it shows is also said in words. It can be paused, and it holds still when reduced motion is set.',
+          'The console shown on the home page is an example with made-up data, drawn to look like the real one. It is not a live system, and its contents are not meant to be used.',
+          'The site is in English only for now. A Hebrew version is planned.',
+          'The documentation is written in Markdown in the project repository; a page written there may need fixing here first.',
+        ],
+      },
+      {
+        id: 'report',
+        heading: 'Reporting a problem',
+        paras: [
+          'If something on this site is hard or impossible to use, please tell us. Open an issue on GitHub and say which page, what you were trying to do, and what you use (browser, screen reader or other tools) if you are happy to share it. We will answer there.',
+        ],
+        items: [],
+      },
+    ],
+    report: 'Report an accessibility problem on GitHub',
   },
 
   a11y: {

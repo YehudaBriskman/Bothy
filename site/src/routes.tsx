@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { DEFAULT_LOCALE, ENABLED_LOCALES, LOCALES, localePrefix, type LocaleCode } from './i18n/locales.ts';
 import type { PageContext } from './page-context.ts';
 import { About } from './pages/About.tsx';
+import { Accessibility } from './pages/Accessibility.tsx';
 import { Changelog } from './pages/Changelog.tsx';
 import { DocsIndex, DocView } from './pages/Docs.tsx';
 import { Home } from './pages/Home.tsx';
@@ -40,7 +41,7 @@ export function buildContext(code: LocaleCode, pathWithoutLocale: string, docs: 
 
 export function buildRoutes(): { routes: Route[]; docs: DocPage[] } {
   // Docs are English Markdown whatever the page locale; render once.
-  const docs = loadDocs(LOCALES[DEFAULT_LOCALE].messages.docs.sidebarLabel);
+  const docs = loadDocs(LOCALES[DEFAULT_LOCALE].messages.docs.tableLabel);
   const routes: Route[] = [];
 
   for (const code of ENABLED_LOCALES) {
@@ -101,6 +102,13 @@ export function buildRoutes(): { routes: Route[]; docs: DocPage[] } {
       description: t.changelog.description,
       indexable: true,
       render: (ctx) => <Changelog ctx={ctx} />,
+    });
+    add({
+      rel: '/accessibility/',
+      title: `${t.accessibility.title} - ${t.meta.siteTitle}`,
+      description: t.accessibility.description,
+      indexable: true,
+      render: (ctx) => <Accessibility ctx={ctx} />,
     });
   }
 

@@ -90,6 +90,8 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   let beatShown = -1;
   const glass = q(cf, '.cf-glass');
   const sr = q(cf, '.cf-sr');
+  // the live region speaks the step the reader stops on, not every step a fast scroll passes through
+  let srTimer: number | undefined;
 
   /** The frame's layout width, then the heights of its views, equalised: the tallest view sets the window. */
   function equalise(w: number) {
@@ -218,7 +220,9 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     if (beatShown !== beat) {
       beatShown = beat;
       steps.forEach((el, i) => el.classList.toggle('is-on', i === beat));
-      if (sr) sr.textContent = `Step ${beat + 1} of ${BEATS.length}: ${b.label}. ${b.caption}`;
+      window.clearTimeout(srTimer);
+      const said = `Step ${beat + 1} of ${BEATS.length}: ${b.label}. ${b.caption}`;
+      if (sr) srTimer = window.setTimeout(() => (sr.textContent = said), 700);
       const isLogin = b.scene === 'login';
       cf!.classList.toggle('cs-login', isLogin);
       if (isLogin) for (const r of radios) r.checked = false;

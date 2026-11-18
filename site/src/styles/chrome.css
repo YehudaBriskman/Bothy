@@ -523,6 +523,12 @@ a.dd-row:focus-visible,
     padding-inline: 0.85rem;
   }
 }
+/* 320 CSS px (400 percent zoom): the Install pill covered the name; the Menu sheet carries Install there */
+@media (max-width: 22.5rem) {
+  .tools .pill-split {
+    display: none;
+  }
+}
 
 /* ── The closing band: the night sky once more, inside a frame of ink ─────────────────────────────────── */
 
