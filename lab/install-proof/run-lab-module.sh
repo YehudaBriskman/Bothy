@@ -3,13 +3,13 @@
 # (which enforces the memory gate); runs nothing on this machine's Docker. FAKE-RELEASE
 # path: see fake-node.sh for why (no published release carries node-exporter yet).
 #
-#   lab/install-proof/run-lab-module.sh [profile]        (default lab-mini)
+#   lab/install-proof/run-lab-module.sh [profile]        (default lab-mid)
 #
 # Builds the CLI for 2026.11.0, .1 and .4, boots the VM if it is not already running (it
 # never stops or resets one), copies in the scripts, runs fake-release.sh, fake-node.sh,
 # then module-proof.sh. The VM is left running: stop YOUR VM with lab/lab.sh down <profile>.
 set -euo pipefail
-prof="${1:-lab-mini}"
+prof="${1:-lab-mid}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 LAB="$REPO/lab/lab.sh"
@@ -32,7 +32,7 @@ g true || { echo "run-lab-module: guest did not come up" >&2; exit 1; }
 if ! g 'command -v docker >/dev/null'; then
   g 'sudo cloud-init status --wait >/dev/null 2>&1; sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker.io docker-compose-v2 docker-buildx >/dev/null && sudo usermod -aG docker lab' >&2
 fi
-g 'mkdir -p ~/bin ~/proof; rm -rf ~/.local/share/bothy ~/.config/bothy'
+g 'mkdir -p ~/bin ~/proof; docker ps -aq --filter label=com.docker.compose.project=bothy | xargs -r docker rm -f >/dev/null; rm -rf ~/.local/share/bothy ~/.config/bothy'
 for v in 2026.11.0 2026.11.1 2026.11.4; do g "cat > ~/bin/bothy-$v && chmod +x ~/bin/bothy-$v" < "$out/bothy-$v"; done
 g 'cat > ~/proof/src.tar' < "$out/src.tar"
 for f in fake-release.sh fake-node.sh module-proof.sh; do g "cat > ~/proof/$f && chmod +x ~/proof/$f" < "$HERE/$f"; done
