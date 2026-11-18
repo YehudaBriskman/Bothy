@@ -74,7 +74,15 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 		return fmt.Errorf("installed version %s is newer than %s: refusing a downgrade (pass --allow-downgrade to force it)", rec.Version, m.Version)
 	}
 
-	pf := Preflight(ctx, h, PreflightIn{Stack: st, Manifest: m, Bind: o.Bind, Port: o.Port, DataDir: nearest(o.DataDir), OwnPortsOK: true})
+	if !check && !o.DryRun {
+		release, lerr := lockInstall(o.DataDir)
+		if lerr != nil {
+			return lerr
+		}
+		defer release()
+	}
+	pf := Preflight(ctx, h, PreflightIn{Stack: st, Manifest: m, Bind: o.Bind, Port: o.Port, DataDir: nearest(o.DataDir),
+		RealDataDir: o.DataDir, ConfigDir: o.ConfigDir, StackDir: o.stackDir(), OwnPortsOK: true})
 	p("\npreflight:")
 	for _, c := range pf {
 		p("  %-4s %-10s %s", c.Level, c.ID, c.Msg)

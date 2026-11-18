@@ -200,6 +200,13 @@ func ModuleRemove(ctx context.Context, h Host, o Options, c ModuleChange, out io
 
 func moduleChange(ctx context.Context, h Host, o Options, op string, c ModuleChange, out io.Writer) error {
 	p := func(f string, a ...any) { fmt.Fprintf(out, f+"\n", a...) }
+	if !o.DryRun {
+		release, lerr := lockInstall(o.DataDir)
+		if lerr != nil {
+			return lerr
+		}
+		defer release()
+	}
 	rec, err := readReceipt(o.receiptPath())
 	if err != nil {
 		return err
@@ -599,6 +606,13 @@ func rollbackModule(ctx context.Context, h Host, o Options, oldSt, newSt *Stack,
 // ModuleRollback is `bothy module rollback`: after an interruption, return to the
 // generation saved before the unfinished change.
 func ModuleRollback(ctx context.Context, h Host, o Options, out io.Writer) error {
+	if !o.DryRun {
+		release, lerr := lockInstall(o.DataDir)
+		if lerr != nil {
+			return lerr
+		}
+		defer release()
+	}
 	rec, err := readReceipt(o.receiptPath())
 	if err != nil {
 		return err

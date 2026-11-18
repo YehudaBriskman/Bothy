@@ -11,8 +11,22 @@ each kind that a service reads has a restore recipe that has been run.
 | `victoriametrics` | every metric, 15 days | `/snapshot/create`, a tar of the snapshot, snapshot deleted | **3** | 408 MB |
 | `loki` | every log line, 7 days | `/flush`, stop Loki, tar `/loki`, start | **3** | 19 MB |
 | `alloy` | Alloy's positions - how far into each log it has shipped | a tar of its volume | 14 | 48 KB |
-| `state` | the audit logs (`apps/bothy-ops/audit`, `apps/bothy-files/audit`) and the two trash directories (`~/.local/state/bothy/{trash,config-trash}`) | a tar | 14 | 16 KB |
+| `state` | the audit logs (`apps/bothy-ops/audit`, `apps/bothy-files/audit`), the two trash directories and the bearer-token store (`~/.local/state/bothy/{trash,config-trash,tokens}`; tokens are 0700/0600) | a tar | 14 | 16 KB |
 | `notes` | `~/claude-notes` (`$NOTES_ROOT`) | `git bundle --all`, plus a tar of uncommitted files when there are any | 14 | 112 KB |
+
+### The second copy (optional)
+
+Everything above lands on the same virtual disk as the data, so one lost disk
+takes both. Set `BOTHY_BACKUP_MIRROR` (in `.env`, or the timer's environment) to a
+directory on **another device** and every run also copies the small sets
+(`postgres`, `grafana`, `env`, `state`, `notes`; not VictoriaMetrics, Loki or
+Alloy) there: each file is written under a temporary name, compared by sha256 with
+its source, then renamed, and the mirror is pruned with the same keep counts. A
+path inside a git work tree is refused. `just doctor` shows an **amber** "no second
+copy: backups share a device with the data" while it is unset or on the same
+device as `$BACKUP_ROOT`, and green once the newest copy there is under 48 hours old.
+The mirror holds plain credentials (`.env`, the Postgres dump): treat the device
+like the box.
 
 One night is about 430 MB, nearly all of it VictoriaMetrics; with the keep counts
 above the whole of `~/backups` settles around 1.3-1.5 GB. The run itself takes
@@ -132,9 +146,9 @@ These are plain archives; putting them back is one command, and none of them
 has a running service to stop.
 
 ```sh
-# audit logs and trash - members are relative, apps/... and bothy/...
-tar -xzf ~/backups/state/state-<ts>.tar.gz -C ~/stacks apps/
-tar -xzf ~/backups/state/state-<ts>.tar.gz -C ~/.local/state bothy/
+# audit logs, trash and the token store (the token store is forced back to
+# 0700/0600; what it overwrites is saved as pre-restore-* beside the backups)
+just restore-state ~/backups/state/state-<ts>.tar.gz
 
 # notes: a full clone from the bundle, then any uncommitted files on top
 git clone ~/backups/notes/notes-<ts>.bundle ~/claude-notes

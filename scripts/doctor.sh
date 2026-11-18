@@ -5,6 +5,8 @@ set -uo pipefail
 # for why they are derived rather than declared here.
 # shellcheck disable=SC1091
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/env.sh"
+# shellcheck disable=SC1091
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/backup-lib.sh"
 # `--strict` makes this EXIT NON-ZERO when anything is red. Without it the
 # script always exited 0, so it could report a dead Keycloak and a missing backup
 # and still look, to anything that reads exit codes, exactly like a clean box -
@@ -27,6 +29,10 @@ red()   { faults=$((faults + 1)); printf '  \033[31m✗\033[0m %s\n' "$*"; }
 # Neither a pass nor a fault: something deliberately switched off. Without this
 # third state, every retired service reads as breakage and the report cries wolf.
 dim()   { printf '  \033[2m·\033[0m %s\n' "$*"; }
+# A known weakness that is not a fault: counted nowhere, so it never fails
+# --strict, but visible in colour until it is dealt with (the backups' second
+# copy is the first user).
+amber() { printf '  \033[33m!\033[0m %s\n' "$*"; }
 
 echo "== containers =="
 # traefik, oauth2-proxy and bothy-socket-read are the front door and the login
@@ -332,10 +338,32 @@ bk_fresh .env            env             'env-2*[0-9]'    1
 bk_fresh victoriametrics victoriametrics 'vm-*.tar'       1000
 bk_fresh loki            loki            'loki-*.tar.gz'  1000
 bk_fresh alloy           alloy           'alloy-*.tar.gz' 100
-bk_fresh "audit + trash" state           'state-*.tar.gz' 100 "no audit or trash directory to save"
+bk_fresh "audit + trash + tokens" state  'state-*.tar.gz' 100 "no audit, trash or token directory to save"
 if [ -d "$NOTES_ROOT" ]; then
   bk_fresh notes         notes           'notes-2*[0-9].*' 100
 fi
+# THE SECOND COPY (data-and-state.md R1). Everything above sits on the same
+# virtual disk as the data it protects, so one lost disk loses both. AMBER, not
+# red, while there is no second device: it is a known, fixable weakness and not
+# a fault, and a red here would make `doctor --strict` fail on every box that has
+# not chosen a location yet. A mirror that is set but broken (inside a git work
+# tree, or stale) IS red: somebody asked for a copy and is not getting one.
+mst=$(bk_mirror_status "${BOTHY_BACKUP_MIRROR:-}" "$BACKUP_ROOT")
+case "$mst" in
+  unset)       amber "no second copy: backups share a device with the data (set BOTHY_BACKUP_MIRROR to a path on another device - docs/guide/backups.md)" ;;
+  same-device) amber "no second copy: BOTHY_BACKUP_MIRROR=$BOTHY_BACKUP_MIRROR is on the same device as $BACKUP_ROOT - backups share a device with the data" ;;
+  in-git)      red "BOTHY_BACKUP_MIRROR=$BOTHY_BACKUP_MIRROR is inside a git work tree - backup.sh refuses it" ;;
+  ok)
+    mf=$(ls -1t "$BOTHY_BACKUP_MIRROR"/env/env-2*[0-9] 2>/dev/null | head -1)
+    if [ -z "$mf" ]; then
+      if [ -n "$uptime_s" ] && [ "$uptime_s" -lt 86400 ]; then dim "second copy: nothing on $BOTHY_BACKUP_MIRROR yet"
+      else red "second copy: nothing under $BOTHY_BACKUP_MIRROR/env - the mirror step has not run"; fi
+    else
+      mage=$(( ( $(date +%s) - $(stat -c %Y "$mf") ) / 3600 ))
+      if [ "$mage" -gt 48 ]; then red "second copy is ${mage}h old: $mf"
+      else green "second copy on another device: $(basename "$mf") (${mage}h old) in $BOTHY_BACKUP_MIRROR"; fi
+    fi ;;
+esac
 # The size of the whole thing, because two of these are hundreds of MB each and
 # the disk they sit on is the disk they protect.
 [ -d "$BACKUP_ROOT" ] && dim "backups use $(du -sh "$BACKUP_ROOT" 2>/dev/null | cut -f1) under $BACKUP_ROOT ($(df -h "$BACKUP_ROOT" | awk 'NR==2{print $4}') free)"

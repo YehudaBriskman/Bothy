@@ -178,6 +178,8 @@ type fakeHost struct {
 	euid       int
 	mem, disk  int
 	fstype     string
+	readonly   bool
+	env        map[string]string
 	listeners  map[int][]string
 	cmds       map[string]string // "docker version ..." -> output; prefix "!" = error
 	ran        []string
@@ -202,10 +204,11 @@ func newHost() *fakeHost {
 func (f *fakeHost) GOOS() string                    { return f.goos }
 func (f *fakeHost) GOARCH() string                  { return f.arch }
 func (f *fakeHost) Euid() int                       { return f.euid }
-func (f *fakeHost) Getenv(string) string            { return "" }
+func (f *fakeHost) Getenv(k string) string          { return f.env[k] }
 func (f *fakeHost) MemAvailableMiB() (int, error)   { return f.mem, nil }
 func (f *fakeHost) FreeDiskMiB(string) (int, error) { return f.disk, nil }
 func (f *fakeHost) FSType(string) string            { return f.fstype }
+func (f *fakeHost) Writable(string) bool            { return !f.readonly }
 func (f *fakeHost) ListenAddrs(p int) []string      { return f.listeners[p] }
 func (f *fakeHost) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	k := name + " " + strings.Join(args, " ")

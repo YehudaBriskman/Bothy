@@ -195,7 +195,7 @@ func Fetch(src string) ([]byte, error) {
 		c := &http.Client{Timeout: 30 * time.Second}
 		resp, err := c.Get(src)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s", withHint(err.Error()))
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {

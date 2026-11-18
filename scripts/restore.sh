@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Put one backup artefact back. The other half of scripts/backup.sh.
 #
-#   scripts/restore.sh <postgres|grafana|env|victoriametrics|loki> <file> [--yes]
+#   scripts/restore.sh <postgres|grafana|env|state|victoriametrics|loki> <file> [--yes]
 #   (normally through `just restore-<kind> <file> [--yes]`)
 #
 # THE RULES, the same for every kind:
@@ -48,7 +48,7 @@ for a in "$@"; do
 done
 kind=${args[0]:-}
 src=${args[1]:-}
-[ -n "$kind" ] || die "usage: restore.sh <postgres|grafana|env|victoriametrics|loki> <file> [--yes]"
+[ -n "$kind" ] || die "usage: restore.sh <postgres|grafana|env|state|victoriametrics|loki> <file> [--yes]"
 [ -n "$src" ] || die "no file given. There is no default on purpose - pick one from $BACKUP_ROOT/$kind/"
 [ -e "$src" ] || die "$src does not exist"
 src=$(realpath "$src")
@@ -341,13 +341,83 @@ restore_loki() {
   fi
 }
 
+# ── state ───────────────────────────────────────────────────────────────────
+# The state-<ts>.tar.gz backup.sh writes: members are relative - apps/... go
+# under the repo root, bothy/... under $STATE_ROOT (BK_APPS_TARGET and
+# BK_STATE_TARGET override both; that is how this is tested without touching the
+# live directories). Nothing is stopped: no service holds these open exclusively,
+# but bothy-ops reads the token store, so restore it when no token is being minted.
+#
+# Members are validated first (only apps/ and bothy/, no absolute path, no `..`),
+# what would be overwritten is saved beside the backups as pre-restore-*, and the
+# token store is then forced back to 0700 / 0600 whatever the archive said - it
+# holds the digests that authorise the API, and an archive made under an older or
+# looser umask must not widen them. Verified member by member against the archive.
+restore_state() {
+  local apps_t=${BK_APPS_TARGET:-$root} state_t=${BK_STATE_TARGET:-$STATE_ROOT}
+  local members m pre t list ts
+  members=$(tar -tzf "$src" 2>/dev/null) || die "$src is not a readable tar.gz"
+  [ -n "$members" ] || die "$src is empty"
+  while IFS= read -r m; do
+    case "$m" in
+      /*|..|../*|*/..|*/../*) die "$src has an unsafe member: $m" ;;
+      apps/*|bothy/*) ;;
+      *) die "$src has a member outside apps/ and bothy/: $m - not a state-*.tar.gz" ;;
+    esac
+  done <<<"$members"
+  say "file:     $src ($(du -h "$src" | cut -f1), $(printf '%s\n' "$members" | grep -vc '/$') files)"
+  say "writes:   apps/...  under $apps_t"
+  say "          bothy/... under $state_t"
+  say "files already there with the same name are REPLACED; nothing else is deleted"
+  confirm "Restore these audit logs, trash directories and token store?"
+
+  ts=$(date +%Y%m%d-%H%M%S)
+  for pair in "apps:$apps_t" "bothy:$state_t"; do
+    pre=${pair%%:*}; t=${pair#*:}
+    list=$(printf '%s\n' "$members" | grep "^$pre/" | while IFS= read -r m; do
+      [ -f "$t/$m" ] && printf '%s\n' "$m"; done)
+    if [ -n "$list" ]; then
+      mkdir -p "$BACKUP_ROOT/state" && chmod 700 "$BACKUP_ROOT/state"
+      printf '%s\n' "$list" | tar -czf "$BACKUP_ROOT/state/pre-restore-$ts-$pre.tar.gz" -C "$t" -T - \
+        && say "saved the current $pre files as $BACKUP_ROOT/state/pre-restore-$ts-$pre.tar.gz"
+    fi
+  done
+
+  mkdir -p "$apps_t" "$state_t"
+  tar -xzpf "$src" -C "$apps_t" --wildcards 'apps/*' 2>/dev/null || true
+  tar -xzpf "$src" -C "$state_t" --wildcards 'bothy/*' 2>/dev/null || true
+  if printf '%s\n' "$members" | grep -q '^bothy/tokens/'; then
+    chmod 700 "$state_t/bothy/tokens"
+    find "$state_t/bothy/tokens" -type d -exec chmod 700 {} +
+    find "$state_t/bothy/tokens" -type f -exec chmod 600 {} +
+  fi
+
+  # VERIFY: every file in the archive is byte-identical on disk.
+  local n=0 t2
+  while IFS= read -r m; do
+    case "$m" in */) continue ;; esac
+    case "$m" in apps/*) t2=$apps_t ;; *) t2=$state_t ;; esac
+    if tar -xzOf "$src" "$m" 2>/dev/null | cmp -s - "$t2/$m"; then n=$((n + 1))
+    else bad "$t2/$m does not match the archive"; fi
+  done <<<"$members"
+  if printf '%s\n' "$members" | grep -q '^bothy/tokens/'; then
+    [ "$(stat -c %a "$state_t/bothy/tokens" 2>/dev/null || stat -f %Lp "$state_t/bothy/tokens")" = 700 ] \
+      || bad "$state_t/bothy/tokens is not mode 700"
+    if [ -n "$(find "$state_t/bothy/tokens" -type f ! -perm 600)" ]; then
+      bad "a file under $state_t/bothy/tokens is not mode 600"
+    fi
+  fi
+  [ "$failed" = 1 ] || say "verified: $n files byte-identical to the archive; token store 0700/0600"
+}
+
 case "$kind" in
   postgres) restore_postgres ;;
   grafana) restore_grafana ;;
   env) restore_env ;;
+  state) restore_state ;;
   victoriametrics|vm) restore_victoriametrics ;;
   loki) restore_loki ;;
-  *) die "unknown kind '$kind' - postgres, grafana, env, victoriametrics or loki" ;;
+  *) die "unknown kind '$kind' - postgres, grafana, env, state, victoriametrics or loki" ;;
 esac
 
 if [ "$failed" = 1 ]; then
