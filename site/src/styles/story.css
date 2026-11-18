@@ -128,7 +128,7 @@
   border: 0;
 }
 .story .ch-sky {
-  background: none;
+  background: none !important;
 }
 .story .ch-sky::before {
   display: none;
@@ -273,6 +273,9 @@
     }
   }
   /* Staggered entrance: only once script has run, and only for what began below the fold. */
+  .story-static .float {
+    animation: none;
+  }
   .story-js .rv {
     opacity: 0;
     transform: translateY(22px) scale(0.985);

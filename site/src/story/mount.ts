@@ -17,6 +17,8 @@ export function mountStory(root: HTMLElement): void {
   const base = document.querySelector<HTMLMetaElement>('meta[name=bothy-base]')?.content ?? '/';
   const sections = [...root.querySelectorAll<HTMLElement>(':scope > section[id]')];
   root.classList.add('story-js');
+  // the test harness (?manual=1) steps frames by hand and waits for every animation to finish: scroll-linked drift never does
+  if (new URLSearchParams(location.search).get('manual') === '1') root.classList.add('story-static');
 
   // ── The dots, and the chapter the visitor is in ───────────────────────────
   const dots = root.querySelector<HTMLElement>('[data-story-dots]');

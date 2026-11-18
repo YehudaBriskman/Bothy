@@ -104,24 +104,69 @@
   backdrop-filter: blur(6px);
 }
 
-/* Fallback scrim (the still, no canvas): very broad and feathered, tinted from the sky itself. With the canvas the
-   shader lowers only the brightest pixels behind the words instead, so this is switched off. */
-.ch-sky.sky-on:not(.has-gl) .ch-sky-inner {
+/* The scrim under the whole text column of the hero (headline, line, lede, buttons, cue, footnote, controls): a
+   soft rectangle of the hour's own colour (dark under light ink, pale under dark ink, see data-ink and engine.ts),
+   feathered on all four edges by eased alpha ramps, so it can never read as a box, a blob or a band. It is there on the
+   WebGL path and on the CSS still alike; its strength is set per hour (--scrim-a). */
+.ch-sky.sky-on .ch-sky-inner {
   position: relative;
+  isolation: isolate;
 }
-.ch-sky.sky-on:not(.has-gl) .ch-sky-inner::before {
+.ch-sky.sky-on .ch-sky-inner::before {
   content: '';
   position: absolute;
-  inset-block: -15%;
-  inset-inline: -8%;
+  inset-block: -4rem -3.5rem;
+  inset-inline-start: -3.5rem;
+  inline-size: min(calc(100% + 7rem), 52rem);
   z-index: -1;
-  background: radial-gradient(
-    closest-side,
-    rgb(var(--scrim-rgb, 6 10 24) / calc(var(--scrim-a) * 1.35)) 0%,
-    rgb(var(--scrim-rgb, 6 10 24) / calc(var(--scrim-a) * 1.05)) 55%,
-    rgb(var(--scrim-rgb, 6 10 24) / 0) 100%
-  );
+  background: rgb(var(--scrim-rgb, 6 10 24) / var(--scrim-a, 0.6));
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgb(0 0 0 / 16%) 3%,
+      rgb(0 0 0 / 50%) 6%,
+      rgb(0 0 0 / 84%) 9%,
+      #000 12%,
+      #000 88%,
+      rgb(0 0 0 / 84%) 91%,
+      rgb(0 0 0 / 50%) 94%,
+      rgb(0 0 0 / 16%) 97%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      rgb(0 0 0 / 16%) 4%,
+      rgb(0 0 0 / 50%) 9%,
+      rgb(0 0 0 / 84%) 14%,
+      #000 20%,
+      #000 70%,
+      rgb(0 0 0 / 84%) 80%,
+      rgb(0 0 0 / 50%) 88%,
+      rgb(0 0 0 / 16%) 95%,
+      transparent 100%
+    );
+  mask-composite: intersect;
   pointer-events: none;
+}
+/* Bright sky: dark ink, set per hour by the engine. */
+:root:root .ch-sky.sky-on[data-ink='dark'] {
+  --sky-fg: #08121e;
+  --sky-muted: #08121e;
+  --sky-focus: #0a2a5a;
+  --sky-btn-bg: rgb(255 255 255 / 55%);
+  --sky-btn-line: rgb(8 18 30 / 70%);
+  --sky-btn-fill: #08121e;
+  --sky-btn-ink: #ffffff;
+}
+.ch-sky.sky-on[data-ink='dark'] h1,
+.ch-sky.sky-on[data-ink='dark'] .ch-line,
+.ch-sky.sky-on[data-ink='dark'] .ch-lede,
+.ch-sky.sky-on[data-ink='dark'] .ch-cue a,
+.ch-sky.sky-on[data-ink='dark'] .ch-skip a,
+.ch-sky.sky-on[data-ink='dark'] .ch-foot {
+  text-shadow: 0 0 0.5em rgb(255 255 255 / 45%);
 }
 
 /* Light from the sun or moon falls on the words (the fill is a gradient set from script). */
@@ -136,7 +181,7 @@
 
 /* ── The controls ───────────────────────────────────────────────────────────────────────────────────── */
 .sky-ui {
-  --ui-bg: rgb(8 12 22 / 55%);
+  --ui-bg: rgb(8 12 22 / 86%);
   --ui-line: rgb(255 255 255 / 28%);
   display: flex;
   align-items: center;

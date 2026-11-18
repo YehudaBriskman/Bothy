@@ -138,6 +138,17 @@ the owner and by how much it unblocks.
 | 12 | **S12 Hebrew** (after the story): `he.ts`, RTL check at every hour and chapter, bidi for commands and paths, plural forms, the switcher | M | S1 to S9 settled | `site/src/i18n/he.ts`, `locales.ts`, `styles/rtl.css` |
 | 13 | **S13 Go live**: owner steps from `site/README.md` (Pages source, custom domain, Cloudflare DNS grey cloud, verify domain), run the workflow once by hand, review, then add the `push` trigger on `site/**` and `docs/guide/**` | S | S1 minimum; recommended after S7 and S9 | `.github/workflows/site-pages.yml` only |
 
+**S7 as built (2026-11-18, owner feedback applied):** the sky is the page's background, not the hero's: one fixed stage behind
+every chapter (`site/src/story/`, `styles/story.css`). Hills, hut and ground were dropped by the owner, so the story is
+sky only. The descent is the *camera*, which is pinned (scroll progress to the shader's pan, zoom, cloud rise and
+crossing, a sea of cloud, a glow boost and a clock that runs on toward night), while the words stay in normal flow, one
+screen each for chapters 0 to 2, so nothing is hard to read, link or print and no focus is trapped. Chapters transition
+by one long eased veil and masked scene backdrops (lit cumulus behind chapter 3, cloud deck behind 4, twilight bands
+behind 5, loaded only when near), never by a border or a band. Content floats on glass panels (blur on three large
+panels only), with scroll-linked drift by CSS `animation-timeline: view()` and staggered reveals. No JS or reduced
+motion: the still sky, the same veil and every section as a plain page.
+
+
 Rank notes: S1 is first because it makes the site honest and finished before any effect exists (a visitor sees something
 true on day one); S2 to S3 are the owner's chosen visual core; S5 is early because it is large, independent and the
 site's strongest "real product" signal; S13 can happen as early as after S1 plus S2 if the owner wants the domain live
