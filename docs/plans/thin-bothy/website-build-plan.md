@@ -158,6 +158,13 @@ gate, what it protects, the budget table and the CI timings: `site/README.md`. O
 S9: the rendered console's panel headings (`<h1 aria-level="3">`) follow the page h1 with no h2 between.
 
 
+**S10 as built (2026-11-18):** one row per page in `site/src/seo.ts` feeds the head (`src/seo-head.ts`, called from the
+prerender, not a React `Seo.tsx`, since the head is written outside React). Share images are drawn from the CC0 sky
+photographs rather than the S4 stills: the stills are whole-page screenshots with the site's own text in them and need
+the WebGL sky at software-GL speed. `scripts/og.mjs` renders them (JPEG, since Facebook and LinkedIn do not render WebP
+reliably), checks each line's contrast with S4's maths and floors, and commits them with a `PROVENANCE.json`;
+`scripts/check-seo.mjs` holds the built pages, sitemap, robots and 404 to the table.
+
 Rank notes: S1 is first because it makes the site honest and finished before any effect exists (a visitor sees something
 true on day one); S2 to S3 are the owner's chosen visual core; S5 is early because it is large, independent and the
 site's strongest "real product" signal; S13 can happen as early as after S1 plus S2 if the owner wants the domain live

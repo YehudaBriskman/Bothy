@@ -91,6 +91,20 @@ canonical links, sitemap, robots and `CNAME`; `SITE_BASE` (default `/`) is the m
 public origin: `SITE_ORIGIN= SITE_BASE=/ npm run build` emits no canonical, sitemap or CNAME. No Host() rules or
 edge assumptions: it is plain files.
 
+## Search and share previews
+
+`src/seo.ts` is one row per page: title (at most 60 characters), description (110 to 160), and which share image.
+`src/seo-head.ts` turns the row into the head: title, description, theme-color, canonical, Open Graph, Twitter card,
+icons and manifest, and on the home page JSON-LD (`WebSite` and `SoftwareApplication`: Linux, free, the repository's
+MIT licence; no rating, review or price). `npm run check:seo` (also run by `verify-dist.sh`) checks the built pages,
+the sitemap, robots.txt and the 404 page against the table, and fails on a missing field or a value out of range.
+
+The share images (`public/og/*.jpg`, 1200 x 630 JPEG, under 120 KB each) and the PNG icons are drawn by
+`npm run og` from the CC0 sky photographs and `favicon.svg`, contrast-checked line by line with the S4 maths, and
+committed with `public/og/PROVENANCE.json` (bytes, sha256, renderer, font, contrast). Re-run it after changing a
+card's words in `src/seo.ts`: the check fails until the images match. They are not loaded by any page, so they sit
+outside the photograph budget in `check-assets.mjs`.
+
 ## Hebrew
 
 Add `src/i18n/he.ts` (typed as `Messages`), register it in `src/i18n/locales.ts` with `dir: 'rtl'`, and add it to
