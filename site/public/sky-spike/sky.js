@@ -10,7 +10,7 @@ const noHover = matchMedia('(hover: none)').matches || matchMedia('(max-width: 7
 const debug = q.get('debug');
 const forceMix = ['day', 'dusk', 'night'].indexOf(q.get('mix') ?? '');
 const manual = q.get('manual') === '1';
-const raysOn = q.get('rays') !== '0'; // ?rays=0: no light shafts or cloud rims, to compare
+const raysOn = q.get('rays') === '1'; // ?rays=1: opt-in light shafts (off by default: the clouds stay as photographed)
 const textLight = q.get('light') !== '0'; // ?light=0: the headline is not lit by the sun or moon // test harness: no rAF loop; window.__sky.frame(dt) steps and draws
 const PHOTOS = ['day', 'dusk', 'night'];
 // Per photograph depth recipe: depth = clamp((luma - bias - sat * satW) * gain). Tuned by eye with ?debug=depth.
@@ -289,10 +289,6 @@ void main(){
     float fall=exp(-dL*1.7);
     float shaft=tr*tr*(1.-.75*cloud);
     col+=uLightCol*uLight.z*uFx.x*fall*shaft*.42;
-    vec2 dir=toL/max(length(toL),1e-4);
-    float cn=cloudAt(toUV(s+dir*vec2(1./aspect,1.)*.016),1.2);
-    float rim=clamp(cloud-cn,0.,1.)*smoothstep(.0,.25,cloud);
-    col+=uLightCol*1.25*rim*uLight.z*uFx.x*(.25+.75*exp(-dL*1.4))*1.3;
   }
 
   // sun: a soft, grown-in-the-atmosphere glow with proper falloff and no disc edge; near cloud takes most of it
@@ -303,7 +299,7 @@ void main(){
   float tw=1.-.72*tz;
   float core=1.5/(1.+pow(dl/(.0085*sz),2.6));
   float bloom=.5/(1.+pow(dl/(.05*sz),1.5));
-  float halo=.2*exp(-dl*2.4/sz)+.1*exp(-dl*.9);
+  float halo=.07*exp(-dl*3.2/sz)+.02*exp(-dl*1.2);
   vec3 scol=mix(vec3(1.,.97,.9),uSunCol,smoothstep(.0,.09,dl));
   col+=scol*uSun.z*(core*tcore*tw+bloom*tbloom*(1.-.5*tz)+halo*tbloom);
   // 22-degree-ish ring of faint atmospheric scatter, only visible when the sun is clear
@@ -338,11 +334,11 @@ void main(){
   }
 
   // behind the words: a broad, feathered, hue-preserving soft knee that only lowers the brightest sky and cloud
-  vec2 rr=(s-uText.xy)/(uText.zw*vec2(2.6,4.4));
-  float reg=exp(-dot(rr,rr)*1.1);
+  vec2 rr=(s-uText.xy)/(uText.zw*vec2(1.5,2.4));
+  float reg=exp(-dot(rr,rr)*2.0);
   float l2=dot(col,vec3(.299,.587,.114));
   float nl=l2-max(l2-uFx.y,0.)*reg*uFx.z;
-  col*=nl/max(l2,1e-3)*(1.-.07*reg*uFx.z);
+  col*=nl/max(l2,1e-3)*(1.-.1*reg*uFx.z);
 
   // soft shoulder, then the arrival: a mist lifting off the dark ground
   col=mix(col,.8+.2*tanh((col-.8)/.2),step(.8,col));
@@ -431,7 +427,7 @@ function initGL() {
     gl.bindTexture(gl.TEXTURE_2D, tex[i]);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
     for (const [p, v] of [
-      [gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR],
+      [gl.TEXTURE_MIN_FILTER, gl.LINEAR],
       [gl.TEXTURE_MAG_FILTER, gl.LINEAR],
       [gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT],
       [gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT],
@@ -463,7 +459,6 @@ async function loadPhoto(i) {
       gl.activeTexture(gl.TEXTURE0 + i);
       gl.bindTexture(gl.TEXTURE_2D, tex[i]);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bm);
-      gl.generateMipmap(gl.TEXTURE_2D);
       state.imgAspect = bm.width / bm.height;
       bm.close?.();
       loaded[i] = true;
@@ -557,7 +552,7 @@ function draw() {
   gl.uniform4f(U.uLight, lit.x, lit.y, lit.k, lit.moon);
   gl.uniform3fv(U.uLightCol, lit.col);
   // the words' brightness ceiling (display luma) and how hard it bites, from this hour's scrim value
-  gl.uniform3f(U.uFx, raysOn ? 1 : 0, 0.36, Math.min(0.95, cur.scrim * 1.7));
+  gl.uniform3f(U.uFx, raysOn ? 1 : 0, 0.26, Math.min(0.97, cur.scrim * 1.8));
   lightText();
   const hb = document.querySelector('.hero').getBoundingClientRect();
   gl.uniform4f(
