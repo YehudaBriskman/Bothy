@@ -519,6 +519,59 @@ A to B update between two real releases; arm64 execution; `lab-mini`; WSL; rootl
 Also fixed here: a stray merge-conflict marker line that sat in this file after section 10d.
 
 
+### 10f. Failure scenarios: what a real first-time machine does to the installer (lab, 2026-11-18)
+
+The happy path was proven on a clean Ubuntu guest. A person's machine differs. Ranked by (likelihood x how bad it
+was before this pass); "before" is what the code did, read, not guessed. Rule kept throughout: **never stop, kill or
+replace anything that is not Bothy's, leave no partial state, say the exact fix.**
+
+| # | Scenario | Behaviour now | Before | Proven how |
+|---|---|---|---|---|
+| 1 | Port 80 taken by a host process (nginx, apache) | preflight `fail port`, names a free alternative (`--port 8080`), says nothing was stopped; nothing created; the listener keeps running | detected, but a bare "pick another port" | **lab** 1a; unit |
+| 2 | Port 80 taken by another container | same, and **names the container** (`docker ps --filter publish=`); `--port 8080` then installs and runs beside it | not named | **lab** 1b, 1c; unit |
+| 3 | Ctrl-C (SIGINT/SIGTERM) mid pull or mid `up` | prints INTERRUPTED, records `last_error`, **cleanup `compose down` still runs** (it used the cancelled context and silently failed, leaving containers up), no lock left; a second Ctrl-C force-quits | containers left running, "rolling back" printed but not done | **lab** 4a, 4b; unit |
+| 4 | Resume after a half install whose containers still hold port 80 (process killed hard) | the port is recognised as this install's own (`compose ps -q`), install resumes and finishes; key unchanged | **resume refused: "port 80 in use" by its own containers** | **lab** 4c, 4d (SIGKILL); unit |
+| 5 | Docker present, user not in the `docker` group | refused, nothing created, `usermod -aG docker $USER`, log out/in or `newgrp docker` | worked, lacked `newgrp` | **lab** 2a (separate user); unit |
+| 6 | Docker daemon stopped | refused with `systemctl start docker` | same | **lab** 10; unit |
+| 7 | Compose v2 plugin missing | refused with the apt command | same | **lab** 2b; unit |
+| 8 | Docker Desktop for WSL, integration off (docker is a stub) | says "enable WSL integration for this distro" | reported "daemon is not answering, systemctl start docker" (wrong fix) | **lab** 2c (stub script); unit; a real Docker Desktop is **unproven** |
+| 9 | Low RAM (< 960 MiB available) | refused before any change, figures printed | same | **lab** 3 (guest squeezed to 515 MiB); unit |
+| 10 | Offline / registry blocked / DNS dead, mid-install | stops at the failing pull, receipt `in-progress`, no container, a **hint** ("network dropped or blocked ... run again, finished steps skip"); same command finishes when the network is back | raw docker error | **lab** 5a, 5c (443 rejected); unit table of 10 message shapes |
+| 11 | GitHub unreachable (metadata fetch) | `fetch release manifest: ... hint:`, nothing created | bare error | **lab** 5b |
+| 12 | Clock skew (TLS "expired / not yet valid") | hint says to check the clock | bare x509 error | **lab** 5d (+5 years); unit |
+| 13 | GHCR rate limit / 401 / corporate TLS proxy / proxy for the Docker daemon | hint per cause (`docker login ghcr.io`, wait, root cert, "the daemon has its own proxy setting") | raw error | unit only (real messages **not reproduced**; matched on docker's wording) |
+| 14 | Two installs at once | second refused: "another `bothy install` or `bothy update` is already running" (flock on `<root>/.install.lock`, released on death); no interleaved writes | **no lock** | **lab** 8 (one refused, one finished, 3 containers); unit |
+| 15 | Someone else's Compose project called `bothy` (e.g. a dev checkout) | refused, never adopted or recreated, its container untouched | `compose up` would have adopted and recreated it | **lab** 7; unit |
+| 16 | Read-only home or an unwritable `--root` | refused in preflight with `--root` advice, nothing created | failed late at `mkdir` after preflight said ok | **lab** 6a (ro bind mount); unit |
+| 17 | Little disk at the install root | refused, `MiB free at ...` | same | **lab** 6b (100 MB tmpfs); unit |
+| 18 | Little disk where **Docker** keeps images (non-default data-root, small `/var`) | `docker-disk` check on `docker info` DockerRootDir (nearest readable parent), needs 1536 MiB | not checked; failed mid-pull with "no space left" | unit only; hint for "no space left on device" also unit |
+| 19 | `$HOME` with spaces / non-ASCII | full install, bytes verified, purge | unproven | **lab** 6c |
+| 20 | Path containing `:` | refused (Compose bind syntax cannot carry it) | late compose error | unit |
+| 21 | Network or 9p/NFS mount for the root | refused (existing) | same | unit (existing) |
+| 22 | `sudo bothy install` | warns (running under sudo for user X; run without) | generic root warning | **lab** 9 (dry run); unit |
+| 23 | Empty `master.key` after an interrupted write | regenerated; key now written to a temp file and renamed, never half-written; a real key is never replaced | an empty key was "done" forever | unit |
+| 24 | `--bind localhost` / junk | usage error before anything runs | late compose failure | unit |
+| 25 | Verify probe with `HTTP(S)_PROXY` set and a non-loopback `--bind` | probe ignores proxy env | went through the proxy | unit-less, code only (**unproven**) |
+| 26 | SELinux enforcing (Fedora, RHEL) | **warning only**, with the `chcon` command; bind mounts may still be denied | silent | warn: unit; the denial itself **unproven** (no SELinux guest) |
+| 27 | Rootless Docker | refused (existing) | same | unit (existing); **unproven** on a real one |
+| 28 | IPv6-only network | not handled: github.com / ghcr.io pulls fail; hint (#10) is the generic one | same | **unproven** |
+| 29 | Old Docker without `--wait` | refused by the Engine >= 25 / Compose >= 2.24 gate | same | unit (existing) |
+| 30 | Docker data-root on a non-default filesystem, `iptables`/nft coexistence, Docker Desktop on macOS/Windows | not handled / out of scope | same | **unproven** |
+
+Lab run: `lab-mid`, Ubuntu 24.04, faked release (section 9), binary built from this branch;
+`PROOF_SCRIPT=lab/install-proof/robust-proof.sh lab/install-proof/run-lab.sh lab-mid`. **24 checks passed in one run
+(sections 3 to 10) and 9 in an earlier run (sections 1 and 2).** Said plainly: the first run failed at section 3 because
+the *proof's own* memory hog was wrong (it allocated nothing), not the product; the script was fixed and sections 3 on
+were re-run from a purged guest rather than the whole script from scratch (the session restarted in between).
+Section 5 blocks `tcp/443` in the guest, which blocks Docker Hub (Traefik's pull) and GitHub; the fake registry on
+`localhost:5000` is unaffected, so **ghcr.io itself was not blocked**, an equivalent registry was. `lab-mini` (2 GiB)
+was **not run**. Residual known leftovers: `bothy uninstall` after a failed install keeps pulled images (by design).
+
+Also changed: an install that stops at preflight now leaves no empty directory chain behind (the lock creates and
+removes it). The lock is taken for install and for `update` apply (not for `--check`/dry run/uninstall).
+Unit tests: `robust_test.go` (11 preflight cases, hints, interrupted run + resume with a context-cancelling host, own
+port on resume, lock, no-directory-left, empty key, pull-failure hint), `install_options_test.go`.
+
 ## 11. Decisions taken
 
 | # | Decision | Reason |

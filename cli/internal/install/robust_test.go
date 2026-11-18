@@ -58,9 +58,9 @@ func TestPreflightRealMachines(t *testing.T) {
 	})
 	t.Run("a different bothy compose project is refused, ours is not", func(t *testing.T) {
 		f := newHost()
-		f.cmds[`docker ps -a --filter label=com.docker.compose.project=bothy --format {{.Label "com.docker.compose.project.working_dir"}}`] = "/home/u/Bothy/stack\n"
+		f.cmds[`docker ps -a --filter label=com.docker.compose.project=bothy --format {{.Label "com.docker.compose.project.working_dir"}}`] = "/srv/u/Bothy/stack\n"
 		got := joinChecks(run(f, in), "project")
-		if !strings.Contains(got, "fail") || !strings.Contains(got, "/home/u/Bothy/stack") || !strings.Contains(got, "will not adopt") {
+		if !strings.Contains(got, "fail") || !strings.Contains(got, "/srv/u/Bothy/stack") || !strings.Contains(got, "will not adopt") {
 			t.Fatal(got)
 		}
 		f.cmds[`docker ps -a --filter label=com.docker.compose.project=bothy --format {{.Label "com.docker.compose.project.working_dir"}}`] = "/x/bothy/stack\n/x/bothy/stack\n"
@@ -85,7 +85,7 @@ func TestPreflightRealMachines(t *testing.T) {
 	})
 	t.Run("spaces and unicode are fine", func(t *testing.T) {
 		in2 := in
-		in2.RealDataDir, in2.ConfigDir = "/home/José Smith/my docs/bothy", "/home/José Smith/.config/bothy"
+		in2.RealDataDir, in2.ConfigDir = "/srv/users/José Smith/my docs/bothy", "/srv/users/José Smith/.config/bothy"
 		if Failed(run(newHost(), in2)) {
 			t.Fatal("refused a path with spaces/unicode")
 		}

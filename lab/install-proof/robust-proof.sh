@@ -50,10 +50,11 @@ purge
 
 # ---------------------------------------------------------------- 2. docker access
 sudo id nodock >/dev/null 2>&1 || sudo useradd -m nodock
+NH=$(getent passwd nodock | cut -d: -f6)
 sudo cp "$B" /tmp/bothy-nodock && sudo chmod 755 /tmp/bothy-nodock
 sudo cp -r "$rel" /tmp/rel-nodock && sudo chmod -R a+rX /tmp/rel-nodock
 sudo -u nodock -H /tmp/bothy-nodock install --manifest /tmp/rel-nodock/$V/release-manifest.json --checksums /tmp/rel-nodock/$V/checksums.txt >/tmp/nodock.txt 2>&1; rc=$?
-{ [ $rc -ne 0 ] && [ ! -e /home/nodock/.local/share/bothy ] && [ ! -e /home/nodock/.config/bothy ]; } && ok "2a user outside the docker group: refused (rc $rc), nothing created in their home" || { cat /tmp/nodock.txt; fail "2a"; }
+{ [ $rc -ne 0 ] && [ ! -e "$NH/.local/share/bothy" ] && [ ! -e "$NH/.config/bothy" ]; } && ok "2a user outside the docker group: refused (rc $rc), nothing created in their home" || { cat /tmp/nodock.txt; fail "2a"; }
 needs "permission denied" /tmp/nodock.txt 2a; needs "usermod -aG docker" /tmp/nodock.txt 2a; needs "newgrp docker" /tmp/nodock.txt 2a
 # 2b. compose plugin missing
 cp_path=$(ls /usr/libexec/docker/cli-plugins/docker-compose /usr/lib/docker/cli-plugins/docker-compose 2>/dev/null | head -1)
@@ -76,12 +77,16 @@ PATH=/tmp/stubbin:/usr/bin:/bin "$B" install --dry-run $(R) >/tmp/wsl.txt 2>&1; 
 # ---------------------------------------------------------------- 3. low RAM
 avail=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo)
 hog=$((avail - 550))
+rm -f /tmp/hog.log
 python3 -c "
 import time
 b = bytearray(b'\x01') * ($hog * 1024 * 1024)
-time.sleep(600)" &
+print('alloc ok', flush=True)
+time.sleep(600)" >/tmp/hog.log 2>&1 &
 hogpid=$!
-sleep 4
+for _ in $(seq 1 60); do grep -q 'alloc ok' /tmp/hog.log 2>/dev/null && break; sleep 1; done
+grep -q 'alloc ok' /tmp/hog.log || { cat /tmp/hog.log; fail "3 the memory hog did not start"; }
+sleep 2
 now=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo)
 "$B" install $(R) >/tmp/ram.txt 2>&1; rc=$?
 kill $hogpid 2>/dev/null; wait $hogpid 2>/dev/null
