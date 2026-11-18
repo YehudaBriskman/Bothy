@@ -1,80 +1,41 @@
-# What each Bothy install mode runs on the Compose runtime: THE ONE SOURCE the
-# binary's embedded stack is generated from (docs/plans/thin-bothy/bothy-install.md).
+# The modes and the module catalogue of the Compose runtime: THE ONE SOURCE the
+# binary's embedded stack is generated from (docs/plans/thin-bothy/bothy-install.md,
+# modes-and-modules.md).
 #
 # `go generate ./...` in cli/ reads this file plus the compose files it names and
-# writes cli/internal/install/stack/<mode>/ (compose.yml, stack.json, files/). A
-# test regenerates in memory and fails when the committed copy is stale. Adding a
-# service to a mode is a change HERE (and in its compose file) - never in Go.
+# writes cli/internal/install/stack/<mode>/ (the mode's default set: compose.yml,
+# stack.json, files/) and stack/_source/ (these sources, which the binary uses to
+# generate the set an installed box actually runs, for `bothy module add|remove`).
+# It also proves that every module can be added to every mode. A test regenerates
+# in memory and fails when the committed copy is stale. Adding a module, or a
+# service to one, is a change HERE (and in its compose file) - never in Go.
+#
+# schema 2 = modes + a catalogue of modules. A MODULE is the unit that is added to
+# or removed from an installed box:
+#   description         one line a person reads in `bothy module list`
+#   compose, services   which repo compose file, and which of its services, it runs
+#   memory_mib          declared cost; must equal the sum of its services' compose limits
+#   requires            module names, or capabilities another module `provides`
+#   provides            capability names (a module always provides its own name)
+#   core                in every set; cannot be removed
+#   modes               the modes that install it by default (none = opt-in)
+#   files               copied from the repo into <install root>/stack/<to>
+#   health              what must be true after an apply, read as BYTES, on top of the
+#                       containers' healthchecks (a module needs at least one of the two):
+#                         bytes  a path via the edge equals a file inside a service
+#                         http   a path via the edge contains a given text
+#   overrides           adjust a repo service for an installed box (see `edge`)
 #
 # The generator is deliberately strict. It refuses (loudly, at generate time) a
 # selected service that bind-mounts anything not declared below, because the repo
 # compose files are written for a checkout (`../..:/repos/stacks`, ${HOME}...) and
 # an installed box has no checkout.
-schema: 1
+schema: 2
 modes:
   mini:                      # "Bivvy"
     title: Bivvy
     project: bothy           # compose project name on the user's machine
     reserve_mib: 512         # free memory that must remain after the stack's limits
-    modules:
-      - name: edge
-        compose: edge/compose.yml
-        services: [traefik]
-        # The repo's edge is written for the dev box: a docker provider with the
-        # socket mounted, a sandbox origin on :8100, a Prometheus on devnet. An
-        # installed box gets the FILE provider only (decision Q1): no socket in
-        # the most exposed process. Each line must match something in
-        # edge/compose.yml or generation fails (a stale override is an error).
-        overrides:
-          traefik:
-            command_remove: ["--providers.docker", "--entrypoints.sandbox.address="]
-            replace:          # metrics/ping stay on an entrypoint nothing else can reach
-              - {from: "--entrypoints.metrics.address=:8899", to: "--entrypoints.metrics.address=127.0.0.1:8899"}
-            volumes_remove: [/var/run/docker.sock]
-            env_remove: [DOCKER_API_VERSION]   # only the docker provider reads it
-            drop_keys: [extra_hosts]           # host.docker.internal: there are no host-side routes
-      - name: web
-        compose: apps/bothy-web/compose.yml
-        services: [bothy-web]
-      # The file explorer's backend, as the SECOND module: added with data only.
-      # Roots policy for a machine with no ~/stacks and no notes repo: ONE root,
-      # `notes`, a single folder under the install dir (<root>/stack/bothy-files/
-      # notes), READ-ONLY (policy `writable = false`, a `:ro` mount, and no write
-      # route at the edge, because this install has no login). Policy file:
-      # stack/installed/bothy-files.policy.toml. Not exposed: /write, /delete,
-      # /config/* (no auth to gate them) and /raw, /archive (they are served from
-      # the :8100 sandbox origin, which an installed box does not publish).
-      - name: files
-        compose: apps/bothy-files/compose.yml
-        services: [bothy-files]
-        overrides:
-          bothy-files:
-            # the dev box's four roots, audit dir and two undo nets, by container path
-            volumes_remove: [/repos/stacks, /repos/notes, /repos/projects, /repos/home, /audit, /var/lib/bothy/trash, /var/lib/bothy/config-trash]
-            volumes_add:
-              - ./notes:/repos/notes:ro
-              - ./policy:/etc/bothy-files:ro
-            tmpfs_add: [/audit, /var/lib/bothy/trash, /var/lib/bothy/config-trash]   # nothing can write; the loader wants them
-            # the Dockerfile's CMD with POLICY_FILE pointed at the installed policy
-            command_add: [sh, -c, "POLICY_FILE=/etc/bothy-files/policy.toml exec python3 -u app.py"]
-            # The repo declares this service's routes in edge/dynamic/bothy-files.yml
-            # behind SSO middlewares an installed box does not have; here only the
-            # READ routes exist, each exact Path(), no Host().
-            labels_set:
-              - traefik.enable=true
-              - traefik.http.services.bothy-files.loadbalancer.server.port=8099
-              - "traefik.http.routers.bothy-files-read.rule=Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/find`) || Path(`/-/api/files/docs`) || Path(`/-/api/files/dirsize`) || Path(`/-/api/files/search`) || Path(`/-/api/files/links`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
-              - traefik.http.routers.bothy-files-read.priority=100
-              - traefik.http.routers.bothy-files-read.entrypoints=web
-              - traefik.http.routers.bothy-files-read.service=bothy-files
-              - traefik.http.routers.bothy-files-read.middlewares=bothy-files-strip,files-deidentify
-              - traefik.http.middlewares.bothy-files-strip.stripPrefix.prefixes=/-/api/files
-              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-User=
-              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Email=
-              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Groups=
-              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Preferred-Username=
-              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Forwarded-User=
-              - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Forwarded-Email=
     # Host ports the installed stack publishes. Anything else a service publishes
     # in the repo (the sandbox entrypoint, say) is dropped. `env` is written to the
     # stack's .env by the installer (--port); the bind address comes from --bind.
@@ -90,14 +51,128 @@ modes:
     # path inside the service's own directory under the install root. The Docker
     # socket is never allowed (a lint refuses it anywhere in the generated stack).
     allow_binds: []
-    # Files copied from the repo into <install root>/stack/<to> (none for mini yet).
-    files:
-      - {from: stack/installed/bothy-files.policy.toml, to: bothy-files/policy/policy.toml}
-    # Bytes check after `up`: the installer fetches `path` through the edge and
-    # compares it with `file` read from inside `service`; version_path must report
-    # the release commit under `version_key`.
+    # Bytes check after `up`: the installer fetches version_path through the edge;
+    # it must report the release commit under version_key. (Each module's own rows
+    # are under its `health`.)
     verify:
       version_path: /version.json
       version_key: revision
+
+modules:
+  edge:
+    description: The front door - Traefik with the file provider only (no Docker socket), publishing the one host port.
+    core: true
+    compose: edge/compose.yml
+    services: [traefik]
+    memory_mib: 128
+    provides: [edge]
+    modes: [mini]
+    # The repo's edge is written for the dev box: a docker provider with the
+    # socket mounted, a sandbox origin on :8100, a Prometheus on devnet. An
+    # installed box gets the FILE provider only (decision Q1): no socket in
+    # the most exposed process. Each line must match something in
+    # edge/compose.yml or generation fails (a stale override is an error).
+    overrides:
+      traefik:
+        command_remove: ["--providers.docker", "--entrypoints.sandbox.address="]
+        replace:          # metrics/ping stay on an entrypoint nothing else can reach
+          - {from: "--entrypoints.metrics.address=:8899", to: "--entrypoints.metrics.address=127.0.0.1:8899"}
+        volumes_remove: [/var/run/docker.sock]
+        env_remove: [DOCKER_API_VERSION]   # only the docker provider reads it
+        drop_keys: [extra_hosts]           # host.docker.internal: there are no host-side routes
+
+  web:
+    description: The portal page and /version.json.
+    core: true
+    compose: apps/bothy-web/compose.yml
+    services: [bothy-web]
+    memory_mib: 64
+    requires: [edge]
+    provides: [portal]
+    modes: [mini]
+    health:
       bytes:
         - {path: /, service: bothy-web, file: /usr/share/nginx/html/index.html}
+
+  # The file explorer's backend, as the SECOND module of the first slice: added
+  # with data only. Roots policy for a machine with no ~/stacks and no notes repo:
+  # ONE root, `notes`, a single folder under the install dir (<root>/stack/
+  # bothy-files/notes), READ-ONLY (policy `writable = false`, a `:ro` mount, and
+  # no write route at the edge, because this install has no login). Policy file:
+  # stack/installed/bothy-files.policy.toml. Not exposed: /write, /delete,
+  # /config/* (no auth to gate them) and /raw, /archive (they are served from
+  # the :8100 sandbox origin, which an installed box does not publish).
+  files:
+    description: Read-only notes reader - one folder, no write routes (this box has no login yet).
+    compose: apps/bothy-files/compose.yml
+    services: [bothy-files]
+    memory_mib: 256
+    requires: [edge]
+    provides: [notes]
+    modes: [mini]
+    files:
+      - {from: stack/installed/bothy-files.policy.toml, to: bothy-files/policy/policy.toml}
+    overrides:
+      bothy-files:
+        # the dev box's four roots, audit dir and two undo nets, by container path
+        volumes_remove: [/repos/stacks, /repos/notes, /repos/projects, /repos/home, /audit, /var/lib/bothy/trash, /var/lib/bothy/config-trash]
+        volumes_add:
+          - ./notes:/repos/notes:ro
+          - ./policy:/etc/bothy-files:ro
+        tmpfs_add: [/audit, /var/lib/bothy/trash, /var/lib/bothy/config-trash]   # nothing can write; the loader wants them
+        # the Dockerfile's CMD with POLICY_FILE pointed at the installed policy
+        command_add: [sh, -c, "POLICY_FILE=/etc/bothy-files/policy.toml exec python3 -u app.py"]
+        # The repo declares this service's routes in edge/dynamic/bothy-files.yml
+        # behind SSO middlewares an installed box does not have; here only the
+        # READ routes exist, each exact Path(), no Host().
+        labels_set:
+          - traefik.enable=true
+          - traefik.http.services.bothy-files.loadbalancer.server.port=8099
+          - "traefik.http.routers.bothy-files-read.rule=Path(`/-/api/files/roots`) || Path(`/-/api/files/tree`) || Path(`/-/api/files/read`) || Path(`/-/api/files/find`) || Path(`/-/api/files/docs`) || Path(`/-/api/files/dirsize`) || Path(`/-/api/files/search`) || Path(`/-/api/files/links`) || Path(`/-/api/files/history`) || Path(`/-/api/files/repos`) || Path(`/-/api/files/status`) || Path(`/-/api/files/git/diff`)"
+          - traefik.http.routers.bothy-files-read.priority=100
+          - traefik.http.routers.bothy-files-read.entrypoints=web
+          - traefik.http.routers.bothy-files-read.service=bothy-files
+          - traefik.http.routers.bothy-files-read.middlewares=bothy-files-strip,files-deidentify
+          - traefik.http.middlewares.bothy-files-strip.stripPrefix.prefixes=/-/api/files
+          - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-User=
+          - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Email=
+          - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Groups=
+          - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Auth-Request-Preferred-Username=
+          - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Forwarded-User=
+          - traefik.http.middlewares.files-deidentify.headers.customRequestHeaders.X-Forwarded-Email=
+
+  # The THIRD module, and the proof that a module is data: it is the repo's own
+  # prom/node-exporter service from monitoring/compose.yml, unchanged, with an
+  # installed-box override. It is the one thing in the repo that is safe with no
+  # login and needs nothing the box lacks once its host mounts are dropped: it
+  # only READS /proc and /sys and answers one text page (memory, CPU, load, disk
+  # and network counters). Opt-in (in no mode); `bothy module add node-metrics`.
+  # What it does NOT get on an installed box: the repo mounts the whole host
+  # filesystem read-only at /host (--path.rootfs) and a textfile directory; both
+  # are dropped, so it sees the container's own filesystem and the kernel's
+  # global counters, never the machine's files. It is served at ONE exact route,
+  # /-/api/node/metrics (rewritten to /metrics), read by anyone who can reach the
+  # port - like the notes reader, this install has no login.
+  node-metrics:
+    description: Read-only machine numbers (memory, CPU, load, disk, network) as one text page at /-/api/node/metrics.
+    compose: monitoring/compose.yml
+    services: [node-exporter]
+    memory_mib: 64
+    requires: [edge]
+    provides: [node-metrics]
+    health:
+      http:
+        - {path: /-/api/node/metrics, contains: node_memory_MemAvailable_bytes}
+    overrides:
+      node-exporter:
+        command_remove: ["--path.rootfs=", "--collector.textfile.directory="]
+        volumes_remove: [/host, /textfile]
+        labels_set:
+          - traefik.enable=true
+          - traefik.http.services.node-metrics.loadbalancer.server.port=9100
+          - "traefik.http.routers.node-metrics.rule=Path(`/-/api/node/metrics`)"
+          - traefik.http.routers.node-metrics.priority=100
+          - traefik.http.routers.node-metrics.entrypoints=web
+          - traefik.http.routers.node-metrics.service=node-metrics
+          - traefik.http.routers.node-metrics.middlewares=node-metrics-path
+          - traefik.http.middlewares.node-metrics-path.replacePath.path=/metrics

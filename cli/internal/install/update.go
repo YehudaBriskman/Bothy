@@ -38,6 +38,9 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 	if rec == nil {
 		return fmt.Errorf("nothing is installed here (no receipt at %s): run `bothy install`", o.receiptPath())
 	}
+	if rec.Pending != nil {
+		return pendingError(rec)
+	}
 	if rec.Status != "complete" {
 		return fmt.Errorf("the last install did not finish (receipt says %q): run `bothy install` to resume it, then update", rec.Status)
 	}
@@ -45,7 +48,7 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 		return fmt.Errorf("the receipt says the install root is %s, not %s", rec.DataDir, o.DataDir)
 	}
 	o.Mode, o.Bind, o.Port, o.ConfigDir = rec.Mode, rec.Bind, rec.Port, rec.ConfigDir // an update never moves the box
-	st, err := LoadStack(o.Mode)
+	st, err := LoadStackSet(o.Mode, rec.Modules)                                      // the modules the box runs, not the mode's defaults
 	if err != nil {
 		return err
 	}

@@ -60,15 +60,15 @@ func TestGenerateAddsServiceFromData(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("stack/modes.yml", `schema: 1
+	write("stack/modes.yml", `schema: 2
 modes:
   mini:
     title: T
     project: p
     reserve_mib: 1
-    modules:
-      - {name: a, compose: a/compose.yml, services: [one, two]}
     publish: [{service: one, container: 80, env: P, default: 8080}]
+modules:
+  a: {core: true, compose: a/compose.yml, services: [one, two], memory_mib: 1056, modes: [mini], health: {http: [{path: /, contains: x}]}}
 `)
 	write("a/compose.yml", `services:
   one:
