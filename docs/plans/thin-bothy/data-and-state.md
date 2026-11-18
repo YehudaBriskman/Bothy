@@ -167,9 +167,9 @@ fails CI if a persisted format is added without a row:
 |---|---|---|---|---|---|
 | settings DB | `PRAGMA user_version` | 1 | `bothy-settings` | same | partly **[V]** (`test_store`/`test_hardening` plant `user_version = 99`) |
 | token file | `version` | 1 | Go CLI, Python `bothy-ops` | same two | **[V]** `testdata/gotokens.golden.json` |
-| receipt | `schema` | 1 | Go CLI | Go CLI | none **[V]** |
+| receipt | `schema` | 2 (reads 1 and 2; 78 above, 74 if absent/unparsable) | Go CLI | Go CLI | table test in `durable_test.go`, no file fixture |
 | release manifest | `schema` | 1 | CI | Go CLI (refuses other than 1 **[V]** `manifest.go:68`) | **[V]** |
-| master key file | line 1 `bothy-master-key v1` | v1 | installer, library | library | none (and see R2) |
+| master key file | line 1 `bothy-master-key v1` | v1 | installer, library | library | **[V]** `cli/internal/install/testdata/master.key.golden` (Go byte-equal, Python loads it) |
 | backup archive manifest (new) | `schema` | 1 | `bothy backup` | `bothy restore` | to add |
 | age export bundle | `format: "bothy-config-export/1"` | 1 | library | **[P]** | none |
 
@@ -558,8 +558,24 @@ amber "no second copy: backups share a device with the data" when unset or on th
 `st_dev`, green when set and under 48 h old. `scripts/checks/backup-restore.sh` (CI, six mutant
 rows) runs the real scripts on a fixture. **Unproven:** nothing has run on the live box, and the
 mirror is off until the owner sets it; encryption for a mirror that leaves the box (R10) is not
-done, so the mirror must be a device the owner already trusts with `.env`. Items 2 and 3 are
-other work.
+done, so the mirror must be a device the owner already trusts with `.env`.
+
+**Status of item 2 (installer), true in the tree, unit-tested, not run in a guest:** `master.key` is written
+in the library's `bothy-master-key v1` format (R2/DS7): `EncodeMasterKey` is byte-equal to a golden produced
+by `keyfile._serialize` (`cli/internal/install/testdata/master.key.golden`, also loaded by
+`apps/bothy-settings/checks/test_primitives.py`), and a Go test has the real `keyfile.load` read the
+installer's file (T2). Creation and the receipt write are temp + fsync + (`link` | rename) + directory fsync;
+`secrets` is "done" only when the file parses; a legacy hex key is converted in place; a corrupt key is
+refused with 74 and never replaced (R5). T4 is covered by a `writeHook` seam that aborts at each of three
+steps (`written`, `synced`, `renamed`) for both files. Not done: an actual `kill -9`/power-loss run (the hook
+simulates the abort, not the page cache), and the key path is still passed explicitly, not via
+`BOTHY_MASTER_KEY_FILE`.
+**Item 3, partly:** the receipt carries `schema` (it did) and now **reads** it: unparsable or missing =
+exit 74, newer than this binary = exit 78, file untouched (R11 for the receipt; the token readers are
+slice 2). The `checks/formats` registry check is **not built** (it needs a fixture per row of 3.1 and a
+check that fails on an unlisted format; larger than "small"; the receipt and key golden rows now exist).
+**DS8 for `uninstall`:** it takes the same lock as install, update and module (T8 for uninstall: unit).
+**Decision 1:** every install verb refuses to run as root (sudo or a root login) with exit 77.
 
 **Measure of done:** `doctor` shows the second-copy line; T2, T4, T11 pass; the token set
 appears in the next nightly `state` tarball. Rollback: revert the commit; the nightly timer

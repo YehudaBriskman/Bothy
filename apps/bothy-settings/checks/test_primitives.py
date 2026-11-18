@@ -169,6 +169,22 @@ class KeyFile(unittest.TestCase):
         self.assertEqual(ks.active_id, keyfile.key_id_of(ks.active))
         self.assertEqual(os.listdir(os.path.dirname(p)), ["master.key"])  # no temp left behind
 
+    def test_the_installers_golden_key_file_loads(self) -> None:
+        """data-and-state.md R2/DS7: the file `bothy install` writes is this reader's format.
+        The golden is shared with the Go installer's test (cli/internal/install), which
+        reproduces it byte for byte; here the real reader loads it."""
+        golden = os.path.join(helpers.HERE, "..", "..", "..", "cli", "internal", "install",
+                              "testdata", "master.key.golden")
+        with open(golden, "rb") as f:
+            data = f.read()
+        with open(self.path, "wb") as f:
+            f.write(data)
+        os.chmod(self.path, 0o600)
+        ks = keyfile.load(self.path)
+        self.assertEqual(ks.active, bytes(range(32)))
+        self.assertEqual(ks.active_id, "630dcd2966c43366")
+        self.assertEqual(keyfile._serialize(ks), data)
+
     def test_never_overwrites_even_if_asked_twice(self) -> None:
         keyfile.create(self.path)
         before = self.read()

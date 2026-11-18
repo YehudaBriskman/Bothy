@@ -69,7 +69,8 @@ Default is **user scope: no root anywhere**.
 | config and secrets (`--config-dir`, named `bothy`) | `${XDG_CONFIG_HOME:-~/.config}/bothy/secrets/` | dir **0700**, `master.key` **0600** |
 
 `master.key` is 32 random bytes from `crypto/rand`, generated **on this machine**, never printed, never
-rotated by a re-run. **Nothing consumes it yet** in Bivvy-on-Compose (the settings store and login are not in
+rotated by a re-run, in the settings library's `bothy-master-key v1` format (one `<key_id> <base64>` line;
+an older install's 64-hex file is converted in place on the next `bothy install`, same bytes). **Nothing consumes it yet** in Bivvy-on-Compose (the settings store and login are not in
 the mini stack); it is generated now so the layout and modes are settled before anything depends on it.
 
 A **system scope** (`/var/lib/bothy`, `/etc/bothy` 0700/0600, a systemd unit) is **designed, not built**: it is
@@ -548,8 +549,10 @@ replace anything that is not Bothy's, leave no partial state, say the exact fix.
 | 19 | `$HOME` with spaces / non-ASCII | full install, bytes verified, purge | unproven | **lab** 6c |
 | 20 | Path containing `:` | refused (Compose bind syntax cannot carry it) | late compose error | unit |
 | 21 | Network or 9p/NFS mount for the root | refused (existing) | same | unit (existing) |
-| 22 | `sudo bothy install` | warns (running under sudo for user X; run without) | generic root warning | **lab** 9 (dry run); unit |
-| 23 | Empty `master.key` after an interrupted write | regenerated; key now written to a temp file and renamed, never half-written; a real key is never replaced | an empty key was "done" forever | unit |
+| 22 | `sudo bothy install` (and `update`, `uninstall`, `module add/remove/rollback`, self-update, even `--dry-run`) | **refused, exit 77**, nothing created: under sudo it names the user and says to run as them without sudo (and `usermod -aG docker`); a genuine root login is told to use a normal user. **No override flag** (no real need: a per-user install owned by root cannot be updated or removed by the user; system scope is a separate design). Read-only verbs (`module list`, `update --check --json`) are unaffected | warned only, then ran as root and wrote root-owned files into the user's tree | unit (every verb, both shapes, nothing created); the lab 9 line is rewritten for this but **not re-run in a guest** |
+| 23 | `master.key` half-written, empty, legacy or foreign | written in the settings library's `bothy-master-key v1` format by temp + fsync + `link(2)` + directory fsync; the step is "done" only when the file **parses**; an empty file is regenerated, a legacy 64-hex key is converted in place (same 32 bytes), anything else is **refused with exit 74 and never replaced** | an empty key was "done" forever; the installer wrote hex the store cannot read (R2) | unit: interrupted at each of three steps, torn file, golden byte-equal to the library's serializer, **round trip through the real `keyfile.load`** (Go test shells to python3; skips if absent) |
+| 31 | Two verbs at once including `uninstall` | `uninstall` takes the same `.install.lock` as install/update/module (a dry run takes none); the emptied root is removed after the lock is released | uninstall took no lock and could interleave with an update's rollback | unit |
+| 32 | Receipt torn, corrupt, or from a newer bothy | written by temp + fsync + rename + directory fsync (unique temp name); read: does not parse or no valid `schema` = **exit 74**, `schema` above 2 = **exit 78**, file untouched in both | rename only, no fsync, fixed temp name; a newer receipt was an untyped error | unit: interrupted at three steps (old or new, never a mixture), verdict table, `Run` exit codes |
 | 24 | `--bind localhost` / junk | usage error before anything runs | late compose failure | unit |
 | 25 | Verify probe with `HTTP(S)_PROXY` set and a non-loopback `--bind` | probe ignores proxy env | went through the proxy | unit-less, code only (**unproven**) |
 | 26 | SELinux enforcing (Fedora, RHEL) | **warning only**, with the `chcon` command; bind mounts may still be denied | silent | warn: unit; the denial itself **unproven** (no SELinux guest) |

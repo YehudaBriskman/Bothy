@@ -69,3 +69,25 @@ func TestModuleListLocalWhenAReceiptExists(t *testing.T) {
 		t.Errorf("add without a name: %d %q", code, errb.String())
 	}
 }
+
+// The format verdicts reach the process exit code: a receipt from a newer bothy is 78, a
+// receipt that does not parse is 74, and in both the file is left as it was.
+func TestReceiptVerdictsAreExitCodes(t *testing.T) {
+	for body, want := range map[string]int{`{"schema": 9}`: 78, `{"schema": 2`: 74} {
+		home := t.TempDir()
+		root := filepath.Join(home, "x", "bothy")
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		rp := filepath.Join(root, "receipt.json")
+		_ = os.WriteFile(rp, []byte(body), 0o600)
+		var out, errb strings.Builder
+		got := Run([]string{"module", "list", "--local", "--root", root}, modIO(home, &out, &errb))
+		if got != want {
+			t.Errorf("%s: exit %d, want %d (%s)", body, got, want, errb.String())
+		}
+		if b, _ := os.ReadFile(rp); string(b) != body {
+			t.Errorf("%s: receipt modified", body)
+		}
+	}
+}

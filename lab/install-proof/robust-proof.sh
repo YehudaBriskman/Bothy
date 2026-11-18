@@ -197,9 +197,9 @@ refused=$(grep -l "already running" /tmp/race1.txt /tmp/race2.txt 2>/dev/null | 
 [ ! -e "$D/.install.lock" ] && ok "8 no lock file left" || fail "8 lock file"
 purge
 
-# ---------------------------------------------------------------- 9. run under sudo
+# ---------------------------------------------------------------- 9. run under sudo (refused, exit 77; not re-run in a guest since this changed)
 sudo "$B" install --dry-run $(R) >/tmp/sudo.txt 2>&1; rc=$?
-{ [ $rc -eq 0 ] && grep -q "running under sudo" /tmp/sudo.txt && untouched && [ ! -e /root/.local/share/bothy ]; } && ok "9 sudo bothy install --dry-run: warns about sudo and says to run without it" || { cat /tmp/sudo.txt; fail "9"; }
+{ [ $rc -eq 77 ] && grep -q "refusing to run as root" /tmp/sudo.txt && grep -q "without sudo" /tmp/sudo.txt && untouched && [ ! -e /root/.local/share/bothy ]; } && ok "9 sudo bothy install --dry-run: refused with exit 77, says to run without sudo, nothing created" || { cat /tmp/sudo.txt; fail "9"; }
 
 # ---------------------------------------------------------------- 10. docker daemon down (last: it stops the registry)
 sudo systemctl stop docker.socket docker >/dev/null 2>&1
