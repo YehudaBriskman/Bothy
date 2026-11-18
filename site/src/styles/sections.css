@@ -8,21 +8,14 @@
  * under prefers-reduced-motion. With no script every word is simply there.
  */
 
-/* ── Hand-over from the story: a long fade from the sky into the ink, no edge ──────────────────────────── */
+/* ── After the story: on the black that #story-end hands over ──────────────────────────────────────────── */
 
 .after-story {
   position: relative;
   isolation: isolate;
-  padding-block-start: clamp(6rem, 4rem + 8vw, 12rem);
-  background: linear-gradient(
-    to bottom,
-    /* starts at the exact veil the story ends on (story.css: --ground-rgb 12 14 31 at 50%), so there is no seam */
-    rgb(12 14 31 / 50%) 0,
-    rgb(10 11 22 / 60%) 4rem,
-    rgb(var(--ink-rgb) / 70%) 7rem,
-    rgb(var(--ink-rgb) / 82%) 11rem,
-    var(--ink) 15rem
-  );
+  /* follows #story-end, whose eased gradient and halftone already brought the sky down to this exact black */
+  padding-block-start: clamp(3rem, 2rem + 4vw, 6rem);
+  background: var(--ink);
 }
 
 /* ── Section and its head ─────────────────────────────────────────────────── */
@@ -205,6 +198,15 @@
 }
 .photo-tall {
   min-block-size: clamp(18rem, 13rem + 12vw, 26rem);
+}
+/* the window's lower edge dissolves into the card through the halftone of dither.css (the card's own colour) */
+.photo > .dither-to-black {
+  --dither-s: 0.3;
+  --dither-ink: #121319;
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -1px;
+  z-index: -1;
 }
 
 .mini {

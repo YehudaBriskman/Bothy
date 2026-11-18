@@ -396,6 +396,8 @@ export const en = {
     madeEyebrow: 'How it is made',
     privacyEyebrow: 'This site',
     privacyHeading: 'Nothing about your visit leaves your browser.',
+    privacyBody:
+      'The sky on the home page follows the hour on your device’s clock, worked out in your browser; with no script it is a still picture chosen by your light or dark setting. No page here makes a request to another site or sets a cookie.',
   },
 
   install: {

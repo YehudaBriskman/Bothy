@@ -26,7 +26,7 @@ function headFor(route: Route, byPath: Map<string, Route[]>): string {
     `<meta name="description" content="${escapeHtml(route.description)}" />`,
     `<meta name="bothy-base" content="${escapeHtml(BASE)}" />`,
     // the site is ink by default in every scheme (tokens.css); only the story's sky follows the hour
-    `<meta name="theme-color" content="#08090d" />`,
+    `<meta name="theme-color" content="#09090c" />`,
     `<link rel="icon" href="${href('/favicon.svg')}" type="image/svg+xml" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:title" content="${escapeHtml(route.title)}" />`,
