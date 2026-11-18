@@ -56,6 +56,32 @@ docs "VERSION is not a document" code 'VERSION'
 docs "nothing at all is not docs-only (fail open)" code ''
 
 echo
+echo "── the website job: runs on what site/ builds from ─────────────────"
+# scope <label> <want: run|skip> <site|site-browser> <paths>
+scope() {
+  local got=skip
+  printf '%s' "$4" | bash scripts/ci-changes.sh "$3" && got=run
+  say "$1" "$2" "$got"
+}
+scope "a site source file" run site 'site/src/pages/Install.tsx'
+scope "a guide page the site renders" run site 'docs/guide/roles.md'
+scope "the console stylesheets render-console reads" run site 'apps/bothy-web/web/src/styles/tokens.css'
+scope "ci.yml" run site '.github/workflows/ci.yml'
+scope "a compose file only" skip site 'monitoring/compose.yml'
+scope "a kb page (never rendered)" skip site 'docs/kb/topology.md'
+scope "the portal's server, not its web source" skip site 'apps/bothy-web/server.py'
+scope "one site path among others" run site 'README.md
+site/package.json'
+scope "nothing at all runs it (fail open)" run site ''
+scope "the story" run site-browser 'site/src/story/scroll.ts'
+scope "the styles" run site-browser 'site/src/styles/story.css'
+scope "the sky stills" run site-browser 'site/public/sky/day-desk.avif'
+scope "the lockfile (the browser's version)" run site-browser 'site/package-lock.json'
+scope "the install page alone" skip site-browser 'site/src/pages/Install.tsx'
+scope "a guide page alone" skip site-browser 'docs/guide/roles.md'
+scope "nothing at all runs the browser checks (fail open)" run site-browser ''
+
+echo
 echo "── mutants.sh rows: run what the change can reach ──────────────────"
 WEB=(bash apps/bothy-web/checks/run.sh --offline)
 row "the mutated file changed" run 'README.md' \

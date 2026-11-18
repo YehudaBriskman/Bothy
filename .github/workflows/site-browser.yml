@@ -1,0 +1,145 @@
+# The website's checks that need a real browser (build plan S11).
+#
+#   checks       check:story (the console demo plays from real scrolling, at
+#                seven viewports and with WebGL off, sky blocked, reduced motion)
+#                and check:sky (pixel-sampled WCAG and APCA contrast of every
+#                text element over the sky, 8 hours x desktop and phone). Blocking.
+#   screenshots  Home at 06:30, 13:00 and 22:00 plus Install and the docs index,
+#                desktop and phone, uploaded as the `site-screenshots` artifact
+#                for a reviewer. Never blocking.
+#
+# When: from ci.yml on a PR or push that changes the site (screenshots), and the
+# checks only when the story, sky, rendered console or styles changed
+# (scripts/ci-changes.sh `site-browser`); every night; and by hand.
+#
+# The browser is playwright-core's own headless shell, pinned by the
+# playwright-core version in site/package-lock.json and cached under that key,
+# so a cache hit downloads nothing. The runner image already carries Chrome's
+# system libraries, so there is no apt step. Measured timings: site/README.md.
+name: Site browser checks
+
+on:
+  workflow_call:
+    inputs:
+      checks:
+        description: Run check:story and check:sky (screenshots always run)
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      checks:
+        description: Run check:story and check:sky (screenshots always run)
+        type: boolean
+        default: true
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Site story and sky checks (Chromium)
+    if: inputs.checks || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the headless Chromium
+        id: browser-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-shell-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install the headless Chromium (cache miss only)
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright-core install --only-shell chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: check:story - the console demo plays from real scrolling
+        run: npm run check:story
+
+      - name: check:sky - text contrast over the sky, from pixels
+        if: always()
+        run: npm run check:sky -- --no-stills
+
+      - name: Keep the contrast table
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-contrast
+          path: site/.check-sky/contrast.*
+          if-no-files-found: ignore
+          retention-days: 14
+          include-hidden-files: true
+
+  screenshots:
+    name: Site screenshots (not blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the headless Chromium
+        id: browser-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-shell-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install the headless Chromium (cache miss only)
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright-core install --only-shell chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Screenshots
+        run: npm run screenshots
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-screenshots
+          path: site/.screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+          include-hidden-files: true

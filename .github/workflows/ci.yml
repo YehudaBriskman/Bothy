@@ -376,6 +376,11 @@ jobs:
       # true only on a pull request whose every path is documentation by
       # scripts/ci-changes.sh's own rule. Read by the build tiers below.
       docs_only: ${{ steps.plan.outputs.docs_only }}
+      # Whether the website job runs (site/, docs/guide, the console's styles,
+      # this file), and whether its Chromium checks do. Same rule file; both fail
+      # open. A docs-only PR that edits docs/guide still builds the site.
+      site: ${{ steps.plan.outputs.site }}
+      site_browser: ${{ steps.plan.outputs.site_browser }}
     steps:
       # Depth 2: a PR checkout is GitHub's merge commit, and its first parent is
       # the base it merged onto. That pair is the PR's whole diff.
@@ -412,7 +417,27 @@ jobs:
           [ "$n" -le 4 ] || n=4
           [ "$rows" -gt 0 ] || n=0
           [ -n "${MUTANTS_CHANGED:-}" ] || n=4
-          { echo "rows=$rows"; echo "of=$n"; echo "docs_only=$docs_only"; } >> "$GITHUB_OUTPUT"
+          # The site: a PR by its diff; a push to main by the commit it pushed
+          # (a squash merge is one commit, and depth 2 holds its parent). Any
+          # doubt runs it. A push to main always runs the site job itself.
+          site=true
+          site_browser=true
+          list="$RUNNER_TEMP/site-changed"
+          if [ "$EVENT" = pull_request ] && [ -s "$RUNNER_TEMP/changed" ]; then
+            cp "$RUNNER_TEMP/changed" "$list"
+          elif [ "$EVENT" = push ] && git diff --name-only --no-renames HEAD^1 HEAD > "$list" 2>/dev/null && [ -s "$list" ]; then
+            :
+          else
+            : > "$list"
+          fi
+          if [ -s "$list" ]; then
+            if [ "$EVENT" = pull_request ] && ! bash scripts/ci-changes.sh site < "$list"; then site=false; fi
+            if ! bash scripts/ci-changes.sh site-browser < "$list"; then site_browser=false; fi
+          fi
+          [ "$site" = true ] || site_browser=false
+          echo "site=$site site_browser=$site_browser"
+          { echo "rows=$rows"; echo "of=$n"; echo "docs_only=$docs_only"
+            echo "site=$site"; echo "site_browser=$site_browser"; } >> "$GITHUB_OUTPUT"
           echo "$rows row(s), ~${secs}s of work, $n shard(s)"
 
   mutants-shard:
@@ -664,8 +689,16 @@ jobs:
   # every internal link and fragment resolves, no resource comes from another
   # origin, and nothing private (an off-allowlist doc, a tailnet address, a
   # credential shape) reached the output.
+  #
+  # S11 (2026-11-18): it runs only when the PR touches what the site builds from
+  # (scripts/ci-changes.sh `site`: site/, docs/guide, the console's styles, this
+  # file) and always on a push to main. Every gate after the build runs even when
+  # an earlier one failed, so one red run names every broken gate. Measured on a
+  # warm npm cache: about 1 minute. What each gate protects: site/README.md.
   site:
-    name: Site format, lint, typecheck, tests, build, verify
+    name: Site format, lint, typecheck, tests, build, verify, budgets
+    needs: mutants-plan
+    if: needs.mutants-plan.outputs.site != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -687,19 +720,60 @@ jobs:
         run: npm run format:check
 
       - name: Lint
+        if: always()
         run: npm run lint
 
       - name: Type check
+        if: always()
         run: npm run typecheck
 
       - name: Test
+        if: always()
         run: npm test
 
       - name: Build
+        id: build
+        if: always()
         run: npm run build
 
+      - name: Image provenance and byte budgets (public/sky)
+        if: always()
+        run: npm run check:assets
+
+      - name: The rendered console matches its fixtures and the console's stylesheets
+        if: always()
+        run: npm run check-console
+
       - name: Verify routes, links, offline rule and that nothing private was published
+        if: always() && steps.build.outcome == 'success'
         run: bash scripts/verify-dist.sh
+
+      - name: Offline audit - title, description, canonical, lang, one h1, heading order, images, no other origin
+        if: always() && steps.build.outcome == 'success'
+        run: npm run check:meta
+
+      - name: Byte budgets per route and asset class (gzip)
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          set -o pipefail
+          { echo '### Site byte budgets'; echo; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          rc=0
+          npm run --silent check:budgets | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
+
+  # The Chromium checks (check:story, check:sky) and the review screenshots live
+  # in site-browser.yml, which also runs nightly and by hand. On a PR or push the
+  # checks run only when the story, sky, console or styles changed
+  # (ci-changes.sh `site-browser`); the screenshots run on every site change and
+  # never block.
+  site-browser:
+    name: Site browser
+    needs: [mutants-plan, site]
+    if: needs.mutants-plan.outputs.site != 'false' && needs.site.result == 'success'
+    uses: ./.github/workflows/site-browser.yml
+    with:
+      checks: ${{ needs.mutants-plan.outputs.site_browser == 'true' }}
 
   # The Go CLI and its read-only MCP server (cli/). Stdlib plus the official MCP
   # SDK, so the module cache is small and the job is a minute. What it guards that
