@@ -128,8 +128,10 @@ chmod 700 "$STATE/bothy/tokens"; chmod 600 "$STATE/bothy/tokens/tokens.json"
 # ── 3. an archive that is not a state archive is refused, nothing written ────
 mkdir -p "$T/evil/etc"; printf 'x\n' > "$T/evil/etc/passwd"
 tar -czf "$T/evil.tar.gz" -C "$T/evil" etc
-if run_restore "$T/evil.tar.gz" "$T/r3-apps" "$T/r3-state" "$T/r3-bk"; then
-  bad "a member outside apps/ and bothy/ is refused" "exit 0"
+run_restore "$T/evil.tar.gz" "$T/r3-apps" "$T/r3-state" "$T/r3-bk"; rc=$?
+# 2 and the word REFUSED: refused up front, not a late verification failure.
+if [ "$rc" != 2 ] || ! grep -q 'REFUSED' "$T/restore.out"; then
+  bad "a member outside apps/ and bothy/ is refused" "rc=$rc $(tail -2 "$T/restore.out")"
 elif [ ! -e "$T/r3-state/etc" ] && [ ! -e "$T/r3-apps/etc" ]; then ok "a member outside apps/ and bothy/ is refused"
 else bad "a member outside apps/ and bothy/ is refused" "it wrote something"; fi
 
