@@ -19,6 +19,8 @@
  * `docs.notTranslated` below).
  */
 
+import type { ModeId, ProvenId, UnprovenId } from '../facts.ts';
+
 export const en = {
   meta: {
     siteTitle: 'Bothy',
@@ -54,105 +56,194 @@ export const en = {
   },
 
   home: {
-    title: 'Bothy: install a console for your machine like an app',
+    title: 'BothyBox: a free shelter in the hills, for your machine',
+    chapterNav: 'The story, chapter by chapter',
     hero: {
-      heading: 'A bothy is a free shelter in the hills. This one is for your machine.',
-      lede: 'Bothy is a self-hosted console for one machine. It discovers the services on a machine, shows them on one page, and gives you a reader for the files and notes kept there. You get it from one download and one command, with no checkout and nothing to build.',
+      heading: 'BothyBox',
+      line: 'A free shelter in the hills, for your machine.',
+      lede: 'A bothy is an unlocked mountain hut that anyone may use, kept up by the people who use it. Bothy is software with the same manners: one console for the machine you run things on, free and open source.',
       primary: 'Install Bothy',
       secondary: 'Read the docs',
-      terminalLabel: 'The whole install, as typed',
-      terminalNote: 'Your machine needs Docker. Nothing here runs as root.',
+      skipInstall: 'Skip to install',
+      cue: 'Read the story',
+      footnote:
+        'The sky behind this page is a still picture chosen by your browser’s light or dark setting. This page makes no request to another site and sets no cookie.',
       copy: 'Copy',
       copied: 'Copied',
     },
-    app: {
-      heading: 'Installs like an app',
-      intro:
-        'The goal is the way you install a browser or an editor: get one file, run it, and the rest is its job. That is how it works now, for the first size.',
-      steps: [
-        {
-          title: 'Download one binary',
-          body: 'The `bothy` command is a single static file attached to each GitHub release. It carries the stack definition inside it, so there is no repository to clone and no Go, Python or Node to install.',
-        },
-        {
-          title: 'Read the plan first',
-          body: '`bothy install --dry-run` prints every action marked `do` or `skip` and changes nothing. A step marked `skip` is already true on your machine, which is why running it twice is safe.',
-        },
-        {
-          title: 'Install',
-          body: '`bothy install` pulls each image by its digest, starts the stack, then checks the bytes the server actually returns. It does not trust a status code, because a catch-all page also answers 200.',
-        },
+    descent: {
+      heading: 'What a bothy is',
+      lead: 'In the hills of Scotland, and of northern England and Wales, a bothy is a basic shelter: four walls and a roof, no charge and nobody at the door. Volunteers keep them up.',
+      codeLabel: 'The Bothy Code, in short',
+      code: [
+        'Leave it as you found it.',
+        'Respect other users and the place.',
+        'Keep numbers down.',
+        'Turn no one away.',
       ],
-      trust: {
-        heading: 'What it checks before it touches anything',
-        items: [
-          'The release manifest must match its own line in the release’s `checksums.txt`, and must name the same version as the binary.',
-          'Every image is pulled by `sha256` digest, never by a tag, and the digest is re-checked after the pull.',
-          'When the GitHub CLI is present, the release’s build attestation is verified too. When it is not, `bothy install` says it skipped that check and prints the exact command to run yourself.',
-          'It writes under your home directory, never runs `sudo`, and a failure part-way is resumed by running it again.',
-        ],
-      },
+      codeSource: 'From the Mountain Bothies Association’s Bothy Code, shortened.',
+      close: 'The software borrows the name and the manners. What it does is the next chapter.',
     },
-    modes: {
-      heading: 'Four sizes',
-      intro:
-        'Bothy comes in sizes, named for the shelters people use in the hills, smallest first. Only the smallest can be installed today.',
-      available: 'Installable now',
-      planned: 'Designed, not built',
+    hut: {
+      heading: 'One console for one machine',
+      lead: 'Bothy is a web console for a single machine. It finds what is running by asking Docker, shows it on one page, and gives you a reader for the files and notes kept on that machine. It is open source, under the MIT licence.',
+      promise: 'It does not replace your tools. It shows and looks after what you already run.',
+      guide: 'Read the guide',
+      art: 'A small stone hut on a dark hillside, one window lit.',
+    },
+    inside: {
+      heading: 'What is inside',
+      lead: 'These are the parts the guide documents today. Each card links to the page that describes it.',
       items: [
         {
+          title: 'Overview',
+          body: 'The machine at a glance: a status line of what is up, unknown and stopped against the number expected, then a card for each system. Everything on it is discovered by asking Docker.',
+          page: 'the-console',
+          link: 'Operating it from the console',
+        },
+        {
+          title: 'Files',
+          body: 'Every document on the machine, read straight from the disk it lives on. The reader never writes; editing is a separate page.',
+          page: 'files',
+          link: 'Bothy Files',
+        },
+        {
+          title: 'Roles',
+          body: 'Four roles: `viewer`, `editor`, `operator` and `shell`. Holding one never implies another, and `shell` is defined but granted to nobody.',
+          page: 'roles',
+          link: 'Roles',
+        },
+        {
+          title: 'Themes',
+          body: 'Five themes ship with it. A theme you add is one CSS file in one directory: no rebuild and no restart.',
+          page: 'themes',
+          link: 'Themes',
+        },
+      ],
+      note: 'The guide describes the console as the repository builds it, which is larger than the Bivvy size that installs today. The next chapter lists the sizes.',
+    },
+    sizes: {
+      heading: 'Four sizes',
+      lead: 'Named for the shelters walkers use, smallest first. Only the smallest installs today.',
+      now: 'Installable now',
+      planned: 'Planned, not built',
+      cost: 'Cost',
+      notMeasured: 'Not yet measured.',
+      bivvyCost: (usedMiB: number, gateMiB: number) =>
+        `Measured in our lab after a stock install: about ${usedMiB} MiB of memory across its three containers. The installer wants ${gateMiB} MiB free before it starts.`,
+      items: {
+        bivvy: {
           name: 'Bivvy',
           tagline: 'a roof, a door, a lock',
           body: 'The console, a read-only file reader and the edge that serves them. Runs on Docker Compose.',
-          status: 'available',
+          note: '',
         },
-        {
+        bothy: {
           name: 'Bothy',
           tagline: 'four walls and a fire',
           body: 'Bivvy plus metrics, logs, alerts and backups.',
-          status: 'planned',
+          note: '',
         },
-        {
+        basecamp: {
           name: 'Basecamp',
           tagline: 'everything before the climb',
           body: 'Bothy plus dashboards, single sign-on, a database and a cluster view.',
-          status: 'planned',
+          note: '',
         },
-        {
+        cairn: {
           name: 'Cairn',
           tagline: 'stack your own stones',
           body: 'Pick modules one at a time.',
-          status: 'planned',
+          note: 'The building block exists: `bothy module add` adds one module to an installed Bivvy. It has been tested against a simulated machine only, and no published release carries a module yet, so Cairn stays planned.',
         },
-      ],
-      profileLabel: 'A stepped outline rising from Bivvy to Cairn. Only the first step is built.',
+      } as Record<ModeId, { name: string; tagline: string; body: string; note: string }>,
     },
-    status: {
-      heading: 'Where it honestly stands',
+    install: {
+      heading: 'Install with one command',
+      lead: 'Once you have the `bothy` file, `bothy install` is the whole job. These are the four commands, in order.',
+      terminalLabel: 'The whole install, as typed',
+      terminalNote: 'Run it as your own user, without `sudo`. Run with `sudo` it refuses and changes nothing.',
+      checksHeading: 'What it checks before it changes anything',
+      checks: {
+        docker: 'Docker is present and answering, with the Compose v2 plugin.',
+        memory: (gateMiB: number) => `Free memory against the gate: ${gateMiB} MiB must be available.`,
+        port: 'The port (80 unless you pass `--port`) is free. If something holds it, nothing is stopped and the message names it.',
+        release: 'The release is found, from the binary’s own version.',
+        sha: 'The sha256 checks pass: the manifest against `checksums.txt`, and each image by digest.',
+        attestation:
+          'The build attestation is verified when `gh` is present. When it is not, the install says it skipped that check and prints the exact command to run: `gh attestation verify checksums.txt --repo YehudaBriskman/Bothy`.',
+      },
+      didHeading: 'What it did',
+      did: [
+        'Pulled three images by digest: the console, the file reader and the edge.',
+        'Started them, then read the bytes the edge actually serves, so another page answering 200 cannot pass.',
+        'Printed the address. Open it in a browser.',
+      ],
+      leaveHeading: 'Leaving',
+      leave:
+        '`bothy uninstall` removes what the install made and keeps your data and secrets. `bothy uninstall --purge` deletes them too, after you type a confirmation.',
+      tested: 'Tested on Linux amd64 with Docker.',
+      timing: (min: string, max: string, rerun: string, v: string, date: string) =>
+        `In our lab, on a clean machine with only Docker, a stock install of release ${v} took ${min} to ${max} seconds (two runs, ${date}), and running it again took about ${rerun} second. That is what we measured, not a promise; your network decides how long the pulls take.`,
+      paths: 'Two ways in: the release binary above, or a source checkout.',
+      pathsLink: 'Install page',
+      pathsGuide: 'Installing guide',
+    },
+    proof: {
+      heading: 'What has been shown, and what has not',
+      shownHeading: 'Shown to work in our lab',
+      notHeading: 'Not shown, so not promised',
+      shownInstall: (v: string, os: string) =>
+        `A stock install of release ${v} on a clean ${os} virtual machine (linux/amd64) with only Docker and Compose: the page and the file reader answered with the right bytes.`,
+      shown: {
+        install: '',
+        checksum:
+          'The release is checked against its own `checksums.txt` and every image is pulled by digest, before anything is changed.',
+        'attestation-skip':
+          'Without the GitHub CLI the attestation check is skipped and the exact command to run is printed. With `--require-attestation` the install refuses instead.',
+        rerun: 'Running the install again changed nothing.',
+        tamper:
+          'A tampered release, a mismatched version and two forced failures were each refused or rolled back to the previous state, byte for byte.',
+        uninstall:
+          '`bothy uninstall` and `bothy uninstall --purge` removed what they should; your data and secrets stay unless you purge.',
+        preflight:
+          'A taken port, a stopped Docker, a missing Compose plugin, too little memory and a read-only home were each refused with the fix named and nothing created.',
+      } as Record<Exclude<ProvenId, 'install'>, string>,
+      not: {
+        arm64: 'Running on `arm64`: the images can be pulled, and nobody has run them.',
+        wsl: 'WSL, including Docker Desktop for WSL.',
+        rootless: 'Rootless Docker: refused by design, never run on a real one.',
+        'mini-host': 'A machine with 2 GiB of memory.',
+        'update-real': 'A real update or downgrade between two real releases.',
+        'attestation-guest': 'A verified attestation inside a fresh machine: it was verified on the host only.',
+        selinux: 'SELinux enforcing: the installer warns and prints the command; the denial itself was not reproduced.',
+        ipv6: 'IPv6-only networks.',
+        'desktop-hosts':
+          'macOS and Windows machines: those archives are command-line clients, not a place to run the stack.',
+        k3s: 'k3s: a design, not what installs today.',
+        'modules-real': 'Adding a module to a real release: tested against a simulated machine only.',
+      } as Record<UnprovenId, string>,
       asOf: (release: string) => `Written against release ${release}.`,
-      worksHeading: 'What has been shown to work',
-      works: [
-        'A stock install of a real release on a clean Ubuntu virtual machine that had only Docker and Compose: download the binary, `bothy install`, and the page and file reader answered with the right bytes.',
-        'Running the install a second time changes nothing and takes about a second.',
-        'A tampered manifest, a wrong version and two forced failures were each refused or rolled back to the previous state.',
-        '`bothy uninstall` removes what it made and keeps your data and secrets unless you ask for `--purge` and type a confirmation.',
-      ],
-      notHeading: 'What is not there yet',
-      not: [
-        'Bothy, Basecamp and Cairn are plans. There is no way to install them yet.',
-        'Only the Linux `amd64` binary has been run end to end. The `arm64` build exists and has never been executed.',
-        'The macOS and Windows archives are command-line clients. The stack itself runs on a Linux machine with Docker.',
-        'WSL and rootless Docker are untested. There is no package for apt or Homebrew yet.',
-        'The attestation check inside a fresh machine is proven only where the GitHub CLI was already signed in.',
-        'This site is English only for now. Hebrew is planned and the pages are built so it can be added.',
-      ],
-      where: 'The full record of what was measured is in the repository.',
+      where: 'The full record is in the repository.',
       whereLink: 'Install notes and test results',
     },
-    docsTeaser: {
-      heading: 'Documentation',
-      body: 'The guide is the repository’s own Markdown, rendered here from the same files. It starts with installing and ends with troubleshooting.',
-      link: 'Open the guide',
+    trust: {
+      heading: 'Leave it as you found it',
+      lead: 'Each line here can be checked.',
+      claims: [
+        'Releases carry sha256 checksums and a build attestation.',
+        'The installer verifies before it changes anything, and rolls back when something fails.',
+        '`bothy uninstall` removes what the install added.',
+        'This site runs no analytics, sets no cookie and loads nothing from another site.',
+      ],
+      linksLabel: 'Where to check',
+      links: {
+        source: { name: 'Source', note: 'All of it, in one repository.' },
+        licence: { name: 'Licence', note: 'MIT.' },
+        releases: { name: 'Releases', note: 'Binaries, checksums and attestations.' },
+        security: { name: 'Security policy', note: 'What is protected, and how to report a problem.' },
+      },
+      close: 'Leave it as you found it. Turn no one away.',
     },
   },
 

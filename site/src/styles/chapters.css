@@ -1,0 +1,623 @@
+/*
+ * The Home story: seven sections on a still sky, drawn with CSS only.
+ *
+ * Everything is scoped under `.story` so nothing leaks into the docs or the
+ * install page. Logical properties only (verify-dist.sh refuses the physical
+ * ones). The palette is the place: peat ground, granite panels, heather
+ * links, and one warm colour, the lit window's amber, used for the window, the
+ * focus ring and nothing decorative. The sky is dusk by default, day when the
+ * browser asks for a light scheme.
+ *
+ * Contrast (measured against the exact values below, WCAG ratio):
+ *   --ch-fg    on --ch-ground  15.4   --ch-muted on --ch-ground  8.7
+ *   --ch-fg    on --ch-panel   13.4   --ch-muted on --ch-panel   7.6
+ *   --ch-link  on --ch-ground  10.5   --ch-amber on --ch-ground  10.1
+ * The sky bands are checked by sampling screenshot pixels behind the text.
+ */
+
+.story {
+  --ch-ground: #15130f;
+  --ch-ground-2: #1b1814;
+  --ch-panel: #23201b;
+  --ch-line: rgb(239 233 223 / 22%);
+  --ch-line-strong: rgb(239 233 223 / 46%);
+  --ch-fg: #efe9df;
+  --ch-muted: #b9b1a4;
+  --ch-link: #d5b8ee;
+  --ch-amber: #f2b45a;
+  --ch-ok: #a6d890;
+  --ch-focus: #ffd58a;
+  --ch-code-bg: rgb(239 233 223 / 10%);
+  --ch-gutter: clamp(1rem, 4vw, 2rem);
+
+  background: var(--ch-ground);
+  color: var(--ch-fg);
+}
+
+.story a {
+  color: var(--ch-link);
+}
+.story :focus-visible {
+  outline: 3px solid var(--ch-focus);
+  outline-offset: 3px;
+}
+.story :not(pre) > code {
+  background: var(--ch-code-bg);
+  color: inherit;
+}
+.story h1,
+.story h2,
+.story h3,
+.story h4 {
+  color: var(--ch-fg);
+}
+.story h4 {
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  margin-block: 0 0.5em;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+
+.ch {
+  padding-block: clamp(3rem, 8vw, 6rem);
+  border-block-start: 1px solid var(--ch-line);
+  scroll-margin-block-start: 0;
+}
+.ch:first-child {
+  border-block-start: 0;
+}
+.ch-wrap {
+  inline-size: 100%;
+  max-inline-size: 70rem;
+  margin-inline: auto;
+  padding-inline: max(var(--ch-gutter), env(safe-area-inset-left)) max(var(--ch-gutter), env(safe-area-inset-right));
+}
+.ch-narrow {
+  max-inline-size: 40rem;
+  min-inline-size: 0;
+}
+.ch-lead {
+  font-size: 1.2rem;
+  line-height: 1.55;
+  max-inline-size: 42rem;
+}
+.ch-small {
+  font-size: 0.92rem;
+  color: var(--ch-muted);
+  max-inline-size: 46rem;
+}
+.ch h2 {
+  font-size: clamp(1.7rem, 1.2rem + 2vw, 2.5rem);
+}
+.ch h3 {
+  font-size: 1.25rem;
+}
+
+/* ── Buttons and links ────────────────────────────────────────────────────── */
+
+.ch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.75rem;
+  padding-inline: 1.25rem;
+  border: 1px solid var(--ch-line-strong);
+  border-radius: var(--radius);
+  color: var(--ch-fg);
+  background: transparent;
+  font-weight: 600;
+  text-decoration: none;
+}
+.story a.ch-btn {
+  color: var(--ch-fg);
+}
+.ch-btn:hover {
+  background: rgb(239 233 223 / 12%);
+}
+.story a.ch-btn-primary {
+  background: var(--ch-fg);
+  border-color: var(--ch-fg);
+  color: var(--ch-ground);
+}
+.ch-btn-primary:hover {
+  background: #fff;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ch-btn {
+    transition: background-color 120ms ease;
+  }
+}
+
+/* ── Chapter 0: the sky ───────────────────────────────────────────────────── */
+
+.ch-sky {
+  --sky-fg: #f4efe6;
+  --sky-muted: #e6dff0;
+  --sky-focus: #ffd58a;
+  --sky-btn-bg: rgb(255 255 255 / 12%);
+  --sky-btn-line: rgb(255 255 255 / 60%);
+  --sky-btn-fill: #f4efe6;
+  --sky-btn-ink: #1b1630;
+  /* dusk: deep blue overhead, plum, a low warm band at the horizon */
+  background:
+    radial-gradient(120% 60% at 50% 105%, rgb(214 132 84 / 25%), transparent 70%),
+    linear-gradient(to bottom, #0f1633 0%, #272a5a 42%, #503c6a 78%, #6a4466 100%);
+  color: var(--sky-fg);
+  min-block-size: min(100svh, 52rem);
+  display: flex;
+  align-items: center;
+  position: relative;
+  isolation: isolate;
+}
+/* faint stars in the upper dark of the dusk and night skies */
+.ch-sky::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 45%;
+  z-index: -1;
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 22%, #fff, transparent), radial-gradient(1px 1px at 31% 12%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 47% 30%, #fff, transparent), radial-gradient(1px 1px at 63% 16%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 78% 26%, #fff, transparent), radial-gradient(1px 1px at 91% 10%, #fff, transparent),
+    radial-gradient(1px 1px at 22% 38%, #fff, transparent), radial-gradient(1.2px 1.2px at 86% 40%, #fff, transparent);
+  opacity: 0.75;
+}
+/* chosen explicitly: dark picks the night sky; light picks the day sky (below) */
+:root[data-theme='dark'] .ch-sky {
+  background: linear-gradient(to bottom, #060a1a 0%, #0d1530 55%, #1a1f3f 100%);
+}
+
+/* day: a light scheme gets a day sky and dark text */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .ch-sky {
+    --sky-fg: #0e1b29;
+    --sky-muted: #2a3b4c;
+    --sky-focus: #0b2a52;
+    --sky-btn-bg: rgb(255 255 255 / 55%);
+    --sky-btn-line: rgb(14 27 41 / 65%);
+    --sky-btn-fill: #0e1b29;
+    --sky-btn-ink: #ffffff;
+    background:
+      radial-gradient(60% 40% at 78% 18%, rgb(255 247 214 / 85%), transparent 70%),
+      linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 50%, #f1ecde 100%);
+  }
+  :root:not([data-theme='dark']) .ch-sky::before {
+    display: none;
+  }
+}
+:root[data-theme='light'] .ch-sky {
+  --sky-fg: #0e1b29;
+  --sky-muted: #2a3b4c;
+  --sky-focus: #0b2a52;
+  --sky-btn-bg: rgb(255 255 255 / 55%);
+  --sky-btn-line: rgb(14 27 41 / 65%);
+  --sky-btn-fill: #0e1b29;
+  --sky-btn-ink: #ffffff;
+  background:
+    radial-gradient(60% 40% at 78% 18%, rgb(255 247 214 / 85%), transparent 70%),
+    linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 50%, #f1ecde 100%);
+}
+:root[data-theme='light'] .ch-sky::before {
+  display: none;
+}
+
+.ch-sky a {
+  color: var(--sky-fg);
+}
+.ch-sky :focus-visible {
+  outline-color: var(--sky-focus);
+}
+.ch-sky h1 {
+  color: var(--sky-fg);
+}
+.story .ch-sky a.ch-btn {
+  color: var(--sky-fg);
+  border-color: var(--sky-btn-line);
+  background: var(--sky-btn-bg);
+}
+.story .ch-sky a.ch-btn-primary {
+  background: var(--sky-btn-fill);
+  border-color: var(--sky-btn-fill);
+  color: var(--sky-btn-ink);
+}
+.ch-sky :not(pre) > code {
+  color: inherit;
+}
+
+.ch-sky-inner {
+  padding-block: 2.5rem 3rem;
+}
+.ch-sky h1 {
+  font-size: clamp(3.2rem, 1.6rem + 9vw, 7.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  margin-block: 0.4em 0.15em;
+}
+.ch-line {
+  font-family: var(--serif);
+  font-size: clamp(1.4rem, 1rem + 1.8vw, 2.2rem);
+  line-height: 1.2;
+  margin-block: 0 1rem;
+  max-inline-size: 34ch;
+  text-wrap: balance;
+}
+.ch-lede {
+  font-size: 1.15rem;
+  max-inline-size: 38rem;
+  color: var(--sky-muted);
+}
+.ch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1.5rem 0;
+}
+.ch-cue {
+  margin-block: 2.5rem 0;
+}
+.ch-cue a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  color: var(--sky-muted);
+}
+.ch-foot {
+  margin-block: 1.5rem 0;
+  font-size: 0.88rem;
+  color: var(--sky-muted);
+  max-inline-size: 36rem;
+}
+.ch-skip {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.ch-skip a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+}
+
+/* ── Chapter 1: the descent ───────────────────────────────────────────────── */
+
+.ch-descent {
+  background: linear-gradient(to bottom, #6a4466 0%, #2e2538 9rem, var(--ch-ground-2) 18rem);
+}
+.ch-code {
+  margin: 2rem 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--ch-panel);
+  border: 1px solid var(--ch-line);
+  border-inline-start: 4px solid var(--ch-amber);
+  border-radius: var(--radius);
+}
+.ch-code figcaption {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ch-muted);
+  margin-block-end: 0.5rem;
+}
+.ch-code ul {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  line-height: 1.5;
+}
+.ch-code .ch-small {
+  margin: 0;
+}
+
+/* ── Chapter 2: the hut ───────────────────────────────────────────────────── */
+
+.ch-hut {
+  background: var(--ch-ground-2);
+}
+.ch-split {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+}
+.ch-hut-art {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  block-size: auto;
+  justify-self: center;
+  border-radius: var(--radius);
+  background: linear-gradient(to bottom, #2b2a52, #5a416e 70%, #8a5064);
+  border: 1px solid var(--ch-line);
+}
+.ch-hut-art .ridge-far {
+  fill: #2a2433;
+}
+.ch-hut-art .ridge-near {
+  fill: #15130f;
+}
+.ch-hut-art .hut-wall {
+  fill: #3a352f;
+}
+.ch-hut-art .hut-roof {
+  fill: #221f1a;
+}
+.ch-hut-art .hut-door {
+  fill: #15130f;
+}
+.ch-hut-art .hut-window {
+  fill: var(--ch-amber);
+}
+
+/* ── Chapter 3: what is inside ────────────────────────────────────────────── */
+
+.ch-inside {
+  background: var(--ch-ground);
+}
+.ch-cards {
+  list-style: none;
+  margin: 2rem 0 1.5rem;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+.ch-card {
+  min-inline-size: 0;
+  padding: 1.25rem;
+  background: var(--ch-panel);
+  border: 1px solid var(--ch-line);
+  border-radius: var(--radius);
+}
+.ch-card h3 {
+  margin-block-end: 0.4em;
+}
+.ch-card p {
+  margin-block: 0 0.75rem;
+  font-size: 1rem;
+}
+.ch-card .ch-more {
+  margin: 0;
+}
+.ch-more a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+}
+
+/* ── Chapter 4: four sizes ────────────────────────────────────────────────── */
+
+.ch-sizes {
+  background: var(--ch-ground-2);
+}
+.ch-modes {
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+.ch-mode {
+  min-inline-size: 0;
+  padding: 1.25rem;
+  background: var(--ch-panel);
+  border: 1px solid var(--ch-line);
+  border-radius: var(--radius);
+}
+.ch-mode.is-now {
+  border-color: var(--ch-ok);
+  border-width: 2px;
+}
+.ch-mode.is-planned {
+  border-style: dashed;
+}
+.ch-mode h3 {
+  margin-block: 0.6rem 0.1rem;
+  font-size: 1.6rem;
+}
+.ch-mode p {
+  margin-block: 0 0.7rem;
+  font-size: 1rem;
+}
+.ch-tagline {
+  font-style: italic;
+  color: var(--ch-muted);
+}
+.ch-cost {
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--ch-line);
+}
+.ch-chip {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+.ch-chip.now {
+  color: var(--ch-ok);
+}
+.ch-chip.planned {
+  color: var(--ch-muted);
+  border-style: dashed;
+}
+
+/* ── Chapter 5: install ───────────────────────────────────────────────────── */
+
+.ch-install {
+  background: var(--ch-ground);
+}
+.ch-term {
+  margin-block: 2rem 2.5rem;
+  max-inline-size: 48rem;
+  min-inline-size: 0;
+}
+.story .term {
+  background: #0d0b09;
+  border-color: var(--ch-line-strong);
+  color: var(--ch-fg);
+}
+.story .term figcaption {
+  color: var(--ch-muted);
+  border-color: var(--ch-line);
+}
+.story .prompt,
+.story .term-note {
+  color: var(--ch-muted);
+}
+.story .copy {
+  color: var(--ch-fg);
+  border-color: var(--ch-line-strong);
+}
+.story .copy:hover {
+  background: rgb(239 233 223 / 12%);
+}
+.ch-two {
+  display: grid;
+  gap: 2rem;
+}
+.ch-two > * {
+  min-inline-size: 0;
+}
+.ch-list {
+  margin-block: 0 1.25rem;
+  padding-inline-start: 1.25rem;
+}
+.ch-list li {
+  margin-block-end: 0.5rem;
+}
+.ch-tested {
+  margin-block: 2rem;
+  padding: 1rem 1.25rem;
+  max-inline-size: 52rem;
+  background: var(--ch-panel);
+  border: 1px solid var(--ch-line);
+  border-inline-start: 4px solid var(--ch-ok);
+  border-radius: var(--radius);
+}
+.ch-proof-h {
+  margin-block-start: 2.5rem;
+}
+.ch-proof {
+  margin-block: 1rem 1.5rem;
+}
+.ch-glyph.ok {
+  color: var(--ch-ok);
+}
+.ch-glyph.no {
+  color: var(--ch-muted);
+}
+
+/* ── Chapter 6: trust, under a night sky ──────────────────────────────────── */
+
+.ch-trust {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(to bottom, #0b0e1f 0%, #121631 60%, #1c1b2c 100%);
+}
+.ch-trust::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 50%;
+  z-index: -1;
+  background-image:
+    radial-gradient(1.2px 1.2px at 8% 18%, #fff, transparent), radial-gradient(1px 1px at 24% 8%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 41% 24%, #fff, transparent), radial-gradient(1px 1px at 58% 12%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 73% 28%, #fff, transparent), radial-gradient(1px 1px at 89% 14%, #fff, transparent),
+    radial-gradient(1px 1px at 15% 40%, #fff, transparent), radial-gradient(1.2px 1.2px at 95% 36%, #fff, transparent);
+  opacity: 0.7;
+}
+.ch-claims {
+  max-inline-size: 46rem;
+  font-size: 1.1rem;
+}
+.ch-links {
+  list-style: none;
+  margin: 2rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+.ch-links a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-block-size: 4rem;
+  padding: 0.9rem 1rem;
+  background: rgb(35 32 27 / 80%);
+  border: 1px solid var(--ch-line-strong);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--ch-fg);
+}
+.ch-links a:hover {
+  border-color: var(--ch-amber);
+}
+.ch-link-name {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  color: var(--ch-link);
+}
+.ch-link-note {
+  font-size: 0.92rem;
+  color: var(--ch-muted);
+}
+.ch-close {
+  margin-block: 2.5rem 0;
+  padding-block-start: 1.5rem;
+  border-block-start: 1px solid var(--ch-line);
+  font-family: var(--serif);
+  font-size: clamp(1.4rem, 1rem + 1.6vw, 2rem);
+  color: var(--ch-amber);
+}
+
+/* ── Wide screens ─────────────────────────────────────────────────────────── */
+
+@media (min-width: 52rem) {
+  .ch-split {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 4rem;
+  }
+  .ch-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .ch-chip,
+  .ch-mode,
+  .ch-card,
+  .ch-links a {
+    border-color: CanvasText;
+  }
+}
+
+@media print {
+  .story,
+  .story .ch {
+    background: none;
+    color: #000;
+  }
+  .story a,
+  .story h1,
+  .story h2,
+  .story h3,
+  .story h4,
+  .ch-sky h1,
+  .ch-sky a {
+    color: #000;
+  }
+  .ch-sky::before,
+  .ch-trust::before,
+  .ch-hut-art {
+    display: none;
+  }
+}
