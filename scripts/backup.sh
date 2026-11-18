@@ -8,8 +8,9 @@
 #   victoriametrics/  /snapshot/create, tar of the snapshot       keep BK_KEEP_BIG (3)
 #   loki/             /flush, stop, tar of /loki, start           keep 3
 #   alloy/            tar of the positions volume                 keep 14
-#   state/            the audit logs and the two trash dirs       keep 14
+#   state/            audit logs, two trash dirs, the token store keep 14
 #   notes/            git bundle of $NOTES_ROOT (+ uncommitted)   keep 14
+# Optional second copy of the small sets: BOTHY_BACKUP_MIRROR=/path (see below).
 # Restoring: scripts/restore.sh, through `just restore-<kind> <file>`.
 #
 # Runs both from `just backup` and from stacks-backup.timer. systemd does not
@@ -277,7 +278,7 @@ else
   fail "alloy not running - skipped"
 fi
 
-# STATE - the audit logs and the two trash directories. Host directories, so a
+# STATE - the audit logs, the two trash directories and the token store. Host directories, so a
 # plain tar. The audit logs are the only record of who changed what through
 # Bothy; the trash directories are the undo for the file editor and the config
 # forms. Members are stored relative to their roots - apps/... under the repo,
@@ -285,14 +286,17 @@ fi
 state_args=()
 repo_parts=(); for p in apps/bothy-ops/audit apps/bothy-files/audit; do
   [ -d "$root/$p" ] && repo_parts+=("$p"); done
-state_parts=(); for p in bothy/trash bothy/config-trash; do
+# bothy/tokens is the bearer-token store (tokens.json, tokens.lock, audit.log;
+# 0700 dir, 0600 files). Nothing else holds it, and a lost store means every
+# minted token must be re-issued by hand (data-and-state.md R6).
+state_parts=(); for p in bothy/trash bothy/config-trash bothy/tokens; do
   [ -d "$STATE_ROOT/$p" ] && state_parts+=("$p"); done
 [ ${#repo_parts[@]} -gt 0 ] && state_args+=(-C "$root" "${repo_parts[@]}")
 [ ${#state_parts[@]} -gt 0 ] && state_args+=(-C "$STATE_ROOT" "${state_parts[@]}")
 if [ ${#state_args[@]} -gt 0 ]; then
   out="$BK/state/state-$ts.tar.gz"
   tar -czf "$out" "${state_args[@]}" 2>/dev/null
-  keep_if_real "$out" 100 "state (audit + trash)"
+  keep_if_real "$out" 100 "state (audit + trash + tokens)"
 else
   log "state: no audit or trash directories yet - nothing to save"
 fi
@@ -337,20 +341,51 @@ fi
 # running as the user, could not read it anyway.
 
 # ── rotation ────────────────────────────────────────────────────────────────
-rotate() {  # <dir> <glob> <keep>
+rotate() {  # <root> <dir> <glob> <keep>
   # shellcheck disable=SC2086  # the glob must expand
-  ls -1t "$BK/$1"/$2 2>/dev/null | tail -n +$(( $3 + 1 )) | xargs -r rm -f
+  ls -1t "$1/$2"/$3 2>/dev/null | tail -n +$(( $4 + 1 )) | xargs -r rm -f
 }
-rotate postgres        'pg-*.sql.gz'             "$BK_KEEP"
-rotate grafana         'grafana-*.db'            "$BK_KEEP"
-rotate env             'env-*'                   "$BK_KEEP"
-rotate alloy           'alloy-*.tar.gz'          "$BK_KEEP"
-rotate state           'state-*.tar.gz'          "$BK_KEEP"
-rotate notes           'notes-*.bundle'          "$BK_KEEP"
-rotate notes           'notes-*-worktree.tar.gz' "$BK_KEEP"
-rotate notes           'notes-*[0-9].tar.gz'     "$BK_KEEP"
-rotate victoriametrics 'vm-*.tar'                "$BK_KEEP_BIG"
-rotate loki            'loki-*.tar.gz'           "$BK_KEEP_BIG"
+# One table, applied to the primary and, when there is one, the mirror: the
+# mirror never keeps more or fewer than the primary, and never loses a file the
+# table does not name.
+rotate_set() {  # <root>
+  rotate "$1" postgres        'pg-*.sql.gz'             "$BK_KEEP"
+  rotate "$1" grafana         'grafana-*.db'            "$BK_KEEP"
+  rotate "$1" env             'env-*'                   "$BK_KEEP"
+  rotate "$1" alloy           'alloy-*.tar.gz'          "$BK_KEEP"
+  rotate "$1" state           'state-*.tar.gz'          "$BK_KEEP"
+  rotate "$1" notes           'notes-*.bundle'          "$BK_KEEP"
+  rotate "$1" notes           'notes-*-worktree.tar.gz' "$BK_KEEP"
+  rotate "$1" notes           'notes-*[0-9].tar.gz'     "$BK_KEEP"
+  rotate "$1" victoriametrics 'vm-*.tar'                "$BK_KEEP_BIG"
+  rotate "$1" loki            'loki-*.tar.gz'           "$BK_KEEP_BIG"
+}
+rotate_set "$BK"
+
+# ── second copy (optional) ──────────────────────────────────────────────────
+# BOTHY_BACKUP_MIRROR=/path on another device. The artifacts THIS run wrote, of
+# the small sets only, copied atomically and checksummed (bk_mirror_copy), then
+# the same retention as above. A refused or failed mirror is a FAIL: the point
+# of setting it is that you wanted the second copy.
+if [ -n "${BOTHY_BACKUP_MIRROR:-}" ]; then
+  mst=$(bk_mirror_status "$BOTHY_BACKUP_MIRROR" "$BK")
+  case "$mst" in
+    in-git) fail "mirror $BOTHY_BACKUP_MIRROR is inside a git work tree - refused (a mirror holds secrets)" ;;
+    *)
+      [ "$mst" = same-device ] && log "mirror $BOTHY_BACKUP_MIRROR is on the same device as $BK - copying, but it is not a second device"
+      mcopied=0
+      for d in $BK_MIRROR_KINDS; do
+        for f in "$BK/$d"/*"$ts"*; do
+          [ -f "$f" ] || continue
+          if bk_mirror_copy "$f" "$BOTHY_BACKUP_MIRROR/$d"; then mcopied=$((mcopied + 1))
+          else fail "mirror: copying $(basename "$f") failed or did not match its checksum"; fi
+        done
+      done
+      log "mirror: $mcopied file(s) -> $BOTHY_BACKUP_MIRROR"
+      rotate_set "$BOTHY_BACKUP_MIRROR"
+      ;;
+  esac
+fi
 
 # Files 600, on every run. umask covers what this script writes, but not what an
 # older version left behind: `docker cp` kept grafana.db's own 0640, so every

@@ -3162,6 +3162,54 @@ mutant "the audit chain stops comparing its MAC" \
   -- bash $S/checks/run.sh --only test_store
 
 echo
+echo "── a backup is only real if it restores ────────────────────────────"
+# scripts/checks/backup-restore.sh runs the real backup.sh / restore.sh on a
+# fixture. Each row removes one thing it claims to prove.
+BKR_CHECK=(bash scripts/checks/backup-restore.sh)
+
+# The token store out of the state set: the loss R6 records.
+mutant "the token store is not backed up" \
+  scripts/backup.sh \
+  'for p in bothy/trash bothy/config-trash bothy/tokens; do' \
+  'for p in bothy/trash bothy/config-trash; do' \
+  -- "${BKR_CHECK[@]}"
+
+# An archive made under a looser umask must not widen the token store.
+mutant "restore keeps the archive's token file modes" \
+  scripts/restore.sh \
+  '    find "$state_t/bothy/tokens" -type f -exec chmod 600 {} +' \
+  '    :' \
+  -- "${BKR_CHECK[@]}"
+
+# Restore trusting member names writes wherever the archive says.
+mutant "restore accepts members outside apps/ and bothy/" \
+  scripts/restore.sh \
+  '      *) die "$src has a member outside apps/ and bothy/: $m - not a state-*.tar.gz" ;;' \
+  '      *) ;;' \
+  -- "${BKR_CHECK[@]}"
+
+# "Copied" is not "copied right".
+mutant "the mirror copy is not checksummed" \
+  scripts/lib/backup-lib.sh \
+  '  if [ "$(bk_sha256 "$src")" != "$(bk_sha256 "$tmp")" ]; then rm -f "$tmp"; return 2; fi' \
+  '  :' \
+  -- "${BKR_CHECK[@]}"
+
+# Same device is not a second copy: doctor must say amber, not green.
+mutant "a mirror on the same device counts as a second copy" \
+  scripts/lib/backup-lib.sh \
+  '  if [ "$(bk_dev "$m")" = "$(bk_dev "$b")" ]; then echo same-device; return 1; fi' \
+  '  :' \
+  -- "${BKR_CHECK[@]}"
+
+# A mirror inside a repo is one `git add -A` from being published.
+mutant "a mirror inside a git work tree is allowed" \
+  scripts/lib/backup-lib.sh \
+  '  if bk_in_git "$m"; then echo in-git; return 1; fi' \
+  '  :' \
+  -- "${BKR_CHECK[@]}"
+
+echo
 echo "── the check harness itself ────────────────────────────────────────"
 # Three suites shipped `cd "$HERE/.."` with no `|| exit`, so a failed cd ran
 # every check below against the caller's directory. shellcheck at -S warning is
