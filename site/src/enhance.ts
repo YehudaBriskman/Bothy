@@ -1,5 +1,7 @@
 import './styles/site.css';
 import './styles/chapters.css';
+import './styles/sky-still.css';
+import './styles/sky.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
@@ -82,6 +84,14 @@ for (const code of document.querySelectorAll<HTMLElement>('.prose .code')) {
 const narrow = window.matchMedia('(max-width: 60rem)');
 for (const d of document.querySelectorAll<HTMLDetailsElement>('details[data-collapse-narrow]'))
   d.open = !narrow.matches;
+
+// ── The live sky: a lazy island, only on a page that has one, after the page has loaded ─
+const skySection = document.querySelector<HTMLElement>('[data-sky]');
+if (skySection) {
+  const start = () => void import('./enhance-sky.ts').then((m) => m.mountSky(skySection));
+  if (document.readyState === 'complete') start();
+  else addEventListener('load', start, { once: true });
+}
 
 // ── Documentation search ────────────────────────────────────────────────────
 interface IndexPage {

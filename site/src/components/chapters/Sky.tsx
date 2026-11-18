@@ -1,13 +1,15 @@
 import { href } from '../../config.ts';
 import { localePrefix } from '../../i18n/locales.ts';
 import type { PageContext } from '../../page-context.ts';
+import { SkyControls } from '../../sky/SkyControls.tsx';
 
 /** Chapter 0. The sky is CSS only here (chapters.css); `BothyBox` is the page's one h1. */
 export function Sky({ ctx }: { ctx: PageContext }) {
   const h = ctx.t.home.hero;
   const p = localePrefix(ctx.locale.code);
   return (
-    <section id="sky" className="ch ch-sky" aria-labelledby="sky-h">
+    <section id="sky" className="ch ch-sky has-sky" data-sky aria-labelledby="sky-h">
+      <div className="sky-still" data-sky-layer aria-hidden="true" />
       <div className="ch-wrap ch-sky-inner">
         <p className="ch-skip">
           <a href="#install">{h.skipInstall}</a>
@@ -31,6 +33,7 @@ export function Sky({ ctx }: { ctx: PageContext }) {
           </a>
         </p>
         <p className="ch-foot">{h.footnote}</p>
+        <SkyControls ctx={ctx} />
       </div>
     </section>
   );
