@@ -64,9 +64,47 @@ func Modes() []string {
 	ents, _ := fs.ReadDir(stackFS, "stack")
 	var out []string
 	for _, e := range ents {
-		if e.IsDir() {
+		if e.IsDir() && e.Name()[0] != '_' { // _source is the module sources, not a mode
 			out = append(out, e.Name())
 		}
 	}
 	return out
+}
+
+// sourceFS is the embedded sources (stack/_source), shaped like the repo, so an
+// installed box can generate the module set it actually runs.
+func sourceFS() fs.FS {
+	sub, err := fs.Sub(stackFS, "stack/_source")
+	if err != nil {
+		panic(err) // the path is a constant of the embed
+	}
+	return sub
+}
+
+// Catalogue is the module catalogue this binary carries (stack/modes.yml).
+func Catalogue() (*stackgen.Modes, error) {
+	return stackgen.Load(sourceFS())
+}
+
+// LoadStackSet generates the stack of a mode for a module set, from the
+// embedded sources. nil names mean the mode's default set. Core modules and
+// everything required are added; the result is deterministic.
+func LoadStackSet(mode string, names []string) (*Stack, error) {
+	ms, err := Catalogue()
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := ms.Modes[mode]; !ok {
+		return nil, fmt.Errorf("this binary has no %q stack", mode)
+	}
+	if names == nil {
+		if names, err = ms.DefaultSet(mode); err != nil {
+			return nil, err
+		}
+	}
+	out, err := stackgen.GenSet(sourceFS(), ms, mode, names)
+	if err != nil {
+		return nil, err
+	}
+	return &Stack{Meta: out.Meta, Compose: out.Compose, Files: out.Files}, nil
 }

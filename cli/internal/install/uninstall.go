@@ -36,7 +36,7 @@ func Uninstall(ctx context.Context, h Host, o UninstallOptions, out io.Writer) e
 		p("nothing to uninstall: no receipt at %s", rpath)
 		return nil
 	}
-	st, err := LoadStack(rec.Mode)
+	st, err := uninstallStack(rec)
 	if err != nil {
 		return err
 	}

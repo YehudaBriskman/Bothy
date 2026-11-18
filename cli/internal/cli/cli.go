@@ -109,6 +109,10 @@ func run(args []string, io IO) error {
 				fmt.Fprint(io.Out, installHelp)
 				return nil
 			}
+			if words[0] == "module" && (len(words) == 1 || localModuleVerb(words, flags, io)) {
+				fmt.Fprint(io.Out, moduleHelp)
+				return nil
+			}
 			if words[0] == "token" {
 				fmt.Fprint(io.Out, tokenHelp)
 				return nil
@@ -143,6 +147,9 @@ func run(args []string, io IO) error {
 	case "modules": // alias of `module list`
 		words = []string{"module", "list"}
 	}
+	if words[0] == "module" && (len(words) == 1 || localModuleVerb(words, flags, io)) {
+		return cmdModule(words[1:], rest, g, io)
+	}
 	op, tail, ok := matchOp(words)
 	if !ok {
 		return unknownVerb(words)
@@ -157,7 +164,7 @@ func run(args []string, io IO) error {
 func splitArgs(args []string) (words []string, flags map[string]string, err error) {
 	flags = map[string]string{}
 	boolFlags := map[string]bool{"json": true, "help": true, "h": true, "use": true, "write": true,
-		"dry-run": true, "purge": true, "allow-downgrade": true, "check": true, "require-attestation": true, "this-release": true}
+		"dry-run": true, "purge": true, "allow-downgrade": true, "check": true, "require-attestation": true, "this-release": true, "yes": true, "local": true}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {
@@ -264,6 +271,7 @@ func help(w io.Writer) error {
 	fmt.Fprintln(w, "  install [--dry-run] [--mode mini] ...          Install Bothy on this machine (Docker Compose; see install --help)")
 	fmt.Fprintln(w, "  uninstall [--purge] [--dry-run]                Remove it; data is kept unless --purge and you type the phrase")
 	fmt.Fprintln(w, "  update [--check] [--to vX] [--this-release]    Move the binary and the box to the latest release; a failure rolls back")
+	fmt.Fprintln(w, "  module list|add|remove|rollback                Change the modules of an INSTALLED box on this machine (see module --help)")
 	fmt.Fprintln(w, "  token create|list|revoke                       Mint bearer tokens on THIS machine (host-only; see token --help)")
 	fmt.Fprintln(w, "  mcp                                            Serve the read-only tools over stdio (MCP)")
 	fmt.Fprintln(w, "\nExit codes: 0 ok, 10 box unreachable, 64 bad usage or request, 66 not found,")

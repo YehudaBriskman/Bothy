@@ -166,3 +166,39 @@ no named receiver outside the cluster. Required, in mini already:
 - s3: auth adapter interface and `login` threat spec added (review findings); the cross-runtime
   forward-auth hop is an **ASSUMPTION** (settled by the first `sso` run on a VM).
 - Section 8 is new. **Open:** `standard` pulls in Docker via `logs` (see s1).
+
+## Built 2026-11-18: the module mechanism on the Compose runtime
+
+What is now true (code, not a plan): the catalogue in section 1 exists for the **installed Compose box** as data in
+`stack/modes.yml` (schema 2), and `bothy module list|add|remove|rollback` changes the module set of an installed box.
+See `bothy-install.md` section 15 for the mechanism and the proof.
+
+- **A module** is a `modules:` entry: `compose` + `services` (which compose file and services it is), `memory_mib`
+  (must equal the sum of its services' limits; stackgen refuses a mismatch), `requires` (module names or capabilities
+  named by another module's `provides`), `core` (cannot be removed), `modes` (the default membership), optional
+  `files` and `overrides` (the same vocabulary as before), and a **mandatory health contract** (`health.bytes` for an
+  `exec cat` comparison, `health.http` rows of path plus `contains`). A module with no health contract does not generate.
+- **Run-time generation.** The binary embeds a pruned copy of the compose sources (`stack/_source`, `*.yml.src`, images
+  normalised so a Dependabot pin bump cannot make it stale) and generates the stack for any module set
+  (`install.LoadStackSet`). The committed `stack/<mode>/` stays the golden of each mode's default set.
+- **The second real module is `node-metrics`**: the repo's `node-exporter` with the host mounts and the textfile
+  collector dropped by override, 64 MiB, one read-only exact `Path()` route `/-/api/node/metrics` (replacePath to
+  `/metrics`), no published port, `requires: edge`. Chosen over `ops` because `ops` needs socket proxies, a cluster
+  token and live-box mounts, which are separate decisions.
+
+### How to add a module (exact steps, no Go)
+
+1. The service must exist in a compose file in the repo with a **memory limit** (`deploy.resources.limits.memory`)
+   and an image pinned by digest.
+2. Add a `modules:` entry to `stack/modes.yml`: `compose`, `services`, `memory_mib` (= the limit, in MiB), `requires`,
+   `modes: [..]` only if it should be in a mode's default set (leave it out for an opt-in module), `overrides` if
+   needed (drop host mounts, add a Traefik label for a read-only route), and `health` (a bytes row or an http
+   `contains` row that proves it works).
+3. `cd cli && go generate ./...`. It regenerates `stack/<mode>/*` and `stack/_source/*` and fails with the reason if the
+   cost, the health contract, the route lint (no `Host()`, exact `Path()` plus the priority-1 catch-all) or any subset
+   (core alone, each module added to each mode) does not generate.
+4. Third-party image: `scripts/gen-release-manifest.py` reads every compose `image:` line into `third_party.<key>`
+   (nothing to do); an own image must also be built and listed under `images` by the release workflow. A module whose image the installed release's manifest lacks cannot be added to that release
+   (`module add` says "run `bothy update` first").
+5. Commit the regenerated files (the drift check fails if you forget). `bothy module list` now shows it with its cost.
+   `TestNewModuleNeedsNoGo` (stackgen) proves steps 1-3 with a synthetic module and no Go edit.
