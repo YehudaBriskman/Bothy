@@ -1,7 +1,7 @@
 // Every internal link and fragment in the built site resolves to a file and an id.
 // External links are not fetched (a build needs no network).
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,9 +40,15 @@ for (const [p, t] of html) {
     const url = m[1];
     if (/^(https?:|mailto:|data:)/.test(url)) continue;
     checked += 1;
-    const [pathPart, frag] = url.split('#');
+    const [rawPath, frag] = url.split('#');
+    let pathPart = rawPath;
     let target = p;
     if (pathPart) {
+      if (!pathPart.startsWith('/')) {
+        // a relative link (the sky spike uses them so it works under any mount path): resolve it against the page
+        const dir = `${base}${relative(dist, dirname(p)).split(sep).join('/')}/`.replace(/\/+$/, '/');
+        pathPart = new URL(pathPart, `http://x${dir}`).pathname;
+      }
       if (!pathPart.startsWith(base)) {
         fails.push(`${p.slice(dist.length)}: ${url} is not under the base ${base}`);
         continue;
