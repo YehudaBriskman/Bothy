@@ -1,8 +1,13 @@
+import allowlist from '../../docs-allowlist.json' with { type: 'json' };
 import { Layout } from '../components/Layout.tsx';
+import { Rich } from '../components/Rich.tsx';
 import { REPO_URL, REPO_BRANCH, href } from '../config.ts';
 import { groupDocs, type DocPage } from '../docs/docs.ts';
 import { localePrefix } from '../i18n/locales.ts';
 import type { PageContext } from '../page-context.ts';
+
+/** Pages that describe the older source-checkout path; they carry a banner pointing at `bothy install`. */
+const CHECKOUT_PAGES: ReadonlySet<string> = new Set(allowlist.checkoutPath);
 
 function docHref(ctx: PageContext, slug: string): string {
   return href(`${localePrefix(ctx.locale.code)}/docs/${slug}/`);
@@ -37,15 +42,20 @@ export function DocsIndex({ ctx }: { ctx: PageContext }) {
   const { t } = ctx;
   return (
     <Layout ctx={ctx} nav="docs">
+      <div className="sky-band" data-band="docs">
+        <header className="wrap page-head">
+          <h1>{t.docs.heading}</h1>
+          <p className="lede">{t.docs.lede}</p>
+          <p className="band-note">
+            <Rich text={t.docs.stackNote} />{' '}
+            <a href={href(`${localePrefix(ctx.locale.code)}/install/`)}>{t.docs.installLink}</a>.
+          </p>
+          <p className="band-small">{t.docs.notTranslated}</p>
+        </header>
+      </div>
       <div className="wrap docs-shell">
         <Sidebar ctx={ctx} current={null} />
         <div className="docs-main">
-          <header className="page-head">
-            <h1>{t.docs.heading}</h1>
-            <p className="lede">{t.docs.lede}</p>
-            <p className="muted small">{t.docs.notTranslated}</p>
-          </header>
-
           <form className="search" role="search" data-docs-search hidden data-needs-js>
             <label htmlFor="docs-q">{t.docs.search.label}</label>
             <input
@@ -95,6 +105,26 @@ export function DocView({ ctx, doc }: { ctx: PageContext; doc: DocPage }) {
   const next = idx >= 0 ? ctx.docs[idx + 1] : undefined;
   return (
     <Layout ctx={ctx} nav="docs">
+      <div className="sky-band sky-band-slim" data-band="doc">
+        <div className="wrap">
+          <p className="crumb">
+            <a href={href(`${localePrefix(ctx.locale.code)}/docs/`)}>{t.docs.breadcrumb}</a>
+            <span aria-hidden="true"> / </span>
+            <span>{t.docs.groups[doc.group]}</span>
+          </p>
+          {CHECKOUT_PAGES.has(doc.slug) ? (
+            <aside className="doc-banner" aria-labelledby="doc-banner-h">
+              <p id="doc-banner-h" className="doc-banner-title">
+                {t.docs.checkoutBanner.title}
+              </p>
+              <p>
+                <Rich text={t.docs.checkoutBanner.body} />{' '}
+                <a href={href(`${localePrefix(ctx.locale.code)}/install/`)}>{t.docs.checkoutBanner.link}</a>.
+              </p>
+            </aside>
+          ) : null}
+        </div>
+      </div>
       <div className="wrap docs-shell">
         <Sidebar ctx={ctx} current={doc.slug} />
         <article className="docs-main prose">
