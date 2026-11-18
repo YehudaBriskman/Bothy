@@ -3,6 +3,8 @@
 #
 #     ci-changes.sh files                  the PR's changed paths, one per line
 #     ci-changes.sh docs-only < paths      exit 0 when every path is documentation
+#     ci-changes.sh site < paths           exit 0 when a path is one the website builds from
+#     ci-changes.sh site-browser < paths   exit 0 when a path is one its Chromium checks guard
 #
 # and, sourced by scripts/checks/mutants.sh, row_relevant: whether one mutation
 # row (plant in FILE, CMD must catch it) has to run for a list of changed paths.
@@ -80,6 +82,43 @@ docs_only() {
   [ "$n" -gt 0 ]
 }
 
+# is_site <path> - a path the website (site/) builds from or is checked by.
+# docs/guide is where every page in site/docs-allowlist.json lives; the
+# console's stylesheets under apps/bothy-web/web/src are read by
+# render-console.mjs and src/console/console.test.ts.
+is_site() {
+  case "$1" in
+    site/*|docs/guide/*|apps/bothy-web/web/src/*) return 0 ;;
+    .github/workflows/ci.yml|.github/workflows/site-browser.yml|scripts/ci-changes.sh) return 0 ;;
+  esac
+  return 1
+}
+
+# is_site_browser <path> - a path the Chromium checks (check:story, check:sky)
+# exist to guard: the story, the sky, the rendered console, the styles, what
+# mounts them, the stills, the checks themselves and the browser's version pin.
+is_site_browser() {
+  case "$1" in
+    site/src/story/*|site/src/sky/*|site/src/console/*|site/src/styles/*) return 0 ;;
+    site/src/enhance*|site/src/pages/Home.tsx|site/public/sky/*|site/index.html) return 0 ;;
+    site/scripts/check-story.mjs|site/scripts/check-sky.mjs|site/scripts/screenshots.mjs) return 0 ;;
+    site/package.json|site/package-lock.json|.github/workflows/site-browser.yml) return 0 ;;
+  esac
+  return 1
+}
+
+# any_path <predicate> - stdin is a path list; exit 0 when one path matches.
+# An empty list matches (fail open: no list means run it).
+any_path() {
+  local p n=0
+  while IFS= read -r p || [ -n "$p" ]; do
+    [ -n "$p" ] || continue
+    n=$((n + 1))
+    "$1" "$p" && return 0
+  done
+  [ "$n" -eq 0 ]
+}
+
 # row_relevant <changed list, newline-separated> <mutated file> <check cmd...>
 row_relevant() {
   local changed="$1" file="$2" p arg app
@@ -109,6 +148,8 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
     files) changed_files; exit $? ;;
     docs-only) docs_only; exit $? ;;
-    *) echo "usage: $0 files | docs-only" >&2; exit 2 ;;
+    site) any_path is_site; exit $? ;;
+    site-browser) any_path is_site_browser; exit $? ;;
+    *) echo "usage: $0 files | docs-only | site | site-browser" >&2; exit 2 ;;
   esac
 fi
