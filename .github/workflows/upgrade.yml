@@ -116,9 +116,10 @@ jobs:
       - name: Free disk (the stack pulls ~6 GB of images)
         run: |
           set -uo pipefail
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
-                      /usr/local/share/boost /usr/share/swift || true
-          df -h / | tail -1
+          # In the background; the step before the install waits for it.
+          setsid nohup sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/share/boost /usr/share/swift >/dev/null 2>&1 &
+          echo $! > "$RUNNER_TEMP/free-disk.pid"
 
       - uses: extractions/setup-just@v4
 
@@ -162,6 +163,11 @@ jobs:
           GW=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
           [ -n "$GW" ] || { echo "no bridge gateway"; exit 1; }
           echo "BOTHY_BASE_HOST=$GW" >> "$GITHUB_ENV"
+
+      - name: Wait for the disk to be freed
+        run: |
+          while kill -0 "$(cat "$RUNNER_TEMP/free-disk.pid")" 2>/dev/null; do sleep 1; done
+          df -h / | tail -1
 
       - name: Install the OLD version
         working-directory: ${{ env.DIR }}
