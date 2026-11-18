@@ -87,9 +87,9 @@ export function renderFrame(
     '<div class="cf-glass">',
     `<div class="cf-bar"><div class="cf-tabs" role="radiogroup" aria-label="${esc(s.groupLabel)}">${tabs}</div><p class="cf-badge">${esc(s.badge)}</p></div>`,
     `<div class="console-frame" dir="ltr" lang="en" role="group" aria-label="${esc(s.frameLabel)}">${body}${extra.panels ?? ''}</div>`,
+    extra.steps ?? '',
     '</div>',
     `<figcaption class="cf-caps">${caps}</figcaption>`,
-    extra.steps ?? '',
     '</figure>',
   ].join('');
 }

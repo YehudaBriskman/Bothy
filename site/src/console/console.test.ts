@@ -585,5 +585,6 @@ test('the frame stays inside its size budget (60 KB gzipped, plan section 9)', (
 test('the captions and the example badge are in the frame; nothing claims to be live', () => {
   for (const t of EN.tabs) assert.ok(built.frame.includes(t.caption), `caption for ${t.id}`);
   assert.ok(built.frame.includes(EN.badge));
-  assert.doesNotMatch(built.frame, /\blive\b/i);
+  // the words a reader sees or hears, not attribute names (the step list has an aria-live region)
+  assert.doesNotMatch(built.frame.replace(/<[^>]*>/g, ' '), /\blive\b/i);
 });
