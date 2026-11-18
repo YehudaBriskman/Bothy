@@ -38,6 +38,9 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 	if rec == nil {
 		return fmt.Errorf("nothing is installed here (no receipt at %s): run `bothy install`", o.receiptPath())
 	}
+	if rec.Pending != nil {
+		return pendingError(rec)
+	}
 	if rec.Status != "complete" {
 		return fmt.Errorf("the last install did not finish (receipt says %q): run `bothy install` to resume it, then update", rec.Status)
 	}
@@ -45,7 +48,7 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 		return fmt.Errorf("the receipt says the install root is %s, not %s", rec.DataDir, o.DataDir)
 	}
 	o.Mode, o.Bind, o.Port, o.ConfigDir = rec.Mode, rec.Bind, rec.Port, rec.ConfigDir // an update never moves the box
-	st, err := LoadStack(o.Mode)
+	st, err := LoadStackSet(o.Mode, rec.Modules)                                      // the modules the box runs, not the mode's defaults
 	if err != nil {
 		return err
 	}
@@ -71,7 +74,15 @@ func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) e
 		return fmt.Errorf("installed version %s is newer than %s: refusing a downgrade (pass --allow-downgrade to force it)", rec.Version, m.Version)
 	}
 
-	pf := Preflight(ctx, h, PreflightIn{Stack: st, Manifest: m, Bind: o.Bind, Port: o.Port, DataDir: nearest(o.DataDir), OwnPortsOK: true})
+	if !check && !o.DryRun {
+		release, lerr := lockInstall(o.DataDir)
+		if lerr != nil {
+			return lerr
+		}
+		defer release()
+	}
+	pf := Preflight(ctx, h, PreflightIn{Stack: st, Manifest: m, Bind: o.Bind, Port: o.Port, DataDir: nearest(o.DataDir),
+		RealDataDir: o.DataDir, ConfigDir: o.ConfigDir, StackDir: o.stackDir(), OwnPortsOK: true})
 	p("\npreflight:")
 	for _, c := range pf {
 		p("  %-4s %-10s %s", c.Level, c.ID, c.Msg)

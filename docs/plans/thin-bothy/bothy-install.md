@@ -519,6 +519,59 @@ A to B update between two real releases; arm64 execution; `lab-mini`; WSL; rootl
 Also fixed here: a stray merge-conflict marker line that sat in this file after section 10d.
 
 
+### 10f. Failure scenarios: what a real first-time machine does to the installer (lab, 2026-11-18)
+
+The happy path was proven on a clean Ubuntu guest. A person's machine differs. Ranked by (likelihood x how bad it
+was before this pass); "before" is what the code did, read, not guessed. Rule kept throughout: **never stop, kill or
+replace anything that is not Bothy's, leave no partial state, say the exact fix.**
+
+| # | Scenario | Behaviour now | Before | Proven how |
+|---|---|---|---|---|
+| 1 | Port 80 taken by a host process (nginx, apache) | preflight `fail port`, names a free alternative (`--port 8080`), says nothing was stopped; nothing created; the listener keeps running | detected, but a bare "pick another port" | **lab** 1a; unit |
+| 2 | Port 80 taken by another container | same, and **names the container** (`docker ps --filter publish=`); `--port 8080` then installs and runs beside it | not named | **lab** 1b, 1c; unit |
+| 3 | Ctrl-C (SIGINT/SIGTERM) mid pull or mid `up` | prints INTERRUPTED, records `last_error`, **cleanup `compose down` still runs** (it used the cancelled context and silently failed, leaving containers up), no lock left; a second Ctrl-C force-quits | containers left running, "rolling back" printed but not done | **lab** 4a, 4b; unit |
+| 4 | Resume after a half install whose containers still hold port 80 (process killed hard) | the port is recognised as this install's own (`compose ps -q`), install resumes and finishes; key unchanged | **resume refused: "port 80 in use" by its own containers** | **lab** 4c, 4d (SIGKILL); unit |
+| 5 | Docker present, user not in the `docker` group | refused, nothing created, `usermod -aG docker $USER`, log out/in or `newgrp docker` | worked, lacked `newgrp` | **lab** 2a (separate user); unit |
+| 6 | Docker daemon stopped | refused with `systemctl start docker` | same | **lab** 10; unit |
+| 7 | Compose v2 plugin missing | refused with the apt command | same | **lab** 2b; unit |
+| 8 | Docker Desktop for WSL, integration off (docker is a stub) | says "enable WSL integration for this distro" | reported "daemon is not answering, systemctl start docker" (wrong fix) | **lab** 2c (stub script); unit; a real Docker Desktop is **unproven** |
+| 9 | Low RAM (< 960 MiB available) | refused before any change, figures printed | same | **lab** 3 (guest squeezed to 515 MiB); unit |
+| 10 | Offline / registry blocked / DNS dead, mid-install | stops at the failing pull, receipt `in-progress`, no container, a **hint** ("network dropped or blocked ... run again, finished steps skip"); same command finishes when the network is back | raw docker error | **lab** 5a, 5c (443 rejected); unit table of 10 message shapes |
+| 11 | GitHub unreachable (metadata fetch) | `fetch release manifest: ... hint:`, nothing created | bare error | **lab** 5b |
+| 12 | Clock skew (TLS "expired / not yet valid") | hint says to check the clock | bare x509 error | **lab** 5d (+5 years); unit |
+| 13 | GHCR rate limit / 401 / corporate TLS proxy / proxy for the Docker daemon | hint per cause (`docker login ghcr.io`, wait, root cert, "the daemon has its own proxy setting") | raw error | unit only (real messages **not reproduced**; matched on docker's wording) |
+| 14 | Two installs at once | second refused: "another `bothy install` or `bothy update` is already running" (flock on `<root>/.install.lock`, released on death); no interleaved writes | **no lock** | **lab** 8 (one refused, one finished, 3 containers); unit |
+| 15 | Someone else's Compose project called `bothy` (e.g. a dev checkout) | refused, never adopted or recreated, its container untouched | `compose up` would have adopted and recreated it | **lab** 7; unit |
+| 16 | Read-only home or an unwritable `--root` | refused in preflight with `--root` advice, nothing created | failed late at `mkdir` after preflight said ok | **lab** 6a (ro bind mount); unit |
+| 17 | Little disk at the install root | refused, `MiB free at ...` | same | **lab** 6b (100 MB tmpfs); unit |
+| 18 | Little disk where **Docker** keeps images (non-default data-root, small `/var`) | `docker-disk` check on `docker info` DockerRootDir (nearest readable parent), needs 1536 MiB | not checked; failed mid-pull with "no space left" | unit only; hint for "no space left on device" also unit |
+| 19 | `$HOME` with spaces / non-ASCII | full install, bytes verified, purge | unproven | **lab** 6c |
+| 20 | Path containing `:` | refused (Compose bind syntax cannot carry it) | late compose error | unit |
+| 21 | Network or 9p/NFS mount for the root | refused (existing) | same | unit (existing) |
+| 22 | `sudo bothy install` | warns (running under sudo for user X; run without) | generic root warning | **lab** 9 (dry run); unit |
+| 23 | Empty `master.key` after an interrupted write | regenerated; key now written to a temp file and renamed, never half-written; a real key is never replaced | an empty key was "done" forever | unit |
+| 24 | `--bind localhost` / junk | usage error before anything runs | late compose failure | unit |
+| 25 | Verify probe with `HTTP(S)_PROXY` set and a non-loopback `--bind` | probe ignores proxy env | went through the proxy | unit-less, code only (**unproven**) |
+| 26 | SELinux enforcing (Fedora, RHEL) | **warning only**, with the `chcon` command; bind mounts may still be denied | silent | warn: unit; the denial itself **unproven** (no SELinux guest) |
+| 27 | Rootless Docker | refused (existing) | same | unit (existing); **unproven** on a real one |
+| 28 | IPv6-only network | not handled: github.com / ghcr.io pulls fail; hint (#10) is the generic one | same | **unproven** |
+| 29 | Old Docker without `--wait` | refused by the Engine >= 25 / Compose >= 2.24 gate | same | unit (existing) |
+| 30 | Docker data-root on a non-default filesystem, `iptables`/nft coexistence, Docker Desktop on macOS/Windows | not handled / out of scope | same | **unproven** |
+
+Lab run: `lab-mid`, Ubuntu 24.04, faked release (section 9), binary built from this branch;
+`PROOF_SCRIPT=lab/install-proof/robust-proof.sh lab/install-proof/run-lab.sh lab-mid`. **24 checks passed in one run
+(sections 3 to 10) and 9 in an earlier run (sections 1 and 2).** Said plainly: the first run failed at section 3 because
+the *proof's own* memory hog was wrong (it allocated nothing), not the product; the script was fixed and sections 3 on
+were re-run from a purged guest rather than the whole script from scratch (the session restarted in between).
+Section 5 blocks `tcp/443` in the guest, which blocks Docker Hub (Traefik's pull) and GitHub; the fake registry on
+`localhost:5000` is unaffected, so **ghcr.io itself was not blocked**, an equivalent registry was. `lab-mini` (2 GiB)
+was **not run**. Residual known leftovers: `bothy uninstall` after a failed install keeps pulled images (by design).
+
+Also changed: an install that stops at preflight now leaves no empty directory chain behind (the lock creates and
+removes it). The lock is taken for install and for `update` apply (not for `--check`/dry run/uninstall).
+Unit tests: `robust_test.go` (11 preflight cases, hints, interrupted run + resume with a context-cancelling host, own
+port on resume, lock, no-directory-left, empty key, pull-failure hint), `install_options_test.go`.
+
 ## 11. Decisions taken
 
 | # | Decision | Reason |
@@ -622,9 +675,72 @@ the write, delete and raw/archive routes of `files` (deliberately not exposed).
 5. Wire the web updater to read the receipt's manifest and call the same update code; add the system scope.
 6. Wire `bothy.sh` to download the binary (checksum-verified) instead of cloning.
 
+## 15. Modules on an installed box: `bothy module` (built 2026-11-18)
+
+`bothy module list|add NAME|remove NAME|rollback` (plus `--dry-run`, `--yes`, `--wait-timeout`, `--root`, `--config-dir`,
+`--manifest`, `--checksums`) changes the module set of an installed Compose box. Host-only like install and update: not a
+catalog op, not an MCP tool, not in `discover` (`TestModuleChangeVerbsAreNotInTheCatalog` and the mcpserver import
+test hold that). `module list` is also the remote catalog op; it runs locally with `--local`, with `--root`, or when
+this machine has an install receipt and no `--url`/`--context`/`BOTHY_URL`.
+
+**Design decisions, with reasons**
+- **One apply path.** `add`/`remove` compute the old and new module sets, generate both stacks from the embedded sources
+  (`LoadStackSet`), and drive the same `buildPlan`/apply/verify/rollback code as update. A module change is "an update
+  whose release does not change", so the rollback point, receipt and health gate are not reimplemented.
+- **A module change never changes the release.** Images come from the receipt; a new module's image comes from the
+  manifest of the *installed* version (its sha must equal the receipt's). Otherwise: "run `bothy update` first". This
+  keeps "what is deployed is what the release pins" true.
+- **Budget gate with numbers.** The preflight runs for the delta only: the memory the module ADDS plus the mode's
+  reserve must fit in free memory ("570 MiB available, 576 MiB needed (64 MiB of container limits + 512 MiB reserve)").
+  Remove skips the memory gate. Ports and volumes are checked for what is new.
+- **Dependencies.** `add` takes the closure of `requires` (module names, or a capability another module `provides`);
+  it asks `Add also X, Y? [y/N]` unless `--yes`. `remove` refuses a core module and a module something installed needs.
+- **Receipt schema 2** records `modules`, a `pending` op (`op`, `module`, `from`, `to`) and `last_module_error`. A
+  schema-1 receipt means the mode's default set; a receipt newer than the binary is refused, not half read.
+- **Interruption.** The pending op is written before anything changes. While it is set, `install` and `update` refuse and
+  name the fix; the same `module add/remove` re-run **resumes** (it does not replace the rollback point);
+  `bothy module rollback` abandons it and restores `previous/`. A failure inside the apply rolls back automatically and
+  proves the old generation (same bytes check), leaving `last_module_error` in the receipt.
+- **remove keeps data.** Containers go; data directories and the pulled image stay (a rollback needs the image, and the
+  directory may hold the user's data). `uninstall` removes the module's generated files too; `--purge` the data.
+- **Health.** The module's own contract is added to the verify set (bytes through the edge, `contains`), so a 200 from the
+  portal catch-all never passes it.
+- **update after a module** regenerates with the receipt's module set and re-pins the module's image from the new release.
+
+**Proven by tests (fake Host, `cli/internal/install/module_test.go`, `stackgen/modules_test.go`):** add then remove
+(files, env, route, receipt, rollback point), idempotent re-run (no `up`, no `pull`), dry run changes nothing, refusal on
+budget (the numbers, and exactly-enough fits), refusal of core/unknown/another-release, rollback on a wrong body, on an
+`up` failure and on an absent digest, resume after a simulated kill, `module rollback` after a kill, receipt round trip
+and schema-3 refusal and schema-1 reading, update keeping the module, uninstall removing it, the run-time set equal to
+the repo set and the committed default, `node-metrics` hardening (no `/host`, no docker.sock, no new port, no `Host()`),
+stackgen golden for mini + node-metrics, closure/dependants/unsatisfied/cycles, schema 1 and 3 refusal, and a module
+added purely as data.
+
+**Lab proof: NOT RUN to completion (2026-11-18).** `lab/install-proof/run-lab-module.sh` (fake-release path:
+`fake-node.sh` re-pushes the pinned node-exporter into the guest registry and adds it to the fake manifests, plus a
+"sick" node-exporter for the forced failure; `module-proof.sh` asserts add, bytes, no host mounts, 64 MiB limit, no new
+port, receipt, idempotent re-run, core/unknown refusals, update after a module, remove, forced-failure rollback, and a
+kill -9 then `update` refusal and `module rollback`) was written and run once on `lab-mini` (2 GiB). The release build,
+registry and manifests were produced, then the **base install was refused by its own memory gate in the guest: "944 MiB
+available, 960 MiB needed (448 MiB of container limits + 512 MiB reserve)"**, so the gate works on a real guest and
+`lab-mini` is too small for this mode. The proof needs a 4 GiB guest (`lab-mid`), and the second run was not done
+(the session's permission layer refused booting `lab-mid` and clearing its leftover state, which another agent used). The
+scripts are untested past that point and may need small fixes on first run. Run: `lab/install-proof/run-lab-module.sh lab-mid`,
+then `lab/lab.sh down lab-mid`.
+
+**Not proven / known limits.** Remove-while-a-dependant-installed only by unit test (no real module depends on another
+optional module yet: `node-metrics` only needs the core edge). Only the Compose runtime; the k3s runtime has no module
+verbs. `mode` changes are not offered (`--mode` is still `mini`). A kill during `docker compose up` is simulated by a
+panic wrapper in tests; the lab kill is timing-dependent (see the result). The web updater and `bothy update --check`
+do not yet show module state. The manifest generator (`scripts/gen-release-manifest.py`) reads every compose `image:`
+line, so releases cut from now on carry `node-exporter` in `third_party`; the releases published so far (v2026.11.1/.2)
+do not, so `node-metrics` cannot be added to them and the lab used the fake-release path for it. The first real release
+that carries it is the first chance to run the module proof on a real image (not done).
+
 ## 14. Files
 
 `stack/modes.yml`; `cli/cmd/stackgen`; `cli/internal/stackgen`; `cli/internal/install/{embed,manifest,preflight,
 install,uninstall,host}.go` and `stack/` (generated); `cli/internal/cli/install_cmd.go`;
 `cli/internal/install/{attest,update}.go`; `cli/internal/stackgen/{edge,override}.go`;
+`cli/internal/install/module.go`, `cli/internal/stackgen/modules.go`, `cli/internal/cli/module_cmd.go`, `lab/install-proof/{run-lab-module,fake-node,module-proof}.sh` (module proof, fake release);
 `stack/installed/bothy-files.policy.toml`; `lab/install-proof/{run-lab,fake-release,proof}.sh` (faked release) and `lab/install-proof/{run-lab-release,proof-release}.sh` (real release, takes the tag).

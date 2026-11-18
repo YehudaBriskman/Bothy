@@ -153,7 +153,11 @@ func applyOverride(in map[string]any, ov Override) (map[string]any, error) {
 			}
 		}
 		nc = append(nc, ov.CommandAdd...)
-		def["command"] = toAny(nc)
+		if len(nc) == 0 {
+			delete(def, "command") // nothing left to say: the image's own CMD
+		} else {
+			def["command"] = toAny(nc)
+		}
 	}
 	// volumes
 	if len(ov.VolumesRemove)+len(ov.VolumesAdd) > 0 {
@@ -162,8 +166,14 @@ func applyOverride(in map[string]any, ov Override) (map[string]any, error) {
 		if vols, ok := def["volumes"].([]any); ok {
 		vl:
 			for _, v := range vols {
-				if vs, ok := v.(string); ok {
-					tgt := volTarget(vs)
+				tgt, have := "", false
+				switch x := v.(type) {
+				case string:
+					tgt, have = volTarget(x), true
+				case map[string]any: // long form: matched by its target
+					tgt, have = fmt.Sprint(x["target"]), x["target"] != nil
+				}
+				if have {
 					for _, t := range ov.VolumesRemove {
 						if tgt == t {
 							removed[t] = true

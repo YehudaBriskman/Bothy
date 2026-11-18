@@ -39,6 +39,7 @@ type Options struct {
 	RequireAttestation bool
 	WaitTimeout        int // seconds `compose up --wait` may take; 0 means 180
 	previous           *Previous
+	pending            *PendingOp // set by the module verbs: recorded in the in-progress receipt
 	// HTTPGet is the verify probe; nil means net/http.
 	HTTPGet func(url string) (int, []byte, error)
 }
@@ -69,12 +70,34 @@ type Receipt struct {
 	Images         map[string]string `json:"images"` // compose variable -> digest ref
 	Created        []string          `json:"created"`
 	LastError      string            `json:"last_error,omitempty"`
+	// Modules is the module set this box runs (sorted, core modules included).
+	// Absent in a schema-1 receipt: that box runs its mode's default set.
+	Modules []string `json:"modules,omitempty"`
+	// Pending is set while a `bothy module add|remove` is between its first write
+	// and its last: what was being done, and the set before it. A re-run of the
+	// same verb resumes; `bothy module rollback` returns to the previous generation.
+	Pending         *PendingOp `json:"pending,omitempty"`
+	LastModuleError string     `json:"last_module_error,omitempty"`
 	// Previous is the release this one replaced (set by `bothy update`): its
 	// digests are what a failed update rolls back to, not "whatever is running".
 	Previous        *Previous `json:"previous,omitempty"`
 	LastUpdateError string    `json:"last_update_error,omitempty"`
 	UpdatedAt       string    `json:"updated_at"`
 }
+
+// PendingOp is an unfinished module change.
+type PendingOp struct {
+	Op     string   `json:"op"` // add | remove
+	Module string   `json:"module"`
+	From   []string `json:"from"` // the set before
+	To     []string `json:"to"`   // the set it is moving to
+}
+
+// ReceiptSchema is the receipt format this binary reads and writes. Schema 2
+// added Modules and Pending. A newer receipt is refused rather than half read:
+// an older reader that ignored Modules would "update" a box back to its mode's
+// defaults and remove what was added.
+const ReceiptSchema = 2
 
 // Previous records the release an update replaced.
 type Previous struct {
@@ -110,11 +133,14 @@ func readReceipt(path string) (*Receipt, error) {
 	if err := json.Unmarshal(b, &r); err != nil {
 		return nil, fmt.Errorf("%s is not readable (%w); move it aside to start over", path, err)
 	}
+	if r.Schema > ReceiptSchema {
+		return nil, fmt.Errorf("%s is schema %d, written by a newer bothy than this one (understands %d): use that bothy, or this box would lose what the newer receipt records", path, r.Schema, ReceiptSchema)
+	}
 	return &r, nil
 }
 
 func writeReceipt(path string, r *Receipt) error {
-	r.Schema = 1
+	r.Schema = ReceiptSchema
 	r.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	b, _ := json.MarshalIndent(r, "", "  ")
 	return atomicWrite(path, append(b, '\n'), 0o600)
@@ -166,7 +192,28 @@ func (o Options) composeArgs(st *Stack, more ...string) []string {
 
 // Install is `bothy install`. out receives every line a person should see.
 func Install(ctx context.Context, h Host, o Options, out io.Writer) error {
-	st, err := LoadStack(o.Mode)
+	// One writer at a time, taken before the receipt is read. A dry run writes nothing and takes no lock.
+	if !o.DryRun {
+		release, err := lockInstall(o.DataDir)
+		if err != nil {
+			return err
+		}
+		defer release()
+	}
+	rec, err := readReceipt(o.receiptPath())
+	if err != nil {
+		return err
+	}
+	if rec != nil && rec.Pending != nil {
+		return pendingError(rec)
+	}
+	// A box that already has modules added keeps them: install never reduces a
+	// box to its mode's defaults (that would remove what `bothy module add` put there).
+	var names []string
+	if rec != nil && rec.Mode == o.Mode {
+		names = rec.Modules
+	}
+	st, err := LoadStackSet(o.Mode, names)
 	if err != nil {
 		return err
 	}
@@ -191,10 +238,6 @@ func Install(ctx context.Context, h Host, o Options, out io.Writer) error {
 		return err
 	}
 
-	rec, err := readReceipt(o.receiptPath())
-	if err != nil {
-		return err
-	}
 	if rec != nil && rec.Mode != o.Mode {
 		return fmt.Errorf("this box has a %q install; changing mode is not supported by `bothy install` yet", rec.Mode)
 	}
@@ -203,8 +246,12 @@ func Install(ctx context.Context, h Host, o Options, out io.Writer) error {
 	}
 
 	// 2. preflight.
+	// Our own port: a complete install, or a half one whose containers are still
+	// up (an interrupted run), is not a conflict with itself.
+	sameAddr := rec != nil && rec.Bind == o.Bind && rec.Port == portOr(o, st.Meta.Publish[0].Default)
 	pf := Preflight(ctx, h, PreflightIn{Stack: st, Manifest: m, Bind: o.Bind, Port: o.Port, DataDir: nearest(o.DataDir),
-		OwnPortsOK: rec != nil && rec.Status == "complete" && rec.Bind == o.Bind && rec.Port == portOr(o, st.Meta.Publish[0].Default)})
+		RealDataDir: o.DataDir, ConfigDir: o.ConfigDir, StackDir: o.stackDir(),
+		OwnPortsOK: sameAddr && (rec.Status == "complete" || ownRunning(ctx, h, o, st))})
 	p("\npreflight:")
 	for _, c := range pf {
 		p("  %-4s %-10s %s", c.Level, c.ID, c.Msg)
@@ -263,13 +310,22 @@ func Install(ctx context.Context, h Host, o Options, out io.Writer) error {
 			started = true
 		}
 		if err := a.Run(ctx); err != nil {
-			p("   FAILED after %s: %v", time.Since(t0).Round(time.Millisecond), err)
+			interrupted := ctx.Err() != nil
+			if interrupted {
+				p("   INTERRUPTED after %s (Ctrl-C or SIGTERM)", time.Since(t0).Round(time.Millisecond))
+				err = fmt.Errorf("interrupted: %w", ctx.Err())
+			} else {
+				p("   FAILED after %s: %s", time.Since(t0).Round(time.Millisecond), withHint(err.Error()))
+			}
 			recordFailure(o, err)
 			if started && firstInstall {
+				// The run's own context may be cancelled (Ctrl-C): the cleanup must still run.
 				p("   rolling back what this run started: docker compose down (data and files are kept)")
-				if out, derr := h.Run(ctx, "docker", o.composeArgs(st, "down", "--remove-orphans")...); derr != nil {
+				cctx, ccancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+				if out, derr := h.Run(cctx, "docker", o.composeArgs(st, "down", "--remove-orphans")...); derr != nil {
 					p("   compose down also failed: %v: %s", derr, firstLine(string(out)))
 				}
+				ccancel()
 			}
 			p("\nThe install is incomplete. Run `bothy install` again to resume (finished steps are skipped),")
 			p("or `bothy uninstall` to remove what exists.")
@@ -353,8 +409,9 @@ func buildPlan(h Host, o Options, st *Stack, m *Manifest, msha string, rec *Rece
 
 	// secrets
 	key := filepath.Join(o.secretsDir(), "master.key")
-	_, kerr := os.Stat(key)
-	acts = append(acts, Action{"secrets", fmt.Sprintf("generate %s (32 random bytes, 0600, in a 0700 directory; never printed, never in the binary)", key), kerr == nil,
+	ks, kerr := os.Stat(key)
+	keyOK := kerr == nil && ks.Size() > 0 // an empty file is an interrupted write: regenerate
+	acts = append(acts, Action{"secrets", fmt.Sprintf("generate %s (32 random bytes, 0600, in a 0700 directory; never printed, never in the binary)", key), keyOK,
 		func(context.Context) error {
 			if err := os.MkdirAll(o.secretsDir(), 0o700); err != nil {
 				return err
@@ -369,21 +426,34 @@ func buildPlan(h Host, o Options, st *Stack, m *Manifest, msha string, rec *Rece
 			if _, err := rand.Read(b); err != nil {
 				return err
 			}
-			f, err := os.OpenFile(key, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			// Written whole to a temp name, then renamed: an interruption never leaves a half key.
+			tmp := key + ".tmp"
+			_ = os.Remove(tmp)
+			f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 			if err != nil {
 				return err
 			}
-			defer f.Close()
-			_, err = f.WriteString(hex.EncodeToString(b) + "\n")
-			return err
+			if _, err = f.WriteString(hex.EncodeToString(b) + "\n"); err == nil {
+				err = f.Close()
+			} else {
+				_ = f.Close()
+			}
+			if err != nil {
+				_ = os.Remove(tmp)
+				return err
+			}
+			if kerr == nil { // only an empty file can be in the way: a non-empty key never gets here
+				_ = os.Remove(key)
+			}
+			return os.Rename(tmp, key)
 		}})
 
 	// receipt (in-progress marker, written before anything is started)
 	want := &Receipt{Status: "in-progress", Mode: o.Mode, Version: m.Version, Commit: m.Commit, ManifestSHA256: msha,
 		Bind: o.Bind, Port: portOr(o, st.Meta.Publish[0].Default), DataDir: o.DataDir, ConfigDir: o.ConfigDir,
-		Project: st.Meta.Project, Images: images, Previous: o.previous}
+		Project: st.Meta.Project, Images: images, Previous: o.previous, Modules: moduleNames(st), Pending: o.pending}
 	recDone := rec != nil && rec.Status == "complete" && rec.Version == m.Version && rec.ManifestSHA256 == msha &&
-		rec.Bind == want.Bind && rec.Port == want.Port
+		rec.Bind == want.Bind && rec.Port == want.Port && rec.Pending == nil && sameStrings(rec.Modules, want.Modules)
 	acts = append(acts, Action{"receipt", fmt.Sprintf("record the install in %s (what was created, which release; uninstall reads it)", o.receiptPath()), recDone,
 		func(context.Context) error {
 			if err := os.MkdirAll(o.DataDir, 0o755); err != nil {
@@ -501,7 +571,8 @@ func servicesHealthy(h Host, o Options, st *Stack) bool {
 func verify(ctx context.Context, h Host, o Options, st *Stack, m *Manifest, out io.Writer) error {
 	get := o.HTTPGet
 	if get == nil {
-		c := &http.Client{Timeout: 5 * time.Second}
+		// Probing this machine's own address must never go through HTTP(S)_PROXY.
+		c := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}}
 		get = func(u string) (int, []byte, error) {
 			r, err := c.Get(u)
 			if err != nil {
@@ -562,6 +633,16 @@ func verify(ctx context.Context, h Host, o Options, st *Stack, m *Manifest, out 
 			return fmt.Errorf("GET %s%s (%d bytes) differs from %s in %s (%d bytes)", base, br.Path, len(served), br.File, br.Service, len(inside))
 		}
 		fmt.Fprintf(out, "verify: GET %s is byte-identical to %s in %s (%d bytes)\n", br.Path, br.File, br.Service, len(served))
+	}
+	for _, hr := range v.HTTP {
+		served, err := fetchRetry(hr.Path)
+		if err != nil {
+			return err
+		}
+		if !bytes.Contains(served, []byte(hr.Contains)) {
+			return fmt.Errorf("GET %s%s (%d bytes) does not contain %q (the catch-all answering for an unrouted path?)", base, hr.Path, len(served), hr.Contains)
+		}
+		fmt.Fprintf(out, "verify: GET %s contains %q (%d bytes)\n", hr.Path, hr.Contains, len(served))
 	}
 	return nil
 }

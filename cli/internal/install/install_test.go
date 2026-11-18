@@ -60,15 +60,15 @@ func TestGenerateAddsServiceFromData(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("stack/modes.yml", `schema: 1
+	write("stack/modes.yml", `schema: 2
 modes:
   mini:
     title: T
     project: p
     reserve_mib: 1
-    modules:
-      - {name: a, compose: a/compose.yml, services: [one, two]}
     publish: [{service: one, container: 80, env: P, default: 8080}]
+modules:
+  a: {core: true, compose: a/compose.yml, services: [one, two], memory_mib: 1056, modes: [mini], health: {http: [{path: /, contains: x}]}}
 `)
 	write("a/compose.yml", `services:
   one:
@@ -178,6 +178,8 @@ type fakeHost struct {
 	euid       int
 	mem, disk  int
 	fstype     string
+	readonly   bool
+	env        map[string]string
 	listeners  map[int][]string
 	cmds       map[string]string // "docker version ..." -> output; prefix "!" = error
 	ran        []string
@@ -202,10 +204,11 @@ func newHost() *fakeHost {
 func (f *fakeHost) GOOS() string                    { return f.goos }
 func (f *fakeHost) GOARCH() string                  { return f.arch }
 func (f *fakeHost) Euid() int                       { return f.euid }
-func (f *fakeHost) Getenv(string) string            { return "" }
+func (f *fakeHost) Getenv(k string) string          { return f.env[k] }
 func (f *fakeHost) MemAvailableMiB() (int, error)   { return f.mem, nil }
 func (f *fakeHost) FreeDiskMiB(string) (int, error) { return f.disk, nil }
 func (f *fakeHost) FSType(string) string            { return f.fstype }
+func (f *fakeHost) Writable(string) bool            { return !f.readonly }
 func (f *fakeHost) ListenAddrs(p int) []string      { return f.listeners[p] }
 func (f *fakeHost) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	k := name + " " + strings.Join(args, " ")

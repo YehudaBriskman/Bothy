@@ -110,26 +110,34 @@ func repoWith(t *testing.T, modes, compose string) string {
 	return repo
 }
 
-const edgeModes = `schema: 1
+const edgeModes = `schema: 2
 modes:
   t:
     title: T
     project: p
     reserve_mib: 1
     edge: {service: edge, dir: edge/dynamic}
-    modules:
-      - name: e
-        compose: e/compose.yml
-        services: [edge]
-        overrides:
-          edge:
-            command_remove: ["--providers.docker"]
-            replace: [{from: "--entrypoints.metrics.address=:8899", to: "--entrypoints.metrics.address=127.0.0.1:8899"}]
-            volumes_remove: [/var/run/docker.sock]
-      - name: m
-        compose: m/compose.yml
-        services: [app]
     publish: [{service: edge, container: 80, env: P, default: 80}]
+modules:
+  e:
+    compose: e/compose.yml
+    services: [edge]
+    core: true
+    memory_mib: 32
+    modes: [t]
+    health: {http: [{path: /, contains: x}]}
+    overrides:
+      edge:
+        command_remove: ["--providers.docker"]
+        replace: [{from: "--entrypoints.metrics.address=:8899", to: "--entrypoints.metrics.address=127.0.0.1:8899"}]
+        volumes_remove: [/var/run/docker.sock]
+  m:
+    compose: m/compose.yml
+    services: [app]
+    memory_mib: 32
+    requires: [e]
+    modes: [t]
+    health: {http: [{path: /-/api/app/x, contains: y}]}
 `
 
 func appCompose(labels string) string {

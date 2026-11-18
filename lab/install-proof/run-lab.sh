@@ -46,7 +46,7 @@ g 'mkdir -p ~/bin ~/proof'
 for v in 2026.11.0 2026.11.1 2026.11.2 2026.11.3; do g "cat > ~/bin/bothy-$v && chmod +x ~/bin/bothy-$v" < "$out/bothy-$v"; done
 g 'cat > ~/proof/src.tar' < "$out/src.tar"
 g 'cat > ~/proof/fake-release.sh && chmod +x ~/proof/fake-release.sh' < "$HERE/fake-release.sh"
-g 'cat > ~/proof/proof.sh && chmod +x ~/proof/proof.sh' < "$HERE/proof.sh"
+g 'cat > ~/proof/proof.sh && chmod +x ~/proof/proof.sh' < "${PROOF_SCRIPT:-$HERE/proof.sh}"   # PROOF_SCRIPT=robust-proof.sh for the failure-scenario proof
 echo "run-lab: guest memory before:"; g 'free -m | sed -n 1,2p; nproc; uname -r; docker --version; docker compose version --short'
 t_fake0=$(ts)
 # shellcheck disable=SC2088  # the guest shell expands ~

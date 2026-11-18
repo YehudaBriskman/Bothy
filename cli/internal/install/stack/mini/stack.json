@@ -1,12 +1,74 @@
 {
-  "schema": 1,
+  "schema": 2,
   "mode": "mini",
   "title": "Bivvy",
   "project": "bothy",
   "reserve_mib": 512,
+  "modules": [
+    {
+      "name": "edge",
+      "description": "The front door - Traefik with the file provider only (no Docker socket), publishing the one host port.",
+      "mem_mib": 128,
+      "core": true,
+      "requires": [],
+      "provides": [
+        "edge"
+      ],
+      "services": [
+        "traefik"
+      ],
+      "files": [
+        "traefik/dynamic/routes.yml"
+      ],
+      "mkdirs": [
+        "traefik/dynamic"
+      ]
+    },
+    {
+      "name": "files",
+      "description": "Read-only notes reader - one folder, no write routes (this box has no login yet).",
+      "mem_mib": 256,
+      "requires": [
+        "edge"
+      ],
+      "provides": [
+        "notes"
+      ],
+      "services": [
+        "bothy-files"
+      ],
+      "files": [
+        "bothy-files/policy/policy.toml"
+      ],
+      "mkdirs": [
+        "bothy-files/notes",
+        "bothy-files/policy"
+      ]
+    },
+    {
+      "name": "web",
+      "description": "The portal page and /version.json.",
+      "mem_mib": 64,
+      "core": true,
+      "requires": [
+        "edge"
+      ],
+      "provides": [
+        "portal"
+      ],
+      "services": [
+        "bothy-web"
+      ],
+      "files": [],
+      "mkdirs": [
+        "bothy-web/data"
+      ]
+    }
+  ],
   "services": [
     {
       "name": "bothy-files",
+      "module": "files",
       "image_key": "bothy-files",
       "image_var": "BOTHY_IMAGE_BOTHY_FILES",
       "own": true,
@@ -14,6 +76,7 @@
     },
     {
       "name": "bothy-web",
+      "module": "web",
       "image_key": "bothy-web",
       "image_var": "BOTHY_IMAGE_BOTHY_WEB",
       "own": true,
@@ -21,6 +84,7 @@
     },
     {
       "name": "traefik",
+      "module": "edge",
       "image_key": "traefik",
       "image_var": "BOTHY_IMAGE_TRAEFIK",
       "own": false,
