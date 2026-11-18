@@ -1,4 +1,5 @@
 import allowlist from '../../docs-allowlist.json' with { type: 'json' };
+import { Icon } from '../components/Icons.tsx';
 import { Layout } from '../components/Layout.tsx';
 import { Rich } from '../components/Rich.tsx';
 import { REPO_URL, REPO_BRANCH, href } from '../config.ts';
@@ -42,15 +43,16 @@ export function DocsIndex({ ctx }: { ctx: PageContext }) {
   const { t } = ctx;
   return (
     <Layout ctx={ctx} nav="docs">
-      <div className="sky-band" data-band="docs">
-        <header className="wrap page-head">
+      <div className="wrap">
+        <header className="page-head">
+          <p className="eyebrow">{t.docs.eyebrow}</p>
           <h1>{t.docs.heading}</h1>
           <p className="lede">{t.docs.lede}</p>
-          <p className="band-note">
+          <p className="note-line">
             <Rich text={t.docs.stackNote} />{' '}
             <a href={href(`${localePrefix(ctx.locale.code)}/install/`)}>{t.docs.installLink}</a>.
           </p>
-          <p className="band-small">{t.docs.notTranslated}</p>
+          <p className="note-line">{t.docs.notTranslated}</p>
         </header>
       </div>
       <div className="wrap docs-shell">
@@ -83,7 +85,10 @@ export function DocsIndex({ ctx }: { ctx: PageContext }) {
                   {pages.map((d) => (
                     <li key={d.slug}>
                       <a href={docHref(ctx, d.slug)}>
-                        <span className="card-title">{d.title}</span>
+                        <span className="card-title">
+                          {d.title}
+                          <Icon name="arrow" size={16} className="arrow" />
+                        </span>
                         <span className="card-sum">{d.summary}</span>
                       </a>
                     </li>
@@ -105,11 +110,13 @@ export function DocView({ ctx, doc }: { ctx: PageContext; doc: DocPage }) {
   const next = idx >= 0 ? ctx.docs[idx + 1] : undefined;
   return (
     <Layout ctx={ctx} nav="docs">
-      <div className="sky-band sky-band-slim" data-band="doc">
+      <div className="doc-top">
         <div className="wrap">
           <p className="crumb">
             <a href={href(`${localePrefix(ctx.locale.code)}/docs/`)}>{t.docs.breadcrumb}</a>
-            <span aria-hidden="true"> / </span>
+            <span className="sep" aria-hidden="true">
+              /
+            </span>
             <span>{t.docs.groups[doc.group]}</span>
           </p>
           {CHECKOUT_PAGES.has(doc.slug) ? (

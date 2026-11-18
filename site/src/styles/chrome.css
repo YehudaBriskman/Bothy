@@ -1,0 +1,743 @@
+/*
+ * The site's frame: the header with its install menu and phone sheet, the closing band, the wordmark and the footer.
+ * Same on every page.
+ *
+ * Header states (set on <html> by enhance.ts; with no script the header is simply transparent and pinned):
+ *   (none)             at the top: no bar at all; the links float on whatever is behind (sky or ink).
+ *   data-scrolled      the page has moved: a soft blur joins behind the links, feathered downward, never an edge.
+ *   data-nav-dark      over the dark sections (any inner page once scrolled, the home page after the story): a quiet
+ *                      dark translucent backdrop with a blur and one 1 px hairline. Both layers fade by opacity.
+ * Over the sky the ink follows the hero's own choice (sky.css `[data-ink]`): light by default, navy on a bright hour.
+ */
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.site-nav {
+  --nav-ink: #f7f5ef;
+  --nav-ink-muted: rgb(247 245 239 / 82%);
+  --nav-hover: rgb(255 255 255 / 12%);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 40;
+  color: var(--nav-ink);
+  isolation: isolate;
+}
+/* the soft layer: a blur and a light grade, masked to fade to nothing below the bar */
+.site-nav::before,
+.site-nav::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+.site-nav::before {
+  inset-block-end: -1.75rem;
+  background: linear-gradient(to bottom, rgb(var(--glass-rgb, 10 12 26) / 42%), transparent);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 45%, rgb(0 0 0 / 40%) 75%, transparent 100%);
+}
+/* the dark layer: translucent ink, blur and one hairline */
+.site-nav::after {
+  inset-block-end: 0;
+  background: rgb(var(--ink-rgb) / 72%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 8%);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .site-nav::before {
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+  .site-nav::after {
+    background: rgb(var(--ink-rgb) / 58%);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+  }
+}
+html[data-scrolled] .site-nav::before {
+  opacity: 1;
+}
+html[data-nav-dark] .site-nav::before {
+  opacity: 0;
+}
+html[data-nav-dark] .site-nav::after {
+  opacity: 1;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .site-nav::after {
+    background: rgb(var(--ink-rgb) / 96%);
+  }
+}
+
+/* On a bright hour the sky asks for dark ink; the bar follows it until it turns dark itself. */
+html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) .site-nav {
+  --nav-ink: #08121e;
+  --nav-ink-muted: rgb(8 18 30 / 86%);
+  --nav-hover: rgb(8 18 30 / 10%);
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  min-block-size: var(--nav-h);
+  padding-block: 0.5rem;
+}
+.brand {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-block-size: 2.75rem;
+  padding-inline-end: 0.25rem;
+  font: 650 1.1875rem / 1 var(--font-display);
+  letter-spacing: -0.03em;
+  color: var(--nav-ink);
+  text-decoration: none;
+}
+.brand .mark {
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+}
+.primary ul {
+  display: flex;
+  gap: 0.125rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.primary a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding-inline: 0.85rem;
+  border-radius: var(--r-pill);
+  color: var(--nav-ink-muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  text-decoration: none;
+  transition:
+    background-color var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out);
+}
+.primary a:hover {
+  color: var(--nav-ink);
+  background: var(--nav-hover);
+}
+.primary a[aria-current='page'] {
+  color: var(--nav-ink);
+  background: var(--nav-hover);
+}
+/* Over the story's sky the centred links stand in one glass capsule of the hour's own tint, the same fill as the
+   GitHub pill, so a bright noon sky never sits straight behind the words (check:sky). Not a bar: it hugs the links,
+   and it melts into the quiet dark state once the ink sections arrive. */
+body:has([data-story]) .primary ul {
+  padding: 0.25rem;
+  border-radius: var(--r-pill);
+  background: rgb(var(--glass-rgb, 10 12 26) / 52%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 16%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
+  transition:
+    background-color var(--dur-slow, 0.4s) var(--ease-out),
+    box-shadow var(--dur-slow, 0.4s) var(--ease-out);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  body:has([data-story]) .primary ul {
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+  }
+}
+body:has([data-story]) .primary a {
+  min-block-size: 2.25rem;
+  color: #fff;
+}
+html[data-nav-dark] body:has([data-story]) .primary ul {
+  background: transparent;
+  box-shadow: none;
+}
+html[data-nav-dark] body:has([data-story]) .primary a:not(:hover, [aria-current='page']) {
+  color: var(--nav-ink-muted);
+}
+.tools {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Pills ────────────────────────────────────────────────────────────────── */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding-inline: 1.05rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  font: 600 0.9375rem / 1 var(--font-sans);
+  letter-spacing: -0.006em;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  list-style: none;
+  transition:
+    background-color var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-out);
+}
+.pill::-webkit-details-marker {
+  display: none;
+}
+.pill svg {
+  flex: none;
+}
+.pill-glass {
+  position: relative;
+  color: #fff;
+  background: rgb(var(--glass-rgb, 10 12 26) / 52%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .pill-glass {
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+  }
+}
+.pill-glass:hover {
+  background: rgb(var(--glass-rgb, 10 12 26) / 70%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 36%),
+    inset 0 1px 0 rgb(255 255 255 / 24%);
+}
+.pill-split {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--r-pill);
+  background: var(--lit);
+  box-shadow: 0 6px 22px -8px rgb(0 0 0 / 55%);
+  transition: background-color var(--dur) var(--ease-out);
+}
+.pill-solid {
+  color: var(--on-lit);
+  background: var(--lit);
+}
+a.pill-solid:hover {
+  background: var(--lit-hover);
+}
+.pill-split > .pill-solid {
+  padding-inline-end: 0.85rem;
+  background: none;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.pill-chev {
+  padding-inline: 0.65rem 0.8rem;
+}
+.pill-split .pill-chev {
+  block-size: 100%;
+  background: none;
+  box-shadow: inset 1px 0 0 rgb(11 18 34 / 14%);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+[dir='rtl'] .pill-split .pill-chev {
+  box-shadow: inset -1px 0 0 rgb(11 18 34 / 14%);
+}
+.pill-split > a:hover,
+.pill-split .pill-chev:hover {
+  background: rgb(11 18 34 / 7%);
+}
+.pill-chev svg {
+  transition: rotate var(--dur) var(--ease-out);
+}
+/* the white pill sits on sky and on ink: a dark gap inside the amber ring keeps the ring visible on white */
+.pill-split :focus-visible,
+.pill:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px rgb(var(--ink-rgb) / 80%);
+}
+
+/* ── The install menu (a <details>; enhance.ts adds Escape, arrows, click-outside and focus return) ──────── */
+
+.dd {
+  position: relative;
+  display: flex;
+}
+.dd[open] .pill-chev svg {
+  rotate: 180deg;
+}
+.dd-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 0.75rem);
+  inset-inline-end: -0.25rem;
+  z-index: 50;
+  inline-size: min(23rem, calc(100vw - 2rem));
+  padding: 0.5rem;
+  isolation: isolate;
+  border-radius: 1.25rem;
+  color: #f2f3f6;
+  text-align: start;
+  background: rgb(16 17 23 / 94%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 10%),
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    0 30px 70px -20px rgb(0 0 0 / 75%),
+    0 8px 24px -8px rgb(0 0 0 / 45%);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .dd-panel {
+    background: rgb(16 17 23 / 78%);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    backdrop-filter: blur(28px) saturate(1.6);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .dd-panel,
+  .pill-glass,
+  .sheet-panel {
+    background: rgb(16 17 23 / 98%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dd[open] > .dd-panel,
+  .nav-sheet[open] > .sheet-panel {
+    animation: menu-in 0.22s var(--ease-out);
+  }
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.985);
+    }
+  }
+}
+.dd-label {
+  margin: 0.35rem 0.65rem 0.35rem;
+  color: rgb(242 243 246 / 62%);
+}
+.dd-rows,
+.dd-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dd-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.9rem;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+a.dd-row:hover,
+a.dd-row:focus-visible,
+.dd-links a:hover,
+.dd-links a:focus-visible {
+  background: rgb(255 255 255 / 8%);
+}
+.dd-panel :focus-visible {
+  outline-offset: -2px;
+  box-shadow: none;
+}
+.dd-ico {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: 0.7rem;
+  background: rgb(255 255 255 / 7%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
+  color: #fff;
+}
+.dd-txt {
+  display: grid;
+  min-inline-size: 0;
+}
+.dd-txt strong {
+  font-weight: 600;
+}
+.dd-txt span {
+  color: rgb(242 243 246 / 66%);
+  font-size: var(--fs-caption);
+}
+.dd-tag {
+  padding: 0.28rem 0.65rem;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 9%);
+  color: #d8dde6;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.dd-tag-ok {
+  background: rgb(143 227 191 / 14%);
+  color: var(--ok-ink);
+}
+.dd-cmd {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.4rem 0.4rem 0.25rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.85rem;
+  border-radius: 0.8rem;
+  background: rgb(0 0 0 / 35%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+}
+.dd-cmd code {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  color: #ecebe6;
+}
+.dd-cmd .dd-copy {
+  position: static;
+  flex: none;
+  min-block-size: 2rem;
+  font-size: 0.75rem;
+}
+.dd-not {
+  margin: 0.45rem 0.65rem 0.25rem;
+  color: rgb(242 243 246 / 62%);
+  font-size: var(--fs-caption);
+}
+.dd-panel hr {
+  margin: 0.45rem 0.65rem;
+  border: 0;
+  block-size: 1px;
+  background: rgb(255 255 255 / 10%);
+}
+.dd-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.65rem;
+  border-radius: 0.8rem;
+  color: inherit;
+  text-decoration: none;
+}
+.dd-links .arrow {
+  color: rgb(242 243 246 / 55%);
+}
+
+/* ── The phone sheet: a Menu pill that opens a frosted sheet of the same links ──────────────────────────── */
+
+.nav-sheet {
+  display: none;
+}
+.nav-sheet > summary {
+  min-inline-size: 2.75rem;
+}
+.sheet-panel {
+  position: fixed;
+  inset-inline: 0.75rem;
+  inset-block-start: calc(var(--nav-h) + 0.25rem);
+  z-index: 50;
+  padding: 0.5rem;
+  border-radius: 1.25rem;
+  color: #f2f3f6;
+  background: rgb(16 17 23 / 92%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 10%),
+    0 30px 70px -20px rgb(0 0 0 / 80%);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .sheet-panel {
+    background: rgb(16 17 23 / 82%);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    backdrop-filter: blur(28px) saturate(1.6);
+  }
+}
+.sheet-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sheet-panel a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: 3rem;
+  padding-inline: 0.9rem;
+  border-radius: 0.85rem;
+  color: inherit;
+  font-size: 1.0625rem;
+  font-weight: 550;
+  text-decoration: none;
+}
+.sheet-panel a:hover,
+.sheet-panel a:focus-visible,
+.sheet-panel a[aria-current='page'] {
+  background: rgb(255 255 255 / 8%);
+}
+.sheet-panel :focus-visible {
+  outline-offset: -2px;
+}
+.sheet-panel hr {
+  margin: 0.4rem 0.9rem;
+  border: 0;
+  block-size: 1px;
+  background: rgb(255 255 255 / 10%);
+}
+
+@media (max-width: 60rem) {
+  .bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .primary {
+    display: none;
+  }
+  .nav-sheet {
+    display: block;
+  }
+}
+@media (max-width: 30rem) {
+  .tools .pill-gh {
+    display: none;
+  }
+  .tools {
+    gap: 0.375rem;
+  }
+  .pill {
+    padding-inline: 0.85rem;
+  }
+}
+
+/* ── The closing band: the night sky once more, inside a frame of ink ─────────────────────────────────── */
+
+.end-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding-block: clamp(7rem, 5rem + 10vw, 13rem) clamp(5rem, 3.5rem + 6vw, 9rem);
+  text-align: center;
+}
+.end-cta-sky {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  margin: 0;
+  /* the photograph feathers into the ink above and below: no edge where it begins or ends */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(0 0 0 / 30%) 14%,
+    rgb(0 0 0 / 75%) 30%,
+    #000 45%,
+    #000 62%,
+    rgb(0 0 0 / 60%) 82%,
+    transparent 100%
+  );
+}
+.end-cta-sky img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: 50% 35%;
+  display: block;
+  opacity: 0.9;
+}
+.end-cta-sky::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 55% at 50% 50%, rgb(var(--ink-rgb) / 52%), rgb(var(--ink-rgb) / 18%) 70%);
+}
+.end-cta h2 {
+  margin: 0 auto 1.5rem;
+  max-inline-size: 15ch;
+  font-size: var(--fs-display);
+  font-weight: 650;
+  line-height: var(--lh-display);
+  letter-spacing: var(--tr-display);
+}
+.end-cta h2 .soft {
+  display: block;
+  color: rgb(243 242 238 / 58%);
+}
+.end-cta .actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+.end-cta .pill {
+  min-block-size: 3rem;
+  padding-inline: 1.4rem;
+  font-size: 1rem;
+}
+.end-cta .fine {
+  margin: 1.75rem auto 0;
+  max-inline-size: 36rem;
+  color: rgb(243 242 238 / 74%);
+  font-size: var(--fs-small);
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+
+.site-foot {
+  position: relative;
+  background: var(--ink);
+  color: var(--text);
+  font-size: var(--fs-small);
+}
+/* the giant wordmark: decorative, very faint, its lower half cut away by the footer's own top edge */
+.foot-mark {
+  overflow: hidden;
+  block-size: clamp(3.4rem, 1rem + 10.4vw, 10.6rem);
+  margin-block-start: clamp(2rem, 1rem + 4vw, 4rem);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  pointer-events: none;
+  user-select: none;
+  mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
+}
+.foot-mark span {
+  font: 800 clamp(5.2rem, 1rem + 17.2vw, 17.5rem) / 0.8 var(--font-display);
+  letter-spacing: -0.06em;
+  white-space: nowrap;
+  color: transparent;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 11%), rgb(255 255 255 / 2%));
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+.foot-body {
+  position: relative;
+  border-block-start: 1px solid var(--hairline);
+  padding-block: clamp(2.5rem, 2rem + 2vw, 4rem) 1.5rem;
+}
+.foot-grid {
+  display: grid;
+  gap: 2.5rem 2rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.foot-brand {
+  grid-column: 1 / -1;
+}
+@media (min-width: 52rem) {
+  .foot-grid {
+    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+  }
+  .foot-brand {
+    grid-column: auto;
+  }
+}
+.foot-brand .brand {
+  color: var(--text);
+  margin-block-end: 0.75rem;
+}
+.foot-brand p {
+  color: var(--text-muted);
+  max-inline-size: 22rem;
+}
+.foot-social {
+  display: flex;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+}
+.icon-btn {
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 50%;
+  color: var(--text);
+  background: var(--glass-fill);
+  box-shadow: inset 0 0 0 1px var(--glass-edge);
+  transition:
+    background-color var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-out);
+}
+.icon-btn:hover {
+  background: var(--glass-fill-hover);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+}
+.foot-col h2 {
+  margin: 0 0 0.85rem;
+  font: 600 var(--fs-caption) / 1.4 var(--font-sans);
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+.foot-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+.foot-col a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.25rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease-out);
+}
+.foot-col a:hover {
+  color: var(--text);
+}
+.foot-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 2rem;
+  margin-block-start: clamp(2.5rem, 2rem + 2vw, 4rem);
+  padding-block: 1.25rem 2rem;
+  border-block-start: 1px solid var(--hairline);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+.foot-bottom p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .icon-btn:hover {
+    transform: translateY(-1px);
+  }
+}
+@media (forced-colors: active) {
+  .pill,
+  .icon-btn,
+  .dd-panel,
+  .sheet-panel {
+    border: 1px solid ButtonText;
+  }
+}
+
+/* story.css still carries an older copy of the pill and menu rules (it loads first); these undo the parts of it this
+   file does not set, so the frame looks the same on every page. */
+.pill-split:focus-within {
+  outline: none;
+}
+.dd-panel::after {
+  content: none;
+}
+.dd-off {
+  opacity: 1;
+}

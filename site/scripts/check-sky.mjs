@@ -94,7 +94,7 @@ function collectAndHide() {
   const sel = 'h1,h2,h3,.ch-line,.ch-lede,p,a,button,label,output,li,small';
   const out = [];
   const seen = new Set();
-  for (const sec of document.querySelectorAll('[data-sky], .site-header')) {
+  for (const sec of document.querySelectorAll('[data-sky], .site-nav')) {
     for (const el of sec.querySelectorAll(sel)) {
       if (seen.has(el)) continue;
       const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
