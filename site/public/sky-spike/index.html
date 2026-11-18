@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="dark light" />
+    <title>BothyBox sky spike</title>
+    <meta
+      name="description"
+      content="Phase 0 spike of the Bothy sky: real photographs graded for the visitor's hour."
+    />
+    <style>
+      /* No-JS floor: a CSS sky. prefers-color-scheme is the crude hour (dark = night, light = day). */
+      :root {
+        --sky-top: #05091a;
+        --sky-bot: #1c2e56;
+        --scrim-a: 0.3;
+        --ink: #f7f5ef;
+        --ground: #0a0c10;
+        --ui-bg: rgba(8, 12, 22, 0.55);
+        --ui-line: rgba(255, 255, 255, 0.28);
+        color-scheme: dark;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --sky-top: #3468be;
+          --sky-bot: #b0c6e0;
+          --scrim-a: 0.55;
+        }
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--ground);
+        color: var(--ink);
+      }
+      body {
+        min-height: 100svh;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        overflow-x: hidden;
+      }
+      .sky {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        background: linear-gradient(to bottom, var(--sky-top), var(--sky-bot));
+        overflow: hidden;
+      }
+      .sky .still {
+        position: absolute;
+        inset: 0;
+        background: var(--still) center 35% / cover no-repeat;
+        opacity: 0;
+        transition: opacity 1.2s ease;
+      }
+      .sky .still.on {
+        opacity: 1;
+      }
+      .sky .tint {
+        position: absolute;
+        inset: 0;
+        background: var(--tint, transparent);
+        mix-blend-mode: multiply;
+        opacity: 0;
+      }
+      .sky .tint.on {
+        opacity: 1;
+      }
+      .sky canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        opacity: 0;
+        transition: opacity 0.6s ease;
+      }
+      .sky canvas.on {
+        opacity: 1;
+      }
+      main {
+        position: relative;
+        z-index: 1;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 12svh 16px 22svh;
+        text-align: center;
+        overflow-x: clip;
+      }
+      .hero {
+        position: relative;
+        isolation: isolate;
+        max-width: 100%;
+      }
+      /* The local scrim: a soft dark ellipse behind the words only. Its strength (--scrim-a) is set per hour. */
+      .hero::before {
+        content: '';
+        position: absolute;
+        inset: -55% -30%;
+        z-index: -1;
+        background: radial-gradient(
+          closest-side,
+          rgba(6, 10, 24, var(--scrim-a)) 0%,
+          rgba(6, 10, 24, calc(var(--scrim-a) * 0.7)) 42%,
+          rgba(6, 10, 24, 0) 100%
+        );
+        pointer-events: none;
+      }
+      h1 {
+        margin: 0;
+        font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+        font-weight: 400;
+        font-size: clamp(3rem, 12.5vw, 9.5rem);
+        line-height: 1;
+        letter-spacing: -0.025em;
+        color: var(--ink);
+        text-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.28),
+          0 4px 30px rgba(0, 0, 0, 0.32);
+      }
+      .hero p {
+        margin: 1.1rem auto 0;
+        max-width: 28ch;
+        font-size: clamp(1.05rem, 2.4vw, 1.45rem);
+        line-height: 1.4;
+        text-shadow:
+          0 1px 2px rgba(0, 0, 0, 0.4),
+          0 2px 18px rgba(0, 0, 0, 0.3);
+      }
+      .tag {
+        position: fixed;
+        z-index: 3;
+        inset-block-start: 12px;
+        inset-inline-start: 16px;
+        font-size: 0.8rem;
+        letter-spacing: 0.02em;
+        color: var(--ink);
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+      }
+      .tag a {
+        color: inherit;
+      }
+      .ui {
+        position: fixed;
+        z-index: 3;
+        inset-inline: 0;
+        inset-block-end: max(14px, env(safe-area-inset-bottom));
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+        padding-inline: 16px;
+      }
+      .ui[hidden] {
+        display: none;
+      }
+      .bar {
+        pointer-events: auto;
+        max-width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--ui-bg);
+        border: 1px solid var(--ui-line);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        font-size: 0.9rem;
+      }
+      .bar button {
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: 1px solid var(--ui-line);
+        border-radius: 999px;
+        min-height: 32px;
+        padding: 2px 12px;
+        cursor: pointer;
+      }
+      .bar button[aria-pressed='true'] {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .bar button:hover {
+        background: rgba(255, 255, 255, 0.14);
+      }
+      :focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.55);
+      }
+      .glyph {
+        width: 22px;
+        height: 22px;
+        flex: none;
+      }
+      .glyph[hidden] {
+        display: none;
+      }
+      .dial {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1 1 240px;
+        min-width: 0;
+      }
+      .dial input[type='range'] {
+        -webkit-appearance: none;
+        appearance: none;
+        flex: 1 1 120px;
+        min-width: 0;
+        width: 100%;
+        max-width: 280px;
+        height: 28px;
+        background: transparent;
+        margin: 0;
+        cursor: pointer;
+      }
+      .dial input[type='range']::-webkit-slider-runnable-track {
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(
+          to right,
+          #0b1230 0%,
+          #3a3566 22%,
+          #f0a070 27%,
+          #7aa6e0 36%,
+          #9cc2ee 50%,
+          #7aa6e0 64%,
+          #f08a50 76%,
+          #4a3a70 84%,
+          #0b1230 92%
+        );
+      }
+      .dial input[type='range']::-moz-range-track {
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(
+          to right,
+          #0b1230 0%,
+          #3a3566 22%,
+          #f0a070 27%,
+          #7aa6e0 36%,
+          #9cc2ee 50%,
+          #7aa6e0 64%,
+          #f08a50 76%,
+          #4a3a70 84%,
+          #0b1230 92%
+        );
+      }
+      .dial input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        margin-top: -7px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid rgba(0, 0, 0, 0.45);
+      }
+      .dial input[type='range']::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid rgba(0, 0, 0, 0.45);
+      }
+      .dial output {
+        min-width: 6.2ch;
+        font-variant-numeric: tabular-nums;
+        text-align: start;
+      }
+      .sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .dbg {
+        position: fixed;
+        z-index: 4;
+        inset-block-start: 12px;
+        inset-inline-end: 12px;
+        margin: 0;
+        padding: 8px 10px;
+        font:
+          12px/1.45 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        color: #d6ffd6;
+        background: rgba(0, 0, 0, 0.7);
+        border-radius: 6px;
+        white-space: pre;
+        pointer-events: none;
+      }
+      @media (max-width: 720px) {
+        .sky .still {
+          background-position: center 30%;
+        }
+        .tag {
+          font-size: 0.75rem;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sky .still,
+        .sky canvas {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sky" id="sky" aria-hidden="true">
+      <div class="still" id="still"></div>
+      <div class="tint" id="tint"></div>
+      <canvas id="gl"></canvas>
+    </div>
+
+    <p class="tag">Phase 0 sky spike. <a href="../">Back to the site</a></p>
+
+    <main>
+      <div class="hero">
+        <h1>BothyBox</h1>
+        <p>A shelter in the hills, for your machine.</p>
+      </div>
+    </main>
+
+    <!-- Everything below needs JavaScript, so it stays hidden without it. -->
+    <div class="ui" id="ui" hidden>
+      <div class="bar" role="group" aria-label="Sky controls">
+        <div class="dial">
+          <svg
+            class="glyph"
+            id="gSun"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />
+            <path
+              d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M5.3 18.7 7 17M17 7l1.7-1.7"
+            />
+          </svg>
+          <svg class="glyph" id="gMoon" viewBox="0 0 24 24" aria-hidden="true" hidden>
+            <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" fill="currentColor" />
+          </svg>
+          <label class="sr" for="hour">Hour of the day</label>
+          <input id="hour" type="range" min="0" max="24" step="0.25" value="12" />
+          <output id="hourOut" for="hour"></output>
+        </div>
+        <button type="button" id="now" hidden>Now</button>
+        <button type="button" id="pause" aria-pressed="false">Pause motion</button>
+      </div>
+    </div>
+    <pre class="dbg" id="dbg" hidden></pre>
+
+    <script type="module" src="sky.js"></script>
+  </body>
+</html>

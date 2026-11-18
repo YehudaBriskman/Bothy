@@ -1,0 +1,118 @@
+{
+  "checked": "2026-11-18",
+  "checkedBy": "Claude agent, from each asset page's structured data (license field) and https://polyhaven.com/license",
+  "licenceNote": "Poly Haven assets are CC0 1.0 (public domain dedication). No attribution is required; it is given anyway.",
+  "photos": [
+    {
+      "key": "day",
+      "title": "Kloofendal 48d Partly Cloudy (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Original",
+        "Jarod Guest": "Sky edits"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/kloofendal_48d_partly_cloudy_puresky_4k.hdr",
+      "dateTaken": "2019-03-22",
+      "datePublished": "2022-11-19",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (yaw 214, pitch 27 desktop / 36 phone, away from the sun), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF with a WebP fallback (assets-src/sky-spike/bake.py)",
+      "files": [
+        {
+          "file": "img/day-desk.avif",
+          "bytes": 56520,
+          "sha256": "74754a39df88c01171de1b0fe522e01bd4d53ddbf22a13b9b8b6aa6e9be14213"
+        },
+        {
+          "file": "img/day-desk.webp",
+          "bytes": 58898,
+          "sha256": "9557adef5eb1cb4ae45bc170992f21a1160a566f8a857940822cf99da3b6e96a"
+        },
+        {
+          "file": "img/day-phone.avif",
+          "bytes": 26559,
+          "sha256": "196628c956820795f7fbddb73d7ca4e5f71703b0f716261f48b9f3bc7580f4c0"
+        },
+        {
+          "file": "img/day-phone.webp",
+          "bytes": 25626,
+          "sha256": "b73b22c594991981df0d5e01f5c4acc685dd32e3aa729ca8584a5b03a5db4d76"
+        }
+      ]
+    },
+    {
+      "key": "dusk",
+      "title": "Kloppenheim 06 (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Original",
+        "Jarod Guest": "Sky edits"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/kloppenheim_06_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/kloppenheim_06_puresky_4k.hdr",
+      "dateTaken": "2019-11-03",
+      "datePublished": "2022-11-26",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (yaw -9, pitch 27 desktop / 30 phone, about 50 degrees off the sunset), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF with a WebP fallback (assets-src/sky-spike/bake.py)",
+      "files": [
+        {
+          "file": "img/dusk-desk.avif",
+          "bytes": 56664,
+          "sha256": "457af3da881cae2aca98406aa690dbf5f47567a873e8baf319f95ea9d3aba112"
+        },
+        {
+          "file": "img/dusk-desk.webp",
+          "bytes": 58530,
+          "sha256": "5c88a0aad9b1f1af7318e08dec952e32321bde62c2ac9f9107a6758ed895f79f"
+        },
+        {
+          "file": "img/dusk-phone.avif",
+          "bytes": 27356,
+          "sha256": "7153d7288987c11ced0802eafd0b856264a1257a6facd5188433cd5640f30211"
+        },
+        {
+          "file": "img/dusk-phone.webp",
+          "bytes": 27962,
+          "sha256": "91499f7bd7a09416332a7ec28540fbdb01ee75394ad84dbfd10ceb8167fd68e3"
+        }
+      ]
+    },
+    {
+      "key": "night",
+      "title": "Kloppenheim 02 (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Original",
+        "Jarod Guest": "Sky edits"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/kloppenheim_02_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/kloppenheim_02_puresky_4k.hdr",
+      "dateTaken": "2019-11-02",
+      "datePublished": "2022-12-24",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (yaw 86, pitch 20 desktop / 28 phone, about 50 degrees off the moon; high-pass star boost), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF with a WebP fallback (assets-src/sky-spike/bake.py)",
+      "files": [
+        {
+          "file": "img/night-desk.avif",
+          "bytes": 55835,
+          "sha256": "f597f9d420b477c27d2734460a40e41cd6f5592792b2c42c8e54602e3cc01473"
+        },
+        {
+          "file": "img/night-desk.webp",
+          "bytes": 56952,
+          "sha256": "7bb1873eb66ca94e936fa2706a0f61e03f36434907178be0a71504e9bfb8ab16"
+        },
+        {
+          "file": "img/night-phone.avif",
+          "bytes": 27930,
+          "sha256": "b96ef9d11188bae42758aea1e24549f378d52b39d4d38ff371425c3ce8a16454"
+        },
+        {
+          "file": "img/night-phone.webp",
+          "bytes": 28052,
+          "sha256": "3321ee8210c50e2a067cee5b2c4d378538adc264a5422e8c964250f5e03ea824"
+        }
+      ]
+    }
+  ]
+}
