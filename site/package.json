@@ -23,6 +23,7 @@
     "render-console": "node scripts/render-console.mjs",
     "check-console": "node scripts/render-console.mjs --check",
     "check:sky": "node scripts/check-sky.mjs",
+    "check:story": "node scripts/check-story.mjs",
     "check:sky:full": "node scripts/check-sky.mjs --full"
   },
   "dependencies": {
