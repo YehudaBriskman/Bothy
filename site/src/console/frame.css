@@ -561,3 +561,13 @@
   overflow: clip;
   overscroll-behavior: auto;
 }
+
+/* Forced colours remove the shadows and fills that draw the window, the sign-in fields and its button: give them
+   a system-coloured border so the shapes survive (Windows high contrast). */
+@media (forced-colors: active) {
+  .cf-glass,
+  .console-frame .cf-field-v,
+  .console-frame .cf-login-btn {
+    border: 1px solid CanvasText;
+  }
+}

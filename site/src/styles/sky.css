@@ -107,7 +107,7 @@
   padding: 0.125rem 0.875rem;
   cursor: pointer;
 }
-.sky-ui button[aria-pressed='true'] {
+.sky-ui button[data-paused] {
   background: rgb(255 255 255 / 20%);
 }
 .sky-ui button:hover {

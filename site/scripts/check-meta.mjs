@@ -33,11 +33,7 @@ export const BACKDROPS = ['/sky/'];
  * Problems known on main and owned by a later slice: printed as warnings, not failures, so the gate can land
  * before the fix. Each entry is the exact problem line. Delete the entry with the fix; a stale entry is reported.
  */
-export const KNOWN = {
-  // The rendered console on Home (src/console) heads its panels with <h1 aria-level="3">, directly after the page's
-  // own h1 and before any h2, so a screen reader hears h1 then h3. Owner: S9 (accessibility audit).
-  'index.html: heading order skips from h1 to h3': 'S9',
-};
+export const KNOWN = {};
 
 const attr = (tag, name) => tag.match(new RegExp(`\\s${name}="([^"]*)"`, 'i'))?.[1] ?? null;
 const hasAttr = (tag, name) => new RegExp(`\\s${name}(=|\\s|/?>)`, 'i').test(tag);

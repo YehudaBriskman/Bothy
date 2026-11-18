@@ -75,3 +75,30 @@ test('the real docs render with no broken link or anchor', () => {
   assert.ok(docs.length >= 10);
   for (const d of docs) assert.ok(!/href="[^"]*(\/kb\/|claude-notes)/.test(d.html), d.source);
 });
+
+test('each table region is named by the heading above it, and a header row with no words is dropped', () => {
+  const md = [
+    '# T',
+    '',
+    '## Ports',
+    '',
+    '| a | b |',
+    '|---|---|',
+    '| 1 | 2 |',
+    '',
+    '| c | d |',
+    '|---|---|',
+    '| 3 | 4 |',
+    '',
+    '## Checklist',
+    '',
+    '| | |',
+    '|---|---|',
+    '| x | y |',
+    '',
+  ].join('\n');
+  const { html } = renderMarkdown(md, ctx);
+  const labels = [...html.matchAll(/role="region" aria-label="([^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(labels, ['Table: Ports', 'Table: Ports (2)', 'Table: Checklist']);
+  assert.doesNotMatch(html, /<th[^>]*>\s*<\/th>/);
+});
