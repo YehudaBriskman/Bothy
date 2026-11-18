@@ -123,13 +123,9 @@ jobs:
           # Nothing here is used by this job. Deleted rather than pruned because
           # `docker system prune` on a fresh runner frees nothing - the space is
           # in preinstalled SDKs, not in images.
-          #
-          # In the BACKGROUND: the delete is 40-100 s of disk I/O and nothing
-          # needs the space until the first image pull. The step that precedes
-          # `just up` waits for it, so the pull never races a half-freed disk.
-          setsid nohup sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
-                      /usr/local/share/boost /usr/share/swift >/dev/null 2>&1 &
-          echo $! > "$RUNNER_TEMP/free-disk.pid"
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/share/boost /usr/share/swift || true
+          echo "after:"; df -h / | tail -1
 
       - uses: extractions/setup-just@v4
 
@@ -187,11 +183,6 @@ jobs:
           [ -n "$GW" ] || { echo "no bridge gateway - cannot continue"; exit 1; }
           echo "BOTHY_BASE_HOST=$GW" >> "$GITHUB_ENV"
           echo "bridge gateway: $GW"
-
-      - name: Wait for the disk to be freed
-        run: |
-          while kill -0 "$(cat "$RUNNER_TEMP/free-disk.pid")" 2>/dev/null; do sleep 1; done
-          df -h / | tail -1
 
       # THE README, VERBATIM. If this ever needs a line the README does not have,
       # the README is wrong and this job is right to fail.
