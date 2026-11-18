@@ -151,3 +151,72 @@ bk_snapshot_loki() {  # <container> <out.tar.gz>
   fi
   return 0
 }
+
+# ── the optional second location (BOTHY_BACKUP_MIRROR) ──────────────────────
+#
+# Everything under $BACKUP_ROOT lives on the same virtual disk as the data it
+# protects (data-and-state.md R1), so one lost disk takes both. A mirror is a
+# second directory, on another device, that receives the newest copy of the SMALL
+# sets after every run. Used by backup.sh (writer) and doctor.sh (reader); the
+# rules live here once so the two cannot disagree. Unset = feature off.
+#
+#   - never a git work tree: a mirror inside a repo is one `git add -A` from
+#     being published. Refused, not warned about.
+#   - atomic: copied to a dot-temp name, checksummed against the source, then
+#     renamed. A torn or corrupt copy never carries a real name.
+#   - it only ever removes what backup.sh's own rotation would remove.
+
+# What goes to the mirror: the small sets. Not victoriametrics, loki or alloy.
+BK_MIRROR_KINDS="postgres grafana env state notes"
+# Overridable so a test can inject a copier that corrupts (the checksum must bite).
+: "${BK_MIRROR_CP:=cp -p}"
+
+# bk_dev <path> - the device id of the filesystem holding <path>, or its nearest
+# existing ancestor when it does not exist yet. GNU stat, then BSD.
+bk_dev() {
+  local p=$1
+  while [ ! -e "$p" ] && [ "$p" != "/" ] && [ "$p" != "." ]; do p=$(dirname "$p"); done
+  stat -c %d "$p" 2>/dev/null || stat -f %d "$p" 2>/dev/null
+}
+
+# bk_sha256 <file>
+bk_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+  else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
+
+# bk_in_git <path> - 0 when <path> (or its nearest existing ancestor) is inside a
+# git work tree or a .git directory, found by walking up; needs no git binary.
+bk_in_git() {
+  local p=$1
+  while [ ! -d "$p" ] && [ "$p" != "/" ] && [ "$p" != "." ]; do p=$(dirname "$p"); done
+  p=$(cd -P "$p" 2>/dev/null && pwd) || return 1
+  while :; do
+    [ -e "$p/.git" ] && return 0
+    [ "$p" = "/" ] && return 1
+    p=$(dirname "$p")
+  done
+}
+
+# bk_mirror_status <mirror> <backup-root> - prints one word, returns 0 only for ok.
+#   unset | in-git | same-device | ok
+bk_mirror_status() {
+  local m=$1 b=$2
+  [ -n "$m" ] || { echo unset; return 1; }
+  if bk_in_git "$m"; then echo in-git; return 1; fi
+  if [ "$(bk_dev "$m")" = "$(bk_dev "$b")" ]; then echo same-device; return 1; fi
+  echo ok
+}
+
+# bk_mirror_copy <src-file> <dest-dir> - atomic and verified. 0 = the copy exists
+# under its real name and its sha256 equals the source's.
+bk_mirror_copy() {
+  local src=$1 dir=$2 base tmp
+  base=$(basename "$src")
+  mkdir -p "$dir" && chmod 700 "$dir" || return 1
+  tmp="$dir/.$base.tmp.$$"
+  # shellcheck disable=SC2086  # BK_MIRROR_CP is a command with its own flags
+  if ! $BK_MIRROR_CP "$src" "$tmp"; then rm -f "$tmp"; return 1; fi
+  if [ "$(bk_sha256 "$src")" != "$(bk_sha256 "$tmp")" ]; then rm -f "$tmp"; return 2; fi
+  chmod 600 "$tmp" && mv -f "$tmp" "$dir/$base"
+}
