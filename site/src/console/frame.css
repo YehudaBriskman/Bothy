@@ -1,0 +1,146 @@
+/*
+ * The glass frame around the console views, and the captions beside it.
+ *
+ * This is SITE chrome. It sits on the sky photograph, so it carries its own tokens (--cf-*), chosen for that ground
+ * and held at 7:1 or better, and never reads a console token. Nothing inside `.console-frame` reads these.
+ * Logical properties only (the site's Hebrew rule); `.console-frame` itself is always left to right.
+ */
+
+.cf {
+  --cf-ink: #eceee9;
+  --cf-ink-muted: #b9bfc8;
+  --cf-glass: rgb(19 22 27 / 58%);
+  --cf-glass-solid: #171a20;
+  --cf-line: rgb(236 238 233 / 24%);
+  --cf-tab-on-bg: rgb(236 238 233 / 14%);
+  --cf-tab-on-fg: #ffffff;
+  --cf-tab-on-line: rgb(236 238 233 / 46%);
+  --cf-focus: #f1d58a;
+
+  margin: 0;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.cf-glass {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.625rem;
+  border: 1px solid var(--cf-line);
+  border-radius: 16px;
+  background: var(--cf-glass);
+  color: var(--cf-ink);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 8%) inset,
+    0 24px 60px -24px rgb(0 0 0 / 70%);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .cf-glass {
+    background: var(--cf-glass-solid);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .cf-glass {
+    background: var(--cf-glass-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.cf-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.cf-tabs {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+/* The radio is the real control: visually gone, still focusable, still in the tab order and the arrow-key group. */
+.cf-r {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cf-tab {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: 1rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--cf-ink-muted);
+  font: 600 0.9375rem/1 var(--sans, system-ui, sans-serif);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.cf-tab:hover {
+  color: var(--cf-ink);
+  background: rgb(236 238 233 / 8%);
+}
+
+.cf-r:checked + .cf-tab {
+  background: var(--cf-tab-on-bg);
+  color: var(--cf-tab-on-fg);
+  border-color: var(--cf-tab-on-line);
+}
+
+.cf-r:focus-visible + .cf-tab {
+  outline: 3px solid var(--cf-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-tab {
+    transition: none;
+  }
+}
+
+/* A label, not a control: nothing here is live, and the frame says so where it is seen. */
+.cf-badge {
+  margin: 0;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--cf-line);
+  border-radius: 999px;
+  color: var(--cf-ink);
+  font: 600 0.75rem/1.2 var(--sans, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cf-glass .console-frame {
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--cf-line);
+}
+
+.cf-caps {
+  margin-block-start: 0.875rem;
+}
+
+.cf-cap {
+  margin: 0;
+  max-inline-size: 60ch;
+  color: var(--fg-muted, #4a524c);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
