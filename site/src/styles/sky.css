@@ -1,0 +1,289 @@
+/*
+ * The sky in the hero (build plan S3): where the still sits, how the live canvas fades over it, how the words are lit,
+ * and the dial. Ported from public/sky-spike/index.html (owner-approved look); the still itself is sky-still.css.
+ * Logical properties only (verify-dist.sh refuses the physical ones).
+ *
+ * Layers, bottom to top: the section's own gradient (the floor), `.sky-still` (the photograph for the hour, chosen by
+ * CSS), its multiply tint, the WebGL canvas, the broad scrim, then the words.
+ */
+
+.sky-ui[hidden],
+.sky-ui [hidden] {
+  display: none !important;
+}
+
+/* The still lives inside the hero instead of filling the window. */
+.ch-sky > .sky-still {
+  position: absolute;
+  z-index: -1;
+}
+/* The photograph replaces the CSS stars of the plain gradient. */
+.ch-sky.has-sky::before {
+  display: none;
+}
+
+/* A dark or light scheme chosen on the page wins over the system's: sky-still.css only reads the system's. */
+:root[data-theme='dark'] .sky-still:not([data-hour])::before {
+  background-image: image-set(
+    url('/sky/night-desk.avif') type('image/avif'),
+    url('/sky/night-desk.webp') type('image/webp')
+  );
+}
+:root[data-theme='light'] .sky-still:not([data-hour])::before {
+  background-image: image-set(
+    url('/sky/day-desk.avif') type('image/avif'),
+    url('/sky/day-desk.webp') type('image/webp')
+  );
+}
+@media (max-width: 720px) {
+  :root[data-theme='dark'] .sky-still:not([data-hour])::before {
+    background-image: image-set(
+      url('/sky/night-phone.avif') type('image/avif'),
+      url('/sky/night-phone.webp') type('image/webp')
+    );
+  }
+  :root[data-theme='light'] .sky-still:not([data-hour])::before {
+    background-image: image-set(
+      url('/sky/day-phone.avif') type('image/avif'),
+      url('/sky/day-phone.webp') type('image/webp')
+    );
+  }
+}
+
+/* The grade of the hour, over the still, when no canvas is drawing it (touch, narrow, no WebGL). */
+.sky-still::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sky-tint, transparent);
+  mix-blend-mode: multiply;
+  opacity: 0;
+}
+.sky-still.is-tinted::after {
+  opacity: 1;
+}
+.sky-still canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.sky-still canvas.on {
+  opacity: 1;
+}
+
+/* ── With the sky running: light ink at every hour, the way the spike was approved ─────────────────────── */
+:root:root .ch-sky.sky-on {
+  --sky-fg: #f7f5ef;
+  --sky-muted: #f7f5ef;
+  --sky-focus: #ffd58a;
+  --sky-btn-bg: rgb(8 12 22 / 48%);
+  --sky-btn-line: rgb(255 255 255 / 60%);
+  --sky-btn-fill: #f4efe6;
+  --sky-btn-ink: #1b1630;
+  --scrim-a: 0.3;
+}
+.ch-sky.sky-on h1,
+.ch-sky.sky-on .ch-line,
+.ch-sky.sky-on .ch-lede {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 40%),
+    0 2px 18px rgb(0 0 0 / 30%);
+}
+.ch-sky.sky-on h1 {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 28%),
+    0 4px 30px rgb(0 0 0 / 32%);
+}
+.ch-sky.sky-on .ch-cue a,
+.ch-sky.sky-on .ch-skip a,
+.ch-sky.sky-on .ch-foot {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 55%),
+    0 1px 10px rgb(0 0 0 / 40%);
+}
+.ch-sky.sky-on a.ch-btn {
+  backdrop-filter: blur(6px);
+}
+
+/* Fallback scrim (the still, no canvas): very broad and feathered, tinted from the sky itself. With the canvas the
+   shader lowers only the brightest pixels behind the words instead, so this is switched off. */
+.ch-sky.sky-on:not(.has-gl) .ch-sky-inner {
+  position: relative;
+}
+.ch-sky.sky-on:not(.has-gl) .ch-sky-inner::before {
+  content: '';
+  position: absolute;
+  inset-block: -15%;
+  inset-inline: -8%;
+  z-index: -1;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--scrim-rgb, 6 10 24) / calc(var(--scrim-a) * 1.35)) 0%,
+    rgb(var(--scrim-rgb, 6 10 24) / calc(var(--scrim-a) * 1.05)) 55%,
+    rgb(var(--scrim-rgb, 6 10 24) / 0) 100%
+  );
+  pointer-events: none;
+}
+
+/* Light from the sun or moon falls on the words (the fill is a gradient set from script). */
+.ch-sky.is-lit h1,
+.ch-sky.is-lit .ch-line,
+.ch-sky.is-lit .ch-lede {
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: none;
+}
+
+/* ── The controls ───────────────────────────────────────────────────────────────────────────────────── */
+.sky-ui {
+  --ui-bg: rgb(8 12 22 / 55%);
+  --ui-line: rgb(255 255 255 / 28%);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  max-inline-size: 100%;
+  inline-size: fit-content;
+  margin-block-start: 1.75rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 999px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  backdrop-filter: blur(10px);
+  color: #f7f5ef;
+  font-size: 0.9rem;
+}
+.sky-ui button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  min-block-size: 2.25rem;
+  padding: 0.125rem 0.875rem;
+  cursor: pointer;
+}
+.sky-ui button[aria-pressed='true'] {
+  background: rgb(255 255 255 / 20%);
+}
+.sky-ui button:hover {
+  background: rgb(255 255 255 / 14%);
+}
+.sky-ui :focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(0 0 0 / 55%);
+}
+.sky-glyph {
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  flex: none;
+}
+.sky-dial {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1 1 15rem;
+  min-inline-size: 0;
+}
+.sky-dial input[type='range'] {
+  appearance: none;
+  flex: 1 1 7.5rem;
+  min-inline-size: 0;
+  inline-size: 100%;
+  max-inline-size: 17.5rem;
+  block-size: 1.75rem;
+  background: transparent;
+  margin: 0;
+  cursor: pointer;
+}
+.sky-dial input[type='range']::-webkit-slider-runnable-track {
+  block-size: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    #0b1230 0%,
+    #3a3566 22%,
+    #f0a070 27%,
+    #7aa6e0 36%,
+    #9cc2ee 50%,
+    #7aa6e0 64%,
+    #f08a50 76%,
+    #4a3a70 84%,
+    #0b1230 92%
+  );
+}
+.sky-dial input[type='range']::-moz-range-track {
+  block-size: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    #0b1230 0%,
+    #3a3566 22%,
+    #f0a070 27%,
+    #7aa6e0 36%,
+    #9cc2ee 50%,
+    #7aa6e0 64%,
+    #f08a50 76%,
+    #4a3a70 84%,
+    #0b1230 92%
+  );
+}
+.sky-dial input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-block-start: -7px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgb(0 0 0 / 45%);
+}
+.sky-dial input[type='range']::-moz-range-thumb {
+  inline-size: 1rem;
+  block-size: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgb(0 0 0 / 45%);
+}
+.sky-dial output {
+  min-inline-size: 6.2ch;
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+}
+.sky-sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.sky-dbg {
+  position: fixed;
+  z-index: 4;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  margin: 0;
+  padding: 8px 10px;
+  font:
+    12px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: #d6ffd6;
+  background: rgb(0 0 0 / 70%);
+  border-radius: 6px;
+  white-space: pre;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-still canvas {
+    transition: none;
+  }
+}

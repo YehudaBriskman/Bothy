@@ -1,5 +1,6 @@
 {
-  "_comment": "The ONLY repository documents the site may render. Paths are relative to the repository's docs/ directory. Everything else is refused at build time (src/docs/safety.ts), and docs/kb, claude-notes and anything credential-shaped is refused even if listed here. Adding a page is a deliberate edit to this file: read the page for tailnet addresses, hostnames and credentials first. backups.md is left out on purpose: it names the owner's note locations.",
+  "_comment": "The ONLY repository documents the site may render. Paths are relative to the repository's docs/ directory. Everything else is refused at build time (src/docs/safety.ts), and docs/kb, claude-notes and anything credential-shaped is refused even if listed here. Adding a page is a deliberate edit to this file: read the page for tailnet addresses, hostnames and credentials first. backups.md is left out on purpose: it names the owner's note locations (reviewed again for S8: ~/claude-notes appears at its lines 15 and 154, so it stays out). checkoutPath lists the pages that describe the older source-checkout path; the docs pages show a banner pointing at bothy install on those.",
+  "checkoutPath": ["installing", "upgrading", "the-cli"],
   "files": [
     { "file": "guide/index.md", "slug": "overview", "group": "start" },
     { "file": "guide/installing.md", "slug": "installing", "group": "start" },

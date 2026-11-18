@@ -1,0 +1,202 @@
+/*
+ * The inner pages (Install, Docs): a calm band of the still sky across the top, and the few blocks those two pages
+ * add. The band uses the same gradients as the home page's still sky (chapters.css, `.ch-sky`): dusk for a dark
+ * scheme, day for a light one, chosen by the same rule (system scheme, or the page's own choice). No photograph, no
+ * script, no motion: it is a header, so it is short and quiet. Logical properties only (the site's Hebrew rule).
+ */
+
+/* ── The sky band ─────────────────────────────────────────────────────────── */
+
+.sky-band {
+  --band-fg: #f4efe6;
+  --band-muted: #e2dbee;
+  --band-focus: #ffd58a;
+  --band-card: rgb(15 22 51 / 55%);
+  --band-line: rgb(244 239 230 / 40%);
+  background:
+    radial-gradient(90% 80% at 50% 120%, rgb(214 132 84 / 22%), transparent 70%),
+    linear-gradient(to bottom, #0f1633 0%, #272a5a 50%, #503c6a 100%);
+  color: var(--band-fg);
+  padding-block: clamp(2rem, 5vw, 3.5rem) clamp(1.5rem, 4vw, 2.5rem);
+  isolation: isolate;
+}
+:root[data-theme='dark'] .sky-band {
+  background: linear-gradient(to bottom, #060a1a 0%, #0d1530 60%, #1a1f3f 100%);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .sky-band {
+    --band-fg: #0e1b29;
+    --band-muted: #26384a;
+    --band-focus: #0b2a52;
+    --band-card: rgb(255 255 255 / 60%);
+    --band-line: rgb(14 27 41 / 45%);
+    background:
+      radial-gradient(60% 70% at 80% 10%, rgb(255 247 214 / 80%), transparent 70%),
+      linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 55%, #f1ecde 100%);
+  }
+}
+:root[data-theme='light'] .sky-band {
+  --band-fg: #0e1b29;
+  --band-muted: #26384a;
+  --band-focus: #0b2a52;
+  --band-card: rgb(255 255 255 / 60%);
+  --band-line: rgb(14 27 41 / 45%);
+  background:
+    radial-gradient(60% 70% at 80% 10%, rgb(255 247 214 / 80%), transparent 70%),
+    linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 55%, #f1ecde 100%);
+}
+.sky-band h1,
+.sky-band .lede {
+  color: var(--band-fg);
+}
+.sky-band .page-head {
+  margin-block-end: 0;
+}
+.sky-band a {
+  color: var(--band-fg);
+}
+.sky-band :focus-visible {
+  outline-color: var(--band-focus);
+}
+.sky-band .lede,
+.sky-band .release-line,
+.sky-band .band-note {
+  max-inline-size: 46rem;
+}
+.sky-band .band-note {
+  margin-block: 0.75rem 0;
+  color: var(--band-fg);
+}
+.sky-band .band-small {
+  margin-block: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--band-muted);
+}
+.sky-band :not(pre) > code {
+  color: inherit;
+}
+.sky-band-slim {
+  padding-block: 1rem 1rem;
+}
+.sky-band .crumb {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--band-muted);
+}
+.doc-banner {
+  margin-block-start: 0.75rem;
+  max-inline-size: 46rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--band-line);
+  border-inline-start-width: 4px;
+  border-radius: var(--radius);
+  background: var(--band-card);
+}
+.doc-banner p {
+  margin: 0;
+}
+.doc-banner p + p {
+  margin-block-start: 0.35rem;
+}
+.doc-banner-title {
+  font-weight: 600;
+}
+
+/* ── Install page ─────────────────────────────────────────────────────────── */
+
+.page-install .block.wide {
+  max-inline-size: none;
+}
+.page-install h2 {
+  margin-block-start: 0;
+}
+.wide-steps {
+  margin-block: 2.5rem;
+}
+.wide-steps .install-steps {
+  margin-block-start: 1.25rem;
+}
+.install-steps h3 {
+  font-size: 1.25rem;
+  margin-block: 0 0.5rem;
+}
+.install-steps > li > h3::before {
+  content: counter(s);
+  position: absolute;
+  inset-inline-start: -1rem;
+  inline-size: 2rem;
+  block-size: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--sans);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.hash {
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+.path-grid,
+.proof-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 52rem) {
+  .path-grid,
+  .proof-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+.path-card {
+  padding: 1.25rem 1.25rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  min-inline-size: 0;
+}
+.path-card h3 {
+  margin-block: 0 0.5rem;
+  font-size: 1.3rem;
+}
+.path-tag {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+.path-tag-proven {
+  border-color: var(--ok);
+  background: var(--ok-tint);
+  color: var(--ok);
+}
+.proof-grid h3 {
+  margin-block: 0 0.5rem;
+  font-size: 1.1rem;
+}
+.proof-list {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+}
+.proof-list li + li {
+  margin-block-start: 0.55rem;
+}
+.proof-shown li::marker {
+  color: var(--ok);
+}
+.proof-not li::marker {
+  color: var(--note);
+}
+.page-install .term {
+  max-inline-size: 100%;
+}
