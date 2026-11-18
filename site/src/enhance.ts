@@ -1,4 +1,5 @@
 import './styles/site.css';
+import './styles/chapters.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
