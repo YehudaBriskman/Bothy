@@ -8,6 +8,7 @@ npm ci
 npm run build        # tsc, client build, SSR build, prerender into dist/
 bash scripts/verify-dist.sh
 npm test
+npm run check:sky    # opt-in: pixel-sampled sky contrast, 8 hours x 2 viewports (needs a build; stills in .check-sky/)
 ```
 
 ## What it renders, and from where
