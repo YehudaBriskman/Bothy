@@ -65,7 +65,7 @@ export const PROVEN = [
   'rerun', // second run is a no-op
   'tamper', // tampered or mismatched release refused, state restored byte for byte
   'uninstall', // uninstall and purge
-  'preflight', // port taken, docker down, low RAM, sudo: refused with the fix, nothing created
+  'preflight', // port taken, docker down, low RAM: refused with the fix, nothing created
 ] as const;
 
 /** Never promised. Section 10e "Unproven", 10f scenarios 8, 26, 27, 28, 30 and section 15. */
