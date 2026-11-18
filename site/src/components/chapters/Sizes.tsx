@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Rich } from '../Rich.tsx';
 import { MEMORY, MEMORY_USED_TOTAL_MIB, MODES } from '../../facts.ts';
 import type { PageContext } from '../../page-context.ts';
@@ -15,7 +16,11 @@ export function Sizes({ ctx }: { ctx: PageContext }) {
             const t = s.items[m.id];
             const now = m.state === 'now';
             return (
-              <li key={m.id} className={`ch-mode ${now ? 'is-now' : 'is-planned'}`}>
+              <li
+                key={m.id}
+                className={`ch-mode glass float ${now ? 'is-now' : 'is-planned'}`}
+                style={{ '--dr': `${6 + (MODES.indexOf(m) % 2) * 5}px` } as CSSProperties}
+              >
                 <p className={`ch-chip ${now ? 'now' : 'planned'}`}>
                   <span aria-hidden="true">{now ? '✓' : '○'}</span> {now ? s.now : s.planned}
                 </p>

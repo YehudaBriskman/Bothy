@@ -7,9 +7,10 @@ import { startSky } from './sky/engine.ts';
  * narrow screen, Save-Data or no WebGL, just picks the still's hour class), then wires the dial, pause and nudge.
  */
 export function mountSky(section: HTMLElement): void {
-  const layer = section.querySelector<HTMLElement>('[data-sky-layer]');
+  const story = section.closest<HTMLElement>('[data-story]');
+  const layer = document.querySelector<HTMLElement>('[data-sky-layer]');
   const ui = section.querySelector<HTMLElement>('[data-sky-ui]');
-  if (!layer || !ui) return;
+  if (!layer || !ui || !story) return;
   const $ = <T extends Element>(sel: string) => ui.querySelector<T>(sel);
   const hour = $<HTMLInputElement>('[data-sky-hour]');
   const out = $<HTMLOutputElement>('[data-sky-out]');
@@ -25,6 +26,7 @@ export function mountSky(section: HTMLElement): void {
 
   const sky = startSky({
     layer,
+    story,
     section,
     lit,
     photoBase: `${base}sky/`,

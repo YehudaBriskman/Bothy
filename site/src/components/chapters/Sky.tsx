@@ -9,9 +9,10 @@ export function Sky({ ctx }: { ctx: PageContext }) {
   const p = localePrefix(ctx.locale.code);
   return (
     <section id="sky" className="ch ch-sky has-sky" data-sky aria-labelledby="sky-h">
-      <div className="sky-still" data-sky-layer aria-hidden="true" />
       <div className="ch-wrap ch-sky-inner">
         <p className="ch-skip">
+          <a href="#inside">{h.skipDescent}</a>
+          {' · '}
           <a href="#install">{h.skipInstall}</a>
         </p>
         <h1 id="sky-h" translate="no">

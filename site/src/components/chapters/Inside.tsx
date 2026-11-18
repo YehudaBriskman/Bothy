@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { ConsoleFrame } from '../../console/ConsoleFrame.tsx';
 import { Rich } from '../Rich.tsx';
 import { href } from '../../config.ts';
@@ -13,10 +14,16 @@ export function Inside({ ctx }: { ctx: PageContext }) {
       <div className="ch-wrap">
         <h2 id="inside-h">{n.heading}</h2>
         <p className="ch-lead">{n.lead}</p>
-        <ConsoleFrame />
+        <div className="ch-stage float float-hero" style={{ '--dr': '16px' } as CSSProperties}>
+          <ConsoleFrame />
+        </div>
         <ul className="ch-cards">
           {n.items.map((i) => (
-            <li key={i.title} className="ch-card">
+            <li
+              key={i.title}
+              className="ch-card glass float"
+              style={{ '--dr': `${6 + (n.items.indexOf(i) % 3) * 3}px` } as CSSProperties}
+            >
               <h3>{i.title}</h3>
               <p>
                 <Rich text={i.body} />

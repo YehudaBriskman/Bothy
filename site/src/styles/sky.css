@@ -12,11 +12,6 @@
   display: none !important;
 }
 
-/* The still lives inside the hero instead of filling the window. */
-.ch-sky > .sky-still {
-  position: absolute;
-  z-index: -1;
-}
 /* The photograph replaces the CSS stars of the plain gradient. */
 .ch-sky.has-sky::before {
   display: none;

@@ -1,0 +1,170 @@
+{
+  "checked": "2026-11-18",
+  "checkedBy": "Claude agent, from each asset page's structured data (license field, creativecommons.org/publicdomain/zero/1.0/) and https://polyhaven.com/license",
+  "licenceNote": "Poly Haven assets are CC0 1.0 (public domain dedication). No attribution is required; it is given anyway. Licence read on each asset page on the checked date. The eighth gallery scene reuses the approved night photograph, recorded in ../../sky/PROVENANCE.json.",
+  "budgetBytes": 307200,
+  "recipe": "site/src/scene/bake/bake.py (Python, Pillow and NumPy via uv). Sources are the 4k .hdr files named in sourceFile; sourceSha256 is the hash of the file as downloaded. Desktop view only, AVIF only (gallery mock).",
+  "photos": [
+    {
+      "key": "glow",
+      "title": "Syferfontein 1d Clear (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Original",
+        "Jarod Guest": "Sky Edits"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/syferfontein_1d_clear_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/syferfontein_1d_clear_puresky_4k.hdr",
+      "sourceSha256": "5ef5c1ff65051068b68313cb315ede613f1f4f10deac2102970c9c4cbd276fcf",
+      "dateTaken": "2018-08-10",
+      "datePublished": "2023-01-14",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (1280x800, yaw 125, pitch 20, toward the horizon), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF (src/scene/bake/bake.py)",
+      "files": [
+        {
+          "file": "glow-desk.avif",
+          "bytes": 12052,
+          "sha256": "58a809885585107911633fe97161aae10b2a85021be6f4ed0e5e2f7c0543b985"
+        }
+      ]
+    },
+    {
+      "key": "cumulus",
+      "title": "Table Mountain 1 (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Original",
+        "Jarod Guest": "Sky edits"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/table_mountain_1_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/table_mountain_1_puresky_4k.hdr",
+      "sourceSha256": "1b1c70d89fdd257b242c6790d1a3e92bcaa4e72ea5f6644641df29e9efbb8617",
+      "dateTaken": "2016-06-03",
+      "datePublished": "2022-12-03",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (1280x800, yaw 85, pitch 19, toward the horizon), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF (src/scene/bake/bake.py)",
+      "files": [
+        {
+          "file": "cumulus-desk.avif",
+          "bytes": 30196,
+          "sha256": "4f3db2ec0cc68d8caa707f0d26b6020984f7fe448adb7fa709053a521f946bb9"
+        }
+      ]
+    },
+    {
+      "key": "deck",
+      "title": "Evening Road 01 (Pure Sky)",
+      "authors": {
+        "Jarod Guest": "Sky Edits",
+        "Sergej Majboroda": "Original"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/evening_road_01_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/evening_road_01_puresky_4k.hdr",
+      "sourceSha256": "13619d89635fc0bcce3ad41cc5b62350e328551a5370da34f570a36dd9e6e4a0",
+      "dateTaken": "2019-08-11",
+      "datePublished": "2023-03-04",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (1280x800, yaw 70, pitch 18, toward the horizon), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF (src/scene/bake/bake.py)",
+      "files": [
+        {
+          "file": "deck-desk.avif",
+          "bytes": 29874,
+          "sha256": "cf91b6eeea6d7987e379344a2c70d4a99cf0e5f22cde3ad7166489caf8cc7aad"
+        }
+      ]
+    },
+    {
+      "key": "dawn",
+      "title": "Kloppenheim 01 (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Original",
+        "Jarod Guest": "Sky edits"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/kloppenheim_01_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/kloppenheim_01_puresky_4k.hdr",
+      "sourceSha256": "e667700214b1141dd0890c6e45decf9c84964b3c6596b717a48c56e3d893bde3",
+      "dateTaken": "2019-11-01",
+      "datePublished": "2022-11-20",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (1280x800, yaw 22, pitch 18, toward the horizon), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF (src/scene/bake/bake.py)",
+      "files": [
+        {
+          "file": "dawn-desk.avif",
+          "bytes": 21694,
+          "sha256": "26d54c81be2993d0ed95eedb25d84d7b0ceb55a26312a61ee08cf57e2710f685"
+        }
+      ]
+    },
+    {
+      "key": "storm",
+      "title": "Wasteland Clouds (Pure Sky)",
+      "authors": {
+        "Jarod Guest": "Sky Edits",
+        "Sergej Majboroda": "Original"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/wasteland_clouds_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/wasteland_clouds_puresky_4k.hdr",
+      "sourceSha256": "f5076d12387720b253bb1cc9a826d10fcd1f5295041f39bfaa206475a4f8042a",
+      "dateTaken": "2019-04-10",
+      "datePublished": "2023-01-08",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (1280x800, yaw 55, pitch 19, toward the horizon), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF (src/scene/bake/bake.py)",
+      "files": [
+        {
+          "file": "storm-desk.avif",
+          "bytes": 29469,
+          "sha256": "f655f10b302b8a84d2327ffc9db9e1a129f22b1dbb4929171d28938a897556c1"
+        }
+      ]
+    },
+    {
+      "key": "cirrus",
+      "title": "Rocky Ridge (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Original",
+        "Jarod Guest": "Sky edits"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/rocky_ridge_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/rocky_ridge_puresky_4k.hdr",
+      "sourceSha256": "82efe60eea01151530c16f841270bfbdb5dd5eafdc3f285fb3cc368d8c0a7501",
+      "dateTaken": "2015-07-05",
+      "datePublished": "2022-12-04",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (1280x800, yaw 112, pitch 22, toward the horizon), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF (src/scene/bake/bake.py)",
+      "files": [
+        {
+          "file": "cirrus-desk.avif",
+          "bytes": 28109,
+          "sha256": "a044e601b08ec283102caa30a0c92b60e47d59ff4d87e1ce88257cf71c708c2b"
+        }
+      ]
+    },
+    {
+      "key": "twilight",
+      "title": "Qwantani Dusk 2 (Pure Sky)",
+      "authors": {
+        "Greg Zaal": "Photography",
+        "Jarod Guest": "Processing"
+      },
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "pageUrl": "https://polyhaven.com/a/qwantani_dusk_2_puresky",
+      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/qwantani_dusk_2_puresky_4k.hdr",
+      "sourceSha256": "dbe5f750e4753f51ef8d178553318ad8550035cac0ce5cfab058e76cf8f021d2",
+      "dateTaken": "2024-08-22",
+      "datePublished": "2025-07-11",
+      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (1280x800, yaw 20, pitch 18, toward the horizon), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF (src/scene/bake/bake.py)",
+      "files": [
+        {
+          "file": "twilight-desk.avif",
+          "bytes": 14420,
+          "sha256": "5e10fd1e9f722d8f58bce42b0a310d89d078ee418a872e567760890b0d2e5580"
+        }
+      ]
+    }
+  ]
+}

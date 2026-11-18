@@ -58,6 +58,15 @@ export const en = {
   home: {
     title: 'BothyBox: a free shelter in the hills, for your machine',
     chapterNav: 'The story, chapter by chapter',
+    chapterNames: [
+      'The sky',
+      'What a bothy is',
+      'One console',
+      'What is inside',
+      'Four sizes',
+      'Install',
+      'Leave it as you found it',
+    ],
     hero: {
       heading: 'BothyBox',
       line: 'A free shelter in the hills, for your machine.',
@@ -65,6 +74,7 @@ export const en = {
       primary: 'Install Bothy',
       secondary: 'Read the docs',
       skipInstall: 'Skip to install',
+      skipDescent: 'Skip the descent',
       cue: 'Read the story',
       footnote:
         'The sky behind this page follows the hour on your device’s clock, and nothing about it leaves your browser; with no script it is a still picture chosen by your light or dark setting. This page makes no request to another site and sets no cookie.',
@@ -98,7 +108,6 @@ export const en = {
       lead: 'Bothy is a web console for a single machine. It finds what is running by asking Docker, shows it on one page, and gives you a reader for the files and notes kept on that machine. It is open source, under the MIT licence.',
       promise: 'It does not replace your tools. It shows and looks after what you already run.',
       guide: 'Read the guide',
-      art: 'A small stone hut on a dark hillside, one window lit.',
     },
     inside: {
       heading: 'What is inside',

@@ -2,6 +2,7 @@ import './styles/site.css';
 import './styles/chapters.css';
 import './styles/sky-still.css';
 import './styles/sky.css';
+import './styles/story.css';
 import './styles/console.css';
 import './styles/pages.css';
 
@@ -88,6 +89,8 @@ for (const d of document.querySelectorAll<HTMLDetailsElement>('details[data-coll
   d.open = !narrow.matches;
 
 // ── The live sky: a lazy island, only on a page that has one, after the page has loaded ─
+const storyRoot = document.querySelector<HTMLElement>('[data-story]');
+if (storyRoot) void import('./story/mount.ts').then((m) => m.mountStory(storyRoot));
 const skySection = document.querySelector<HTMLElement>('[data-sky]');
 if (skySection) {
   const start = () => void import('./enhance-sky.ts').then((m) => m.mountSky(skySection));

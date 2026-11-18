@@ -1,0 +1,436 @@
+/*
+ * The story over one sky (build plan S7). The sky is the page's BACKGROUND, not the hero's: one fixed, full-viewport
+ * stage (`.sky-stage`) sits behind every chapter, and chapters are content floating on it. Nothing in this file draws a
+ * horizontal edge: where the sky turns into the deeper ground colour it does so through one long eased veil on
+ * `.story` itself (a single gradient of many smoothstep stops, so no chapter boundary can show a seam), and the chapter
+ * backdrops (`.sky-scene`) fade in and out by opacity with feathered masks. Text that needs contrast stands on glass
+ * panels or on a feathered scrim, never on a bare photograph.
+ *
+ * Layers, bottom to top: .sky-still (the photograph for the hour, CSS; the live canvas is drawn into it) ->
+ * .sky-scene x3 (chapter backdrops, loaded when near) -> .story::before (the veil) -> content.
+ *
+ * Without script, or with prefers-reduced-motion: the still, the veil and the glass are all static CSS and every
+ * section is a normal readable block. Logical properties only (verify-dist.sh refuses the physical ones).
+ * Colours: --ground-rgb and --glass-rgb default to a deep ink-blue here and are set per hour by the sky engine, so the
+ * veil and the panels are always the colour of the sky that is behind them.
+ */
+
+.story {
+  --ground-rgb: 12 14 31;
+  --glass-rgb: 10 12 26;
+  position: relative;
+  background: none;
+}
+
+/* ── The stage ─────────────────────────────────────────────────────────────── */
+
+.sky-stage {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+  background: #0c1230;
+}
+.sky-stage > .sky-still {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+/* A chapter backdrop: a photograph, graded by the hour's tint, saturation and exposure, faded by scroll, and feathered
+   at its top and bottom so even at full strength it has no edge. Opacity is set from script (`--o`); with none, 0. */
+.sky-scene {
+  position: absolute;
+  inset: 0;
+  opacity: var(--o, 0);
+  background: var(--scene-img, none) center / cover no-repeat;
+  filter: saturate(var(--scene-sat, 1)) brightness(var(--scene-exp, 1));
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(0 0 0 / 16%) 6%,
+    rgb(0 0 0 / 50%) 12%,
+    rgb(0 0 0 / 84%) 18%,
+    #000 24%,
+    #000 76%,
+    rgb(0 0 0 / 84%) 82%,
+    rgb(0 0 0 / 50%) 88%,
+    rgb(0 0 0 / 16%) 94%,
+    transparent 100%
+  );
+}
+.sky-scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--scene-tint, transparent);
+  mix-blend-mode: multiply;
+}
+
+/* The veil: from open sky at the top into the deeper ground colour, then back toward the night sky for the last
+   chapter. One gradient for the whole page, eased with a smoothstep between control points
+   (0 0, 6% 0, 30% .30, 55% .38, 80% .50, 93% .44, 100% .50); generated, not hand-tuned stop by stop. */
+.story::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--ground-rgb) / 0) 0%,
+    rgb(var(--ground-rgb) / 0) 3%,
+    rgb(var(--ground-rgb) / 0) 6%,
+    rgb(var(--ground-rgb) / 0.008) 8.4%,
+    rgb(var(--ground-rgb) / 0.031) 10.8%,
+    rgb(var(--ground-rgb) / 0.065) 13.2%,
+    rgb(var(--ground-rgb) / 0.106) 15.6%,
+    rgb(var(--ground-rgb) / 0.15) 18%,
+    rgb(var(--ground-rgb) / 0.194) 20.4%,
+    rgb(var(--ground-rgb) / 0.235) 22.8%,
+    rgb(var(--ground-rgb) / 0.269) 25.2%,
+    rgb(var(--ground-rgb) / 0.292) 27.6%,
+    rgb(var(--ground-rgb) / 0.3) 30%,
+    rgb(var(--ground-rgb) / 0.302) 32.5%,
+    rgb(var(--ground-rgb) / 0.308) 35%,
+    rgb(var(--ground-rgb) / 0.317) 37.5%,
+    rgb(var(--ground-rgb) / 0.328) 40%,
+    rgb(var(--ground-rgb) / 0.34) 42.5%,
+    rgb(var(--ground-rgb) / 0.352) 45%,
+    rgb(var(--ground-rgb) / 0.363) 47.5%,
+    rgb(var(--ground-rgb) / 0.372) 50%,
+    rgb(var(--ground-rgb) / 0.378) 52.5%,
+    rgb(var(--ground-rgb) / 0.38) 55%,
+    rgb(var(--ground-rgb) / 0.383) 57.5%,
+    rgb(var(--ground-rgb) / 0.392) 60%,
+    rgb(var(--ground-rgb) / 0.406) 62.5%,
+    rgb(var(--ground-rgb) / 0.422) 65%,
+    rgb(var(--ground-rgb) / 0.44) 67.5%,
+    rgb(var(--ground-rgb) / 0.458) 70%,
+    rgb(var(--ground-rgb) / 0.474) 72.5%,
+    rgb(var(--ground-rgb) / 0.488) 75%,
+    rgb(var(--ground-rgb) / 0.497) 77.5%,
+    rgb(var(--ground-rgb) / 0.5) 80%,
+    rgb(var(--ground-rgb) / 0.494) 82.6%,
+    rgb(var(--ground-rgb) / 0.479) 85.2%,
+    rgb(var(--ground-rgb) / 0.461) 87.8%,
+    rgb(var(--ground-rgb) / 0.446) 90.4%,
+    rgb(var(--ground-rgb) / 0.44) 93%,
+    rgb(var(--ground-rgb) / 0.456) 95.3%,
+    rgb(var(--ground-rgb) / 0.484) 97.7%,
+    rgb(var(--ground-rgb) / 0.5) 100%
+  );
+}
+
+/* No chapter paints a ground of its own on the Home page: no hairline, no band, no seam. */
+.story .ch {
+  background: none;
+  border: 0;
+}
+.story .ch-sky {
+  background: none;
+}
+.story .ch-sky::before {
+  display: none;
+}
+/* the trust chapter keeps its CSS stars only when the live sky is not drawing real ones */
+.story:has(.has-gl) .ch-trust::before {
+  display: none;
+}
+.story .ch-trust {
+  background: none;
+}
+
+/* ── Chapters 0 to 2: the descent. Normal flow, a screen each; it is the camera that is pinned, not the words ───── */
+
+.story .ch-sky {
+  min-block-size: 100svh;
+}
+.ch-descent,
+.ch-hut {
+  min-block-size: 100svh;
+  display: grid;
+  align-content: center;
+}
+.ch-end > .ch-narrow {
+  margin-inline-start: auto;
+}
+.ch-skip a + a {
+  margin-inline-start: 0.25rem;
+}
+
+/* ── Glass: floating panels. Blur is used on the few large panels only, with a firmer solid under it ─────────── */
+
+.glass {
+  background: rgb(var(--glass-rgb) / 88%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 14%) inset,
+    0 22px 48px -22px rgb(0 0 0 / 60%),
+    0 4px 14px -6px rgb(0 0 0 / 40%);
+}
+.ch-narrow.glass {
+  padding: clamp(1.25rem, 3.2vw, 2.25rem);
+  max-inline-size: 38rem;
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .glass-blur {
+    background: rgb(var(--glass-rgb) / 76%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+  }
+}
+.story .ch-card.glass,
+.story .ch-mode.glass {
+  background: rgb(var(--glass-rgb) / 84%);
+  border-radius: 1rem;
+}
+.story .ch-mode.is-now {
+  border-color: var(--ch-ok);
+}
+.story .ch-mode.is-planned {
+  border-color: rgb(255 255 255 / 30%);
+}
+.story .ch-tested {
+  background: rgb(var(--glass-rgb) / 84%);
+}
+.story .ch-term .term {
+  box-shadow:
+    0 28px 60px -24px rgb(0 0 0 / 70%),
+    0 6px 18px -8px rgb(0 0 0 / 50%);
+}
+
+/* A feathered scrim behind the text of the later chapters: a soft rectangle of the hour's ground colour, whose
+   four edges fade out by an eased ramp, so it can never read as a box or a band. */
+.ch-inside > .ch-wrap,
+.ch-sizes > .ch-wrap,
+.ch-install > .ch-wrap,
+.ch-trust > .ch-wrap {
+  position: relative;
+  isolation: isolate;
+}
+.ch-inside > .ch-wrap::before,
+.ch-sizes > .ch-wrap::before,
+.ch-install > .ch-wrap::before,
+.ch-trust > .ch-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -3rem -1.5rem;
+  z-index: -1;
+  pointer-events: none;
+  background: rgb(var(--ground-rgb) / 58%);
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgb(0 0 0 / 16%) 4%,
+      rgb(0 0 0 / 50%) 8%,
+      rgb(0 0 0 / 84%) 12%,
+      #000 16%,
+      #000 84%,
+      rgb(0 0 0 / 84%) 88%,
+      rgb(0 0 0 / 50%) 92%,
+      rgb(0 0 0 / 16%) 96%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      rgb(0 0 0 / 50%) 3%,
+      #000 7%,
+      #000 93%,
+      rgb(0 0 0 / 50%) 97%,
+      transparent 100%
+    );
+  mask-composite: intersect;
+}
+.ch-stage {
+  margin-block: 2.5rem;
+}
+.ch-stage .cf-glass {
+  box-shadow:
+    0 40px 80px -30px rgb(0 0 0 / 70%),
+    0 10px 24px -10px rgb(0 0 0 / 45%);
+}
+
+/* ── Floating: scroll-linked drift of a few pixels, where the browser can do it on the compositor ──────────── */
+
+@keyframes story-drift {
+  from {
+    translate: 0 var(--dr, 10px);
+  }
+  to {
+    translate: 0 calc(var(--dr, 10px) * -1);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .float {
+      animation: story-drift linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+  }
+  /* Staggered entrance: only once script has run, and only for what began below the fold. */
+  .story-js .rv {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  .story-js .rv.is-in {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--i, 0) * 80ms),
+      transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--i, 0) * 80ms);
+  }
+  /* The still (touch, narrow, no WebGL): the photograph itself descends a little with the scroll. */
+  .story-js .sky-still::before {
+    transform: translateY(calc(var(--p, 0) * -5%)) scale(calc(1.04 + var(--p, 0) * 0.2));
+    transform-origin: 50% 40%;
+  }
+}
+
+/* ── The page's own frame on the sky: header and footer read as part of it ───────────────────────────────── */
+
+body:has(.story) .site-header {
+  --fg: #f4efe6;
+  --fg-muted: #ded8e8;
+  --accent: #dcc6f6;
+  --surface: rgb(12 14 31 / 85%);
+  --line: rgb(255 255 255 / 20%);
+  --line-strong: rgb(255 255 255 / 50%);
+  position: relative;
+  z-index: 2;
+  color: var(--fg);
+  border-block-end: 0;
+  background: linear-gradient(
+    to bottom,
+    rgb(8 10 24 / 62%) 0%,
+    rgb(8 10 24 / 50%) 40%,
+    rgb(8 10 24 / 28%) 70%,
+    rgb(8 10 24 / 10%) 90%,
+    transparent 100%
+  );
+}
+main:has(.story) + .site-footer {
+  --fg: #f4efe6;
+  --fg-muted: #ded8e8;
+  --accent: #dcc6f6;
+  color: var(--fg);
+  border-block-start: 0;
+  padding-block-start: 4rem;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(8 10 24 / 20%) 30%,
+    rgb(8 10 24 / 52%) 60%,
+    rgb(8 10 24 / 68%) 100%
+  );
+}
+main:has(.story) + .site-footer a {
+  color: #e6d3fa;
+}
+.site-footer .muted {
+  color: var(--fg-muted);
+}
+
+/* ── Progress dots ─────────────────────────────────────────────────────────── */
+
+.story-dots[hidden] {
+  display: none;
+}
+.story-dots {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0.5rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.story-dots ol {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0.15rem;
+  display: grid;
+  gap: 0.1rem;
+  border-radius: 999px;
+  background: rgb(var(--glass-rgb) / 50%);
+  pointer-events: auto;
+}
+.story-dots a {
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+}
+.story-dots a::before {
+  content: '';
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 55%);
+}
+.story-dots a[aria-current] {
+  outline: 0;
+}
+.story-dots a[aria-current]::before {
+  background: #fff;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 25%);
+}
+.story-dots a:hover::before {
+  background: #fff;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-dots a::before {
+    transition:
+      inline-size 0.25s ease,
+      block-size 0.25s ease,
+      background-color 0.25s ease;
+  }
+}
+
+/* ── Where the backdrop cannot be trusted ────────────────────────────────────── */
+
+@supports not (mask-composite: intersect) {
+  .ch-inside > .ch-wrap::before,
+  .ch-sizes > .ch-wrap::before,
+  .ch-install > .ch-wrap::before,
+  .ch-trust > .ch-wrap::before {
+    mask-image: none;
+    background: rgb(var(--ground-rgb) / 40%);
+  }
+}
+@media (forced-colors: active) {
+  .sky-stage,
+  .sky-scene,
+  .story::before,
+  .story-dots {
+    display: none;
+  }
+  .glass {
+    background: Canvas;
+    border-color: CanvasText;
+  }
+}
+@media print {
+  .sky-stage,
+  .story::before,
+  .story-dots,
+  .ch-wrap::before {
+    display: none;
+  }
+  .glass {
+    background: none;
+    box-shadow: none;
+    border-color: #000;
+  }
+  .float {
+    translate: none;
+    animation: none;
+  }
+}

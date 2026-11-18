@@ -32,6 +32,9 @@ uniform vec4 uLight;       // x, y, strength, 1 if the moon
 uniform vec3 uLightCol;
 uniform vec3 uFx;          // rays and rim strength, text-region brightness ceiling, text-region grade strength
 uniform vec4 uText;        // the words: centre and half-size in screen uv; the sun and moon dim behind them
+uniform vec4 uCam;         // the descent: pan (uv down), zoom multiplier, cloud crossing, cloud rise (the last two scaled by depth)
+uniform float uSea;        // sea of cloud: 0 none .. 1 fills the lower screen
+uniform vec3 uSeaCol;      // its colour, from the hour's own grade
 
 float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
 float vn(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
@@ -66,7 +69,7 @@ float depthOf(vec3 c, vec3 r){
 void main(){
   vec2 s=vec2(gl_FragCoord.x/uRes.x, 1.-gl_FragCoord.y/uRes.y);     // screen uv, y down
   vec2 uv=((s-.5)*uCover+.5);                                        // cover fit
-  uv=(uv-.5)/uZoom+.5;                                               // drawn at ~1.07x: lean never shows an edge
+  uv=(uv-.5)/(uZoom*uCam.y)+.5+vec2(0.,uCam.x);                      // drawn at ~1.07x: lean never shows an edge; the descent pans and zooms
   float t=uTime;
   // slow noise drift (always on) and a slight sway
   vec2 dr=(vec2(vn(uv*2.2+vec2(t*.03,0.)),vn(uv*2.2+vec2(17.,t*.025)))-.5)*.032+vec2(sin(t*.13+uv.y*3.)*.004,sin(t*.09+uv.x*2.)*.002);
@@ -89,7 +92,7 @@ void main(){
     vec3 r = k==0?uD0 : (k==1?uD1:uD2);
     vec3 c0 = k==0?texture(uT0,uv).rgb : (k==1?texture(uT1,uv).rgb:texture(uT2,uv).rgb);
     float d=depthOf(c0,r)*vf;
-    vec2 p=uv-((lean+dr)*d+push*d);
+    vec2 p=uv-((lean+dr)*d+push*d)+vec2(uCam.z,uCam.w)*d;
     vec3 c = k==0?texture(uT0,p).rgb : (k==1?texture(uT1,p).rgb:texture(uT2,p).rgb);
     col+=w*c; cloud+=w*clamp((d-${FAR.toFixed(2)})/${(NEAR - FAR).toFixed(2)},0.,1.);
   }
@@ -103,6 +106,14 @@ void main(){
   col=uLift+uGain*col;
   float below=smoothstep(.45,1.,s.y);
   col=mix(col,uHaze.rgb,uHaze.a*below*.7);
+
+  // the sea of cloud: a soft, billowing surface that climbs the screen as the camera drops into it (no hard edge)
+  if(uSea>.002){
+    float sn=fbm(vec2(s.x*2.6+t*.015+uCam.z*3.,s.y*5.5-uCam.x*3.))+.3*fbm(vec2(s.x*7.,s.y*14.)+3.);
+    float top=1.-uSea*.6;
+    float m=smoothstep(top-.04,top+.34,s.y+(sn-.5)*.24);
+    col=mix(col,uSeaCol*(.84+.26*sn),m*.93*uSea);
+  }
 
   // ---- light: a horizon glow that travels with the body, then the sun and moon themselves
   float gx=mix(uMoon.x,uSun.x,step(.001,uSun.z));
