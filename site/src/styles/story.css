@@ -15,6 +15,9 @@
  * veil and the panels are always the colour of the sky that is behind them.
  */
 
+:root {
+  --glass-rgb: 10 12 26;
+}
 .story {
   --ground-rgb: 12 14 31;
   --glass-rgb: 10 12 26;
@@ -144,7 +147,8 @@
 /* ── Chapters 0 to 2: the descent. Normal flow, a screen each; it is the camera that is pinned, not the words ───── */
 
 .story .ch-sky {
-  min-block-size: 100svh;
+  /* the window of the next section peeks up from the bottom edge (the header above is 4rem) */
+  min-block-size: calc(100svh - 14rem);
 }
 .ch-descent,
 .ch-hut {
@@ -162,35 +166,89 @@
 /* ── Glass: floating panels. Blur is used on the few large panels only, with a firmer solid under it ─────────── */
 
 .glass {
-  background: rgb(var(--glass-rgb) / 88%);
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 1.25rem;
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 1.5rem;
+  /* the tint is the hour's own sky colour; a faint diagonal sheen makes it read as a pane, not a flat fill */
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 2%) 55%, rgb(255 255 255 / 5%)),
+    rgb(var(--glass-rgb) / 82%);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 14%) inset,
-    0 22px 48px -22px rgb(0 0 0 / 60%),
-    0 4px 14px -6px rgb(0 0 0 / 40%);
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 26px 60px -26px rgb(0 0 0 / 60%),
+    0 6px 18px -8px rgb(0 0 0 / 32%);
+}
+/* The luminous edge: 1px, lit at the top-left, faint at the bottom-right, drawn as a masked gradient ring. */
+.glass::after,
+.cf-glass::after,
+.hero-peek::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 62%),
+    rgb(255 255 255 / 12%) 36%,
+    rgb(255 255 255 / 5%) 64%,
+    rgb(255 255 255 / 26%)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.glass:hover::after,
+.glass:focus-within::after,
+.cf-glass:hover::after,
+.cf-glass:focus-within::after {
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 95%),
+    rgb(255 255 255 / 28%) 36%,
+    rgb(255 255 255 / 12%) 64%,
+    rgb(255 255 255 / 48%)
+  );
 }
 .ch-narrow.glass {
   padding: clamp(1.25rem, 3.2vw, 2.25rem);
   max-inline-size: 38rem;
 }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .glass,
   .glass-blur {
-    background: rgb(var(--glass-rgb) / 76%);
-    -webkit-backdrop-filter: blur(14px) saturate(1.15);
-    backdrop-filter: blur(14px) saturate(1.15);
+    background:
+      linear-gradient(135deg, rgb(255 255 255 / 11%), rgb(255 255 255 / 2%) 55%, rgb(255 255 255 / 6%)),
+      rgb(var(--glass-rgb) / 58%);
+    -webkit-backdrop-filter: blur(22px) saturate(1.6);
+    backdrop-filter: blur(22px) saturate(1.6);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-blur {
+    background: rgb(var(--glass-rgb, 10 12 26) / 96%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 .story .ch-card.glass,
 .story .ch-mode.glass {
-  background: rgb(var(--glass-rgb) / 84%);
-  border-radius: 1rem;
+  border-radius: 1.375rem;
 }
-.story .ch-mode.is-now {
-  border-color: var(--ch-ok);
+.story .ch-mode.is-now::after {
+  background: linear-gradient(135deg, var(--ch-ok), color-mix(in srgb, var(--ch-ok) 40%, transparent));
 }
-.story .ch-mode.is-planned {
-  border-color: rgb(255 255 255 / 30%);
+.story .ch-mode.is-planned::after {
+  opacity: 0.7;
 }
 .story .ch-tested {
   background: rgb(var(--glass-rgb) / 84%);
@@ -303,18 +361,310 @@ body:has(.story) .site-header {
   --surface: rgb(12 14 31 / 85%);
   --line: rgb(255 255 255 / 20%);
   --line-strong: rgb(255 255 255 / 50%);
-  position: relative;
-  z-index: 2;
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 20;
+  padding-block: 0.75rem 0;
   color: var(--fg);
   border-block-end: 0;
+  background: none;
+  pointer-events: none;
+}
+/* The bar is no bar: logo and wordmark at the start, plain white links floating on the sky, and two pills at the end
+   (a frosted GitHub pill and a solid Install pill that opens a glass menu). Only a feathered local grade sits behind
+   it (a soft fade from the sky's own deep colour, no edge), and once the page has moved a very light blur joins it,
+   masked to fade out downward. */
+body:has(.story) .site-header::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  inset-block-end: -3.5rem;
+  z-index: -1;
+  pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgb(8 10 24 / 62%) 0%,
-    rgb(8 10 24 / 50%) 40%,
-    rgb(8 10 24 / 28%) 70%,
-    rgb(8 10 24 / 10%) 90%,
+    rgb(var(--glass-rgb) / 80%) 0%,
+    rgb(var(--glass-rgb) / 70%) 14%,
+    rgb(var(--glass-rgb) / 52%) 34%,
+    rgb(var(--glass-rgb) / 28%) 56%,
+    rgb(var(--glass-rgb) / 10%) 78%,
     transparent 100%
   );
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  html[data-scrolled] body:has(.story) .site-header::before {
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      rgb(0 0 0 / 80%) 40%,
+      rgb(0 0 0 / 40%) 70%,
+      rgb(0 0 0 / 12%) 90%,
+      transparent 100%
+    );
+  }
+}
+body:has(.story) .site-header .bar {
+  position: relative;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding-block: 0.25rem;
+  max-inline-size: 76rem;
+}
+body:has(.story) .site-header .bar > * {
+  pointer-events: auto;
+}
+body:has(.story) .site-header .brand {
+  justify-self: start;
+  margin-inline-end: 0;
+}
+body:has(.story) .site-header .tools {
+  justify-self: end;
+}
+body:has(.story) .site-header .primary a {
+  padding-inline: 0.85rem;
+  border-block-end: 0;
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+body:has(.story) .site-header .primary a:hover,
+body:has(.story) .site-header .primary a:focus-visible {
+  background: rgb(255 255 255 / 14%);
+}
+body:has(.story) .site-header .primary a[aria-current='page'] {
+  background: rgb(255 255 255 / 16%);
+}
+body:has(.story) .site-header .primary ul {
+  gap: 0 0.1rem;
+  flex-wrap: nowrap;
+}
+.nav-cta {
+  display: none;
+}
+body:has(.story) .nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+@media (min-width: 40.01rem) {
+  body:has(.story) .nav-dup {
+    display: none;
+  }
+}
+@media (max-width: 40rem) {
+  body:has(.story) .site-header .bar {
+    display: flex;
+  }
+  body:has(.story) .site-header .pill-glass {
+    display: none;
+  }
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 2.5rem;
+  padding-inline: 1rem;
+  border-radius: 999px;
+  font: 600 0.95rem/1 var(--sans, system-ui, sans-serif);
+  text-decoration: none;
+  cursor: pointer;
+  list-style: none;
+}
+.pill::-webkit-details-marker {
+  display: none;
+}
+.pill-glass {
+  position: relative;
+  color: #fff;
+  background: rgb(var(--glass-rgb) / 58%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 30%);
+  transition: background-color 0.2s ease;
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .pill-glass {
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+  }
+}
+.pill-glass:hover,
+.pill-glass:focus-visible {
+  background: rgb(var(--glass-rgb) / 72%);
+}
+.pill-split {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 6px 20px -8px rgb(8 20 40 / 55%);
+}
+.pill-solid {
+  color: #0b1f36;
+  background: none;
+}
+.pill-split > .pill-solid {
+  padding-inline-end: 0.8rem;
+}
+.pill-chev {
+  padding-inline: 0.6rem 0.75rem;
+  border-inline-start: 1px solid rgb(11 31 54 / 16%);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+.pill-split a:hover,
+.pill-chev:hover {
+  background: rgb(11 31 54 / 7%);
+}
+.pill-split:focus-within {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.dd {
+  position: relative;
+}
+.dd[open] .pill-chev svg {
+  rotate: 180deg;
+}
+.dd-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 0.9rem);
+  inset-inline-end: 0;
+  z-index: 30;
+  inline-size: min(22rem, calc(100vw - 2rem));
+  padding: 0.5rem;
+  isolation: isolate;
+  border-radius: 1.25rem;
+  color: #f2f4f8;
+  background: rgb(14 16 22 / 86%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 30px 70px -20px rgb(0 0 0 / 65%),
+    0 8px 24px -8px rgb(0 0 0 / 40%);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .dd-panel {
+    background: rgb(14 16 22 / 66%);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    backdrop-filter: blur(28px) saturate(1.7);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .dd-panel,
+  .pill-glass {
+    background: rgb(14 16 22 / 97%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+.dd-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgb(255 255 255 / 40%), rgb(255 255 255 / 8%) 40%, rgb(255 255 255 / 14%));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dd[open] .dd-panel {
+    animation: dd-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  @keyframes dd-in {
+    from {
+      opacity: 0;
+      translate: 0 -6px;
+    }
+  }
+}
+.dd-rows,
+.dd-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dd-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.6rem 0.65rem;
+  border-radius: 0.9rem;
+  color: inherit;
+  text-decoration: none;
+}
+a.dd-row:hover,
+a.dd-row:focus-visible,
+.dd-links a:hover,
+.dd-links a:focus-visible {
+  background: rgb(255 255 255 / 9%);
+}
+.dd-ico {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: 0.65rem;
+  background: rgb(255 255 255 / 9%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+  font-weight: 700;
+}
+.dd-txt {
+  display: grid;
+  min-inline-size: 0;
+}
+.dd-txt strong {
+  font-size: 1rem;
+}
+.dd-txt span {
+  color: #b9c0cc;
+  font-size: 0.875rem;
+}
+.dd-tag {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+  color: #d8dde6;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.dd-tag-ok {
+  background: rgb(52 211 153 / 18%);
+  color: #8ff0c8;
+}
+.dd-off {
+  opacity: 0.72;
+}
+.dd-panel hr {
+  margin: 0.4rem 0.65rem;
+  border: 0;
+  block-size: 1px;
+  background: rgb(255 255 255 / 14%);
+}
+.dd-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: 2.75rem;
+  padding-inline: 0.65rem;
+  border-radius: 0.9rem;
+  color: inherit;
+  text-decoration: none;
 }
 main:has(.story) + .site-footer {
   --fg: #f4efe6;
@@ -435,5 +785,82 @@ main:has(.story) + .site-footer a {
   .float {
     translate: none;
     animation: none;
+  }
+}
+
+/* ── Chapter 3: the console steered by the scroll (story/console.ts). Static without script, with reduced motion,
+   on a small window, or when the frame does not fit under the bar: none of these rules match then. ──────────── */
+
+.ch-stage {
+  margin-block: 2.5rem;
+}
+.cs-on .ch-track {
+  block-size: 450svh;
+}
+.ch-flow {
+  padding-block: 0;
+  border-block-start: 0;
+}
+.ch-flow .ch-stage {
+  margin-block: 0 2.5rem;
+  transform-origin: 50% 0;
+}
+.ch-flow-skip {
+  margin: 0;
+}
+.ch-flow-skip a:not(:focus) {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ch-flow-skip a:focus {
+  position: relative;
+  z-index: 7;
+  display: inline-block;
+  margin-block-end: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: #171a20;
+  color: #ffffff;
+}
+.cs-on .ch-track > .ch-stage {
+  position: sticky;
+  inset-block-start: 5.5rem;
+  margin-block: 0;
+}
+.cs-on .cf-glass::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 1.75rem;
+  block-size: 2px;
+  border-radius: 2px;
+  background: linear-gradient(to right, rgb(255 255 255 / 75%) calc(var(--cs-t, 0) * 100%), transparent 0);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cs-on .cs-item {
+    transition:
+      opacity 0.45s ease,
+      translate 0.5s cubic-bezier(0.2, 0.7, 0.2, 1),
+      background-color 0.3s ease;
+  }
+}
+.cs-on .cs-wait {
+  opacity: 0;
+  translate: 0 12px;
+}
+.cs-on .cs-cur {
+  background-color: color-mix(in srgb, currentColor 9%, transparent);
+}
+@media print {
+  .ch-track {
+    block-size: auto !important;
+  }
+  .ch-track > .ch-stage {
+    position: static !important;
   }
 }

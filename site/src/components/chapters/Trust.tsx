@@ -36,6 +36,7 @@ export function Trust({ ctx }: { ctx: PageContext }) {
           </ul>
         </nav>
         <p className="ch-close">{r.close}</p>
+        <p className="ch-small">{ctx.t.home.hero.footnote}</p>
       </div>
     </section>
   );

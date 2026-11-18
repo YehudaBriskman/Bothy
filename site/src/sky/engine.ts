@@ -181,16 +181,18 @@ export function startSky(o: SkyOptions): Sky {
     // sky-coloured scrim; the rest keep the approved light ink on a dark one. Both scrims are feathered on all four
     // edges (sky.css), and the strength rises with the hour's own scrim value, so the floor holds at every hour.
     const luma = (c: number[]) => 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
-    inkDark = ((luma(cur.top) + luma(cur.bot)) / 2) * Math.min(1.1, cur.exp) > 120;
+    inkDark = ((luma(cur.top) + luma(cur.bot)) / 2) * Math.min(1.1, cur.exp) > 999; // light ink at every hour: the sky grade (uFx) darkens the sky under the words instead
     section.dataset.ink = inkDark ? 'dark' : 'light';
     section.style.setProperty('--scrim-a', (inkDark ? 0.9 : Math.min(0.9, 0.62 + cur.scrim * 0.6)).toFixed(3));
     section.style.setProperty(
       '--scrim-rgb',
-      (inkDark ? cur.bot.map((x) => Math.round(x * 0.25 + 190)) : cur.top.map((x) => Math.round(x * 0.22))).join(' '),
+      (inkDark ? cur.bot.map((x) => Math.round(x * 0.25 + 190)) : cur.top.map((x) => Math.round(x * 0.4))).join(' '),
     );
     // the page's own ground (veil, glass, scrims) is this hour's sky, darkened: hue-matched at every scroll position
     o.story.style.setProperty('--ground-rgb', cur.top.map((x) => Math.round(x * 0.2 + 6)).join(' '));
     o.story.style.setProperty('--glass-rgb', cur.top.map((x) => Math.round(x * 0.16 + 5)).join(' '));
+    // the capsule bar lives outside the story element: it reads the same tint from the root
+    document.documentElement.style.setProperty('--glass-rgb', cur.top.map((x) => Math.round(x * 0.16 + 5)).join(' '));
     // the scene backdrops (chapters 3 to 5) are graded by the same row: its tint, saturation and exposure
     const mx = Math.max(...cur.gain);
     const tk = Math.min(1, Math.sqrt(cur.exp) * 1.1);
@@ -420,7 +422,7 @@ export function startSky(o: SkyOptions): Sky {
     gl.uniform4f(U.uLight!, lit.x, lit.y, lit.k, lit.moon);
     gl.uniform3fv(U.uLightCol!, lit.col);
     // the words' brightness ceiling (display luma) and how hard it bites, from this hour's scrim value
-    gl.uniform3f(U.uFx!, raysOn ? 1 : 0, 0.26, inkDark ? 0 : Math.min(0.97, cur.scrim * 1.8));
+    gl.uniform3f(U.uFx!, raysOn ? 1 : 0, 0.26, inkDark ? 0 : Math.min(0.99, 0.3 + cur.scrim * 1.6));
     lightText();
     // the words' box in canvas uv: the sun and moon dim behind it
     const cr = layer.getBoundingClientRect();

@@ -1,7 +1,7 @@
 import type { PageContext } from '../page-context.ts';
 
 /**
- * The sky's controls: the hour dial, "Now", pause and a keyboard nudge. Rendered hidden; src/enhance-sky.ts reveals
+ * The sky's controls: the hour dial, "Now" and pause. Rendered hidden; src/enhance-sky.ts reveals
  * them once the live sky (or its CSS still) is running, because they do nothing without script. Words are in en.ts.
  */
 export function SkyControls({ ctx }: { ctx: PageContext }) {
@@ -36,14 +36,6 @@ export function SkyControls({ ctx }: { ctx: PageContext }) {
       </button>
       <button type="button" data-sky-pause aria-pressed="false" data-pause={s.pause} data-play={s.play}>
         {s.pause}
-      </button>
-      <button
-        type="button"
-        data-sky-nudge
-        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
-        title={s.nudgeHint}
-      >
-        {s.nudge}
       </button>
       <pre className="sky-dbg" data-sky-dbg hidden />
     </div>

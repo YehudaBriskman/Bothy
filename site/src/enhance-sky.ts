@@ -4,7 +4,7 @@ import { startSky } from './sky/engine.ts';
 /**
  * The lazy sky island (build plan S3). Loaded by enhance.ts only on a page that has `[data-sky]`, after the page has
  * loaded: the hero is already real text on a CSS still before this runs. It starts the live sky (or, on touch, a
- * narrow screen, Save-Data or no WebGL, just picks the still's hour class), then wires the dial, pause and nudge.
+ * narrow screen, Save-Data or no WebGL, just picks the still's hour class), then wires the dial and pause.
  */
 export function mountSky(section: HTMLElement): void {
   const story = section.closest<HTMLElement>('[data-story]');
@@ -18,7 +18,6 @@ export function mountSky(section: HTMLElement): void {
   const moon = $<SVGElement>('[data-sky-moon]');
   const now = $<HTMLButtonElement>('[data-sky-now]');
   const pause = $<HTMLButtonElement>('[data-sky-pause]');
-  const nudge = $<HTMLButtonElement>('[data-sky-nudge]');
   const dbg = $<HTMLElement>('[data-sky-dbg]');
   const base = document.querySelector<HTMLMetaElement>('meta[name=bothy-base]')?.content ?? '/';
   const lit = [...section.querySelectorAll<HTMLElement>('h1, .ch-line, .ch-lede')];
@@ -44,7 +43,6 @@ export function mountSky(section: HTMLElement): void {
     onStill: () => {
       // nothing animates in the still: the controls that move things have nothing to do
       if (pause) pause.hidden = true;
-      if (nudge) nudge.hidden = true;
     },
   });
   section.classList.add('sky-on');
@@ -58,21 +56,6 @@ export function mountSky(section: HTMLElement): void {
   });
   if (!sky.animated()) {
     if (pause) pause.hidden = true;
-    if (nudge) nudge.hidden = true;
   }
-  // The arrow keys push the sky their way; Enter and Space push it to the right.
-  const dirs: Record<string, [number, number]> = {
-    ArrowLeft: [-1, 0],
-    ArrowRight: [1, 0],
-    ArrowUp: [0, -1],
-    ArrowDown: [0, 1],
-  };
-  nudge?.addEventListener('keydown', (e) => {
-    const d = dirs[e.key];
-    if (!d) return;
-    e.preventDefault();
-    sky.nudge(d[0], d[1]);
-  });
-  nudge?.addEventListener('click', () => sky.nudge(1, 0));
   ui.hidden = false;
 }

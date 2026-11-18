@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { REPO_URL, href } from '../config.ts';
 import { ENABLED_LOCALES, LOCALES, localePrefix, type Locale } from '../i18n/locales.ts';
 import type { PageContext } from '../page-context.ts';
+import { InstallSplit } from './InstallSplit.tsx';
 
 export type NavKey = 'home' | 'install' | 'docs' | 'changelog' | null;
 
@@ -38,13 +39,13 @@ export function Layout({ ctx, nav, children }: { ctx: PageContext; nav: NavKey; 
           <nav aria-label={t.nav.label} className="primary">
             <ul>
               {items.map((i) => (
-                <li key={i.key}>
+                <li key={i.key} className={i.key === 'install' ? 'nav-dup' : undefined}>
                   <a href={href(i.to)} aria-current={nav === i.key ? 'page' : undefined}>
                     {i.label}
                   </a>
                 </li>
               ))}
-              <li>
+              <li className="nav-dup">
                 <a href={REPO_URL} rel="noopener" className="ext">
                   {t.nav.github}
                 </a>
@@ -52,15 +53,22 @@ export function Layout({ ctx, nav, children }: { ctx: PageContext; nav: NavKey; 
             </ul>
           </nav>
           <div className="tools">
+            <div className="nav-cta">
+              <a className="pill pill-glass" href={REPO_URL} rel="noopener">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                  <path
+                    d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {t.nav.githubShort}
+              </a>
+              <InstallSplit ctx={ctx} />
+            </div>
             <LanguageSwitch ctx={ctx} />
-            <label className="theme-pick" hidden data-needs-js>
-              <span className="visually-hidden">{t.theme.label}</span>
-              <select id="theme-select" defaultValue="auto" aria-label={t.theme.label}>
-                <option value="auto">{t.theme.auto}</option>
-                <option value="light">{t.theme.light}</option>
-                <option value="dark">{t.theme.dark}</option>
-              </select>
-            </label>
           </div>
         </div>
       </header>

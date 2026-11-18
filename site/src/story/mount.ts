@@ -1,5 +1,6 @@
 import { progressAt } from './camera.ts';
 import { progress } from './progress.ts';
+import { setupConsole } from './console.ts';
 import { SCENES, sceneOpacity } from './scenes.ts';
 
 /**
@@ -15,7 +16,7 @@ export function mountStory(root: HTMLElement): void {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
   const base = document.querySelector<HTMLMetaElement>('meta[name=bothy-base]')?.content ?? '/';
-  const sections = [...root.querySelectorAll<HTMLElement>(':scope > section[id]')];
+  const sections = [...root.querySelectorAll<HTMLElement>(':scope > section[id]:not([data-flow])')];
   root.classList.add('story-js');
   // the test harness (?manual=1) steps frames by hand and waits for every animation to finish: scroll-linked drift never does
   if (new URLSearchParams(location.search).get('manual') === '1') root.classList.add('story-static');
@@ -45,6 +46,11 @@ export function mountStory(root: HTMLElement): void {
   );
   for (const s of sections) chIO.observe(s);
   setChapter(sections[0]?.id ?? '');
+
+  // the capsule bar condenses once the page has moved (a size change, transitioned only when motion is allowed)
+  const condense = () => document.documentElement.toggleAttribute('data-scrolled', scrollY > 24);
+  condense();
+  addEventListener('scroll', condense, { passive: true });
 
   if (reduced) return;
 
@@ -113,7 +119,9 @@ export function mountStory(root: HTMLElement): void {
 
   // ── Scroll to the descent ─────────────────────────────────────────────────
   let tops: number[] = [];
+  const cons = setupConsole(root);
   const measure = () => {
+    cons?.measure();
     tops = sections.map((s) => s.getBoundingClientRect().top + scrollY);
   };
   let ticking = 0;
@@ -124,6 +132,7 @@ export function mountStory(root: HTMLElement): void {
     root.style.setProperty('--p', p.toFixed(4));
     for (const s of SCENES) sceneEls.get(s.id)?.style.setProperty('--o', sceneOpacity(s, p).toFixed(3));
     progress.set(p);
+    cons?.drive();
   }
   // A scroll event fires once per frame at most; coalescing through one microtask keeps this off the frame loop.
   const onScroll = () => {

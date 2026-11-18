@@ -1,4 +1,5 @@
 import { Layout } from '../components/Layout.tsx';
+import { ConsoleFlow } from '../components/chapters/ConsoleFlow.tsx';
 import { Descent } from '../components/chapters/Descent.tsx';
 import { Hut } from '../components/chapters/Hut.tsx';
 import { Inside } from '../components/chapters/Inside.tsx';
@@ -26,6 +27,7 @@ export function Home({ ctx }: { ctx: PageContext }) {
       <div className="story" data-story>
         <SkyStage scenes={SCENES.map((s) => s.id)} />
         <Sky ctx={ctx} />
+        <ConsoleFlow ctx={ctx} />
         <Descent ctx={ctx} />
         <Hut ctx={ctx} />
         <Inside ctx={ctx} />

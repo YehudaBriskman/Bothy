@@ -9,7 +9,7 @@ budgets, the checks and the decisions. It is written to be handed to agents slic
 
 **Exists (`site/`, #399):** a React 19 + Vite static site, prerendered at build time into `dist/`; pages Home, Install,
 Docs (the 14 Markdown files in `site/docs-allowlist.json`), Releases (`fixtures/releases.json`) and a 404; one small
-script (`src/enhance.ts`: colour scheme, copy buttons, docs search); all English words in `src/i18n/en.ts`; proven facts
+script (`src/enhance.ts`: copy buttons, docs search, the install menu); all English words in `src/i18n/en.ts`; proven facts
 in `src/facts.ts` (`PROVEN_RELEASE = '2026.11.2'`); guards `src/docs/safety.ts`, `leak-patterns.json`,
 `scripts/check-public.mjs`, `check-links.mjs`, `verify-dist.sh`; stylesheet with logical properties only (a Hebrew
 locale is a data edit); workflow `.github/workflows/site-pages.yml` (manual dispatch only, never run).
@@ -114,7 +114,7 @@ the installer verifies before it changes anything and rolls back on failure; `un
 public site runs no analytics and sets no cookie. Closing line is the Bothy Code.
 
 Header and footer on every page: wordmark, Docs, Install, Releases, Source, language switcher (hidden until Hebrew
-exists), colour-scheme control, the sky's pause toggle.
+exists), the sky's pause toggle.
 
 ## 4. Slices, ranked and sized
 

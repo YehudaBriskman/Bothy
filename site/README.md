@@ -1,7 +1,7 @@
 # The Bothy website
 
 Static, prerendered, built from this repository. React 19 renders the pages at build time only; the one script
-that ships (`src/enhance.ts`) adds a colour-scheme choice, copy buttons and docs search, and no page needs it.
+that ships (`src/enhance.ts`) adds copy buttons, docs search and the install menu, and no page needs it.
 
 ```
 npm ci

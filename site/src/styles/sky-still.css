@@ -83,6 +83,8 @@
   content: '';
   position: absolute;
   inset: 0;
+  /* the sky's own grade for the still path (phones, no WebGL): a touch deeper, so white words hold on it */
+  filter: brightness(0.46) saturate(1.2);
   background-size: cover;
   background-position: center;
   background-image: image-set(

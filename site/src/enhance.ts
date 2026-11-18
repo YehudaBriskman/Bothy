@@ -8,44 +8,14 @@ import './styles/pages.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
- * four conveniences and nothing else: a colour-scheme choice, copy buttons on
- * commands, documentation search, and collapsing the docs menu on a phone.
- *
- * Browser storage can be missing or throw (private windows, blocked site data),
- * so every access is guarded and the page works the same without it.
+ * a few conveniences and nothing else: copy buttons on commands, documentation
+ * search, the install menu and collapsing the docs menu on a phone. There is no
+ * colour-scheme switch and nothing is stored: the sky follows the visitor's hour,
+ * and without script the page follows prefers-color-scheme.
  */
-
-const root = document.documentElement;
-
-function store(key: string, value?: string): string | null {
-  try {
-    if (value === undefined) return localStorage.getItem(key);
-    if (value === '') localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    /* storage unavailable: the choice lasts until the page is left */
-  }
-  return null;
-}
 
 // Controls that only work with JavaScript are rendered `hidden`; reveal them now.
 for (const el of document.querySelectorAll<HTMLElement>('[data-needs-js]')) el.hidden = false;
-
-// ── Colour scheme ───────────────────────────────────────────────────────────
-const select = document.querySelector<HTMLSelectElement>('#theme-select');
-if (select) {
-  const saved = store('bothy-theme');
-  select.value = saved === 'light' || saved === 'dark' ? saved : 'auto';
-  select.addEventListener('change', () => {
-    if (select.value === 'auto') {
-      root.removeAttribute('data-theme');
-      store('bothy-theme', '');
-    } else {
-      root.setAttribute('data-theme', select.value);
-      store('bothy-theme', select.value);
-    }
-  });
-}
 
 // ── Copy buttons ────────────────────────────────────────────────────────────
 function copyButton(label: string, idle: string, done: string, text: string): HTMLButtonElement {

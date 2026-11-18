@@ -18,9 +18,6 @@ export interface RenderedPage {
   dir: string;
 }
 
-/** Sets the colour scheme before first paint so a reader who chose one never sees the other flash. */
-const THEME_BOOT = `try{var t=localStorage.getItem('bothy-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
-
 function headFor(route: Route, byPath: Map<string, Route[]>): string {
   const locale = LOCALES[route.locale];
   const canonical = route.indexable ? absolute(route.path) : null;
@@ -47,7 +44,6 @@ function headFor(route: Route, byPath: Map<string, Route[]>): string {
       }
     }
   }
-  lines.push(`<script>${THEME_BOOT}</script>`);
   return lines.join('\n    ');
 }
 

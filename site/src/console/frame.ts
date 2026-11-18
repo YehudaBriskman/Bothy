@@ -63,7 +63,13 @@ export const EN: FrameStrings = {
 };
 
 /** `prefix` keeps ids unique when a page holds more than one frame. */
-export function renderFrame(panels: Record<Tab['id'], string>, s: FrameStrings = EN, prefix = 'cf'): string {
+export function renderFrame(
+  panels: Record<Tab['id'], string>,
+  s: FrameStrings = EN,
+  prefix = 'cf',
+  /** The demo's extras (src/console/flow.ts): scenes that sit beside the four views, and the step list under the frame. */
+  extra: { panels?: string; steps?: string } = {},
+): string {
   const tabs = s.tabs
     .map(
       (t, i) =>
@@ -80,9 +86,10 @@ export function renderFrame(panels: Record<Tab['id'], string>, s: FrameStrings =
     '<figure class="cf">',
     '<div class="cf-glass">',
     `<div class="cf-bar"><div class="cf-tabs" role="radiogroup" aria-label="${esc(s.groupLabel)}">${tabs}</div><p class="cf-badge">${esc(s.badge)}</p></div>`,
-    `<div class="console-frame" dir="ltr" lang="en" role="group" aria-label="${esc(s.frameLabel)}">${body}</div>`,
+    `<div class="console-frame" dir="ltr" lang="en" role="group" aria-label="${esc(s.frameLabel)}">${body}${extra.panels ?? ''}</div>`,
     '</div>',
     `<figcaption class="cf-caps">${caps}</figcaption>`,
+    extra.steps ?? '',
     '</figure>',
   ].join('');
 }

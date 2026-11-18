@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react';
-import { ConsoleFrame } from '../../console/ConsoleFrame.tsx';
 import { Rich } from '../Rich.tsx';
 import { href } from '../../config.ts';
 import { localePrefix } from '../../i18n/locales.ts';
@@ -14,9 +13,6 @@ export function Inside({ ctx }: { ctx: PageContext }) {
       <div className="ch-wrap">
         <h2 id="inside-h">{n.heading}</h2>
         <p className="ch-lead">{n.lead}</p>
-        <div className="ch-stage float float-hero" style={{ '--dr': '16px' } as CSSProperties}>
-          <ConsoleFrame />
-        </div>
         <ul className="ch-cards">
           {n.items.map((i) => (
             <li

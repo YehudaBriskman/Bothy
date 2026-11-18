@@ -163,14 +163,10 @@
     radial-gradient(1px 1px at 22% 38%, #fff, transparent), radial-gradient(1.2px 1.2px at 86% 40%, #fff, transparent);
   opacity: 0.75;
 }
-/* chosen explicitly: dark picks the night sky; light picks the day sky (below) */
-:root[data-theme='dark'] .ch-sky {
-  background: linear-gradient(to bottom, #060a1a 0%, #0d1530 55%, #1a1f3f 100%);
-}
 
 /* day: a light scheme gets a day sky and dark text */
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) .ch-sky {
+  :root:root .ch-sky {
     --sky-fg: #0e1b29;
     --sky-muted: #2a3b4c;
     --sky-focus: #0b2a52;
@@ -182,24 +178,9 @@
       radial-gradient(60% 40% at 78% 18%, rgb(255 247 214 / 85%), transparent 70%),
       linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 50%, #f1ecde 100%);
   }
-  :root:not([data-theme='dark']) .ch-sky::before {
+  :root:root .ch-sky::before {
     display: none;
   }
-}
-:root[data-theme='light'] .ch-sky {
-  --sky-fg: #0e1b29;
-  --sky-muted: #2a3b4c;
-  --sky-focus: #0b2a52;
-  --sky-btn-bg: rgb(255 255 255 / 55%);
-  --sky-btn-line: rgb(14 27 41 / 65%);
-  --sky-btn-fill: #0e1b29;
-  --sky-btn-ink: #ffffff;
-  background:
-    radial-gradient(60% 40% at 78% 18%, rgb(255 247 214 / 85%), transparent 70%),
-    linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 50%, #f1ecde 100%);
-}
-:root[data-theme='light'] .ch-sky::before {
-  display: none;
 }
 
 .ch-sky a {
