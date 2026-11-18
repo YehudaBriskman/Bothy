@@ -5,7 +5,8 @@
 //     still-sky photograph its stylesheet picks (the largest -desk file for a desktop, the largest -phone file for a
 //     phone, because the hour decides which one and the budget must hold at every hour);
 //   - the lazy sky island (every chunk reached only through a dynamic import()), which has its own cap and is NOT
-//     part of first load: the page is complete without it;
+//     part of first load: the page is complete without it; the brand splash (src/brand/splash.ts, a lazy chunk
+//     fetched once per session on the home page) is counted apart from it in its own lazy row;
 //   - per asset class: entry script, all scripts, the stylesheet, each HTML class, the search index, the dev pages.
 //
 // Limits are the sizes measured on 2026-11-18 (main at 5f6bd95) plus about 15 % headroom, rounded up to the KB.
@@ -27,6 +28,8 @@ const KB = 1024;
 export const LIMITS = {
   'first load / desktop': 84, // 72.8
   'first load / phone': 67, // 57.8 - the design's 60 is the real ceiling here: 2.2 KB left
+  //   59.9 on main at 229577e; 61.8 with the BothyBox lockup in every page's HTML (+0.6), the Cube favicon and touch
+  //   icon (+0.8), the splash gate in the entry (+0.3) and its CSS (+0.1): over the design's 60, flagged in the PR.
   'first load, worst other route / desktop': 81, // 69.6 (docs/configuring)
   'first load, worst other route / phone': 63, // 54.6
   'html / home': 16, // 13.5
@@ -34,7 +37,9 @@ export const LIMITS = {
   'html / doc (max)': 12, // 10.4 docs/configuring
   'js / entry (+ static imports)': 4, // 3.1
   'js / lazy sky island': 19, // 15.8 (mount, progress, enhance-sky)
-  'js / all shipped scripts': 22, // 18.9
+  // The first-visit splash (owner-chosen Cube loader, 2026-11-18): lazy, once per session, never with reduced motion.
+  'js / lazy brand splash': 4, // 3.3
+  'js / all shipped scripts': 26, // 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
   'css / all stylesheets': 28, // 24.3
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
@@ -180,12 +185,19 @@ export function measure(dist, limits = LIMITS) {
   if (docs.length) add('html / doc (max)', maxOf(docs).html, maxOf(docs).route);
 
   add('js / entry (+ static imports)', Math.max(...firstLoad.map((f) => f.js)));
-  const islandBytes = [...lazyIsland].reduce((n, p) => n + size(p).gz, 0);
+  const isSplash = (p) => /^splash-[\w-]{8}\.js$/.test(posix.basename(urlOf(p)));
+  const island = [...lazyIsland].filter((p) => !isSplash(p));
   add(
     'js / lazy sky island',
-    islandBytes,
-    [...lazyIsland].map((p) => posix.basename(urlOf(p)).replace(/-[\w-]{8}\.js$/, '')).join(', '),
+    island.reduce((n, p) => n + size(p).gz, 0),
+    island.map((p) => posix.basename(urlOf(p)).replace(/-[\w-]{8}\.js$/, '')).join(', '),
   );
+  const splash = [...lazyIsland].filter(isSplash);
+  if (splash.length)
+    add(
+      'js / lazy brand splash',
+      splash.reduce((n, p) => n + size(p).gz, 0),
+    );
 
   const all = walk(dist);
   const inDir = (p, d) => p.startsWith(join(dist, d) + sep);

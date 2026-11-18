@@ -1,8 +1,10 @@
 # BothyBox brand options: a BB icon and an opening-box loader (exploration, 2026-11-18)
 
-Status: **exploration for the owner to choose from. Nothing here is wired into the site.** The gallery is a standalone
-page at `site/public/brand-mock/` (open `index.html` over any static server); this note records what is in it, the
-recommendation and how it would be wired later. Related: [website-sky-design](website-sky-design.md) (the sky and the
+Status: **decided 2026-11-18: the owner chose option 6, the Cube icon with the Cube loader, and it is wired into the
+site** (see [The decision](#the-decision-2026-11-18) and [(E)](#e-how-it-is-wired)). Every other concept and loader
+was **not chosen** and stays in the gallery for the record. The gallery is a standalone page at
+`site/public/brand-mock/` (open `index.html` over any static server); this note records what is in it, the
+recommendation that was made, the decision and how it is wired. Related: [website-sky-design](website-sky-design.md) (the sky and the
 ink look these marks must sit on), [zephium-study](zephium-study.md) (why there is no brand colour).
 
 ## The brief
@@ -25,22 +27,24 @@ the icons use, which is what lets the loader turn the icon's two Bs into the wor
 actually draws), in one colour on ink and on the dusk sky, as an ink tile on the day sky, as a light tile, and as the
 favicon in a light and a dark browser tab strip:
 
-| # | Concept | What it is | At 16 px | Verdict |
-|---|---|---|---|---|
-| 1 | Pair | Two heavy Bs on an ink tile | fair: counters close up | The literal brief; generic and common as a monogram |
-| 2 | Facing | A B and its mirror, bowls meeting into a box | fair | **Avoid**: close to a famous fashion house's BB |
-| 3 | Back to back | Two Bs sharing one stem | fair | **Avoid**: same reason; also reads as a bow |
-| 4 | **Bothy B** | A B with a pitched roof: window above, the hut's bowl below | **good** | **Recommended icon** |
-| 5 | Crate | A B in a box with its lid lifted | poor | Thin outline breaks at 16 px |
-| 6 | Cube | Isometric box, a B on each side, amber lid | poor at 16, fine at 32 | Rich at 180 and in the loader |
-| 7 | Open box | A carton, flaps open, two Bs rising | poor | The loader's middle frame as a still; too busy small |
-| 8 | Shelter | A roof over a pair of Bs | fair | The warmest BB idea; the roof shrinks the Bs |
+| # | Concept | What it is | At 16 px | Verdict | Decision |
+|---|---|---|---|---|---|
+| 1 | Pair | Two heavy Bs on an ink tile | fair: counters close up | The literal brief; generic and common as a monogram | not chosen, kept in the gallery |
+| 2 | Facing | A B and its mirror, bowls meeting into a box | fair | **Avoid**: close to a famous fashion house's BB | not chosen, kept in the gallery |
+| 3 | Back to back | Two Bs sharing one stem | fair | **Avoid**: same reason; also reads as a bow | not chosen, kept in the gallery |
+| 4 | Bothy B | A B with a pitched roof: window above, the hut's bowl below | **good** | Recommended icon | not chosen, kept in the gallery |
+| 5 | Crate | A B in a box with its lid lifted | poor | Thin outline breaks at 16 px | not chosen, kept in the gallery |
+| 6 | **Cube** | Isometric box, a B on each side, amber lid | poor at 16, fine at 32 | Rich at 180 and in the loader | **chosen 2026-11-18** |
+| 7 | Open box | A carton, flaps open, two Bs rising | poor | The loader's middle frame as a still; too busy small | not chosen, kept in the gallery |
+| 8 | Shelter | A roof over a pair of Bs | fair | The warmest BB idea; the roof shrinks the Bs | not chosen, kept in the gallery |
 
 **(B) Three opening-box loaders**, about 2.0 s, pure inline SVG animated with the Web Animations API (no library):
 
-* **Carton** (ends on the Pair): both flaps swing open, the pair rises, the carton flies to the icon slot.
-* **Cube** (ends on the Cube): the amber lid pops, the pair rises, the faces take their Bs.
-* **Bothy** (ends on the Bothy B): the roof lifts like a lid, the pair climbs out of the hut, the window lights.
+* **Carton** (ends on the Pair): both flaps swing open, the pair rises, the carton flies to the icon slot. *Not
+  chosen; kept in the gallery.*
+* **Cube** (ends on the Cube): the amber lid pops, the pair rises, the faces take their Bs. **Chosen 2026-11-18.**
+* **Bothy** (ends on the Bothy B): the roof lifts like a lid, the pair climbs out of the hut, the window lights. *Not
+  chosen; kept in the gallery.*
 
 Shared choreography: box in (0 to 0.3 s), lid opens with a small overshoot (0.25 to 0.65 s), the two Bs rise out from
 behind the front (0.5 to 1.0 s), the box leaves for the icon slot while the pair flies to where the word starts (to
@@ -56,7 +60,21 @@ pair's second B) gives a small wiggle on a 1.6 s loop; CSS only, off for reduced
 the word). Clear space: half the cap height on every side of the mark's own box. Minimum sizes: horizontal 96 px wide,
 stacked 64 px wide, icon alone 16 px; below those use the icon alone.
 
-## (D) Recommendation
+## The decision (2026-11-18)
+
+**The owner chose option 6: the Cube icon, with the Cube opening-box loader.** It differs from the recommendation in
+(D) below, which is kept as it was written so the reasoning on both sides stays on record.
+
+Why the Cube: it is the most literal BothyBox (a box with a B on its sides), it is the richest mark at the sizes people
+actually look at (the 180 px home-screen icon, the share cards, the header at 32 px and up), and the Cube loader is the
+one where the icon *is* the box that opens, so the splash and the mark tell one story. The amber lid is the site's
+existing lit-window colour, so no brand colour is added. Its known weakness, the 16 px favicon (the sheared Bs blur to
+texture), was accepted: the cube's silhouette and amber top still read at 16 px as a small lit box.
+
+Not chosen, and kept in `site/public/brand-mock/` for the record: icons 1 to 5, 7 and 8, and the Carton and Bothy
+loaders. The gallery is a dev page and is not linked from the site.
+
+## (D) Recommendation (made before the decision; not followed)
 
 **Icon: Bothy B. Loader: Bothy. Runner-up: Carton with the Pair, if the owner wants both Bs in the icon itself.**
 
@@ -88,29 +106,47 @@ classes.
 * The Bothy B (a house-shaped letter) resembles no famous mark found in this pass; house-shaped icons are common, so the
   search should look at home and shelter marks in the same classes.
 
-## (E) How it would be wired (later, not in this change)
+## (E) How it is wired
 
-1. **Favicon**: replace `site/public/favicon.svg` with the chosen icon's tile SVG (already linked as an SVG favicon by
-   `prerender.tsx`); add a 32 px PNG fallback only if a supported browser needs one.
-2. **apple-touch-icon**: a 180 x 180 PNG of the full-bleed variant (`svg/<id>-touch.svg`; iOS rounds the corners),
-   generated once, checked in with a provenance entry, linked with `rel="apple-touch-icon"`.
-3. **Open Graph**: the 1200 x 630 card sets the horizontal lockup on a sky still, so share image and hero agree.
-4. **Header and footer**: the inline `<Mark />` becomes the chosen icon in `currentColor`; the visible name can stay live
-   text or become the drawn wordmark with an accessible name.
-5. **The loader plays on the first visit only**, over the hero, at most about 2 s, and never blocks: the page is fully
-   rendered and usable underneath, and any key, click, tap or scroll skips it.
-6. **Never again that session**: a `sessionStorage` flag read and written inside `try/catch`; if storage throws, it
-   does not play.
-7. **No layout shift**: the loader draws in an overlay sized to the lockup's own box, where the lockup will be, and ends
-   exactly as the static lockup.
-8. **No JavaScript or `prefers-reduced-motion`**: the static lockup, already in the HTML.
-9. **Nav idle wiggle**: CSS only, off for reduced motion.
+All geometry has one source, `site/src/brand/cube.ts` (ported from `concepts.js`; the gallery keeps its own copy).
+
+1. **Favicon**: `site/public/favicon.svg` is the Cube on its ink tile, written by `npm run og` from `iconSVG('favicon')`.
+   In a dark browser theme a faint paper rim (an SVG `prefers-color-scheme` rule inside the file) keeps the tile's edge
+   visible on a dark tab strip. No PNG fallback.
+2. **apple-touch-icon** (180) and the **manifest icons** (192, 512): the full-bleed variant (`iconSVG('full')`, ink
+   square, cube at 80 %), rendered by `npm run og`, recorded with sha256 in `site/public/og/PROVENANCE.json`.
+3. **Open Graph**: each card carries the horizontal lockup top left; the home card's heading *is* the lockup, large.
+4. **Header and footer**: `components/Brand.tsx` draws the horizontal lockup in `currentColor` (the lid in the amber,
+   turning to the ink on a bright hour), cap height 18 px (16 px under 416 px wide), so 129 px wide (115 px), above the
+   96 px minimum, with half a cap of clear space. The drawing is `aria-hidden`; the name is real text ("BothyBox",
+   visually hidden) inside the link. The header draws it once per page; the footer reuses it with `<use>`. The giant
+   faint BOTHYBOX footer wordmark is unchanged.
+5. **Nav idle wiggle**: on hover or keyboard focus the header icon's lid lifts and settles on a 1.6 s loop; CSS only,
+   inside `prefers-reduced-motion: no-preference`.
+6. **The loader** (`site/src/brand/splash.ts`, a lazy chunk of about 3 KB gzip, its own row in `check-budgets`):
+   plays over the hero on the home page, the Cube sequence compressed to 1.6 s, then 0.4 s in which the finished
+   lockup flies into the header lockup's exact box and hands over to it. About 2 s in all, and a timer removes it at
+   2.3 s whatever the animation clock does.
+7. **Never blocks**: a fixed overlay (no layout shift: CLS 0 is asserted), `aria-hidden`, `pointer-events: none`; the
+   page is fully rendered and usable underneath. Any key, click, tap, wheel or scroll ends it at once (and still does
+   what it does on the page).
+8. **Once per session**: `site/src/brand/splash-gate.ts`, a `sessionStorage` flag read, written and read back inside
+   `try/catch`; if storage throws or forgets, it does not play. Only on the home page, only when it opens at the top.
+9. **No JavaScript, `prefers-reduced-motion`, or automation** (`navigator.webdriver`, so the site's own browser
+   checks see the page): the static lockup in the header, already in the HTML. `?splash=1` forces it (still never
+   with reduced motion), `?splash=0` stops it, `?splash=hold` builds it paused for a screenshot harness.
 
 ## Verified, and not verified
 
 Verified on this box: every concept and all three loaders rendered in headless Chromium and looked at, the loaders
 frozen at ten moments each (WAAPI `currentTime`, since headless Chromium here has no frame clock), at desktop and phone
 widths, with reduced motion (the lockup, no animation).
+
+Verified for the wired site (2026-11-18): `check:story` forces the splash and asserts it is `aria-hidden`, fixed and
+takes no pointer, moves nothing (CLS 0, the same header and hero rects during and after), is gone by itself within
+about 2.4 s and within 0.5 s of a key, plays on a person's first visit and not on a reload, and never loads with reduced
+motion; `splash-gate.test.ts` holds the gating (reduced motion, blocked or forgetful storage, repeat visits). The
+splash was frozen at a dozen moments (`?splash=hold`, WAAPI `currentTime`) at 1440 x 900 and 390 x 844 and looked at.
 
 Not verified: the loader's real-time smoothness on a real device (this box cannot measure frame rate); Safari and
 Firefox rendering of CSS transforms on SVG groups; how the favicon looks in a real browser tab on a high-DPI screen
