@@ -1,0 +1,195 @@
+/*
+ * The still sky: what a visitor sees with no script, no WebGL, or before the live sky has started.
+ *
+ * Use: give the sky layer the class `sky-still`. With nothing else it follows prefers-color-scheme
+ * (dark = night, light = day: the crude hour). A few lines of script, or the prerender, may set
+ * `data-hour` on <html> (or on the layer itself) to one of the hour classes below, and the photograph and gradient
+ * change with it. The hour classes are the keyframes of the live sky (public/sky-spike/sky-keys.js), grouped
+ * by which of the three photographs they use:
+ *   night photograph: night, predawn, twilight
+ *   dusk  photograph: dawn, golden, sunset, dusk
+ *   day   photograph: morning, noon, afternoon
+ *
+ * The gradient is the floor (it paints at once, costs nothing); the photograph is laid over it as an image-set
+ * (AVIF where understood, WebP otherwise; the phone size under 720 px). Files are in public/sky/, vetted by
+ * scripts/check-assets.mjs. Logical properties only, so the Hebrew build is free.
+ */
+
+.sky-still {
+  --sky-top: #05091a;
+  --sky-bot: #1c2e56;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background-color: var(--sky-bot);
+  background-image: linear-gradient(to bottom, var(--sky-top), var(--sky-bot));
+  background-size: cover;
+  background-position: center;
+}
+
+/* The crude hour with no script: the system's colour scheme. */
+@media (prefers-color-scheme: light) {
+  .sky-still {
+    --sky-top: #3468be;
+    --sky-bot: #b0c6e0;
+  }
+}
+
+/* The hour classes. Colours are the `top` and `bot` of the matching keyframe in sky-keys.js. */
+:is(html, .sky-still)[data-hour='night'] {
+  --sky-top: #05091a;
+  --sky-bot: #14223e;
+}
+:is(html, .sky-still)[data-hour='predawn'] {
+  --sky-top: #12183a;
+  --sky-bot: #604a6c;
+}
+:is(html, .sky-still)[data-hour='dawn'] {
+  --sky-top: #546296;
+  --sky-bot: #eea47c;
+}
+:is(html, .sky-still)[data-hour='morning'] {
+  --sky-top: #4a76bc;
+  --sky-bot: #c4ceda;
+}
+:is(html, .sky-still)[data-hour='noon'] {
+  --sky-top: #3468be;
+  --sky-bot: #b0c6e0;
+}
+:is(html, .sky-still)[data-hour='afternoon'] {
+  --sky-top: #426eba;
+  --sky-bot: #d6cec0;
+}
+:is(html, .sky-still)[data-hour='golden'] {
+  --sky-top: #5c76aa;
+  --sky-bot: #f4b06c;
+}
+:is(html, .sky-still)[data-hour='sunset'] {
+  --sky-top: #585c92;
+  --sky-bot: #f47c4c;
+}
+:is(html, .sky-still)[data-hour='dusk'] {
+  --sky-top: #282860;
+  --sky-bot: #b05662;
+}
+:is(html, .sky-still)[data-hour='twilight'] {
+  --sky-top: #0c1230;
+  --sky-bot: #3a3e76;
+}
+
+/* The photograph, over the gradient. Default: night, or day when the system asks for light. Phones get the small file. */
+.sky-still::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-image: image-set(
+    url('/sky/night-desk.avif') type('image/avif'),
+    url('/sky/night-desk.webp') type('image/webp')
+  );
+}
+@media (prefers-color-scheme: light) {
+  .sky-still::before {
+    background-image: image-set(
+      url('/sky/day-desk.avif') type('image/avif'),
+      url('/sky/day-desk.webp') type('image/webp')
+    );
+  }
+}
+@media (max-width: 720px) {
+  .sky-still::before {
+    background-image: image-set(
+      url('/sky/night-phone.avif') type('image/avif'),
+      url('/sky/night-phone.webp') type('image/webp')
+    );
+  }
+}
+@media (max-width: 720px) and (prefers-color-scheme: light) {
+  .sky-still::before {
+    background-image: image-set(
+      url('/sky/day-phone.avif') type('image/avif'),
+      url('/sky/day-phone.webp') type('image/webp')
+    );
+  }
+}
+
+/* An explicit hour wins over the colour scheme: these selectors are more specific than the defaults above.
+   Each matches data-hour on <html> (a descendant layer) or on the layer itself. */
+[data-hour='night'] .sky-still::before,
+.sky-still[data-hour='night']::before,
+[data-hour='predawn'] .sky-still::before,
+.sky-still[data-hour='predawn']::before,
+[data-hour='twilight'] .sky-still::before,
+.sky-still[data-hour='twilight']::before {
+  background-image: image-set(
+    url('/sky/night-desk.avif') type('image/avif'),
+    url('/sky/night-desk.webp') type('image/webp')
+  );
+}
+@media (max-width: 720px) {
+  [data-hour='night'] .sky-still::before,
+  .sky-still[data-hour='night']::before,
+  [data-hour='predawn'] .sky-still::before,
+  .sky-still[data-hour='predawn']::before,
+  [data-hour='twilight'] .sky-still::before,
+  .sky-still[data-hour='twilight']::before {
+    background-image: image-set(
+      url('/sky/night-phone.avif') type('image/avif'),
+      url('/sky/night-phone.webp') type('image/webp')
+    );
+  }
+}
+[data-hour='dawn'] .sky-still::before,
+.sky-still[data-hour='dawn']::before,
+[data-hour='golden'] .sky-still::before,
+.sky-still[data-hour='golden']::before,
+[data-hour='sunset'] .sky-still::before,
+.sky-still[data-hour='sunset']::before,
+[data-hour='dusk'] .sky-still::before,
+.sky-still[data-hour='dusk']::before {
+  background-image: image-set(
+    url('/sky/dusk-desk.avif') type('image/avif'),
+    url('/sky/dusk-desk.webp') type('image/webp')
+  );
+}
+@media (max-width: 720px) {
+  [data-hour='dawn'] .sky-still::before,
+  .sky-still[data-hour='dawn']::before,
+  [data-hour='golden'] .sky-still::before,
+  .sky-still[data-hour='golden']::before,
+  [data-hour='sunset'] .sky-still::before,
+  .sky-still[data-hour='sunset']::before,
+  [data-hour='dusk'] .sky-still::before,
+  .sky-still[data-hour='dusk']::before {
+    background-image: image-set(
+      url('/sky/dusk-phone.avif') type('image/avif'),
+      url('/sky/dusk-phone.webp') type('image/webp')
+    );
+  }
+}
+[data-hour='morning'] .sky-still::before,
+.sky-still[data-hour='morning']::before,
+[data-hour='noon'] .sky-still::before,
+.sky-still[data-hour='noon']::before,
+[data-hour='afternoon'] .sky-still::before,
+.sky-still[data-hour='afternoon']::before {
+  background-image: image-set(
+    url('/sky/day-desk.avif') type('image/avif'),
+    url('/sky/day-desk.webp') type('image/webp')
+  );
+}
+@media (max-width: 720px) {
+  [data-hour='morning'] .sky-still::before,
+  .sky-still[data-hour='morning']::before,
+  [data-hour='noon'] .sky-still::before,
+  .sky-still[data-hour='noon']::before,
+  [data-hour='afternoon'] .sky-still::before,
+  .sky-still[data-hour='afternoon']::before {
+    background-image: image-set(
+      url('/sky/day-phone.avif') type('image/avif'),
+      url('/sky/day-phone.webp') type('image/webp')
+    );
+  }
+}
