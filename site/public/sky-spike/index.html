@@ -106,19 +106,31 @@
         isolation: isolate;
         max-width: 100%;
       }
-      /* The local scrim: a soft dark ellipse behind the words only. Its strength (--scrim-a) is set per hour. */
+      /* Fallback scrim (no canvas, no JS): very broad and feathered, tinted from the sky itself. With the canvas the
+         shader lowers only the brightest pixels behind the words instead, so this is switched off. */
       .hero::before {
         content: '';
         position: absolute;
-        inset: -55% -30%;
+        inset: -110% -70%;
         z-index: -1;
         background: radial-gradient(
           closest-side,
-          rgba(6, 10, 24, var(--scrim-a)) 0%,
-          rgba(6, 10, 24, calc(var(--scrim-a) * 0.7)) 42%,
-          rgba(6, 10, 24, 0) 100%
+          rgba(var(--scrim-rgb, 6, 10, 24), calc(var(--scrim-a) * 0.75)) 0%,
+          rgba(var(--scrim-rgb, 6, 10, 24), calc(var(--scrim-a) * 0.4)) 55%,
+          rgba(var(--scrim-rgb, 6, 10, 24), 0) 100%
         );
         pointer-events: none;
+      }
+      html.gl .hero::before {
+        display: none;
+      }
+      /* Light from the sun or moon falls on the words (the fill is a gradient set from script). */
+      .hero.lit h1,
+      .hero.lit p {
+        color: transparent;
+        -webkit-background-clip: text;
+        background-clip: text;
+        text-shadow: none;
       }
       h1 {
         margin: 0;

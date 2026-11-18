@@ -9,7 +9,9 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const noHover = matchMedia('(hover: none)').matches || matchMedia('(max-width: 720px)').matches;
 const debug = q.get('debug');
 const forceMix = ['day', 'dusk', 'night'].indexOf(q.get('mix') ?? '');
-const manual = q.get('manual') === '1'; // test harness: no rAF loop; window.__sky.frame(dt) steps and draws
+const manual = q.get('manual') === '1';
+const raysOn = q.get('rays') !== '0'; // ?rays=0: no light shafts or cloud rims, to compare
+const textLight = q.get('light') !== '0'; // ?light=0: the headline is not lit by the sun or moon // test harness: no rAF loop; window.__sky.frame(dt) steps and draws
 const PHOTOS = ['day', 'dusk', 'night'];
 // Per photograph depth recipe: depth = clamp((luma - bias - sat * satW) * gain). Tuned by eye with ?debug=depth.
 const DEPTH = [
@@ -52,6 +54,73 @@ let bod = bodies(state.hour);
 const root = document.documentElement;
 const rgb = (a) => `rgb(${a.map((x) => Math.round(Math.min(255, Math.max(0, x)))).join(',')})`;
 
+const lit = { x: 0.5, y: 0.2, k: 0, col: [1, 1, 1], moon: 0, sunK: 0, moonK: 0, illum: 0.5 };
+function computeLight() {
+  const horizon = 0.8;
+  const sunY = horizon - Math.max(bod.sun.elev, -0.15) * 0.64;
+  const sunK = Math.min(1, Math.max(0, (bod.sun.elev + 0.04) / 0.1));
+  const moonY = horizon - Math.max(bod.moon.elev, -0.15) * 0.62;
+  const illum = (1 - Math.cos(bod.phase * 2 * Math.PI)) / 2;
+  const moonK = Math.min(1, Math.max(0, (bod.moon.elev + 0.02) / 0.12)) * cur.moonK;
+  lit.sunY = sunY;
+  lit.moonY = moonY;
+  lit.sunK = sunK;
+  lit.moonK = moonK;
+  lit.illum = illum;
+  const moonS = moonK * (0.35 + 0.65 * illum);
+  if (sunK >= moonS) {
+    lit.x = bod.sun.x;
+    lit.y = sunY;
+    lit.k = sunK;
+    lit.moon = 0;
+    lit.col = cur.sunCol;
+  } else {
+    lit.x = bod.moon.x;
+    lit.y = moonY;
+    lit.k = moonS;
+    lit.moon = 1;
+    lit.col = [0.72, 0.82, 1];
+  }
+}
+
+// The headline and tagline are lit by the same light: a gradient fill that is warmer and brighter on the side facing
+// it, a thin rim of light on that edge, and a soft shadow on the far side. Text stays above the contrast floor.
+const litEls = [...document.querySelectorAll('.hero h1, .hero p')];
+const canClip = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('background-clip', 'text');
+if (canClip && textLight) document.querySelector('.hero').classList.add('lit');
+let litSig = '';
+function lightText() {
+  if (!canClip || !textLight) return;
+  const ax = state.lean[0] * 0.05; // the pointer leans the light a little, so it sweeps across the words
+  const ay = state.lean[1] * 0.03;
+  const lx = (lit.x + ax) * innerWidth;
+  const ly = (lit.y + ay) * innerHeight;
+  const sig = `${Math.round(lx / 3)},${Math.round(ly / 3)},${Math.round(lit.k * 40)},${lit.moon}`;
+  if (sig === litSig) return;
+  litSig = sig;
+  const k = lit.k;
+  const ink = [247, 245, 239];
+  const warm = lit.col.map((c) => 255 * Math.min(1, c));
+  const near = ink.map((v, i) => Math.round(v + (Math.min(255, warm[i] * 1.02) - v) * 0.4 * k));
+  const far = [ink[0] * (1 - 0.14 * k), ink[1] * (1 - 0.12 * k), ink[2] * (1 - 0.09 * k)].map(Math.round);
+  for (const el of litEls) {
+    const r = el.getBoundingClientRect();
+    const px = lx - r.x;
+    const py = ly - r.y;
+    const dx = px - r.width / 2;
+    const dy = py - r.height / 2;
+    const dist = Math.hypot(dx, dy) || 1;
+    const R = dist + 0.6 * r.width;
+    const n0 = Math.max(0, Math.min(100, ((dist - 0.5 * r.width) / R) * 100));
+    const n1 = Math.max(n0 + 1, Math.min(100, ((dist + 0.5 * r.width) / R) * 100));
+    el.style.backgroundImage = `radial-gradient(circle ${R.toFixed(0)}px at ${px.toFixed(0)}px ${py.toFixed(0)}px, rgb(${near}) ${n0.toFixed(1)}%, rgb(${far}) ${n1.toFixed(1)}%)`;
+    const big = el.tagName === 'H1' ? 1 : 0.5;
+    const ox = (dx / dist) * 1.7 * big;
+    const oy = (dy / dist) * 1.7 * big;
+    el.style.filter = `drop-shadow(${ox.toFixed(2)}px ${oy.toFixed(2)}px 0.7px rgba(${warm.map(Math.round)},${(0.8 * k).toFixed(2)})) drop-shadow(${(-ox * 1.5).toFixed(2)}px ${(3 - oy).toFixed(2)}px ${14 * big + 4}px rgba(0,0,0,0.34))`;
+  }
+}
+
 function applyHour() {
   cur = sample(state.hour);
   if (forceMix >= 0) cur.w = [0, 1, 2].map((i) => (i === forceMix ? 1 : 0)); // ?mix=day|dusk|night: one photograph graded for every hour
@@ -70,6 +139,11 @@ function applyHour() {
   $('gSun').hidden = !sunUp;
   $('gMoon').hidden = sunUp;
   $('now').hidden = state.live;
+  computeLight();
+  litSig = '';
+  lightText();
+  const a = cur.top.map((x) => Math.round(x * 0.22));
+  root.style.setProperty('--scrim-rgb', a.join(','));
   state.dirty = true;
   if (stillMode) updateStill();
 }
@@ -120,12 +194,32 @@ uniform float uSat,uExp,uStars;
 uniform vec4 uGlow,uHaze;
 uniform vec3 uSun;         // x, y, strength
 uniform vec4 uMoon;        // x, y, strength, phase
+uniform vec4 uLight;       // x, y, strength, 1 if the moon
+uniform vec3 uLightCol;
+uniform vec3 uFx;          // rays and rim strength, text-region brightness ceiling, text-region grade strength
 uniform vec4 uText;        // the words: centre and half-size in screen uv; the sun and moon dim behind them
 
 float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
 float vn(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
 float fbm(vec2 p){ float a=.5,s=0.; for(int i=0;i<4;i++){ s+=a*vn(p); p=p*2.03+7.1; a*=.5; } return s; }
+
+float depthRaw(vec3 c, vec3 r){
+  float mx=max(c.r,max(c.g,c.b)), mn=min(c.r,min(c.g,c.b));
+  float sat=(mx-mn)/max(mx,1e-3);
+  float lum=dot(c,vec3(.299,.587,.114));
+  float d=r.z>0.?clamp((lum-r.x-sat*r.y)*r.z,0.,1.):clamp((c.r-c.b+r.x)*(-r.z),0.,1.);
+  return d*d*(3.-2.*d);
+}
+vec2 toUV(vec2 s){ return ((s-.5)*uCover)/uZoom+.5; }
+// how cloud-like the sky is at a point (0 clear, 1 dense), blurred by a mip level: used for rays and rims
+float cloudAt(vec2 p, float lod){
+  float c=0.;
+  if(uW.x>.002) c+=uW.x*depthRaw(textureLod(uT0,p,lod).rgb,uD0);
+  if(uW.y>.002) c+=uW.y*depthRaw(textureLod(uT1,p,lod).rgb,uD1);
+  if(uW.z>.002) c+=uW.z*depthRaw(textureLod(uT2,p,lod).rgb,uD2);
+  return c;
+}
 
 float depthOf(vec3 c, vec3 r){
   float mx=max(c.r,max(c.g,c.b)), mn=min(c.r,min(c.g,c.b));
@@ -176,27 +270,62 @@ void main(){
   float below=smoothstep(.45,1.,s.y);
   col=mix(col,uHaze.rgb,uHaze.a*below*.7);
 
-  // glow near the horizon on the side of the sun (or moon)
+  // ---- light: a horizon glow that travels with the body, then the sun and moon themselves
   float gx=mix(uMoon.x,uSun.x,step(.001,uSun.z));
   float g=exp(-pow((s.y-.82)/.2,2.))*exp(-pow((s.x-gx)/.55,2.));
   col+=uGlow.rgb*uGlow.a*g*(1.-.5*cloud);
-
-  // sun: disc, bloom, occluded by near cloud
-  vec2 ds=(s-uSun.xy)*vec2(uAspect,1.); float dl=length(ds);
   float tz=1.-smoothstep(.75,1.5,length((s-uText.xy)/uText.zw));  // 1 inside the words
-  float occl=(1.-.85*smoothstep(.15,.75,cloud))*(1.-.88*tz);
-  col+=uSunCol*uSun.z*(smoothstep(.015,.0105,dl)*1.5*occl+exp(-dl*11.)*.42*(.5+.5*occl)+exp(-dl*2.8)*.12);
+  float aspect=uAspect;
 
-  // moon: a real phase from the date, with a hint of maria
-  vec2 pm=(s-uMoon.xy)*vec2(uAspect,1.)/.04; float dm=length(pm);
+  // light shafts: march from here toward the light through the cloud mask; rims: cloud edges that face it
+  if(uLight.z>.01 && uFx.x>.001){
+    vec2 toL=uLight.xy-s; float dL=length(toL*vec2(aspect,1.));
+    float acc=0., ws=0., j=hash(gl_FragCoord.xy);
+    for(int i=0;i<14;i++){
+      float f=(float(i)+j)/14.; float wgt=1.-f*.55;
+      acc+=(1.-cloudAt(toUV(s+toL*f*.94),2.5))*wgt; ws+=wgt;
+    }
+    float tr=acc/ws;                                       // 1: clear path to the light
+    float fall=exp(-dL*1.7);
+    float shaft=tr*tr*(1.-.75*cloud);
+    col+=uLightCol*uLight.z*uFx.x*fall*shaft*.42;
+    vec2 dir=toL/max(length(toL),1e-4);
+    float cn=cloudAt(toUV(s+dir*vec2(1./aspect,1.)*.016),1.2);
+    float rim=clamp(cloud-cn,0.,1.)*smoothstep(.0,.25,cloud);
+    col+=uLightCol*1.25*rim*uLight.z*uFx.x*(.25+.75*exp(-dL*1.4))*1.3;
+  }
+
+  // sun: a soft, grown-in-the-atmosphere glow with proper falloff and no disc edge; near cloud takes most of it
+  vec2 ds=(s-uSun.xy)*vec2(aspect,1.); float dl=length(ds);
+  float sz=1.+(uSun.y-.2)*1.4;                             // bigger and redder low down
+  float tcore=1.-.92*smoothstep(.2,.8,cloud);
+  float tbloom=1.-.5*smoothstep(.1,.9,cloud);
+  float tw=1.-.72*tz;
+  float core=1.5/(1.+pow(dl/(.0085*sz),2.6));
+  float bloom=.5/(1.+pow(dl/(.05*sz),1.5));
+  float halo=.2*exp(-dl*2.4/sz)+.1*exp(-dl*.9);
+  vec3 scol=mix(vec3(1.,.97,.9),uSunCol,smoothstep(.0,.09,dl));
+  col+=scol*uSun.z*(core*tcore*tw+bloom*tbloom*(1.-.5*tz)+halo*tbloom);
+  // 22-degree-ish ring of faint atmospheric scatter, only visible when the sun is clear
+  col+=uSunCol*uSun.z*.025*exp(-pow((dl-.22*sz)/.03,2.))*tcore;
+
+  // moon: real phase from the date, soft limb and terminator, earthshine, maria, bloom and a faint halo ring
+  float ph=uMoon.w*6.2831853; float illum=(1.-cos(ph))*.5;
+  vec2 pm=(s-uMoon.xy)*vec2(aspect,1.)/.034; float dm=length(pm);
   if(uMoon.z>.001){
+    float ms=uMoon.z*(1.-.9*smoothstep(.15,.7,cloud))*(1.-.7*tz);
     vec3 n=vec3(pm.x,-pm.y,sqrt(max(1.-dot(pm,pm),0.)));
-    float ph=uMoon.w*6.2831853; vec3 L=vec3(sin(ph),0.,-cos(ph));
-    float lit=smoothstep(-.06,.06,dot(n,L));
-    float tex=.82+.18*vn(pm*3.1+4.);
-    float ms=uMoon.z*(1.-.9*smoothstep(.15,.7,cloud))*(1.-.88*tz);
-    col+=vec3(.86,.9,1.)*(mix(.12,1.,lit)*tex*smoothstep(1.,.9,dm))*ms*.95;
-    col+=vec3(.5,.62,.9)*exp(-max(dm-.9,0.)*1.1)*.1*ms;
+    vec3 L=vec3(sin(ph),0.,-cos(ph));
+    float lit=smoothstep(-.22,.42,dot(n,L));
+    float limb=smoothstep(1.03,.9,dm);
+    float maria=.74+.26*fbm(pm*1.5+3.);
+    vec3 surf=vec3(1.25,1.2,1.1)*maria*(.82+.18*n.z);
+    vec3 earth=vec3(.045,.06,.1)*maria*(1.-illum*.7);
+    vec3 mc=surf*lit+earth*(1.-lit);
+    float bk=.25+.75*illum;
+    col+=vec3(.5,.62,.95)*(.9/(1.+pow(dm/2.2,2.))+.14*exp(-dm*.22))*bk*ms;
+    col=mix(col,mc,limb*ms);
+    col+=vec3(.6,.7,1.)*.05*exp(-pow((dm-9.)/1.3,2.))*bk*ms;
   }
 
   // stars (a few more than the photograph has), sunk behind cloud, drifting very slightly
@@ -207,6 +336,13 @@ void main(){
     st*=.5+.5*sin(t*(1.2+h*3.)+h*40.);
     col+=vec3(.9,.93,1.)*st*uStars*(1.-cloud)*smoothstep(.85,.4,s.y)*.8;
   }
+
+  // behind the words: a broad, feathered, hue-preserving soft knee that only lowers the brightest sky and cloud
+  vec2 rr=(s-uText.xy)/(uText.zw*vec2(2.6,4.4));
+  float reg=exp(-dot(rr,rr)*1.1);
+  float l2=dot(col,vec3(.299,.587,.114));
+  float nl=l2-max(l2-uFx.y,0.)*reg*uFx.z;
+  col*=nl/max(l2,1e-3)*(1.-.07*reg*uFx.z);
 
   // soft shoulder, then the arrival: a mist lifting off the dark ground
   col=mix(col,.8+.2*tanh((col-.8)/.2),step(.8,col));
@@ -284,6 +420,9 @@ function initGL() {
     'uSun',
     'uMoon',
     'uText',
+    'uLight',
+    'uLightCol',
+    'uFx',
   ];
   for (const n of names) U[n] = gl.getUniformLocation(program, n);
   for (let i = 0; i < 3; i++) {
@@ -292,7 +431,7 @@ function initGL() {
     gl.bindTexture(gl.TEXTURE_2D, tex[i]);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
     for (const [p, v] of [
-      [gl.TEXTURE_MIN_FILTER, gl.LINEAR],
+      [gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR],
       [gl.TEXTURE_MAG_FILTER, gl.LINEAR],
       [gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT],
       [gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT],
@@ -324,6 +463,7 @@ async function loadPhoto(i) {
       gl.activeTexture(gl.TEXTURE0 + i);
       gl.bindTexture(gl.TEXTURE_2D, tex[i]);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bm);
+      gl.generateMipmap(gl.TEXTURE_2D);
       state.imgAspect = bm.width / bm.height;
       bm.close?.();
       loaded[i] = true;
@@ -412,13 +552,13 @@ function draw() {
   gl.uniform1f(U.uStars, cur.stars);
   gl.uniform4fv(U.uGlow, cur.glow);
   gl.uniform4fv(U.uHaze, cur.haze);
-  const horizon = 0.8;
-  const sunY = horizon - Math.max(bod.sun.elev, -0.15) * 0.64;
-  const sunK = Math.min(1, Math.max(0, (bod.sun.elev + 0.04) / 0.1));
-  gl.uniform3f(U.uSun, bod.sun.x, sunY, sunK);
-  const moonY = horizon - Math.max(bod.moon.elev, -0.15) * 0.62;
-  const moonK = Math.min(1, Math.max(0, (bod.moon.elev + 0.02) / 0.12)) * cur.moonK;
-  gl.uniform4f(U.uMoon, bod.moon.x, moonY, moonK, bod.phase);
+  gl.uniform3f(U.uSun, bod.sun.x, lit.sunY, lit.sunK);
+  gl.uniform4f(U.uMoon, bod.moon.x, lit.moonY, lit.moonK, bod.phase);
+  gl.uniform4f(U.uLight, lit.x, lit.y, lit.k, lit.moon);
+  gl.uniform3fv(U.uLightCol, lit.col);
+  // the words' brightness ceiling (display luma) and how hard it bites, from this hour's scrim value
+  gl.uniform3f(U.uFx, raysOn ? 1 : 0, 0.36, Math.min(0.95, cur.scrim * 1.7));
+  lightText();
   const hb = document.querySelector('.hero').getBoundingClientRect();
   gl.uniform4f(
     U.uText,
@@ -594,6 +734,7 @@ function boot() {
   const wantGL = q.get('gl') === '1' || !noHover;
   if (wantGL && !initGL()) gl = null;
   stillMode = !gl;
+  if (gl) root.classList.add('gl');
   applyHour();
   wire();
   if (!gl) {

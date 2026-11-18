@@ -8,11 +8,11 @@ read on the asset's own page (its structured data says `license: https://creativ
 and on https://polyhaven.com/license ("CC0 means absolute freedom"), on 2026-11-18. No attribution is required; it is
 given anyway.
 
-| Use | Asset (page) | Authors | Taken | Licence | Source file |
-|---|---|---|---|---|---|
-| day | [Kloofendal 48d Partly Cloudy (Pure Sky)](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky) | Greg Zaal (original), Jarod Guest (sky edits) | 2019-03-22 | CC0 1.0 | `HDRIs/hdr/4k/kloofendal_48d_partly_cloudy_puresky_4k.hdr` |
-| dusk | [Kloppenheim 06 (Pure Sky)](https://polyhaven.com/a/kloppenheim_06_puresky) | Greg Zaal (original), Jarod Guest (sky edits) | 2019-11-03 | CC0 1.0 | `HDRIs/hdr/4k/kloppenheim_06_puresky_4k.hdr` |
-| night | [Kloppenheim 02 (Pure Sky)](https://polyhaven.com/a/kloppenheim_02_puresky) | Greg Zaal (original), Jarod Guest (sky edits) | 2019-11-02 | CC0 1.0 | `HDRIs/hdr/4k/kloppenheim_02_puresky_4k.hdr` |
+| Use   | Asset (page)                                                                                            | Authors                                       | Taken      | Licence | Source file                                                |
+| ----- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ---------- | ------- | ---------------------------------------------------------- |
+| day   | [Kloofendal 48d Partly Cloudy (Pure Sky)](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky) | Greg Zaal (original), Jarod Guest (sky edits) | 2019-03-22 | CC0 1.0 | `HDRIs/hdr/4k/kloofendal_48d_partly_cloudy_puresky_4k.hdr` |
+| dusk  | [Kloppenheim 06 (Pure Sky)](https://polyhaven.com/a/kloppenheim_06_puresky)                             | Greg Zaal (original), Jarod Guest (sky edits) | 2019-11-03 | CC0 1.0 | `HDRIs/hdr/4k/kloppenheim_06_puresky_4k.hdr`               |
+| night | [Kloppenheim 02 (Pure Sky)](https://polyhaven.com/a/kloppenheim_02_puresky)                             | Greg Zaal (original), Jarod Guest (sky edits) | 2019-11-02 | CC0 1.0 | `HDRIs/hdr/4k/kloppenheim_02_puresky_4k.hdr`               |
 
 ## What was done to them
 
