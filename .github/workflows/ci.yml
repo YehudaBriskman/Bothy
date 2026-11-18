@@ -72,7 +72,7 @@ jobs:
       # the dev dependencies even though it never builds the app.
       - name: Install portal dependencies
         working-directory: apps/bothy-web/web
-        run: npm ci
+        run: npm ci --no-audit --no-fund --prefer-offline
 
       # The config tier's checks need ruamel.yaml, which the system python
       # deliberately does not have (it is a container's dependency, not the
@@ -373,6 +373,9 @@ jobs:
     outputs:
       rows: ${{ steps.plan.outputs.rows }}
       of: ${{ steps.plan.outputs.of }}
+      # true only on a pull request whose every path is documentation by
+      # scripts/ci-changes.sh's own rule. Read by the build tiers below.
+      docs_only: ${{ steps.plan.outputs.docs_only }}
     steps:
       # Depth 2: a PR checkout is GitHub's merge commit, and its first parent is
       # the base it merged onto. That pair is the PR's whole diff.
@@ -386,7 +389,11 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
+          docs_only=false
           if [ "$EVENT" = pull_request ] && bash scripts/ci-changes.sh files > "$RUNNER_TEMP/changed"; then
+            # Same rule the updater's e2e plan uses (install.yml). Fails open: any
+            # doubt (no merge commit, empty diff, a non-doc path) leaves it false.
+            if bash scripts/ci-changes.sh docs-only < "$RUNNER_TEMP/changed"; then docs_only=true; fi
             echo "this PR changes $(wc -l < "$RUNNER_TEMP/changed") file(s):"
             sed 's/^/  /' "$RUNNER_TEMP/changed"
             export MUTANTS_CHANGED="$RUNNER_TEMP/changed"
@@ -405,7 +412,7 @@ jobs:
           [ "$n" -le 4 ] || n=4
           [ "$rows" -gt 0 ] || n=0
           [ -n "${MUTANTS_CHANGED:-}" ] || n=4
-          { echo "rows=$rows"; echo "of=$n"; } >> "$GITHUB_OUTPUT"
+          { echo "rows=$rows"; echo "of=$n"; echo "docs_only=$docs_only"; } >> "$GITHUB_OUTPUT"
           echo "$rows row(s), ~${secs}s of work, $n shard(s)"
 
   mutants-shard:
@@ -454,7 +461,7 @@ jobs:
       - name: Install portal dependencies
         if: env.ACTIVE == 'true'
         working-directory: apps/bothy-web/web
-        run: npm ci
+        run: npm ci --no-audit --no-fund --prefer-offline
 
       # One row plants an unguarded `cd` and requires shellcheck to catch it.
       # Without the tool that row SKIPS - out loud, but it still skips, and this
@@ -536,6 +543,12 @@ jobs:
   # ── every compose file still resolves ───────────────────────────────────────
   compose:
     name: Compose files parse
+    needs: mutants-plan
+    # Skipped on a documentation-only pull request (never on a push): nothing
+    # this job reads is documentation. A skipped job reports as passing to
+    # branch protection, and if the plan itself fails the required
+    # `Every check must be able to fail` job still goes red.
+    if: needs.mutants-plan.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -605,6 +618,12 @@ jobs:
   # ── the SPA ─────────────────────────────────────────────────────────────────
   portal:
     name: Portal typecheck and build
+    needs: mutants-plan
+    # Skipped on a documentation-only pull request (never on a push): nothing
+    # this job reads is documentation. A skipped job reports as passing to
+    # branch protection, and if the plan itself fails the required
+    # `Every check must be able to fail` job still goes red.
+    if: needs.mutants-plan.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -620,7 +639,7 @@ jobs:
           cache-dependency-path: apps/bothy-web/web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund --prefer-offline
 
       # `npx tsc --noEmit` checks NOTHING in this repo - tsconfig.json has
       # "files": [] and delegates to project references. `tsc -b` is the one that
@@ -662,7 +681,7 @@ jobs:
           cache-dependency-path: site/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund --prefer-offline
 
       - name: Format check
         run: npm run format:check
@@ -691,6 +710,12 @@ jobs:
   # because plain `go build` links libc for net and the release is meant to be static.
   cli:
     name: Go CLI vet, drift check, tests and static build
+    needs: mutants-plan
+    # Skipped on a documentation-only pull request (never on a push): nothing
+    # this job reads is documentation. A skipped job reports as passing to
+    # branch protection, and if the plan itself fails the required
+    # `Every check must be able to fail` job still goes red.
+    if: needs.mutants-plan.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -761,6 +786,12 @@ jobs:
   # after this lands is as warm as the last one before it.
   images:
     name: Every image builds
+    needs: mutants-plan
+    # Skipped on a documentation-only pull request (never on a push): nothing
+    # this job reads is documentation. A skipped job reports as passing to
+    # branch protection, and if the plan itself fails the required
+    # `Every check must be able to fail` job still goes red.
+    if: needs.mutants-plan.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

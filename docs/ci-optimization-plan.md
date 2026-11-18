@@ -271,3 +271,13 @@ event,conclusion,createdAt,updatedAt`) after two weeks of normal traffic.
 Expected: zero `cancelled` push runs on `main`; PR wall-clock compared at the
 median and the slowest run, not as a percentage target - the sample is small
 and Dependabot bursts dominate it.
+
+## 2026-11-18 follow-up (PR 407)
+
+Medians over the last 13 runs per workflow: the PR critical path is the updater
+end-to-end group `updater` (9.2 min, one indivisible suite); mutation shards cost
+4-6 min each and only on main in full; the nightly Elsewhere matrix is 3 x 26 min.
+Changed: documentation-only PRs skip compose, portal, cli and images (never on
+push); `npm ci --no-audit --no-fund --prefer-offline` took the site install from
+56 s to 1 s (measured). Tried and reverted: freeing runner disk in the background -
+the delete is I/O bound, the wait step took the same 100 s.
