@@ -131,6 +131,8 @@ function EndCta({ ctx }: { ctx: PageContext }) {
           <source srcSet={href('sky/night-phone.avif')} type="image/avif" />
           <img src={href('sky/night-desk.webp')} alt="" loading="lazy" decoding="async" />
         </picture>
+        <div className="dither-to-black is-up" />
+        <div className="dither-to-black" />
       </div>
       <div className="wrap reveal">
         <h2 id="end-cta-h">

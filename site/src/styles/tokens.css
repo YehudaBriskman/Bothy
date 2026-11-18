@@ -31,8 +31,8 @@
   color-scheme: dark;
 
   /* ── Colour: ink ground ───────────────────────────────────────────────────── */
-  --ink: #08090d;
-  --ink-rgb: 8 9 13;
+  --ink: #09090c; /* the same black as the story's end and dither.css */
+  --ink-rgb: 9 9 12;
   --ink-raise: #0d0e14; /* a panel on the ground */
   --ink-raise-2: #13141c; /* a panel inside a panel, a code block */
   --text: #f3f2ee;
