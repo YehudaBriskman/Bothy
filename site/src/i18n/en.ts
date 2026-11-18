@@ -67,9 +67,18 @@ export const en = {
       skipInstall: 'Skip to install',
       cue: 'Read the story',
       footnote:
-        'The sky behind this page is a still picture chosen by your browser’s light or dark setting. This page makes no request to another site and sets no cookie.',
+        'The sky behind this page follows the hour on your device’s clock, and nothing about it leaves your browser; with no script it is a still picture chosen by your light or dark setting. This page makes no request to another site and sets no cookie.',
       copy: 'Copy',
       copied: 'Copied',
+    },
+    sky: {
+      group: 'Sky controls',
+      hour: 'Hour of the day',
+      now: 'Now',
+      pause: 'Pause motion',
+      play: 'Play motion',
+      nudge: 'Nudge the sky',
+      nudgeHint: 'Press an arrow key to lean the sky that way',
     },
     descent: {
       heading: 'What a bothy is',
