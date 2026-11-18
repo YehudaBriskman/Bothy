@@ -39,7 +39,8 @@ export const LIMITS = {
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
   'dev pages (sky-spike, scene-mock), raw': 861, // 748
-  'dist total, raw': 2173, // 1889
+  'share cards and icons (og/, icons, manifest), raw': 343, // 297.9 (S10, 2026-11-18)
+  'dist total without share cards and icons, raw': 2173, // 1889; 1905.5 after S10
 };
 
 /** The sky design's production first-paint budgets (website-sky-design.md, "Budgets"). Advisory. */
@@ -205,10 +206,21 @@ export function measure(dist, limits = LIMITS) {
     dev.reduce((n, p) => n + size(p).raw, 0),
     `${dev.length} files`,
   );
+  // Share cards, home-screen icons and the manifest: fetched by a link unfurler or an "add to home screen", never by
+  // a page load. Their own row here; each OG card is also capped by check:seo (120 KB).
+  const share = all.filter(
+    (p) => inDir(p, 'og') || /^(apple-touch-icon\.png|icon-\d+\.png|site\.webmanifest)$/.test(relative(dist, p)),
+  );
   add(
-    'dist total, raw',
-    all.reduce((n, p) => n + size(p).raw, 0),
-    `${all.length} files`,
+    'share cards and icons (og/, icons, manifest), raw',
+    share.reduce((n, p) => n + size(p).raw, 0),
+    `${share.length} files`,
+  );
+  const visitor = all.filter((p) => !share.includes(p));
+  add(
+    'dist total without share cards and icons, raw',
+    visitor.reduce((n, p) => n + size(p).raw, 0),
+    `${visitor.length} files`,
   );
   return { rows, firstLoad };
 }

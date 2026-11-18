@@ -62,7 +62,11 @@ page is complete without it, so it has its own cap.
 | Lazy images on `/` (scene backdrops, the `<picture>` still) | 104.4 | 121 | |
 | Search index | 37.0 | 43 | |
 | Dev pages (`sky-spike/`, `scene-mock/`), raw | 748 | 861 | |
-| All of `dist/`, raw | 1889 | 2173 | |
+| Share cards and icons (`og/`, `apple-touch-icon`, `icon-192`/`512`, `site.webmanifest`), raw | 297.9 | 343 | |
+| All of `dist/` without those, raw (1905.5 after S10) | 1889 | 2173 | |
+
+Share cards, home-screen icons and the manifest are fetched by a link unfurler or an "add to home screen", never by a
+page load, so they have their own row and stay out of the `dist/` total; `check:seo` also caps each card at 120 KB.
 
 The design budget is from `docs/plans/thin-bothy/website-sky-design.md`; the script warns when a row passes it. The
 phone first load has 2.2 KB left under the design's 60 KB: the stylesheet (24 KB of the 58) is where to look first.

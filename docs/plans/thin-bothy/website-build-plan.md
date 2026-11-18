@@ -150,7 +150,8 @@ motion: the still sky, the same veil and every section as a plain page.
 
 **S11 as built (2026-11-18):** `site/scripts/check-budgets.mjs` (gzip per route and asset class; first load of `/`
 72.8 KB desktop and 57.8 KB phone against limits of 84 and 67, with the design's 120 and 60 shown beside them; the lazy
-sky island, 15.8 KB, capped apart), `site/scripts/check-meta.mjs` (the offline Lighthouse-like audit, including no
+sky island, 15.8 KB, capped apart; S10's share cards and icons, never loaded by a page, have their own row and stay
+out of the `dist/` total), `site/scripts/check-meta.mjs` (the offline Lighthouse-like audit, including no
 request to another origin from any HTML, CSS or JS), `site/scripts/screenshots.mjs`. The `site` job in `ci.yml` runs
 only when `scripts/ci-changes.sh site` says the PR touched what the site builds from; the Chromium checks and the
 screenshots are `.github/workflows/site-browser.yml` (called from `ci.yml`, also nightly and by hand). How to run each

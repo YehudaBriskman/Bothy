@@ -96,6 +96,11 @@ function fakeDist() {
   );
   writeFileSync(join(dist, 'index.html'), html);
   writeFileSync(join(dist, 'docs/a/index.html'), html);
+  // share cards and icons: never loaded by a page, so outside the visitor total
+  mkdirSync(join(dist, 'og'));
+  writeFileSync(join(dist, 'og', 'home.jpg'), randomBytes(50000));
+  writeFileSync(join(dist, 'icon-512.png'), randomBytes(20000));
+  writeFileSync(join(dist, 'site.webmanifest'), '{}');
   return { root, dist };
 }
 
@@ -109,6 +114,11 @@ test('budgets: first load counts the still sky per viewport, the lazy island apa
     assert.ok(d - p > 1500, `desktop ${d} should carry the bigger still than phone ${p}`);
     assert.match(row('js / lazy sky island').detail, /lazy/);
     assert.match(row('js / lazy sky island').detail, /dep/);
+    const share = row('share cards and icons (og/, icons, manifest), raw');
+    const visitor = row('dist total without share cards and icons, raw');
+    assert.equal(share.detail, '3 files');
+    assert.ok(share.kb * 1024 >= 70000, `share row ${share.kb} KB should carry the card and the icon`);
+    assert.ok(visitor.kb * 1024 < 20000, `visitor total ${visitor.kb} KB must leave the card and icon out`);
     // with no limits every row is unbudgeted, which fails; with tiny limits every row is over
     assert.ok(verdicts(rows).every((r) => r.unbudgeted));
     const tiny = Object.fromEntries(rows.map((r) => [r.name, 0.001]));
