@@ -91,6 +91,7 @@ jobs:
           path: site/.check-sky/contrast.*
           if-no-files-found: ignore
           retention-days: 14
+          include-hidden-files: true
 
   screenshots:
     name: Site screenshots (not blocking)
@@ -141,3 +142,4 @@ jobs:
           path: site/.screenshots/
           if-no-files-found: warn
           retention-days: 14
+          include-hidden-files: true

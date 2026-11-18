@@ -35,6 +35,12 @@ browser ones in `.github/workflows/site-browser.yml`.
 The browser checks need a Chromium: playwright-core's own (`npx playwright-core install --only-shell chromium`) or
 `CHROMIUM_PATH`. CI caches the headless shell under the playwright-core version, so it downloads once per version.
 
+Measured in CI on PR #428 (2026-11-18, warm npm cache): the `site` job 20 s; the browser checks job 2 min 19 s
+(check:story 65 s, check:sky 58 s, the headless shell download 4 s on a cache miss); the screenshots job 47 s,
+running beside it. From the plan job to the last site job: about 3 min 10 s, under the other tiers' wall time. A PR
+that touches nothing the site builds from skips all three. Locally on the WSL box the same checks take longer (story
+69 s, sky 149 s, screenshots 87 s): its headless Chromium runs few animation frames.
+
 ### Byte budgets
 
 Measured 2026-11-18 at 5f6bd95; limits are those plus about 15 %, in `scripts/check-budgets.mjs` (`LIMITS`). gzip at

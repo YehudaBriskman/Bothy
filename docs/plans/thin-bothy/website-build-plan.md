@@ -148,6 +148,15 @@ behind 5, loaded only when near), never by a border or a band. Content floats on
 panels only), with scroll-linked drift by CSS `animation-timeline: view()` and staggered reveals. No JS or reduced
 motion: the still sky, the same veil and every section as a plain page.
 
+**S11 as built (2026-11-18):** `site/scripts/check-budgets.mjs` (gzip per route and asset class; first load of `/`
+72.8 KB desktop and 57.8 KB phone against limits of 84 and 67, with the design's 120 and 60 shown beside them; the lazy
+sky island, 15.8 KB, capped apart), `site/scripts/check-meta.mjs` (the offline Lighthouse-like audit, including no
+request to another origin from any HTML, CSS or JS), `site/scripts/screenshots.mjs`. The `site` job in `ci.yml` runs
+only when `scripts/ci-changes.sh site` says the PR touched what the site builds from; the Chromium checks and the
+screenshots are `.github/workflows/site-browser.yml` (called from `ci.yml`, also nightly and by hand). How to run each
+gate, what it protects, the budget table and the CI timings: `site/README.md`. One known issue is left as a warning for
+S9: the rendered console's panel headings (`<h1 aria-level="3">`) follow the page h1 with no h2 between.
+
 
 Rank notes: S1 is first because it makes the site honest and finished before any effect exists (a visitor sees something
 true on day one); S2 to S3 are the owner's chosen visual core; S5 is early because it is large, independent and the
