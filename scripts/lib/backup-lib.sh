@@ -167,6 +167,7 @@ bk_snapshot_loki() {  # <container> <out.tar.gz>
 #   - it only ever removes what backup.sh's own rotation would remove.
 
 # What goes to the mirror: the small sets. Not victoriametrics, loki or alloy.
+# shellcheck disable=SC2034  # read by backup.sh, which sources this file
 BK_MIRROR_KINDS="postgres grafana env state notes"
 # Overridable so a test can inject a copier that corrupts (the checksum must bite).
 : "${BK_MIRROR_CP:=cp -p}"

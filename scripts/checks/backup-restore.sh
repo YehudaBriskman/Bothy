@@ -147,7 +147,7 @@ done
 [ "$bad_copy" = 0 ] && [ -f "$MIR/state/$(basename "$(ls -1 "$T"/bk4/state/state-*.tar.gz | head -1)")" ] \
   && ok "the small sets are copied to the mirror, identical" \
   || bad "the small sets are copied to the mirror, identical" "$(tail -8 "$T/backup.out")"
-[ -z "$(ls -A "$MIR"/env "$MIR"/state | grep '^\.')" ] && ok "no temp file is left on the mirror" \
+[ -z "$(find "$MIR" -name '.*tmp*')" ] && ok "no temp file is left on the mirror" \
   || bad "no temp file is left on the mirror"
 m=$(stat -c %a "$MIR/env" "$MIR"/env/env-* 2>/dev/null | sort -u | tr '\n' ' ')
 [ "$m" = "600 700 " ] && ok "the mirror is 0700 dir, 0600 files" || bad "the mirror is 0700 dir, 0600 files" "got: $m"
@@ -167,7 +167,7 @@ else bad "mirror retention follows BK_KEEP and leaves foreign files alone" "$n e
 # a copy that does not match its source never gets a real name
 printf '#!/bin/sh\ncp -p "$1" "$2" && printf x >> "$2"\n' > "$T/badcp"; chmod +x "$T/badcp"
 run_backup "$T/bk5" BOTHY_BACKUP_MIRROR="$T/mirror5" BK_MIRROR_CP="$T/badcp"; rc=$?
-if [ "$rc" != 0 ] && ! ls "$T"/mirror5/env/env-* >/dev/null 2>&1 && ! ls -A "$T"/mirror5/env | grep -q tmp; then
+if [ "$rc" != 0 ] && ! ls "$T"/mirror5/env/env-* >/dev/null 2>&1 && [ -z "$(find "$T/mirror5" -name '.*tmp*')" ]; then
   ok "a corrupted copy is rejected by its checksum and removed"
 else bad "a corrupted copy is rejected by its checksum and removed" "rc=$rc $(ls -A "$T"/mirror5/env 2>&1)"; fi
 
