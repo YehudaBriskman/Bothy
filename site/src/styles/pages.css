@@ -44,6 +44,12 @@ body {
 .page-meta .sep {
   color: var(--text-faint);
 }
+@media (max-width: 40rem) {
+  /* on a phone the items stack, and a separator alone at a line's start reads as a stray mark */
+  .page-meta .sep {
+    display: none;
+  }
+}
 .page-head .note-line {
   margin: 0.75rem 0 0;
   color: var(--text-muted);

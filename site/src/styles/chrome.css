@@ -530,7 +530,10 @@ a.dd-row:focus-visible,
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  padding-block: clamp(7rem, 5rem + 10vw, 13rem) clamp(5rem, 3.5rem + 6vw, 9rem);
+  /* the words stay clear of the dotted edges (dither.css: no text over the dots) */
+  --dither-s: 0.6;
+  padding-block: calc(276px * var(--dither-s) + clamp(2rem, 1rem + 4vw, 5rem))
+    calc(276px * var(--dither-s) + clamp(3rem, 2.5rem + 2vw, 4.5rem));
   text-align: center;
 }
 .end-cta-sky {
@@ -538,17 +541,18 @@ a.dd-row:focus-visible,
   inset: 0;
   z-index: -1;
   margin: 0;
-  /* the photograph feathers into the ink above and below: no edge where it begins or ends */
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgb(0 0 0 / 30%) 14%,
-    rgb(0 0 0 / 75%) 30%,
-    #000 45%,
-    #000 62%,
-    rgb(0 0 0 / 60%) 82%,
-    transparent 100%
-  );
+}
+/* the photograph dissolves into the black above and below through the halftone of dither.css: no edge anywhere */
+.end-cta-sky > .dither-to-black {
+  --dither-ink: var(--ink);
+  position: absolute;
+  inset-inline: 0;
+}
+.end-cta-sky > .dither-to-black.is-up {
+  inset-block-start: -1px;
+}
+.end-cta-sky > .dither-to-black:not(.is-up) {
+  inset-block-end: -1px;
 }
 .end-cta-sky img {
   inline-size: 100%;

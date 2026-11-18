@@ -103,17 +103,17 @@ document.addEventListener('click', (e) => {
 });
 
 // ── The header's states: moved (a soft blur) and over the ink (a quiet dark bar with a hairline) ───────────
-// On a page with the story, the bar turns dark only once the dark sections reach it; on every other page, as soon as
-// the page moves. Plain scroll events: no frame clock needed, and cheap (one rect).
+// On a page with the story, the bar turns dark once the story's end (#story-end, solid black at its bottom edge) has
+// passed under it; on every other page, as soon as the page moves. Plain scroll events: no frame clock, one rect.
 {
   const root = document.documentElement;
-  const after = document.querySelector<HTMLElement>('.after-story');
+  const end = document.querySelector<HTMLElement>('#story-end') ?? document.querySelector<HTMLElement>('.after-story');
   const hasStory = !!document.querySelector('[data-story]');
   const navH = () => document.querySelector<HTMLElement>('[data-nav]')?.offsetHeight ?? 64;
   const update = () => {
     const moved = scrollY > 8;
     root.toggleAttribute('data-scrolled', moved);
-    const dark = hasStory ? !!after && after.getBoundingClientRect().top + 160 < navH() : moved;
+    const dark = hasStory ? !!end && end.getBoundingClientRect().bottom < navH() + 40 : moved;
     root.toggleAttribute('data-nav-dark', dark);
   };
   update();

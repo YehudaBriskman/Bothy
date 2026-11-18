@@ -15,6 +15,7 @@ function Photo({ src, children, tall }: { src: string; children: ReactNode; tall
   return (
     <figure className={`photo${tall ? ' photo-tall' : ''}`}>
       <img src={href(src)} alt="" loading="lazy" decoding="async" width={1280} height={800} />
+      <div className="dither-to-black" aria-hidden="true" />
       {children}
     </figure>
   );

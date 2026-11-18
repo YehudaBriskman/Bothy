@@ -12,8 +12,8 @@ import { OG_CARDS, OG_SIZE, seoFor } from './seo.ts';
  * another origin. scripts/check-seo.mjs reads the built pages and holds every field to src/seo.ts's limits.
  */
 
-/** Theme colour: the ink the site is drawn on (tokens.css --ink); the story's sky is the only exception. */
-export const THEME_COLOR = '#08090d';
+/** Theme colour: the ink the site is drawn on (tokens.css --ink; the story's sky follows the hour); the story's sky is the only exception. */
+export const THEME_COLOR = '#09090c';
 
 const AUTHOR = 'Yehuda Briskman'; // the copyright holder in LICENSE, as the footer already says
 const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`; // MIT

@@ -8,7 +8,7 @@ import type { PageContext } from '../page-context.ts';
 
 /**
  * About: the name, the software, how it is made, and what this site does with a visit. Every sentence is one the home
- * page's story already says (home.descent, home.hut, home.trust, the hero footnote); this page only gathers them.
+ * page's story already says (home.descent, home.hut, home.trust, and, reworded for this page, the hero footnote); this page only gathers them.
  */
 export function About({ ctx }: { ctx: PageContext }) {
   const { t } = ctx;
@@ -97,7 +97,7 @@ export function About({ ctx }: { ctx: PageContext }) {
           <header className="section-head reveal">
             <p className="eyebrow">{a.privacyEyebrow}</p>
             <h2 id="about-privacy-h">{a.privacyHeading}</h2>
-            <p className="lede">{h.hero.footnote}</p>
+            <p className="lede">{a.privacyBody}</p>
           </header>
         </section>
       </div>
