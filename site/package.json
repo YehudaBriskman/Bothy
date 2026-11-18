@@ -19,6 +19,8 @@
     "format:check": "prettier --check src scripts test public/sky-spike/*.js public/sky-spike/index.html",
     "refresh-releases": "node scripts/refresh-releases.mjs",
     "check:assets": "node scripts/check-assets.mjs",
+    "check:seo": "node scripts/check-seo.mjs",
+    "og": "node scripts/og.mjs",
     "verify": "bash scripts/verify-dist.sh",
     "render-console": "node scripts/render-console.mjs",
     "check-console": "node scripts/render-console.mjs --check",
