@@ -878,6 +878,22 @@ mutant "the e2e fixture writes the version out instead of deriving it" \
   -- bash scripts/checks/e2e-pins.sh
 
 echo
+echo "── the updater e2e split: every section in exactly one part ─────────"
+# Two parallel CI jobs carry one script. A section that moves into the wrong
+# block runs in both jobs (or neither) and every assertion in it still passes.
+mutant "a section of the updater e2e lands in both parts" \
+  apps/bothy-ops/checks/e2e_updater.py \
+  '    if PART in ("b", "all"):' \
+  '    if PART in ("a", "b", "all"):' \
+  -- python3 apps/bothy-ops/checks/test_e2e_parts.py
+
+mutant "run.sh stops running the second updater e2e part" \
+  apps/bothy-ops/checks/run.sh \
+  'e2e_updater.py --part=b' \
+  'e2e_updater.py --part=a' \
+  -- python3 apps/bothy-ops/checks/test_e2e_parts.py
+
+echo
 echo "── the grant that would make a browser root ────────────────────────"
 # THE most dangerous single character in this repository. The socket-proxy
 # image's granular ALLOW_* lines are `allow` rules with a broad `^/containers`
