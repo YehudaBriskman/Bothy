@@ -13,6 +13,7 @@ import { BEATS } from '../console/flow.ts';
 
 const clamp = (x: number) => Math.min(1, Math.max(0, x));
 const ease = (x: number) => 1 - (1 - clamp(x)) ** 3;
+const MIN_FIT = 0.5; // below this the frame would be unreadable: static view instead
 const STICK = 88; // px, matches `inset-block-start: 5.5rem` in story.css
 const VIEWS = ['services', 'files', 'health', 'modules'] as const;
 
@@ -80,6 +81,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   edges.push(1);
 
   let range = 1;
+  let fit = 1;
   let trackTop = 0;
   let on = false;
   let manual = -1; // the t at which the visitor chose a view by hand; scrolling on gives the scroll the wheel back
@@ -106,8 +108,10 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     body!.style.minBlockSize = `${tall}px`;
     cf!.style.setProperty('--cf-h', `${tall}px`);
     scanbar?.classList.remove('is-on');
-    const fits = stage!.offsetHeight <= innerHeight - STICK - 24 && matchMedia('(min-width: 48rem)').matches;
-    on = fits;
+    // A frame taller than the window is scaled down to fit (transform only), never switched off: a laptop window
+    // (about 700px of page) used to fall back to the static view and the demo never played.
+    fit = Math.min(1, (innerHeight - STICK - 24) / Math.max(1, stage!.offsetHeight));
+    on = fit >= MIN_FIT && matchMedia('(min-width: 48rem)').matches;
     root.classList.toggle('cs-on', on);
     cf!.classList.toggle('cs-live', on);
     stage!.style.transform = '';
@@ -136,8 +140,13 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     const top = trackTop - scrollY;
     const k = clamp((innerHeight * 0.95 - top) / (innerHeight * 0.95 - STICK));
     const rise = ease(k);
+    const sc = fit * (0.94 + 0.06 * rise);
     const tf =
-      k >= 1 ? '' : `translateY(${((1 - rise) * 2.5).toFixed(2)}rem) scale(${(0.94 + 0.06 * rise).toFixed(4)})`;
+      k >= 1
+        ? fit < 1
+          ? `scale(${fit.toFixed(4)})`
+          : ''
+        : `translateY(${((1 - rise) * 2.5).toFixed(2)}rem) scale(${sc.toFixed(4)})`;
     if (stage!.style.transform !== tf) stage!.style.transform = tf;
 
     const t = clamp((scrollY + STICK - trackTop) / range);
@@ -155,6 +164,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       }
     const u = clamp((t - edges[beat]!) / (edges[beat + 1]! - edges[beat]!));
     const b = BEATS[beat]!;
+    if (root.dataset.csBeat !== String(beat)) root.dataset.csBeat = String(beat); // read by ?debug=story and the regression test
 
     // derived state, quantised so a scroll event that changes nothing does no work
     const nRows = beat === 0 ? 0 : beat === 1 ? Math.ceil(rows.length * clamp(u / 0.9)) : rows.length;

@@ -119,6 +119,16 @@ export function mountStory(root: HTMLElement): void {
 
   // ── Scroll to the descent ─────────────────────────────────────────────────
   let tops: number[] = [];
+  // ?debug=story: a small readout of the demo's state, for whoever is reporting that it does not play
+  let dbg: HTMLElement | null = null;
+  if (new URLSearchParams(location.search).get('debug') === 'story') {
+    dbg = document.createElement('pre');
+    dbg.setAttribute(
+      'style',
+      'position:fixed;inset-block-end:0;inset-inline-start:0;z-index:99;margin:0;padding:4px 8px;font:12px monospace;background:#000;color:#0f0',
+    );
+    document.body.append(dbg);
+  }
   const cons = setupConsole(root);
   const measure = () => {
     cons?.measure();
@@ -133,6 +143,8 @@ export function mountStory(root: HTMLElement): void {
     for (const s of SCENES) sceneEls.get(s.id)?.style.setProperty('--o', sceneOpacity(s, p).toFixed(3));
     progress.set(p);
     cons?.drive();
+    if (dbg)
+      dbg.textContent = `story p=${p.toFixed(3)} on=${root.classList.contains('cs-on')} beat=${root.dataset.csBeat ?? '-'} t=${root.style.getPropertyValue('--cs-t') || '-'} y=${Math.round(scrollY)}`;
   }
   // A scroll event fires once per frame at most; coalescing through one microtask keeps this off the frame loop.
   const onScroll = () => {
