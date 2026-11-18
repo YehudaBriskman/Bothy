@@ -10,3 +10,5 @@ func (SysHost) FreeDiskMiB(dir string) (int, error) {
 }
 
 func (SysHost) FSType(dir string) string { return "" }
+
+func (SysHost) Writable(dir string) bool { return false }

@@ -3,11 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/YehudaBriskman/Bothy/cli/internal/install"
 )
@@ -212,6 +214,9 @@ func installOptions(flags map[string]string, io IO) (install.Options, error) {
 		o.Mode = v
 	}
 	if v := flags["bind"]; v != "" {
+		if net.ParseIP(v) == nil {
+			return o, usagef("--bind %q is not an IP address (use 127.0.0.1, 0.0.0.0, or this machine's address)", v)
+		}
 		o.Bind = v
 	}
 	if v := flags["port"]; v != "" {
@@ -240,5 +245,9 @@ func installOptions(flags map[string]string, io IO) (install.Options, error) {
 }
 
 func signalContext() (context.Context, context.CancelFunc) {
-	return signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// After the first signal the run winds down (and cleans up); a second one
+	// gets the default behaviour back so a stuck cleanup can still be killed.
+	go func() { <-ctx.Done(); stop() }()
+	return ctx, stop
 }
