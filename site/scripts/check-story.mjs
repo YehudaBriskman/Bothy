@@ -81,7 +81,7 @@ for (const s of scenarios.filter((x) => !process.env.ONLY || x.name.includes(pro
   await sleep(1500);
   const seen = [];
   let max = -1;
-  await state(p);
+  let mid;
   for (let i = 0; i < 90; i++) {
     await p.mouse.wheel(0, 120 + (i % 3) * 20);
     await sleep(60);
