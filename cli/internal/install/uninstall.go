@@ -26,6 +26,26 @@ type UninstallOptions struct {
 // everything that could be data (secrets, bind directories with content, pulled
 // images) unless --purge is given AND the phrase is typed.
 func Uninstall(ctx context.Context, h Host, o UninstallOptions, out io.Writer) error {
+	if err := RefuseRoot(h); err != nil {
+		return err
+	}
+	// The same lock as install, update and module: a removal must not interleave with a
+	// rollback. A dry run writes nothing and takes none. The lock file lives in the root, so
+	// the root is removed (when it is left empty) only after the lock is released.
+	if !o.DryRun {
+		release, err := lockInstall(o.DataDir)
+		if err != nil {
+			return err
+		}
+		err = uninstall(ctx, h, o, out)
+		release()
+		_ = os.Remove(o.DataDir) // only if now empty
+		return err
+	}
+	return uninstall(ctx, h, o, out)
+}
+
+func uninstall(ctx context.Context, h Host, o UninstallOptions, out io.Writer) error {
 	p := func(f string, a ...any) { fmt.Fprintf(out, f+"\n", a...) }
 	rpath := filepath.Join(o.DataDir, "receipt.json")
 	rec, err := readReceipt(rpath)

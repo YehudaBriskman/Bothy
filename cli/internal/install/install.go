@@ -3,8 +3,6 @@ package install
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,10 +129,13 @@ func readReceipt(path string) (*Receipt, error) {
 	}
 	var r Receipt
 	if err := json.Unmarshal(b, &r); err != nil {
-		return nil, fmt.Errorf("%s is not readable (%w); move it aside to start over", path, err)
+		return nil, &CodedError{ExitCorrupt, fmt.Sprintf("receipt %s does not parse (corrupt: %v). Nothing was changed. Your data is not in it; move it aside to start over", path, err)}
+	}
+	if r.Schema < 1 {
+		return nil, &CodedError{ExitCorrupt, fmt.Sprintf("receipt %s has no valid schema number (corrupt). Nothing was changed. Your data is not in it; move it aside to start over", path)}
 	}
 	if r.Schema > ReceiptSchema {
-		return nil, fmt.Errorf("%s is schema %d, written by a newer bothy than this one (understands %d): use that bothy, or this box would lose what the newer receipt records", path, r.Schema, ReceiptSchema)
+		return nil, &CodedError{ExitVersion, fmt.Sprintf("receipt %s is schema %d, written by a newer bothy than this one (understands %d; too new). Nothing was changed. Use that bothy or run the newer release, or this box would lose what the newer receipt records", path, r.Schema, ReceiptSchema)}
 	}
 	return &r, nil
 }
@@ -144,17 +145,6 @@ func writeReceipt(path string, r *Receipt) error {
 	r.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	b, _ := json.MarshalIndent(r, "", "  ")
 	return atomicWrite(path, append(b, '\n'), 0o600)
-}
-
-func atomicWrite(path string, data []byte, perm os.FileMode) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, perm); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmp, perm); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
 }
 
 func sameFile(path string, want []byte) bool {
@@ -192,6 +182,9 @@ func (o Options) composeArgs(st *Stack, more ...string) []string {
 
 // Install is `bothy install`. out receives every line a person should see.
 func Install(ctx context.Context, h Host, o Options, out io.Writer) error {
+	if err := RefuseRoot(h); err != nil {
+		return err
+	}
 	// One writer at a time, taken before the receipt is read. A dry run writes nothing and takes no lock.
 	if !o.DryRun {
 		release, err := lockInstall(o.DataDir)
@@ -409,9 +402,9 @@ func buildPlan(h Host, o Options, st *Stack, m *Manifest, msha string, rec *Rece
 
 	// secrets
 	key := filepath.Join(o.secretsDir(), "master.key")
-	ks, kerr := os.Stat(key)
-	keyOK := kerr == nil && ks.Size() > 0 // an empty file is an interrupted write: regenerate
-	acts = append(acts, Action{"secrets", fmt.Sprintf("generate %s (32 random bytes, 0600, in a 0700 directory; never printed, never in the binary)", key), keyOK,
+	ksState, kerr := keyState(key)
+	keyOK := kerr == nil && ksState == "ok" // done only when it PARSES; legacy hex is converted, an empty file regenerated
+	acts = append(acts, Action{"secrets", fmt.Sprintf("generate %s (32 random bytes in the `bothy-master-key v1` format the settings store reads, 0600, in a 0700 directory, written crash-safely; never printed, never in the binary)", key), keyOK,
 		func(context.Context) error {
 			if err := os.MkdirAll(o.secretsDir(), 0o700); err != nil {
 				return err
@@ -422,30 +415,7 @@ func buildPlan(h Host, o Options, st *Stack, m *Manifest, msha string, rec *Rece
 			if err := os.Chmod(o.secretsDir(), 0o700); err != nil {
 				return err
 			}
-			b := make([]byte, 32)
-			if _, err := rand.Read(b); err != nil {
-				return err
-			}
-			// Written whole to a temp name, then renamed: an interruption never leaves a half key.
-			tmp := key + ".tmp"
-			_ = os.Remove(tmp)
-			f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-			if err != nil {
-				return err
-			}
-			if _, err = f.WriteString(hex.EncodeToString(b) + "\n"); err == nil {
-				err = f.Close()
-			} else {
-				_ = f.Close()
-			}
-			if err != nil {
-				_ = os.Remove(tmp)
-				return err
-			}
-			if kerr == nil { // only an empty file can be in the way: a non-empty key never gets here
-				_ = os.Remove(key)
-			}
-			return os.Rename(tmp, key)
+			return ensureMasterKey(key)
 		}})
 
 	// receipt (in-progress marker, written before anything is started)

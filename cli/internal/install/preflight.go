@@ -84,12 +84,13 @@ func Preflight(ctx context.Context, h Host, in PreflightIn) []Check {
 	}
 
 	if h.Euid() == 0 {
+		// The verbs refuse before preflight (RefuseRoot); this row keeps a direct caller honest.
 		if su := h.Getenv("SUDO_USER"); su != "" {
-			add("user", Warn, fmt.Sprintf("running under sudo (as root, on behalf of %s): files written as root may land in a home directory that belongs to %s", su, su),
+			add("user", Fail, fmt.Sprintf("running under sudo (as root, on behalf of %s): files written as root may land in a home directory that belongs to %s", su, su),
 				fmt.Sprintf("Run it without sudo as %s (add them to the docker group once: `sudo usermod -aG docker %s`, then log in again).", su, su))
 		} else {
-			add("user", Warn, "running as root: files will go under root's home and the stack is owned by root",
-				"Prefer a normal user who is in the docker group.")
+			add("user", Fail, "running as root: files will go under root's home and the stack is owned by root",
+				"Use a normal user who is in the docker group.")
 		}
 	} else {
 		add("user", OK, fmt.Sprintf("running as uid %d (no root needed)", h.Euid()), "")

@@ -30,6 +30,9 @@ import (
 // `gh attestation verify` when gh is present, no downgrade. check only prints
 // what would change.
 func Update(ctx context.Context, h Host, o Options, check bool, out io.Writer) error {
+	if err := RefuseRoot(h); err != nil {
+		return err
+	}
 	p := func(f string, a ...any) { fmt.Fprintf(out, f+"\n", a...) }
 	rec, err := readReceipt(o.receiptPath())
 	if err != nil {

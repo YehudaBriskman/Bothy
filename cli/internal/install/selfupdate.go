@@ -280,6 +280,9 @@ const (
 // binary is already the target (or newer), so the caller falls through to
 // Update, which re-applies this binary's own release as before.
 func SelfUpdate(ctx context.Context, h Host, o Options, so SelfOptions, out io.Writer) (handled bool, err error) {
+	if err := RefuseRoot(h); err != nil {
+		return false, err
+	}
 	p := func(f string, a ...any) { fmt.Fprintf(out, f+"\n", a...) }
 	cur, err := ParseCalVer(o.BinaryVersion)
 	if err != nil {

@@ -3,6 +3,7 @@ package install
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,7 +117,7 @@ func TestPreflightRealMachines(t *testing.T) {
 		f.euid = 0
 		f.env = map[string]string{"SUDO_USER": "dana"}
 		got := joinChecks(run(f, in), "user")
-		if !strings.Contains(got, "dana") || !strings.Contains(got, "without sudo") {
+		if !strings.Contains(got, "dana") || !strings.Contains(got, "without sudo") || !strings.HasPrefix(got, "fail") {
 			t.Fatal(got)
 		}
 	})
@@ -220,7 +221,7 @@ func TestInterruptedInstallCleansUpAndResumes(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(o.DataDir, ".install.lock")); err == nil {
 		t.Error("lock file left behind")
 	}
-	if b, _ := os.ReadFile(filepath.Join(o.secretsDir(), "master.key")); len(strings.TrimSpace(string(b))) != 64 {
+	if b, _ := os.ReadFile(filepath.Join(o.secretsDir(), "master.key")); func() bool { _, e := parseMasterKey(b); return e != nil }() {
 		t.Error("master key missing after an interrupt")
 	}
 	// Resume with a fresh context: finished steps skip, it completes.
@@ -312,19 +313,21 @@ func TestEmptyMasterKeyIsRegeneratedAndNeverTheOtherWay(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(key)
-	if len(strings.TrimSpace(string(b))) != 64 {
+	if _, perr := parseMasterKey(b); perr != nil {
 		t.Fatalf("key not regenerated: %q", b)
 	}
-	if _, err := os.Stat(key + ".tmp"); err == nil {
-		t.Error("temp key left behind")
+	if m, _ := filepath.Glob(key + ".tmp*"); len(m) != 0 {
+		t.Errorf("temp key left behind: %v", m)
 	}
 	// an existing real key is never touched
 	h2, o2, _ := applyFixture(t)
 	_ = os.MkdirAll(o2.secretsDir(), 0o700)
 	k2 := filepath.Join(o2.secretsDir(), "master.key")
 	_ = os.WriteFile(k2, []byte("mine\n"), 0o600)
-	if err := Install(context.Background(), h2, o2, &bytes.Buffer{}); err != nil {
-		t.Fatal(err)
+	err := Install(context.Background(), h2, o2, &bytes.Buffer{})
+	var ce *CodedError
+	if !errors.As(err, &ce) || ce.Code != ExitCorrupt {
+		t.Fatalf("a foreign key file must be refused with 74, got %v", err)
 	}
 	if b, _ := os.ReadFile(k2); string(b) != "mine\n" {
 		t.Errorf("an existing key was replaced: %q", b)

@@ -270,7 +270,7 @@ func TestPreflight(t *testing.T) {
 	}{
 		{"macOS", func(f *fakeHost) { f.goos = "darwin" }, "os", Fail, ""},
 		{"riscv", func(f *fakeHost) { f.arch = "riscv64" }, "os", Fail, ""},
-		{"root", func(f *fakeHost) { f.euid = 0 }, "user", Warn, ""},
+		{"root", func(f *fakeHost) { f.euid = 0 }, "user", Fail, ""},
 		{"old docker", func(f *fakeHost) { f.cmds["docker version --format {{.Server.Version}}"] = "24.0.7" }, "docker", Fail, "start_interval"},
 		{"no docker", func(f *fakeHost) {
 			f.cmds["docker version --format {{.Server.Version}}"] = `!exec: "docker": executable file not found in $PATH`
@@ -499,7 +499,7 @@ func TestApplyIdempotentAndResumable(t *testing.T) {
 		}
 	}
 	key1, _ := os.ReadFile(filepath.Join(o.secretsDir(), "master.key"))
-	if len(strings.TrimSpace(string(key1))) != 64 || bytes.Contains(out.Bytes(), key1[:16]) {
+	if _, perr := parseMasterKey(key1); perr != nil || bytes.Contains(out.Bytes(), key1[len(keyHeader)+18:len(keyHeader)+34]) {
 		t.Errorf("master key malformed or printed")
 	}
 	// Re-run: `ps` now reports everything running; plan must be empty.

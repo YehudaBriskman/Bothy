@@ -17,7 +17,7 @@ func flockFile(path string) (func(), error) {
 	}
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = f.Close()
-		return nil, fmt.Errorf("another `bothy install` or `bothy update` is already running for this install root (lock %s); wait for it to finish", path)
+		return nil, fmt.Errorf("another `bothy install`, `update`, `module` or `uninstall` is already running for this install root (lock %s); wait for it to finish", path)
 	}
 	return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
 }

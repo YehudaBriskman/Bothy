@@ -69,6 +69,10 @@ func Run(args []string, io IO) int {
 	if errors.As(err, &ae) && ae.RequestID != "" {
 		fmt.Fprintf(io.Err, "request id: %s\n", api.OneLine(ae.RequestID))
 	}
+	var ce interface{ ExitCode() int }
+	if errors.As(err, &ce) {
+		return ce.ExitCode() // a typed verdict (install.CodedError): 74 corrupt, 77 not allowed, 78 too new
+	}
 	return api.ExitCodeOf(err)
 }
 
@@ -275,7 +279,7 @@ func help(w io.Writer) error {
 	fmt.Fprintln(w, "  token create|list|revoke                       Mint bearer tokens on THIS machine (host-only; see token --help)")
 	fmt.Fprintln(w, "  mcp                                            Serve the read-only tools over stdio (MCP)")
 	fmt.Fprintln(w, "\nExit codes: 0 ok, 10 box unreachable, 64 bad usage or request, 66 not found,")
-	fmt.Fprintln(w, "69 data source unavailable, 70 server bug, 77 not signed in or not allowed, 78 version mismatch.")
+	fmt.Fprintln(w, "69 data source unavailable, 70 server bug, 74 a file of ours is corrupt (install),\n77 not signed in or not allowed (or run as root), 78 version mismatch or a file from a newer bothy.")
 	return nil
 }
 
