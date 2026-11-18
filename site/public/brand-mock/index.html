@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="dark" />
+    <title>BothyBox brand options</title>
+    <meta
+      name="description"
+      content="Brand exploration: eight BB monogram concepts, three opening-box loaders, the lockup, a recommendation and a wiring plan. A mock, not the site."
+    />
+    <link rel="icon" href="svg/hut.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="brand.css" />
+  </head>
+  <body>
+    <a class="skip" href="#icons">Skip to the icons</a>
+    <header class="top">
+      <div class="wrap">
+        <p class="eyebrow">Brand exploration · a mock, not wired into the site</p>
+        <h1>
+          <span class="h1-mark" aria-hidden="true"><img src="svg/lockup-horizontal.svg" alt="" width="818" height="236" /></span>
+          <span class="sr">BothyBox: </span>Brand options
+        </h1>
+        <p class="lede">
+          The idea: the icon becomes two Bs for <b>B</b>othy<b>B</b>ox, and the brand moment is a box that opens, two Bs
+          that climb out, and stretch into the word. Every mark here is drawn by hand as geometric paths: no font is
+          used, so there is no font licence to worry about.
+        </p>
+        <nav aria-label="Sections" class="toc">
+          <a href="#icons">A · Icons</a>
+          <a href="#loaders">B · Loaders</a>
+          <a href="#lockup">C · Lockup</a>
+          <a href="#pick">D · Recommendation</a>
+          <a href="#wiring">E · Wiring</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section id="icons" aria-labelledby="h-icons">
+        <h2 id="h-icons">A · Eight icon concepts</h2>
+        <p class="sec-lede">
+          Each at 180, 32 and 16 px; the 16 px one also enlarged pixel for pixel, as a browser really draws it. Then on
+          ink in one colour, on two skies, on a light tile, and as the favicon in a light and a dark browser tab.
+        </p>
+        <div class="cards" id="cards"></div>
+        <noscript
+          ><p class="note">The gallery draws the icons with JavaScript. The files themselves are in svg/.</p></noscript
+        >
+      </section>
+
+      <section id="loaders" aria-labelledby="h-loaders">
+        <h2 id="h-loaders">B · The opening box, three ways</h2>
+        <p class="sec-lede">
+          About 2 seconds: the box opens, the two Bs rise, pull the rest of the word out between them and settle into
+          the lockup with a small overshoot. With reduced motion you see the finished lockup. Drag the scrubber to step
+          through it by hand; the strip under each one is the same animation frozen at six moments.
+        </p>
+        <div id="stages"></div>
+        <h3>Nav icon, idle</h3>
+        <p class="sec-lede">
+          Hover or focus a mock nav brand: its lid gives a small wiggle, on a loop, while you stay.
+        </p>
+        <div class="navs" id="navs"></div>
+      </section>
+
+      <section id="lockup" aria-labelledby="h-lockup">
+        <h2 id="h-lockup">C · The lockup</h2>
+        <p class="sec-lede">
+          The recommended icon with the wordmark, side by side and stacked. Clear space is the dashed margin: keep it
+          free of other marks and text. Below the minimum sizes, use the icon alone.
+        </p>
+        <div id="lockups"></div>
+      </section>
+
+      <section id="pick" aria-labelledby="h-pick">
+        <h2 id="h-pick">D · Recommendation</h2>
+        <div id="rec"></div>
+      </section>
+
+      <section id="wiring" aria-labelledby="h-wiring">
+        <h2 id="h-wiring">E · How it would be wired (later, not now)</h2>
+        <ol class="plan">
+          <li>
+            <b>Favicon.</b> Replace <code>public/favicon.svg</code> with the chosen icon's tile SVG (it already ships an
+            SVG favicon, linked in <code>prerender.tsx</code>). Add a 32 px PNG fallback only if a browser we care about
+            needs it.
+          </li>
+          <li>
+            <b>apple-touch-icon.</b> A 180 × 180 PNG of the full-bleed variant (iOS rounds the corners itself), linked
+            with <code>&lt;link rel="apple-touch-icon"&gt;</code>. Generated from the SVG at build time and checked in,
+            with a provenance line.
+          </li>
+          <li>
+            <b>Open Graph.</b> The 1200 × 630 card puts the horizontal lockup on the night or dusk sky still, so the
+            share image and the hero agree.
+          </li>
+          <li>
+            <b>Header and footer.</b> The inline <code>&lt;Mark /&gt;</code> becomes the chosen icon (mono,
+            currentColor); the text wordmark can stay live text or become the drawn wordmark with an accessible name.
+          </li>
+          <li>
+            <b>The loader, first visit only.</b> Plays once over the hero, at most about 2 seconds, never blocking: the
+            page is fully rendered and usable underneath, and any key, click, tap or scroll skips it.
+          </li>
+          <li>
+            <b>Never again that session.</b> A <code>sessionStorage</code> flag written and read inside
+            <code>try/catch</code>; if storage throws, it simply does not play.
+          </li>
+          <li>
+            <b>No layout shift.</b> The loader draws in an overlay sized to the lockup's own box, in the place the
+            lockup will be, and ends exactly as the static lockup.
+          </li>
+          <li>
+            <b>No JavaScript or reduced motion:</b> the static lockup, already in the HTML. The animation only ever
+            moves away from that state and back to it.
+          </li>
+          <li><b>Hover idle</b> on the nav icon: CSS only, off for reduced motion, a few hundred bytes.</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <p>
+          Hand-drawn geometric paths, written in <code>concepts.js</code>; no font, image or code from anywhere else.
+          Every icon, the wordmark and both lockups are also plain files in <code>svg/</code> (linked from each card).
+          No formal trademark search has been done; see the design doc
+          <code>docs/plans/thin-bothy/brand-options.md</code>.
+        </p>
+      </div>
+    </footer>
+    <script type="module" src="gallery.js"></script>
+  </body>
+</html>
