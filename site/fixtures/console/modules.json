@@ -1,0 +1,82 @@
+{
+  "_comment": "The shape of `bothy module list --json` (cli/internal/install/module.go, ModuleRow). The modules, their descriptions, services, requirements and memory are the ones declared in stack/modes.yml, held by a test; which of them is installed on this example box is made up.",
+  "mode": "mini",
+  "installed": true,
+  "modules": [
+    {
+      "name": "edge",
+      "installed": true,
+      "core": true,
+      "description": "The front door - Traefik with the file provider only (no Docker socket), publishing the one host port.",
+      "memory_mib": 128,
+      "requires": [],
+      "provides": [
+        "edge"
+      ],
+      "services": [
+        "traefik"
+      ],
+      "default_in_modes": [
+        "mini"
+      ]
+    },
+    {
+      "name": "web",
+      "installed": true,
+      "core": true,
+      "description": "The portal page and /version.json.",
+      "memory_mib": 64,
+      "requires": [
+        "edge"
+      ],
+      "provides": [
+        "web",
+        "portal"
+      ],
+      "services": [
+        "bothy-web"
+      ],
+      "default_in_modes": [
+        "mini"
+      ]
+    },
+    {
+      "name": "files",
+      "installed": true,
+      "description": "Read-only notes reader - one folder, no write routes (this box has no login yet).",
+      "memory_mib": 256,
+      "requires": [
+        "edge"
+      ],
+      "provides": [
+        "files",
+        "notes"
+      ],
+      "services": [
+        "bothy-files"
+      ],
+      "default_in_modes": [
+        "mini"
+      ]
+    },
+    {
+      "name": "node-metrics",
+      "installed": false,
+      "description": "Read-only machine numbers (memory, CPU, load, disk, network) as one text page at /-/api/node/metrics.",
+      "memory_mib": 64,
+      "requires": [
+        "edge"
+      ],
+      "provides": [
+        "node-metrics"
+      ],
+      "services": [
+        "node-exporter"
+      ],
+      "default_in_modes": []
+    }
+  ],
+  "example": {
+    "release": "v1.0.0"
+  }
+}

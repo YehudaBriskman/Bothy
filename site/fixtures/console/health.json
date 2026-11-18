@@ -1,0 +1,41 @@
+{
+  "_comment": "Example data, invented for the website. Each tile has the console's Tile fields (components/control-home/HealthStrip.tsx); label, link target and tone are ones ControlHome.tsx and parts.tsx define. The numbers are made up.",
+  "tiles": [
+    {
+      "key": "services",
+      "label": "Services",
+      "to": "/control/services",
+      "value": { "num": "5", "of": " / 6 up" },
+      "sub": "0 down · 1 off",
+      "tone": "ok",
+      "toneLabel": "All up"
+    },
+    {
+      "key": "routes",
+      "label": "Routes",
+      "to": "/control/routes",
+      "value": { "num": "3", "of": " / 3" },
+      "sub": "enabled",
+      "tone": "ok",
+      "toneLabel": "All enabled"
+    },
+    {
+      "key": "updates",
+      "label": "Updates",
+      "to": "/settings/updates",
+      "value": { "num": "1", "of": " available" },
+      "sub": "largest: wiki",
+      "tone": "unknown",
+      "toneLabel": "Updates available"
+    },
+    {
+      "key": "backup",
+      "label": "Last backup",
+      "to": "/settings/backups",
+      "value": { "text": "11h ago" },
+      "sub": "every set is fresh",
+      "tone": "ok",
+      "toneLabel": "Fresh"
+    }
+  ]
+}

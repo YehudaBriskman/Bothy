@@ -1,0 +1,171 @@
+{
+  "_comment": "Example data, invented for the website. Field names are the console's PortalNode (apps/bothy-web/web/src/lib/discover.ts); src/console/console.test.ts fails if one is not a field the product has. Only the fields the Services table reads are present.",
+  "nodes": [
+    {
+      "id": "notes-web",
+      "kind": "unrouted",
+      "name": "Notes web",
+      "host": "notes.example",
+      "group": "notes",
+      "groupTitle": "Notes app",
+      "browsable": true,
+      "url": "http://notes.example:8081",
+      "ports": [
+        {
+          "hostIp": "0.0.0.0",
+          "hostPort": 8081,
+          "containerPort": 80,
+          "proto": "tcp",
+          "scope": "public"
+        }
+      ],
+      "status": "up",
+      "container": {
+        "id": "c0ffee000001",
+        "name": "notes-web",
+        "image": "nginx:1.27-alpine",
+        "statusText": "Up 3 days",
+        "health": null,
+        "labels": {}
+      }
+    },
+    {
+      "id": "notes-api",
+      "kind": "unrouted",
+      "name": "Notes API",
+      "host": null,
+      "group": "notes",
+      "groupTitle": "Notes app",
+      "browsable": false,
+      "url": null,
+      "ports": [],
+      "status": "up",
+      "container": {
+        "id": "c0ffee000002",
+        "name": "notes-api",
+        "image": "notes-api:1.4.0",
+        "statusText": "Up 3 days (healthy)",
+        "health": {
+          "Status": "healthy"
+        },
+        "labels": {}
+      }
+    },
+    {
+      "id": "notes-db",
+      "kind": "unrouted",
+      "name": "Notes DB",
+      "host": null,
+      "group": "notes",
+      "groupTitle": "Notes app",
+      "browsable": false,
+      "url": null,
+      "ports": [],
+      "status": "up",
+      "container": {
+        "id": "c0ffee000003",
+        "name": "notes-db",
+        "image": "postgres:16",
+        "statusText": "Up 3 days (healthy)",
+        "health": {
+          "Status": "healthy"
+        },
+        "labels": {}
+      }
+    },
+    {
+      "id": "notes-cache",
+      "kind": "unrouted",
+      "name": "Notes cache",
+      "host": null,
+      "group": "notes",
+      "groupTitle": "Notes app",
+      "browsable": false,
+      "url": null,
+      "ports": [],
+      "status": "up",
+      "container": {
+        "id": "c0ffee000004",
+        "name": "notes-cache",
+        "image": "redis:7",
+        "statusText": "Up 3 days",
+        "health": null,
+        "labels": {}
+      }
+    },
+    {
+      "id": "wiki",
+      "kind": "unrouted",
+      "name": "Wiki",
+      "host": "wiki.example",
+      "group": "wiki",
+      "groupTitle": "Team wiki",
+      "browsable": true,
+      "url": "http://wiki.example:8090",
+      "ports": [
+        {
+          "hostIp": "0.0.0.0",
+          "hostPort": 8090,
+          "containerPort": 3000,
+          "proto": "tcp",
+          "scope": "public"
+        }
+      ],
+      "status": "starting",
+      "container": {
+        "id": "c0ffee000005",
+        "name": "wiki",
+        "image": "wiki-app:2.2",
+        "statusText": "Up 8 seconds (health: starting)",
+        "health": {
+          "Status": "starting"
+        },
+        "labels": {}
+      }
+    },
+    {
+      "id": "dev-server",
+      "kind": "host",
+      "name": "Dev server",
+      "host": "dev.example",
+      "group": "host",
+      "groupTitle": "On the host",
+      "browsable": true,
+      "url": "http://dev.example:5173",
+      "ports": [
+        {
+          "hostIp": "0.0.0.0",
+          "hostPort": 5173,
+          "scope": "public"
+        }
+      ],
+      "status": "unknown",
+      "route": {
+        "router": "dev-server",
+        "provider": "file",
+        "serverUrls": []
+      },
+      "container": null
+    },
+    {
+      "id": "backup-job",
+      "kind": "unrouted",
+      "name": "Nightly backup",
+      "host": null,
+      "group": "backup",
+      "groupTitle": "Backups",
+      "browsable": false,
+      "url": null,
+      "ports": [],
+      "status": "stopped",
+      "container": {
+        "id": "c0ffee000007",
+        "name": "backup-job",
+        "image": "backup-tool:0.9",
+        "statusText": "Exited (0) 11 hours ago",
+        "health": null,
+        "labels": {}
+      }
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+/*
+ * What the static views need that the live console gets from its app shell. Already scoped, written by hand.
+ * Console tokens only (var(--surface-1), var(--fg), ...), because this is inside the console's world.
+ */
+
+.console-frame {
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  text-align: start;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 1rem;
+  /* One height for every view, so switching tab does not move the page under the reader's pointer. */
+  block-size: clamp(26rem, 72dvh, 36rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.console-frame .cx-page {
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
+  min-inline-size: 0;
+}
+
+.console-frame .cx-page-head {
+  margin-block-end: var(--sp-4);
+}
+
+/* A picture of the console: rows look like rows, but nothing answers a click. */
+.console-frame .svc-tr {
+  cursor: default;
+}
+.console-frame .tbl-wrap {
+  max-block-size: none;
+}
+
+/* The empty-value dash: one placeholder everywhere, quieter than a value, with an accessible name in the markup. */
+.console-frame .cx-empty {
+  color: var(--fg-subtle);
+}
+
+.console-frame .cx-open {
+  display: inline-flex;
+  color: var(--fg-subtle);
+}
+
+/* Machine strings and counts stay in tabular figures wherever they sit in a column. */
+.console-frame .svc-td-text .pt,
+.console-frame .mono,
+.console-frame .rd-sha,
+.console-frame .rd-dir-n,
+.console-frame .rd-root-n,
+.console-frame .rd-crumb {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The reader inside the frame: the index beside one document, no right-hand contents column. */
+.console-frame .bothy-files {
+  display: block;
+  min-block-size: 0;
+}
+.console-frame .bothy-files.bothy-read .rd-grid {
+  grid-template-columns: 15rem minmax(0, 1fr);
+  min-block-size: 100%;
+}
+.console-frame .bothy-files .rd-side {
+  overflow: auto;
+}
+.console-frame .bothy-files .rd-main {
+  overflow: auto;
+}
+.console-frame .bothy-files .fx-read {
+  max-block-size: none;
+  overflow: visible;
+}
+@media (max-width: 640px) {
+  .console-frame .bothy-files.bothy-read .rd-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .console-frame .bothy-files .rd-side {
+    display: none;
+  }
+}
+
+/* The command-line view: what `bothy module list` prints, in a terminal block. */
+.console-frame .cx-term {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+.console-frame .cx-term figcaption {
+  padding: var(--sp-1_5) var(--sp-3);
+  border-block-end: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg-subtle);
+}
+.console-frame .cx-term pre {
+  margin: 0;
+  padding: var(--sp-3);
+  overflow: auto;
+  color: var(--fg);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-md);
+  white-space: pre;
+  tab-size: 4;
+}
+.console-frame .cx-prompt {
+  color: var(--fg-subtle);
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-frame *,
+  .console-frame *::before,
+  .console-frame *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

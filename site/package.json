@@ -18,7 +18,9 @@
     "format": "prettier --write src scripts public/sky-spike/*.js public/sky-spike/index.html",
     "format:check": "prettier --check src scripts public/sky-spike/*.js public/sky-spike/index.html",
     "refresh-releases": "node scripts/refresh-releases.mjs",
-    "verify": "bash scripts/verify-dist.sh"
+    "verify": "bash scripts/verify-dist.sh",
+    "render-console": "node scripts/render-console.mjs",
+    "check-console": "node scripts/render-console.mjs --check"
   },
   "dependencies": {
     "marked": "^16.0.0",
@@ -34,6 +36,7 @@
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.14.0",
+    "postcss": "^8.5.33",
     "prettier": "^3.9.10",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.72.1",

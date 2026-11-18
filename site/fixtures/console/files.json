@@ -1,0 +1,32 @@
+{
+  "_comment": "Example data, invented for the website. roots, tree entries, the open file and its history are the console's FileRoot, TreeFile, FileRead and Commit (apps/bothy-web/web/src/lib/files.ts). The paths, text and names are made up. `asOf` and `open` are the page's own state, not product fields.",
+  "asOf": "2026-01-15T12:00:00Z",
+  "roots": [{ "key": "notes" }],
+  "open": ["setup"],
+  "tree": [
+    { "path": "README.md", "size": 1240, "mtime": 1768300000, "writable": false, "dir": "", "lang": "md", "readable": true },
+    { "path": "setup", "mtime": 1768300000, "writable": false, "dir": true },
+    { "path": "setup/first-run.md", "size": 2310, "mtime": 1768300000, "writable": false, "dir": "setup", "lang": "md", "readable": true },
+    { "path": "setup/ports.md", "size": 980, "mtime": 1768200000, "writable": false, "dir": "setup", "lang": "md", "readable": true },
+    { "path": "journal", "mtime": 1768000000, "writable": false, "dir": true },
+    { "path": "recipes.md", "size": 3480, "mtime": 1767900000, "writable": false, "dir": "", "lang": "md", "readable": true }
+  ],
+  "file": {
+    "root": "notes",
+    "path": "setup/first-run.md",
+    "content": "# First run\n\nThis page is example text, written for this site.\n\n## What happens\n\nBothy asks Docker what is running and lists it as **services**. It does not change those containers.\n\n- Open Services to see what it found.\n- Open Files to read the notes kept beside them.\n\n## Check it yourself\n\n```sh\ndocker compose ps\n```\n\nThe same containers should appear in both places.\n",
+    "size": 2310,
+    "mtime": 1768300000,
+    "writable": false,
+    "history": [
+      {
+        "sha": "9f3c2a1d7b4e5f60a1b2c3d4e5f60718293a4b5c",
+        "author": "Sam Example",
+        "date": "2026-01-12T09:30:00Z",
+        "subject": "Explain what the first run does"
+      }
+    ],
+    "lang": "md",
+    "versioned": true
+  }
+}
