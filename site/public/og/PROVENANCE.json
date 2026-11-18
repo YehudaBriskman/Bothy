@@ -1,0 +1,247 @@
+{
+  "generator": "site/scripts/og.mjs (npm run og)",
+  "generated": "2026-11-18",
+  "renderer": "Chromium 157.0.8103.15 via playwright-core, deviceScaleFactor 1, JPEG quality 84",
+  "font": "font stack: 'Ubuntu Sans', 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', system-ui, Ubuntu, Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif; resolved on the generating machine by fc-match to UbuntuSans[wdth,wght].ttf: \"Ubuntu Sans\" \"ExtraBold\"",
+  "licence": "The photographs are CC0 1.0 (public/sky/PROVENANCE.json). The mark, words and layout are this repository’s, MIT.",
+  "contrast": "WCAG 2.2 and APCA Lc against the pixels behind each line with the words hidden, worst 5 percent tail, floors 4.5:1 and Lc 60 (scripts/check-sky.mjs)",
+  "maxBytes": 122880,
+  "images": [
+    {
+      "file": "home.jpg",
+      "width": 1200,
+      "height": 630,
+      "bytes": 54755,
+      "sha256": "406b2858056376a9e5de2519df0f04538db3e72ac7aef1391d9074b665705f71",
+      "photo": "public/sky/dusk-desk.webp (see public/sky/PROVENANCE.json, key \"dusk\")",
+      "heading": "BothyBox",
+      "line": "A free shelter in the hills, for your machine.",
+      "contrast": [
+        {
+          "text": "Bothy",
+          "wcag": 14.67,
+          "apcaLc": 95.9,
+          "ok": true
+        },
+        {
+          "text": "BothyBox",
+          "wcag": 11.09,
+          "apcaLc": 91.9,
+          "ok": true
+        },
+        {
+          "text": "A free shelter in the hills, for your machine.",
+          "wcag": 7.88,
+          "apcaLc": 84.9,
+          "ok": true
+        },
+        {
+          "text": "bothybox.com",
+          "wcag": 15.78,
+          "apcaLc": 96.8,
+          "ok": true
+        },
+        {
+          "text": "Free and open source, MIT",
+          "wcag": 14.41,
+          "apcaLc": 95.7,
+          "ok": true
+        }
+      ]
+    },
+    {
+      "file": "install.jpg",
+      "width": 1200,
+      "height": 630,
+      "bytes": 56027,
+      "sha256": "01e47b9d8bf1a1d47539730ed2311dd98c134cadd186a865663c30f83eb2f3fb",
+      "photo": "public/sky/day-desk.webp (see public/sky/PROVENANCE.json, key \"day\")",
+      "heading": "Install Bothy",
+      "line": "The release binary or a source checkout. Tested in our lab on Linux amd64 with Docker.",
+      "contrast": [
+        {
+          "text": "Bothy",
+          "wcag": 15.34,
+          "apcaLc": 96.4,
+          "ok": true
+        },
+        {
+          "text": "Install Bothy",
+          "wcag": 13.41,
+          "apcaLc": 94.8,
+          "ok": true
+        },
+        {
+          "text": "The release binary or a source checkout. Tested in our lab on Linux amd64 with Docker.",
+          "wcag": 8.44,
+          "apcaLc": 86.4,
+          "ok": true
+        },
+        {
+          "text": "bothybox.com",
+          "wcag": 15.09,
+          "apcaLc": 96.3,
+          "ok": true
+        },
+        {
+          "text": "Free and open source, MIT",
+          "wcag": 14.62,
+          "apcaLc": 95.9,
+          "ok": true
+        }
+      ]
+    },
+    {
+      "file": "docs.jpg",
+      "width": 1200,
+      "height": 630,
+      "bytes": 57729,
+      "sha256": "f641d62b1238c0024e72294a157b5f5cb33638da654e31681f3eeedafceffe57",
+      "photo": "public/sky/night-desk.webp (see public/sky/PROVENANCE.json, key \"night\")",
+      "heading": "Bothy documentation",
+      "line": "The guide, rendered from the Markdown in the repository.",
+      "contrast": [
+        {
+          "text": "Bothy",
+          "wcag": 16.29,
+          "apcaLc": 97.1,
+          "ok": true
+        },
+        {
+          "text": "Bothy documentation",
+          "wcag": 14.92,
+          "apcaLc": 96.1,
+          "ok": true
+        },
+        {
+          "text": "The guide, rendered from the Markdown in the repository.",
+          "wcag": 14.91,
+          "apcaLc": 96.1,
+          "ok": true
+        },
+        {
+          "text": "bothybox.com",
+          "wcag": 16.51,
+          "apcaLc": 97.2,
+          "ok": true
+        },
+        {
+          "text": "Free and open source, MIT",
+          "wcag": 16.41,
+          "apcaLc": 97.1,
+          "ok": true
+        }
+      ]
+    },
+    {
+      "file": "about.jpg",
+      "width": 1200,
+      "height": 630,
+      "bytes": 59135,
+      "sha256": "4187d715ffee5b22c6275fef2b7e65f3b0e3264ab0cd9dd4dae3aeb173ff8f60",
+      "photo": "public/sky/dusk-desk.webp (see public/sky/PROVENANCE.json, key \"dusk\")",
+      "heading": "About Bothy",
+      "line": "Where the name comes from, and how the software and this site are made.",
+      "contrast": [
+        {
+          "text": "Bothy",
+          "wcag": 14.67,
+          "apcaLc": 95.9,
+          "ok": true
+        },
+        {
+          "text": "About Bothy",
+          "wcag": 11.85,
+          "apcaLc": 93,
+          "ok": true
+        },
+        {
+          "text": "Where the name comes from, and how the software and this site are made.",
+          "wcag": 7.37,
+          "apcaLc": 83.5,
+          "ok": true
+        },
+        {
+          "text": "bothybox.com",
+          "wcag": 15.78,
+          "apcaLc": 96.8,
+          "ok": true
+        },
+        {
+          "text": "Free and open source, MIT",
+          "wcag": 14.41,
+          "apcaLc": 95.7,
+          "ok": true
+        }
+      ]
+    },
+    {
+      "file": "changelog.jpg",
+      "width": 1200,
+      "height": 630,
+      "bytes": 49424,
+      "sha256": "f2a718e7b7071e0e801e6b272ac422008dec3472e2b2b2eea0e3b87f8150d1af",
+      "photo": "public/sky/day-desk.webp (see public/sky/PROVENANCE.json, key \"day\")",
+      "heading": "Bothy releases",
+      "line": "Every release and its notes, from the repository.",
+      "contrast": [
+        {
+          "text": "Bothy",
+          "wcag": 15.34,
+          "apcaLc": 96.4,
+          "ok": true
+        },
+        {
+          "text": "Bothy releases",
+          "wcag": 12.04,
+          "apcaLc": 93.3,
+          "ok": true
+        },
+        {
+          "text": "Every release and its notes, from the repository.",
+          "wcag": 8.47,
+          "apcaLc": 86.5,
+          "ok": true
+        },
+        {
+          "text": "bothybox.com",
+          "wcag": 15.09,
+          "apcaLc": 96.3,
+          "ok": true
+        },
+        {
+          "text": "Free and open source, MIT",
+          "wcag": 14.62,
+          "apcaLc": 95.9,
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "icons": [
+    {
+      "file": "apple-touch-icon.png",
+      "width": 180,
+      "height": 180,
+      "bytes": 1738,
+      "sha256": "adabbfa0e652909526ec3ca4ba2211ef5001bb8d6335eaee408cf7a9fdb5e7e8",
+      "source": "public/favicon.svg"
+    },
+    {
+      "file": "icon-192.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 3385,
+      "sha256": "32fb031cb6146a5a8af89b3df9449cc6632796cb9d4a2d549845de0ab3247b41",
+      "source": "public/favicon.svg"
+    },
+    {
+      "file": "icon-512.png",
+      "width": 512,
+      "height": 512,
+      "bytes": 15258,
+      "sha256": "b0d7bb0899e6fe0a20b5d19c8c9b18f6e1f830f4947e6dea56b419b11b10ed3a",
+      "source": "public/favicon.svg"
+    }
+  ]
+}

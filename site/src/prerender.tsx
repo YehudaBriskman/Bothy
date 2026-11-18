@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BASE, ORIGIN, absolute, href } from './config.ts';
+import { seoHead } from './seo-head.ts';
 import { ENABLED_LOCALES, LOCALES } from './i18n/locales.ts';
 import { buildContext, buildRoutes, type Route } from './routes.tsx';
 import { escapeHtml } from './docs/markdown.ts';
@@ -21,22 +22,12 @@ export interface RenderedPage {
 function headFor(route: Route, byPath: Map<string, Route[]>): string {
   const locale = LOCALES[route.locale];
   const canonical = route.indexable ? absolute(route.path) : null;
+  // Title, description, Open Graph, Twitter, icons and JSON-LD: one row per page in src/seo.ts (S10).
   const lines: string[] = [
-    `<title>${escapeHtml(route.title)}</title>`,
-    `<meta name="description" content="${escapeHtml(route.description)}" />`,
+    ...seoHead(route, canonical, locale.tag),
     `<meta name="bothy-base" content="${escapeHtml(BASE)}" />`,
-    // the site is ink by default in every scheme (tokens.css); only the story's sky follows the hour
-    `<meta name="theme-color" content="#09090c" />`,
-    `<link rel="icon" href="${href('/favicon.svg')}" type="image/svg+xml" />`,
-    `<meta property="og:type" content="website" />`,
-    `<meta property="og:title" content="${escapeHtml(route.title)}" />`,
-    `<meta property="og:description" content="${escapeHtml(route.description)}" />`,
-    `<meta property="og:locale" content="${escapeHtml(locale.tag)}" />`,
-    `<meta name="twitter:card" content="summary" />`,
   ];
-  if (!route.indexable) lines.push('<meta name="robots" content="noindex" />');
   if (canonical) {
-    lines.push(`<link rel="canonical" href="${canonical}" />`, `<meta property="og:url" content="${canonical}" />`);
     const alternates = byPath.get(route.pathWithoutLocale) ?? [];
     if (alternates.length > 1) {
       for (const alt of alternates) {
