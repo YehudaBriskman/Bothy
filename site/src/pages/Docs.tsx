@@ -142,7 +142,7 @@ export function DocView({ ctx, doc }: { ctx: PageContext; doc: DocPage }) {
               {t.docs.sourceLink}
             </a>
           </p>
-          <nav className="pager" aria-label={t.docs.sidebarLabel}>
+          <nav className="pager" aria-label={t.docs.pagerLabel}>
             {prev ? (
               <a rel="prev" href={docHref(ctx, prev.slug)}>
                 <span className="muted small">{t.docs.prev}</span>

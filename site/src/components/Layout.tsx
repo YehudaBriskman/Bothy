@@ -170,6 +170,7 @@ function Footer({ ctx }: { ctx: PageContext }) {
         { label: f.links.licence, to: `${REPO_URL}/blob/main/LICENSE`, ext: true },
         { label: f.links.security, to: `${REPO_URL}/blob/main/SECURITY.md`, ext: true },
         { label: f.links.privacy, to: href(`${p}/about/#privacy`) },
+        { label: f.links.accessibility, to: href(`${p}/accessibility/`) },
       ],
     },
   ];

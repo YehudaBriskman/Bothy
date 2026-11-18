@@ -668,6 +668,10 @@ body {
 .prose .table-wrap table {
   min-inline-size: 28rem;
 }
+/* a short name in the first column (a role, a flag) read as "edit / or" when the column was squeezed */
+.prose .table-wrap td:first-child > code:only-child {
+  white-space: nowrap;
+}
 .prose blockquote {
   margin-inline: 0;
   padding-inline-start: 1.1rem;

@@ -207,11 +207,23 @@ export function renderMarkdown(source: string, ctx: LinkContext): RenderedDoc {
   });
 
   let html = md.parse(source, { async: false });
+  // Each scrollable table is a named region; name it by the heading above it, so two regions on a page (or the docs
+  // nav) never share one name. A header row with no words (a `| | |` table) is dropped: an empty <th> names nothing.
+  let under = '';
+  const named = new Map<string, number>();
   html = html
-    .replaceAll(
-      '<table>',
-      `<div class="table-wrap" role="region" aria-label="${escapeHtml(ctx.tableLabel)}" tabindex="0"><table>`,
-    )
+    .replace(/<thead>\s*<tr>\s*(?:<th[^>]*>\s*<\/th>\s*)+<\/tr>\s*<\/thead>\s*/g, '')
+    .replace(/<h[23] id="[^"]*">([\s\S]*?)<a class="anchor"|<table>/g, (m, heading?: string) => {
+      if (heading !== undefined) {
+        under = textOf(heading);
+        return m;
+      }
+      const base = under ? `${ctx.tableLabel}: ${under}` : ctx.tableLabel;
+      const n = (named.get(base) ?? 0) + 1;
+      named.set(base, n);
+      const label = n > 1 ? `${base} (${n})` : base;
+      return `<div class="table-wrap" role="region" aria-label="${escapeHtml(label)}" tabindex="0"><table>`;
+    })
     .replaceAll('</table>', '</table></div>');
 
   if (problems.length) {

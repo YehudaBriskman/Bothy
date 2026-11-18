@@ -277,7 +277,12 @@ export function Install({ ctx }: { ctx: PageContext }) {
           <h2 id="plat-h">{i.platforms.heading}</h2>
           <p>{i.platforms.intro}</p>
           {rows.length ? (
-            <div className="table-wrap" role="region" aria-label={i.platforms.heading} tabIndex={0}>
+            <div
+              className="table-wrap"
+              role="region"
+              aria-label={`${t.docs.tableLabel}: ${i.platforms.heading}`}
+              tabIndex={0}
+            >
               <table className="plat">
                 <thead>
                   <tr>

@@ -34,7 +34,7 @@ export function SkyControls({ ctx }: { ctx: PageContext }) {
       <button type="button" data-sky-now hidden>
         {s.now}
       </button>
-      <button type="button" data-sky-pause aria-pressed="false" data-pause={s.pause} data-play={s.play}>
+      <button type="button" data-sky-pause data-pause={s.pause} data-play={s.play}>
         {s.pause}
       </button>
       <pre className="sky-dbg" data-sky-dbg hidden />

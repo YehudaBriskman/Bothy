@@ -118,6 +118,15 @@
   --dur: 0.22s;
   --dur-slow: 0.6s;
 }
+/* "More contrast" in the system: quiet text and hairlines come up to full strength. */
+@media (prefers-contrast: more) {
+  :root {
+    --text-muted: rgb(243 242 238 / 88%);
+    --text-faint: rgb(243 242 238 / 78%);
+    --hairline: rgb(255 255 255 / 28%);
+    --hairline-strong: rgb(255 255 255 / 40%);
+  }
+}
 
 /* The scale as classes, for markup that is not a heading of that rank (a card title that is an h3 but sized as h2). */
 .t-display,

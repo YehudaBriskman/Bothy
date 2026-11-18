@@ -11,8 +11,12 @@ export function ConsoleFlow({ ctx }: { ctx: PageContext }) {
   const f = ctx.t.home.flow;
   return (
     <>
-      <section id="console" className="ch ch-flow" aria-label={f.label} data-flow>
+      <section id="console" className="ch ch-flow" aria-labelledby="console-h" data-flow>
         <div className="ch-wrap ch-flow-wrap">
+          {/* a heading for the outline: the frame's own page titles are level 3 and must sit under a level 2 */}
+          <h2 id="console-h" className="visually-hidden">
+            {f.label}
+          </h2>
           <p className="ch-flow-skip">
             <a href="#descent">{f.skip}</a>
           </p>
