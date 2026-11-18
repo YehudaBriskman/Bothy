@@ -3,3 +3,4 @@ dist
 dist-prerender
 *.tsbuildinfo
 .vite
+.check-sky
