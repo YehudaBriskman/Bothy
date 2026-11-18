@@ -259,9 +259,9 @@ export const en = {
   install: {
     title: 'Install Bothy',
     description:
-      'Download the bothy binary from the release page, verify it, and run bothy install. The exact commands, what each one does, and what is not supported yet.',
+      'Two ways to install Bothy: the bothy binary from a release, with its checksums and attestation commands, or a source checkout. What was tested, what was not, how to uninstall.',
     heading: 'Install Bothy',
-    lede: 'Four commands on a Linux machine that already has Docker. Read each one first; none of them needs root.',
+    lede: 'Two ways in. The release binary is the one that has been tested end to end: Linux amd64 with Docker. Run everything below as your normal user.',
     release: {
       latest: (v: string, date: string) => `Newest release: ${v}, published ${date}.`,
       proven: (v: string) => `The lab proof ran release ${v}.`,
@@ -269,45 +269,95 @@ export const en = {
         `This is newer than release ${proven}, the one the install proof last ran against. It is built by the same pipeline; it has not been proven separately.`,
       page: 'Release page',
     },
+    paths: {
+      heading: 'Pick a path',
+      jump: 'Go to the steps',
+      binary: {
+        title: 'The release binary',
+        tag: 'Tested in our lab',
+        body: 'Download `bothy`, verify it, run `bothy install`. No clone, no build. It starts the small stack, Bivvy: three containers, the console and a read-only notes reader behind one edge.',
+        needs: 'Needs: Linux amd64, Docker with the Compose v2 plugin, a user who can run `docker` without `sudo`.',
+        proof:
+          'Shown: a stock install of this kind on a clean Linux amd64 machine with only Docker and Compose (see the lists below).',
+      },
+      source: {
+        title: 'A source checkout',
+        tag: 'The development stack',
+        body: 'Clone the repository and run its own `just` recipes. This starts the full development stack, about twenty containers with dashboards, single sign-on and a database, not the small one.',
+        needs: 'Needs: Docker with Compose v2, git, curl, python3, openssl, and `just`.',
+        proof:
+          'Shown: the repository’s install workflow runs this path on every pull request. The installing guide says the same and is the reference.',
+      },
+    },
     need: {
-      heading: 'Before you start',
+      heading: 'Requirements',
+      lead: 'For `bothy install`. The installer checks each one before it changes anything, and stops with the fix named.',
+      memory: (gateMiB: number) =>
+        `**Memory:** at least ${gateMiB} MiB available. Below that the install refuses before it changes anything and prints the figures.`,
       items: [
-        'A Linux machine, `amd64`, with Docker and the Compose v2 plugin. `bothy install` checks both and stops with the exact fix if one is missing.',
-        'Enough free memory for the stack’s limits (the preflight checks this) and a free port 80. Move it with `--port`; expose it beyond this machine with `--bind 0.0.0.0` (it listens on `127.0.0.1` by default).',
-        'Your user must be able to run `docker` without `sudo`. Bothy never calls `sudo`.',
+        '**Linux, amd64.** Other systems are listed under “Not shown” below.',
+        '**Docker** (Engine 25 or newer) with the **Compose v2** plugin, answering to your user without `sudo`. If your user is not in the `docker` group the installer says so and prints the `usermod` fix.',
+        '**Disk:** about 2 GiB free where it installs (under `~/.local/share/bothy` by default).',
+        '**Port 80 free**, or pass `--port`. If something holds it, nothing is stopped and the message names what does.',
       ],
     },
-    steps: {
-      download: {
-        title: 'Download the binary and the checksums',
-        body: 'Both are release assets. The archive holds one file, `bothy`.',
-      },
-      verify: {
-        title: 'Verify what you downloaded',
-        body: 'The first command checks the archive against the release’s `checksums.txt`. The second checks that GitHub attested the build; it needs the `gh` command and is optional, but it is the one that ties the file to this repository.',
-      },
-      place: {
-        title: 'Put it on your path',
-        body: 'Any directory on your `PATH` will do. `~/.local/bin` needs no root.',
-      },
-      install: {
-        title: 'Read the plan, then install',
-        body: 'The dry run prints the plan and the preflight results and changes nothing. The real run prints the address when it is up.',
-        after:
-          'It prints `Bivvy is up` with the address. Open it in a browser on the same machine, or on another if you passed `--bind`.',
+    user: {
+      heading: 'Run it as your normal user',
+      body: 'Do not use `sudo` and do not log in as root: `bothy install`, `update` and `uninstall` are built to refuse both, change nothing, and tell you to run as your own user. An install made as root would leave root-owned files in your tree that you could not later update or remove.',
+      caveat:
+        'That refusal is covered by the installer’s unit tests; it has not been tried on a lab machine. The way to stay clear of it is simply to run as yourself.',
+    },
+    binary: {
+      heading: 'Path 1: the release binary',
+      steps: {
+        download: {
+          title: 'Download the archive and the checksums',
+          body: 'Both are release assets. The archive holds one file, `bothy`.',
+        },
+        verify: {
+          title: 'Verify what you downloaded',
+          body: 'The first command checks the archive against the release’s `checksums.txt`. The second checks that GitHub attested the build and ties the file to this repository; it needs the `gh` command and is optional. The installer repeats these checks on the release it installs.',
+          expect: 'The checksum the release feed lists for this archive:',
+          expectNote: 'It should match the line for this archive in `checksums.txt`.',
+          noSha: 'The release feed has no checksum for this archive. Use `checksums.txt` from the release.',
+        },
+        place: {
+          title: 'Put it on your path',
+          body: 'Any directory on your `PATH` will do. `~/.local/bin` needs no root.',
+        },
+        install: {
+          title: 'Read the plan, then install',
+          body: 'The dry run prints the plan and the preflight results and changes nothing. The real run prints the address when it is up. It listens on `127.0.0.1` unless you pass `--bind`.',
+          after:
+            'It prints `Bivvy is up` with the address. Open it in a browser on the same machine. Running it again is safe: finished steps are skipped and an interrupted run resumes.',
+          bind: 'Think before `--bind 0.0.0.0`: the console’s first login is plain HTTP and the notes reader has no login, so anyone who can reach the port can read the notes folder. Do that only on a network you trust.',
+        },
       },
     },
+    source: {
+      heading: 'Path 2: a source checkout',
+      lead: 'The commands are the ones in the installing guide, which is the reference for this path. It needs more on the machine and starts far more containers.',
+      stepsTitle: 'Clone and start',
+      notes: [
+        'Nothing in `.env` needs filling in: the five credentials are generated for you, never printed, and never overwritten.',
+        'To check the prerequisites first: `bothy doctor --pre`. The section “Before anything” of the guide lists them.',
+        'This is the development stack. It is not the small install above, and `bothy install` does not manage it.',
+      ],
+      guide: 'Read the installing guide',
+    },
     later: {
-      heading: 'Afterwards',
+      heading: 'Updating and uninstalling',
       items: [
-        '`bothy install` again is safe: finished steps are skipped, and an interrupted run resumes.',
-        'To move to a newer release, download that release’s binary and run `bothy update`. It verifies the new release, keeps the previous generation, and rolls back if the new one does not come up healthy.',
-        '`bothy uninstall` stops the stack and removes what it generated. Your data, your secrets and the pulled images stay. `bothy uninstall --purge` deletes them too, after you type a confirmation phrase.',
+        '`bothy update --check` prints what an update would change and changes nothing. `bothy update` is built to verify the new release as the install does, keep the previous one, and restore it if the new one does not come up healthy.',
+        '**What was tested:** `update` refused a tampered or mismatched release and restored the previous state byte for byte. **What was not:** a real update between two real releases. It is on the “Not shown” list.',
+        '`bothy uninstall` prints its plan (add `--dry-run` to stop there), then stops the stack and removes what it generated. Your data, your secrets and the pulled images stay.',
+        '`bothy uninstall --purge` also deletes your data, secrets, the images and the install root, but only after you type `delete bothy data`. A wrong answer deletes nothing.',
+        'For the source checkout: `just down` stops it, and `just nuke` deletes every data volume after asking. Both are in the installing guide.',
       ],
     },
     platforms: {
       heading: 'Which archive',
-      intro: 'Every release carries these. Only the first row is supported for running a stack.',
+      intro: 'Every release carries these. Only the first row is shown to run a stack.',
       columns: { system: 'System', archive: 'Archive', status: 'Status', size: 'Size', sha: 'SHA-256' },
       rows: {
         'linux/amd64': 'Run end to end in the lab',
@@ -320,19 +370,22 @@ export const en = {
       noFeed: 'The release list for this build has no assets to show.',
     },
     notSupported: {
-      heading: 'Not supported yet',
+      heading: 'Not offered yet',
       items: [
-        'Installing the larger sizes (Bothy, Basecamp, Cairn).',
-        'Running the stack on macOS or Windows. Those archives are clients only.',
-        'Running the `arm64` build: it compiles and is attached to every release, but nobody has run it.',
-        'WSL, rootless Docker, and a system-wide install for a headless server.',
+        'The larger sizes (Bothy, Basecamp, Cairn) cannot be installed yet. Only Bivvy installs.',
+        'A system-wide install for a headless server. The install is per user.',
         'A package for apt, dnf, Homebrew or winget.',
       ],
     },
+    proof: {
+      heading: 'What has been shown, and what has not',
+      lead: 'The same two lists as on the home page, taken from the repository’s test record. Nothing on this page promises anything in the second list.',
+    },
     older: {
-      heading: 'Prefer to read a repository first?',
-      body: 'There is an older path that clones the repository and runs `just up`. It starts the full development stack, not the small one, and the guide describes it.',
+      heading: 'More',
+      body: 'The documentation describes the full stack from a source checkout.',
       link: 'The installing guide',
+      record: 'Install notes and test results',
     },
   },
 
@@ -342,6 +395,15 @@ export const en = {
     heading: 'Documentation',
     lede: 'These pages are the repository’s own guide, rendered from the same Markdown files. Where a page links to a file that is not part of the guide, the link goes to the source on GitHub.',
     notTranslated: 'The documentation is English only.',
+    stackNote:
+      'These pages describe the full development stack, run from a source checkout. The small install, `bothy install`, is on the Install page.',
+    installLink: 'Install page',
+    checkoutBanner: {
+      title: 'This page describes the source-checkout path',
+      body: 'It covers the full development stack, started from a clone of the repository. To install the small stack from a release binary, use `bothy install` instead.',
+      link: 'Install with bothy install',
+    },
+    breadcrumb: 'Documentation',
     groups: {
       start: 'Getting it running',
       use: 'Using it',

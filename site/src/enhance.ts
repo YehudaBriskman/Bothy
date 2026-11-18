@@ -2,6 +2,8 @@ import './styles/site.css';
 import './styles/chapters.css';
 import './styles/sky-still.css';
 import './styles/sky.css';
+import './styles/console.css';
+import './styles/pages.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds

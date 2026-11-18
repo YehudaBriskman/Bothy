@@ -1,9 +1,10 @@
+import { ConsoleFrame } from '../../console/ConsoleFrame.tsx';
 import { Rich } from '../Rich.tsx';
 import { href } from '../../config.ts';
 import { localePrefix } from '../../i18n/locales.ts';
 import type { PageContext } from '../../page-context.ts';
 
-/** Chapter 3. Only what docs/guide documents. The real-console frame (slice S5) goes in this section. */
+/** Chapter 3. Only what docs/guide documents, with the example console frame (slice S5) rendered once, above the cards. */
 export function Inside({ ctx }: { ctx: PageContext }) {
   const n = ctx.t.home.inside;
   const p = localePrefix(ctx.locale.code);
@@ -12,6 +13,7 @@ export function Inside({ ctx }: { ctx: PageContext }) {
       <div className="ch-wrap">
         <h2 id="inside-h">{n.heading}</h2>
         <p className="ch-lead">{n.lead}</p>
+        <ConsoleFrame />
         <ul className="ch-cards">
           {n.items.map((i) => (
             <li key={i.title} className="ch-card">
