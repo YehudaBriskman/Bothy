@@ -633,7 +633,7 @@ install-updater:
     cd apps/bothy-ops && python3 -m updater install
 
 # What it saves, and how, is listed at the top of scripts/backup.sh.
-# Back up postgres, grafana, .env, VictoriaMetrics, Loki, alloy, audit/trash and notes now (the nightly timer also runs this).
+# Back up postgres, grafana, .env, VictoriaMetrics, Loki, alloy, audit/trash/tokens and notes now (the nightly timer also runs this; BOTHY_BACKUP_MIRROR adds a second copy).
 backup:
     @bash scripts/backup.sh
 
@@ -652,6 +652,10 @@ restore-grafana file *flags:
 # Restore .env from a backup (the current one is saved first; takes effect at the next `just up`).
 restore-env file *flags:
     @bash scripts/restore.sh env {{quote(file)}} {{flags}}
+
+# Restore audit logs, trash and the token store from a state-<ts>.tar.gz (token store forced back to 0700/0600; the files it overwrites are saved first).
+restore-state file *flags:
+    @bash scripts/restore.sh state {{quote(file)}} {{flags}}
 
 # Restore VictoriaMetrics from a vm-<ts>.tar or an unpacked snapshot directory (replaces ALL its data).
 restore-victoriametrics path *flags:

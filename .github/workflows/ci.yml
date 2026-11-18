@@ -264,6 +264,15 @@ jobs:
         if: always()
         run: bash scripts/checks/doc-facts.sh
 
+      # A backup that was never restored is a hope. Runs the real backup.sh and
+      # restore.sh on a fixture (stub docker, temp dirs, no network): the token
+      # store is in the state set and comes back byte-for-byte with modes
+      # 0700/0600, and the optional second copy is checksummed and refused inside
+      # a git tree.
+      - name: Backups restore byte-for-byte, and the second copy is verified
+        if: always()
+        run: bash scripts/checks/backup-restore.sh
+
       # One log shipper, two deployments, three copies of its version - and no
       # Dependabot group can span the two ecosystems they live in, so the same
       # bump always arrives as two PRs (#232 and #235). Merge one and the box
