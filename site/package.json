@@ -18,6 +18,7 @@
     "format": "prettier --write src scripts public/sky-spike/*.js public/sky-spike/index.html",
     "format:check": "prettier --check src scripts public/sky-spike/*.js public/sky-spike/index.html",
     "refresh-releases": "node scripts/refresh-releases.mjs",
+    "check:assets": "node scripts/check-assets.mjs",
     "verify": "bash scripts/verify-dist.sh"
   },
   "dependencies": {
