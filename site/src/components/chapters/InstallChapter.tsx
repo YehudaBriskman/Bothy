@@ -43,7 +43,7 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
         <p className="ch-lead">
           <Rich text={i.lead} />
         </p>
-        <div className="ch-term">
+        <div className="ch-term float">
           <Terminal label={i.terminalLabel} lines={installLines(ctx)} />
           <p className="ch-small">
             <Rich text={i.terminalNote} />

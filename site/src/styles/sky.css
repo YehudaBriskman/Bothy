@@ -12,42 +12,9 @@
   display: none !important;
 }
 
-/* The still lives inside the hero instead of filling the window. */
-.ch-sky > .sky-still {
-  position: absolute;
-  z-index: -1;
-}
 /* The photograph replaces the CSS stars of the plain gradient. */
 .ch-sky.has-sky::before {
   display: none;
-}
-
-/* A dark or light scheme chosen on the page wins over the system's: sky-still.css only reads the system's. */
-:root[data-theme='dark'] .sky-still:not([data-hour])::before {
-  background-image: image-set(
-    url('/sky/night-desk.avif') type('image/avif'),
-    url('/sky/night-desk.webp') type('image/webp')
-  );
-}
-:root[data-theme='light'] .sky-still:not([data-hour])::before {
-  background-image: image-set(
-    url('/sky/day-desk.avif') type('image/avif'),
-    url('/sky/day-desk.webp') type('image/webp')
-  );
-}
-@media (max-width: 720px) {
-  :root[data-theme='dark'] .sky-still:not([data-hour])::before {
-    background-image: image-set(
-      url('/sky/night-phone.avif') type('image/avif'),
-      url('/sky/night-phone.webp') type('image/webp')
-    );
-  }
-  :root[data-theme='light'] .sky-still:not([data-hour])::before {
-    background-image: image-set(
-      url('/sky/day-phone.avif') type('image/avif'),
-      url('/sky/day-phone.webp') type('image/webp')
-    );
-  }
 }
 
 /* The grade of the hour, over the still, when no canvas is drawing it (touch, narrow, no WebGL). */
@@ -86,47 +53,19 @@
   --sky-btn-ink: #1b1630;
   --scrim-a: 0.3;
 }
-.ch-sky.sky-on h1,
-.ch-sky.sky-on .ch-line,
-.ch-sky.sky-on .ch-lede {
-  text-shadow:
-    0 1px 2px rgb(0 0 0 / 40%),
-    0 2px 18px rgb(0 0 0 / 30%);
-}
-.ch-sky.sky-on h1 {
-  text-shadow:
-    0 1px 2px rgb(0 0 0 / 28%),
-    0 4px 30px rgb(0 0 0 / 32%);
-}
-.ch-sky.sky-on .ch-cue a,
-.ch-sky.sky-on .ch-skip a,
-.ch-sky.sky-on .ch-foot {
-  text-shadow:
-    0 1px 2px rgb(0 0 0 / 55%),
-    0 1px 10px rgb(0 0 0 / 40%);
-}
 .ch-sky.sky-on a.ch-btn {
   backdrop-filter: blur(6px);
 }
 
-/* Fallback scrim (the still, no canvas): very broad and feathered, tinted from the sky itself. With the canvas the
-   shader lowers only the brightest pixels behind the words instead, so this is switched off. */
-.ch-sky.sky-on:not(.has-gl) .ch-sky-inner {
-  position: relative;
-}
-.ch-sky.sky-on:not(.has-gl) .ch-sky-inner::before {
-  content: '';
-  position: absolute;
-  inset-block: -15%;
-  inset-inline: -8%;
-  z-index: -1;
-  background: radial-gradient(
-    closest-side,
-    rgb(var(--scrim-rgb, 6 10 24) / calc(var(--scrim-a) * 1.35)) 0%,
-    rgb(var(--scrim-rgb, 6 10 24) / calc(var(--scrim-a) * 1.05)) 55%,
-    rgb(var(--scrim-rgb, 6 10 24) / 0) 100%
-  );
-  pointer-events: none;
+/* Bright sky: dark ink, set per hour by the engine. */
+:root:root .ch-sky.sky-on[data-ink='dark'] {
+  --sky-fg: #08121e;
+  --sky-muted: #08121e;
+  --sky-focus: #0a2a5a;
+  --sky-btn-bg: rgb(255 255 255 / 55%);
+  --sky-btn-line: rgb(8 18 30 / 70%);
+  --sky-btn-fill: #08121e;
+  --sky-btn-ink: #ffffff;
 }
 
 /* Light from the sun or moon falls on the words (the fill is a gradient set from script). */
@@ -141,7 +80,7 @@
 
 /* ── The controls ───────────────────────────────────────────────────────────────────────────────────── */
 .sky-ui {
-  --ui-bg: rgb(8 12 22 / 55%);
+  --ui-bg: rgb(8 12 22 / 86%);
   --ui-line: rgb(255 255 255 / 28%);
   display: flex;
   align-items: center;
@@ -285,5 +224,133 @@
 @media (prefers-reduced-motion: reduce) {
   .sky-still canvas {
     transition: none;
+  }
+}
+
+/* ── Chapter 0, composed: centred badge, wordmark, big statement, muted line, two pills ─────────────────────────
+   No shadow and no scrim sits behind any word here. What keeps the words legible is the ink (solid white, or deep
+   navy where the engine finds the sky bright: data-ink) and the sky's own grade. check:sky holds the result. */
+
+.story .ch-sky {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  /* the window of the next section peeks up from the bottom edge */
+  min-block-size: calc(100svh - 11rem);
+  padding-block: 4.5rem 0;
+}
+.story .ch-sky-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-block: 1.5rem 0;
+}
+/* the skip links are for keyboards: out of sight until focused, then on a solid pill */
+.story .ch-skip {
+  position: absolute;
+  inset-block-start: 4.5rem;
+  inset-inline-start: 1rem;
+  z-index: 7;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.story .ch-skip:not(:focus-within) {
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.story .ch-skip:focus-within {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: #171a20;
+}
+.story .ch-skip:focus-within a {
+  color: #fff;
+}
+.ch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.5rem;
+  margin-block-start: clamp(0.5rem, 2vh, 1.5rem);
+  padding-inline: 1.1rem;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font: 500 0.95rem/1.2 var(--sans, system-ui, sans-serif);
+  text-decoration: none;
+}
+.story .ch-sky h1 {
+  margin-block: 1.2rem 0.4rem;
+  font: 700 clamp(1.35rem, 1.1rem + 1.2vw, 1.9rem) / 1 var(--serif);
+  letter-spacing: 0.02em;
+}
+.story .ch-sky .ch-line {
+  max-inline-size: 22ch;
+  margin-block: 0 1rem;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: clamp(2.3rem, 0.9rem + 5.2vw, 4.9rem);
+  line-height: 1.03;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+.story .ch-sky .ch-lede {
+  max-inline-size: 36rem;
+  margin: 0;
+  font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.3rem);
+  line-height: 1.45;
+}
+.story .ch-sky .ch-actions {
+  justify-content: center;
+  margin-block: 1.6rem 0;
+  gap: 0.75rem;
+}
+.ch-actions .pill {
+  min-block-size: 3.25rem;
+  padding-inline: 1.5rem;
+  font-size: 1.05rem;
+}
+.ch-actions .pill-split > .pill-solid {
+  padding-inline-end: 1.1rem;
+}
+.ch-actions .pill-chev {
+  padding-inline: 0.8rem 1rem;
+}
+.story .ch-sky a.pill-solid {
+  color: #0b1f36;
+}
+.story .ch-sky a.pill-glass {
+  color: var(--sky-fg);
+}
+
+/* The controls: one small glass pill in the bottom corner. Pause only; the hour is the ?hour= query. */
+.story .sky-ui {
+  position: fixed;
+  z-index: 6;
+  inset-block-end: max(0.75rem, env(safe-area-inset-bottom));
+  inset-inline-end: max(0.75rem, env(safe-area-inset-right));
+  margin: 0;
+  padding: 0.2rem;
+  gap: 0;
+  inline-size: auto;
+  flex-wrap: nowrap;
+  --ui-bg: rgb(var(--glass-rgb) / 70%);
+}
+.story .sky-ui .sky-dial,
+.story .sky-ui [data-sky-now] {
+  display: none;
+}
+.story .sky-ui button {
+  min-block-size: 2rem;
+  padding-inline: 0.75rem;
+  border-color: transparent;
+  font-size: 0.8125rem;
+}
+@media print {
+  .story .sky-ui {
+    display: none;
   }
 }

@@ -44,26 +44,8 @@
   --radius: 6px;
 }
 
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #13161b;
-  --surface: #1a1e25;
-  --surface-2: #232832;
-  --fg: #eceee9;
-  --fg-muted: #a9b0b9;
-  --line: rgb(236 238 233 / 16%);
-  --line-strong: rgb(236 238 233 / 38%);
-  --accent: #c9a4ee;
-  --on-accent: #1a1024;
-  --accent-tint: rgb(201 164 238 / 11%);
-  --ok: #9fd08c;
-  --ok-tint: rgb(159 208 140 / 11%);
-  --note: #e2b862;
-  --shadow: 0 1px 0 rgb(0 0 0 / 40%), 0 10px 28px -14px rgb(0 0 0 / 70%);
-}
-
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:root {
     --bg: #13161b;
     --surface: #1a1e25;
     --surface-2: #232832;
@@ -290,16 +272,6 @@ time,
   display: flex;
   align-items: center;
   gap: 1rem;
-}
-.theme-pick select {
-  background-color: var(--surface);
-  color: var(--fg);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  font: inherit;
-  font-size: 1rem; /* 16px minimum: iOS zooms smaller form controls */
-  min-block-size: 2.75rem;
-  padding-inline: 0.6rem;
 }
 
 @media (max-width: 40rem) {

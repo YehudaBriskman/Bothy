@@ -9,7 +9,7 @@ budgets, the checks and the decisions. It is written to be handed to agents slic
 
 **Exists (`site/`, #399):** a React 19 + Vite static site, prerendered at build time into `dist/`; pages Home, Install,
 Docs (the 14 Markdown files in `site/docs-allowlist.json`), Releases (`fixtures/releases.json`) and a 404; one small
-script (`src/enhance.ts`: colour scheme, copy buttons, docs search); all English words in `src/i18n/en.ts`; proven facts
+script (`src/enhance.ts`: copy buttons, docs search, the install menu); all English words in `src/i18n/en.ts`; proven facts
 in `src/facts.ts` (`PROVEN_RELEASE = '2026.11.2'`); guards `src/docs/safety.ts`, `leak-patterns.json`,
 `scripts/check-public.mjs`, `check-links.mjs`, `verify-dist.sh`; stylesheet with logical properties only (a Hebrew
 locale is a data edit); workflow `.github/workflows/site-pages.yml` (manual dispatch only, never run).
@@ -114,7 +114,7 @@ the installer verifies before it changes anything and rolls back on failure; `un
 public site runs no analytics and sets no cookie. Closing line is the Bothy Code.
 
 Header and footer on every page: wordmark, Docs, Install, Releases, Source, language switcher (hidden until Hebrew
-exists), colour-scheme control, the sky's pause toggle.
+exists), the sky's pause toggle.
 
 ## 4. Slices, ranked and sized
 
@@ -137,6 +137,17 @@ the owner and by how much it unblocks.
 | 11 | **S11 Budgets and CI**: `scripts/check-budgets.mjs` (bytes per route and per asset class, script cap), a Lighthouse-like offline audit (s9), screenshot job at the hours, link and leak scans in `ci.yml`, a `site` job that runs only on `site/**` changes | M | S2, S4; grows with each slice | `site/scripts/check-budgets.mjs`, `.github/workflows/ci.yml` (site job), `site/test/*` |
 | 12 | **S12 Hebrew** (after the story): `he.ts`, RTL check at every hour and chapter, bidi for commands and paths, plural forms, the switcher | M | S1 to S9 settled | `site/src/i18n/he.ts`, `locales.ts`, `styles/rtl.css` |
 | 13 | **S13 Go live**: owner steps from `site/README.md` (Pages source, custom domain, Cloudflare DNS grey cloud, verify domain), run the workflow once by hand, review, then add the `push` trigger on `site/**` and `docs/guide/**` | S | S1 minimum; recommended after S7 and S9 | `.github/workflows/site-pages.yml` only |
+
+**S7 as built (2026-11-18, owner feedback applied):** the sky is the page's background, not the hero's: one fixed stage behind
+every chapter (`site/src/story/`, `styles/story.css`). Hills, hut and ground were dropped by the owner, so the story is
+sky only. The descent is the *camera*, which is pinned (scroll progress to the shader's pan, zoom, cloud rise and
+crossing, a sea of cloud, a glow boost and a clock that runs on toward night), while the words stay in normal flow, one
+screen each for chapters 0 to 2, so nothing is hard to read, link or print and no focus is trapped. Chapters transition
+by one long eased veil and masked scene backdrops (lit cumulus behind chapter 3, cloud deck behind 4, twilight bands
+behind 5, loaded only when near), never by a border or a band. Content floats on glass panels (blur on three large
+panels only), with scroll-linked drift by CSS `animation-timeline: view()` and staggered reveals. No JS or reduced
+motion: the still sky, the same veil and every section as a plain page.
+
 
 Rank notes: S1 is first because it makes the site honest and finished before any effect exists (a visitor sees something
 true on day one); S2 to S3 are the owner's chosen visual core; S5 is early because it is large, independent and the

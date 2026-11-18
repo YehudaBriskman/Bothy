@@ -7,6 +7,8 @@
 // is the sky; this module then only picks that still's hour class and tints it.
 import { bodies, fmt, localHour, sample, type Bodies, type Grade } from './keys.ts';
 import { DEPTH, FS, VS } from './shader.ts';
+import { cameraAt, effectiveHour, stageAt } from '../story/camera.ts';
+import { progress } from '../story/progress.ts';
 
 const PHOTOS = ['day', 'dusk', 'night'] as const;
 const GOV = [1, 0.85, 0.72, 0.6];
@@ -18,8 +20,10 @@ const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const rgb = (a: number[]) => `rgb(${a.map((x) => Math.round(Math.min(255, Math.max(0, x)))).join(',')})`;
 
 export interface SkyOptions {
-  /** The `.sky-still` layer; the canvas is appended inside it. */
+  /** The `.sky-still` layer (the page-wide, fixed backdrop); the canvas is appended inside it. */
   layer: HTMLElement;
+  /** The story root: receives the hour's ground colour (`--ground-rgb`) and the scrim variables for the whole page. */
+  story: HTMLElement;
   /** The hero section: receives `is-lit`, `has-gl` and the scrim variables. */
   section: HTMLElement;
   /** The words the sun and moon light (headline, line, lede). */
@@ -41,6 +45,8 @@ export interface Sky {
   nudge: (dx: number, dy: number) => void;
   /** True when the page animates at all (false for prefers-reduced-motion and for the still). */
   animated: () => boolean;
+  /** The descent: scroll progress 0..1 (the engine eases toward it inside its own frame loop). */
+  setScroll: (p: number) => void;
 }
 
 export function startSky(o: SkyOptions): Sky {
@@ -58,6 +64,9 @@ export function startSky(o: SkyOptions): Sky {
   const state = {
     live: true,
     hour: 12,
+    eff: 12, // the hour the sky shows: `hour` advanced toward night by the descent
+    p: 0, // eased descent progress, drawn
+    pT: 0, // descent progress, wanted
     paused: false,
     time: 0,
     lean: [0, 0] as number[],
@@ -108,8 +117,21 @@ export function startSky(o: SkyOptions): Sky {
   // edge and a soft shadow on the far side. The glyphs stay solid ink, never gradient-on-transparent at the floor.
   const canClip = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('background-clip', 'text');
   let litSig = '';
+  let inkDark = false;
   function lightText() {
     if (!canClip || !textLight) return;
+    if (inkDark) {
+      // dark ink on a bright sky: the lit-gradient model is for light letters, so the words are plain solid ink here
+      if (section.classList.contains('is-lit')) {
+        section.classList.remove('is-lit');
+        for (const el of o.lit) {
+          el.style.backgroundImage = '';
+          el.style.filter = '';
+        }
+      }
+      litSig = '';
+      return;
+    }
     const cr = layer.getBoundingClientRect();
     if (!cr.width) return;
     const ax = state.lean[0]! * 0.05; // the pointer leans the light a little, so it sweeps across the words
@@ -144,20 +166,52 @@ export function startSky(o: SkyOptions): Sky {
     }
   }
 
-  function applyHour() {
-    cur = sample(state.hour);
+  /** The hour the page is graded by right now: the visitor's hour, run on toward night by the descent. */
+  const effOf = () => (reduced ? state.hour : effectiveHour(state.hour, state.p));
+  let lastEff = -1;
+  function applyHour(notify = true) {
+    state.eff = effOf();
+    lastEff = state.eff;
+    cur = sample(state.eff);
     if (forceMix >= 0) cur.w = [0, 1, 2].map((i) => (i === forceMix ? 1 : 0));
-    bod = bodies(state.hour);
+    bod = bodies(state.eff);
     layer.style.setProperty('--sky-top', rgb(cur.top));
     layer.style.setProperty('--sky-bot', rgb(cur.bot));
-    section.style.setProperty('--scrim-a', cur.scrim.toFixed(3));
-    section.style.setProperty('--scrim-rgb', cur.top.map((x) => Math.round(x * 0.22)).join(','));
+    // Ink and scrim for the hero words. A bright sky (day, and the warm hours either side) gets dark ink on a pale,
+    // sky-coloured scrim; the rest keep the approved light ink on a dark one. Both scrims are feathered on all four
+    // edges (sky.css), and the strength rises with the hour's own scrim value, so the floor holds at every hour.
+    const luma = (c: number[]) => 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+    inkDark = ((luma(cur.top) + luma(cur.bot)) / 2) * Math.min(1.1, cur.exp) > 999; // light ink at every hour: the sky grade (uFx) darkens the sky under the words instead
+    section.dataset.ink = inkDark ? 'dark' : 'light';
+    section.style.setProperty('--scrim-a', (inkDark ? 0.9 : Math.min(0.9, 0.62 + cur.scrim * 0.6)).toFixed(3));
+    section.style.setProperty(
+      '--scrim-rgb',
+      (inkDark ? cur.bot.map((x) => Math.round(x * 0.25 + 190)) : cur.top.map((x) => Math.round(x * 0.4))).join(' '),
+    );
+    // the page's own ground (veil, glass, scrims) is this hour's sky, darkened: hue-matched at every scroll position
+    o.story.style.setProperty('--ground-rgb', cur.top.map((x) => Math.round(x * 0.2 + 6)).join(' '));
+    o.story.style.setProperty('--glass-rgb', cur.top.map((x) => Math.round(x * 0.16 + 5)).join(' '));
+    // the capsule bar lives outside the story element: it reads the same tint from the root
+    document.documentElement.style.setProperty('--glass-rgb', cur.top.map((x) => Math.round(x * 0.16 + 5)).join(' '));
+    // the scene backdrops (chapters 3 to 5) are graded by the same row: its tint, saturation and exposure
+    const mx = Math.max(...cur.gain);
+    const tk = Math.min(1, Math.sqrt(cur.exp) * 1.1);
+    o.story.style.setProperty('--scene-tint', rgb(cur.gain.map((g) => (g / mx) * tk * 255)));
+    o.story.style.setProperty('--scene-sat', cur.sat.toFixed(3));
+    o.story.style.setProperty('--scene-exp', Math.min(1.15, Math.max(0.35, cur.exp)).toFixed(3));
     computeLight();
     litSig = '';
     lightText();
     state.dirty = true;
     if (stillMode) updateStill();
-    o.onHour({ hour: state.hour, live: state.live, name: cur.name, sunUp: bod.sun.elev > 0.02 });
+    if (notify) {
+      const base = state.eff === state.hour ? cur : sample(state.hour);
+      o.onHour({ hour: state.hour, live: state.live, name: base.name, sunUp: bodies(state.hour).sun.elev > 0.02 });
+    }
+  }
+  /** The descent moved: regrade only when the clock it implies has moved enough to show. */
+  function regrade() {
+    if (Math.abs(effOf() - lastEff) > 0.02) applyHour(false);
   }
 
   // ------------------------------------------------------------ the CSS still (no WebGL, touch, narrow, Save-Data)
@@ -212,7 +266,7 @@ export function startSky(o: SkyOptions): Sky {
       for (const n of [
         ...['uT0', 'uT1', 'uT2', 'uW', 'uD0', 'uD1', 'uD2', 'uRes', 'uCover', 'uZoom', 'uTime', 'uArrive'],
         ...['uDebug', 'uAspect', 'uLean', 'uWake', 'uGain', 'uLift', 'uSunCol', 'uSat', 'uExp', 'uStars'],
-        ...['uGlow', 'uHaze', 'uSun', 'uMoon', 'uText', 'uLight', 'uLightCol', 'uFx'],
+        ...['uGlow', 'uHaze', 'uSun', 'uMoon', 'uText', 'uLight', 'uLightCol', 'uFx', 'uCam', 'uSea', 'uSeaCol'],
       ])
         U[n] = g.getUniformLocation(program, n);
     } catch (e) {
@@ -238,6 +292,7 @@ export function startSky(o: SkyOptions): Sky {
     g.uniform3fv(U.uD1!, DEPTH[1]);
     g.uniform3fv(U.uD2!, DEPTH[2]);
     g.uniform1f(U.uZoom!, 1.07);
+    g.uniform4f(U.uCam!, 0, 1, 0, 0);
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
       enterStill();
@@ -351,14 +406,23 @@ export function startSky(o: SkyOptions): Sky {
     gl.uniform1f(U.uSat!, cur.sat);
     gl.uniform1f(U.uExp!, cur.exp);
     gl.uniform1f(U.uStars!, cur.stars);
-    gl.uniform4fv(U.uGlow!, cur.glow);
+    const cam = reduced ? cameraAt(0) : cameraAt(state.p);
+    gl.uniform4f(U.uCam!, cam.pan, cam.zoom, cam.cross, cam.rise);
+    gl.uniform1f(U.uSea!, cam.sea);
+    gl.uniform3f(
+      U.uSeaCol!,
+      (cur.bot[0]! / 255) * 1.08 + cur.glow[0]! * cur.glow[3]! * 0.2,
+      (cur.bot[1]! / 255) * 1.08 + cur.glow[1]! * cur.glow[3]! * 0.2,
+      (cur.bot[2]! / 255) * 1.08 + cur.glow[2]! * cur.glow[3]! * 0.2,
+    );
+    gl.uniform4f(U.uGlow!, cur.glow[0]!, cur.glow[1]!, cur.glow[2]!, cur.glow[3]! * cam.glow);
     gl.uniform4fv(U.uHaze!, cur.haze);
-    gl.uniform3f(U.uSun!, bod.sun.x, lit.sunY, lit.sunK);
-    gl.uniform4f(U.uMoon!, bod.moon.x, lit.moonY, lit.moonK, bod.phase);
+    gl.uniform3f(U.uSun!, bod.sun.x, lit.sunY - cam.pan * 0.8, lit.sunK);
+    gl.uniform4f(U.uMoon!, bod.moon.x, lit.moonY - cam.pan * 0.8, lit.moonK, bod.phase);
     gl.uniform4f(U.uLight!, lit.x, lit.y, lit.k, lit.moon);
     gl.uniform3fv(U.uLightCol!, lit.col);
     // the words' brightness ceiling (display luma) and how hard it bites, from this hour's scrim value
-    gl.uniform3f(U.uFx!, raysOn ? 1 : 0, 0.26, Math.min(0.97, cur.scrim * 1.8));
+    gl.uniform3f(U.uFx!, raysOn ? 1 : 0, 0.26, inkDark ? 0 : Math.min(0.99, 0.3 + cur.scrim * 1.6));
     lightText();
     // the words' box in canvas uv: the sun and moon dim behind it
     const cr = layer.getBoundingClientRect();
@@ -393,6 +457,12 @@ export function startSky(o: SkyOptions): Sky {
 
   function step(dt: number) {
     state.time += dt;
+    if (!reduced && state.p !== state.pT) {
+      // the camera follows the scroll with a short ease, so a flick of the wheel is a glide, not a jump
+      state.p += (state.pT - state.p) * (1 - Math.exp(-dt / 0.16));
+      if (Math.abs(state.pT - state.p) < 0.0004) state.p = state.pT;
+      regrade();
+    }
     const a = 1 - Math.exp(-dt / 0.4); // lean follows the pointer with a ~0.4 s smoothing
     state.lean[0]! += (state.target[0]! - state.lean[0]!) * a;
     state.lean[1]! += (state.target[1]! - state.lean[1]!) * a;
@@ -503,6 +573,7 @@ export function startSky(o: SkyOptions): Sky {
       `canvas ${canvas.width}x${canvas.height}  scale ${state.scale.toFixed(2)} (gov ${state.gov})`,
       `hour ${fmt(state.hour)} ${cur.name}${state.live ? '' : ' (forced)'}  w ${cur.w.map((x) => x.toFixed(2)).join('/')}`,
       `photos ${loaded.map((l, i) => (l ? PHOTOS[i] : '-')).join(' ')}  ${(state.bytes / 1024).toFixed(1)} KB`,
+      `descent p ${state.p.toFixed(3)} ${stageAt(state.p)}  hour shown ${fmt(state.eff)}`,
       `motion ${reduced ? 'reduced' : state.paused ? 'paused' : 'on'}  mode ${stillMode ? 'still' : 'webgl'}`,
     ].join('\n');
   }
@@ -534,6 +605,15 @@ export function startSky(o: SkyOptions): Sky {
       return state.paused;
     },
     nudge,
+    setScroll(p) {
+      if (reduced || stillMode) return; // no scroll-driven camera; the still has its own CSS (story.css)
+      state.pT = Math.min(1, Math.max(0, p));
+      if (!animating() || manual) {
+        state.p = state.pT; // not looping (paused, or the test harness): jump there and draw once
+        regrade();
+        kick();
+      } else schedule();
+    },
   };
 
   // ------------------------------------------------------------ boot
@@ -555,6 +635,9 @@ export function startSky(o: SkyOptions): Sky {
   };
   addEventListener('resize', refit);
   void document.fonts?.ready.then(refit);
+
+  progress.subscribe((p) => api.setScroll(p));
+  api.setScroll(progress.get());
 
   // The page's clock: while the sky follows the visitor's hour, it moves with it.
   window.setInterval(() => {
@@ -611,6 +694,22 @@ export function startSky(o: SkyOptions): Sky {
       draw();
     },
     mode: api.mode,
+    /** Descent progress 0..1, applied at once and drawn (for the filmstrip and S4's checker). */
+    setScroll(p: number) {
+      state.pT = state.p = Math.min(1, Math.max(0, p));
+      regrade();
+      draw();
+    },
+    /** What the checker needs to read the pixels behind text: the page's ground, glass and stage. */
+    stage: () => ({
+      p: state.p,
+      stage: stageAt(state.p),
+      hour: state.hour,
+      eff: state.eff,
+      ground: o.story.style.getPropertyValue('--ground-rgb'),
+      glass: o.story.style.getPropertyValue('--glass-rgb'),
+      scrim: cur.scrim,
+    }),
   };
   return api;
 }

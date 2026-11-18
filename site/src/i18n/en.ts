@@ -37,13 +37,19 @@ export const en = {
     changelog: 'Releases',
     skip: 'Skip to content',
     github: 'Source on GitHub',
-  },
-
-  theme: {
-    label: 'Colour scheme',
-    auto: 'Match system',
-    light: 'Light',
-    dark: 'Dark',
+    githubShort: 'GitHub',
+    getBothy: 'Install',
+    moreWays: 'More ways to install',
+    menu: {
+      available: [{ title: 'Linux', sub: 'Bothy binary, amd64', tag: 'Available' }],
+      notYet: [
+        { title: 'macOS', sub: 'Not built or tested yet', tag: 'Not yet' },
+        { title: 'Windows', sub: 'Not built or tested yet', tag: 'Not yet' },
+        { title: 'Linux on arm64', sub: 'Not built or tested yet', tag: 'Not yet' },
+      ],
+      builds: 'All builds on GitHub',
+      notes: 'Release notes',
+    },
   },
 
   footer: {
@@ -58,6 +64,15 @@ export const en = {
   home: {
     title: 'BothyBox: a free shelter in the hills, for your machine',
     chapterNav: 'The story, chapter by chapter',
+    chapterNames: [
+      'The sky',
+      'What a bothy is',
+      'One console',
+      'What is inside',
+      'Four sizes',
+      'Install',
+      'Leave it as you found it',
+    ],
     hero: {
       heading: 'BothyBox',
       line: 'A free shelter in the hills, for your machine.',
@@ -65,6 +80,9 @@ export const en = {
       primary: 'Install Bothy',
       secondary: 'Read the docs',
       skipInstall: 'Skip to install',
+      skipDescent: 'Skip the descent',
+      badge: 'Installs on Linux with Docker',
+      sub: 'One console for the machine you run things on. Free and open source.',
       cue: 'Read the story',
       footnote:
         'The sky behind this page follows the hour on your device’s clock, and nothing about it leaves your browser; with no script it is a still picture chosen by your light or dark setting. This page makes no request to another site and sets no cookie.',
@@ -77,8 +95,6 @@ export const en = {
       now: 'Now',
       pause: 'Pause motion',
       play: 'Play motion',
-      nudge: 'Nudge the sky',
-      nudgeHint: 'Press an arrow key to lean the sky that way',
     },
     descent: {
       heading: 'What a bothy is',
@@ -98,7 +114,10 @@ export const en = {
       lead: 'Bothy is a web console for a single machine. It finds what is running by asking Docker, shows it on one page, and gives you a reader for the files and notes kept on that machine. It is open source, under the MIT licence.',
       promise: 'It does not replace your tools. It shows and looks after what you already run.',
       guide: 'Read the guide',
-      art: 'A small stone hut on a dark hillside, one window lit.',
+    },
+    flow: {
+      label: 'The console, step by step',
+      skip: 'Skip the demo',
     },
     inside: {
       heading: 'What is inside',

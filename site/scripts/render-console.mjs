@@ -161,7 +161,16 @@ export async function build() {
     health: renderHealth(readJson('health.json')),
     modules: renderModules(readJson('modules.json')),
   };
-  const frame = renderFrame(panels, EN);
+  // The demo (src/console/flow.ts): scenes drawn on top of the four views, and the step list under the frame.
+  const flow = await import(pathToFileURL(resolve(siteRoot, 'src/console/flow.ts')).href);
+  const services = readJson('services.json');
+  const shown = {
+    ...panels,
+    services: `${flow.renderScanBar(services)}${panels.services}${flow.renderDetail(services)}`,
+    health: `${panels.health}${flow.renderSpark()}`,
+    modules: `${panels.modules}${flow.renderModuleFlow(readJson('modules.json'))}`,
+  };
+  const frame = renderFrame(shown, EN, 'cf', { panels: flow.renderLogin(), steps: flow.renderSteps() });
 
   const used = classesOf(frame);
   used.add('console-frame');

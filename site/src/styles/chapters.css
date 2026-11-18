@@ -163,14 +163,10 @@
     radial-gradient(1px 1px at 22% 38%, #fff, transparent), radial-gradient(1.2px 1.2px at 86% 40%, #fff, transparent);
   opacity: 0.75;
 }
-/* chosen explicitly: dark picks the night sky; light picks the day sky (below) */
-:root[data-theme='dark'] .ch-sky {
-  background: linear-gradient(to bottom, #060a1a 0%, #0d1530 55%, #1a1f3f 100%);
-}
 
 /* day: a light scheme gets a day sky and dark text */
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) .ch-sky {
+  :root:root .ch-sky {
     --sky-fg: #0e1b29;
     --sky-muted: #2a3b4c;
     --sky-focus: #0b2a52;
@@ -182,24 +178,9 @@
       radial-gradient(60% 40% at 78% 18%, rgb(255 247 214 / 85%), transparent 70%),
       linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 50%, #f1ecde 100%);
   }
-  :root:not([data-theme='dark']) .ch-sky::before {
+  :root:root .ch-sky::before {
     display: none;
   }
-}
-:root[data-theme='light'] .ch-sky {
-  --sky-fg: #0e1b29;
-  --sky-muted: #2a3b4c;
-  --sky-focus: #0b2a52;
-  --sky-btn-bg: rgb(255 255 255 / 55%);
-  --sky-btn-line: rgb(14 27 41 / 65%);
-  --sky-btn-fill: #0e1b29;
-  --sky-btn-ink: #ffffff;
-  background:
-    radial-gradient(60% 40% at 78% 18%, rgb(255 247 214 / 85%), transparent 70%),
-    linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 50%, #f1ecde 100%);
-}
-:root[data-theme='light'] .ch-sky::before {
-  display: none;
 }
 
 .ch-sky a {
@@ -316,39 +297,6 @@
 .ch-hut {
   background: var(--ch-ground-2);
 }
-.ch-split {
-  display: grid;
-  gap: 2rem;
-  align-items: center;
-}
-.ch-hut-art {
-  inline-size: 100%;
-  max-inline-size: 28rem;
-  block-size: auto;
-  justify-self: center;
-  border-radius: var(--radius);
-  background: linear-gradient(to bottom, #2b2a52, #5a416e 70%, #8a5064);
-  border: 1px solid var(--ch-line);
-}
-.ch-hut-art .ridge-far {
-  fill: #2a2433;
-}
-.ch-hut-art .ridge-near {
-  fill: #15130f;
-}
-.ch-hut-art .hut-wall {
-  fill: #3a352f;
-}
-.ch-hut-art .hut-roof {
-  fill: #221f1a;
-}
-.ch-hut-art .hut-door {
-  fill: #15130f;
-}
-.ch-hut-art .hut-window {
-  fill: var(--ch-amber);
-}
-
 /* ── Chapter 3: what is inside ────────────────────────────────────────────── */
 
 .ch-inside {
@@ -581,10 +529,6 @@
 /* ── Wide screens ─────────────────────────────────────────────────────────── */
 
 @media (min-width: 52rem) {
-  .ch-split {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-    gap: 4rem;
-  }
   .ch-two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 3rem;
@@ -616,8 +560,7 @@
     color: #000;
   }
   .ch-sky::before,
-  .ch-trust::before,
-  .ch-hut-art {
+  .ch-trust::before {
     display: none;
   }
 }

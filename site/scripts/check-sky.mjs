@@ -94,14 +94,19 @@ function collectAndHide() {
   const sel = 'h1,h2,h3,.ch-line,.ch-lede,p,a,button,label,output,li,small';
   const out = [];
   const seen = new Set();
-  for (const sec of document.querySelectorAll('[data-sky]')) {
+  for (const sec of document.querySelectorAll('[data-sky], .site-header')) {
     for (const el of sec.querySelectorAll(sel)) {
       if (seen.has(el)) continue;
       const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
       if (!hasText && !(el.matches('a,button') && el.textContent.trim())) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
-      if (el.closest('[hidden]')) continue;
+      if (el.closest('[hidden]') || el.closest('.ch-skip')) continue; // the skip links are out of sight until a key focuses them
+      {
+        const r0 = el.getBoundingClientRect();
+        if (r0.width < 4 || r0.height < 4) continue;
+      } // clipped out of sight (the keyboard skip links)
+      if (el.closest('details:not([open])') && !el.closest('summary')) continue; // a closed menu is not on screen
       const box = el.getBoundingClientRect();
       if (box.width <= 2 || box.height <= 2) continue; // visually-hidden text (a screen-reader label) is not seen
       const r = document.createRange();
@@ -136,8 +141,7 @@ function collectAndHide() {
                 : tag === 'a' || tag === 'button'
                   ? 'button'
                   : 'body';
-      const large =
-        role === 'h1' || role === 'heading' || (role !== 'tagline' && (size >= 24 || (bold && size >= 18.66)));
+      const large = role === 'h1' || role === 'heading' || size >= 24 || (bold && size >= 18.66); // WCAG large text; the statement is 37px and up
       out.push({
         role,
         label: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 28),
@@ -153,7 +157,8 @@ function collectAndHide() {
   st.id = 'check-sky-hide';
   // words invisible, their backgrounds (a button's own fill, the sky, the scrim) untouched; the lit gradient fill is
   // clipped to the glyphs, so it goes too
-  st.textContent = `[data-sky-check]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;filter:none!important}
+  st.textContent = `[data-sky-check] svg{visibility:hidden!important}
+[data-sky-check]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;filter:none!important}
 [data-sky-check]:is(h1,.ch-line,.ch-lede){background-image:none!important}`;
   document.head.append(st);
   return out;
@@ -266,8 +271,8 @@ async function runViewport(browser, base, name, vp, hours, o) {
       });
     }
     const els = await page.evaluate(collectAndHide);
-    const top = Math.max(0, Math.floor(sky.y));
-    const clip = { x: 0, y: top, width: vp.width, height: Math.ceil(Math.min(sky.height, 4000)) };
+    const top = 0; // from the very top, so the navigation (above the hero) is measured too
+    const clip = { x: 0, y: top, width: vp.width, height: Math.ceil(Math.min(sky.y + sky.height, 4000)) };
     const png = await page.screenshot({ fullPage: true, clip });
     const regions = await decodeRegions(
       page,
@@ -318,7 +323,7 @@ function markdown(rows, meta) {
     `${meta.when}. ${meta.hours} hours x ${meta.viewports.join(' + ')}. Mean of the worst 5 percent of pixels behind each element, against the`,
   );
   L.push(
-    'worse lit-ink extreme; WCAG 2.2 ratio and APCA Lc (absolute). Floors: large 3.0 / Lc 45, body and tagline 4.5 / Lc 60.',
+    'worse lit-ink extreme; WCAG 2.2 ratio and APCA Lc (absolute). Floors: large 3.0 / Lc 45, body 4.5 / Lc 60 (the 37px-and-up statement counts as large text).',
     '',
   );
   const bad = rows.filter((r) => !r.pass);

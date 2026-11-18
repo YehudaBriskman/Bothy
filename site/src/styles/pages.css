@@ -20,11 +20,8 @@
   padding-block: clamp(2rem, 5vw, 3.5rem) clamp(1.5rem, 4vw, 2.5rem);
   isolation: isolate;
 }
-:root[data-theme='dark'] .sky-band {
-  background: linear-gradient(to bottom, #060a1a 0%, #0d1530 60%, #1a1f3f 100%);
-}
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) .sky-band {
+  :root:root .sky-band {
     --band-fg: #0e1b29;
     --band-muted: #26384a;
     --band-focus: #0b2a52;
@@ -34,16 +31,6 @@
       radial-gradient(60% 70% at 80% 10%, rgb(255 247 214 / 80%), transparent 70%),
       linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 55%, #f1ecde 100%);
   }
-}
-:root[data-theme='light'] .sky-band {
-  --band-fg: #0e1b29;
-  --band-muted: #26384a;
-  --band-focus: #0b2a52;
-  --band-card: rgb(255 255 255 / 60%);
-  --band-line: rgb(14 27 41 / 45%);
-  background:
-    radial-gradient(60% 70% at 80% 10%, rgb(255 247 214 / 80%), transparent 70%),
-    linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 55%, #f1ecde 100%);
 }
 .sky-band h1,
 .sky-band .lede {
