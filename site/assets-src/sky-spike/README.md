@@ -13,7 +13,7 @@ cd ~/stacks/site && npm ci && npm run build
 npx vite preview --host 0.0.0.0 --port 4189      # a spare port; no Traefik, no Host() rule, no edge change
 ```
 
-then `http://100.117.176.85:4189/sky-spike/` from the laptop over the tailnet (or `http://localhost:4189/sky-spike/` on
+then `http://<box-tailnet-ip>:4189/sky-spike/` from the laptop over the tailnet (or `http://localhost:4189/sky-spike/` on
 the box). Stop it with Ctrl-C. For quick edits without a build: `npx vite --host 0.0.0.0 --port 4189`.
 
 URL switches: `?hour=17.5` forces the hour (0 to 24), `?debug=1` shows fps, frame time, canvas size and scale, the
