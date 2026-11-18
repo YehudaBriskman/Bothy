@@ -279,5 +279,5 @@ end-to-end group `updater` (9.2 min, one indivisible suite); mutation shards cos
 4-6 min each and only on main in full; the nightly Elsewhere matrix is 3 x 26 min.
 Changed: documentation-only PRs skip compose, portal, cli and images (never on
 push); `npm ci --no-audit --no-fund --prefer-offline` took the site install from
-56 s to a few seconds. Tried and reverted: freeing runner disk in the background -
+56 s to 1 s (measured). Tried and reverted: freeing runner disk in the background -
 the delete is I/O bound, the wait step took the same 100 s.
