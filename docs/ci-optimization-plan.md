@@ -281,3 +281,5 @@ Changed: documentation-only PRs skip compose, portal, cli and images (never on
 push); `npm ci --no-audit --no-fund --prefer-offline` took the site install from
 56 s to a few seconds. Tried and reverted: freeing runner disk in the background -
 the delete is I/O bound, the wait step took the same 100 s.
+
+[a broken link](docs/does-not-exist-ci-probe.md)
