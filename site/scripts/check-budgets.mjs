@@ -38,7 +38,7 @@ export const LIMITS = {
   'css / all stylesheets': 28, // 24.3
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
-  'dev pages (sky-spike, scene-mock), raw': 861, // 748
+  'dev pages (sky-spike, scene-mock, brand-mock), raw': 861, // 748
   'share cards and icons (og/, icons, manifest), raw': 343, // 297.9 (S10, 2026-11-18)
   'dist total without share cards and icons, raw': 2173, // 1889; 1905.5 after S10
 };
@@ -189,7 +189,7 @@ export function measure(dist, limits = LIMITS) {
 
   const all = walk(dist);
   const inDir = (p, d) => p.startsWith(join(dist, d) + sep);
-  const shipped = all.filter((p) => !inDir(p, 'sky-spike') && !inDir(p, 'scene-mock'));
+  const shipped = all.filter((p) => !inDir(p, 'sky-spike') && !inDir(p, 'scene-mock') && !inDir(p, 'brand-mock'));
   const sum = (list) => list.reduce((n, p) => n + size(p).gz, 0);
   add('js / all shipped scripts', sum(shipped.filter((p) => p.endsWith('.js'))));
   add('css / all stylesheets', sum(shipped.filter((p) => p.endsWith('.css'))));
@@ -200,9 +200,9 @@ export function measure(dist, limits = LIMITS) {
   );
   const idx = join(dist, 'search-index.json');
   if (existsSync(idx)) add('search index', size(idx).gz);
-  const dev = all.filter((p) => inDir(p, 'sky-spike') || inDir(p, 'scene-mock'));
+  const dev = all.filter((p) => inDir(p, 'sky-spike') || inDir(p, 'scene-mock') || inDir(p, 'brand-mock'));
   add(
-    'dev pages (sky-spike, scene-mock), raw',
+    'dev pages (sky-spike, scene-mock, brand-mock), raw',
     dev.reduce((n, p) => n + size(p).raw, 0),
     `${dev.length} files`,
   );
