@@ -163,6 +163,27 @@ for (const group of qa('[data-spot]')) {
 if (!reduced && canObserve) {
   root.classList.add('js-hs');
 
+  // ── The two reading sections: the figure beside the text is built as the lines are read ────────────────────
+  // A line counts as read once its middle is above 58% of the screen height. The text lines light themselves in CSS
+  // (the About page's reading animation, inner.css); this only counts them and lights the figure's parts.
+  const reads = qa('[data-read]');
+  if (reads.length) {
+    root.classList.add('js-rd');
+    const update = () => {
+      for (const sec of reads) {
+        let n = 0;
+        for (const l of qa('.mf', sec)) {
+          const b = l.getBoundingClientRect();
+          if (b.top + b.height / 2 < innerHeight * 0.58) n++;
+        }
+        for (const p of qa('.rd-part', sec)) p.classList.toggle('is-lit', n >= Number(p.dataset.from ?? 0));
+      }
+    };
+    update();
+    addEventListener('scroll', update, { passive: true });
+    addEventListener('resize', update, { passive: true });
+  }
+
   // ── Reveal: each [data-hs] block plays once when it comes into view (the CSS holds the start state) ─────────
   const reveal = new IntersectionObserver(
     (es) => {
@@ -267,6 +288,7 @@ if (!reduced && canObserve) {
           c.head.data = c.text.slice(0, chars);
           c.rest.textContent = c.text.slice(chars);
         }
+        c.ln.classList.toggle('hs-wait', k > 0 && chars === 0);
         const printed = local >= 0.62;
         c.out?.classList.toggle('hs-wait', !printed);
         c.ln.classList.toggle('is-typing', local > 0 && local < 0.55);

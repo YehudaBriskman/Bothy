@@ -37,14 +37,13 @@ async function write(text: string): Promise<boolean> {
     ta.style.cssText = 'position:fixed;inset-block-start:0;inset-inline-start:0;opacity:0;pointer-events:none';
     document.body.append(ta);
     ta.select();
-    let ok = false;
     try {
-      ok = document.execCommand('copy');
+      return document.execCommand('copy');
     } catch {
-      ok = false;
+      return false;
+    } finally {
+      ta.remove();
     }
-    ta.remove();
-    return ok;
   }
 }
 
@@ -57,10 +56,13 @@ function say(b: HTMLElement, state: 'ok' | 'fail' | '', msg: string) {
   live.textContent = state ? msg : '';
 }
 
+const ICONS =
+  '<svg class="cp-i cp-copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>' +
+  '<svg class="cp-i cp-ok" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
 for (const b of document.querySelectorAll<HTMLElement>('[data-cp]')) {
   b.setAttribute('aria-label', T.label);
-  const tip = b.querySelector('.cp-tip');
-  if (tip) tip.textContent = T.copy;
+  b.innerHTML = `${ICONS}<span class="cp-tip" aria-hidden="true">${T.copy}</span>`;
+  b.hidden = false;
 }
 
 document.addEventListener('click', async (e) => {

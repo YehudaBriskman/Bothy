@@ -10,6 +10,7 @@ import './styles/console.css';
 import './styles/chrome.css';
 import './styles/sections.css';
 import './styles/home-sections.css';
+import './styles/reading.css';
 import './styles/pages.css';
 import './styles/inner.css';
 import './styles/intro.css';
