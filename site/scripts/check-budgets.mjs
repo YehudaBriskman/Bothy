@@ -37,11 +37,11 @@ export const LIMITS = {
   'html / page (max)': 12, // 10.1 changelog
   'html / doc (max)': 12, // 10.4 docs/configuring
   'js / entry (+ static imports)': 4, // 3.1
-  'js / lazy sky island': 19, // 15.8 (mount, progress, enhance-sky)
+  'js / lazy sky island': 21, // 19.5 with the console camera (story/lens.ts, +1.5) and the inner-page pieces; was 15.8
   // The first-visit splash (owner-chosen Cube loader, 2026-11-18): lazy, once per session, never with reduced motion.
   'js / lazy brand splash': 4, // 3.3
-  'js / all shipped scripts': 26, // 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
-  'css / all stylesheets': 28, // 24.3
+  'js / all shipped scripts': 28, // 26.3 with the camera; was 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
+  'css / all stylesheets': 31, // 28.1; was 24.3. styles/chosen.css (+1.8: capsule, hero words, camera, clouds) and the outline wordmark
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
   'dev pages (sky-spike, scene-mock, brand-mock, section-mock), raw': 1150, // 994.2 (748, then + section-mock gallery 167.5, 2026-11-19)
