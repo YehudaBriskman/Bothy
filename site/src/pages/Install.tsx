@@ -54,8 +54,14 @@ export function Install({ ctx }: { ctx: PageContext }) {
 
         <section aria-labelledby="paths-h" className="block wide">
           <h2 id="paths-h">{i.paths.heading}</h2>
-          <div className="path-grid">
-            <article className="card path-card reveal" aria-labelledby="path-bin-h">
+          <div
+            className="path-grid"
+            data-paths
+            data-label={i.paths.heading}
+            data-done-label={i.stepsUi.done}
+            data-pick={i.paths.pick}
+          >
+            <article className="card path-card reveal" aria-labelledby="path-bin-h" data-path="binary">
               <p className="path-tag path-tag-proven">{i.paths.binary.tag}</p>
               <h3 id="path-bin-h">{i.paths.binary.title}</h3>
               <p>
@@ -75,6 +81,7 @@ export function Install({ ctx }: { ctx: PageContext }) {
               className="card path-card reveal"
               style={{ '--i': 1 } as CSSProperties}
               aria-labelledby="path-src-h"
+              data-path="source"
             >
               <p className="path-tag">{i.paths.source.tag}</p>
               <h3 id="path-src-h">{i.paths.source.title}</h3>
@@ -118,9 +125,9 @@ export function Install({ ctx }: { ctx: PageContext }) {
           </p>
         </section>
 
-        <section id="binary" aria-labelledby="binary-h" className="wide-steps">
+        <section id="binary" aria-labelledby="binary-h" className="wide-steps" data-panel="binary">
           <h2 id="binary-h">{i.binary.heading}</h2>
-          <ol className="install-steps">
+          <ol className="install-steps" data-steps data-progress-text={i.stepsUi.progress(0, 4)}>
             <li>
               <h3>{i.binary.steps.download.title}</h3>
               <p>
@@ -202,7 +209,7 @@ export function Install({ ctx }: { ctx: PageContext }) {
           </ol>
         </section>
 
-        <section id="source" aria-labelledby="source-h" className="block">
+        <section id="source" aria-labelledby="source-h" className="block" data-panel="source">
           <h2 id="source-h">{i.source.heading}</h2>
           <p>
             <Rich text={i.source.lead} />
