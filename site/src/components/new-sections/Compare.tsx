@@ -47,7 +47,7 @@ export function Compare({ ctx }: { ctx: PageContext }) {
             </span>
           ))}
         </fieldset>
-        <div className="cmp-scroll">
+        <div className="cmp-scroll" tabIndex={0} role="region" aria-label={c.caption}>
           <table className="cmp-t">
             <caption className="visually-hidden">{c.caption}</caption>
             <thead>

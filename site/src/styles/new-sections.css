@@ -280,7 +280,7 @@
   background: rgb(255 255 255 / 9%);
   color: var(--n-fg);
 }
-.nv-doc h4 {
+.nv-doc .nv-h {
   margin: 0 0 0.5rem;
   font-size: 1.05rem;
 }
@@ -341,9 +341,6 @@
 .ns-stage .ns-body {
   padding: 0.25rem;
   transition: opacity 0.25s;
-}
-.ns-stage:not([data-started]) .ns-body {
-  opacity: 0.55;
 }
 .ns-play {
   position: absolute;
@@ -545,6 +542,10 @@
 }
 .cmp-scroll {
   overflow-x: auto;
+}
+.cmp-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 .cmp-t {
   inline-size: 100%;

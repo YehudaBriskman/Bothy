@@ -112,7 +112,7 @@ export function FilesView({ walk }: { walk?: boolean }) {
         <li>recipes.md</li>
       </ul>
       <div className="nv-doc">
-        <h4>First run</h4>
+        <p className="nv-h">First run</p>
         <p>
           Bothy asks Docker what is running and lists it as <b>services</b>. It does not change those containers.
         </p>
