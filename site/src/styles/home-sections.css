@@ -438,6 +438,7 @@
     font-size: 0.75rem;
     line-height: 1.5;
     padding-block: 0.6rem;
+    max-block-size: calc(42svh - 2.6rem);
   }
 }
 .hs-railwrap {
@@ -498,14 +499,87 @@
 .hs-scrubbing .hs-ln .hs-cmd {
   display: inline;
 }
-.hs-scrubbing .is-typing [data-type]::after {
+/* the caret sits where the next character will go; it takes no width, so the line never shifts under it */
+.hs-caret {
+  display: none;
+  inline-size: 0;
+  block-size: 1.1em;
+  vertical-align: -0.2em;
+  position: relative;
+}
+.hs-caret::after {
   content: '';
-  display: inline-block;
-  inline-size: 0.5em;
-  block-size: 1em;
-  margin-inline-start: 1px;
-  vertical-align: text-bottom;
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 1px;
+  inline-size: 0.55em;
+  block-size: 100%;
   background: var(--text-muted);
+}
+.hs-ln.is-active .hs-caret {
+  display: inline-block;
+}
+.hs-ln.is-active:not(.is-typing) .hs-caret::after {
+  animation: hs-blink 1.05s steps(1, end) infinite;
+}
+.hs-ln.is-running .hs-caret::after {
+  animation: hs-blink 0.7s steps(1, end) infinite;
+}
+.hs-run {
+  color: var(--focus);
+}
+@keyframes hs-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.hs-cap-r {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.hs-replay {
+  min-block-size: 1.75rem;
+  padding: 0.1rem 0.7rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s var(--ease-out);
+}
+.hs-replay:hover {
+  background: rgb(255 255 255 / 10%);
+}
+.hs-replay:active {
+  background: rgb(255 255 255 / 18%);
+}
+.hs-replay[hidden] {
+  display: none;
+}
+/* the steps are spaced out so each one is a stage of its own: scroll reaches it, it plays */
+.hs-railwrap.hs-live {
+  padding-block-end: 12svh;
+}
+.hs-railwrap.hs-live .hs-step {
+  min-block-size: clamp(15rem, 62svh, 34rem);
+  margin-block-end: 0;
+}
+.hs-railwrap.hs-live .hs-step:last-child {
+  min-block-size: 0;
+}
+.hs-demo pre {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+@media (min-width: 62rem) {
+  .hs-demo pre {
+    max-block-size: calc(100svh - 11rem);
+  }
 }
 .hs-step .term {
   margin: 0;

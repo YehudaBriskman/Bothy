@@ -10,6 +10,9 @@ function Node({ id, col, i }: { id: NodeId; col: 'l' | 'c' | 'r'; i: number }) {
   const fact = typeof n.fact === 'function' ? n.fact(MEMORY.gateMiB) : n.fact;
   return (
     <article className={`hn hn-${col} reveal`} style={{ '--i': i } as CSSProperties} data-node={id}>
+      <button type="button" className="hn-trace" aria-pressed="false" aria-label={`${ns.hood.trace}: ${n.title}`}>
+        {ns.hood.trace}
+      </button>
       <p className="hn-kick">{n.kicker}</p>
       <h3>{n.title}</h3>
       <p className="hn-fact">
@@ -67,7 +70,7 @@ export function Hood() {
         <h2 id="hood-h">{h.heading}</h2>
         <p className="lede">{h.lede}</p>
       </header>
-      <div className="hood">
+      <div className="hood" data-mock="hood">
         <div className="hr">
           <Node id="browser" col="c" i={0} />
         </div>

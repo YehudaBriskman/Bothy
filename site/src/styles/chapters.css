@@ -259,44 +259,6 @@
   min-block-size: 2.75rem;
 }
 
-/* ── Chapter 1: the descent ───────────────────────────────────────────────── */
-
-.ch-descent {
-  background: linear-gradient(to bottom, #6a4466 0%, #2e2538 9rem, var(--ch-ground-2) 18rem);
-}
-.ch-code {
-  margin: 2rem 0;
-  padding: 1.25rem 1.5rem;
-  background: var(--ch-panel);
-  border: 1px solid var(--ch-line);
-  border-inline-start: 4px solid var(--ch-amber);
-  border-radius: var(--radius);
-}
-.ch-code figcaption {
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ch-muted);
-  margin-block-end: 0.5rem;
-}
-.ch-code ul {
-  list-style: none;
-  margin: 0 0 0.75rem;
-  padding: 0;
-  font-family: var(--serif);
-  font-size: 1.35rem;
-  line-height: 1.5;
-}
-.ch-code .ch-small {
-  margin: 0;
-}
-
-/* ── Chapter 2: the hut ───────────────────────────────────────────────────── */
-
-.ch-hut {
-  background: var(--ch-ground-2);
-}
 /* ── Chapter 3: what is inside ────────────────────────────────────────────── */
 
 .ch-inside {

@@ -150,12 +150,6 @@
   /* the window of the next section peeks up from the bottom edge (the header above is 4rem) */
   min-block-size: calc(100svh - 14rem);
 }
-.ch-descent,
-.ch-hut {
-  min-block-size: 100svh;
-  display: grid;
-  align-content: center;
-}
 .ch-end > .ch-narrow {
   margin-inline-start: auto;
 }
