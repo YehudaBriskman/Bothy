@@ -32,3 +32,55 @@
 .dither-to-black.is-up {
   transform: scaleY(-1);
 }
+
+/*
+ * The story's staged dissolve (story/dither.ts). Stage 1, always, with no script: the whole sky wears a fine, even grid
+ * of small dark dots (about 7% coverage), behind every word. Stages 2 and 3 are the band `.sd`, made by script only
+ * when the console plays (not for reduced motion, phones or no script): a fixed layer behind the content, holding a
+ * canvas of denser dots (drawn once) over a block of ink, moved up the window by one transform as the page scrolls.
+ */
+.story::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgb(var(--after-story-rgb, 9 9 12) / 85%) 1.4px, transparent 1.85px) 0
+    0 / 8px 8px;
+}
+.sd {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: clip;
+  pointer-events: none;
+}
+.sd-front {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  will-change: transform;
+}
+.sd-band {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--sd-h, 40svh);
+}
+.sd-solid {
+  block-size: 100svh;
+  margin-block-start: -1px;
+  background: var(--after-story-bg, #09090c);
+}
+/* with the band running, the static end-of-story dissolve has already been done by it */
+.sd-on .story-end {
+  background: none;
+}
+.sd-on .story-end .dither-to-black {
+  display: none;
+}
+@media print {
+  .story::after,
+  .sd {
+    display: none;
+  }
+}
