@@ -23,9 +23,10 @@ export function installLines(ctx: PageContext) {
 const RECORD = `${REPO_URL}/blob/main/docs/plans/thin-bothy/bothy-install.md`;
 
 /**
- * Chapter 5. Four numbered steps down a rail that fills as you scroll (the step in the middle of the view is the
- * lit one), each with its command and a copy button; at the side, one terminal plays the whole install once, as
- * an example. The long lists of what was shown and not shown live on the Install page and are linked from here.
+ * Chapter 5. Four numbered steps down a rail, each with its command and a copy icon; at the side, one terminal
+ * types the same install, an example, scrubbed by scroll position (home-sections.ts): the line types in as its step
+ * reaches the middle of the view and the step gets its Done tick; stop scrolling and it stops, scroll back and it
+ * rewinds. The long lists of what was shown and not shown live on the Install page and are linked from here.
  */
 export function InstallChapter({ ctx }: { ctx: PageContext }) {
   const { t, locale } = ctx;
@@ -34,9 +35,8 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
   const p = localePrefix(locale.code);
   const nf = new Intl.NumberFormat(locale.tag, { maximumFractionDigits: 0 });
   const lines = installLines(ctx);
-  const archive = `bothy_${ctx.latest.version}_linux_amd64.tar.gz`;
-  // the side terminal is an example and shortens the two long commands; the rail has them whole, with copy
-  const demo = [`curl -fsSLO …/${archive}`, `tar -xzf ${archive} …`, lines[2]!.cmd, lines[3]!.cmd];
+  // the side terminal plays the same four commands, whole: nothing is shortened, and long ones wrap
+  const demo = lines.map((l) => l.cmd);
   return (
     <section id="install" className="ch ch-install" aria-labelledby="install-h" data-hs>
       <div className="ch-wrap">
@@ -50,7 +50,7 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
         </header>
 
         <div className="hs-install">
-          <div className="hs-railwrap" data-rail>
+          <div className="hs-railwrap" data-rail data-scrub>
             <span className="hs-railline" aria-hidden="true">
               <i />
             </span>
@@ -61,12 +61,15 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
                     {k + 1}
                   </span>
                   <Terminal label={i.steps[k] ?? ''} lines={[l]} />
+                  <span className="hs-dn" aria-hidden="true">
+                    ✓ {i.done}
+                  </span>
                 </li>
               ))}
             </ol>
           </div>
 
-          <figure className="hs-demo hs-rise" aria-hidden="true" data-run style={{ '--i': 2 } as CSSProperties}>
+          <figure className="hs-demo hs-rise" aria-hidden="true" data-scrub-demo style={{ '--i': 2 } as CSSProperties}>
             <figcaption>
               <span>{i.terminalLabel}</span>
               <span className="hs-tag">{i.termExample}</span>

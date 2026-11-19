@@ -1,5 +1,6 @@
 import { Lexer, Marked, type Tokens } from 'marked';
 import { REPO_BRANCH, REPO_URL, href as siteHref } from '../config.ts';
+import { COPY_MARKUP } from '../copy-markup.ts';
 import { isPublicRepoPath } from './safety.ts';
 
 /**
@@ -166,7 +167,7 @@ export function renderMarkdown(source: string, ctx: LinkContext): RenderedDoc {
       },
       code({ text, lang }) {
         const cls = lang ? ` class="language-${escapeHtml(lang.split(/\s/)[0] ?? '')}"` : '';
-        return `<div class="code"><pre translate="no" dir="ltr" tabindex="0"><code${cls}>${escapeHtml(text)}</code></pre></div>\n`;
+        return `<div class="code"><pre translate="no" dir="ltr" tabindex="0"><code${cls}>${escapeHtml(text)}</code></pre>${COPY_MARKUP}</div>\n`;
       },
       codespan({ text }) {
         return `<code translate="no" dir="ltr">${escapeHtml(text)}</code>`;

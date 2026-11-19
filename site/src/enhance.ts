@@ -10,6 +10,7 @@ import './styles/console.css';
 import './styles/chrome.css';
 import './styles/sections.css';
 import './styles/home-sections.css';
+import './styles/reading.css';
 import './styles/pages.css';
 import './styles/inner.css';
 import './styles/intro.css';
@@ -18,7 +19,7 @@ import './styles/chosen.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
- * a few conveniences and nothing else: copy buttons on commands, documentation
+ * a few conveniences and nothing else: copy icons on commands, documentation
  * search, the install menu and collapsing the docs menu on a phone. There is no
  * colour-scheme switch and nothing is stored but one sessionStorage flag (the
  * first-visit splash has played): the sky follows the visitor's hour, and without
@@ -28,46 +29,8 @@ import './styles/chosen.css';
 // Controls that only work with JavaScript are rendered `hidden`; reveal them now.
 for (const el of document.querySelectorAll<HTMLElement>('[data-needs-js]')) el.hidden = false;
 
-// ── Copy buttons ────────────────────────────────────────────────────────────
-function copyButton(label: string, idle: string, done: string, text: string): HTMLButtonElement {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'copy';
-  b.textContent = idle;
-  b.setAttribute('aria-label', label);
-  let timer: number | undefined;
-  b.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      b.textContent = done;
-    } catch {
-      // No clipboard permission (insecure origin, old browser): select the text instead.
-      const pre = b.parentElement?.querySelector('pre');
-      if (pre) getSelection()?.selectAllChildren(pre);
-      return;
-    }
-    window.clearTimeout(timer);
-    timer = window.setTimeout(() => (b.textContent = idle), 1800);
-  });
-  return b;
-}
-
-const ui = document.querySelector<HTMLElement>('main')?.dataset ?? {};
-const idle = ui.copyIdle ?? 'Copy';
-const done = ui.copied ?? 'Copied';
-for (const fig of document.querySelectorAll<HTMLElement>('figure.term[data-copy-text]')) {
-  const caption = fig.querySelector('figcaption')?.textContent ?? '';
-  fig.append(copyButton(`${idle}: ${caption}`, idle, done, fig.dataset.copyText ?? ''));
-}
-for (const code of document.querySelectorAll<HTMLElement>('.prose .code')) {
-  const text = code.querySelector('pre')?.textContent ?? '';
-  code.append(copyButton(idle, idle, done, text.replace(/\n$/, '')));
-}
-for (const cmd of document.querySelectorAll<HTMLElement>('.dd-cmd[data-copy-text]')) {
-  const b = copyButton(`${idle}: ${cmd.dataset.copyText ?? ''}`, idle, done, cmd.dataset.copyText ?? '');
-  b.classList.add('dd-copy');
-  cmd.append(b);
-}
+// ── Copy controls: rendered in the markup (components/CopyButton.tsx), revealed above, wired by one lazy script ───
+if (document.querySelector('[data-cp]')) void import('./copy.ts');
 
 // ── The install menu and the phone sheet: APG disclosure keys on a native <details> ─────────────────
 // Escape closes and returns focus to the button; Down/Up move through the items (Down on the closed button opens it

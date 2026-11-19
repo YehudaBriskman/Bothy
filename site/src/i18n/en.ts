@@ -141,6 +141,8 @@ export const en = {
         'The sky behind this page follows the hour on your device’s clock, and nothing about it leaves your browser; with no script it is a still picture chosen by your light or dark setting. This page makes no request to another site and sets no cookie.',
       copy: 'Copy',
       copied: 'Copied',
+      copyLabel: 'Copy command',
+      copyFail: 'Press Ctrl+C',
     },
     sky: {
       group: 'Sky controls',
@@ -252,6 +254,7 @@ export const en = {
       lead: 'Once you have the `bothy` file, `bothy install` is the whole job. These are the four commands, in order.',
       terminalLabel: 'The whole install, as typed',
       steps: ['Download the archive.', 'Put it on your path.', 'Read the plan.', 'Install.'],
+      done: 'Done',
       stepsLabel: 'The four steps',
       termOut: [
         'saved the archive',
