@@ -28,8 +28,8 @@ const KB = 1024;
 // 2026-11-19 sections 21-24 (below the fold, lazy player): css +4.0 KB (new-sections.css), home html about +5 KB, js +0.7 KB
 // (new-sections.ts, lazy). Limits moved to the measured total + about 1 KB; the 60 KB phone advisory was already exceeded.
 export const LIMITS = {
-  'first load / desktop': 92, // sections 21-24 (+4.0 KB css in every page, +5 KB home html; below the fold, player lazy): 84.4 with chosen.css (+2 KB css: capsule, hero words, camera, clouds, outline wordmark); was 72.8
-  'first load / phone': 77, // sections 21-24 (+4.0 KB css in every page, +5 KB home html; below the fold, player lazy): 69.4 with chosen.css (+1.2 KB over main's 68.2); // 68.2 after sections 05-12 (+3.4 KB css) merged with the inner pages' css; was 57.8 - the design's 60 is the real ceiling here: 2.2 KB left
+  'first load / desktop': 93, // 92.3 with the copy icon, the sized-to-screen sizes, the scrubbed install and the two black reading sections (-0.6 KB of dead cloud css); // sections 21-24 (+4.0 KB css in every page, +5 KB home html; below the fold, player lazy): 84.4 with chosen.css (+2 KB css: capsule, hero words, camera, clouds, outline wordmark); was 72.8
+  'first load / phone': 78, // 77.3 with the same; // sections 21-24 (+4.0 KB css in every page, +5 KB home html; below the fold, player lazy): 69.4 with chosen.css (+1.2 KB over main's 68.2); // 68.2 after sections 05-12 (+3.4 KB css) merged with the inner pages' css; was 57.8 - the design's 60 is the real ceiling here: 2.2 KB left
   //   59.9 on main at 229577e; 61.8 with the BothyBox lockup in every page's HTML (+0.6), the Cube favicon and touch
   //   icon (+0.8), the splash gate in the entry (+0.3) and its CSS (+0.1): over the design's 60, flagged in the PR. 62.2 with
   //   the intro: its gate inlined in the home page's head and styles/intro.css (+0.4).
@@ -42,8 +42,8 @@ export const LIMITS = {
   'js / lazy sky island': 24, // 23.0 with the copy script, the install scrub and the sizes walker (+1.5 KB over main); // 21.1 with the console camera (story/lens.ts, +1.5) on top of main's 18.8 + inner pages; // 18.8 (mount, progress, enhance-sky, footmark, and home-sections: size tabs, count-up, rail, typed terminals, 1.4 KB)
   // The first-visit splash (owner-chosen Cube loader, 2026-11-18): lazy, once per session, never with reduced motion.
   'js / lazy brand splash': 4, // 3.3
-  'js / all shipped scripts': 30, // 28.0 with the camera (+1.5 over main's 25.5, +inner pages); // 25.5; 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
-  'css / all stylesheets': 33, // 30.5: main's 27.7 plus styles/chosen.css (+1.8) and the outline wordmark; // 27.7; 24.3 before home-sections.css (3.4 KB: hill, rail, band, photo drift, reveal states)
+  'js / all shipped scripts': 31, // 30.3 with the copy script and the scrubs; // 28.0 with the camera (+1.5 over main's 25.5, +inner pages); // 25.5; 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
+  'css / all stylesheets': 35, // 34.2 with reading.css and the sizes/install rework; // 30.5: main's 27.7 plus styles/chosen.css (+1.8) and the outline wordmark; // 27.7; 24.3 before home-sections.css (3.4 KB: hill, rail, band, photo drift, reveal states)
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
   'dev pages (sky-spike, scene-mock, brand-mock, section-mock), raw': 1150, // 994.2 (748, then + section-mock gallery 167.5, 2026-11-19)

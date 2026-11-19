@@ -262,7 +262,9 @@ time,
   overflow-x: auto;
   font-size: 0.875rem;
   line-height: 1.75;
-  white-space: pre;
+  /* a long command wraps; it is never cut off or hidden behind a scrollbar (the copy icon copies it whole) */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: #ecebe6;
 }
 .term code {
