@@ -1,19 +1,20 @@
 import type { ReactNode } from 'react';
 
 /**
- * The reading text of the two black sections after the story's descent ("What a bothy is", "One console for one
- * machine"). A paragraph is cut into its sentences, one `.mf` each, so the About page's reading animation (lines
- * that light as they cross the middle of the screen, styles/inner.css) lights a sentence at a time. The words are
- * unchanged; the sentences just sit on their own lines. home-sections.ts counts the lit lines and the figure beside
- * the text reacts to the count.
+ * A reading wheel: the words of one section stacked in big type, centred on a flat black ground. With script (and
+ * motion) the section pins and the whole stack rolls up as you scroll, like a wheel: the line at the centre is lit
+ * and read (a sweep of light runs across it), the lines above and below are dimmer and smaller, then the section
+ * lets go (src/wheel.ts). Without script, or with reduced motion, it is the same words as plain big text, all lit.
+ * Every line carries `wl`; the script reads nothing else.
  */
 export const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
 
+/** A paragraph cut into its sentences, one wheel line each. The words are unchanged. */
 export function Lines({ text }: { text: string }) {
   return (
     <>
       {sentences(text).map((s) => (
-        <p key={s} className="mf mf-sm">
+        <p key={s} className="wl">
           {s}
         </p>
       ))}
@@ -21,30 +22,28 @@ export function Lines({ text }: { text: string }) {
   );
 }
 
-/** A section on the flat page ground, text on one side and a figure on the other. */
-export function ReadSection({
+export function ReadWheel({
   id,
   className,
-  flip,
-  text,
-  figure,
+  heading,
+  children,
 }: {
   id: string;
   className: string;
-  flip?: boolean;
-  text: ReactNode;
-  figure: ReactNode;
+  heading: string;
+  children: ReactNode;
 }) {
   return (
-    <section
-      id={id}
-      className={`ch ${className} ch-read${flip ? ' is-flip' : ''}`}
-      aria-labelledby={`${id}-h`}
-      data-read
-    >
-      <div className="ch-wrap rd-grid">
-        <div className="rd-text">{text}</div>
-        <div className="rd-side">{figure}</div>
+    <section id={id} className={`ch ${className} ch-wheel`} aria-labelledby={`${id}-h`} data-wheel>
+      <div className="wh-track">
+        <div className="wh-stage">
+          <h2 id={`${id}-h`} className="wh-head">
+            {heading}
+          </h2>
+          <div className="wh-view">
+            <div className="wh-roll">{children}</div>
+          </div>
+        </div>
       </div>
     </section>
   );

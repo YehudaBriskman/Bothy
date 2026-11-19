@@ -31,7 +31,7 @@ export function Compare({ ctx }: { ctx: PageContext }) {
         <h2 id="compare-h">{c.heading}</h2>
         <p className="lede">{c.lede}</p>
       </header>
-      <div className="cmp reveal">
+      <div className="cmp reveal" data-mock="compare">
         <fieldset className="cmp-pick">
           <legend className="visually-hidden">{c.pick}</legend>
           {['', ...MODES.map((m) => m.id)].map((id, i) => (
@@ -57,10 +57,12 @@ export function Compare({ ctx }: { ctx: PageContext }) {
                 </th>
                 {MODES.map((m) => (
                   <th key={m.id} scope="col" data-c={m.id} className={m.state === 'now' ? 'is-now' : undefined}>
-                    <span className="cmp-n" translate="no">
-                      {sizes[m.id].name}
-                    </span>
-                    <span className="cmp-tag">{sizes[m.id].tagline}</span>
+                    <label htmlFor={`cz-${m.id}`} className="cmp-lab">
+                      <span className="cmp-n" translate="no">
+                        {sizes[m.id].name}
+                      </span>
+                      <span className="cmp-tag">{sizes[m.id].tagline}</span>
+                    </label>
                   </th>
                 ))}
               </tr>

@@ -46,26 +46,56 @@ export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNod
           <li className="hs-rise" style={i(0)}>
             <article className="card hs-photocard" aria-labelledby="get-ov-h">
               <Photo src="scene-mock/img/cumulus-desk.avif" drift="a">
-                <div className="mini hs-float">
+                <div className="mini hs-float" data-mock="overview">
                   <p className="mini-head">
                     <span>{a.overview.panel}</span>
                     <span className="mini-tag">{a.example}</span>
                   </p>
+                  <div className="mk-bar">
+                    <input
+                      type="search"
+                      className="mk-input"
+                      data-mk-filter
+                      placeholder={a.mock.filter}
+                      aria-label={a.mock.filter}
+                      autoComplete="off"
+                    />
+                    <button type="button" className="mk-btn" data-mk-refresh>
+                      {a.mock.refresh}
+                    </button>
+                  </div>
                   <ul>
                     {a.overview.rows.map((r, k) => (
-                      <li key={r.name} className="hs-row" style={i(k)}>
-                        <span className="dot" aria-hidden="true" />
-                        <span className="grow">
-                          <span className="mono" translate="no">
-                            {r.name}
-                          </span>{' '}
-                          <span className="sub">{r.sub}</span>
-                        </span>
-                        <span className="sub">{a.overview.state}</span>
+                      <li key={r.name} className="hs-row" style={i(k)} data-mk-item={r.name}>
+                        <button
+                          type="button"
+                          className="mk-row"
+                          aria-pressed="false"
+                          data-mk-pick={a.mock.picked(r.name, a.overview.state)}
+                        >
+                          <span className="dot" aria-hidden="true" />
+                          <span className="grow">
+                            <span className="mono" translate="no">
+                              {r.name}
+                            </span>{' '}
+                            <span className="sub">{r.sub}</span>
+                          </span>
+                          <span className="sub">{a.overview.state}</span>
+                        </button>
                       </li>
                     ))}
                   </ul>
-                  <p className="mini-foot">{a.overview.foot}</p>
+                  <p className="mk-empty" hidden>
+                    {a.mock.noMatch}
+                  </p>
+                  <p
+                    className="mini-foot"
+                    role="status"
+                    data-mk-foot={a.overview.foot}
+                    data-mk-refreshed={a.mock.refreshed}
+                  >
+                    {a.overview.foot}
+                  </p>
                 </div>
               </Photo>
               <div className="card-text">
@@ -82,7 +112,7 @@ export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNod
           <li className="hs-rise" style={i(1)}>
             <article className="card hs-photocard" aria-labelledby="get-fi-h">
               <Photo src="scene-mock/img/twilight-desk.avif" drift="b">
-                <div className="mini hs-float">
+                <div className="mini hs-float" data-mock="files">
                   <p className="mini-head">
                     <span>{a.files.panel}</span>
                     <span className="mini-tag">{a.example}</span>
@@ -90,18 +120,25 @@ export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNod
                   <ul>
                     {a.files.rows.map((r, k) => (
                       <li key={r} className="hs-row" style={i(k)}>
-                        <Icon name="file" size={16} className="ico-file" />
-                        <span className="grow mono" translate="no" dir="ltr">
-                          {r}
-                        </span>
+                        <button type="button" className="mk-row" aria-pressed="false" data-mk-pick={a.mock.opened(r)}>
+                          <Icon name="file" size={16} className="ico-file" />
+                          <span className="grow mono" translate="no" dir="ltr">
+                            {r}
+                          </span>
+                        </button>
                       </li>
                     ))}
                     <li className="hs-row" style={i(a.files.rows.length)}>
-                      <span className="grow">{a.files.readOnly}</span>
-                      <span className="switch" aria-hidden="true" />
+                      <label className="mk-sw">
+                        <span className="grow">{a.files.readOnly}</span>
+                        <input type="checkbox" role="switch" className="mk-switch" data-mk-write={a.mock.writeOn} />
+                        <span className="switch" aria-hidden="true" />
+                      </label>
                     </li>
                   </ul>
-                  <p className="mini-foot">{a.files.foot}</p>
+                  <p className="mini-foot" role="status" data-mk-foot={a.files.foot}>
+                    {a.files.foot}
+                  </p>
                 </div>
               </Photo>
               <div className="card-text">
@@ -129,7 +166,7 @@ export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNod
               </a>
             </div>
             <div className="hs-dry-body" data-run>
-              <div className="hs-dry-checks mini">
+              <div className="hs-dry-checks mini" data-mock="checks">
                 <p className="mini-head">
                   <span>{a.checks.panel}</span>
                   <span className="mini-tag">{a.example}</span>
@@ -137,26 +174,47 @@ export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNod
                 <ul>
                   {checkRows.map((r, k) => (
                     <li key={r} data-row={k}>
-                      <span className="tick" aria-hidden="true">
-                        <Icon name="check" size={13} />
-                      </span>
-                      <span className="grow">{r}</span>
+                      <label className="mk-check">
+                        <input type="checkbox" defaultChecked data-mk-check />
+                        <span className="tick">
+                          <Icon name="check" size={13} />
+                        </span>
+                        <span className="grow">{r}</span>
+                      </label>
                     </li>
                   ))}
                 </ul>
-                <p className="mini-foot" data-foot>
+                <div className="mk-bar mk-bar-end">
+                  <button type="button" className="mk-btn" data-mk-rerun aria-label={a.mock.rerunLabel} hidden>
+                    {a.mock.rerun}
+                  </button>
+                </div>
+                <p
+                  className="mini-foot"
+                  data-foot
+                  role="status"
+                  data-mk-foot={a.checks.foot}
+                  data-mk-count={a.mock.checksOn}
+                >
                   {a.checks.foot}
                 </p>
               </div>
-              <figure className="hs-demo hs-dry-term" aria-hidden="true">
+              <figure className="hs-demo hs-dry-term" data-mock="checks-terminal" aria-label={a.checks.panel}>
                 <figcaption>
                   <span>bothy</span>
-                  <span className="hs-tag">{a.example}</span>
+                  <span className="hs-cap-r">
+                    <button type="button" className="hs-replay" data-mk-replay hidden aria-label={a.mock.rerunLabel}>
+                      {a.mock.rerun}
+                    </button>
+                    <span className="hs-tag">{a.example}</span>
+                  </span>
                 </figcaption>
-                <pre translate="no" dir="ltr">
+                <pre translate="no" dir="ltr" tabIndex={0}>
                   <code>
                     <span className="hs-cmd">
-                      <span className="prompt">$ </span>
+                      <span className="prompt" aria-hidden="true">
+                        ${' '}
+                      </span>
                       <span data-type>bothy install --dry-run</span>
                     </span>
                     {'\n'}
