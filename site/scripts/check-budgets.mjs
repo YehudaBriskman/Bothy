@@ -43,7 +43,7 @@ export const LIMITS = {
   // The first-visit splash (owner-chosen Cube loader, 2026-11-18): lazy, once per session, never with reduced motion.
   'js / lazy brand splash': 4, // 3.3
   'js / all shipped scripts': 30, // 28.0 with the camera (+1.5 over main's 25.5, +inner pages); // 25.5; 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
-  'css / all stylesheets': 33, // 30.5: main's 27.7 plus styles/chosen.css (+1.8) and the outline wordmark; // 27.7; 24.3 before home-sections.css (3.4 KB: hill, rail, band, photo drift, reveal states)
+  'css / all stylesheets': 34, // 33.1: the scrubbed console (loading state, focus ring), the glass strip and the plain closing band; // 30.5: main's 27.7 plus styles/chosen.css (+1.8) and the outline wordmark; // 27.7; 24.3 before home-sections.css (3.4 KB: hill, rail, band, photo drift, reveal states)
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
   'dev pages (sky-spike, scene-mock, brand-mock, section-mock), raw': 1150, // 994.2 (748, then + section-mock gallery 167.5, 2026-11-19)
