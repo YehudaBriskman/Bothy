@@ -10,6 +10,7 @@
  * holds. The frame is fixtures only and says so (its "Example data" badge is untouched).
  */
 import { BEATS } from '../console/flow.ts';
+import { setupDither, type Dither } from './dither.ts';
 
 const clamp = (x: number) => Math.min(1, Math.max(0, x));
 const ease = (x: number) => 1 - (1 - clamp(x)) ** 3;
@@ -109,6 +110,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     return glass!.offsetHeight;
   }
 
+  let dither: Dither | null = null;
   function measure() {
     cf!.classList.add('cs-live');
     root.classList.add('cs-on'); // the stage's width and the pin are sized by these rules: measure with them on
@@ -138,6 +140,8 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     }
     seen = '';
     beatShown = -1;
+    if (on && !dither && !matchMedia('(prefers-reduced-motion: reduce)').matches) dither = setupDither(root);
+    dither?.measure();
     if (on) {
       pinTop = STICK + Math.max(0, (avail - h * fit) / 2);
       stage!.style.setProperty('--cf-top', `${Math.round(pinTop)}px`);
@@ -175,6 +179,15 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       glass.style.opacity = (1 - out ** 1.5).toFixed(3);
     }
     cf!.style.setProperty('--cf-rise', rise.toFixed(3));
+    if (dither) {
+      // the dot front: hidden under the hero, rising to the lower 40% as the window grows, easing up a little over
+      // the beats, then sweeping the whole window to ink while the frame rolls away
+      const t0 = clamp((scrollY + pinTop - trackTop) / range);
+      const gone = -(dither.band / innerHeight) - 0.02;
+      let f = k < 1 ? 1.03 + (0.6 - 1.03) * rise : 0.6 - 0.1 * t0;
+      if (out > 0) f = 0.5 + (gone - 0.5) * (out * out * (3 - 2 * out));
+      dither.set(f);
+    }
     const t = clamp((scrollY + pinTop - trackTop) / range);
     root.style.setProperty('--cs-t', t.toFixed(3));
     let beat = BEATS.length - 1;
