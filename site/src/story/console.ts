@@ -180,12 +180,17 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     }
     cf!.style.setProperty('--cf-rise', rise.toFixed(3));
     if (dither) {
-      // the dot front: hidden under the hero, rising to the lower 40% as the window grows, easing up a little over
-      // the beats, then sweeping the whole window to ink while the frame rolls away
-      const t0 = clamp((scrollY + pinTop - trackTop) / range);
+      // the dissolve is its own three stages, and it starts only when the story is done (the last beat, then the frame
+      // rolling away): 1 thin dots appear over the whole screen; 2 a denser front of dots rises from the foot to the
+      // top, continuously with the scroll; 3 solid ink, which the next section already sits on
+      const L0 = innerHeight * 0.3;
+      const tr = clamp((scrollY + pinTop - trackTop - range + L0) / (L0 + frameH * fit * 0.95));
+      const ease = (x: number) => x * x * (3 - 2 * x);
+      const g = ease(clamp(tr / 0.2));
       const gone = -(dither.band / innerHeight) - 0.02;
-      let f = k < 1 ? 1.03 + (0.6 - 1.03) * rise : 0.6 - 0.1 * t0;
-      if (out > 0) f = 0.5 + (gone - 0.5) * (out * out * (3 - 2 * out));
+      const r = ease(clamp((tr - 0.18) / 0.78));
+      const f = tr <= 0.18 ? 1.05 : 1.0 + (gone - 1.0) * r;
+      root.style.setProperty('--sd-g', g.toFixed(3));
       dither.set(f);
     }
     const t = clamp((scrollY + pinTop - trackTop) / range);
