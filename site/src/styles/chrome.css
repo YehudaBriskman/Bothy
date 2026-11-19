@@ -682,7 +682,8 @@ a.dd-row:focus-visible,
   font-size: var(--fs-small);
 }
 /* The giant wordmark (components/FootMark.tsx): a thin OUTLINE, stroke only, no fill. A hairline all the time; where
-   the pointer is, a soft light that makes the edges bright (src/footmark.ts sets --mx/--my). Opacity only. */
+   the pointer is, a soft light that makes the edges bright (src/footmark.ts sets --mx/--my). Opacity only. At rest it
+   is a 0.5px line only just above the ink (about 7% white); only the lit area shows the edges. */
 @property --mx {
   syntax: '<length-percentage>';
   inherits: true;
@@ -720,12 +721,12 @@ a.dd-row:focus-visible,
   overflow: hidden;
 }
 .wm-base g {
-  stroke: rgb(255 255 255 / 24%);
-  stroke-width: 1.25px;
+  stroke: rgb(255 255 255 / 7%);
+  stroke-width: 0.5px;
 }
 .wm-edge g {
-  stroke: rgb(255 255 255 / 96%);
-  stroke-width: 1.75px;
+  stroke: rgb(255 255 255 / 90%);
+  stroke-width: 0.75px;
 }
 .foot-mark clipPath path {
   vector-effect: non-scaling-stroke; /* the line stays hairline-thin whatever the wordmark's size */
@@ -736,7 +737,7 @@ a.dd-row:focus-visible,
   inset: 0;
   pointer-events: none;
   opacity: 0;
-  filter: drop-shadow(0 0 5px rgb(255 255 255 / 30%));
+  filter: drop-shadow(0 0 4px rgb(255 255 255 / 22%));
   transition: opacity 0.35s var(--ease-out);
   -webkit-mask-image: radial-gradient(
     circle var(--wm-r) at var(--mx) var(--my),
@@ -773,13 +774,13 @@ a.dd-row:focus-visible,
     --mx: 115%;
   }
 }
-/* reduced motion: no moving light, only a still, slightly brighter outline */
+/* reduced motion: no moving light, only the faint still outline */
 @media (prefers-reduced-motion: reduce) {
-  .wm-edge {
-    opacity: 0.35;
-    filter: none;
-    -webkit-mask-image: none;
-    mask-image: none;
+  .wm-lit {
+    display: none;
+  }
+  .wm-base g {
+    stroke: rgb(255 255 255 / 12%);
   }
 }
 @media (forced-colors: active) {
