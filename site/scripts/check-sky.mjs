@@ -261,7 +261,16 @@ async function runViewport(browser, base, name, vp, hours, o) {
       window.__sky.frame(6);
     }, h);
     await page.waitForLoadState('networkidle').catch(() => {});
-    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))));
+    // settle the finite animations only: a looping one (the photo windows' slow drift) never finishes, and waiting on
+    // it stalls the run until the job's time limit
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+          .map((a) => a.finished.catch(() => {})),
+      ),
+    );
     await page.evaluate(() => window.__sky.frame(0));
     const sky = await page.evaluate(() => document.querySelector('[data-sky]').getBoundingClientRect().toJSON());
     if (o.stills) {

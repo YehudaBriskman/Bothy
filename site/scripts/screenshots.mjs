@@ -90,7 +90,12 @@ async function main() {
           // no rAF wait: headless Chromium may run one frame in tens of seconds; settle CSS animations instead
           await page.evaluate(() =>
             Promise.race([
-              Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))),
+              Promise.all(
+                document
+                  .getAnimations()
+                  .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+                  .map((a) => a.finished.catch(() => {})),
+              ),
               new Promise((r) => setTimeout(r, 3000)),
             ]),
           );
