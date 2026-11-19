@@ -1,8 +1,11 @@
 /**
  * The camera over the console's canvas (section 03, option C). The frame's four views are one canvas; for each beat
  * (and each part of a beat) the canvas glides and zooms to the part being described, and a soft vignette dims what is
- * out of focus. Transform and opacity only; the glide itself is a CSS transition (story.css `.cf-cam`), so a fast
- * scroll never stutters the canvas: it just heads for the newest target.
+ * out of focus. Transform and opacity only. The camera is SCRUBBED, not animated: its pose is a pure function of the
+ * scroll (beat + position inside the beat), interpolated between waypoints that hold on a part and glide to the next
+ * one, so if the visitor stops scrolling the camera stops where it is and scrolling back rewinds it. There is no CSS
+ * transition on it. The boxes of the parts are measured once per layout and cached, so the scroll handler reads
+ * nothing from the layout.
  *
  * Created by src/story/console.ts only when the demo is live (wide window, motion allowed). Everything it adds is
  * decoration: an aria-hidden vignette, and the panels move into one wrapper that has no role. `reset()` puts the whole
@@ -12,7 +15,28 @@ interface Focus {
   els: (HTMLElement | null | undefined)[];
   /** the zoom wanted; the focused part is never cut off, so a large part zooms less */
   z: number;
+  /** a part of the (wide) first element, as [from, share] of its width: used when the whole of it is too wide to zoom on */
+  crop?: [number, number];
 }
+
+/** The camera holds `f` from u=a to u=b (null: the wide shot), then glides to the next waypoint. */
+interface Way {
+  a: number;
+  b: number;
+  id: string;
+  f: Focus | null;
+}
+
+interface Pose {
+  tx: number;
+  ty: number;
+  z: number;
+}
+const WIDE: Pose = { tx: 0, ty: 0, z: 1 };
+const sm = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
 
 export interface Lens {
   show(beat: number, u: number): void;
@@ -51,70 +75,133 @@ export function setupLens(cf: HTMLElement, body: HTMLElement): Lens | null {
   const tiles = qa(cf, '.ch-tile');
   const fields = qa(cf, '.cf-field');
 
-  function focusFor(beat: number, u: number): { key: string; f: Focus | null } {
+  /** Every beat opens and closes on the wide shot, so the switch between views is never a jump of the camera. */
+  function planFor(beat: number): Way[] {
+    const W = (a: number, b: number, id: string, f: Focus | null): Way => ({ a, b, id, f });
+    const wide = (a: number, b: number) => W(a, b, 'wide', null);
     switch (beat) {
       case 0:
-        if (u < 0.1) return { key: '0a', f: null };
-        if (u < 0.4) return { key: '0b', f: { els: [fields[0]], z: 1.7 } };
-        if (u < 0.75) return { key: '0c', f: { els: [fields[1]], z: 1.7 } };
-        return { key: '0d', f: { els: [q(cf, '.cf-login-btn')], z: 1.7 } };
+        return [
+          wide(0, 0.06),
+          W(0.16, 0.44, '0u', { els: [fields[0]], z: 1.7 }),
+          W(0.54, 0.76, '0p', { els: [fields[1]], z: 1.7 }),
+          W(0.84, 0.95, '0b', { els: [q(cf, '.cf-login-btn')], z: 1.7 }),
+          wide(0.99, 1),
+        ];
       case 1:
-        return u < 0.45
-          ? { key: '1a', f: { els: [q(cf, '.cf-scanbar')], z: 1.5 } }
-          : { key: '1b', f: { els: rows.slice(0, 4), z: 1.45 } };
+        return [
+          wide(0, 0.04),
+          W(0.1, 0.5, '1a', { els: [q(cf, '.cf-scanbar')], z: 1.6, crop: [0.55, 0.45] }),
+          W(0.62, 0.9, '1b', { els: rows.slice(0, 4), z: 1.45 }),
+          wide(0.99, 1),
+        ];
       case 2: {
-        const i = Math.min(rows.length - 1, Math.floor(u * rows.length));
-        return { key: `2-${i}`, f: { els: [rows[i]], z: 1.6 } };
+        const n = Math.min(rows.length, 5);
+        const out: Way[] = [wide(0, 0.04)];
+        for (let i = 0; i < n; i++) {
+          const a = 0.1 + (0.8 * i) / n;
+          const b = 0.1 + (0.8 * (i + 1)) / n - 0.06;
+          out.push(W(a, Math.max(a, b), `2-${i}`, { els: [rows[i]], z: 1.6 }));
+        }
+        out.push(wide(0.99, 1));
+        return out;
       }
       case 3:
-        return { key: '3', f: { els: [q(cf, '.cf-detail') ?? rows[0]], z: 1.55 } };
+        return [
+          wide(0, 0.06),
+          W(0.12, 0.26, '3r', { els: [rows[0]], z: 1.6 }),
+          W(0.56, 0.9, '3d', { els: [q(cf, '.cf-detail') ?? rows[0]], z: 1.55 }),
+          wide(0.99, 1),
+        ];
       case 4:
-        return u < 0.5
-          ? { key: '4a', f: { els: tiles.slice(0, 2), z: 1.5 } }
-          : { key: '4b', f: { els: [q(cf, '.cf-spark')], z: 1.7 } };
+        return [
+          wide(0, 0.05),
+          W(0.12, 0.46, '4a', { els: tiles.slice(0, 2), z: 1.5 }),
+          W(0.58, 0.92, '4b', { els: [q(cf, '.cf-spark svg')], z: 1.5 }),
+          wide(0.99, 1),
+        ];
       case 5:
-        return { key: '5', f: { els: [q(cf, '.fx-doc') ?? q(cf, '.rd-main')], z: 1.5 } };
+        return [
+          wide(0, 0.06),
+          W(0.14, 0.9, '5', { els: [q(cf, '.fx-doc') ?? q(cf, '.rd-main')], z: 1.5 }),
+          wide(0.99, 1),
+        ];
       default:
-        return u < 0.55
-          ? { key: '6a', f: { els: [q(cf, '.cf-cmd')], z: 1.7 } }
-          : { key: '6b', f: { els: [q(cf, '.cf-mods')], z: 1.5 } };
+        return [
+          wide(0, 0.04),
+          W(0.08, 0.52, '6a', { els: [q(cf, '.cf-cmd')], z: 1.7, crop: [0, 0.5] }),
+          W(0.64, 0.92, '6b', { els: [q(cf, '.cf-mods')], z: 1.5, crop: [0, 0.6] }),
+          wide(0.99, 1),
+        ];
     }
   }
 
-  let shown = '';
-  function apply(f: Focus | null): boolean {
+  // layout-pixel boxes are not touched by the camera's transform, so a pose is computed once and kept until reset()
+  const poses = new Map<string, Pose>();
+  const plans = new Map<number, Way[]>();
+  function poseOf(w: Way): Pose | null {
+    if (!w.f) return WIDE;
+    const hit = poses.get(w.id);
+    if (hit) return hit;
     const W = body.clientWidth;
     const H = body.clientHeight;
-    if (!f || W < 1 || H < 1) {
-      cam.style.transform = '';
-      vignette.style.opacity = '0';
-      return true;
-    }
-    const boxes = f.els.map((e) => (e ? boxIn(e, cam) : null));
-    if (boxes.length === 0 || boxes.some((b) => !b)) return false; // not laid out yet: try again on the next call
+    if (W < 1 || H < 1) return null;
+    const boxes = w.f.els.map((e) => (e ? boxIn(e, cam) : null));
+    if (boxes.length === 0 || boxes.some((b) => !b)) return null; // not laid out yet: try again on the next call
+    const c = w.f.crop;
+    if (c && boxes[0]) boxes[0] = { ...boxes[0], x: boxes[0].x + boxes[0].w * c[0], w: boxes[0].w * c[1] };
     const x0 = Math.min(...boxes.map((b) => b!.x));
     const y0 = Math.min(...boxes.map((b) => b!.y));
     const x1 = Math.max(...boxes.map((b) => b!.x + b!.w));
     const y1 = Math.max(...boxes.map((b) => b!.y + b!.h));
-    const w = Math.max(1, x1 - x0);
-    const h = Math.max(1, y1 - y0);
-    const z = Math.max(1, Math.min(f.z, W / (w * 1.05), H / (h * 1.05)));
+    const bw = Math.max(1, x1 - x0);
+    const bh = Math.max(1, y1 - y0);
+    const z = Math.max(1, Math.min(w.f.z, W / (bw * 1.05), H / (bh * 1.05)));
     // centre the part, but never slide the canvas off its own edge
-    const tx = Math.min(0, Math.max(W - W * z, W / 2 - z * (x0 + w / 2)));
-    const ty = Math.min(0, Math.max(H - H * z, H / 2 - z * (y0 + h / 2)));
-    cam.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${z.toFixed(3)})`;
-    vignette.style.opacity = '1';
-    return true;
+    const tx = Math.min(0, Math.max(W - W * z, W / 2 - z * (x0 + bw / 2)));
+    const ty = Math.min(0, Math.max(H - H * z, H / 2 - z * (y0 + bh / 2)));
+    const pose = { tx, ty, z };
+    poses.set(w.id, pose);
+    return pose;
+  }
+
+  let shown = '';
+  function write(p: Pose, dim: number) {
+    const tf =
+      p.z === 1 && p.tx === 0 && p.ty === 0
+        ? ''
+        : `translate(${p.tx.toFixed(1)}px, ${p.ty.toFixed(1)}px) scale(${p.z.toFixed(3)})`;
+    const key = `${tf}|${dim.toFixed(2)}`;
+    if (key === shown) return;
+    shown = key;
+    cam.style.transform = tf;
+    vignette.style.opacity = dim.toFixed(2);
   }
 
   return {
     show(beat, u) {
-      const { key, f } = focusFor(beat, u);
-      if (key === shown) return;
-      if (apply(f)) shown = key;
+      let plan = plans.get(beat);
+      if (!plan) plans.set(beat, (plan = planFor(beat)));
+      // find the waypoint held at u, or the pair u lies between
+      let k = 0;
+      while (k < plan.length - 1 && u >= plan[k + 1]!.a) k++;
+      const cur = plan[k]!;
+      const next = plan[k + 1];
+      const p0 = poseOf(cur);
+      if (!p0) return;
+      if (!next || u <= cur.b) return write(p0, cur.f ? 1 : 0);
+      const p1 = poseOf(next);
+      if (!p1) return;
+      const t = sm((u - cur.b) / Math.max(1e-6, next.a - cur.b));
+      write(
+        { tx: p0.tx + (p1.tx - p0.tx) * t, ty: p0.ty + (p1.ty - p0.ty) * t, z: p0.z + (p1.z - p0.z) * t },
+        (cur.f ? 1 : 0) + ((next.f ? 1 : 0) - (cur.f ? 1 : 0)) * t,
+      );
     },
     reset() {
       shown = '';
+      poses.clear();
+      plans.clear();
       cam.style.transform = '';
       vignette.style.opacity = '0';
     },

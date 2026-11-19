@@ -139,14 +139,7 @@
   opacity: 0;
   background: radial-gradient(ellipse 62% 58% at 50% 50%, transparent 60%, rgb(6 8 12 / 62%) 100%);
 }
-@media (prefers-reduced-motion: no-preference) {
-  .cf-cam {
-    transition: transform 0.7s var(--ease-emph);
-  }
-  .cf-vignette {
-    transition: opacity 0.7s var(--ease-emph);
-  }
-}
+/* no transition on the camera or the vignette: both are scrubbed by the scroll (lens.ts), so they stop when it stops */
 
 /* ── 04 the descent and the hut: the clouds part ─────────────────────────────────────────────────────────
    Three of our own cloud photographs (already the story's backdrops) as layers that move at different speeds as
