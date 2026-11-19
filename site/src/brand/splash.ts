@@ -291,24 +291,16 @@ export function createSplash(doc: Document, target: Element | null): Splash {
   seek(0);
   doc.documentElement.classList.remove('bb-intro'); // the animations hold the hidden state from here
   let gone = false;
-  const pageAnims = anims.filter((a) => (a.effect as KeyframeEffect | null)?.target?.closest?.('.bb-splash') == null);
   const skip = () => {
     if (gone) return;
     gone = true;
-    // The overlay's own animations (the flight ends at opacity 0) must outlive the page's: cancelling the flight puts the
-    // lockup back at the centre of the screen, which is the flash after the landing. Hide the overlay first, then free the page.
+    // The flight ends at opacity 0. Cancelling it puts the lockup back at the centre of the screen, and the overlay then
+    // fades out over it: that was the flash after the landing. Once landed, the overlay's svg is hidden for good first.
     const landed = flight.playState === 'finished' ? LAND : ((flight.currentTime as number | null) ?? 0);
-    for (const a of pageAnims) a.cancel(); // every page element back to its own style: the assembled page
-    if (landed >= LAND - 40) {
-      el.remove();
-      for (const a of anims) a.cancel();
-      return;
-    }
+    if (landed >= LAND - 40) svg.style.opacity = '0';
+    for (const a of anims) a.cancel(); // every element back to its own style: the assembled page
     el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
-    window.setTimeout(() => {
-      el.remove();
-      for (const a of anims) a.cancel();
-    }, 180);
+    window.setTimeout(() => el.remove(), 180);
   };
   return { el, anims, seek, skip };
 }
