@@ -1,5 +1,5 @@
 /**
- * Words for the four sections that follow the four-up features: the parts up close, the clips, the sizes compared,
+ * Words for the four sections that follow the four-up features: the clip, the sizes compared,
  * and under the hood. Kept beside en.ts, not inside it, so the open home-page work does not collide with it; fold it
  * into Messages when the second locale arrives. Every figure comes from facts.ts, the example fixtures or the lab
  * record (docs/plans/thin-bothy/bothy-install.md, 10b, 10e, 10f, I8, I14, I20, I21); anything drawn rather than
@@ -7,66 +7,32 @@
  */
 export const ns = {
   example: 'Example',
-  parts: {
-    eyebrow: 'The parts',
-    heading: 'Four pieces, up close.',
-    lede: 'One screen, four views. Choose one to see it at full size.',
-    tabsLabel: 'Choose a view of the console',
-    views: [
-      { id: 'services', name: 'Services', cap: 'What is running. Found by asking Docker; nothing to register.' },
-      { id: 'overview', name: 'Overview', cap: 'Four vitals: services, routes, updates and the last backup.' },
-      { id: 'files', name: 'Files', cap: 'Notes where they live. Read-only by design.' },
-      { id: 'modules', name: 'Modules', cap: 'What is installed. The limits are the ones declared in the repository.' },
-    ],
-    th: { service: 'Service', state: 'State', group: 'Group', module: 'Module', limit: 'Memory limit' },
+  views: {
+    th: { service: 'Service', state: 'State', module: 'Module', limit: 'Memory limit' },
     installed: 'installed',
     notInstalled: 'not installed',
     core: 'core',
     readOnly: 'Writing: read-only',
+    filter: 'Filter services',
+    command: 'Command',
   },
   motion: {
     eyebrow: 'In motion',
     heading: 'See it move.',
-    lede: 'Four short looks at the app, one at a time. Nothing plays until you press play.',
-    tabsLabel: 'Choose a clip',
-    play: 'Play',
-    pause: 'Pause',
-    transcript: 'Transcript',
-    loop: 'loop',
-    note: 'These previews are drawn from example data, not recorded. The recordings of the real app replace them as they are made.',
-    clips: [
-      {
-        id: 'services',
-        name: 'Services',
-        len: 8,
-        cap: 'Bothy asks Docker what is running and lists it. A starting service turns up on its own.',
-        script:
-          'The Services table shows seven rows: four notes services up, the wiki starting, a dev server unknown and a nightly backup stopped. The pointer moves to the wiki row. Its state changes from starting to up.',
-      },
-      {
-        id: 'files',
-        name: 'Notes',
-        len: 10,
-        cap: 'A reader for the notes kept on the machine. It only reads: the page says so.',
-        script:
-          'The Files tab shows a tree of example notes. The pointer opens the setup folder, then first-run.md. The page shows as text. A chip on it says Writing: read-only.',
-      },
-      {
-        id: 'health',
-        name: 'Health',
-        len: 6,
-        cap: 'Four vitals on one strip. Stop a service and the strip says so.',
-        script:
-          'The overview shows four tiles: services 5 of 6 up, routes 3 of 3, one update and the last backup 11 hours ago. A service stops and the first tile changes to 4 of 6 up, in amber.',
-      },
-      {
-        id: 'install',
-        name: 'Install',
-        len: 12,
-        cap: 'Read the plan, then install. Shortened: a real install takes 24 to 39 seconds in our lab.',
-        script:
-          'In a terminal, bothy install --dry-run prints four checks and stops. Then bothy install runs, shortened, and ends on the line "Bivvy is up" with the address.',
-      },
+    lede: 'A short clip of the console at work. Press play.',
+    caption: 'Scripted from example data, not a recording of a real machine.',
+    play: 'Play the clip',
+    pause: 'Pause the clip',
+    scrub: 'Clip position',
+    chapters: 'Chapters',
+    transcript:
+      'In the console, the pointer types wiki into the services filter and clicks the wiki row. After a short load its state changes from starting to up. The Files tab opens: the pointer chooses first-run.md in the setup folder and rests on the read-only label. The Health tab shows four tiles; when a service stops, the first tile changes to 4 of 6 up, in amber. On the Modules tab the command bothy module add node-metrics is typed and run, and the module shows as installed.',
+    len: 28,
+    chapterList: [
+      { id: 'services', name: 'Services', t: 0 },
+      { id: 'notes', name: 'Notes', t: 7 },
+      { id: 'health', name: 'Health', t: 14 },
+      { id: 'install', name: 'Install', t: 20 },
     ],
   },
   compare: {
