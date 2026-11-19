@@ -156,6 +156,9 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  /* the layers dissolve into the chapter's ground at both edges: no seam between two chapters */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
 }
 .ds-clouds img {
   position: absolute;

@@ -70,7 +70,7 @@ export function setupLens(cf: HTMLElement, body: HTMLElement): Lens | null {
         return { key: '3', f: { els: [q(cf, '.cf-detail') ?? rows[0]], z: 1.55 } };
       case 4:
         return u < 0.5
-          ? { key: '4a', f: { els: tiles, z: 1.4 } }
+          ? { key: '4a', f: { els: tiles.slice(0, 2), z: 1.5 } }
           : { key: '4b', f: { els: [q(cf, '.cf-spark')], z: 1.7 } };
       case 5:
         return { key: '5', f: { els: [q(cf, '.fx-doc') ?? q(cf, '.rd-main')], z: 1.5 } };
@@ -98,7 +98,7 @@ export function setupLens(cf: HTMLElement, body: HTMLElement): Lens | null {
     const y1 = Math.max(...boxes.map((b) => b!.y + b!.h));
     const w = Math.max(1, x1 - x0);
     const h = Math.max(1, y1 - y0);
-    const z = Math.max(1, Math.min(f.z, W / (w * 1.15), H / (h * 1.15)));
+    const z = Math.max(1, Math.min(f.z, W / (w * 1.05), H / (h * 1.05)));
     // centre the part, but never slide the canvas off its own edge
     const tx = Math.min(0, Math.max(W - W * z, W / 2 - z * (x0 + w / 2)));
     const ty = Math.min(0, Math.max(H - H * z, H / 2 - z * (y0 + h / 2)));
