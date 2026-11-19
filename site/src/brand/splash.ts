@@ -14,9 +14,9 @@
  */
 import { AMBER, GLYPHS, INK, LOCKUP, PAPER, cubeBody, layoutWord } from './cube.ts';
 
-const SEQ = 1900; // the box-to-word sequence, centred
-const LAND = 2400; // the lockup lands in the header (the flight starts at SEQ)
-const STAGGER = { start: 1800, step: 70, each: 480, rise: 14 }; // the page assembling round the flight
+const SEQ = 1600; // the box-to-word sequence, centred
+const LAND = 2300; // the lockup lands in the header (the flight starts at SEQ)
+const STAGGER = { start: 1720, step: 80, each: 480, rise: 14 }; // the page assembling round the flight
 /**
  * What the intro hides and brings back, in order. styles/intro.css hides exactly these (a test holds the two lists
  * together). The header lockup comes back as the flying one lands on it; the rest are staggered.
@@ -34,7 +34,7 @@ export const INTRO_ITEMS = [
   '.story-dots',
   '.sky-ui',
 ] as const;
-export const DURATION = STAGGER.start + (INTRO_ITEMS.length - 2) * STAGGER.step + STAGGER.each; // 2910 ms
+export const DURATION = STAGGER.start + (INTRO_ITEMS.length - 2) * STAGGER.step + STAGGER.each; // 2920 ms
 const W = 1000;
 const H = 400;
 const word = layoutWord();
@@ -128,38 +128,32 @@ function sequence(svg: SVGSVGElement, add: (el: Element, k: Keyframe[], d: numbe
     SEQ,
   );
 
-  // The two Bs: an inside copy (behind the front) for the rise, an outside copy (on top) for the flight. They jump out
-  // SMALL, GROW as they land side by side (a hair of overshoot), then STRETCH into their places (B2 drags wide to its
-  // spot, B1 settles), and only then are the words WRITTEN into the gaps, letter by letter, left to right.
+  // The two Bs: an inside copy (behind the front) for the rise, an outside copy (on top) for the flight.
   const cx0 = W / 2;
   const front0 = BOX0.y + RIM * S0;
   const fy = CAP + 50;
   const fx1 = WX + B1.x + 36;
   const fx2 = WX + B2.x + 36;
   const adj = fx1 + 78; // B2 parked beside B1, the pair as it came out of the box
+  const P = [0.62, 0.74, 0.82]; // the pull: B2's progress is 0, 0.8, 1 at these
   const T = (x: number, y: number, s: number, kx = 1, ky = 1) =>
     `translate(${f(x)}px, ${f(y)}px) scale(${f(s * kx)}, ${f(s * ky)}) translate(-36px, -50px)`;
   const pathB = (n: number): Keyframe[] => {
     const sx = n === 1 ? -1 : 1;
-    const home = n === 1 ? fx1 : adj; // where it lands: B1 in its own place, B2 beside it
     const k: Keyframe[] = [
-      { offset: 0, transform: T(cx0 + sx * 26, front0 + 36, 0.42) },
-      { offset: 0.24, transform: T(cx0 + sx * 26, front0 + 36, 0.42), easing: BACK }, // waits for the lid
-      {
-        offset: 0.48,
-        transform: T(cx0 + sx * 33, front0 - 60, 0.5, 0.96, 1.06),
-        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-      }, // out, small
-      { offset: 0.67, transform: T(home, fy, 1.1, 0.96, 1.04), easing: OUT }, // lands, grown a touch past full size
-      { offset: 0.73, transform: T(home, fy, 1), easing: PULL }, // settles
+      { offset: 0, transform: T(cx0 + sx * 26, front0 + 36, 0.6) },
+      { offset: 0.24, transform: T(cx0 + sx * 26, front0 + 36, 0.6), easing: BACK }, // waits for the lid
+      { offset: 0.5, transform: T(cx0 + sx * 33, front0 - 60, 0.82, 0.96, 1.06), easing: OUT },
+      { offset: 0.62, transform: T(n === 1 ? fx1 : adj, fy, 1), easing: n === 1 ? OUT : PULL },
     ];
     if (n === 1) {
-      k.push({ offset: 0.8, transform: T(fx1, fy, 1, 0.96, 1.03), easing: BACK }); // recoils as B2 pulls away
-      k.push({ offset: 0.9, transform: T(fx1, fy, 1) });
+      // B1 holds its ground and recoils a little as B2 pulls away
+      k.push({ offset: 0.7, transform: T(fx1, fy, 1, 0.95, 1.03), easing: BACK });
+      k.push({ offset: 0.82, transform: T(fx1, fy, 1) });
     } else {
-      // stretched wide on the way, a hair of overshoot, then still
-      k.push({ offset: 0.82, transform: T(adj + (fx2 - adj) * 0.7, fy, 1, 1.22, 0.94), easing: BACK });
-      k.push({ offset: 0.91, transform: T(fx2, fy, 1) });
+      // B2 pulls the word out: stretched wide mid-pull, a hair of overshoot, settles
+      k.push({ offset: P[1], transform: T(adj + (fx2 - adj) * 0.8, fy, 1, 1.16, 0.95), easing: BACK });
+      k.push({ offset: P[2], transform: T(fx2, fy, 1) });
     }
     k.push({ offset: 1, transform: T(n === 1 ? fx1 : fx2, fy, 1) });
     return k;
@@ -181,26 +175,33 @@ function sequence(svg: SVGSVGElement, add: (el: Element, k: Keyframe[], d: numbe
       SEQ,
     );
   }
-  // The words are written: each letter wipes in from its left edge (a narrow slice widening to full) with a small rise,
-  // one after the other. "othy" fills the gap between the Bs while B2 stretches out; "ox" follows once B2 is in place.
-  const STEP = 0.035;
-  const WRITE = 0.06; // one letter's own wipe, of SEQ
+  // "othy" spreads between B1 and the moving B2 like a bellows; "ox" unfolds out of B2's back.
+  const b1Right = WX + B1.x + 64;
   for (const g of svg.querySelectorAll<SVGGElement>('.ltr')) {
     const l = word.letters[Number(g.dataset.i)]!;
-    const at = l.i > 5 ? 0.9 + (l.i - 6) * 0.033 : 0.74 + (l.i - 1) * STEP;
-    const x = WX + l.x;
+    const from = l.i > 5 ? adj - 8 : b1Right - 10;
+    const to = WX + l.x;
     add(
       g,
       [
-        { offset: 0, transform: `translate(${f(x)}px, ${CAP + 7}px) scale(0.15, 0.94)` },
-        { offset: at, transform: `translate(${f(x)}px, ${CAP + 7}px) scale(0.15, 0.94)`, easing: OUT },
-        { offset: at + WRITE, transform: `translate(${f(x)}px, ${CAP}px) scale(1, 1)` },
-        { offset: 1, transform: `translate(${f(x)}px, ${CAP}px) scale(1, 1)` },
+        { offset: 0, transform: `translate(${f(from)}px, ${CAP}px) scale(0.12, 1)` },
+        { offset: P[0], transform: `translate(${f(from)}px, ${CAP}px) scale(0.12, 1)`, easing: PULL },
+        {
+          offset: P[1],
+          transform: `translate(${f(from + (to - from) * 0.8)}px, ${CAP}px) scale(0.86, 1)`,
+          easing: BACK,
+        },
+        { offset: P[2], transform: `translate(${to}px, ${CAP}px) scale(1, 1)` },
+        { offset: 1, transform: `translate(${to}px, ${CAP}px) scale(1, 1)` },
       ],
       SEQ,
     );
-    // solid within a few frames: overlapping letters of one colour merge, half-transparent ones would show the seams
-    add(g, [{ opacity: 0 }, { opacity: 0, offset: at }, { opacity: 1, offset: at + 0.02 }, { opacity: 1 }], SEQ);
+    // solid almost at once: overlapping letters of one colour merge, half-transparent ones would show the seams
+    add(
+      g,
+      [{ opacity: 0 }, { opacity: 0, offset: P[0]! + 0.03 }, { opacity: 1, offset: P[0]! + 0.031 }, { opacity: 1 }],
+      SEQ,
+    );
   }
 }
 
@@ -227,8 +228,7 @@ export function createSplash(doc: Document, target: Element | null): Splash {
     'position:absolute;inset-inline-start:50%;inset-block-start:42%;inline-size:min(800px, 92vw);aspect-ratio:5 / 2;translate:-50% -50%;';
   stage.innerHTML = splashSVG();
   const svg = stage.firstElementChild as SVGSVGElement;
-  svg.style.cssText =
-    'display:block;inline-size:100%;block-size:100%;overflow:visible;transform-origin:0 0;will-change:transform,opacity;';
+  svg.style.cssText = 'display:block;inline-size:100%;block-size:100%;overflow:visible;transform-origin:0 0;';
   el.append(stage);
   doc.body.append(el);
 
@@ -262,20 +262,16 @@ export function createSplash(doc: Document, target: Element | null): Splash {
     add(svg, [{ opacity: 1 }, { opacity: 1, offset: t(SEQ) }, { opacity: 0 }], LAND);
   }
 
-  const flight = anims[anims.length - 1]!;
-
   // The page assembles round the flight. Opacity and the `translate` property only: no layout moves, and an element's
   // own `transform` is left alone.
   const items = INTRO_ITEMS.map((q) => doc.querySelector(q));
   if (items[0]) add(items[0], [{ opacity: 0 }, { opacity: 1 }], 140, { delay: LAND - 140 });
   items.slice(1).forEach((node, i) => {
     if (!node) return;
-    // the console's window carries a blur of its own: it only fades, so nothing re-blurs while it moves
-    const still = node.matches('.ch-flow .ch-stage');
     add(
       node,
       [
-        { opacity: 0, translate: still ? '0 0' : `0 ${STAGGER.rise}px` },
+        { opacity: 0, translate: `0 ${STAGGER.rise}px` },
         { opacity: 1, translate: '0 0' },
       ],
       STAGGER.each,
@@ -292,24 +288,12 @@ export function createSplash(doc: Document, target: Element | null): Splash {
   seek(0);
   doc.documentElement.classList.remove('bb-intro'); // the animations hold the hidden state from here
   let gone = false;
-  const pageAnims = anims.filter((a) => (a.effect as KeyframeEffect | null)?.target?.closest?.('.bb-splash') == null);
   const skip = () => {
     if (gone) return;
     gone = true;
-    // The overlay's own animations (the flight ends at opacity 0) must outlive the page's: cancelling the flight puts the
-    // lockup back at the centre of the screen, which is the flash after the landing. Hide the overlay first, then free the page.
-    const landed = flight.playState === 'finished' ? LAND : ((flight.currentTime as number | null) ?? 0);
-    for (const a of pageAnims) a.cancel(); // every page element back to its own style: the assembled page
-    if (landed >= LAND - 40) {
-      el.remove();
-      for (const a of anims) a.cancel();
-      return;
-    }
+    for (const a of anims) a.cancel(); // every element back to its own style: the assembled page
     el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
-    window.setTimeout(() => {
-      el.remove();
-      for (const a of anims) a.cancel();
-    }, 180);
+    window.setTimeout(() => el.remove(), 180);
   };
   return { el, anims, seek, skip };
 }
