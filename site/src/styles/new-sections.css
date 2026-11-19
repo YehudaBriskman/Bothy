@@ -1,0 +1,800 @@
+/*
+ * The four sections after the four-up features: the parts up close, the clips, the sizes compared, under the hood.
+ * They sit straight on the page's flat ink (nothing behind a group of cards: only the screens, the table and the boxes
+ * have surfaces). The screens and the table borrow the app's own console theme, quieter than the site's glass: the
+ * console's near-black surfaces, one hairline and muted text. Only opacity and transform move; with reduced motion, or
+ * with no script, every section is simply there in its final state.
+ */
+
+.nsec {
+  --n-s1: #101013;
+  --n-s2: #17171a;
+  --n-fg: #fafafa;
+  --n-mut: #a1a1aa;
+  --n-sub: #8f8f99;
+  --n-line: rgb(255 255 255 / 10%);
+  --n-ok: #8fe3bf;
+  --n-warn: #f1c27a;
+  --n-bad: #f3a0a0;
+  --n-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  padding-block-start: var(--space-section);
+  border-block-start: 1px solid var(--hairline);
+}
+
+/* ── A screen: one framed window ─────────────────────────────────────────── */
+
+.ns-screen {
+  max-inline-size: 46rem;
+  margin-inline: auto;
+  background: var(--n-s1);
+  border: 1px solid var(--n-line);
+  border-radius: 0.9rem;
+  color: var(--n-fg);
+  overflow: hidden;
+}
+.ns-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  border-block-end: 1px solid var(--n-line);
+}
+.ns-dots {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+.ns-dots i {
+  inline-size: 0.6rem;
+  block-size: 0.6rem;
+  border-radius: 50%;
+  background: var(--n-line);
+}
+.ns-badge {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--n-line);
+  border-radius: 999px;
+  color: var(--n-sub);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* tabs: real radio buttons, so they work with no script and the arrow keys move the choice */
+.ns-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-block-end: 1px solid var(--n-line);
+  min-inline-size: 0;
+}
+.ns-tabwrap,
+.cmp-pick span {
+  position: relative;
+}
+.ns-radio {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.ns-tabs label,
+.cmp-pick label {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.5rem;
+  color: var(--n-mut);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.ns-tabs label small {
+  margin-inline-start: 0.35rem;
+  color: var(--n-sub);
+  font-variant-numeric: tabular-nums;
+}
+.ns-radio:checked + label {
+  background: rgb(255 255 255 / 9%);
+  color: var(--n-fg);
+}
+.ns-radio:hover + label {
+  color: var(--n-fg);
+}
+.ns-radio:focus-visible + label {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+@supports selector(:has(*)) {
+  .ns-tabbed:not(:has(.ns-tabwrap:nth-child(2) .ns-radio:checked, .ns-tabwrap:nth-child(3) .ns-radio:checked, .ns-tabwrap:nth-child(4) .ns-radio:checked))
+    .ns-view:not(.ns-view-0),
+  .ns-tabbed:has(.ns-tabwrap:nth-child(2) .ns-radio:checked) .ns-view:not(.ns-view-1),
+  .ns-tabbed:has(.ns-tabwrap:nth-child(3) .ns-radio:checked) .ns-view:not(.ns-view-2),
+  .ns-tabbed:has(.ns-tabwrap:nth-child(4) .ns-radio:checked) .ns-view:not(.ns-view-3) {
+    display: none;
+  }
+  .ns-tabbed .ns-view {
+    animation: ns-in 0.3s var(--ease-out) both;
+  }
+}
+@keyframes ns-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.ns-view {
+  padding: 1rem 1rem 0.35rem;
+}
+.ns-view + .ns-view {
+  border-block-start: 1px solid var(--n-line);
+}
+.ns-body {
+  min-block-size: 15.5rem;
+}
+.ns-cap {
+  margin: 0.9rem 0 0.65rem;
+  color: var(--n-mut);
+  font-size: var(--fs-small);
+}
+.ns-cap b {
+  color: var(--n-fg);
+  font-weight: 600;
+}
+.ns-note {
+  margin: 0;
+  padding: 0.7rem 1rem 0.85rem;
+  border-block-start: 1px solid var(--n-line);
+  color: var(--n-sub);
+  font-size: 0.8125rem;
+}
+
+/* ── The console's views, drawn small ────────────────────────────────────── */
+
+.nv-t {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.nv-t th {
+  padding: 0.4rem 0.75rem;
+  color: var(--n-sub);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: start;
+  text-transform: uppercase;
+}
+.nv-t td {
+  padding: 0.55rem 0.75rem;
+  border-block-start: 1px solid var(--n-line);
+}
+.nv-n {
+  text-align: end !important;
+  font-variant-numeric: tabular-nums;
+}
+.nv-dim {
+  color: var(--n-sub);
+}
+.nv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.nv-chip i {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: currentcolor;
+}
+.is-ok {
+  color: var(--n-ok);
+}
+.is-warn {
+  color: var(--n-warn);
+}
+.is-off {
+  color: var(--n-sub);
+}
+.is-bad {
+  color: var(--n-bad);
+}
+.nv-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nv-tile {
+  padding: 0.85rem 0.9rem;
+  background: var(--n-s2);
+  border: 1px solid var(--n-line);
+  border-radius: 0.6rem;
+}
+.nv-tile small,
+.nv-tile em {
+  display: block;
+  color: var(--n-sub);
+  font-size: 0.8125rem;
+  font-style: normal;
+}
+.nv-tile b {
+  display: block;
+  margin-block: 0.3rem;
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.nv-tile b span {
+  color: var(--n-mut);
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+.nv-files {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+.nv-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--n-mut);
+}
+.nv-tree li {
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.35rem;
+}
+.nv-ind {
+  margin-inline-start: 0.9rem;
+}
+.nv-sel {
+  background: rgb(255 255 255 / 9%);
+  color: var(--n-fg);
+}
+.nv-doc h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+.nv-doc p {
+  margin: 0 0 0.55rem;
+  color: var(--n-mut);
+}
+.nv-doc b {
+  color: var(--n-fg);
+  font-weight: 600;
+}
+.nv-doc code,
+.nv-term {
+  font-family: var(--n-mono);
+  font-size: 0.8125rem;
+}
+.nv-doc code {
+  padding: 0.15rem 0.4rem;
+  background: var(--n-s2);
+  border-radius: 0.3rem;
+}
+.nv-pill {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--n-line);
+  border-radius: 999px;
+  color: var(--n-sub);
+  font-size: 0.75rem;
+}
+.nv-term {
+  padding: 0.9rem 1rem;
+  background: var(--n-s2);
+  border-radius: 0.6rem;
+}
+.nv-term p {
+  margin: 0 0 0.35rem;
+}
+.nv-pr,
+.nv-ok {
+  color: var(--n-ok);
+}
+.nv-flip {
+  display: inline-grid;
+}
+.nv-flip > * {
+  grid-area: 1 / 1;
+}
+.nv-b {
+  opacity: 0;
+}
+
+/* ── The player: a centred play button over the stage ────────────────────── */
+
+.ns-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.6rem;
+}
+.ns-stage .ns-body {
+  padding: 0.25rem;
+  transition: opacity 0.25s;
+}
+.ns-stage:not([data-started]) .ns-body {
+  opacity: 0.55;
+}
+.ns-play {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  display: grid;
+  place-items: center;
+  inline-size: 3.75rem;
+  block-size: 3.75rem;
+  padding: 0;
+  translate: -50% -50%;
+  background: rgb(16 16 19 / 78%);
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 50%;
+  color: var(--n-fg);
+  cursor: pointer;
+  transition:
+    opacity 0.25s,
+    scale 0.25s var(--ease-out),
+    background-color 0.2s;
+}
+.ns-play[hidden] {
+  display: none;
+}
+.ns-play svg {
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  fill: currentcolor;
+}
+.ns-play .i-pause,
+.ns-stage[data-playing='true'] .i-play {
+  display: none;
+}
+.ns-stage[data-playing='true'] .i-pause {
+  display: block;
+}
+.ns-stage[data-playing='true'] .ns-play {
+  scale: 0.72;
+  opacity: 0.6;
+}
+.ns-play:hover,
+.ns-play:focus-visible {
+  background: rgb(36 36 42 / 90%);
+  opacity: 1 !important;
+}
+.ns-play:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.ns-prog {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: 3px;
+  background: var(--n-line);
+}
+.ns-prog i {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  background: var(--focus);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+.ns-tx {
+  margin: 0 0 0.7rem;
+  color: var(--n-mut);
+  font-size: 0.875rem;
+}
+.ns-tx summary {
+  cursor: pointer;
+  color: var(--n-fg);
+}
+.ns-tx summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ns-tx p {
+  margin: 0.4rem 0 0;
+  max-inline-size: 60ch;
+}
+
+/* the drawn preview runs only after a press, and holds while paused */
+.ns-stage[data-started='true'] [style*='--k'],
+.ns-stage[data-started='true'] .nv-sel,
+.ns-stage[data-started='true'] .nv-doc,
+.ns-stage[data-started='true'] .nv-a,
+.ns-stage[data-started='true'] .nv-b,
+.ns-stage[data-started='true'] .ns-prog i {
+  animation-duration: var(--len);
+  animation-fill-mode: both;
+  animation-play-state: running;
+}
+.ns-stage[data-started='true'][data-playing='false'] * {
+  animation-play-state: paused !important;
+}
+.ns-stage[data-started='true'] .nv-a {
+  animation-name: nv-a;
+}
+.ns-stage[data-started='true'] .nv-b {
+  animation-name: nv-b;
+}
+.ns-stage[data-started='true'] .nv-sel {
+  animation-name: nv-sel;
+}
+.ns-stage[data-started='true'] .nv-doc {
+  animation-name: nv-doc;
+}
+.ns-stage[data-started='true'] .ns-prog i {
+  animation-name: nv-prog;
+  animation-timing-function: linear;
+}
+.ns-stage[data-started='true'] .nv-term p {
+  animation-name: nv-line;
+  animation-duration: 0.35s;
+  animation-delay: calc(var(--k) * var(--len) / 11);
+}
+@keyframes nv-a {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes nv-b {
+  0%,
+  45% {
+    opacity: 0;
+  }
+  55%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes nv-sel {
+  0%,
+  30% {
+    background: transparent;
+    color: var(--n-mut);
+  }
+  40%,
+  100% {
+    background: rgb(255 255 255 / 9%);
+    color: var(--n-fg);
+  }
+}
+@keyframes nv-doc {
+  0%,
+  40% {
+    opacity: 0.25;
+  }
+  55%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes nv-prog {
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes nv-line {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+/* ── The four sizes, compared ────────────────────────────────────────────── */
+
+.cmp {
+  background: var(--n-s1);
+  border: 1px solid var(--n-line);
+  border-radius: 0.9rem;
+  color: var(--n-fg);
+  overflow: hidden;
+}
+.cmp-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-block-end: 1px solid var(--n-line);
+  min-inline-size: 0;
+}
+.cmp-scroll {
+  overflow-x: auto;
+}
+.cmp-t {
+  inline-size: 100%;
+  min-inline-size: 46rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: start;
+}
+.cmp-t th,
+.cmp-t td {
+  padding: 0.7rem 1rem;
+  vertical-align: top;
+  text-align: start;
+  transition: opacity 0.3s;
+}
+.cmp-t tbody td,
+.cmp-t tbody th[scope='row'] {
+  border-block-start: 1px solid var(--n-line);
+}
+.cmp-t th[scope='row'] {
+  inline-size: 24%;
+  color: var(--n-mut);
+  font-weight: 400;
+}
+.cmp-t thead th {
+  padding-block: 1rem 0.8rem;
+  font-weight: 400;
+}
+.cmp-n {
+  display: block;
+  color: var(--n-fg);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.cmp-tag {
+  display: block;
+  color: var(--n-sub);
+  font-size: 0.8125rem;
+}
+.cmp-t th.is-now .cmp-n::before {
+  content: '';
+  display: inline-block;
+  inline-size: 0.45rem;
+  block-size: 0.45rem;
+  margin-inline-end: 0.5rem;
+  border-radius: 50%;
+  background: var(--focus);
+  vertical-align: 0.1em;
+}
+.cmp-t [data-c='bivvy'] {
+  background: rgb(255 255 255 / 3.5%);
+}
+.cmp-grp th {
+  padding-block: 1.1rem 0.35rem !important;
+  color: var(--n-sub);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cmp-grp {
+  border-block-start: 0 !important;
+}
+.cmp-no {
+  color: var(--n-sub);
+}
+.cmp-strong {
+  font-weight: 600;
+}
+.cmp-t b {
+  font-weight: 600;
+}
+.cmp-t code {
+  font-family: var(--n-mono);
+  font-size: 0.8em;
+}
+@supports selector(:has(*)) {
+  .cmp:has(#cz-bivvy:checked) [data-c]:not([data-c='bivvy']),
+  .cmp:has(#cz-bothy:checked) [data-c]:not([data-c='bothy']),
+  .cmp:has(#cz-basecamp:checked) [data-c]:not([data-c='basecamp']),
+  .cmp:has(#cz-cairn:checked) [data-c]:not([data-c='cairn']) {
+    opacity: 0.38;
+  }
+}
+@media (max-width: 48rem) {
+  .cmp-t th[scope='row'] {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 1;
+    min-inline-size: 9rem;
+    background: var(--n-s1);
+  }
+}
+
+/* ── Under the hood: one system, down and to the sides ───────────────────── */
+
+.hood {
+  --g: 2.5rem;
+  --line: rgb(255 255 255 / 18%);
+  max-inline-size: 62rem;
+  margin-inline: auto;
+}
+.hr {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--g);
+}
+.hn {
+  position: relative;
+  align-self: stretch;
+  padding: 1rem 1.1rem 1.1rem;
+  background: var(--n-s1);
+  border: 1px solid var(--n-line);
+  border-radius: 0.8rem;
+  color: var(--n-fg);
+}
+.hn-l {
+  grid-column: 1;
+}
+.hn-c {
+  grid-column: 2;
+}
+.hn-r {
+  grid-column: 3;
+}
+.hn[data-node='edge'] {
+  border-color: rgb(255 213 138 / 38%);
+}
+.hn-kick {
+  margin: 0 0 0.35rem;
+  color: var(--n-sub);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hn h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.hn-fact {
+  margin: 0;
+  color: var(--n-mut);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.hn-fact code {
+  font-family: var(--n-mono);
+  font-size: 0.85em;
+  color: var(--n-fg);
+}
+.hood-note {
+  max-inline-size: 62rem;
+  margin: 1.75rem auto 0;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+/* connectors between rows */
+.hf {
+  --lc: calc((100% - 2 * var(--g)) / 6);
+  position: relative;
+  block-size: 3rem;
+}
+.hf i {
+  position: absolute;
+  inline-size: 1px;
+  background: var(--line);
+  transform-origin: 50% 0;
+}
+.hf-c {
+  inset: 0 auto 0 50%;
+}
+.hf-ct {
+  inset: 0 auto 50% 50%;
+}
+.hf-cb {
+  inset: 50% auto 0 50%;
+}
+.hf-l,
+.hf-r {
+  inset-block: 50% 0;
+}
+.hf-l {
+  inset-inline-start: var(--lc);
+}
+.hf-r {
+  inset-inline-end: var(--lc);
+}
+.hf-full {
+  inset-block-start: 0;
+}
+.hf-up {
+  inset-block: 0 50%;
+}
+.hf i.hf-bar {
+  inset-block-start: 50%;
+  inset-inline: var(--lc);
+  inline-size: auto;
+  block-size: 1px;
+  transform-origin: 50% 50%;
+}
+@media (min-width: 48.01rem) {
+  /* a box beside the middle one is joined to it across the gap */
+  .hr:has(> .hn-c) > .hn-l::after,
+  .hr:has(> .hn-c) > .hn-r::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 50%;
+    inline-size: var(--g);
+    block-size: 1px;
+    background: var(--line);
+  }
+  .hr:has(> .hn-c) > .hn-l::after {
+    inset-inline-start: 100%;
+    transform-origin: 0 50%;
+  }
+  .hr:has(> .hn-c) > .hn-r::before {
+    inset-inline-end: 100%;
+    transform-origin: 100% 50%;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .js-reveal .hf.reveal.is-waiting {
+    transform: none;
+  }
+  .js-reveal .hf.is-waiting i:not(.hf-bar) {
+    transform: scaleY(0);
+  }
+  .js-reveal .hf.is-waiting i.hf-bar,
+  .js-reveal .hn.is-waiting::before,
+  .js-reveal .hn.is-waiting::after {
+    transform: scaleX(0);
+  }
+  .hf.is-shown i,
+  .hn.is-shown::before,
+  .hn.is-shown::after {
+    transition: transform 0.7s var(--ease-out) 0.15s;
+  }
+  .hf.is-shown i.hf-bar {
+    transition-delay: 0.4s;
+  }
+  .hf.is-shown i.hf-l,
+  .hf.is-shown i.hf-r {
+    transition-delay: 0.7s;
+  }
+}
+@media (max-width: 48rem) {
+  .hood {
+    margin-inline-start: 0.4rem;
+    padding-inline-start: 1.25rem;
+    border-inline-start: 1px solid var(--line);
+  }
+  .hr {
+    display: block;
+  }
+  .hf {
+    display: none;
+  }
+  .hn {
+    margin-block-end: 0.75rem;
+  }
+  .hn::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 1.3rem;
+    inset-inline-start: calc(-1.25rem - 3.5px);
+    inline-size: 7px;
+    block-size: 7px;
+    border-radius: 50%;
+    background: var(--focus);
+  }
+}
