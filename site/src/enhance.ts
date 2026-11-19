@@ -151,6 +151,20 @@ const narrow = window.matchMedia('(max-width: 60rem)');
 for (const d of document.querySelectorAll<HTMLDetailsElement>('details[data-collapse-narrow]'))
   d.open = !narrow.matches;
 
+// ── The footer wordmark's light: a lazy island, loaded only when the footer comes near ─
+const footMark = document.querySelector<HTMLElement>('[data-footmark]');
+if (footMark && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver(
+    (es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      void import('./footmark.ts').then((m) => m.mountFootmark(footMark));
+    },
+    { rootMargin: '400px 0px' },
+  );
+  io.observe(footMark);
+}
+
 // ── The live sky: a lazy island, only on a page that has one, after the page has loaded ─
 const storyRoot = document.querySelector<HTMLElement>('[data-story]');
 if (storyRoot) void import('./story/mount.ts').then((m) => m.mountStory(storyRoot));
