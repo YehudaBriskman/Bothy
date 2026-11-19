@@ -188,7 +188,7 @@ html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) .site-nav .bb-lid
   background: var(--nav-hover);
 }
 body:has([data-story]) .primary a {
-  min-block-size: 2.5rem;
+  min-block-size: 2.25rem;
 }
 body:has([data-story]) .primary a:not(:hover, [aria-current='page']) {
   color: var(--nav-ink);

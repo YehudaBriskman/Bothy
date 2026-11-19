@@ -340,7 +340,7 @@ if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
   const lcp = await p.evaluate(() => window.__lcp.at(-1));
   check(
     'LCP on a first visit lands by the time the page is assembled',
-    !!lcp && /ch-/.test(lcp.el ?? '') && lcp.t <= 4000,
+    !!lcp && /^(A$|.*ch-)/.test(lcp.el ?? '') && lcp.t <= 4000, // the hero's badge, or a nav link of the bare bar: both are revealed with the assembled page
     lcp ? `${lcp.el} at ${Math.round(lcp.t)} ms, ${lcp.size} px²` : 'no entry',
   );
   await p.reload({ waitUntil: 'domcontentloaded' });
