@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="dark" />
+    <title>BothyBox section designs</title>
+    <meta
+      name="description"
+      content="Three design ideas, with motion, for every section of the BothyBox site. A mock gallery, not the site."
+    />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="section.css" />
+    <link rel="stylesheet" href="mocks.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to the sections</a>
+    <div class="shell">
+      <aside class="side" aria-label="Sections">
+        <p class="side-brand">
+          <span class="cube" aria-hidden="true"></span>
+          <span>Section designs</span>
+        </p>
+        <nav id="toc" aria-label="Sections of the site"></nav>
+        <div class="side-tools">
+          <button type="button" class="tbtn" id="motion-toggle" aria-pressed="false">Pause all motion</button>
+        </div>
+      </aside>
+      <main id="main" tabindex="-1">
+        <header class="intro">
+          <p class="lab">A mock, not wired into the site · 2026-11-19</p>
+          <h1>Three ideas for every section</h1>
+          <p class="lede">
+            Each section of the site as it is now, what is weak about it, and three designs with their motion. Every
+            panel is live HTML using the site's own colours, glass and sky photographs. Words are from the site;
+            anything invented is marked <span class="ex">EXAMPLE</span>. The recommended option carries a star.
+          </p>
+          <ul class="legend">
+            <li><b>Replay</b> runs an option's motion again.</li>
+            <li><b>Scrub</b> stands in for scroll: drag it to see a scroll-linked motion at any point.</li>
+            <li>
+              <b>S / M / L</b> is the cost to build (effort), to get wrong (risk), to the page (perf) and to
+              accessibility (a11y).
+            </li>
+            <li>With reduced motion on, every panel shows its finished state.</li>
+          </ul>
+          <p class="small">
+            The written version, with sources and the recommended direction, is
+            <span class="mono">docs/plans/thin-bothy/section-design-options.md</span>.
+          </p>
+        </header>
+        <div id="sections"></div>
+        <noscript
+          ><p class="lede">
+            This gallery draws its panels with script. The written options are in the doc named above.
+          </p></noscript
+        >
+      </main>
+    </div>
+    <script src="mocks-home.js"></script>
+    <script src="mocks-pages.js"></script>
+    <script src="gallery.js"></script>
+  </body>
+</html>

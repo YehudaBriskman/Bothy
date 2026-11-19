@@ -62,9 +62,9 @@ page is complete without it, so it has its own cap.
 | CSS, all | 24.3 | 28 | |
 | Lazy images on `/` (scene backdrops, the `<picture>` still) | 104.4 | 121 | |
 | Search index | 37.0 | 43 | |
-| Dev pages (`sky-spike/`, `scene-mock/`), raw | 748 | 861 | |
+| Dev pages (`sky-spike/`, `scene-mock/`, `brand-mock/`, `section-mock/`), raw | 994.8 | 1150 | |
 | Share cards and icons (`og/`, `apple-touch-icon`, `icon-192`/`512`, `site.webmanifest`), raw | 297.9 | 343 | |
-| All of `dist/` without those, raw (1905.5 after S10) | 1889 | 2173 | |
+| All of `dist/` without those, raw (1905.5 after S10; 2216.8 with `section-mock/`) | 1889 | 2560 | |
 
 Share cards, home-screen icons and the manifest are fetched by a link unfurler or an "add to home screen", never by a
 page load, so they have their own row and stay out of the `dist/` total; `check:seo` also caps each card at 120 KB.

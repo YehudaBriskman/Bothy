@@ -63,7 +63,9 @@ const base = `http://127.0.0.1:${srv.address().port}`;
 // Every prerendered page; the spike and the scene and brand mocks are design scratch pages, not the site.
 const pages = fs
   .readdirSync(dist, { recursive: true })
-  .filter((f) => f.endsWith('.html') && !/^(sky-spike|scene-mock|brand-mock)\//.test(f.replaceAll('\\', '/')))
+  .filter(
+    (f) => f.endsWith('.html') && !/^(sky-spike|scene-mock|brand-mock|section-mock)\//.test(f.replaceAll('\\', '/')),
+  )
   .map((f) => `/${f.replaceAll('\\', '/').replace(/index\.html$/, '')}`)
   .filter((p) => !args.only || p.includes(args.only))
   .sort();
