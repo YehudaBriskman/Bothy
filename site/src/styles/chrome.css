@@ -22,36 +22,61 @@
   color: var(--nav-ink);
   isolation: isolate;
 }
-/* The bar is bare over the hero and the story: logo, links and the two pills, text on the sky, nothing behind the
-   group of links. Once the story is done (#story-end has passed; on every other page, as soon as the page moves) one
-   full-width glass strip comes up behind the whole line, edge to edge: a faint tint, a blur and a hairline. Its own
-   layer fades by opacity. */
-.site-nav::before {
+/* The bar is bare over the hero and the story: logo, links and the two pills, text on the sky, no pill or group
+   behind the links. Its only help is a feathered scrim: a faint tint at the very top that fades to nothing before it
+   reaches the content (no edge), so the words keep their contrast on a bright hour (check:sky). Once the story is done
+   (#story-end has passed; on every other page, as soon as the page moves) the scrim hands over to one full-width glass
+   strip behind the whole line, edge to edge: a faint tint, a blur and a hairline. Each layer fades by opacity. */
+.site-nav::before,
+.site-nav::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset-inline: 0;
   z-index: -1;
   pointer-events: none;
+  transition: opacity var(--dur-slow, 0.4s) var(--ease-out);
+}
+.site-nav::before {
+  inset-block: 0 -1.25rem;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--glass-rgb, 10 12 26) / 62%) 0%,
+    rgb(var(--glass-rgb, 10 12 26) / 40%) 55%,
+    transparent 100%
+  );
+}
+.site-nav::after {
+  inset-block: 0;
   opacity: 0;
   background: rgb(var(--ink-rgb) / 38%);
   box-shadow: 0 1px 0 rgb(255 255 255 / 9%);
-  transition: opacity var(--dur-slow, 0.4s) var(--ease-out);
 }
 html[data-nav-dark] .site-nav::before {
+  opacity: 0;
+}
+html[data-nav-dark] .site-nav::after {
   opacity: 1;
 }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  .site-nav::before {
+  .site-nav::after {
     -webkit-backdrop-filter: blur(14px) saturate(1.4);
     backdrop-filter: blur(14px) saturate(1.4);
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .site-nav::before {
+  .site-nav::after {
     background: rgb(var(--ink-rgb) / 96%);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+}
+.site-nav .primary a,
+.site-nav .brand {
+  text-shadow: 0 1px 10px rgb(0 0 0 / 40%);
+}
+html[data-nav-dark] .site-nav .primary a,
+html[data-nav-dark] .site-nav .brand {
+  text-shadow: none;
 }
 .site-nav .bar {
   position: relative;
@@ -558,8 +583,8 @@ a.dd-row:focus-visible,
   z-index: -1;
   margin: 0;
   /* the photograph melts into the black above and below: a plain eased fade, no dots, no edge */
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28%, #000 72%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 28%, #000 72%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 62%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 62%, transparent);
 }
 .night-cta-sky img {
   inline-size: 100%;
