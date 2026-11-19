@@ -117,26 +117,23 @@ export function Layout({
 }
 
 /**
- * The closing band: the night sky once more, a centred two-tone headline, two pills and what is proven in small print,
- * and under them the giant BothyBox as a thin outline that the pointer lights. The band owns the wordmark; the footer
- * carries it only on a page with no band.
+ * The night band: the sky photograph, the headline and the two pills. It sits on the home page after the story, high up,
+ * where the dark sections begin; its edges melt into the black with plain gradients (no dots).
  */
-function EndCta({ ctx }: { ctx: PageContext }) {
+export function NightBand({ ctx }: { ctx: PageContext }) {
   const c = ctx.t.cta;
   const p = localePrefix(ctx.locale.code);
   return (
-    <section className="end-cta" aria-labelledby="end-cta-h">
-      <div className="end-cta-sky" aria-hidden="true">
+    <section className="night-cta" aria-labelledby="night-cta-h">
+      <div className="night-cta-sky" aria-hidden="true">
         <picture>
           <source srcSet={href('sky/night-desk.avif')} type="image/avif" media="(min-width: 721px)" />
           <source srcSet={href('sky/night-phone.avif')} type="image/avif" />
           <img src={href('sky/night-desk.webp')} alt="" loading="lazy" decoding="async" />
         </picture>
-        <div className="dither-to-black is-up" />
-        <div className="dither-to-black" />
       </div>
       <div className="wrap reveal">
-        <h2 id="end-cta-h">
+        <h2 id="night-cta-h">
           {c.heading} <span className="soft">{c.soft}</span>
         </h2>
         <div className="actions">
@@ -148,6 +145,39 @@ function EndCta({ ctx }: { ctx: PageContext }) {
           </a>
         </div>
         <p className="fine">{c.fine}</p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The closing band: plain ink, one proven line, a quiet row of links, and under them the giant BothyBox as a thin
+ * outline that the pointer lights, sitting low and clipped by the foot of the page. No photograph, no dots. The band
+ * owns the wordmark; the footer carries it only on a page with no band.
+ */
+function EndCta({ ctx }: { ctx: PageContext }) {
+  const { t, locale } = ctx;
+  const f = t.footer;
+  const p = localePrefix(locale.code);
+  const links = [
+    { label: f.links.install, to: href(`${p}/install/`) },
+    { label: f.links.docs, to: href(`${p}/docs/`) },
+    { label: f.links.releases, to: href(`${p}/changelog/`) },
+    { label: f.links.source, to: REPO_URL, ext: true },
+  ];
+  return (
+    <section className="end-cta" aria-labelledby="end-cta-h">
+      <div className="wrap reveal">
+        <h2 id="end-cta-h">{t.cta.closing}</h2>
+        <ul className="end-links">
+          {links.map((l) => (
+            <li key={l.label}>
+              <a href={l.to} rel={l.ext ? 'noopener' : undefined} className="link-draw">
+                {l.label}
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
       <FootMark />
     </section>

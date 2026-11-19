@@ -22,58 +22,68 @@
   color: var(--nav-ink);
   isolation: isolate;
 }
-/* The condensing capsule (section 01, option A). At the top the bar is nothing but text on the sky. Over the first
-   120 px of scroll enhance.ts writes --nav-p (0 to 1) on <html> and the bar gathers into one centred glass capsule:
-   the capsule's own layer fades in (opacity), the bar scales to 0.9 and drops a little (transform). Over the ink
-   sections the capsule is dark glass. With no script --nav-p is 0 (the plain bar); reduced motion: --nav-p is 1. */
-.site-nav .bar {
-  position: relative;
-  isolation: isolate;
-  transform-origin: 50% 0;
-  transform: translateY(calc(var(--nav-p, 0) * 0.3rem)) scale(calc(1 - var(--nav-p, 0) * 0.1));
-}
-.site-nav .bar::before {
+/* The bar is bare over the hero and the story: logo, links and the two pills, text on the sky, no pill or group
+   behind the links. Its only help is a feathered scrim: a faint tint at the very top that fades to nothing before it
+   reaches the content (no edge), so the words keep their contrast on a bright hour (check:sky). Once the story is done
+   (#story-end has passed; on every other page, as soon as the page moves) the scrim hands over to one full-width glass
+   strip behind the whole line, edge to edge: a faint tint, a blur and a hairline. Each layer fades by opacity. */
+.site-nav::before,
+.site-nav::after {
   content: '';
   position: absolute;
-  inset-block: 0.2rem;
-  inset-inline: 0.35rem;
+  inset-inline: 0;
   z-index: -1;
-  border-radius: var(--r-pill);
   pointer-events: none;
-  opacity: var(--nav-p, 0);
-  background: rgb(var(--glass-rgb, 10 12 26) / 60%);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 18%),
-    inset 0 1px 0 rgb(255 255 255 / 14%),
-    0 10px 30px -12px rgb(0 0 0 / 45%);
+  transition: opacity var(--dur-slow, 0.4s) var(--ease-out);
 }
-html[data-nav-dark] .site-nav .bar::before {
-  background: rgb(var(--ink-rgb) / 72%);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 10%),
-    0 10px 30px -12px rgb(0 0 0 / 60%);
+.site-nav::before {
+  inset-block: 0 -1.25rem;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--glass-rgb, 10 12 26) / 62%) 0%,
+    rgb(var(--glass-rgb, 10 12 26) / 40%) 55%,
+    transparent 100%
+  );
+}
+.site-nav::after {
+  inset-block: 0;
+  opacity: 0;
+  background: rgb(var(--ink-rgb) / 38%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 9%);
+}
+html[data-nav-dark] .site-nav::before {
+  opacity: 0;
+}
+html[data-nav-dark] .site-nav::after {
+  opacity: 1;
 }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  .site-nav .bar::before {
-    background: rgb(var(--glass-rgb, 10 12 26) / 46%);
-    -webkit-backdrop-filter: blur(16px) saturate(1.5);
-    backdrop-filter: blur(16px) saturate(1.5);
-  }
-  html[data-nav-dark] .site-nav .bar::before {
-    background: rgb(var(--ink-rgb) / 58%);
+  .site-nav::after {
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    backdrop-filter: blur(14px) saturate(1.4);
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .site-nav .bar::before,
-  html[data-nav-dark] .site-nav .bar::before {
+  .site-nav::after {
     background: rgb(var(--ink-rgb) / 96%);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 }
+.site-nav .primary a,
+.site-nav .brand {
+  text-shadow: 0 1px 10px rgb(0 0 0 / 40%);
+}
+html[data-nav-dark] .site-nav .primary a,
+html[data-nav-dark] .site-nav .brand {
+  text-shadow: none;
+}
+.site-nav .bar {
+  position: relative;
+}
 
 /* On a bright hour the sky asks for dark ink; the bar follows it until it turns dark itself. */
-html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark], [data-nav-cap]) .site-nav {
+html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) .site-nav {
   --nav-ink: #08121e;
   --nav-ink-muted: rgb(8 18 30 / 86%);
   --nav-hover: rgb(8 18 30 / 10%);
@@ -120,7 +130,7 @@ html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark], [data-nav-cap]) .
   transform-origin: 0% 50%;
 }
 /* On a bright hour the header ink turns navy; the amber lid would vanish into the sky, so it joins the ink. */
-html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark], [data-nav-cap]) .site-nav .bb-lid {
+html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) .site-nav .bb-lid {
   fill: currentColor;
   fill-opacity: 0.45;
 }
@@ -177,33 +187,11 @@ html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark], [data-nav-cap]) .
   color: var(--nav-ink);
   background: var(--nav-hover);
 }
-/* Over the story's sky the centred links stand in one glass capsule of the hour's own tint, the same fill as the
-   GitHub pill, so a bright noon sky never sits straight behind the words (check:sky). Not a bar: it hugs the links,
-   and it melts into the quiet dark state once the ink sections arrive. */
-body:has([data-story]) .primary ul {
-  padding: 0.25rem;
-  border-radius: var(--r-pill);
-  background: rgb(var(--glass-rgb, 10 12 26) / 52%);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 16%),
-    inset 0 1px 0 rgb(255 255 255 / 12%);
-  transition:
-    background-color var(--dur-slow, 0.4s) var(--ease-out),
-    box-shadow var(--dur-slow, 0.4s) var(--ease-out);
-}
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  body:has([data-story]) .primary ul {
-    -webkit-backdrop-filter: blur(14px) saturate(1.5);
-    backdrop-filter: blur(14px) saturate(1.5);
-  }
-}
 body:has([data-story]) .primary a {
   min-block-size: 2.25rem;
-  color: #fff;
 }
-html[data-nav-dark] body:has([data-story]) .primary ul {
-  background: transparent;
-  box-shadow: none;
+body:has([data-story]) .primary a:not(:hover, [aria-current='page']) {
+  color: var(--nav-ink);
 }
 html[data-nav-dark] body:has([data-story]) .primary a:not(:hover, [aria-current='page']) {
   color: var(--nav-ink-muted);
@@ -266,6 +254,8 @@ html[data-nav-dark] body:has([data-story]) .primary a:not(:hover, [aria-current=
 .pill-split {
   display: inline-flex;
   align-items: stretch;
+  align-self: center; /* the same height as the pill beside it (2.5rem) and centred on the bar, never shifted by its shadow */
+  block-size: 2.5rem;
   border-radius: var(--r-pill);
   background: var(--lit);
   box-shadow: 0 6px 22px -8px rgb(0 0 0 / 55%);
@@ -575,41 +565,28 @@ a.dd-row:focus-visible,
   }
 }
 
-/* ── The closing band: the night sky once more, inside a frame of ink ─────────────────────────────────── */
+/* ── The night band (home, after the story): the sky photograph with the headline ────────────────────── */
 
-.end-cta {
+.night-cta {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  /* the words stay clear of the dotted edges (dither.css: no text over the dots) */
-  --dither-s: 0.6;
-  padding-block: calc(276px * var(--dither-s) + clamp(3rem, 1.5rem + 6vw, 8rem)) clamp(1rem, 3vw, 2.5rem);
+  padding-block: clamp(5rem, 3rem + 9vw, 11rem);
   text-align: center;
 }
-/* the headline is the one focal point: centred, wide, with room round it */
-.end-cta > .wrap {
+.night-cta > .wrap {
   max-inline-size: 90rem;
-  padding-block-end: clamp(3rem, 2rem + 5vw, 7rem);
 }
-.end-cta-sky {
+.night-cta-sky {
   position: absolute;
   inset: 0;
   z-index: -1;
   margin: 0;
+  /* the photograph melts into the black above and below: a plain eased fade, no dots, no edge */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 62%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 62%, transparent);
 }
-/* the photograph dissolves into the black above and below through the halftone of dither.css: no edge anywhere */
-.end-cta-sky > .dither-to-black {
-  --dither-ink: var(--ink);
-  position: absolute;
-  inset-inline: 0;
-}
-.end-cta-sky > .dither-to-black.is-up {
-  inset-block-start: -1px;
-}
-.end-cta-sky > .dither-to-black:not(.is-up) {
-  inset-block-end: -1px;
-}
-.end-cta-sky img {
+.night-cta-sky img {
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
@@ -617,13 +594,13 @@ a.dd-row:focus-visible,
   display: block;
   opacity: 0.9;
 }
-.end-cta-sky::after {
+.night-cta-sky::after {
   content: '';
   position: absolute;
   inset: 0;
   background: radial-gradient(60% 55% at 50% 50%, rgb(var(--ink-rgb) / 52%), rgb(var(--ink-rgb) / 18%) 70%);
 }
-.end-cta h2 {
+.night-cta h2 {
   margin: 0 auto clamp(1.75rem, 3vw, 3rem);
   max-inline-size: 22ch;
   font-size: var(--fs-display);
@@ -631,26 +608,66 @@ a.dd-row:focus-visible,
   line-height: var(--lh-display);
   letter-spacing: var(--tr-display);
 }
-.end-cta h2 .soft {
+.night-cta h2 .soft {
   display: block;
   color: rgb(243 242 238 / 58%);
 }
-.end-cta .actions {
+.night-cta .actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.75rem;
 }
-.end-cta .pill {
+.night-cta .pill {
   min-block-size: 3rem;
   padding-inline: 1.4rem;
   font-size: 1rem;
 }
-.end-cta .fine {
+.night-cta .fine {
   margin: 1.75rem auto 0;
   max-inline-size: 36rem;
   color: rgb(243 242 238 / 74%);
   font-size: var(--fs-small);
+}
+
+/* ── The closing band: plain ink, one proven line, quiet links, and the wordmark low and clipped ─────── */
+
+.end-cta {
+  position: relative;
+  overflow: hidden;
+  background: var(--ink);
+  padding-block: clamp(4rem, 2rem + 7vw, 9rem) 0;
+  text-align: center;
+}
+.end-cta > .wrap {
+  max-inline-size: 64rem;
+  padding-block-end: clamp(2.5rem, 1.5rem + 4vw, 5rem);
+}
+.end-cta h2 {
+  margin: 0 auto;
+  max-inline-size: 26ch;
+  font-size: var(--fs-h2, clamp(1.5rem, 1.1rem + 1.6vw, 2.5rem));
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.end-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 2rem;
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-small);
+}
+.end-links a {
+  color: rgb(243 242 238 / 74%);
+  text-decoration: none;
+}
+.end-links a:hover {
+  color: var(--text);
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────────── */
@@ -685,10 +702,13 @@ a.dd-row:focus-visible,
   block-size: auto;
   overflow: visible;
 }
-/* in the band: almost the full width of the screen, the whole word */
+/* in the band: almost the full width of the screen, sitting low: the foot of the page clips its baseline */
 .end-cta .foot-mark {
   inline-size: min(96vw, 120rem);
+  block-size: 14vw;
+  max-block-size: 24rem;
   margin-inline: auto;
+  overflow: hidden;
 }
 /* on a page with no band, the footer carries it, cropped by its own top edge */
 .site-foot .foot-mark {

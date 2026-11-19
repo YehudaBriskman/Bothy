@@ -88,7 +88,6 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   let frameH = 0; // the frame's height before any scale
   let trackTop = 0;
   let on = false;
-  let seen = '';
   let beatShown = -1;
   const glass = q(cf, '.cf-glass');
   const sr = q(cf, '.cf-sr');
@@ -140,7 +139,6 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       if (on) glass.setAttribute('inert', '');
       else glass.removeAttribute('inert');
     }
-    seen = '';
     beatShown = -1;
     if (on && !lens && !matchMedia('(prefers-reduced-motion: reduce)').matches) lens = setupLens(cf!, body!);
     lens?.reset();
@@ -152,16 +150,31 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       trackTop = track!.getBoundingClientRect().top + scrollY;
       range = Math.max(1, track!.offsetHeight - stage!.offsetHeight);
     } else {
+      for (const el of [...rows, ...docs, ...tiles, ...(newMod ? [newMod] : []), ...steps]) {
+        el.style.removeProperty('opacity');
+        el.style.removeProperty('translate');
+        painted.delete(el);
+      }
       stage!.style.removeProperty('--cf-w');
       stage!.style.removeProperty('--cf-top');
     }
   }
 
-  function setItems(list: HTMLElement[], n: number, cur: number) {
-    list.forEach((el, i) => {
-      el.classList.toggle('cs-wait', i >= n);
-      el.classList.toggle('cs-cur', i === cur && i < n);
-    });
+  // a thing's arrival, 0..1, written as opacity and translate only, and only when the number moved (the writes are cheap
+  // enough to run on every scroll event; a scroll that changes nothing here writes nothing)
+  const painted = new WeakMap<HTMLElement, number>();
+  function paint(el: HTMLElement | null | undefined, p: number, rise = 0) {
+    if (!el) return;
+    const k = Math.round(clamp(p) * 100);
+    if (painted.get(el) === k) return;
+    painted.set(el, k);
+    if (k >= 100) {
+      el.style.removeProperty('opacity');
+      el.style.removeProperty('translate');
+    } else {
+      el.style.opacity = (k / 100).toFixed(2);
+      el.style.translate = `0 ${(((100 - k) / 100) * rise).toFixed(1)}px`;
+    }
   }
   function typeInto(out: HTMLElement, full: string, k: number) {
     const s = full.slice(0, Math.round(full.length * clamp(k)));
@@ -209,42 +222,18 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     const b = BEATS[beat]!;
     if (root.dataset.csBeat !== String(beat)) root.dataset.csBeat = String(beat); // read by ?debug=story and the regression test
 
-    // derived state, quantised so a scroll event that changes nothing does no work
-    const nRows = beat === 0 ? 0 : beat === 1 ? Math.ceil(rows.length * clamp(u / 0.9)) : rows.length;
-    const curRow = beat === 2 ? Math.min(rows.length - 1, Math.floor(u * rows.length)) : beat === 3 ? 0 : -1;
-    const hu = beat === 4 ? clamp(u / 0.6) : beat > 4 ? 1 : 0;
-    const nTiles = Math.ceil(tiles.length * hu);
-    const nDocs = beat < 5 ? 0 : beat === 5 ? Math.ceil(docs.length * clamp(u / 0.8)) : docs.length;
-    const spark = beat === 4 ? clamp((u - 0.25) / 0.6) : beat > 4 ? 1 : 0;
-    const detailK = beat === 3 ? ease(u / 0.35) : 0;
-    const cmdK = beat < 6 ? 0 : clamp(u / 0.5);
-    const userK = beat === 0 ? clamp(u / 0.35) : 1;
-    const passK = beat === 0 ? clamp((u - 0.35) / 0.3) : 1;
-    const key = [
-      beat,
-      nRows,
-      curRow,
-      nTiles,
-      Math.round(hu * 24),
-      nDocs,
-      Math.round(spark * 40),
-      Math.round(detailK * 40),
-      Math.round(cmdK * 60),
-      Math.round(userK * 20),
-      Math.round(passK * 20),
-      beat === 1 ? Math.round(u * 60) : '',
-      beat === 6 && u > 0.6,
-      beat === 0 && u > 0.8,
-    ].join('|');
-    if (key === seen) {
-      lens?.show(beat, u);
-      return;
-    }
-    seen = key;
+    // Everything below is a pure function of (beat, u): nothing runs on a timer, nothing is a CSS transition, so when the
+    // scroll stops every line, popup and tick stops where it is, and scrolling back rewinds it. Each thing has a window
+    // [a, b] of the beat; the gaps between windows are the dwell (the camera holds on what was just done).
+    const span = (a: number, c: number) => clamp((u - a) / (c - a));
+    const at = (n: number) => beat === n;
 
     if (beatShown !== beat) {
       beatShown = beat;
-      steps.forEach((el, i) => el.classList.toggle('is-on', i === beat));
+      steps.forEach((el, i) => {
+        el.classList.toggle('is-on', i === beat);
+        if (i !== beat) paint(el, 1, 0);
+      });
       window.clearTimeout(srTimer);
       const said = `Step ${beat + 1} of ${BEATS.length}: ${b.label}. ${b.caption}`;
       if (sr) srTimer = window.setTimeout(() => (sr.textContent = said), 700);
@@ -253,38 +242,73 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       if (isLogin) for (const r of radios) r.checked = false;
       else radios[VIEWS.indexOf(b.scene as (typeof VIEWS)[number])]!.checked = true;
     }
+    // the caption fades in over the first stretch of its beat and out over the last, scrubbed like the rest
+    const cap = ease(u / 0.08) * (1 - ease((u - 0.92) / 0.08));
+    paint(steps[beat], cap, 6);
 
-    // sign in
+    // 1 sign in: focus the username and wait, type it; move to the password and wait, type it (masked); press the
+    // button, a loading state, then a pause before the next view
+    const typeU = span(0.26, 0.42);
+    const typeP = span(0.62, 0.78);
     fields.forEach((f, i) => {
-      typeInto(f.out, f.full, i === 0 ? userK : passK);
-      f.el.classList.toggle('is-typing', beat === 0 && (i === 0 ? u > 0 && u < 0.35 : u >= 0.35 && u < 0.7));
+      typeInto(f.out, f.full, !at(0) ? 1 : i === 0 ? typeU : typeP);
+      const focus = at(0) && (i === 0 ? u >= 0.12 && u < 0.5 : u >= 0.5 && u < 0.84);
+      f.el.classList.toggle('is-typing', focus);
+      f.el.classList.toggle('is-focus', focus);
     });
-    signin?.classList.toggle('cs-go', beat > 0 || u > 0.8);
+    const load = !at(0) ? 1 : span(0.89, 0.97);
+    signin?.classList.toggle('cs-go', !at(0) || u >= 0.84);
+    signin?.classList.toggle('cs-press', at(0) && u >= 0.86 && u < 0.89);
+    signin?.classList.toggle('cs-load', at(0) ? u >= 0.89 && u < 0.97 : false);
+    signin?.classList.toggle('cs-done', !at(0) || u >= 0.97);
+    if (signin) {
+      const lv = (at(0) ? load : 0).toFixed(3);
+      if (signin.style.getPropertyValue('--cs-l') !== lv) signin.style.setProperty('--cs-l', lv);
+    }
 
-    // discover
-    scanbar?.classList.toggle('is-on', beat === 1);
-    cf!.classList.toggle('cs-scan-done', beat !== 1 || u >= 0.9);
+    // 2 discover: the bar fills as Docker answers and the rows arrive one by one, then the last one comes up
+    const scanU = at(1) ? span(0.1, 0.62) : 1;
+    const nRows = beat === 0 ? 0 : Math.ceil(rows.length * scanU);
+    scanbar?.classList.toggle('is-on', at(1));
+    cf!.classList.toggle('cs-scan-done', !at(1) || u >= 0.62);
     if (scanN) scanN.textContent = String(nRows);
-    cf!.style.setProperty('--cs-u', (beat === 1 ? clamp(u / 0.9) : 1).toFixed(3));
-    setItems(rows, nRows, curRow);
-    setUp(beat > 1 || (beat === 1 && u > 0.95));
+    cf!.style.setProperty('--cs-u', scanU.toFixed(3));
+    rows.forEach((el, i) => {
+      const p = beat === 0 ? 0 : at(1) ? clamp(scanU * rows.length - i) : 1;
+      paint(el, p, 12);
+      el.classList.toggle('cs-cur', cur(i));
+    });
+    function cur(i: number) {
+      const n = Math.min(rows.length, 5);
+      if (at(2)) return i === Math.min(n - 1, Math.floor(span(0.1, 0.9) * n));
+      return at(3) && u >= 0.12 && i === 0;
+    }
+    setUp(beat > 1 || (at(1) && u > 0.78));
 
-    // open one
+    // 3 services: the camera takes the rows one at a time (lens.ts); 4 open one: the panel slides in, then a verb lights
+    const detailK = at(3) ? ease(span(0.28, 0.52)) : 0;
     cf!.style.setProperty('--cs-d', detailK.toFixed(3));
     cf!.classList.toggle('cs-detail', detailK > 0);
+    cf!.classList.toggle('cs-verb', at(3) && u >= 0.76 && u < 0.92);
 
-    // health
-    setItems(tiles, nTiles, -1);
-    for (const x of nums) x.el.textContent = Number.isFinite(x.n) ? String(Math.round(x.n * ease(hu))) : x.full;
-    cf!.style.setProperty('--cs-s', spark.toFixed(3));
+    // 5 health: tiles arrive one by one and count up, then the CPU line is drawn
+    const hu = at(4) ? span(0.08, 0.46) : beat > 4 ? 1 : 0;
+    tiles.forEach((el, i) => paint(el, clamp(hu * tiles.length - i), 12));
+    for (const x of nums) {
+      const t = ease(hu);
+      const v = Number.isFinite(x.n) ? String(Math.round(x.n * t)) : x.full;
+      if (x.el.textContent !== v) x.el.textContent = v;
+    }
+    cf!.style.setProperty('--cs-s', (at(4) ? span(0.56, 0.86) : beat > 4 ? 1 : 0).toFixed(3));
 
-    // files
-    setItems(docs, nDocs, -1);
+    // 6 files: the note is laid out block by block
+    const du = at(5) ? span(0.1, 0.8) : beat > 5 ? 1 : 0;
+    docs.forEach((el, i) => paint(el, clamp(du * docs.length - i), 12));
 
-    // modules
-    if (cmdText) typeInto(cmdText, cmdText.dataset.type ?? '', cmdK);
-    cmd?.classList.toggle('is-typing', beat === 6 && u < 0.55);
-    newMod?.classList.toggle('cs-wait', !(beat === 6 && u > 0.6));
+    // 7 modules: the command is typed, run, and the new row arrives
+    if (cmdText) typeInto(cmdText, cmdText.dataset.type ?? '', at(6) ? span(0.1, 0.5) : 0);
+    cmd?.classList.toggle('is-typing', at(6) && u < 0.58);
+    if (newMod) paint(newMod, at(6) ? span(0.64, 0.76) : 0, 10);
     lens?.show(beat, u);
   }
 

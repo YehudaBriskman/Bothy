@@ -110,6 +110,8 @@ export const en = {
     primary: 'Install Bothy',
     secondary: 'Read the docs',
     fine: 'Tested in our lab on Linux amd64 with Docker and Compose. Bivvy, the smallest size, is the one that installs today; everything else is listed as not shown.',
+    /** The last thing on a page before the wordmark: one proven line, said once. */
+    closing: 'It checks before it changes anything, and one command undoes it.',
   },
 
   home: {

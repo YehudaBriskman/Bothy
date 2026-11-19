@@ -850,7 +850,7 @@ main:has(.story) + .site-footer a {
   margin-block: 2.5rem;
 }
 .cs-on .ch-track {
-  block-size: 450svh;
+  block-size: 1100svh;
 }
 .ch-flow {
   padding-block: 0;
@@ -896,18 +896,7 @@ main:has(.story) + .site-footer a {
 .cs-on .ch-flow .cf-glass {
   will-change: transform;
 }
-@media (prefers-reduced-motion: no-preference) {
-  .cs-on .cs-item {
-    transition:
-      opacity 0.45s ease,
-      translate 0.5s cubic-bezier(0.2, 0.7, 0.2, 1),
-      background-color 0.3s ease;
-  }
-}
-.cs-on .cs-wait {
-  opacity: 0;
-  translate: 0 12px;
-}
+/* arrivals are painted by the scroll (story/console.ts paint()): inline opacity and translate, no transition */
 .cs-on .cs-cur {
   background-color: color-mix(in srgb, currentColor 9%, transparent);
 }

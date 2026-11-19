@@ -39,7 +39,7 @@ export const LIMITS = {
   'html / page (max)': 12, // 10.1 changelog
   'html / doc (max)': 12, // 10.4 docs/configuring
   'js / entry (+ static imports)': 4, // 3.1
-  'js / lazy sky island': 24, // 23.0 with the copy script, the install scrub and the sizes walker (+1.5 KB over main); // 21.1 with the console camera (story/lens.ts, +1.5) on top of main's 18.8 + inner pages; // 18.8 (mount, progress, enhance-sky, footmark, and home-sections: size tabs, count-up, rail, typed terminals, 1.4 KB)
+  'js / lazy sky island': 25, // 24.4 with the scrubbed console timeline and the scrubbed camera waypoints (story/console.ts, lens.ts); // 23.0 with the copy script, the install scrub and the sizes walker (+1.5 KB over main); // 21.1 with the console camera (story/lens.ts, +1.5) on top of main's 18.8 + inner pages; // 18.8 (mount, progress, enhance-sky, footmark, and home-sections: size tabs, count-up, rail, typed terminals, 1.4 KB)
   // The first-visit splash (owner-chosen Cube loader, 2026-11-18): lazy, once per session, never with reduced motion.
   'js / lazy brand splash': 4, // 3.3
   'js / all shipped scripts': 31, // 30.3 with the copy script and the scrubs; // 28.0 with the camera (+1.5 over main's 25.5, +inner pages); // 25.5; 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
