@@ -14,9 +14,9 @@
  */
 import { AMBER, GLYPHS, INK, LOCKUP, PAPER, cubeBody, layoutWord } from './cube.ts';
 
-const SEQ = 1900; // the box-to-word sequence, centred
-const LAND = 2400; // the lockup lands in the header (the flight starts at SEQ)
-const STAGGER = { start: 1800, step: 70, each: 480, rise: 14 }; // the page assembling round the flight
+const SEQ = 1600; // the box-to-word sequence, centred
+const LAND = 2300; // the lockup lands in the header (the flight starts at SEQ)
+const STAGGER = { start: 1720, step: 80, each: 480, rise: 14 }; // the page assembling round the flight
 /**
  * What the intro hides and brings back, in order. styles/intro.css hides exactly these (a test holds the two lists
  * together). The header lockup comes back as the flying one lands on it; the rest are staggered.
@@ -34,7 +34,7 @@ export const INTRO_ITEMS = [
   '.story-dots',
   '.sky-ui',
 ] as const;
-export const DURATION = STAGGER.start + (INTRO_ITEMS.length - 2) * STAGGER.step + STAGGER.each; // 2910 ms
+export const DURATION = STAGGER.start + (INTRO_ITEMS.length - 2) * STAGGER.step + STAGGER.each; // 2920 ms
 const W = 1000;
 const H = 400;
 const word = layoutWord();
