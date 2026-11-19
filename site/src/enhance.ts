@@ -38,10 +38,26 @@ if (document.querySelector('[data-cp]')) void import('./copy.ts');
 const menus = [...document.querySelectorAll<HTMLDetailsElement>('details[data-dd]')];
 const itemsOf = (d: HTMLDetailsElement) =>
   [...d.querySelectorAll<HTMLElement>('summary ~ * a[href], summary ~ * button')].filter((e) => e.offsetParent);
+/** Open downward; flip upward only when the window has no room below; scroll inside the panel if neither side fits it. */
+function place(d: HTMLDetailsElement) {
+  const panel = d.querySelector<HTMLElement>('.dd-panel');
+  if (!panel) return;
+  panel.style.maxBlockSize = '';
+  const r = d.querySelector('summary')!.getBoundingClientRect();
+  const below = innerHeight - r.bottom - 20;
+  const up = panel.offsetHeight > below && r.top - 92 > below; // 92: under the bar, plus the menu's gap
+  d.classList.toggle('dd-up', up);
+  const room = up ? r.top - 92 : below;
+  if (panel.offsetHeight > room) panel.style.maxBlockSize = `${Math.max(160, room | 0)}px`;
+}
+addEventListener('resize', () => {
+  for (const d of menus) if (d.open) place(d);
+});
 for (const d of menus) {
   const sum = d.querySelector('summary')!;
   d.addEventListener('toggle', () => {
     if (d.open) for (const o of menus) if (o !== d) o.open = false;
+    if (d.open) place(d);
   });
   d.addEventListener('keydown', (e) => {
     const items = itemsOf(d);

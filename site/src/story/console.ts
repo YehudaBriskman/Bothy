@@ -186,6 +186,20 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     if (out.textContent !== s) out.textContent = s;
   }
 
+  // The window rolls away with the page once the story is passed. While the player still has beats to play it is held
+  // where it was (translated back by what the page has rolled, eased in and out) and does not fade, so the visitor
+  // sees every step play out, fast, before it goes.
+  let gSc = 1;
+  let gOut = 0;
+  let gRoll = 0;
+  let pinK = 0;
+  function paintGlass() {
+    if (!glass) return;
+    const d = gRoll * pinK;
+    const tf = `translateY(${d.toFixed(1)}px) scale(${gSc.toFixed(4)})`;
+    if (glass.style.transform !== tf) glass.style.transform = tf;
+    glass.style.opacity = (1 - (gOut * (1 - pinK)) ** 1.5).toFixed(3);
+  }
   function drive() {
     if (!on) return;
     // the growth: from a small, narrow peek under the hero to the big centred window, one continuous scrubbed motion
@@ -195,11 +209,10 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     // after the beats the window eases away: it rolls up with the page, lightening to nothing as the dark comes in
     const out = clamp((scrollY + pinTop - trackTop - range) / (frameH * fit * 0.9));
     const sc = fit * (FROM + (1 - FROM) * rise) * (1 - 0.06 * out);
-    if (glass) {
-      const tf = `scale(${sc.toFixed(4)})`;
-      if (glass.style.transform !== tf) glass.style.transform = tf;
-      glass.style.opacity = (1 - out ** 1.5).toFixed(3);
-    }
+    gSc = sc;
+    gOut = out;
+    gRoll = Math.max(0, scrollY + pinTop - trackTop - range);
+    paintGlass();
     cf!.style.setProperty('--cf-rise', rise.toFixed(3));
     if (dither) {
       // the dissolve is its own three stages, and it starts only when the story is done (the last beat, then the frame
@@ -224,7 +237,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
         break;
       }
     const su = clamp((t - edges[sb]!) / (edges[sb + 1]! - edges[sb]!));
-    aim(sb, su, t, out);
+    aim(sb, su, t);
   }
 
   // ---- the player: one clock for the demo, started by the scroll and never stopped by it ----
@@ -234,29 +247,39 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   let aimB = 0;
   let aimU = 0;
   let aimT = 0;
-  let primed = false;
-  let lastY = -1;
+  let hb = 0; // the furthest point the scroll has asked for (beat, and fraction of it): the player always gets there
+  let hu = 0;
+  let hot = false; // the scroll has asked for something the player has not yet reached
+  let restored = scrollY > 0; // the page opened part-way down
   let last = 0;
   let raf = 0;
   let tm = 0;
   const HOLD = 650;
-  const limitOf = (beat: number, u: number) => {
+  const MAX_SPEED = 4;
+  const limitOf = (beat: number, u: number, docked: boolean) => {
     const b = BEATS[beat]!;
-    if (aimT <= 0.002) return 0; // not docked yet: nothing starts
+    if (!docked) return 0; // not docked yet: nothing starts
     const i = Math.min(b.rests.length - 1, Math.floor(u * b.rests.length));
     return u >= 0.995 ? b.ms : b.rests[i]! * b.ms;
   };
-  function aim(sb: number, su: number, t: number, out: number) {
+  /** Is the player still short of the furthest point the scroll has reached? Then it keeps going, whatever the scroll does. */
+  const behind = () => hot && (pb < hb || (pb === hb && pt < limitOf(hb, hu, true) - 0.5));
+  function aim(sb: number, su: number, t: number) {
     aimB = sb;
     aimU = su;
     aimT = t;
-    const jump = lastY >= 0 && Math.abs(scrollY - lastY) > innerHeight * 1.2;
-    lastY = scrollY;
-    if (!primed || jump || out > 0.5) {
-      // a reload part-way down, an anchor jump, the story already behind us: show where the scroll is, do not play it
-      primed = true;
+    if (t > 0.002 && (!hot || sb + su > hb + hu)) {
+      hot = true;
+      hb = sb;
+      hu = su;
+    }
+    if (restored) {
+      // a reload part-way down: show where the scroll is, do not play the story from its start under it
+      restored = false;
       pb = sb;
-      pt = t <= 0.002 ? 0 : limitOf(sb, su);
+      pt = t <= 0.002 ? 0 : limitOf(sb, su, true);
+      hb = sb;
+      hu = su;
       hold = 0;
     }
     pump();
@@ -269,7 +292,13 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   }
   /** Is there anything left to play or to settle? */
   function wants() {
-    return aimB !== pb || pt < limitOf(pb, aimU) - 0.5 || (aimT <= 0.002 && pt > 0);
+    return (
+      behind() ||
+      aimB !== pb ||
+      pt < limitOf(pb, aimU, aimT > 0.002) - 0.5 ||
+      (aimT <= 0.002 && pt > 0) ||
+      Math.abs(pinK - (gRoll > 0 && behind() ? 1 : 0)) > 0.005
+    );
   }
   function schedule() {
     // rAF is the clock; the timeout is a net for a page whose frames are throttled (background tab, no frame clock)
@@ -284,15 +313,28 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     const dt = Math.min(64, Math.max(0, now - last));
     last = now;
     advance(dt);
+    const pinTo = gRoll > 0 && behind() ? 1 : 0;
+    pinK += (pinTo - pinK) * Math.min(1, dt / 220);
+    if (Math.abs(pinTo - pinK) < 0.005) pinK = pinTo;
+    paintGlass();
     render(pb, pt / BEATS[pb]!.ms);
     if (on && wants()) schedule();
   }
   function advance(dt: number) {
-    const lead = aimB + aimU - (pb + pt / BEATS[pb]!.ms);
-    let ms = dt * (1 + Math.min(1.8, Math.max(0, (lead - 1.5) * 0.7)));
-    for (let guard = 0; ms > 0 && guard < 8; guard++) {
+    // caught up with the furthest point asked for: from here the scroll steers, forwards or back
+    if (!behind()) {
+      hot = false;
+    }
+    const chase = behind();
+    const tb = chase ? hb : aimB;
+    const tu = chase ? hu : aimU;
+    const docked = chase || aimT > 0.002;
+    // the further behind, the faster, up to MAX_SPEED: every step still plays, in order, just quicker
+    const lead = tb + tu - (pb + pt / BEATS[pb]!.ms);
+    let ms = dt * (1 + Math.min(MAX_SPEED - 1, Math.max(0, lead - 0.4) * 1.3));
+    for (let guard = 0; ms > 0 && guard < 12; guard++) {
       const B = BEATS[pb]!;
-      if (aimB > pb) {
+      if (tb > pb) {
         // finish this beat, rest, begin the next
         if (pt < B.ms) {
           const d = Math.min(ms, B.ms - pt);
@@ -307,10 +349,10 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
           pt = 0;
           hold = 0;
         }
-      } else if (aimB === pb) {
+      } else if (tb === pb) {
         hold = 0;
-        const lim = limitOf(pb, aimU);
-        if (aimT <= 0.002)
+        const lim = limitOf(pb, tu, docked);
+        if (!docked)
           pt = 0; // back at the very top: the first beat is at its start again
         else if (pt < lim) {
           const d = Math.min(ms, lim - pt);
@@ -318,15 +360,16 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
           ms -= d;
         } else break; // a stretch that has finished stays finished: scrolling back inside the beat does not undo it
       } else {
-        // scrolled back to an earlier beat: let the stretch in progress reach its rest point, then settle on that beat's end
+        // scrolled back to an earlier beat, and nothing is left to play: let the stretch in progress reach its rest point,
+        // then settle on that beat's end
         const rest = B.rests.map((r) => r * B.ms).find((r) => r >= pt - 0.5) ?? B.ms;
         if (pt < rest - 0.5) {
           const d = Math.min(ms, rest - pt);
           pt += d;
           ms -= d;
         } else {
-          pb = aimB;
-          pt = aimT <= 0.002 ? 0 : BEATS[pb]!.ms;
+          pb = tb;
+          pt = !docked ? 0 : BEATS[pb]!.ms;
           hold = 0;
         }
       }

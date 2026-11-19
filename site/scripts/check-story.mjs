@@ -174,6 +174,61 @@ if (!process.env.ONLY || 'continuity'.includes(process.env.ONLY)) {
   await b.close();
 }
 
+// Nothing is ever dropped. Jump straight to the end of the pinned track (an anchor link, the End key, a fast fling) and
+// even past it: the player must still run every beat, in order, faster but whole, and finish within a bounded time; the
+// last beat's typed command is complete when it does. Scrolling back afterwards drops nothing already played.
+if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
+  const b = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    headless: true,
+    args: NOGL,
+  });
+  for (const past of [false, true]) {
+    const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+    const p = await ctx.newPage();
+    await p.goto(`${base}/?debug=story`, { waitUntil: 'load' });
+    await sleep(1500);
+    await p.evaluate(() => {
+      const r = document.querySelector('.story');
+      window.__beats = [r.dataset.csBeat ?? '0'];
+      new MutationObserver(() => {
+        const v = r.dataset.csBeat;
+        if (v !== undefined && window.__beats.at(-1) !== v) window.__beats.push(v);
+      }).observe(r, { attributes: true, attributeFilter: ['data-cs-beat'] });
+    });
+    await p.evaluate((past) => {
+      const t = document.querySelector('[data-console-track]');
+      const top = Math.round(t.getBoundingClientRect().top + scrollY);
+      scrollTo(0, past ? top + t.offsetHeight + innerHeight * 0.3 : top + t.offsetHeight - innerHeight); // in one jump
+    }, past);
+    const t0 = Date.now();
+    let s;
+    let done = false;
+    while (Date.now() - t0 < 40000) {
+      s = await state(p);
+      if (s.beat === '6' && s.u >= 0.99) {
+        done = true;
+        break;
+      }
+      await sleep(200);
+    }
+    const took = Date.now() - t0;
+    const beats = await p.evaluate(() => window.__beats);
+    const typed = await p.evaluate(() => {
+      const el = document.querySelector('.cf-cmd .cf-typed');
+      return !el || el.textContent === (el.dataset.type ?? '');
+    });
+    const inOrder = beats.join(',') === '0,1,2,3,4,5,6';
+    const ok = done && inOrder && typed && took < 40000;
+    if (!ok) bad++;
+    console.log(
+      `${ok ? 'ok  ' : 'FAIL'} jump to the end${past ? ' and past it' : ''}: beats ${beats.join(',')} in ${took} ms, last command typed in full: ${typed}`,
+    );
+    await ctx.close();
+  }
+  await b.close();
+}
+
 // Scrolling inside the story. A wheel, a key or a touch over the frame must just move the page, and nothing inside
 // the frame may be a scroll container (a trap would swallow the wheel). Also: the end marker the sections after the
 // story follow, and the dark variable they sit on.
