@@ -27,7 +27,13 @@ export type IconName =
   | 'leave'
   | 'check'
   | 'file'
-  | 'tag';
+  | 'tag'
+  | 'grid'
+  | 'users'
+  | 'palette'
+  | 'code'
+  | 'book'
+  | 'lock';
 
 const PATHS: Record<IconName, string[]> = {
   star: ['m12 3.5 2.6 5.3 5.8.85-4.2 4.1 1 5.8L12 16.8l-5.2 2.75 1-5.8-4.2-4.1 5.8-.85z'],
@@ -45,6 +51,22 @@ const PATHS: Record<IconName, string[]> = {
   check: ['m5 12.5 4.2 4.2L19 7'],
   file: ['M6 3.5h8l4 4v13H6z', 'M14 3.5v4h4'],
   tag: ['M3.5 12.5v-8h8l9 9-8 8z', 'M8 8h.01'],
+  grid: ['M4 4h6.5v6.5H4z', 'M13.5 4H20v6.5h-6.5z', 'M4 13.5h6.5V20H4z', 'M13.5 13.5H20V20h-6.5z'],
+  users: [
+    'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+    'M2.5 20a6.5 6.5 0 0 1 13 0',
+    'M16 4.3a3.5 3.5 0 0 1 0 6.4',
+    'M18 14a6.5 6.5 0 0 1 3.5 6',
+  ],
+  palette: [
+    'M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-.9 2-1.8 0-1.4-1.2-1.5-1.2-2.7 0-1 .8-1.5 1.8-1.5H17a3.5 3.5 0 0 0 3.5-3.5C20.5 6.6 16.7 3.5 12 3.5z',
+    'M7.5 11h.01',
+    'M10 7.5h.01',
+    'M14.5 7.5h.01',
+  ],
+  code: ['m8 8-4.5 4L8 16', 'm16 8 4.5 4L16 16', 'm13.5 5-3 14'],
+  book: ['M5 4.5h10a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z', 'M5 17a3 3 0 0 1 3-3h10'],
+  lock: ['M6 11h12v9H6z', 'M8.5 11V8a3.5 3.5 0 0 1 7 0v3', 'M12 15v2'],
 };
 
 export function Icon({ name, size = 18, className }: { name: IconName; size?: number; className?: string }) {
