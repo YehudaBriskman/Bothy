@@ -418,6 +418,7 @@ export const en = {
     paths: {
       heading: 'Pick a path',
       jump: 'Go to the steps',
+      pick: 'Show this path',
       binary: {
         title: 'The release binary',
         tag: 'Tested in our lab',
@@ -490,6 +491,10 @@ export const en = {
         'This is the development stack. It is not the small install above, and `bothy install` does not manage it.',
       ],
       guide: 'Read the installing guide',
+    },
+    stepsUi: {
+      done: 'Done',
+      progress: (n: number, total: number) => `${n} of ${total} steps done`,
     },
     later: {
       heading: 'Updating and uninstalling',
@@ -588,6 +593,9 @@ export const en = {
     fullDiff: 'Full comparison on GitHub',
     releasePage: 'Release page',
     latest: 'Newest',
+    current: 'Current version',
+    count: (n: number) => (n === 1 ? '1 change' : `${n} changes`),
+    installIt: 'Install this version',
     empty: 'No releases were found.',
   },
 

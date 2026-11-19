@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { Icon } from '../components/Icons.tsx';
 import { Layout } from '../components/Layout.tsx';
 import { Rich } from '../components/Rich.tsx';
@@ -32,51 +31,45 @@ export function About({ ctx }: { ctx: PageContext }) {
           </p>
         </header>
 
-        <div className="about-grid">
-          <section className="card reveal" aria-labelledby="about-name-h">
-            <div>
-              <p className="eyebrow">{a.nameEyebrow}</p>
-              <h2 id="about-name-h" className="t-h3">
-                {h.descent.heading}
-              </h2>
-              <p className="muted">{h.descent.lead}</p>
-            </div>
-            <div>
+        <div className="manifesto">
+          <section aria-labelledby="about-name-h" className="mf-part">
+            <p className="eyebrow">{a.nameEyebrow}</p>
+            <h2 id="about-name-h" className="t-h3">
+              {h.descent.heading}
+            </h2>
+            <p className="mf">{h.descent.lead}</p>
+            <div className="mf-code">
               <h3 className="t-label muted">{h.descent.codeLabel}</h3>
               <ul className="code-list">
                 {h.descent.code.map((c) => (
                   <li key={c}>{c}</li>
                 ))}
               </ul>
-              <p className="muted small" style={{ marginBlockStart: '0.75rem' }}>
-                {h.descent.codeSource}
-              </p>
+              <p className="muted small">{h.descent.codeSource}</p>
             </div>
           </section>
-          <section className="card reveal" style={{ '--i': 1 } as CSSProperties} aria-labelledby="about-what-h">
-            <div>
-              <p className="eyebrow">{a.whatEyebrow}</p>
-              <h2 id="about-what-h" className="t-h3">
-                {h.hut.heading}
-              </h2>
-              <p className="muted">{h.hut.promise}</p>
-              <p className="muted">{h.descent.close}</p>
-            </div>
+          <section aria-labelledby="about-what-h" className="mf-part">
+            <p className="eyebrow">{a.whatEyebrow}</p>
+            <h2 id="about-what-h" className="t-h3">
+              {h.hut.heading}
+            </h2>
+            <p className="mf">{h.hut.promise}</p>
+            <p className="mf">{h.descent.close}</p>
             <a className="card-link" href={href(`${p}/docs/`)}>
               {h.hut.guide} <Icon name="arrow" size={16} className="arrow" />
             </a>
           </section>
         </div>
 
-        <section className="section-block" aria-labelledby="about-made-h">
-          <header className="section-head reveal">
+        <section className="section-block manifesto" aria-labelledby="about-made-h">
+          <header className="section-head">
             <p className="eyebrow">{a.madeEyebrow}</p>
             <h2 id="about-made-h">{h.trust.heading}</h2>
             <p className="lede">{h.trust.lead}</p>
           </header>
-          <ul className="proof-list proof-shown about-claims reveal">
+          <ul className="mf-claims">
             {h.trust.claims.map((c) => (
-              <li key={c}>
+              <li key={c} className="mf">
                 <Rich text={c} />
               </li>
             ))}
@@ -93,11 +86,11 @@ export function About({ ctx }: { ctx: PageContext }) {
           </ul>
         </section>
 
-        <section id="privacy" className="section-block" aria-labelledby="about-privacy-h">
+        <section id="privacy" className="section-block manifesto" aria-labelledby="about-privacy-h">
           <header className="section-head reveal">
             <p className="eyebrow">{a.privacyEyebrow}</p>
             <h2 id="about-privacy-h">{a.privacyHeading}</h2>
-            <p className="lede">{a.privacyBody}</p>
+            <p className="mf">{a.privacyBody}</p>
           </header>
         </section>
       </div>

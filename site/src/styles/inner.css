@@ -1,0 +1,571 @@
+/*
+ * The inner pages' motion and layout (About, Releases, Docs index, Docs article, Install, 404). One file so the
+ * sections the other pages share stay untouched. Only transform and opacity move. Every animation has a still
+ * end state, and `prefers-reduced-motion: reduce` gets that end state with nothing moving. Logical properties only.
+ */
+
+/* ── About: lines that light as you read ─────────────────────────────────────────────────────────────────── */
+
+.manifesto {
+  display: grid;
+  gap: clamp(3rem, 2rem + 5vw, 6rem);
+  margin-block-start: clamp(2.5rem, 2rem + 3vw, 5rem);
+}
+.manifesto.section-block {
+  gap: 1.5rem;
+}
+.mf-part {
+  display: grid;
+  gap: 1.25rem;
+  justify-items: start;
+}
+.mf-part h2,
+.manifesto .section-head h2 {
+  margin: 0;
+}
+.mf {
+  margin: 0;
+  max-inline-size: 30ch;
+  font-size: clamp(1.6rem, 1.1rem + 2.2vw, 3rem);
+  line-height: 1.18;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.mf-claims {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(1.5rem, 1rem + 2vw, 3rem);
+}
+.mf-claims .mf {
+  max-inline-size: 34ch;
+}
+.mf-code {
+  display: grid;
+  gap: 0.75rem;
+  inline-size: min(100%, 36rem);
+  margin-block-start: 0.5rem;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .mf {
+      animation: mf-light linear both;
+      animation-timeline: view();
+      animation-range: cover 5% cover 95%;
+    }
+  }
+}
+@keyframes mf-light {
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+/* without scroll timelines, the script lights a line once it has crossed the middle (inner.ts) */
+.js-mf .mf {
+  opacity: 0.22;
+  transition: opacity 0.4s var(--ease-out);
+}
+.js-mf .mf.lit {
+  opacity: 1;
+}
+
+/* ── Releases: a rail, folded releases that unfold, the current version kept at the side ──────────────────── */
+
+.rel-layout {
+  display: grid;
+  gap: 1.5rem 3rem;
+  align-items: start;
+}
+@media (min-width: 60rem) {
+  .rel-layout {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+  }
+  .rel-side {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    inset-block-start: calc(var(--nav-h) + 1rem);
+  }
+  .rel-rail {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+.rel-cur-tag {
+  margin: 0.25rem 0 0.5rem;
+  font-size: var(--fs-h3);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.rel-side .card {
+  gap: 0.6rem;
+}
+.rel-side .eyebrow {
+  margin: 0;
+}
+.rel-side .card-link {
+  margin-block-start: 0.5rem;
+}
+.rel-rail {
+  position: relative;
+  max-inline-size: none;
+  gap: 0.75rem;
+  padding-inline-start: 1.75rem;
+}
+.rel-rail::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: 0.4rem;
+  border-inline-start: 1px solid var(--hairline-strong);
+  transform-origin: top;
+}
+.rel {
+  position: relative;
+}
+.rel::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 1.55rem;
+  inset-inline-start: -1.75rem;
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--hairline-strong);
+}
+.rel:first-child::before {
+  background: var(--focus);
+  box-shadow:
+    0 0 0 4px rgb(255 213 138 / 18%),
+    0 0 18px rgb(255 213 138 / 45%);
+}
+.rel details {
+  padding: 0;
+}
+.rel summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 1.1rem 1.4rem;
+  cursor: pointer;
+  list-style: none;
+  min-block-size: 3.25rem;
+}
+.rel summary::-webkit-details-marker {
+  display: none;
+}
+.rel summary::after {
+  content: '';
+  inline-size: 0.55rem;
+  block-size: 0.55rem;
+  border-inline-end: 2px solid var(--text-muted);
+  border-block-end: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform var(--dur) var(--ease-out);
+}
+.rel details[open] summary::after {
+  transform: rotate(-135deg);
+}
+.rel summary h2 {
+  margin: 0;
+}
+.rel summary .meta {
+  margin-inline-start: auto;
+}
+.rel summary:hover h2 {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-color: var(--hairline-strong);
+}
+.rel-body {
+  padding: 0 1.4rem 1.2rem;
+}
+.rel-body .changes {
+  margin-block-start: 0.75rem;
+}
+/* unfold: the list fades and rises; where the browser can animate height, the box opens with it */
+.rel details[open] .rel-body {
+  animation: rel-in 0.32s var(--ease-out) both;
+}
+@keyframes rel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@supports selector(::details-content) {
+  .rel details {
+    interpolate-size: allow-keywords;
+  }
+  .rel details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size 0.34s var(--ease-out),
+      content-visibility 0.34s allow-discrete;
+  }
+  .rel details[open]::details-content {
+    block-size: auto;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rel-rail::before {
+    animation: rail-draw 0.8s var(--ease-emph) both;
+  }
+  .rel {
+    animation: rel-fade 0.5s var(--ease-out) calc(0.15s + var(--i, 0) * 80ms) both;
+  }
+  .rel:first-child::before {
+    animation: dot-pulse 1.2s ease-in-out 0.9s 2;
+  }
+}
+@keyframes rail-draw {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes rel-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes dot-pulse {
+  50% {
+    transform: scale(1.35);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rel details::details-content {
+    transition: none;
+  }
+  .rel details[open] .rel-body {
+    animation: none;
+  }
+}
+
+/* ── Docs index: search first ────────────────────────────────────────────────────────────────────────────── */
+
+.docs-index {
+  padding-block-end: var(--space-section);
+}
+.docs-index > * {
+  max-inline-size: 56rem;
+}
+.search-first {
+  margin-block-end: 2rem;
+}
+.search-box {
+  position: relative;
+  max-inline-size: 40rem;
+}
+.search-first input {
+  max-inline-size: none;
+  min-block-size: 3.5rem;
+  font-size: 1.125rem;
+  padding-inline-end: 3.2rem;
+  transition: box-shadow 0.15s var(--ease-out);
+}
+.search-first input:focus-visible {
+  outline: 0;
+  box-shadow:
+    inset 0 0 0 1px var(--focus),
+    0 0 0 4px rgb(255 213 138 / 22%);
+}
+.search-box kbd {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 1.1rem;
+  margin-block: auto;
+  block-size: 1.7rem;
+  inline-size: 1.7rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.45rem;
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  color: var(--text-faint);
+  font: 600 0.8rem / 1 var(--font-mono);
+  pointer-events: none;
+}
+.doc-rows {
+  list-style: none;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  border-block-start: 1px solid var(--hairline);
+}
+.doc-rows li {
+  border-block-end: 1px solid var(--hairline);
+  transition:
+    opacity 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out);
+}
+.doc-rows li[data-off] {
+  opacity: 0.18;
+  transform: scale(0.97);
+}
+.doc-rows a {
+  display: grid;
+  gap: 0.15rem 2rem;
+  padding: 0.8rem 0.25rem;
+  min-block-size: 3rem;
+  text-decoration: none;
+}
+@media (min-width: 44rem) {
+  .doc-rows a {
+    grid-template-columns: 15rem minmax(0, 1fr);
+    align-items: baseline;
+  }
+}
+.doc-rows .card-title {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.doc-rows .card-sum {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  display: block;
+}
+.doc-rows a:hover .card-title {
+  text-decoration: underline;
+  text-underline-offset: 0.22em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc-rows li,
+  .search-first input {
+    transition: none;
+  }
+}
+
+/* ── Docs article: contents that follow you ──────────────────────────────────────────────────────────────── */
+
+.toc ul {
+  position: relative;
+}
+.toc-marker {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 2px;
+  block-size: 1.6rem;
+  background: var(--focus);
+  border-radius: 1px;
+  transform: translateY(var(--y, 0));
+  transition:
+    transform 0.22s var(--ease-out),
+    block-size 0.22s var(--ease-out);
+  pointer-events: none;
+  z-index: 1;
+}
+.toc a[aria-current='true'] {
+  border-inline-start-color: var(--hairline-strong);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toc-marker {
+    transition: none;
+  }
+}
+
+/* ── Install: pick a path, see only that path; steps tick done ──────────────────────────────────────────── */
+
+.js-paths .path-card {
+  position: relative;
+  cursor: pointer;
+  transition:
+    transform 0.22s var(--ease-out),
+    box-shadow 0.22s var(--ease-out);
+}
+.js-paths .path-card[data-on='true'] {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1px var(--focus),
+    0 12px 36px rgb(0 0 0 / 35%);
+}
+.js-paths .path-card .card-link {
+  display: none;
+}
+.path-pick {
+  all: unset;
+  display: block;
+  cursor: pointer;
+}
+.path-pick::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-card);
+}
+.path-pick:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+[data-panel] {
+  scroll-margin-block-start: calc(var(--nav-h) + 1rem);
+}
+[data-panel].swap-in {
+  animation: panel-in 0.28s var(--ease-out) both;
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.steps-progress {
+  max-inline-size: 52rem;
+  margin: 1.25rem 0 0;
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.steps-bar {
+  display: block;
+  block-size: 3px;
+  margin-block-start: 0.5rem;
+  background: var(--hairline);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.steps-bar i {
+  display: block;
+  block-size: 100%;
+  background: var(--focus);
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  transition: transform 0.4s var(--ease-emph);
+}
+:dir(rtl) .steps-bar i {
+  transform-origin: right center;
+}
+.step-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+.step-done input {
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  accent-color: var(--focus);
+  cursor: pointer;
+}
+.install-steps > li > h3,
+.install-steps > li > p {
+  transition: opacity 0.3s var(--ease-out);
+}
+.install-steps > li[data-done] > h3::before {
+  content: '✓';
+  background: var(--focus);
+  color: var(--on-lit);
+  box-shadow: none;
+}
+.install-steps > li[data-done] > h3,
+.install-steps > li[data-done] > p {
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: reduce) {
+  .js-paths .path-card,
+  .steps-bar i,
+  .install-steps > li > h3,
+  .install-steps > li > p {
+    transition: none;
+  }
+  [data-panel].swap-in {
+    animation: none;
+  }
+}
+
+/* ── 404: lost in the cloud ─────────────────────────────────────────────────────────────────────────────── */
+
+.nf-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--r-panel);
+  padding: clamp(2rem, 1rem + 5vw, 5rem) clamp(1.25rem, 0.5rem + 4vw, 4rem);
+  min-block-size: 24rem;
+}
+.nf-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  filter: brightness(0.5) saturate(1.15);
+  background-size: cover;
+  background-position: center;
+  background-image: image-set(
+    url('/sky/dusk-desk.avif') type('image/avif'),
+    url('/sky/dusk-desk.webp') type('image/webp')
+  );
+}
+@media (max-width: 720px) {
+  .nf-stage::before {
+    background-image: image-set(
+      url('/sky/dusk-phone.avif') type('image/avif'),
+      url('/sky/dusk-phone.webp') type('image/webp')
+    );
+  }
+}
+.nf-mist {
+  position: absolute;
+  inset: -10%;
+  z-index: -1;
+  background:
+    radial-gradient(40% 30% at 70% 60%, rgb(230 235 245 / 30%), transparent),
+    radial-gradient(35% 25% at 30% 80%, rgb(230 235 245 / 22%), transparent);
+}
+.nf-col {
+  max-inline-size: 32rem;
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+}
+.nf-col .page-head {
+  padding: 0;
+  margin: 0.5rem 0 1rem;
+}
+.nf-cube {
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nf-mist {
+    animation: nf-drift 26s linear infinite alternate;
+  }
+  .nf-cube {
+    animation: nf-bob 6s ease-in-out infinite;
+  }
+  .nf-links li {
+    animation: nf-rise 0.5s var(--ease-out) calc(0.2s + var(--i, 0) * 80ms) both;
+  }
+}
+@keyframes nf-drift {
+  to {
+    transform: translateX(6%) scale(1.1);
+  }
+}
+@keyframes nf-bob {
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes nf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
