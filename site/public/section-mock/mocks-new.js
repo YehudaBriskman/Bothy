@@ -96,7 +96,7 @@
       scene: () =>
         fw(
           'Terminal',
-          `<p class="tline k-in" style="--d:0"><span class="pr">$ </span>bothy install --dry-run</p><p class="tline k-in dim" style="--d:2">Docker answers, Compose v2 present</p><p class="tline k-in dim" style="--d:3">At least 960 MiB of memory free</p><p class="tline k-in dim" style="--d:4">Port 80 is free</p><p class="tline k-in dim" style="--d:5">sha256 matches checksums.txt</p><p class="tline k-in" style="--d:7"><span class="pr">$ </span>bothy install</p><p class="tline k-in ok" style="--d:9">Bivvy is up: http://&lt;addr&gt;:&lt;port&gt;/</p>`,
+          `<p class="tline k-in" style="--d:0"><span class="pr">$ </span>bothy install --dry-run</p><p class="tline k-in dim" style="--d:2">Docker answers, Compose v2 present</p><p class="tline k-in dim" style="--d:3">At least 960 MiB of memory free</p><p class="tline k-in dim" style="--d:4">Port 80 is free</p><p class="tline k-in dim" style="--d:5">sha256 matches checksums.txt</p><p class="tline k-in" style="--d:7"><span class="pr">$ </span>bothy install</p><p class="tline k-in ok" style="--d:9">Bivvy is up: &lt;addr&gt;:&lt;port&gt;</p>`,
           {},
         ),
       script:
