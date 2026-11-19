@@ -75,7 +75,6 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
 
           <figure
             className="hs-demo hs-rise"
-            role="group"
             aria-label={i.terminalLabel}
             data-scrub-demo
             data-mock="install"
@@ -90,7 +89,7 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
                 <span className="hs-tag">{i.termExample}</span>
               </span>
             </figcaption>
-            <pre translate="no" dir="ltr">
+            <pre translate="no" dir="ltr" tabIndex={0}>
               <code>
                 {demo.map((cmd, k) => (
                   <span key={cmd} className="hs-ln">

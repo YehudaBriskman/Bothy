@@ -199,12 +199,7 @@ export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNod
                   {a.checks.foot}
                 </p>
               </div>
-              <figure
-                className="hs-demo hs-dry-term"
-                data-mock="checks-terminal"
-                role="group"
-                aria-label={a.checks.panel}
-              >
+              <figure className="hs-demo hs-dry-term" data-mock="checks-terminal" aria-label={a.checks.panel}>
                 <figcaption>
                   <span>bothy</span>
                   <span className="hs-cap-r">
@@ -214,7 +209,7 @@ export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNod
                     <span className="hs-tag">{a.example}</span>
                   </span>
                 </figcaption>
-                <pre translate="no" dir="ltr">
+                <pre translate="no" dir="ltr" tabIndex={0}>
                   <code>
                     <span className="hs-cmd">
                       <span className="prompt" aria-hidden="true">
