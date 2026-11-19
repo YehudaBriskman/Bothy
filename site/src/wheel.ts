@@ -6,6 +6,8 @@
  */
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
+const PER = 0.18; // scroll travel per line, in viewport heights: a quick roll, a line at a time
+const HOLD = 0.12; // a short hold on the last line before the section lets go
 const MID = 0.54; // where the centre line sits, as a fraction of the stage height (just under the heading)
 
 if (!reduced) {
@@ -20,8 +22,8 @@ if (!reduced) {
     const measure = () => {
       for (const w of wheels) {
         w.centres = w.lines.map((l) => l.offsetTop + l.offsetHeight / 2);
-        // a screen to pin, then ~42% of a screen of travel per line, and a short hold on the last one
-        w.track.style.setProperty('--wh-len', `${100 + (w.lines.length - 1) * 42 + 24}svh`);
+        // a screen to pin, then PER of a screen of travel per line, and a short hold on the last one
+        w.track.style.setProperty('--wh-len', `${Math.round(100 + ((w.lines.length - 1) * PER + HOLD) * 100)}svh`);
       }
     };
     const draw = () => {
@@ -30,8 +32,7 @@ if (!reduced) {
         const r = w.track.getBoundingClientRect();
         if (r.bottom < -vh || r.top > vh * 2) continue;
         const n = w.lines.length;
-        const range = Math.max(1, r.height - vh);
-        const f = clamp(clamp(-r.top / range) * (n - 1 + 0.5), 0, n - 1);
+        const f = clamp(-r.top / (vh * PER), 0, n - 1); // the wheel rolls from the instant the stage pins
         const i0 = Math.floor(f);
         const i1 = Math.min(n - 1, i0 + 1);
         const c0 = w.centres[i0] ?? 0;
@@ -64,9 +65,7 @@ if (!reduced) {
         const k = line ? w.lines.indexOf(line) : -1;
         if (k < 0) return;
         const r = w.track.getBoundingClientRect();
-        const range = Math.max(1, r.height - innerHeight);
-        const want = (k / (w.lines.length - 1 + 0.5)) * range;
-        scrollTo({ top: scrollY + r.top + want, behavior: 'instant' });
+        scrollTo({ top: scrollY + r.top + k * PER * innerHeight, behavior: 'instant' });
       });
   }
 }
