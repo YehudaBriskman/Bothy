@@ -1,3 +1,4 @@
+import { CopyButton } from './CopyButton.tsx';
 import { REPO_URL, href } from '../config.ts';
 import { localePrefix } from '../i18n/locales.ts';
 import type { PageContext } from '../page-context.ts';
@@ -45,6 +46,7 @@ export function InstallSplit({ ctx, label, id }: { ctx: PageContext; label?: str
             <code translate="no" dir="ltr">
               {m.cmd}
             </code>
+            <CopyButton />
           </div>
           <p className="dd-not">{m.notYet}</p>
           <hr />

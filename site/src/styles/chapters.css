@@ -418,12 +418,12 @@
 .story .term-note {
   color: var(--ch-muted);
 }
-.story .copy {
-  color: var(--ch-fg);
-  border-color: var(--ch-line-strong);
+.story .cp {
+  color: var(--ch-muted);
 }
-.story .copy:hover {
-  background: rgb(239 233 223 / 12%);
+.story .cp:hover,
+.story .cp:focus-visible {
+  color: var(--ch-fg);
 }
 .ch-two {
   display: grid;

@@ -163,7 +163,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
         sync();
       });
       li.addEventListener('click', (e) => {
-        if (!(e.target as HTMLElement).closest('button.copy') || box.checked) return;
+        if (!(e.target as HTMLElement).closest('[data-cp]') || box.checked) return;
         box.checked = true;
         li.setAttribute('data-done', '');
         sync();

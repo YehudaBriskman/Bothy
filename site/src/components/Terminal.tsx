@@ -1,3 +1,5 @@
+import { CopyButton } from './CopyButton.tsx';
+
 export interface TerminalLine {
   cmd: string;
   /** Shown after the command in a muted style; never copied. */
@@ -8,7 +10,7 @@ export interface TerminalLine {
  * A block of shell commands.
  *
  * The prompt is decoration (`aria-hidden`, unselectable) so a drag-select or the
- * copy button yields commands that paste and run. The copy button is added by
+ * copy button yields commands that paste and run. The copy icon is revealed by
  * enhance.ts; without JavaScript the block is still readable and selectable.
  */
 export function Terminal({ label, lines }: { label: string; lines: TerminalLine[] }) {
@@ -30,6 +32,7 @@ export function Terminal({ label, lines }: { label: string; lines: TerminalLine[
           ))}
         </code>
       </pre>
+      <CopyButton />
     </figure>
   );
 }

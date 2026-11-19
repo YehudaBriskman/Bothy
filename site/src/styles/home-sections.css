@@ -863,7 +863,7 @@
 }
 
 /* links in the install chapter read as text, not as heather: the page accent is amber */
-.story .ch-install a:not(.copy) {
+.story .ch-install a:not(.cp) {
   color: var(--text);
   text-decoration-color: rgb(255 255 255 / 40%);
   text-underline-offset: 0.2em;
