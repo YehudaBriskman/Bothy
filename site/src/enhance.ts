@@ -88,7 +88,7 @@ document.addEventListener('click', (e) => {
     root.style.setProperty('--nav-p', p.toFixed(3));
     root.toggleAttribute('data-nav-cap', p >= 0.5);
     root.toggleAttribute('data-scrolled', moved);
-    const dark = hasStory ? !!end && end.getBoundingClientRect().bottom < navH() + 40 : moved;
+    const dark = hasStory ? !!end && end.getBoundingClientRect().bottom < navH() + 40 : scrollY > 24;
     root.toggleAttribute('data-nav-dark', dark);
   };
   update();

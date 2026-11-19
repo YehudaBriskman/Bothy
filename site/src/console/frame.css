@@ -611,3 +611,25 @@
     border: 1px solid CanvasText;
   }
 }
+
+/* State changes the player makes (focus, press, loading, verb) ease in: they are started by the scroll and run to their end
+   on their own clock, transform and opacity (and the focus ring) only. Reduced motion never reaches here: the frame is static. */
+.cf.cs-live .cf-login-btn {
+  transition:
+    opacity 0.35s ease,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.25s ease;
+}
+.cf.cs-live .cf-btn-t,
+.cf.cs-live .cf-btn-l,
+.cf.cs-live .cf-btn-bar {
+  transition: opacity 0.25s ease;
+}
+.cf.cs-live .cf-field-v {
+  transition: box-shadow 0.3s ease;
+}
+.cf.cs-live .cf-detail-verbs span {
+  transition:
+    background-color 0.3s ease,
+    opacity 0.3s ease;
+}

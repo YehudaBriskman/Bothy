@@ -43,6 +43,8 @@ const state = (p) =>
       y: Math.round(scrollY),
       on: r.classList.contains('cs-on'),
       beat: r.dataset.csBeat ?? null,
+      u: Number(r.dataset.csU ?? 0),
+      t: Number(r.style.getPropertyValue('--cs-t') || 0),
       stageTop: st && Math.round(st.getBoundingClientRect().top),
     };
   });
@@ -79,28 +81,43 @@ for (const s of scenarios.filter((x) => !process.env.ONLY || x.name.includes(pro
   });
   await p.goto(`${base}/?debug=story${s.gl === false ? '' : '&manual=1'}`, { waitUntil: 'load' });
   await sleep(1500);
+  // The scroll STARTS the beats, a player runs them on its own clock (src/story/console.ts): scroll quickly to the end of
+  // the story, then give the player time to play what was queued. Real wheel events, real time.
   const seen = [];
   let max = -1;
   let mid;
-  for (let i = 0; i < 90; i++) {
+  const note = (m) => {
+    if (m.beat !== null) {
+      seen.push(Number(m.beat));
+      max = Math.max(max, Number(m.beat));
+    }
+  };
+  for (let i = 0; i < 160; i++) {
     await p.mouse.wheel(0, 120 + (i % 3) * 20);
     await sleep(60);
     mid = await state(p);
-    if (mid.beat !== null) {
-      seen.push(Number(mid.beat));
-      max = Math.max(max, Number(mid.beat));
-    }
-    if (mid.beat === '6' && i > 20) break;
+    note(mid);
+    if (mid.t >= 0.985) break;
+  }
+  for (let i = 0; i < (s.play ? 400 : 0); i++) {
+    mid = await state(p);
+    note(mid);
+    if (mid.beat === '6' && mid.u >= 0.99) break;
+    await sleep(250);
   }
   const pinned = await state(p);
   let back = pinned;
-  for (let i = 0; i < 160; i++) {
+  for (let i = 0; i < 200; i++) {
     await p.mouse.wheel(0, -160);
     await sleep(40);
     back = await state(p);
-    if (back.beat === '0' || back.y < 200) break;
+    if (back.t <= 0.001 || back.y < 200) break;
   }
-  const advanced = new Set(seen).size >= 6 && max === 6;
+  for (let i = 0; i < 200 && s.play && back.beat !== '0' && back.beat !== null; i++) {
+    await sleep(250);
+    back = await state(p);
+  }
+  const advanced = new Set(seen).size >= 6 && max === 6 && pinned.beat === '6';
   const monotonic = seen.every((v, i) => i === 0 || v >= seen[i - 1]);
   const returned = back.beat === '0' || back.beat === null;
   const ok = s.play ? advanced && monotonic && returned && pinned.on : !pinned.on && max === -1;
@@ -108,6 +125,51 @@ for (const s of scenarios.filter((x) => !process.env.ONLY || x.name.includes(pro
   if (!ok || errs.length) bad++;
   console.log(
     `${ok && !errs.length ? 'ok  ' : 'FAIL'} ${s.name}: beats seen ${[...new Set(seen)].join(',') || 'none'}, pinned=${pinned.on}, back at beat ${back.beat}${errs.length ? ', errors: ' + errs.join('; ') : ''}`,
+  );
+  await b.close();
+}
+
+// Once started, an animation plays to its end WITHOUT STOPPING: one wheel notch past the dock starts the sign-in; after the
+// scroll has stopped the player must keep moving (more than a second of it), reach the first rest point, and a jerky
+// reversed scroll must not move it backwards while it plays.
+if (!process.env.ONLY || 'continuity'.includes(process.env.ONLY)) {
+  const b = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    headless: true,
+    args: NOGL,
+  });
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  const p = await ctx.newPage();
+  await p.goto(`${base}/?debug=story`, { waitUntil: 'load' });
+  await sleep(1500);
+  await p.evaluate(() => {
+    const t = document.querySelector('[data-console-track]');
+    scrollTo(0, Math.round(t.getBoundingClientRect().top + scrollY) - 40); // just before the dock
+  });
+  await sleep(500);
+  let st = await state(p);
+  for (let i = 0; i < 40 && st.t < 0.02; i++) {
+    await p.mouse.wheel(0, 40);
+    await sleep(30);
+    st = await state(p);
+  }
+  const t0 = Date.now();
+  const us = [];
+  let jerk = false;
+  while (Date.now() - t0 < 3200) {
+    await sleep(150);
+    if (!jerk && Date.now() - t0 > 700) {
+      jerk = true; // a small jerk backwards while it plays
+      await p.mouse.wheel(0, -60);
+    }
+    us.push((await state(p)).u);
+  }
+  const moving = us.filter((u, i) => i > 0 && u > us[i - 1]).length;
+  const never_back = us.every((u, i) => i === 0 || u >= us[i - 1] - 1e-9);
+  const ok = st.beat === '0' && us.at(-1) >= 0.2 && moving >= 6 && never_back;
+  if (!ok) bad++;
+  console.log(
+    `${ok ? 'ok  ' : 'FAIL'} continuity: after the scroll stopped the sign-in kept playing (u ${us[0]} to ${us.at(-1)}, ${moving} advances, never backwards: ${never_back})`,
   );
   await b.close();
 }

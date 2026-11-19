@@ -28,6 +28,10 @@ export interface Beat {
   scene: Scene;
   /** Share of the scroll this beat gets (relative; 1 is the usual). */
   weight: number;
+  /** How long the beat plays on its own clock, in ms. The scroll starts it; it is never paced by the scroll. */
+  ms: number;
+  /** Positions (0..1, the last 1) where the beat is at rest. A stretch is unlocked by scrolling and plays to the next rest. */
+  rests: readonly number[];
 }
 
 export const BEATS: readonly Beat[] = [
@@ -36,6 +40,8 @@ export const BEATS: readonly Beat[] = [
     label: 'Sign in',
     scene: 'login',
     weight: 2.6,
+    ms: 8500,
+    rests: [0.21, 0.4, 0.58, 0.78, 1],
     caption: 'Sign in with the login your realm gives you.',
   },
   {
@@ -43,6 +49,8 @@ export const BEATS: readonly Beat[] = [
     label: 'Discover',
     scene: 'services',
     weight: 1.9,
+    ms: 4200,
+    rests: [0.64, 1],
     caption: 'Nothing to configure. It asks Docker what is running.',
   },
   {
@@ -50,6 +58,8 @@ export const BEATS: readonly Beat[] = [
     label: 'Services',
     scene: 'services',
     weight: 1.8,
+    ms: 5000,
+    rests: [0.2, 0.36, 0.52, 0.68, 1],
     caption: 'Every service on one page: state, ports, image.',
   },
   {
@@ -57,6 +67,8 @@ export const BEATS: readonly Beat[] = [
     label: 'Open one',
     scene: 'services',
     weight: 1.6,
+    ms: 4000,
+    rests: [0.58, 1],
     caption: 'Open one to see its state, and restart or stop it.',
   },
   {
@@ -64,6 +76,8 @@ export const BEATS: readonly Beat[] = [
     label: 'Health',
     scene: 'health',
     weight: 1.7,
+    ms: 4200,
+    rests: [0.5, 1],
     caption: 'One glance at whether the machine is all right.',
   },
   {
@@ -71,6 +85,8 @@ export const BEATS: readonly Beat[] = [
     label: 'Files',
     scene: 'files',
     weight: 1.5,
+    ms: 3500,
+    rests: [1],
     caption: 'Notes kept on the machine, read as documents.',
   },
   {
@@ -78,6 +94,8 @@ export const BEATS: readonly Beat[] = [
     label: 'Modules',
     scene: 'modules',
     weight: 2.2,
+    ms: 4800,
+    rests: [0.58, 1],
     caption: 'Add a module from the command line, and see its memory.',
   },
 ];
