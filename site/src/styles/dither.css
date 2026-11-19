@@ -45,8 +45,8 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 50%, rgb(var(--after-story-rgb, 9 9 12) / 85%) 1.4px, transparent 1.85px) 0
-    0 / 8px 8px;
+  background: radial-gradient(circle at 50% 50%, rgb(var(--after-story-rgb, 9 9 12) / 26%) 0.45px, transparent 0.9px) 0
+    0 / 7px 7px;
 }
 .sd {
   position: fixed;
