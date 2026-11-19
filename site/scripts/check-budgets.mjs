@@ -33,15 +33,15 @@ export const LIMITS = {
   //   the intro: its gate inlined in the home page's head and styles/intro.css (+0.4).
   'first load, worst other route / desktop': 81, // 69.6 (docs/configuring)
   'first load, worst other route / phone': 63, // 54.6
-  'html / home': 16, // 13.5
+  'html / home': 18, // 16.0; 13.5 before the sections 05-12 redesign (tab panels, install rail, two example terminals, big-word row; the long proof lists left for the Install page)
   'html / page (max)': 12, // 10.1 changelog
   'html / doc (max)': 12, // 10.4 docs/configuring
   'js / entry (+ static imports)': 4, // 3.1
-  'js / lazy sky island': 19, // 15.8 (mount, progress, enhance-sky)
+  'js / lazy sky island': 21, // 18.8 (mount, progress, enhance-sky, footmark, and home-sections: size tabs, count-up, rail, typed terminals, 1.4 KB)
   // The first-visit splash (owner-chosen Cube loader, 2026-11-18): lazy, once per session, never with reduced motion.
   'js / lazy brand splash': 4, // 3.3
-  'js / all shipped scripts': 26, // 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
-  'css / all stylesheets': 28, // 24.3
+  'js / all shipped scripts': 28, // 25.5; 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
+  'css / all stylesheets': 31, // 27.7; 24.3 before home-sections.css (3.4 KB: hill, rail, band, photo drift, reveal states)
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
   'dev pages (sky-spike, scene-mock, brand-mock, section-mock), raw': 1150, // 994.2 (748, then + section-mock gallery 167.5, 2026-11-19)
