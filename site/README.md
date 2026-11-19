@@ -111,8 +111,10 @@ outside the photograph budget in `check-assets.mjs`.
 
 The mark (the Cube icon and the drawn wordmark, chosen 2026-11-18, see `docs/plans/thin-bothy/brand-options.md`) has
 one source, `src/brand/cube.ts`: the header and footer lockup (`components/Brand.tsx`), the icons, the share cards, and
-the first-visit splash (`src/brand/splash.ts`, a lazy chunk; `splash-gate.ts` decides: once per browser session, home
-page only, never with reduced motion or a blocked sessionStorage, never under automation). `?splash=1` forces it,
+the first-visit intro (`src/brand/splash.ts`, a lazy chunk: the sky alone, the Cube opens, and the page assembles
+round the lockup as it flies into the header). `splash-gate.ts` decides in an inline head script before the first
+paint: once per browser session, home page only, never with reduced motion or a blocked sessionStorage, never under
+automation; it hides only visually (`bb-intro`, `styles/intro.css`) and gives up at 3.5 s. `?splash=1` forces it,
 `?splash=0` stops it, `?splash=hold` builds it paused for a screenshot harness (`window.__bbSplash.seek(ms)`).
 
 ## Hebrew
