@@ -79,6 +79,10 @@ jobs:
       - name: check:story - the console demo plays from real scrolling
         run: npm run check:story
 
+      - name: check:surfaces - nothing paints behind a group of cards below the story
+        if: always()
+        run: npm run check:surfaces
+
       - name: check:sky - text contrast over the sky, from pixels
         if: always()
         run: npm run check:sky -- --no-stills
