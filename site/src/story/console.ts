@@ -2,8 +2,13 @@
  * The console demo, driven by the scroll. The frame follows the hero: its top peeks above the fold, and as the page
  * scrolls it rises and grows a little (transform only), pins (CSS `position: sticky`, so nothing is trapped and the
  * page scrolls on under it) and plays the beats of src/console/flow.ts: sign in, discover, services, open one,
- * health, files, modules. One number (the distance scrolled through the tall track) steers everything; each beat gets
- * a share of it and a local 0..1 of its own. Every state is a pure function of that number, so scrolling back undoes it.
+ * health, files, modules. The scroll STARTS things; it does not scrub them. Each beat is a timeline on its own clock (BEATS[].ms) with rest
+ * points (BEATS[].rests): scroll progress unlocks the next stretch, a single player then runs it to the rest point at a
+ * fixed pace, and a stretch that has begun is never stopped, slowed or reversed by the scroll stopping or jerking. The
+ * stretches queue (scrolling ahead only unlocks more); scrolling back settles on the earlier beat's resting state once
+ * what is playing has finished. What is drawn is still a pure function of (beat, position in the beat), and that
+ * position is the player's, not the scroll's. The frame's rise, the dither and the roll-away stay scroll-driven: they are
+ * the page moving, not the demo playing.
  *
  * Without script, with reduced motion, on a small window, or if the frame is taller than the window, none of this
  * runs: the frame is the static first view with its real radio tabs and the steps as a list, which is what the HTML
@@ -212,24 +217,140 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     }
     const t = clamp((scrollY + pinTop - trackTop) / range);
     root.style.setProperty('--cs-t', t.toFixed(3));
-    let beat = BEATS.length - 1;
+    let sb = BEATS.length - 1;
     for (let i = 0; i < BEATS.length; i++)
       if (t < edges[i + 1]! || i === BEATS.length - 1) {
-        beat = i;
+        sb = i;
         break;
       }
-    const u = clamp((t - edges[beat]!) / (edges[beat + 1]! - edges[beat]!));
+    const su = clamp((t - edges[sb]!) / (edges[sb + 1]! - edges[sb]!));
+    aim(sb, su, t, out);
+  }
+
+  // ---- the player: one clock for the demo, started by the scroll and never stopped by it ----
+  let pb = 0; // the beat on screen
+  let pt = 0; // ms into it
+  let hold = 0; // ms spent resting at the end of a finished beat before the next begins
+  let aimB = 0;
+  let aimU = 0;
+  let aimT = 0;
+  let primed = false;
+  let lastY = -1;
+  let last = 0;
+  let raf = 0;
+  let tm = 0;
+  const HOLD = 650;
+  const limitOf = (beat: number, u: number) => {
+    const b = BEATS[beat]!;
+    if (aimT <= 0.002) return 0; // not docked yet: nothing starts
+    const i = Math.min(b.rests.length - 1, Math.floor(u * b.rests.length));
+    return u >= 0.995 ? b.ms : b.rests[i]! * b.ms;
+  };
+  function aim(sb: number, su: number, t: number, out: number) {
+    aimB = sb;
+    aimU = su;
+    aimT = t;
+    const jump = lastY >= 0 && Math.abs(scrollY - lastY) > innerHeight * 1.2;
+    lastY = scrollY;
+    if (!primed || jump || out > 0.5) {
+      // a reload part-way down, an anchor jump, the story already behind us: show where the scroll is, do not play it
+      primed = true;
+      pb = sb;
+      pt = t <= 0.002 ? 0 : limitOf(sb, su);
+      hold = 0;
+    }
+    pump();
+  }
+  function pump() {
+    if (!on || raf || tm) return;
+    if (!wants()) return void render(pb, pt / BEATS[pb]!.ms);
+    last = performance.now();
+    schedule();
+  }
+  /** Is there anything left to play or to settle? */
+  function wants() {
+    return aimB !== pb || pt < limitOf(pb, aimU) - 0.5 || (aimT <= 0.002 && pt > 0);
+  }
+  function schedule() {
+    // rAF is the clock; the timeout is a net for a page whose frames are throttled (background tab, no frame clock)
+    raf = requestAnimationFrame(tick);
+    tm = window.setTimeout(tick, 50);
+  }
+  function tick() {
+    cancelAnimationFrame(raf);
+    window.clearTimeout(tm);
+    raf = tm = 0;
+    const now = performance.now();
+    const dt = Math.min(64, Math.max(0, now - last));
+    last = now;
+    advance(dt);
+    render(pb, pt / BEATS[pb]!.ms);
+    if (on && wants()) schedule();
+  }
+  function advance(dt: number) {
+    const lead = aimB + aimU - (pb + pt / BEATS[pb]!.ms);
+    let ms = dt * (1 + Math.min(1.8, Math.max(0, (lead - 1.5) * 0.7)));
+    for (let guard = 0; ms > 0 && guard < 8; guard++) {
+      const B = BEATS[pb]!;
+      if (aimB > pb) {
+        // finish this beat, rest, begin the next
+        if (pt < B.ms) {
+          const d = Math.min(ms, B.ms - pt);
+          pt += d;
+          ms -= d;
+        } else if (hold < HOLD) {
+          const d = Math.min(ms, HOLD - hold);
+          hold += d;
+          ms -= d;
+        } else {
+          pb++;
+          pt = 0;
+          hold = 0;
+        }
+      } else if (aimB === pb) {
+        hold = 0;
+        const lim = limitOf(pb, aimU);
+        if (aimT <= 0.002)
+          pt = 0; // back at the very top: the first beat is at its start again
+        else if (pt < lim) {
+          const d = Math.min(ms, lim - pt);
+          pt += d;
+          ms -= d;
+        } else break; // a stretch that has finished stays finished: scrolling back inside the beat does not undo it
+      } else {
+        // scrolled back to an earlier beat: let the stretch in progress reach its rest point, then settle on that beat's end
+        const rest = B.rests.map((r) => r * B.ms).find((r) => r >= pt - 0.5) ?? B.ms;
+        if (pt < rest - 0.5) {
+          const d = Math.min(ms, rest - pt);
+          pt += d;
+          ms -= d;
+        } else {
+          pb = aimB;
+          pt = aimT <= 0.002 ? 0 : BEATS[pb]!.ms;
+          hold = 0;
+        }
+      }
+    }
+  }
+
+  function render(beat: number, u: number) {
+    const uk = u.toFixed(2);
+    if (root.dataset.csU !== uk) root.dataset.csU = uk; // read by ?debug=story and the regression test
     const b = BEATS[beat]!;
     if (root.dataset.csBeat !== String(beat)) root.dataset.csBeat = String(beat); // read by ?debug=story and the regression test
 
-    // Everything below is a pure function of (beat, u): nothing runs on a timer, nothing is a CSS transition, so when the
-    // scroll stops every line, popup and tick stops where it is, and scrolling back rewinds it. Each thing has a window
-    // [a, b] of the beat; the gaps between windows are the dwell (the camera holds on what was just done).
+    // Everything below is a pure function of (beat, u) where u is the PLAYER's position in the beat (see above), so a line
+    // being typed, a popup coming up or a spinner turning runs to its end on the beat's own clock whatever the scroll does.
+    // Each thing has a window [a, b] of the beat; the gaps between windows are the dwell (the camera holds on what was just done).
     const span = (a: number, c: number) => clamp((u - a) / (c - a));
     const at = (n: number) => beat === n;
 
     if (beatShown !== beat) {
+      const prev = beatShown < 0 ? null : BEATS[beatShown]!.scene;
       beatShown = beat;
+      // a change of view is a short fade of the whole window (opacity only), so a beat never cuts
+      if (prev && prev !== b.scene && !matchMedia('(prefers-reduced-motion: reduce)').matches)
+        body!.animate([{ opacity: 0.2 }, { opacity: 1 }], { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
       steps.forEach((el, i) => {
         el.classList.toggle('is-on', i === beat);
         if (i !== beat) paint(el, 1, 0);
@@ -248,19 +369,19 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
 
     // 1 sign in: focus the username and wait, type it; move to the password and wait, type it (masked); press the
     // button, a loading state, then a pause before the next view
-    const typeU = span(0.26, 0.42);
-    const typeP = span(0.62, 0.78);
+    const typeU = span(0.26, 0.38);
+    const typeP = span(0.62, 0.76);
     fields.forEach((f, i) => {
       typeInto(f.out, f.full, !at(0) ? 1 : i === 0 ? typeU : typeP);
-      const focus = at(0) && (i === 0 ? u >= 0.12 && u < 0.5 : u >= 0.5 && u < 0.84);
+      const focus = at(0) && (i === 0 ? u >= 0.12 && u < 0.5 : u >= 0.5 && u < 0.8);
       f.el.classList.toggle('is-typing', focus);
       f.el.classList.toggle('is-focus', focus);
     });
-    const load = !at(0) ? 1 : span(0.89, 0.97);
-    signin?.classList.toggle('cs-go', !at(0) || u >= 0.84);
-    signin?.classList.toggle('cs-press', at(0) && u >= 0.86 && u < 0.89);
-    signin?.classList.toggle('cs-load', at(0) ? u >= 0.89 && u < 0.97 : false);
-    signin?.classList.toggle('cs-done', !at(0) || u >= 0.97);
+    const load = !at(0) ? 1 : span(0.86, 0.95);
+    signin?.classList.toggle('cs-go', !at(0) || u >= 0.8);
+    signin?.classList.toggle('cs-press', at(0) && u >= 0.82 && u < 0.86);
+    signin?.classList.toggle('cs-load', at(0) ? u >= 0.86 && u < 0.95 : false);
+    signin?.classList.toggle('cs-done', !at(0) || u >= 0.95);
     if (signin) {
       const lv = (at(0) ? load : 0).toFixed(3);
       if (signin.style.getPropertyValue('--cs-l') !== lv) signin.style.setProperty('--cs-l', lv);
