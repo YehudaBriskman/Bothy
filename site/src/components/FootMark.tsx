@@ -1,13 +1,12 @@
 import { layoutWord } from '../brand/cube.ts';
 
 /**
- * The footer's giant wordmark: the brand's own drawn "BothyBox" paths (brand/cube.ts, no font), cropped by the
- * footer's edge, as dark glass letters on the ink. Three stacked layers share one set of paths (each letter is
- * defined once, inside the clip path, and reused with <use>):
- *   base  barely-there letters (#14141a on #09090c), all that shows with no script;
- *   spot  a faint fill, lit only inside a radial mask at (--mx, --my);
- *   edge  a thin bright inner outline (a 3px stroke clipped to the letters, so 1.5px shows) with a faint glow,
- *         under the same moving mask.
+ * The giant wordmark: the brand's own drawn "BothyBox" paths (brand/cube.ts, no font) as a thin OUTLINE, stroke only,
+ * no fill. The closing band carries it (the footer, on a page with no band). Two stacked layers share one set of paths
+ * (each letter is defined once, inside the clip path element, and reused with <use>):
+ *   base  a faint hairline outline, all that shows with no script;
+ *   edge  the same outline, bright, with a faint glow, visible only inside a radial mask at (--mx, --my): the
+ *         pointer's light, which lights the edges and nothing else.
  * src/footmark.ts moves the light with the pointer; chrome.css draws it. Decorative: aria-hidden, no focus stop.
  */
 export function FootMark() {
@@ -24,20 +23,13 @@ export function FootMark() {
             ))}
           </clipPath>
         </defs>
-        <g fillRule="evenodd">{uses}</g>
+        <g fillRule="evenodd" fill="none">
+          {uses}
+        </g>
       </svg>
-      <div className="wm-lit wm-spot">
-        <svg className="wm" viewBox={box} preserveAspectRatio="xMidYMin meet" focusable="false">
-          <g fillRule="evenodd">{uses}</g>
-        </svg>
-      </div>
       <div className="wm-lit wm-edge">
         <svg className="wm" viewBox={box} preserveAspectRatio="xMidYMin meet" focusable="false">
-          <g clipPath="url(#wm-clip)" fill="none">
-            {letters.map((l) => (
-              <use key={l.i} href={`#wm-${l.i}`} />
-            ))}
-          </g>
+          <g fill="none">{uses}</g>
         </svg>
       </div>
     </div>

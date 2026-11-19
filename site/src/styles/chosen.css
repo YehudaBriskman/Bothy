@@ -1,0 +1,260 @@
+/*
+ * The owner's chosen designs for sections 01 to 04 (docs/plans/thin-bothy/section-design-options.md). The closing
+ * band and the footer (13, 14) live in chrome.css with the rest of the frame. Only transform and opacity move; every
+ * motion is inside `prefers-reduced-motion: no-preference`, and reduced motion is the finished state.
+ */
+
+/* ── 01 the install dropdown: 180 ms, a 6 px drop, the rows 30 ms apart ──────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .dd[open] > .dd-panel {
+    animation-duration: 0.18s;
+    animation-timing-function: var(--ease-out);
+  }
+  .dd[open] .dd-rows li,
+  .dd[open] .dd-links li,
+  .dd[open] .dd-cmd {
+    animation: dd-row 0.2s var(--ease-out) backwards;
+    animation-delay: 0.04s;
+  }
+  .dd[open] .dd-rows li:nth-child(2) {
+    animation-delay: 0.07s;
+  }
+  .dd[open] .dd-rows li:nth-child(3) {
+    animation-delay: 0.1s;
+  }
+  .dd[open] .dd-cmd {
+    animation-delay: 0.13s;
+  }
+  .dd[open] .dd-links li:nth-child(1) {
+    animation-delay: 0.16s;
+  }
+  .dd[open] .dd-links li:nth-child(2) {
+    animation-delay: 0.19s;
+  }
+  .dd[open] .dd-links li:nth-child(3) {
+    animation-delay: 0.22s;
+  }
+  @keyframes dd-row {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+}
+
+/* ── 02 the hero: one name (the lockup), the words rise ────────────────────────────────────────────────── */
+.story .ch-sky h1 {
+  margin-block: 1.25rem 1.4rem;
+  font-size: 1rem; /* the lockup is drawn, sized by --cap below */
+  line-height: 1;
+}
+.ch-sky h1 .lockup {
+  --cap: clamp(1.5rem, 1.2rem + 1.2vw, 2.1rem);
+  display: block;
+  color: var(--sky-fg); /* not the lit-text gradient (which is transparent): the lockup is drawn in currentColor */
+  inline-size: calc(var(--cap) * 7.18);
+  block-size: calc(var(--cap) * 1.36);
+  overflow: visible;
+}
+.ch-line .w {
+  display: inline-block;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ch-line .w {
+    animation: w-rise 1.1s var(--ease-emph) backwards;
+    animation-delay: calc(0.15s + var(--i, 0) * 45ms);
+  }
+  .story .ch-sky .ch-lede {
+    animation: w-rise 1.1s var(--ease-emph) 0.55s backwards;
+  }
+  .story .ch-sky .ch-actions {
+    animation: w-rise 1.1s var(--ease-emph) 0.7s backwards;
+  }
+  @keyframes w-rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+  }
+  /* the chip's edge carries one highlight that turns once and stops */
+  @property --chip-a {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+  .ch-badge {
+    position: relative;
+  }
+  .ch-badge::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 2px;
+    background: conic-gradient(from var(--chip-a), transparent 0 70%, rgb(255 255 255 / 95%) 90%, transparent 100%);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+    animation: chip-turn 4.5s var(--ease-out) 0.4s 1 both;
+  }
+  @keyframes chip-turn {
+    from {
+      --chip-a: 0deg;
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    to {
+      --chip-a: 360deg;
+      opacity: 0;
+    }
+  }
+}
+
+/* ── 03 the console's camera (src/story/lens.ts): the canvas glides and zooms, the rest dims ─────────────── */
+.cf-glass .console-frame {
+  position: relative;
+}
+.cf-cam {
+  position: relative; /* the offsetParent of everything inside: lens.ts measures against it */
+  transform-origin: 0 0;
+}
+.cf-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse 62% 58% at 50% 50%, transparent 60%, rgb(6 8 12 / 62%) 100%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cf-cam {
+    transition: transform 0.7s var(--ease-emph);
+  }
+  .cf-vignette {
+    transition: opacity 0.7s var(--ease-emph);
+  }
+}
+
+/* ── 04 the descent and the hut: the clouds part ─────────────────────────────────────────────────────────
+   Three of our own cloud photographs (already the story's backdrops) as layers that move at different speeds as
+   you scroll by. Without scroll-driven animation, or with reduced motion, there is one still layer. */
+.ch-descent,
+.ch-hut {
+  position: relative;
+  overflow: clip;
+  isolation: isolate;
+}
+.ds-clouds {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.ds-clouds img {
+  position: absolute;
+  inset-inline: 0;
+  inline-size: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ds-far {
+  inset-block: -12%;
+  block-size: 124%;
+  opacity: 0.5;
+}
+.ds-mid,
+.ds-near {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .ds-mid,
+    .ds-near {
+      display: block;
+    }
+    .ds-mid {
+      inset-block: -20%;
+      block-size: 140%;
+      opacity: 0.32;
+    }
+    .ds-near {
+      inset-block: -40%;
+      block-size: 180%;
+      opacity: 0.4;
+      mix-blend-mode: screen;
+    }
+    .ds-far,
+    .ds-mid,
+    .ds-near {
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: view();
+    }
+    .ds-far {
+      animation-name: ds-far;
+      animation-range: cover;
+    }
+    .ds-mid {
+      animation-name: ds-mid;
+      animation-range: cover;
+    }
+    .ds-near {
+      animation-name: ds-near;
+      animation-range: cover;
+    }
+    /* the card keeps its slow drift (story.css .float) and rises 18 px as it enters */
+    .ch-descent .ch-narrow,
+    .ch-hut .ch-narrow {
+      animation-name: story-drift, ds-card;
+      animation-range:
+        cover 0% cover 100%,
+        entry 0% entry 55%;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: view(), view();
+    }
+    @keyframes ds-far {
+      from {
+        transform: translateY(-4%);
+      }
+      to {
+        transform: translateY(4%);
+      }
+    }
+    @keyframes ds-mid {
+      from {
+        transform: translateY(6%);
+      }
+      to {
+        transform: translateY(-10%);
+      }
+    }
+    @keyframes ds-near {
+      from {
+        transform: translateY(15%);
+        opacity: 0.5;
+      }
+      to {
+        transform: translateY(-15%);
+        opacity: 0;
+      }
+    }
+    @keyframes ds-card {
+      from {
+        transform: translateY(18px);
+        opacity: 0.2;
+      }
+      to {
+        transform: none;
+        opacity: 1;
+      }
+    }
+  }
+}

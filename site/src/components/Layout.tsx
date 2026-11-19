@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { REPO_URL, RELEASES_URL, href } from '../config.ts';
 import { ENABLED_LOCALES, LOCALES, localePrefix, type Locale } from '../i18n/locales.ts';
 import type { PageContext } from '../page-context.ts';
@@ -104,12 +104,16 @@ export function Layout({
         {children}
         {cta ? <EndCta ctx={ctx} /> : null}
       </main>
-      <Footer ctx={ctx} />
+      <Footer ctx={ctx} mark={!cta} />
     </>
   );
 }
 
-/** The closing band: the night sky once more, a two-line headline, two pills and what is proven, in small print. */
+/**
+ * The closing band: the night sky once more, a centred two-tone headline, two pills and what is proven in small print,
+ * and under them the giant BothyBox as a thin outline that the pointer lights. The band owns the wordmark; the footer
+ * carries it only on a page with no band.
+ */
 function EndCta({ ctx }: { ctx: PageContext }) {
   const c = ctx.t.cta;
   const p = localePrefix(ctx.locale.code);
@@ -138,11 +142,12 @@ function EndCta({ ctx }: { ctx: PageContext }) {
         </div>
         <p className="fine">{c.fine}</p>
       </div>
+      <FootMark />
     </section>
   );
 }
 
-function Footer({ ctx }: { ctx: PageContext }) {
+function Footer({ ctx, mark }: { ctx: PageContext; mark: boolean }) {
   const { t, locale, latest } = ctx;
   const f = t.footer;
   const p = localePrefix(locale.code);
@@ -177,10 +182,10 @@ function Footer({ ctx }: { ctx: PageContext }) {
   ];
   return (
     <footer className="site-foot">
-      <FootMark />
+      {mark ? <FootMark /> : null}
       <div className="foot-body">
         <div className="wrap foot-grid">
-          <div className="foot-brand">
+          <div className="foot-brand reveal" style={{ '--i': 0 } as CSSProperties}>
             <a className="brand" href={href(`${p}/`)}>
               <Lockup reuse />
             </a>
@@ -199,7 +204,12 @@ function Footer({ ctx }: { ctx: PageContext }) {
             </ul>
           </div>
           {cols.map((c, i) => (
-            <nav className="foot-col" key={c.title} aria-labelledby={`foot-h-${i}`}>
+            <nav
+              className="foot-col reveal"
+              key={c.title}
+              style={{ '--i': i + 1 } as CSSProperties}
+              aria-labelledby={`foot-h-${i}`}
+            >
               <h2 id={`foot-h-${i}`}>{c.title}</h2>
               <ul>
                 {c.links.map((l) => (

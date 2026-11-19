@@ -11,6 +11,7 @@ import './styles/chrome.css';
 import './styles/sections.css';
 import './styles/pages.css';
 import './styles/intro.css';
+import './styles/chosen.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
@@ -112,8 +113,14 @@ document.addEventListener('click', (e) => {
   const end = document.querySelector<HTMLElement>('#story-end') ?? document.querySelector<HTMLElement>('.after-story');
   const hasStory = !!document.querySelector('[data-story]');
   const navH = () => document.querySelector<HTMLElement>('[data-nav]')?.offsetHeight ?? 64;
+  // the condensing capsule: --nav-p is the scroll through the first 120 px (1 at once with reduced motion);
+  // data-nav-cap marks the capsule as present enough that the bar's ink must suit its dark glass (chrome.css)
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const update = () => {
     const moved = scrollY > 8;
+    const p = still ? 1 : Math.min(1, Math.max(0, scrollY / 120));
+    root.style.setProperty('--nav-p', p.toFixed(3));
+    root.toggleAttribute('data-nav-cap', p >= 0.5);
     root.toggleAttribute('data-scrolled', moved);
     const dark = hasStory ? !!end && end.getBoundingClientRect().bottom < navH() + 40 : moved;
     root.toggleAttribute('data-nav-dark', dark);
