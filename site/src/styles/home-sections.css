@@ -16,6 +16,8 @@
   display: grid;
   gap: 1rem 3rem;
   align-items: end;
+  /* the lead on the right sits on the same last baseline as the heading on the left */
+  align-items: last baseline;
   margin-block-end: var(--space-head);
 }
 .hs-head > * {
@@ -185,11 +187,31 @@
 
 /* ── 06 Four sizes: up the hill ──────────────────────────────────────────── */
 
+.story .ch-sizes {
+  /* the whole of Four sizes fits one screen: the section is padded by the screen's height, not by the page's width */
+  padding-block: clamp(1.25rem, 4.5svh, 3.5rem);
+}
+.ch-sizes .hs-head {
+  margin-block-end: clamp(0.75rem, 2.5svh, 1.5rem);
+}
+.ch-sizes .hs-head h2 {
+  margin-block: 0;
+}
+.hs-sizes-grid {
+  display: grid;
+  gap: 1rem 2.5rem;
+  align-items: center;
+}
+@media (min-width: 52rem) {
+  .hs-sizes-grid {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+}
 .hs-hill {
-  --label: 3.75rem;
+  --label: 3.25rem;
   position: relative;
-  block-size: clamp(16rem, 12rem + 14vw, 21rem);
-  margin-block-end: 1rem;
+  block-size: clamp(11.5rem, 44svh, 18rem);
+  margin-block-end: 0;
 }
 .hs-hill svg {
   position: absolute;
@@ -200,6 +222,42 @@
 }
 [dir='rtl'] .hs-hill svg {
   transform: scaleX(-1);
+}
+.hs-walked,
+.hs-walker {
+  display: none;
+}
+.hs-sizes.is-tabs .hs-walker {
+  display: block;
+}
+.hs-sizes.is-tabs .hs-walked {
+  display: block;
+}
+.hs-walked {
+  clip-path: inset(-12px calc(100% - var(--wclip, 0%)) -12px 0);
+}
+.hs-walked .hs-hill-path {
+  stroke: rgb(255 255 255 / 80%);
+  stroke-dasharray: none;
+  stroke-width: 2.5;
+}
+.hs-hill:has(.hs-walker:not(.is-planned)) .hs-walked .hs-hill-path {
+  stroke: var(--ok-ink);
+}
+.hs-walker {
+  position: absolute;
+  inset-inline-start: var(--wx, 0%);
+  inset-block-start: var(--wy, 0%);
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 50%;
+  border: 2px solid var(--ok-ink);
+  box-shadow: 0 0 18px rgb(143 227 191 / 45%);
+  pointer-events: none;
+}
+.hs-walker.is-planned {
+  border-color: var(--text);
+  box-shadow: 0 0 14px rgb(255 255 255 / 25%);
 }
 .hs-hill-path {
   fill: none;
@@ -215,10 +273,11 @@
   inset-block-start: calc((100% - var(--label)) * var(--y) / 100 - 0.875rem);
   display: grid;
   justify-items: start;
-  gap: 0.2rem;
+  gap: 0.45rem;
   min-inline-size: 2.75rem;
   min-block-size: 2.75rem;
   padding: 0.35rem 0.5rem 0.4rem;
+  z-index: 1;
   border-radius: 0.9rem;
   text-decoration: none;
   text-align: start;
@@ -232,7 +291,7 @@
   line-height: 1.15;
 }
 .hs-mark .hs-sm {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 .hs-pin {
   position: relative;
@@ -272,10 +331,31 @@
   .hs-mark .hs-sm {
     display: none;
   }
+  .hs-hill {
+    --label: 2.5rem;
+    block-size: clamp(8.5rem, 24svh, 11rem);
+  }
+  .ch-sizes .hs-head {
+    gap: 0.5rem;
+  }
+  .story .ch-sizes .hs-head .ch-lead {
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+  .ch-sizes .hs-head h2 {
+    font-size: 1.5rem;
+  }
+  .hs-sizes-grid {
+    gap: 0.5rem;
+  }
+  .hs-panel p {
+    font-size: 0.875rem;
+  }
 }
 .hs-panels {
   display: grid;
   gap: 1rem;
+  min-inline-size: 0;
 }
 @media (min-width: 52rem) {
   .hs-sizes:not(.is-tabs) .hs-panels {
@@ -284,7 +364,7 @@
 }
 .hs-panel {
   min-inline-size: 0;
-  padding: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+  padding: clamp(0.9rem, 2.2svh, 1.25rem) 1.25rem;
   border-radius: var(--r-card);
   background: linear-gradient(to bottom, rgb(255 255 255 / 3.5%), rgb(255 255 255 / 1.5%)), var(--ink-raise);
   box-shadow:
@@ -301,14 +381,27 @@
   box-shadow: none;
 }
 .hs-panel h3 {
-  margin: 0.7rem 0 0.1rem;
-  font-size: 1.75rem;
+  margin: 0.35rem 0 0;
+  font-size: 1.4rem;
 }
 .hs-panel p {
-  margin-block: 0 0.7rem;
+  margin-block: 0 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.hs-panel .ch-chip {
+  margin-block: 0;
+  font-size: 0.8125rem;
+}
+.hs-panel .ch-tagline {
+  color: var(--text-muted);
+}
+.hs-panel .ch-small {
+  margin-block-end: 0;
+  font-size: 0.8125rem;
 }
 .hs-sizes.is-tabs .hs-panel {
-  max-inline-size: 44rem;
+  max-inline-size: 36rem;
 }
 .hs-panel[hidden] {
   display: none;
@@ -324,11 +417,27 @@
 }
 @media (min-width: 62rem) {
   .hs-install {
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   }
   .hs-demo {
     position: sticky;
     inset-block-start: 6rem;
+  }
+}
+/* on a phone the terminal comes first and stays under the header while the steps scroll past it */
+@media (max-width: 61.99rem) {
+  .hs-demo {
+    order: -1;
+    position: sticky;
+    inset-block-start: calc(var(--nav-h, 4rem) + 0.5rem);
+    z-index: 2;
+    max-block-size: 42svh;
+    overflow: hidden;
+  }
+  .hs-demo pre {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    padding-block: 0.6rem;
   }
 }
 .hs-railwrap {
@@ -359,7 +468,44 @@
 }
 .hs-step {
   position: relative;
-  margin-block-end: 1.25rem;
+  margin-block-end: clamp(1.25rem, 3svh, 2.25rem);
+}
+.hs-dn {
+  display: none;
+  position: absolute;
+  inset-block-start: 0.55rem;
+  inset-inline-end: 3rem;
+  align-items: center;
+  padding: 0.12rem 0.55rem;
+  border-radius: var(--r-pill);
+  background: rgb(143 227 191 / 14%);
+  color: var(--ok-ink);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+.hs-railwrap.hs-live .hs-dn {
+  display: inline-flex;
+  opacity: 0;
+  transform: scale(0.85);
+}
+.hs-railwrap.hs-live .is-done .hs-dn {
+  opacity: 1;
+  transform: none;
+}
+.hs-railwrap.hs-live .is-done .hs-num {
+  background: var(--ok-ink);
+}
+.hs-scrubbing .hs-ln .hs-cmd {
+  display: inline;
+}
+.hs-scrubbing .is-typing [data-type]::after {
+  content: '';
+  display: inline-block;
+  inline-size: 0.5em;
+  block-size: 1em;
+  margin-inline-start: 1px;
+  vertical-align: text-bottom;
+  background: var(--text-muted);
 }
 .hs-step .term {
   margin: 0;
@@ -793,10 +939,19 @@
     transition: transform 0.3s var(--ease-out);
   }
   .hs-panel:not([hidden]) {
-    animation: hs-panel-in 0.28s var(--ease-out) both;
+    animation: hs-panel-in 0.32s var(--ease-out) both;
   }
   .hs-sizes:not(.is-tabs) .hs-panel {
     animation: none;
+  }
+  .hs-walked {
+    transition: clip-path 0.52s cubic-bezier(0.45, 0, 0.2, 1);
+  }
+  .hs-mark.is-on .hs-pin {
+    transform: scale(1.25);
+  }
+  .hs-pin {
+    transition: transform 0.2s var(--ease-out);
   }
 
   /* the rail and the runs */
@@ -842,7 +997,7 @@
 @keyframes hs-panel-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateX(var(--dx, 0px));
   }
 }
 @keyframes hs-drift-a {
@@ -863,7 +1018,7 @@
 }
 
 /* links in the install chapter read as text, not as heather: the page accent is amber */
-.story .ch-install a:not(.copy) {
+.story .ch-install a:not(.cp) {
   color: var(--text);
   text-decoration-color: rgb(255 255 255 / 40%);
   text-underline-offset: 0.2em;

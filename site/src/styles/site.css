@@ -250,7 +250,7 @@ time,
 }
 .term figcaption {
   padding: 0.6rem 1rem;
-  padding-inline-end: 6rem;
+  padding-inline-end: 3rem;
   font-size: var(--fs-caption);
   font-weight: 500;
   color: var(--text-muted);
@@ -262,7 +262,9 @@ time,
   overflow-x: auto;
   font-size: 0.875rem;
   line-height: 1.75;
-  white-space: pre;
+  /* a long command wraps; it is never cut off or hidden behind a scrollbar (the copy icon copies it whole) */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: #ecebe6;
 }
 .term code {
@@ -279,46 +281,121 @@ time,
   font-style: italic;
 }
 
-/* Copy buttons (added by enhance.ts) */
-.copy {
+/* The copy control (components/CopyButton.tsx): an icon alone, no border and no background. The popup says "Copy"
+   on hover and focus and "Copied" after a click; the icon morphs to a check. Hit area 2rem, 2.75rem on touch. */
+.cp {
   position: absolute;
-  inset-block-start: 0.3rem;
-  inset-inline-end: 0.4rem;
-  min-block-size: 2.25rem;
-  min-inline-size: 2.75rem;
-  padding-inline: 0.85rem;
-  background: rgb(255 255 255 / 6%);
-  color: var(--text);
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.25rem;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  margin: 0;
+  background: none;
   border: 0;
-  box-shadow: inset 0 0 0 1px var(--hairline-strong);
-  border-radius: var(--r-pill);
-  font: 500 var(--fs-caption) / 1 var(--font-sans);
+  border-radius: 0.5rem;
+  box-shadow: none;
+  color: var(--text-muted);
   cursor: pointer;
-  transition: background-color var(--dur) var(--ease-out);
+  transition: color var(--dur) var(--ease-out);
 }
-.copy:hover {
-  background: rgb(255 255 255 / 12%);
+.cp[hidden] {
+  display: none;
 }
-.copy[data-done] {
+.cp:hover,
+.cp:focus-visible {
+  color: var(--text);
+}
+.cp-i {
+  grid-area: 1 / 1;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition:
+    opacity 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out);
+}
+.cp-ok {
+  opacity: 0;
+  transform: scale(0.5) rotate(-20deg);
+}
+.cp[data-state='ok'] {
   color: var(--ok-ink);
+}
+.cp[data-state='ok'] .cp-copy {
+  opacity: 0;
+  transform: scale(0.5) rotate(20deg);
+}
+.cp[data-state='ok'] .cp-ok {
+  opacity: 1;
+  transform: none;
+}
+.cp-tip {
+  position: absolute;
+  inset-block-end: calc(100% + 0.25rem);
+  inset-inline-end: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #14151a;
+  font: 600 0.75rem / 1.2 var(--font-sans);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 0.14s var(--ease-out),
+    transform 0.14s var(--ease-out);
+}
+.cp:hover .cp-tip,
+.cp:focus-visible .cp-tip,
+.cp[data-state] .cp-tip {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: none), (pointer: coarse) {
+  .cp {
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+  }
+  .cp:hover:not(:focus-visible):not([data-state]) .cp-tip {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-i,
+  .cp-tip,
+  .cp {
+    transition: none;
+  }
+  .cp-ok,
+  .cp[data-state='ok'] .cp-copy {
+    transform: none;
+  }
 }
 .code {
   position: relative;
 }
-.code .copy {
-  inset-block-start: 0.5rem;
+.code .cp {
+  inset-block-start: 0.4rem;
   opacity: 0;
-  background: var(--ink-raise);
-  transition:
-    opacity var(--dur) var(--ease-out),
-    background-color var(--dur) var(--ease-out);
+  transition: opacity var(--dur) var(--ease-out);
 }
-.code:hover .copy,
-.code:focus-within .copy {
+.code:hover .cp,
+.code:focus-within .cp,
+.code .cp[data-state] {
   opacity: 1;
 }
 @media (hover: none) {
-  .code .copy {
+  .code .cp {
     opacity: 1;
   }
 }
@@ -415,7 +492,7 @@ th.num {
   .end-cta,
   .docs-nav,
   .toc,
-  .copy {
+  .cp {
     display: none;
   }
   body {

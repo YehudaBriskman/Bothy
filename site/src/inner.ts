@@ -8,7 +8,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ── About: light a line once it reaches the middle of the screen, only where CSS cannot do it ───────────────
 {
-  const lines = [...document.querySelectorAll<HTMLElement>('.manifesto .mf')];
+  const lines = [...document.querySelectorAll<HTMLElement>('.manifesto .mf, [data-read] .mf')];
   if (lines.length && !reduced && 'IntersectionObserver' in window && !CSS.supports('animation-timeline: view()')) {
     document.documentElement.classList.add('js-mf');
     const io = new IntersectionObserver(
@@ -163,7 +163,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
         sync();
       });
       li.addEventListener('click', (e) => {
-        if (!(e.target as HTMLElement).closest('button.copy') || box.checked) return;
+        if (!(e.target as HTMLElement).closest('[data-cp]') || box.checked) return;
         box.checked = true;
         li.setAttribute('data-done', '');
         sync();

@@ -446,19 +446,19 @@ a.dd-row:focus-visible,
 .dd-cmd code {
   flex: 1;
   min-inline-size: 0;
-  overflow-x: auto;
-  white-space: nowrap;
+  /* the whole command is always shown: it wraps instead of being cut or scrolled out of sight */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: 0.8125rem;
   background: none;
   box-shadow: none;
   padding: 0;
   color: #ecebe6;
 }
-.dd-cmd .dd-copy {
-  position: static;
+.dd-cmd .cp {
+  position: relative;
+  inset: auto;
   flex: none;
-  min-block-size: 2rem;
-  font-size: 0.75rem;
 }
 .dd-not {
   margin: 0.45rem 0.65rem 0.25rem;
