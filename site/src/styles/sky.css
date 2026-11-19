@@ -309,9 +309,31 @@
   gap: 0.75rem;
 }
 .ch-actions .pill {
-  min-block-size: 3.25rem;
+  min-block-size: 3.5rem;
   padding-inline: 1.5rem;
   font-size: 1.05rem;
+}
+.ch-actions .pill-split {
+  block-size: auto; /* the nav's split pill is a fixed 2.5rem (chrome.css); the hero's is as tall as its own pills */
+  min-block-size: 3.5rem;
+}
+.ch-actions {
+  position: relative;
+  z-index: 8; /* above the console window that follows the hero, so the install menu opens over it */
+}
+.ch-actions .pill-split {
+  position: relative;
+}
+.ch-actions .dd {
+  position: static; /* the menu is placed against the whole split button, not the chevron */
+}
+.ch-actions .dd-panel {
+  /* the hero's button is centred on the page, not at the bar's end: the menu opens centred under it and stays on screen */
+  inset-inline: 50% auto;
+  translate: -50% 0;
+}
+[dir='rtl'] .ch-actions .dd-panel {
+  translate: 50% 0;
 }
 .ch-actions .pill-split > .pill-solid {
   padding-inline-end: 1.1rem;

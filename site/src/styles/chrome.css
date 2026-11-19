@@ -48,8 +48,10 @@
 .site-nav::after {
   inset-block: 0;
   opacity: 0;
-  background: rgb(var(--ink-rgb) / 38%);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 9%);
+  background: linear-gradient(to bottom, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%)), rgb(var(--ink-rgb) / 45%);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 12%),
+    0 12px 28px -14px rgb(0 0 0 / 60%);
 }
 html[data-nav-dark] .site-nav::before {
   opacity: 0;
@@ -59,13 +61,13 @@ html[data-nav-dark] .site-nav::after {
 }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .site-nav::after {
-    -webkit-backdrop-filter: blur(14px) saturate(1.4);
-    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(22px) saturate(1.7);
+    backdrop-filter: blur(22px) saturate(1.7);
   }
 }
 @media (prefers-reduced-transparency: reduce) {
   .site-nav::after {
-    background: rgb(var(--ink-rgb) / 96%);
+    background: rgb(var(--ink-rgb));
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
