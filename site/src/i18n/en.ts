@@ -200,6 +200,13 @@ export const en = {
         },
       ],
       note: 'The guide describes the console as the repository builds it, which is larger than the Bivvy size that installs today. The next chapter lists the sizes.',
+      statsLabel: 'In numbers',
+      stats: [
+        { unit: 'MiB', label: 'memory used by Bivvy’s three containers, in our lab' },
+        { unit: 'MiB', label: 'free memory the installer wants before it starts' },
+        { unit: '', label: 'roles: viewer, editor, operator and shell' },
+        { unit: '', label: 'themes ship with it' },
+      ],
     },
     sizes: {
       heading: 'Four sizes',
@@ -207,6 +214,7 @@ export const en = {
       now: 'Installable now',
       planned: 'Planned, not built',
       cost: 'Cost',
+      pickLabel: 'Pick a size',
       notMeasured: 'Not yet measured.',
       bivvyCost: (usedMiB: number, gateMiB: number) =>
         `Measured in our lab after a stock install: about ${usedMiB} MiB of memory across its three containers. The installer wants ${gateMiB} MiB free before it starts.`,
@@ -241,6 +249,16 @@ export const en = {
       heading: 'Install with one command',
       lead: 'Once you have the `bothy` file, `bothy install` is the whole job. These are the four commands, in order.',
       terminalLabel: 'The whole install, as typed',
+      steps: ['Download the archive.', 'Put it on your path.', 'Read the plan.', 'Install.'],
+      stepsLabel: 'The four steps',
+      termOut: [
+        'saved the archive',
+        'bothy is on your path',
+        'plan printed, nothing changed',
+        'Printed the address. Open it in a browser.',
+      ],
+      termExample: 'Example output',
+      proofLink: 'What has been shown, and what has not',
       terminalNote: 'Run it as your own user, without `sudo`. Run with `sudo` it refuses and changes nothing.',
       checksHeading: 'What it checks before it changes anything',
       checks: {
@@ -323,6 +341,7 @@ export const en = {
         security: { name: 'Security policy', note: 'What is protected, and how to report a problem.' },
       },
       close: 'Leave it as you found it. Turn no one away.',
+      bandText: 'Read the plan before anything changes.',
     },
   },
 
@@ -364,22 +383,28 @@ export const en = {
         'sha256 matches checksums.txt',
       ],
       foot: 'The checks are real; the ticks are an example.',
+      short: ['docker', 'memory', 'port 80', 'sha256'],
+      done: 'nothing changed',
       link: 'What the install checks',
     },
+    aboutSecond: (n: string) => `about ${n} s`,
     features: [
       {
         icon: 'shield',
+        big: 'sha256',
         lead: '**Verified releases.**',
         rest: 'Checked against their own checksums, every image pulled by digest.',
       },
-      { icon: 'repeat', lead: '**Safe to run twice.**', rest: 'In our lab a second install changed nothing.' },
+      { icon: 'repeat', big: '', lead: '**Safe to run twice.**', rest: 'In our lab a second install changed nothing.' },
       {
         icon: 'stop',
+        big: 'Refused',
         lead: '**Refuses with the fix.**',
         rest: 'A taken port, a stopped Docker or too little memory: nothing is created and the message says why.',
       },
       {
         icon: 'leave',
+        big: 'Undone',
         lead: '**Leaves as found.**',
         rest: '`bothy uninstall` removes what it added and keeps your data unless you purge.',
       },
