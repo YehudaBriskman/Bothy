@@ -166,7 +166,7 @@ export function ModulesView() {
 export function TerminalView() {
   const lines = [
     'Docker answers, Compose v2 present',
-    `At least  MiB of memory free`,
+    `At least ${MEMORY.gateMiB} MiB of memory free`,
     'Port 80 is free',
     'sha256 matches checksums.txt',
   ];

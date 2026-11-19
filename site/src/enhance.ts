@@ -12,6 +12,7 @@ import './styles/sections.css';
 import './styles/pages.css';
 import './styles/inner.css';
 import './styles/intro.css';
+import './styles/new-sections.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
@@ -167,6 +168,20 @@ if (footMark && 'IntersectionObserver' in window) {
     { rootMargin: '400px 0px' },
   );
   io.observe(footMark);
+}
+
+// ── The clip player below the story: a lazy island, loaded when the section comes near ─
+const newSections = document.querySelector<HTMLElement>('[data-nsec]');
+if (newSections && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver(
+    (es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      void import('./new-sections.ts').then((m) => m.mountNewSections(newSections));
+    },
+    { rootMargin: '600px 0px' },
+  );
+  io.observe(newSections);
 }
 
 // ── The live sky: a lazy island, only on a page that has one, after the page has loaded ─

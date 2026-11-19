@@ -15,7 +15,12 @@ export const CLIP_FILES: Record<string, { mp4: string; webm?: string } | null> =
   install: null,
 };
 
-const STAGES = [<ServicesView key="s" flip />, <FilesView key="f" walk />, <OverviewView key="o" flip />, <TerminalView key="t" />];
+const STAGES = [
+  <ServicesView key="s" flip />,
+  <FilesView key="f" walk />,
+  <OverviewView key="o" flip />,
+  <TerminalView key="t" />,
+];
 const mmss = (s: number) => `0:${String(s).padStart(2, '0')}`;
 
 /**
@@ -72,7 +77,6 @@ export function Motion() {
                   type="button"
                   className="ns-play"
                   hidden
-                  data-needs-js
                   data-play
                   data-label-play={`${m.play} ${c.name}`}
                   data-label-pause={`${m.pause} ${c.name}`}

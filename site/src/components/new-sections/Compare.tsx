@@ -36,7 +36,13 @@ export function Compare({ ctx }: { ctx: PageContext }) {
           <legend className="visually-hidden">{c.pick}</legend>
           {['', ...MODES.map((m) => m.id)].map((id, i) => (
             <span key={id || 'all'}>
-              <input type="radio" name="cmp-size" id={`cz-${id || 'all'}`} defaultChecked={i === 0} className="ns-radio" />
+              <input
+                type="radio"
+                name="cmp-size"
+                id={`cz-${id || 'all'}`}
+                defaultChecked={i === 0}
+                className="ns-radio"
+              />
               <label htmlFor={`cz-${id || 'all'}`}>{id ? sizes[id as ModeId].name : c.all}</label>
             </span>
           ))}

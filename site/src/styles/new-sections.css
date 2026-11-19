@@ -115,7 +115,13 @@
 }
 
 @supports selector(:has(*)) {
-  .ns-tabbed:not(:has(.ns-tabwrap:nth-child(2) .ns-radio:checked, .ns-tabwrap:nth-child(3) .ns-radio:checked, .ns-tabwrap:nth-child(4) .ns-radio:checked))
+  .ns-tabbed:not(
+      :has(
+        .ns-tabwrap:nth-child(2) .ns-radio:checked,
+        .ns-tabwrap:nth-child(3) .ns-radio:checked,
+        .ns-tabwrap:nth-child(4) .ns-radio:checked
+      )
+    )
     .ns-view:not(.ns-view-0),
   .ns-tabbed:has(.ns-tabwrap:nth-child(2) .ns-radio:checked) .ns-view:not(.ns-view-1),
   .ns-tabbed:has(.ns-tabwrap:nth-child(3) .ns-radio:checked) .ns-view:not(.ns-view-2),
@@ -395,6 +401,15 @@
   background: var(--focus);
   transform: scaleX(0);
   transform-origin: 0 50%;
+}
+.ns-video {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}
+.ns-stage[data-video='true'] .ns-body,
+.ns-stage[data-video='true'] .ns-prog {
+  display: none;
 }
 .ns-tx {
   margin: 0 0 0.7rem;
