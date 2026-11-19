@@ -55,11 +55,10 @@ export function DocsIndex({ ctx }: { ctx: PageContext }) {
           <p className="note-line">{t.docs.notTranslated}</p>
         </header>
       </div>
-      <div className="wrap docs-shell">
-        <Sidebar ctx={ctx} current={null} />
-        <div className="docs-main">
-          <form className="search" role="search" data-docs-search hidden data-needs-js>
-            <label htmlFor="docs-q">{t.docs.search.label}</label>
+      <div className="wrap docs-index">
+        <form className="search search-first" role="search" data-docs-search hidden data-needs-js>
+          <label htmlFor="docs-q">{t.docs.search.label}</label>
+          <div className="search-box">
             <input
               id="docs-q"
               type="search"
@@ -67,36 +66,38 @@ export function DocsIndex({ ctx }: { ctx: PageContext }) {
               placeholder={t.docs.search.placeholder}
               autoComplete="off"
               spellCheck={false}
+              aria-keyshortcuts="/"
               data-none={t.docs.search.none('{q}')}
               data-count-one={t.docs.search.results(1)}
               data-count-many={t.docs.search.results(2)}
             />
-            <div id="docs-results" aria-live="polite" />
-          </form>
-          <noscript>
-            <p className="muted">{t.docs.search.needsScript}</p>
-          </noscript>
-
-          <div id="docs-list">
-            {groupDocs(ctx.docs).map(({ group, pages }) => (
-              <section key={group} aria-labelledby={`g-${group}`} className="doc-group">
-                <h2 id={`g-${group}`}>{t.docs.groups[group]}</h2>
-                <ul className="doc-cards">
-                  {pages.map((d) => (
-                    <li key={d.slug}>
-                      <a href={docHref(ctx, d.slug)}>
-                        <span className="card-title">
-                          {d.title}
-                          <Icon name="arrow" size={16} className="arrow" />
-                        </span>
-                        <span className="card-sum">{d.summary}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
+            <kbd aria-hidden="true">/</kbd>
           </div>
+          <div id="docs-results" aria-live="polite" />
+        </form>
+        <noscript>
+          <p className="muted">{t.docs.search.needsScript}</p>
+        </noscript>
+
+        <div id="docs-list" className="doc-rows-wrap">
+          {groupDocs(ctx.docs).map(({ group, pages }) => (
+            <section key={group} aria-labelledby={`g-${group}`} className="doc-group">
+              <h2 id={`g-${group}`}>{t.docs.groups[group]}</h2>
+              <ul className="doc-rows">
+                {pages.map((d) => (
+                  <li key={d.slug} data-row>
+                    <a href={docHref(ctx, d.slug)}>
+                      <span className="card-title">
+                        {d.title}
+                        <Icon name="arrow" size={16} className="arrow" />
+                      </span>
+                      <span className="card-sum">{d.summary}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </div>
       </div>
     </Layout>

@@ -10,6 +10,7 @@ import './styles/console.css';
 import './styles/chrome.css';
 import './styles/sections.css';
 import './styles/pages.css';
+import './styles/inner.css';
 import './styles/intro.css';
 
 /**
@@ -146,6 +147,9 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObse
   document.documentElement.classList.add('js-reveal');
 }
 
+// The inner pages' behaviours (lit lines, docs marker, install paths): a lazy island, only where the markup is
+if (document.querySelector('.manifesto, #docs-q, .toc, [data-paths]')) void import('./inner.ts');
+
 // ── Docs menu: closed by default on a phone ─────────────────────────────────
 const narrow = window.matchMedia('(max-width: 60rem)');
 for (const d of document.querySelectorAll<HTMLDetailsElement>('details[data-collapse-narrow]'))
@@ -230,9 +234,15 @@ async function initSearch(f: HTMLFormElement) {
   function run() {
     const q = input!.value.trim();
     out!.replaceChildren();
-    list!.hidden = false;
-    if (!q || !pages) return;
     const terms = words(q);
+    // Typing filters the list in place: rows that do not match fade and shrink (CSS, on [data-off]); with no
+    // query every row is back. The full-text hits below the field are the second, deeper answer.
+    for (const row of list!.querySelectorAll<HTMLElement>('[data-row]'))
+      row.toggleAttribute(
+        'data-off',
+        terms.length > 0 && !terms.every((w) => row.textContent!.toLocaleLowerCase().includes(w)),
+      );
+    if (!q || !pages) return;
     if (!terms.length) return;
     const hits: { score: number; page: IndexPage; sec: IndexPage['s'][number] }[] = [];
     for (const page of pages) {
@@ -254,7 +264,6 @@ async function initSearch(f: HTMLFormElement) {
       }
     }
     hits.sort((a, b) => b.score - a.score);
-    list!.hidden = true;
     const top = hits.slice(0, 20);
     const status = document.createElement('p');
     status.className = 'muted small';
