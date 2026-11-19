@@ -198,10 +198,12 @@ if (!process.env.ONLY || 'scroll'.includes(process.env.ONLY)) {
   if (results.includes(false)) bad++;
   await b.close();
 }
-// The first-visit splash (src/brand/splash.ts). Automation never gets it unasked (navigator.webdriver), so these
-// scenarios either force it with ?splash=1 or pretend to be a person. It must not move anything (CLS 0, the same
-// rects for the header lockup and the hero heading while it plays), must not take a click, must be gone by about
-// 2.5 s or at once on a key, must never load with reduced motion, and must not replay within a session.
+// The first-visit intro (src/brand/splash.ts, splash-gate.ts, styles/intro.css). Automation never gets it unasked
+// (navigator.webdriver), so these scenarios either force it with ?splash=1 or pretend to be a person. The page opens
+// on the sky alone (header and hero at opacity 0), the Cube opens and flies into the header while the page assembles
+// round it, and by about 3 s everything is at opacity 1 again. It must not move anything (CLS 0, the same rects), must
+// not take a click, must jump to the end on a key, must never hide anything with reduced motion or on a repeat visit,
+// must show the page by 3.5 s even when its chunk never arrives, and must not hold LCP back past the assembly.
 if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
   const b = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || undefined,
@@ -213,37 +215,72 @@ if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
     results.push(ok);
     console.log(`${ok ? 'ok  ' : 'FAIL'} splash: ${name}${extra ? ' (' + extra + ')' : ''}`);
   };
-  const cls = () => {
+  const observe = () => {
     window.__cls = 0;
+    window.__lcp = [];
     new PerformanceObserver((l) => {
       for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
     }).observe({ type: 'layout-shift', buffered: true });
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries())
+        window.__lcp.push({
+          el: e.element ? e.element.className || e.element.tagName : null,
+          t: e.startTime,
+          size: e.size,
+        });
+    }).observe({ type: 'largest-contentful-paint', buffered: true });
   };
+  const person = () => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false });
+  // the layout boxes (offsets, which a `translate` does not change: the rise is a paint effect, not a shift)
   const rects = (p) =>
     p.evaluate(() =>
-      ['.site-nav .brand .lockup', '#main h1'].map((q) => {
-        const r = document.querySelector(q)?.getBoundingClientRect();
-        return r ? [r.x, r.y, r.width, r.height].map(Math.round).join(',') : 'missing';
+      ['.site-nav .brand', '#main h1', '.ch-sky .ch-actions', '.ch-flow .ch-stage'].map((q) => {
+        let el = document.querySelector(q);
+        if (!el) return 'missing';
+        const box = [0, 0, el.offsetWidth, el.offsetHeight];
+        for (; el; el = el.offsetParent) [box[0], box[1]] = [box[0] + el.offsetLeft, box[1] + el.offsetTop];
+        return box.join(',');
       }),
     );
+  // what a visitor sees of the header and the hero: the lowest computed opacity among them
+  const ITEMS = [
+    '.site-nav .brand',
+    '.site-nav .primary',
+    '.site-nav .tools',
+    '#main h1',
+    '.ch-sky .ch-lede',
+    '.ch-sky .ch-actions',
+  ];
+  const seen = (p) =>
+    p.evaluate((qs) => Math.min(...qs.map((q) => Number(getComputedStyle(document.querySelector(q)).opacity))), ITEMS);
   // poll by hand: this box's headless Chromium has no frame clock, so waitForFunction's rAF polling would stall
-  const until = async (p, fn, ms) => {
+  const until = async (p, fn, ms, arg) => {
     const t0 = Date.now();
     while (Date.now() - t0 < ms) {
-      if (await p.evaluate(fn)) return Date.now() - t0;
+      if (await p.evaluate(fn, arg)) return Date.now() - t0;
       await sleep(50);
     }
     return -1;
   };
   const present = () => !!document.querySelector('.bb-splash');
-  const absent = () => !document.querySelector('.bb-splash');
+  const assembled = (qs) =>
+    !document.querySelector('.bb-splash') &&
+    !document.documentElement.classList.contains('bb-intro') &&
+    qs.every((q) => getComputedStyle(document.querySelector(q)).opacity === '1');
 
   const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
-  await ctx.addInitScript(cls);
+  await ctx.addInitScript(observe);
   let p = await ctx.newPage();
   const errs = [];
   p.on('pageerror', (e) => errs.push(String(e)));
-  await p.goto(`${base}/?splash=1`, { waitUntil: 'load' });
+  await p.goto(`${base}/?splash=1`, { waitUntil: 'domcontentloaded' });
+  const t0 = Date.now();
+  const start = await seen(p);
+  check(
+    'at the start the header and the hero are invisible (opacity 0), the sky alone',
+    start === 0,
+    `min opacity ${start}`,
+  );
   const shown = await until(p, present, 3000);
   check('?splash=1 shows the overlay', shown >= 0);
   if (shown >= 0) {
@@ -259,8 +296,12 @@ if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
       o.aria === 'true' && o.pe === 'none' && o.pos === 'fixed' && o.hit,
       JSON.stringify(o),
     );
-    const gone = await until(p, absent, 2800);
-    check('gone by itself within about 2.5 s', gone >= 0, `${shown + gone} ms after load`);
+    const gone = await until(p, assembled, 3600, ITEMS);
+    check(
+      'assembled by itself within 3.5 s: overlay gone, everything at opacity 1',
+      gone >= 0,
+      `${Date.now() - t0} ms`,
+    );
     const after = await rects(p);
     const c = await p.evaluate(() => window.__cls);
     check(
@@ -268,46 +309,90 @@ if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
       c === 0 && during.join() === after.join(),
       `CLS ${c}; ${during.join(' | ')} vs ${after.join(' | ')}`,
     );
+    const left = await p.evaluate((qs) => qs.flatMap((q) => document.querySelector(q).getAnimations()).length, ITEMS);
+    check('no animation is left holding a style', left === 0, `${left} left`);
   }
   check('no page errors', errs.length === 0, errs.join('; '));
 
-  // a key ends it at once
+  // a key jumps straight to the assembled page
   p = await ctx.newPage();
   await p.goto(`${base}/?splash=1`, { waitUntil: 'load' });
   if ((await until(p, present, 3000)) >= 0) {
-    await sleep(300);
+    await sleep(200);
     await p.keyboard.press('Shift');
-    const gone = await until(p, absent, 1000);
-    check('a key ends it at once', gone >= 0 && gone < 500, `${gone} ms`);
-  } else check('a key ends it at once', false, 'never shown');
+    const gone = await until(p, assembled, 1000, ITEMS);
+    check('a key jumps to the assembled page at once', gone >= 0 && gone < 500, `${gone} ms`);
+  } else check('a key jumps to the assembled page at once', false, 'never shown');
 
-  // a person (no webdriver flag) sees it once per session; reloading does not replay it
-  const person = await b.newContext({ viewport: { width: 1440, height: 900 } });
-  await person.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
-  p = await person.newPage();
-  await p.goto(`${base}/`, { waitUntil: 'load' });
+  // a person (no webdriver flag) gets it once per session; the reload sees the page from the start
+  const pc = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  await pc.addInitScript(person);
+  await pc.addInitScript(observe);
+  p = await pc.newPage();
+  await p.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
+  const hidden = await seen(p);
   const first = await until(p, present, 3000);
-  await until(p, absent, 3000);
-  await p.reload({ waitUntil: 'load' });
+  await until(p, assembled, 3600, ITEMS);
+  // LCP. The sky's still cannot be the LCP element: Chrome ignores an image that covers the whole viewport (measured:
+  // not even a plain background on .sky-still is reported), so the normal page's LCP is the hero's big line. Hidden
+  // text is reported when it is revealed, so the intro moves LCP to the reveal: it must land by the time the page is
+  // assembled (in a browser with a frame clock about 1.8 s; this box's headless one paints only at the end).
+  const lcp = await p.evaluate(() => window.__lcp.at(-1));
+  check(
+    'LCP on a first visit lands by the time the page is assembled',
+    !!lcp && /ch-/.test(lcp.el ?? '') && lcp.t <= 4000,
+    lcp ? `${lcp.el} at ${Math.round(lcp.t)} ms, ${lcp.size} px²` : 'no entry',
+  );
+  await p.reload({ waitUntil: 'domcontentloaded' });
+  const repeat = await seen(p);
   await sleep(1200);
   const again = await p.evaluate(present);
   check(
-    'a first visit plays it, a reload in the same session does not',
-    first >= 0 && !again,
-    `first ${first} ms, again ${again}`,
+    'a first visit hides and plays, a reload in the same session shows the page at once',
+    hidden === 0 && first >= 0 && repeat === 1 && !again,
+    `first: opacity ${hidden}, overlay at ${first} ms; reload: opacity ${repeat}, overlay ${again}`,
   );
 
-  // reduced motion: never, not even forced, and the chunk is never fetched
+  // the failsafe: the splash chunk hangs (never answers) or fails, and the page still shows by 3.5 s
+  for (const mode of ['hangs', 'fails']) {
+    const fc = await b.newContext({ viewport: { width: 1440, height: 900 } });
+    await fc.addInitScript(person);
+    await fc.route(/\/splash-[\w-]+\.js$/, (r) => (mode === 'fails' ? r.abort() : new Promise(() => {})));
+    p = await fc.newPage();
+    await p.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
+    const t1 = Date.now();
+    const at0 = await seen(p);
+    const ok = await until(p, assembled, 4000, ITEMS);
+    const ms = ok >= 0 ? Date.now() - t1 : -1;
+    check(
+      `failsafe: the splash chunk ${mode}, the page shows by 3.5 s`,
+      // a hung chunk leaves it to the head script's 3.5 s timer; a failed one is undone by enhance.ts at once
+      (mode === 'fails' || at0 === 0) && ok >= 0 && ms <= 3700,
+      `opacity ${at0} at first, all visible after ${ms} ms`,
+    );
+    await fc.close();
+  }
+
+  // reduced motion: nothing hidden, not even forced, and the chunk is never fetched
   const rm = await b.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
   p = await rm.newPage();
   let fetched = false;
   p.on('request', (r) => (fetched ||= /\/splash-[\w-]+\.js$/.test(r.url())));
-  await p.goto(`${base}/?splash=1`, { waitUntil: 'load' });
+  await p.goto(`${base}/?splash=1`, { waitUntil: 'domcontentloaded' });
+  const rmSeen = await seen(p);
   await sleep(1200);
   check(
-    'reduced motion: no overlay and no splash chunk, even with ?splash=1',
-    !(await p.evaluate(present)) && !fetched,
+    'reduced motion: everything visible at once, no overlay and no splash chunk, even with ?splash=1',
+    rmSeen === 1 && !(await p.evaluate(present)) && !fetched,
+    `opacity ${rmSeen}`,
   );
+
+  // no script: the class is never set, the page is whole
+  const nj = await b.newContext({ viewport: { width: 1440, height: 900 }, javaScriptEnabled: false });
+  p = await nj.newPage();
+  await p.goto(`${base}/?splash=1`, { waitUntil: 'load' });
+  const njSeen = await seen(p).catch(() => -1);
+  check('no script: everything visible', njSeen === 1, `opacity ${njSeen}`);
   if (results.includes(false)) bad++;
   await b.close();
 }

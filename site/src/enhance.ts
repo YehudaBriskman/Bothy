@@ -10,7 +10,7 @@ import './styles/console.css';
 import './styles/chrome.css';
 import './styles/sections.css';
 import './styles/pages.css';
-import { shouldPlaySplash } from './brand/splash-gate.ts';
+import './styles/intro.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
@@ -175,22 +175,17 @@ if (skySection) {
   else addEventListener('load', start, { once: true });
 }
 
-// ── The first-visit splash: the Cube opens into the lockup, once per session, over the hero (brand/splash-gate.ts) ─
-if (
-  shouldPlaySplash({
-    search: location.search,
-    reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
-    hasHero: !!storyRoot,
-    atTop: scrollY === 0 && !location.hash,
-    automated: navigator.webdriver === true,
-    storage: () => sessionStorage,
-  })
-) {
+// ── The first-visit intro: the Cube opens into the lockup and the page assembles round it (brand/splash.ts) ─
+// The home page's inline head script decided already (brand/splash-gate.ts) and set `bb-intro` on <html>; its own
+// 3.5 s failsafe removes the class if this import never arrives, and a late arrival finds no class and does nothing.
+if (document.documentElement.classList.contains('bb-intro')) {
   // ?splash=hold: built paused at 0 for a screenshot harness to seek (headless Chromium here has no frame clock)
   const hold = new URLSearchParams(location.search).get('splash') === 'hold';
   void import('./brand/splash.ts').then(
-    (m) => m.playSplash({ hold }),
-    () => {},
+    (m) => {
+      if (document.documentElement.classList.contains('bb-intro')) m.playSplash({ hold });
+    },
+    () => document.documentElement.classList.remove('bb-intro'),
   );
 }
 
