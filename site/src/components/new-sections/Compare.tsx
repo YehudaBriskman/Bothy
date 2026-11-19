@@ -25,7 +25,7 @@ export function Compare({ ctx }: { ctx: PageContext }) {
   const stands = (id: ModeId): ReactNode =>
     id === 'cairn' ? <Rich text={c.cairnPlanned} /> : id === 'bivvy' ? c.installs : c.planned;
   return (
-    <section id="compare" className="section wrap nsec" aria-labelledby="compare-h">
+    <section id="compare" className="section nsec" aria-labelledby="compare-h">
       <header className="section-head reveal">
         <p className="eyebrow">{c.eyebrow}</p>
         <h2 id="compare-h">{c.heading}</h2>

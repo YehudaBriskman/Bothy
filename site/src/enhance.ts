@@ -9,10 +9,12 @@ import './styles/console.css';
 // the frame and the pages outside the story load last: one header, menu and footer for every page
 import './styles/chrome.css';
 import './styles/sections.css';
+import './styles/home-sections.css';
 import './styles/pages.css';
 import './styles/inner.css';
 import './styles/intro.css';
 import './styles/new-sections.css';
+import './styles/chosen.css';
 
 /**
  * The only script on the site. Every page is complete HTML without it; this adds
@@ -114,8 +116,14 @@ document.addEventListener('click', (e) => {
   const end = document.querySelector<HTMLElement>('#story-end') ?? document.querySelector<HTMLElement>('.after-story');
   const hasStory = !!document.querySelector('[data-story]');
   const navH = () => document.querySelector<HTMLElement>('[data-nav]')?.offsetHeight ?? 64;
+  // the condensing capsule: --nav-p is the scroll through the first 120 px (1 at once with reduced motion);
+  // data-nav-cap marks the capsule as present enough that the bar's ink must suit its dark glass (chrome.css)
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const update = () => {
     const moved = scrollY > 8;
+    const p = still ? 1 : Math.min(1, Math.max(0, scrollY / 120));
+    root.style.setProperty('--nav-p', p.toFixed(3));
+    root.toggleAttribute('data-nav-cap', p >= 0.5);
     root.toggleAttribute('data-scrolled', moved);
     const dark = hasStory ? !!end && end.getBoundingClientRect().bottom < navH() + 40 : moved;
     root.toggleAttribute('data-nav-dark', dark);
@@ -171,7 +179,7 @@ if (footMark && 'IntersectionObserver' in window) {
 }
 
 // ── The clip player below the story: a lazy island, loaded when the section comes near ─
-const newSections = document.querySelector<HTMLElement>('[data-nsec]');
+const newSections = document.querySelector<HTMLElement>('[data-player]');
 if (newSections && 'IntersectionObserver' in window) {
   const io = new IntersectionObserver(
     (es) => {
@@ -183,6 +191,8 @@ if (newSections && 'IntersectionObserver' in window) {
   );
   io.observe(newSections);
 }
+// ── The Home sections' motion and size tabs: a lazy chunk, only where the page has them (the markup is complete without it) ─
+if (document.querySelector('[data-hs]')) void import('./home-sections.ts');
 
 // ── The live sky: a lazy island, only on a page that has one, after the page has loaded ─
 const storyRoot = document.querySelector<HTMLElement>('[data-story]');

@@ -1,0 +1,870 @@
+/*
+ * The Home sections from "what is inside" down (chapters 3 to 6 of the story, then the dark "what you get" part):
+ * a two-column head, equal cards with a light on hover, a hill of four sizes, a numbered install rail with a terminal
+ * at its side, the claims and link rows of "built in the open", the photo-window cards, the dry-run card with the
+ * code running at its side, and four big words under hairlines.
+ *
+ * The page below the story is flat black: nothing here paints a ground behind a group of cards, only the cards
+ * have surfaces (check:surfaces). Sky appears only inside the photo windows. Logical properties only.
+ *
+ * Motion: transform and opacity only. The start states exist only when home-sections.ts has run (html.js-hs, set
+ * only without prefers-reduced-motion), so with no script or with reduced motion every rule below that hides
+ * something simply does not match and the page is its finished state.
+ */
+
+.hs-head {
+  display: grid;
+  gap: 1rem 3rem;
+  align-items: end;
+  margin-block-end: var(--space-head);
+}
+.hs-head > * {
+  margin: 0;
+}
+.story .hs-head .ch-lead {
+  max-inline-size: 34rem;
+  color: var(--text-muted);
+  font-size: var(--fs-lede);
+}
+@media (min-width: 52rem) {
+  .hs-head {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+}
+.hs-sm {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+}
+
+/* ── 05 What is inside ───────────────────────────────────────────────────── */
+
+.hs-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 36rem) {
+  .hs-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 64rem) {
+  .hs-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.hs-card {
+  position: relative;
+  isolation: isolate;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 3.5%), rgb(255 255 255 / 1.5%)), var(--ink-raise);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    var(--shadow-card);
+}
+.hs-card h3 {
+  margin: 1.25rem 0 0.5rem;
+}
+.hs-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+.hs-card .hs-more {
+  margin-block-start: auto;
+  padding-block-start: 1rem;
+}
+.story .hs-more a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  color: var(--text);
+  font-weight: 550;
+  text-underline-offset: 0.2em;
+}
+.hs-ico {
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 0.9rem;
+  color: var(--text);
+  background: var(--glass-fill);
+  box-shadow: inset 0 0 0 1px var(--glass-edge);
+}
+/* the pointer light (C): a soft amber glow and a hairline of it on the card's edge; no loop, only two variables */
+.hs-card::before,
+.hs-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s var(--ease-out);
+}
+.hs-card::before {
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), rgb(255 213 138 / 11%), transparent 70%);
+}
+.hs-card::after {
+  z-index: 0;
+  padding: 1px;
+  background: radial-gradient(200px circle at var(--mx, 50%) var(--my, 0%), rgb(255 213 138 / 70%), transparent 70%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+@media (hover: hover) {
+  .hs-card:hover::before,
+  .hs-card:hover::after {
+    opacity: 1;
+  }
+}
+.hs-card:focus-within::before,
+.hs-card:focus-within::after {
+  opacity: 1;
+}
+
+.hs-stats {
+  list-style: none;
+  margin: 3rem 0 2rem;
+  padding: 0;
+  display: grid;
+  gap: 2rem 1.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 52rem) {
+  .hs-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.hs-stat {
+  min-inline-size: 0;
+}
+.hs-rule {
+  display: block;
+  block-size: 1px;
+  background: var(--hairline-strong);
+  transform-origin: left;
+}
+[dir='rtl'] .hs-rule {
+  transform-origin: right;
+}
+.hs-big {
+  margin: 1.25rem 0 0.5rem;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 1.5rem + 2.6vw, 3.5rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.hs-unit {
+  color: var(--text-muted);
+  font-size: 0.45em;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* ── 06 Four sizes: up the hill ──────────────────────────────────────────── */
+
+.hs-hill {
+  --label: 3.75rem;
+  position: relative;
+  block-size: clamp(16rem, 12rem + 14vw, 21rem);
+  margin-block-end: 1rem;
+}
+.hs-hill svg {
+  position: absolute;
+  inset: 0 0 var(--label);
+  inline-size: 100%;
+  block-size: calc(100% - var(--label));
+  overflow: visible;
+}
+[dir='rtl'] .hs-hill svg {
+  transform: scaleX(-1);
+}
+.hs-hill-path {
+  fill: none;
+  stroke: rgb(255 255 255 / 30%);
+  stroke-width: 2;
+  stroke-dasharray: 4 7;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.hs-mark {
+  position: absolute;
+  inset-inline-start: calc(var(--x) - 0.875rem);
+  inset-block-start: calc((100% - var(--label)) * var(--y) / 100 - 0.875rem);
+  display: grid;
+  justify-items: start;
+  gap: 0.2rem;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding: 0.35rem 0.5rem 0.4rem;
+  border-radius: 0.9rem;
+  text-decoration: none;
+  text-align: start;
+}
+.story a.hs-mark {
+  color: var(--text);
+}
+.hs-mark b {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.15;
+}
+.hs-mark .hs-sm {
+  font-size: 0.8125rem;
+}
+.hs-pin {
+  position: relative;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border-radius: 50%;
+  border: 2px dashed rgb(255 255 255 / 45%);
+  background: var(--ink);
+}
+.is-now .hs-pin {
+  border: 2px solid var(--ok-ink);
+  background: var(--ok-ink);
+  box-shadow: 0 0 14px rgb(143 227 191 / 55%);
+}
+.hs-pin::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid var(--ok-ink);
+  opacity: 0;
+}
+.hs-mark.is-on {
+  background: rgb(255 255 255 / 6%);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+}
+.hs-mark.is-planned.is-on .hs-pin {
+  border-color: var(--text);
+}
+.hs-mark.is-planned:not(.is-on) b {
+  color: var(--text-muted);
+}
+.hs-mark:hover {
+  background: rgb(255 255 255 / 8%);
+}
+@media (max-width: 40rem) {
+  .hs-mark .hs-sm {
+    display: none;
+  }
+}
+.hs-panels {
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 52rem) {
+  .hs-sizes:not(.is-tabs) .hs-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.hs-panel {
+  min-inline-size: 0;
+  padding: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+  border-radius: var(--r-card);
+  background: linear-gradient(to bottom, rgb(255 255 255 / 3.5%), rgb(255 255 255 / 1.5%)), var(--ink-raise);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    var(--shadow-card);
+}
+.hs-panel.is-now {
+  box-shadow:
+    inset 0 0 0 1.5px rgb(143 227 191 / 55%),
+    var(--shadow-card);
+}
+.hs-panel.is-planned {
+  border: 1.5px dashed var(--hairline-strong);
+  box-shadow: none;
+}
+.hs-panel h3 {
+  margin: 0.7rem 0 0.1rem;
+  font-size: 1.75rem;
+}
+.hs-panel p {
+  margin-block: 0 0.7rem;
+}
+.hs-sizes.is-tabs .hs-panel {
+  max-inline-size: 44rem;
+}
+.hs-panel[hidden] {
+  display: none;
+}
+
+/* ── 07 Install: the rail, and the terminal at its side ──────────────────── */
+
+.hs-install {
+  display: grid;
+  gap: 2rem 3rem;
+  align-items: start;
+  margin-block-end: 2rem;
+}
+@media (min-width: 62rem) {
+  .hs-install {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
+  .hs-demo {
+    position: sticky;
+    inset-block-start: 6rem;
+  }
+}
+.hs-railwrap {
+  position: relative;
+  padding-inline-start: 3.25rem;
+  --p: 1;
+}
+.hs-railline {
+  position: absolute;
+  inset-block: 1rem;
+  inset-inline-start: 1.0625rem;
+  inline-size: 2px;
+  background: var(--hairline-strong);
+  overflow: hidden;
+}
+.hs-railline i {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  background: var(--focus);
+  transform-origin: top;
+  transform: scaleY(var(--p));
+}
+.hs-rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hs-step {
+  position: relative;
+  margin-block-end: 1.25rem;
+}
+.hs-step .term {
+  margin: 0;
+}
+.hs-step pre,
+.hs-demo pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hs-num {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-start: -3.25rem;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: 50%;
+  background: var(--focus);
+  color: #1a1304;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 6px var(--ink);
+}
+.hs-railwrap.hs-live .hs-step:not(.is-lit) .hs-num {
+  background: var(--ink-raise-2);
+  color: var(--text-muted);
+  box-shadow:
+    0 0 0 6px var(--ink),
+    inset 0 0 0 1.5px var(--hairline-strong);
+}
+.hs-railwrap.hs-live .hs-step:not(.is-lit) .term {
+  opacity: 0.55;
+}
+.hs-num,
+.hs-step .term {
+  transition:
+    background-color 0.15s var(--ease-out),
+    opacity 0.15s var(--ease-out),
+    color 0.15s var(--ease-out);
+}
+.hs-demo {
+  margin: 0;
+  min-inline-size: 0;
+  border-radius: var(--r-md);
+  background: var(--ink-raise-2);
+  box-shadow:
+    inset 0 0 0 1px var(--hairline-strong),
+    var(--shadow-card);
+}
+.hs-demo figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  border-block-end: 1px solid var(--hairline);
+}
+.hs-demo pre {
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.75;
+  color: #ecebe6;
+}
+.hs-demo code {
+  background: none;
+  padding: 0;
+}
+.hs-tag {
+  padding: 0.18rem 0.5rem;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 12%);
+  color: #e3e6ee;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.hs-out {
+  color: var(--text-muted);
+}
+.hs-ok,
+.hs-done {
+  color: var(--ok-ink);
+}
+.hs-wait,
+.hs-rest {
+  opacity: 0;
+}
+.hs-leave {
+  max-inline-size: 46rem;
+}
+
+/* ── 08 Built in the open ────────────────────────────────────────────────── */
+
+.hs-open {
+  display: grid;
+  gap: 2.5rem 4rem;
+  align-items: start;
+}
+@media (min-width: 56rem) {
+  .hs-open {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+  }
+}
+.hs-open h2 {
+  margin: 0 0 1rem;
+}
+.hs-open .ch-lead {
+  margin: 0 0 1.5rem;
+  color: var(--text-muted);
+}
+.hs-claims {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+.hs-claims li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  color: var(--text);
+  line-height: 1.5;
+}
+.hs-tick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  margin-block-start: 0.1rem;
+  border-radius: 50%;
+  background: rgb(143 227 191 / 18%);
+  color: var(--ok-ink);
+}
+.hs-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block-end: 1px solid var(--hairline-strong);
+}
+.hs-links li {
+  border-block-start: 1px solid var(--hairline-strong);
+}
+.story .hs-links a {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-block-size: 4.5rem;
+  padding: 0.9rem 0.25rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.hs-link-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 0.9rem;
+  background: var(--glass-fill);
+  box-shadow: inset 0 0 0 1px var(--glass-edge);
+}
+.hs-link-text {
+  flex: 1;
+  min-inline-size: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+.hs-link-name {
+  font-weight: 650;
+}
+.hs-arrow {
+  flex: none;
+  color: var(--text-muted);
+  transition:
+    transform 0.22s var(--ease-out),
+    color 0.22s var(--ease-out);
+}
+[dir='rtl'] .hs-arrow {
+  rotate: 180deg;
+}
+.hs-links a:hover .hs-arrow,
+.hs-links a:focus-visible .hs-arrow {
+  color: var(--text);
+  transform: translateX(4px);
+}
+[dir='rtl'] .hs-links a:hover .hs-arrow,
+[dir='rtl'] .hs-links a:focus-visible .hs-arrow {
+  transform: translateX(-4px);
+}
+.hs-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  margin-block-start: 3.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--r-card);
+  background: linear-gradient(135deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%)), var(--ink-raise);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    var(--shadow-card);
+}
+.hs-band p {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-lede);
+  font-weight: 550;
+}
+.hs-band .term {
+  flex: 1 1 22rem;
+  max-inline-size: 30rem;
+  margin: 0;
+}
+
+/* ── 09 After the story: the two-column head ─────────────────────────────── */
+
+.hs-head.hs-after {
+  max-inline-size: none;
+  row-gap: 1.25rem;
+}
+.hs-after .eyebrow {
+  margin: 0;
+}
+@media (min-width: 52rem) {
+  .hs-head.hs-after {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  }
+  .hs-after .eyebrow {
+    grid-column: 1 / -1;
+  }
+}
+.hs-after h2 {
+  margin: 0;
+  font-size: var(--fs-h1);
+  line-height: 1.04;
+  text-wrap: balance;
+}
+.hs-after .lede {
+  align-self: end;
+  margin: 0;
+}
+.hs-mask {
+  overflow: hidden;
+  padding-block-end: 0.12em;
+  margin-block-end: -0.12em;
+}
+.hs-mask > span {
+  display: block;
+}
+
+/* ── 10 Two photo cards: the window first, the caption under ─────────────── */
+
+.cards-2 > li {
+  display: flex;
+}
+.hs-photocard {
+  flex: 1;
+  gap: 1.25rem;
+  padding: 0.75rem 0.75rem 1.5rem;
+}
+.hs-photocard .card-text {
+  padding-inline: 0.75rem;
+}
+.hs-photocard .photo {
+  min-block-size: clamp(17rem, 13rem + 10vw, 23rem);
+}
+.hs-photocard .card-text h3 {
+  margin-block: 0 0.5rem;
+}
+
+/* ── 11 The dry run: the checks tick, the code runs at the side ──────────── */
+
+.hs-dry {
+  margin-block-start: 1.25rem;
+  gap: 2rem;
+  padding: clamp(1.25rem, 1rem + 1.5vw, 2rem);
+}
+.hs-dry-top h3 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  line-height: 1.15;
+}
+.hs-dry-top .lead-in {
+  max-inline-size: 44rem;
+}
+.hs-dry-body {
+  display: grid;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+@media (min-width: 52rem) {
+  .hs-dry-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+.hs-dry-checks.mini {
+  inline-size: auto;
+  background: rgb(255 255 255 / 4%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.hs-dry-checks .tick,
+.hs-dry-checks li {
+  transition:
+    opacity 0.3s var(--ease-out),
+    transform 0.3s var(--ease-emph),
+    background-color 0.3s var(--ease-out);
+}
+.hs-dry-term pre {
+  min-block-size: 11rem;
+}
+.hs-dry .hs-demo {
+  position: static;
+}
+
+/* ── 12 Four big words under hairlines ───────────────────────────────────── */
+
+.features {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+.hs-feat {
+  min-inline-size: 0;
+}
+.hs-feat .hs-big {
+  font-size: clamp(2rem, 1.4rem + 1.6vw, 2.75rem);
+  margin-block: 1.25rem 0.75rem;
+}
+.hs-feat .lead-in {
+  font-size: var(--fs-small);
+}
+
+/* ── Motion (only after home-sections.ts has run, and never with reduced motion) ───────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .hs-dry-term pre {
+    min-block-size: 12rem;
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-rise {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-fade,
+  .js-hs [data-hs]:not(.is-in) .hs-float,
+  .js-hs [data-hs]:not(.is-in) .hs-row {
+    opacity: 0;
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-float {
+    transform: translateY(16px);
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-slide {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  [dir='rtl'].js-hs [data-hs]:not(.is-in) .hs-slide,
+  .js-hs [dir='rtl'] [data-hs]:not(.is-in) .hs-slide {
+    transform: translateX(-28px);
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-rule {
+    transform: scaleX(0);
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-mask > span {
+    transform: translateY(110%);
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-hill-path {
+    transform: scaleX(0);
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-mark {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+
+  .js-hs [data-hs].is-in .hs-rise {
+    transition:
+      opacity 0.7s var(--ease-emph) calc(var(--i, 0) * 70ms),
+      transform 0.7s var(--ease-emph) calc(var(--i, 0) * 70ms);
+  }
+  .js-hs [data-hs].is-in .hs-fade {
+    transition: opacity 0.6s var(--ease-out) calc(var(--i, 0) * 80ms);
+  }
+  .js-hs [data-hs].is-in .hs-slide {
+    transition:
+      opacity 0.6s var(--ease-emph) calc(var(--i, 0) * 90ms),
+      transform 0.6s var(--ease-emph) calc(var(--i, 0) * 90ms);
+  }
+  .js-hs [data-hs].is-in .hs-float {
+    transition:
+      opacity 0.7s var(--ease-emph) 0.2s,
+      transform 0.7s var(--ease-emph) 0.2s;
+  }
+  .js-hs [data-hs].is-in .hs-row {
+    transition: opacity 0.5s var(--ease-out) calc(0.45s + var(--i, 0) * 80ms);
+  }
+  .js-hs [data-hs].is-in .hs-rule {
+    transition: transform 0.6s var(--ease-emph) calc(var(--i, 0) * 80ms);
+  }
+  .js-hs [data-hs].is-in .hs-mask > span {
+    transition: transform 0.8s var(--ease-emph) calc(var(--i, 0) * 90ms);
+  }
+  .js-hs [data-hs].is-in .hs-hill-path {
+    transform-box: fill-box;
+    transform-origin: left;
+    transition: transform 0.9s var(--ease-emph);
+  }
+  [dir='rtl'] .js-hs [data-hs].is-in .hs-hill-path {
+    transform-origin: right;
+  }
+  .js-hs [data-hs].is-in .hs-mark {
+    transition:
+      opacity 0.5s var(--ease-out) calc(0.3s + var(--i, 0) * 150ms),
+      transform 0.5s var(--ease-emph) calc(0.3s + var(--i, 0) * 150ms),
+      background-color 0.15s;
+  }
+  .js-hs [data-hs].is-in .hs-mark.is-now .hs-pin::after {
+    animation: hs-ring 1.4s var(--ease-out) 0.9s 2 both;
+  }
+  .js-hs [data-hs]:not(.is-in) .hs-mark.is-now .hs-pin::after {
+    animation: none;
+  }
+  .hs-card {
+    transition: transform 0.3s var(--ease-out);
+  }
+  .hs-panel:not([hidden]) {
+    animation: hs-panel-in 0.28s var(--ease-out) both;
+  }
+  .hs-sizes:not(.is-tabs) .hs-panel {
+    animation: none;
+  }
+
+  /* the rail and the runs */
+  .hs-pre [data-row]:not(.is-on) {
+    opacity: 0.4;
+  }
+  .hs-pre [data-row]:not(.is-on) .tick {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  .hs-dry-checks .mini-foot {
+    transition: opacity 0.6s var(--ease-out);
+  }
+  .hs-pre [data-foot]:not(.is-on) {
+    opacity: 0;
+  }
+
+  /* the sky windows drift slowly while on screen: a still photograph given a camera */
+  .photo > img {
+    animation: hs-drift-a 38s ease-in-out infinite alternate;
+    animation-play-state: paused;
+    will-change: transform;
+  }
+  .photo.hs-drift-b > img {
+    animation-name: hs-drift-b;
+    animation-duration: 46s;
+  }
+  .photo.hs-live > img,
+  html:not(.js-hs) .photo > img {
+    animation-play-state: running;
+  }
+}
+@keyframes hs-ring {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+@keyframes hs-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes hs-drift-a {
+  from {
+    transform: scale(1.14) translate3d(-3%, -1.5%, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(3%, 1.5%, 0);
+  }
+}
+@keyframes hs-drift-b {
+  from {
+    transform: scale(1.18) translate3d(3%, 1%, 0);
+  }
+  to {
+    transform: scale(1.1) translate3d(-3%, -1%, 0);
+  }
+}
+
+/* links in the install chapter read as text, not as heather: the page accent is amber */
+.story .ch-install a:not(.copy) {
+  color: var(--text);
+  text-decoration-color: rgb(255 255 255 / 40%);
+  text-underline-offset: 0.2em;
+}

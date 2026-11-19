@@ -32,7 +32,7 @@ const mmss = (s: number) => `0:${String(s).padStart(2, '0')}`;
 export function Motion() {
   const m = ns.motion;
   return (
-    <section id="motion" className="section wrap nsec" aria-labelledby="motion-h">
+    <section id="motion" className="section nsec" aria-labelledby="motion-h">
       <header className="section-head reveal">
         <p className="eyebrow">{m.eyebrow}</p>
         <h2 id="motion-h">{m.heading}</h2>

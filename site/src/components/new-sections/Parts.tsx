@@ -10,7 +10,7 @@ const VIEWS = [<ServicesView key="s" />, <OverviewView key="o" />, <FilesView ke
 export function Parts() {
   const p = ns.parts;
   return (
-    <section id="parts" className="section wrap nsec" aria-labelledby="parts-h">
+    <section id="parts" className="section nsec" aria-labelledby="parts-h">
       <header className="section-head reveal">
         <p className="eyebrow">{p.eyebrow}</p>
         <h2 id="parts-h">{p.heading}</h2>

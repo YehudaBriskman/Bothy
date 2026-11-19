@@ -61,7 +61,7 @@ function Fork({ kind }: { kind: 'stem' | 'split' | 'drops' | 'join' }) {
 export function Hood() {
   const h = ns.hood;
   return (
-    <section id="hood" className="section wrap nsec" aria-labelledby="hood-h">
+    <section id="hood" className="section nsec" aria-labelledby="hood-h">
       <header className="section-head reveal">
         <p className="eyebrow">{h.eyebrow}</p>
         <h2 id="hood-h">{h.heading}</h2>

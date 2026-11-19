@@ -11,6 +11,7 @@
  */
 import { BEATS } from '../console/flow.ts';
 import { setupDither, type Dither } from './dither.ts';
+import { setupLens, type Lens } from './lens.ts';
 
 const clamp = (x: number) => Math.min(1, Math.max(0, x));
 const ease = (x: number) => 1 - (1 - clamp(x)) ** 3;
@@ -111,6 +112,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   }
 
   let dither: Dither | null = null;
+  let lens: Lens | null = null;
   function measure() {
     cf!.classList.add('cs-live');
     root.classList.add('cs-on'); // the stage's width and the pin are sized by these rules: measure with them on
@@ -140,6 +142,8 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     }
     seen = '';
     beatShown = -1;
+    if (on && !lens && !matchMedia('(prefers-reduced-motion: reduce)').matches) lens = setupLens(cf!, body!);
+    lens?.reset();
     if (on && !dither && !matchMedia('(prefers-reduced-motion: reduce)').matches) dither = setupDither(root);
     dither?.measure();
     if (on) {
@@ -232,7 +236,10 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       beat === 6 && u > 0.6,
       beat === 0 && u > 0.8,
     ].join('|');
-    if (key === seen) return;
+    if (key === seen) {
+      lens?.show(beat, u);
+      return;
+    }
     seen = key;
 
     if (beatShown !== beat) {
@@ -278,6 +285,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     if (cmdText) typeInto(cmdText, cmdText.dataset.type ?? '', cmdK);
     cmd?.classList.toggle('is-typing', beat === 6 && u < 0.55);
     newMod?.classList.toggle('cs-wait', !(beat === 6 && u > 0.6));
+    lens?.show(beat, u);
   }
 
   return { measure, drive };

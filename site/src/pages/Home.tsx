@@ -1,5 +1,8 @@
 import { AfterStory } from '../components/AfterStory.tsx';
-import { NewSections } from '../components/new-sections/NewSections.tsx';
+import { Compare } from '../components/new-sections/Compare.tsx';
+import { Hood } from '../components/new-sections/Hood.tsx';
+import { Motion } from '../components/new-sections/Motion.tsx';
+import { Parts } from '../components/new-sections/Parts.tsx';
 import { Layout } from '../components/Layout.tsx';
 import { ConsoleFlow } from '../components/chapters/ConsoleFlow.tsx';
 import { Descent } from '../components/chapters/Descent.tsx';
@@ -38,8 +41,21 @@ export function Home({ ctx }: { ctx: PageContext }) {
         <Trust ctx={ctx} />
         <ChapterDots ctx={ctx} ids={CHAPTERS} />
       </div>
-      <AfterStory ctx={ctx} />
-      <NewSections ctx={ctx} />
+      <AfterStory
+        ctx={ctx}
+        mid={
+          <>
+            <Parts />
+            <Motion />
+          </>
+        }
+        end={
+          <>
+            <Compare ctx={ctx} />
+            <Hood />
+          </>
+        }
+      />
     </Layout>
   );
 }
