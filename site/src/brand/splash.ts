@@ -1,18 +1,40 @@
 /**
- * The first-visit splash: the Cube opens, two Bs climb out, the second pulls "othy" and "ox" out between them until
- * "BothyBox" stands in its lockup, and the lockup flies into the header, where the same lockup already is. Ported from
- * the owner-chosen "Cube" loader in public/brand-mock/loader.js (brand-options.md); pure inline SVG on the Web
- * Animations API, no library, no WebGL.
+ * The first-visit intro. On a first visit the home page opens on the sky alone (the inline head script set `bb-intro`,
+ * styles/intro.css). The Cube opens in the middle, two Bs climb out, the second pulls "othy" and "ox" out between them
+ * until "BothyBox" stands in its lockup; the lockup then travels into the header, and while it travels the page
+ * assembles round it: the header's links and pills, the hero's badge, heading, lines and buttons, the console's peek,
+ * each fading in and rising 14 px, 80 ms apart. Ported from the owner-chosen "Cube" loader in
+ * public/brand-mock/loader.js (brand-options.md); pure inline SVG and the Web Animations API, no library, no WebGL.
  *
- * Loaded lazily by enhance.ts only when brand/splash-gate.ts says yes. It never blocks anything: the page is complete
- * and usable underneath; the overlay is fixed (no layout shift), aria-hidden and pointer-events: none, so every click,
- * key, wheel or touch goes to the page and also ends the splash. About 2 s in all; a timer removes it regardless, so
- * a browser that stalls its animations (a background tab, a headless box) is never left with it on screen.
+ * Nothing is ever removed from the page or moved in its layout: everything is in the HTML and only its opacity and
+ * `translate` animate (CLS 0). The overlay is aria-hidden and pointer-events: none; any key, click, tap, wheel or
+ * scroll jumps to the assembled page. About 2.9 s in all; a timer ends it regardless, so a browser that stalls its
+ * animations (a background tab, a headless box) is never left with a hidden page, and the head script's own 3.5 s
+ * failsafe covers this module never arriving.
  */
 import { AMBER, GLYPHS, INK, LOCKUP, PAPER, cubeBody, layoutWord } from './cube.ts';
 
-export const DURATION = 2000; // ms, the whole splash
-const SEQ = 1600; // the box-to-word sequence; the rest is the flight into the header
+const SEQ = 1600; // the box-to-word sequence, centred
+const LAND = 2300; // the lockup lands in the header (the flight starts at SEQ)
+const STAGGER = { start: 1720, step: 80, each: 480, rise: 14 }; // the page assembling round the flight
+/**
+ * What the intro hides and brings back, in order. styles/intro.css hides exactly these (a test holds the two lists
+ * together). The header lockup comes back as the flying one lands on it; the rest are staggered.
+ */
+export const INTRO_ITEMS = [
+  '.site-nav .brand',
+  '.site-nav .primary',
+  '.site-nav .tools',
+  '.ch-sky .ch-badge',
+  '.ch-sky h1',
+  '.ch-sky .ch-line',
+  '.ch-sky .ch-lede',
+  '.ch-sky .ch-actions',
+  '.ch-flow .ch-stage',
+  '.story-dots',
+  '.sky-ui',
+] as const;
+export const DURATION = STAGGER.start + (INTRO_ITEMS.length - 2) * STAGGER.step + STAGGER.each; // 2920 ms
 const W = 1000;
 const H = 400;
 const word = layoutWord();
@@ -187,22 +209,19 @@ export interface Splash {
   el: HTMLElement;
   anims: Animation[];
   seek: (t: number) => void;
-  /** End it now: a short fade, then the overlay is removed. */
+  /** Jump to the assembled page: the overlay fades out, every element is back to its own style. */
   skip: () => void;
 }
 
 /**
- * Build the overlay and its animations, paused at 0. `target` is the header lockup the flight ends on (its box is
- * exactly the lockup's box); without one the lockup simply fades where it is.
+ * Build the overlay and every animation, paused at 0, and take the page over from the `bb-intro` class (the
+ * animations hold the hidden state from here). `target` is the header lockup the flight ends on.
  */
 export function createSplash(doc: Document, target: Element | null): Splash {
   const el = doc.createElement('div');
   el.className = 'bb-splash';
   el.setAttribute('aria-hidden', 'true');
   el.style.cssText = 'position:fixed;inset:0;z-index:60;pointer-events:none;contain:strict;';
-  const veil = doc.createElement('div');
-  veil.style.cssText =
-    'position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse 75% 60% at 50% 42%, rgb(9 9 12 / 0.95), rgb(9 9 12 / 0.86) 65%, rgb(9 9 12 / 0.74));';
   const stage = doc.createElement('div');
   // the stage's width: the lockup ends at 72 % of it, so about 570 px wide on a desktop and 260 px on a phone
   stage.style.cssText =
@@ -210,63 +229,69 @@ export function createSplash(doc: Document, target: Element | null): Splash {
   stage.innerHTML = splashSVG();
   const svg = stage.firstElementChild as SVGSVGElement;
   svg.style.cssText = 'display:block;inline-size:100%;block-size:100%;overflow:visible;transform-origin:0 0;';
-  el.append(veil, stage);
+  el.append(stage);
   doc.body.append(el);
 
   const anims: Animation[] = [];
-  const add = (node: Element, k: Keyframe[], duration: number) => {
-    const a = node.animate(k, { duration, fill: 'both', easing: 'linear' });
+  const add = (node: Element, k: Keyframe[], duration: number, o: KeyframeAnimationOptions = {}) => {
+    const a = node.animate(k, { duration, fill: 'both', easing: 'linear', ...o });
     a.pause();
     anims.push(a);
   };
   sequence(svg, add);
 
-  // The flight: map the stage's lockup box onto the header lockup's box, then hand over to it with a short fade.
+  // The flight: map the stage's lockup box onto the header lockup's box, then hand over to it.
   const R = svg.getBoundingClientRect();
   const k = R.width / W;
   const to = target?.getBoundingClientRect();
-  const end = SEQ / DURATION;
+  const t = (ms: number) => ms / LAND;
   if (to && to.width > 0) {
     const s = to.width / (LW * k);
-    const tx = to.left - R.left - X0 * k * s;
-    const ty = to.top - R.top - ICON_Y * k * s;
+    const at = `translate(${f(to.left - R.left - X0 * k * s)}px, ${f(to.top - R.top - ICON_Y * k * s)}px) scale(${f(s)})`;
     add(
       svg,
       [
         { offset: 0, transform: 'none', opacity: 1 },
-        { offset: end, transform: 'none', opacity: 1, easing: 'cubic-bezier(0.5, 0, 0.2, 1)' },
-        { offset: 0.94, transform: `translate(${f(tx)}px, ${f(ty)}px) scale(${f(s)})`, opacity: 1 },
-        { offset: 1, transform: `translate(${f(tx)}px, ${f(ty)}px) scale(${f(s)})`, opacity: 0 },
+        { offset: t(SEQ), transform: 'none', opacity: 1, easing: 'cubic-bezier(0.5, 0, 0.2, 1)' },
+        { offset: t(LAND - 90), transform: at, opacity: 1 },
+        { offset: 1, transform: at, opacity: 0 },
       ],
-      DURATION,
+      LAND,
     );
   } else {
-    add(svg, [{ opacity: 1 }, { opacity: 1, offset: end }, { opacity: 0 }], DURATION);
+    add(svg, [{ opacity: 1 }, { opacity: 1, offset: t(SEQ) }, { opacity: 0 }], LAND);
   }
-  add(
-    veil,
-    [
-      { opacity: 0 },
-      { opacity: 1, offset: 0.08 },
-      { opacity: 1, offset: end - 0.06 },
-      { opacity: 0, offset: 0.92 },
-      { opacity: 0 },
-    ],
-    DURATION,
-  );
 
-  const seek = (t: number) => {
+  // The page assembles round the flight. Opacity and the `translate` property only: no layout moves, and an element's
+  // own `transform` is left alone.
+  const items = INTRO_ITEMS.map((q) => doc.querySelector(q));
+  if (items[0]) add(items[0], [{ opacity: 0 }, { opacity: 1 }], 140, { delay: LAND - 140 });
+  items.slice(1).forEach((node, i) => {
+    if (!node) return;
+    add(
+      node,
+      [
+        { opacity: 0, translate: `0 ${STAGGER.rise}px` },
+        { opacity: 1, translate: '0 0' },
+      ],
+      STAGGER.each,
+      { delay: STAGGER.start + i * STAGGER.step, easing: OUT },
+    );
+  });
+
+  const seek = (ms: number) => {
     for (const a of anims) {
       a.pause();
-      a.currentTime = Math.max(0, Math.min(t, DURATION));
+      a.currentTime = Math.max(0, Math.min(ms, DURATION));
     }
   };
   seek(0);
+  doc.documentElement.classList.remove('bb-intro'); // the animations hold the hidden state from here
   let gone = false;
   const skip = () => {
     if (gone) return;
     gone = true;
-    for (const a of anims) a.pause();
+    for (const a of anims) a.cancel(); // every element back to its own style: the assembled page
     el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
     window.setTimeout(() => el.remove(), 180);
   };
@@ -276,8 +301,8 @@ export function createSplash(doc: Document, target: Element | null): Splash {
 const SKIP_ON = ['keydown', 'pointerdown', 'wheel', 'touchstart', 'scroll'] as const;
 
 /**
- * Play it once. Any key, click, tap, wheel or scroll ends it early (nothing is prevented: the event still does what it
- * does on the page). `hold` (?splash=hold) builds it paused at 0 and leaves it for a screenshot harness to seek.
+ * Play it once. Any key, click, tap, wheel or scroll jumps to the assembled page (nothing is prevented: the event
+ * still does what it does). `hold` (?splash=hold) builds it paused at 0 for a screenshot harness to seek.
  */
 export function playSplash(opts: { hold?: boolean } = {}): Splash {
   const target = document.querySelector('.site-nav .brand .lockup');
@@ -292,7 +317,7 @@ export function playSplash(opts: { hold?: boolean } = {}): Splash {
     sp.skip();
   };
   for (const t of SKIP_ON) window.addEventListener(t, done, { capture: true, passive: true });
-  // a stalled animation clock (background tab, headless) must not leave it on screen
+  // a stalled animation clock (background tab, headless) must not leave the page hidden
   const timer = window.setTimeout(done, DURATION + 300);
   for (const a of sp.anims) a.play();
   void Promise.all(sp.anims.map((a) => a.finished)).then(done, () => {});

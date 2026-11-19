@@ -123,18 +123,26 @@ All geometry has one source, `site/src/brand/cube.ts` (ported from `concepts.js`
    faint BOTHYBOX footer wordmark is unchanged.
 5. **Nav idle wiggle**: on hover or keyboard focus the header icon's lid lifts and settles on a 1.6 s loop; CSS only,
    inside `prefers-reduced-motion: no-preference`.
-6. **The loader** (`site/src/brand/splash.ts`, a lazy chunk of about 3 KB gzip, its own row in `check-budgets`):
-   plays over the hero on the home page, the Cube sequence compressed to 1.6 s, then 0.4 s in which the finished
-   lockup flies into the header lockup's exact box and hands over to it. About 2 s in all, and a timer removes it at
-   2.3 s whatever the animation clock does.
-7. **Never blocks**: a fixed overlay (no layout shift: CLS 0 is asserted), `aria-hidden`, `pointer-events: none`; the
-   page is fully rendered and usable underneath. Any key, click, tap, wheel or scroll ends it at once (and still does
-   what it does on the page).
-8. **Once per session**: `site/src/brand/splash-gate.ts`, a `sessionStorage` flag read, written and read back inside
-   `try/catch`; if storage throws or forgets, it does not play. Only on the home page, only when it opens at the top.
+6. **The intro** (`site/src/brand/splash.ts`, a lazy chunk of about 3.5 KB gzip, its own row in `check-budgets`;
+   sequence changed on the owner's feedback, 2026-11-19): a first visit opens on the sky alone. The Cube sequence
+   plays centred (1.6 s), then the finished lockup travels into the header lockup's exact box (0.7 s), and while it
+   travels the page assembles round it: header links and pills, the hero's badge, heading, lines and buttons, the
+   console's peek, the story dots and the sky's control, each fading in and rising 14 px, 80 ms apart. Assembled at
+   about 2.9 s.
+7. **Hidden only visually, never for long**: an inline script in the home page's head (`introScript()` in
+   `splash-gate.ts`, the gate's own source) decides before the first paint and sets `bb-intro` on `<html>`;
+   `styles/intro.css` takes those elements to opacity 0, nothing else, so the content is in the HTML and nothing moves
+   (CLS 0 is asserted). The same script removes the class at 3.5 s whatever happens, so a splash chunk that hangs or
+   fails never leaves the page hidden (both asserted). Any key, click, tap, wheel or scroll jumps to the assembled page.
+8. **Once per session**: a `sessionStorage` flag read, written and read back inside `try/catch`; if storage throws
+   or forgets, it does not play. Only on the home page, only when it opens without a `#fragment`.
 9. **No JavaScript, `prefers-reduced-motion`, or automation** (`navigator.webdriver`, so the site's own browser
-   checks see the page): the static lockup in the header, already in the HTML. `?splash=1` forces it (still never
-   with reduced motion), `?splash=0` stops it, `?splash=hold` builds it paused for a screenshot harness.
+   checks see the page): the whole page at once, the class is never set. `?splash=1` forces it (still never with
+   reduced motion), `?splash=0` stops it, `?splash=hold` builds it paused for a screenshot harness.
+10. **LCP**: the sky's still cannot be the LCP element; Chrome ignores an image that covers the whole viewport (even a
+    plain background on `.sky-still` is not reported), so the normal page's LCP is the hero's big line. Hidden text
+    is reported when it is revealed, so on a first visit LCP moves to the reveal, about 1.8 s in a real browser;
+    `check:story` asserts it lands by the time the page is assembled.
 
 ## Verified, and not verified
 
@@ -147,6 +155,9 @@ takes no pointer, moves nothing (CLS 0, the same header and hero rects during an
 about 2.4 s and within 0.5 s of a key, plays on a person's first visit and not on a reload, and never loads with reduced
 motion; `splash-gate.test.ts` holds the gating (reduced motion, blocked or forgetful storage, repeat visits). The
 splash was frozen at a dozen moments (`?splash=hold`, WAAPI `currentTime`) at 1440 x 900 and 390 x 844 and looked at.
+The new sequence (2026-11-19) likewise: `check:story` asserts opacity 0 at the start and 1 at the end for the header and
+hero, the same layout boxes during and after, no animation left behind, the 3.5 s failsafe with the chunk hung or
+failed, the whole page with reduced motion and without script, and a repeat visit seeing the page at once.
 
 Not verified: the loader's real-time smoothness on a real device (this box cannot measure frame rate); Safari and
 Firefox rendering of CSS transforms on SVG groups; how the favicon looks in a real browser tab on a high-DPI screen

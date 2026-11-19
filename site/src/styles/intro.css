@@ -1,0 +1,26 @@
+/*
+ * The first-visit intro (brand/splash.ts): until it takes over, the home page shows the sky alone. `bb-intro` is set
+ * on <html> by the inline head script (brand/splash-gate.ts) only on a first visit with motion allowed and script
+ * running, and that script removes it after 3.5 s whatever happens. Opacity only: nothing leaves the layout, so there
+ * is no shift, and the content is in the HTML for crawlers, no-JS and reduced motion, which never get the class (and
+ * the media query below would show reduced motion everything even if they did).
+ * These selectors are brand/splash.ts INTRO_ITEMS (a test holds the two lists together).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html.bb-intro
+    :is(
+      .site-nav .brand,
+      .site-nav .primary,
+      .site-nav .tools,
+      .ch-sky .ch-badge,
+      .ch-sky h1,
+      .ch-sky .ch-line,
+      .ch-sky .ch-lede,
+      .ch-sky .ch-actions,
+      .ch-flow .ch-stage,
+      .story-dots,
+      .sky-ui
+    ) {
+    opacity: 0;
+  }
+}

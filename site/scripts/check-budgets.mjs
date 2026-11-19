@@ -29,7 +29,8 @@ export const LIMITS = {
   'first load / desktop': 84, // 72.8
   'first load / phone': 67, // 57.8 - the design's 60 is the real ceiling here: 2.2 KB left
   //   59.9 on main at 229577e; 61.8 with the BothyBox lockup in every page's HTML (+0.6), the Cube favicon and touch
-  //   icon (+0.8), the splash gate in the entry (+0.3) and its CSS (+0.1): over the design's 60, flagged in the PR.
+  //   icon (+0.8), the splash gate in the entry (+0.3) and its CSS (+0.1): over the design's 60, flagged in the PR. 62.2 with
+  //   the intro: its gate inlined in the home page's head and styles/intro.css (+0.4).
   'first load, worst other route / desktop': 81, // 69.6 (docs/configuring)
   'first load, worst other route / phone': 63, // 54.6
   'html / home': 16, // 13.5
