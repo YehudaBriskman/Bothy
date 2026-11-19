@@ -482,6 +482,40 @@ func TestUpdateKeepsAddedModulesAndUninstallRemovesThem(t *testing.T) {
 	}
 }
 
+// An update whose release moves node-exporter to a digest the registry does not
+// have rolls back as a whole: the old release, the old module image and the
+// module set all survive, and the previous compose (with node-exporter) is back.
+func TestUpdateRollsBackWhenTheModuleImageCannotBePulled(t *testing.T) {
+	b := newModBox(t)
+	b.nodeUp(true)
+	if out, err := b.add("node-metrics", false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	b.have("prom/node-exporter@" + digest('7')) // the add pulled it; a real daemon keeps it
+	oldEnv, oldCompose := b.readFile(".env"), b.readFile("compose.yml")
+	mp, cp := modRelease(t, "2026.11.1", commit2, 'd', 'e', 'f', '6')
+	b.o.ManifestSrc, b.o.ChecksumsSrc, b.o.BinaryVersion = mp, cp, "2026.11.1"
+	b.registerImages('d', 'e', 'f', true)
+	b.registerNode('6', false) // the pull fails, so the new release never runs: b.rev stays
+	var out bytes.Buffer
+	err := Update(context.Background(), b.h, b.o, false, &out)
+	if err == nil || !strings.Contains(err.Error(), "rolled back") {
+		t.Fatalf("want a rolled-back failure, got %v\n%s", err, out.String())
+	}
+	if b.readFile(".env") != oldEnv || b.readFile("compose.yml") != oldCompose {
+		t.Error("the previous .env and compose.yml were not restored byte for byte")
+	}
+	if !strings.Contains(b.readFile("compose.yml"), "node-exporter:") {
+		t.Error("the rollback dropped the added module")
+	}
+	r := b.receipt()
+	if r.Status != "complete" || r.Version != "2026.11.0" || r.LastUpdateError == "" ||
+		strings.Join(r.Modules, ",") != "edge,files,node-metrics,web" ||
+		r.Images["BOTHY_IMAGE_NODE_EXPORTER"] != "prom/node-exporter@"+digest('7') {
+		t.Fatalf("receipt after rollback: %+v", r)
+	}
+}
+
 // ---- the set generator ----------------------------------------------------------------
 
 // What the binary generates at run time from its embedded sources is exactly
