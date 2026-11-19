@@ -719,7 +719,25 @@ the repo set and the committed default, `node-metrics` hardening (no `/host`, no
 stackgen golden for mini + node-metrics, closure/dependants/unsatisfied/cycles, schema 1 and 3 refusal, and a module
 added purely as data.
 
-**Lab proof: NOT RUN to completion (2026-11-18).** `lab/install-proof/run-lab-module.sh` (fake-release path:
+**Lab proof: PASSED on `lab-mid` (2026-11-19), 33 checks.** `bash lab/install-proof/run-lab-module.sh lab-mid` ran
+the whole lifecycle on a 4 GiB guest: add, update 2026.11.0 -> 2026.11.1 with the module installed (the module, its
+receipt entry and the new portal bytes all survive), remove, forced-failure rollback, and kill -9 then `update` refusal
+then `module rollback` (the kill landed mid-change this time, so the resume path ran in the lab too).
+
+*The first lab-mid run failed at check 18 ("module lost in update"). That was the harness, not the product.* The guest
+after the failed run showed the update had worked: four `bothy` containers, `node-metrics` in the receipt's `modules`,
+`BOTHY_IMAGE_NODE_EXPORTER` in `.env`, and the update's own verify had read `node_memory_MemAvailable_bytes` through the
+edge. The check was `metrics | grep -q ...` under `set -o pipefail`. `grep -q` exits at the first match (line 360 of a
+61 KB body), curl gets EPIPE writing the rest and exits 23, and pipefail fails the check. In the guest that pipeline
+failed 3 times out of 5 against a healthy module. `module-proof.sh` now saves each body to a file before grepping it.
+The "route still serves metrics" check after remove had the same race the other way round: there it could have turned a
+real failure into a pass. A unit test was added for the case the lab does not force: an update whose release moves
+node-exporter to a digest the registry does not have rolls back with the module set, the old module image and the
+previous compose intact (`TestUpdateRollsBackWhenTheModuleImageCannotBePulled`). The update and rollback code was not
+changed. `proof.sh` and `proof-release.sh` still pipe `curl` into `grep -q` for small bodies (the 5 KB portal and a
+notes file). Those bodies fit in one pipe buffer, so they have not failed, but they are the same pattern.
+
+*Earlier history (2026-11-18).* `lab/install-proof/run-lab-module.sh` (fake-release path:
 `fake-node.sh` re-pushes the pinned node-exporter into the guest registry and adds it to the fake manifests, plus a
 "sick" node-exporter for the forced failure; `module-proof.sh` asserts add, bytes, no host mounts, 64 MiB limit, no new
 port, receipt, idempotent re-run, core/unknown refusals, update after a module, remove, forced-failure rollback, and a
@@ -727,9 +745,8 @@ kill -9 then `update` refusal and `module rollback`) was written and run once on
 registry and manifests were produced, then the **base install was refused by its own memory gate in the guest: "944 MiB
 available, 960 MiB needed (448 MiB of container limits + 512 MiB reserve)"**, so the gate works on a real guest and
 `lab-mini` is too small for this mode. The proof needs a 4 GiB guest (`lab-mid`), and the second run was not done
-(the session's permission layer refused booting `lab-mid` and clearing its leftover state, which another agent used). The
-scripts are untested past that point and may need small fixes on first run. Run: `lab/install-proof/run-lab-module.sh lab-mid`,
-then `lab/lab.sh down lab-mid`.
+(the session's permission layer refused booting `lab-mid` and clearing its leftover state, which another agent used).
+Run: `lab/install-proof/run-lab-module.sh lab-mid`, then `lab/lab.sh down lab-mid`.
 
 **Not proven / known limits.** Remove-while-a-dependant-installed only by unit test (no real module depends on another
 optional module yet: `node-metrics` only needs the core edge). Only the Compose runtime; the k3s runtime has no module

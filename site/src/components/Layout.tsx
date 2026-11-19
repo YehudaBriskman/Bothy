@@ -3,6 +3,7 @@ import { REPO_URL, RELEASES_URL, href } from '../config.ts';
 import { ENABLED_LOCALES, LOCALES, localePrefix, type Locale } from '../i18n/locales.ts';
 import type { PageContext } from '../page-context.ts';
 import { Lockup } from './Brand.tsx';
+import { FootMark } from './FootMark.tsx';
 import { GitHubMark, Icon } from './Icons.tsx';
 import { InstallSplit } from './InstallSplit.tsx';
 
@@ -176,9 +177,7 @@ function Footer({ ctx }: { ctx: PageContext }) {
   ];
   return (
     <footer className="site-foot">
-      <div className="foot-mark" aria-hidden="true">
-        <span translate="no">BOTHYBOX</span>
-      </div>
+      <FootMark />
       <div className="foot-body">
         <div className="wrap foot-grid">
           <div className="foot-brand">
