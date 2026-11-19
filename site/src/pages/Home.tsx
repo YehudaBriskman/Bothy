@@ -2,7 +2,6 @@ import { AfterStory } from '../components/AfterStory.tsx';
 import { Compare } from '../components/new-sections/Compare.tsx';
 import { Hood } from '../components/new-sections/Hood.tsx';
 import { Motion } from '../components/new-sections/Motion.tsx';
-import { Parts } from '../components/new-sections/Parts.tsx';
 import { Layout, NightBand } from '../components/Layout.tsx';
 import { ConsoleFlow } from '../components/chapters/ConsoleFlow.tsx';
 import { Descent } from '../components/chapters/Descent.tsx';
@@ -46,7 +45,6 @@ export function Home({ ctx }: { ctx: PageContext }) {
         ctx={ctx}
         mid={
           <>
-            <Parts />
             <Motion />
           </>
         }
