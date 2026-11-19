@@ -39,10 +39,10 @@ export const LIMITS = {
   'html / page (max)': 12, // 10.1 changelog
   'html / doc (max)': 12, // 10.4 docs/configuring
   'js / entry (+ static imports)': 4, // 3.1
-  'js / lazy sky island': 25, // 24.4 with the scrubbed console timeline and the scrubbed camera waypoints (story/console.ts, lens.ts); // 23.0 with the copy script, the install scrub and the sizes walker (+1.5 KB over main); // 21.1 with the console camera (story/lens.ts, +1.5) on top of main's 18.8 + inner pages; // 18.8 (mount, progress, enhance-sky, footmark, and home-sections: size tabs, count-up, rail, typed terminals, 1.4 KB)
+  'js / lazy sky island': 26, // 25.1 with the console player (a beat clock started by the scroll, story/console.ts); // 24.4 with the scrubbed console timeline and the scrubbed camera waypoints (story/console.ts, lens.ts); // 23.0 with the copy script, the install scrub and the sizes walker (+1.5 KB over main); // 21.1 with the console camera (story/lens.ts, +1.5) on top of main's 18.8 + inner pages; // 18.8 (mount, progress, enhance-sky, footmark, and home-sections: size tabs, count-up, rail, typed terminals, 1.4 KB)
   // The first-visit splash (owner-chosen Cube loader, 2026-11-18): lazy, once per session, never with reduced motion.
   'js / lazy brand splash': 4, // 3.3
-  'js / all shipped scripts': 31, // 30.3 with the copy script and the scrubs; // 28.0 with the camera (+1.5 over main's 25.5, +inner pages); // 25.5; 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
+  'js / all shipped scripts': 32, // 31.8 with the console player and the splash letters; // 30.3 with the copy script and the scrubs; // 28.0 with the camera (+1.5 over main's 25.5, +inner pages); // 25.5; 22.4 with the splash (18.9 + 3.3 splash + 0.3 its gate in the entry)
   'css / all stylesheets': 35, // 34.2 with reading.css and the sizes/install rework; // 30.5: main's 27.7 plus styles/chosen.css (+1.8) and the outline wordmark; // 27.7; 24.3 before home-sections.css (3.4 KB: hill, rail, band, photo drift, reveal states)
   'images / lazy on home': 121, // 104.4 (three scene backdrops and the <picture> still)
   'search index': 43, // 37.0
