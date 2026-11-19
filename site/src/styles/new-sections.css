@@ -1,5 +1,5 @@
 /*
- * The four sections after the four-up features: the parts up close, the clips, the sizes compared, under the hood.
+ * The sections after the four-up features: the clip, the sizes compared, under the hood.
  * They sit straight on the page's flat ink (nothing behind a group of cards: only the screens, the table and the boxes
  * have surfaces). The screens and the table borrow the app's own console theme, quieter than the site's glass: the
  * console's near-black surfaces, one hairline and muted text. Only opacity and transform move; with reduced motion, or
@@ -29,15 +29,6 @@
 
 /* ── A screen: one framed window ─────────────────────────────────────────── */
 
-.ns-screen {
-  max-inline-size: 46rem;
-  margin-inline: auto;
-  background: var(--n-s1);
-  border: 1px solid var(--n-line);
-  border-radius: 0.9rem;
-  color: var(--n-fg);
-  overflow: hidden;
-}
 .ns-bar {
   display: flex;
   align-items: center;
@@ -118,56 +109,6 @@
 .ns-radio:focus-visible + label {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
-}
-
-@supports selector(:has(*)) {
-  .ns-tabbed:not(
-      :has(
-        .ns-tabwrap:nth-of-type(2) .ns-radio:checked,
-        .ns-tabwrap:nth-of-type(3) .ns-radio:checked,
-        .ns-tabwrap:nth-of-type(4) .ns-radio:checked
-      )
-    )
-    .ns-view:not(.ns-view-0),
-  .ns-tabbed:has(.ns-tabwrap:nth-of-type(2) .ns-radio:checked) .ns-view:not(.ns-view-1),
-  .ns-tabbed:has(.ns-tabwrap:nth-of-type(3) .ns-radio:checked) .ns-view:not(.ns-view-2),
-  .ns-tabbed:has(.ns-tabwrap:nth-of-type(4) .ns-radio:checked) .ns-view:not(.ns-view-3) {
-    display: none;
-  }
-  .ns-tabbed .ns-view {
-    animation: ns-in 0.3s var(--ease-out) both;
-  }
-}
-@keyframes ns-in {
-  from {
-    opacity: 0;
-  }
-}
-
-.ns-view {
-  padding: 1rem 1rem 0.35rem;
-}
-.ns-view + .ns-view {
-  border-block-start: 1px solid var(--n-line);
-}
-.ns-body {
-  min-block-size: 15.5rem;
-}
-.ns-cap {
-  margin: 0.9rem 0 0.65rem;
-  color: var(--n-mut);
-  font-size: var(--fs-small);
-}
-.ns-cap b {
-  color: var(--n-fg);
-  font-weight: 600;
-}
-.ns-note {
-  margin: 0;
-  padding: 0.7rem 1rem 0.85rem;
-  border-block-start: 1px solid var(--n-line);
-  color: var(--n-sub);
-  font-size: 0.8125rem;
 }
 
 /* ── The console's views, drawn small ────────────────────────────────────── */
@@ -292,11 +233,6 @@
   color: var(--n-fg);
   font-weight: 600;
 }
-.nv-doc code,
-.nv-term {
-  font-family: var(--n-mono);
-  font-size: 0.8125rem;
-}
 .nv-doc code {
   padding: 0.15rem 0.4rem;
   background: var(--n-s2);
@@ -314,42 +250,298 @@
   background: var(--n-s2);
   border-radius: 0.6rem;
 }
-.nv-term p {
-  margin: 0 0 0.35rem;
-}
-.nv-pr,
-.nv-ok {
-  color: var(--n-ok);
-}
 .nv-flip {
   display: inline-grid;
 }
 .nv-flip > * {
   grid-area: 1 / 1;
 }
-.nv-b {
-  opacity: 0;
+
+/* ── See it move: a faux screen recording ────────────────────────────────── */
+
+.cvp {
+  max-inline-size: 46rem;
+  margin: 0 auto;
 }
-
-/* ── The player: a centred play button over the stage ────────────────────── */
-
-.ns-stage {
+.cvp-stage {
+  position: relative;
+  border: 1px solid var(--n-line);
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: var(--n-s1);
+}
+/* the window is a picture: nothing in it takes a pointer or a key */
+.cv {
   position: relative;
   overflow: hidden;
-  border-radius: 0.6rem;
+  color: var(--n-fg);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
-.ns-stage .ns-body {
-  padding: 0.25rem;
+.cvp-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(9 9 12 / 38%);
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+.cvp[data-playing='false'] .cvp-stage::after {
+  opacity: 1;
+}
+.cv-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  border-block-end: 1px solid var(--n-line);
+}
+.cv-spin {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  border: 2px solid var(--n-line);
+  border-block-start-color: var(--n-mut);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s;
+  animation: cv-spin 0.8s linear infinite;
+}
+.cv[data-loading='1'] .cv-spin {
+  opacity: 1;
+}
+@keyframes cv-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+.cv-load {
+  block-size: 2px;
+  margin-block-start: -1px;
+}
+.cv-load i {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  background: var(--focus);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+.cv-nav {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  border-block-end: 1px solid var(--n-line);
+}
+.cv-nav span {
+  padding: 0.35rem 0.8rem;
+  border-radius: 0.5rem;
+  color: var(--n-mut);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.cv[data-tab='services'] [data-n='services'],
+.cv[data-tab='files'] [data-n='files'],
+.cv[data-tab='health'] [data-n='health'],
+.cv[data-tab='modules'] [data-n='modules'] {
+  background: rgb(255 255 255 / 9%);
+  color: var(--n-fg);
+}
+.cv[data-hover='files'] [data-n='files'],
+.cv[data-hover='health'] [data-n='health'],
+.cv[data-hover='modules'] [data-n='modules'] {
+  color: var(--n-fg);
+}
+.cv-body {
+  position: relative;
+  block-size: 20.5rem;
+}
+.cv-v {
+  position: absolute;
+  inset: 0;
+  padding: 0.9rem 1rem;
+  opacity: 0;
   transition: opacity 0.25s;
 }
-.ns-play {
+.cv[data-tab='services'] [data-v='services'],
+.cv[data-tab='files'] [data-v='files'],
+.cv[data-tab='health'] [data-v='health'],
+.cv[data-tab='modules'] [data-v='modules'] {
+  opacity: 1;
+}
+.cv-tool {
+  margin-block-end: 0.5rem;
+}
+.cv-field::after {
+  content: '';
+  display: inline-block;
+  inline-size: 1px;
+  block-size: 1.05em;
+  margin-inline-start: 1px;
+  background: currentcolor;
+  vertical-align: text-bottom;
+  opacity: 0;
+}
+.cv[data-focus='filter'] .f-filter::after,
+.cv[data-focus='cmd'] .cmd-t::after {
+  opacity: 1;
+  animation: cv-caret 1s steps(1) infinite;
+}
+@keyframes cv-caret {
+  50% {
+    opacity: 0;
+  }
+}
+.cvp[data-playing='false'] .cv-field::after {
+  animation-play-state: paused;
+}
+.f-filter {
+  display: inline-block;
+  min-inline-size: 11rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--n-line);
+  border-radius: 0.4rem;
+  font-size: 0.8125rem;
+  transition: border-color 0.2s;
+}
+.f-filter:empty::before {
+  content: attr(data-ph);
+  color: var(--n-sub);
+}
+.cv[data-focus='filter'] .f-filter {
+  border-color: var(--focus);
+}
+.cv .nv-t td {
+  padding-block: 0.3rem;
+}
+.cv .nv-t tr {
+  transition:
+    opacity 0.3s,
+    background-color 0.2s;
+}
+.cv[data-filt='1'] [data-v='services'] tbody tr:not(.nv-wiki) {
+  opacity: 0.28;
+}
+.cv[data-hl='wiki'] .nv-wiki,
+.cv[data-mod='1'] .nv-new {
+  background: rgb(255 255 255 / 6%);
+}
+.cv .nv-tile {
+  transition: border-color 0.25s;
+}
+.cv[data-hl='tile'] [data-tile='services'] {
+  border-color: rgb(255 255 255 / 32%);
+}
+.cv .sw {
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.cv .sw.on {
+  opacity: 1;
+}
+.nv-tree li {
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.nv-tree li[data-when].on {
+  background: rgb(255 255 255 / 9%);
+  color: var(--n-fg);
+}
+.nv-pill {
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+.nv-pill.on {
+  border-color: rgb(255 255 255 / 45%);
+  color: var(--n-fg);
+}
+.cv-dock {
+  min-block-size: 6rem;
+  padding: 0.7rem 1rem;
+  background: var(--n-s2);
+  border-block-start: 1px solid var(--n-line);
+  font-family: var(--n-mono);
+  font-size: 0.8125rem;
+}
+.cv-dock p {
+  margin: 0 0 0.25rem;
+}
+.cv-dock .cmd {
+  min-block-size: 1.3em;
+}
+.cv-dock .o {
+  opacity: 0;
+  translate: 0 4px;
+  transition:
+    opacity 0.2s,
+    translate 0.2s;
+}
+.cv-dock .o.on {
+  opacity: 1;
+  translate: 0;
+}
+.nv-pr,
+.nv-ok {
+  color: var(--n-ok);
+}
+.cv-cur {
+  position: absolute;
+  inset: 0 auto auto 0;
+  inline-size: 20px;
+  block-size: 24px;
+  z-index: 3;
+  opacity: 0;
+  will-change: transform;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%));
+}
+.cv[data-ready] .cv-cur {
+  opacity: 1;
+}
+.cv-cur svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  transform-origin: 2px 2px;
+  transition: scale 0.08s;
+}
+.cv-cur[data-press='1'] svg {
+  scale: 0.86;
+}
+.cv-cur i {
+  position: absolute;
+  inset: 2px auto auto 2px;
+  inline-size: 30px;
+  block-size: 30px;
+  margin: -15px 0 0 -15px;
+  border: 2px solid rgb(255 255 255 / 85%);
+  border-radius: 50%;
+  opacity: calc(min(var(--cp) * 24, 1) * (1 - var(--cp)));
+  transform: scale(calc(0.25 + var(--cp) * 1.1));
+}
+.cv-cur {
+  --cp: 0;
+}
+
+/* the play button: on the poster, and again whenever it is paused */
+.cvp-play {
   position: absolute;
   inset-block-start: 50%;
   inset-inline-start: 50%;
+  z-index: 4;
   display: grid;
   place-items: center;
-  inline-size: 3.75rem;
-  block-size: 3.75rem;
+  inline-size: 4rem;
+  block-size: 4rem;
   padding: 0;
   translate: -50% -50%;
   background: rgb(16 16 19 / 78%);
@@ -362,165 +554,161 @@
     scale 0.25s var(--ease-out),
     background-color 0.2s;
 }
-.ns-play[hidden] {
+.cvp-play[hidden] {
   display: none;
 }
-.ns-play svg {
-  inline-size: 1.15rem;
-  block-size: 1.15rem;
+.cvp-play svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-inline-start: 0.15rem;
   fill: currentcolor;
 }
-.ns-play .i-pause,
-.ns-stage[data-playing='true'] .i-play {
-  display: none;
-}
-.ns-stage[data-playing='true'] .i-pause {
-  display: block;
-}
-.ns-stage[data-playing='true'] .ns-play {
-  scale: 0.72;
-  opacity: 0.6;
-}
-.ns-play:hover,
-.ns-play:focus-visible {
+.cvp-play:hover {
   background: rgb(36 36 42 / 90%);
-  opacity: 1 !important;
+  scale: 1.06;
 }
-.ns-play:focus-visible {
+.cvp-play:focus-visible,
+.cvc-btn:focus-visible,
+.cvc-ch button:focus-visible,
+.cvc-bar:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
-.ns-prog {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: 0;
-  block-size: 3px;
-  background: var(--n-line);
+.cvp[data-playing='true'] .cvp-play {
+  opacity: 0;
+  pointer-events: none;
 }
-.ns-prog i {
-  display: block;
-  inline-size: 100%;
-  block-size: 100%;
-  background: var(--focus);
-  transform: scaleX(0);
-  transform-origin: 0 50%;
+.cvp[data-playing='true'] .cvp-stage {
+  cursor: default;
 }
-.ns-video {
+.cvp-video {
   display: block;
   inline-size: 100%;
   block-size: auto;
 }
-.ns-stage[data-video='true'] .ns-body,
-.ns-stage[data-video='true'] .ns-prog {
+.cvp[data-video='true'] .cv {
   display: none;
 }
-.ns-tx {
-  margin: 0 0 0.7rem;
-  color: var(--n-mut);
-  font-size: 0.875rem;
+
+/* video-style controls under the window */
+.cvc {
+  margin-block-start: 0.6rem;
 }
-.ns-tx summary {
+.cvc[hidden] {
+  display: none;
+}
+.cvc-bar {
+  position: relative;
+  block-size: 1.25rem;
   cursor: pointer;
+  touch-action: none;
+}
+.cvc-bar::before,
+.cvc-fill {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(50% - 2px);
+  block-size: 4px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 14%);
+}
+.cvc-fill {
+  background: var(--n-fg);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+.cvc-tick {
+  position: absolute;
+  inset-block-start: calc(50% - 4px);
+  inline-size: 3px;
+  block-size: 8px;
+  margin-inline-start: -1px;
+  background: var(--ink);
+}
+.cvc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-block-start: 0.15rem;
+}
+.cvc-btn {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--n-line);
+  border-radius: 50%;
+  color: var(--n-fg);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.cvc-btn:hover {
+  background: rgb(255 255 255 / 9%);
+}
+.cvc-btn svg {
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  fill: currentcolor;
+}
+.cvc-btn .i-pause,
+.cvp[data-playing='true'] .cvc-btn .i-play {
+  display: none;
+}
+.cvp[data-playing='true'] .cvc-btn .i-pause {
+  display: block;
+}
+.cvc-time {
+  color: var(--n-mut);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.cvc-ch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-inline-start: auto;
+}
+.cvc-ch button {
+  min-block-size: 2rem;
+  padding: 0.3rem 0.65rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0.5rem;
+  color: var(--n-mut);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.cvc-ch button:hover,
+.cvc-ch button[aria-current] {
   color: var(--n-fg);
 }
-.ns-tx summary:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+.cvc-ch button[aria-current] {
+  background: rgb(255 255 255 / 9%);
 }
-.ns-tx p {
-  margin: 0.4rem 0 0;
-  max-inline-size: 60ch;
+.cvp-cap {
+  margin: 0.9rem 0 0;
+  color: var(--n-mut);
+  font-size: var(--fs-small);
+  text-align: center;
 }
-
-/* the drawn preview runs only after a press, and holds while paused */
-.ns-stage[data-started='true'] [style*='--k'],
-.ns-stage[data-started='true'] .nv-sel,
-.ns-stage[data-started='true'] .nv-doc,
-.ns-stage[data-started='true'] .nv-a,
-.ns-stage[data-started='true'] .nv-b,
-.ns-stage[data-started='true'] .ns-prog i {
-  animation-duration: var(--len);
-  animation-fill-mode: both;
-  animation-play-state: running;
-}
-.ns-stage[data-started='true'][data-playing='false'] * {
-  animation-play-state: paused !important;
-}
-.ns-stage[data-started='true'] .nv-a {
-  animation-name: nv-a;
-}
-.ns-stage[data-started='true'] .nv-b {
-  animation-name: nv-b;
-}
-.ns-stage[data-started='true'] .nv-sel {
-  animation-name: nv-sel;
-}
-.ns-stage[data-started='true'] .nv-doc {
-  animation-name: nv-doc;
-}
-.ns-stage[data-started='true'] .ns-prog i {
-  animation-name: nv-prog;
-  animation-timing-function: linear;
-}
-.ns-stage[data-started='true'] .nv-term p {
-  animation-name: nv-line;
-  animation-duration: 0.35s;
-  animation-delay: calc(var(--k) * var(--len) / 11);
-}
-@keyframes nv-a {
-  0%,
-  45% {
-    opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  .cv *,
+  .cvp-play,
+  .cvp-stage::after {
+    transition: none !important;
   }
-  55%,
-  100% {
-    opacity: 0;
+  .cv-spin {
+    animation: none;
   }
 }
-@keyframes nv-b {
-  0%,
-  45% {
-    opacity: 0;
-  }
-  55%,
-  100% {
-    opacity: 1;
-  }
-}
-@keyframes nv-sel {
-  0%,
-  30% {
-    background: transparent;
-    color: var(--n-mut);
-  }
-  40%,
-  100% {
-    background: rgb(255 255 255 / 9%);
-    color: var(--n-fg);
-  }
-}
-@keyframes nv-doc {
-  0%,
-  40% {
-    opacity: 0.25;
-  }
-  55%,
-  100% {
-    opacity: 1;
-  }
-}
-@keyframes nv-prog {
-  to {
-    transform: scaleX(1);
-  }
-}
-@keyframes nv-line {
-  from {
-    opacity: 0;
-    translate: 0 6px;
-  }
-}
-
 /* ── The four sizes, compared ────────────────────────────────────────────── */
 
 .cmp {

@@ -142,7 +142,7 @@ if (footMark && 'IntersectionObserver' in window) {
 }
 
 // ── The clip player below the story: a lazy island, loaded when the section comes near ─
-const newSections = document.querySelector<HTMLElement>('[data-player]');
+const newSections = document.querySelector<HTMLElement>('[data-clip]');
 if (newSections && 'IntersectionObserver' in window) {
   const io = new IntersectionObserver(
     (es) => {
