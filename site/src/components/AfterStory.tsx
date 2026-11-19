@@ -23,7 +23,7 @@ function Photo({ src, children, drift }: { src: string; children: ReactNode; dri
   );
 }
 
-export function AfterStory({ ctx }: { ctx: PageContext }) {
+export function AfterStory({ ctx, mid, end }: { ctx: PageContext; mid?: ReactNode; end?: ReactNode }) {
   const a = ctx.t.after;
   const p = localePrefix(ctx.locale.code);
   const i = (n: number) => ({ '--i': n }) as CSSProperties;
@@ -176,6 +176,7 @@ export function AfterStory({ ctx }: { ctx: PageContext }) {
             </div>
           </article>
         </div>
+        {mid}
 
         <ul className="features" data-hs>
           {a.features.map((f, n) => (
@@ -190,6 +191,7 @@ export function AfterStory({ ctx }: { ctx: PageContext }) {
             </li>
           ))}
         </ul>
+        {end}
       </section>
     </div>
   );
