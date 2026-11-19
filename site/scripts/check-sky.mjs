@@ -261,15 +261,19 @@ async function runViewport(browser, base, name, vp, hours, o) {
       window.__sky.frame(6);
     }, h);
     await page.waitForLoadState('networkidle').catch(() => {});
-    // settle the finite animations only: a looping one (the photo windows' slow drift) never finishes, and waiting on
-    // it stalls the run until the job's time limit
+    // Settle the time-based animations only. A scroll-driven one (the clouds, the cards' drift) finishes only when the
+    // page is scrolled, so waiting for it never ends; and with no frame clock even a time-based one can stall, so the
+    // wait is capped (the same rule as scripts/screenshots.mjs).
     await page.evaluate(() =>
-      Promise.all(
-        document
-          .getAnimations()
-          .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
-          .map((a) => a.finished.catch(() => {})),
-      ),
+      Promise.race([
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a.timeline instanceof DocumentTimeline)
+            .map((a) => a.finished.catch(() => {})),
+        ),
+        new Promise((r) => setTimeout(r, 3000)),
+      ]),
     );
     await page.evaluate(() => window.__sky.frame(0));
     const sky = await page.evaluate(() => document.querySelector('[data-sky]').getBoundingClientRect().toJSON());

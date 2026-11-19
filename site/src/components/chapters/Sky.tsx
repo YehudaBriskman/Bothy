@@ -1,7 +1,9 @@
+import type { CSSProperties } from 'react';
 import { href } from '../../config.ts';
 import { localePrefix } from '../../i18n/locales.ts';
 import type { PageContext } from '../../page-context.ts';
 import { SkyControls } from '../../sky/SkyControls.tsx';
+import { Lockup } from '../Brand.tsx';
 import { InstallSplit } from '../InstallSplit.tsx';
 
 /**
@@ -24,9 +26,18 @@ export function Sky({ ctx }: { ctx: PageContext }) {
           {h.badge} <span aria-hidden="true">›</span>
         </a>
         <h1 id="sky-h" translate="no">
-          {h.heading}
+          <Lockup reuse />
         </h1>
-        <p className="ch-line">{h.line}</p>
+        <p className="ch-line">
+          {h.line.split(' ').map((w, i, all) => (
+            <span key={i}>
+              <span className="w" style={{ '--i': i } as CSSProperties}>
+                {w}
+              </span>
+              {i < all.length - 1 ? ' ' : null}
+            </span>
+          ))}
+        </p>
         <p className="ch-lede">{h.sub}</p>
         <div className="ch-actions">
           <InstallSplit ctx={ctx} label={h.primary} />

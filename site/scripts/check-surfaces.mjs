@@ -68,7 +68,7 @@ function probe(wrappers) {
   const name = (el) =>
     el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') + [...el.classList].map((c) => `.${c}`).join('');
   for (const el of document.querySelectorAll(wrappers)) {
-    if (el.closest('.end-cta, [data-story-dots], .story-end')) continue; // the band keeps its photo; the dots are UI
+    if (el.closest('.end-cta, [data-story-dots], .story-end, .site-nav')) continue; // the band keeps its photo; the dots and the header's capsule are UI
     if (el.closest('.card, .glass')) continue; // a card (even a <section> one) is a surface by design
     if (document.querySelector('[data-story]') && !(end && end.compareDocumentPosition(el) & 4)) continue;
     for (const pseudo of [null, '::before', '::after']) {
