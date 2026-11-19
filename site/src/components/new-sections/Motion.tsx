@@ -1,5 +1,5 @@
 import { ns } from '../../i18n/new-sections-en.ts';
-import { FilesView, HealthView, ModulesView, ServicesView } from './Views.tsx';
+import { ADDR, page } from '../../clip/views.ts';
 
 /**
  * A real recording, when there is one. null means "none yet": the section plays the scripted clip (new-sections.ts),
@@ -11,12 +11,6 @@ export const CLIP_FILE: { mp4: string; webm?: string } | null = null;
 
 const m = ns.motion;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
-const TABS = [
-  ['services', 'Services'],
-  ['files', 'Files'],
-  ['health', 'Health'],
-  ['modules', 'Modules'],
-] as const;
 
 /**
  * 22 See it move. A faux screen recording: a framed console window that plays a scripted clip (a cursor, typing, a
@@ -43,60 +37,44 @@ export function Motion() {
         data-webm={CLIP_FILE?.webm}
       >
         <div className="cvp-stage">
-          <div className="cv" data-tab="services" inert aria-hidden="true">
-            <div className="cv-bar">
+          <div className="cv" data-app="bothy" data-tab="services" inert aria-hidden="true">
+            <div className="cv-top">
               <span className="ns-dots">
                 <i />
                 <i />
                 <i />
               </span>
+              <span className="cv-tab on" data-h="tab-bothy">
+                Bothy
+              </span>
+              <span className="cv-tab" data-when="g2:1" data-h="tab-grafana">
+                Grafana
+              </span>
+              <span className="ns-badge">
+                <span className="sw on" data-when="app:bothy">
+                  {ns.example}
+                </span>
+                <span className="sw" data-when="app:grafana">
+                  {ns.clip.illustrative}
+                </span>
+              </span>
+            </div>
+            <div className="cv-addr" translate="no" dir="ltr">
+              <span className="cv-ic">&#8592; &#8594; &#8635;</span>
+              <span className="cv-url">
+                <span className="sw on" data-when="app:bothy">
+                  {ADDR.bothy}
+                </span>
+                <span className="sw" data-when="app:grafana">
+                  {ADDR.grafana}
+                </span>
+              </span>
               <span className="cv-spin" />
-              <span className="ns-badge">{ns.example}</span>
             </div>
             <div className="cv-load">
               <i />
             </div>
-            <div className="cv-nav">
-              {TABS.map(([id, name]) => (
-                <span key={id} data-n={id}>
-                  {name}
-                </span>
-              ))}
-            </div>
-            <div className="cv-body">
-              <div className="cv-v" data-v="services">
-                <ServicesView />
-              </div>
-              <div className="cv-v" data-v="files">
-                <FilesView />
-              </div>
-              <div className="cv-v" data-v="health">
-                <HealthView />
-              </div>
-              <div className="cv-v" data-v="modules">
-                <ModulesView />
-              </div>
-            </div>
-            <div className="cv-dock" translate="no" dir="ltr">
-              <p className="cmd">
-                <span className="nv-pr">$ </span>
-                <span
-                  className="cv-field cmd-t"
-                  data-type="bothy module add node-metrics"
-                  data-start="22.8"
-                  data-dur="2"
-                />
-              </p>
-              <p className="nv-dim o" data-at="25.2">
-                Requires edge: installed
-              </p>
-              <p className="nv-dim o" data-at="25.9">
-                Pulling node-exporter, checked against checksums.txt
-              </p>
-              <p className="nv-ok o" data-at="26.6">
-                Added node-metrics
-              </p>
-            </div>
+            <div className="cv-page" dangerouslySetInnerHTML={{ __html: page(false) }} />
             <span className="cv-cur">
               <i />
               <svg viewBox="0 0 20 24" aria-hidden="true">
@@ -138,6 +116,9 @@ export function Motion() {
             <span className="cvc-time">
               <span data-now>0:00</span> / {mmss(m.len)}
             </span>
+            <button type="button" className="cvc-btn cvc-spd" data-speed aria-label={m.speed}>
+              1×
+            </button>
             <span className="cvc-ch" role="group" aria-label={m.chapters}>
               {m.chapterList.map((c) => (
                 <button key={c.id} type="button" data-t={c.t}>

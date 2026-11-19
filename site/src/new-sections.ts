@@ -10,75 +10,41 @@
  * muted <video> and the same controls drive that instead.
  */
 
-type State = Record<string, string>;
-type Step = { t: number; s: State };
-type Move = { t0: number; t1: number; to: string; at?: [number, number] };
+import './styles/clip.css';
+import { ACTS, EXTRA, INIT, LEN, LOADS as LOADS_X, type State } from './clip/script.ts';
+import { page } from './clip/views.ts';
 
-/** The clip, in seconds. Chapters (Services 0, Notes 7, Health 14, Install 20) are in i18n/new-sections-en.ts. */
-const STEPS: Step[] = [
-  {
-    t: 0,
-    s: {
-      tab: 'services',
-      hover: '',
-      focus: '',
-      filt: '0',
-      hl: '',
-      svc: 'starting',
-      file: '0',
-      pill: '0',
-      stop: '0',
-      mod: '0',
-    },
-  },
-  { t: 2.0, s: { focus: 'filter' } },
-  { t: 3.3, s: { filt: '1', focus: '' } },
-  { t: 4.3, s: { hl: 'wiki' } },
-  { t: 5.7, s: { svc: 'up' } },
-  { t: 6.6, s: { hl: '', filt: '0' } },
-  { t: 7.9, s: { hover: 'files' } },
-  { t: 8.1, s: { tab: 'files', hover: '' } },
-  { t: 9.9, s: { file: '1' } },
-  { t: 11.8, s: { pill: '1' } },
-  { t: 13.5, s: { pill: '0' } },
-  { t: 14.9, s: { hover: 'health' } },
-  { t: 15.1, s: { tab: 'health', hover: '' } },
-  { t: 16.8, s: { hl: 'tile' } },
-  { t: 18.0, s: { stop: '1' } },
-  { t: 19.4, s: { hl: '' } },
-  { t: 20.9, s: { hover: 'modules' } },
-  { t: 21.1, s: { tab: 'modules', hover: '' } },
-  { t: 22.7, s: { focus: 'cmd' } },
-  { t: 25.0, s: { focus: '' } },
-  { t: 26.7, s: { mod: '1' } },
-];
-const MOVES: Move[] = [
-  { t0: 0.8, t1: 1.9, to: '.f-filter', at: [0.4, 0.5] },
-  { t0: 3.4, t1: 4.3, to: '[data-row=wiki] td', at: [0.3, 0.5] },
-  { t0: 7.0, t1: 7.9, to: '[data-n=files]' },
-  { t0: 8.9, t1: 9.8, to: '[data-f=first]', at: [0.4, 0.5] },
-  { t0: 10.6, t1: 11.7, to: '.nv-pill', at: [0.5, 0.6] },
-  { t0: 14.0, t1: 14.9, to: '[data-n=health]' },
-  { t0: 15.8, t1: 16.7, to: '[data-tile=services]', at: [0.5, 0.35] },
-  { t0: 18.3, t1: 19.3, to: '[data-tile=backup]', at: [0.6, 0.7] },
-  { t0: 20.0, t1: 20.9, to: '[data-n=modules]' },
-  { t0: 21.8, t1: 22.6, to: '.cmd', at: [0.2, 0.5] },
-  { t0: 26.9, t1: 27.9, to: '.cv-body', at: [0.92, 0.9] },
-];
-const CLICKS = [2.0, 4.4, 8.0, 9.9, 15.0, 21.0, 22.7];
+type Step = { t: number; s: State };
+type Move = { t0: number; t1: number; c: number; to: string; at: [number, number]; press: boolean };
+
+// The script (clip/script.ts) turned into the lists the painter walks: every step in time order, every pointer move,
+// every load. A press lands 0.12 s after the pointer arrives, so the target shows its hover state first.
+const MOVES: Move[] = ACTS.map((a) => ({
+  t0: a.t - 0.12 - (a.d ?? 0.9),
+  t1: a.t - 0.12,
+  c: a.t,
+  to: a.to,
+  at: a.at ?? [0.5, 0.5],
+  press: a.k !== false,
+}));
+const STEPS: Step[] = [{ t: -1, s: INIT }, ...ACTS.flatMap((a) => (a.s ? [{ t: a.t, s: a.s }] : [])), ...EXTRA].sort(
+  (x, y) => x.t - y.t,
+);
 const LOADS: [number, number][] = [
-  [4.5, 5.7],
-  [8.1, 8.7],
-  [15.1, 15.6],
-  [17.4, 18.0],
-  [21.1, 21.6],
-  [25.1, 26.6],
+  ...ACTS.flatMap((a): [number, number][] => (a.l ? [[a.t, a.t + a.l]] : [])),
+  ...LOADS_X,
 ];
-const START: [number, number] = [0.88, 0.5]; // where the cursor rests on the poster, as a fraction of the window
+const START: [number, number] = [0.9, 0.62]; // where the pointer rests on the poster, as a fraction of the window
+const SPIN = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
+const SPEEDS = [1, 1.5, 2];
 
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 const clamp = (x: number) => Math.min(1, Math.max(0, x));
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
+const pair = (v: string | undefined): [number, number] => {
+  const [a = '', b = ''] = (v ?? '').split(/[-,]/);
+  return [Number(a), b === '' ? Infinity : Number(b)];
+};
 
 type Conn = { saveData?: boolean };
 
@@ -91,42 +57,62 @@ function mountClip(fig: HTMLElement): void {
   const now = fig.querySelector<HTMLElement>('[data-now]');
   const cur = fig.querySelector<HTMLElement>('.cv-cur');
   const load = fig.querySelector<HTMLElement>('.cv-load i');
-  if (!win || !stage || !ctl || !bar || !fill || !now || !cur || !load) return;
-  const len = Number(fig.dataset.len) || 28;
+  const pg = fig.querySelector<HTMLElement>('.cv-page');
+  if (!win || !stage || !ctl || !bar || !fill || !now || !cur || !load || !pg) return;
+  const len = Number(fig.dataset.len) || LEN;
   const saveData = (navigator as Navigator & { connection?: Conn }).connection?.saveData === true;
+
+  // every page the clip visits, drawn once; the first frame (poster) was in the HTML
+  pg.innerHTML = page(true);
 
   // reveal the controls
   ctl.hidden = false;
   for (const b of fig.querySelectorAll<HTMLButtonElement>('.cvp-play')) b.hidden = false;
   const playBtns = [...fig.querySelectorAll<HTMLButtonElement>('[data-play]')];
   const chapters = [...fig.querySelectorAll<HTMLButtonElement>('.cvc-ch button')];
+  const spdBtn = fig.querySelector<HTMLButtonElement>('[data-speed]');
 
-  const typed = [...win.querySelectorAll<HTMLElement>('[data-type]')].map((el) => ({
+  const all = <T extends HTMLElement>(sel: string) => [...win.querySelectorAll<T>(sel)];
+  const typed = all('[data-type]').map((el) => ({
     el,
     text: el.dataset.type ?? '',
     start: Number(el.dataset.start),
     dur: Number(el.dataset.dur),
+    until: Number(el.dataset.until) || Infinity,
+    f: el.dataset.f ?? '',
   }));
-  const timed = [...win.querySelectorAll<HTMLElement>('[data-at]')].map((el) => ({ el, at: Number(el.dataset.at) }));
-  const whens = [...win.querySelectorAll<HTMLElement>('[data-when]')].map((el) => {
+  const timed = all('[data-at]').map((el) => ({ el, w: pair(el.dataset.at) }));
+  const draws = all('[data-draw]').map((el) => ({ el, w: pair(el.dataset.draw), p: -1 }));
+  const spins = all('[data-spin]').map((el) => ({ el, w: pair(el.dataset.spin) }));
+  const whens = all('[data-when]').map((el) => {
     const [k = '', v = ''] = (el.dataset.when ?? ':').split(':');
-    return { el, k, v };
+    return { el, k, vs: v.split(',') };
   });
+  const hovers = new Map<string, HTMLElement[]>();
+  for (const el of all('[data-h]')) hovers.set(el.dataset.h ?? '', [...(hovers.get(el.dataset.h ?? '') ?? []), el]);
+  const navs = all('[data-n]');
+  const views = all('[data-v]');
+  const pages = all('[data-pg]');
+  const tabs = all('.cv-tab');
 
-  // where the cursor goes, in px inside the window; measured again when the window changes size
-  let spots: { x: number; y: number }[] = [];
+  // where the pointer goes, in px inside the window. The target of the move in flight (and the one before it) is read
+  // again every frame, because drawers open and lists grow while it travels; a target that is not laid out keeps its
+  // last place.
   let home = { x: 0, y: 0 };
+  const spots: ({ x: number; y: number } | undefined)[] = [];
+  const spot = (i: number) => {
+    const m = MOVES[i];
+    const w = win.getBoundingClientRect();
+    const e = m && hovers.get(m.to)?.[0];
+    if (m && e && w.width) {
+      const r = e.getBoundingClientRect();
+      if (r.width) spots[i] = { x: r.left - w.left + r.width * m.at[0], y: r.top - w.top + r.height * m.at[1] };
+    }
+    return spots[i] ?? home;
+  };
   const measure = () => {
     const w = win.getBoundingClientRect();
-    if (!w.width) return;
-    home = { x: w.width * START[0], y: w.height * START[1] };
-    spots = MOVES.map((m) => {
-      const e = win.querySelector(m.to);
-      if (!e) return home;
-      const r = e.getBoundingClientRect();
-      const [fx, fy] = m.at ?? [0.5, 0.5];
-      return { x: r.left - w.left + r.width * fx, y: r.top - w.top + r.height * fy };
-    });
+    if (w.width) home = { x: w.width * START[0], y: w.height * START[1] };
   };
   new ResizeObserver(() => {
     measure();
@@ -135,6 +121,7 @@ function mountClip(fig: HTMLElement): void {
 
   let T = 0;
   let playing = false;
+  let speed = 1;
   let last = 0;
   let raf = 0;
   let video: HTMLVideoElement | null = null;
@@ -152,27 +139,61 @@ function mountClip(fig: HTMLElement): void {
         win!.dataset[k] = v;
       }
     }
-    for (const w of whens) w.el.classList.toggle('on', state[w.k] === w.v);
-    for (const a of timed) a.el.classList.toggle('on', t >= a.at);
+    for (const w of whens) w.el.classList.toggle('on', w.vs.includes(state[w.k] ?? ''));
+    for (const n of navs) n.classList.toggle('on', n.dataset.n === state.tab);
+    for (const n of views) n.classList.toggle('on', n.dataset.v === state.tab);
+    for (const n of pages) n.classList.toggle('on', n.dataset.pg === state.app);
+    for (const n of tabs) n.classList.toggle('on', (n.dataset.h === 'tab-grafana') === (state.app === 'grafana'));
+    for (const a of timed) a.el.classList.toggle('on', t >= a.w[0] && t < a.w[1]);
     for (const f of typed) {
-      const n = Math.round(f.text.length * clamp((t - f.start) / f.dur));
+      const n = t >= f.until ? 0 : Math.round(f.text.length * clamp((t - f.start) / f.dur));
       const s = f.text.slice(0, n);
       if (f.el.textContent !== s) f.el.textContent = s;
+      f.el.classList.toggle('fc', state.foc === f.f);
     }
-    // the cursor: the last move that has begun, eased from where the one before it ended
-    let p = home;
-    for (const [i, m] of MOVES.entries()) {
-      if (t < m.t0) break;
-      const from = p;
-      p = spots[i] ?? home;
-      if (t < m.t1) {
-        const k = ease((t - m.t0) / (m.t1 - m.t0));
-        p = { x: from.x + (p.x - from.x) * k, y: from.y + (p.y - from.y) * k };
-        break;
+    for (const d of draws) {
+      const p = Math.round(clamp((t - d.w[0]) / (d.w[1] - d.w[0])) * 200) / 200;
+      if (p !== d.p) {
+        d.p = p;
+        d.el.style.setProperty('--d', String(p));
       }
     }
+    for (const s of spins) {
+      const f = t >= s.w[0] && t < s.w[1] ? (SPIN[Math.floor(t * 12) % SPIN.length] ?? '') : '';
+      if (s.el.textContent !== f) s.el.textContent = f;
+    }
+    // the pointer: the last move that has begun, along a curve from where the one before it ended
+    let i = -1;
+    for (const [j, m] of MOVES.entries()) {
+      if (t < m.t0) break;
+      i = j;
+    }
+    let p = home;
+    let rest = '';
+    const m = MOVES[i];
+    if (m) {
+      const to = spot(i);
+      const from = i > 0 ? spot(i - 1) : home;
+      if (t < m.t1) {
+        const k = ease((t - m.t0) / (m.t1 - m.t0));
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const bend = Math.min(0.22, 40 / Math.max(1, Math.hypot(dx, dy)) + 0.08) * (i % 2 ? 1 : -1);
+        const cx = from.x + dx / 2 - dy * bend;
+        const cy = from.y + dy / 2 + dx * bend;
+        p = {
+          x: (1 - k) ** 2 * from.x + 2 * (1 - k) * k * cx + k * k * to.x,
+          y: (1 - k) ** 2 * from.y + 2 * (1 - k) * k * cy + k * k * to.y,
+        };
+      } else {
+        p = to;
+        if (t < m.c + 0.5) rest = m.to;
+        else if (!MOVES[i + 1] || t < MOVES[i + 1]!.t0) rest = '';
+      }
+    }
+    for (const [id, els] of hovers) for (const e of els) e.classList.toggle('hv', id === rest);
     let press = 0;
-    for (const c of CLICKS) if (t >= c && t - c < 0.5) press = (t - c) / 0.5;
+    for (const x of MOVES) if (x.press && t >= x.c && t - x.c < 0.5) press = (t - x.c) / 0.5;
     const cs = `${p.x.toFixed(1)}|${p.y.toFixed(1)}|${press.toFixed(2)}`;
     if (sig.cur !== cs) {
       sig.cur = cs;
@@ -211,7 +232,7 @@ function mountClip(fig: HTMLElement): void {
     if (!playing) return;
     if (video) T = video.currentTime;
     else {
-      T += (ts - last) / 1000;
+      T += ((ts - last) / 1000) * speed;
       last = ts;
       if (T >= len) T -= len; // a video on loop: back to the first frame, still playing
     }
@@ -251,6 +272,8 @@ function mountClip(fig: HTMLElement): void {
     if (video) video.currentTime = T;
     last = performance.now();
     paint(T);
+    // a drawer or a list that was mid-transition when the pointer was placed: place it again once they have settled
+    if (!playing) setTimeout(() => paint(T), 450);
   };
   const toggle = () => {
     start();
@@ -295,6 +318,11 @@ function mountClip(fig: HTMLElement): void {
     else return;
     e.preventDefault();
   });
+  spdBtn?.addEventListener('click', () => {
+    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length] ?? 1;
+    spdBtn.textContent = `${speed}×`;
+    if (video) video.playbackRate = speed;
+  });
   for (const b of chapters) b.addEventListener('click', () => seek(Number(b.dataset.t)));
 
   new IntersectionObserver((es) => {
@@ -303,6 +331,7 @@ function mountClip(fig: HTMLElement): void {
 
   measure();
   paint(0, true);
+  setTimeout(() => paint(T, true), 450);
   win.dataset.ready = 'true';
 }
 
