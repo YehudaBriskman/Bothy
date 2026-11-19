@@ -6,6 +6,12 @@
  * with no script, every section is simply there in its final state.
  */
 
+/* flat ink, like .after-story: the story's fixed sky stage is behind the page and must not show through */
+.more-story {
+  position: relative;
+  isolation: isolate;
+  background: var(--ink);
+}
 .nsec {
   --n-s1: #101013;
   --n-s2: #17171a;
@@ -117,15 +123,15 @@
 @supports selector(:has(*)) {
   .ns-tabbed:not(
       :has(
-        .ns-tabwrap:nth-child(2) .ns-radio:checked,
-        .ns-tabwrap:nth-child(3) .ns-radio:checked,
-        .ns-tabwrap:nth-child(4) .ns-radio:checked
+        .ns-tabwrap:nth-of-type(2) .ns-radio:checked,
+        .ns-tabwrap:nth-of-type(3) .ns-radio:checked,
+        .ns-tabwrap:nth-of-type(4) .ns-radio:checked
       )
     )
     .ns-view:not(.ns-view-0),
-  .ns-tabbed:has(.ns-tabwrap:nth-child(2) .ns-radio:checked) .ns-view:not(.ns-view-1),
-  .ns-tabbed:has(.ns-tabwrap:nth-child(3) .ns-radio:checked) .ns-view:not(.ns-view-2),
-  .ns-tabbed:has(.ns-tabwrap:nth-child(4) .ns-radio:checked) .ns-view:not(.ns-view-3) {
+  .ns-tabbed:has(.ns-tabwrap:nth-of-type(2) .ns-radio:checked) .ns-view:not(.ns-view-1),
+  .ns-tabbed:has(.ns-tabwrap:nth-of-type(3) .ns-radio:checked) .ns-view:not(.ns-view-2),
+  .ns-tabbed:has(.ns-tabwrap:nth-of-type(4) .ns-radio:checked) .ns-view:not(.ns-view-3) {
     display: none;
   }
   .ns-tabbed .ns-view {
@@ -543,6 +549,7 @@
 .cmp-t {
   inline-size: 100%;
   min-inline-size: 46rem;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.875rem;
   text-align: start;
@@ -559,7 +566,7 @@
   border-block-start: 1px solid var(--n-line);
 }
 .cmp-t th[scope='row'] {
-  inline-size: 24%;
+  inline-size: 20%;
   color: var(--n-mut);
   font-weight: 400;
 }

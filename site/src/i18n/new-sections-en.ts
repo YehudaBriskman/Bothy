@@ -41,7 +41,7 @@ export const ns = {
         len: 8,
         cap: 'Bothy asks Docker what is running and lists it. A starting service turns up on its own.',
         script:
-          'The Services table shows six rows: three notes services up, the wiki starting, a dev server unknown and a nightly backup stopped. The pointer moves to the wiki row. Its state changes from starting to up.',
+          'The Services table shows seven rows: four notes services up, the wiki starting, a dev server unknown and a nightly backup stopped. The pointer moves to the wiki row. Its state changes from starting to up.',
       },
       {
         id: 'files',
