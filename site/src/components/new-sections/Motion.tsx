@@ -1,36 +1,30 @@
-import type { CSSProperties } from 'react';
 import { ns } from '../../i18n/new-sections-en.ts';
-import { FilesView, OverviewView, ServicesView, TerminalView } from './Views.tsx';
+import { FilesView, HealthView, ModulesView, ServicesView } from './Views.tsx';
 
 /**
- * Where the owner's recorded clips go. Each id maps to the files in public/video/ once they exist; null means "no
- * recording yet", and the stage shows a drawn preview of the same script instead. Rules for a recording are in
- * public/video/README.md (silent, 6 to 12 s, 500 KB a clip, poster is the real last frame). The island starts a clip
- * only when the visitor presses play, never when Save-Data is on, and never before the press.
+ * A real recording, when there is one. null means "none yet": the section plays the scripted clip (new-sections.ts),
+ * which is what the page shows today. When the files exist, put them in public/video/, point this at them and the
+ * player plays the recording instead, with the same controls and chapters (see public/video/README.md). Nothing is
+ * downloaded before a press on play, and never with Save-Data on.
  */
-export const CLIP_FILES: Record<string, { mp4: string; webm?: string } | null> = {
-  services: null,
-  files: null,
-  health: null,
-  install: null,
-};
+export const CLIP_FILE: { mp4: string; webm?: string } | null = null;
 
-const STAGES = [
-  <ServicesView key="s" flip />,
-  <FilesView key="f" walk />,
-  <OverviewView key="o" flip />,
-  <TerminalView key="t" />,
-];
-const mmss = (s: number) => `0:${String(s).padStart(2, '0')}`;
+const m = ns.motion;
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
+const TABS = [
+  ['services', 'Services'],
+  ['files', 'Files'],
+  ['health', 'Health'],
+  ['modules', 'Modules'],
+] as const;
 
 /**
- * 22 See it in motion. One player with four chapters (real radio tabs, so the chapters work with no script), a
- * poster shown until the visitor presses the centred play button, and for every clip a caption and a transcript.
- * The play button is hidden until the lazy script mounts and un-hides it: without it the poster, caption and transcript
- * are the content. Nothing autoplays, so reduced motion and Save-Data need no special case beyond "poster only".
+ * 22 See it move. A faux screen recording: a framed console window that plays a scripted clip (a cursor, typing, a
+ * load, tab changes) on its own timeline, with a video player's controls under it. Everything inside the window is
+ * inert, like pixels in a video; only the controls work. The page without script shows the first frame, a one-line
+ * caption and a transcript; the play button and controls appear when the lazy script has mounted. Nothing autoplays.
  */
 export function Motion() {
-  const m = ns.motion;
   return (
     <section id="motion" className="section nsec" aria-labelledby="motion-h">
       <header className="section-head reveal">
@@ -38,73 +32,124 @@ export function Motion() {
         <h2 id="motion-h">{m.heading}</h2>
         <p className="lede">{m.lede}</p>
       </header>
-      <div className="ns-screen ns-tabbed ns-player reveal" data-n="4" data-player>
-        <div className="ns-bar">
-          <span className="ns-dots" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
-          <span className="ns-badge">{ns.example}</span>
-        </div>
-        <fieldset className="ns-tabs">
-          <legend className="visually-hidden">{m.tabsLabel}</legend>
-          {m.clips.map((c, i) => (
-            <span key={c.id} className="ns-tabwrap">
-              <input type="radio" name="clip" id={`mc-${i}`} defaultChecked={i === 0} className="ns-radio" />
-              <label htmlFor={`mc-${i}`}>
-                {c.name} <small>{mmss(c.len)}</small>
-              </label>
-            </span>
-          ))}
-        </fieldset>
-        {m.clips.map((c, i) => {
-          const f = CLIP_FILES[c.id];
-          return (
-            <div key={c.id} className={`ns-view ns-view-${i}`}>
-              <div
-                className="ns-stage"
-                data-clip={c.id}
-                data-playing="false"
-                data-mp4={f?.mp4}
-                data-webm={f?.webm}
-                style={{ '--len': `${c.len}s` } as CSSProperties}
-              >
-                <div className="ns-body" aria-hidden="true">
-                  {STAGES[i]}
-                </div>
-                <button
-                  type="button"
-                  className="ns-play"
-                  hidden
-                  data-play
-                  data-label-play={`${m.play} ${c.name}`}
-                  data-label-pause={`${m.pause} ${c.name}`}
-                  aria-label={`${m.play} ${c.name}`}
-                >
-                  <svg className="i-play" viewBox="0 0 14 14" aria-hidden="true">
-                    <path d="M3 1.5v11l9.5-5.5z" />
-                  </svg>
-                  <svg className="i-pause" viewBox="0 0 14 14" aria-hidden="true">
-                    <path d="M3 1.5h3v11H3zM8 1.5h3v11H8z" />
-                  </svg>
-                </button>
-                <span className="ns-prog" aria-hidden="true">
-                  <i />
-                </span>
-              </div>
-              <p className="ns-cap">
-                <b>{c.name}.</b> {c.cap}
-              </p>
-              <details className="ns-tx">
-                <summary>{m.transcript}</summary>
-                <p>{c.script}</p>
-              </details>
+      <figure
+        className="cvp reveal"
+        data-clip=""
+        data-playing="false"
+        data-len={m.len}
+        data-label-play={m.play}
+        data-label-pause={m.pause}
+        data-mp4={CLIP_FILE?.mp4}
+        data-webm={CLIP_FILE?.webm}
+      >
+        <div className="cvp-stage">
+          <div className="cv" data-tab="services" inert aria-hidden="true">
+            <div className="cv-bar">
+              <span className="ns-dots">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className="cv-spin" />
+              <span className="ns-badge">{ns.example}</span>
             </div>
-          );
-        })}
-        <p className="ns-note">{m.note}</p>
-      </div>
+            <div className="cv-load">
+              <i />
+            </div>
+            <div className="cv-nav">
+              {TABS.map(([id, name]) => (
+                <span key={id} data-n={id}>
+                  {name}
+                </span>
+              ))}
+            </div>
+            <div className="cv-body">
+              <div className="cv-v" data-v="services">
+                <ServicesView />
+              </div>
+              <div className="cv-v" data-v="files">
+                <FilesView />
+              </div>
+              <div className="cv-v" data-v="health">
+                <HealthView />
+              </div>
+              <div className="cv-v" data-v="modules">
+                <ModulesView />
+              </div>
+            </div>
+            <div className="cv-dock" translate="no" dir="ltr">
+              <p className="cmd">
+                <span className="nv-pr">$ </span>
+                <span
+                  className="cv-field cmd-t"
+                  data-type="bothy module add node-metrics"
+                  data-start="22.8"
+                  data-dur="2"
+                />
+              </p>
+              <p className="nv-dim o" data-at="25.2">
+                Requires edge: installed
+              </p>
+              <p className="nv-dim o" data-at="25.9">
+                Pulling node-exporter, checked against checksums.txt
+              </p>
+              <p className="nv-ok o" data-at="26.6">
+                Added node-metrics
+              </p>
+            </div>
+            <span className="cv-cur">
+              <i />
+              <svg viewBox="0 0 20 24" aria-hidden="true">
+                <path d="M2 1.5v18l4.6-4.3 3.1 7 3-1.3-3.1-6.9H16z" />
+              </svg>
+            </span>
+          </div>
+          <button type="button" className="cvp-play" hidden data-play aria-label={m.play}>
+            <svg viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M3 1.5v11l9.5-5.5z" />
+            </svg>
+          </button>
+        </div>
+        <div className="cvc" hidden>
+          <div
+            className="cvc-bar"
+            role="slider"
+            tabIndex={0}
+            aria-label={m.scrub}
+            aria-valuemin={0}
+            aria-valuemax={m.len}
+            aria-valuenow={0}
+            aria-valuetext={`0:00 / ${mmss(m.len)}`}
+          >
+            <i className="cvc-fill" />
+            {m.chapterList.slice(1).map((c) => (
+              <span key={c.id} className="cvc-tick" style={{ insetInlineStart: `${(c.t / m.len) * 100}%` }} />
+            ))}
+          </div>
+          <div className="cvc-row">
+            <button type="button" className="cvc-btn" data-play aria-label={m.play}>
+              <svg className="i-play" viewBox="0 0 14 14" aria-hidden="true">
+                <path d="M3 1.5v11l9.5-5.5z" />
+              </svg>
+              <svg className="i-pause" viewBox="0 0 14 14" aria-hidden="true">
+                <path d="M3 1.5h3v11H3zM8 1.5h3v11H8z" />
+              </svg>
+            </button>
+            <span className="cvc-time">
+              <span data-now>0:00</span> / {mmss(m.len)}
+            </span>
+            <span className="cvc-ch" role="group" aria-label={m.chapters}>
+              {m.chapterList.map((c) => (
+                <button key={c.id} type="button" data-t={c.t}>
+                  {c.name}
+                </button>
+              ))}
+            </span>
+          </div>
+        </div>
+        <figcaption className="cvp-cap">{m.caption}</figcaption>
+        <p className="visually-hidden">{m.transcript}</p>
+      </figure>
     </section>
   );
 }
