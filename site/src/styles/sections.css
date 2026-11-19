@@ -398,3 +398,156 @@
       transform 0.8s var(--ease-out) calc(var(--i, 0) * 60ms);
   }
 }
+
+/* ── The app mocks are live: their controls work, locally, and do nothing real (src/mocks.ts) ───────────── */
+
+.mk-bar {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0 0 0.4rem;
+}
+.mk-bar-end {
+  justify-content: flex-end;
+  margin: 0.5rem 0 0;
+}
+.mk-input {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 2.25rem;
+  padding: 0.3rem 0.65rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: rgb(255 255 255 / 8%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+.mk-input::placeholder {
+  color: rgb(244 245 248 / 60%);
+}
+.mk-input:focus-visible,
+.mk-btn:focus-visible,
+.mk-row:focus-visible,
+.mk-check:has(:focus-visible),
+.mk-sw:has(:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.mk-btn {
+  min-block-size: 2.25rem;
+  padding: 0.3rem 0.85rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: rgb(255 255 255 / 12%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 16%);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.15s var(--ease-out),
+    transform 0.15s var(--ease-out);
+}
+.mk-btn[hidden] {
+  display: none;
+}
+.mk-btn:hover {
+  background: rgb(255 255 255 / 20%);
+}
+.mk-btn:active,
+.mk-btn.is-pressed {
+  background: rgb(255 255 255 / 28%);
+  transform: scale(0.97);
+}
+/* a row that can be picked fills its list item, so the whole row is the target */
+.mini li:has(> .mk-row),
+.mini li:has(> .mk-sw),
+.mini li:has(> .mk-check) {
+  padding: 0;
+}
+.mk-row,
+.mk-sw,
+.mk-check {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-block-size: 2.25rem;
+  min-inline-size: 0;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 0.15s var(--ease-out);
+}
+.mk-row:hover,
+.mk-sw:hover,
+.mk-check:hover {
+  background: rgb(255 255 255 / 9%);
+}
+.mk-row:active {
+  background: rgb(255 255 255 / 16%);
+}
+.mk-row[aria-pressed='true'] {
+  background: rgb(255 213 138 / 16%);
+  box-shadow: inset 0 0 0 1px rgb(255 213 138 / 45%);
+}
+.mini li.is-ping .dot {
+  animation: mk-ping 0.7s var(--ease-out);
+}
+@keyframes mk-ping {
+  from {
+    box-shadow: 0 0 0 0 rgb(143 227 191 / 70%);
+  }
+  to {
+    box-shadow: 0 0 0 10px rgb(143 227 191 / 0%);
+  }
+}
+.mk-empty {
+  margin: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+  color: rgb(244 245 248 / 70%);
+}
+.mk-empty[hidden],
+.mini li[hidden] {
+  display: none;
+}
+/* real inputs, drawn as the switch and the tick; the input itself stays in place and takes the focus */
+.mk-switch,
+.mk-check input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  margin: 0;
+}
+.mk-sw,
+.mk-check {
+  position: relative;
+}
+.mk-switch:checked ~ .switch {
+  background: var(--ok-ink);
+}
+.mk-switch:checked ~ .switch::after {
+  inset-inline-start: 1rem;
+}
+.switch,
+.switch::after {
+  transition:
+    background-color 0.15s var(--ease-out),
+    inset-inline-start 0.15s var(--ease-out);
+}
+.mk-check input:not(:checked) ~ .tick {
+  background: rgb(255 255 255 / 8%);
+  color: transparent;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 40%);
+}
+.mk-check input:not(:checked) ~ .grow {
+  opacity: 0.55;
+}

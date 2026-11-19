@@ -357,6 +357,18 @@ export const en = {
     heading: 'A small console, kept honest.',
     lede: 'This is what Bivvy, the size that installs today, gives you. The panels inside the pictures are examples, not your machine.',
     example: 'Example',
+    mock: {
+      filter: 'Filter services',
+      refresh: 'Refresh',
+      refreshed: 'Example only: nothing was refreshed.',
+      noMatch: 'No service matches.',
+      picked: (name: string, state: string) => `${name}: ${state}. Example data.`,
+      opened: (name: string) => `${name} selected. Example only: nothing was read from a disk.`,
+      writeOn: 'Writing is on. Example only: the real reader never writes.',
+      checksOn: '{n} of {t} checks on. Example only.',
+      rerun: 'Run again',
+      rerunLabel: 'Run the example dry run again',
+    },
     overview: {
       title: 'One page for the machine',
       lead: '**See what is running.** Bothy asks Docker what is up and shows it on one page, with nothing to register by hand.',

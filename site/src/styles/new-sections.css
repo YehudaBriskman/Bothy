@@ -821,3 +821,66 @@
     background: var(--focus);
   }
 }
+
+/* ── The comparison and the diagram answer to touch, too (src/mocks.ts) ───────────────────────────────── */
+
+.cmp-lab {
+  display: block;
+  cursor: pointer;
+}
+.cmp-t thead th:hover .cmp-n {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.cmp-t tbody tr:hover > td,
+.cmp-t tbody tr:hover > th[scope='row'] {
+  background: rgb(255 255 255 / 4%);
+}
+.cmp-t thead th:has(.cmp-lab) {
+  position: relative;
+}
+.hn {
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease-out),
+    opacity 0.2s var(--ease-out),
+    background-color 0.2s var(--ease-out);
+}
+.hn:hover {
+  border-color: rgb(255 255 255 / 34%);
+}
+.hn-trace {
+  position: absolute;
+  inset-block-start: 0.6rem;
+  inset-inline-end: 0.7rem;
+  min-block-size: 1.5rem;
+  padding: 0 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--n-line);
+  color: var(--n-sub);
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hn-trace:hover {
+  color: var(--n-fg);
+}
+.hn-trace:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.hn.is-pick {
+  border-color: var(--focus);
+  background: rgb(255 213 138 / 8%);
+}
+.hn.is-pick .hn-trace {
+  color: #1a1304;
+  background: var(--focus);
+  box-shadow: none;
+}
+.hood.has-pick .hn:not(.is-pick) {
+  opacity: 0.45;
+}

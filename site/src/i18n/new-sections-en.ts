@@ -100,6 +100,7 @@ export const ns = {
     eyebrow: 'Under the hood',
     heading: 'One system, from the door down.',
     lede: 'Scroll down it. Each box carries one fact, taken from our lab record or from the repository.',
+    trace: 'Highlight',
     note: 'How the console learns what is running from Docker is not drawn: it is not confirmed for the installed size yet.',
     nodes: {
       browser: {

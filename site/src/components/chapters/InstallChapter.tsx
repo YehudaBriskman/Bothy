@@ -78,6 +78,7 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
             role="group"
             aria-label={i.terminalLabel}
             data-scrub-demo
+            data-mock="install"
             style={{ '--i': 2 } as CSSProperties}
           >
             <figcaption>

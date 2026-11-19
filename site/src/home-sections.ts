@@ -373,7 +373,9 @@ if (!reduced && canObserve) {
       } else ln.classList.add('hs-wait');
     }
     run.classList.add('hs-pre');
+    let gen = 0;
     const play = async () => {
+      const g = ++gen;
       let first = true;
       for (const ln of lines) {
         const ty = typed.get(ln);
@@ -382,20 +384,38 @@ if (!reduced && canObserve) {
           first = false;
           const step = Math.min(45, 1400 / Math.max(1, ty.text.length));
           for (let n = 1; n <= ty.text.length; n++) {
+            if (g !== gen) return;
             ty.head.data = ty.text.slice(0, n);
             ty.rest.textContent = ty.text.slice(n);
             await wait(step);
           }
         } else {
           await wait(rows.length ? 350 : 300);
+          if (g !== gen) return;
           ln.classList.remove('hs-wait');
           rows[Number(ln.dataset.out)]?.classList.add('is-on');
         }
       }
       await wait(300);
+      if (g !== gen) return;
       run.classList.remove('hs-pre');
       foot?.classList.add('is-on');
     };
+    // "Run again" (src/mocks.ts asks with an event): put everything back to its start and play the run once more
+    run.addEventListener('mk:rerun', () => {
+      gen++;
+      for (const ln of lines) {
+        const ty = typed.get(ln);
+        if (ty) {
+          ty.head.data = '';
+          ty.rest.textContent = ty.text;
+        } else ln.classList.add('hs-wait');
+      }
+      for (const r of rows) r.classList.remove('is-on');
+      foot?.classList.remove('is-on');
+      run.classList.add('hs-pre');
+      void play();
+    });
     const once = new IntersectionObserver(
       (es) => {
         if (!es.some((e) => e.isIntersecting)) return;
