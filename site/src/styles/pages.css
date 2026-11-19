@@ -11,7 +11,8 @@
   inset-inline: 0;
   inset-block-start: 0;
   z-index: -1;
-  block-size: min(46rem, 90vh);
+  /* short enough to fade out above the first group of cards: the light is behind the page's title, never a group */
+  block-size: min(26rem, 60vh);
   pointer-events: none;
   background:
     radial-gradient(60% 70% at 50% -10%, rgb(120 132 196 / 20%), transparent 70%),

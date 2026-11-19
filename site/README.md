@@ -30,6 +30,7 @@ browser ones in `.github/workflows/site-browser.yml`.
 | `npm run check:dist` | `verify-dist.sh`, `check:meta` and `check:budgets` in one go | - |
 | `npm run check:story` | Chromium: the console demo plays from real wheel, key and touch scrolling at seven viewports, with WebGL off, the sky blocked and reduced motion | `site-browser.yml`, when `src/story`, `src/sky`, `src/console`, `src/styles`, Home, the stills or the lockfile changed (`ci-changes.sh site-browser`), nightly, by hand |
 | `npm run check:sky` | Chromium: WCAG 2.2 and APCA contrast of every text element over the sky, from pixels, 8 hours x desktop and phone (`check:sky:full`: 48 hours) | as above; table uploaded as `site-contrast` |
+| `npm run check:a11y` | Chromium: axe-core (serious/critical fail) on every page at 1440 and 390, text contrast outside the story, 320px reflow | as above, and also when a component or page changed |
 | `npm run screenshots` | Not a gate. Home at 06:30, 13:00 and 22:00 plus Install and the docs index, desktop and phone, into `.screenshots/` | every site change, uploaded as `site-screenshots`; never blocks |
 
 The browser checks need a Chromium: playwright-core's own (`npx playwright-core install --only-shell chromium`) or

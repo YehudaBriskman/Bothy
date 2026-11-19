@@ -2,6 +2,7 @@
 #
 #   checks       check:story (the console demo plays from real scrolling, at
 #                seven viewports and with WebGL off, sky blocked, reduced motion)
+#                and check:a11y (axe, contrast outside the story, 320px reflow)
 #                and check:sky (pixel-sampled WCAG and APCA contrast of every
 #                text element over the sky, 8 hours x desktop and phone). Blocking.
 #   screenshots  Home at 06:30, 13:00 and 22:00 plus Install and the docs index,
@@ -79,9 +80,17 @@ jobs:
       - name: check:story - the console demo plays from real scrolling
         run: npm run check:story
 
+      - name: check:surfaces - nothing paints behind a group of cards below the story
+        if: always()
+        run: npm run check:surfaces
+
       - name: check:sky - text contrast over the sky, from pixels
         if: always()
         run: npm run check:sky -- --no-stills
+
+      - name: check:a11y - axe, text contrast outside the story, 320px reflow
+        if: always()
+        run: npm run check:a11y
 
       - name: Keep the contrast table
         if: always()
