@@ -18,7 +18,8 @@ live.setAttribute('role', 'status');
 document.body.append(live);
 
 const textOf = (b: HTMLElement): { text: string; node: Element | null } => {
-  if (b.dataset.copy != null) return { text: b.dataset.copy, node: b.parentElement?.querySelector('pre, code') ?? null };
+  if (b.dataset.copy != null)
+    return { text: b.dataset.copy, node: b.parentElement?.querySelector('pre, code') ?? null };
   const host = b.closest<HTMLElement>('[data-copy-text]');
   if (host?.dataset.copyText != null) return { text: host.dataset.copyText, node: host.querySelector('pre, code') };
   const pre = b.closest('.code')?.querySelector('pre') ?? null;

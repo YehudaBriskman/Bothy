@@ -100,7 +100,11 @@ export function Layout({
           </div>
         </div>
       </header>
-      <main id="main" tabIndex={-1} data-copy-idle={t.home.hero.copy} data-copied={t.home.hero.copied}
+      <main
+        id="main"
+        tabIndex={-1}
+        data-copy-idle={t.home.hero.copy}
+        data-copied={t.home.hero.copied}
         data-copy-label={t.home.hero.copyLabel}
         data-copy-fail={t.home.hero.copyFail}
       >

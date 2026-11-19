@@ -252,6 +252,7 @@ export const en = {
       lead: 'Once you have the `bothy` file, `bothy install` is the whole job. These are the four commands, in order.',
       terminalLabel: 'The whole install, as typed',
       steps: ['Download the archive.', 'Put it on your path.', 'Read the plan.', 'Install.'],
+      done: 'Done',
       stepsLabel: 'The four steps',
       termOut: [
         'saved the archive',

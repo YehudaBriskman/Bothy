@@ -18,7 +18,48 @@ for (const box of qa('[data-tabs]')) {
   if (!list || tabs.length === 0) continue;
   list.setAttribute('role', 'tablist');
   list.setAttribute('aria-label', box.dataset.label ?? '');
+  // The walker is a ring that travels along the drawn line to the chosen size; the line behind it fills to there.
+  const hill = box.querySelector<SVGPathElement>('[data-hill]');
+  const walker = box.querySelector<HTMLElement>('.hs-walker');
+  const hillBox = box.querySelector<HTMLElement>('.hs-hill');
+  const total = hill?.getTotalLength() ?? 0;
+  // where each marker sits on the line, as a length along it (the markers were placed by eye; this finds the nearest)
+  const along = new Map<string, number>();
+  if (hill && total) {
+    for (const t of tabs) {
+      const m = t.style;
+      const tx = parseFloat(m.getPropertyValue('--x')) * 8;
+      const ty = parseFloat(m.getPropertyValue('--y')) * 2;
+      let best = 0;
+      let bd = Infinity;
+      for (let l = 0; l <= total; l += total / 400) {
+        const p = hill.getPointAtLength(l);
+        const d = (p.x - tx) ** 2 + (p.y - ty) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = l;
+        }
+      }
+      along.set(t.dataset.tab ?? '', best);
+    }
+  }
+  const spot = (len: number) => {
+    const p = hill!.getPointAtLength(len);
+    // the ring is 2rem wide; the pin it circles is centred a hair off the marker's own corner (see .hs-mark)
+    return {
+      x: `calc(${(p.x / 8).toFixed(2)}% - 0.8125rem)`,
+      y: `calc((100% - var(--label)) * ${(p.y / 200).toFixed(4)} - 0.9625rem)`,
+      clip: `${(p.x / 8).toFixed(2)}%`,
+    };
+  };
+  let cur = -1;
   const select = (id: string, focus = false) => {
+    const to = tabs.findIndex((t) => t.dataset.tab === id);
+    const from = cur;
+    if (from === to && !focus) return;
+    cur = to;
+    const panelsBox = panels[0]?.parentElement;
+    if (panelsBox) panelsBox.style.setProperty('--dx', from < to ? '14px' : '-14px');
     for (const t of tabs) {
       const on = t.dataset.tab === id;
       t.setAttribute('aria-selected', String(on));
@@ -27,7 +68,39 @@ for (const box of qa('[data-tabs]')) {
       if (on && focus) t.focus();
     }
     for (const p of panels) p.hidden = p.dataset.panel !== id;
+    const target = along.get(id);
+    if (hillBox && walker && hill && target !== undefined) {
+      const end = spot(target);
+      hillBox.style.setProperty('--wx', end.x);
+      hillBox.style.setProperty('--wy', end.y);
+      hillBox.style.setProperty('--wclip', end.clip);
+      walker.classList.toggle('is-planned', tabs[to]?.classList.contains('is-planned') ?? false);
+      const start = from >= 0 ? along.get(tabs[from]?.dataset.tab ?? '') : undefined;
+      if (!reduced && start !== undefined && start !== target && walker.animate) {
+        const frames = Array.from({ length: 16 }, (_, k) => {
+          const q = spot(start + ((target - start) * k) / 15);
+          return { insetInlineStart: q.x, insetBlockStart: q.y };
+        });
+        walker.animate(frames, { duration: 520, easing: 'cubic-bezier(.45,0,.2,1)' });
+      }
+    }
   };
+  // The hill answers the pointer: moving a mouse along it walks to the nearest size, a click or tap picks one.
+  const hillEl = box.querySelector<HTMLElement>('.hs-hill');
+  hillEl?.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    let best = 0;
+    let bd = Infinity;
+    tabs.forEach((t, k) => {
+      const r = t.getBoundingClientRect();
+      const d = Math.abs(e.clientX - (r.left + 16));
+      if (d < bd) {
+        bd = d;
+        best = k;
+      }
+    });
+    select(tabs[best]?.dataset.tab ?? '');
+  });
   for (const t of tabs) {
     const id = t.dataset.tab ?? '';
     t.setAttribute('role', 'tab');
@@ -156,6 +229,56 @@ if (!reduced && canObserve) {
     update();
     addEventListener('scroll', update, { passive: true });
     addEventListener('resize', update, { passive: true });
+  }
+
+  // ── The install chapter is scroll-oriented: the scroll position scrubs the typing and the Done ticks ──────────
+  // Nothing here is timed. Each of the four commands owns a quarter of the rail's travel: it types in over the first
+  // part of its quarter, its answer prints, then its step is ticked Done. Stop scrolling and it stops; scroll back
+  // and it rewinds (the same function of position, run again).
+  for (const rail of qa('[data-scrub]')) {
+    const demo = rail.closest('.hs-install')?.querySelector<HTMLElement>('[data-scrub-demo]');
+    const steps = qa('[data-step]', rail);
+    if (!demo) continue;
+    const cmds = qa('.hs-cmd', demo).map((ln) => {
+      const target = ln.querySelector<HTMLElement>('[data-type]')!;
+      const text = target.textContent ?? '';
+      const head = document.createTextNode('');
+      const rest = document.createElement('span');
+      rest.className = 'hs-rest';
+      rest.textContent = text;
+      target.textContent = '';
+      target.append(head, rest);
+      return { ln, text, head, rest, out: ln.parentElement!.querySelector<HTMLElement>('[data-out]'), shown: -1 };
+    });
+    const n = cmds.length;
+    let last = '';
+    const scrub = () => {
+      const r = rail.getBoundingClientRect();
+      const mid = innerHeight * 0.62;
+      const p = Math.max(0, Math.min(1, (mid - r.top) / Math.max(1, r.height * 0.88)));
+      const key = p.toFixed(4);
+      if (key === last) return;
+      last = key;
+      cmds.forEach((c, k) => {
+        const local = Math.max(0, Math.min(1, p * n - k));
+        const chars = Math.round(Math.min(1, local / 0.55) * c.text.length);
+        if (chars !== c.shown) {
+          c.shown = chars;
+          c.head.data = c.text.slice(0, chars);
+          c.rest.textContent = c.text.slice(chars);
+        }
+        const printed = local >= 0.62;
+        c.out?.classList.toggle('hs-wait', !printed);
+        c.ln.classList.toggle('is-typing', local > 0 && local < 0.55);
+        const done = local >= 0.85 || (k === n - 1 && p >= 0.995);
+        steps[k]?.classList.toggle('is-done', done);
+      });
+    };
+    rail.classList.add('hs-live');
+    demo.classList.add('hs-scrubbing');
+    scrub();
+    addEventListener('scroll', scrub, { passive: true });
+    addEventListener('resize', scrub, { passive: true });
   }
 
   // ── Terminals that run once: commands type, answers print, and the rows they belong to tick ───────────────
