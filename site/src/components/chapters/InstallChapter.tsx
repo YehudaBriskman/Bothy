@@ -24,9 +24,9 @@ const RECORD = `${REPO_URL}/blob/main/docs/plans/thin-bothy/bothy-install.md`;
 
 /**
  * Chapter 5. Four numbered steps down a long rail, each with its command and a copy icon; at the side, one terminal
- * runs the same install, an example. Scrolling a step to the middle of the view STARTS its stage, and the stage then
- * plays to its end on its own clock (home-sections.ts): the command types, a pause, a running spinner, the output
- * lines one by one, a beat, the step's Done tick. The next stage waits for it. The long lists of what was shown and not shown live on the Install page and are linked from here.
+ * runs the same install, an example. The scroll position is the progress of the whole sequence (home-sections.ts): the
+ * command types, a pause, a running spinner, the output lines one by one, the step's Done tick, then the next step; faster
+ * scrolling plays it faster, scrolling back rewinds it, nothing is skipped. The long lists of what was shown and not shown live on the Install page and are linked from here.
  */
 export function InstallChapter({ ctx }: { ctx: PageContext }) {
   const { t, locale } = ctx;
