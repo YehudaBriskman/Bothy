@@ -13,6 +13,7 @@ import './styles/home-sections.css';
 import './styles/pages.css';
 import './styles/inner.css';
 import './styles/intro.css';
+import './styles/new-sections.css';
 import './styles/chosen.css';
 
 /**
@@ -177,6 +178,19 @@ if (footMark && 'IntersectionObserver' in window) {
   io.observe(footMark);
 }
 
+// ── The clip player below the story: a lazy island, loaded when the section comes near ─
+const newSections = document.querySelector<HTMLElement>('[data-player]');
+if (newSections && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver(
+    (es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      void import('./new-sections.ts').then((m) => m.mountNewSections(newSections));
+    },
+    { rootMargin: '600px 0px' },
+  );
+  io.observe(newSections);
+}
 // ── The Home sections' motion and size tabs: a lazy chunk, only where the page has them (the markup is complete without it) ─
 if (document.querySelector('[data-hs]')) void import('./home-sections.ts');
 
