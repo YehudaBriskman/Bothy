@@ -231,11 +231,12 @@ if (!reduced && canObserve) {
     addEventListener('resize', update, { passive: true });
   }
 
-  // ── The install chapter: scroll STARTS a stage, the stage then plays to its end on its own clock ──────────────
-  // Four stages, one per command. Scrolling a step to the middle of the view starts its stage; from then on it does not
-  // depend on the scroll: the command types (smoothly, at its own pace), a pause, a running spinner as if executing,
-  // then the output lines one by one, a beat, and the step's Done tick. The next stage waits for this one and for its
-  // own step to be reached. Scrolling back does not undo anything; "Replay" runs it again from the top.
+  // ── The install chapter: scrubbed. The scroll position IS the progress of the whole sequence ────────────────
+  // Four stages, one per command, laid end to end along the steps: a stage runs from its step reaching the middle of
+  // the view to the next one doing so. Inside a stage the scroll maps to: a beat, the command typing, a pause, a running
+  // spinner, the output lines one by one, the Done tick. The state is a pure function of the progress (scrolling back
+  // rewinds it, nothing is skipped). The progress shown follows the one the scroll asks for through a critically damped
+  // filter with a speed limit, so a fling is a quick sweep through every state, never a jump.
   for (const rail of qa('[data-scrub]')) {
     const demo = rail.closest('.hs-install')?.querySelector<HTMLElement>('[data-scrub-demo]');
     const steps = qa('[data-step]', rail);
@@ -256,98 +257,103 @@ if (!reduced && canObserve) {
       return { ln, text, head, rest, ind: ln.querySelector<HTMLElement>('[data-spin]'), outs: qa('[data-out]', ln) };
     });
     const n = stages.length;
-    const RUN = [1100, 900, 1200, 1500]; // how long each command "runs" before it answers (ms)
-    let next = 0;
-    let busy = false;
-    let gen = 0;
-    const follow = () => {
-      if (pre) pre.scrollTop = pre.scrollHeight;
-    };
-    const reset = () => {
-      gen++;
-      busy = false;
-      next = 0;
+    const c01 = (v: number) => Math.max(0, Math.min(1, v));
+    // inside one stage, 0..1: beat, type, pause, run, output lines, a beat, the tick
+    const TYPE = [0.05, 0.42];
+    const RUNS = [0.52, 0.74];
+    const OUTS = [0.76, 0.92];
+    const DONE = 0.95;
+    const paint = (P: number) => {
+      let tail: HTMLElement | null = null;
       stages.forEach((s, k) => {
-        s.head.data = '';
-        s.rest.textContent = s.text;
-        s.ln.classList.remove('is-active', 'is-typing', 'is-running');
-        s.ln.classList.toggle('hs-wait', k > 0);
-        if (s.ind) s.ind.textContent = '';
-        for (const o of s.outs) o.classList.add('hs-wait');
-        steps[k]?.classList.remove('is-done');
-      });
-      demo.classList.remove('is-ended');
-      stages[0]?.ln.classList.add('is-active'); // an idle prompt, waiting for the first scroll
-      if (pre) pre.scrollTop = 0;
-    };
-    const play = async (k: number) => {
-      const s = stages[k]!;
-      const g = gen;
-      const ok = () => g === gen;
-      busy = true;
-      s.ln.classList.remove('hs-wait');
-      s.ln.classList.add('is-active');
-      follow();
-      await wait(450); // a beat: the prompt is there, then it starts to type
-      if (!ok()) return;
-      s.ln.classList.add('is-typing');
-      const per = Math.max(14, Math.min(40, 2200 / Math.max(1, s.text.length)));
-      const t0 = Date.now();
-      for (let c = 1; c <= s.text.length; c++) {
+        const u = c01(P - k);
+        const typed = c01((u - TYPE[0]!) / (TYPE[1]! - TYPE[0]!));
+        const c = Math.floor(typed * s.text.length + 1e-6);
         s.head.data = s.text.slice(0, c);
         s.rest.textContent = s.text.slice(c);
-        await wait(Math.max(0, t0 + c * per - Date.now()));
-        if (!ok()) return;
-        follow();
+        const running = u >= RUNS[0]! && u < RUNS[1]!;
+        const live = u > 0 && u < 1;
+        s.ln.classList.toggle('hs-wait', k > 0 && u === 0);
+        s.ln.classList.toggle('is-active', live || (k === 0 && u === 0));
+        s.ln.classList.toggle('is-typing', typed > 0 && typed < 1);
+        s.ln.classList.toggle('is-running', running);
+        if (s.ind) s.ind.textContent = running ? ` ${spin[Math.floor(u * 90) % spin.length]}` : '';
+        s.outs.forEach((o, j) => {
+          const at = OUTS[0]! + ((OUTS[1]! - OUTS[0]!) * j) / s.outs.length;
+          const on = u >= at && u >= RUNS[1]!;
+          o.classList.toggle('hs-wait', !on);
+          if (on) tail = o;
+        });
+        steps[k]?.classList.toggle('is-done', u >= DONE);
+        if (u > 0 || k === 0) tail = tail && s.outs.includes(tail) ? tail : s.ln.querySelector('.hs-cmd');
+      });
+      demo.classList.toggle('is-ended', P >= n - 1 + DONE);
+      demo.dataset.progress = P.toFixed(3);
+      // keep the newest visible line in view in the terminal
+      if (pre && tail) {
+        const t = tail as HTMLElement;
+        pre.scrollTop = Math.max(0, t.offsetTop + t.offsetHeight - pre.clientHeight + 12);
       }
-      s.ln.classList.remove('is-typing');
-      await wait(700); // typed; the cursor waits, as it would before Enter
-      if (!ok()) return;
-      s.ln.classList.add('is-running');
-      let f = 0;
-      const tick = setInterval(() => {
-        if (s.ind) s.ind.textContent = ` ${spin[f++ % spin.length]}`;
-      }, 90);
-      await wait(RUN[k] ?? 1200);
-      clearInterval(tick);
-      if (!ok()) return;
-      s.ln.classList.remove('is-running');
-      if (s.ind) s.ind.textContent = '';
-      for (const o of s.outs) {
-        await wait(o === s.outs[0] ? 160 : 300);
-        if (!ok()) return;
-        o.classList.remove('hs-wait');
-        follow();
-      }
-      await wait(650); // a beat after the last line, then the tick
-      if (!ok()) return;
-      steps[k]?.classList.add('is-done');
-      await wait(550);
-      if (!ok()) return;
-      s.ln.classList.remove('is-active');
-      busy = false;
-      next = k + 1;
-      if (next >= n) demo.classList.add('is-ended');
-      pump();
     };
-    const pump = () => {
-      if (busy || next >= n) return;
-      if (steps[next]?.classList.contains('is-lit')) void play(next);
+    // where the scroll asks the sequence to be: stage k begins when step k reaches the middle of the view
+    const ask = () => {
+      const mid = innerHeight * 0.55;
+      const tops = steps.map((s) => s.getBoundingClientRect().top - mid);
+      const last = steps[n - 1]!.getBoundingClientRect();
+      const end = last.top - mid + Math.max(innerHeight * 0.5, last.height);
+      for (let k = n - 1; k >= 0; k--) {
+        const a = tops[k]!;
+        if (a > 0) continue;
+        const b = k + 1 < n ? tops[k + 1]! : end;
+        return k + c01(-a / Math.max(1, b - a));
+      }
+      return 0;
+    };
+    const SPEED = 2.8; // stages per second at most: a fling from the top to the bottom takes about 1.5 s
+    const TAU = 0.16; // seconds: the time constant of the filter
+    let shown = 0;
+    let target = 0;
+    let last = 0;
+    let armed = false;
+    const frame = () => {
+      armed = false;
+      const now = performance.now();
+      const dt = Math.min(0.25, Math.max(0.001, (now - last) / 1000));
+      last = now;
+      const want = (target - shown) * (1 - Math.exp(-dt / TAU));
+      const cap = SPEED * dt;
+      shown = Math.abs(target - shown) < 0.0005 ? target : shown + Math.max(-cap, Math.min(cap, want));
+      paint(shown);
+      if (shown !== target) arm();
+    };
+    // a frame clock where there is one, a timer where there is not (a background tab, a headless browser)
+    const arm = () => {
+      if (armed) return;
+      armed = true;
+      let ran = false;
+      const go = () => {
+        if (!ran) {
+          ran = true;
+          frame();
+        }
+      };
+      requestAnimationFrame(go);
+      setTimeout(go, 50);
+    };
+    const onScroll = () => {
+      const t = ask();
+      if (t === target) return;
+      target = t;
+      if (!armed) last = performance.now();
+      arm();
     };
     rail.classList.add('hs-live');
     demo.classList.add('hs-scrubbing');
-    reset();
-    pump();
-    addEventListener('scroll', pump, { passive: true });
-    addEventListener('resize', pump, { passive: true });
-    const again = demo.querySelector<HTMLButtonElement>('[data-replay]');
-    if (again) {
-      again.hidden = false;
-      again.addEventListener('click', () => {
-        reset();
-        pump();
-      });
-    }
+    target = shown = ask();
+    last = performance.now();
+    paint(shown);
+    addEventListener('scroll', onScroll, { passive: true });
+    addEventListener('resize', onScroll, { passive: true });
   }
 
   // ── Terminals that run once: commands type, answers print, and the rows they belong to tick ───────────────
