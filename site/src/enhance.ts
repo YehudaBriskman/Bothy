@@ -156,6 +156,8 @@ if (newSections && 'IntersectionObserver' in window) {
 }
 // ── The Home sections' motion and size tabs: a lazy chunk, only where the page has them (the markup is complete without it) ─
 if (document.querySelector('[data-hs]')) void import('./home-sections.ts');
+// ── The reading wheels: a lazy chunk, only where the page has them ─
+if (document.querySelector('[data-wheel]')) void import('./wheel.ts');
 
 // ── The live sky: a lazy island, only on a page that has one, after the page has loaded ─
 const storyRoot = document.querySelector<HTMLElement>('[data-story]');

@@ -1,256 +1,136 @@
 /*
- * The two reading sections after the story's descent: "What a bothy is" and "One console for one machine".
- * They stand on the flat page black (no sky, no panel behind the words), the text on one side with the About
- * page's reading animation (.mf, styles/inner.css: a line lights as it crosses the middle of the screen), and on
- * the other side a figure that is built up as the lines are read. The figure's parts carry data-from and light once
- * that many lines have been passed (home-sections.ts); with no script or with reduced motion every part is lit.
+ * The two reading wheels after the story's descent: "What a bothy is" and "One console for one machine".
+ * Flat page black, no panel, no figure: the words in big type, centred. Plain by default (every line lit, normal
+ * flow, which is also reduced motion and no script). With script and motion src/wheel.ts adds .js-wheel: the track
+ * grows tall, the stage pins, and the stack is moved up past a centre line, line by line, by the scroll position.
+ * Each line's --o (opacity), --s (scale) and --r (how much of it the reading sweep has crossed) are set by the script.
  */
 
-.story .ch-read {
+.story .ch-wheel {
   background: var(--ink);
   border-block-start: 0;
   min-block-size: 0;
   display: block;
-  padding-block: clamp(4rem, 12svh, 8rem);
+  padding: 0;
   overflow: clip;
 }
-.rd-grid {
+.wh-stage {
   display: grid;
-  gap: 2.5rem clamp(2rem, 6vw, 6rem);
-  align-items: start;
+  gap: clamp(1.5rem, 4svh, 2.5rem);
+  justify-items: center;
+  padding: clamp(5rem, 14svh, 9rem) var(--gutter, 1.25rem);
+  text-align: center;
 }
-@media (min-width: 52rem) {
-  .rd-grid {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  }
-  .ch-read.is-flip .rd-text {
-    order: 2;
-  }
-  .rd-side {
-    position: sticky;
-    inset-block-start: calc(var(--nav-h, 4rem) + max(2rem, 12svh));
-  }
-}
-.rd-text {
-  display: grid;
-  gap: clamp(0.9rem, 2.4svh, 1.4rem);
-  justify-items: start;
-  min-inline-size: 0;
-}
-.rd-text > h2 {
-  margin: 0 0 0.4rem;
-}
-.rd-text > p {
+.wh-head {
   margin: 0;
-}
-.ch-read .mf-sm {
-  max-inline-size: 30ch;
-  font-size: clamp(1.2rem, 1rem + 0.9vw, 1.7rem);
-  line-height: 1.3;
-  font-weight: 560;
-  letter-spacing: -0.015em;
-}
-.ch-read .rd-code {
-  margin: 0.4rem 0;
-  padding: 0 0 0 1.25rem;
-  background: none;
-  border: 0;
-  border-inline-start: 2px solid var(--focus);
-  border-radius: 0;
-}
-.ch-read .rd-code ul {
-  display: grid;
-  gap: clamp(0.6rem, 1.6svh, 1rem);
-  margin: 0 0 0.75rem;
-  font-family: inherit;
-  font-size: inherit;
-}
-.ch-read .rd-code li.mf-sm {
-  max-inline-size: 28ch;
-}
-.ch-read .rd-code figcaption {
-  margin-block-end: 0.75rem;
-}
-
-/* the figure beside the text: parts are lit by the number of lines read (set by home-sections.ts) */
-.js-rd .rd-part:not(.is-lit) {
-  opacity: 0.12;
-}
-.rd-hut {
-  display: block;
-  inline-size: min(100%, 26rem);
-  margin-inline: auto;
-  overflow: visible;
-  fill: none;
-  stroke: var(--text-muted);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.rd-hut .rd-ground {
-  stroke: var(--hairline-strong);
-}
-.rd-hut .rd-roof {
-  stroke: var(--text);
-}
-.rd-hut .rd-door {
-  stroke: var(--focus);
-  fill: rgb(255 213 138 / 12%);
-}
-.rd-hut .rd-win {
-  stroke: var(--focus);
-  fill: rgb(255 213 138 / 22%);
-}
-.rd-hut .rd-knob {
-  fill: var(--focus);
-  stroke: none;
-}
-.rd-hut .rd-smoke circle {
-  stroke: rgb(255 255 255 / 40%);
-}
-.rd-hut .rd-spill {
-  fill: rgb(255 213 138 / 16%);
-  stroke: none;
-}
-.rd-hut .rd-walker {
-  stroke: var(--text);
-}
-.rd-hut .rd-walker circle {
-  fill: var(--ink);
-}
-
-.rd-console {
-  margin: 0;
-  max-inline-size: 30rem;
-  margin-inline: auto;
-  border-radius: var(--r-card);
-  background: var(--ink-raise);
-  box-shadow:
-    inset 0 0 0 1px var(--hairline-strong),
-    var(--shadow-card);
-  overflow: hidden;
-}
-.rd-win-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.9rem;
-  border-block-end: 1px solid var(--hairline);
-  font-size: var(--fs-caption);
   color: var(--text-muted);
-}
-.rd-win-title {
-  flex: 1;
-  min-inline-size: 0;
+  font-size: var(--fs-caption, 0.875rem);
   font-weight: 600;
-  color: var(--text);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
-.rd-dots {
-  display: inline-flex;
-  gap: 0.3rem;
-}
-.rd-dots i {
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 22%);
-}
-.rd-cols {
+.wh-roll {
   display: grid;
-  gap: 0.75rem;
-  padding: 0.75rem 0.9rem;
+  gap: clamp(1.1rem, 3.2svh, 2rem);
+  justify-items: center;
+  inline-size: 100%;
 }
-@media (min-width: 30rem) {
-  .rd-cols {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
-  }
-}
-.rd-console ul {
-  list-style: none;
+.wh-code {
+  display: grid;
+  gap: clamp(1.1rem, 3.2svh, 2rem);
+  justify-items: center;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 0.35rem;
+  list-style: none;
 }
-.rd-svc li,
-.rd-files li {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  min-block-size: 2.25rem;
-  padding: 0.3rem 0.55rem;
-  border-radius: 0.65rem;
-  background: rgb(255 255 255 / 6%);
-  font-size: 0.8125rem;
-}
-.rd-svc .grow {
-  flex: 1;
-  min-inline-size: 0;
-  display: grid;
-}
-.rd-svc .sub,
-.rd-files-head,
-.rd-foot {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-.rd-svc .mono {
-  font-family: var(--font-mono);
-}
-.rd-files-head {
-  margin: 0 0 0.35rem;
-  font-weight: 600;
-}
-.rd-files li {
-  font-family: var(--font-mono);
-}
-.rd-files li.is-open {
-  background: rgb(255 213 138 / 14%);
-  box-shadow: inset 0 0 0 1px rgb(255 213 138 / 45%);
-}
-.rd-files li.rd-sw {
-  justify-content: space-between;
-  font-family: var(--font-sans);
-  color: var(--text-muted);
-}
-.rd-foot {
+.wl {
   margin: 0;
-  padding: 0.6rem 0.9rem 0.8rem;
-  border-block-start: 1px solid var(--hairline);
+  max-inline-size: 19ch;
+  color: var(--text);
+  font-size: clamp(2rem, 1rem + 4.4vw, 4.75rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
 }
+.wl-cap,
+.wl-note {
+  max-inline-size: 34ch;
+  color: var(--text-muted);
+  font-size: clamp(0.95rem, 0.85rem + 0.5vw, 1.25rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.wl-note {
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+}
+.wl-link {
+  font-size: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);
+  letter-spacing: 0;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .rd-part {
-    transition:
-      opacity 0.5s var(--ease-out),
-      transform 0.5s var(--ease-emph);
+  .js-wheel .wh-track {
+    block-size: var(--wh-len, 400svh);
   }
-  .js-rd .rd-svc li:not(.is-lit) {
-    transform: translateX(-10px);
-  }
-  .js-rd .rd-svc li {
-    transition-delay: calc(var(--k, 0) * 120ms);
-  }
-  .js-rd .rd-smoke:not(.is-lit) {
-    transform: translateY(8px);
-  }
-}
-@media (max-width: 51.99rem) {
-  /* a phone: the figure comes first and stays under the header while the lines scroll past it */
-  .rd-side {
-    order: -1;
+  .js-wheel .wh-stage {
     position: sticky;
-    inset-block-start: calc(var(--nav-h, 4rem) + 0.5rem);
-    z-index: 2;
-    max-block-size: 34svh;
+    inset-block-start: 0;
+    block-size: 100svh;
     overflow: hidden;
-    padding-block: 0.5rem;
-    background: var(--ink);
+    padding: 0;
+    display: block;
   }
-  .rd-hut {
-    block-size: 24svh;
-    inline-size: auto;
+  .js-wheel .wh-head {
+    position: absolute;
+    inset-block-start: calc(var(--nav-h, 4rem) + clamp(1rem, 4svh, 2.5rem));
+    inset-inline: 0;
+    z-index: 1;
+    padding-inline: var(--gutter, 1.25rem);
   }
-  .rd-svc li:nth-child(n + 3) {
-    display: none;
+  .js-wheel .wh-view {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    /* lines fade out as they leave through the top (under the heading) and the bottom of the stage */
+    -webkit-mask-image: linear-gradient(transparent 0, transparent 20%, #000 34%, #000 74%, transparent 96%);
+    mask-image: linear-gradient(transparent 0, transparent 20%, #000 34%, #000 74%, transparent 96%);
+  }
+  .js-wheel .wh-roll {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    padding-inline: var(--gutter, 1.25rem);
+    box-sizing: border-box;
+    will-change: transform;
+  }
+  .js-wheel .wl {
+    opacity: var(--o, 1);
+    transform: scale(var(--s, 1));
+  }
+  /* the reading sweep: the part of the line already crossed is lit, the rest still dim */
+  .js-wheel .wl:not(.wl-cap, .wl-note, .wl-link) {
+    --r: 1;
+    background-image: linear-gradient(
+      90deg,
+      var(--text) calc(var(--r) * 100%),
+      rgb(255 255 255 / 34%) calc(var(--r) * 100% + 10%)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  [dir='rtl'] .js-wheel .wl:not(.wl-cap, .wl-note, .wl-link),
+  .js-wheel[dir='rtl'] .wl:not(.wl-cap, .wl-note, .wl-link) {
+    background-image: linear-gradient(
+      270deg,
+      var(--text) calc(var(--r) * 100%),
+      rgb(255 255 255 / 34%) calc(var(--r) * 100% + 10%)
+    );
   }
 }
