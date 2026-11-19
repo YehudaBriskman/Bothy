@@ -249,7 +249,8 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   let aimT = 0;
   let hb = 0; // the furthest point the scroll has asked for (beat, and fraction of it): the player always gets there
   let hu = 0;
-  let primed = false;
+  let hot = false; // the scroll has asked for something the player has not yet reached
+  let restored = scrollY > 0; // the page opened part-way down
   let last = 0;
   let raf = 0;
   let tm = 0;
@@ -262,18 +263,19 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     return u >= 0.995 ? b.ms : b.rests[i]! * b.ms;
   };
   /** Is the player still short of the furthest point the scroll has reached? Then it keeps going, whatever the scroll does. */
-  const behind = () => pb < hb || (pb === hb && pt < limitOf(hb, hu, true) - 0.5);
+  const behind = () => hot && (pb < hb || (pb === hb && pt < limitOf(hb, hu, true) - 0.5));
   function aim(sb: number, su: number, t: number) {
     aimB = sb;
     aimU = su;
     aimT = t;
-    if (t > 0.002 && sb + su > hb + hu) {
+    if (t > 0.002 && (!hot || sb + su > hb + hu)) {
+      hot = true;
       hb = sb;
       hu = su;
     }
-    if (!primed) {
+    if (restored) {
       // a reload part-way down: show where the scroll is, do not play the story from its start under it
-      primed = true;
+      restored = false;
       pb = sb;
       pt = t <= 0.002 ? 0 : limitOf(sb, su, true);
       hb = sb;
@@ -321,8 +323,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   function advance(dt: number) {
     // caught up with the furthest point asked for: from here the scroll steers, forwards or back
     if (!behind()) {
-      hb = aimT > 0.002 ? aimB : 0;
-      hu = aimT > 0.002 ? aimU : 0;
+      hot = false;
     }
     const chase = behind();
     const tb = chase ? hb : aimB;
