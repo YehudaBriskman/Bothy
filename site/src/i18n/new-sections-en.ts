@@ -5,34 +5,33 @@
  * record (docs/plans/thin-bothy/bothy-install.md, 10b, 10e, 10f, I8, I14, I20, I21); anything drawn rather than
  * measured says "Example" on its face.
  */
+import { clip, views } from './clip-en.ts';
+
 export const ns = {
   example: 'Example',
-  views: {
-    th: { service: 'Service', state: 'State', module: 'Module', limit: 'Memory limit' },
-    installed: 'installed',
-    notInstalled: 'not installed',
-    core: 'core',
-    readOnly: 'Writing: read-only',
-    filter: 'Filter services',
-    command: 'Command',
-  },
+  views,
+  clip,
   motion: {
     eyebrow: 'In motion',
     heading: 'See it move.',
     lede: 'A short clip of the console at work. Press play.',
-    caption: 'Scripted from example data, not a recording of a real machine.',
+    caption:
+      'Scripted from example data, not a recording of a real machine. The last chapter, Grafana, is an illustration of a possible add-on, not a shipped module.',
     play: 'Play the clip',
     pause: 'Pause the clip',
     scrub: 'Clip position',
     chapters: 'Chapters',
+    speed: 'Playback speed',
     transcript:
-      'In the console, the pointer types wiki into the services filter and clicks the wiki row. After a short load its state changes from starting to up. The Files tab opens: the pointer chooses first-run.md in the setup folder and rests on the read-only label. The Health tab shows four tiles; when a service stops, the first tile changes to 4 of 6 up, in amber. On the Modules tab the command bothy module add node-metrics is typed and run, and the module shows as installed.',
-    len: 28,
+      'In the console, the pointer presses Refresh, filters the services by Running and All, types wiki into the search box and clicks the wiki row. A detail drawer opens with the image, ports and uptime; the pointer flips a restart-automatically toggle, ticks a checkbox, presses Restart and confirms in a popup; a toast says Restarted wiki. On the Logs tab lines stream in with times and levels; the pointer opens the level menu and chooses Error, types timeout into the line filter, turns Follow off and back on with Jump to latest, and copies a line. On the Files tab it expands the setup folder, opens first-run.md, searches for ports and opens ports.md. On the Health tab four tiles and a CPU line change as the range goes from 1h to 6h to 24h. On the Modules tab the command bothy module add node-metrics is typed and run, and the module shows as installed. Back in the services list an example Grafana row appears; its Open button opens a second browser tab with an example dashboard of four panels, a hover tooltip and a time picker, then the pointer returns to the Bothy tab. The Grafana step is an illustration: no module installs Grafana today.',
+    len: 78,
     chapterList: [
       { id: 'services', name: 'Services', t: 0 },
-      { id: 'notes', name: 'Notes', t: 7 },
-      { id: 'health', name: 'Health', t: 14 },
-      { id: 'install', name: 'Install', t: 20 },
+      { id: 'logs', name: 'Logs', t: 18.5 },
+      { id: 'notes', name: 'Notes', t: 39 },
+      { id: 'health', name: 'Health', t: 48.5 },
+      { id: 'install', name: 'Install', t: 55.5 },
+      { id: 'grafana', name: 'Grafana', t: 65.5 },
     ],
   },
   compare: {

@@ -1,0 +1,814 @@
+/*
+ * The rest of the clip's window: what it visits after the first frame. Loaded with the player (new-sections.ts), not
+ * with the page. Everything is in em of the window (new-sections.css sizes it), and only opacity, clip-path and a few
+ * attribute switches change, never a box the pointer is aimed at, so the pointer can be placed from a measured rect.
+ * The colours are the page's --n-* tokens; the example dashboard's colours are its own and say so.
+ */
+
+.cvc-spd {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the detail drawer */
+.cv-dr {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  inline-size: 50%;
+  background: #0d0d10;
+  border-inline-start: 1px solid var(--n-line);
+  box-shadow: -1.2em 0 2em rgb(0 0 0 / 35%);
+  clip-path: inset(0 0 0 100%);
+  transition:
+    clip-path 0.35s ease,
+    inline-size 0.4s ease;
+}
+.cv[data-dr='open'] .cv-dr,
+.cv[data-dr='logs'] .cv-dr {
+  clip-path: inset(0);
+}
+.cv[data-dr='logs'] .cv-dr {
+  inline-size: 100%;
+}
+.dr-h {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.65em 0.9em 0.4em;
+  font-size: 0.95em;
+}
+.dr-x {
+  margin-inline-start: auto;
+  color: var(--n-sub);
+  font-size: 1.2em;
+  font-style: normal;
+}
+.dr-tabs {
+  display: flex;
+  gap: 0.2em;
+  padding-inline: 0.9em;
+  border-block-end: 1px solid var(--n-line);
+  font-size: 0.85em;
+}
+.dr-tabs span {
+  padding: 0.3em 0.9em;
+  border-block-end: 2px solid transparent;
+  color: var(--n-mut);
+  opacity: 1 !important;
+}
+.cv[data-dr='open'] [data-h='tab-ov'],
+.cv[data-dr='logs'] [data-h='tab-logs'] {
+  border-color: var(--n-fg);
+  color: var(--n-fg);
+}
+.dr-tabs span.hv {
+  color: var(--n-fg);
+}
+.dr-pane {
+  position: absolute;
+  inset: 5.2em 0 0;
+  padding: 0.7em 0.9em;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.cv[data-dr='open'] .dr-ov,
+.cv[data-dr='logs'] .dr-lg {
+  opacity: 1;
+}
+.dr-ov dl {
+  display: grid;
+  gap: 0.35em;
+  margin: 0 0 0.8em;
+  font-size: 0.85em;
+}
+.dr-ov dl div {
+  display: grid;
+  grid-template-columns: 5em 1fr;
+}
+.dr-ov dt {
+  color: var(--n-sub);
+}
+.dr-ov dd {
+  display: grid;
+  margin: 0;
+}
+.dr-ov dd > * {
+  grid-area: 1 / 1;
+}
+.dr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5em 0;
+  border-block-start: 1px solid var(--n-line);
+  font-size: 0.85em;
+}
+.cv-tg,
+.cv-ck {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  inline-size: 2.2em;
+  block-size: 1.2em;
+  border: 1px solid var(--n-line);
+  border-radius: 999px;
+  background: var(--n-s2);
+  transition: background-color 0.2s;
+}
+.cv-tg i {
+  inline-size: 0.8em;
+  block-size: 0.8em;
+  margin-inline-start: 0.2em;
+  border-radius: 50%;
+  background: var(--n-sub);
+  transition:
+    margin 0.2s,
+    background-color 0.2s;
+}
+.cv[data-tg='1'] [data-h='toggle'],
+.cv[data-fol='1'] [data-h='follow'] {
+  background: rgb(143 227 191 / 28%);
+}
+.cv[data-tg='1'] [data-h='toggle'] i,
+.cv[data-fol='1'] [data-h='follow'] i {
+  margin-inline-start: 1.2em;
+  background: var(--n-ok);
+}
+.cv-ck {
+  inline-size: 1.2em;
+  border-radius: 0.3em;
+}
+.cv-ck i {
+  inline-size: 0.5em;
+  block-size: 0.3em;
+  margin: 0 auto;
+  border: solid var(--n-ok);
+  border-width: 0 0 2px 2px;
+  opacity: 0;
+  rotate: -45deg;
+  translate: 0 -0.1em;
+  transition: opacity 0.15s;
+}
+.cv[data-ck='1'] [data-h='check'] i {
+  opacity: 1;
+}
+.cv-tg.hv,
+.cv-ck.hv {
+  border-color: rgb(255 255 255 / 35%);
+}
+.dr-btns {
+  display: flex;
+  gap: 0.5em;
+  margin-block-start: 0.8em;
+  font-size: 0.85em;
+}
+.cv-btn.pri {
+  background: rgb(255 255 255 / 12%);
+  color: var(--n-fg);
+}
+.cv-btn.sm {
+  padding: 0.1em 0.7em;
+}
+.nv-act {
+  text-align: end;
+}
+.cv:not([data-g='1']) .r-new {
+  opacity: 0 !important;
+}
+.cv[data-g='1'] .r-new {
+  background: rgb(255 255 255 / 6%);
+}
+
+/* logs */
+.dr-lg {
+  display: flex;
+  flex-direction: column;
+}
+.lg-tool {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.8em;
+}
+.lg-lv small {
+  color: var(--n-sub);
+  font-size: 1em;
+}
+.lg-lv {
+  display: inline-grid;
+  grid-template-columns: auto 6.5em auto;
+}
+.lg-lv .sw {
+  grid-area: 1 / 2;
+}
+.lg-lv .sw:nth-child(2) {
+  grid-area: 1 / 2;
+}
+.lg-fol {
+  inline-size: auto;
+  margin-inline-start: auto;
+  padding-inline-end: 0.7em;
+  gap: 0.5em;
+  background: transparent;
+  border: 0;
+}
+.lg-fol i {
+  flex: none;
+}
+.lg-fol em {
+  color: var(--n-mut);
+  font-style: normal;
+}
+.lg-menu {
+  position: absolute;
+  inset-block-start: 3em;
+  inset-inline-start: 0.9em;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 8.5em;
+  padding: 0.3em;
+  background: var(--n-s2);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 0.5em;
+  box-shadow: 0 0.8em 1.6em rgb(0 0 0 / 45%);
+  font-size: 0.8em;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s;
+}
+.cv[data-menu='lv'] .lg-menu {
+  opacity: 1;
+  visibility: visible;
+}
+.lg-menu span {
+  padding: 0.3em 0.7em;
+  border-radius: 0.35em;
+  color: var(--n-mut);
+}
+.lg-menu span.hv {
+  background: rgb(255 255 255 / 10%);
+  color: var(--n-fg);
+}
+.lg-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1;
+  min-block-size: 0;
+  margin-block: 0.6em 0.3em;
+  overflow: hidden;
+  font-family: var(--n-mono);
+  font-size: 0.74em;
+  line-height: 1.7;
+}
+.lg-l {
+  position: relative;
+  display: none;
+  grid-template-columns: 5.5em 4.2em 1fr;
+  gap: 0.6em;
+  padding-inline: 0.5em;
+  border-radius: 0.3em;
+}
+.lg-l.on {
+  display: grid;
+}
+.lg-l time {
+  color: var(--n-sub);
+}
+.lg-l b {
+  font-weight: 600;
+}
+.lg-l.is-info b {
+  color: #8fb8f1;
+}
+.lg-l.is-warn b {
+  color: var(--n-warn);
+}
+.lg-l.is-error b,
+.lg-l.is-error span {
+  color: var(--n-bad);
+}
+.cv[data-lv='error'] .lg-l:not(.is-error),
+.cv[data-q='1'] .lg-l:not([data-hit]),
+.cv[data-fol='0'] .lg-l.late {
+  display: none;
+}
+.lg-l.hv {
+  background: rgb(255 255 255 / 7%);
+}
+.lg-cp {
+  position: absolute;
+  inset-block: 0.15em;
+  inset-inline-end: 0.4em;
+  padding-inline: 0.6em;
+  background: var(--n-s2);
+  border: 1px solid var(--n-line);
+  border-radius: 0.3em;
+  color: var(--n-fg);
+  font: inherit;
+  font-size: 0.9em;
+  line-height: 1.3;
+  opacity: 0;
+}
+.lg-l.hv .lg-cp {
+  opacity: 1;
+}
+.lg-jump {
+  position: absolute;
+  inset-block-end: 1em;
+  inset-inline: 0;
+  inline-size: fit-content;
+  margin-inline: auto;
+  padding: 0.25em 1em;
+  background: var(--n-fg);
+  border-radius: 999px;
+  color: #111;
+  font-size: 0.78em;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.cv[data-fol='0'] .lg-jump {
+  opacity: 1;
+}
+
+/* the restart popup and the toasts */
+.cv-pop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  inline-size: 17em;
+  block-size: fit-content;
+  margin: auto;
+  padding: 1em 1.1em;
+  background: var(--n-s2);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 0.8em;
+  box-shadow: 0 1.5em 3em rgb(0 0 0 / 55%);
+  font-size: 0.9em;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s;
+}
+.cv[data-pop='1'] .cv-pop {
+  opacity: 1;
+  visibility: visible;
+}
+.cv-pop p {
+  margin: 0.3em 0 0.9em;
+  color: var(--n-mut);
+  font-size: 0.9em;
+}
+.cv-pop div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5em;
+}
+.cv-toast {
+  position: absolute;
+  inset-block-end: 1em;
+  inset-inline-start: 1em;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 1em;
+  background: var(--n-s2);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 0.6em;
+  box-shadow: 0 0.8em 1.6em rgb(0 0 0 / 40%);
+  font-size: 0.85em;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.cv-toast.on {
+  opacity: 1;
+}
+.cv-toast i {
+  inline-size: 0.6em;
+  block-size: 0.6em;
+  border-radius: 50%;
+  background: var(--n-ok);
+}
+
+/* notes */
+.nv-files {
+  display: grid;
+  grid-template-columns: 12em minmax(0, 1fr);
+  gap: 1em;
+  font-size: 0.85em;
+}
+.fl-side .cv-search {
+  max-inline-size: none;
+  margin: 0 0 0.5em;
+  font-size: 0.95em;
+}
+.nv-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--n-mut);
+}
+.nv-tree li {
+  padding: 0.2em 0.5em;
+  border-radius: 0.35em;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    opacity 0.3s;
+}
+.nv-tree li.hv {
+  background: rgb(255 255 255 / 7%);
+  color: var(--n-fg);
+}
+.nv-tree li[data-when]:not(.on) {
+  display: none;
+}
+.nv-ind {
+  margin-inline-start: 1em;
+}
+.cv[data-doc='first'] [data-sel='first'],
+.cv[data-doc='ports'] [data-sel='ports'] {
+  background: rgb(255 255 255 / 11%);
+  color: var(--n-fg);
+}
+.cv[data-fq='1'] .nv-tree li:not([data-m]) {
+  opacity: 0.25;
+}
+.nv-doc {
+  position: relative;
+}
+.dc,
+.dc-empty {
+  position: absolute;
+  inset: 0 auto auto 0;
+}
+.dc-empty {
+  margin: 0;
+  color: var(--n-sub);
+  transition: opacity 0.2s;
+}
+.cv[data-doc='first'] .dc-empty,
+.cv[data-doc='ports'] .dc-empty {
+  opacity: 0;
+}
+.nv-doc p {
+  margin: 0 0 0.55em;
+  color: var(--n-mut);
+}
+.nv-doc .nv-h {
+  color: var(--n-fg);
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.nv-doc b {
+  color: var(--n-fg);
+  font-weight: 600;
+}
+.nv-doc code {
+  padding: 0.15em 0.4em;
+  background: var(--n-s2);
+  border-radius: 0.3em;
+}
+.nv-pill {
+  padding: 0.1em 0.6em;
+  border: 1px solid var(--n-line);
+  border-radius: 999px;
+  color: var(--n-sub);
+  font-size: 0.85em;
+}
+
+/* health */
+.nv-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6em;
+  margin: 0 0 0.7em;
+  padding: 0;
+  list-style: none;
+}
+.nv-tile {
+  padding: 0.6em 0.75em;
+  background: var(--n-s2);
+  border: 1px solid var(--n-line);
+  border-radius: 0.6em;
+  transition: border-color 0.25s;
+}
+.nv-tile.hv {
+  border-color: rgb(255 255 255 / 32%);
+}
+.nv-tile small,
+.nv-tile em {
+  display: block;
+  color: var(--n-sub);
+  font-size: 0.75em;
+  font-style: normal;
+}
+.nv-tile b {
+  display: block;
+  margin-block: 0.15em;
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.nv-tile b span {
+  color: var(--n-mut);
+  font-size: 0.5em;
+  font-weight: 400;
+}
+.hl-panel {
+  padding: 0.6em 0.8em;
+  background: var(--n-s2);
+  border: 1px solid var(--n-line);
+  border-radius: 0.6em;
+}
+.hl-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85em;
+}
+.cv-seg {
+  display: inline-flex;
+  border: 1px solid var(--n-line);
+  border-radius: 0.45em;
+  overflow: hidden;
+  font-size: 0.9em;
+}
+.cv-seg span {
+  padding: 0.1em 0.7em;
+  color: var(--n-mut);
+  opacity: 1 !important;
+  transition: background-color 0.15s;
+}
+.cv[data-rg='1h'] [data-h='range-1h'],
+.cv[data-rg='6h'] [data-h='range-6h'],
+.cv[data-rg='24h'] [data-h='range-24h'] {
+  background: rgb(255 255 255 / 14%);
+  color: var(--n-fg);
+}
+.cv-seg span.hv {
+  color: var(--n-fg);
+}
+.hl-panel svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 9em;
+  margin-block-start: 0.4em;
+}
+.gl {
+  fill: none;
+  stroke: var(--n-line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.ln {
+  fill: none;
+  stroke: #8fb8f1;
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  clip-path: inset(-4px calc((1 - var(--d, 0)) * 100%) -4px -4px);
+}
+
+/* modules and the terminal */
+.nv-t .r-new2 td {
+  transition: background-color 0.3s;
+}
+.cv[data-mod='1'] .r-new2 td {
+  background: rgb(255 255 255 / 6%);
+}
+.cv-dock {
+  position: absolute;
+  inset: auto 0 0;
+  min-block-size: 8em;
+  padding: 0.7em 1em;
+  background: #08080a;
+  border-block-start: 1px solid var(--n-line);
+  font-family: var(--n-mono);
+  font-size: 0.8em;
+  opacity: 0;
+  clip-path: inset(100% 0 0);
+  transition:
+    opacity 0.25s,
+    clip-path 0.3s ease;
+}
+.cv[data-dock='1'] .cv-dock {
+  opacity: 1;
+  clip-path: inset(0);
+}
+.cv-dock p {
+  position: relative;
+  margin: 0 0 0.25em;
+}
+.cv-dock .cmd {
+  min-block-size: 1.35em;
+}
+.cv-dock .o {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.cv-dock .o.on {
+  opacity: 1;
+}
+.cv-dock p:has(.cv-sp) {
+  opacity: 1;
+  color: var(--n-warn);
+}
+.cv-sp {
+  display: inline-block;
+  inline-size: 1.4em;
+}
+.cv-pgb {
+  display: block;
+  inline-size: 14em;
+  block-size: 0.35em;
+  margin-block-start: 0.3em;
+  background: var(--n-line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.cv-pgb i {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  background: var(--n-ok);
+  transform: scaleX(var(--d, 0));
+  transform-origin: 0 50%;
+}
+
+/*
+ * The example dashboard: a second browser tab. It has its own look (a plain light-on-dark panel grid) and its own
+ * colours, drawn here, not taken from any real product's assets. Every curve is a shape, never a measurement.
+ */
+.gf {
+  position: absolute;
+  inset: 0;
+  padding: 0.8em 1em;
+  background: #111217;
+  color: #d8d9da;
+}
+.gf-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 0.6em;
+  font-size: 0.95em;
+}
+.gf-pk {
+  padding: 0.25em 0.8em;
+  border: 1px solid #2c2d33;
+  border-radius: 0.4em;
+  background: #181b1f;
+  font-size: 0.8em;
+  display: inline-grid;
+  grid-template-columns: auto auto auto;
+  gap: 0.5em;
+  transition: border-color 0.15s;
+}
+.gf-pk .sw:first-of-type {
+  grid-area: 1 / 2;
+}
+.gf-pk .sw {
+  grid-area: 1 / 2;
+}
+.gf-pk.hv {
+  border-color: #5794f2;
+}
+.gf-menu {
+  position: absolute;
+  inset-block-start: 3.3em;
+  inset-inline-end: 1em;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 11em;
+  padding: 0.3em;
+  background: #181b1f;
+  border: 1px solid #2c2d33;
+  border-radius: 0.4em;
+  box-shadow: 0 0.8em 1.6em rgb(0 0 0 / 55%);
+  font-size: 0.8em;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s;
+}
+.cv[data-pk='1'] .gf-menu {
+  opacity: 1;
+  visibility: visible;
+}
+.gf-menu span {
+  padding: 0.35em 0.8em;
+  border-radius: 0.3em;
+}
+.gf-menu span.hv {
+  background: #2a2d34;
+  color: #fff;
+}
+.gf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.6em;
+  block-size: calc(100% - 3em);
+}
+.gf-p {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  padding: 0.45em 0.7em 0.6em;
+  background: #181b1f;
+  border: 1px solid #2c2d33;
+  border-radius: 0.35em;
+}
+.gf-p small {
+  color: #aeb0b5;
+  font-size: 0.8em;
+}
+.gf-p svg {
+  flex: 1;
+  inline-size: 100%;
+  min-block-size: 0;
+  margin-block-start: 0.3em;
+}
+.gf .gl {
+  stroke: #2c2d33;
+}
+.gf .ln {
+  stroke: #73bf69;
+  stroke-width: 1.6;
+}
+.gf-p:nth-child(2) .ar {
+  fill: rgb(250 222 42 / 22%);
+  stroke: #fade2a;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+  opacity: var(--d, 0);
+}
+.bars rect {
+  fill: #5794f2;
+  transform: scaleY(var(--d, 0));
+  transform-origin: 50% 62px;
+}
+.gf-p:nth-child(4) .bars rect {
+  fill: #b877d9;
+}
+.gf-pt {
+  position: absolute;
+  inset-block-start: 55%;
+  inset-inline-start: 55%;
+  inline-size: 0.5em;
+  block-size: 0.5em;
+}
+.gf-tt {
+  position: absolute;
+  inset-block-start: 20%;
+  inset-inline-start: 58%;
+  z-index: 2;
+  min-inline-size: 9em;
+  padding: 0.35em 0.7em;
+  white-space: nowrap;
+  background: #22252b;
+  border: 1px solid #3a3d44;
+  border-radius: 0.35em;
+  box-shadow: 0 0.6em 1.2em rgb(0 0 0 / 50%);
+  font-size: 0.75em;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.gf-tt small {
+  display: block;
+  color: #aeb0b5;
+}
+.gf-tt i {
+  display: inline-block;
+  inline-size: 0.6em;
+  block-size: 0.6em;
+  margin-inline-end: 0.5em;
+  border-radius: 50%;
+  background: #73bf69;
+}
+.cv[data-tt='1'] .gf-tt {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv *,
+  .cv-dr {
+    transition: none !important;
+  }
+  .cv .cv-field::after {
+    animation: none;
+  }
+}
