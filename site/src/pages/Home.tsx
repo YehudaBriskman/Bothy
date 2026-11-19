@@ -1,5 +1,5 @@
 import { AfterStory } from '../components/AfterStory.tsx';
-import { Layout } from '../components/Layout.tsx';
+import { Layout, NightBand } from '../components/Layout.tsx';
 import { ConsoleFlow } from '../components/chapters/ConsoleFlow.tsx';
 import { Descent } from '../components/chapters/Descent.tsx';
 import { Hut } from '../components/chapters/Hut.tsx';
@@ -37,6 +37,7 @@ export function Home({ ctx }: { ctx: PageContext }) {
         <Trust ctx={ctx} />
         <ChapterDots ctx={ctx} ids={CHAPTERS} />
       </div>
+      <NightBand ctx={ctx} />
       <AfterStory ctx={ctx} />
     </Layout>
   );
