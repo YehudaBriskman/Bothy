@@ -1,7 +1,7 @@
 import { Rich } from '../Rich.tsx';
 import { Terminal } from '../Terminal.tsx';
 import { REPO_URL, href } from '../../config.ts';
-import { LAB_GUEST, LAB_TIMINGS, PROVEN_RELEASE } from '../../facts.ts';
+import { LAB_GUEST, LAB_TIMINGS, MEMORY, PROVEN_RELEASE } from '../../facts.ts';
 import { localePrefix } from '../../i18n/locales.ts';
 import { downloadBase } from '../../lib/releases.ts';
 import { formatDate } from '../../lib/format.ts';
@@ -23,10 +23,10 @@ export function installLines(ctx: PageContext) {
 const RECORD = `${REPO_URL}/blob/main/docs/plans/thin-bothy/bothy-install.md`;
 
 /**
- * Chapter 5. Four numbered steps down a rail, each with its command and a copy icon; at the side, one terminal
- * types the same install, an example, scrubbed by scroll position (home-sections.ts): the line types in as its step
- * reaches the middle of the view and the step gets its Done tick; stop scrolling and it stops, scroll back and it
- * rewinds. The long lists of what was shown and not shown live on the Install page and are linked from here.
+ * Chapter 5. Four numbered steps down a long rail, each with its command and a copy icon; at the side, one terminal
+ * runs the same install, an example. Scrolling a step to the middle of the view STARTS its stage, and the stage then
+ * plays to its end on its own clock (home-sections.ts): the command types, a pause, a running spinner, the output
+ * lines one by one, a beat, the step's Done tick. The next stage waits for it. The long lists of what was shown and not shown live on the Install page and are linked from here.
  */
 export function InstallChapter({ ctx }: { ctx: PageContext }) {
   const { t, locale } = ctx;
@@ -37,6 +37,10 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
   const lines = installLines(ctx);
   // the side terminal plays the same four commands, whole: nothing is shortened, and long ones wrap
   const demo = lines.map((l) => l.cmd);
+  // what each command prints: the dry run lists its four checks (the same example rows as the card above) first
+  const outs = demo.map((_, k) =>
+    k === 2 ? [...ctx.t.after.checks.rows(MEMORY.gateMiB), i.termOut[k] ?? ''] : [i.termOut[k] ?? ''],
+  );
   return (
     <section id="install" className="ch ch-install" aria-labelledby="install-h" data-hs>
       <div className="ch-wrap">
@@ -69,24 +73,40 @@ export function InstallChapter({ ctx }: { ctx: PageContext }) {
             </ol>
           </div>
 
-          <figure className="hs-demo hs-rise" aria-hidden="true" data-scrub-demo style={{ '--i': 2 } as CSSProperties}>
+          <figure
+            className="hs-demo hs-rise"
+            role="group"
+            aria-label={i.terminalLabel}
+            data-scrub-demo
+            style={{ '--i': 2 } as CSSProperties}
+          >
             <figcaption>
               <span>{i.terminalLabel}</span>
-              <span className="hs-tag">{i.termExample}</span>
+              <span className="hs-cap-r">
+                <button type="button" className="hs-replay" data-replay hidden aria-label={i.replayLabel}>
+                  {i.replay}
+                </button>
+                <span className="hs-tag">{i.termExample}</span>
+              </span>
             </figcaption>
             <pre translate="no" dir="ltr">
               <code>
                 {demo.map((cmd, k) => (
                   <span key={cmd} className="hs-ln">
                     <span className="hs-cmd">
-                      <span className="prompt">$ </span>
+                      <span className="prompt" aria-hidden="true">
+                        ${' '}
+                      </span>
                       <span data-type>{cmd}</span>
+                      <span className="hs-run" aria-hidden="true" data-spin />
                     </span>
                     {'\n'}
-                    <span className="hs-out" data-out>
-                      {i.termOut[k]}
-                      {'\n'}
-                    </span>
+                    {outs[k]!.map((o, j) => (
+                      <span key={o} className={`hs-out${j === outs[k]!.length - 1 ? ' hs-last' : ''}`} data-out>
+                        {o}
+                        {'\n'}
+                      </span>
+                    ))}
                   </span>
                 ))}
               </code>

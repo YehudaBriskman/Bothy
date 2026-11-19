@@ -263,6 +263,8 @@ export const en = {
         'Printed the address. Open it in a browser.',
       ],
       termExample: 'Example output',
+      replay: 'Replay',
+      replayLabel: 'Replay the install from the first command',
       proofLink: 'What has been shown, and what has not',
       terminalNote: 'Run it as your own user, without `sudo`. Run with `sudo` it refuses and changes nothing.',
       checksHeading: 'What it checks before it changes anything',
