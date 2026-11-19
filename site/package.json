@@ -32,7 +32,8 @@
     "check:meta": "node scripts/check-meta.mjs",
     "check:dist": "bash scripts/verify-dist.sh && node scripts/check-meta.mjs && node scripts/check-budgets.mjs",
     "screenshots": "node scripts/screenshots.mjs",
-    "check:a11y": "node scripts/check-a11y.mjs"
+    "check:a11y": "node scripts/check-a11y.mjs",
+    "check:surfaces": "node scripts/check-surfaces.mjs"
   },
   "dependencies": {
     "marked": "^16.0.0",

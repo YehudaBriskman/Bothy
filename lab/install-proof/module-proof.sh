@@ -14,6 +14,11 @@ R() { echo "--manifest $rel/$1/release-manifest.json --checksums $rel/$1/checksu
 A=2026.11.0; B=2026.11.1; SICK=2026.11.4
 node=bothy-node-exporter-1
 metrics() { curl -fsS http://127.0.0.1/-/api/node/metrics; }
+# Never pipe curl into `grep -q` here: grep exits at the first match, curl gets EPIPE on the
+# rest of a 61 KB body (exit 23) and pipefail fails the check at random (2026-11-19: "module
+# lost in update" with the module up and serving). Buffer to a file, then grep the file.
+fetch_has() { curl -fsS "$1" >/tmp/fetch.txt 2>/dev/null && grep -q -- "$2" /tmp/fetch.txt; }
+has_metrics() { fetch_has http://127.0.0.1/-/api/node/metrics node_memory_MemAvailable_bytes; }
 n_containers() { docker ps -q --filter label=com.docker.compose.project=bothy | wc -l; }
 portal_eq() { [ "$(curl -fsS http://127.0.0.1/ | sha)" = "$(docker exec bothy-bothy-web-1 cat /usr/share/nginx/html/index.html | sha)" ]; }
 { [ ! -e "$D" ] && [ ! -e "$C" ]; } || fail "guest is not clean"
@@ -59,15 +64,15 @@ grep -q "core module" /tmp/r1.txt && ok "remove edge refused: $(head -c 120 /tmp
 # update after a module: the module survives, its image follows the release
 "$(bin $B)" update $(R $B) >/tmp/u1.txt 2>&1 || { cat /tmp/u1.txt; fail "update rc"; }
 grep -q "updated: release $A -> $B" /tmp/u1.txt && ok "update $A -> $B reported success with the module installed" || fail "update output"
-[ "$(n_containers)" = 4 ] && metrics | grep -q node_memory_MemAvailable_bytes && ok "after update: node-metrics still installed and serving" || fail "module lost in update"
+[ "$(n_containers)" = 4 ] && has_metrics && ok "after update: node-metrics still installed and serving" || fail "module lost in update: $(docker ps --format '{{.Names}}' | tr '\n' ' '); body: $(head -c 200 /tmp/fetch.txt 2>/dev/null)"
 grep -q '"node-metrics"' "$D/receipt.json" && ok "after update: receipt still lists node-metrics" || fail "receipt lost the module"
-curl -fsS http://127.0.0.1/ | grep -q 'release 2026.11.1' && portal_eq && ok "after update: portal bytes are release $B's" || fail "portal after update"
+fetch_has http://127.0.0.1/ 'release 2026.11.1' && portal_eq && ok "after update: portal bytes are release $B's" || fail "portal after update"
 
 # remove
 "$(bin $B)" module remove node-metrics $(R $B) >/tmp/rm.txt 2>&1 || { cat /tmp/rm.txt; fail "remove rc"; }
 sed -n '/^-> /,$p' /tmp/rm.txt | cut -c1-200
 { [ "$(n_containers)" = 3 ] && [ -z "$(docker ps -aq --filter name=node-exporter)" ]; } && ok "remove: node-exporter container is gone, three remain" || fail "containers after remove: $(docker ps -a --format '{{.Names}}')"
-curl -s http://127.0.0.1/-/api/node/metrics | grep -q node_memory_MemAvailable_bytes && fail "route still serves metrics" || ok "remove: the route no longer serves metrics"
+{ curl -s http://127.0.0.1/-/api/node/metrics >/tmp/fetch.txt; grep -q node_memory_MemAvailable_bytes /tmp/fetch.txt; } && fail "route still serves metrics" || ok "remove: the route no longer serves metrics"
 grep -q '"node-metrics"' "$D/receipt.json" && fail "receipt still lists the module" || ok "remove: receipt no longer lists node-metrics"
 portal_eq && ok "portal bytes intact after remove" || fail "portal bytes after remove"
 "$(bin $B)" module remove node-metrics >/tmp/rm2.txt 2>&1 && grep -q "nothing to do" /tmp/rm2.txt && ok "second remove is a no-op" || fail "second remove"
