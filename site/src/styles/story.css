@@ -850,7 +850,7 @@ main:has(.story) + .site-footer a {
   margin-block: 2.5rem;
 }
 .cs-on .ch-track {
-  block-size: 450svh;
+  block-size: 1100svh;
 }
 .ch-flow {
   padding-block: 0;
