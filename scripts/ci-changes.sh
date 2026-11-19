@@ -94,14 +94,14 @@ is_site() {
   return 1
 }
 
-# is_site_browser <path> - a path the Chromium checks (check:story, check:sky)
+# is_site_browser <path> - a path the Chromium checks (check:story, check:sky, check:a11y)
 # exist to guard: the story, the sky, the rendered console, the styles, what
 # mounts them, the stills, the checks themselves and the browser's version pin.
 is_site_browser() {
   case "$1" in
     site/src/story/*|site/src/sky/*|site/src/console/*|site/src/styles/*) return 0 ;;
-    site/src/enhance*|site/src/pages/Home.tsx|site/public/sky/*|site/index.html) return 0 ;;
-    site/scripts/check-story.mjs|site/scripts/check-sky.mjs|site/scripts/screenshots.mjs) return 0 ;;
+    site/src/enhance*|site/src/components/*|site/src/pages/*|site/public/sky/*|site/index.html) return 0 ;;
+    site/scripts/check-story.mjs|site/scripts/check-sky.mjs|site/scripts/check-a11y.mjs|site/scripts/screenshots.mjs) return 0 ;;
     site/package.json|site/package-lock.json|.github/workflows/site-browser.yml) return 0 ;;
   esac
   return 1
