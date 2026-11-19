@@ -652,30 +652,111 @@ a.dd-row:focus-visible,
 
 .site-foot {
   position: relative;
+  overflow-x: clip; /* the wordmark is wider than the window on purpose; the page never scrolls sideways */
   background: var(--ink);
   color: var(--text);
   font-size: var(--fs-small);
 }
 /* the giant wordmark: decorative, very faint, its lower half cut away by the footer's own top edge */
-.foot-mark {
-  overflow: hidden;
-  block-size: clamp(3.4rem, 1rem + 10.4vw, 10.6rem);
-  margin-block-start: clamp(2rem, 1rem + 4vw, 4rem);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  pointer-events: none;
-  user-select: none;
-  mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
+/* The giant wordmark (components/FootMark.tsx): dark glass letters cropped by the footer's edges; where the pointer
+   is, a soft light and bright thin inner edges (src/footmark.ts sets --mx/--my). Transform and opacity only. */
+@property --mx {
+  syntax: '<length-percentage>';
+  inherits: true;
+  initial-value: 50%;
 }
-.foot-mark span {
-  font: 800 clamp(5.2rem, 1rem + 17.2vw, 17.5rem) / 0.8 var(--font-display);
-  letter-spacing: -0.06em;
-  white-space: nowrap;
-  color: transparent;
-  background: linear-gradient(to bottom, rgb(255 255 255 / 11%), rgb(255 255 255 / 2%));
-  background-clip: text;
-  -webkit-background-clip: text;
+.foot-mark {
+  --mx: 50%;
+  --my: 40%;
+  --wm-r: clamp(8rem, 18vw, 19rem);
+  position: relative;
+  overflow: hidden;
+  block-size: clamp(3.6rem, 12.4vw, 12rem);
+  margin-block-start: clamp(2rem, 1rem + 4vw, 4rem);
+  margin-inline: -2vw; /* a little wider than the window: the outer letters are cropped by its edges */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+}
+.foot-mark .wm {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+.wm-base g {
+  fill: #14141a;
+}
+.wm-lit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s var(--ease-out);
+  -webkit-mask-image: radial-gradient(
+    circle var(--wm-r) at var(--mx) var(--my),
+    #000 0,
+    rgb(0 0 0 / 55%) 38%,
+    rgb(0 0 0 / 18%) 70%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    circle var(--wm-r) at var(--mx) var(--my),
+    #000 0,
+    rgb(0 0 0 / 55%) 38%,
+    rgb(0 0 0 / 18%) 70%,
+    transparent 100%
+  );
+}
+.wm-spot g {
+  fill: rgb(255 255 255 / 10%);
+}
+.wm-edge g {
+  stroke: rgb(255 255 255 / 62%);
+  stroke-width: 3px; /* clipped to the letter: 1.5px shows, all on the inside */
+}
+.foot-mark clipPath path {
+  vector-effect: non-scaling-stroke; /* the stroke stays 3px whatever the wordmark's size */
+}
+.wm-edge {
+  filter: drop-shadow(0 0 6px rgb(255 255 255 / 26%));
+}
+.foot-mark[data-lit] .wm-lit {
+  opacity: 1;
+  transition-duration: 0.2s;
+}
+/* a device without hover: one slow pass of the light, the first time the wordmark is in view (footmark.ts) */
+.foot-mark[data-sweep] {
+  --my: 45%;
+  animation: wm-sweep 2.8s var(--ease-out, ease-out) 1 both;
+}
+.foot-mark[data-sweep] .wm-lit {
+  opacity: 1;
+}
+@keyframes wm-sweep {
+  from {
+    --mx: -15%;
+  }
+  to {
+    --mx: 115%;
+  }
+}
+/* reduced motion: no moving light, only still, faint outlines */
+@media (prefers-reduced-motion: reduce) {
+  .wm-spot {
+    display: none;
+  }
+  .wm-edge {
+    opacity: 0.22;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+@media (forced-colors: active) {
+  .wm-lit {
+    display: none;
+  }
 }
 .foot-body {
   position: relative;
