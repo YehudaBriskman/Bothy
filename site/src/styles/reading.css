@@ -1,5 +1,5 @@
 /*
- * The two reading wheels after the story's descent: "What a bothy is" and "One console for one machine".
+ * The reading wheel after the story: "One console for one machine".
  * Flat page black, no panel, no figure: the words in big type, centred. Plain by default (every line lit, normal
  * flow, which is also reduced motion and no script). With script and motion src/wheel.ts adds .js-wheel: the track
  * grows tall, the stage pins, and the stack is moved up past a centre line, line by line, by the scroll position.

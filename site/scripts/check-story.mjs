@@ -175,7 +175,8 @@ if (!process.env.ONLY || 'continuity'.includes(process.env.ONLY)) {
 }
 
 // Nothing is ever dropped. Jump straight to the end of the pinned track (an anchor link, the End key, a fast fling) and
-// even past it: the player must still run every beat, in order, faster but whole, and finish within a bounded time; the
+// even past it: the player must still run every beat, in order, faster but whole, and finish within a bounded time, WITHOUT ever blocking the scroll (the window is held fixed behind the next section until
+// it has finished); the
 // last beat's typed command is complete when it does. Scrolling back afterwards drops nothing already played.
 if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
   const b = await chromium.launch({
@@ -204,29 +205,27 @@ if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
     const t0 = Date.now();
     let s;
     let done = false;
-    const endY = await p.evaluate(() => {
-      const t = document.querySelector('[data-console-track]');
-      const st = t.querySelector('.ch-stage');
-      return Math.round(
-        t.getBoundingClientRect().top +
-          scrollY +
-          t.offsetHeight -
-          st.offsetHeight -
-          parseFloat(getComputedStyle(st).top),
-      );
-    });
     const tops = [];
     const ys = [];
+    const target = await p.evaluate(() => scrollY);
+    let nudged = false;
     while (Date.now() - t0 < 40000) {
       s = await state(p);
       const g = await p.evaluate(() => ({
         y: scrollY,
         top: document.querySelector('[data-console-track] .ch-stage').getBoundingClientRect().top,
-        lock: document.querySelector('.story').dataset.csLock,
+        curtain: document.querySelector('.story').dataset.csCurtain,
       }));
-      if (g.lock) {
+      if (g.curtain) {
         tops.push(g.top);
         ys.push(g.y);
+        if (!nudged) {
+          // free scrolling while the demo finishes: the wheel must move the page at once, the window must not follow
+          nudged = true;
+          await p.mouse.move(700, 450);
+          await p.mouse.wheel(0, 120);
+          await sleep(120);
+        }
       }
       if (s.beat === '6' && s.u >= 0.99) {
         done = true;
@@ -241,21 +240,21 @@ if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
       return !el || el.textContent === (el.dataset.type ?? '');
     });
     const inOrder = beats.join(',') === '0,1,2,3,4,5,6';
-    // held in place: the stage did not move in the viewport while the animation ran, and the page was held at the track's end
+    // never held: scrollY follows the visitor (it only ever goes forward from the jump), and while the window is pinned
+    // behind the curtain it does not move in the viewport
     const still = tops.length === 0 || Math.max(...tops) - Math.min(...tops) <= 1;
-    const held = ys.length === 0 || (Math.max(...ys) - Math.min(...ys) <= 1 && Math.abs(ys[0] - endY) <= 2);
-    // then it lets go: a wheel moves the page on
+    const free = ys.length === 0 || (Math.min(...ys) >= target - 2 && (!nudged || Math.max(...ys) >= target + 100));
     await sleep(300);
     const y0 = await p.evaluate(() => scrollY);
     await p.mouse.move(700, 450);
     for (let i = 0; i < 5; i++) await p.mouse.wheel(0, 200);
     await sleep(600);
     const y1 = await p.evaluate(() => scrollY);
-    const released = y1 > y0 + 200 && (await p.evaluate(() => !document.querySelector('.story').dataset.csLock));
-    const ok = done && inOrder && typed && took < 40000 && still && held && released && (!past || ys.length > 0);
+    const released = y1 > y0 + 200 && (await p.evaluate(() => !document.querySelector('.story').dataset.csCurtain));
+    const ok = done && inOrder && typed && took < 40000 && still && free && released && (!past || ys.length > 0);
     if (!ok) bad++;
     console.log(
-      `${ok ? 'ok  ' : 'FAIL'} jump to the end${past ? ' and past it' : ''}: beats ${beats.join(',')} in ${took} ms, last command typed in full: ${typed}, stage still: ${still} (${tops.length} samples), held at track end: ${held} (y ${ys[0]}..${ys.at(-1)}, end ${endY}), released: ${released}`,
+      `${ok ? 'ok  ' : 'FAIL'} jump to the end${past ? ' and past it' : ''}: beats ${beats.join(',')} in ${took} ms, last command typed in full: ${typed}, stage still behind the curtain: ${still} (${tops.length} samples), scroll free: ${free} (y ${ys[0]}..${ys.at(-1)}), released: ${released}`,
     );
     await ctx.close();
   }

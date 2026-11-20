@@ -117,15 +117,7 @@ export const en = {
   home: {
     title: 'BothyBox: a free shelter in the hills, for your machine',
     chapterNav: 'The story, chapter by chapter',
-    chapterNames: [
-      'The sky',
-      'What a bothy is',
-      'One console',
-      'What is inside',
-      'Four sizes',
-      'Install',
-      'Leave it as you found it',
-    ],
+    chapterNames: ['The sky', 'One console', 'What is inside', 'Four sizes', 'Install', 'Leave it as you found it'],
     hero: {
       heading: 'BothyBox',
       line: 'A free shelter in the hills, for your machine.',
