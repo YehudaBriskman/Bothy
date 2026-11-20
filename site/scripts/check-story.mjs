@@ -204,8 +204,30 @@ if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
     const t0 = Date.now();
     let s;
     let done = false;
+    const endY = await p.evaluate(() => {
+      const t = document.querySelector('[data-console-track]');
+      const st = t.querySelector('.ch-stage');
+      return Math.round(
+        t.getBoundingClientRect().top +
+          scrollY +
+          t.offsetHeight -
+          st.offsetHeight -
+          parseFloat(getComputedStyle(st).top),
+      );
+    });
+    const tops = [];
+    const ys = [];
     while (Date.now() - t0 < 40000) {
       s = await state(p);
+      const g = await p.evaluate(() => ({
+        y: scrollY,
+        top: document.querySelector('[data-console-track] .ch-stage').getBoundingClientRect().top,
+        lock: document.querySelector('.story').dataset.csLock,
+      }));
+      if (g.lock) {
+        tops.push(g.top);
+        ys.push(g.y);
+      }
       if (s.beat === '6' && s.u >= 0.99) {
         done = true;
         break;
@@ -219,10 +241,21 @@ if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
       return !el || el.textContent === (el.dataset.type ?? '');
     });
     const inOrder = beats.join(',') === '0,1,2,3,4,5,6';
-    const ok = done && inOrder && typed && took < 40000;
+    // held in place: the stage did not move in the viewport while the animation ran, and the page was held at the track's end
+    const still = tops.length === 0 || Math.max(...tops) - Math.min(...tops) <= 1;
+    const held = ys.length === 0 || (Math.max(...ys) - Math.min(...ys) <= 1 && Math.abs(ys[0] - endY) <= 2);
+    // then it lets go: a wheel moves the page on
+    await sleep(300);
+    const y0 = await p.evaluate(() => scrollY);
+    await p.mouse.move(700, 450);
+    for (let i = 0; i < 5; i++) await p.mouse.wheel(0, 200);
+    await sleep(600);
+    const y1 = await p.evaluate(() => scrollY);
+    const released = y1 > y0 + 200 && (await p.evaluate(() => !document.querySelector('.story').dataset.csLock));
+    const ok = done && inOrder && typed && took < 40000 && still && held && released && (!past || ys.length > 0);
     if (!ok) bad++;
     console.log(
-      `${ok ? 'ok  ' : 'FAIL'} jump to the end${past ? ' and past it' : ''}: beats ${beats.join(',')} in ${took} ms, last command typed in full: ${typed}`,
+      `${ok ? 'ok  ' : 'FAIL'} jump to the end${past ? ' and past it' : ''}: beats ${beats.join(',')} in ${took} ms, last command typed in full: ${typed}, stage still: ${still} (${tops.length} samples), held at track end: ${held} (y ${ys[0]}..${ys.at(-1)}, end ${endY}), released: ${released}`,
     );
     await ctx.close();
   }

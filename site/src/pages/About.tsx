@@ -26,9 +26,7 @@ export function About({ ctx }: { ctx: PageContext }) {
         <header className="page-head">
           <p className="eyebrow">{a.eyebrow}</p>
           <h1>{a.heading}</h1>
-          <p className="lede">
-            <Rich text={h.hut.lead} />
-          </p>
+          <p className="lede">{h.hut.lines.slice(0, 2).join(' ')}</p>
         </header>
 
         <div className="manifesto">
@@ -37,24 +35,14 @@ export function About({ ctx }: { ctx: PageContext }) {
             <h2 id="about-name-h" className="t-h3">
               {h.descent.heading}
             </h2>
-            <p className="mf">{h.descent.lead}</p>
-            <div className="mf-code">
-              <h3 className="t-label muted">{h.descent.codeLabel}</h3>
-              <ul className="code-list">
-                {h.descent.code.map((c) => (
-                  <li key={c}>{c}</li>
-                ))}
-              </ul>
-              <p className="muted small">{h.descent.codeSource}</p>
-            </div>
+            <p className="mf">{h.descent.lines.join(' ')}</p>
           </section>
           <section aria-labelledby="about-what-h" className="mf-part">
             <p className="eyebrow">{a.whatEyebrow}</p>
             <h2 id="about-what-h" className="t-h3">
               {h.hut.heading}
             </h2>
-            <p className="mf">{h.hut.promise}</p>
-            <p className="mf">{h.descent.close}</p>
+            <p className="mf">{h.hut.lines.slice(2).join(' ')}</p>
             <a className="card-link" href={href(`${p}/docs/`)}>
               {h.hut.guide} <Icon name="arrow" size={16} className="arrow" />
             </a>

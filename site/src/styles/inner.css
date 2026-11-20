@@ -42,12 +42,6 @@
 .mf-claims .mf {
   max-inline-size: 34ch;
 }
-.mf-code {
-  display: grid;
-  gap: 0.75rem;
-  inline-size: min(100%, 36rem);
-  margin-block-start: 0.5rem;
-}
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .mf {

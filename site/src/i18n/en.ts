@@ -153,21 +153,19 @@ export const en = {
     },
     descent: {
       heading: 'What a bothy is',
-      lead: 'In the hills of Scotland, and of northern England and Wales, a bothy is a basic shelter: four walls and a roof, no charge and nobody at the door. Volunteers keep them up.',
-      codeLabel: 'The Bothy Code, in short',
-      code: [
+      lines: [
+        'A bothy is a free shelter in the hills.',
+        'Four walls, a roof, nobody at the door.',
         'Leave it as you found it.',
-        'Respect other users and the place.',
-        'Keep numbers down.',
-        'Turn no one away.',
       ],
-      codeSource: 'From the Mountain Bothies Association’s Bothy Code, shortened.',
-      close: 'The software borrows the name and the manners. What it does is the next chapter.',
     },
     hut: {
       heading: 'One console for one machine',
-      lead: 'Bothy is a web console for a single machine. It finds what is running by asking Docker, shows it on one page, and gives you a reader for the files and notes kept on that machine. It is open source, under the MIT licence.',
-      promise: 'It does not replace your tools. It shows and looks after what you already run.',
+      lines: [
+        'Bothy is one web console for one machine.',
+        'It shows what Docker runs, and your notes.',
+        'Free and open source, under the MIT licence.',
+      ],
       guide: 'Read the guide',
     },
     flow: {

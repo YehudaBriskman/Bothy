@@ -7,13 +7,11 @@ import type { ReactNode } from 'react';
  * lets go (src/wheel.ts). Without script, or with reduced motion, it is the same words as plain big text, all lit.
  * Every line carries `wl`; the script reads nothing else.
  */
-export const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
-
-/** A paragraph cut into its sentences, one wheel line each. The words are unchanged. */
-export function Lines({ text }: { text: string }) {
+/** One wheel line each. */
+export function Lines({ lines }: { lines: readonly string[] }) {
   return (
     <>
-      {sentences(text).map((s) => (
+      {lines.map((s) => (
         <p key={s} className="wl">
           {s}
         </p>

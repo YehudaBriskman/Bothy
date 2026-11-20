@@ -6,7 +6,7 @@
  */
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
-const PER = 0.18; // scroll travel per line, in viewport heights: a quick roll, a line at a time
+const PER = 0.25; // scroll travel per line, in viewport heights: a quick roll, a line at a time
 const HOLD = 0.12; // a short hold on the last line before the section lets go
 const MID = 0.54; // where the centre line sits, as a fraction of the stage height (just under the heading)
 
