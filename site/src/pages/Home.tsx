@@ -4,7 +4,6 @@ import { Hood } from '../components/new-sections/Hood.tsx';
 import { Motion } from '../components/new-sections/Motion.tsx';
 import { Layout, NightBand } from '../components/Layout.tsx';
 import { ConsoleFlow } from '../components/chapters/ConsoleFlow.tsx';
-import { Descent } from '../components/chapters/Descent.tsx';
 import { Hut } from '../components/chapters/Hut.tsx';
 import { Inside } from '../components/chapters/Inside.tsx';
 import { InstallChapter } from '../components/chapters/InstallChapter.tsx';
@@ -18,11 +17,11 @@ import { SCENES } from '../story/scenes.ts';
 export { installLines } from '../components/chapters/InstallChapter.tsx';
 
 /** The chapter ids, in order: the dots, the progress map and the skip links all read this one list. */
-export const CHAPTERS = ['sky', 'descent', 'hut', 'inside', 'sizes', 'install', 'trust'] as const;
+export const CHAPTERS = ['sky', 'hut', 'inside', 'sizes', 'install', 'trust'] as const;
 
 /**
- * The story, in seven sections over one fixed sky. Each section is a real landmark with a heading, so the page is
- * complete and linkable with no script and no WebGL: the sky, the descent, the hut, what is inside, four sizes,
+ * The story, in six sections over one fixed sky. Each section is a real landmark with a heading, so the page is
+ * complete and linkable with no script and no WebGL: the sky, the hut, what is inside, four sizes,
  * install, trust. Words are in i18n/en.ts; what is proven and what is planned is in facts.ts.
  */
 export function Home({ ctx }: { ctx: PageContext }) {
@@ -32,7 +31,6 @@ export function Home({ ctx }: { ctx: PageContext }) {
         <SkyStage scenes={SCENES.map((s) => s.id)} />
         <Sky ctx={ctx} />
         <ConsoleFlow ctx={ctx} />
-        <Descent ctx={ctx} />
         <Hut ctx={ctx} />
         <Inside ctx={ctx} />
         <Sizes ctx={ctx} />

@@ -18,7 +18,7 @@ export function ConsoleFlow({ ctx }: { ctx: PageContext }) {
             {f.label}
           </h2>
           <p className="ch-flow-skip">
-            <a href="#descent">{f.skip}</a>
+            <a href="#hut">{f.skip}</a>
           </p>
           <div className="ch-track" data-console-track>
             <div className="ch-stage">
