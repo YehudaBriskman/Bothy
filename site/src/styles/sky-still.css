@@ -65,8 +65,8 @@
   content: '';
   position: absolute;
   inset: 0;
-  /* the sky's own grade for the still path (phones, no WebGL): a pale daylight sky, so the navy ink holds on it */
-  filter: brightness(1.7) contrast(0.5) brightness(1.5) saturate(0.9);
+  /* the sky's own grade for the still path (phones, no WebGL): a touch deeper, so white words hold on it */
+  filter: brightness(0.46) saturate(1.2);
   background-size: cover;
   background-position: center;
   background-image: image-set(

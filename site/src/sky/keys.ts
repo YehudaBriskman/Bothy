@@ -7,7 +7,7 @@
 //   sat    saturation about luminance;  exp: exposure
 //   glow   horizon glow colour + strength (follows the sun sideways)
 //   sunCol colour of the sun disc and its bloom
-//   haze   colour + amount of low haze
+//   haze   colour + amount of low haze;  scrim: strength of the local dark scrim behind the text
 //   top/bot  CSS still gradient (the no-WebGL, phone and no-JS-with-JS path)
 // Hours are local clock hours. The table runs from dawn to sunset and is clamped, never wrapped: before dawn the
 // sky is the dawn palette, after sunset it is the sunset palette. It is never dark.
@@ -27,6 +27,7 @@ export interface Key {
   glow: number[];
   sunCol: number[];
   haze: number[];
+  scrim: number;
   top: number[];
   bot: number[];
 }
@@ -39,12 +40,13 @@ export const KEYS: Key[] = [
     h: 6.4,
     w: [0, 1],
     gain: [0.9, 0.86, 1.0],
-    lift: [0.44, 0.436, 0.45],
+    lift: [0.02, 0.016, 0.03],
     sat: 1.05,
     exp: 0.72,
     glow: [1.0, 0.55, 0.38, 0.6],
     sunCol: [1, 0.62, 0.42],
     haze: [0.9, 0.62, 0.55, 0.4],
+    scrim: 0.5,
     top: [84, 98, 150],
     bot: [238, 164, 124],
   },
@@ -53,12 +55,13 @@ export const KEYS: Key[] = [
     h: 8.5,
     w: [0.85, 0.15],
     gain: [1.04, 1.0, 0.94],
-    lift: [0.42, 0.42, 0.42],
+    lift: [0, 0, 0],
     sat: 1.08,
     exp: 1.0,
     glow: [1.0, 0.82, 0.6, 0.12],
     sunCol: [1, 0.9, 0.72],
     haze: [0.85, 0.86, 0.88, 0.25],
+    scrim: 0.58,
     top: [74, 118, 188],
     bot: [196, 206, 218],
   },
@@ -67,12 +70,13 @@ export const KEYS: Key[] = [
     h: 12,
     w: [1, 0],
     gain: [0.98, 1.0, 1.04],
-    lift: [0.42, 0.42, 0.42],
+    lift: [0, 0, 0],
     sat: 1.12,
     exp: 1.02,
     glow: [1, 0.96, 0.88, 0.05],
     sunCol: [1, 0.98, 0.9],
     haze: [0.86, 0.9, 0.96, 0.2],
+    scrim: 0.55,
     top: [52, 104, 190],
     bot: [176, 198, 224],
   },
@@ -81,12 +85,13 @@ export const KEYS: Key[] = [
     h: 15.5,
     w: [1, 0],
     gain: [1.04, 1.0, 0.93],
-    lift: [0.424, 0.422, 0.42],
+    lift: [0.004, 0.002, 0],
     sat: 1.08,
     exp: 0.95,
     glow: [1, 0.86, 0.6, 0.12],
     sunCol: [1, 0.92, 0.74],
     haze: [0.95, 0.88, 0.76, 0.25],
+    scrim: 0.58,
     top: [66, 110, 186],
     bot: [214, 206, 192],
   },
@@ -95,12 +100,13 @@ export const KEYS: Key[] = [
     h: 17.5,
     w: [0.3, 0.7],
     gain: [1.1, 0.98, 0.8],
-    lift: [0.432, 0.424, 0.42],
+    lift: [0.012, 0.004, 0],
     sat: 1.1,
     exp: 0.88,
     glow: [1.0, 0.64, 0.28, 0.55],
     sunCol: [1, 0.72, 0.38],
     haze: [1.0, 0.74, 0.45, 0.4],
+    scrim: 0.58,
     top: [92, 118, 170],
     bot: [244, 176, 108],
   },
@@ -109,18 +115,19 @@ export const KEYS: Key[] = [
     h: 18.7,
     w: [0, 1],
     gain: [1.12, 0.9, 0.78],
-    lift: [0.44, 0.426, 0.43],
+    lift: [0.02, 0.006, 0.01],
     sat: 1.15,
     exp: 0.82,
     glow: [1.0, 0.45, 0.2, 0.8],
     sunCol: [1, 0.52, 0.22],
     haze: [1.0, 0.56, 0.36, 0.5],
+    scrim: 0.54,
     top: [88, 92, 146],
     bot: [244, 124, 76],
   },
 ];
 
-const FIELDS = ['w', 'gain', 'lift', 'sat', 'exp', 'glow', 'sunCol', 'haze', 'top', 'bot'] as const;
+const FIELDS = ['w', 'gain', 'lift', 'sat', 'exp', 'glow', 'sunCol', 'haze', 'scrim', 'top', 'bot'] as const;
 
 const sm = (t: number) => t * t * (3 - 2 * t);
 const mixv = (a: number | number[], b: number | number[], t: number): number | number[] =>

@@ -4,7 +4,7 @@
  * Logical properties only (verify-dist.sh refuses the physical ones).
  *
  * Layers, bottom to top: the section's own gradient (the floor), `.sky-still` (the photograph for the hour, chosen by
- * CSS), its multiply tint, the WebGL canvas, then the words.
+ * CSS), its multiply tint, the WebGL canvas, the broad scrim, then the words.
  */
 
 .sky-ui[hidden],
@@ -46,6 +46,7 @@
   --sky-btn-line: rgb(255 255 255 / 60%);
   --sky-btn-fill: #f4efe6;
   --sky-btn-ink: #1b1630;
+  --scrim-a: 0.3;
 }
 .ch-sky.sky-on a.ch-btn {
   backdrop-filter: blur(6px);
@@ -364,20 +365,4 @@
   .story .sky-ui {
     display: none;
   }
-}
-
-/* Bright hour: the glass chrome turns pale with the ink, so navy words keep their contrast on it */
-html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) body:has([data-story]) .primary ul {
-  background: rgb(255 255 255 / 62%);
-  box-shadow: inset 0 0 0 1px rgb(8 18 30 / 18%);
-}
-html:has(.ch-sky.sky-on[data-ink='dark']):not([data-nav-dark]) .tools .pill-glass {
-  color: #08121e;
-  background: rgb(255 255 255 / 62%);
-  box-shadow: inset 0 0 0 1px rgb(8 18 30 / 22%);
-}
-.ch-sky.sky-on[data-ink='dark'] .ch-badge,
-.story .ch-sky.sky-on[data-ink='dark'] a.pill-glass {
-  background: rgb(255 255 255 / 62%);
-  box-shadow: inset 0 0 0 1px rgb(8 18 30 / 22%);
 }

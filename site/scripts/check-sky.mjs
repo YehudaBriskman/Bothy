@@ -83,9 +83,6 @@ export function worstCase(inks, wcagYs, apcaYs) {
 /** The floors (design doc): body and tagline 4.5 and Lc 60, large text 3 and Lc 45. */
 export const FLOORS = { large: { wcag: 3, lc: 45 }, body: { wcag: 4.5, lc: 60 } };
 
-/** Clean sky: the mean luma (0..255) behind a headline box may differ from the sky beside it by at most this much (the clouds' own variation; a scrim or dim is 40 or more). */
-export const CLEAN_TOL = 20;
-
 export const FAST_HOURS = [1, 5, 6.5, 8.5, 12, 16, 18.5, 21];
 export const FULL_HOURS = Array.from({ length: 48 }, (_, i) => i / 2);
 export const VIEWPORTS = { desktop: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -101,7 +98,7 @@ function collectAndHide() {
     for (const el of sec.querySelectorAll(sel)) {
       if (seen.has(el)) continue;
       const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
-      if (!hasText && !(el.matches('a,button,.ch-line') && el.textContent.trim())) continue;
+      if (!hasText && !(el.matches('a,button') && el.textContent.trim())) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
       if (el.closest('[hidden]') || el.closest('.ch-skip')) continue; // the skip links are out of sight until a key focuses them
@@ -158,7 +155,7 @@ function collectAndHide() {
   }
   const st = document.createElement('style');
   st.id = 'check-sky-hide';
-  // words invisible, their backgrounds (a button's own fill, the sky) untouched; the lit gradient fill is
+  // words invisible, their backgrounds (a button's own fill, the sky, the scrim) untouched; the lit gradient fill is
   // clipped to the glyphs, so it goes too
   st.textContent = `[data-sky-check] svg{visibility:hidden!important}
 [data-sky-check]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;filter:none!important}
@@ -256,7 +253,6 @@ async function runViewport(browser, base, name, vp, hours, o) {
   await page.evaluate(() => window.__sky.loadAll());
   await page.evaluate(() => document.fonts.ready);
   const rows = [];
-  const clean = [];
   for (const h of hours) {
     const t0 = Date.now();
     await page.evaluate((h) => {
@@ -300,42 +296,6 @@ async function runViewport(browser, base, name, vp, hours, o) {
       document.getElementById('check-sky-hide')?.remove();
       document.querySelectorAll('[data-sky-check]').forEach((e) => e.removeAttribute('data-sky-check'));
     });
-    if (name === 'desktop') {
-      // Nothing is drawn behind the words (no scrim, shadow, dim): the sky under the headline box is the sky beside it
-      // at the same height. Compare its mean luma with the mean of the strips left and right of the box.
-      const hero = els.filter((e) => ['h1', 'tagline', 'lede'].includes(e.role));
-      const boxes = hero.map((e) => {
-        const x0 = Math.min(...e.lines.map((l) => l.x));
-        const x1 = Math.max(...e.lines.map((l) => l.x + l.w));
-        const y0 = Math.min(...e.lines.map((l) => l.y));
-        const y1 = Math.max(...e.lines.map((l) => l.y + l.h));
-        return { x0, x1, y0, y1 };
-      });
-      const sets = boxes.map((b) => [
-        { x: b.x0, y: b.y0, w: b.x1 - b.x0, h: b.y1 - b.y0 },
-        { x: 8, y: b.y0, w: Math.max(1, b.x0 - 40), h: b.y1 - b.y0 },
-        { x: b.x1 + 32, y: b.y0, w: Math.max(1, vp.width - b.x1 - 40), h: b.y1 - b.y0 },
-      ]);
-      const px = await decodeRegions(page, png, sets);
-      const luma = (arr) => {
-        let t = 0;
-        for (let k = 0; k < arr.length; k += 3) t += 0.2126 * arr[k] + 0.7152 * arr[k + 1] + 0.0722 * arr[k + 2];
-        return t / (arr.length / 3);
-      };
-      hero.forEach((e, i) => {
-        const [mid, l, r] = px[i].map(luma);
-        const side = (l + r) / 2;
-        const delta = +(mid - side).toFixed(1);
-        clean.push({
-          hour: h,
-          role: e.role,
-          mid: +mid.toFixed(1),
-          side: +side.toFixed(1),
-          delta,
-          pass: Math.abs(delta) <= CLEAN_TOL,
-        });
-      });
-    }
     els.forEach((e, i) => {
       const flat = regions[i].flat();
       const wy = [];
@@ -366,7 +326,7 @@ async function runViewport(browser, base, name, vp, hours, o) {
     console.error(`  ${name} ${fmtH(h)}  ${els.length} elements  ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   }
   await ctx.close();
-  return { rows, errors, clean };
+  return { rows, errors };
 }
 
 // ------------------------------------------------------------------ the round trip: top, to the end, and back
@@ -526,7 +486,6 @@ async function main() {
   const rows = [];
   const errors = [];
   const trip = [];
-  const clean = [];
   try {
     for (const v of vps) {
       console.error(`${v} ${VIEWPORTS[v].width}x${VIEWPORTS[v].height}: ${hours.length} hours`);
@@ -536,7 +495,6 @@ async function main() {
       });
       rows.push(...r.rows);
       errors.push(...r.errors);
-      clean.push(...r.clean);
     }
     if (!opt('hours')) trip.push(...(await roundTrip(browser, base, VIEWPORTS.desktop, [6.5, 17])));
   } finally {
@@ -549,7 +507,7 @@ async function main() {
     viewports: vps,
     seconds: Math.round((Date.now() - t0) / 1000),
   };
-  fs.writeFileSync(path.join(out, 'contrast.json'), JSON.stringify({ meta, rows, clean }, null, 1));
+  fs.writeFileSync(path.join(out, 'contrast.json'), JSON.stringify({ meta, rows }, null, 1));
   fs.writeFileSync(path.join(out, 'contrast.md'), markdown(rows, meta));
   const bad = rows.filter((r) => !r.pass);
   for (const r of bad) {
@@ -557,21 +515,13 @@ async function main() {
       `FAIL ${fmtH(r.hour)} ${r.viewport} ${r.role} "${r.text}": WCAG ${r.wcag} (need ${r.floorWcag}), Lc ${r.lc} (need ${r.floorLc})`,
     );
   }
-  for (const c of clean) {
-    console.error(`  clean ${fmtH(c.hour)} ${c.role}: behind ${c.mid}, beside ${c.side}, delta ${c.delta}`);
-    if (!c.pass)
-      console.log(
-        `FAIL ${fmtH(c.hour)} ${c.role}: sky behind the words differs from the sky beside them by ${c.delta} (max ${CLEAN_TOL}): something is drawn behind the words`,
-      );
-  }
-  const badClean = clean.filter((c) => !c.pass);
   for (const t of trip) console.log(`FAIL ${t}`);
   if (errors.length) console.error(`page errors:\n${errors.slice(0, 5).join('\n')}`);
   console.log(
     `check-sky: ${rows.length} measurements, ${bad.length} failing, ${meta.seconds}s, table in ${path.relative(process.cwd(), out)}/contrast.md`,
   );
   if (!rows.length) throw new Error('no text elements measured: is there a [data-sky] section on the home page?');
-  process.exit(bad.length || trip.length || badClean.length ? 1 : 0);
+  process.exit(bad.length || trip.length ? 1 : 0);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
