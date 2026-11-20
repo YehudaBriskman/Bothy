@@ -37,7 +37,7 @@ const m=h.match(/<meta http-equiv=\"Content-Security-Policy\" content=\"([^\"]*)
 const csp=m[1].replace(/&#39;/g,\"'\");const sc=(csp.match(/script-src([^;]*)/)||[,''])[1];
 if(/unsafe-inline|unsafe-eval|\*|https?:/.test(sc)){console.log('::error::'+p+': script-src is too wide: '+sc);bad++;}
 if(h.indexOf('Content-Security-Policy')>h.search(/<(script|link)[ >]/)){console.log('::error::'+p+': the CSP meta is not before the first script or link');bad++;}
-for(const s of h.matchAll(/<script(?![^>]*\b(src|type=\"application\/ld\+json\")\b)[^>]*>([\s\S]*?)<\/script>/g)){const hash=\"'sha256-\"+cr.createHash('sha256').update(s[2]).digest('base64')+\"'\";if(!csp.includes(hash)){console.log('::error::'+p+': an inline script is not in the CSP');bad++;}}}}})('dist');
+for(const s of h.matchAll(/<script(?![^>]*(\bsrc=|type=\"application\/ld\+json\"))[^>]*>([\s\S]*?)<\/script>/g)){const hash=\"'sha256-\"+cr.createHash('sha256').update(s[2]).digest('base64')+\"'\";if(!csp.includes(hash)){console.log('::error::'+p+': an inline script is not in the CSP');bad++;}}}}})('dist');
 console.log('  csp: '+n+' pages checked');process.exit(bad?1:0)" || fail=1
 
 node scripts/check-links.mjs || fail=1
