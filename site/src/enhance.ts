@@ -179,6 +179,8 @@ if (document.querySelector('[data-wheel]')) void import('./wheel.ts');
 
 // ── The live sky: a lazy island, only on a page that has one, after the page has loaded ─
 const storyRoot = document.querySelector<HTMLElement>('[data-story]');
+// The home page is taller once its scripts mount, so its scroll is restored by hand, after the layout settles
+if (storyRoot) void import('./scroll-restore.ts');
 if (storyRoot) void import('./story/mount.ts').then((m) => m.mountStory(storyRoot));
 const skySection = document.querySelector<HTMLElement>('[data-sky]');
 if (skySection) {

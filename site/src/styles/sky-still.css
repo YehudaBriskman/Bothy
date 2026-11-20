@@ -20,8 +20,14 @@
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background-color: var(--sky-bot);
-  background-image: linear-gradient(to bottom, var(--sky-top), var(--sky-bot));
+  background-color: color-mix(in srgb, var(--sky-bot) 50%, #000);
+  /* the floor wears the same deep grade as the photograph (brightness .46 below): it used to be about twice as bright,
+     so the page flashed a bright blue and then dropped to the photo */
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--sky-top) 50%, #000),
+    color-mix(in srgb, var(--sky-bot) 50%, #000)
+  );
   background-size: cover;
   background-position: center;
 }

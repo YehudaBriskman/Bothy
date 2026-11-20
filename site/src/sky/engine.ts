@@ -34,6 +34,8 @@ export interface SkyOptions {
   onHour: (s: { hour: number; live: boolean; name: string }) => void;
   /** Called when the live sky stops and the CSS still takes over. */
   onStill: () => void;
+  /** The context came back after a loss: the live sky is running again. */
+  onLive?: () => void;
   debugEl: HTMLElement | null;
 }
 
@@ -227,6 +229,7 @@ export function startSky(o: SkyOptions): Sky {
   const loaded = [false, false];
   const loading = [false, false];
 
+  let lostHooked = false;
   function initGL(): boolean {
     gl = canvas.getContext('webgl2', {
       antialias: false,
@@ -279,10 +282,26 @@ export function startSky(o: SkyOptions): Sky {
     g.uniform3fv(U.uD1!, DEPTH[1]);
     g.uniform1f(U.uZoom!, 1.07);
     g.uniform4f(U.uCam!, 0, 1, 0, 0);
-    canvas.addEventListener('webglcontextlost', (e) => {
-      e.preventDefault();
-      enterStill();
-    });
+    if (!lostHooked) {
+      lostHooked = true;
+      canvas.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault(); // allows the restore event
+        enterStill(); // the lost canvas is blank: the still holds the place until the context is back
+      });
+      canvas.addEventListener('webglcontextrestored', () => {
+        gl = null;
+        if (!initGL()) return; // stays on the still
+        loaded[0] = loaded[1] = loading[0] = loading[1] = false;
+        stillMode = false;
+        section.classList.add('has-gl');
+        resize();
+        state.dirty = true;
+        state.last = null;
+        want(true);
+        schedule();
+        o.onLive?.();
+      });
+    }
     return true;
   }
 
@@ -460,6 +479,8 @@ export function startSky(o: SkyOptions): Sky {
 
   // Capability probe, second half: the governor. Below ~38 fps over 45 frames, step the resolution down; at the lowest
   // step and still slow (under ~22 fps), the effect switches off and the CSS still takes over.
+  let thrifty = false; // slowest step and still slow: at most ~10 draws a second, never a swap to the darker still
+  let lastDraw = 0;
   function govern(now: number) {
     if (ft.length < 45 || now - govAt < 2500 || state.arrive0 === null || state.time - state.arrive0 < 4) return;
     const avg = ft.reduce((a, b) => a + b, 0) / ft.length;
@@ -469,7 +490,7 @@ export function startSky(o: SkyOptions): Sky {
       govAt = now;
       ft.length = 0;
       state.dirty = true;
-    } else if (avg > 0.045 && i >= GOV.length - 1) enterStill();
+    } else if (avg > 0.045 && i >= GOV.length - 1) thrifty = true; // the live sky stays; it just draws less often
   }
 
   function frame(now: number) {
@@ -484,6 +505,11 @@ export function startSky(o: SkyOptions): Sky {
       if (stillMode) return;
     }
     state.last = now;
+    if (thrifty && now - lastDraw < 100) {
+      schedule();
+      return;
+    }
+    lastDraw = now;
     draw();
     dbgUpdate(now);
     schedule();

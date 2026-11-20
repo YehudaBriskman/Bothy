@@ -401,10 +401,11 @@ export async function roundTrip(browser, base, vp, hours, tol = 8) {
     const after = await sampleSky(page, vp);
     const rest = await page.evaluate(() => ({
       p: window.__sky.stage().p,
+      mode: window.__sky.mode(),
       dots: getComputedStyle(document.querySelector('.story'), '::after').opacity,
     }));
     const worst = Math.max(...before.flatMap((b, i) => b.map((v, c) => Math.abs(v - after[i][c]))));
-    const ok = worst <= tol && rest.p === 0 && Number(rest.dots) === 0;
+    const ok = worst <= tol && rest.p === 0 && Number(rest.dots) === 0 && rest.mode === 'webgl';
     console.error(
       `  round trip ${fmtH(h)}: largest pixel-mean change ${worst.toFixed(1)}, p ${rest.p}, dots ${rest.dots}`,
     );
@@ -414,6 +415,51 @@ export async function roundTrip(browser, base, vp, hours, tol = 8) {
       );
     await ctx.close();
   }
+  return fails;
+}
+
+/**
+ * The live sky must survive losing its WebGL context: it falls back to the still while the context is gone, and it comes
+ * back (canvas on, mode webgl) when the browser restores it. Before, it stayed on the darker still for good.
+ */
+export async function contextLoss(browser, base, vp) {
+  const fails = [];
+  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  await page.goto(`${base}/?hour=12&manual=1`, { waitUntil: 'load', timeout: 180000 });
+  for (let i = 0; i < 300; i++) {
+    if (await page.evaluate(() => !!window.__sky && window.__sky.ready())) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  await page.evaluate(() => window.__sky.loadAll());
+  await page.evaluate(() => {
+    window.__sky.frame(0);
+    window.__sky.frame(6);
+  });
+  const lost = await page.evaluate(async () => {
+    const c = document.querySelector('.sky-still canvas');
+    const ext = c.getContext('webgl2').getExtension('WEBGL_lose_context');
+    if (!ext) return { skipped: true };
+    ext.loseContext();
+    await new Promise((r) => setTimeout(r, 300));
+    const during = window.__sky.mode();
+    ext.restoreContext();
+    await new Promise((r) => setTimeout(r, 1500));
+    window.__sky.loadAll();
+    await new Promise((r) => setTimeout(r, 1500));
+    window.__sky.frame(0);
+    window.__sky.frame(0);
+    return { during, after: window.__sky.mode(), on: c.classList.contains('on') };
+  });
+  if (lost.skipped) console.error('  context loss: WEBGL_lose_context not available, skipped');
+  else {
+    console.error(`  context loss: during ${lost.during}, after ${lost.after}, canvas on ${lost.on}`);
+    if (lost.during !== 'still' || lost.after !== 'webgl' || !lost.on)
+      fails.push(
+        `context loss: during ${lost.during}, after ${lost.after}, canvas on ${lost.on} (want still, webgl, true)`,
+      );
+  }
+  await ctx.close();
   return fails;
 }
 
@@ -497,6 +543,7 @@ async function main() {
       errors.push(...r.errors);
     }
     if (!opt('hours')) trip.push(...(await roundTrip(browser, base, VIEWPORTS.desktop, [6.5, 17])));
+    if (!opt('hours')) trip.push(...(await contextLoss(browser, base, VIEWPORTS.desktop)));
   } finally {
     await browser.close();
     srv.close();

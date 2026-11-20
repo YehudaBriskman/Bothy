@@ -43,7 +43,7 @@ jobs:
     name: Site story and sky checks (Chromium)
     if: inputs.checks || github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20 # story (~4 min) + sky matrix (~8 min) + a11y now run past the old 12 minutes on a busy runner
     defaults:
       run:
         working-directory: site
