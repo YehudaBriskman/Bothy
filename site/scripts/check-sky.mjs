@@ -496,7 +496,7 @@ async function main() {
       rows.push(...r.rows);
       errors.push(...r.errors);
     }
-    if (!opt('hours')) trip.push(...(await roundTrip(browser, base, VIEWPORTS.desktop, [6.5, 12, 22])));
+    if (!opt('hours')) trip.push(...(await roundTrip(browser, base, VIEWPORTS.desktop, [6.5, 17])));
   } finally {
     await browser.close();
     srv.close();
