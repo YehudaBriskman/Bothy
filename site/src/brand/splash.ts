@@ -319,11 +319,16 @@ export function playSplash(opts: { hold?: boolean } = {}): Splash {
     return sp;
   }
   const done = () => {
-    for (const t of SKIP_ON) window.removeEventListener(t, done, true);
+    for (const t of SKIP_ON) window.removeEventListener(t, onUser, true);
     window.clearTimeout(timer);
     sp.skip();
   };
-  for (const t of SKIP_ON) window.addEventListener(t, done, { capture: true, passive: true });
+  // the page's own scroll restoration after a reload (scroll-restore.ts) is not the visitor: it must not skip the intro
+  const onUser = (e: Event) => {
+    if (e.type === 'scroll' && (window as unknown as { __bbRestoring?: boolean }).__bbRestoring) return;
+    done();
+  };
+  for (const t of SKIP_ON) window.addEventListener(t, onUser, { capture: true, passive: true });
   // a stalled animation clock (background tab, headless) must not leave the page hidden
   const timer = window.setTimeout(done, DURATION + 300);
   for (const a of sp.anims) a.play();

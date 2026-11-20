@@ -21,8 +21,8 @@ import './styles/chosen.css';
  * The only script on the site. Every page is complete HTML without it; this adds
  * a few conveniences and nothing else: copy icons on commands, documentation
  * search, the install menu and collapsing the docs menu on a phone. There is no
- * colour-scheme switch and nothing is stored but one sessionStorage flag (the
- * first-visit splash has played): the sky follows the visitor's hour (daylight only: before
+ * colour-scheme switch and nothing is stored but the home page's scroll position (a
+ * sessionStorage number, for restoring it after a reload): the sky follows the visitor's hour (daylight only: before
  * dawn it is the dawn sky, after sunset the sunset sky), and without script it is the noon sky.
  */
 
