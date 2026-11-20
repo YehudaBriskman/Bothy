@@ -1,5 +1,5 @@
 // screenshots: stills of the built site for a reviewer to look at, not a gate (build plan S11).
-// Home at three hours (dawn, midday, night) x desktop and phone, plus Install and the docs index at both sizes.
+// Home at three hours (dawn, midday, sunset) x desktop and phone, plus Install and the docs index at both sizes.
 // Serves dist/ on 127.0.0.1, drives Chromium (playwright-core's own, or CHROMIUM_PATH), writes PNGs and an
 // index.md into .screenshots/ (or --out=DIR). Exit 1 only when a page could not be opened at all.
 //
@@ -16,7 +16,7 @@ const opt = (n) => args.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3
 const dist = path.resolve(opt('dist') ?? path.join(here, '..', 'dist'));
 const out = path.resolve(opt('out') ?? path.join(here, '..', '.screenshots'));
 
-const HOURS = [6.5, 13, 22];
+const HOURS = [6.5, 13, 18.5];
 const VIEWPORTS = { desktop: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 const SHOTS = [
   ...HOURS.map((h) => ({ name: `home-${String(h).replace('.', '_')}h`, url: `/?hour=${h}&manual=1`, hour: h })),

@@ -1,7 +1,7 @@
 {
   "checked": "2026-11-18",
   "checkedBy": "Claude agent, from each asset page's structured data (license field, creativecommons.org/publicdomain/zero/1.0/) and https://polyhaven.com/license",
-  "licenceNote": "Poly Haven assets are CC0 1.0 (public domain dedication). No attribution is required; it is given anyway. Licence read on each asset page on the checked date. The eighth gallery scene reuses the approved night photograph, recorded in ../../sky/PROVENANCE.json.",
+  "licenceNote": "Poly Haven assets are CC0 1.0 (public domain dedication). No attribution is required; it is given anyway. Licence read on each asset page on the checked date.",
   "budgetBytes": 307200,
   "recipe": "site/src/scene/bake/bake.py (Python, Pillow and NumPy via uv). Sources are the 4k .hdr files named in sourceFile; sourceSha256 is the hash of the file as downloaded. Desktop view only, AVIF only (gallery mock).",
   "photos": [

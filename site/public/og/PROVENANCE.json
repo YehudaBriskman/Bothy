@@ -1,6 +1,6 @@
 {
   "generator": "site/scripts/og.mjs (npm run og)",
-  "generated": "2026-11-18",
+  "generated": "2026-11-20",
   "renderer": "Chromium 157.0.8103.15 via playwright-core, deviceScaleFactor 1, JPEG quality 84",
   "font": "font stack: 'Ubuntu Sans', 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', system-ui, Ubuntu, Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif; resolved on the generating machine by fc-match to UbuntuSans[wdth,wght].ttf: \"Ubuntu Sans\" \"ExtraBold\"",
   "licence": "The photographs are CC0 1.0 (public/sky/PROVENANCE.json). The mark, words and layout are this repository’s, MIT.",
@@ -89,40 +89,40 @@
       "file": "docs.jpg",
       "width": 1200,
       "height": 630,
-      "bytes": 58805,
-      "sha256": "fe9e4b78866b8ff41bc571770f14603c7fedb04ac86ccbfb6fdd1ea07b24c336",
-      "photo": "public/sky/night-desk.webp (see public/sky/PROVENANCE.json, key \"night\")",
+      "bytes": 57136,
+      "sha256": "9d24619ca756f1e5614842be8319cbd23af917cf401d043ebcc3512f236bb8a2",
+      "photo": "public/sky/day-desk.webp (see public/sky/PROVENANCE.json, key \"day\")",
       "heading": "Bothy documentation",
       "line": "The guide, rendered from the Markdown in the repository.",
       "contrast": [
         {
           "text": "BothyBox lockup",
-          "wcag": 16.33,
-          "apcaLc": 97.1,
+          "wcag": 15.18,
+          "apcaLc": 96.3,
           "ok": true
         },
         {
           "text": "Bothy documentation",
-          "wcag": 14.92,
-          "apcaLc": 96.1,
+          "wcag": 9.34,
+          "apcaLc": 88.5,
           "ok": true
         },
         {
           "text": "The guide, rendered from the Markdown in the repository.",
-          "wcag": 14.91,
-          "apcaLc": 96.1,
+          "wcag": 8.18,
+          "apcaLc": 85.7,
           "ok": true
         },
         {
           "text": "bothybox.com",
-          "wcag": 16.51,
-          "apcaLc": 97.2,
+          "wcag": 15.09,
+          "apcaLc": 96.3,
           "ok": true
         },
         {
           "text": "Free and open source, MIT",
-          "wcag": 16.41,
-          "apcaLc": 97.1,
+          "wcag": 14.62,
+          "apcaLc": 95.9,
           "ok": true
         }
       ]

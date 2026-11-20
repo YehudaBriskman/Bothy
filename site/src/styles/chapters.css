@@ -139,7 +139,7 @@
   --sky-btn-line: rgb(255 255 255 / 60%);
   --sky-btn-fill: #f4efe6;
   --sky-btn-ink: #1b1630;
-  /* dusk: deep blue overhead, plum, a low warm band at the horizon */
+  /* the plain gradient (no sky running): warm dawn blues over a low glow at the horizon */
   background:
     radial-gradient(120% 60% at 50% 105%, rgb(214 132 84 / 25%), transparent 70%),
     linear-gradient(to bottom, #0f1633 0%, #272a5a 42%, #503c6a 78%, #6a4466 100%);
@@ -149,19 +149,6 @@
   align-items: center;
   position: relative;
   isolation: isolate;
-}
-/* faint stars in the upper dark of the dusk and night skies */
-.ch-sky::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 45%;
-  z-index: -1;
-  background-image:
-    radial-gradient(1.2px 1.2px at 12% 22%, #fff, transparent), radial-gradient(1px 1px at 31% 12%, #fff, transparent),
-    radial-gradient(1.4px 1.4px at 47% 30%, #fff, transparent), radial-gradient(1px 1px at 63% 16%, #fff, transparent),
-    radial-gradient(1.2px 1.2px at 78% 26%, #fff, transparent), radial-gradient(1px 1px at 91% 10%, #fff, transparent),
-    radial-gradient(1px 1px at 22% 38%, #fff, transparent), radial-gradient(1.2px 1.2px at 86% 40%, #fff, transparent);
-  opacity: 0.75;
 }
 
 /* day: a light scheme gets a day sky and dark text */
@@ -177,9 +164,6 @@
     background:
       radial-gradient(60% 40% at 78% 18%, rgb(255 247 214 / 85%), transparent 70%),
       linear-gradient(to bottom, #8fbfe6 0%, #c3dff2 50%, #f1ecde 100%);
-  }
-  :root:root .ch-sky::before {
-    display: none;
   }
 }
 
@@ -423,24 +407,12 @@
   color: var(--ch-muted);
 }
 
-/* ── Chapter 6: trust, under a night sky ──────────────────────────────────── */
+/* ── Chapter 6: trust ──────────────────────────────────── */
 
 .ch-trust {
   position: relative;
   isolation: isolate;
   background: linear-gradient(to bottom, #0b0e1f 0%, #121631 60%, #1c1b2c 100%);
-}
-.ch-trust::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 50%;
-  z-index: -1;
-  background-image:
-    radial-gradient(1.2px 1.2px at 8% 18%, #fff, transparent), radial-gradient(1px 1px at 24% 8%, #fff, transparent),
-    radial-gradient(1.4px 1.4px at 41% 24%, #fff, transparent), radial-gradient(1px 1px at 58% 12%, #fff, transparent),
-    radial-gradient(1.2px 1.2px at 73% 28%, #fff, transparent), radial-gradient(1px 1px at 89% 14%, #fff, transparent),
-    radial-gradient(1px 1px at 15% 40%, #fff, transparent), radial-gradient(1.2px 1.2px at 95% 36%, #fff, transparent);
-  opacity: 0.7;
 }
 .ch-claims {
   max-inline-size: 46rem;
@@ -520,9 +492,5 @@
   .ch-sky h1,
   .ch-sky a {
     color: #000;
-  }
-  .ch-sky::before,
-  .ch-trust::before {
-    display: none;
   }
 }

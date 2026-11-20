@@ -9,6 +9,12 @@ Changed from the 2026-11-17 version: the **cut-out cloud layers are gone**. The 
 cross-graded by one shader** (below); the numbers are measured; the contrast method is concrete; ownership of the sun,
 moon and light-on-text work is stated so it is not done twice.
 
+**Superseded for the night sky (2026-11-20, owner request): there is no night sky.** The live sky shows daylight only, dawn
+to sunset, from **two** photographs (day, dusk). The keyframe table has six rows (dawn 06:24, morning 08:30, noon 12:00,
+afternoon 15:30, golden 17:30, sunset 18:42) and is **clamped, not wrapped**: before dawn the sky is the dawn palette,
+after sunset the sunset palette. No stars, no moon, no night photograph, and the descent no longer runs the clock on
+toward night. The three-photograph, night, moon and wrap-at-midnight passages below are the history of the design.
+
 ## The idea
 
 The landing page **is a sky**: a real photograph that matches the visitor's hour, with **BothyBox** as the main words.

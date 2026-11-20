@@ -2,7 +2,7 @@
  * Design tokens for the site chrome and every page outside the story: colour, type scale, spacing, radius, motion.
  *
  * GROUND. The page is black ink by default. The sky is the exception: the hero and the story (story.css), the photo
- * windows inside cards, and the closing band. Ink is a near-black with a trace of the night sky's blue in it, so where
+ * windows inside cards, and the closing band. Ink is a near-black with a trace of the sky's blue in it, so where
  * the story's veil hands over to it there is no change of hue, only of light.
  *
  * TYPE. One family: the platform's own grotesk (San Francisco, Segoe UI Variable, Ubuntu Sans, Roboto...), no web

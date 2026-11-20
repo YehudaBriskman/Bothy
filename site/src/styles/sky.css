@@ -12,11 +12,6 @@
   display: none !important;
 }
 
-/* The photograph replaces the CSS stars of the plain gradient. */
-.ch-sky.has-sky::before {
-  display: none;
-}
-
 /* The grade of the hour, over the still, when no canvas is drawing it (touch, narrow, no WebGL). */
 .sky-still::after {
   content: '';
@@ -117,11 +112,6 @@
   outline: 2px solid #fff;
   outline-offset: 2px;
   box-shadow: 0 0 0 4px rgb(0 0 0 / 55%);
-}
-.sky-glyph {
-  inline-size: 1.4rem;
-  block-size: 1.4rem;
-  flex: none;
 }
 .sky-dial {
   display: flex;

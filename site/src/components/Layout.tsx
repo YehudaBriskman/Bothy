@@ -117,23 +117,23 @@ export function Layout({
 }
 
 /**
- * The night band: the sky photograph, the headline and the two pills. It sits on the home page after the story, high up,
+ * The sky band: the dusk photograph, the headline and the two pills. It sits on the home page after the story, high up,
  * where the dark sections begin; its edges melt into the black with plain gradients (no dots).
  */
-export function NightBand({ ctx }: { ctx: PageContext }) {
+export function SkyBand({ ctx }: { ctx: PageContext }) {
   const c = ctx.t.cta;
   const p = localePrefix(ctx.locale.code);
   return (
-    <section className="night-cta" aria-labelledby="night-cta-h">
-      <div className="night-cta-sky" aria-hidden="true">
+    <section className="sky-cta" aria-labelledby="sky-cta-h">
+      <div className="sky-cta-sky" aria-hidden="true">
         <picture>
-          <source srcSet={href('sky/night-desk.avif')} type="image/avif" media="(min-width: 721px)" />
-          <source srcSet={href('sky/night-phone.avif')} type="image/avif" />
-          <img src={href('sky/night-desk.webp')} alt="" loading="lazy" decoding="async" />
+          <source srcSet={href('sky/dusk-desk.avif')} type="image/avif" media="(min-width: 721px)" />
+          <source srcSet={href('sky/dusk-phone.avif')} type="image/avif" />
+          <img src={href('sky/dusk-desk.webp')} alt="" loading="lazy" decoding="async" />
         </picture>
       </div>
       <div className="wrap reveal">
-        <h2 id="night-cta-h">
+        <h2 id="sky-cta-h">
           {c.heading} <span className="soft">{c.soft}</span>
         </h2>
         <div className="actions">

@@ -1,16 +1,16 @@
 // The live sky: raw WebGL2, no dependencies, no request to another origin. Ported from public/sky-spike/sky.js
-// (owner-approved look: clouds, sun, moon, horizon glow, lit words, hour table, wake physics). What changed is the
+// (owner-approved look: clouds, sun, horizon glow, lit words, hour table, wake physics). What changed is the
 // frame around it, not the look: it draws into the hero instead of the page, it is a lazy island, and it is
 // guarded (capability probe, Save-Data, off-screen and hidden stop, governor down to the still).
 //
 // Without WebGL, without script, on touch or a narrow screen, or with Save-Data, the CSS still (styles/sky-still.css)
 // is the sky; this module then only picks that still's hour class and tints it.
-import { bodies, fmt, localHour, sample, type Bodies, type Grade } from './keys.ts';
+import { bodies, daylight, fmt, localHour, sample, type Bodies, type Grade } from './keys.ts';
 import { DEPTH, FS, VS } from './shader.ts';
-import { cameraAt, effectiveHour, stageAt } from '../story/camera.ts';
+import { cameraAt, stageAt } from '../story/camera.ts';
 import { progress } from '../story/progress.ts';
 
-const PHOTOS = ['day', 'dusk', 'night'] as const;
+const PHOTOS = ['day', 'dusk'] as const;
 const GOV = [1, 0.85, 0.72, 0.6];
 const sm01 = (t: number) => {
   t = Math.min(1, Math.max(0, t));
@@ -26,12 +26,12 @@ export interface SkyOptions {
   story: HTMLElement;
   /** The hero section: receives `is-lit`, `has-gl` and the scrim variables. */
   section: HTMLElement;
-  /** The words the sun and moon light (headline, line, lede). */
+  /** The words the sun lights (headline, line, lede). */
   lit: HTMLElement[];
   /** Where the photographs are served, ending in a slash (`/sky/`, or under the site base). */
   photoBase: string;
   /** Called whenever the hour (or the follow-the-clock flag) changes. */
-  onHour: (s: { hour: number; live: boolean; name: string; sunUp: boolean }) => void;
+  onHour: (s: { hour: number; live: boolean; name: string }) => void;
   /** Called when the live sky stops and the CSS still takes over. */
   onStill: () => void;
   debugEl: HTMLElement | null;
@@ -57,14 +57,14 @@ export function startSky(o: SkyOptions): Sky {
   const saveData = conn?.saveData === true;
   const debug = q.get('debug');
   const manual = q.get('manual') === '1'; // test harness: no rAF loop; window.__sky.frame(dt) steps and draws
-  const forceMix = ['day', 'dusk', 'night'].indexOf(q.get('mix') ?? '');
+  const forceMix = ['day', 'dusk'].indexOf(q.get('mix') ?? '');
   const raysOn = q.get('rays') === '1'; // opt-in light shafts (off: the clouds stay as photographed)
-  const textLight = q.get('light') !== '0'; // ?light=0: the words are not lit by the sun or moon
+  const textLight = q.get('light') !== '0'; // ?light=0: the words are not lit by the sun
 
   const state = {
     live: true,
     hour: 12,
-    eff: 12, // the hour the sky shows: `hour` advanced toward night by the descent
+    eff: 12, // the hour the sky shows: the clock hour, clamped to daylight
     p: 0, // eased descent progress, drawn
     pT: 0, // descent progress, wanted
     paused: false,
@@ -98,19 +98,13 @@ export function startSky(o: SkyOptions): Sky {
   let gl: WebGL2RenderingContext | null = null;
   let stillMode = false;
 
-  // ------------------------------------------------------------ light (sun, moon) and the lit words
-  const lit = { x: 0.5, y: 0.2, k: 0, col: [1, 1, 1], moon: 0, sunY: 0.8, moonY: 0.8, sunK: 0, moonK: 0, illum: 0.5 };
+  // ------------------------------------------------------------ light (the sun) and the lit words
+  const lit = { x: 0.5, y: 0.2, k: 0, col: [1, 1, 1], sunY: 0.8, sunK: 0 };
   function computeLight() {
     const horizon = 0.8;
     const sunY = horizon - Math.max(bod.sun.elev, -0.15) * 0.64;
     const sunK = clamp01((bod.sun.elev + 0.04) / 0.1);
-    const moonY = horizon - Math.max(bod.moon.elev, -0.15) * 0.62;
-    const illum = (1 - Math.cos(bod.phase * 2 * Math.PI)) / 2;
-    const moonK = clamp01((bod.moon.elev + 0.02) / 0.12) * cur.moonK;
-    Object.assign(lit, { sunY, moonY, sunK, moonK, illum });
-    const moonS = moonK * (0.35 + 0.65 * illum);
-    if (sunK >= moonS) Object.assign(lit, { x: bod.sun.x, y: sunY, k: sunK, moon: 0, col: cur.sunCol });
-    else Object.assign(lit, { x: bod.moon.x, y: moonY, k: moonS, moon: 1, col: [0.72, 0.82, 1] });
+    Object.assign(lit, { sunY, sunK, x: bod.sun.x, y: sunY, k: sunK, col: cur.sunCol });
   }
 
   // The words are lit by the same light: a gradient fill warmer and brighter on the side facing it, a thin rim on that
@@ -139,7 +133,7 @@ export function startSky(o: SkyOptions): Sky {
     const lx = cr.x + (lit.x + ax) * cr.width;
     const ly = cr.y + (lit.y + ay) * cr.height;
     const first = o.lit[0]?.getBoundingClientRect();
-    const sig = `${Math.round((lx - (first?.x ?? 0)) / 3)},${Math.round((ly - (first?.y ?? 0)) / 3)},${Math.round(lit.k * 40)},${lit.moon}`;
+    const sig = `${Math.round((lx - (first?.x ?? 0)) / 3)},${Math.round((ly - (first?.y ?? 0)) / 3)},${Math.round(lit.k * 40)}`;
     if (sig === litSig) return;
     litSig = sig;
     section.classList.add('is-lit'); // the words turn transparent only once a fill is in place
@@ -166,12 +160,10 @@ export function startSky(o: SkyOptions): Sky {
     }
   }
 
-  /** The hour the page is graded by right now: the visitor's hour, run on toward night by the descent. */
-  const effOf = () => (reduced ? state.hour : effectiveHour(state.hour, state.p));
-  let lastEff = -1;
+  /** The hour the page is graded by right now: the visitor's hour. The descent does not change it (there is no night). */
+  const effOf = () => state.hour;
   function applyHour(notify = true) {
-    state.eff = effOf();
-    lastEff = state.eff;
+    state.eff = daylight(effOf());
     cur = sample(state.eff);
     if (forceMix >= 0) cur.w = [0, 1, 2].map((i) => (i === forceMix ? 1 : 0));
     bod = bodies(state.eff);
@@ -206,14 +198,9 @@ export function startSky(o: SkyOptions): Sky {
     if (stillMode) updateStill();
     if (notify) {
       const base = state.eff === state.hour ? cur : sample(state.hour);
-      o.onHour({ hour: state.hour, live: state.live, name: base.name, sunUp: bodies(state.hour).sun.elev > 0.02 });
+      o.onHour({ hour: state.hour, live: state.live, name: base.name });
     }
   }
-  /** The descent moved: regrade only when the clock it implies has moved enough to show. */
-  function regrade() {
-    if (Math.abs(effOf() - lastEff) > 0.02) applyHour(false);
-  }
-
   // ------------------------------------------------------------ the CSS still (no WebGL, touch, narrow, Save-Data)
   function updateStill() {
     // sky-still.css picks the photograph from this hour class; the multiply tint is the same grade as the shader's
@@ -236,9 +223,9 @@ export function startSky(o: SkyOptions): Sky {
 
   // ------------------------------------------------------------ GL
   const U: Record<string, WebGLUniformLocation | null> = {};
-  const tex: (WebGLTexture | null)[] = [null, null, null];
-  const loaded = [false, false, false];
-  const loading = [false, false, false];
+  const tex: (WebGLTexture | null)[] = [null, null];
+  const loaded = [false, false];
+  const loading = [false, false];
 
   function initGL(): boolean {
     gl = canvas.getContext('webgl2', {
@@ -264,9 +251,9 @@ export function startSky(o: SkyOptions): Sky {
       if (!g.getProgramParameter(program, g.LINK_STATUS)) throw new Error('link');
       g.useProgram(program);
       for (const n of [
-        ...['uT0', 'uT1', 'uT2', 'uW', 'uD0', 'uD1', 'uD2', 'uRes', 'uCover', 'uZoom', 'uTime', 'uArrive'],
-        ...['uDebug', 'uAspect', 'uLean', 'uWake', 'uGain', 'uLift', 'uSunCol', 'uSat', 'uExp', 'uStars'],
-        ...['uGlow', 'uHaze', 'uSun', 'uMoon', 'uText', 'uLight', 'uLightCol', 'uFx', 'uCam', 'uSea', 'uSeaCol'],
+        ...['uT0', 'uT1', 'uW', 'uD0', 'uD1', 'uRes', 'uCover', 'uZoom', 'uTime', 'uArrive'],
+        ...['uDebug', 'uAspect', 'uLean', 'uWake', 'uGain', 'uLift', 'uSunCol', 'uSat', 'uExp'],
+        ...['uGlow', 'uHaze', 'uSun', 'uText', 'uLight', 'uLightCol', 'uFx', 'uCam', 'uSea', 'uSeaCol'],
       ])
         U[n] = g.getUniformLocation(program, n);
     } catch (e) {
@@ -274,7 +261,7 @@ export function startSky(o: SkyOptions): Sky {
       return false;
     }
     g.bindVertexArray(g.createVertexArray());
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       tex[i] = g.createTexture();
       g.activeTexture(g.TEXTURE0 + i);
       g.bindTexture(g.TEXTURE_2D, tex[i] ?? null);
@@ -290,7 +277,6 @@ export function startSky(o: SkyOptions): Sky {
     }
     g.uniform3fv(U.uD0!, DEPTH[0]);
     g.uniform3fv(U.uD1!, DEPTH[1]);
-    g.uniform3fv(U.uD2!, DEPTH[2]);
     g.uniform1f(U.uZoom!, 1.07);
     g.uniform4f(U.uCam!, 0, 1, 0, 0);
     canvas.addEventListener('webglcontextlost', (e) => {
@@ -332,7 +318,7 @@ export function startSky(o: SkyOptions): Sky {
 
   /** Ask for every photograph this hour's mix needs (and, when scrubbing, the neighbours). */
   function want(all: boolean) {
-    for (let i = 0; i < 3; i++) if ((all || cur.w[i]! > 0.004) && !loaded[i]) void loadPhoto(i);
+    for (let i = 0; i < 2; i++) if ((all || cur.w[i]! > 0.004) && !loaded[i]) void loadPhoto(i);
   }
 
   // ------------------------------------------------------------ loop
@@ -358,26 +344,26 @@ export function startSky(o: SkyOptions): Sky {
     if (!gl || gl.isContextLost()) return;
     resize();
     want(false);
-    const w = [0, 0, 0];
-    for (let i = 0; i < 3; i++) if (loaded[i]) w[i] = cur.w[i]!;
-    let sum = w[0]! + w[1]! + w[2]!;
+    const w = [0, 0];
+    for (let i = 0; i < 2; i++) if (loaded[i]) w[i] = cur.w[i]!;
+    let sum = w[0]! + w[1]!;
     if (sum < 1e-4) {
       // nothing this hour needs is loaded yet: show whatever is, until it arrives
-      for (let i = 0; i < 3; i++)
+      for (let i = 0; i < 2; i++)
         if (loaded[i]) {
           w[i] = 1;
           break;
         }
-      sum = w[0]! + w[1]! + w[2]!;
+      sum = w[0]! + w[1]!;
     }
     if (sum < 1e-4) return;
-    for (let i = 0; i < 3; i++) w[i] = w[i]! / sum;
+    for (let i = 0; i < 2; i++) w[i] = w[i]! / sum;
     if (state.arrive0 === null) state.arrive0 = state.time;
     const ar = reduced ? 1 : Math.min(1, (state.time - state.arrive0) / 3.4);
     const arrive = 1 - Math.pow(1 - ar, 3);
     const aspect = canvas.width / canvas.height;
     const ia = state.imgAspect || 1.6;
-    gl.uniform3fv(U.uW!, w);
+    gl.uniform2fv(U.uW!, w);
     gl.uniform2f(U.uRes!, canvas.width, canvas.height);
     gl.uniform2f(U.uCover!, aspect > ia ? 1 : aspect / ia, aspect > ia ? ia / aspect : 1);
     gl.uniform1f(U.uAspect!, aspect);
@@ -405,7 +391,6 @@ export function startSky(o: SkyOptions): Sky {
     gl.uniform3fv(U.uSunCol!, cur.sunCol);
     gl.uniform1f(U.uSat!, cur.sat);
     gl.uniform1f(U.uExp!, cur.exp);
-    gl.uniform1f(U.uStars!, cur.stars);
     const cam = reduced ? cameraAt(0) : cameraAt(state.p);
     gl.uniform4f(U.uCam!, cam.pan, cam.zoom, cam.cross, cam.rise);
     gl.uniform1f(U.uSea!, cam.sea);
@@ -418,13 +403,18 @@ export function startSky(o: SkyOptions): Sky {
     gl.uniform4f(U.uGlow!, cur.glow[0]!, cur.glow[1]!, cur.glow[2]!, cur.glow[3]! * cam.glow);
     gl.uniform4fv(U.uHaze!, cur.haze);
     gl.uniform3f(U.uSun!, bod.sun.x, lit.sunY - cam.pan * 0.8, lit.sunK);
-    gl.uniform4f(U.uMoon!, bod.moon.x, lit.moonY - cam.pan * 0.8, lit.moonK, bod.phase);
-    gl.uniform4f(U.uLight!, lit.x, lit.y, lit.k, lit.moon);
+    gl.uniform3f(U.uLight!, lit.x, lit.y, lit.k);
     gl.uniform3fv(U.uLightCol!, lit.col);
-    // the words' brightness ceiling (display luma) and how hard it bites, from this hour's scrim value
-    gl.uniform3f(U.uFx!, raysOn ? 1 : 0, 0.26, inkDark ? 0 : Math.min(0.99, 0.3 + cur.scrim * 1.6));
+    // the words' brightness ceiling (display luma, a little lower in the warm hours, where the bright horizon sits
+    // behind the words) and how hard it bites, from this hour's scrim value
+    gl.uniform3f(
+      U.uFx!,
+      raysOn ? 1 : 0,
+      0.26 - 0.04 * clamp01(cur.glow[3]! / 0.55),
+      inkDark ? 0 : Math.min(0.99, 0.3 + cur.scrim * 1.6),
+    );
     lightText();
-    // the words' box in canvas uv: the sun and moon dim behind it
+    // the words' box in canvas uv: the sun dims behind it
     const cr = layer.getBoundingClientRect();
     let x0 = Infinity,
       y0 = Infinity,
@@ -461,7 +451,6 @@ export function startSky(o: SkyOptions): Sky {
       // the camera follows the scroll with a short ease, so a flick of the wheel is a glide, not a jump
       state.p += (state.pT - state.p) * (1 - Math.exp(-dt / 0.16));
       if (Math.abs(state.pT - state.p) < 0.0004) state.p = state.pT;
-      regrade();
     }
     const a = 1 - Math.exp(-dt / 0.4); // lean follows the pointer with a ~0.4 s smoothing
     state.lean[0]! += (state.target[0]! - state.lean[0]!) * a;
@@ -608,9 +597,8 @@ export function startSky(o: SkyOptions): Sky {
     setScroll(p) {
       if (reduced || stillMode) return; // no scroll-driven camera; the still has its own CSS (story.css)
       state.pT = Math.min(1, Math.max(0, p));
-      if (!animating() || manual) {
-        state.p = state.pT; // not looping (paused, or the test harness): jump there and draw once
-        regrade();
+      if (!animating() || manual || !state.onscreen || document.hidden) {
+        state.p = state.pT; // not looping (paused, off screen, hidden, or the test harness): jump there and draw once
         kick();
       } else schedule();
     },
@@ -666,6 +654,7 @@ export function startSky(o: SkyOptions): Sky {
       });
       new IntersectionObserver((es) => {
         state.onscreen = es[es.length - 1]!.isIntersecting;
+        if (state.onscreen) state.p = state.pT; // never resume from a stale camera
         state.last = null;
         schedule();
       }).observe(layer);
@@ -688,7 +677,7 @@ export function startSky(o: SkyOptions): Sky {
       dbgUpdate(1e9);
     },
     ready: () => loaded.some(Boolean) || stillMode,
-    loadAll: () => Promise.all([0, 1, 2].map(loadPhoto)),
+    loadAll: () => Promise.all([0, 1].map(loadPhoto)),
     setHour(h: number) {
       api.setHour(h);
       draw();
@@ -697,7 +686,6 @@ export function startSky(o: SkyOptions): Sky {
     /** Descent progress 0..1, applied at once and drawn (for the filmstrip and S4's checker). */
     setScroll(p: number) {
       state.pT = state.p = Math.min(1, Math.max(0, p));
-      regrade();
       draw();
     },
     /** What the checker needs to read the pixels behind text: the page's ground, glass and stage. */

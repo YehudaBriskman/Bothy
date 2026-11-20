@@ -80,44 +80,6 @@
           "sha256": "8356e23138bb19f62428387438b12a0fb8a38b42a27c5125334dde115f93fa5f"
         }
       ]
-    },
-    {
-      "key": "night",
-      "title": "Kloppenheim 02 (Pure Sky)",
-      "authors": {
-        "Greg Zaal": "Original",
-        "Jarod Guest": "Sky edits"
-      },
-      "licence": "CC0-1.0",
-      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-      "pageUrl": "https://polyhaven.com/a/kloppenheim_02_puresky",
-      "sourceFile": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/kloppenheim_02_puresky_4k.hdr",
-      "sourceSha256": "b394c19453ac25d1e55af9320c70bcf0a8bd91e041305f471f6f1dfdbd2507df",
-      "dateTaken": "2019-11-02",
-      "datePublished": "2022-12-24",
-      "processing": "4096x2048 equirectangular HDR, rectilinear 84 degree view (desktop 1280x800, phone 540x810 at 56 degrees) (yaw 86, pitch 20 desktop / 28 phone, about 50 degrees off the moon; high-pass star boost), fixed exposure and a soft-shoulder tone map, sRGB, encoded to AVIF with a WebP fallback (assets-src/sky/bake.py)",
-      "files": [
-        {
-          "file": "night-desk.avif",
-          "bytes": 29950,
-          "sha256": "28e5e763e9cb285a4c84148a6f869f20dc964f18c25d23e7732c7ef865f875c0"
-        },
-        {
-          "file": "night-desk.webp",
-          "bytes": 32366,
-          "sha256": "e56a202c9eaa349d6d20bd0fb6d2416f9242aebfd37a3e904a0661eba4552177"
-        },
-        {
-          "file": "night-phone.avif",
-          "bytes": 15000,
-          "sha256": "3c55378c24b3eed7dcbb63eaefc165d1712e1a65c6866245696e8c8e2601fede"
-        },
-        {
-          "file": "night-phone.webp",
-          "bytes": 16112,
-          "sha256": "46a0a6d57642d76f6052e08416361a3c137db5d2f47e1c49d7de24568c1b792c"
-        }
-      ]
     }
   ]
 }

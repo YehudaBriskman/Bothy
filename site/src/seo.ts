@@ -26,10 +26,7 @@ export const OG_SIZE = { width: 1200, height: 630 } as const;
  * What each share image says, and which sky photograph (public/sky/<photo>-desk.webp) it is drawn on.
  * `alt` is the image's text alternative (og:image:alt, twitter:image:alt): it says what the picture shows.
  */
-export const OG_CARDS: Record<
-  OgImage,
-  { photo: 'day' | 'dusk' | 'night'; heading: string; line: string; alt: string }
-> = {
+export const OG_CARDS: Record<OgImage, { photo: 'day' | 'dusk'; heading: string; line: string; alt: string }> = {
   home: {
     photo: 'dusk',
     heading: 'BothyBox',
@@ -43,10 +40,10 @@ export const OG_CARDS: Record<
     alt: 'Install Bothy, over a daytime sky: the release binary or a source checkout, tested on Linux amd64 with Docker.',
   },
   docs: {
-    photo: 'night',
+    photo: 'day',
     heading: 'Bothy documentation',
     line: 'The guide, rendered from the Markdown in the repository.',
-    alt: 'Bothy documentation, over a night sky: the guide, rendered from the Markdown in the repository.',
+    alt: 'Bothy documentation, over a daytime sky: the guide, rendered from the Markdown in the repository.',
   },
   about: {
     photo: 'dusk',

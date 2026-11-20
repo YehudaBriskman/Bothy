@@ -70,7 +70,7 @@
   mix-blend-mode: multiply;
 }
 
-/* The veil: from open sky at the top into the deeper ground colour, then back toward the night sky for the last
+/* The veil: from open sky at the top into the deeper ground colour, then back toward the deeper ground for the last
    chapter. One gradient for the whole page, eased with a smoothstep between control points
    (0 0, 6% 0, 30% .30, 55% .38, 80% .50, 93% .44, 100% .50); generated, not hand-tuned stop by stop. */
 .story::before {
@@ -132,13 +132,6 @@
 }
 .story .ch-sky {
   background: none !important;
-}
-.story .ch-sky::before {
-  display: none;
-}
-/* the trust chapter keeps its CSS stars only when the live sky is not drawing real ones */
-.story:has(.has-gl) .ch-trust::before {
-  display: none;
 }
 .story .ch-trust {
   background: none;
