@@ -3,16 +3,13 @@
  * head (introScript below), before the first paint, so a first visit never flashes the page before hiding it. Pure:
  * the caller passes the page's facts.
  *
- * It plays once per browser session, on the home page's hero, and never:
+ * It plays on EVERY load of the home page's hero (a refresh included; it used to play once per session, and the owner
+ * wants the icon animation on each refresh), and never:
  *   - with prefers-reduced-motion (not even when forced);
- *   - when sessionStorage cannot be read or written (a blocked or full store would replay it on every page);
- *   - a second time in the same session (the flag is set the moment the answer is yes);
- *   - when the page did not open at the top (a deep link to #sizes);
+ *   - when the page opened on a #fragment (a deep link to #sizes);
  *   - under automation (navigator.webdriver), so the site's own browser checks see the page, not the intro.
  * `?splash=1` forces it (still not with reduced motion) and leaves the flag alone; `?splash=0` turns it off.
  */
-export const SPLASH_KEY = 'bb-splash-seen';
-
 export interface SplashEnv {
   /** location.search */
   search: string;
@@ -24,8 +21,6 @@ export interface SplashEnv {
   atTop: boolean;
   /** navigator.webdriver */
   automated: boolean;
-  /** Returns window.sessionStorage. Reading the property itself can throw (storage blocked), so it is a function. */
-  storage: () => Pick<Storage, 'getItem' | 'setItem'>;
 }
 
 export function splashParam(search: string): 'force' | 'off' | null {
@@ -44,16 +39,7 @@ export function shouldPlaySplash(env: SplashEnv): boolean {
   if (v === '0') return false;
   if (v !== null) return true;
   if (env.automated || !env.atTop) return false;
-  const key = 'bb-splash-seen'; // SPLASH_KEY
-  try {
-    const s = env.storage();
-    if (s.getItem(key)) return false;
-    s.setItem(key, '1');
-    // A store that accepts the write but does not keep it (some private modes) would replay: read it back.
-    return s.getItem(key) === '1';
-  } catch {
-    return false;
-  }
+  return true;
 }
 
 /** The class that hides the page, only visually, for the intro (styles/intro.css). */
@@ -70,7 +56,7 @@ export const INTRO_FAILSAFE_MS = 3500;
 export function introScript(): string {
   const env =
     "{search:location.search,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,hasHero:true," +
-    'atTop:!location.hash,automated:navigator.webdriver===true,storage:function(){return sessionStorage}}';
+    'atTop:!location.hash,automated:navigator.webdriver===true}';
   return (
     `(function(){var d=document.documentElement;try{if((${shouldPlaySplash.toString()})(${env})){` +
     `d.classList.add('${INTRO_CLASS}');setTimeout(function(){d.classList.remove('${INTRO_CLASS}')},${INTRO_FAILSAFE_MS})}}` +

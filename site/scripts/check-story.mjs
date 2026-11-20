@@ -535,7 +535,7 @@ if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
     check('a key jumps to the assembled page at once', gone >= 0 && gone < 500, `${gone} ms`);
   } else check('a key jumps to the assembled page at once', false, 'never shown');
 
-  // a person (no webdriver flag) gets it once per session; the reload sees the page from the start
+  // a person (no webdriver flag) gets it on every load, a reload included
   const pc = await b.newContext({ viewport: { width: 1440, height: 900 } });
   await pc.addInitScript(person);
   await pc.addInitScript(observe);
@@ -556,12 +556,28 @@ if (!process.env.ONLY || 'splash'.includes(process.env.ONLY)) {
   );
   await p.reload({ waitUntil: 'domcontentloaded' });
   const repeat = await seen(p);
-  await sleep(1200);
-  const again = await p.evaluate(present);
+  const second = await until(p, present, 3000);
   check(
-    'a first visit hides and plays, a reload in the same session shows the page at once',
-    hidden === 0 && first >= 0 && repeat === 1 && !again,
-    `first: opacity ${hidden}, overlay at ${first} ms; reload: opacity ${repeat}, overlay ${again}`,
+    'a first visit and a reload both hide the page and play the intro',
+    hidden === 0 && first >= 0 && repeat === 0 && second >= 0,
+    `first: opacity ${hidden}, overlay at ${first} ms; reload: opacity ${repeat}, overlay at ${second} ms`,
+  );
+
+  // a reload from the middle of the page: the page's own scroll restoration (scroll-restore.ts) must not skip the intro
+  await sleep(3800); // let this load's intro finish
+  await p.evaluate(() => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    scrollTo(0, 6000);
+  });
+  await sleep(600);
+  await p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  await p.reload({ waitUntil: 'domcontentloaded' });
+  await sleep(1800); // past the moment the restore lands (layout settled, about a second in)
+  const mid = await p.evaluate(() => ({ overlay: !!document.querySelector('.bb-splash'), y: scrollY }));
+  check(
+    'a reload from mid-page: the restore does not skip the intro',
+    mid.overlay,
+    `overlay ${mid.overlay}, scrollY ${mid.y}`,
   );
 
   // the failsafe: the splash chunk hangs (never answers) or fails, and the page still shows by 3.5 s
