@@ -555,7 +555,10 @@
 /* The curtain: while the console's demo finishes it is held fixed in its place (story/console.ts), and everything after the
    story is opaque and stacked above it, so the next section scrolls over it instead of the window riding down the page. */
 .story .story-end ~ .ch,
-.after-story {
+.after-story,
+.sky-band,
+.end-cta,
+.site-footer {
   position: relative;
   z-index: 2;
 }
