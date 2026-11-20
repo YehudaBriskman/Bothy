@@ -5,6 +5,7 @@ import { ENABLED_LOCALES, LOCALES } from './i18n/locales.ts';
 import { buildContext, buildRoutes, type Route } from './routes.tsx';
 import { escapeHtml } from './docs/markdown.ts';
 import { introScript } from './brand/splash-gate.ts';
+import { hourScript } from './sky/hour-script.ts';
 
 /**
  * Build-time entry (see scripts/prerender.mjs). Nothing here ships to a browser:
@@ -29,7 +30,8 @@ function headFor(route: Route, byPath: Map<string, Route[]>): string {
     `<meta name="bothy-base" content="${escapeHtml(BASE)}" />`,
   ];
   // The home page's first-visit intro decides before the first paint (brand/splash-gate.ts).
-  if (route.pathWithoutLocale === '/') lines.push(`<script>${introScript()}</script>`);
+  if (route.pathWithoutLocale === '/')
+    lines.push(`<script>${introScript()}</script>`, `<script>${hourScript()}</script>`);
   if (canonical) {
     const alternates = byPath.get(route.pathWithoutLocale) ?? [];
     if (alternates.length > 1) {
