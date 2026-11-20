@@ -258,6 +258,39 @@ if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
     );
     await ctx.close();
   }
+  // a jump to the very bottom of the page: only the end block and the footer are on screen, so the console window must not
+  // be visible anywhere (it is released at once, the rest of the demo plays on unseen), and a resize must never leave it fixed
+  {
+    const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+    const p = await ctx.newPage();
+    await p.goto(`${base}/?debug=story`, { waitUntil: 'load' });
+    await sleep(1500);
+    await p.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+    await sleep(700);
+    const seen = async () =>
+      p.evaluate(() => {
+        const st = document.querySelector('[data-console-track] .ch-stage');
+        const root = document.querySelector('.story');
+        const cs = getComputedStyle(st);
+        const r = st.getBoundingClientRect();
+        const visible = r.bottom > 0 && r.top < innerHeight && +cs.opacity > 0.02 && cs.position === 'fixed';
+        const top = document.elementFromPoint(innerWidth / 2, Math.min(innerHeight - 2, Math.max(2, r.top + 40)));
+        return { visible, covered: !top || !st.contains(top), curtain: root.dataset.csCurtain ?? '' };
+      });
+    const check = (name, ok, extra = '') => {
+      if (!ok) bad++;
+      console.log(`${ok ? 'ok  ' : 'FAIL'} curtain: ${name}${extra ? ' (' + extra + ')' : ''}`);
+    };
+    const a = await seen();
+    check('jump to the page bottom: the console window is not on screen', !a.visible && a.covered, JSON.stringify(a));
+    await p.setViewportSize({ width: 600, height: 900 });
+    await sleep(600);
+    await p.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+    await sleep(500);
+    const c = await seen();
+    check('after a resize the window is not left fixed on screen', !c.visible && c.curtain === '', JSON.stringify(c));
+    await ctx.close();
+  }
   await b.close();
 }
 

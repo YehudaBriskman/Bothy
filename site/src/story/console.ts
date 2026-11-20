@@ -118,6 +118,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   let dither: Dither | null = null;
   let lens: Lens | null = null;
   function measure() {
+    resetCurtain(); // a resize drops whatever the curtain held: its captured left/width would be stale
     cf!.classList.add('cs-live');
     root.classList.add('cs-on'); // the stage's width and the pin are sized by these rules: measure with them on
     scanbar?.classList.add('is-on');
@@ -276,6 +277,27 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       delete root.dataset.csCurtain;
     }
   }
+  let capTimer = 0;
+  /** Let go at once: hidden, released, and the demo goes on unseen. */
+  function release() {
+    window.clearTimeout(fadeTimer);
+    window.clearTimeout(capTimer);
+    curtain = false;
+    spent = true;
+    const st = stage!.style;
+    st.transition = '';
+    st.opacity = '0';
+    pin(false);
+  }
+  /** Back to the plain pinned state (a resize, or the tab coming back). */
+  function resetCurtain() {
+    window.clearTimeout(fadeTimer);
+    window.clearTimeout(capTimer);
+    curtain = false;
+    spent = false;
+    pin(false);
+    stage!.style.opacity = stage!.style.transition = '';
+  }
   function enforce() {
     if (!on || noMotion) return;
     const e = endY();
@@ -292,11 +314,20 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       if (st.opacity !== '0') st.opacity = '0';
       return;
     }
+    // failsafes: the next section already covers the stage's place (a fast jump to the bottom), or the curtain has
+    // lasted longer than its goal allows (a throttled or hidden tab). Either way the stage goes now; whatever the demo
+    // had left plays on unseen, in order, behind the page.
+    if (curtain && (scrollY > e + innerHeight || performance.now() - curtainAt > GOAL + 1500)) {
+      release();
+      return;
+    }
     if (!curtain) {
       if (!behind()) return;
       curtain = true;
       curtainAt = performance.now();
       pin(true);
+      window.clearTimeout(capTimer);
+      capTimer = window.setTimeout(enforce, GOAL + 1600); // does not depend on rAF or the player
       return;
     }
     if (!behind()) {
@@ -555,5 +586,10 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     lens?.show(beat, u);
   }
 
+  // a tab that was hidden or restored from the back/forward cache re-checks the curtain at once (the cap has long passed)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) enforce();
+  });
+  addEventListener('pageshow', () => enforce());
   return { measure, drive };
 }
