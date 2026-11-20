@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { DEFAULT_LOCALE, ENABLED_LOCALES, LOCALES, localePrefix, type LocaleCode } from './i18n/locales.ts';
 import type { PageContext } from './page-context.ts';
 import { About } from './pages/About.tsx';
+import { Privacy } from './pages/Privacy.tsx';
 import { Accessibility } from './pages/Accessibility.tsx';
 import { Changelog } from './pages/Changelog.tsx';
 import { DocsIndex, DocView } from './pages/Docs.tsx';
@@ -102,6 +103,13 @@ export function buildRoutes(): { routes: Route[]; docs: DocPage[] } {
       description: t.changelog.description,
       indexable: true,
       render: (ctx) => <Changelog ctx={ctx} />,
+    });
+    add({
+      rel: '/privacy/',
+      title: `${t.privacy.title} - ${t.meta.siteTitle}`,
+      description: t.privacy.description,
+      indexable: true,
+      render: (ctx) => <Privacy ctx={ctx} />,
     });
     add({
       rel: '/accessibility/',

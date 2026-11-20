@@ -79,6 +79,11 @@ export function About({ ctx }: { ctx: PageContext }) {
             <p className="eyebrow">{a.privacyEyebrow}</p>
             <h2 id="about-privacy-h">{a.privacyHeading}</h2>
             <p className="mf">{a.privacyBody}</p>
+            <p>
+              <a className="card-link" href={href(`${p}/privacy/`)}>
+                {a.privacyLink}
+              </a>
+            </p>
           </header>
         </section>
       </div>

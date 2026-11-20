@@ -212,7 +212,7 @@ function Footer({ ctx, mark }: { ctx: PageContext; mark: boolean }) {
       links: [
         { label: f.links.licence, to: `${REPO_URL}/blob/main/LICENSE`, ext: true },
         { label: f.links.security, to: `${REPO_URL}/blob/main/SECURITY.md`, ext: true },
-        { label: f.links.privacy, to: href(`${p}/about/#privacy`) },
+        { label: f.links.privacy, to: href(`${p}/privacy/`) },
         { label: f.links.accessibility, to: href(`${p}/accessibility/`) },
       ],
     },
