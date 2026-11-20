@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BASE, ORIGIN, absolute, href } from './config.ts';
 import { seoHead } from './seo-head.ts';
@@ -21,17 +22,38 @@ export interface RenderedPage {
   dir: string;
 }
 
+/**
+ * GitHub Pages cannot set response headers, so the Content-Security-Policy is a <meta> and must come first in the head
+ * (it governs only what follows it). Scripts: the page's own files and the inline ones, allowed by hash, so an injected
+ * script would not run. Styles keep 'unsafe-inline' for the style="" attributes React renders (a hash cannot cover
+ * those). Fonts, fetches, media, workers and the manifest fall back to default-src 'self': nothing may be fetched from another origin. frame-ancestors is not honoured in a <meta>.
+ */
+export function cspFor(inlineScripts: string[]): string {
+  const hashes = inlineScripts.map((js) => `'sha256-${createHash('sha256').update(js).digest('base64')}'`);
+  return [
+    `default-src 'self'`,
+    `script-src 'self'${hashes.length ? ' ' + hashes.join(' ') : ''}`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' data: blob:`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+  ].join('; ');
+}
+
 function headFor(route: Route, byPath: Map<string, Route[]>): string {
   const locale = LOCALES[route.locale];
   const canonical = route.indexable ? absolute(route.path) : null;
   // Title, description, Open Graph, Twitter, icons and JSON-LD: one row per page in src/seo.ts (S10).
+  const inline = route.pathWithoutLocale === '/' ? [introScript(), hourScript()] : [];
   const lines: string[] = [
+    `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(cspFor(inline))}" />`,
+    `<meta name="referrer" content="same-origin" />`,
     ...seoHead(route, canonical, locale.tag),
     `<meta name="bothy-base" content="${escapeHtml(BASE)}" />`,
   ];
   // The home page's first-visit intro decides before the first paint (brand/splash-gate.ts).
-  if (route.pathWithoutLocale === '/')
-    lines.push(`<script>${introScript()}</script>`, `<script>${hourScript()}</script>`);
+  for (const js of inline) lines.push(`<script>${js}</script>`);
   if (canonical) {
     const alternates = byPath.get(route.pathWithoutLocale) ?? [];
     if (alternates.length > 1) {
