@@ -156,7 +156,7 @@ export function startSky(o: SkyOptions): Sky {
       const big = el.tagName === 'H1' ? 1 : 0.5;
       const ox = (dx / dist) * 1.7 * big;
       const oy = (dy / dist) * 1.7 * big;
-      el.style.filter = `drop-shadow(${ox.toFixed(2)}px ${oy.toFixed(2)}px 0.7px rgba(${warm.map(Math.round)},${(0.8 * k).toFixed(2)})) drop-shadow(${(-ox * 1.5).toFixed(2)}px ${(3 - oy).toFixed(2)}px ${14 * big + 4}px rgba(0,0,0,0.34))`;
+      el.style.filter = `drop-shadow(${ox.toFixed(2)}px ${oy.toFixed(2)}px 0.7px rgba(${warm.map(Math.round)},${(0.4 * k).toFixed(2)})) drop-shadow(${(-ox * 1.5).toFixed(2)}px ${(3 - oy).toFixed(2)}px ${14 * big + 4}px rgba(0,0,0,0.17))`;
     }
   }
 
