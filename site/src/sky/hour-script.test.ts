@@ -10,6 +10,7 @@ function run(search: string, hour: number) {
   const RealDate = Date;
   const sandbox = {
     location: { search },
+    history: {} as Record<string, string>,
     Date: class extends RealDate {
       constructor() {
         super(2026, 10, 20, Math.floor(hour), Math.round((hour % 1) * 60));

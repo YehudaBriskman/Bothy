@@ -10,7 +10,7 @@ import { KEYS } from './keys.ts';
 export function hourScript(): string {
   const keys = JSON.stringify(KEYS.map((k) => [k.h, k.n]));
   return (
-    `(function(){try{var d=document.documentElement,q=/[?&]hour=([0-9.]+)/.exec(location.search),t=new Date(),` +
+    `(function(){try{history.scrollRestoration='manual';var d=document.documentElement,q=/[?&]hour=([0-9.]+)/.exec(location.search),t=new Date(),` +
     `h=q?+q[1]:t.getHours()+t.getMinutes()/60,K=${keys},n=K[0][1],i;h=((h%24)+24)%24;` +
     `for(i=0;i<K.length;i++)if(h>=K[i][0])n=K[i][1];d.setAttribute('data-hour',n);` +
     `var p=/^(dawn|golden|sunset)$/.test(n)?'dusk':'day',` +
