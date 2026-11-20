@@ -1,12 +1,14 @@
 name: Deploy site to GitHub Pages
 
-# OFF. This workflow is deliberately `workflow_dispatch` only and has never run.
-# It stays that way until the owner has (1) set Settings > Pages > Source to
-# "GitHub Actions", (2) added the custom domain bothybox.com there, and (3) pointed
-# DNS at GitHub Pages at Cloudflare (see site/README.md, "Going live"). Only then
-# add a `push: branches: [main], paths: [site/**, docs/guide/**]` trigger.
+# LIVE since 2026-11-17 (bothybox.com; Pages source is "GitHub Actions", the certificate is issued, HTTPS enforced).
+# It runs on every release tag (v*), and by hand. A tag deploys the site exactly as that tag's tree builds it, so
+# the owner decides when the public site changes by tagging. The `github-pages` environment allows the branch main
+# and the tag pattern v* (Settings > Environments); without the tag rule a tag run is refused at the deploy job.
+# The gates (npm test, verify-dist.sh) run first and a failure stops the deploy.
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
