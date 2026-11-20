@@ -11,8 +11,6 @@ import { cameraAt, stageAt } from '../story/camera.ts';
 import { progress } from '../story/progress.ts';
 
 const PHOTOS = ['day', 'dusk'] as const;
-/** The graded sky's luma above which the hero words take dark ink (check:sky holds the contrast at every hour). */
-const INK_DARK_ABOVE = 60;
 const GOV = [1, 0.85, 0.72, 0.6];
 const sm01 = (t: number) => {
   t = Math.min(1, Math.max(0, t));
@@ -24,9 +22,9 @@ const rgb = (a: number[]) => `rgb(${a.map((x) => Math.round(Math.min(255, Math.m
 export interface SkyOptions {
   /** The `.sky-still` layer (the page-wide, fixed backdrop); the canvas is appended inside it. */
   layer: HTMLElement;
-  /** The story root: receives the hour's ground colour (`--ground-rgb`) for the whole page. */
+  /** The story root: receives the hour's ground colour (`--ground-rgb`) and the scrim variables for the whole page. */
   story: HTMLElement;
-  /** The hero section: receives `is-lit` and `has-gl`. */
+  /** The hero section: receives `is-lit`, `has-gl` and the scrim variables. */
   section: HTMLElement;
   /** The words the sun lights (headline, line, lede). */
   lit: HTMLElement[];
@@ -122,6 +120,7 @@ export function startSky(o: SkyOptions): Sky {
         section.classList.remove('is-lit');
         for (const el of o.lit) {
           el.style.backgroundImage = '';
+          el.style.filter = '';
         }
       }
       litSig = '';
@@ -147,11 +146,17 @@ export function startSky(o: SkyOptions): Sky {
       const r = el.getBoundingClientRect();
       const px = lx - r.x;
       const py = ly - r.y;
-      const dist = Math.hypot(px - r.width / 2, py - r.height / 2) || 1;
+      const dx = px - r.width / 2;
+      const dy = py - r.height / 2;
+      const dist = Math.hypot(dx, dy) || 1;
       const R = dist + 0.6 * r.width;
       const n0 = Math.max(0, Math.min(100, ((dist - 0.5 * r.width) / R) * 100));
       const n1 = Math.max(n0 + 1, Math.min(100, ((dist + 0.5 * r.width) / R) * 100));
       el.style.backgroundImage = `radial-gradient(circle ${R.toFixed(0)}px at ${px.toFixed(0)}px ${py.toFixed(0)}px, rgb(${near}) ${n0.toFixed(1)}%, rgb(${far}) ${n1.toFixed(1)}%)`;
+      const big = el.tagName === 'H1' ? 1 : 0.5;
+      const ox = (dx / dist) * 1.7 * big;
+      const oy = (dy / dist) * 1.7 * big;
+      el.style.filter = `drop-shadow(${ox.toFixed(2)}px ${oy.toFixed(2)}px 0.7px rgba(${warm.map(Math.round)},${(0.8 * k).toFixed(2)})) drop-shadow(${(-ox * 1.5).toFixed(2)}px ${(3 - oy).toFixed(2)}px ${14 * big + 4}px rgba(0,0,0,0.34))`;
     }
   }
 
@@ -164,11 +169,17 @@ export function startSky(o: SkyOptions): Sky {
     bod = bodies(state.eff);
     layer.style.setProperty('--sky-top', rgb(cur.top));
     layer.style.setProperty('--sky-bot', rgb(cur.bot));
-    // Ink for the hero words: nothing sits behind them, the sky is the sky. Dark navy ink where the graded sky is bright
-    // (most of the day), the approved light ink where it is not. The threshold is held by check:sky at every hour.
+    // Ink and scrim for the hero words. A bright sky (day, and the warm hours either side) gets dark ink on a pale,
+    // sky-coloured scrim; the rest keep the approved light ink on a dark one. Both scrims are feathered on all four
+    // edges (sky.css), and the strength rises with the hour's own scrim value, so the floor holds at every hour.
     const luma = (c: number[]) => 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
-    inkDark = ((luma(cur.top) + luma(cur.bot)) / 2) * Math.min(1.1, cur.exp) > INK_DARK_ABOVE;
+    inkDark = ((luma(cur.top) + luma(cur.bot)) / 2) * Math.min(1.1, cur.exp) > 999; // light ink at every hour: the sky grade (uFx) darkens the sky under the words instead
     section.dataset.ink = inkDark ? 'dark' : 'light';
+    section.style.setProperty('--scrim-a', (inkDark ? 0.9 : Math.min(0.9, 0.62 + cur.scrim * 0.6)).toFixed(3));
+    section.style.setProperty(
+      '--scrim-rgb',
+      (inkDark ? cur.bot.map((x) => Math.round(x * 0.25 + 190)) : cur.top.map((x) => Math.round(x * 0.4))).join(' '),
+    );
     // the page's own ground (veil, glass, scrims) is this hour's sky, darkened: hue-matched at every scroll position
     o.story.style.setProperty('--ground-rgb', cur.top.map((x) => Math.round(x * 0.2 + 6)).join(' '));
     o.story.style.setProperty('--glass-rgb', cur.top.map((x) => Math.round(x * 0.16 + 5)).join(' '));
@@ -242,7 +253,7 @@ export function startSky(o: SkyOptions): Sky {
       for (const n of [
         ...['uT0', 'uT1', 'uW', 'uD0', 'uD1', 'uRes', 'uCover', 'uZoom', 'uTime', 'uArrive'],
         ...['uDebug', 'uAspect', 'uLean', 'uWake', 'uGain', 'uLift', 'uSunCol', 'uSat', 'uExp'],
-        ...['uGlow', 'uHaze', 'uSun', 'uLight', 'uLightCol', 'uFx', 'uCam', 'uSea', 'uSeaCol'],
+        ...['uGlow', 'uHaze', 'uSun', 'uText', 'uLight', 'uLightCol', 'uFx', 'uCam', 'uSea', 'uSeaCol'],
       ])
         U[n] = g.getUniformLocation(program, n);
     } catch (e) {
@@ -394,8 +405,36 @@ export function startSky(o: SkyOptions): Sky {
     gl.uniform3f(U.uSun!, bod.sun.x, lit.sunY - cam.pan * 0.8, lit.sunK);
     gl.uniform3f(U.uLight!, lit.x, lit.y, lit.k);
     gl.uniform3fv(U.uLightCol!, lit.col);
-    gl.uniform1f(U.uFx!, raysOn ? 1 : 0);
+    // the words' brightness ceiling (display luma, a little lower in the warm hours, where the bright horizon sits
+    // behind the words) and how hard it bites, from this hour's scrim value
+    gl.uniform3f(
+      U.uFx!,
+      raysOn ? 1 : 0,
+      0.26 - 0.04 * clamp01(cur.glow[3]! / 0.55),
+      inkDark ? 0 : Math.min(0.99, 0.3 + cur.scrim * 1.6),
+    );
     lightText();
+    // the words' box in canvas uv: the sun dims behind it
+    const cr = layer.getBoundingClientRect();
+    let x0 = Infinity,
+      y0 = Infinity,
+      x1 = -Infinity,
+      y1 = -Infinity;
+    for (const el of o.lit) {
+      const r = el.getBoundingClientRect();
+      x0 = Math.min(x0, r.left);
+      y0 = Math.min(y0, r.top);
+      x1 = Math.max(x1, r.right);
+      y1 = Math.max(y1, r.bottom);
+    }
+    if (cr.width && x1 > x0)
+      gl.uniform4f(
+        U.uText!,
+        ((x0 + x1) / 2 - cr.x) / cr.width,
+        ((y0 + y1) / 2 - cr.y) / cr.height,
+        (x1 - x0) / 2 / cr.width,
+        (y1 - y0) / 2 / cr.height,
+      );
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     if (!canvas.classList.contains('on')) canvas.classList.add('on');
     state.dirty = false;
@@ -657,6 +696,7 @@ export function startSky(o: SkyOptions): Sky {
       eff: state.eff,
       ground: o.story.style.getPropertyValue('--ground-rgb'),
       glass: o.story.style.getPropertyValue('--glass-rgb'),
+      scrim: cur.scrim,
     }),
   };
   return api;

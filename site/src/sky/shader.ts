@@ -28,7 +28,8 @@ uniform vec4 uGlow,uHaze;
 uniform vec3 uSun;         // x, y, strength
 uniform vec3 uLight;       // x, y, strength
 uniform vec3 uLightCol;
-uniform float uFx;         // light-shaft strength
+uniform vec3 uFx;          // rays and rim strength, text-region brightness ceiling, text-region grade strength
+uniform vec4 uText;        // the words: centre and half-size in screen uv; the sun dims behind them
 uniform vec4 uCam;         // the descent: pan (uv down), zoom multiplier, cloud crossing, cloud rise (the last two scaled by depth)
 uniform float uSea;        // sea of cloud: 0 none .. 1 fills the lower screen
 uniform vec3 uSeaCol;      // its colour, from the hour's own grade
@@ -115,10 +116,11 @@ void main(){
   float gx=uSun.x;
   float g=exp(-pow((s.y-.82)/.2,2.))*exp(-pow((s.x-gx)/.55,2.));
   col+=uGlow.rgb*uGlow.a*g*(1.-.5*cloud);
+  float tz=1.-smoothstep(.75,1.5,length((s-uText.xy)/uText.zw));  // 1 inside the words
   float aspect=uAspect;
 
   // light shafts: march from here toward the light through the cloud mask; rims: cloud edges that face it
-  if(uLight.z>.01 && uFx>.001){
+  if(uLight.z>.01 && uFx.x>.001){
     vec2 toL=uLight.xy-s; float dL=length(toL*vec2(aspect,1.));
     float acc=0., ws=0., j=hash(gl_FragCoord.xy);
     for(int i=0;i<14;i++){
@@ -128,7 +130,7 @@ void main(){
     float tr=acc/ws;                                       // 1: clear path to the light
     float fall=exp(-dL*1.7);
     float shaft=tr*tr*(1.-.75*cloud);
-    col+=uLightCol*uLight.z*uFx*fall*shaft*.42;
+    col+=uLightCol*uLight.z*uFx.x*fall*shaft*.42;
   }
 
   // sun: a soft, grown-in-the-atmosphere glow with proper falloff and no disc edge; near cloud takes most of it
@@ -136,13 +138,21 @@ void main(){
   float sz=1.+(uSun.y-.2)*1.4;                             // bigger and redder low down
   float tcore=1.-.92*smoothstep(.2,.8,cloud);
   float tbloom=1.-.5*smoothstep(.1,.9,cloud);
+  float tw=1.-.72*tz;
   float core=1.5/(1.+pow(dl/(.0085*sz),2.6));
   float bloom=.5/(1.+pow(dl/(.05*sz),1.5));
   float halo=.07*exp(-dl*3.2/sz)+.02*exp(-dl*1.2);
   vec3 scol=mix(vec3(1.,.97,.9),uSunCol,smoothstep(.0,.09,dl));
-  col+=scol*uSun.z*(core*tcore+bloom*tbloom+halo*tbloom);
+  col+=scol*uSun.z*(core*tcore*tw+bloom*tbloom*(1.-.5*tz)+halo*tbloom);
   // 22-degree-ish ring of faint atmospheric scatter, only visible when the sun is clear
   col+=uSunCol*uSun.z*.025*exp(-pow((dl-.22*sz)/.03,2.))*tcore;
+
+  // behind the words: a broad, feathered, hue-preserving soft knee that only lowers the brightest sky and cloud
+  vec2 rr=(s-uText.xy)/(uText.zw*vec2(1.5,2.4));
+  float reg=exp(-dot(rr,rr)*2.0);
+  float l2=dot(col,vec3(.299,.587,.114));
+  float nl=l2-max(l2-uFx.y,0.)*reg*uFx.z;
+  col*=nl/max(l2,1e-3)*(1.-.1*reg*uFx.z);
 
   // soft shoulder, then the arrival: a mist lifting off the dark ground
   col=mix(col,.8+.2*tanh((col-.8)/.2),step(.8,col));
