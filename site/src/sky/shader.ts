@@ -1,13 +1,12 @@
-// The sky's shader: raw WebGL2, ported unchanged from public/sky-spike/sky.js (owner-approved look). Three real
+// The sky's shader: raw WebGL2, ported from public/sky-spike/sky.js (owner-approved look, daylight only). Two real
 // photographs are cross-faded and graded by the hour table; depth is derived from each photograph's own colour.
 // FAR and NEAR are the depth range that makes cloud move about 4.5x more than open sky.
 export const NEAR = 1.0;
 export const FAR = 0.22;
 // Per photograph depth recipe: depth = clamp((luma - bias - sat * satW) * gain). Tuned by eye with ?debug=depth.
-export const DEPTH: readonly [number[], number[], number[]] = [
+export const DEPTH: readonly [number[], number[]] = [
   [0.34, 1.15, 3.2], // day: white cumulus vs saturated blue
   [0.04, 0, -10], // dusk: warm-grey cloud (r >= b) vs blue sky (b > r); negative gain selects the hue recipe
-  [0.45, 0.3, 3.0], // night: only the stars count
 ];
 
 export const VS = `#version 300 es
@@ -16,22 +15,21 @@ void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); gl_Po
 export const FS = `#version 300 es
 precision highp float;
 out vec4 o;
-uniform sampler2D uT0,uT1,uT2;
-uniform vec3 uW;           // photograph weights (day,dusk,night), only loaded ones, summing to 1
-uniform vec3 uD0,uD1,uD2;  // depth recipes
+uniform sampler2D uT0,uT1;
+uniform vec2 uW;           // photograph weights (day,dusk), only loaded ones, summing to 1
+uniform vec3 uD0,uD1;  // depth recipes
 uniform vec2 uRes, uCover;
 uniform float uZoom,uTime,uArrive,uDebug,uAspect;
 uniform vec2 uLean;
 uniform vec4 uWake[10];
 uniform vec3 uGain,uLift,uSunCol;
-uniform float uSat,uExp,uStars;
+uniform float uSat,uExp;
 uniform vec4 uGlow,uHaze;
 uniform vec3 uSun;         // x, y, strength
-uniform vec4 uMoon;        // x, y, strength, phase
-uniform vec4 uLight;       // x, y, strength, 1 if the moon
+uniform vec3 uLight;       // x, y, strength
 uniform vec3 uLightCol;
 uniform vec3 uFx;          // rays and rim strength, text-region brightness ceiling, text-region grade strength
-uniform vec4 uText;        // the words: centre and half-size in screen uv; the sun and moon dim behind them
+uniform vec4 uText;        // the words: centre and half-size in screen uv; the sun dims behind them
 uniform vec4 uCam;         // the descent: pan (uv down), zoom multiplier, cloud crossing, cloud rise (the last two scaled by depth)
 uniform float uSea;        // sea of cloud: 0 none .. 1 fills the lower screen
 uniform vec3 uSeaCol;      // its colour, from the hour's own grade
@@ -54,7 +52,6 @@ float cloudAt(vec2 p, float lod){
   float c=0.;
   if(uW.x>.002) c+=uW.x*depthRaw(textureLod(uT0,p,lod).rgb,uD0);
   if(uW.y>.002) c+=uW.y*depthRaw(textureLod(uT1,p,lod).rgb,uD1);
-  if(uW.z>.002) c+=uW.z*depthRaw(textureLod(uT2,p,lod).rgb,uD2);
   return c;
 }
 
@@ -86,14 +83,14 @@ void main(){
   float vf=mix(1.,.55,smoothstep(.5,1.,s.y));                        // far horizon moves less
 
   vec3 col=vec3(0.); float cloud=0.;
-  for(int k=0;k<3;k++){
-    float w = k==0?uW.x : (k==1?uW.y:uW.z);
+  for(int k=0;k<2;k++){
+    float w = k==0?uW.x:uW.y;
     if(w<.002) continue;
-    vec3 r = k==0?uD0 : (k==1?uD1:uD2);
-    vec3 c0 = k==0?texture(uT0,uv).rgb : (k==1?texture(uT1,uv).rgb:texture(uT2,uv).rgb);
+    vec3 r = k==0?uD0:uD1;
+    vec3 c0 = k==0?texture(uT0,uv).rgb:texture(uT1,uv).rgb;
     float d=depthOf(c0,r)*vf;
     vec2 p=uv-((lean+dr)*d+push*d)+vec2(uCam.z,uCam.w)*d;
-    vec3 c = k==0?texture(uT0,p).rgb : (k==1?texture(uT1,p).rgb:texture(uT2,p).rgb);
+    vec3 c = k==0?texture(uT0,p).rgb:texture(uT1,p).rgb;
     col+=w*c; cloud+=w*clamp((d-${FAR.toFixed(2)})/${(NEAR - FAR).toFixed(2)},0.,1.);
   }
   if(uDebug>.5){ o=vec4(vec3(cloud),1.); return; }
@@ -115,8 +112,8 @@ void main(){
     col=mix(col,uSeaCol*(.84+.26*sn),m*.93*uSea);
   }
 
-  // ---- light: a horizon glow that travels with the body, then the sun and moon themselves
-  float gx=mix(uMoon.x,uSun.x,step(.001,uSun.z));
+  // ---- light: a horizon glow that travels with the body, then the sun itself
+  float gx=uSun.x;
   float g=exp(-pow((s.y-.82)/.2,2.))*exp(-pow((s.x-gx)/.55,2.));
   col+=uGlow.rgb*uGlow.a*g*(1.-.5*cloud);
   float tz=1.-smoothstep(.75,1.5,length((s-uText.xy)/uText.zw));  // 1 inside the words
@@ -149,34 +146,6 @@ void main(){
   col+=scol*uSun.z*(core*tcore*tw+bloom*tbloom*(1.-.5*tz)+halo*tbloom);
   // 22-degree-ish ring of faint atmospheric scatter, only visible when the sun is clear
   col+=uSunCol*uSun.z*.025*exp(-pow((dl-.22*sz)/.03,2.))*tcore;
-
-  // moon: real phase from the date, soft limb and terminator, earthshine, maria, bloom and a faint halo ring
-  float ph=uMoon.w*6.2831853; float illum=(1.-cos(ph))*.5;
-  vec2 pm=(s-uMoon.xy)*vec2(aspect,1.)/.034; float dm=length(pm);
-  if(uMoon.z>.001){
-    float ms=uMoon.z*(1.-.9*smoothstep(.15,.7,cloud))*(1.-.7*tz);
-    vec3 n=vec3(pm.x,-pm.y,sqrt(max(1.-dot(pm,pm),0.)));
-    vec3 L=vec3(sin(ph),0.,-cos(ph));
-    float lit=smoothstep(-.22,.42,dot(n,L));
-    float limb=smoothstep(1.03,.9,dm);
-    float maria=.74+.26*fbm(pm*1.5+3.);
-    vec3 surf=vec3(1.25,1.2,1.1)*maria*(.82+.18*n.z);
-    vec3 earth=vec3(.045,.06,.1)*maria*(1.-illum*.7);
-    vec3 mc=surf*lit+earth*(1.-lit);
-    float bk=.25+.75*illum;
-    col+=vec3(.5,.62,.95)*(.9/(1.+pow(dm/2.2,2.))+.14*exp(-dm*.22))*bk*ms;
-    col=mix(col,mc,limb*ms);
-    col+=vec3(.6,.7,1.)*.05*exp(-pow((dm-9.)/1.3,2.))*bk*ms;
-  }
-
-  // stars (a few more than the photograph has), sunk behind cloud, drifting very slightly
-  if(uStars>.01){
-    vec2 sp=(s+uLean*.002)*uRes/30.; vec2 id=floor(sp); vec2 f=fract(sp);
-    float h=hash(id); vec2 jp=vec2(hash(id+3.1),hash(id+7.7))*.7+.15;
-    float st=step(.985,h)*smoothstep(.16,.0,length(f-jp));
-    st*=.5+.5*sin(t*(1.2+h*3.)+h*40.);
-    col+=vec3(.9,.93,1.)*st*uStars*(1.-cloud)*smoothstep(.85,.4,s.y)*.8;
-  }
 
   // behind the words: a broad, feathered, hue-preserving soft knee that only lowers the brightest sky and cloud
   vec2 rr=(s-uText.xy)/(uText.zw*vec2(1.5,2.4));

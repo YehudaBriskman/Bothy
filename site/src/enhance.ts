@@ -22,8 +22,8 @@ import './styles/chosen.css';
  * a few conveniences and nothing else: copy icons on commands, documentation
  * search, the install menu and collapsing the docs menu on a phone. There is no
  * colour-scheme switch and nothing is stored but one sessionStorage flag (the
- * first-visit splash has played): the sky follows the visitor's hour, and without
- * script the page follows prefers-color-scheme.
+ * first-visit splash has played): the sky follows the visitor's hour (daylight only: before
+ * dawn it is the dawn sky, after sunset the sunset sky), and without script it is the noon sky.
  */
 
 // Controls that only work with JavaScript are rendered `hidden`; reveal them now.

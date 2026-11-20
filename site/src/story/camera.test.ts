@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MARKS, cameraAt, effectiveHour, progressAt, stageAt } from './camera.ts';
+import { MARKS, cameraAt, progressAt, stageAt } from './camera.ts';
 
 test('the camera starts neutral and every curve is continuous', () => {
   const c0 = cameraAt(0);
-  assert.deepEqual([c0.pan, c0.cross, c0.rise, c0.sea, c0.advance], [0, 0, 0, 0, 0]);
+  assert.deepEqual([c0.pan, c0.cross, c0.rise, c0.sea], [0, 0, 0, 0]);
   assert.equal(c0.zoom, 1);
   assert.equal(c0.glow, 1);
   let prev = cameraAt(0);
@@ -21,18 +21,8 @@ test('stages follow the story in order', () => {
   assert.equal(stageAt(0.2), 'cloud layer');
   assert.equal(stageAt(0.4), 'sea of cloud');
   assert.equal(stageAt(0.6), 'horizon glow');
-  assert.equal(stageAt(0.8), 'twilight');
-  assert.equal(stageAt(1), 'stars');
-});
-
-test('the clock runs on toward night; a night stays night', () => {
-  assert.equal(effectiveHour(9, 0), 9);
-  assert.equal(effectiveHour(9, 1), 23);
-  assert.equal(effectiveHour(13, 1), 23);
-  assert.equal(effectiveHour(23.5, 1), 23.5);
-  assert.equal(effectiveHour(2, 1), 2);
-  const mid = effectiveHour(13, 0.75);
-  assert.ok(mid > 13 && mid < 23);
+  assert.equal(stageAt(0.8), 'warm light');
+  assert.equal(stageAt(1), 'low sun');
 });
 
 test('scroll maps to progress through the chapter tops and ends at 1', () => {

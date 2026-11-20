@@ -3,7 +3,7 @@
 // story: sections, chapter wraps, card lists, the footer. Each one, and its ::before and ::after, must paint no
 // background image (no gradient, glow, star field or photo) and a background colour that is either transparent or
 // exactly the page's ink, rgb(9 9 12) (the story's chapters keep that opaque ink because the sky stage behind them is
-// fixed). Only the cards inside have surfaces of their own. The closing band (.end-cta) is allowed its night photo.
+// fixed). Only the cards inside have surfaces of their own. The closing band (.end-cta) is allowed its sky photo.
 // On the home page only what follows #story-end is checked: above it is the hero and the story's sky.
 //   npm run build && npm run check:surfaces
 import fs from 'node:fs';
@@ -68,7 +68,7 @@ function probe(wrappers) {
   const name = (el) =>
     el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') + [...el.classList].map((c) => `.${c}`).join('');
   for (const el of document.querySelectorAll(wrappers)) {
-    if (el.closest('.night-cta, .end-cta, [data-story-dots], .story-end, .site-nav')) continue; // the band keeps its photo; the dots and the header's capsule are UI
+    if (el.closest('.sky-cta, .end-cta, [data-story-dots], .story-end, .site-nav')) continue; // the band keeps its photo; the dots and the header's capsule are UI
     if (el.closest('.card, .glass')) continue; // a card (even a <section> one) is a surface by design
     if (document.querySelector('[data-story]') && !(end && end.compareDocumentPosition(el) & 4)) continue;
     for (const pseudo of [null, '::before', '::after']) {

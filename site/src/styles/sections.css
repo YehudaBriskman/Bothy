@@ -20,10 +20,9 @@
 
 /* Below #story-end the page is flat ink and nothing stands behind a group of cards: only the cards have surfaces.
    The chapters there keep story.css's opaque ink (it covers the fixed sky stage), but not the tinted ground plate
-   each one drew behind its cards (.ch-wrap::before) or the CSS star field behind the trust chapter.
+   each one drew behind its cards (.ch-wrap::before).
    check:surfaces holds this. */
-.story .story-end ~ .ch > .ch-wrap::before,
-.story .story-end ~ .ch-trust::before {
+.story .story-end ~ .ch > .ch-wrap::before {
   content: none;
 }
 

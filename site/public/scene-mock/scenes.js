@@ -75,13 +75,4 @@ export const SCENES = [
     sun: 0,
     moon: 0.15,
   },
-  {
-    id: 'stars',
-    title: 'Starfield',
-    line: 'The approved night photograph: real stars, slow drift, and the moon on its own arc.',
-    photo: '../sky/night-desk.avif',
-    depth: [0.45, 0.3, 3.0],
-    home: 1.5,
-    sun: 0,
-  },
 ];

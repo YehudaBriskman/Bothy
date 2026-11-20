@@ -1,7 +1,7 @@
 // The descent, as numbers. Pure arithmetic, no DOM: scroll progress p (0 at the top of the page, 1 at its end) in,
 // the camera and the sky's stage out. The sky engine feeds these into the shader's uniforms; story.css reads the same
 // p for the CSS-only path. Stages, in the order the visitor passes them:
-//   clear height -> cloud layer -> sea of cloud -> horizon glow -> twilight -> stars
+//   clear height -> cloud layer -> sea of cloud -> horizon glow -> warm light -> low sun
 // The sky never jumps: every curve is a smoothstep of p, so it is continuous and has zero slope at its ends.
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -16,8 +16,8 @@ export const STAGES = [
   { name: 'cloud layer', from: 0.17 },
   { name: 'sea of cloud', from: 0.34 },
   { name: 'horizon glow', from: 0.55 },
-  { name: 'twilight', from: 0.72 },
-  { name: 'stars', from: 0.88 },
+  { name: 'warm light', from: 0.72 },
+  { name: 'low sun', from: 0.88 },
 ] as const;
 
 export function stageAt(p: number): string {
@@ -39,8 +39,6 @@ export interface Camera {
   sea: number;
   /** Multiplier on the horizon glow strength. */
   glow: number;
-  /** 0..1 how far the clock is advanced toward night (so twilight and stars arrive with the descent). */
-  advance: number;
 }
 
 /** The camera at progress p. */
@@ -53,18 +51,10 @@ export function cameraAt(p: number): Camera {
     zoom: 1 + 0.26 * down - 0.12 * back,
     cross: 0.05 * smooth(0.1, 0.9, p),
     rise: 0.1 * smooth(0, 0.6, p),
-    // the sea rises as the cloud layer ends, is deepest at the horizon, and drops back into twilight
+    // the sea rises as the cloud layer ends, is deepest at the horizon, and drops back toward the warm horizon
     sea: smooth(0.2, 0.42, p) * (1 - 0.55 * smooth(0.72, 0.95, p)),
     glow: 1 + 1.1 * Math.sin(Math.PI * smooth(0.45, 0.85, p)),
-    advance: smooth(0.5, 1, p),
   };
-}
-
-/** The clock the sky shows at progress p, given the visitor's hour: it runs on toward 23:00, and a night stays night. */
-export function effectiveHour(hour: number, p: number): number {
-  const h = ((hour % 24) + 24) % 24;
-  if (h >= 23 || h < 5) return h;
-  return h + (23 - h) * cameraAt(p).advance;
 }
 
 /**

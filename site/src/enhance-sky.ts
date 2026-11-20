@@ -14,8 +14,6 @@ export function mountSky(section: HTMLElement): void {
   const $ = <T extends Element>(sel: string) => ui.querySelector<T>(sel);
   const hour = $<HTMLInputElement>('[data-sky-hour]');
   const out = $<HTMLOutputElement>('[data-sky-out]');
-  const sun = $<SVGElement>('[data-sky-sun]');
-  const moon = $<SVGElement>('[data-sky-moon]');
   const now = $<HTMLButtonElement>('[data-sky-now]');
   const pause = $<HTMLButtonElement>('[data-sky-pause]');
   const dbg = $<HTMLElement>('[data-sky-dbg]');
@@ -30,14 +28,12 @@ export function mountSky(section: HTMLElement): void {
     lit,
     photoBase: `${base}sky/`,
     debugEl: dbg,
-    onHour: ({ hour: h, live, name, sunUp }) => {
+    onHour: ({ hour: h, live, name }) => {
       if (hour) {
         hour.value = String(h);
         hour.setAttribute('aria-valuetext', `${fmt(h)}, ${name}`);
       }
       if (out) out.textContent = `${fmt(h)}${live ? '' : ' *'}`;
-      if (sun) sun.toggleAttribute('hidden', !sunUp);
-      if (moon) moon.toggleAttribute('hidden', sunUp);
       if (now) now.hidden = live;
     },
     onStill: () => {

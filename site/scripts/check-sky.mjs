@@ -329,6 +329,94 @@ async function runViewport(browser, base, name, vp, hours, o) {
   return { rows, errors };
 }
 
+// ------------------------------------------------------------------ the round trip: top, to the end, and back
+
+/** Mean colour of small squares at fixed points of a screenshot of the viewport. */
+async function sampleSky(page, vp) {
+  const png = await page.screenshot({ clip: { x: 0, y: 0, width: vp.width, height: vp.height } });
+  const pts = [
+    [0.08, 0.12],
+    [0.5, 0.07],
+    [0.92, 0.2],
+    [0.5, 0.45],
+    [0.08, 0.8],
+    [0.92, 0.8],
+    [0.5, 0.97],
+  ];
+  const regions = [pts.map(([x, y]) => ({ x: x * vp.width - 20, y: y * vp.height - 20, w: 40, h: 40 }))];
+  const [reg] = await decodeRegions(page, png, regions);
+  return reg.map((px) => {
+    const m = [0, 0, 0];
+    for (let i = 0; i < px.length; i += 3) for (let c = 0; c < 3; c++) m[c] += px[i + c];
+    return m.map((v) => v / (px.length / 3));
+  });
+}
+
+/**
+ * The sky at the top of the page must be the same sky after any scroll round trip: load at an hour, sample the sky,
+ * scroll through every section to the end, scroll back to the top, sample again. The dissolve layers, the veil, the
+ * curtain and the camera all have to be back at rest (the owner saw a dark overlay left behind). The tolerance is for
+ * the clouds' own drift only; a leftover overlay moves a pixel mean by 20 or more.
+ */
+export async function roundTrip(browser, base, vp, hours, tol = 8) {
+  const fails = [];
+  for (const h of hours) {
+    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    await page.goto(`${base}/?hour=${h}&manual=1`, { waitUntil: 'load', timeout: 180000 });
+    for (let i = 0; i < 300; i++) {
+      if (await page.evaluate(() => !!window.__sky && window.__sky.ready())) break;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    await page.evaluate(() => window.__sky.loadAll());
+    await page.evaluate(() => document.fonts.ready);
+    const settle = async () => {
+      await page.waitForTimeout(250);
+      await page.evaluate(() => {
+        window.__sky.frame(0);
+        window.__sky.frame(0);
+      });
+      await page.waitForTimeout(250);
+    };
+    await page.evaluate(() => {
+      window.__sky.setHour(window.__sky.state.hour);
+      window.__sky.frame(0);
+      window.__sky.frame(6);
+    });
+    await settle();
+    const before = await sampleSky(page, vp);
+    const total = await page.evaluate(() => document.documentElement.scrollHeight);
+    for (let y = 0; y <= total; y += 500) {
+      await page.evaluate((to) => window.scrollTo(0, to), y);
+      await page.waitForTimeout(40);
+    }
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await settle();
+    for (let y = total; y >= 0; y -= 500) {
+      await page.evaluate((to) => window.scrollTo(0, to), y);
+      await page.waitForTimeout(40);
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await settle();
+    const after = await sampleSky(page, vp);
+    const rest = await page.evaluate(() => ({
+      p: window.__sky.stage().p,
+      dots: getComputedStyle(document.querySelector('.story'), '::after').opacity,
+    }));
+    const worst = Math.max(...before.flatMap((b, i) => b.map((v, c) => Math.abs(v - after[i][c]))));
+    const ok = worst <= tol && rest.p === 0 && Number(rest.dots) === 0;
+    console.error(
+      `  round trip ${fmtH(h)}: largest pixel-mean change ${worst.toFixed(1)}, p ${rest.p}, dots ${rest.dots}`,
+    );
+    if (!ok)
+      fails.push(
+        `round trip at ${fmtH(h)}: sky changed by ${worst.toFixed(1)} (max ${tol}), descent p ${rest.p}, dot veil ${rest.dots}`,
+      );
+    await ctx.close();
+  }
+  return fails;
+}
+
 function markdown(rows, meta) {
   const L = [];
   L.push('# Sky contrast, measured from pixels', '');
@@ -397,6 +485,7 @@ async function main() {
   const t0 = Date.now();
   const rows = [];
   const errors = [];
+  const trip = [];
   try {
     for (const v of vps) {
       console.error(`${v} ${VIEWPORTS[v].width}x${VIEWPORTS[v].height}: ${hours.length} hours`);
@@ -407,6 +496,7 @@ async function main() {
       rows.push(...r.rows);
       errors.push(...r.errors);
     }
+    if (!opt('hours')) trip.push(...(await roundTrip(browser, base, VIEWPORTS.desktop, [6.5, 17])));
   } finally {
     await browser.close();
     srv.close();
@@ -425,12 +515,13 @@ async function main() {
       `FAIL ${fmtH(r.hour)} ${r.viewport} ${r.role} "${r.text}": WCAG ${r.wcag} (need ${r.floorWcag}), Lc ${r.lc} (need ${r.floorLc})`,
     );
   }
+  for (const t of trip) console.log(`FAIL ${t}`);
   if (errors.length) console.error(`page errors:\n${errors.slice(0, 5).join('\n')}`);
   console.log(
     `check-sky: ${rows.length} measurements, ${bad.length} failing, ${meta.seconds}s, table in ${path.relative(process.cwd(), out)}/contrast.md`,
   );
   if (!rows.length) throw new Error('no text elements measured: is there a [data-sky] section on the home page?');
-  process.exit(bad.length ? 1 : 0);
+  process.exit(bad.length || trip.length ? 1 : 0);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
