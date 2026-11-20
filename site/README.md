@@ -124,15 +124,14 @@ Add `src/i18n/he.ts` (typed as `Messages`), register it in `src/i18n/locales.ts`
 `ENABLED_LOCALES`. Routes, `lang`/`dir`, `hreflang` and the language switcher follow. The stylesheet uses logical
 properties only (`verify-dist.sh` fails on `left`/`right`).
 
-## Going live (not done; the owner's steps)
+## Deploying (live since 2026-11-17)
 
-`.github/workflows/site-pages.yml` is `workflow_dispatch` only and has never run.
+bothybox.com is served by GitHub Pages, source **GitHub Actions**, from `.github/workflows/site-pages.yml`.
 
-1. GitHub repo Settings > Pages > Source: **GitHub Actions**. Custom domain: `bothybox.com` (enforce HTTPS once the
-   certificate is issued).
-2. Cloudflare DNS for `bothybox.com`, **DNS only (grey cloud)** until GitHub has issued the certificate: four `A`
-   records for the apex to `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`; optionally the
-   four matching `AAAA` records; and `www` as a `CNAME` to `yehudabriskman.github.io`. Verify the domain in GitHub
-   account settings first, so nobody else can claim it.
-3. The build writes `dist/CNAME` itself from `SITE_ORIGIN`.
-4. Run the workflow once by hand, then add a push trigger.
+- **Every release tag (`v*`) deploys the site** from that tag's tree, after `npm test` and `verify-dist.sh`. It can also
+  be run by hand (Actions > Deploy site to GitHub Pages > Run workflow, ref main). Merging to main does not deploy.
+- The `github-pages` environment (Settings > Environments) must allow both the branch `main` and the tag pattern `v*`.
+- DNS is at Cloudflare, **DNS only (grey cloud)**: four `A` records for the apex (`185.199.108.153`, `.109.153`, `.110.153`,
+  `.111.153`), the four matching `AAAA` records, and `www` as a `CNAME` to `yehudabriskman.github.io`. The domain is
+  verified in the GitHub account settings, so nobody else can claim it. The build writes `dist/CNAME` from `SITE_ORIGIN`.
+- To roll back, run the workflow by hand on the previous tag's ref.
