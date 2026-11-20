@@ -116,6 +116,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   }
 
   let dither: Dither | null = null;
+  let ditherAsked = false;
   let lens: Lens | null = null;
   function measure() {
     resetCurtain(); // a resize drops whatever the curtain held: its captured left/width would be stale
@@ -148,7 +149,20 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     beatShown = -1;
     if (on && !lens && !matchMedia('(prefers-reduced-motion: reduce)').matches) lens = setupLens(cf!, body!);
     lens?.reset();
-    if (on && !dither && !matchMedia('(prefers-reduced-motion: reduce)').matches) dither = setupDither(root);
+    // the dither band is a canvas with a 2D context: created when the browser is idle (it is only seen far down the page),
+    // not inside the mount's long task
+    if (on && !dither && !ditherAsked && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      ditherAsked = true;
+      const make = () => {
+        dither = setupDither(root);
+        dither?.measure();
+        drive();
+      };
+      const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number })
+        .requestIdleCallback;
+      if (ric) ric(make, { timeout: 1500 });
+      else window.setTimeout(make, 300);
+    }
     dither?.measure();
     if (on) {
       pinTop = STICK + Math.max(0, (avail - h * fit) / 2);

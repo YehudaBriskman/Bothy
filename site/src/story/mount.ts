@@ -155,18 +155,20 @@ export function mountStory(root: HTMLElement): void {
   measure();
   apply();
   addEventListener('scroll', onScroll, { passive: true });
-  new ResizeObserver(() => {
-    measure();
-    onScroll();
-  }).observe(root);
-  void document.fonts?.ready.then(() => {
-    measure();
-    onScroll();
-  });
-  addEventListener('load', () => {
-    measure();
-    onScroll();
-  });
+  // The first measure above is synchronous; the later triggers (the observer's first call, the fonts, the load event) all
+  // land within a few hundred ms, and each one forces a layout of the ~22k px document: coalesce them into one per frame.
+  let measureQueued = 0;
+  const measureSoon = () => {
+    if (measureQueued) return;
+    measureQueued = window.setTimeout(() => {
+      measureQueued = 0;
+      measure();
+      onScroll();
+    }, 120);
+  };
+  new ResizeObserver(measureSoon).observe(root);
+  void document.fonts?.ready.then(measureSoon);
+  addEventListener('load', measureSoon);
   // for the filmstrip and S4's checker: read, never required
   (window as unknown as { __story: unknown }).__story = { measure, apply, tops: () => tops, loaded: () => [...loaded] };
 }
