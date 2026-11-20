@@ -186,19 +186,16 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     if (out.textContent !== s) out.textContent = s;
   }
 
-  // The window rolls away with the page once the story is passed. While the player still has beats to play it is held
-  // where it was (translated back by what the page has rolled, eased in and out) and does not fade, so the visitor
-  // sees every step play out, fast, before it goes.
+  // The window rolls away with the page once the story is passed. While the player still has beats to play the visitor
+  // is held at the end of the pinned track (see the lock below), so the window never leaves its place: it finishes
+  // there, then lets go and rolls away normally.
   let gSc = 1;
   let gOut = 0;
-  let gRoll = 0;
-  let pinK = 0;
   function paintGlass() {
     if (!glass) return;
-    const d = gRoll * pinK;
-    const tf = `translateY(${d.toFixed(1)}px) scale(${gSc.toFixed(4)})`;
+    const tf = `scale(${gSc.toFixed(4)})`;
     if (glass.style.transform !== tf) glass.style.transform = tf;
-    glass.style.opacity = (1 - (gOut * (1 - pinK)) ** 1.5).toFixed(3);
+    glass.style.opacity = (1 - gOut ** 1.5).toFixed(3);
   }
   function drive() {
     if (!on) return;
@@ -211,7 +208,6 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     const sc = fit * (FROM + (1 - FROM) * rise) * (1 - 0.06 * out);
     gSc = sc;
     gOut = out;
-    gRoll = Math.max(0, scrollY + pinTop - trackTop - range);
     paintGlass();
     cf!.style.setProperty('--cf-rise', rise.toFixed(3));
     if (dither) {
@@ -238,6 +234,83 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
       }
     const su = clamp((t - edges[sb]!) / (edges[sb + 1]! - edges[sb]!));
     aim(sb, su, t);
+    enforce();
+  }
+
+  // ---- the soft lock: the visitor who scrolls past the end of the pinned track while the player is still behind is held
+  // at the track's end (the stage stays exactly where it is pinned) until the player has finished, then let go. The player
+  // runs faster meanwhile (every step still shown, in order). A hard release after LOCK_MAX, on Escape, on a jump to an
+  // anchor, or when the page is hidden, so nobody is ever trapped. Not on reduced motion, a phone or without script.
+  const LOCK_MAX = 6000;
+  const LOCK_GOAL = 4000; // the aim: the whole remaining animation within this
+  const LOCK_SPEED = 8;
+  const noMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let locked = false;
+  let lockAt = 0;
+  let lockTimer = 0;
+  let spare = false; // released early: do not catch the visitor again until they have come back above the track's end
+  const endY = () => trackTop + range - pinTop;
+  const stopKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') return unlock(true);
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if ([' ', 'PageDown', 'PageUp', 'End', 'Home', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
+      const t = e.target as HTMLElement | null;
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      e.preventDefault();
+    }
+  };
+  const stop = (e: Event) => {
+    if (e.cancelable) e.preventDefault();
+  };
+  const onClick = (e: MouseEvent) => {
+    if ((e.target as HTMLElement | null)?.closest('a[href*="#"]')) unlock(true);
+  };
+  const onHide = () => document.hidden && unlock(true);
+  function lock() {
+    if (locked) return;
+    locked = true;
+    lockAt = performance.now();
+    lockTimer = window.setTimeout(() => unlock(true), LOCK_MAX);
+    addEventListener('wheel', stop, { passive: false });
+    addEventListener('touchmove', stop, { passive: false });
+    addEventListener('keydown', stopKey);
+    addEventListener('click', onClick, true);
+    document.addEventListener('visibilitychange', onHide);
+    root.dataset.csLock = '1'; // read by the regression test
+  }
+  function unlock(early = false) {
+    if (!locked) return;
+    locked = false;
+    if (early) spare = true;
+    window.clearTimeout(lockTimer);
+    removeEventListener('wheel', stop);
+    removeEventListener('touchmove', stop);
+    removeEventListener('keydown', stopKey);
+    removeEventListener('click', onClick, true);
+    document.removeEventListener('visibilitychange', onHide);
+    delete root.dataset.csLock;
+    pump();
+  }
+  function enforce() {
+    if (!on || noMotion) return;
+    const e = endY();
+    if (scrollY < e - 1) spare = false;
+    if (!locked) {
+      if (!spare && behind() && scrollY > e + 1) lock();
+      else return;
+    }
+    if (!behind()) return unlock();
+    if (Math.abs(scrollY - e) > 0.5) scrollTo({ top: e, behavior: 'instant' });
+  }
+  /** Player time left to reach the furthest point asked for, in ms. */
+  function remaining() {
+    let r = 0;
+    for (let b = pb; b <= hb; b++) {
+      const B = BEATS[b]!;
+      const to = b === hb ? limitOf(hb, hu, true) : B.ms + HOLD;
+      r += Math.max(0, to - (b === pb ? pt : 0));
+    }
+    return r;
   }
 
   // ---- the player: one clock for the demo, started by the scroll and never stopped by it ----
@@ -292,13 +365,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
   }
   /** Is there anything left to play or to settle? */
   function wants() {
-    return (
-      behind() ||
-      aimB !== pb ||
-      pt < limitOf(pb, aimU, aimT > 0.002) - 0.5 ||
-      (aimT <= 0.002 && pt > 0) ||
-      Math.abs(pinK - (gRoll > 0 && behind() ? 1 : 0)) > 0.005
-    );
+    return behind() || aimB !== pb || pt < limitOf(pb, aimU, aimT > 0.002) - 0.5 || (aimT <= 0.002 && pt > 0) || locked;
   }
   function schedule() {
     // rAF is the clock; the timeout is a net for a page whose frames are throttled (background tab, no frame clock)
@@ -313,9 +380,7 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     const dt = Math.min(64, Math.max(0, now - last));
     last = now;
     advance(dt);
-    const pinTo = gRoll > 0 && behind() ? 1 : 0;
-    pinK += (pinTo - pinK) * Math.min(1, dt / 220);
-    if (Math.abs(pinTo - pinK) < 0.005) pinK = pinTo;
+    enforce();
     paintGlass();
     render(pb, pt / BEATS[pb]!.ms);
     if (on && wants()) schedule();
@@ -331,7 +396,13 @@ export function setupConsole(root: HTMLElement): ConsoleDriver | null {
     const docked = chase || aimT > 0.002;
     // the further behind, the faster, up to MAX_SPEED: every step still plays, in order, just quicker
     const lead = tb + tu - (pb + pt / BEATS[pb]!.ms);
-    let ms = dt * (1 + Math.min(MAX_SPEED - 1, Math.max(0, lead - 0.4) * 1.3));
+    let sp = 1 + Math.min(MAX_SPEED - 1, Math.max(0, lead - 0.4) * 1.3);
+    if (locked) {
+      // held in place: finish the rest within the goal, as fast as the cap allows
+      const left = Math.max(600, LOCK_GOAL - (performance.now() - lockAt));
+      sp = Math.max(sp, Math.min(LOCK_SPEED, remaining() / left));
+    }
+    let ms = dt * sp;
     for (let guard = 0; ms > 0 && guard < 12; guard++) {
       const B = BEATS[pb]!;
       if (tb > pb) {

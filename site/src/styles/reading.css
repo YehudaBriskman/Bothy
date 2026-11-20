@@ -35,38 +35,15 @@
   justify-items: center;
   inline-size: 100%;
 }
-.wh-code {
-  display: grid;
-  gap: clamp(1.1rem, 3.2svh, 2rem);
-  justify-items: center;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
 .wl {
   margin: 0;
-  max-inline-size: 19ch;
+  max-inline-size: 16ch;
   color: var(--text);
   font-size: clamp(2rem, 1rem + 4.4vw, 4.75rem);
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.035em;
   text-wrap: balance;
-}
-.wl-cap,
-.wl-note {
-  max-inline-size: 34ch;
-  color: var(--text-muted);
-  font-size: clamp(0.95rem, 0.85rem + 0.5vw, 1.25rem);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  line-height: 1.4;
-  text-transform: uppercase;
-}
-.wl-note {
-  letter-spacing: 0;
-  text-transform: none;
-  font-weight: 500;
 }
 .wl-link {
   font-size: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);
@@ -75,7 +52,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .js-wheel .wh-track {
-    block-size: var(--wh-len, 400svh);
+    block-size: var(--wh-len, 170svh);
   }
   .js-wheel .wh-stage {
     position: sticky;
@@ -113,7 +90,7 @@
     transform: scale(var(--s, 1));
   }
   /* the reading sweep: the part of the line already crossed is lit, the rest still dim */
-  .js-wheel .wl:not(.wl-cap, .wl-note, .wl-link) {
+  .js-wheel .wl:not(.wl-link) {
     --r: 1;
     background-image: linear-gradient(
       90deg,
@@ -125,8 +102,8 @@
     -webkit-text-fill-color: transparent;
     color: transparent;
   }
-  [dir='rtl'] .js-wheel .wl:not(.wl-cap, .wl-note, .wl-link),
-  .js-wheel[dir='rtl'] .wl:not(.wl-cap, .wl-note, .wl-link) {
+  [dir='rtl'] .js-wheel .wl:not(.wl-link),
+  .js-wheel[dir='rtl'] .wl:not(.wl-link) {
     background-image: linear-gradient(
       270deg,
       var(--text) calc(var(--r) * 100%),
