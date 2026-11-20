@@ -647,7 +647,7 @@ export const en = {
     eyebrow: 'This site',
     heading: 'Accessibility',
     lede: 'This site should work for everyone who wants to read about Bothy or install it: by keyboard, with a screen reader, zoomed in, with motion reduced, in high contrast mode and with no script at all. This page says what we aim for, what was checked, and what we know is not yet good enough.',
-    updated: 'Last reviewed: 18 November 2026.',
+    updated: 'Last reviewed: 21 November 2026.',
     sections: [
       {
         id: 'aim',
@@ -690,12 +690,14 @@ export const en = {
         id: 'report',
         heading: 'Reporting a problem',
         paras: [
-          'If something on this site is hard or impossible to use, please tell us. Open an issue on GitHub and say which page, what you were trying to do, and what you use (browser, screen reader or other tools) if you are happy to share it. We will answer there.',
+          'If something on this site is hard or impossible to use, or you need the information in another form, please tell us. You do not need a GitHub account: send a message or a public post to @yehudabriskman on X. Or open an issue on GitHub. Say which page, what you were trying to do, and what you use (browser, screen reader or other tools) if you are happy to share it.',
+          'We will reply on the channel you used, say what we can change and when, and until it is fixed we will give you the same information in another way you can use, for example as plain text.',
         ],
         items: [],
       },
     ],
     report: 'Report an accessibility problem on GitHub',
+    reportX: 'Message @yehudabriskman on X',
   },
 
   a11y: {
