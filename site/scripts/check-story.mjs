@@ -261,6 +261,68 @@ if (!process.env.ONLY || 'jump'.includes(process.env.ONLY)) {
   await b.close();
 }
 
+// Scroll restoration: the page grows once its scripts mount, so a reload mid-page (or a #fragment link) used to land in
+// the wrong place, or sweep the whole page past the visitor. It must land where the visitor was, instantly.
+if (!process.env.ONLY || 'restore'.includes(process.env.ONLY)) {
+  const b = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    headless: true,
+    args: NOGL,
+  });
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  const p = await ctx.newPage();
+  const check = (name, ok, extra = '') => {
+    if (!ok) bad++;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} restore: ${name}${extra ? ' (' + extra + ')' : ''}`);
+  };
+  await p.goto(`${base}/`, { waitUntil: 'load' });
+  await sleep(2500);
+  const asked = await p.evaluate(() => {
+    const t = document.querySelector('#install') ?? document.querySelector('[data-console-track]');
+    const y = Math.round(t.getBoundingClientRect().top + scrollY) + 100;
+    document.documentElement.style.scrollBehavior = 'auto';
+    scrollTo(0, y);
+    return y;
+  });
+  await sleep(600);
+  const ySaved = await p.evaluate(() => scrollY);
+  await p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  // sample the scroll position through the reload to see that it never sweeps
+  await p.addInitScript(() => {
+    window.__ys = [];
+    const t0 = performance.now();
+    const tick = () => {
+      window.__ys.push([Math.round(performance.now() - t0), Math.round(scrollY)]);
+      if (performance.now() - t0 < 5000) setTimeout(tick, 40);
+    };
+    tick();
+  });
+  await p.reload({ waitUntil: 'load' });
+  await sleep(5200);
+  const after = await p.evaluate(() => ({ y: scrollY, ys: window.__ys }));
+  const ys = after.ys.map((s) => s[1]);
+  const jumps = ys.filter((v, i) => i && Math.abs(v - ys[i - 1]) > 1500).length;
+  check(
+    'a reload lands where the visitor was',
+    Math.abs(after.y - ySaved) < 250,
+    `saved ${ySaved} (asked ${asked}), landed ${after.y}`,
+  );
+  check(
+    'and gets there in one move, no sweep',
+    jumps <= 1,
+    `${jumps} large jumps, y samples ${[...new Set(ys)].slice(0, 8).join(',')}`,
+  );
+  await p.goto(`${base}/#sizes`, { waitUntil: 'load' });
+  await sleep(4500);
+  const sz = await p.evaluate(() => {
+    const r = document.getElementById('sizes').getBoundingClientRect();
+    return { top: Math.round(r.top), vh: innerHeight };
+  });
+  check('/#sizes reaches its section', sz.top > -200 && sz.top < sz.vh * 0.6, `top ${sz.top} of ${sz.vh}`);
+  await ctx.close();
+  await b.close();
+}
+
 // Scrolling inside the story. A wheel, a key or a touch over the frame must just move the page, and nothing inside
 // the frame may be a scroll container (a trap would swallow the wheel). Also: the end marker the sections after the
 // story follow, and the dark variable they sit on.

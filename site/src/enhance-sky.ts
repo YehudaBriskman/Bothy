@@ -40,6 +40,9 @@ export function mountSky(section: HTMLElement): void {
       // nothing animates in the still: the controls that move things have nothing to do
       if (pause) pause.hidden = true;
     },
+    onLive: () => {
+      if (pause) pause.hidden = false;
+    },
   });
   section.classList.add('sky-on');
 
