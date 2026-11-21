@@ -205,6 +205,7 @@ for (const page of pages) {
     const ctx = await browser.newContext({
       viewport: { width: vp.width, height: vp.height },
       reducedMotion: 'reduce',
+      bypassCSP: true, // the pages carry a CSP <meta> that (rightly) refuses axe's injected inline script; verify-dist.sh holds the CSP itself
     });
     const p = await ctx.newPage();
     const errors = [];
@@ -261,7 +262,11 @@ for (const page of pages) {
   }
 
   // Reflow at 320 CSS px: nothing may scroll sideways.
-  const ctx = await browser.newContext({ viewport: { width: 320, height: 640 }, reducedMotion: 'reduce' });
+  const ctx = await browser.newContext({
+    viewport: { width: 320, height: 640 },
+    reducedMotion: 'reduce',
+    bypassCSP: true,
+  });
   const p = await ctx.newPage();
   await p.goto(base + page, { waitUntil: 'load' });
   await sleep(300);
