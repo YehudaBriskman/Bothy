@@ -432,7 +432,8 @@ export const en = {
     privacyEyebrow: 'This site',
     privacyHeading: 'Nothing about your visit leaves your browser.',
     privacyBody:
-      'The sky on the home page follows the hour on your device’s clock, worked out in your browser; with no script it is a still picture chosen by your light or dark setting. No page here makes a request to another site or sets a cookie.',
+      'No page here makes a request to another site or sets a cookie, and nothing about your visit is collected.',
+    privacyLink: 'Read the privacy notice',
   },
 
   install: {
@@ -696,6 +697,72 @@ export const en = {
       },
     ],
     report: 'Report an accessibility problem on GitHub',
+  },
+
+  privacy: {
+    title: 'Privacy',
+    description:
+      'What this website collects about your visit (nothing), what your browser keeps, and who else sees the connection: GitHub, which hosts it, and Cloudflare.',
+    eyebrow: 'This site',
+    heading: 'Privacy',
+    lede: 'This is the privacy notice for the website bothybox.com, and only for the website. It collects nothing about you, and this page says exactly what that means and who else can see your visit.',
+    updated: 'Last reviewed: 21 November 2026.',
+    sections: [
+      {
+        id: 'nothing',
+        heading: 'What this site collects',
+        paras: [
+          'Nothing. There are no accounts, no forms, no analytics, no advertising, no cookies and no scripts or fonts from other sites. Every file on a page comes from bothybox.com itself, and the build is checked for that before each release.',
+        ],
+        items: [],
+      },
+      {
+        id: 'browser',
+        heading: 'What your browser keeps',
+        paras: ['A few things stay in your own browser and are never sent anywhere:'],
+        items: [
+          'The sky on the home page follows the hour on your device’s clock. The hour is worked out in your browser and nothing about it leaves it.',
+          'The home page remembers how far you had scrolled, in the tab’s session storage, so a reload brings you back to the same place. It is one number, it is cleared when you close the tab, and it is never sent.',
+          'The search on the documentation downloads the search index once and looks in it on your device. What you type is not sent.',
+        ],
+      },
+      {
+        id: 'others',
+        heading: 'Who else sees your visit',
+        paras: [
+          'Like any website, the connection passes through the services that host it. We run neither of them and we get no visitor logs from either.',
+        ],
+        items: [
+          'GitHub (GitHub Pages) hosts the files. GitHub receives the request, which includes your IP address and your browser’s usual headers, and handles it under its own privacy statement.',
+          'Cloudflare answers the DNS lookup for bothybox.com, in DNS-only mode: it does not proxy or cache the site. Looking up a name reveals the name to the DNS resolver you use and to Cloudflare’s name servers, as it does for every site.',
+        ],
+      },
+      {
+        id: 'links',
+        heading: 'Links to other sites',
+        paras: [
+          'Links to GitHub (the source, the releases, the issue tracker) leave this site. Those pages follow their own policies. Nothing is sent to them until you follow the link.',
+        ],
+        items: [],
+      },
+      {
+        id: 'software',
+        heading: 'The software is a separate matter',
+        paras: [
+          'Bothy itself runs on your own machine. This page does not describe what it stores there; the documentation does.',
+        ],
+        items: [],
+      },
+      {
+        id: 'questions',
+        heading: 'Questions and changes',
+        paras: [
+          'If something here is wrong or unclear, open an issue on GitHub and we will answer there. When this page changes, the date above changes and the change is in the repository’s history.',
+        ],
+        items: [],
+      },
+    ],
+    report: 'Ask a privacy question on GitHub',
   },
 
   a11y: {
