@@ -34,6 +34,9 @@ export const BASE: string = normaliseBase(env.SITE_BASE ?? '/');
 /** The source repository. Documentation links that leave the site go here. */
 export const REPO_URL = 'https://github.com/YehudaBriskman/Bothy';
 export const REPO_BRANCH = 'main';
+/** The maintainer's X account, the second way to reach us: it needs no GitHub account (listed on the GitHub profile). */
+export const X_URL = 'https://x.com/yehudabriskman';
+export const X_HANDLE = '@yehudabriskman';
 export const RELEASES_URL = `${REPO_URL}/releases`;
 
 export const SITE_NAME = 'Bothy';
