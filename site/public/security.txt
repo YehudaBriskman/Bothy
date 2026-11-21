@@ -1,5 +1,5 @@
 Contact: https://github.com/YehudaBriskman/Bothy/security/advisories/new
 Expires: 2027-11-21T00:00:00.000Z
 Preferred-Languages: en
-Canonical: https://bothybox.com/.well-known/security.txt
+Canonical: https://bothybox.com/security.txt
 Policy: https://github.com/YehudaBriskman/Bothy/blob/main/SECURITY.md

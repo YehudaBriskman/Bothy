@@ -9,7 +9,7 @@ files=$(node -e "console.log(JSON.parse(require('fs').readFileSync('dist-prerend
 count=$(printf '%s\n' "$files" | grep -c . || true)
 echo "  routes: $count files"
 [ "$count" -ge 15 ] || { echo "::error::only $count routes rendered - expected the four sections and the docs"; fail=1; }
-for f in $files 404.html index.html install/index.html docs/index.html changelog/index.html search-index.json favicon.svg robots.txt site.webmanifest apple-touch-icon.png og/home.jpg; do
+for f in $files 404.html index.html install/index.html docs/index.html changelog/index.html search-index.json favicon.svg robots.txt site.webmanifest apple-touch-icon.png og/home.jpg security.txt; do
   [ -s "dist/$f" ] || { echo "::error::dist/$f is missing or empty"; fail=1; }
 done
 
