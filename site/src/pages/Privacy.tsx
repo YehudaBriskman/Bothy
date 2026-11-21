@@ -1,6 +1,6 @@
 import { Icon } from '../components/Icons.tsx';
 import { Layout } from '../components/Layout.tsx';
-import { REPO_URL } from '../config.ts';
+import { REPO_URL, X_URL } from '../config.ts';
 import type { PageContext } from '../page-context.ts';
 
 /**
@@ -34,6 +34,11 @@ export function Privacy({ ctx }: { ctx: PageContext }) {
               ) : null}
             </section>
           ))}
+          <p>
+            <a className="card-link" href={X_URL} rel="noopener">
+              {a.reportX} <Icon name="external" size={16} className="arrow" />
+            </a>
+          </p>
           <p>
             <a className="card-link" href={`${REPO_URL}/issues/new`} rel="noopener">
               {a.report} <Icon name="external" size={16} className="arrow" />

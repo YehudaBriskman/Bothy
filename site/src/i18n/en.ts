@@ -759,12 +759,13 @@ export const en = {
         id: 'questions',
         heading: 'Questions and changes',
         paras: [
-          'If something here is wrong or unclear, open an issue on GitHub and we will answer there. When this page changes, the date above changes and the change is in the repository’s history.',
+          'If something here is wrong or unclear, or you want to ask about your own data, send a message or a public post to @yehudabriskman on X, or open an issue on GitHub, and we will answer on the same channel. When this page changes, the date above changes and the change is in the repository’s history.',
         ],
         items: [],
       },
     ],
     report: 'Ask a privacy question on GitHub',
+    reportX: 'Message @yehudabriskman on X',
   },
 
   a11y: {
